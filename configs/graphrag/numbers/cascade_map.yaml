@@ -249,6 +249,184 @@ refs:
       from cascade.PACE_TABLES (its ONI sibling is present), so this ref serves era + current rhyme legs
       only. That is a code file this wave does not own -- adding it there is a separate, deliberate change.
 
+  # ── PSD ATTRIBUTE AXIS (silver_psd_attributes, vintage, marketing-year) — Lane 3 L2-5, flipped
+  # 2026-08-26 with the whitelist. THE LONG COMPANION, not a second silver_psd. Values are in USDA's
+  # NATIVE unit and are NOT converted: every row below is published in (1000 MT), so scale is 0.001
+  # to narrate MMT — the wide PSD rows' 0.000001 is for RAW MT and the two must never be copied
+  # across. Metric = the attribute label USDA itself prints, byte-exact from
+  # data/dec_p0/psd_attribute_census.json (release_date=2026-08-13); the card declares these same
+  # strings and tests/unit/test_psd_attribute_axis.py pins both rosters. EACH ROW IS INERT UNTIL A
+  # DAG NODE CARRIES ITS REF — the re-keys are named in every `notes` block and live in
+  # configs/graphrag/causal/*.yaml.
+  psd_crush:
+    table: silver_psd_attributes
+    metric: Crush
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    global_token: skip             # country_rule absent -> primary; the crush drivers carry no region token
+    keying: "commodity=contract slug; country=contract primary"
+    native_unit: "1000 MT"
+    narrate_unit: MMT
+    scale: 0.001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      The crush VOLUME — tonnage actually processed — on the oilseed/meal/oil sheets only (21 mapped
+      commodity codes, 159 countries, MY1960-2026). NEVER a margin: gold_board_crush is the soy margin in
+      $/bu and crush_margin_z stays DARK by design (C19). There is no cane crush and no corn grind on this
+      line. DAG RE-KEY THAT LIGHTS IT: domestic_crush_demand (canola_ice), eu_crush_demand
+      (french_rapeseed_matif), rapeseed_crush_demand (rapeseed_meal_zce) move off crush_margin_z;
+      Argentina_crush_capacity (soybean_meal_cbot) moves off `export`, which answers a CAPACITY driver
+      with an export tonnage today. D-10 RECORD (flip census 2026-08-26): that leg FIRES with the
+      contract PRIMARY's (US) crush while its subject is Argentina — the primary-ruled mis-scope
+      class, a CONTINUATION (it was primary-scoped on `export` too; the metric improved, the scoping
+      did not). It joins the D-10 register rather than a rushed re-fence: country_rule: region here
+      would break the sibling crush legs ('China (Guangxi/coastal)' resolves nowhere), so the remedy
+      is D-10's own per-leg scope mechanism, at that sitting. The margin-named ids and oil_share STAY
+      on crush_margin_z and stay dark. USDA prints the crush line on a complex's oilseed AND meal AND
+      oil sheets: never sum a complex's slugs. Whether the three carry identical values is UNMEASURED
+      — probe before any leg reads two of them.
+  psd_feed_use:
+    table: silver_psd_attributes
+    metric: Feed Dom. Consumption
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    global_token: skip
+    keying: "commodity=contract slug; country=contract primary (mirrors the `consumption` row it sharpens)"
+    native_unit: "1000 MT"
+    narrate_unit: MMT
+    scale: 0.001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      GRAIN SHEETS ONLY — barley, corn, millet, mixed grain, oats, rye, sorghum, wheat (8 codes, 158
+      countries). The feed half of the grain demand split, replacing an undifferentiated consumption_mt
+      for the drivers that actually mean feed. DAG RE-KEY: feed_demand (barley, corn, corn_cbot,
+      french_maize_matif, sorghum, south_african_yellow_maize_jse), domestic_feed_demand and
+      feed_demand_china (campinas_corn_reference_bmf) move off `consumption`. A MEAL-sheet feed driver
+      must NOT ride this row — the meal sheets carry no Feed Dom. Consumption at all; they take
+      psd_meal_feed_waste_use below. That split is USDA's, not ours.
+  psd_fsi_use:
+    table: silver_psd_attributes
+    metric: FSI Consumption
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    global_token: skip
+    keying: "commodity=contract slug; country=contract primary"
+    native_unit: "1000 MT"
+    narrate_unit: MMT
+    scale: 0.001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      GRAIN SHEETS ONLY (the same 8 codes as psd_feed_use). Food, seed and industrial use as ONE combined
+      figure — corn-for-ethanol is INSIDE it and is NOT separable, so this line is never narrated as the
+      ethanol grind. Feed and FSI partition grain domestic use between them and must never be added to
+      the oilseed sheets' three-way split. DAG RE-KEY: ethanol_demand (corn, corn_cbot) and
+      ethanol_demand_BR (campinas_corn_reference_bmf) move off `consumption` — a strictly closer read than
+      total domestic consumption, and honest only while the card's metric LABEL says "food, seed and
+      industrial use". RFS/rfs_flag STAYS DARK: a policy mandate is not a use line.
+  psd_meal_feed_waste_use:
+    table: silver_psd_attributes
+    metric: Feed Waste Dom. Cons.
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    global_token: skip
+    keying: "commodity=contract slug; country=contract primary"
+    native_unit: "1000 MT"
+    narrate_unit: MMT
+    scale: 0.001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      OILSEED / MEAL / OIL SHEETS ONLY (24 codes, 168 countries). Feed and waste as one line — the meal
+      sheets' feed read, and the reason a single "feed" ref cannot serve both sheet families. DAG RE-KEY:
+      soybean_meal_feed_demand (soybean_meal_cbot), hog_herd_demand (rapeseed_meal_zce) and
+      china_feed_protein_destocking (rapeseed_meal_zce) move off `consumption`. rapemeal_feed_demand_z and
+      rapemeal_demand_z STAY DARK: their contracts are the OILSEED and OIL slugs, not the meal, and
+      commodity_aliases must not be used to manufacture a cross-product read.
+  psd_food_use:
+    table: silver_psd_attributes
+    metric: Food Use Dom. Cons.
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    global_token: skip
+    keying: "commodity=contract slug; country=contract primary"
+    native_unit: "1000 MT"
+    narrate_unit: MMT
+    scale: 0.001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      OILSEED / MEAL / OIL SHEETS ONLY (24 codes, 168 countries). The FOOD half of vegetable-oil demand,
+      separable at last from the INDUSTRIAL half (psd_industrial_use) that biodiesel policy moves. DAG
+      RE-KEY: china_oil_demand (rapeseed_oil_zce), China_food_demand (palm_olein_dce),
+      China_food_use_demand (soybeans_no_1_dce) move off `consumption`. Never added to
+      psd_meal_feed_waste_use or psd_industrial_use — the three are USDA's own partition of the same
+      domestic-use total, so summing them re-derives a number the sheet already prints.
+  psd_industrial_use:
+    table: silver_psd_attributes
+    metric: Industrial Dom. Cons.
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    global_token: skip
+    keying: "commodity=contract slug; country=contract primary"
+    native_unit: "1000 MT"
+    narrate_unit: MMT
+    scale: 0.001
+    coverage_start: 1961
+    status: mapped
+    notes: >
+      OIL AND MEAL SHEETS ONLY (17 codes, 164 countries, MY1961-2026 — one year SHORTER than its
+      siblings). The industrial/oleochemical/biodiesel-feedstock half of vegetable-oil demand. This is
+      the closest observed line to a biodiesel-mandate effect, and it is a USE tonnage, not a mandate:
+      biodiesel_mandate_flag (14 instances) stays a qualitative flag and is NOT re-keyed here.
+  psd_ty_export:
+    table: silver_psd_attributes
+    metric: TY Exports
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    country_rule: region
+    deferred: true                 # NO DAG node carries this ref today -- lands with the export-pace
+    #                                DAG work, not before; until then a live row is dead config.
+    keying: "commodity=contract slug; country=driver region via region_map (Title-Case for PSD)"
+    native_unit: "1000 MT"
+    narrate_unit: MMT
+    scale: 0.001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      NINE GRAIN SHEETS ONLY — barley, corn, millet, mixed grain, oats, MILLED RICE, rye, sorghum, wheat
+      (163 countries). THE TRADE YEAR IS NOT THE MARKETING YEAR: this is the basis on which a weekly ESR
+      or FGIS count reconciles with the annual balance sheet, and a TY figure must never be netted against
+      the `export` row's MY tonnage in the same line.
+  psd_ty_import_from_us:
+    table: silver_psd_attributes
+    metric: TY Imp. from U.S.
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    country_rule: region
+    deferred: true                 # NO DAG node carries this ref today (see psd_ty_export).
+    keying: "commodity=contract slug; country=IMPORTING region via region_map"
+    native_unit: "1000 MT"
+    narrate_unit: MMT
+    scale: 0.001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      The same nine grain sheets: each destination's imports FROM THE UNITED STATES, back to 1960 — the
+      US SHARE of that destination's imports, which is the ESR-destination read on an annual basis and
+      the estate's only pre-1989 version of it. The country is the IMPORTER, never the US; a row scoped
+      to 'United States' here would be meaningless.
+
   # ── DEFERRED (uncertified/empty at the 2026-06-24 certification; un-defer gate = a live W0 probe) ──
   esr_exports:
     table: silver_esr

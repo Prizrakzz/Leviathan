@@ -127,17 +127,22 @@ tables:
     # grain; and the one card that puts its vintage axis in grain_cols
     # (silver_wap_table01_revisions) does so because the revision SERIES is its subject, guarded by
     # row_filters + vintage_tiebreak this card does not carry.
-    # COVERAGE (PA-1, projection wave Lane 3, 2026-08-25). row_count is the SERVED subset -- the
-    # declared metrics roster below, which is also exactly what the pg mirror admits: 1,033,407
-    # rows after R4's attribute-aware fan-out, of which the ranked T1 payload (Crush + the demand
-    # decomposition + the TY trio) is 742,057, the L2-0 census's D-6 admission figure. The WHOLE
-    # produced object is 3,264,235 long rows (0 grain dupes, 63 slugs, 56 attribute labels, 214
-    # countries), MEASURED on a full-object run of the producer over the 2026-08-13 bulk release.
-    # NO last_obs: the bulk file is cumulative and re-fires on days 8-13 of every month, so the
-    # front moves; first_obs is the table-wide floor and the PER-ATTRIBUTE onsets differ
-    # (Industrial Dom. Cons. from MY1961, Fresh Dom. Consumption and Cows In Milk from MY1964) --
-    # see notes.
-    row_count: 1033407
+    # COVERAGE (PA-1, projection wave Lane 3; RE-MEASURED 2026-08-26 on the FIRST CANONICAL OBJECT,
+    # the apply-then-refresh law). row_count is the SERVED subset -- the declared metrics roster
+    # below, which is also exactly what the pg mirror admits: 1,079,487 rows on the canonical
+    # publish (3,397,958 physical rows / 0 grain dupes / 63 slugs / 56 labels / 810 releases,
+    # certified manifest silver_psd_attributes-1787727710260). TWO PROVENANCES, BOTH REAL: the L2-0
+    # census (data/dec_p0/psd_attribute_census.json, single 2026-08-13 bulk object) measured the
+    # same roster at 1,033,407 with T1 = 742,057 (the D-6 admission figure); the canonical object
+    # runs ~4.3% higher because the producer consumed every DISTINCT vendor snapshot in bronze
+    # (raw-ETag dedup kept 3-4), so vintages that survive only in older or newer snapshots are
+    # preserved -- more history, same grain, zero dupes. The per-metric row figures in the descs
+    # below stay CENSUS-pinned (that is the artifact a reader can re-derive them from); this field
+    # is the live serving figure. NO last_obs: the bulk file is cumulative and re-fires on days
+    # 8-13 of every month, so the front moves; first_obs is the table-wide floor and the
+    # PER-ATTRIBUTE onsets differ (Industrial Dom. Cons. from MY1961, Fresh Dom. Consumption and
+    # Cows In Milk from MY1964) -- see notes.
+    row_count: 1079487
     first_obs: "1960"
     cadence: annual
     shape: tall
