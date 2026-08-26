@@ -189,6 +189,27 @@ def test_the_livestock_admissions_are_the_only_new_keys(item_map):
     }
 
 
+def test_the_crop_card_commodity_values_are_the_maps_crop_half_both_directions(item_map):
+    """FAO-5's non-vacuity pin (CLAUSE 4): the silver_production card's commodity_values must be
+    EXACTLY the item map's crop half -- the map minus the four livestock slugs (which belong to
+    the fenced silver_production_livestock card). A slug in the map but off the card is served
+    silver a card fence refuses; a slug on the card but off the map is an advertisement for rows
+    that cannot exist. This is also the projection-enum roster (the Lane-4 ALTER), so all three
+    surfaces -- map, card, enum -- are one universe or this reds."""
+    import yaml as _yaml
+    card = _yaml.safe_load(
+        (_REPO / "configs/graphrag/numbers/tables.yaml").read_text(encoding="utf-8")
+    )["tables"]["silver_production"]
+    crop_half = set(item_map) - set(FAO2_ADDITIONS)
+    assert set(card["commodity_values"]) == crop_half, {
+        "on_card_not_in_map": sorted(set(card["commodity_values"]) - crop_half),
+        "in_map_not_on_card": sorted(crop_half - set(card["commodity_values"]))}
+    livestock_card = _yaml.safe_load(
+        (_REPO / "configs/graphrag/numbers/tables.yaml").read_text(encoding="utf-8")
+    )["tables"]["silver_production_livestock"]
+    assert set(livestock_card["commodity_values"]) == set(FAO2_ADDITIONS)
+
+
 def test_the_livestock_slugs_have_a_home_and_dairy_is_deliberately_not_one(item_map):
     """THE NODE TEST, run item by item -- the FAO-1 law, and the reason `dairy` is NOT a key here.
 
