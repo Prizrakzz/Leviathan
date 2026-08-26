@@ -24,6 +24,20 @@ tmp/
 *.log
 *.tmp
 
+# Agent worktrees + local tool state -- NEVER context. Measured 2026-08-26: 20 full repo checkouts
+# under .claude/worktrees (each with its own un-ignored data/ copy -- the root `data/` pattern
+# matches only the root) stalled the embedder build's context walk for 25 minutes at ~0 CPU.
+# The Dockerfile COPYs only pyproject.toml + src/ + jobs/ + configs/ + scripts/ + sql/.
+.claude/
+.tmp/
+.playwright-mcp/
+.kiro/
+cursor/
+docs/
+dist/
+build/
+reports/
+
 # Test and analysis-only files are not copied by the Dockerfiles.
 tests/
 notebooks/
