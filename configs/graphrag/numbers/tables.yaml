@@ -393,14 +393,40 @@ tables:
 
   silver_production:
     description: >
-      Curated annual production statistics (FAOSTAT-style) by country and commodity. Tall format: metric names
-      live in `metric`, values in `value`. Observational/annual — stamped with an ingest_date (no revision
-      vintage), so as-of = rows ingested on or before the date.
+      FAOSTAT annual CROP production statistics by country and commodity -- production, harvested
+      area and yield, 1961-2024, for 43 commodity slugs including the World row and the continental
+      aggregates (FAO-3's ladder). Tall format: metric names live in `metric`, values in `value`.
+      Observational/annual — stamped with an ingest_date (no revision vintage), so as-of = rows
+      ingested on or before the date.
     grain: "one row per commodity x country x year x metric"
-    # COVERAGE (PA-1, hoisted from this card's own measured text): annual, ingest-stamped; no census stated
+    # COVERAGE (PA-1, FAO-5: MEASURED on the LIVE object AFTER the 2026-08-26 Lane-4 rewrite --
+    # the full-table repair that landed the F022 canonical writer's first output, fixed is_official
+    # on every row (595,898 official under the release's own legend, was 9.31% under the inverted
+    # pre-2022 scheme), and admitted the twelve FAO-1 commodities): 862,153 rows / 43 slugs /
+    # 1961-2024 / 3 metrics (production_quantity 333,585, area_harvested 271,889, yield 256,679).
+    # last_obs moves at each annual QCL release WITH the projection year.range -- the annual-release
+    # runbook owns both; a range or last_obs that lags the data silently truncates the newest year.
+    row_count: 862153
+    first_obs: "1961"
+    last_obs: "2024"
     cadence: annual
     shape: tall
     commodity_col: commodity
+    # FAO-5: GENERATED from configs/sources/faostat_item_map.yaml's CROP half (the map minus the
+    # four livestock slugs, which belong to the fenced silver_production_livestock card below) --
+    # exactly the live projection enum, pinned both directions by test. Without this fence a
+    # `sorghum` ask pre-FAO-1 compiled SQL and returned a silent 0-row.
+    commodity_values: [cocoa, corn_cbot, campinas_corn_reference_bmf, french_wheat_matif,
+                       french_maize_matif, hard_red_winter_wheat_kcbt, hard_red_spring_wheat_mgex,
+                       soft_red_winter_wheat_cbot, rough_rice_cbot, south_african_white_maize_jse,
+                       south_african_yellow_maize_jse, soybeans_cbot, soybean_meal_cbot,
+                       soybean_oil_cbot, soybeans_no_1_dce, soybeans_no_2_dce, soybean_meal_dce,
+                       soybean_oil_dce, french_rapeseed_matif, canola_ice, rapeseed_oil_zce,
+                       rapeseed_meal_zce, malaysian_crude_palm_oil_cme, palm_olein_dce,
+                       brazilian_arabica_coffee, arabica_coffee, robusta_coffee, cotton, raw_sugar,
+                       white_sugar, frozen_orange_juice, sorghum, peanut, barley, millet, oats,
+                       sunflower, rye, cottonseed_oil, cottonseed, sunflower_oil, palm_kernel_oil,
+                       palm_kernel]
     country_col: country                      # FAO-3: holds FAOSTAT's RAW M49 DISPLAY STRING ('United States of
     #                                           America', 'Viet Nam', "Côte d'Ivoire", 'China, mainland'), so a
     #                                           country='United States' ask emitted a plain equality that matched
@@ -425,10 +451,122 @@ tables:
       # physical vocabulary is production_quantity/area_harvested/yield (footer-probed 2026-07-15);
       # the old declared name 'production' was a zero-row phantom -- the pg loader's isin filter
       # never even mirrored those rows (C002-caught at the first live Branch-A gate fire).
-      production_quantity: {label: "production", desc: "production quantity"}
-      area_harvested:      {label: "area harvested", desc: "harvested area"}
-      yield:               {label: "yield", desc: "yield"}
-    notes: "metric strings match the dataset's metric labels. period = year integer."
+      # FAO-5 per-metric units, measured (the whole file prints exactly t / ha / kg/ha for the crop
+      # elements). yield is kg/ha where silver_psd's yield_mt_ha is MT/ha -- a 1000x collision on
+      # the exact question that touches both cards; the unit fields are what let a seat choose
+      # with its eyes open.
+      production_quantity: {label: "production", unit: "t", desc: "production quantity, metric tonnes"}
+      area_harvested:      {label: "area harvested", unit: "ha", desc: "harvested area, hectares"}
+      yield:               {label: "yield", unit: "kg/ha", desc: "yield in KILOGRAMS per hectare -- silver_psd's yield_mt_ha is TONNES per hectare, a 1000x difference; never compare the two without converting"}
+    notes: >
+      metric strings match the dataset's metric labels. period = year integer.
+      THE FAN-OUT (FAO-5): 43 slugs map onto 25 distinct FAOSTAT items -- Maize serves five slugs,
+      Soya beans five, Wheat four, Coffee green three, Rape or colza seed three, and the sugar/oil
+      pairs two each -- so one item's number is IDENTICAL under every slug it serves, and summing
+      across slugs double-counts. THE WORLD ROW IS REAL AND SO IS THE AGGREGATE LADDER: 'World',
+      the continents and their sub-regions, 'European Union (27)' and the five country groups sit
+      in the SAME country column as their members (FAO-3's faostat_areas.yaml declares them) --
+      never sum an aggregate with the countries inside it. is_official tracks the release's OWN
+      flag legend since the 2026-08-26 rewrite (A=official; E estimated, I imputed, X
+      international-org, M cannot-exist with a NULL value). Coverage is not uniform across slugs:
+      the processed items (the oil/meal legs) carry Production ONLY and stop at 2023, while the
+      seven primary crop items carry all three metrics to 2024.
+
+  # ── FAO-2 (PROJECTION WAVE Lane 5): THE SECOND CARD ON THE SAME PHYSICAL TABLE ──────────────────
+  # `athena_table: silver_production` -- one Glue object, two cards, the silver_esr ->
+  # silver_esr_compact redirect used for a purpose it had not served before. It is a SECOND CARD and
+  # not a widening of the card above because `commodity_values` and per-metric `unit` are per-CARD
+  # CLOSED SETS: merged, a `cattle_beef` + `area_harvested` ask would compile SQL and return a silent
+  # 0 rows (the exact defect FAO-5's commodity fence exists to close), and `yield [kg/ha]` would sit
+  # on the same card as `yield_per_animal [kg/An]`.
+  #
+  # WHITELIST-ABSENT ON ARRIVAL (registry.WHITELIST_ABSENT_DEFAULT, the Lane-3 arm-vs-flip doctrine).
+  # The item map is widened and the transforms map the five livestock elements, but THE LIVESTOCK
+  # ROWS DO NOT EXIST YET -- silver_production's live objects hold only the crop metrics -- and a
+  # served card would answer every herd question with 0 rows, which reads as "no cattle" rather than
+  # "not published". The PA-1 coverage fields are therefore ABSENT, not estimated: `_table_card`
+  # renders no coverage line at all when none is set, and an absent census is SILENCE. Measure
+  # row_count / first_obs on the produced objects in the flip change.
+  silver_production_livestock:
+    athena_table: silver_production            # ONE physical table, TWO cards (see the block above)
+    description: >
+      FAOSTAT annual LIVESTOCK statistics by country — herd and flock SIZE, the milking herd, and
+      output per animal. This is the estate's ONLY source of herd dynamics: silver_psd carries
+      cattle_beef / hogs / broilers_poultry as balance sheets in metric TONNES and publishes no
+      animal count at all (it refuses the two USDA animal-numbers codes by name, for want of a
+      head-count home). Tall format on the silver_production physical table: metric names live in
+      `metric`, values in `value`, and THE ROW'S OWN `unit` COLUMN IS AUTHORITATIVE — this card
+      carries head counts, tonnes and per-animal rates side by side on purpose.
+      Observational/annual — stamped with an ingest_date (no revision vintage), so as-of = rows
+      ingested on or before the date.
+    grain: "one row per commodity x country x year x metric"
+    # COVERAGE (PA-1): DELIBERATELY ABSENT until the livestock backfill has run. Measure row_count
+    # and first_obs on the produced objects in the flip change, never from the source ZIP.
+    cadence: annual
+    shape: tall
+    commodity_col: commodity
+    country_col: country                      # FAO-3: FAOSTAT's RAW M49 DISPLAY STRINGS, resolved
+    country_name_ref: numbers/faostat_areas.yaml   #      through the shared area reference
+    country_axis_is_destination: false        # FREE geography axis: the reporting country IS the fact
+    period_col: year
+    period_type: year
+    period_sql_type: int
+    knowledge_date_col: ingest_date
+    knowledge_semantics: ingest
+    metric_col: metric
+    value_col: value
+    unit_col: unit
+    # The LIVESTOCK half of configs/sources/faostat_item_map.yaml, disjoint from the crop card's set
+    # and together with it exactly the map (pinned both directions).
+    commodity_values: [cattle_beef, hogs, broilers_poultry, milk_fluid]
+    metrics:
+      live_animals:
+        label: "live animals"
+        desc: "head of live animals held, at the reference date — HERD/FLOCK SIZE, never a tonnage.
+          NO CARD-LEVEL UNIT ON PURPOSE: it is `An` (head) for cattle_beef and hogs and `1000 An`
+          (thousand head) for broilers_poultry, so a unit here would render verbatim onto every
+          citation and be wrong for one of the three. Read the row's `unit`."
+      milk_animals:
+        unit: "An"
+        label: "milk animals"
+        desc: "head of animals milked — the MILKING HERD, the denominator of yield_per_animal"
+      production_quantity:
+        unit: "t"
+        label: "production"
+        desc: "raw milk produced, metric tonnes. The one tonnage on this card"
+      yield_per_animal:
+        unit: "kg/An"
+        label: "yield per animal"
+        desc: "kilogrammes of milk per milk animal per year — a RATE, never a tonnage"
+    notes: >
+      THE ROW'S `unit` COLUMN IS AUTHORITATIVE AND THIS CARD CANNOT BE READ WITHOUT IT. Head counts,
+      tonnes and per-animal rates share one physical table here. A HEAD COUNT MUST NEVER BE SUMMED
+      WITH A TONNAGE, and yield_per_animal is kg of milk per animal — never narrate it as a tonnage
+      or a national total.
+      THE 1000x TRAP, MEASURED AND THE FIRST THING TO CHECK ON ANY CROSS-SLUG READ. live_animals is
+      `An` (head) for cattle_beef and hogs but `1000 An` (thousand head) for broilers_poultry. The
+      raw numbers are three orders of magnitude apart for that reason alone: comparing, ranking or
+      summing them without reading each row's unit is wrong by exactly 1000x. Always pass a
+      commodity with live_animals, and state the unit in the answer.
+      cattle_beef / hogs / broilers_poultry HERE ARE ANIMALS, NOT MEAT. silver_psd serves the beef,
+      pork and poultry BALANCE SHEETS on those same three slugs in metric tonnes. The two surfaces
+      are complementary and must never be mixed in one figure: this card answers "how many animals",
+      silver_psd answers "how much meat". milk_fluid is FAOSTAT's `Raw milk of cattle`, farm-gate
+      fluid milk — the PSD 223000 product grain, NOT the `dairy` family gloss, which also covers
+      butter, cheese and two milk powders.
+      TWO ELEMENTS THE TRANSFORM MAPS AND THIS CARD DOES NOT SERVE, and neither is a gap in the data.
+      `animals_producing_or_slaughtered` (313,081 source rows across THIRTY-NINE items — every
+      species' meat, offal, hides and fat items, of which the three flagship meat items carry 13%)
+      and `laying_birds` (30,823, the egg items) are carried only by items the map parks in
+      writing — the meat/offal/hides axis for want of slugs (one item per slug, and the
+      live-animal items hold the three that could carry them), the egg item because its
+      Production element prints two units on one key. Declaring them here would
+      be a metric that returns zero rows and reads as "not published". The slaughter axis is
+      unserved; say so rather than answering it from the herd.
+      GEOGRAPHY: the `country` axis is FAOSTAT's raw M49 display strings resolved through
+      numbers/faostat_areas.yaml, and the aggregate ladder (World, the continents, European Union
+      (27), the LDC/LLDC/SIDS/LIFDC/NFIDC groups) sits in the same column as its members — never sum
+      an aggregate with the countries inside it.
 
   # SILVER-F047 QUARANTINE (corrected 2026-07-21 -- the earlier claim of a BF-W1 "numbers dispatch
   # quarantine guard" described code that never existed; pydantic silently dropped this key until the
