@@ -23,10 +23,46 @@ _CFG = _REPO / "configs" / "graphrag"
 _DDL = _REPO / "sql" / "athena" / "ddl"
 
 # PRICE_OBSERVABILITY W0.2: tables-of-interest for the register fence lint. These live HERE (no registry-schema
-# creep). PRICE_TABLES/POSITIONING_TABLES must never feed an engine (R4/R9). silver_wasde is NOT a price table --
-# it carries fundamentals cascade legitimately consumes; the avg_farm_price price-leg is a section-6 follow-on,
-# fenced at the metric level, not here.
+# creep). PRICE_TABLES/POSITIONING_TABLES are the FENCED tables (R4/R9) -- neither may feed an ENGINE lane, and
+# each admits exactly one narrow, written CONTEXT lane (R9's positioning context leg since D1; R4's
+# price_context leg since the amendment below). silver_wasde is NOT a price table -- it carries fundamentals
+# cascade legitimately consumes; the avg_farm_price price-leg is a section-6 follow-on, fenced at the metric
+# level, not here. PRICE_TABLES stays a CLASSIFICATION ("this table's served value is a price") and is read as
+# one by three other consumers (test_question_shapes, test_futures_front_expiry, check_question_shapes) -- the
+# amendment adds a register beside it and never edits its membership.
 PRICE_TABLES = ("silver_pink_sheet",)
+# -- THE PRICE_CONTEXT AMENDMENT (owner adjudication 2026-08-26) --------------------------------------------
+# R4 evolves from a blanket engine ban into a CONTEXT/ENGINE SPLIT, the same shape D1 gave R9. The governing
+# text is docs/private/PRICE_DOCTRINE_AND_DARK_DATA_WAVE_PLAN.md:41-43 ("Option C is UNSAFE AS WRITTEN ... the
+# correct form is a D1-style price_context amendment, never a lint lift") and the archaeology's prescription at
+# docs/private/recon/r4-price-fence-archaeology.md:277-303. Both OVERRIDE the original :103-108 "lift R4
+# narrowly" text, which the same plan overturns in its own amendment section.
+#
+# THIS REGISTER IS THE MEMBERSHIP HALF: which of silver_pink_sheet's 76 metrics may ever sit on a cascade_map
+# row. 20 of 76, and every exclusion is written down rather than left to silence:
+#   * ADMITTED -- the 9 INPUT-COST levels (fertilizer + energy: what a crop costs to grow, never what it
+#     fetches) plus fish_meal_usd_t, a ration INPUT price to three meal boards and not a benchmark for any
+#     tradeable contract. Plus their 10 `_zscore_5yr` twins, because the card's own doctrine (tables.yaml
+#     :2081-2085) makes the stretch measure a SECOND METRIC rather than a calculation: a level and its twin
+#     move together or a leg reads one without the other.
+#   * FENCED PERMANENTLY -- the 16 ESTATE-TARGET benchmarks (+16 twins: soybeans/meal/oil, maize, both US
+#     wheats, Thai rice, world/EU/US sugar, both coffees, cocoa, cotton A-Index, CPO, rapeseed oil). SELF-
+#     REFERENCE is the reason: each is the world cash price of a commodity the estate quotes a board for, so
+#     an engine leg on one answers a price question about the very contract the cascade is explaining. That
+#     is the set cascade_map.yaml means by "lifting R4 admits every World Bank benchmark to the engine at
+#     once", and it carries the PIT objection (C-2) at its sharpest -- a retroactively revised benchmark is a
+#     revised answer to a price question.
+#   * OUT UNTIL THEIR OWN SITTING NAMES THEM -- the rest of the neither-class. beef_usd_t and chicken_usd_t are
+#     DEMAND-SIDE OUTPUT prices by the card's own words (tables.yaml:2044-2045), which is the opposite of an
+#     input cost, so they belong with the fenced set despite having no contract; copper_usd_mt carries an
+#     explicit written prohibition ("NEVER an agricultural price signal"); orange_usd_t has the card's own
+#     input-cost claim and is the strongest future candidate; the remaining substitutes/context oils and the
+#     two WB-DISCONTINUED grains (barley, sorghum -- agg=latest returns a 2020 number) have no driver asking
+#     for them. Silence is not admission: a metric enters this tuple in the sitting that decides it.
+# THE SET ITSELF lives in cascade.PRICE_CONTEXT_METRICS (one object for lint and runtime -- see the
+# shared-shape note above `price_context_violations`'s import seam below); this block stays the
+# register's DOCTRINE RECORD, beside R4 where the adjudication belongs. Importable from this module
+# via the module __getattr__ at the bottom of this file.
 # OUTCOMES_JOIN D-OJ-18 (2026-08-01): `gold_cot_outcomes` -- the J6 COT-keyed outcome card -- is fenced
 # from the day the lane exists, not from the day its rows do. This edit is ATOMIC with the same id
 # joining `cascade.POSITIONING_TABLES`: the drift pin in `_check_positioning_lane` fails the build if
@@ -1069,13 +1105,39 @@ def _check_outlook_fence() -> list[str]:
     return errs
 
 
-def _check_no_engine_ref(cmap, tables, rule: str, label: str) -> list[str]:
-    """R4/R9: no cascade_map ref may point at a fenced table. complex_map sides carry cascade refs (side.ref),
-    so they inherit this check for free -- a price/positioning leg can never resolve through the engine map."""
+# THE SHARED SHAPE RULE (review integration, 2026-08-26): `price_context_violations` and the
+# PRICE_CONTEXT_METRICS register LIVE IN cascade.py beside `positioning_context_violations`,
+# because the archaeology's prescription is a shape rule "SHARED BY LINT AND RUNTIME" and cascade
+# cannot import this module (cycle) -- the R9 arrangement, verbatim. quantify()'s belt reads the
+# SAME function and the SAME register this lint reads, so a hand-edited or monkeypatched map
+# cannot widen the door past the build. The first cut defined the rule HERE, lint-only, with four
+# terms; the review refuted both choices (the runtime half defends the gitignored-map-baked-into-
+# images path, and the missing period_type/agg terms failed OPEN on a marketing-year fork window
+# and an agg=mean collapse). Six terms now, in cascade. Both names stay importable FROM this
+# module (the module __getattr__ below, PEP 562) so R4's consumers keep one doctrine home; the
+# import is lazy because this module's whole import graph is deliberately lazy (cycle-sensitive).
+
+
+def _check_no_engine_ref(cmap, tables, rule: str, label: str, allow=None) -> list[str]:
+    """R4/R9/F047: no cascade_map ref may point at a fenced table. complex_map sides carry cascade refs
+    (side.ref), so they inherit this check for free -- a price/positioning leg can never resolve through the
+    engine map.
+
+    `allow` (default None = the ORIGINAL blanket ban, byte-identical for every caller that omits it) is a
+    context-lane validator: `row -> list[str]` of the reasons the row is not the admitted context shape. An
+    empty list admits the row; a non-empty one fails the build naming each reason. Defaulting to None is
+    load-bearing -- `check_quarantine` shares this helper for F047, where there is no context lane at all and
+    the ban must stay absolute."""
     errs: list[str] = []
     for ref, row in (cmap or {}).items():
         if (row or {}).get("table") in tables:
-            errs.append(f"{rule} cascade_map {ref!r}: {label} table {row.get('table')!r} must never feed an engine")
+            if allow is None:
+                errs.append(
+                    f"{rule} cascade_map {ref!r}: {label} table {row.get('table')!r} must never feed an engine")
+                continue
+            for why in allow(row or {}):
+                errs.append(f"{rule} cascade_map {ref!r}: {label} table {row.get('table')!r} is admitted "
+                            f"ONLY as the narrow context leg -- {why}")
     return errs
 
 
@@ -1129,10 +1191,53 @@ def _check_decline_no_dead_metric() -> list[str]:
     return errs
 
 
+def _check_price_context_lane() -> list[str]:
+    """R4's NAME-LEVEL half: a price ref is banned from chain_map, complex_map and transmission_map, always.
+
+    The shape half (`price_context_violations`, threaded through `_check_no_engine_ref` at the R4 call site)
+    decides whether a cascade_map ROW is the admitted context leg. This decides nothing about shape: those
+    three maps name a cascade_map ref BY NAME, and a hop or a relative-value leg is an engine position
+    whatever the underlying row looks like. Identical in structure to `_check_positioning_lane`'s second
+    half, and for the identical reason -- a price context leg is a fetched past-tense observation, never a
+    transmission step, never a spread side, never a chain hop."""
+    from leviathan.graphrag import complex_map as cxm
+    from leviathan.graphrag.numbers import cascade as csc
+    errs: list[str] = []
+    # RAW map, not load_map() (review find, 2026-08-26): load_map DROPS deferred rows, so a
+    # deferred price row's ref would escape the name ban and a chain/complex/transmission entry
+    # naming it would ship pre-loaded -- armed for the day the row un-defers. The comment two
+    # lines down says "a parked row must not ship pre-loaded either"; reading raw makes it true.
+    cmap = _load("numbers/cascade_map.yaml") or {}
+    cmap = cmap.get("refs", cmap) or {}
+    price_refs = {ref for ref, row in cmap.items()
+                  if isinstance(row, dict) and row.get("table") in PRICE_TABLES}
+    if not price_refs:
+        return errs
+    for chain in (csc.load_chain_map() or []):
+        for hop in ((chain or {}).get("hops") or []):
+            if (hop or {}).get("ref") in price_refs:
+                errs.append(f"R4 chain_map {(chain or {}).get('id')!r}: hop ref {(hop or {}).get('ref')!r} "
+                            f"is a price ref -- a price is never a chain hop")
+    price_pairs: set = set()
+    for p in cxm.iter_all_pairs():                        # ALL authored pairs, material or not: a parked
+        for lbl, side in (("sideA", p.side_a), ("sideB", p.side_b)):   # row must not ship pre-loaded either
+            if (side or {}).get("ref") in price_refs:
+                price_pairs.add(p.id)
+                errs.append(f"R4 complex_map {p.id!r}: {lbl} ref {(side or {}).get('ref')!r} is a price "
+                            f"ref -- a price is never a relative-value leg")
+    for chain in (csc.load_transmission_map() or []):
+        for lk in ((chain or {}).get("links") or []):
+            if (lk or {}).get("pair_id") in price_pairs:
+                errs.append(f"R4 transmission_map {(chain or {}).get('id')!r}: link pair "
+                            f"{(lk or {}).get('pair_id')!r} carries a price leg -- a price is never a "
+                            f"transmission hop")
+    return errs
+
+
 def check_price_register() -> list[str]:
     """PRICE_OBSERVABILITY W0.2 -- the register fence lint (AWS-free, pure). R1 unit/override discipline
     (conditional on registration -- vacuous today), R2/R8 detector probe (green now by construction), R3 wasde
-    provenance (conditional -- vacuous today), R4 no PRICE_TABLE feeds an engine (active now), R5 decline census
+    provenance (conditional -- vacuous today), R4 the price CONTEXT/ENGINE split (active now), R5 decline census
     (vacuous until the W2.5 template registry exists)."""
     from leviathan.graphrag.numbers.cascade import load_map
     from leviathan.graphrag.numbers.registry import load_registry
@@ -1172,8 +1277,13 @@ def check_price_register() -> list[str]:
             errs.append("R3 silver_wasde: avg_farm_price whitelisted but no estimate_role-first vintage_tiebreak")
         if getattr(wasde, "provenance_col", None) != "estimate_role":
             errs.append("R3 silver_wasde: avg_farm_price whitelisted but provenance_col != 'estimate_role'")
-    # R4: price tables never feed an engine (complex_map inherits via its cascade refs).
-    errs += _check_no_engine_ref(load_map(), PRICE_TABLES, "R4", "price")
+    # R4 AS AMENDED (2026-08-26): the price CONTEXT/ENGINE split, not a blanket ban. A cascade_map row at a
+    # price table is legal IFF it is the narrow context leg -- register membership + current-only + dated
+    # + latest-agg + flat geography + not a regime marker (cascade.price_context_violations: the SHARED
+    # shape rule, six terms, one object for lint and runtime). The ENGINE maps stay banned BY NAME below.
+    from leviathan.graphrag.numbers.cascade import price_context_violations as _pcv
+    errs += _check_no_engine_ref(load_map(), PRICE_TABLES, "R4", "price", allow=_pcv)
+    errs += _check_price_context_lane()
     # R5: decline census.
     errs += _check_decline_census()
     # R5b (F3): no decline template points at the fenced farm-price metric while it is unwhitelisted.
@@ -1343,7 +1453,11 @@ def _check_positioning_lane() -> list[str]:
           cascade_map ref BY NAME, so the ban is on the NAME: a hop or a relative-value leg is an engine
           position whatever shape the underlying row has.
 
-    R4 (pink sheet, :1029), R7 and R10 are UNTOUCHED. What R9 no longer does is fail the build merely
+    R7 and R10 are UNTOUCHED. R4 (pink sheet) was untouched by D1 and took the SAME shape on its own
+    adjudication five weeks later -- see `price_context_violations` + `_check_price_context_lane` above,
+    which are this function's two halves rebuilt for the price card (the stale ':1029' pointer that stood
+    here named a line that had since become `_check_outlook_fence`; names, not line numbers, from here on).
+    What R9 no longer does is fail the build merely
     because the ref exists. NOTE, so a future reader does not read more into this than it says: the
     causal DAGs' positioning drivers are convergence-regime members TODAY (e.g. arabica_coffee's
     `cot_mm_positioning` sits in a `convergence[].drivers` list), and they stay that way -- `graph.regimes`
@@ -2111,10 +2225,17 @@ def check_question_shapes() -> list[str]:
       (b) REALIZABILITY -- every requirement names registered tables and metrics that are actually
           WHITELISTED on at least one of them. An unwhitelisted metric can never be fetched, so its
           requirement would be permanently 'not_attempted' and would read as a dispatch miss forever.
-      (c) DOCTRINE, mechanically. R4 is untouched by D1: a LIVE requirement at a PRICE_TABLES table is an
-          error, and the pink-sheet spot anchor stays `deferred: true` until R4 is decided on its own
-          merits. R9 as amended admits positioning as CONTEXT, so a POSITIONING_TABLES requirement is
-          allowed but must SAY SO (`doctrine: r9_context`) -- the fence is then a diff, not a memory.
+      (c) DOCTRINE, mechanically. A LIVE requirement at a PRICE_TABLES table is an error, and the pink-sheet
+          spot anchor stays `deferred: true`. R4 is no longer a blanket ban -- the price_context amendment
+          (2026-08-26) split it into a context lane and an engine ban -- but that split lives entirely in
+          CASCADE_MAP and reaches nothing here, and this clause is untouched by it for a MEASURED reason:
+          `spot_anchor` declares six metrics (soybeans, soybean oil, CPO, both US wheats, world raw sugar)
+          and every one is an estate-target benchmark, permanently outside PRICE_CONTEXT_METRICS. A
+          question-shape anchor is a SPOT QUOTE for the contract being asked about, which is the self-
+          reference the register fences; if a shape ever wants an INPUT-COST requirement it arrives with its
+          own decision and its own doctrine token, exactly as `doctrine: r9_context` did. R9 as amended
+          admits positioning as CONTEXT, so a POSITIONING_TABLES requirement is allowed but must SAY SO
+          (`doctrine: r9_context`) -- the fence is then a diff, not a memory.
       (d) THE THREE-CONDITION GUARD, at build time. `agent.SHAPE_DECLINE_STATE` must be reachable from
           EXACTLY ONE executor status, and that status must be the one that means "the query matched no
           data". If 'not_known' or 'error' ever mapped to it, the line would claim data absence where the
@@ -2194,8 +2315,10 @@ def check_question_shapes() -> list[str]:
             for t in rtables:
                 if t in PRICE_TABLES and not deferred:
                     errs.append(f"C2 question_shapes {shape}.{rid}: requires the R4-fenced price table "
-                                f"{t!r} -- R4 is UNTOUCHED by D1, so a spot/settle anchor stays "
-                                f"`deferred: true` until it is decided on its own merits")
+                                f"{t!r} -- R4's price_context amendment split the CASCADE lane only, and "
+                                f"every metric a spot/settle anchor names is an estate-target benchmark "
+                                f"outside PRICE_CONTEXT_METRICS, so the anchor stays `deferred: true` "
+                                f"until it is decided on its own merits")
                 if t in POSITIONING_TABLES and not deferred and req.get("doctrine") != "r9_context":
                     errs.append(f"C2 question_shapes {shape}.{rid}: requires positioning table {t!r} "
                                 f"without `doctrine: r9_context` -- R9 as amended admits positioning ONLY "
@@ -2367,6 +2490,17 @@ def main() -> int:
         print(f"WARN edge_blurbs ({len(missing_blurbs)} edges have mechanism but no blurb -- hover falls "
               "back to mechanism, non-fatal)")
     return 1 if failures else 0
+
+
+def __getattr__(name):  # PEP 562 -- see the R4 shared-shape note beside PRICE_TABLES
+    """`PRICE_CONTEXT_METRICS` / `price_context_violations` live in cascade.py (ONE object for lint
+    and runtime; cascade cannot import this module). They stay importable from HERE because R4's
+    doctrine home is this file -- resolved lazily to keep this module's import graph as lazy as
+    every function in it deliberately is."""
+    if name in ("PRICE_CONTEXT_METRICS", "price_context_violations"):
+        from leviathan.graphrag.numbers import cascade as _casc
+        return getattr(_casc, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 if __name__ == "__main__":

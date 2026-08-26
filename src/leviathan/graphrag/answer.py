@@ -2647,6 +2647,17 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # A2b headline rule: same omit-when-off idiom, so the flag-off call is byte-identical and an
             # injected quantify fake with the older signature stays valid.
             _hl_kw = {"headline": True} if _headline_on() else {}
+            # R4 PRICE-CONTEXT LANE (the Option C amendment, 2026-08-26), the per-turn half: is this
+            # turn's asof HISTORICAL? The pink sheet is latest-only with retroactive WB revisions, so at
+            # a historical asof a price-context leg would serve today's revision as if it were known
+            # then (the archaeology's C-2 replay vector) -- quantify's belt keeps those nodes
+            # qualitative on any replay turn. The date compare happens HERE, once, as a UTC date: the
+            # ENGINE reads no clock and no env (SKEPTIC F3), this seam may. A pinned historical asof
+            # (evals, backtests, PIT repros) resolves True on every re-run -- deterministic by
+            # construction; a live turn's asof is today and resolves False. Same omit-when-off idiom.
+            from datetime import datetime as _dtn, timezone as _tzu
+            _pr_kw = ({"price_replay": True}
+                      if (asof or "")[:10] < _dtn.now(_tzu.utc).date().isoformat() else {})
             # R9 CONTEXT LANE (D1): the already-resolved outlook bool goes DOWN as an argument. Omitted on
             # a fenced turn -> byte-identical call.
             _ol_kw = {"outlook": True} if _outlook else {}
@@ -2674,7 +2685,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                                 price_request=_price_request,
                                                                 **_pace_kw, **_chain_kw, **_xmit_kw,
                                                                 **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw,
-                                                                **_fnf_kw)
+                                                                **_fnf_kw, **_pr_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:

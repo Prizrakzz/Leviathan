@@ -407,11 +407,69 @@ def test_positioning_lane_pins_the_fenced_set_against_the_engine(monkeypatch):
     assert any("R9 drift" in e for e in cc._check_positioning_lane())
 
 
-def test_r4_pink_sheet_fence_is_untouched_by_the_r9_amendment():
-    # D1 moved R9 ONLY. The price fence stays a blanket engine ban, and R4 must still be the thing
-    # that refuses a pink-sheet ref no matter how "context-shaped" the row looks.
-    assert cc._check_no_engine_ref({"p": {**_COT_CONTEXT_ROW, "table": "silver_pink_sheet"}},
-                                   cc.PRICE_TABLES, "R4", "price")
+def test_r4_price_fence_is_a_split_and_the_non_register_path_still_fails():
+    """R4 AS AMENDED (price_context, 2026-08-26) -- the same context/engine split D1 gave R9, five weeks
+    later and on its own adjudication. This pin holds the REFUSING half, which is the half that carries
+    the doctrine: the probe row is COT-shaped (`metric: mm_net`), so it is not a pink-sheet metric and can
+    never be in PRICE_CONTEXT_METRICS -- a row at the price table whose metric is off the register fails
+    the build no matter how "context-shaped" the rest of it looks. Both call forms are pinned, because
+    both are live: WITHOUT the validator the helper is still the original blanket ban (that default is
+    what keeps F047's quarantine reuse byte-identical), and WITH it the refusal is per-row and says why."""
+    blanket = cc._check_no_engine_ref({"p": {**_COT_CONTEXT_ROW, "table": "silver_pink_sheet"}},
+                                      cc.PRICE_TABLES, "R4", "price")
+    assert blanket and "must never feed an engine" in blanket[0]
+    split = cc._check_no_engine_ref({"p": {**_COT_CONTEXT_ROW, "table": "silver_pink_sheet"}},
+                                    cc.PRICE_TABLES, "R4", "price", allow=cc.price_context_violations)
+    assert split and any("PRICE_CONTEXT_METRICS" in e for e in split), split
+    assert "mm_net" not in cc.PRICE_CONTEXT_METRICS
+
+
+def test_price_context_lane_admits_the_ratified_shape_and_refuses_every_other():
+    """The ADMITTING half, and each way in that stays shut. The admitted shape is the one the live
+    `fishmeal_price_z` row declares; every tweak below names a code path the amendment closes."""
+    row = {"table": "silver_pink_sheet", "metric": "fish_meal_usd_t_zscore_5yr", "agg": "latest",
+           "period_type": "date", "leg_mode": "current", "country_rule": "none",
+           "native_unit": "z", "narrate_unit": "z", "scale": 1}
+    assert cc.price_context_violations(row) == []
+    for tweak, needle in (({"metric": "maize_usd_t"}, "PRICE_CONTEXT_METRICS"),       # a target benchmark
+                          ({"metric": "beef_usd_t"}, "PRICE_CONTEXT_METRICS"),        # an OUTPUT price
+                          ({"leg_mode": "era"}, "no as-of replay"),                   # the C-2 objection
+                          ({"country_rule": "region"}, "wide and flat"),
+                          ({"narrate_unit": "flag"}, "REGIME MARKER")):
+        bad = cc.price_context_violations({**row, **tweak})
+        assert bad and any(needle in b for b in bad), (tweak, bad)
+    assert cc.price_context_violations({"table": "silver_pink_sheet"})                 # fail-closed on bare
+
+
+def test_the_price_context_register_is_input_costs_and_fishmeal_only():
+    """The MEMBERSHIP half, pinned as a set rather than trusted to a comment. 20 of the card's 76
+    metrics: 9 input-cost levels + fish_meal_usd_t + one z twin each. Every estate-target benchmark is
+    OUT, permanently, on self-reference -- a benchmark leg answers a price question about the very
+    contract the cascade is explaining."""
+    from leviathan.graphrag.numbers.registry import load_registry
+    reg = load_registry().tables.get("silver_pink_sheet")
+    assert len(cc.PRICE_CONTEXT_METRICS) == 20
+    levels = {m for m in cc.PRICE_CONTEXT_METRICS if not m.endswith("_zscore_5yr")}
+    assert len(levels) == 10 and "fish_meal_usd_t" in levels
+    assert {f"{m}_zscore_5yr" for m in levels} == cc.PRICE_CONTEXT_METRICS - levels   # twins move together
+    for benchmark in ("soybeans_usd_t", "soybean_meal_usd_t", "maize_usd_t", "palm_oil_cpo_usd_t",
+                      "wheat_us_hrw_usd_t", "raw_sugar_world_usd_t", "cocoa_usd_t", "cotton_a_index_usd_t",
+                      "beef_usd_t", "chicken_usd_t", "copper_usd_mt"):
+        assert benchmark not in cc.PRICE_CONTEXT_METRICS
+        assert f"{benchmark}_zscore_5yr" not in cc.PRICE_CONTEXT_METRICS
+    if reg is not None:                                    # every register member is a REAL card metric
+        assert cc.PRICE_CONTEXT_METRICS <= set(reg.metrics)
+
+
+def test_price_context_lane_bans_the_engine_maps_by_NAME(monkeypatch):
+    # the R9 idiom on the price card: a hop is an engine position whatever shape the row has.
+    from leviathan.graphrag.numbers import cascade as csc
+    if not any((r or {}).get("table") in cc.PRICE_TABLES for r in (csc.load_map() or {}).values()):
+        pytest.skip("no private cascade_map in this tree")
+    ref = next(r for r, row in csc.load_map().items() if (row or {}).get("table") in cc.PRICE_TABLES)
+    monkeypatch.setattr(csc, "load_chain_map", lambda: [{"id": "c1", "hops": [{"node": "n", "ref": ref}]}])
+    errs = cc._check_price_context_lane()
+    assert any("chain_map 'c1'" in e and "never a chain hop" in e for e in errs), errs
 
 
 def test_positioning_corn_no_fork_deck_pin_still_holds_with_the_ref_mapped(monkeypatch):
@@ -819,8 +877,14 @@ def test_dpq_new_nodes_carry_no_new_cascade_capability():
     """The wave is a NARRATIVE de-choke: it adds no cascade_map row and arms no new quantified leg.
 
     Two independent proofs, both cheap and both config-only:
-      * `pink_sheet_input_costs` (urea_cost / potash_cost) is not a cascade_map ref at all -- that IS the
-        R4 fence, and this wave leaves it standing.
+      * `pink_sheet_input_costs` (urea_cost / potash_cost) is not a cascade_map ref at all -- this wave
+        added no row for it, and it still has none. NOTE the pin's scope after the price_context
+        amendment (2026-08-26): R4 is no longer a blanket ban on the table, so what this asserts is
+        narrower than it once was and STILL TRUE -- the amendment landed exactly ONE row
+        (`fishmeal_price_z` on fish_meal_usd_t_zscore_5yr), and the 84 `pink_sheet_input_costs` driver
+        nodes across 34 DAGs stay unmapped because a basket ref naming no single (table, metric) pair is
+        unbindable by this map's one-ref-one-pair law, not because the table is fenced. Binding them is
+        its own sitting (a per-metric split on the DAG side first, the mpob precedent).
       * `fred_fx_macro` (macro_demand) IS a mapped ref, so the guard here is different: every DAG that
         gained a macro_demand node ALREADY carried at least one other fred_fx_macro driver, so the
         contract's fireable-ref set is identical before and after. (The region field is the other half --

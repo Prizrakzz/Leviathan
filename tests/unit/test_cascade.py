@@ -735,23 +735,43 @@ def test_the_two_keying_knob_rows_are_wired_on_the_real_map():
 
 def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
     """The re-key, both directions. The three cattle_cycle_herd_size bindings and the three
-    peru_fishmeal_supply bindings now resolve through map_row; cattle_on_feed_z and broiler_margin_z do
+    peru_fishmeal_supply bindings resolve through map_row; cattle_on_feed_z and broiler_margin_z do
     NOT, and must not -- no source has been ingested for either, so they stay `planned` for want of
-    DATA, never for want of the knob. fishmeal_price_z stays unmapped for a THIRD reason: its only
-    instrument is silver_pink_sheet, which R4 fences from every engine ref."""
-    for ref in ("herd_size_cattle", "fishmeal_supply"):
+    DATA, never for want of the knob.
+
+    fishmeal_price_z MOVED SIDES on 2026-08-26 (owner adjudication). It stood unmapped for a THIRD
+    reason -- its only instrument is silver_pink_sheet, which R4 fenced from every engine ref -- and
+    that reason is DISCHARGED, not waived: R4 became a context/engine split (the D1 shape), and the row
+    is the amendment's one admitted leg. The triple below is what the split admits, so this pin now
+    guards the discharged state; `leg_mode: current` is pinned WITH it because that clause is the C-2
+    PIT answer (latest-only source, no as-of replay) and a row that lost it would still resolve while
+    quietly becoming a replay leg."""
+    for ref in ("herd_size_cattle", "fishmeal_supply", "fishmeal_price_z"):
         assert cq.map_row(ref) is not None, ref
-    for ref in ("cattle_on_feed_z", "broiler_margin_z", "fishmeal_price_z", "cattle_beef_herd_z",
-                "fishmeal_supply_z"):
+    for ref in ("cattle_on_feed_z", "broiler_margin_z", "cattle_beef_herd_z", "fishmeal_supply_z"):
         assert cq.map_row(ref) is None, f"{ref} acquired a row without its own decision"
-    # the real geography verdicts, on the REAL region_map: US resolves, the two-nation token does not
+    price = cq.map_row("fishmeal_price_z")
+    assert (price["table"], price["metric"], price["leg_mode"]) == \
+        ("silver_pink_sheet", "fish_meal_usd_t_zscore_5yr", "current")
+    assert price.get("country_rule") == "none" and price.get("agg") == "latest"
+    # the real geography verdicts, on the REAL region_map. US resolves; Peru resolves as of the un-defer
+    # (the `Peru/Chile` compound it replaced did not, and that refusal is pinned below as the CLASS).
     herd = cq.load_map()["herd_size_cattle"]
     assert cq._scope_ex(_node(contract="corn", ref="herd_size_cattle", region="US"), herd) == \
         ("cattle_beef", "United States", None)
     fish = cq.load_map()["fishmeal_supply"]
+    assert cq._scope_ex(
+        _node(contract="soybean_meal_cbot", ref="fishmeal_supply", region="Peru"), fish) == \
+        ("fish_meal", "Peru", None)
     commodity, country, reason = cq._scope_ex(
         _node(contract="soybean_meal_cbot", ref="fishmeal_supply", region="Peru/Chile"), fish)
     assert (commodity, country, reason) == ("fish_meal", cq.SKIP_NODE, "region-token-unresolved")
+    # ...and the price row's own geography: country_rule `none` makes the driver token inert, whatever
+    # it says (the three carriers token Global / China / China and all three read the same series).
+    for region in ("Global", "China"):
+        assert cq._scope_ex(
+            _node(contract="soybean_meal_cbot", ref="fishmeal_price_z", region=region), price) == \
+            ("soybean_meal_cbot", None, None)
 
 
 def test_the_fx_wave_region_rows_carry_their_promised_currencies():

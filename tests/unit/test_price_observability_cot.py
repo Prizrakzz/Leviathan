@@ -139,8 +139,11 @@ def test_cot_enters_no_ENGINE_lane():
     SPLIT rather than a blanket ban -- silver_cot may sit in cascade_map as the narrow past-tense
     context leg, and may never be a fork/regime-marker ref or a chain/complex/transmission hop. The
     assertion moves from `_check_no_engine_ref` (which would fail the build the day the context ref
-    lands) to the lane check that encodes the split. `_check_no_engine_ref` itself is UNCHANGED and
-    still carries R4/F047; see tests/unit/test_config_check.py for the amended lane's own cases.
+    lands) to the lane check that encodes the split. `_check_no_engine_ref` still carries R4 and F047,
+    and as of 2026-08-26 it carries them DIFFERENTLY: it gained an optional context validator, defaulting
+    to None = the original blanket ban. F047 (quarantine) omits it and is byte-identical; R4 passes
+    `price_context_violations` and became the same split this test's own lane check encodes. See
+    tests/unit/test_config_check.py for both amended lanes' cases.
 
     UPDATED 2026-08-01 when C1's ref actually landed. The old back-pointer half asserted
     `cascade_ref is None`, which encoded the PRE-split absolute ("cot enters no lane at all") and was

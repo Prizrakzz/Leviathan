@@ -800,9 +800,10 @@ _PACE_COLLAPSE_KINDS: frozenset[str] = frozenset({"sum", "mean", "front_expiry"}
 #   (1) load_registry() DROPS whitelist-absent tables (registry.WHITELIST_ABSENT_DEFAULT), so
 #       silver_futures_eod -- the exact table F-E is about -- is INVISIBLE to a registry-derived set
 #       today: the fence would fail OPEN for the whole pre-flip window it exists to cover;
-#   (2) config_check.PRICE_TABLES (the R4 "never feeds an engine" set) cannot be reused -- importing
-#       config_check from here is a cycle, and its semantics are the opposite of this fence's (a pace
-#       leg REQUIRES a cascade_map row, which R4 forbids for its members);
+#   (2) config_check.PRICE_TABLES cannot be reused -- importing config_check from here is a cycle, and
+#       its semantics differ from this fence's: since the R4 price-context amendment (2026-08-26) a
+#       member MAY carry a cascade_map row through the narrow context door (PRICE_CONTEXT_TABLES /
+#       price_context_violations below), while THIS set bans sum/mean pace collapse regardless;
 #   (3) price-ness is not a registry field -- there is no clean per-table signal to read.
 # lint_pace_collapse() adds a registry-derived DRIFT BELT on top, so a price table nobody added here
 # still cannot acquire a sum/mean collapse.
@@ -1032,6 +1033,81 @@ def positioning_context_violations(row: dict) -> list[str]:
         return ["unreadable map row"]
 
 
+# ── R4 PRICE-CONTEXT LANE (the Option C amendment, owner adjudication 2026-08-26) ──────────────────
+# The R9/D1 shape applied to the price fence: a price table enters the engine ONLY through the narrow
+# current-only context door. THE SHARED SHAPE LIVES HERE, exactly like positioning_context_violations
+# above, because config_check may import this module and this module may not import config_check
+# (cycle) -- one function, one register, so the build lint and the runtime belt in quantify() cannot
+# drift (the review of 2026-08-26 refuted the lint-only first cut on precisely this: cascade_map is
+# GITIGNORED config baked into images, so a map the lint never saw can reach a serving container).
+# The DOCTRINE RECORD for the register's membership (what is admitted, what is fenced permanently and
+# why, what waits for its own sitting) lives beside R4 in config_check.py -- this is the object, that
+# is the adjudication.
+PRICE_CONTEXT_TABLES: tuple = ("silver_pink_sheet",)   # == config_check.PRICE_TABLES, drift-pinned by test
+
+PRICE_CONTEXT_METRICS: frozenset = frozenset({
+    # the 9 input-cost levels (fertilizer + energy)
+    "urea_usd_mt", "dap_usd_mt", "potassium_usd_mt", "phosphate_rock_usd_mt", "tsp_usd_mt",
+    "blended_npk_index", "natural_gas_us_usd_mmbtu", "natural_gas_eu_usd_mmbtu", "brent_crude_usd_bbl",
+    # the marine-protein ration input (the metric this amendment was adjudicated on)
+    "fish_meal_usd_t",
+    # ...and the 10 stored z twins, one per level (card doctrine: the stretch measure is a second METRIC)
+    "urea_usd_mt_zscore_5yr", "dap_usd_mt_zscore_5yr", "potassium_usd_mt_zscore_5yr",
+    "phosphate_rock_usd_mt_zscore_5yr", "tsp_usd_mt_zscore_5yr", "blended_npk_index_zscore_5yr",
+    "natural_gas_us_usd_mmbtu_zscore_5yr", "natural_gas_eu_usd_mmbtu_zscore_5yr",
+    "brent_crude_usd_bbl_zscore_5yr", "fish_meal_usd_t_zscore_5yr",
+})
+
+
+def price_context_violations(row: dict) -> list[str]:
+    """Why `row` is NOT the narrow current-only CONTEXT leg the R4 amendment admits -- an EMPTY list
+    means it is. Only ever consulted for a PRICE_CONTEXT_TABLES row; every other table is none of this
+    rule's business. SIX terms (the review of 2026-08-26 added period_type and agg after proving the
+    four-term first cut failed OPEN on a marketing-year fork window and on an agg=mean collapse):
+      * metric in PRICE_CONTEXT_METRICS -- the register: input costs + fish_meal + their z twins;
+        every estate-target benchmark stays fenced on SELF-REFERENCE (the adjudication in
+        config_check.py's R4 block);
+      * leg_mode 'current' -- era legs are the cross-era FORK backbone, and the pink sheet is
+        LATEST-ONLY with retroactive WB revisions (the C-2 era vector);
+      * period_type 'date' -- a monthly dated observation, never a marketing-year fork window (the R9
+        term, borrowed for the same reason it exists there);
+      * agg 'latest' -- the context leg is THE current standardized reading; a sum/mean over a price
+        history is a number nobody quotes (cascade's own _PRICE_COLLAPSE_BANNED doctrine, which scopes
+        only pace collapse and so cannot cover this);
+      * country_rule 'none' -- the card is wide and flat (no commodity_col, no country_col); the
+        metric IS the series;
+      * narrate_unit != 'flag' -- a 0/1 row is a REGIME MARKER, and a price may never mint one.
+    C-2's OTHER vector -- a historical-asof replay serving today's revision as if known then -- is a
+    per-TURN condition no row shape can express: quantify()'s `price_replay` kwarg (resolved at the
+    answer.py seam, the outlook discipline) closes it in the belt below.
+    Pure and never raises: an unreadable row reads as a violation (fail-closed)."""
+    try:
+        bad: list[str] = []
+        metric = (row or {}).get("metric")
+        if metric not in PRICE_CONTEXT_METRICS:
+            bad.append(f"metric {metric!r} is not in PRICE_CONTEXT_METRICS -- the register admits input "
+                       f"costs + fish_meal (and their z twins) only; every estate-target benchmark stays "
+                       f"fenced (self-reference), and the rest of the card is undecided")
+        if (row or {}).get("leg_mode") != "current":
+            bad.append("leg_mode is not 'current' -- the pink sheet is LATEST-ONLY with retroactive WB "
+                       "revisions and no as-of replay, so an era/replay leg is dishonest by construction "
+                       "(and era legs are the cross-era FORK backbone)")
+        if (row or {}).get("period_type") != "date":
+            bad.append(f"period_type {(row or {}).get('period_type')!r} is not 'date' -- a monthly dated "
+                       f"observation, never a marketing-year fork window")
+        if (row or {}).get("agg", "latest") != "latest":
+            bad.append(f"agg {(row or {}).get('agg')!r} is not 'latest' -- a sum/mean over a price history "
+                       f"is a number nobody quotes")
+        if (row or {}).get("country_rule") != "none":
+            bad.append(f"country_rule {(row or {}).get('country_rule')!r} is not 'none' -- the card is wide "
+                       f"and flat (no commodity_col, no country_col); the metric IS the series")
+        if (row or {}).get("narrate_unit") == "flag":
+            bad.append("narrate_unit 'flag' is a REGIME MARKER, not an observed price")
+        return bad
+    except Exception:  # noqa: BLE001 -- a gate/lint predicate must never raise on an odd row
+        return ["unreadable map row"]
+
+
 def _positioning_rendered(records: list, kept: list) -> bool:
     """True when at least one POSITIONING context leg actually produced a row this turn. An honest
     absence renders no line, so it earns no addendum either (the E-STREAK-NODATA idiom)."""
@@ -1245,7 +1321,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              comove: bool = False, price_request: dict | None = None, pace: bool = False,
              chain: bool = False, transmission: bool = False, outlook: bool = False,
              headline: bool = False, episode_outcomes: bool = False,
-             cot_outcomes: bool = False, futures_newest_first: bool | str = False) -> tuple:
+             cot_outcomes: bool = False, futures_newest_first: bool | str = False,
+             price_replay: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1255,7 +1332,11 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
 
     `outlook` and `headline` are the two flags read at the answer.py quantify SEAM and threaded here as
     ARGUMENTS (the pace/price_request discipline -- NEVER an env read inside cascade.py), see the R9 gate
-    and _set_headline below. `episode_outcomes` (OUTCOMES_JOIN J4) and `cot_outcomes` (J6) follow the
+    and _set_headline below. `price_replay` (the R4 amendment, 2026-08-26) is the SAME idiom for the
+    price-context lane's per-turn half: resolved at the answer seam as "this turn's asof is historical",
+    it drops every PRICE_CONTEXT_TABLES leg -- the pink sheet is latest-only with retroactive revisions,
+    so at a historical asof the leg would serve today's revision as if known then (the archaeology's C-2
+    replay vector, which no row shape can express). Default False = byte-identical. `episode_outcomes` (OUTCOMES_JOIN J4) and `cot_outcomes` (J6) follow the
     same omit-when-off idiom: both default False, so a call that does not pass them is byte-identical.
 
     `futures_newest_first` (FUTURES_READPATH S1, D-FR-10) is the SAME idiom for the SAME reason, one layer
@@ -1304,6 +1385,16 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         # therefore FENCED-lane only. Fail-closed on both: any violation, or an outlook turn, and the node
         # stays qualitative, exactly as it does today.
         if row.get("table") in POSITIONING_TABLES and (outlook or positioning_context_violations(row)):
+            continue
+        # R4 PRICE-CONTEXT LANE (the Option C amendment, 2026-08-26), the SAME both-halves shape:
+        # (a) the runtime belt -- config_check fails the BUILD on a mis-shaped or unregistered row,
+        # and this line means a hand-edited or monkeypatched map cannot widen the door either (the
+        # map is gitignored config baked into images; a tree the lint never ran on can reach a
+        # container, which is why the review refuted the lint-only first cut); (b) `price_replay`,
+        # the per-turn half no row shape can express -- at a historical asof the latest-only,
+        # retroactively-revised pink sheet would serve today's revision as if known then (C-2), so
+        # a replay turn keeps every price-context node qualitative. Fail-closed on both.
+        if row.get("table") in PRICE_CONTEXT_TABLES and (price_replay or price_context_violations(row)):
             continue
         eras = _derive_windows(n, near, asof)
         # T2a P4 (live-wiring fix): a `leg_mode: current` pace-capable node (esr_exports) never USES era

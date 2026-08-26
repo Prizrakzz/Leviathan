@@ -77,7 +77,17 @@ def canon_target(name: str, targets: set[str], index: dict[str, str] | None = No
 
 
 def available_silver() -> set[str]:
-    """Names a driver's `silver_ref` may resolve to TODAY: feature_spine families + node_silver_map metrics."""
+    """Names a driver's `silver_ref` may resolve to TODAY: feature_spine families + node_silver_map
+    metrics + LIVE cascade_map refs.
+
+    The cascade half (keying-knob/price-context sittings, 2026-08-26): since GN-1, a driver whose
+    ref keys a live cascade_map row IS quantified at answer time -- herd_size_cattle,
+    fishmeal_supply and fishmeal_price_z flipped `planned -> available` on exactly that basis, and
+    without this union the C1 curation rule would read each as available-with-no-instrument and
+    DEMOTE it back to planned on the next `curate --apply` (the review measured the warn firing on
+    all three). Deferred rows are honestly absent (load_map drops them: a deferred ref is not
+    available today). Fail-open to the legacy two-source set on any cascade import/load failure --
+    an offline lint must never require the serving stack."""
     names: set[str] = set()
     feats = _CFG.parent / "features" / "features.yaml"
     if feats.exists():
@@ -87,6 +97,11 @@ def available_silver() -> set[str]:
     nsm = _CFG / "node_silver_map.yaml"
     if nsm.exists():
         names |= set(((yaml.safe_load(nsm.read_text(encoding="utf-8")) or {}).get("metrics") or {}).keys())
+    try:
+        from leviathan.graphrag.numbers.cascade import load_map
+        names |= set((load_map() or {}).keys())
+    except Exception:  # noqa: BLE001 -- see the docstring: fail-open to the legacy set
+        pass
     return names
 
 

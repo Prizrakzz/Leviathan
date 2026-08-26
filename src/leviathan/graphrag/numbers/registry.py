@@ -513,11 +513,14 @@ WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
     # zero); and the first two rows to use it, `herd_size_cattle` (this card, commodity cattle_beef,
     # live_animals in head) and `fishmeal_supply` (silver_psd, commodity fish_meal). The three
     # cattle_cycle_herd_size bindings flipped planned -> available in corn / corn_cbot /
-    # soybean_meal_cbot and read this card today. STILL OPEN, and neither is a keying question:
-    # fishmeal_substitution's price leg wants silver_pink_sheet, which R4 fences from every engine ref
-    # (owner adjudication); peru_fishmeal_supply's three legs are bound and decline honestly on a
-    # two-nation region token until a DAG curation re-keys it; cattle_on_feed and broiler_margins stay
-    # planned for want of an ingested source, not for want of a knob.
+    # soybean_meal_cbot and read this card today. BOTH FORMER OPEN ITEMS CLOSED LATER THE SAME DAY
+    # (owner word, the price-context/Peru batch): fishmeal_substitution's price leg went live as
+    # `fishmeal_price_z` under the R4 price-context AMENDMENT (the D1-style context/engine split --
+    # cascade.price_context_violations + the quantify belt + the price_replay per-turn half; the
+    # doctrine record sits beside R4 in config_check.py); peru_fishmeal_supply's three legs fire on
+    # the two-edit Peru un-defer (DAG region re-key + a region_map.resolve entry). STILL OPEN:
+    # cattle_on_feed and broiler_margins stay planned for want of an ingested source, not for want
+    # of a knob.
     # NOTE the physical table is shared and nothing here ever gated silver_production itself --
     # the crop card was live throughout.
 })
