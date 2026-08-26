@@ -22,10 +22,17 @@ TWO WARNINGS, both measured, both the reason this file has a docstring at all.
    BAKED INTO THE CONTAINER, not the repo on the laptop and not the pg mirror's idea of the map, so
    a re-bank on a stale image banks a stale census with a current timestamp -- which is precisely how
    the incident above happened (`leviathan-dev-silver-gate` was pinned to the previous day's worker
-   image). This wrapper therefore targets `leviathan-dev-evidence-build`, whose image tracks the
-   embedder `:latest`, and NOT the silver-gate jobdef the scheduled path uses. REBUILD AND PUSH THE
-   IMAGE FIRST if the flip you are banking landed after the last push; the run record below stamps
-   the jobdef so the vintage question is answerable afterwards.
+   image). This wrapper therefore targets `leviathan-dev-evidence-build`, and NOT the silver-gate
+   jobdef the scheduled path uses. BUT "tracks the embedder :latest" -- what an earlier version of
+   this paragraph claimed -- is true only THROUGH RE-REGISTRATION: every evidence-build revision is
+   DIGEST-pinned at registration (jobs/utils/register_evidence_jobdef.py resolves :latest exactly
+   once), so a push alone changes NOTHING this wrapper runs. Measured 2026-08-27: the first
+   fertilizer/energy re-bank rode revision 110 (the previous day's digest) minutes after the new
+   image was pushed, silently re-banked the pre-split 688 census, and only the count check against
+   the written prediction caught it. THE LANE IS THREE STEPS, never two: (1) rebuild + push the
+   embedder, (2) `python jobs/utils/register_evidence_jobdef.py` to mint the digest-pinned revision,
+   (3) submit -- then verify the run record's jobdef revision AND the banked counts against the
+   prediction made before measurement.
 
 Content note, so the `--dest-uri` is not over-read: `cascade_census.census()` takes no family or table
 filter -- it walks every contract. The rolling baseline is per-family in PATH ONLY, and two families

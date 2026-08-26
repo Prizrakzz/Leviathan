@@ -5,6 +5,11 @@ definition -- the same reuse as the numbers-pg loader/parity: that jobdef's imag
 execution role injects EVIDENCE_PG_DSN, and its task role carries Athena. The ondemand queue prevents a Spot
 reclaim mid-reload.
 
+VINTAGE TRAP (measured 2026-08-27): the evidence-build jobdef is DIGEST-pinned per revision, so a
+freshly pushed embedder image is NOT what this submits until `jobs/utils/register_evidence_jobdef.py`
+mints a new revision -- a gate run minutes after a push measured the PREVIOUS vintage's configs and
+PASSed vacuously. Push -> register -> submit, and read the job's jobDefinition revision back.
+
     python jobs/submit/submit_batch_silver_rebuild_gate.py --dry-run --tables silver_wasde
     python jobs/submit/submit_batch_silver_rebuild_gate.py --tables silver_wasde,silver_chirps
 """
