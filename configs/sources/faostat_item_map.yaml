@@ -29,8 +29,11 @@
 # ONE ITEM PER SLUG, AND THAT IS A CONSTRAINT, NOT A CONVENIENCE. The slug is
 # the bronze/silver `commodity=` partition and `--fao_item_name` is a single
 # scalar Glue argument, so a second item on an existing key does not widen it,
-# it REPLACES it (a duplicate YAML key is last-wins, silently). See the cotton
-# block for the one item this rule parks.
+# it REPLACES it (a duplicate YAML key is last-wins, silently). Two items are
+# parked by this rule and both are recorded where they belong: `Cotton lint,
+# ginned` in the cotton block, and `Hen eggs in shell, fresh` in the livestock
+# block -- the FAO-2 plan asked for the egg item as a SECOND item on
+# broilers_poultry, and this rule is the first of three reasons it cannot be.
 
 # ── Cocoa ──────────────────────────────────────────────────────────────────
 cocoa: "Cocoa beans"
@@ -121,3 +124,144 @@ sunflower:       "Sunflower seed"
 sunflower_oil:   "Sunflower-seed oil, crude"
 palm_kernel:     "Palm kernels"
 palm_kernel_oil: "Oil of palm kernel"
+
+# ── LIVESTOCK AND DAIRY (FAO-2, Lane 5) ────────────────────────────────────
+# THE ESTATE'S ONLY SOURCE FOR HERD DYNAMICS. PSD carries these same slugs as
+# BALANCE SHEETS in metric tonnes and REFUSES the head-count axis by name --
+# usda_psd._PSD_UNMAPPED_CODES declines code 11000 "Animal Numbers, Cattle"
+# (34,515 rows) and 13000 "Animal Numbers, Swine" (23,991) because "a head
+# count has no home in an all-tonnes schema ... Reopen by giving the schema a
+# head-count column pair, not by adding a factor". silver_production's `unit`
+# is a free string with `unit_col: unit` on the card, so it IS that home: this
+# block serves exactly the axis PSD declined, and the two surfaces are
+# complementary rather than duplicative (PSD = beef/pork/poultry TONNES,
+# FAOSTAT = the animals themselves).
+#
+# THE NODE TEST, RUN ITEM BY ITEM BEFORE ANY ITEM STRING WAS WRITTEN (the
+# FAO-1 law, and the reason two obvious items are parked below). Each key
+# resolves in the MAIN tree's configs/graphrag/commodity_hierarchy.yaml, in
+# _PSD_COMMODITY_TO_SLUGS, or in _PSD_FORWARD_DECLARED_SLUGS:
+#   cattle_beef       hierarchy context_commodities (completion wave class 1)
+#                     AND PSD 111000              -> both homes
+#   hogs              hierarchy context_commodities AND PSD 113000
+#   broilers_poultry  hierarchy context_commodities AND PSD 114200
+#   milk_fluid        PSD 223000 + _PSD_FORWARD_DECLARED_SLUGS (the
+#                     forward-declared disjunct, exactly as cottonseed_oil /
+#                     millet / oats / rye / palm_kernel_oil entered at FAO-1)
+#
+# WHY milk_fluid AND NOT `dairy`, adjudicated rather than assumed. `dairy` IS
+# a hierarchy node and `milk_fluid` is NOT, so the node test alone would point
+# the other way -- but usda_psd.py settles it in its own words: "The four
+# livestock/dairy FAMILY names the D-EC plan uses are broilers_poultry /
+# cattle_beef / hogs / dairy. Three of them are slugs below verbatim; `dairy`
+# is NOT, because PSD publishes five separate dairy balance sheets and R2
+# forbids collapsing them onto one key -- so `dairy` survives as the family
+# GLOSS over the five product slugs, and the product grain is what the table
+# stores." Keying a physical FAOSTAT series to a GLOSS would (a) break the
+# SLUG LAW test, which requires every key here to be in the PSD 63-slug
+# vocabulary, (b) put one number under a name that also covers butter, cheese
+# and two milk powders, and (c) make `dairy` a numbers key while the estate
+# has deliberately kept it a retrieval/expansion node. `Raw milk of cattle` is
+# farm-gate FLUID MILK, which is PSD 223000 exactly, so milk_fluid it is.
+#
+# MEASURED on the tracked 2026-05-11 ZIP (rows / distinct Areas, 1961-2024,
+# banked at data/dec_p0/faostat_livestock_census.json):
+#   Cattle             Stocks 13,831 An            / 238 areas
+#   Swine / pigs       Stocks 12,824 An            / 219
+#   Chickens           Stocks 13,932 `1000 An`     / 240
+#   Raw milk of cattle Milk Animals 13,360 An + Production 13,359 t +
+#                      Yield/Carcass Weight 13,348 kg/An = 40,067 / 231
+#   -------------------------------------------------------------------
+#   TOTAL ADMITTED     80,654 rows
+#
+# THE ITEM STRINGS ARE THE LEGEND'S, NOT THE PLAN'S, and two of them differ:
+# the plan named "Pigs" (the release prints `Swine / pigs`) and "Hen eggs in
+# shell" (the release prints `Hen eggs in shell, fresh`). Both would have died
+# in the cloud on "No rows found"; the ItemCodes legend test catches them here.
+cattle_beef:      "Cattle"              # herd size, head -- NOT the PSD beef sheet
+hogs:             "Swine / pigs"        # herd size, head
+broilers_poultry: "Chickens"            # flock size, THOUSAND head (see the unit trap)
+milk_fluid:       "Raw milk of cattle"  # milking herd + milk output + kg per animal
+#
+# THE UNIT TRAP THIS BLOCK CREATES, stated where the keys are: `live_animals`
+# carries `An` for cattle_beef and hogs but `1000 An` for broilers_poultry.
+# Comparing or summing the raw numbers across those slugs is wrong by exactly
+# 1000x, and only the row's own `unit` column says so. Carried honestly on the
+# per-row unit column (the `Cows In Milk` disposition), fenced in code at
+# faostat_production.METRIC_UNITS, and REQUIRED on the card by a lint.
+#
+# ── PARKED, NOT FORGOTTEN (FAO-2) -- four written refusals ─────────────────
+# (1) THE HOMELESS LIVE-ANIMAL ITEMS -- fifteen, not two (the Lane-5 review
+#     re-measured the same ZIP and widened this park honestly). Element
+#     `Stocks` spans 21 items; beyond the four admitted above and the F-coded
+#     aggregates in (4), FIFTEEN live-animal items have NO home -- no
+#     `contracts:` entry, no `context_commodities` id, no PSD slug: `Sheep`
+#     (12,994 rows / 225 areas) and `Goats` (13,350 / 233) -- the plan's own
+#     (1b) park -- plus Horses 11,964, Asses 9,401, Bees 9,194 (unit `No`,
+#     the exact rows faostat_production._REFUSED_UNITS names), Ducks 7,689,
+#     Mules and hinnies 6,909, Turkeys 6,576, Rabbits and hares 5,503, Geese
+#     4,953, Buffalo 4,251, Camels 3,820, Other birds 812, Other camelids 448
+#     and Other rodents 448 -- ~98,300 parked live-animal rows in all, 2.7x
+#     the Sheep+Goats figure alone (and Horses carries comparable mass to
+#     Sheep, so "real mass" carves nothing out). Admitting any of them would
+#     invent a commodity axis from the wrong end of the system, which is the
+#     one thing this file's header forbids: each needs a hierarchy node, a
+#     matcher and a rebuild-slices routing pass -- edge/vocabulary work, not
+#     a map edit.
+#
+# (2) HEN EGGS IN SHELL, FRESH -- THREE INDEPENDENT REASONS, any one fatal.
+#     `Hen eggs in shell, fresh` (69,051 rows / 240 areas across four
+#     elements) is what the plan pairs with `Chickens` under broilers_poultry.
+#     It cannot be admitted:
+#       (a) ONE ITEM PER SLUG. broilers_poultry already carries `Chickens`,
+#           and a second YAML entry on the same key is last-wins SILENTLY --
+#           it would REPLACE the flock series, not widen it.
+#       (b) THE NATURAL KEY CANNOT HOLD IT. Element `Production` prints this
+#           item in TWO units, `t` (13,869 rows) and `1000 No` (13,941), and
+#           MEASURED, 13,801 of its 14,009 distinct (Area, Year) pairs carry
+#           BOTH. Both map to the one governed metric `production_quantity`,
+#           and silver_production's natural key is (country_key, metric, year)
+#           with no unit -- so every one of those 13,801 keys collides with a
+#           different value and the Glue run dies in
+#           `_resolve_duplicates_or_raise`. NOTE FOR THE NEXT READER: widening
+#           the natural key to include `unit` is NOT the fix -- it would make
+#           this admission pass SILENTLY with two rows per key, disarming the
+#           conflict detector for every other table user. The fix is a
+#           value-scale decision (which unit the estate serves), not a key.
+#       (c) UNIT CATEGORY. Element `Yield` prints it in `No/An` (eggs per
+#           bird) against the crop card's declared `yield [kg/ha]`, and
+#           `Yield/Carcass Weight` prints an EGG weight in `g/An` -- narrating
+#           either as a crop yield or a carcass weight is the class of lie
+#           FAO-2's fences exist to stop. Fenced twice over: refused here AND
+#           by name in faostat_production._REFUSED_UNITS.
+#
+# (3) THE SLAUGHTER AXIS -- 39 items, of which the three FLAGSHIP meat items
+#     are 13% (the Lane-5 review re-measured this park too; the first draft
+#     claimed the three were the ONLY carriers, and the same ZIP refutes it).
+#     `Producing Animals/Slaughtered` (313,081 rows file-wide) is carried by
+#     THIRTY-NINE distinct items: the flagship three --
+#     `Meat of cattle with the bone, fresh or chilled` (13,861 rows of it),
+#     `Meat of chickens, fresh or chilled` (13,974) and
+#     `Meat of pig with the bone, fresh or chilled` (12,862), together 40,697
+#     = 13.0% -- plus every other species' meat item (ducks 6,907, horse 6,505,
+#     turkeys 5,832, rabbits 4,800, geese 4,214, camels 3,262, buffalo 2,982,
+#     asses 1,457, mules 596, ...), every `Edible offal of ...`, every `Raw
+#     hides and skins of ...`, the `... fat, unrendered` items and three
+#     F-coded aggregates. `Yield/Carcass Weight` spans 35 items the same way.
+#     ALL of it is parked, for the same structural reason: one item per slug
+#     leaves the meat/offal/hides items nowhere to go -- cattle_beef / hogs /
+#     broilers_poultry are taken by the LIVE-ANIMAL items above, deliberately
+#     (PSD already serves the meat in tonnes on those same three slugs; it
+#     serves no herd size anywhere). Reopening is NOT one line: a meat slug
+#     lights only its own item's ~13k-row slice, and unparking the axis means
+#     minting publication-grain slugs per species/cut -- a vocabulary decision
+#     with a PSD-overlap question attached. The bronze element gate admits
+#     these elements ALREADY (faostat_qcl.TARGET_ELEMENTS), so the dark mass
+#     here is an ITEM-axis decision, never an element-gate gap.
+#
+# (4) `Cattle and Buffaloes`, `Sheep and Goats`, `Poultry Birds`, `Meat;
+#     Total`, `Milk; Total`, `Eggs Primary` and the rest of the legend's
+#     `F1xxx`/`F2xxx` codes are AGGREGATE items over the primary items above.
+#     They are refused on the same principle FAO-3 applies to the area
+#     aggregates: an aggregate that sums silently with its members is a
+#     double-count waiting to happen, and nothing here needs one.

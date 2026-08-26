@@ -1,0 +1,506 @@
+{
+  "source_zip": "Production_Crops_Livestock_E_All_Data_(Normalized).zip",
+  "total_rows": 4209110,
+  "legend_element_names": [
+    "Area harvested",
+    "Extraction Rate",
+    "Laying",
+    "Milk Animals",
+    "Prod Popultn",
+    "Producing Animals/Slaughtered",
+    "Production",
+    "Stocks",
+    "Yield",
+    "Yield/Carcass Weight"
+  ],
+  "legend_element_codes": {
+    "Area harvested": [
+      "5312"
+    ],
+    "Extraction Rate": [
+      "5423"
+    ],
+    "Laying": [
+      "5313"
+    ],
+    "Milk Animals": [
+      "5318"
+    ],
+    "Prod Popultn": [
+      "5314",
+      "5319"
+    ],
+    "Producing Animals/Slaughtered": [
+      "5320",
+      "5321"
+    ],
+    "Production": [
+      "5322",
+      "5323",
+      "5510",
+      "5513"
+    ],
+    "Stocks": [
+      "5111",
+      "5112",
+      "5114"
+    ],
+    "Yield": [
+      "5412",
+      "5413",
+      "5422"
+    ],
+    "Yield/Carcass Weight": [
+      "5417",
+      "5424"
+    ]
+  },
+  "legend_item_count": 310,
+  "legend_elements_with_zero_rows": [
+    "Extraction Rate",
+    "Prod Popultn"
+  ],
+  "element_rows": {
+    "Production": 1643611,
+    "Area harvested": 893484,
+    "Yield": 839819,
+    "Producing Animals/Slaughtered": 313081,
+    "Yield/Carcass Weight": 262197,
+    "Stocks": 180294,
+    "Milk Animals": 45801,
+    "Laying": 30823
+  },
+  "element_units": {
+    "Area harvested": {
+      "ha": 893484
+    },
+    "Laying": {
+      "1000 An": 30823
+    },
+    "Milk Animals": {
+      "An": 45801
+    },
+    "Producing Animals/Slaughtered": {
+      "An": 261580,
+      "1000 An": 51501
+    },
+    "Production": {
+      "t": 1625403,
+      "1000 No": 18208
+    },
+    "Stocks": {
+      "An": 117255,
+      "1000 An": 53845,
+      "No": 9194
+    },
+    "Yield": {
+      "kg/ha": 823058,
+      "No/An": 16761
+    },
+    "Yield/Carcass Weight": {
+      "kg/An": 181253,
+      "g/An": 80944
+    }
+  },
+  "distinct_item_element_pairs": 724,
+  "item_element_pairs_with_multiple_units": {
+    "Eggs from other birds in shell, fresh, n.e.c. || Production": [
+      "1000 No",
+      "t"
+    ],
+    "Hen eggs in shell, fresh || Production": [
+      "1000 No",
+      "t"
+    ]
+  },
+  "items": {
+    "Cattle || Stocks": {
+      "rows": 13831,
+      "areas": 238,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "An": 13831
+      },
+      "flags": {
+        "A": 9973,
+        "E": 2814,
+        "I": 593,
+        "X": 448,
+        "M": 3
+      },
+      "area_year_keys": 13831,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Chickens || Stocks": {
+      "rows": 13932,
+      "areas": 240,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "1000 An": 13932
+      },
+      "flags": {
+        "A": 6244,
+        "E": 6161,
+        "I": 973,
+        "X": 550,
+        "M": 4
+      },
+      "area_year_keys": 13932,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Goats || Stocks": {
+      "rows": 13350,
+      "areas": 233,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "An": 13350
+      },
+      "flags": {
+        "A": 7877,
+        "E": 4291,
+        "I": 639,
+        "X": 462,
+        "M": 81
+      },
+      "area_year_keys": 13350,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Hen eggs in shell, fresh || Laying": {
+      "rows": 13835,
+      "areas": 239,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "1000 An": 13835
+      },
+      "flags": {
+        "E": 8751,
+        "A": 3918,
+        "I": 1040,
+        "X": 76,
+        "M": 50
+      },
+      "area_year_keys": 13835,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Hen eggs in shell, fresh || Production": {
+      "rows": 27810,
+      "areas": 240,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "1000 No": 13941,
+        "t": 13869
+      },
+      "flags": {
+        "E": 13672,
+        "A": 12047,
+        "I": 1467,
+        "X": 588,
+        "M": 36
+      },
+      "area_year_keys": 14009,
+      "area_year_keys_with_multiple_units": 13801,
+      "in_legend": true
+    },
+    "Hen eggs in shell, fresh || Yield": {
+      "rows": 13705,
+      "areas": 238,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "No/An": 13705
+      },
+      "flags": {
+        "E": 10438,
+        "A": 3250,
+        "X": 17
+      },
+      "area_year_keys": 13705,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Hen eggs in shell, fresh || Yield/Carcass Weight": {
+      "rows": 13701,
+      "areas": 239,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "g/An": 13701
+      },
+      "flags": {
+        "E": 10682,
+        "A": 3015,
+        "X": 4
+      },
+      "area_year_keys": 13701,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Meat of cattle with the bone, fresh or chilled || Producing Animals/Slaughtered": {
+      "rows": 13861,
+      "areas": 239,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "An": 13861
+      },
+      "flags": {
+        "A": 6445,
+        "E": 5853,
+        "I": 1017,
+        "X": 509,
+        "M": 37
+      },
+      "area_year_keys": 13861,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Meat of cattle with the bone, fresh or chilled || Production": {
+      "rows": 13861,
+      "areas": 239,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "t": 13861
+      },
+      "flags": {
+        "A": 7131,
+        "E": 3525,
+        "I": 2642,
+        "X": 526,
+        "M": 37
+      },
+      "area_year_keys": 13861,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Meat of cattle with the bone, fresh or chilled || Yield/Carcass Weight": {
+      "rows": 13819,
+      "areas": 239,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "kg/An": 13819
+      },
+      "flags": {
+        "E": 8106,
+        "A": 5525,
+        "X": 188
+      },
+      "area_year_keys": 13819,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Meat of chickens, fresh or chilled || Producing Animals/Slaughtered": {
+      "rows": 13974,
+      "areas": 240,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "1000 An": 13974
+      },
+      "flags": {
+        "E": 8437,
+        "A": 3768,
+        "I": 1251,
+        "X": 515,
+        "M": 3
+      },
+      "area_year_keys": 13974,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Meat of chickens, fresh or chilled || Production": {
+      "rows": 13982,
+      "areas": 240,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "t": 13982
+      },
+      "flags": {
+        "A": 5992,
+        "E": 4066,
+        "I": 3121,
+        "X": 800,
+        "M": 3
+      },
+      "area_year_keys": 13982,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Meat of chickens, fresh or chilled || Yield/Carcass Weight": {
+      "rows": 13964,
+      "areas": 240,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "g/An": 13964
+      },
+      "flags": {
+        "E": 10420,
+        "A": 3322,
+        "X": 222
+      },
+      "area_year_keys": 13964,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Meat of pig with the bone, fresh or chilled || Producing Animals/Slaughtered": {
+      "rows": 12862,
+      "areas": 220,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "An": 12862
+      },
+      "flags": {
+        "E": 5764,
+        "A": 5690,
+        "I": 976,
+        "X": 401,
+        "M": 31
+      },
+      "area_year_keys": 12862,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Meat of pig with the bone, fresh or chilled || Production": {
+      "rows": 12862,
+      "areas": 220,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "t": 12862
+      },
+      "flags": {
+        "A": 6212,
+        "E": 3139,
+        "I": 3046,
+        "X": 428,
+        "M": 37
+      },
+      "area_year_keys": 12862,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Meat of pig with the bone, fresh or chilled || Yield/Carcass Weight": {
+      "rows": 12767,
+      "areas": 220,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "kg/An": 12767
+      },
+      "flags": {
+        "E": 7759,
+        "A": 4904,
+        "X": 104
+      },
+      "area_year_keys": 12767,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Raw milk of cattle || Milk Animals": {
+      "rows": 13360,
+      "areas": 231,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "An": 13360
+      },
+      "flags": {
+        "E": 6266,
+        "A": 5577,
+        "I": 1121,
+        "X": 385,
+        "M": 11
+      },
+      "area_year_keys": 13360,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Raw milk of cattle || Production": {
+      "rows": 13359,
+      "areas": 231,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "t": 13359
+      },
+      "flags": {
+        "A": 7729,
+        "E": 3078,
+        "I": 2130,
+        "X": 411,
+        "M": 11
+      },
+      "area_year_keys": 13359,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Raw milk of cattle || Yield/Carcass Weight": {
+      "rows": 13348,
+      "areas": 231,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "kg/An": 13348
+      },
+      "flags": {
+        "E": 7977,
+        "A": 5282,
+        "X": 89
+      },
+      "area_year_keys": 13348,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Sheep || Stocks": {
+      "rows": 12994,
+      "areas": 225,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "An": 12994
+      },
+      "flags": {
+        "A": 8629,
+        "E": 3290,
+        "I": 564,
+        "X": 478,
+        "M": 33
+      },
+      "area_year_keys": 12994,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    },
+    "Swine / pigs || Stocks": {
+      "rows": 12824,
+      "areas": 219,
+      "year_min": 1961,
+      "year_max": 2024,
+      "units": {
+        "An": 12824
+      },
+      "flags": {
+        "A": 8104,
+        "E": 3671,
+        "I": 650,
+        "X": 333,
+        "M": 66
+      },
+      "area_year_keys": 12824,
+      "area_year_keys_with_multiple_units": 0,
+      "in_legend": true
+    }
+  }
+}

@@ -39,9 +39,20 @@ def test_numbers_tables_matches_tablespec_keys_no_drift():
         f"only-in-tables.yaml={sorted(spec_keys - tuple_keys)}")
 
 
+def _contract(reg, name: str, specs: dict) -> dict:
+    """The contract a numbers card reconciles against -- ``RC.contract_name_for``, the ONE rule.
+
+    Restating the resolution here would let it drift from the lint it is meant to mirror, and the
+    case it exists for is precisely a card whose id names no contract: silver_production_livestock
+    (FAO-2) is a SECOND card on the silver_production physical table via ``athena_table``, so
+    ``reg.table(<its id>)`` is a KeyError by construction and always will be."""
+    return reg.table(RC.contract_name_for(name, specs.get(name, {}), reg))
+
+
 def test_all_numbers_tables_carry_back_pointers(reg):
+    specs = RC._numbers_specs()
     for name in RC.NUMBERS_TABLES:
-        c = reg.table(name)
+        c = _contract(reg, name, specs)
         assert c["numbers_ref"], name
         assert c["consumers"] in ("numbers_registry", "both"), name
 
@@ -49,7 +60,7 @@ def test_all_numbers_tables_carry_back_pointers(reg):
 def test_numbers_pit_fields_match_tablespec(reg):
     specs = RC._numbers_specs()
     for name in RC.NUMBERS_TABLES:
-        c, spec = reg.table(name), specs[name]
+        c, spec = _contract(reg, name, specs), specs[name]
         assert c["knowledge_date_col"] == spec.get("knowledge_date_col"), name
         assert c["knowledge_semantics"] == spec.get("knowledge_semantics"), name
         assert c["publication_lag_days"] == spec.get("publication_lag_days"), name
@@ -57,6 +68,73 @@ def test_numbers_pit_fields_match_tablespec(reg):
     # publication event) — the pre-flip data_date/+7d pair must NOT resurface via a stale regen.
     assert reg.table("silver_esr")["knowledge_semantics"] == "vintage"
     assert reg.table("silver_esr")["publication_lag_days"] == 0
+
+
+class TestTheSecondCardOnOnePhysicalTable:
+    """FAO-2 (Lane 5). ``silver_production_livestock`` is the estate's FIRST card id that names no
+    Glue table of its own: it serves ``silver_production`` through ``athena_table`` because
+    ``commodity_values`` and per-metric ``unit`` are per-CARD closed sets and the crop half and the
+    livestock half must not share either.
+
+    WHAT IS NOT DONE, and it is the point of ``contract_name_for``: no phantom F010 contract is
+    minted for it. That contract would describe a table that does not exist, and the F010 registry is
+    consumed downstream as a roster of PHYSICAL tables -- a DDL would be rendered for it, the
+    readiness roster and the rebuild gate would count it, six count pins would move -- all to check a
+    duplicate against itself, since every PIT field of a second card on one table is the SAME COLUMN
+    as the first card's."""
+
+    def test_the_logical_card_reconciles_against_the_physical_tables_contract(self, reg):
+        specs = RC._numbers_specs()
+        assert "silver_production_livestock" in RC.NUMBERS_TABLES
+        assert "silver_production_livestock" not in reg.tables      # no phantom contract, ever
+        assert RC.contract_name_for(
+            "silver_production_livestock", specs["silver_production_livestock"], reg
+        ) == "silver_production"
+        assert [d.detail for d in RC.reconcile_numbers(reg)
+                if d.table == "silver_production_livestock"] == []
+
+    def test_the_two_cards_are_forced_to_agree_on_the_shared_tables_pit_semantics(self, reg):
+        """THE CHECK THIS BUYS, and it has more teeth than a duplicated contract would: two cards on
+        one physical table declaring DIFFERENT knowledge semantics is the real hazard a second card
+        creates, and before this it was unreachable by any lint. Asserted in the failing direction."""
+        specs = copy.deepcopy(RC._numbers_specs())
+        specs["silver_production_livestock"]["knowledge_semantics"] = "vintage"
+
+        class _Frozen:
+            def __init__(self, doc): self._doc = doc
+            def __call__(self, path=None): return self._doc
+
+        original = RC._numbers_specs
+        RC._numbers_specs = _Frozen(specs)                            # noqa: F811 -- restored below
+        try:
+            divs = RC.reconcile_numbers(reg)
+        finally:
+            RC._numbers_specs = original
+        assert any(d.table == "silver_production_livestock"
+                   and d.kind == "knowledge_semantics" for d in divs)
+
+    def test_silver_esr_still_reconciles_against_its_OWN_contract(self, reg):
+        """THE REGRESSION GUARD ON THE RESOLUTION ORDER. silver_esr ALSO carries an athena_table
+        (silver_esr_compact) and BOTH names are registered contracts; its PIT trio has always been
+        checked against silver_esr's own record (BF-W2 SILVER-F031 pins vintage/+0d there). A
+        serving-first resolution would silently re-point that live check at a different contract."""
+        specs = RC._numbers_specs()
+        assert specs["silver_esr"].get("athena_table") == "silver_esr_compact"
+        assert "silver_esr_compact" in reg.tables
+        assert RC.contract_name_for("silver_esr", specs["silver_esr"], reg) == "silver_esr"
+
+    def test_the_card_is_born_fenced_out_of_the_served_registry(self):
+        """PA-1 + the Lane-3 arm-vs-flip doctrine: the livestock ROWS DO NOT EXIST YET, so a served
+        card would answer every herd question with a silent 0 rows -- which reads as 'no cattle', not
+        as 'not published'. The flip removes the id AFTER the backfill, the DISTINCT probe and the pg
+        reload, and moves the measured coverage fields in the same change."""
+        from leviathan.graphrag.numbers import registry as NR
+        assert "silver_production_livestock" in NR.WHITELIST_ABSENT_DEFAULT
+        assert not (NR.WHITELIST_ABSENT_DEFAULT & NR._disabled_tables())   # env lane stays separate
+        assert "silver_production_livestock" not in NR.load_registry().tables
+        # the physical table is SHARED, so nothing here may fence the crop card
+        assert "silver_production" not in NR.WHITELIST_ABSENT_DEFAULT
+        assert "silver_production" in NR.load_registry().tables
 
 
 def test_price_observability_tables_in_exact_numbers_set(reg):

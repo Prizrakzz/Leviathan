@@ -9,6 +9,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from leviathan.transforms.raw_to_bronze.faostat_qcl import (
+    _REFUSED_LEGEND_ELEMENTS,
+    TARGET_ELEMENTS,
     add_bronze_metadata,
     clean_basic_types,
     filter_by_fao_item,
@@ -23,6 +25,15 @@ from leviathan.transforms.raw_to_bronze.faostat_qcl import (
 # ---------------------------------------------------------------------------
 
 _FAOSTAT_COLUMNS = ["Area", "Item", "Element", "Year", "Unit", "Value", "Flag"]
+
+_REPO = Path(__file__).resolve().parents[2]
+_QCL_ZIP = (
+    _REPO / "data/raw/production/faostat/qcl"
+    / "Production_Crops_Livestock_E_All_Data_(Normalized).zip"
+)
+_ELEMENT_CODES_MEMBER = "Production_Crops_Livestock_E_Elements.csv"
+_needs_zip = pytest.mark.skipif(
+    not _QCL_ZIP.exists(), reason=f"raw QCL ZIP not checked out: {_QCL_ZIP}")
 
 
 def _make_faostat_zip(tmp_path: Path, rows: list[dict[str, str | int]]) -> Path:
@@ -168,11 +179,30 @@ class TestFilterByFaoItem:
         assert all(result["item"] == "Cocoa beans")
         assert "Maize" not in result["item"].values
 
-    def test_all_three_target_elements_kept(self):
+    def test_all_three_crop_elements_kept(self):
         df = self._make_df()
         result = filter_by_fao_item(df, "Cocoa beans")
         elements = set(result["element"].str.lower())
         assert elements == {"production", "area harvested", "yield"}
+
+    def test_the_livestock_five_survive_the_gate(self):
+        """FAO-2: the five livestock elements pass the bronze gate that used to drop all of them.
+
+        Read against the census: this is the whole 832,196-row half of the file, and before this
+        change every row of it died at `filter_by_fao_item` without a word."""
+        df = pd.DataFrame({
+            "item": ["Cattle", "Raw milk of cattle", "Raw milk of cattle",
+                     "Chickens", "Cattle", "Cattle"],
+            "element": ["Stocks", "Milk Animals", "Yield/Carcass Weight",
+                        "Laying", "Producing Animals/Slaughtered", "Extraction Rate"],
+            "year": [2020] * 6,
+            "value": [1.0] * 6,
+        })
+        for item in ("Cattle", "Raw milk of cattle", "Chickens"):
+            kept = set(filter_by_fao_item(df, item)["element"])
+            assert "Extraction Rate" not in kept        # refused by name, still refused
+        assert set(filter_by_fao_item(df, "Cattle")["element"]) == {
+            "Stocks", "Producing Animals/Slaughtered"}
 
     def test_case_insensitive_item_match(self):
         df = pd.DataFrame({
@@ -192,6 +222,46 @@ class TestFilterByFaoItem:
         df = pd.DataFrame({"element": ["Production"]})
         with pytest.raises(ValueError, match="Missing required FAOSTAT columns"):
             filter_by_fao_item(df, "Cocoa beans")
+
+
+class TestTheBronzeElementGateIsTheWholeUniverse:
+    """FAO-2 (a). The gate is no longer 'the three the crop half needed'.
+
+    Every literal below is MEASURED on the tracked 2026-05-11 QCL ZIP and banked at
+    `data/dec_p0/faostat_livestock_census.json` (cut by `jobs/utils/faostat_element_item_census.py`).
+    These pins are legend-backed and AWS-free; they read the ZIP's 400-byte legend member, never its
+    545 MB data member."""
+
+    def test_the_gate_holds_exactly_the_eight_live_elements(self):
+        assert TARGET_ELEMENTS == {
+            "area harvested", "production", "yield",
+            "stocks", "milk animals", "laying",
+            "producing animals/slaughtered", "yield/carcass weight",
+        }
+
+    def test_the_gate_is_lower_case_because_the_filter_lower_cases(self):
+        # `filter_by_fao_item` compares against `element.str.lower()`, so a Title-Case member here
+        # would be dead on arrival -- the silver_wasde Title-Case bug in miniature.
+        assert all(e == e.lower() for e in TARGET_ELEMENTS)
+
+    def test_the_two_refused_legend_elements_are_named_with_their_reason(self):
+        assert set(_REFUSED_LEGEND_ELEMENTS) == {"Extraction Rate", "Prod Popultn"}
+        for name, reason in _REFUSED_LEGEND_ELEMENTS.items():
+            assert "ZERO rows" in reason and "Reopen" in reason, name
+        # and they must stay OUT of the gate -- a refusal that drifts into the admitted set is worse
+        # than no refusal, because the file still reads as if it were refused
+        assert not {n.lower() for n in _REFUSED_LEGEND_ELEMENTS} & TARGET_ELEMENTS
+
+    @_needs_zip
+    def test_the_gate_plus_the_refusals_are_exactly_the_release_legend(self):
+        """THE NON-VACUOUS PIN. A vintage that adds an element name lands RED here instead of being
+        dropped silently at the gate -- which is the failure this whole lane exists to close."""
+        with zipfile.ZipFile(_QCL_ZIP) as z:
+            raw = z.read(_ELEMENT_CODES_MEMBER).decode("utf-8-sig")
+        legend = {r[1].strip() for r in list(csv.reader(io.StringIO(raw)))[1:] if len(r) >= 2}
+        assert len(legend) == 10                                      # 10 names / 20 element codes
+        assert {n.lower() for n in legend} == TARGET_ELEMENTS | {
+            n.lower() for n in _REFUSED_LEGEND_ELEMENTS}
 
 
 # ---------------------------------------------------------------------------

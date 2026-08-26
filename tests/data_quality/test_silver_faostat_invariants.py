@@ -14,6 +14,10 @@ from leviathan.transforms.bronze_to_silver.faostat_production import (
     transform_faostat_production_silver_df,
 )
 
+# The three metrics a CROP bronze frame produces. Named rather than derived from ELEMENT_TO_METRIC:
+# since FAO-2 that map also carries the livestock five, and a cocoa fixture can never produce them.
+CROP_METRICS = {"production_quantity", "area_harvested", "yield"}
+
 
 @pytest.fixture()
 def silver_faostat_results(faostat_bronze_df: pd.DataFrame):
@@ -53,8 +57,28 @@ class TestSilverFaostatMetric:
         valid = set(ELEMENT_TO_METRIC.values())
         assert set(silver_faostat_df["metric"].unique()).issubset(valid)
 
-    def test_all_three_metrics_present(self, silver_faostat_df):
-        assert set(silver_faostat_df["metric"].unique()) == set(ELEMENT_TO_METRIC.values())
+    def test_all_three_crop_metrics_present(self, silver_faostat_df):
+        """The fixture is a COCOA bronze frame, so the three CROP metrics are what it must produce --
+        all three, none missing.
+
+        This assertion used to read `== set(ELEMENT_TO_METRIC.values())`, which was true only while
+        the map held exactly the crop three. FAO-2 (Lane 5) added the livestock five, and a crop
+        fixture cannot produce `live_animals`; keeping the whole-map equality would have forced
+        either a wrong assertion or a fixture that pretends cocoa has a herd. The equality is
+        therefore re-aimed at what the fixture actually is, and the map-side check moves to
+        `test_the_crop_metrics_are_a_strict_subset_of_the_map` below, which is the half that can
+        still catch a dropped element."""
+        assert set(silver_faostat_df["metric"].unique()) == CROP_METRICS
+
+    def test_the_crop_metrics_are_a_strict_subset_of_the_map(self):
+        """The map-side half, and it fails in the direction that matters: a crop metric renamed or
+        dropped from ELEMENT_TO_METRIC lands here, and so does a livestock metric that stops being
+        an addition and starts REPLACING one."""
+        values = set(ELEMENT_TO_METRIC.values())
+        assert CROP_METRICS < values, sorted(CROP_METRICS - values)
+        assert values - CROP_METRICS == {
+            "live_animals", "milk_animals", "laying_birds",
+            "animals_producing_or_slaughtered", "yield_per_animal"}
 
     def test_no_raw_element_names_in_metric(self, silver_faostat_df):
         raw = {"Production", "Area harvested", "Yield"}

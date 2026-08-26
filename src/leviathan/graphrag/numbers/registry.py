@@ -462,6 +462,47 @@ WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
     # re-cut is this flip's own closing measurement. The flip change carries: this removal,
     # P1_TABLES, the Branch-A/pg-mirror/depth-enum pins, the dispatch attribute-axis clause,
     # psd_monthly gate_tables + SFN regen, and the cascade legs.
+    #
+    # PROJECTION WAVE Lane 5 (FAO-2): `silver_production_livestock`, the SECOND card on the
+    # silver_production physical table (`athena_table: silver_production`), ARMED here on arrival --
+    # the Lane-3 arm-vs-flip doctrine applied without waiting to be burned by it. The card is
+    # authored, the item map is widened and the transforms map the five livestock elements, but the
+    # LIVESTOCK ROWS DO NOT EXIST YET: the Lane-4 crop rewrite (2026-08-26) republished the crop
+    # surface -- ~2,742 canonical objects, area_harvested / production_quantity / yield only -- and
+    # no livestock item has ever entered bronze, so a served card would advertise `live_animals` and
+    # answer every herd question with a silent 0 rows -- worse than "not published", because 0 rows
+    # reads as "no cattle". PA-1 forbids estimating the coverage fields, and there is nothing to
+    # measure until the livestock backfill runs.
+    #
+    # THE FLIP GATE, in order, each step discharged by an artifact and not by a re-read of this
+    # comment (steps (a2) and (e) added by the Lane-5 adversarial review -- both are the shared
+    # physical table's couplings, and both were proven live by Lane 4's own canary):
+    #   (a) the FAOSTAT livestock backfill has run through the Glue backfill lane
+    #       (run_faostat_backfill; the Lane-4 canary discipline: one-slug canary + body/flag
+    #       assertion BEFORE the fan-out) for the four livestock slugs (cattle_beef, hogs,
+    #       broilers_poultry, milk_fluid), with the four per-commodity row counts read off the run;
+    #   (a2) `projection.commodity.values` on the LIVE Glue table has been ALTERed to carry the four
+    #       livestock slugs BEFORE the DISTINCT probe -- the enum is 43 crop slugs today (measured
+    #       at the Lane-4 ALTER), and a partition value absent from a projection enum resolves to
+    #       ZERO ROWS silently: the backfill would land objects Athena cannot see, and gate (b)
+    #       would fail while S3 said success. configs/silver/tables/silver_production.yaml's
+    #       projection_domains moves in the same change (the F010 registry of record renders the
+    #       DDL from it);
+    #   (b) a DISTINCT probe on the published objects returns the four slugs and the metric set the
+    #       card declares, byte-for-byte (the silver_wasde Title-Case lesson);
+    #   (c) `load_pg_numbers` has mirrored them -- the census and C002 both read the MIRROR, so an
+    #       S3-only proof is not a proof (CLAUSE 5);
+    #   (d) the card's PA-1 coverage fields (row_count / first_obs / cadence) are RE-MEASURED on the
+    #       produced objects and moved in the flip change, never before it;
+    #   (e) the CROP card has gained its `commodity_values` fence (FAO-5) in the same change or
+    #       earlier -- the two cards share one physical table, and with livestock rows present but
+    #       the crop fence absent, the LIVE crop card would answer milk_fluid + production_quantity
+    #       with crop narration and no unit warning. The coupling is hard, and it lives HERE because
+    #       the gates travel with the entry, not with a plan document.
+    # The flip change carries: this removal, the card's measured coverage, the dispatch herd
+    # sentence, and the cascade legs. NOTE the physical table is shared, so nothing here gates
+    # silver_production itself -- the crop card is live throughout.
+    "silver_production_livestock",
 })
 
 

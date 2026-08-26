@@ -41,16 +41,29 @@ _LINT = _REPO / "scripts" / "silver" / "f091_source_universe_lint.py"
 # each attributable by name: usda_psd_attributes.py landed (3 universe literals; the file enters
 # PIN_UNIVERSE_FILE_LIST below), the NASS C-2 change added its two exclusion registries (usda_nass.py
 # flips from docket to covered), and the job lane's psd_attributes task added its alias-gate map.
-PIN_RAW_LITERALS = 334
+#
+# RE-MEASURED AGAIN 2026-08-26 by PROJECTION WAVE Lane 5 (FAO-2), and every delta is attributable to
+# that one change -- neither faostat file is new to PIN_UNIVERSE_FILE_LIST, so PIN_UNIVERSE_FILES does
+# not move and only the literal counts and the coverage/docket SPLIT do:
+#   +5 raw / +4 universe literals -- faostat_qcl.TARGET_ELEMENTS grew and gained
+#     _REFUSED_LEGEND_ELEMENTS; faostat_production gained METRIC_UNITS, _REFUSED_UNITS,
+#     HEAD_COUNT_METRICS / TONNAGE_METRICS / PER_ANIMAL_RATE_METRICS and FAOSTAT_LIVESTOCK_SLUGS.
+#   10 -> 12 COVERED and 83 -> 81 DOCKET -- the two faostat files each gained a written refusal
+#     registry, so they leave the docket. This is the first change to move the docket DOWN, which is
+#     the lint's whole purpose: C-1 shipped it as a reported docket precisely so a lane closing two
+#     of its files would show up here as a number rather than as a claim.
+#   143 -> 140 docket literals -- the three literals the two files owed, now covered.
+PIN_RAW_LITERALS = 339
 PIN_RAW_FILES = 126
-PIN_UNIVERSE_LITERALS = 165
+PIN_UNIVERSE_LITERALS = 169
 PIN_UNIVERSE_FILES = 93
-PIN_COVERED_FILES = 10
-PIN_DOCKET_FILES = 83
-PIN_DOCKET_LITERALS = 143
+PIN_COVERED_FILES = 12
+PIN_DOCKET_FILES = 81
+PIN_DOCKET_LITERALS = 140
 
 # The written refusals the estate holds today: (file, literal). The plan text said FOUR; the 08-25
 # measurement said SEVEN in code plus one in config; the C-2 change added TWO more in usda_nass.py
+# and FAO-2 (Lane 5) TWO more again, making TEN in code plus one in config;
 # (the value-axis and commodity-axis registries), and the measurement is what is pinned. EVERY entry
 # must be NON-EMPTY -- an empty registry is a stub the lint refuses to count as coverage (the
 # false-GREEN fix), and the floor test below proves that refusal by mutation.
@@ -60,6 +73,13 @@ PIN_REFUSAL_REGISTRIES = frozenset({
     ("src/leviathan/transforms/bronze_to_silver/usda_nass_crop_progress.py",
      "_HARVESTED_UTIL_EXCLUSIONS"),
     ("src/leviathan/transforms/bronze_to_silver/usda_psd.py", "_PSD_UNMAPPED_CODES"),
+    # PROJECTION WAVE Lane 5 (FAO-2): the two the livestock half added. `_REFUSED_LEGEND_ELEMENTS`
+    # names the two release-legend element names that carry ZERO rows; `_REFUSED_UNITS` names the
+    # three (metric, unit) pairs the file prints and silver_production will not serve. Both are
+    # documentation-with-a-test in the `_PSD_UNMAPPED_CODES` idiom, and both carry the measured row
+    # count that makes the refusal honest.
+    ("src/leviathan/transforms/bronze_to_silver/faostat_production.py", "_REFUSED_UNITS"),
+    ("src/leviathan/transforms/raw_to_bronze/faostat_qcl.py", "_REFUSED_LEGEND_ELEMENTS"),
     ("src/leviathan/transforms/raw_to_bronze/ams_gtr.py", "REFUSED_DATASETS"),
     ("src/leviathan/transforms/raw_to_bronze/eex_freight.py", "REFUSED_PRICINGS"),
     ("src/leviathan/transforms/raw_to_bronze/usda_nass.py", "_RECORDED_STAT_CAT_EXCLUSIONS"),
@@ -307,7 +327,7 @@ class TestGatePosture:
     def test_strict_is_green_today_with_a_live_docket(self, lint, result, capsys):
         rc = lint.run(strict=True, write=False)
         assert rc == 0
-        assert len(result["docket"]) == PIN_DOCKET_FILES  # green WITH 83 files owed a refusal
+        assert len(result["docket"]) == PIN_DOCKET_FILES  # green WITH 81 files owed a refusal
         out = capsys.readouterr().out
         assert "FENCE" in out and "OUT OF SCOPE" in out
         assert "docket:" in out

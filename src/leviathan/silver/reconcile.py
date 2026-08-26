@@ -1,4 +1,4 @@
-"""Reconciliation lints: the silver registry (SILVER-F010) as a SUPERSET that must agree with the
+﻿"""Reconciliation lints: the silver registry (SILVER-F010) as a SUPERSET that must agree with the
 live consumer configs -- it is a reference-and-reconcile authority, not a parallel one (C-WRONG-9).
 
 Four lints, each returning a list of :class:`Divergence`:
@@ -228,6 +228,13 @@ NUMBERS_TABLES = (
     #                                     flag-off until its deck gates the flip) — enumerated the moment its
     #                                     tables.yaml card landed so its knowledge fields reconcile against F010
     #                                     instead of shipping structurally unchecked.
+    "silver_production_livestock",      # PROJECTION WAVE Lane 5 (FAO-2): the LIVESTOCK card on the
+    #                                     silver_production PHYSICAL table (athena_table redirect). It is the
+    #                                     estate's FIRST card id that names no table of its own -- see
+    #                                     `contract_name_for` below for why that does not mint an F010
+    #                                     contract, and what this entry checks instead. Enumerated in the SAME
+    #                                     change that adds the card, forced by the drift test as every entry
+    #                                     above is.
 )
 
 
@@ -284,21 +291,63 @@ def _features_sources(path: Optional[Path] = None) -> set[str]:
 # ---------------------------------------------------------------------------
 # Lints.
 # ---------------------------------------------------------------------------
+def contract_name_for(name: str, spec: dict, reg: SilverRegistry) -> str:
+    """The F010 contract a numbers card reconciles against -- its own id, or its ``athena_table``.
+
+    ``reconcile_numbers`` has always followed an ``athena_table`` redirect for ``partition_cols`` (the
+    silver_esr -> silver_esr_compact case). This function brings the redirect to the CONTRACT lookup
+    too -- but with the opposite precedence, deliberately, and the closing paragraph says why. The one
+    case it changes is one the estate had not met before.
+
+    THE CASE: silver_production_livestock (FAO-2, Lane 5) is a SECOND card on the silver_production
+    physical table -- one physical object, two cards, because ``commodity_values`` and per-metric
+    ``unit`` are per-CARD closed sets and the crop half and the livestock half must not share either
+    (a `cattle_beef` + `area_harvested` ask on a merged card compiles SQL and returns a silent 0
+    rows -- the exact defect FAO-5's commodity fence exists to close). Its id therefore names no
+    Glue table and never will.
+
+    WHY NOT SIMPLY MINT IT AN F010 CONTRACT. Because that contract would describe a table that does
+    not exist. The F010 registry is generated from R0 captures of LIVE objects and is consumed
+    downstream as a roster of physical tables: ``test_ddl_generation`` renders a CREATE for every
+    contract (a phantom Glue DDL), ``test_readiness_certify`` and the rebuild gate count them, and
+    six count pins move. That is a large blast radius spent to check a duplicate against itself --
+    every PIT field of a second card on one table is the SAME COLUMN as the first card's, so a
+    duplicated contract could only ever agree with the original by construction.
+
+    WHAT THIS CHECKS INSTEAD, and it has more teeth than the duplicate would: the logical card is
+    reconciled against the PHYSICAL table's contract, so the two cards on one table are FORCED to
+    declare the same knowledge_date_col / knowledge_semantics / publication_lag_days. Two cards
+    disagreeing about their shared table's PIT semantics is the actual hazard a second card creates,
+    and before this it was unreachable by any lint.
+
+    THE FALLBACK ORDER IS "OWN CONTRACT FIRST", and that is load-bearing rather than tidy: silver_esr
+    ALSO carries an ``athena_table`` (silver_esr_compact) and BOTH names are registered contracts.
+    Its PIT trio has always reconciled against silver_esr's OWN contract -- BF-W2 SILVER-F031 pins it
+    to vintage/+0d there, and the compact sibling is a different record -- so following the redirect
+    unconditionally would silently re-point a live check at a different contract. ONLY a card with no
+    contract of its own follows the redirect, which is exactly the new case and nothing else."""
+    if name in reg.tables:
+        return name
+    serving = spec.get("athena_table")
+    return serving if (serving and serving in reg.tables) else name
+
+
 def reconcile_numbers(reg: SilverRegistry, path: Optional[Path] = None) -> list[Divergence]:
     """Registry <-> numbers TableSpec. The acceptance lint: no publication_lag / PIT divergence."""
     specs = _numbers_specs(path)
     out: list[Divergence] = []
     for name in NUMBERS_TABLES:
-        if name not in reg.tables:
-            out.append(Divergence("numbers", name, "missing_table",
-                                   "numbers TableSpec table absent from registry"))
-            continue
-        c = reg.tables[name]
         spec = specs.get(name, {})
         if not spec:
             out.append(Divergence("numbers", name, "missing_spec",
                                    "table in registry NUMBERS set but absent from tables.yaml"))
             continue
+        contract = contract_name_for(name, spec, reg)
+        if contract not in reg.tables:
+            out.append(Divergence("numbers", name, "missing_table",
+                                   "numbers TableSpec table absent from registry"))
+            continue
+        c = reg.tables[contract]
         if not c.get("numbers_ref"):
             out.append(Divergence("numbers", name, "missing_numbers_ref",
                                    "registry contract lacks numbers_ref back-pointer"))
@@ -337,6 +386,12 @@ def reconcile_numbers(reg: SilverRegistry, path: Optional[Path] = None) -> list[
         # including any column on a projected table -- is still a divergence.
         spec_parts = spec.get("partition_cols")
         if spec_parts is not None:
+            # SERVING-FIRST, and deliberately NOT `contract_name_for`'s own-first order. The two
+            # questions are different: the PIT trio belongs to the card's own contract where it has
+            # one (silver_esr's vintage/+0d, BF-W2 SILVER-F031), while `partition_cols` describes
+            # the object the SQL actually scans and must resolve to silver_esr_compact. A card with
+            # no contract of its own (silver_production_livestock) lands on the same table either
+            # way, so this only ever diverges for silver_esr -- where it has always diverged.
             serving = spec.get("athena_table")
             part_table = serving if (serving and serving in reg.tables) else name
             part_contract = reg.tables[part_table]

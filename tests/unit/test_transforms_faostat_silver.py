@@ -18,10 +18,17 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from leviathan.transforms.bronze_to_silver.faostat_production import (
+    _REFUSED_UNITS,
     CANONICAL_PHYSICAL_COLUMNS,
+    ELEMENT_TO_METRIC,
     FLAG_SEMANTICS,
+    HEAD_COUNT_METRICS,
+    LIVESTOCK_METRICS,
+    METRIC_UNITS,
     NO_VALUE_FLAGS,
     OFFICIAL_FLAGS,
+    PER_ANIMAL_RATE_METRICS,
+    TONNAGE_METRICS,
     FaostatMappingError,
     SilverProductionLayoutError,
     assert_canonical_production_key,
@@ -53,6 +60,175 @@ def test_flag_semantics_match_the_release_legend():
     assert NO_VALUE_FLAGS == {"M"} and legend["M"].startswith("Missing value")
     # the four PRE-2022 keys the old NON_OFFICIAL_FLAGS set targeted are simply gone from the legend
     assert not ({"F", "Fc", "Im", "*"} & set(legend))
+
+
+_ELEMENT_CODES_MEMBER = "Production_Crops_Livestock_E_Elements.csv"
+
+
+def _row(**over) -> pd.DataFrame:
+    base = {
+        "area": ["Brazil"], "item": ["Cattle"], "element": ["Stocks"], "year": [2020],
+        "unit": ["An"], "value": [2.2e8], "flag": ["A"], "ingest_date": ["2026-05-11"],
+    }
+    base.update({k: v for k, v in over.items()})
+    return pd.DataFrame(base)
+
+
+class TestTheElementMapCarriesTheLivestockFive:
+    """FAO-2 (a). BOTH DIRECTIONS, because either direction alone hides a real failure: a key with
+    no metric drops rows silently at `isin(ELEMENT_TO_METRIC)`, and a metric with no key is a card
+    entry that returns zero rows and reads as 'not published'."""
+
+    _LIVESTOCK = {
+        "Stocks": "live_animals",
+        "Milk Animals": "milk_animals",
+        "Laying": "laying_birds",
+        "Producing Animals/Slaughtered": "animals_producing_or_slaughtered",
+        "Yield/Carcass Weight": "yield_per_animal",
+    }
+    _CROP = {"Area harvested": "area_harvested", "Production": "production_quantity",
+             "Yield": "yield"}
+
+    def test_the_map_is_exactly_the_crop_three_plus_the_livestock_five(self):
+        assert ELEMENT_TO_METRIC == {**self._CROP, **self._LIVESTOCK}
+
+    def test_the_crop_three_are_untouched_byte_for_byte(self):
+        # A widening must never re-base a live series. silver_production is served TODAY off these
+        # three metric strings; a rename here is a silent zero-row card.
+        for element, metric in self._CROP.items():
+            assert ELEMENT_TO_METRIC[element] == metric
+
+    def test_every_metric_name_is_unique(self):
+        assert len(set(ELEMENT_TO_METRIC.values())) == len(ELEMENT_TO_METRIC)
+
+    def test_stocks_is_NOT_named_stocks(self):
+        """The rename IS the fence. In this estate `stocks` means balance-sheet ENDING STOCKS in
+        tonnes -- silver_psd carries exactly that for cattle_beef / hogs / broilers_poultry -- so a
+        metric literally called `stocks` holding head of cattle would be read as ending stocks by
+        every consumer that has read a PSD number."""
+        assert ELEMENT_TO_METRIC["Stocks"] == "live_animals"
+        assert "stocks" not in set(ELEMENT_TO_METRIC.values())
+
+    # the unit the release actually prints for each element (census-measured), so the row under test
+    # clears the unit fence for the reason it is governed and not by accident
+    _UNIT = {"Stocks": "An", "Milk Animals": "An", "Laying": "1000 An",
+             "Producing Animals/Slaughtered": "An", "Yield/Carcass Weight": "kg/An"}
+
+    @pytest.mark.parametrize("element", list(_LIVESTOCK))
+    def test_the_legend_string_resolves_case_insensitively(self, element):
+        unit = self._UNIT[element]
+        got = transform_faostat_production_silver_df(
+            _row(element=[element], unit=[unit]), commodity="cattle_beef")
+        assert got and got[0][1]["metric"].iloc[0] == self._LIVESTOCK[element]
+        # and the same string lower-cased resolves too -- the fold is case-insensitive, not lossy
+        got_lower = transform_faostat_production_silver_df(
+            _row(element=[element.lower()], unit=[unit]), commodity="cattle_beef")
+        assert got_lower and got_lower[0][1]["metric"].iloc[0] == self._LIVESTOCK[element]
+
+    @pytest.mark.parametrize("element", ["Producing Animals/Slaughtered",
+                                         "Yield/Carcass Weight", "Milk Animals"])
+    def test_the_old_capitalize_fold_would_have_dropped_this_element(self, element):
+        """THE NON-VACUOUS PIN ON THE REGRESSION THIS CHANGE FIXES. `str.capitalize()` lower-cases
+        everything after the first character, so three of the five livestock elements folded to a
+        string absent from the map and were dropped at `isin(...)` with no error and no warning. It
+        was invisible for the crop half only because all three crop element strings happen to be
+        capitalize-STABLE, which is exactly the coincidence that let a lossy fold sit in a validated
+        map. Asserted in the failing direction so the fold cannot come back."""
+        assert element.capitalize() != element
+        assert element.capitalize() not in ELEMENT_TO_METRIC
+        assert element in ELEMENT_TO_METRIC
+        # ... and the three that hid it
+        for crop in ("Area harvested", "Production", "Yield"):
+            assert crop.capitalize() == crop
+
+    @_needs_zip
+    def test_the_map_keys_are_the_releases_own_element_strings(self):
+        """The keys are the legend's, byte-for-byte -- the FLAG_SEMANTICS posture on the element
+        axis. A legend rename lands here as a red test, not as a silently emptied metric."""
+        with zipfile.ZipFile(_QCL_ZIP) as z:
+            rows = list(csv.reader(io.StringIO(z.read(_ELEMENT_CODES_MEMBER).decode("utf-8-sig"))))
+        legend = {r[1].strip() for r in rows[1:] if len(r) >= 2}
+        assert set(ELEMENT_TO_METRIC) <= legend
+        # the two the map leaves out are the two the release prints ZERO rows for; they are refused
+        # by name in raw_to_bronze.faostat_qcl._REFUSED_LEGEND_ELEMENTS
+        assert legend - set(ELEMENT_TO_METRIC) == {"Extraction Rate", "Prod Popultn"}
+
+
+class TestTheUnitFence:
+    """FAO-2 (c). ``unit`` is a free string, so nothing structural stops a head count from being
+    published under a metric a consumer sums with tonnes. Measured figures cite
+    ``data/dec_p0/faostat_livestock_census.json``."""
+
+    def test_every_mapped_metric_declares_its_units(self):
+        assert set(METRIC_UNITS) == set(ELEMENT_TO_METRIC.values())
+
+    def test_the_narration_classes_partition_the_metric_set(self):
+        crop = {"area_harvested", "yield"}
+        classes = HEAD_COUNT_METRICS | TONNAGE_METRICS | PER_ANIMAL_RATE_METRICS | crop
+        assert classes == set(METRIC_UNITS)
+        # and they are disjoint -- a metric in two narration classes is a fence that cannot be read
+        assert not (HEAD_COUNT_METRICS & TONNAGE_METRICS)
+        assert not (HEAD_COUNT_METRICS & PER_ANIMAL_RATE_METRICS)
+        assert not (TONNAGE_METRICS & PER_ANIMAL_RATE_METRICS)
+        assert LIVESTOCK_METRICS == HEAD_COUNT_METRICS | PER_ANIMAL_RATE_METRICS
+
+    def test_no_head_count_metric_may_carry_a_mass_unit(self):
+        # the whole point, asserted rather than commented
+        for metric in HEAD_COUNT_METRICS:
+            assert not (METRIC_UNITS[metric] & {"t", "kg", "ha", "kg/ha"}), metric
+        assert METRIC_UNITS["production_quantity"] == {"t"}
+
+    def test_the_cross_slug_1000x_trap_is_declared(self):
+        """MEASURED: live_animals is `An` for cattle_beef (13,831 rows) and hogs (12,824) but
+        `1000 An` for broilers_poultry (13,932). Both units are governed on ONE metric on purpose --
+        the `Cows In Milk` disposition, carried honestly on the per-row unit column -- and this
+        assertion is what makes the card's warning non-negotiable."""
+        assert METRIC_UNITS["live_animals"] == {"An", "1000 An"}
+
+    @pytest.mark.parametrize("metric,unit", sorted(_REFUSED_UNITS))
+    def test_each_refused_pair_is_refused_and_says_why(self, metric, unit):
+        assert unit not in METRIC_UNITS[metric]
+        assert _REFUSED_UNITS[(metric, unit)]
+
+    def test_a_livestock_metric_in_an_ungoverned_unit_raises(self):
+        with pytest.raises(FaostatMappingError, match="does not govern"):
+            transform_faostat_production_silver_df(
+                _row(element=["Stocks"], unit=["t"]), commodity="cattle_beef")
+
+    def test_the_egg_production_unit_is_refused_by_name_on_a_crop_metric_too(self):
+        """The three pairs at _REFUSED_UNITS are fenced on ANY metric, including the three crop
+        metrics that predate this lane -- `1000 No` on production_quantity is a thousand-eggs count
+        published as a tonnage."""
+        with pytest.raises(FaostatMappingError, match="REFUSED BY NAME"):
+            transform_faostat_production_silver_df(
+                _row(item=["Hen eggs in shell, fresh"], element=["Production"],
+                     unit=["1000 No"]), commodity="broilers_poultry")
+
+    def test_the_fence_runs_before_duplicate_resolution(self):
+        """ORDERING, and it is a diagnosis question rather than a safety one -- both orders are
+        fail-closed. The natural key is (country_key, metric, year) with NO unit, so two units on
+        one key ALSO trip `_resolve_duplicates_or_raise`, but as a 'conflicting duplicate value',
+        which sends the reader hunting a data defect when the answer is a units decision. MEASURED:
+        admitting `Hen eggs in shell, fresh` puts `t` and `1000 No` on 13,801 of its 14,009
+        (area, year) keys."""
+        both = pd.DataFrame({
+            "area": ["Brazil", "Brazil"], "item": ["Hen eggs in shell, fresh"] * 2,
+            "element": ["Production", "Production"], "year": [2020, 2020],
+            "unit": ["t", "1000 No"], "value": [3.0e6, 5.0e7], "flag": ["A", "A"],
+            "ingest_date": ["2026-05-11"] * 2,
+        })
+        with pytest.raises(FaostatMappingError) as exc:
+            transform_faostat_production_silver_df(both, commodity="broilers_poultry")
+        assert "does not govern" in str(exc.value)
+        assert "conflicting duplicate" not in str(exc.value)
+
+    def test_a_governed_livestock_row_passes_through_with_its_unit_intact(self):
+        _, silver = transform_faostat_production_silver_df(
+            _row(item=["Chickens"], element=["Stocks"], unit=["1000 An"], value=[1.5e6]),
+            commodity="broilers_poultry")[0]
+        assert silver["metric"].iloc[0] == "live_animals"
+        assert silver["unit"].iloc[0] == "1000 An"      # the compare key, never dropped
+        assert set(silver.columns) == EXPECTED_COLS
 
 
 class TestTransformFaostatProductionSilverDf:
@@ -139,6 +315,43 @@ class TestTransformFaostatProductionSilverDf:
         assert pd.isna(by_flag.loc["M", "value"])          # the "cannot exist" zero never reaches serving
         assert by_flag.loc["A", "value"] == 1.0e6          # every other row is untouched
         assert pd.api.types.is_numeric_dtype(silver["value"])
+
+    def test_a_same_key_multi_unit_pair_dies_with_the_units_named(self):
+        """LANE-5 REVIEW MAJOR 3, scenario A: 'An' and '1000 An' are BOTH governed for
+        live_animals, so pair-wise governance passes a single (country_key, metric, year) key
+        printed in both scales -- and the value-conflict resolver would then mis-diagnose it as a
+        VALUE conflict. The multi-unit guard must die FIRST, naming the units."""
+        df = pd.DataFrame({
+            "area": ["Brazil", "Brazil"], "item": ["Cattle"] * 2, "element": ["Stocks"] * 2,
+            "year": [2020, 2020], "unit": ["An", "1000 An"], "value": [2.2e8, 2.2e5],
+            "flag": ["A", "A"], "ingest_date": ["2026-05-11"] * 2,
+        })
+        with pytest.raises(FaostatMappingError, match="MORE THAN ONE unit"):
+            transform_faostat_production_silver_df(df, commodity="cattle_beef")
+
+    def test_a_same_key_multi_unit_pair_with_EQUAL_values_cannot_collapse_silently(self):
+        """Scenario B, the silent-collapse path: equal values on both scales used to pass the
+        conflict resolver (dropna + nunique==1) and keep='last' published ONE row under whichever
+        unit survived -- the estate's headline 1000x metric wrong-scaled with no error. Unreachable
+        on today's roster (no admitted (item, element) prints two units, measured); this pin is
+        what makes the first admission that changes that die loudly."""
+        df = pd.DataFrame({
+            "area": ["Brazil", "Brazil"], "item": ["Cattle"] * 2, "element": ["Stocks"] * 2,
+            "year": [2020, 2020], "unit": ["An", "1000 An"], "value": [1000.0, 1000.0],
+            "flag": ["A", "A"], "ingest_date": ["2026-05-11"] * 2,
+        })
+        with pytest.raises(FaostatMappingError, match="MORE THAN ONE unit"):
+            transform_faostat_production_silver_df(df, commodity="cattle_beef")
+
+    def test_a_padded_unit_is_published_stripped(self):
+        """The fence normalizes ON THE FRAME now (Lane-5 review minor): ' An ' must reach silver
+        as 'An' -- the card declares the unit column AUTHORITATIVE, so the fence's own
+        normalization cannot open a gap it does not close."""
+        got = transform_faostat_production_silver_df(
+            pd.DataFrame({"area": ["Brazil"], "item": ["Cattle"], "element": ["Stocks"],
+                          "year": [2020], "unit": [" An "], "value": [2.2e8], "flag": ["A"],
+                          "ingest_date": ["2026-05-11"]}), commodity="cattle_beef")
+        assert got and got[0][1]["unit"].iloc[0] == "An"
 
     def test_a_numeric_m_row_still_collides_before_it_is_blanked(self):
         """ORDER IS THE FENCE (Lane-4 review, minor 1): blanking M BEFORE duplicate resolution would
