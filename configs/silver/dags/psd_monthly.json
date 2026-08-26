@@ -11,7 +11,8 @@
   "skip_existing": true,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
-    "silver_psd"
+    "silver_psd",
+    "silver_psd_attributes"
   ],
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/psd_monthly/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
@@ -22,7 +23,7 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "fetch->bronze->silver_psd",
+  "chain_shape": "fetch->bronze->silver_psd+silver_psd_attributes",
   "phases": [
     {
       "name": "fetch",
@@ -75,11 +76,26 @@
           "env": {},
           "publishes": true,
           "publish_mode": "shadow_canonical"
+        },
+        {
+          "id": "psd_attributes_silver",
+          "invocation_form": "m",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-psd-silver",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "-m",
+            "jobs.batch.psd_attributes_silver_task",
+            "--force-overwrite"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
         }
       ]
     }
   ],
-  "notes": "--skip-existing; full DB snapshot self-heals. psd_silver is module form [m] (defensive jobs.* import). CLASS-B latest-only; held DISABLED until the A-W4 retrofit.",
+  "notes": "--skip-existing; full DB snapshot self-heals. psd_silver is module form [m] (defensive jobs.* import). CLASS-B latest-only; held DISABLED until the A-W4 retrofit. LANE 3 FLIP 2026-08-26: psd_attributes_silver joins the silver phase -- the LONG companion is a projection of the SAME bulk object and MUST refresh on the same fire or the two tables drift apart on vintages (the wide re-runs monthly while the long stales). Same jobdef by the same two self-promotion facts below; the renderer gives it its own shadow + promote legs. Its gate baseline entry first exists after the flip's census re-cut -- the rolling baseline refreshes on the first green fire.",
   "promote_jobdef": "leviathan-dev-psd-silver",
   "promote_jobdef_note": "SELF-PROMOTION, forced by two facts and not by preference. (1) The promote leg re-runs the IDENTICAL 16.7M-row concat+pivot with --publish-mode canonical, so on leviathan-dev-silver-publisher-runner (1 vCPU / 4096 MB) it OOMs exactly like the shadow leg did on b3-flat-silver -- job 213aaaa7 on 2026-08-13, exit 137. (2) leviathan-dev-psd-silver is DIGEST-PINNED in terraform, so test_digest_pinned_producers_must_self_promote requires it here or the promote would re-derive silver on a different build than the shadow it promotes. The jobdef binds jobRoleArn=silver-publisher and therefore holds kms:Sign, which is what auth_mode=kms needs."
 }

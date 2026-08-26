@@ -196,6 +196,37 @@ REGISTRY: tuple[ToolSpec, ...] = (
         # 2026-08-20 widening took the card from 13 contracts to the 63-slug balance-sheet BOOK -- the
         # livestock/dairy/crush subjects were servable and unadvertised. The subject roster below moves
         # WITH the card's commodity_values, never ahead of it.
+        #
+        # L2-4 THE ATTRIBUTE AXIS (projection wave Lane 3; clause shipped at the 2026-08-26 whitelist
+        # FLIP, never before): the clause after the revision sentence advertises the LONG COMPANION
+        # (silver_psd_attributes) -- the balance-sheet lines the MT-denominated wide columns never
+        # carried, measured on the census (data/dec_p0/psd_attribute_census.json). THE CLAUSE
+        # ADVERTISES THE DECLARED ROSTER, NOT THE PHYSICAL UNIVERSE, AND NAMES NO COUNT: the card
+        # declares 20 of the 56 physical labels (the D-6 admission -- the pg mirror loads exactly the
+        # declared set), so a numbered claim here either overstates serving (47 was the physical
+        # servable count, review major) or rots at the next roster amendment. Three lines the first
+        # draft advertised were CUT by the adversarial review: oilseed extraction rates (attr 181 --
+        # a (PERCENT) column with a 1e4 scale hint, meal/oil sheets only) and seed-to-lint (attr 183,
+        # max 1,656,000 as a "ratio") are SCALE-BROKEN at source and undeclared; cotton stocks-to-use
+        # is undeclared. Industrial use is scoped to its measured 17 codes (oil+meal sheets), never
+        # the whole oilseed family. Cows In Milk is a (1000 HEAD) column -- "thousand-head", never
+        # "head". IT MOVED WITH THE CARD AND NEVER AHEAD OF IT: the
+        # citrus flip above is the same law read forward rather than backward -- a purpose string that
+        # tells the router a table HOLDS a subject is a routing fence made of prose in the other
+        # direction, and it over-promises for exactly as long as the card is unregistered.
+        # EVERY CEILING RIDES ITS OWN VERB, in the clause's own sentence, because the axis is one where a
+        # near-miss reads as a hit: crush is a VOLUME and there is no cane crush and no corn grind on it
+        # (the estate's cane crush is UNICA's, the soy MARGIN is board_crush); the two demand
+        # decompositions split on the SHEET, not on the question, and no sheet carries both; the TY trio
+        # is a DIFFERENT year from the marketing year the rest of this card uses; the coffee split is
+        # production-only and the sugar raw/refined split is trade-only; and the rate/head rows are
+        # native-unit rows that are never summed with tonnes.
+        # TOKEN DISCIPLINE, measured on the string BEFORE writing it (the MINAGRO idiom): `crush` was
+        # ALREADY earned three times over (UNICA's "cane crush", "board crush", "no Dalian or Zhengzhou
+        # crush"), and `attribute` free-rides on "so a move can be attributed" -- either would have passed
+        # the coverage map while the companion stayed dark. `oilseed crush` and `arabica` were both
+        # verified ABSENT from this string before this wave and either one alone identifies the table;
+        # they are the tests/unit/test_capability_wiring.py::_ADVERTISED entry.
         purpose=("leakage-safe SQL over OBSERVED values (USDA PSD S&D vintages -- the WHOLE 63-slug "
                  "balance-sheet book: grains and oilseeds, every crush complex's own meal and oil sheets "
                  "(cottonseed, peanut, coconut, palm kernel, sunflower), the livestock and dairy demand "
@@ -206,6 +237,31 @@ REGISTRY: tuple[ToolSpec, ...] = (
                  "MY2014 onward, varies by slug) and the YoY CHANGE in the stocks-to-use ratio compared "
                  "at the same release month, so 'did USDA just raise or cut this country's crop' and "
                  "'is the balance sheet tighter than last year' are LOOKUPS on the PSD card as well; "
+                 "and, on the LONG COMPANION beside it -- one row per balance-sheet line in USDA's OWN "
+                 "unit, back to 1960 -- the balance-sheet lines those tonnage columns never carried: "
+                 "OILSEED CRUSH, the tonnage actually processed, on the oilseed / meal / oil sheets only "
+                 "(soybean, rapeseed/canola, sunflowerseed, cottonseed, peanut, palm kernel, copra) -- a "
+                 "VOLUME and never a margin, and there is no cane crush and no corn grind on it; the "
+                 "DEMAND DECOMPOSITION, which splits on the SHEET and not on the question -- the GRAIN "
+                 "sheets (barley, corn, millet, mixed grain, oats, rye, sorghum, wheat) carry FEED use "
+                 "beside a single combined FOOD-SEED-INDUSTRIAL line, so corn-for-ethanol sits INSIDE "
+                 "that line and is never a separable figure, while FOOD USE and FEED-AND-WASTE run on "
+                 "twenty-four sheets and INDUSTRIAL use on the OIL and MEAL sheets only, so no sheet "
+                 "carries both decompositions and the two are never added; the TRADE-YEAR basis for the "
+                 "nine grain sheets -- TY exports, TY imports and each destination's imports FROM THE "
+                 "U.S. -- which is what reconciles a weekly ESR or FGIS count with the annual balance "
+                 "sheet, on a TRADE year that is NOT the marketing year the rest of this card uses, so "
+                 "a TY figure is never netted against an MY export line; the VARIETY AND GRADE SPLITS "
+                 "-- ARABICA versus ROBUSTA production on the green-coffee sheet (PRODUCTION ONLY: "
+                 "trade and stocks are published for green coffee as one subject) and RAW versus "
+                 "REFINED sugar trade on the centrifugal-sugar sheet (TRADE ONLY, refined stated in "
+                 "RAW-VALUE equivalent; beet-versus-cane is a crop-source axis orthogonal to it and "
+                 "splits neither); CONSUMPTION IS FOUR USDA LABELS THERE, not one -- Domestic "
+                 "Consumption plus sugar's Total Disappearance, cotton's Domestic Use (running bales) "
+                 "and citrus's Fresh Dom. Consumption -- so a consumption ask spans all four or sugar, "
+                 "cotton and fresh citrus silently drop; and dairy COWS IN MILK as a thousand-head "
+                 "herd count -- every row carrying its own NATIVE UNIT in a unit column, nothing on "
+                 "that companion converted and no unit ever summed across; "
                  "ESR export sales AND "
                  "their PACE vs the year-ago week/marketing year -- national OR BY DESTINATION (which "
                  "country bought how much this marketing year), FGIS export INSPECTIONS -- the tonnage "
@@ -618,8 +674,14 @@ def planner_sys(max_contracts: int = MAX_CONTRACTS) -> str:
     "  PRICE (futures_eod). List all three. For the SOY complex there is now a FOURTH and it is the direct\n"
     "  one: board_crush serves the margin ITSELF in dollars per bushel, so a soy crush-margin question\n"
     "  lists board_crush ALONGSIDE those and never instead of them -- the spread says what the margin WAS,\n"
-    "  psd says what it did to the balance sheet. There is no such table for the corn ethanol grind or for\n"
-    "  rapeseed/canola: those stay the three-family read.\n"
+    "  psd says what it did to the balance sheet. There is still no MARGIN table for the corn ethanol\n"
+    "  grind or for rapeseed/canola, so those stay the three-family read -- but the USE half of the\n"
+    "  OILSEED case is now a lookup rather than an inference: psd's attribute axis serves the oilseed\n"
+    "  CRUSH VOLUME itself (rapeseed/canola, sunflowerseed, cottonseed, peanut, palm kernel, copra,\n"
+    "  soybean). The CORN case does not move: psd folds corn-for-ethanol into one combined\n"
+    "  food-seed-industrial figure and nothing serves the US grind on its own (unica_corn_ethanol is\n"
+    "  BRAZILIAN corn ethanol, a different country), so answer that it is not published rather than\n"
+    "  quoting the combined line as if it were the grind.\n"
     "  Margin/economics phrasing is not a reason to leave data_families\n"
     "  empty -- a margin IS observed series, it is simply several of them.\n"
     + cov +                                          # PA-11: the GENERATED coverage appendix ("" when

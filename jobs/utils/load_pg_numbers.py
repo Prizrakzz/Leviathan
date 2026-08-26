@@ -53,7 +53,30 @@ logger = get_logger("load_pg_numbers")
 # some other hidden path and silently takes the shadow copies with it.
 _HIDDEN_PREFIXES = ["_", "."]
 
-P1_TABLES = ["silver_psd", "silver_wasde", "silver_production", "silver_esr", "silver_fred_fx",
+P1_TABLES = ["silver_psd",
+             # PROJECTION WAVE Lane 3 / D-6 (flipped 2026-08-26): silver_psd_attributes, the LONG
+             # PSD companion. IT IS NOT A 3.4M-ROW LOAD, and that is the whole D-6 decision: the
+             # canonical object carries 3,397,958 rows over 56 attribute labels, but load_table
+             # filters every TALL table to `field(metric_col).isin(ts.metrics)` -- so the mirror
+             # admits exactly the card's DECLARED roster: 1,079,487 rows MEASURED on the certified
+             # first canonical publish (manifest silver_psd_attributes-1787727710260; the L2-0
+             # census measured the same roster at 1,033,407 on the single 2026-08-13 object -- the
+             # live object preserves vintages from every distinct vendor snapshot, hence higher).
+             # Sized against the standing RDS hazard: leviathan-dev-pg has autoscaling OFF, so an
+             # undeclared attribute is not merely unserved, it is unloaded -- declaring one on the
+             # card is what spends the storage.
+             # TYPE DOCTRINE: `value` mirrors numeric as the declared value_col, and `market_year`
+             # mirrors numeric because it is the period_col at period_sql_type=int. EVERYTHING ELSE
+             # STAYS TEXT COLLATE "C" -- leviathan_slug / country / attribute / unit / release_date
+             # by shape, attribute_id because nothing does arithmetic on a USDA key (it is a join
+             # and audit identity, not a figure), and wasde_release_month for the same reason
+             # despite its physical type: the producer casts it Int8 -> Glue tinyint, but it is
+             # neither the value_col nor year_col/month_col nor an int period_col, so _numeric_cols
+             # routes it to TEXT automatically. That is parity-safe because it is a grain column of
+             # the PHYSICAL table only -- the card declares no grain_cols, the serving ROW_NUMBER
+             # partitions by the tall fallback, and int 0 renders '0' on both backends.
+             "silver_psd_attributes",
+             "silver_wasde", "silver_production", "silver_esr", "silver_fred_fx",
              "silver_noaa_oni", "gold_weather_z",         # gold_weather_z: small tall z-table (D-W4);
              #                                              silver_nasa_power stays EXCLUDED (size, above)
              # D-EC DK-13: gold_board_crush is a FLAT WIDE table of ~4,000 rows (one per session since

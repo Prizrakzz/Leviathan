@@ -689,8 +689,16 @@ _CONSUMPTION_LABELS: tuple[str, ...] = (
     "Domestic Consumption", "Total Disappearance", "Domestic Use", "Fresh Dom. Consumption",
 )
 _D6_ADMISSION = 742057          # the T1 nine -- the census's own answers.e_d6_number
-_DECLARED_ADMISSION = 1033407   # the whole roster, post-R4 -- what the pg mirror loads
+_DECLARED_ADMISSION = 1033407   # the whole roster, post-R4, ON THE CENSUS OBJECT (2026-08-13)
 _CONSUMPTION_ROWS = 237581      # the four labels together
+# The LIVE serving figure, measured on the first canonical object (2026-08-26, certified manifest
+# silver_psd_attributes-1787727710260): the same 20-metric roster over 3,397,958 physical rows.
+# ~4.3% above the census figure because the producer consumed every DISTINCT vendor snapshot in
+# bronze (raw-ETag dedup kept 3-4), preserving vintages that survive only in older/newer snapshots.
+# TWO PROVENANCES BY DESIGN: the census pins (_ROSTER figures, _D6_ADMISSION, _DECLARED_ADMISSION)
+# stay frozen against their artifact; the card's row_count is the live figure and moves at each
+# canonical re-measure -- decoupling them here is what lets both stay true at once.
+_LIVE_SERVED_ROWS = 1079487
 _CENSUS = _REPO / "data" / "dec_p0" / "psd_attribute_census.json"
 
 
@@ -748,14 +756,14 @@ class TestTheCardIsTheTable:
         # PA-1: row_count is the SERVED subset -- the registry field's own contract
         # (registry.py glosses it as "MEASURED rows the card SERVES", the
         # silver_wap_table01_revisions precedent), and for a tall card the served subset
-        # is exactly what the pg mirror admits: the declared roster, 1,033,407 post-R4.
-        # The full-object figure (3,264,235) lives in the card's COVERAGE comment and is
-        # re-derivable from the census; declaring it here would overstate serving by 3.2x.
+        # is exactly what the pg mirror admits: the declared roster, measured on the LIVE
+        # canonical object (_LIVE_SERVED_ROWS -- see its comment for why it differs from
+        # the census figure). The full-object figure lives in the card's COVERAGE comment.
         # first_obs is the table-wide floor. NO last_obs -- the bulk file is cumulative
         # and re-fires monthly, and a stale end date is the model DECLINING a question
         # the table can answer.
         card = _psd_attr_card()
-        assert card["row_count"] == _DECLARED_ADMISSION
+        assert card["row_count"] == _LIVE_SERVED_ROWS
         assert card["first_obs"] == "1960"
         assert card["cadence"] == "annual"
         assert "last_obs" not in card

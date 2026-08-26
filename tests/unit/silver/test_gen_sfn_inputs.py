@@ -1,4 +1,4 @@
-"""A1-A2 A-W6: the per-family DAG chain descriptors + the SFN-input generator.
+﻿"""A1-A2 A-W6: the per-family DAG chain descriptors + the SFN-input generator.
 
 Asserts: every Section-3 descriptor validates (schema + rule lint); the generator round-trips
 byte-identically (the --check idempotency gate); every module-form task carries '-m'; and the six
@@ -43,6 +43,7 @@ EXPECTED_SCHEDULES = {
 # series with a free key). yfinance is the futures source.
 EXPECTED_MODULE_PRODUCERS = {
     "frankfurter_fx", "noaa_iod", "wap_silver", "sagis_deliveries", "psd_silver",
+    "psd_attributes_silver",  # Lane-3 flip 2026-08-26: the LONG companion joins psd_monthly's silver phase, module form for the same defensive jobs.* import as its wide sibling
     "sagis_cec_silver",  # restored 2026-07-18 (task #118): raw->silver-direct era-aware producer
 }
 

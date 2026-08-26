@@ -452,18 +452,16 @@ class NumbersRegistry(BaseModel):
 # them does not also blind their lints -- a fence that disarms the check that guards it is not a fence.
 WHITELIST_ABSENT_DEFAULT: frozenset[str] = frozenset({
     "gold_futures_outcomes", "gold_pattern_outcomes", "gold_cot_outcomes",
-    # PROJECTION WAVE Lane 3 (2026-08-25): silver_psd_attributes -- the LONG PSD companion, ARMED
-    # AHEAD OF THE PUBLISH on exactly the silver_futures_eod/gold_futures_outcomes argument above.
-    # The card, the F010 contract, both DDLs and the producer are all landed; the batch task exists;
-    # but NO canonical object and NO Glue table exist yet, so a visible card would compile
-    # SELECT ... FROM leviathan_dev.silver_psd_attributes into a missing table on every routed ask
-    # (and the pg leg would UndefinedTable into the same missing Athena table). THE FLIP REMOVES THE
-    # ID in the same change as: P1_TABLES membership + the Branch-A/orphan/pg-mirror pin moves
-    # (test_silver_rebuild_gate, test_price_observability_cot), the dispatch attribute-axis clause,
-    # the depth-enum baseline entry (test_numbers_query._LANE3_IDS), psd_monthly gate_tables + SFN
-    # regen, and the cascade legs -- gated on (a) the L2-2 canonical publish having written real
-    # objects, (b) the Glue table resolving, (c) the pg mirror reload, (d) the census re-cut.
-    "silver_psd_attributes",
+    # PROJECTION WAVE Lane 3: silver_psd_attributes was ARMED here 2026-08-25 (card + F010 contract
+    # + DDLs + producer + batch task landed with NO canonical object and NO Glue table -- the
+    # silver_futures_eod arm-vs-flip doctrine) and FLIPPED OUT 2026-08-26 with its gates discharged
+    # by measurement, in order: (a) first canonical publish CERTIFIED (manifest
+    # silver_psd_attributes-1787727710260; 3,397,958 rows, 0 grain dupes, R4 blocked 195,380
+    # manufactured rows in-run); (b) the Glue table resolves (canonical DDL applied, probe
+    # 3,397,958/56/63); (c) pg mirror admission rides P1_TABLES in this same change; (d) the census
+    # re-cut is this flip's own closing measurement. The flip change carries: this removal,
+    # P1_TABLES, the Branch-A/pg-mirror/depth-enum pins, the dispatch attribute-axis clause,
+    # psd_monthly gate_tables + SFN regen, and the cascade legs.
 })
 
 

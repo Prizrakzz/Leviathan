@@ -119,7 +119,7 @@ freshness_sla:
   max_lag_days: null
 consumers: numbers_registry
 numbers_ref: configs/graphrag/numbers/tables.yaml#silver_psd_attributes
-cascade_ref: null
+cascade_ref: configs/graphrag/numbers/cascade_map.yaml#psd_crush
 source_contract_ref: null
 serving_table: null
 producer:

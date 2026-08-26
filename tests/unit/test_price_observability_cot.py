@@ -298,7 +298,10 @@ def test_cot_is_branch_a_twelfth_pg_mirror_table():
     # Branch-A reload is not a one-off here the way it is for a forward-only table.
     # 38 = 37 + gold_futures_spreads (GN-2 W2.3 2026-08-22; served card + P1 member, the
     # by-NAME roster moved in test_silver_rebuild_gate 2026-08-25 -- this count follows it)
-    assert len(g.PG_MIRROR_TABLES) == 38, (
+    # 39 = 38 + silver_psd_attributes (projection Lane 3, FLIPPED 2026-08-26: card visible +
+    # P1 member in the whitelist-flip change, after the first certified canonical publish --
+    # the by-NAME roster moved in the same change)
+    assert len(g.PG_MIRROR_TABLES) == 39, (
         "pg-mirror roster changed; the by-NAME pin lives in tests/unit/test_silver_rebuild_gate.py::"
         "test_branch_selection_all_45_tables. Roster now: " + str(sorted(g.PG_MIRROR_TABLES)))
 

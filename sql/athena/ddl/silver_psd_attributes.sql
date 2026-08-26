@@ -14,11 +14,17 @@
 -- converts nothing never approaches it. Six units are live across the served attributes and rows are
 -- NEVER summed across them.
 --
--- wasde_release_month IS PART OF THE GRAIN AND THE COLUMN ORDER SAYS SO. PSD re-publishes one
--- marketing year at up to thirteen WASDE release months (month_code 0..12; 389,283 rows carry 0 --
--- the pre-WASDE-tracking mass, MY 1960-2004). silver_wasde shipped without its full grain and the
--- latest-vintage ROW_NUMBER collapsed ACROSS regions for months without anyone seeing it; dropping
--- this column from the numbers card's grain_cols reopens the identical failure here.
+-- wasde_release_month IS PART OF THE PHYSICAL GRAIN AND THE COLUMN ORDER SAYS SO. PSD re-publishes
+-- one marketing year at up to thirteen WASDE release months (month_code 0..12; 389,283 rows carry 0
+-- -- the pre-WASDE-tracking mass, MY 1960-2004), and the F010 natural_key carries this column so the
+-- table retains that full vintage fan. THE SERVING GRAIN IS THE OPPOSITE DECISION, on purpose: the
+-- numbers card declares NO grain_cols, so the latest-vintage ROW_NUMBER partitions by
+-- (slug, country, market_year, attribute) and actually collapses the ~13 vintages to "latest
+-- release on or before asof". Putting this column in the card's grain_cols makes that collapse a
+-- structural no-op (one row per partition -- the Lane-3 review's fatal #1); silver_wasde's
+-- regression was the OTHER direction (it dropped SUBJECT dims, table_type/region). Physical grain
+-- here, serving grain there -- two different objects, and silver_psd's own contract-vs-card split
+-- is the precedent.
 --
 -- attribute + attribute_id RIDE TOGETHER ON PURPOSE. `attribute` is USDA's OWN label, byte-for-byte
 -- (sugar keeps "Total Disappearance", cotton "Domestic Use", fresh citrus "Fresh Dom. Consumption" --
@@ -27,9 +33,12 @@
 -- on the label: a string-identity join loses a source-side rename silently, and PSD labels carry
 -- punctuation that makes them fragile ("Rst,Ground Dom. Consum", "Refined Imp.(Raw Val)").
 --
--- FLAT, NON-PROJECTED, latest-only: one publish overwrites the object set, and re-printed vintages
--- resolve latest-wins on (release_date, bronze_ingest_date) inside the transform -- so there is no
--- partition surface to enumerate and no per-partition ADD on refresh.
+-- FLAT, NON-PROJECTED: one publish overwrites the object set (object-level latest-only), while the
+-- ROWS retain every vintage (contract vintage_retention: per-vintage); re-printed copies of the SAME
+-- vintage resolve latest-wins on (release_date, bronze_ingest_date) inside the transform. No
+-- partition surface to enumerate and no per-partition ADD on refresh. Athena ignores the
+-- underscore-prefixed _shadow/ and _manifests/ siblings under this LOCATION by the Hive hidden-path
+-- convention -- the table reads the canonical object only.
 CREATE EXTERNAL TABLE IF NOT EXISTS silver_psd_attributes (
     leviathan_slug      string,
     country             string,

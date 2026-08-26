@@ -172,15 +172,15 @@ _EXPECTED_BRANCH_A = frozenset({
     # commit moved neither this roster nor the orphan roster nor the 50-pin -- three reds this sweep
     # closed together, deliberately, on the measured facts above.
     "gold_futures_spreads",
-    # PROJECTION WAVE Lane 3 (2026-08-25) -- silver_psd_attributes is DELIBERATELY ABSENT. Its F010
-    # contract lands in this change (the 52-pin below moves), but the card is parked behind
-    # registry.WHITELIST_ABSENT_DEFAULT until the first canonical publish: no Glue table exists yet,
-    # so a P1_TABLES membership today would SystemExit the default mirror load on a table nothing can
-    # resolve. It enters Branch A at the whitelist FLIP, in the same change as its P1_TABLES
-    # membership -- the served-card rule, applied on the day the table is actually servable. The pg
-    # footprint fact that matters then: load_table filters tall tables to the declared metric roster,
-    # so the mirror takes 1,033,407 rows of the 3,264,235 produced -- adding an attribute to the card
-    # is what spends RDS storage, and leviathan-dev-pg has autoscaling OFF.
+    # PROJECTION WAVE Lane 3 -- silver_psd_attributes was DELIBERATELY ABSENT while its card sat
+    # behind registry.WHITELIST_ABSENT_DEFAULT (2026-08-25: contract landed, no Glue table, a P1
+    # membership would have SystemExit'd the default mirror load), and ENTERS at the 2026-08-26
+    # whitelist FLIP in the same change as its P1_TABLES membership -- the served-card rule, applied
+    # on the day the table became servable (first canonical publish CERTIFIED, Glue probe
+    # 3,397,958/56/63). The pg footprint fact: load_table filters tall tables to the declared
+    # metric roster, so the mirror takes 1,079,487 rows of the 3,397,958 published -- adding an
+    # attribute to the card is what spends RDS storage, and leviathan-dev-pg has autoscaling OFF.
+    "silver_psd_attributes",
 })
 
 
@@ -202,10 +202,11 @@ def test_branch_selection_all_45_tables():
     # GN-2 W2.3 (2026-08-22, caught 2026-08-25): 50 -> 51. gold_futures_spreads landed with card +
     # P1_TABLES membership (served the same day, so Branch A by the served-card rule) but this pin and
     # the orphan roster were not moved in that commit -- the projection wave's first sweep found both red.
-    # PROJECTION WAVE Lane 3 (2026-08-25): 51 -> 52. silver_psd_attributes' F010 contract lands and
-    # this pin moves with it -- the whole lesson of the W2.3 line above. The card itself is parked
-    # behind registry.WHITELIST_ABSENT_DEFAULT (no Glue table yet), so Branch A, the orphan roster
-    # and the pg-mirror count do NOT move here: they move at the whitelist flip, with P1_TABLES.
+    # PROJECTION WAVE Lane 3 (2026-08-25): 51 -> 52. silver_psd_attributes' F010 contract landed and
+    # this pin moved with it -- the whole lesson of the W2.3 line above. The card sat behind
+    # registry.WHITELIST_ABSENT_DEFAULT until the 2026-08-26 flip, which is when Branch A and the
+    # pg-mirror count moved (with P1_TABLES, in the flip change); the orphan roster never moved at
+    # all -- the flip put the table straight into psd_monthly.json's gate_tables instead.
     assert len(names) == 52, f"expected 52 F010 tables, got {len(names)}"
 
     branch_a = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_A}
@@ -221,9 +222,9 @@ def test_branch_selection_all_45_tables():
                             "served -- update this roster deliberately, never to make a test pass"}
     # D-EC DK-13: + gold_board_crush (the served-card rule, applied to a GOLD table for the second time)
     # LIGHT THE CARD: + silver_minagro_grain_exports (the same rule, applied the day its card landed)
-    assert len(branch_a) == 38          # 20 + Track 1's six + T2's six + T3's three + W2.3's spreads
+    assert len(branch_a) == 39          # 20 + Track 1's six + T2's six + T3's three + W2.3's spreads
     #                                                   + DK-13's one + minagro
-    # (silver_psd_attributes is Branch B until the whitelist flip -- see _EXPECTED_BRANCH_A)
+    #                                                   + Lane 3's silver_psd_attributes (flipped 2026-08-26)
     assert branch_a | branch_b == set(names)          # partition: no table is UNKNOWN in the real registry
     assert not (branch_a & branch_b)
 
