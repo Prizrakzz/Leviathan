@@ -58,3 +58,124 @@ def test_sum_tolerant_eq_rejects_real_divergence():
     assert not _sum_tolerant_eq([("1.0", "2026-01-01")], [("1.0", "2026-01-08")])  # date drift
     assert not _sum_tolerant_eq([("1.0", "")], [("1.0", ""), ("2.0", "")])   # row-set drift
     assert not _sum_tolerant_eq([("abc", "")], [("abd", "")])                # non-numeric mismatch
+
+
+# ---- PROJECTION WAVE Lane 3 / D-8: the silver_psd_attributes entry + its vintage-fan cell ----
+#
+# The Lane-3 flip's one open instrument item. Two separate things are pinned and must not be conflated:
+# (1) the SAMPLE_COMMODITY entry that makes the 20-metric TALL panel non-vacuous, and (2) the CELL leg --
+# one pinned (slug, country, attribute, market_year) read at three as-ofs -- which is the only leg that
+# puts this card's as-of ROW_NUMBER collapse INSIDE the compared projection. Everything here is offline:
+# the SQL is asserted from the string build_sql emits, and the vintage dates from the PRODUCER's own
+# formula, so a drifted spelling or a re-shaped order fails in CI rather than at the next in-VPC run.
+
+_PSD_ATTR = "silver_psd_attributes"
+
+
+def test_psd_attributes_sample_commodity_is_the_card_s_own_contract_slug():
+    assert _PSD_ATTR in parity.SAMPLE_COMMODITY, "no entry -> the panel is vacuous the first time it runs"
+    commodity = parity.SAMPLE_COMMODITY[_PSD_ATTR]
+    # A base name ('soybeans') matches ZERO rows: commodity_col is leviathan_slug, filled from the same
+    # producer map silver_psd's corn_cbot sample comes from. That is the gold_weather_z weather-R3 trap.
+    assert commodity == "soybeans_cbot"
+    reg = load_registry()
+    assert _PSD_ATTR in reg.tables, "registered but whitelist-fenced -> the leg would SKIP-FENCED"
+    ts = reg.get(_PSD_ATTR)
+    assert commodity in ts.commodity_values, (
+        "the sample slug must be one the CARD declares -- the card generates commodity_values from "
+        "_PSD_COMMODITY_TO_SLUGS, so a slug dropped there is a table serving rows its own fence refuses"
+    )
+    assert ts.shape == "tall" and len(ts.metrics) > 4     # tall -> main() lifts the [:4] metric cap
+    assert _PSD_ATTR in parity.PG_MIRROR_TABLES, (
+        "served but unmirrored -> SKIP-UNMIRRORED is a report line, NOT a mismatch, so the gate would "
+        "stay green while the mirror rotted"
+    )
+
+
+def test_psd_attributes_cell_metric_is_declared_single_unit_and_not_the_multi_unit_one():
+    ts = load_registry().get(_PSD_ATTR)
+    m = ts.metrics.get(parity.PSD_ATTR_CELL_METRIC)
+    assert m is not None, "the cell metric must be a DECLARED metric -- load_pg_numbers filters the tall "\
+                          "mirror to the declared roster, so an undeclared attribute has no pg side at all"
+    # Byte-exact USDA spelling, and ONE unit: two rows of this cell can never be different quantities.
+    assert parity.PSD_ATTR_CELL_METRIC == "Crush"
+    assert getattr(m, "unit", None) == "1000 MT"
+    # The refusal, written: 'Domestic Consumption' is the card's one MULTI-UNIT metric (1000 MT /
+    # 1000 MT CWE / 1000 60 KG BAGS / MT) and is therefore not a byte-stable parity cell.
+    assert parity.PSD_ATTR_CELL_METRIC != "Domestic Consumption"
+    assert not ts.metrics["Domestic Consumption"].unit, (
+        "the multi-unit metric declares NO card-level unit on purpose -- the row's unit column governs, "
+        "which is exactly what makes it unfit as a parity cell"
+    )
+
+
+def test_psd_attributes_vintage_cells_span_the_fan_by_the_producer_s_own_formula():
+    import pandas as pd
+    from leviathan.transforms.bronze_to_silver.usda_psd import (
+        _PSD_COMMODITY_TO_SLUGS,
+        _compute_psd_release_dates,
+    )
+    cells = parity.PSD_ATTR_VINTAGE_CELLS
+    assert 2 <= len(cells) <= 3
+    years = {my for my, _ in cells}
+    assert any(int(my) < 2005 for my in years), (
+        "one leg must sit in the month_code-0 era (MY1960-2004, the pre-WASDE-tracking mass the card "
+        "measures at 389,283 rows) or the pre-2005 half of the vintage fan is never compared"
+    )
+    # ...and two legs must share ONE modern market year at DIFFERENT as-ofs, or the fan never MOVES.
+    modern = [(my, asof) for my, asof in cells if int(my) >= 2005]
+    assert len({my for my, _ in modern}) == 1 and len({asof for _, asof in modern}) == 2
+
+    code = next(c for c, slugs in _PSD_COMMODITY_TO_SLUGS.items()
+                if parity.PSD_ATTR_CELL_COMMODITY in slugs)
+    my = int(modern[0][0])
+    frame = pd.DataFrame({"commodity_code": [code] * 13, "month_code": list(range(13)),
+                          "market_year": [my] * 13})
+    dates = sorted(_compute_psd_release_dates(frame))
+    # NO TIE for the latest-vintage ROW_NUMBER to break -- this card declares no vintage_tiebreak, and
+    # release_date is injective in month_code at a fixed market year (day-10 for 1-12, Jan-01 for 0).
+    assert len(set(dates)) == 13
+    mid, settled = sorted(asof for _, asof in modern)
+    assert any(d <= mid for d in dates) and any(d > mid for d in dates), (
+        f"the mid-fan as-of {mid} must sit STRICTLY inside MY{my}'s vintage span {dates[0]}..{dates[-1]}"
+    )
+    assert all(d <= settled for d in dates), f"the settled as-of {settled} must be past the whole fan"
+    # ...and the two as-ofs must therefore select DIFFERENT vintages of the same cell.
+    assert max(d for d in dates if d <= mid) != max(d for d in dates if d <= settled)
+
+
+def test_psd_attributes_cell_compiles_to_one_deterministically_ordered_row():
+    from leviathan.graphrag.numbers import query as Q
+    for my, asof in parity.PSD_ATTR_VINTAGE_CELLS:
+        spec = dict(table=_PSD_ATTR, metric=parity.PSD_ATTR_CELL_METRIC, asof=asof,
+                    commodity=parity.PSD_ATTR_CELL_COMMODITY, country=parity.PSD_ATTR_CELL_COUNTRY,
+                    period=my, limit=50)
+        sql = Q.build_sql(Q.NumberQuery(agg="series", **spec))
+        # every axis of the cell pinned -> _rn = 1 leaves exactly ONE row per market_year
+        assert f"leviathan_slug = '{parity.PSD_ATTR_CELL_COMMODITY}'" in sql
+        assert f"country = '{parity.PSD_ATTR_CELL_COUNTRY}'" in sql
+        assert f"attribute = '{parity.PSD_ATTR_CELL_METRIC}'" in sql
+        assert f"market_year = {int(my)}" in sql          # period_sql_type int -> UNQUOTED literal
+        assert f"CAST(release_date AS varchar) <= '{asof}'" in sql
+        # the as-of machinery itself: the tall fallback partition, because the card declares no grain_cols
+        assert ("ROW_NUMBER() OVER (PARTITION BY leviathan_slug, country, market_year, attribute "
+                "ORDER BY release_date DESC)") in sql
+        # a STRICT total order -- period is unique per surviving row, so neither backend can pick a
+        # different row under the LIMIT (the Athena-vs-pg divergence class _total_order exists to close)
+        assert "ORDER BY period, country, metric, knowledge_date, unit, value LIMIT 50" in sql
+        # DOCUMENTED, not assumed: this card has no date_col, so agg=latest falls past the vintage
+        # branch's `and order` into the same series arm and compiles the BYTE-IDENTICAL string. Both
+        # aggs still run in the gate -- the day a date_col is declared here the two arms diverge, and
+        # this assertion is what makes that a visible decision rather than a silent one.
+        assert Q.build_sql(Q.NumberQuery(agg="latest", **spec)) == sql
+
+
+def test_psd_attributes_cell_leg_repeats_the_fence_and_mirror_guards():
+    """The cell leg sits OUTSIDE the table loop, hence outside its SKIP-FENCED / SKIP-UNMIRRORED
+    branches. Without its own guards a re-armed Lane-3 whitelist entry (or a table dropped from
+    P1_TABLES) would make every cell leg a MISMATCH -- the whole gate red for a table nobody serves."""
+    import inspect
+    src = inspect.getsource(parity.main)
+    assert 'if _PSD_ATTR in tables and _PSD_ATTR in reg.tables and _PSD_ATTR in PG_MIRROR_TABLES:' in src
+    # and the loop's own guards, which protect the NEXT table registered ahead of its mirror, survive
+    assert "SKIP-FENCED" in src and "SKIP-UNMIRRORED" in src

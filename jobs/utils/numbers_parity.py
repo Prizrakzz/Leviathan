@@ -106,11 +106,51 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # grain_cols [leviathan_slug, contract_month, trade_date], so the latest-vintage
                     # ROW_NUMBER never ties across delivery months and pg==Athena selection stays
                     # deterministic (the gold_pattern_records lesson directly above).
-                    "silver_futures_eod": "corn_cbot"}
+                    "silver_futures_eod": "corn_cbot",
+                    # PROJECTION WAVE Lane 3 / D-8 (2026-08-26, the flip's one open instrument item):
+                    # silver_psd_attributes.commodity_col is leviathan_slug, filled from the SAME producer
+                    # map silver_psd's `corn_cbot` sample comes from (usda_psd._PSD_COMMODITY_TO_SLUGS) --
+                    # a base name ('soybeans') matches zero rows, the gold_weather_z vacuous-panel trap.
+                    # WHY soybeans_cbot AND NOT corn_cbot, against the estate's own habit: corn lights
+                    # ~2 more of the card's 20 declared metrics (Feed Dom. Consumption / FSI Consumption /
+                    # Industrial Dom. Cons. are the grain-sheet lines) but carries NO `Crush` row at all --
+                    # corn is not crushed -- and Crush is the attribute this table exists for (the card's
+                    # first metric, "the estate's ONLY physical crush VOLUME"; 21 in-scope commodity codes,
+                    # MY1960-2026, ONE unit, per the L2-0 census). A corn sample would leave the most
+                    # load-bearing new metric of the Lane-3 flip uncompared at the pinned-cell grain below,
+                    # and it would put the panel and the cell on two different slugs. soybeans_cbot still
+                    # lights Crush, Domestic Consumption, Feed Waste Dom. Cons., Food Use Dom. Cons. and
+                    # the TY trio, so the panel is nowhere near thin.
+                    # R4: code 2222000 (Oilseed, Soybean) is declared HOMOGENEOUS in the producer's
+                    # fan-out registry (_PSD_HOMOGENEOUS_FANOUT_CODES -- CBOT / DCE no.1 / DCE no.2 are
+                    # interchangeable venues for one USDA sheet), so no attribute on this slug is an
+                    # adjudicated subset and the sample can never sit on a manufactured or declined row.
+                    # TALL, so the [:4] cap is lifted and ALL 20 declared metrics run. Most are EMPTY on
+                    # any one slug BY CONSTRUCTION (Cows In Milk lives only on milk_fluid; the sugar and
+                    # coffee splits only on their own slugs) -- not a defect: vacuity is checked per
+                    # TABLE, not per metric.
+                    # ORDER DETERMINISM on these country-less grid legs: with spec.country None `country`
+                    # drops out of _total_order (the ESR S1 rule), so ~159 destination rows per
+                    # (market_year, attribute) tie on every earlier term. That does NOT make the compare
+                    # engine-arbitrary: the sort key's remaining terms are (period, metric, knowledge_date,
+                    # unit, value) and _rows_key projects (value, knowledge_date), a function of that key
+                    # alone -- so the only rows a tie can swap are indistinguishable to the compare. The
+                    # strictly-ordered single-row proof is the CELL leg in main().
+                    "silver_psd_attributes": "soybeans_cbot"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]
 AGGS = ["latest", "series"]
+
+# PROJECTION WAVE Lane 3 / D-8: the silver_psd_attributes VINTAGE-FAN cell, as (market_year, asof) pairs.
+# Module-level so the shape is pinnable offline (tests/unit/test_numbers_parity_prereq.py); the leg itself
+# and the full argument for the cell live in main().
+PSD_ATTR_CELL_COMMODITY = "soybeans_cbot"
+PSD_ATTR_CELL_COUNTRY = "United States"
+PSD_ATTR_CELL_METRIC = "Crush"                       # byte-exact USDA label (L2-0 census); single unit
+PSD_ATTR_VINTAGE_CELLS = [("1998", "2001-06-30"),    # the month_code-0 era, read contemporaneously
+                          ("2010", "2011-01-15"),    # INSIDE MY2010's WASDE fan -> the 5th vintage wins
+                          ("2010", "2026-07-01")]    # the settled end of the SAME year -> the 12th wins
 
 
 def _norm_value(v) -> str:
@@ -263,6 +303,66 @@ def main() -> int:
                 _cmp(Q.NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof=asof,
                                    commodity="corn_cbot", country="China", agg=agg, limit=50),
                      "silver_esr", "weekly_exports_1000mt[China]", asof, agg)
+    # PROJECTION WAVE Lane 3 / D-8: the silver_psd_attributes VINTAGE-FAN cell -- the concrete proof that
+    # this card's as-of collapse picks the SAME vintage on both backends at BOTH ends of the fan. The card
+    # declares NO grain_cols on purpose, so build_sql's latest-vintage ROW_NUMBER partitions by the tall
+    # fallback (leviathan_slug, country, market_year, attribute) and orders release_date DESC; that
+    # ROW_NUMBER *is* the as-of machinery here, and it is the one piece of this table nothing else proves.
+    #
+    # WHY THIS CELL IS BYTE-STABLE -- the whole reason a cell leg exists beside the grid:
+    #   * SINGLE UNIT. Crush prints '(1000 MT)' and nothing else (L2-0 census, units: ["(1000 MT)"]), so no
+    #     row of this cell is a different quantity from its neighbour. `Domestic Consumption` -- the
+    #     obvious alternative at 44 codes -- is the ONE multi-unit metric on the card ((1000 MT) /
+    #     (1000 MT CWE) / (1000 60 KG BAGS) / (MT)) and is deliberately NOT the cell metric.
+    #   * NO R4 AMBIGUITY. 2222000 is a HOMOGENEOUS (venue-only) fan-out, so soybeans_cbot carries the
+    #     soybean sheet's Crush unchanged; the two adjudicated codes (coffee 711100, sugar 612000) and
+    #     their subset-specific attributes are nowhere near this cell.
+    #   * A STRICT TOTAL ORDER, so no row is engine-arbitrary. commodity + country + metric + period are
+    #     ALL pinned and _rn = 1 leaves exactly ONE row per market_year, so `ORDER BY period, country,
+    #     metric, knowledge_date, unit, value` is already unique on its first term and the LIMIT keeps a
+    #     deterministic row on Athena and on pg alike.
+    #   * NO TIE INSIDE THE ROW_NUMBER either -- the failure that needed a vintage_tiebreak on
+    #     silver_wasde, and this card declares none. release_date is a FUNCTION of (market_year,
+    #     wasde_release_month): usda_psd._compute_psd_release_dates emits '<cal_year>-<cal_month>-10' for
+    #     month_code 1-12 and '<market_year>-01-01' for month_code 0, which is injective in month_code at
+    #     a fixed market year -- 13 DISTINCT dates per cell, so DESC has nothing to break.
+    #   * DEEP SPAN. Crush runs MY1960-2026 (census), so the pre-2005 as-of is a real read.
+    #
+    # WHY THE PAIRS, and why the grid cannot do this: the grid's ORDER BY is ASC on period, so the five
+    # rows _rows_key compares are always the OLDEST marketing years whatever the as-of -- the vintage fan
+    # never reaches the compared projection. Pinning `period` collapses each leg to ONE row and puts the
+    # fan INSIDE the compare:
+    #   (MY1998, 2001-06-30) -- the month_code-0 era. The card measures 389,283 rows at month_code 0,
+    #       MY1960-2004, one pass-through print per marketing year at release_date = Jan 1 of that year.
+    #   (MY2010, 2011-01-15) -- INSIDE MY2010's fan. Soybean MYS = 9, so the monthly vintages run
+    #       2010-09-10 (month_code 1) .. 2011-08-10 (month_code 12); this as-of must select 2011-01-10.
+    #   (MY2010, 2026-07-01) -- the SETTLED end of the same marketing year: 2011-08-10. SAME cell,
+    #       DIFFERENT vintage, so a backend that collapsed the fan differently cannot pass both legs, and
+    #       an as-of machinery that had quietly stopped moving cannot pass either.
+    # Both aggs run although they compile the BYTE-IDENTICAL string today -- this card has no date_col, so
+    # `agg=latest` falls past the vintage branch's `and order` into the same series arm. Keeping the pair
+    # is the regression detector: the day a date_col is declared here the two arms diverge and the gate
+    # exercises both, instead of silently proving only one.
+    #
+    # NON-VACUITY PRECONDITION to re-check at the first live run (the silver_futures_eod discipline):
+    # empty-on-both is a MATCH, so were US soybean Crush absent at MY1998 or MY2010 these six legs would
+    # pass while proving nothing, and the table-wide EMPTY-PANEL guard would not see it -- they share the
+    # grid's tid. The check is the report's own per-leg lines, read once.
+    #
+    # FENCE GUARDS REPEATED ON PURPOSE: this block sits OUTSIDE the table loop and therefore outside its
+    # SKIP-FENCED / SKIP-UNMIRRORED branches. Re-arm the Lane-3 whitelist entry (or drop the table from
+    # P1_TABLES) and the loop would skip it loudly while these legs still fired at a registry that raises
+    # KeyError, or at a pg relation that was never created -- each booked as a MISMATCH, the whole gate
+    # red for a table nobody is serving. (The ESR leg above carries the same shape and the same latent
+    # exposure; silver_esr is served AND mirrored today, so that is named here, not silently rewritten.)
+    _PSD_ATTR = "silver_psd_attributes"
+    if _PSD_ATTR in tables and _PSD_ATTR in reg.tables and _PSD_ATTR in PG_MIRROR_TABLES:
+        for my, asof in PSD_ATTR_VINTAGE_CELLS:
+            for agg in ("latest", "series"):
+                _cmp(Q.NumberQuery(table=_PSD_ATTR, metric=PSD_ATTR_CELL_METRIC, asof=asof,
+                                   commodity=PSD_ATTR_CELL_COMMODITY, country=PSD_ATTR_CELL_COUNTRY,
+                                   period=my, agg=agg, limit=50),
+                     _PSD_ATTR, f"{PSD_ATTR_CELL_METRIC}[{PSD_ATTR_CELL_COUNTRY} MY{my}]", asof, agg)
     # A panel where EVERY compared query returned 0 rows on BOTH backends proves nothing (wrong sample
     # commodity, empty mirror table, ...) — vacuous panels BLOCK the flip like a mismatch does.
     for tid, n in compared.items():
