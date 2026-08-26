@@ -387,6 +387,123 @@ refs:
       siblings). The industrial/oleochemical/biodiesel-feedstock half of vegetable-oil demand. This is
       the closest observed line to a biodiesel-mandate effect, and it is a USE tonnage, not a mandate:
       biodiesel_mandate_flag (14 instances) stays a qualitative flag and is NOT re-keyed here.
+
+  # ── THE KEYING KNOB (2026-08-26): the first two rows that read a NON-CONTRACT commodity ────────────
+  # Both rows carry `commodity: <slug>`, the FIXED per-row override that landed in cascade._scope_ex
+  # in this same sitting. It is NOT commodity_aliases: aliases RENAME a contract slug per contract and
+  # fall back to the slug when a contract is absent (right for sagis crop codes, wrong here -- there is
+  # no contract named cattle_beef to rename, so a rename row would key `corn_cbot` and read zero rows
+  # forever). The override is lint-fenced fail-closed in config_check.check_cascade_map on four terms:
+  # non-empty str; mutually exclusive with commodity_aliases; country_rule declared EXPLICITLY region
+  # or none (never primary/absent -- the override slug has NO configs/geographies file, so a primary
+  # row would resolve None and false-decline `no-geography-primary` on every leg, MEASURED); and
+  # membership in the table card's `commodity_values` (a slug outside the enum returns a silent zero).
+  # THE DOCTRINE FENCE IS UNTOUCHED AND STILL BINDS (psd_meal_feed_waste_use's note): a knob that CAN
+  # key a cross-product read is not permission to manufacture one. What licenses these two rows is that
+  # the DAG driver ALREADY names the other commodity as the mechanism -- a herd of cattle, a tonne of
+  # fishmeal -- and the leg narrates that commodity's own series under its own unit, never the
+  # contract's number wearing another commodity's label.
+  herd_size_cattle:
+    table: silver_production_livestock
+    metric: live_animals
+    commodity: cattle_beef         # THE OVERRIDE. The card's commodity_values are the four livestock
+    #                                slugs (cattle_beef, hogs, broilers_poultry, milk_fluid); no
+    #                                contract is named for any of them, which is the whole point.
+    agg: latest                    # the freshest published YEAR on/before the asof
+    period_type: date              # SEE THE WINDOW PARAGRAPH IN notes -- `date` is the honest choice
+    #                                here and `marketing_year` is a measured wrong-year read
+    leg_mode: current              # CURRENT rhyme leg ONLY: an era window cannot scope on this card
+    #                                (no date_col, no year_col), so an era leg would read 1961-2024
+    #                                whole and delta its ends. Lift only if the card gains a year axis.
+    country_rule: region           # the DRIVER's own token (US on all three carriers) via region_map;
+    #                                required-explicit by the override lint, and `region` rather than
+    #                                `none` because the card HAS a country axis (FAOSTAT reporting
+    #                                countries) and an unscoped read mixes ~200 of them
+    keying: "commodity = FIXED cattle_beef (the override knob); country = driver region via region_map"
+    native_unit: An                # FAOSTAT's own unit code for HEAD
+    narrate_unit: "million head"
+    scale: 0.000001                # 86,700,000 An -> 86.7 million head
+    coverage_start: 1961
+    status: mapped
+    notes: >
+      THE US CATTLE HERD, IN HEAD (FAOSTAT live_animals on the livestock card). CATTLE ONLY, and the
+      unit is `An` (head) for this slug: the 1000x trap on this metric is the SIBLING slug --
+      broilers_poultry stores `1000 An` -- and it cannot reach this row, because the commodity is
+      FIXED to cattle_beef and the lint pins it inside the card's four-value enum. Never sum or rank
+      this figure against a poultry count, and never against silver_psd's cattle_beef BALANCE SHEET:
+      that card answers how much BEEF in tonnes, this one answers how many ANIMALS.
+      GEOGRAPHY: the three carrier drivers (corn / corn_cbot / soybean_meal_cbot cattle_cycle_herd_size)
+      token `US`, which region_map resolves to "United States"; the card's country column holds
+      FAOSTAT's raw M49 display strings, so the title is translated to 'United States of America' at
+      SQL time by the card's country_name_ref (numbers/faostat_areas.yaml) -- never by this map.
+      WHAT A WINDOW MEANS HERE, and why period_type is `date` on an ANNUAL table. The card declares
+      period_col `year` (int), NO date_col and NO year_col, so a date-typed leg's period_start/period_end
+      bind NOTHING in build_sql: the only live guards are commodity/country/metric plus the PIT guard
+      ingest_date <= asof (knowledge_semantics: ingest). The leg is therefore "the freshest annual
+      observation the ingest knew about at the as-of", and that is exactly what `agg: latest` +
+      `leg_mode: current` ask for. `marketing_year` was REFUSED on measurement, not taste: the engine
+      derives the covering MY from _covering_my, whose default start month is September, so a
+      calendar-year annual series would be read as year-1 for any event date in Jan-Aug (a March-2012
+      drought would query the 2011 herd), and the CURRENT leg at a 2026 as-of would ask for MY2026
+      against a series whose last observation is 2024 -- permanently silent. `year_month` claims a
+      monthly grain this card does not have. Cite the ROW's own year, never the leg's trailing window
+      label (the citation still STAMPS the leg's asof-365..asof label -- a cosmetic mismatch beside
+      a 2024 observation, recorded here rather than papered over: build_sql binds no period on this
+      card, so the label describes the ask, not the read).
+      MEASURED CONSEQUENCE of an inert window, AND THE FLAG THAT GOVERNS IT (review find,
+      2026-08-26): the compiled leg returns the WHOLE 1961-2024 series (64 rows, well inside the
+      5,000 cap), UNORDERED -- the card has no date_col/year_col, so query._order_col is None and
+      agg=latest falls through to the series arm. Which row gets narrated is then decided by
+      _headline_row: with GRAPHRAG_CASCADE_HEADLINE=on (PRODUCTION, serving rev 115+) it is
+      max(citations._row_order_key) = the last published year, correct; with the flag OFF (the A2b
+      byte-identical revert state) _headline_row returns rows[0], and on this leg rows[0] is the
+      1961 herd -- a 63-year-stale figure narrated as current. THE FLAG IS THEREFORE A LIVE-ROW
+      PRECONDITION: this row is the estate's first order-less multi-row leg, and the A2b revert may
+      not be exercised while it is live without also deferring this row (or giving the card a year
+      axis, which un-inerts the window and retires this whole paragraph).
+      SUPERSEDED FILING (this row replaces it): soybean_meal_cbot.yaml:737-739 filed
+      {silver_psd production_mt commodity=cattle_beef} + {silver_pink_sheet beef_usd_t} as an F-A
+      item-P GN-1 proxy PAIR, because when it was written no livestock card existed and no ref could
+      key a non-contract commodity. The Lane-5 flip (4ec0ee69) created the direct instrument -- 13,831
+      cattle_beef rows, 1961-2024, head counts rather than meat tonnes -- and this row binds it. The
+      pink-sheet half of that pair stays unbound and unbindable here: R4 fences silver_pink_sheet from
+      every engine ref (see the served-table register below).
+  fishmeal_supply:
+    table: silver_psd
+    metric: production_mt
+    commodity: fish_meal           # THE OVERRIDE, on the PSD house shape. `fish_meal` is a real
+    #                                silver_psd commodity_values member and is NOT in
+    #                                PSD_UNSERVED_SLUGS -- the source publishes the sheet.
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    country_rule: region           # the DRIVER's own token via region_map (required-explicit by the
+    #                                override lint); PSD is per-country and an unscoped read mixes them
+    keying: "commodity = FIXED fish_meal (the override knob); country = producing region via region_map"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      WORLD FISHMEAL PRODUCTION, the marine-protein supply the meal boards' substitution mechanism
+      turns on. The three carrier drivers (peru_fishmeal_supply on soybean_meal_cbot /
+      soybean_meal_dce / rapeseed_meal_zce) token `Peru/Chile` -- a token naming TWO nations, which
+      region_map lists UNRESOLVED for exactly the reason it lists every other compound: there is no
+      single honest country, and a primary-fallback would stamp one nation's sheet on a two-nation
+      claim. SO THE PREDICTION IS EXPLICIT: these three legs DECLINE HONESTLY today
+      (region-token-unresolved), and that is the designed outcome of binding the row, not a defect --
+      the ref is mapped, the commodity resolves, and the geography is refused out loud instead of
+      guessed. UN-DEFER GATE for the numbers (the shape every refusal in this file uses), TWO edits
+      in ONE change: (1) a CURATION decision re-keys the drivers' region token to the nation the
+      mechanism actually means (`Peru` -- the dominant exporter, and the quota/ban events the
+      mechanism names are Peruvian), taken in the DAG where the claim lives; (2) `Peru` enters
+      region_map.resolve as a plain single-nation entry -- a token that names ONE country belongs
+      in resolve by that block's own law, and without the entry the re-keyed token fails
+      _check_region_map's neither-list build error (the review measured exactly this: `Peru`
+      resolves nowhere today, so a DAG-only re-key CANNOT fire the legs). On that day the same
+      three legs fire with no change to this row.
+
   psd_ty_export:
     table: silver_psd_attributes
     metric: TY Exports
@@ -820,9 +937,24 @@ refs:
 #   silver_wasde -- DEFERRED: no driver attribute asks for a WASDE line; the balance-sheet refs above are
 #     silver_psd's, and a second balance-sheet home would fork one driver across two vintage regimes.
 #   silver_pink_sheet -- DEFERRED: R4 fences it from every engine ref (PRICE_TABLES), and lifting that is
-#     Option C, which stays fenced.
-#   silver_production -- DEFERRED: no driver attribute asks for FAOSTAT annual production; the production
-#     drivers resolve to silver_psd, which is vintage-clean where this card is not.
+#     Option C, which stays fenced. RE-TESTED 2026-08-26 (the keying-knob sitting) and the fence HELD,
+#     which is the entry's point: the sitting's third intended row was `fishmeal_price` on
+#     fish_meal_usd_t -- the direct instrument for the fishmeal_substitution driver on three meal
+#     boards, needing no keying knob at all (the card is wide and flat; the metric IS the series).
+#     config_check._check_no_engine_ref(load_map(), PRICE_TABLES, "R4", "price") is BUILD-FAILING on
+#     any cascade_map row at this table, and check_question_shapes says in its own words that "R4 is
+#     UNTOUCHED". So the row was NOT written: the blocker is not mechanical and no knob reaches it,
+#     and lifting R4 admits every World Bank benchmark to the engine at once -- an owner adjudication,
+#     not a wave item. fishmeal_substitution stays `silver_status: planned` in all three DAGs, and its
+#     parent peru_fishmeal_supply is live (fishmeal_supply above), so the supply half of the mechanism
+#     quantifies and the price half stays qualitative. UN-DEFER GATE: an owner decision on R4 itself.
+#   silver_production -- the CROP card stays DEFERRED: no driver attribute asks for FAOSTAT annual crop
+#     production; those drivers resolve to silver_psd, which is vintage-clean where this card is not.
+#     ITS SIBLING CARD IS NOT DEFERRED as of 2026-08-26: `silver_production_livestock` (the second card
+#     on the same physical object) carries the ACTIVE `herd_size_cattle` row above -- the estate's only
+#     herd-count surface, which silver_psd cannot serve at any keying because it publishes beef in
+#     TONNES and no animal count at all. The two dispositions are per-CARD because the closed sets
+#     (commodity_values, per-metric unit) are per-card; the physical table is shared and always was.
 #   silver_nasa_power -- see the C3 REFUSAL above (precipitation_mm, sign-inversion argument): this card
 #     is CONSIDERED-AND-REFUSED there, not silent here; it is additionally quarantined (SILVER-F047) and
 #     stripped from serving visibility as of D-LD Sitting-A. The weather legs resolve to gold_weather_z.
@@ -953,10 +1085,25 @@ refs:
 #     are all in region_map.unresolved below, so the node skips to qualitative. A Ukraine-scoped weekly
 #     customs leg is therefore the obvious candidate to light them -- and it is refused here on THREE
 #     mechanical grounds, none of which this change may take:
-#       (1) THE KEYING CANNOT EXPRESS IT. Every ref above keys "commodity=contract slug"; this card's
-#           commodity axis is the ministry's ROW LABEL (wheat, barley, corn, rye), which is not a
-#           contract slug and has no translation knob in this map -- the same wall the cattle_beef /
-#           fishmeal GN-1 bindings hit, and the reason both ship silver_status: planned instead.
+#       (1) THE KEYING -- REWRITTEN 2026-08-26 (the keying-knob sitting), AND IT NO LONGER CARRIES
+#           THIS REFUSAL. When this was written every ref keyed "commodity=contract slug" with no
+#           translation knob, and that wall is now closed: a row may declare `commodity: <slug>`, a
+#           FIXED override read by cascade._scope_ex and fenced fail-closed by
+#           config_check.check_cascade_map on four terms (non-empty str; exclusive with
+#           commodity_aliases; country_rule declared EXPLICITLY region|none; membership in the card's
+#           commodity_values). The cattle_beef / fishmeal GN-1 bindings this line used to cite as
+#           fellow-sufferers went live on that knob (herd_size_cattle / fishmeal_supply above), so
+#           the SHARED wall is gone and this ground is withdrawn rather than restated.
+#           WHY THE KNOB DOES NOT RESCUE THIS CARD ANYWAY: the override is ONE FIXED commodity per
+#           ROW, and this card's axis is a ministry ROW LABEL that varies BY CONTRACT (wheat,
+#           barley, corn, rye) -- a per-contract translation, which is commodity_aliases' shape and
+#           has been expressible in ONE row since GN-2 W2.2 (the lint makes override and aliases
+#           exclusive per row on purpose). So the keying was never this card's binding wall at all;
+#           the refusal stands ENTIRELY on grounds (2) and (3) below, which is exactly why ground
+#           (1) is withdrawn rather than patched.
+#           THE LINT DISCIPLINE IS ITSELF PART OF THE ANSWER: an override row must state its
+#           country_rule explicitly, so ground (2) below is no longer an afterthought a paste could
+#           forget -- it is a build failure.
 #       (2) THE REGION RULE WOULD HAVE TO GO TOO. Those drivers are country_rule: region on purpose;
 #           this table has ONE geography and no country column at all, so a bind needs country_rule:
 #           none, which changes what the EXISTING `export` ref means for every other node that uses it.
@@ -1142,6 +1289,16 @@ region_map:
     - "Zambia;Tanzania;Zimbabwe"
     - Southern_Africa_SADC
     - "Indonesia/Argentina"
+    # KEYING-KNOB SITTING (2026-08-26). `Peru/Chile` is DECLARED here, not resolved: the three
+    # peru_fishmeal_supply drivers re-keyed onto the new `fishmeal_supply` ref (country_rule: region)
+    # this sitting, and the census at config_check._check_region_map fails the BUILD on any region
+    # token that neither resolves nor is listed here. Listing it adds no country claim and lights
+    # nothing -- it records that a two-nation token has no single honest geography, which is the same
+    # verdict every compound above carries. The un-defer is TWO edits in one change (the row's notes
+    # carry the full gate): re-key the DRIVERS to `Peru` in the DAGs AND give `Peru` a plain resolve
+    # entry above -- a single-nation token belongs in resolve, and without the entry the re-keyed
+    # token fails this very lint (measured: `Peru` resolves nowhere today).
+    - "Peru/Chile"
     # import drivers (the China/US compounds are the RF-3 reroute signal, split there -- never here)
     - "China/US"
     - "US/China"
