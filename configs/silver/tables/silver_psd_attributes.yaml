@@ -18,44 +18,44 @@ recovery_strategy: active-release manifest / bounded full relist under the flat 
 physical_columns:
 - name: leviathan_slug
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: false
 - name: country
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: false
 - name: market_year
   glue_type: smallint
-  arrow_type: int16
-  parquet_physical_type: INT32
+  arrow_type: int64
+  parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: false
 - name: wasde_release_month
   glue_type: tinyint
-  arrow_type: int8
-  parquet_physical_type: INT32
+  arrow_type: int64
+  parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: false
 - name: release_date
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: false
 - name: attribute
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: false
 - name: attribute_id
   glue_type: smallint
-  arrow_type: int16
-  parquet_physical_type: INT32
+  arrow_type: int64
+  parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: false
 - name: value
@@ -66,27 +66,27 @@ physical_columns:
   nullable: true
 - name: unit
   glue_type: string
-  arrow_type: large_string
+  arrow_type: string
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: false
 writer_schema_pinned: false
 drift_summary:
 - column: market_year
-  kind: widen_int
-  current_physical: int16
+  kind: glue_catalog_mismatch
+  current_physical: int64
   glue_type: smallint
   target: int64
   owner_package: SILVER-F062
 - column: wasde_release_month
-  kind: widen_int
-  current_physical: int8
+  kind: glue_catalog_mismatch
+  current_physical: int64
   glue_type: tinyint
   target: int64
   owner_package: SILVER-F062
 - column: attribute_id
-  kind: widen_int
-  current_physical: int16
+  kind: glue_catalog_mismatch
+  current_physical: int64
   glue_type: smallint
   target: int64
   owner_package: SILVER-F062
