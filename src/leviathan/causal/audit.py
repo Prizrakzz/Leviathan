@@ -68,7 +68,7 @@ def report(res: dict) -> str:
           ", ".join(noconv) if noconv else "(none)"]
 
     named = collections.Counter(ref for a in audits for _id, ref in a["planned_named"])
-    L += ["", f"## (2a) Planned features already NAMED - MLOps roadmap ({len(named)} distinct, by #contracts)", ""]
+    L += ["", f"## (2a) Planned instruments already NAMED - unserved refs ({len(named)} distinct, by #contracts)", ""]
     L += [f"- `{ref}` x{n}" for ref, n in named.most_common()] or ["(none)"]
 
     unnamed = collections.Counter(did for a in audits for did in a["planned_unnamed"])

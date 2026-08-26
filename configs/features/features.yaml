@@ -212,14 +212,14 @@
   value_range: [-40.0, 40.0]   # wide: BRL 90d pct-change reaches ~32 in FX crises
 
 # ---------------------------------------------------------------------------
-# Input costs: World Bank Pink Sheet
+# Input costs: World Bank Pink Sheet -- FAMILY RETIRED 2026-08-27
+# The `pink_sheet_input_costs` family was removed in the fertilizer/energy wiring sitting: its ONLY
+# live effect was to make 83 causal-DAG driver nodes read silver_status 'available' through
+# validate.available_silver()'s feature-family union, for a feature layer that is never coming
+# (owner word). Those nodes now ride seven metric-specific cascade_map refs (69 wired) or honest
+# planned retags (14). The compute function (features/computations/macro_climate.py) stays as
+# retired-track code; nothing references this family name any more, and it must not return.
 # ---------------------------------------------------------------------------
-
-- family: pink_sheet_input_costs
-  sources: ["pink_sheet"]
-  visibility: prior_history
-  commodities: all
-  value_range: [-10.0, 10.0]
 
 # ---------------------------------------------------------------------------
 # South Africa grain: SAGIS progressive deliveries + CEC revision

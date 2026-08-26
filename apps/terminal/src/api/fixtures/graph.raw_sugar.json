@@ -171,7 +171,7 @@
 "silver_status": "available",
 "confidence": "high",
 "active": null,
-"silver_ref": "pink_sheet_input_costs"
+"silver_ref": "brent_crude_z"
 },
 {
 "id": "BRL_USD",
@@ -258,10 +258,10 @@
 "kind": "logistics",
 "contract": "raw_sugar",
 "label": "freight rates",
-"silver_status": "available",
+"silver_status": "planned",
 "confidence": "low",
 "active": null,
-"silver_ref": "pink_sheet_input_costs"
+"silver_ref": "freight_rates_z"
 },
 {
 "id": "export_pace_lag",

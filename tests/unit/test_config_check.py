@@ -433,11 +433,19 @@ def test_price_context_lane_admits_the_ratified_shape_and_refuses_every_other():
     assert cc.price_context_violations(row) == []
     for tweak, needle in (({"metric": "maize_usd_t"}, "PRICE_CONTEXT_METRICS"),       # a target benchmark
                           ({"metric": "beef_usd_t"}, "PRICE_CONTEXT_METRICS"),        # an OUTPUT price
+                          ({"metric": "rubber_rss3_usd_t_zscore_5yr"}, "PRICE_CONTEXT_METRICS"),  # the
+                          # 2026-08-27 refuted admission: a real card z, still out (sign-identity)
                           ({"leg_mode": "era"}, "no as-of replay"),                   # the C-2 objection
                           ({"country_rule": "region"}, "wide and flat"),
                           ({"narrate_unit": "flag"}, "REGIME MARKER")):
         bad = cc.price_context_violations({**row, **tweak})
         assert bad and any(needle in b for b in bad), (tweak, bad)
+    # the OMITTED-agg fail-open, closed 2026-08-27 (the hazards sweep's find): the lint used to
+    # default an absent agg to 'latest' while _node_specs compiles it as 'series' -- a 365-day
+    # collapse over a price history arriving through a default disagreement. Absent agg now REFUSES.
+    no_agg = {k: v for k, v in row.items() if k != "agg"}
+    bad = cc.price_context_violations(no_agg)
+    assert bad and any("must be declared" in b for b in bad), bad
     assert cc.price_context_violations({"table": "silver_pink_sheet"})                 # fail-closed on bare
 
 
@@ -466,7 +474,10 @@ def test_price_context_lane_bans_the_engine_maps_by_NAME(monkeypatch):
     from leviathan.graphrag.numbers import cascade as csc
     if not any((r or {}).get("table") in cc.PRICE_TABLES for r in (csc.load_map() or {}).values()):
         pytest.skip("no private cascade_map in this tree")
-    ref = next(r for r, row in csc.load_map().items() if (row or {}).get("table") in cc.PRICE_TABLES)
+    # pinned to a NAMED ref (2026-08-27): with eight pink-sheet rows live, `next(...)` would probe
+    # whichever the mapping yields first and silently stop testing a known ref.
+    ref = "fishmeal_price_z" if (csc.load_map() or {}).get("fishmeal_price_z") else \
+        next(r for r, row in csc.load_map().items() if (row or {}).get("table") in cc.PRICE_TABLES)
     monkeypatch.setattr(csc, "load_chain_map", lambda: [{"id": "c1", "hops": [{"node": "n", "ref": ref}]}])
     errs = cc._check_price_context_lane()
     assert any("chain_map 'c1'" in e and "never a chain hop" in e for e in errs), errs
@@ -877,14 +888,17 @@ def test_dpq_new_nodes_carry_no_new_cascade_capability():
     """The wave is a NARRATIVE de-choke: it adds no cascade_map row and arms no new quantified leg.
 
     Two independent proofs, both cheap and both config-only:
-      * `pink_sheet_input_costs` (urea_cost / potash_cost) is not a cascade_map ref at all -- this wave
-        added no row for it, and it still has none. NOTE the pin's scope after the price_context
-        amendment (2026-08-26): R4 is no longer a blanket ban on the table, so what this asserts is
-        narrower than it once was and STILL TRUE -- the amendment landed exactly ONE row
-        (`fishmeal_price_z` on fish_meal_usd_t_zscore_5yr), and the 84 `pink_sheet_input_costs` driver
-        nodes across 34 DAGs stay unmapped because a basket ref naming no single (table, metric) pair is
-        unbindable by this map's one-ref-one-pair law, not because the table is fenced. Binding them is
-        its own sitting (a per-metric split on the DAG side first, the mpob precedent).
+      * `pink_sheet_input_costs` is not a cascade_map ref at all -- this wave added no row for it, and
+        it still has none. THE PIN'S MEANING MOVED TWICE and both moves are recorded: (1) after the
+        price_context amendment (2026-08-26) R4 stopped being a blanket table ban, and the assertion
+        narrowed to "the BASKET stays unbound because a ref naming no single (table, metric) pair is
+        unbindable by the one-ref-one-pair law"; (2) on 2026-08-27 the sitting this docstring called
+        for HAPPENED -- the per-metric split on the DAG side (the mpob precedent): the 83 basket
+        carriers across 34 DAGs were re-keyed onto seven metric-specific refs (69 wired legs:
+        brent_crude_z, urea_z, natural_gas_us_z/_eu_z, npk_fertilizer_z, dap_z, potash_z) with 14
+        retagged planned after adversarial review (wf_b69ce788-4e1). The assertion now guards
+        RETIREMENT: the basket name -- a dead MLOps feature family, never an instrument -- must never
+        re-enter the map, and the companion sweep below proves it is gone from every DAG too.
       * `fred_fx_macro` (macro_demand) IS a mapped ref, so the guard here is different: every DAG that
         gained a macro_demand node ALREADY carried at least one other fred_fx_macro driver, so the
         contract's fireable-ref set is identical before and after. (The region field is the other half --
@@ -900,6 +914,9 @@ def test_dpq_new_nodes_carry_no_new_cascade_capability():
         doc = yaml.safe_load(open(p, encoding="utf-8"))
         if not isinstance(doc, dict) or not isinstance(doc.get("drivers"), list):
             continue
+        # the 2026-08-27 companion sweep: the retired basket name is gone from every DAG driver
+        stale = [d["id"] for d in doc["drivers"] if d.get("silver_ref") == "pink_sheet_input_costs"]
+        assert not stale, f"{doc['contract']}: retired basket ref re-entered on {stale}"
         md = [d for d in doc["drivers"] if d["id"] == "macro_demand"]
         if not md:
             continue

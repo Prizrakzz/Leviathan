@@ -6,7 +6,9 @@ one idempotent, auditable pass, leaving only genuine judgment calls for a human:
   (C1) flip silver_status 'available' -> 'planned' where the ref isn't in the live silver surface.
   (C2) reserve a canonical silver_ref for every planned driver missing one. Same driver id -> same slug
        everywhere (so a feature built once serves every contract that names it). suffix by type:
-       event/policy/marker -> '_flag', else '_z'. This deduped slug set IS the MLOps feature roadmap.
+       event/policy/marker -> '_flag', else '_z'. This deduped slug set IS the named-instrument
+       wishlist (the label was "MLOps feature roadmap" until 2026-08-27; that layer is retired --
+       a planned ref's discharge path is a cascade_map row or a new source, never a feature layer).
   (C3) resolve a sign:'0' driver by BORROWING the modal non-zero sign that same driver id carries across
        the other contracts (drought is '+' in 20 places -> fix the lone '0'). If no sibling signs it, it
        stays '0' and is reported as a residual for human review (we never silently drop a driver).
@@ -109,7 +111,7 @@ def report(res: dict) -> str:
     L += ["", "### Inter-commodity edges with sign:0 (hand-resolve)"]
     L += [f"- **{x['contract']}**: {', '.join(f'{t}/{r}' for t, r in x['zero_inter'])}"
           for x in logs if x["zero_inter"]] or ["(none)"]
-    L += ["", f"## MLOps feature roadmap ({len(res['roadmap'])} reserved + named features)", ""]
+    L += ["", f"## Named-instrument wishlist ({len(res['roadmap'])} reserved + named refs)", ""]
     for ref in sorted(res["roadmap"], key=lambda r: (-len(res["roadmap"][r]), r)):
         L.append(f"- `{ref}` <- {len(res['roadmap'][ref])} contract(s)")
     return "\n".join(L)

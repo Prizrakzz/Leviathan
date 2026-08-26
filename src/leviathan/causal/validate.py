@@ -2,8 +2,12 @@
 
 HARD-fails on structural breakage: a cycle in driver `parents` (a DAG must stay acyclic) or an
 inter-commodity edge to something that is not a real node. SOFT-warns on silver links not yet in the
-`gold.feature_spine` / `node_silver_map` (those are `planned`, never a blocker) and on missing fan-in /
-convergence — and emits a **coverage report** that doubles as the feature roadmap for the MLOps track.
+`gold.feature_spine` / `node_silver_map` / live cascade_map (those are `planned`, never a blocker) and on
+missing fan-in / convergence — and emits a **coverage report** that doubles as the named-instrument
+wishlist: refs a DAG names that nothing serves yet, each waiting on a cascade_map row (the GN-1 lane) or
+a new ingested source. The label used to read "MLOps roadmap"; that layer is RETIRED by owner word
+(2026-08-27, the quantification-census sitting) — a planned ref's discharge path is a cascade row or a
+source, never a future feature layer.
 
     python -m leviathan.causal.validate                      # all YAMLs in configs/graphrag/causal/
     python -m leviathan.causal.validate path/to/coffee.yaml
@@ -156,7 +160,7 @@ def check(c: cs.CausalContract, *, nodes: set[str] | None = None, edges: set[str
             warns.append(f"driver {d.id!r}: edge_type {d.edge_type!r} not in the vocab taxonomy")
         if d.silver_ref and d.silver_status == "available" and d.silver_ref not in silver:
             warns.append(f"driver {d.id!r}: silver_ref {d.silver_ref!r} tagged 'available' but not in "
-                         "feature_spine/node_silver_map -> retag 'planned'")
+                         "feature_spine/node_silver_map/live cascade_map -> retag 'planned'")
         if not d.silver_ref and d.silver_status != "none":
             warns.append(f"driver {d.id!r}: silver_status {d.silver_status!r} but no silver_ref")
     if not c.fan_in_drivers():
@@ -186,7 +190,7 @@ def report(c: cs.CausalContract) -> str:
         f"- drivers: **{cov['drivers']}** ({cov['fan_out_roots']} roots / {cov['fan_in']} with parents)",
         f"- inter-commodity edges: {cov['inter_commodity']} | convergence signals: {cov['convergence']}",
         f"- silver status: {cov['silver']}",
-        f"- **planned features (MLOps roadmap):** {', '.join(cov['planned_features']) or '(none)'}",
+        f"- **planned instruments (unserved refs):** {', '.join(cov['planned_features']) or '(none)'}",
     ])
 
 

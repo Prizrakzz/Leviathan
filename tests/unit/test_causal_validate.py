@@ -50,7 +50,9 @@ def test_coverage_and_report():
                    "convergence": 1, "silver": {"available": 1, "planned": 1},
                    "planned_features": ["vietnam_robusta_stock_z"]}
     rep = cv.report(c)
-    assert "planned features (MLOps roadmap)" in rep and "vietnam_robusta_stock_z" in rep
+    # the label retired "MLOps roadmap" on 2026-08-27 (owner word: that layer is never coming);
+    # a planned ref is an unserved INSTRUMENT whose discharge is a cascade row or a new source.
+    assert "planned instruments (unserved refs)" in rep and "vietnam_robusta_stock_z" in rep
 
 
 def test_coverage_dedups_shared_planned_feature():

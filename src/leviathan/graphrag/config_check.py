@@ -52,13 +52,28 @@ PRICE_TABLES = ("silver_pink_sheet",)
 #     is the set cascade_map.yaml means by "lifting R4 admits every World Bank benchmark to the engine at
 #     once", and it carries the PIT objection (C-2) at its sharpest -- a retroactively revised benchmark is a
 #     revised answer to a price question.
-#   * OUT UNTIL THEIR OWN SITTING NAMES THEM -- the rest of the neither-class. beef_usd_t and chicken_usd_t are
-#     DEMAND-SIDE OUTPUT prices by the card's own words (tables.yaml:2044-2045), which is the opposite of an
-#     input cost, so they belong with the fenced set despite having no contract; copper_usd_mt carries an
-#     explicit written prohibition ("NEVER an agricultural price signal"); orange_usd_t has the card's own
-#     input-cost claim and is the strongest future candidate; the remaining substitutes/context oils and the
-#     two WB-DISCONTINUED grains (barley, sorghum -- agg=latest returns a 2020 number) have no driver asking
-#     for them. Silence is not admission: a metric enters this tuple in the sitting that decides it.
+#   * OUT, ADJUDICATED 2026-08-27 (the neither-class sitting -- no longer silence, and none entered):
+#     - beef_usd_t / chicken_usd_t: DEMAND-SIDE OUTPUT prices by the card's own words (tables.yaml
+#       :2044-2045) AND no-carrier -- no DAG node names a livestock output-price claim (the livestock
+#       demand nodes want on-feed counts / crush margins, the owner-deferred data wall), so admission
+#       would mint dead config (the psd_ty_export precedent). REOPENS the day a DAG names the claim.
+#     - orange_usd_t: the card's own input-cost claim for FCOJ stands, but SAME no-carrier ground --
+#       no FCOJ node names a fruit-price claim. Still the strongest future candidate; same reopen.
+#     - copper_usd_mt: OUT PERMANENTLY -- the card's own written prohibition ("NEVER an agricultural
+#       price signal") is adopted as final.
+#     - rubber_rss3_usd_t: the ONE neither-class member with a live carrier (palm's
+#       rubber_area_substitution), proposed for admission in the fertilizer/energy sitting and
+#       REFUTED in its review (wf_b69ce788-4e1) on SIGN-IDENTITY: the driver is the area-CONVERSION
+#       quantity (sign '-'), which a rubber PRICE series moves AGAINST -- dear rubber means LESS
+#       conversion -- so a price binding prints a real, cited z with the wrong direction; the node's
+#       8-16 quarter lag against a `latest` read was the second ground. The carrier is retagged
+#       planned (rubber_area_substitution_z); admission reopens only with a driver that NAMES the
+#       rubber price (sign '+') or a conversion-rate instrument.
+#     - the remaining substitutes/context oils and the two WB-DISCONTINUED grains (barley, sorghum --
+#       agg=latest returns a 2020 number) have no driver asking for them.
+#     Silence is not admission: a metric enters this tuple in the sitting that decides it. The
+#     2026-08-27 fertilizer/energy sitting wired 69 legs onto SEVEN new cascade rows without moving
+#     this register at all -- every row reads a series the 20 already admit.
 # THE SET ITSELF lives in cascade.PRICE_CONTEXT_METRICS (one object for lint and runtime -- see the
 # shared-shape note above `price_context_violations`'s import seam below); this block stays the
 # register's DOCTRINE RECORD, beside R4 where the adjudication belongs. Importable from this module

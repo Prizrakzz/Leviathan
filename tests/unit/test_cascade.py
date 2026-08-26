@@ -742,14 +742,28 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
     fishmeal_price_z MOVED SIDES on 2026-08-26 (owner adjudication). It stood unmapped for a THIRD
     reason -- its only instrument is silver_pink_sheet, which R4 fenced from every engine ref -- and
     that reason is DISCHARGED, not waived: R4 became a context/engine split (the D1 shape), and the row
-    is the amendment's one admitted leg. The triple below is what the split admits, so this pin now
+    was the amendment's one admitted leg UNTIL 2026-08-27, when the fertilizer/energy sitting landed
+    seven siblings on the same shape (the basket split, wf_b69ce788-4e1) -- the positive roster below
+    pins all eight so a dropped row reds here. The triple below is what the split admits, so this pin
     guards the discharged state; `leg_mode: current` is pinned WITH it because that clause is the C-2
     PIT answer (latest-only source, no as-of replay) and a row that lost it would still resolve while
-    quietly becoming a replay leg."""
-    for ref in ("herd_size_cattle", "fishmeal_supply", "fishmeal_price_z"):
+    quietly becoming a replay leg. The negative roster gains the sitting's 14 planned retags' refs
+    (freight, the merge-pending fertilizer children, the sign-held sorghum pair, AECO, the Petrobras
+    parity claim, the refuted rubber price) -- none may acquire a row without its own decision."""
+    for ref in ("herd_size_cattle", "fishmeal_supply", "fishmeal_price_z",
+                "brent_crude_z", "urea_z", "natural_gas_us_z", "natural_gas_eu_z",
+                "npk_fertilizer_z", "dap_z", "potash_z"):
         assert cq.map_row(ref) is not None, ref
-    for ref in ("cattle_on_feed_z", "broiler_margin_z", "cattle_beef_herd_z", "fishmeal_supply_z"):
+    for ref in ("cattle_on_feed_z", "broiler_margin_z", "cattle_beef_herd_z", "fishmeal_supply_z",
+                "freight_rates_z", "freight_costs_z", "freight_cost_z", "rubber_price_z",
+                "rubber_area_substitution_z", "aeco_natural_gas_z", "petrobras_pump_parity_z",
+                "urea_cost_z", "fertilizer_cost_z", "fertilizer_costs_z", "fertilizer_input_costs_z"):
         assert cq.map_row(ref) is None, f"{ref} acquired a row without its own decision"
+    # the eight context legs all ride the SIX-TERM shape -- one loop so a drifted term names its row
+    from leviathan.graphrag.numbers.cascade import price_context_violations
+    for ref in ("fishmeal_price_z", "brent_crude_z", "urea_z", "natural_gas_us_z",
+                "natural_gas_eu_z", "npk_fertilizer_z", "dap_z", "potash_z"):
+        assert price_context_violations(cq.map_row(ref)) == [], ref
     price = cq.map_row("fishmeal_price_z")
     assert (price["table"], price["metric"], price["leg_mode"]) == \
         ("silver_pink_sheet", "fish_meal_usd_t_zscore_5yr", "current")

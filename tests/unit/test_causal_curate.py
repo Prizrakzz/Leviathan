@@ -62,4 +62,5 @@ def test_run_builds_roadmap_and_report():
             res["roadmap"].setdefault(ref, set()).add(log["contract"])
     assert res["roadmap"]["rfs_flag"] == {"corn_cbot", "soybean_oil_cbot"}            # one slug, two contracts
     rep = cu.report(res)
-    assert "MLOps feature roadmap" in rep and "rfs_flag` <- 2 contract(s)" in rep
+    # "MLOps feature roadmap" retired 2026-08-27 (owner word) -- see validate.py's docstring.
+    assert "Named-instrument wishlist" in rep and "rfs_flag` <- 2 contract(s)" in rep

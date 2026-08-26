@@ -1095,9 +1095,16 @@ def price_context_violations(row: dict) -> list[str]:
         if (row or {}).get("period_type") != "date":
             bad.append(f"period_type {(row or {}).get('period_type')!r} is not 'date' -- a monthly dated "
                        f"observation, never a marketing-year fork window")
-        if (row or {}).get("agg", "latest") != "latest":
+        if (row or {}).get("agg") != "latest":
+            # NO DEFAULT (2026-08-27, the fertilizer/energy sitting's hazards sweep): this term used to
+            # read row.get("agg", "latest") while _node_specs' current leg reads row.get("agg", "series")
+            # -- so an OMITTED agg linted green and then compiled a 365-day SERIES collapse over a price
+            # history, the exact defect this term refuses, arriving through the default disagreement
+            # rather than a declaration. An omitted agg is now a violation: `agg: latest` is written
+            # explicitly on every price-context row (all eight donors do).
             bad.append(f"agg {(row or {}).get('agg')!r} is not 'latest' -- a sum/mean over a price history "
-                       f"is a number nobody quotes")
+                       f"is a number nobody quotes (and an OMITTED agg compiles as 'series', so it must "
+                       f"be declared)")
         if (row or {}).get("country_rule") != "none":
             bad.append(f"country_rule {(row or {}).get('country_rule')!r} is not 'none' -- the card is wide "
                        f"and flat (no commodity_col, no country_col); the metric IS the series")
