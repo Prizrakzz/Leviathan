@@ -36,8 +36,13 @@
 #     context lane. When C1's cascade context leg is live the engine serves this shape and the agent-side
 #     record simply says the agent itself never fetched it -- the two lanes are independent and neither
 #     silences the other.
-#   * PRICE_TABLES (silver_pink_sheet) -- R4 is UNTOUCHED by D1. Any requirement there must be
-#     `deferred: true`, which drops it from the runtime table entirely (the cascade_map `deferred` idiom).
+#   * PRICE_TABLES (silver_pink_sheet) -- R4 was UNTOUCHED by D1, and was AMENDED into the same
+#     context/engine split on 2026-08-26 (owner adjudication; cascade.price_context_violations + the
+#     quantify belt + the price_replay per-turn half -- the doctrine record sits beside R4 in
+#     config_check.py). The amendment is CASCADE-side only and changes nothing here: this file's
+#     spot_anchor lane names six metrics that are ALL estate-target benchmarks, the exact class the
+#     amendment's register fences PERMANENTLY on self-reference, so any requirement there stays
+#     `deferred: true` (the cascade_map `deferred` idiom) on the amendment's own terms.
 #
 # TRACKED for the same reason cascade_map.yaml is: nothing here is secret beyond what tables.yaml exposes.
 # Every table.metric below was verified against the live registry (load_registry) on 2026-08-01.
@@ -100,11 +105,15 @@ shapes:
       - id: spot_anchor
         deferred: true
         deferred_reason: >
-          C2's spot/settle anchor is NOT ratified. D1 decided positioning and left R4 (the pink-sheet price
-          fence, config_check.py:1029) entirely unchanged, and the plan's own C2 staleness note requires the
-          shape table to be doctrine-checked against R4 BEFORE it may request spot. Parked here, inert
-          (load_shape_table drops it), so the requirement is recorded rather than rediscovered -- and so the
-          lint has something to assert the fence against.
+          C2's spot/settle anchor is NOT ratified, and the 2026-08-26 R4 price-context AMENDMENT
+          re-decides it AGAINST this shape on its own terms: all six metrics below are estate-target
+          benchmarks, the exact class the amendment's register (config_check.py, beside R4) fences
+          PERMANENTLY on self-reference -- a world cash benchmark answering a price question about
+          the very contract the estate quotes. D1 decided positioning; the amendment decided the
+          price side; this row stays parked here, inert (load_shape_table drops it), so the refusal
+          is recorded rather than rediscovered -- and so the lint has something to assert the fence
+          against. (The retired ':1029' pointer this note once carried is gone with the blanket ban
+          it pointed at.)
         subject: "spot price anchor"
         tables: [silver_pink_sheet]
         metrics: [soybeans_usd_t, soybean_oil_usd_t, palm_oil_cpo_usd_t, wheat_us_hrw_usd_t,

@@ -466,8 +466,9 @@ refs:
       item-P GN-1 proxy PAIR, because when it was written no livestock card existed and no ref could
       key a non-contract commodity. The Lane-5 flip (4ec0ee69) created the direct instrument -- 13,831
       cattle_beef rows, 1961-2024, head counts rather than meat tonnes -- and this row binds it. The
-      pink-sheet half of that pair stays unbound and unbindable here: R4 fences silver_pink_sheet from
-      every engine ref (see the served-table register below).
+      pink-sheet half of that pair stays unbound, and the price-context amendment (2026-08-26) does NOT
+      change that: `beef_usd_t` is the card's own DEMAND-SIDE OUTPUT price, which is outside
+      PRICE_CONTEXT_METRICS by decision, not by oversight (see the served-table register below).
   fishmeal_supply:
     table: silver_psd
     metric: production_mt
@@ -503,6 +504,106 @@ refs:
       _check_region_map's neither-list build error (the review measured exactly this: `Peru`
       resolves nowhere today, so a DAG-only re-key CANNOT fire the legs). On that day the same
       three legs fire with no change to this row.
+      UN-DEFER EXECUTED 2026-08-26 (owner word, this sitting) -- BOTH edits landed together, exactly as
+      written above: the three drivers now token `Peru`, and `Peru` is a plain single-nation resolve
+      entry. THE PREDICTION ABOVE IS THEREFORE SPENT: these three legs no longer decline
+      region-token-unresolved; they FIRE on Peru's own sheet (silver_psd fish_meal x Peru, 62 non-null
+      production years 1964-2025, measured in Athena before the re-key). CHILE WAS NOT DROPPED FOR
+      CONVENIENCE: the source publishes a Chilean sheet too, and a second leg on it is authorable
+      whenever a driver asks for one. `Peru` is the single-nation choice because it is THE MECHANISM'S
+      OWN WORDING -- every event all three mechanisms name (the anchovy quota cut, the 2001 export ban,
+      the 2012/2013 quota) is Peruvian, and Peru is the dominant exporter; the compound token claimed a
+      two-nation geography no single row could honour, which is why it resolved nowhere. The
+      `Peru/Chile` token was REMOVED from region_map.unresolved in the same change: no driver carries it
+      any more, and _check_region_map censuses only tokens drivers actually carry (a listed-but-unused
+      token is inert, and an inert entry naming a geography nobody claims is exactly the silence this
+      file's registers exist to prevent).
+  # -- THE PRICE-CONTEXT AMENDMENT (owner adjudication 2026-08-26) -- R4's first cascade_map row -------
+  fishmeal_price_z:
+    table: silver_pink_sheet
+    metric: fish_meal_usd_t_zscore_5yr   # the STANDARDIZED 5-yr anomaly, not the dollar level (see notes)
+    agg: latest
+    period_type: date                    # the card HAS date_col: date (timestamp) -- see the notes on
+    #                                      _order_col; `latest` genuinely orders here
+    leg_mode: current                    # THE C-2 ANSWER BY SHAPE: latest-only source, no as-of replay
+    country_rule: none                   # the card is wide and flat (no commodity_col, no country_col)
+    keying: "no keying at all -- the metric IS the series (no commodity axis, no country axis)"
+    native_unit: z
+    narrate_unit: z                      # a standardized anomaly, dimensionless; scale 1 (no ratio trap)
+    scale: 1
+    coverage_start: 1981                 # the LEVEL's first month is 1979-01 (_ZSCORE_VALID_FROM in
+    #                                      transforms/bronze_to_silver/pink_sheet.py:200) and the z needs
+    #                                      _ZSCORE_MIN_PERIODS=36 months, so the first non-null z is
+    #                                      1981-12 -- never 1960, which is the CARD's floor, not this
+    #                                      series'
+    status: mapped
+    notes: >
+      THE FISHMEAL PRICE ANOMALY, the substitution half of the mechanism whose supply half is
+      `fishmeal_supply` above. Three carrier drivers (fishmeal_substitution on soybean_meal_cbot /
+      soybean_meal_dce / rapeseed_meal_zce), all parented on peru_fishmeal_supply: dear or scarce
+      fishmeal pushes the marginal protein ton into soybean/rapeseed meal.
+      WHY THE Z AND NOT THE LEVEL. The archaeology's C-1 objection to the original Option C was that
+      lifting the fence could only ever produce "a bare level narrated inside a cascade block" -- this
+      map binds ONE (table, metric) pair per ref with no arithmetic, so a level is all it could say. A
+      STANDARDIZED ANOMALY is a driver-shaped number instead: how stretched fishmeal is versus its own
+      five-year history, which is what a substitution driver actually turns on, and it reads in the same
+      units as the estate's dominant quantified pattern (the weather-z family, 148 live legs -- a `_z`
+      ref reading a z series is this file's house form, and the drought_z row is the shape copied here).
+      The analyst-facing dollar LEVEL is its twin, `fish_meal_usd_t` (570 non-null monthly prints
+      1979-01..2026-06, measured tonight): it is reachable through the numbers AGENT card, where a reader
+      asks for a price and gets a price, and it must NEVER be reached through this leg. The card's own
+      doctrine says the same thing ("HOW STRETCHED A SERIES IS, IS A SECOND METRIC HERE, NOT A
+      CALCULATION" -- prefer the stored z, PIT-clean by construction, over one computed off a windowed
+      history read).
+      PRICE-CONTEXT DISCIPLINE, the shape R4's amendment admits and the ONLY shape it admits -- and
+      C-2 is closed on BOTH its vectors, not argued around. VECTOR ONE (era legs) BY SHAPE: this leg
+      is CURRENT-ONLY (`leg_mode: current`): the cascade is a replay surface -- analogue eras,
+      historical as-ofs -- and this table is LATEST-ONLY with retroactive World Bank revisions and no
+      true as-of replay (tables.yaml:2078-2081), so an era leg would restate a series that cannot be
+      restated; the lint refuses any other leg_mode rather than trusting an author to remember.
+      VECTOR TWO (a historical-asof turn re-running the CURRENT leg) BY THE PER-TURN BELT: no row
+      shape can express "this turn is a replay", so quantify()'s `price_replay` kwarg -- resolved at
+      the answer seam as "this turn's asof is historical" -- keeps every price-context node
+      qualitative on replay turns (evals, backtests, PIT repros), where the leg would otherwise
+      serve today's revision as if known then. The shape rule itself is ONE function for lint and
+      runtime (cascade.price_context_violations, the R9 arrangement), so a hand-edited map cannot
+      pass the container what the build never saw. Narrate PAST TENSE, as an observed anomaly. The
+      ref is banned BY NAME from chain_map, complex_map and transmission_map
+      (config_check._check_price_context_lane, reading the RAW map so a deferred row cannot ship
+      pre-loaded) -- a price is never a chain hop, never a relative-value side, never a transmission
+      step. Never a fork, never a regime marker (a `narrate_unit: flag` row on this card is a build
+      failure).
+      THE REGISTER, and what it does NOT open. config_check.PRICE_CONTEXT_METRICS admits 20 of the
+      card's 76 metrics: 9 input-cost levels + fish_meal_usd_t + their 10 z twins. The 16 estate-target
+      benchmarks (+16 twins) stay fenced PERMANENTLY on self-reference -- each is the world cash price of
+      a commodity the estate quotes a board for, so an engine leg on one would answer a price question
+      about the very contract the cascade is explaining. beef_usd_t and chicken_usd_t are the card's own
+      DEMAND-SIDE OUTPUT prices, which is the opposite of an input cost; their membership question is
+      PARKED IN WRITING, not answered by silence, and it is a sitting of its own (the same is true of
+      orange_usd_t, which the card itself argues is an input-cost signal for FCOJ, and of copper_usd_mt,
+      which the card explicitly forbids as an agricultural price signal).
+      GEOGRAPHY AND KEYING: NEITHER APPLIES. `country_rule: none` short-circuits _scope_ex before every
+      token-reading branch, so the three drivers' region tokens (`Global` on soybean_meal_cbot, `China`
+      on the other two) are INERT here -- they claim nothing, resolve nothing, and need no region_map
+      entry; both build-time region lints go quiet on a `none` row for the same reason. The commodity
+      half is inert too: the card declares commodity_col null, so query.py drops the returned contract
+      slug before SQL. This is the row that needed no keying knob at all.
+      WHAT `agg: latest` READS, AND WHY THE HERD ROW'S HEADLINE HAZARD IS ABSENT HERE. The
+      herd_size_cattle row above records a live-row precondition: its card has no date_col and no
+      year_col, so query._order_col is None, the leg returns an UNORDERED multi-row series, and which row
+      gets narrated depends on the GRAPHRAG_CASCADE_HEADLINE flag. THAT HAZARD DOES NOT REACH THIS ROW.
+      silver_pink_sheet declares `date_col: date` (timestamp, DP-5 normalized), so _order_col resolves,
+      `agg: latest` genuinely orders by month and returns the freshest knowable month on/before the
+      session as-of -- with the card's 40-day publication lag withholding the newest month until it is
+      safely published. One row per month by grain, so no pace collapse is needed either (the F-E lint's
+      sum/mean ban on price tables is untouched: this row declares no collapse kind).
+      SUPERSEDED NAMING. The keying-knob sitting (2026-08-26, earlier the same day) recorded the intended
+      row as `fishmeal_price` on `fish_meal_usd_t`. Both halves are superseded here and neither was a
+      free choice: the ref KEEPS ITS DECLARED NAME `fishmeal_price_z` because that is what all three DAG
+      nodes already carry, so binding it is ZERO re-keys (the alternative would have re-keyed three
+      configs to match a map, which is the wrong direction -- the DAG names the claim, the map answers
+      it); and the metric is the z because of the C-1 argument above. The name and the metric now agree:
+      a `_z` ref reading a z series.
 
   psd_ty_export:
     table: silver_psd_attributes
@@ -928,26 +1029,59 @@ refs:
 # while the six newest D-LD cards sat silent). "DEFERRED" is a comment-register disposition (no YAML rows
 # on purpose: reconcile_cascade reads raw refs and would demand a silver-registry cascade_ref back-pointer
 # for every row minted here), recorded WITHOUT quantification -- writing a table, metric, scale and window
-# IS the quantification decision, and that decision (Option C, PRICE_DOCTRINE_AND_DARK_DATA_WAVE_PLAN)
-# stays FENCED. Reason each, one line: the C3 skips needed evidence because a plausible near-neighbour
+# IS the quantification decision. For silver_pink_sheet that decision was TAKEN on 2026-08-26 (owner
+# adjudication: the price_context amendment, NOT the "Option C" lint lift, which the plan's own amendment
+# section calls unsafe as written) -- its entry below is now a RECORD of a landed row and a landed
+# back-pointer, not a deferral. Reason each, one line: the C3 skips needed evidence because a plausible
+# near-neighbour
 # existed and was refused; these need only the fact that nothing asks for them.
 # UN-DEFER GATE, common to all: a causal DAG driver attribute (configs/graphrag/causal/*.yaml
 # `silver_ref`) that NAMES the series, and then one row above -- in that order, never the reverse.
 #
 #   silver_wasde -- DEFERRED: no driver attribute asks for a WASDE line; the balance-sheet refs above are
 #     silver_psd's, and a second balance-sheet home would fork one driver across two vintage regimes.
-#   silver_pink_sheet -- DEFERRED: R4 fences it from every engine ref (PRICE_TABLES), and lifting that is
-#     Option C, which stays fenced. RE-TESTED 2026-08-26 (the keying-knob sitting) and the fence HELD,
-#     which is the entry's point: the sitting's third intended row was `fishmeal_price` on
-#     fish_meal_usd_t -- the direct instrument for the fishmeal_substitution driver on three meal
-#     boards, needing no keying knob at all (the card is wide and flat; the metric IS the series).
-#     config_check._check_no_engine_ref(load_map(), PRICE_TABLES, "R4", "price") is BUILD-FAILING on
-#     any cascade_map row at this table, and check_question_shapes says in its own words that "R4 is
-#     UNTOUCHED". So the row was NOT written: the blocker is not mechanical and no knob reaches it,
-#     and lifting R4 admits every World Bank benchmark to the engine at once -- an owner adjudication,
-#     not a wave item. fishmeal_substitution stays `silver_status: planned` in all three DAGs, and its
-#     parent peru_fishmeal_supply is live (fishmeal_supply above), so the supply half of the mechanism
-#     quantifies and the price half stays qualitative. UN-DEFER GATE: an owner decision on R4 itself.
+#   silver_pink_sheet -- UN-DEFERRED 2026-08-26 (OWNER ADJUDICATION, the same evening the keying-knob
+#     sitting re-tested the fence and it held). This entry stood DEFERRED for one recorded reason: the
+#     un-defer gate was "an owner decision on R4 itself", because no knob reached the blocker and
+#     "lifting R4 admits every World Bank benchmark to the engine at once". THAT DECISION WAS TAKEN,
+#     and it was NOT the lift. R4 is now a CONTEXT/ENGINE SPLIT -- the D1 shape that amended R9 for
+#     silver_cot -- authored per the governing amendment at PRICE_DOCTRINE_AND_DARK_DATA_WAVE_PLAN.md
+#     :41-43 and the archaeology's prescription at recon/r4-price-fence-archaeology.md:277-303, both of
+#     which OVERRIDE that plan's own original ":103-108 lift R4 narrowly" text.
+#     WHAT THE SPLIT ADMITS, in code, all four terms fail-closed: a cascade_map row at this table is
+#     legal IFF (1) its metric is in the WRITTEN register config_check.PRICE_CONTEXT_METRICS -- 20 of
+#     the card's 76 metrics, being the 9 input-cost levels + fish_meal_usd_t + their 10 z twins; (2) it
+#     declares `leg_mode: current`, which is the C-2 PIT objection answered BY SHAPE (this table is
+#     latest-only with retroactive WB revisions and NO as-of replay, so an era/replay leg on a replay
+#     surface is dishonest by construction and the lint refuses it); (3) it declares
+#     `country_rule: none` (the card is flat and country-less); and (4) it is not a regime marker. The
+#     ref is additionally banned BY NAME from chain_map, complex_map and transmission_map
+#     (config_check._check_price_context_lane) -- the name-level half R9 already carries.
+#     WHAT STAYS FENCED, and it is the larger half: the 16 ESTATE-TARGET benchmarks + their 16 twins
+#     stay out PERMANENTLY, on SELF-REFERENCE -- soybeans/meal/oil, maize, both US wheats, Thai rice,
+#     world/EU/US sugar, both coffees, cocoa, cotton A-Index, CPO, rapeseed oil are each the world cash
+#     price of a commodity the estate quotes a board for, so an engine leg on one answers a price
+#     question about the very contract the cascade is explaining. That is exactly the "every World Bank
+#     benchmark at once" this entry warned of, and the register is what refuses it metric by metric
+#     instead of table by table. beef_usd_t / chicken_usd_t are the card's own DEMAND-SIDE OUTPUT
+#     prices and stay OUT; orange_usd_t (the card's own input-cost claim for FCOJ) and the rest of the
+#     neither-class stay OUT UNTIL THEIR OWN SITTING NAMES THEM -- silence is not admission here.
+#     THE ROW THAT LANDED: `fishmeal_price_z` (above, beside fishmeal_supply) = silver_pink_sheet /
+#     fish_meal_usd_t_zscore_5yr, agg latest, leg_mode current, country_rule none. TWO CORRECTIONS to
+#     what this entry recorded that morning, both stated so the supersession is legible: the ref is
+#     `fishmeal_price_z`, NOT `fishmeal_price` -- that is the name all three DAG nodes already carry, so
+#     binding it costs ZERO re-keys and the map answers the DAG rather than the DAG chasing the map; and
+#     the metric is the Z TWIN, not the dollar level, because the archaeology's C-1 fault with the
+#     original Option C was that it could only produce "a bare level narrated inside a cascade block"
+#     and a standardized anomaly is a driver-shaped number (the level stays reachable through the agent
+#     card, never through this leg). fishmeal_substitution flips `silver_status: planned -> available`
+#     in all three DAGs, so both halves of the mechanism now quantify: supply through fishmeal_supply,
+#     price through fishmeal_price_z. This card is no longer a comment-register disposition -- it holds
+#     a real row, so silver_pink_sheet's F010 contract now records the cascade_ref back-pointer
+#     reconcile_cascade demands.
+#     THE NEXT GATE, so nobody reads this as a general opening: a metric enters PRICE_CONTEXT_METRICS
+#     only in the sitting that decides it, and a question_shapes spot/settle anchor is a SEPARATE lane
+#     that stays `deferred: true` (every metric it names is an estate-target benchmark).
 #   silver_production -- the CROP card stays DEFERRED: no driver attribute asks for FAOSTAT annual crop
 #     production; those drivers resolve to silver_psd, which is vintage-clean where this card is not.
 #     ITS SIBLING CARD IS NOT DEFERRED as of 2026-08-26: `silver_production_livestock` (the second card
@@ -1167,6 +1301,16 @@ region_map:
     Canada:                {country: "Canada", currency: cad}
     South_Africa:          {country: "South Africa", currency: zar}
     "Cote d'Ivoire":       {country: "Cote d'Ivoire"}
+    # PERU UN-DEFER (2026-08-26, owner word). Edit (2) of the two-edit gate written into the
+    # `fishmeal_supply` row's notes: the three peru_fishmeal_supply drivers re-key `Peru/Chile` -> `Peru`
+    # in the DAGs, and a token naming ONE country belongs in resolve by this block's own law. Without
+    # this entry the re-keyed token fails _check_region_map's neither-list build error, so the two edits
+    # are one change and never two. NO CURRENCY KEY: the fishmeal legs read silver_psd production, not an
+    # FX cross, and a `pen` key would demand a pen_usd column silver_fred_fx does not carry (the same
+    # lint that enforces the country half FORBIDS a currency whose column is absent). Surface form is the
+    # silver_psd Title-Case country: `Peru` (probed -- fish_meal x Peru, 62 non-null production years
+    # 1964-2025).
+    Peru:                  {country: "Peru"}
     # D-3 (ratified 2026-08-25): cocoa's GBP_cross re-keys Global -> United Kingdom. Surface form
     # PROBED live before this row landed: silver_psd DISTINCT country carries 'United Kingdom'
     # (1,807 rows / 62 slugs, 2026-08-25). gbp_usd is a real column since FX-1's 14-cross widening.
@@ -1289,16 +1433,12 @@ region_map:
     - "Zambia;Tanzania;Zimbabwe"
     - Southern_Africa_SADC
     - "Indonesia/Argentina"
-    # KEYING-KNOB SITTING (2026-08-26). `Peru/Chile` is DECLARED here, not resolved: the three
-    # peru_fishmeal_supply drivers re-keyed onto the new `fishmeal_supply` ref (country_rule: region)
-    # this sitting, and the census at config_check._check_region_map fails the BUILD on any region
-    # token that neither resolves nor is listed here. Listing it adds no country claim and lights
-    # nothing -- it records that a two-nation token has no single honest geography, which is the same
-    # verdict every compound above carries. The un-defer is TWO edits in one change (the row's notes
-    # carry the full gate): re-key the DRIVERS to `Peru` in the DAGs AND give `Peru` a plain resolve
-    # entry above -- a single-nation token belongs in resolve, and without the entry the re-keyed
-    # token fails this very lint (measured: `Peru` resolves nowhere today).
-    - "Peru/Chile"
+    # `Peru/Chile` STOOD HERE from the keying-knob sitting (2026-08-26 morning) and was REMOVED the same
+    # evening when its un-defer executed: the three peru_fishmeal_supply drivers now token `Peru`, which
+    # RESOLVES above, so no driver carries the compound any more. _check_region_map censuses only the
+    # tokens drivers actually carry -- an unused entry here is inert either way, and leaving one behind
+    # would record a two-nation geography nobody claims. Restore this line only alongside a driver that
+    # tokens `Peru/Chile` again.
     # import drivers (the China/US compounds are the RF-3 reroute signal, split there -- never here)
     - "China/US"
     - "US/China"
