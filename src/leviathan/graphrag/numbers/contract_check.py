@@ -169,7 +169,21 @@ def check_country_vocabulary(reg, *, query_fn, caches=None) -> list[str]:
         # Live-caught at the first Branch-A gate fire (BF-W2 step 12.6).
         titles = caches.setdefault(("distinct", _physical(ts), ccol),
                                    cc._distinct_set(_physical(ts), ccol, query_fn))
-        if country not in titles:
+        # country_name_ref tables (KEYING-KNOB gate fire 5aadd1c9, 2026-08-26): build_sql translates
+        # the resolved NAME into the physical value(s) through the card's reference (FAO-3 --
+        # 'United States' -> 'United States of America'), so an untranslated compare here red-flags
+        # every region leg on such a table while the runtime read is CORRECT. The exact sibling of
+        # cascade_census._dark_reason's fix, caught one cloud round later because the first sweep
+        # fixed the instance instead of the CLASS. Resolve through the same loader the probe's SQL
+        # uses; an unresolvable name still errs -- that is the France->EU class this check names.
+        wanted = {country}
+        if getattr(ts, "country_name_ref", None):
+            try:
+                from leviathan.graphrag.numbers import query as _q
+                wanted = set(_q._country_ref(ts).resolve_codes(country)) or {country}
+            except Exception:  # noqa: BLE001 -- a ref-load failure must not crash a vocab check
+                pass
+        if not (wanted & titles):
             errs.append(f"{contract}/{did}: region-resolved country {country!r} not in DISTINCT {ccol} "
                         f"of {table} (region_map resolve target absent -- the France->EU class)")
     return errs
