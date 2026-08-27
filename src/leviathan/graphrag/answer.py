@@ -8728,8 +8728,12 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
     kw = dict(model=pv.resolve_model(model), max_tokens=max_tokens or 12000, tool=tool,
               degrade_to=ex.HAIKU, usage_sink=_sink)  # answers grew
     _think = pv.synth_thinking()                       # c/d seam: None unless GRAPHRAG_SYNTH_THINKING=adaptive
+    if _think is not None and not pv.supports_adaptive(model):
+        _think = None   # THE SEAT GATE (arm-d null-arm RCA 2026-08-27): _call_opus is NOT writer-only --
+        #                 route_llm borrows it with model=HAIKU (:1951), and an ungated armed seam 400s
+        #                 the router on a pre-4.6 seat, killing the answer before the writer runs.
     if _think is not None:
-        kw["thinking"] = _think                        # WRITER seat only; both serving lanes accept it
+        kw["thinking"] = _think                        # both serving lanes accept it
     if on_token is not None:
         out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
     else:

@@ -128,3 +128,24 @@ def test_the_writer_half_resolver_agrees_on_the_arming_word(monkeypatch):
     assert pv.synth_thinking() == {"type": "adaptive"}
     monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "on")
     assert pv.synth_thinking() is None
+
+
+def test_the_writer_seam_never_arms_a_borrowed_haiku_call(monkeypatch):
+    # The arm-d null-arm RCA (2026-08-27, measured on the first armed fire): _call_opus is NOT
+    # writer-only -- route_llm borrows it with model=HAIKU (answer.py:1951). An armed synth
+    # seam must go inert on that call instead of 400ing the ROUTER and killing the answer
+    # before the writer runs. The writer's own opus call must still arm.
+    from leviathan.graphrag import answer as an, providers as pv, extract as ex
+    monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "adaptive")
+    seen = []
+
+    def fake_serving_call(client, system, user, **kw):
+        seen.append(kw)
+        return {"contracts": []}, None
+
+    monkeypatch.setattr(pv, "serving_call", fake_serving_call)
+    monkeypatch.setattr(pv, "make_client", lambda: object())
+    an._call_opus("s", "u", model=ex.HAIKU, tool={"name": "pick_contracts"})
+    assert "thinking" not in seen[-1], "armed seam reached a pre-4.6 seat"
+    an._call_opus("s", "u", model="claude-opus-5", tool={"name": "emit"})
+    assert seen[-1].get("thinking") == {"type": "adaptive"}

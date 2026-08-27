@@ -82,6 +82,20 @@ def _client_timeout():
     return anthropic.Timeout(connect=15.0, read=read, write=60.0, pool=15.0)
 
 
+# The adaptive-capable seat set (2026-08-27, the arm-d null-arm RCA): adaptive thinking is a
+# 4.6+ feature, and BOTH thinking seams must gate on the model actually receiving the call --
+# the writer seam's "writer call site only" scoping was FALSE in exactly one place, measured on
+# the first armed fire: route_llm borrows answer._call_opus with model=HAIKU (answer.py:1951),
+# so an ungated seam 400s the ROUTER ('adaptive thinking is not supported' on haiku-4-5) and
+# kills the whole answer before the writer ever runs. One constant, one helper, both seams.
+ADAPTIVE_SEATS = ("sonnet-5", "opus-5", "fable-5", "opus-4-8", "opus-4-7", "opus-4-6", "sonnet-4-6")
+
+
+def supports_adaptive(model: str) -> bool:
+    """True iff the (first-party) model id names a seat that accepts thinking={'type': 'adaptive'}."""
+    return any(s in (model or "") for s in ADAPTIVE_SEATS)
+
+
 def synth_thinking() -> Optional[dict]:
     """The c/d THINKING seam's env resolver (2026-08-25; arms deferred until after the projection
     wave by owner word -- the PLUMBING lands now so c/d fires without a bake cycle then).
