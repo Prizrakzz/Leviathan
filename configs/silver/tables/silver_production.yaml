@@ -120,11 +120,6 @@ freshness_sla:
   max_lag_days: null
 consumers: both
 numbers_ref: configs/graphrag/numbers/tables.yaml#silver_production
-# KEYING-KNOB SITTING (2026-08-26): the back-pointer names a row on the LIVESTOCK card
-# (silver_production_livestock), the second numbers card on THIS physical object. One contract per
-# physical table, so one back-pointer -- reconcile_cascade resolves the card id through
-# contract_name_for before it looks the contract up. The CROP card carries no cascade row and stays
-# DEFERRED in cascade_map's served-table register.
 cascade_ref: configs/graphrag/numbers/cascade_map.yaml#herd_size_cattle
 source_contract_ref: configs/datasets/source_contracts.yaml#production:faostat
 serving_table: null
@@ -135,15 +130,15 @@ producer:
 location_mode: static
 write_mode: overwrite
 fingerprint:
-  schema_fingerprint_sha256: e2bd2dd0e8423b3ae9e53174d93b59aea732c9e91962fe09d4e563e0f6424e36
-  catalog_hash_sha256: 1a0626e2ee156fa08c36ecdd6efb23e8ec8564634b3e24aef90dd7744a0ecf86
+  schema_fingerprint_sha256: df166abeb68cd589019cc1003400ffcc1cc57ccde56f47bb74c673d4cdad6602
+  catalog_hash_sha256: 528b726c04994253af26770e7a539ab020144a2c895b388681e15166776ab820
   registered_partition_count: 0
   placeholder_partition_count: 0
   glue_nonpartition_cols: 12
-  physical_parquet_cols: 13
+  physical_parquet_cols: 12
 provenance:
   baseline_id: 20260712_p65impl
-  anchor_git_sha: 7cbbf58a7be021b60cd0f4cf2a5b54c02654fe36
+  anchor_git_sha: ''
   generated_by: scripts/silver/gen_registry_from_baseline.py
   generated_from: reports/silver_readiness/20260712_p65impl/tables/silver_production.json
 notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibration (OP-8 / AV-11, SILVER-V001).
@@ -155,7 +150,6 @@ projection_domains:
   projection.enabled: 'true'
   projection.year.range: 1961,2035
   projection.year.type: integer
-  storage.location.template: s3://leviathan-dev-shahem-001/silver/production/commodity=${commodity}/year=${year}
 vintage_waiver:
   reason: 'FAOSTAT QCL is an annual latest-only source: one global release per year, no in-year revisions.
     A re-pull cannot create a second ingest_date vintage and would overwrite the sole raw ZIP (versioning

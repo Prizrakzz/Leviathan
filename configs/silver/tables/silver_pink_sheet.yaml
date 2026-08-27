@@ -591,13 +591,6 @@ freshness_sla:
   max_lag_days: null
 consumers: both
 numbers_ref: configs/graphrag/numbers/tables.yaml#silver_pink_sheet
-# The card carries EIGHT price-context cascade rows as of 2026-08-27 (fishmeal_price_z + the seven
-# fertilizer/energy rows: brent_crude_z, urea_z, natural_gas_us_z, natural_gas_eu_z, npk_fertilizer_z,
-# dap_z, potash_z). reconcile_cascade only requires the back-pointer to be non-empty, and the
-# cot-style EXACT pin (test_silver_reconcile.py:164 on silver_cot) is DELIBERATELY DECLINED here:
-# that pin exists because silver_cot has one ref and a second would signal a design break, while this
-# card's register-governed lane grows by adjudicated sittings -- the fragment below names the row
-# that carries the family's shared doctrine prose.
 cascade_ref: configs/graphrag/numbers/cascade_map.yaml#fishmeal_price_z
 source_contract_ref: configs/datasets/source_contracts.yaml#pink_sheet
 serving_table: null

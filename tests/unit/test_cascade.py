@@ -716,21 +716,44 @@ def test_keying_knob_lint_pins_the_override_inside_the_cards_commodity_values(mo
     assert "cattle_beef" in load_registry().get("silver_production_livestock").commodity_values
 
 
-def test_the_two_keying_knob_rows_are_wired_on_the_real_map():
-    """The rows themselves, pinned by the triples that decide what they read. Both are ACTIVE (not
-    deferred), both carry the override, and neither may drift to a country_rule the lint forbids."""
+def test_the_five_keying_knob_rows_are_wired_on_the_real_map():
+    """The rows themselves, pinned by the triples that decide what they read. All are ACTIVE (not
+    deferred), all carry the override, and none may drift to a country_rule the lint forbids.
+    Was two rows; the 7-wireable-now sitting (2026-08-27, wf_a9af4764-0d6) made it five -- and the
+    hogs pin matters most: the livestock card stores broilers_poultry as '1000 An' beside An-keyed
+    cattle/hogs, so an unpinned native_unit/scale on a second livestock row is the 1000x trap
+    reopened by omission."""
     m = cq.load_map()
+    from leviathan.graphrag.numbers.registry import load_registry
+    reg = load_registry()
     herd = m["herd_size_cattle"]
     assert (herd["table"], herd["metric"], herd["commodity"], herd["country_rule"]) == \
         ("silver_production_livestock", "live_animals", "cattle_beef", "region")
     assert herd["period_type"] == "date" and herd["agg"] == "latest" and herd["leg_mode"] == "current"
     assert herd["native_unit"] == "An" and herd["narrate_unit"] == "million head"
     assert float(herd["scale"]) == 0.000001                          # head -> million head
+    hogs = m["herd_size_hogs"]
+    assert (hogs["table"], hogs["metric"], hogs["commodity"], hogs["country_rule"]) == \
+        ("silver_production_livestock", "live_animals", "hogs", "region")
+    assert hogs["period_type"] == "date" and hogs["agg"] == "latest" and hogs["leg_mode"] == "current"
+    assert hogs["native_unit"] == "An" and hogs["narrate_unit"] == "million head"
+    assert float(hogs["scale"]) == 0.000001
+    assert "hogs" in reg.get("silver_production_livestock").commodity_values
     fish = m["fishmeal_supply"]
     assert (fish["table"], fish["metric"], fish["commodity"], fish["country_rule"]) == \
         ("silver_psd", "production_mt", "fish_meal", "region")
     assert fish["period_type"] == "marketing_year"
-    assert "commodity_aliases" not in herd and "commodity_aliases" not in fish
+    sun = m["sunflower_oil_supply"]
+    assert (sun["table"], sun["metric"], sun["commodity"], sun["country_rule"]) == \
+        ("silver_psd", "production_mt", "sunflower_oil", "region")
+    assert sun["period_type"] == "marketing_year"
+    assert "sunflower_oil" in reg.get("silver_psd").commodity_values
+    cit = m["citrus_fruit_production"]
+    assert (cit["table"], cit["metric"], cit["commodity"], cit["country_rule"]) == \
+        ("silver_psd", "production_mt", "fresh_citrus", "region")
+    assert "fresh_citrus" in reg.get("silver_psd").commodity_values
+    for row in (herd, hogs, fish, sun, cit):
+        assert "commodity_aliases" not in row
 
 
 def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
@@ -743,8 +766,10 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
     reason -- its only instrument is silver_pink_sheet, which R4 fenced from every engine ref -- and
     that reason is DISCHARGED, not waived: R4 became a context/engine split (the D1 shape), and the row
     was the amendment's one admitted leg UNTIL 2026-08-27, when the fertilizer/energy sitting landed
-    seven siblings on the same shape (the basket split, wf_b69ce788-4e1) -- the positive roster below
-    pins all eight so a dropped row reds here. The triple below is what the split admits, so this pin
+    seven siblings on the same shape (the basket split, wf_b69ce788-4e1) -- and the same day's
+    7-wireable-now sitting (wf_a9af4764-0d6) added four more rows on OTHER shapes (two knob rows, a
+    region-ruled carry-in twin, a decline-authored citrus row). The positive roster below pins every
+    live ref this file's sittings landed, so a dropped row reds here. The triple below is what the split admits, so this pin
     guards the discharged state; `leg_mode: current` is pinned WITH it because that clause is the C-2
     PIT answer (latest-only source, no as-of replay) and a row that lost it would still resolve while
     quietly becoming a replay leg. The negative roster gains the sitting's 14 planned retags' refs
@@ -752,13 +777,40 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
     parity claim, the refuted rubber price) -- none may acquire a row without its own decision."""
     for ref in ("herd_size_cattle", "fishmeal_supply", "fishmeal_price_z",
                 "brent_crude_z", "urea_z", "natural_gas_us_z", "natural_gas_eu_z",
-                "npk_fertilizer_z", "dap_z", "potash_z"):
+                "npk_fertilizer_z", "dap_z", "potash_z",
+                # the 7-wireable-now sitting (2026-08-27, wf_a9af4764-0d6):
+                "herd_size_hogs", "beginning_stock_region", "sunflower_oil_supply",
+                "citrus_fruit_production"):
         assert cq.map_row(ref) is not None, ref
     for ref in ("cattle_on_feed_z", "broiler_margin_z", "cattle_beef_herd_z", "fishmeal_supply_z",
                 "freight_rates_z", "freight_costs_z", "freight_cost_z", "rubber_price_z",
                 "rubber_area_substitution_z", "aeco_natural_gas_z", "petrobras_pump_parity_z",
-                "urea_cost_z", "fertilizer_cost_z", "fertilizer_costs_z", "fertilizer_input_costs_z"):
+                "urea_cost_z", "fertilizer_cost_z", "fertilizer_costs_z", "fertilizer_input_costs_z",
+                # the 7-wireable-now sitting's two sign-identity refusals -- LIVE refs on the DAGs
+                # (rapeseed_meal ASF_outbreak; palm_olein China_reserve_release), so unlike the six
+                # retired basket names these CAN acquire a row and must not without the owner
+                # two-edit each refusal names:
+                "asf_outbreak_flag", "buffer_stock_release"):
         assert cq.map_row(ref) is None, f"{ref} acquired a row without its own decision"
+    # the sitting's geography verdicts, on the REAL region_map -- one line per adjudication class:
+    hogs_row = cq.load_map()["herd_size_hogs"]
+    assert cq._scope_ex(_node(contract="soybean_meal_cbot", ref="herd_size_hogs", region="China"),
+                        hogs_row) == ("hogs", "China", None)
+    sun_row = cq.load_map()["sunflower_oil_supply"]
+    assert cq._scope_ex(_node(contract="french_rapeseed_matif", ref="sunflower_oil_supply",
+                              region="Ukraine"), sun_row) == ("sunflower_oil", "Ukraine", None)
+    # the four basin carriers keep Black_Sea and DECLINE HONESTLY (the review's wrong-geography
+    # refusal: Russia is ~half the basin and resolvable, so Ukraine-only was an elective narrowing)
+    assert cq._scope_ex(_node(contract="palm_olein_dce", ref="sunflower_oil_supply",
+                              region="Black_Sea"), sun_row) == \
+        ("sunflower_oil", cq.SKIP_NODE, "region-token-unresolved")
+    res_row = cq.load_map()["beginning_stock_region"]
+    assert cq._scope_ex(_node(contract="corn", ref="beginning_stock_region", region="China"),
+                        res_row) == ("corn_cbot", "China", None)   # PSD_SLUG_ALIAS before the rule
+    cit_row = cq.load_map()["citrus_fruit_production"]
+    assert cq._scope_ex(_node(contract="frozen_orange_juice", ref="citrus_fruit_production",
+                              region="Sao_Paulo_Brazil / Florida_US"), cit_row) == \
+        ("fresh_citrus", cq.SKIP_NODE, "region-token-unresolved")  # the recorded two-belt refusal
     # the eight context legs all ride the SIX-TERM shape -- one loop so a drifted term names its row
     from leviathan.graphrag.numbers.cascade import price_context_violations
     for ref in ("fishmeal_price_z", "brent_crude_z", "urea_z", "natural_gas_us_z",
