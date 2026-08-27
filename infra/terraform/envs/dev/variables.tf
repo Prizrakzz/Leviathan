@@ -406,7 +406,7 @@ variable "worker_fleet_image_digest" {
   # Post-push auditor CLEAN. usda-esr-fetch / esr-bronze-to-silver / usda-nass-bronze /
   # usda-nass-annual-silver hand-repin via owner (register JSONs in the session scratchpad);
   # the ten fleet families adopt on the next apply per this file's standing law.
-  default     = "sha256:059bc6be22304b4b948ea9bb30ade9841eec7a05d419ba4d0561206697388c90" # 2026-08-27 #3, the TWO-EDITS+SPLITS fleet bump (commit 8ac3221a): the sorghum sign three-edit (urea_cost rides urea_z), palm China_reserve_release sign-0 + beginning_stock_region (4th carrier), and the four Black_Sea basin nodes split into ukraine/russia children riding sunflower_oil_supply (Russia 42yr value-proved). Census truth on this vintage: 773 legs / 521 FIRES / 252 DECLINES / 0 DARK (the 10th consecutive exact prediction). A scheduled [Reconcile] on the prior vintage would re-bank the 767 census over the 773 baselines (the stale-census-bank class, fourth sitting running). PRIOR: sha256:53b276d5... (2026-08-27 #2, commit 13f9543e, census 767/511).
+  default     = "sha256:91104375a5af569def216da9a7eb0f8aa61dd43e3a121cf230e24e441aa3b7a6" # 2026-08-27 #4, the WHEAT/POLICY ORIGIN fleet bump (commit d9af78ce): 20 per-origin DAG children (10 wheat + 9 corn-family + 2 rapeseed w/ 1 merged), 3 D-10 re-keys onto the new production_region row (six carriers value-proved 40/40/59/63 MY), the co_terms conjunctive slice gate + policy slice family (india mint, argentina self-gate, export_ban plural repair). Census truth on this vintage: 790 legs / 542 FIRES / 248 DECLINES / 0 DARK (the 11th consecutive exact prediction). A scheduled [Reconcile] on the prior vintage would re-bank the 773 census over the 790 baselines (the stale-census-bank class, fifth sitting running). PRIOR: sha256:059bc6be... (2026-08-27 #3, commit 8ac3221a, census 773/521).
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
@@ -449,7 +449,7 @@ variable "silver_gate_image_digest" {
   # vintage_waiver (G1-6 PATH A) and the GateVerdict/ValueCensusHardFailTables
   # emitters (G3-4) into the gate. timeline_rebuild's identical old digest below is
   # DELIBERATELY NOT moved (the fleet-digest law: one intended move per variable).
-  default     = "sha256:059bc6be22304b4b948ea9bb30ade9841eec7a05d419ba4d0561206697388c90" # 2026-08-27 #3 (commit 8ac3221a): the gate rides the two-edits+splits vintage -- the 773-leg census map whose [Reconcile] step banks the rolling baselines; a gate on the prior vintage would re-bank the 767 census over the 773 baselines. PRIOR: sha256:53b276d5... (2026-08-27 #2, commit 13f9543e).
+  default     = "sha256:91104375a5af569def216da9a7eb0f8aa61dd43e3a121cf230e24e441aa3b7a6" # 2026-08-27 #4 (commit d9af78ce): the gate rides the wheat/policy origin vintage -- the 790-leg census map whose [Reconcile] step banks the rolling baselines (and whose driver_matchers pair shape the gate's own slice lints now consume); a gate on the prior vintage would re-bank the 773 census over the 790 baselines. PRIOR: sha256:059bc6be... (2026-08-27 #3, commit 8ac3221a).
 
   validation {
     condition     = var.silver_gate_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.silver_gate_image_digest))
