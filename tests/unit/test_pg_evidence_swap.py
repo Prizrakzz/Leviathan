@@ -177,18 +177,26 @@ class _Txn:
 
 
 class _Result:
-    def __init__(self, row):
+    def __init__(self, row, rows=None):
         self._row = row
+        self._rows = rows if rows is not None else ([row] if row else [])
 
     def fetchone(self):
         return self._row
 
+    def fetchall(self):
+        return self._rows
+
 
 class FakeConn:
-    """Minimal psycopg3-shaped stand-in: execute() logs the SQL and answers to_regclass/count probes from
-    a preset `tables` map ({name: row_count}); transaction() logs BEGIN/COMMIT so we can assert atomicity."""
-    def __init__(self, tables):
+    """Minimal psycopg3-shaped stand-in: execute() logs the SQL and answers to_regclass/count/pg_indexes
+    probes from preset maps ({name: row_count}, {name: [indexdefs]}); transaction() logs BEGIN/COMMIT so
+    we can assert atomicity. `indexes` defaults to PARITY (both tables carry the same shape) so the
+    pre-incident tests keep passing untouched — the parity-refusal test passes an index-less shadow."""
+    def __init__(self, tables, indexes=None):
         self.tables = dict(tables)
+        self.indexes = dict(indexes) if indexes is not None else {
+            n: ["CREATE INDEX i ON public.t USING btree (node, date)"] for n in tables}
         self.log: list[str] = []
 
     def transaction(self):
@@ -199,6 +207,9 @@ class FakeConn:
         if "to_regclass" in sql:
             name = params[0]
             return _Result((name in self.tables,))
+        if "pg_indexes" in sql:
+            rows = [(d,) for d in self.indexes.get(params[0], [])]
+            return _Result(rows[0] if rows else None, rows)
         if sql.lower().startswith("select count(*)"):
             name = sql.rsplit(" ", 1)[-1]
             return _Result((self.tables.get(name, 0),))
@@ -325,3 +336,102 @@ def _fake_psycopg(conn):
 def _run_main(monkeypatch, argv):
     monkeypatch.setattr("sys.argv", ["pg_evidence_swap.py"] + argv)
     return swap.main()
+
+
+# ── index parity (incident 2026-08-27: the swapped-in shadow carried ONLY its pkey) ──────────
+def test_normalize_indexdef_drops_name_and_table_keeps_shape():
+    a = swap.normalize_indexdef(
+        "CREATE INDEX evidence_props_shadow_node_date ON public.evidence_props_old USING btree (node, date)")
+    b = swap.normalize_indexdef(
+        "CREATE INDEX evidence_props_node_date ON public.evidence_props USING btree (node, date)")
+    assert a == b == "USING btree (node, date)"
+    u = swap.normalize_indexdef(
+        "CREATE UNIQUE INDEX evidence_props_shadow_pkey2 ON public.evidence_props USING btree (id)")
+    assert u == "UNIQUE USING btree (id)"
+
+
+def test_index_parity_missing_names_the_incident_shapes():
+    live = ["CREATE UNIQUE INDEX x_pkey ON public.live USING btree (id)",
+            "CREATE INDEX x_node_date ON public.live USING btree (node, date)",
+            "CREATE INDEX x_tsv ON public.live USING gin (tsv)"]
+    shadow_indexless = ["CREATE UNIQUE INDEX y_pkey2 ON public.shadow USING btree (id)"]
+    missing = swap.index_parity_missing(live, shadow_indexless)
+    assert missing == ["USING btree (node, date)", "USING gin (tsv)"]
+    assert swap.index_parity_missing(live, live) == []
+    # extra shadow indexes are allowed — parity is a superset check, never equality
+    assert swap.index_parity_missing(live, live + ["CREATE INDEX z ON public.shadow USING hnsw (vector)"]) == []
+
+
+class _ScriptedConn:
+    """Fake conn: answers pg_indexes probes from a scripted table->defs map, records every CREATE."""
+
+    def __init__(self, defs_by_table, taken_names=()):
+        self.defs = defs_by_table
+        self.taken = set(taken_names)
+        self.created = []
+
+    def execute(self, sql, params=None):
+        class R:
+            def __init__(self, row):
+                self._row = row
+
+            def fetchone(self):
+                return self._row
+
+        if "CREATE" in sql and "pg_indexes" not in sql:
+            self.created.append(sql)
+            return R(None)
+        if "indexname" in sql:
+            return R((1,) if params[0] in self.taken else None)
+        if "tablename" in sql:
+            t, like = params
+            frag = like.strip("%")
+            hit = any(frag in d for d in self.defs.get(t, []))
+            return R((1,) if hit else None)
+        return R(None)
+
+
+def test_ensure_index_is_table_scoped_and_dodges_rename_survivor_names():
+    # THE INCIDENT SHAPE: the fresh shadow has no node_date index, but the derived NAME is taken
+    # by the live table (a rename survivor). The old IF NOT EXISTS silently no-oped; the fix must
+    # create under a suffixed free name instead.
+    conn = _ScriptedConn({"evidence_props_shadow": []},
+                         taken_names={"evidence_props_shadow_node_date"})
+    pg._ensure_index(conn, "evidence_props_shadow", "node_date", "(node, date)", "(node, date)")
+    assert len(conn.created) == 1
+    assert "evidence_props_shadow_node_date_2 ON evidence_props_shadow (node, date)" in conn.created[0]
+    # and when THIS table already carries the shape, nothing is created at all
+    conn2 = _ScriptedConn({"t": ["CREATE INDEX t_node_date ON public.t USING btree (node, date)"]})
+    pg._ensure_index(conn2, "t", "node_date", "(node, date)", "(node, date)")
+    assert conn2.created == []
+
+
+def test_missing_canonical_indexes_lists_absent_shapes():
+    healthy = _ScriptedConn({"t": ["... USING btree (node, date) ...", "... USING gin (tsv) ..."]})
+    assert pg.missing_canonical_indexes("t", conn=healthy) == []
+    bare = _ScriptedConn({"t": []})
+    assert pg.missing_canonical_indexes("t", conn=bare) == ["(node, date)", "USING gin (tsv)"]
+
+
+def test_guard_refuses_swap_on_index_parity_mismatch(monkeypatch, capsys):
+    # THE INCIDENT WIRED END-TO-END: shadow loaded (rows > 0) but carrying ONLY its pkey while live
+    # holds the canonical shapes -- the swap must refuse, name the missing shapes, and touch nothing.
+    monkeypatch.delenv("EVIDENCE_PG_TABLE", raising=False)
+    conn = FakeConn(
+        {"evidence_props": 100, "evidence_props_shadow": 250},
+        indexes={
+            "evidence_props": [
+                "CREATE UNIQUE INDEX a_pkey ON public.evidence_props USING btree (id)",
+                "CREATE INDEX a_nd ON public.evidence_props USING btree (node, date)",
+                "CREATE INDEX a_tsv ON public.evidence_props USING gin (tsv)"],
+            "evidence_props_shadow": [
+                "CREATE UNIQUE INDEX b_pkey2 ON public.evidence_props_shadow USING btree (id)"],
+        })
+    monkeypatch.setattr(swap.pgstore, "dsn", lambda: "postgresql://x")
+    import sys as _sys
+    monkeypatch.setitem(_sys.modules, "psycopg", _fake_psycopg(conn))
+    rc = _run_main(monkeypatch, ["--swap"])
+    out = capsys.readouterr().out
+    assert rc == 1 and "REFUSE swap" in out and "missing index shape" in out
+    assert "USING btree (node, date)" in out and "USING gin (tsv)" in out
+    assert not any("RENAME" in s for s in conn.log)

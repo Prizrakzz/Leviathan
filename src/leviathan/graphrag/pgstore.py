@@ -532,8 +532,15 @@ def init_schema(conn=None, *, dim: int = DIM) -> None:
     Index names are DERIVED from the table name (`<t>_node_date`, `<t>_tsv`) so building the shadow table
     while the live table exists doesn't collide on a shared index name. NB the swap tool renames the TABLE
     only — Postgres keeps indexes attached across a table rename but does NOT rename them, so post-flip the
-    indexes carry their pre-flip (shadow-derived) names. That's cosmetic: they stay attached and functional,
-    and the next rebuild's CREATE INDEX IF NOT EXISTS is keyed on the (new) table's own derived names."""
+    indexes carry their pre-flip (shadow-derived) names.
+
+    ⚠ INCIDENT 2026-08-27 — that leftover naming is NOT cosmetic when combined with CREATE INDEX IF NOT
+    EXISTS, which is NAME-GLOBAL, not table-scoped: on the SECOND blue-green cycle the fresh shadow's
+    derived name (`evidence_props_shadow_node_date`) already existed ATTACHED TO THE LIVE TABLE (a rename
+    survivor of cycle one), the create silently NO-OPED, and the swap shipped an index-less table live —
+    every per-node read became a full 16 GB seq scan, the eval pool wedged at every size (~$12 of dead
+    arm runs), and prod was degraded ~4h until CREATE INDEX CONCURRENTLY repaired it. The ensure below is
+    therefore TABLE-SCOPED (pg_indexes on THIS table, matched by shape) with collision-free naming."""
     conn = conn or connect()
     t = table_name()
     conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
@@ -551,8 +558,40 @@ def init_schema(conn=None, *, dim: int = DIM) -> None:
             vector     vector({dim}) NOT NULL,
             tsv        tsvector GENERATED ALWAYS AS (to_tsvector('simple', text)) STORED
         )""")
-    conn.execute(f"CREATE INDEX IF NOT EXISTS {t}_node_date ON {t} (node, date)")
-    conn.execute(f"CREATE INDEX IF NOT EXISTS {t}_tsv ON {t} USING gin (tsv)")
+    for suffix, frag, tail in _CANONICAL_INDEXES:
+        _ensure_index(conn, t, suffix, frag, tail)
+
+
+# The canonical secondary-index shapes: (name suffix, the indexdef fragment that identifies the
+# shape in pg_indexes, the CREATE tail). One list, three consumers: init_schema's ensure, the
+# loader's post-load assertion, and the swap tool's parity guard.
+_CANONICAL_INDEXES = (
+    ("node_date", "(node, date)", "(node, date)"),
+    ("tsv", "USING gin (tsv)", "USING gin (tsv)"),
+)
+
+
+def _ensure_index(conn, t: str, suffix: str, frag: str, tail: str) -> None:
+    """TABLE-SCOPED index ensure (incident 2026-08-27, see init_schema). Checks THIS table's
+    pg_indexes for the shape; when absent, creates under the derived name, suffixing numerically
+    if another table (a rename survivor of a prior blue-green cycle) already holds that name."""
+    if conn.execute("SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexdef LIKE %s",
+                    (t, f"%{frag}%")).fetchone():
+        return
+    name, n = f"{t}_{suffix}", 1
+    while conn.execute("SELECT 1 FROM pg_indexes WHERE indexname = %s", (name,)).fetchone():
+        n += 1
+        name = f"{t}_{suffix}_{n}"
+    conn.execute(f"CREATE INDEX {name} ON {t} {tail}")
+
+
+def missing_canonical_indexes(table: str, conn=None) -> list:
+    """The canonical index shapes ABSENT from `table` — [] is the only healthy answer. The
+    loader refuses to finish on a non-empty result (the belt over init_schema's ensure)."""
+    conn = conn or connect()
+    return [frag for _s, frag, _t in _CANONICAL_INDEXES
+            if not conn.execute("SELECT 1 FROM pg_indexes WHERE tablename = %s AND indexdef LIKE %s",
+                                (table, f"%{frag}%")).fetchone()]
 
 
 def prop_id(node: str, rec: dict) -> str:

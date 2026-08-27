@@ -143,6 +143,15 @@ def main() -> int:
                 total += n
                 print(f"  {node}: {n} props")
     print(f"loaded {total} props across {len(nodes)} slices into {target}")
+    # INDEX BELT (incident 2026-08-27): init_schema's old name-global CREATE INDEX IF NOT EXISTS was
+    # silently no-oped by a prior blue-green cycle's rename-survivor names, and an index-less shadow
+    # went live (16 GB seq scans, wedged pools, ~4h of degraded prod). init_schema is now table-scoped;
+    # this assertion is the belt over it — a load that ends without the canonical shapes FAILS LOUDLY.
+    missing = pgstore.missing_canonical_indexes(target)
+    if missing:
+        print(f"REFUSE: {target} finished loading WITHOUT canonical index shape(s): {missing} -- "
+              "a swap of this table would go live slower than what it replaces (incident 2026-08-27)")
+        return 1
     if args.census_gate:                                       # opt-in W1.3 gate; nonzero fails the load
         return _run_census_gate(args.census_baseline)
     return 0

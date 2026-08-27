@@ -27,19 +27,25 @@ ROLLBACK (one transaction) — the exact reverse, restoring the pre-swap state:
     ALTER TABLE <t>_old RENAME TO <t>;                 -- promote the retained old table back to live
 
 INDEXES survive the rename: Postgres keeps every index attached to its table across ALTER TABLE ... RENAME TO
-but does NOT rename the indexes themselves (verified against pgstore.init_schema, which derives index names
-`<t>_node_date` / `<t>_tsv` from the table). So after a flip the live table carries indexes still named for
-the shadow (`<t>_shadow_node_date`, etc.) — cosmetic only: they stay attached and functional, and the next
-rebuild's `CREATE INDEX IF NOT EXISTS <shadow>_...` re-derives fresh names on the new shadow table. No index
-DDL is needed here, and issuing any would risk a name clash with the retained `_old` table's indexes.
+but does NOT rename the indexes themselves. ⚠ The original header called that "cosmetic only" and claimed
+"the next rebuild's CREATE INDEX IF NOT EXISTS re-derives fresh names" — FALSE, and it cost real money
+(INCIDENT 2026-08-27): IF NOT EXISTS is NAME-GLOBAL, so on the second blue-green cycle the fresh shadow's
+derived name already existed attached to the LIVE table (a cycle-one rename survivor), init_schema silently
+no-oped, and this tool swapped an INDEX-LESS shadow live — every per-node read became a full 16 GB seq
+scan, the eval pool wedged at every size (~$12 of dead arm runs), prod degraded ~4h until CREATE INDEX
+CONCURRENTLY repaired it. pgstore.init_schema now ensures indexes TABLE-SCOPED, and THIS tool now refuses
+on index-parity mismatch (below) — belt and braces, because a slow flip is a silent flip.
 
-GUARD: --swap REFUSES unless the shadow table exists AND has >0 rows. A half-loaded (or missing) shadow flip
-is the exact failure mode this tool exists to prevent — flipping empty evidence live is worse than not
-flipping. The guard runs OUTSIDE the swap transaction (a plain read), so a refusal touches nothing.
+GUARD: --swap REFUSES unless the shadow table exists AND has >0 rows AND carries every index SHAPE the live
+table carries (definitions normalized — names and table dropped — so the leftover shadow-derived names never
+confuse the comparison). A half-loaded, missing, or slower-than-live shadow flip is the exact failure mode
+this tool exists to prevent. The guard runs OUTSIDE the swap transaction (a plain read), so a refusal
+touches nothing.
 """
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 
 from leviathan.common import config
@@ -87,6 +93,25 @@ def _row_count(conn, table: str) -> int:
     return int(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
 
 
+def normalize_indexdef(d: str) -> str:
+    """An indexdef reduced to its SHAPE — '[UNIQUE ]USING <method> (<cols>)...' with the index name and
+    table dropped — so rename-survivor names (incident 2026-08-27) can never confuse a comparison."""
+    m = re.match(r"CREATE (UNIQUE )?INDEX \S+ ON \S+ (.+)$", d or "")
+    return ((m.group(1) or "") + m.group(2)) if m else (d or "")
+
+
+def index_parity_missing(live_defs: list, shadow_defs: list) -> list:
+    """The live table's index shapes ABSENT from the shadow — [] is the only swappable answer. Pure
+    (the guard's testable core): a shadow allowed extra indexes, never fewer."""
+    shadow_n = {normalize_indexdef(d) for d in shadow_defs}
+    return sorted({normalize_indexdef(d) for d in live_defs} - shadow_n)
+
+
+def _index_defs(conn, table: str) -> list:
+    return [r[0] for r in conn.execute(
+        "SELECT indexdef FROM pg_indexes WHERE tablename = %s", (table,)).fetchall()]
+
+
 def _run_txn(conn, stmts: list[str]) -> None:
     """Execute the ordered statements in ONE transaction. autocommit connections still honor an explicit
     BEGIN/COMMIT via conn.transaction() (psycopg3), so the rename set is atomic even on the pooled conn."""
@@ -130,6 +155,17 @@ def main() -> int:
             if rows == 0:
                 print(f"REFUSE swap: shadow table {shadow} has 0 rows (a half-loaded flip is the failure mode)")
                 return 1
+            # INDEX PARITY (incident 2026-08-27): an index-less shadow flips live SLOWER than the table it
+            # replaces — every per-node read a full seq scan, prod degraded, the eval pool wedged. Refuse.
+            if _regclass_exists(conn, live):
+                missing = index_parity_missing(_index_defs(conn, live), _index_defs(conn, shadow))
+                if missing:
+                    print(f"REFUSE swap: shadow table {shadow} is missing index shape(s) the live table carries:")
+                    for m in missing:
+                        print(f"  - {m}")
+                    print("(build them on the shadow — pgstore.init_schema with EVIDENCE_PG_TABLE set, or "
+                          "CREATE INDEX CONCURRENTLY — then re-run; incident 2026-08-27)")
+                    return 1
             print(f"shadow {shadow} has {rows} rows; swapping live")
         else:
             if not _regclass_exists(conn, old):
