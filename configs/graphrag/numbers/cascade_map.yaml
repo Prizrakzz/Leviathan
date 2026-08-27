@@ -578,10 +578,16 @@ refs:
       benchmarks (+16 twins) stay fenced PERMANENTLY on self-reference -- each is the world cash price of
       a commodity the estate quotes a board for, so an engine leg on one would answer a price question
       about the very contract the cascade is explaining. beef_usd_t and chicken_usd_t are the card's own
-      DEMAND-SIDE OUTPUT prices, which is the opposite of an input cost; their membership question is
-      PARKED IN WRITING, not answered by silence, and it is a sitting of its own (the same is true of
-      orange_usd_t, which the card itself argues is an input-cost signal for FCOJ, and of copper_usd_mt,
-      which the card explicitly forbids as an agricultural price signal).
+      DEMAND-SIDE OUTPUT prices, which is the opposite of an input cost; their membership sitting was
+      HELD on 2026-08-27 and adjudicated OUT ON THE NO-CARRIER GROUND: no DAG node names a livestock
+      output-price claim (the livestock-demand nodes want on-feed counts and crush margins -- the
+      owner-deferred data wall), so admission would mint dead config, the psd_ty_export precedent.
+      Same ground, same day, for orange_usd_t (the card argues it is an FCOJ input cost, but no FCOJ
+      node names a fruit-price claim). Both REOPEN automatically the day a DAG sitting names such a
+      claim -- the z twins exist and are value-proved (763 prints each). copper_usd_mt is OUT
+      PERMANENTLY (the card itself forbids it as an agricultural price signal). rubber_rss3 was the
+      one neither-class member WITH a carrier and was still refused -- on sign-identity, not on
+      class: see the 2026-08-27 family header below.
       GEOGRAPHY AND KEYING: NEITHER APPLIES. `country_rule: none` short-circuits _scope_ex before every
       token-reading branch, so the three drivers' region tokens (`Global` on soybean_meal_cbot, `China`
       on the other two) are INERT here -- they claim nothing, resolve nothing, and need no region_map
@@ -604,6 +610,193 @@ refs:
       configs to match a map, which is the wrong direction -- the DAG names the claim, the map answers
       it); and the metric is the z because of the C-1 argument above. The name and the metric now agree:
       a `_z` ref reading a z series.
+
+  # ── THE FERTILIZER/ENERGY WIRING (2026-08-27): the basket split, seven rows on the fishmeal shape ──
+  # The `pink_sheet_input_costs` basket -- 83 DAG driver nodes across 34 boards, all riding ONE name
+  # that was a FEATURE FAMILY from the retired MLOps track, never a (table, metric) pair -- split to
+  # metric-specific refs on the DAG side first (the mpob_fundamentals precedent, pre-adjudicated in
+  # test_dpq_new_nodes_carry_no_new_cascade_capability's own docstring), then bound here. 69 nodes
+  # wired onto these seven rows; 14 retagged PLANNED after per-family adversarial verification
+  # (wf_b69ce788-4e1, 12 objections honoured): campinas crude_oil (administered Petrobras pump price,
+  # decoupled from Brent, no parity instrument on that board -> petrobras_pump_parity_z), canola
+  # natural_gas (AECO/Alberta basis, a hub this estate does not carry -> aeco_natural_gas_z), BOTH
+  # sorghum nitrogen nodes (sign '+' contradicts their own acres-INTO-sorghum supply mechanism -- an
+  # owner two-edit, never a binding fix), SIX generic fertilizer children whose text claims NITROGEN
+  # while the blend is two-thirds phosphate/potash (D4 refuses the basket read; their number already
+  # prints via their own urea_cost parent, so binding urea_z twice on one board was refused too --
+  # merge-pending, the node-merge sitting discharges them), the three freight nodes (the card has no
+  # freight series; house planned form, FCOJ singular freight_cost_z kept apart from the coffee
+  # freight_costs_z -- five different physical freight markets already share freight_rates_z and that
+  # pile must not grow silently), and rubber_area_substitution (the register admission was proposed
+  # and REFUTED: the driver is the CONVERSION QUANTITY, sign '-', which a rubber PRICE series moves
+  # AGAINST -- see the palm DAG's own comment block; also the node's 8-16 quarter lag is the basket's
+  # extreme against a `latest` read). PRICE_CONTEXT_METRICS is UNCHANGED at 20 -- this sitting admits
+  # no new metric and every row below reads a series the register already admits.
+  # SHAPE: every row is the fishmeal_price_z donor shape above -- six terms EXPLICIT (register metric,
+  # leg_mode current, period_type date, agg latest, country_rule none, narrate_unit z). `agg: latest`
+  # is written on every row BY LAW, never omitted: the lint's omitted-agg default and the compiler's
+  # disagreed (lint said latest, _node_specs said series -- a 365-day collapse over a price history
+  # arriving through a default), found by the hazards sweep and closed fail-closed in cascade.py the
+  # same day. Region tokens on all 69 carriers are INERT (`none` short-circuits _scope_ex) and the
+  # W0-7 global-token fence stays quiet for the same reason.
+  # THE CHAIN, said once for all seven rows: D-PQ curated these boards as gas -> urea -> the blended
+  # bill (parents, not parallel adders), and blended_npk_index IS arithmetically mean(urea, DAP,
+  # potash). Four-to-five of these z's firing '+' together on one board is ONE energy impulse seen
+  # through correlated windows, never four independent confirmations -- the narration/dedup rule is a
+  # DOCKETED FOLLOW-ON (the finding rides; the remedy is not this map's business). The quantified
+  # value of all 69 legs is LIVE-ASOF ONLY: quantify()'s price_replay belt keeps every one
+  # qualitative on historical-asof turns, so eval decks pinned to past dates see no change BY DESIGN.
+  brent_crude_z:
+    table: silver_pink_sheet
+    metric: brent_crude_usd_bbl_zscore_5yr
+    agg: latest
+    period_type: date
+    leg_mode: current
+    country_rule: none
+    keying: "no keying at all -- the metric IS the series (the fishmeal_price_z precedent)"
+    native_unit: z
+    narrate_unit: z
+    scale: 1
+    coverage_start: 1962               # first non-null z 1962-12: the 36-month warmup off the 1960-01
+    #                                    level; the hand-set floor_year 1960 does NOT bind here. 763
+    #                                    prints through 2026-06, measured exact.
+    status: mapped
+    notes: >
+      THE OIL ANOMALY -- 27 carriers (crude_oil / crude_oil_price / crude_oil_input_cost) narrating
+      energy cost-push, biofuel parity and freight/input channels. Brent is the card's ONLY liquid
+      -energy series (no WTI, gasoil or gasoline column exists), and every confirmed carrier names
+      crude as the driver with refined-product parities carried by their own separate instruments
+      (gasoil_palm_spread, unica_sugar_biweekly, polyester_substitution_z, rin_price_z). The one
+      carrier whose operative price is NOT crude -- campinas' administered Petrobras pump price --
+      was refused and retagged, see the family header.
+  urea_z:
+    table: silver_pink_sheet
+    metric: urea_usd_mt_zscore_5yr
+    agg: latest
+    period_type: date
+    leg_mode: current
+    country_rule: none
+    keying: "no keying at all -- the metric IS the series"
+    native_unit: z
+    narrate_unit: z
+    scale: 1
+    coverage_start: 1992               # the FROZEN hand-set _ZSCORE_VALID_FROM floor BINDS (the level
+    #                                    runs back to 1960 behind a flat prefix the floor nulls). 414
+    #                                    prints through 2026-06, measured exact.
+    status: mapped
+    notes: >
+      THE NITROGEN ANOMALY -- 13 urea_cost carriers; urea is the largest variable line in a grain
+      budget and the E. Europe/Black Sea FOB quote is the closest world series to an importer's
+      landed nitrogen cost. THE CARD HAS EXACTLY ONE NITROGEN COLUMN: mechanisms naming ammonia,
+      ammonium nitrate or UAN are answered by this urea proxy and the narration must say urea, never
+      the specific product it does not measure. sorghum's urea_cost is NOT here (sign defect against
+      its own mechanism text -- the family header records the owner two-edit).
+  natural_gas_us_z:
+    table: silver_pink_sheet
+    metric: natural_gas_us_usd_mmbtu_zscore_5yr
+    agg: latest
+    period_type: date
+    leg_mode: current
+    country_rule: none
+    keying: "no keying at all -- the metric IS the series"
+    native_unit: z
+    narrate_unit: z
+    scale: 1
+    coverage_start: 1979               # the frozen hand-set floor binds. 570 prints, measured exact.
+    status: mapped
+    notes: >
+      HENRY HUB, the North American ammonia feedstock -- 6 carriers (corn, corn_cbot, sorghum, and
+      the three US wheat boards), each narrating gas as the cash cost of domestic nitrogen. canola's
+      natural_gas is NOT here: its mechanism names AECO/Alberta in both text and evidence_query, and
+      AECO is a basis TO Henry Hub that has decoupled in sign (2018-19 egress collapse), so a US z
+      answering an AECO claim is the D4 wrong-geography failure -- retagged aeco_natural_gas_z
+      planned. The US and EU floors DIFFER (1979 vs 1991): any cross-hub history comparison is
+      asymmetric by construction.
+  natural_gas_eu_z:
+    table: silver_pink_sheet
+    metric: natural_gas_eu_usd_mmbtu_zscore_5yr
+    agg: latest
+    period_type: date
+    leg_mode: current
+    country_rule: none
+    keying: "no keying at all -- the metric IS the series"
+    native_unit: z
+    narrate_unit: z
+    scale: 1
+    coverage_start: 1991               # the frozen hand-set floor binds. 426 prints, measured exact.
+    status: mapped
+    notes: >
+      EU/TTF GAS, the European ammonia feedstock AND the international marginal price of traded
+      nitrogen -- 8 carriers: the EU boards (barley, french maize/rapeseed/wheat), the import-parity
+      boards whose mechanisms say international gas sets their LANDED nitrogen bill (campinas'
+      natural_gas -- Brazil imports nearly all its nitrogen -- and both SAFEX maize boards), and
+      white_sugar's refinery_energy_costs (EU/MENA refining is gas/steam/power-intensive; the '+'
+      runs through the white PREMIUM, never the raws price -- narration keeps it on the premium).
+  npk_fertilizer_z:
+    table: silver_pink_sheet
+    metric: blended_npk_index_zscore_5yr
+    agg: latest
+    period_type: date
+    leg_mode: current
+    country_rule: none
+    keying: "no keying at all -- the metric IS the series"
+    native_unit: z
+    narrate_unit: z
+    scale: 1
+    coverage_start: 1969               # the index is a skipna=False equal-weight mean of urea + DAP +
+    #                                    potassium LEVELS; first joint non-null z 1969-12. 679 prints,
+    #                                    measured exact.
+    status: mapped
+    notes: >
+      THE WHOLE FERTILIZER BILL -- 10 carriers whose mechanism genuinely claims the aggregate
+      (two-plus nutrients, or the board's only input-cost node). CONTAINMENT, the row's standing
+      hazard: this index IS arithmetically mean(urea, DAP, potash), so on boards that also fire
+      urea_z / dap_z / potash_z the blend and its components are ONE cost push -- never present them
+      as independent corroboration (the family header's chain paragraph; the dedup rule is a
+      docketed follow-on). Seven generic children whose text claims NITROGEN-ONLY were refused this
+      basket read (D4: a two-thirds-P/K index answering an N claim) and retagged merge-pending --
+      their number already prints via their own urea_cost parent.
+  dap_z:
+    table: silver_pink_sheet
+    metric: dap_usd_mt_zscore_5yr
+    agg: latest
+    period_type: date
+    leg_mode: current
+    country_rule: none
+    keying: "no keying at all -- the metric IS the series"
+    native_unit: z
+    narrate_unit: z
+    scale: 1
+    coverage_start: 1969               # level starts 1967-01 + the 36-month warmup -> first z 1969-12;
+    #                                    the floor_year 1967 does NOT bind. 679 prints, measured exact.
+    #                                    (The sources register's "1980M01" history_start is STALE --
+    #                                    679 months back from 2026-06 is ~1969; never cite "since
+    #                                    1980" from that line.)
+    status: mapped
+    notes: >
+      PHOSPHATE (DAP) -- 4 dap_cost carriers (canola's seed-row placement, the two winter-wheat
+      boards, corn_cbot). QUOTE-BASIS LAW: this card's geography-neutral label ("DAP fertilizer
+      monthly world price average") governs narration; the sources register annotates the same
+      series as a US Gulf bulk price, and that basis must never be asserted on an EU or South-Asia
+      claim. Component of npk_fertilizer_z -- the containment note there applies.
+  potash_z:
+    table: silver_pink_sheet
+    metric: potassium_usd_mt_zscore_5yr
+    agg: latest
+    period_type: date
+    leg_mode: current
+    country_rule: none
+    keying: "no keying at all -- the metric IS the series"
+    native_unit: z
+    narrate_unit: z
+    scale: 1
+    coverage_start: 1980               # the frozen hand-set floor binds. 479 prints, measured exact.
+    status: mapped
+    notes: >
+      MURIATE OF POTASH -- one carrier, the palm board's potash_cost (oil palm removes more K than
+      any other nutrient). COVERAGE ASYMMETRY, stated so it reads right: the npk blend on the same
+      board reaches 1969 because it is built on LEVELS, while this K component's own z starts 1980
+      -- an early-window absence here is a coverage floor, never "potash was unremarkable".
 
   psd_ty_export:
     table: silver_psd_attributes
@@ -1082,6 +1275,13 @@ refs:
 #     THE NEXT GATE, so nobody reads this as a general opening: a metric enters PRICE_CONTEXT_METRICS
 #     only in the sitting that decides it, and a question_shapes spot/settle anchor is a SEPARATE lane
 #     that stays `deferred: true` (every metric it names is an estate-target benchmark).
+#     THE FOLLOW-ON (2026-08-27): "exactly ONE row" is superseded -- the fertilizer/energy sitting
+#     landed SEVEN sibling rows on the same shape (brent_crude_z, urea_z, natural_gas_us_z,
+#     natural_gas_eu_z, npk_fertilizer_z, dap_z, potash_z; family header beside fishmeal_price_z
+#     above), wiring 69 of the 83 `pink_sheet_input_costs` basket carriers and retagging 14 planned.
+#     The register did NOT move: all seven read metrics the 20-member register already admitted, and
+#     the one proposed admission (rubber) was refuted in review. The basket ref itself is RETIRED
+#     from every DAG -- the name survives only as the dead feature family it always was.
 #   silver_production -- the CROP card stays DEFERRED: no driver attribute asks for FAOSTAT annual crop
 #     production; those drivers resolve to silver_psd, which is vintage-clean where this card is not.
 #     ITS SIBLING CARD IS NOT DEFERRED as of 2026-08-26: `silver_production_livestock` (the second card
