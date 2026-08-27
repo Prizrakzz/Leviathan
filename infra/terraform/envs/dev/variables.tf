@@ -406,7 +406,7 @@ variable "worker_fleet_image_digest" {
   # Post-push auditor CLEAN. usda-esr-fetch / esr-bronze-to-silver / usda-nass-bronze /
   # usda-nass-annual-silver hand-repin via owner (register JSONs in the session scratchpad);
   # the ten fleet families adopt on the next apply per this file's standing law.
-  default     = "sha256:53b276d5b7de853b4c468663cc303cc0b7ed3af95bf84ef1bad76f32d4d128f1" # 2026-08-27 #2, the 7-WIREABLE-NOW fleet bump (commit 13f9543e): four rows (herd_size_hogs on the livestock knob, beginning_stock_region -- the region-ruled carry-in twin that ALSO fixes corn_cbot's China_state_reserves reading the US number under a China label, sunflower_oil_supply, citrus_fruit_production) + 11 DAG re-keys, adjudicated by wf_a9af4764-0d6 (two sign-identity refusals + the basin-claim geography refusal shipped as honest declines). Census truth on this vintage: 767 legs / 511 FIRES / 256 DECLINES / 0 DARK (the 9th consecutive exact prediction). A scheduled [Reconcile] on the prior vintage would re-bank the 757 census over the 767 baselines (the stale-census-bank class, third sitting running). PRIOR: sha256:87948f1e... (2026-08-27 fertilizer/energy, commit bcf570ce, census 757/506).
+  default     = "sha256:059bc6be22304b4b948ea9bb30ade9841eec7a05d419ba4d0561206697388c90" # 2026-08-27 #3, the TWO-EDITS+SPLITS fleet bump (commit 8ac3221a): the sorghum sign three-edit (urea_cost rides urea_z), palm China_reserve_release sign-0 + beginning_stock_region (4th carrier), and the four Black_Sea basin nodes split into ukraine/russia children riding sunflower_oil_supply (Russia 42yr value-proved). Census truth on this vintage: 773 legs / 521 FIRES / 252 DECLINES / 0 DARK (the 10th consecutive exact prediction). A scheduled [Reconcile] on the prior vintage would re-bank the 767 census over the 773 baselines (the stale-census-bank class, fourth sitting running). PRIOR: sha256:53b276d5... (2026-08-27 #2, commit 13f9543e, census 767/511).
 
   validation {
     condition     = var.worker_fleet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.worker_fleet_image_digest))
@@ -449,7 +449,7 @@ variable "silver_gate_image_digest" {
   # vintage_waiver (G1-6 PATH A) and the GateVerdict/ValueCensusHardFailTables
   # emitters (G3-4) into the gate. timeline_rebuild's identical old digest below is
   # DELIBERATELY NOT moved (the fleet-digest law: one intended move per variable).
-  default     = "sha256:53b276d5b7de853b4c468663cc303cc0b7ed3af95bf84ef1bad76f32d4d128f1" # 2026-08-27 #2 (commit 13f9543e): the gate MUST ride the vintage whose lints and configs it enforces -- this one carries the four 7-wireable-now rows (two more keying-knob rows check_cascade_map validates) and the 767-leg census map whose [Reconcile] step banks the rolling baselines; a gate on the prior vintage would re-bank the 757 census over the 767 baselines. PRIOR: sha256:87948f1e... (2026-08-27 fertilizer/energy, commit bcf570ce).
+  default     = "sha256:059bc6be22304b4b948ea9bb30ade9841eec7a05d419ba4d0561206697388c90" # 2026-08-27 #3 (commit 8ac3221a): the gate rides the two-edits+splits vintage -- the 773-leg census map whose [Reconcile] step banks the rolling baselines; a gate on the prior vintage would re-bank the 767 census over the 773 baselines. PRIOR: sha256:53b276d5... (2026-08-27 #2, commit 13f9543e).
 
   validation {
     condition     = var.silver_gate_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.silver_gate_image_digest))
