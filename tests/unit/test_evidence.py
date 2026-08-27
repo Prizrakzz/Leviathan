@@ -112,6 +112,45 @@ def test_driver_slices_for_routes_cross_cutting_props():
     assert ev.driver_slices_for("the document was published on schedule") == []    # no driver term -> not routed
 
 
+def test_co_terms_gate_is_conjunctive_and_fail_closed(monkeypatch):
+    """The origin-slice sitting's conjunctive gate (2026-08-27, wf_f96d4201-229): a slice declaring
+    `co_terms` routes a prop only when BOTH lists hit it, and a slice without co_terms routes exactly
+    as before (fail-closed: absent co compiles to None). Synthetic specs so the pin is independent of
+    the curated file; the live-config behaviour is separately proven by the sitting's routing record.
+    The load-bearing negative: a co_term ALONE must never route -- co_terms narrow, they cannot claim."""
+    specs = {
+        "origin_gated": {"terms": ["sunflower", "sunoil"], "co_terms": ["ukraine", "ukrainian"]},
+        "plain": {"terms": ["sunflower"]},
+    }
+    monkeypatch.setattr(ev, "_DRIVER_MATCHERS", None)
+    monkeypatch.setattr(ev, "driver_specs", lambda: specs)
+    try:
+        assert sorted(ev.driver_slices_for("Ukraine's sunflower crop grew")) == ["origin_gated", "plain"]
+        assert ev.driver_slices_for("the sunflower crop grew") == ["plain"]          # co gate refuses
+        assert ev.driver_slices_for("Ukraine raised its corn estimate") == []        # co alone cannot claim
+        assert ev.driver_slices_for("ukrainian sunoil shipments resumed") == ["origin_gated"]
+    finally:
+        monkeypatch.setattr(ev, "_DRIVER_MATCHERS", None)      # never leak the synthetic cache
+
+
+def test_co_terms_enter_the_manifest_mirror(monkeypatch):
+    """The mirror carries per-slice co_terms tamper-evidence (n_co_terms/co_terms_sha256 + a counts
+    row); a co-less slice's entry is byte-shaped exactly as before, so the 150 pre-existing rows do
+    not churn."""
+    from leviathan.graphrag import driver_slices_manifest as dm
+    raw = {"drivers": {"gated": {"category": "substitution", "terms": ["a b"], "co_terms": ["x"]},
+                       "plain": {"category": "logistics_chokepoint", "terms": ["c"]}},
+           "dag_alias": {}, "waivers": {}}
+    monkeypatch.setattr(ev, "_driver_raw", lambda: raw)
+    doc = dm.build()
+    assert doc["slices"]["gated"]["n_co_terms"] == 1
+    assert len(doc["slices"]["gated"]["co_terms_sha256"]) == 64
+    assert "n_co_terms" not in doc["slices"]["plain"]
+    assert doc["counts"]["co_terms"] == 1
+    rendered = dm.render(doc)
+    assert "co_terms_sha256" in rendered and "co_terms: 1" in rendered
+
+
 class _PD:                                                      # prop carrying an event_date (WS-MS6)
     def __init__(self, cid, prop, ev_dt, source="GAIN"):
         self.chunk_id, self.proposition, self.document_date, self.source = cid, prop, date(2023, 8, 11), source

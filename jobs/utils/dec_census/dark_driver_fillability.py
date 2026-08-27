@@ -209,8 +209,9 @@ def _prod_driver_rx():
     an alternation answers "any hit" identically.
     """
     keys = set()
-    for m in ev.driver_matchers().values():
-        keys.update(m._idx.keys())
+    for m, _co in ev.driver_matchers().values():   # (terms, co) pairs since the co_terms sitting; the
+        keys.update(m._idx.keys())                 # any-hit union stays TERMS-only -- a co_term alone
+        #                                            cannot route a prop, so including it would over-claim
     keys = sorted(keys, key=len, reverse=True)
     return re.compile(r"\b(" + "|".join(re.escape(k) for k in keys) + r")\b") if keys else None
 

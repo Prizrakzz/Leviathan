@@ -180,7 +180,15 @@ drivers:
     # Reservoir storage, canal allocation and groundwater set the water a crop will actually get, one to two seasons before "drought" is written.  [moves: rice, cotton, srw_wheat, hrw_wheat, corn, raw_sugar]
 
   # --- policy (the announcement triggers; tie to tariff / export-restriction silver) ---
-  export_ban:        {category: policy, terms: ["export ban", "export restriction", "export tax", "export duty", "export quota", "export licen", "embargo"]}
+  # EXPORT_BAN TERM REPAIR (2026-08-27, the policy-family sitting, wf_51d1b338-dbc): every
+  # export-policy PLURAL was UNOWNED estate-wide (the matcher does no stemming -- a plural is a
+  # different string), so the plural family lands here in one pass; 'minimum export price(s)' and
+  # 'floating duty' join (spelled out -- 'mep' refused as the three-letter MoT defect class);
+  # the dead 'export licen' DELETED on measurement: word-boundary 'export licen' cannot match 'licence' or
+  # 'license' (word char after 'licen' kills the trailing boundary), so that leg was 100% dark
+  # since authoring and both live spellings are owned by `tariff`. 'levy' stays OUT (owned by
+  # export_levy_duty; over-fires on 'Levy County').
+  export_ban:        {category: policy, terms: ["export ban", "export bans", "export restriction", "export restrictions", "export tax", "export taxes", "export duty", "export duties", "export quota", "export quotas", "export control", "export controls", "export tariff", "export tariffs", "minimum export price", "minimum export prices", "floating duty", "embargo", "embargoes"]}
   # VOCAB SWEEP item 27: modest mass, but it closes THREE D3 gaps at once -- `RenovaBio`, `red_iii_mandate`
   # and `eu_renewable_biofuel` are DAG ids this slice already OWNS with no term that could fire on them, so
   # those boards reached an empty text leg. It also declared b20/b30/b35/b40 and skipped b7/b10, the EU and
@@ -646,8 +654,19 @@ drivers:
     draft restrictions, gulf basis, new orleans export]}   # Low river levels spike barge rates and Gulf basis, choking US export competitiveness at harvest.  [moves: corn, soybeans, srw_wheat, yellow_maize]
   parana_river_levels: {category: logistics_chokepoint, terms: [parana river, rosario, up-river ports, argentina
       low water, draft limits]}   # Parana lows force lighter cargoes from Rosario, raising Argentine FOB costs for soy products.  [moves: soybean_meal, soybean_oil, soybeans, corn]
-  black_sea_corridor: {category: logistics_chokepoint, terms: [black sea grain initiative, grain corridor,
-    odesa, ukraine ports, danube exports, safe passage]}   # Corridor status gates Ukrainian wheat/corn/sunoil exports, a swing supply for global balances.  [moves: srw_wheat, hrw_wheat, french_wheat, corn, yellow_maize, soybean_oil]
+  # BLACK-SEA VOCAB, REFUSED ON MEASUREMENT (the origin-slice sitting 2026-08-27, wf_f96d4201-229;
+  # the fishmeal 'marine protein'/'anchoveta' recording idiom): the prop layer carries NONE of the
+  # adjacency/port/agency vocabulary this slice was built from. Measured at 0 props each (21,113-prop
+  # local matcher census, exact production matcher): 'black sea grain initiative' 0, 'grain corridor'
+  # 0, 'grain deal' 0, 'solidarity lanes' 0, odesa/odessa 0, mykolaiv 0, chornomorsk 0, pivdennyi 0,
+  # yuzhny 0, novorossiysk 0, taman 0, azov 0, kavkaz 0, reni 0, izmail 0, 'ukraine ports' 0, 'danube
+  # exports' 0, 'safe passage' 0, sovecon 0, ikar 0, ukragroconsult 0, apk-inform 0 props, agritel 0,
+  # 'strategie grains' 0. Ports/agencies are a SOURCE-coverage question (the news-agent lane), never
+  # a routing-term question -- do not re-propose them here. The one live form is bare 'black sea'
+  # (12 local props; mixed wheat/rapeseed/sunoil + one weather prop -- acceptable topical bleed), so
+  # the slice keeps its four wheat boards' reach on a genuinely small, honest population (expect low
+  # hundreds corpus-scale, not thousands; it was 68 under the dead terms).
+  black_sea_corridor: {category: logistics_chokepoint, terms: [black sea]}   # Corridor status gates Ukrainian wheat/corn/sunoil exports, a swing supply for global balances.  [moves: srw_wheat, hrw_wheat, french_wheat, corn, yellow_maize, soybean_oil]
   panama_canal_constraints: {category: logistics_chokepoint, terms: [panama canal, draft restrictions, transit
       slots, neopanamax, canal congestion], priority: context}   # Canal draft/slot limits raise PNW-to-Asia and Gulf-to-Asia voyage costs and timing.  [moves: soybeans, corn, soybean_meal]
   suez_redsea_disruption: {category: logistics_chokepoint, terms: [red sea, houthi, bab el-mandeb, suez canal,
@@ -706,7 +725,29 @@ drivers:
   # bare 'sunflower' as well). Deleting a term is a routing change, not a curation batch's call, so they
   # stand; this comment is the record that they were measured, not overlooked.
   sunflower_oil_balance: {category: substitution, max_props: 25000, terms: [sunflower oil, sunoil, sunseed,
-    black sea sunflower, ukraine sunoil, sunflower, sunflowerseed, sunflowers]}   # Sunoil availability (Black Sea) sets the marginal substitute in the global veg-oil stack.  [moves: soybean_oil, rapeseed_oil, palm_oil]  # D6/D8: 1,133 -> 8,354 props measured; PAST the old 4,000 default, so the cap is declared, not inherited.
+    sunflower, sunflowerseed, sunflowers]}   # Sunoil availability (Black Sea) sets the marginal substitute in the global veg-oil stack.  [moves: soybean_oil, rapeseed_oil, palm_oil]  # D6/D8: 1,133 -> 8,354 props measured; PAST the old 4,000 default, so the cap is declared, not inherited.  # 08-27 origin sitting: the two dead phrase terms ('black sea sunflower', 'ukraine sunoil' -- 0 props each, and word-boundary-subsumed by bare 'sunflower'/'sunoil') deleted; population UNCHANGED at 13,169.
+  # THE ORIGIN SLICES (2026-08-27, the co_terms sitting -- review wf_f96d4201-229). THE MECHANISM,
+  # because it is new: these are the estate's first `co_terms` slices -- routing is `terms AND
+  # co_terms` (both matchers must hit the SAME prop; evidence.driver_matchers). They exist because
+  # every origin+commodity ADJACENCY form measures ZERO on real props (prose separates origin from
+  # commodity: "ukraine's sunflower supply", "sunflower oil from ukraine") -- the whole class, not a
+  # bad pick; recorded once here so it is never re-proposed: ukraine sunflower 0, ukrainian sunflower
+  # oil 0, ukraine sunoil 0, russia sunflower 0, russian sunflower oil 0, and every port/oblast/
+  # agency token 0 (see black_sea_corridor's refusal block; krasnodar/rostov are CORN props, 6/6
+  # measured). ROUTING IS MULTI-LABEL: these are ADDITIVE overlays -- the balance slice keeps all
+  # 13,169 props, and an origin prop lives in BOTH its origin slice and balance. What the split buys
+  # is READ REACH: three distinct slice paths past planner._eligible's same_slice skip, so a walk
+  # can cite Ukraine and Russia evidence side by side. Slice name == DAG id, so driver_alias
+  # IDENTITY resolves them with zero dag_alias edits (the ids are curated nodes on 4 boards each).
+  # ORIGIN CENSUS OF RECORD (streamed the live 13,169-prop slice, clean regex ukrain|russia):
+  # ukraine-only 2,934 / russia-only 292 / both 171 -- so EXPECT ukraine ~2,900-3,100 and russia
+  # ~290-460 after the pass; russia is THIN AND LICENSED (the frequency-floors doctrine: a named
+  # mechanism needs >=1 mechanism-narrating prop, never a count floor -- and the news agent's
+  # origin-keyed headlines accumulate here).
+  ukraine_sunoil_supply: {category: substitution, max_props: 25000, terms: [sunflower, sunflowerseed,
+    sunflowers, sunoil, sunflower oil], co_terms: [ukraine, ukrainian, ukraines]}   # The Ukrainian half of the Black Sea sunoil basin -- the origin the split DAG children narrate.  [moves: soybean_oil, rapeseed_oil, palm_oil]
+  russia_sunoil_supply: {category: substitution, max_props: 25000, terms: [sunflower, sunflowerseed,
+    sunflowers, sunoil, sunflower oil], co_terms: [russia, russian, russias]}   # The Russian half of the basin -- ~half of world sunoil trade, thin in this corpus today.  [moves: soybean_oil, rapeseed_oil, palm_oil]
   # F-A item M FOLD (3 of 3): `feed grains` -- 439 props / 379 net-new dark, 342 of them usda_wasde, the
   # aggregate the WASDE balance sheet is organized around. Declared here, not on a new aggregate slice.
   # PRE-EXISTING OVER-FIRE REPORTED, NOT EDITED (vocab-sweep hygiene H1's smaller twin): this slice's bare
@@ -804,10 +845,30 @@ drivers:
   # and is named, with 'strike' and 'oer', as one of the three terms to run slice_audit.py over first.
   vessel_lineups_export_basis: {category: logistics_chokepoint, terms: [vessel lineup, export inspections, fob basis,
     port lineup, loading delays, gulf premium, vessels, berth]}   # Port lineups and FOB basis reveal real-time origin demand and shipping pace vs board.  [moves: soybeans, corn, srw_wheat, hrw_wheat, soybean_meal]
-  russia_export_tax_quota: {category: geopolitics_policy, terms: [russia wheat export tax, floating tax, export
-      quota, minimum export price, russia grain]}   # Russian export taxes/quotas/floor prices set the world wheat price floor as top exporter.  [moves: hrw_wheat, srw_wheat, french_wheat]
-  argentina_export_policy: {category: geopolitics_policy, terms: [retenciones, export tax, dolar soja, blue dollar,
-    argentina fx gap, grain dollar]}   # Argentine export taxes and FX schemes govern farmer selling pace of soy products and corn.  [moves: soybean_meal, soybean_oil, soybeans, corn]
+  # RUSSIA_EXPORT_TAX_QUOTA NARROWED 2026-08-27 (the co_terms overlay repair): the live 583-prop
+  # attribution read india 164 / thailand 44 / ukraine 36 / argentina 23 / RUSSIA 8 -- a world
+  # policy pool wearing a Russia name, populated by its two origin-free terms while its three
+  # Russia-specific phrase terms were all dead. Now a CO_TERMS OVERLAY on the world instruments
+  # (re-declaring them is CORRECT for an overlay -- the conjunction is the point; the world pool
+  # itself is export_ban above). Expect a THIN honest population (~10-40 props: the 8 attributed +
+  # co-mentions) that the news agent's Russia policy headlines will thicken.
+  russia_export_tax_quota: {category: geopolitics_policy, terms: ["export ban", "export bans", "export restriction", "export restrictions", "export tax", "export taxes", "export duty", "export duties", "export quota", "export quotas", "minimum export price", "minimum export prices", "floating duty", "floating tax", "embargo"], co_terms: [russia, russian]}   # Russian export taxes/quotas/floor prices set the world wheat price floor as top exporter.  [moves: hrw_wheat, srw_wheat, french_wheat]
+  # ARGENTINA_EXPORT_POLICY NARROWED 2026-08-27 (wf_51d1b338-dbc): bare 'export tax' -- a world
+  # term export_ban owns -- made this an over-claiming pool of the same class as
+  # russia_export_tax_quota; repaired the same way, with THE ONE-SLICE GATE DESIGN so the flagship
+  # term cannot be zeroed: the origin-UNIQUE words (retenciones, dolar soja, grain dollar,
+  # argentina fx gap) appear in BOTH lists -- a 'retenciones' prop satisfies its own co gate even
+  # when it never says 'Argentina' (the measured risk: retenciones IS the Argentine word, 0 hits
+  # for co-mention in the 449-doc directional sample) -- while the WORLD instruments route here
+  # only when the prop also names Argentina.
+  argentina_export_policy: {category: geopolitics_policy, terms: [retenciones, dolar soja, blue dollar,
+    argentina fx gap, grain dollar, "export tax", "export taxes", "export quota", "export quotas", "export registration", "export registrations"], co_terms: [argentina, argentine, argentinian, retenciones, dolar soja, grain dollar, argentina fx gap]}   # Argentine export taxes and FX schemes govern farmer selling pace of soy products and corn.  [moves: soybean_meal, soybean_oil, soybeans, corn]
+  # INDIA_EXPORT_POLICY MINTED 2026-08-27: the policy pool's #1 origin (164 of 583 attributed
+  # props) had no slice; the India_export_ban id (6 boards) moves here from export_ban -- a legal
+  # one-owner move, no strand. Same one-slice gate design. 'indian' carries a MEASURED bounded
+  # over-fire ('Indian Ocean Dipole' passes the gate when an instrument term co-occurs) -- shipped
+  # with the number declared; first slice_audit target.
+  india_export_policy: {category: geopolitics_policy, terms: ["export ban", "export bans", "export restriction", "export restrictions", "export tax", "export taxes", "export duty", "export duties", "export quota", "export quotas", "minimum export price", "minimum export prices", "rice export ban", "wheat export ban", "sugar export quota"], co_terms: [india, indian, rice export ban, wheat export ban]}   # Indian export bans/quotas across rice, wheat and sugar -- the pool's largest origin mass.  [moves: rough_rice, srw_wheat, hrw_wheat, raw_sugar, white_sugar]
   sanctions_payment_rails: {category: geopolitics_policy, terms: [sanctions, insurance, p&i cover, swift, payment
       rails, secondary sanctions, shadow fleet], priority: context}   # Sanctions/insurance frictions raise transaction cost and reroute Russian/Iranian ag flows.  [moves: hrw_wheat, srw_wheat, corn]
   cocoa_grindings: {category: demand_center, terms: [cocoa grindings, grind data, europe grind, asia
@@ -1377,6 +1438,7 @@ dag_alias:
   el_nino: [El_Nino]
   la_nina: [La_Nina]
   argentina_export_policy: [Argentina_export_registration, Argentina_export_tax, soy_dollar]
+  india_export_policy: [India_export_ban]  # minted 08-27; 6 boards
   asian_soybean_rust: [soybean_rust]
   australia_crop_conditions: [crop_condition, australia_canola_supply, australia_rapeseed_supply, australia_wheat_supply]
     # D-EC completion wave 2026-08-21 (weather family): `australia_wheat_supply` is a BRAND-NEW id minted by
@@ -1394,7 +1456,7 @@ dag_alias:
   corn_southern_rust: [southern_rust]
   corn_tar_spot: [tar_spot]
   crude: [crude_oil, crude_oil_input_cost, crude_oil_price]
-  export_ban: [export_ban, India_export_ban, export_tax, Brazil_export_tax, India_white_export_policy, minimum_export_price]
+  export_ban: [export_ban, export_tax, Brazil_export_tax, India_white_export_policy, minimum_export_price, Vietnam_export_tax_policy]  # 08-27: India_export_ban MOVED to india_export_policy (one-owner law, no strand); Vietnam_export_tax_policy un-waived in (its 'export tax' term fires here)
   fertilizer: [fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs, input_cost_inflation]
   freight: [freight_cost, freight_costs, freight_rates, freight_disruption, freight_logistics, freight_logistics_disruption, port_closure, port_logistics_disruption, rail_logistics_disruption, rhine_danube_freight]
   frost: [frost, early_frost, winterkill_frost]
@@ -1436,7 +1498,16 @@ dag_alias:
   wasde_stocks_to_use: [ending_stocks_su_ratio, psd_ending_stock_su_ratio, ending_stocks, ending_stock_ratio, wasde_direct_revisions]
   animal_disease_demand_shock: [ASF_demand_shock]
   african_swine_fever: [ASF_hog_herd, ASF_outbreak, China_hog_herd]
-  black_sea_corridor: [BlackSea_export_competition, black_sea_competition, blacksea_export_disruption, blacksea_rapeseed_supply]
+  # 08-27 wheat/policy origin batch: the basin competition/supply nodes split per-origin; the
+  #  three dead parent ids left this list and their 21 children entered (reach preserved at 10
+  #  boards, zero steal -- the one-owner law; per-origin GRAIN slices deferred to the next
+  #  routing pass with their own term-design review). blacksea_export_disruption stays: live,
+  #  declining, its sign-identity refusal written at the cascade_map class note.
+  black_sea_corridor: [blacksea_export_disruption,
+    russia_wheat_export_competition, ukraine_wheat_export_competition, eu_wheat_export_competition,
+    russia_corn_export_competition, ukraine_corn_export_competition, ukraine_maize_competition,
+    russia_barley_export_competition, ukraine_barley_export_competition,
+    ukraine_rapeseed_supply, russia_rapeseed_supply]
     # D-CW-3c (2026-08-07, capability-wiring wave). `BlackSea_export_quota_war` MOVED from here to
     # `russia_export_tax_quota` above. An id is owned by exactly ONE slice (evidence.check_driver_slices leg
     # (b) hard-errors on two owners), so a de-choke is only honest when the losing slice keeps the SAME
@@ -1628,7 +1699,7 @@ dag_alias:
     # node would double-count one policy), campinas_corn_reference_bmf (Plano Safra is subsidised CREDIT, a
     # financing-cost channel with no acreage node on that DAG to parent), and the MATIF boards (CAP direct
     # payments have been DECOUPLED since 2003, so the acreage claim would be wrong for the modern era).
-  sunflower_oil_balance: [sunflower_oil_supply, ukraine_sunoil_supply, russia_sunoil_supply]  # 08-27 basin split: french_rapeseed keeps the original id; the 4 split boards carry the per-origin children
+  sunflower_oil_balance: [sunflower_oil_supply]  # 08-27 origin sitting: the two children now resolve by IDENTITY to their own slices (driver_alias seeds slice names first; listing them here would be a silent no-op the resolver overrides). Reach: balance 5 -> 1 dag id (french_rapeseed's carrier + the sunflower_oil class DAG); ukraine_sunoil_supply 0 -> 4 boards; russia_sunoil_supply 0 -> 4 boards. french_rapeseed's id STAYS here by adjudication -- moving it strands balance at n_dag_ids=0 (e1_census retire-orphan + a READ_DARK pin edit, refused wf_f96d4201-229)
     # 1,133 props. Sunoil is the marginal substitute in the vegoil stack, so the node lands on the five
     # boards that price against it: french_rapeseed_matif (EU bottling), rapeseed_oil_zce + soybean_oil_dce
     # + palm_olein_dce (the Chinese switch), malaysian_crude_palm_oil_cme (the Indian switch). Reach 0 -> 5.
@@ -2016,7 +2087,9 @@ waivers:
   # VND_USD_fx: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `vnd_fx` slice in dag_alias
   #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
   #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
-  Vietnam_export_tax_policy: {category: deferred, note: "Vietnam coffee export policy"}
+  # Vietnam_export_tax_policy UN-WAIVED 2026-08-27: the D-CW-3 waiver-unlock shape -- export_ban's
+  #  'export tax' term fires on it and the id lights at zero cost; the waiver row is deleted (a
+  #  waiver asserting 'no text slice' beside a live alias is a standing contradiction).
   # ZAR_FX: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `zar_fx` slice in dag_alias
   #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
   #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.

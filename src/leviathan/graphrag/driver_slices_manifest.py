@@ -80,6 +80,7 @@ def build() -> dict:
     waivers = raw.get("waivers") or {}
     slices = {}
     n_terms = 0
+    n_co_terms = 0
     for name in sorted(specs):
         spec = specs[name] or {}
         terms = spec.get("terms") or []
@@ -88,6 +89,11 @@ def build() -> dict:
                  "n_terms": len(terms), "terms_sha256": terms_sha256(terms)}
         if "max_props" in spec:                                # G5c: a declared cap is a reviewable number
             entry["max_props"] = spec.get("max_props")
+        co = spec.get("co_terms") or []
+        if co:                                                 # the conjunctive gate (origin-slice sitting,
+            n_co_terms += len(co)                              # 2026-08-27): a routing input like terms, so
+            entry["n_co_terms"] = len(co)                      # it gets the same per-slice tamper-evidence;
+            entry["co_terms_sha256"] = terms_sha256(co)        # check()'s generic field loop covers it.
         slices[name] = entry
     return {
         "manifest_version": _VERSION,
@@ -95,7 +101,7 @@ def build() -> dict:
         "source": f"configs/graphrag/{source_path().name}",
         "file_sha256": file_sha256(),
         "counts": {"specs": len(specs), "dag_aliases": len(aliases), "waivers": len(waivers),
-                   "terms": n_terms},
+                   "terms": n_terms, "co_terms": n_co_terms},
         "slices": slices,
     }
 
@@ -140,13 +146,14 @@ def render(doc: dict) -> str:
              f"generated_by: {_scalar(doc['generated_by'])}",
              f"source: {_scalar(doc['source'])}",
              f"file_sha256: {_scalar(doc['file_sha256'])}", "counts:"]
-    for k in ("specs", "dag_aliases", "waivers", "terms"):
+    for k in ("specs", "dag_aliases", "waivers", "terms", "co_terms"):
         lines.append(f"  {k}: {doc['counts'][k]}")
     lines.append("slices:")
     for name in sorted(doc["slices"]):
         e = doc["slices"][name]
         inner = ", ".join(f"{k}: {_scalar(e[k])}" for k in
-                          ("category", "priority", "n_terms", "terms_sha256", "max_props") if k in e)
+                          ("category", "priority", "n_terms", "terms_sha256", "max_props",
+                           "n_co_terms", "co_terms_sha256") if k in e)
         lines.append(f"  {name}: {{{inner}}}")
     return "\n".join(lines) + "\n"
 

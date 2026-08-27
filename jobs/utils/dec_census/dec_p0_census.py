@@ -141,7 +141,9 @@ try:
     # memoized over identical texts (the cache has many repeats across docs).
     norm_memo = {}
     node_rx = [(n, matchers[n]._rx) for n in nodes]
-    drv_rx = [(dn, m._rx) for dn, m in dmatch.items()]
+    drv_rx = [(dn, m._rx) for dn, (m, _co) in dmatch.items()]  # (terms, co) pairs since the co_terms
+    #                                                            sitting; this archival census reads the
+    #                                                            terms-hit predicate only (pre-co era)
     comm = {n: [] for n in nodes}
     dsink = defaultdict(list)
     for i, p in enumerate(props):

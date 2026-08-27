@@ -786,7 +786,9 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
                 "npk_fertilizer_z", "dap_z", "potash_z",
                 # the 7-wireable-now sitting (2026-08-27, wf_a9af4764-0d6):
                 "herd_size_hogs", "beginning_stock_region", "sunflower_oil_supply",
-                "citrus_fruit_production"):
+                "citrus_fruit_production",
+                # the wheat/policy origin batch (2026-08-27 night, wf_51d1b338-dbc):
+                "production_region"):
         assert cq.map_row(ref) is not None, ref
     for ref in ("cattle_on_feed_z", "broiler_margin_z", "cattle_beef_herd_z", "fishmeal_supply_z",
                 "freight_rates_z", "freight_costs_z", "freight_cost_z", "rubber_price_z",
@@ -809,10 +811,10 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
     # entire evidentiary basis for splitting rather than deferring (42yr 1987-2026 value-proved)
     assert cq._scope_ex(_node(contract="palm_olein_dce", ref="sunflower_oil_supply",
                               region="Russia"), sun_row) == ("sunflower_oil", "Russia", None)
-    # Black_Sea stays region_map.unresolved and stays LOAD-BEARING after the split -- for the
-    # non-sunflower carriers (french_wheat_matif BlackSea_export_competition + the sunflower_oil
-    # class DAG's drought/export_pace_lag), not for the four basin nodes it used to decline
-    # (those split into resolving ukraine/russia children the same evening)
+    # Black_Sea stays region_map.unresolved and stays LOAD-BEARING -- after BOTH origin batches
+    # its carriers are the sunflower_oil class DAG's drought/export_pace_lag (the wheat boards'
+    # competition nodes split into resolving per-origin children in the wheat/policy batch, and
+    # Black_Sea_EU -- zero carriers post-split -- left the unresolved list per the Peru precedent)
     assert cq._scope_ex(_node(contract="palm_olein_dce", ref="sunflower_oil_supply",
                               region="Black_Sea"), sun_row) == \
         ("sunflower_oil", cq.SKIP_NODE, "region-token-unresolved")

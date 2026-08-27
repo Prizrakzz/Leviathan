@@ -46,7 +46,9 @@ def _rewrite(src, text):
 
 def test_mirror_discloses_metadata_and_digests_but_not_one_term(wired):
     doc = dsm.build()
-    assert doc["counts"] == {"specs": 2, "dag_aliases": 1, "waivers": 1, "terms": 4}
+    # co_terms joined the counts row 2026-08-27 (the conjunctive-gate sitting): 0 here because
+    # the wired fixture declares none -- the fail-closed shape the gate promises.
+    assert doc["counts"] == {"specs": 2, "dag_aliases": 1, "waivers": 1, "terms": 4, "co_terms": 0}
     assert set(doc["slices"]) == {"frost", "tariff"}
     assert doc["slices"]["tariff"]["max_props"] == 4000 and doc["slices"]["tariff"]["n_terms"] == 2
     rendered = dsm.render(doc)

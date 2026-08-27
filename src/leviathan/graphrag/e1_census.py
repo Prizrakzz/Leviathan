@@ -544,6 +544,14 @@ def term_census(*, sample: int | None = None) -> dict:
             nf = ex._normalize(str(t))
             if nf and len(nf) > 1:
                 terms.append((nf, str(t), name))
+        # co_terms (the origin-slice sitting, 2026-08-27) join the dead-term census under a tagged
+        # surface: a dead co_term means the conjunctive gate NEVER passes and the slice is empty --
+        # exactly the starvation this census exists to surface. Tagged so a reader never confuses a
+        # gate term's hit-count with a claiming term's.
+        for t in (specs[name].get("co_terms") or []):
+            nf = ex._normalize(str(t))
+            if nf and len(nf) > 1:
+                terms.append((nf, f"{t} (co)", name))
     rxs = [_re.compile(r"\b" + _re.escape(nf) + r"\b") for nf, _, _ in terms]
     hits = [0] * len(terms)
     slice_props: dict[str, int] = {n: 0 for n in specs}

@@ -1133,6 +1133,16 @@ def test_every_frozen_deck_row_is_LIVE_BY_CONSTRUCTION_under_the_shipped_eligibi
         assert cp["foreign"] in pool, r["id"]
 
 
+# POST-FREEZE SUPERSESSION LEDGER (2026-08-27, wf_51d1b338-dbc): the wheat basin split replaced
+# BlackSea_export_competition with per-origin children on all four wheat boards AFTER this deck froze.
+# The frozen instrument stays byte-identical (the freeze law allows only pre-arm amendments); the
+# census-real assertion instead resolves a renamed downstream id through its successor -- the russia
+# child, the same scalar rule the split applied to every convergence/target_metric reference.
+_DOWNSTREAM_SUPERSEDED = {
+    ("french_wheat_matif", "BlackSea_export_competition"): "russia_wheat_export_competition",
+}
+
+
 @_XMC_SKIP
 def test_the_deck_pairs_are_CENSUS_REAL_and_the_join_keys_are_the_producers_shape(real, census):
     """PROVENANCE + THE JOIN, on the real files. Every pair is a census `deck_eligible_pairs` row (nothing
@@ -1158,6 +1168,7 @@ def test_the_deck_pairs_are_CENSUS_REAL_and_the_join_keys_are_the_producers_shap
         drivers = {d.id for d in real.contracts[foreign].drivers}
         for key in r["downstream_nodes"]:
             kind, cid, did = key.split(":", 2)
+            did = _DOWNSTREAM_SUPERSEDED.get((cid, did), did)
             assert (kind, cid) == ("driver", foreign) and did in drivers, (r["id"], key)
         seeds.add(cp["seed_node"])
         foreigns.add(cp["foreign_node"])

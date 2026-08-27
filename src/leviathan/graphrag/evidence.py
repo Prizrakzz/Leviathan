@@ -1401,7 +1401,12 @@ def term_collision_warnings() -> list[str]:
     would have caught both the R1 and the R2 defects before either was authored. It REPORTS ONLY: the term
     deletion itself is a routing change and therefore a Wave-R act, never a lint's to make. Self-pairs and
     same-slice pairs are skipped; comparison is over ex._normalize'd forms, the same normalization
-    harvest._Matcher applies, so an accent or case difference never hides a collision."""
+    harvest._Matcher applies, so an accent or case difference never hides a collision.
+
+    CO_TERMS ARE DELIBERATELY OUTSIDE THIS SCAN (the origin-slice sitting, 2026-08-27): cross-fire is an
+    OVER-claiming defect, and a co_term only ever NARROWS its slice's claim set (terms AND co_terms), so a
+    co_term shared with another slice's term list cannot create the class this detector exists for. The
+    manifest mirror carries co_terms' own tamper-evidence (n_co_terms/co_terms_sha256)."""
     import re as _re
     specs = driver_specs()
     norm: list[tuple[str, str, str]] = []                      # (normalized term, original term, slice)
@@ -1582,9 +1587,10 @@ def alias_mass_warnings(mass: dict | None = None) -> list[str]:
         slice_name = _ALIAS_CONCEPT_SLICE.get(concept, concept)
         if slice_name not in specs:                            # the concept owns no driver slice -> not this
             continue                                           # lint's class (bare_name owns the node side)
-        matcher = matchers.get(slice_name)
-        if not matcher:                                        # a slice with no usable terms at all
-            continue
+        pair = matchers.get(slice_name)
+        matcher = pair[0] if pair else None                    # the TERMS matcher; the co gate narrows
+        if not matcher:                                        # routing but an alias form's routability is
+            continue                                           # a terms question (co_terms sitting, 08-27)
         id_tokens = {ex._normalize(t) for t in concept.split("_") if t}
         for form in (aliases.get(concept) or []):
             nf = ex._normalize(str(form))
@@ -1611,18 +1617,35 @@ def alias_mass_warnings(mass: dict | None = None) -> list[str]:
 
 
 def driver_matchers() -> dict:
-    """One on-topic matcher per driver slice (cached), built from each driver's terms."""
+    """One on-topic matcher per driver slice (cached), built from each driver's terms.
+
+    CO_TERMS (the origin-slice sitting, 2026-08-27; review wf_f96d4201-229's preferred alt): a slice
+    may ALSO declare `co_terms: [...]` — a second term list that must INDEPENDENTLY match for the
+    prop to route. This is the only conjunction the term language has, and it exists because the
+    matcher is contiguous-phrase-only over normalized text: every origin+commodity adjacency form
+    ('ukraine sunflower', 'russian sunflower oil', every port and agency token) measured ZERO on
+    real props — prose separates origin from commodity with possessives and prepositions — so an
+    origin slice is UNBUILDABLE by plain terms. `terms AND co_terms` expresses it. FAIL-CLOSED
+    SHAPE: absent or empty co_terms compiles to None and routing is exactly the pre-existing
+    single-matcher behaviour, so all prior slices are byte-identically routed. The value is a
+    (terms_matcher, co_matcher|None) pair; both run on the same normalized prop text."""
     global _DRIVER_MATCHERS
     if _DRIVER_MATCHERS is None:
-        _DRIVER_MATCHERS = {d: hv.build_matcher([str(t) for t in (spec.get("terms") or [])])
-                            for d, spec in driver_specs().items()}
+        pairs = {}
+        for d, spec in driver_specs().items():
+            terms = hv.build_matcher([str(t) for t in (spec.get("terms") or [])])
+            co = [str(t) for t in (spec.get("co_terms") or [])]
+            pairs[d] = (terms, hv.build_matcher(co) if co else None)
+        _DRIVER_MATCHERS = pairs
     return _DRIVER_MATCHERS
 
 
 def driver_slices_for(text: str) -> list[str]:
-    """The driver slices a proposition belongs to — every driver whose terms it mentions. A pure-driver prop
+    """The driver slices a proposition belongs to — every driver whose terms it mentions (AND whose
+    co_terms it mentions, where the slice declares them — see driver_matchers). A pure-driver prop
     ('Pacific freight doubled') that names no commodity still lands here; a prop can join several drivers."""
-    return [d for d, m in driver_matchers().items() if m.search(text)]
+    return [d for d, (m, co) in driver_matchers().items()
+            if m.search(text) and (co is None or co.search(text))]
 
 
 def slice_cap(driver: str, default: int) -> int | None:
