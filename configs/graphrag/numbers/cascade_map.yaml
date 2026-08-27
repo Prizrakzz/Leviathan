@@ -458,9 +458,10 @@ refs:
       max(citations._row_order_key) = the last published year, correct; with the flag OFF (the A2b
       byte-identical revert state) _headline_row returns rows[0], and on this leg rows[0] is the
       1961 herd -- a 63-year-stale figure narrated as current. THE FLAG IS THEREFORE A LIVE-ROW
-      PRECONDITION: this row is the estate's first order-less multi-row leg, and the A2b revert may
-      not be exercised while it is live without also deferring this row (or giving the card a year
-      axis, which un-inerts the window and retires this whole paragraph).
+      PRECONDITION, and as of 2026-08-27 it governs TWO rows, not one: this row AND its sibling
+      `herd_size_hogs` below ride the same order-less card, so the A2b revert may not be exercised
+      while EITHER is live without also deferring BOTH (or giving the card a year axis, which
+      un-inerts the window and retires this whole paragraph for the pair).
       SUPERSEDED FILING (this row replaces it): soybean_meal_cbot.yaml:737-739 filed
       {silver_psd production_mt commodity=cattle_beef} + {silver_pink_sheet beef_usd_t} as an F-A
       item-P GN-1 proxy PAIR, because when it was written no livestock card existed and no ref could
@@ -469,6 +470,48 @@ refs:
       pink-sheet half of that pair stays unbound, and the price-context amendment (2026-08-26) does NOT
       change that: `beef_usd_t` is the card's own DEMAND-SIDE OUTPUT price, which is outside
       PRICE_CONTEXT_METRICS by decision, not by oversight (see the served-table register below).
+  herd_size_hogs:
+    table: silver_production_livestock
+    metric: live_animals
+    commodity: hogs                # THE OVERRIDE, second row on the knob. `hogs` is a member of the
+    #                                card's four-value enum; the lint pins it inside.
+    agg: latest
+    period_type: date              # the cattle row's whole WINDOW paragraph applies verbatim:
+    #                                marketing_year is a measured wrong-year read on this card
+    leg_mode: current
+    country_rule: region           # the carrier's token `China` via region_map; required-explicit
+    #                                (the card HAS a country axis)
+    keying: "commodity = FIXED hogs (the override knob); country = driver region via region_map"
+    native_unit: An                # HEAD, like cattle -- the 1000x trap is the SIBLING slug:
+    #                                broilers_poultry stores `1000 An` (12,824 hogs rows all `An`,
+    #                                the card's own PA-1 census), and it CANNOT reach this row
+    #                                because the commodity is FIXED and enum-pinned.
+    narrate_unit: "million head"
+    scale: 0.000001                # 427,430,000 An -> 427.4 million head (China 2024, measured)
+    coverage_start: 1961
+    status: mapped
+    notes: >
+      THE CHINESE HOG HERD, IN HEAD -- the sibling row to herd_size_cattle above, and every one of
+      that row's recorded hazards applies verbatim: the ORDER-LESS card (no date_col/year_col) makes
+      GRAPHRAG_CASCADE_HEADLINE=on a LIVE-ROW PRECONDITION for this row exactly as for cattle (the
+      shared paragraph above now names both rows -- flag OFF narrates the 1961 herd as current); the
+      marketing_year refusal is the same measured wrong-year read; and the citation's asof-365..asof
+      window label beside a 2024 observation is the same recorded cosmetic mismatch. GEOGRAPHY, the
+      D4-closing chain stated end to end: the carrier tokens `China`, region_map resolves it to
+      country 'China', and the card's country_name_ref (numbers/faostat_areas.yaml) aliases `china`
+      to area 41 'China, mainland' -- NEVER the pseudo aggregate 351 'China' (mainland+HK+Macao+
+      Taiwan, 432.6M head), which is reachable only under its own explicit aliases. Value-proved
+      2026-08-27: 64 years 1961-2024, 2024 = 427.4M head. ONE CARRIER: soybean_meal_cbot's
+      ASF_hog_herd (sign '+', herd up -> meal feed demand up -- the sign identifies the driver
+      quantity as the HERD, which this series measures in both cull and rebuild phases; its
+      compound region token was re-keyed to `China`, the mechanism's own "esp. China", in the same
+      change -- a region-ruled row makes an unresolvable token a BUILD error, so the re-key was
+      forced, not stylistic). THE REFUSAL BESIDE IT: rapeseed_meal_zce's ASF_outbreak names the
+      OUTBREAK (sign '-') and the herd LEVEL moves AGAINST outbreak severity, so binding this row
+      there would print herd-up as bearish -- the rubber sign-identity class; it stays planned
+      (asf_outbreak_flag, wants an event/outbreak source). No double-count with the child:
+      ASF_hog_herd parents soybean_meal_feed_demand, which reads meal feed/waste TONNAGE -- head
+      count vs tonnage is the licensed chain shape, not two parallel drivers on one channel.
   fishmeal_supply:
     table: silver_psd
     metric: production_mt
@@ -797,6 +840,132 @@ refs:
       any other nutrient). COVERAGE ASYMMETRY, stated so it reads right: the npk blend on the same
       board reaches 1969 because it is built on LEVELS, while this K component's own z starts 1980
       -- an early-window absence here is a coverage floor, never "potash was unremarkable".
+
+  # ── THE 7-WIREABLE-NOW SITTING (2026-08-27, second sitting of the day): three PSD rows + the hogs
+  # row above, adjudicated by review wf_a9af4764-0d6 -- ELEVEN objections/amendments honoured. What
+  # did NOT ship, written here so silence is never read as oversight: (1) palm_olein_dce's
+  # China_reserve_release stays planned -- SIGN-IDENTITY (the rubber/ASF_outbreak law): the driver is
+  # the RELEASE FLOW (sign '-') and a carry-in LEVEL moves AGAINST a release, so the binding would
+  # print stocks-up as bearish when the node's own two-sided text ("reserve buying does the
+  # opposite") makes stocks-up its bullish state; the discharge is the sorghum-class OWNER two-edit
+  # (sign '-' -> '0', joining the campinas/corn sign-0 family, THEN bind). (2) rapeseed_meal_zce's
+  # ASF_outbreak stays planned -- same law (see herd_size_hogs notes). (3) FOUR of the five
+  # sunflower carriers keep region `Black_Sea` and DECLINE HONESTLY -- their mechanisms claim the
+  # BASIN and Russia (~half of it, resolvable in region_map) was an elective omission the review
+  # refused; only french_rapeseed_matif's own text names Ukraine and only it was re-keyed. Un-defer
+  # = a DAG curation split into ukraine/russia nodes riding the same row (zero region_map edits).
+  # Black_Sea must NOT leave region_map.unresolved -- it is now load-bearing for four honest
+  # declines. (4) THE SAME-SHAPE TRAP, pinned before anyone falls in: brazilian_arabica_coffee's
+  # `biennial_off_year` (sign '+') and malaysian_crude_palm_oil_cme's `biennial_low_cycle` (sign
+  # '+') are STANDING SIGN-IDENTITY REFUSALS of the production LEVEL -- output moves AGAINST an
+  # off/low year, so binding `production`/`mpob_production` to either would narrate a bumper crop
+  # as bullish. The on-year re-keys of this sitting are licensed precisely because output moves
+  # WITH an on-year.
+  beginning_stock_region:
+    table: silver_psd
+    metric: beginning_stocks_mt
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    country_rule: region           # THE POINT OF THE ROW: `beginning_stock` above declares no
+    #                                country_rule and is PRIMARY-ruled, so a China-reserve driver
+    #                                re-keyed onto it reads the CONTRACT's primary country
+    #                                (campinas -> Brazil, corn class via alias -> United States) --
+    #                                the D-10 wrong-country class, measured live on four sibling
+    #                                legs (docketed). This row keys the HOLDING region the driver
+    #                                names instead.
+    keying: "commodity = contract slug (corn class DAG -> corn_cbot via PSD_SLUG_ALIAS); country = HOLDING region via region_map"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      NATIONAL CARRY-IN, REGION-SCOPED -- the region-ruled twin of `beginning_stock` above, named
+      for what the series IS. State reserves are a SUBSET of national carry-in (dominant for China
+      corn, a minority of China palm oil): never narrate this figure as a reserve VOLUME or a
+      release VOLUME -- it is the reserve-policy PROXY the class notes above adjudicated, at the
+      right geography. Value-proved 2026-08-27 (China beginning_stocks_mt): campinas 71 years
+      1960-2026, corn_cbot 71 years, palm_olein_dce 65 years 1964-2026. THREE CARRIERS: campinas
+      China_state_reserves (sign 0) and the corn class DAG's China_state_reserves (sign 0) --
+      sign-0 quantification is safe by measurement: the engine never computes off the curated sign
+      (it reaches only the prompt drivers table, a +/- coherence counter that ignores '0', and a
+      conflict detector needing both '+' and '-') -- plus corn_cbot's China_state_reserves, the
+      D-10 FIX-NOW move: that leg was FIRING on `beginning_stock` with the UNITED STATES carry-in
+      under a China label, and re-keying it here flips the country to the one the driver names at
+      zero census-count delta. The rest of the measured D-10 roster (soybeans_cbot + soybeans_no_2
+      on `stock` = also a METRIC decision; the meal_inventory / China_soyoil_stocks /
+      China_port_stocks scope moves; the two signed buffer_stock_release legs that need the sign
+      adjudication FIRST; and cotton + soybeans_no_1_dce which are correct-by-COINCIDENCE, their
+      primary IS China today) is DOCKETED, not silently inherited.
+  sunflower_oil_supply:
+    table: silver_psd
+    metric: production_mt
+    commodity: sunflower_oil       # THE OVERRIDE (the fishmeal_supply licence: the DAG drivers
+    #                                already name sunflower oil as the mechanism); a declared
+    #                                commodity_values member, not in PSD_UNSERVED_SLUGS ({cocoa}).
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    country_rule: region
+    keying: "commodity = FIXED sunflower_oil (the override knob); country = producing region via region_map"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1964           # the SLUG floor across 80 countries; the Ukraine-scoped leg's
+    #                                own first observation is 1987 -- a pre-1987 silence on that leg
+    #                                is a coverage floor, never a small crop (the potash sentence).
+    status: mapped
+    notes: >
+      WORLD SUNFLOWER-OIL PRODUCTION BY PRODUCING REGION. FIVE CARRIERS, ONE FIRING -- and the split
+      is the row's doctrine record: french_rapeseed_matif's carrier fires on `Ukraine` because its
+      own mechanism text names the Ukrainian crop as the moving part (the fishmeal/Peru test:
+      single-nation because it is THE MECHANISM'S OWN WORDING). The other four (palm CME,
+      palm_olein_dce, rapeseed_oil_zce, soybean_oil_dce) claim the BLACK SEA BASIN -- and the basin
+      is TWO origins: Russia supplies roughly half the world trade the pair carries (the estate's
+      own sunflower_oil DAG words) and RESOLVES in region_map, so answering a basin claim with the
+      Ukrainian half alone was refused in review as an elective wrong-geography narrowing. Those
+      four keep token Black_Sea (region_map.unresolved BY DESIGN -- do not delete it) and DECLINE
+      HONESTLY. UN-DEFER GATE, the preferred discharge: a DAG curation sitting splits each basin
+      node into ukraine_/russia_ sunoil nodes, both riding THIS row (both nations resolve; zero
+      region_map edits); the rejected alternative -- firing a single-origin read as "the marginal
+      exporter" -- would need an exports_mt row, not this production series wearing an export
+      rationale. Sign-identity clean on all five: sign '-', and production MEASURES the crop the
+      mechanisms name. Value-proved 2026-08-27: slug floor 1964, Ukraine 43 years 1987-2026.
+  citrus_fruit_production:
+    table: silver_psd
+    metric: production_mt
+    commodity: fresh_citrus        # THE OVERRIDE: the biennial claim is about the FRUIT CROP
+    #                                (alternate bearing is a tree phenomenon), not concentrate
+    #                                output; fresh_citrus is a declared commodity_values member.
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    country_rule: region
+    keying: "commodity = FIXED fresh_citrus (the override knob); country = growing region via region_map"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1964           # slug floor (48 countries); Brazil and the US each 61 years
+    #                                from 1965.
+    status: mapped
+    notes: >
+      FRESH CITRUS PRODUCTION BY GROWING REGION -- authored FOR AN HONEST DECLINE, the shape
+      fishmeal_supply shipped with. The one carrier, frozen_orange_juice's biennial_on_year, tokens
+      'Sao_Paulo_Brazil / Florida_US', a compound region_map.unresolved lists BY ADJUDICATION
+      ("cannot honestly resolve to one country"), so the leg DECLINES region-token-unresolved
+      exactly like the board's four weather legs on the same token -- the review's fatal objection
+      was that routing this token through the PRIMARY-ruled `production` row would have EVADED that
+      recorded refusal (the primary path never consults region_map) and fired Brazil's number under
+      a two-belt claim. UN-DEFER GATE: a curation decision that names the belt (split the node into
+      a Sao Paulo carrier and a Florida carrier, or adjudicate one belt as the claim) -- then this
+      row fires with zero further map edits. Sign-identity clean: sign '-' and fruit output moves
+      WITH an on-year (its sibling biennial_off_year, sign '+', is a STANDING REFUSAL of this row --
+      see the sitting header above). Value-proved 2026-08-27: Brazil 61yr + United States 61yr,
+      1965-2025. The arabica biennial carrier does NOT ride this row: coffee's on-year claim is the
+      COFFEE crop, and it re-keyed onto `production` (primary-ruled, structurally determinate --
+      arabica's geography file declares exactly ONE region block, brazil, and the driver's own token
+      Brazil agrees with it, so nothing is being overridden).
 
   psd_ty_export:
     table: silver_psd_attributes
