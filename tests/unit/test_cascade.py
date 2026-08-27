@@ -772,9 +772,15 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
     live ref this file's sittings landed, so a dropped row reds here. The triple below is what the split admits, so this pin
     guards the discharged state; `leg_mode: current` is pinned WITH it because that clause is the C-2
     PIT answer (latest-only source, no as-of replay) and a row that lost it would still resolve while
-    quietly becoming a replay leg. The negative roster gains the sitting's 14 planned retags' refs
-    (freight, the merge-pending fertilizer children, the sign-held sorghum pair, AECO, the Petrobras
-    parity claim, the refuted rubber price) -- none may acquire a row without its own decision."""
+    quietly becoming a replay leg. The negative roster carries the planned retags' refs (freight,
+    the merge-pending fertilizer children, AECO, the Petrobras parity claim, the refuted rubber
+    price) -- none may acquire a row without its own decision. THE TWO-EDITS+SPLITS SITTING
+    (2026-08-27 evening, owner word) discharged two of its members' stories without moving the
+    pins: sorghum's urea_cost re-keyed onto urea_z after the sign three-edit, so urea_cost_z is now
+    a DEAD ref name (retired-basket class); palm_olein's China_reserve_release re-keyed onto
+    beginning_stock_region after its sign two-edit, so buffer_stock_release is now a dead ref name
+    too (the rice/soyoil nodes that share the NAME ride beginning_stock). asf_outbreak_flag remains
+    the one LIVE-ref standing refusal."""
     for ref in ("herd_size_cattle", "fishmeal_supply", "fishmeal_price_z",
                 "brent_crude_z", "urea_z", "natural_gas_us_z", "natural_gas_eu_z",
                 "npk_fertilizer_z", "dap_z", "potash_z",
@@ -786,10 +792,10 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
                 "freight_rates_z", "freight_costs_z", "freight_cost_z", "rubber_price_z",
                 "rubber_area_substitution_z", "aeco_natural_gas_z", "petrobras_pump_parity_z",
                 "urea_cost_z", "fertilizer_cost_z", "fertilizer_costs_z", "fertilizer_input_costs_z",
-                # the 7-wireable-now sitting's two sign-identity refusals -- LIVE refs on the DAGs
-                # (rapeseed_meal ASF_outbreak; palm_olein China_reserve_release), so unlike the six
-                # retired basket names these CAN acquire a row and must not without the owner
-                # two-edit each refusal names:
+                # asf_outbreak_flag = the one LIVE-ref standing refusal (rapeseed_meal ASF_outbreak
+                # -- sign-identity, wants an event source); buffer_stock_release = a DEAD ref name
+                # since the 08-27 evening two-edit (see the docstring) that still must never
+                # acquire a row:
                 "asf_outbreak_flag", "buffer_stock_release"):
         assert cq.map_row(ref) is None, f"{ref} acquired a row without its own decision"
     # the sitting's geography verdicts, on the REAL region_map -- one line per adjudication class:
@@ -799,8 +805,14 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
     sun_row = cq.load_map()["sunflower_oil_supply"]
     assert cq._scope_ex(_node(contract="french_rapeseed_matif", ref="sunflower_oil_supply",
                               region="Ukraine"), sun_row) == ("sunflower_oil", "Ukraine", None)
-    # the four basin carriers keep Black_Sea and DECLINE HONESTLY (the review's wrong-geography
-    # refusal: Russia is ~half the basin and resolvable, so Ukraine-only was an elective narrowing)
+    # RUSSIA RESOLVES -- the adjudication class the 08-27 evening basin split mints: it is the
+    # entire evidentiary basis for splitting rather than deferring (42yr 1987-2026 value-proved)
+    assert cq._scope_ex(_node(contract="palm_olein_dce", ref="sunflower_oil_supply",
+                              region="Russia"), sun_row) == ("sunflower_oil", "Russia", None)
+    # Black_Sea stays region_map.unresolved and stays LOAD-BEARING after the split -- for the
+    # non-sunflower carriers (french_wheat_matif BlackSea_export_competition + the sunflower_oil
+    # class DAG's drought/export_pace_lag), not for the four basin nodes it used to decline
+    # (those split into resolving ukraine/russia children the same evening)
     assert cq._scope_ex(_node(contract="palm_olein_dce", ref="sunflower_oil_supply",
                               region="Black_Sea"), sun_row) == \
         ("sunflower_oil", cq.SKIP_NODE, "region-token-unresolved")
