@@ -529,7 +529,8 @@ def _truncated(usage: Usage, max_tokens: int, model: str, advice: str) -> ValueE
 def call_opus(client, system: str, user: str, *, model: str = MODEL,
               max_tokens: int = 4096, tool: dict | None = None,
               temperature: float | None = None,
-              thinking: dict | None = None) -> tuple[dict, Usage]:
+              thinking: dict | None = None,
+              output_config: dict | None = None) -> tuple[dict, Usage]:
     """One forced-tool extraction call. Returns (tool_input_dict, usage). Retries are the caller's job
     (kept thin so the unit test can pass a trivial fake client). `tool` defaults to the full schema; pass
     extraction_tool(lean=True) for the lean schema (e.g. the bake-off). `temperature` reaches
@@ -546,6 +547,8 @@ def call_opus(client, system: str, user: str, *, model: str = MODEL,
     _t = {} if temperature is None else {"temperature": temperature}
     if thinking is not None:
         _t["thinking"] = thinking
+    if output_config is not None:                     # the effort seam (2026-08-27): None = byte-identical
+        _t["output_config"] = output_config
     _tc = {"type": "auto"} if thinking is not None else {"type": "tool", "name": tool["name"]}
     resp = client.messages.create(
         model=model, max_tokens=max_tokens, system=system,
@@ -588,7 +591,8 @@ def _fgt_stream_headers(client) -> dict | None:
 
 def call_opus_stream(client, system: str, user, *, model: str = MODEL, max_tokens: int = 4096,
                      tool: dict | None = None, on_token=None,
-                     thinking: dict | None = None) -> tuple[dict, Usage]:
+                     thinking: dict | None = None,
+                     output_config: dict | None = None) -> tuple[dict, Usage]:
     """Streaming forced-tool call — same contract as call_opus (returns (tool_input_dict, usage)), but relays
     the tool's `input_json_delta` text to `on_token` as it generates so the UI can render the note live
     instead of blocking on the full completion. The SDK assembles the final message. A progress callback must
@@ -604,6 +608,8 @@ def call_opus_stream(client, system: str, user, *, model: str = MODEL, max_token
                     tools=[tool], tool_choice=_tc)
     if thinking is not None:
         kw["thinking"] = thinking
+    if output_config is not None:                     # the effort seam (2026-08-27): None = byte-identical
+        kw["output_config"] = output_config
     hdr = _fgt_stream_headers(client)
     if hdr is not None:
         kw["extra_headers"] = hdr

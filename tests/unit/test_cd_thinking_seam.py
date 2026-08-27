@@ -130,6 +130,38 @@ def test_the_writer_half_resolver_agrees_on_the_arming_word(monkeypatch):
     assert pv.synth_thinking() is None
 
 
+def test_the_effort_seam_numbers_half_parity(monkeypatch):
+    # Dark plumbing (2026-08-27): GRAPHRAG_NUMBERS_EFFORT=<ladder word> adds output_config on a
+    # capable seat; unset/garbage/haiku-seat = byte-identical (the API default is already high).
+    monkeypatch.delenv("GRAPHRAG_NUMBERS_THINKING", raising=False)
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_EFFORT", "xhigh")
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_MODEL", "claude-sonnet-5")
+    monkeypatch.delenv("GRAPHRAG_PROVIDER", raising=False)
+    client = _FakeClient([_Resp([_Txt("no numbers needed.")])])
+    NA.answer_numbers("hello", asof="2026-06-08", client=client, query_fn=lambda sql: [])
+    assert client.sent[0]["output_config"] == {"effort": "xhigh"}
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_EFFORT", "turbo")      # not a ladder word -> off
+    client = _FakeClient([_Resp([_Txt("no numbers needed.")])])
+    NA.answer_numbers("hello", asof="2026-06-08", client=client, query_fn=lambda sql: [])
+    assert "output_config" not in client.sent[0]
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_EFFORT", "low")
+    monkeypatch.delenv("GRAPHRAG_NUMBERS_MODEL", raising=False)  # haiku seat -> gate holds
+    client = _FakeClient([_Resp([_Txt("no numbers needed.")])])
+    NA.answer_numbers("hello", asof="2026-06-08", client=client, query_fn=lambda sql: [])
+    assert "output_config" not in client.sent[0]
+
+
+def test_the_effort_seam_writer_half_resolver(monkeypatch):
+    from leviathan.graphrag import providers as pv
+    monkeypatch.delenv("GRAPHRAG_SYNTH_EFFORT", raising=False)
+    assert pv.synth_effort() is None
+    for w in ("low", "medium", "high", "xhigh", "max"):
+        monkeypatch.setenv("GRAPHRAG_SYNTH_EFFORT", w)
+        assert pv.synth_effort() == {"effort": w}
+    monkeypatch.setenv("GRAPHRAG_SYNTH_EFFORT", "ultra")
+    assert pv.synth_effort() is None
+
+
 def test_the_writer_seam_never_arms_a_borrowed_haiku_call(monkeypatch):
     # The arm-d null-arm RCA (2026-08-27, measured on the first armed fire): _call_opus is NOT
     # writer-only -- route_llm borrows it with model=HAIKU (answer.py:1951). An armed synth

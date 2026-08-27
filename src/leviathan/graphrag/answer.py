@@ -8734,6 +8734,9 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
         #                 the router on a pre-4.6 seat, killing the answer before the writer runs.
     if _think is not None:
         kw["thinking"] = _think                        # both serving lanes accept it
+    _eff = pv.synth_effort()                           # effort seam (dark plumbing): None = byte-identical
+    if _eff is not None and pv.supports_adaptive(model):   # same seat gate; haiku rejects effort too
+        kw["output_config"] = _eff
     if on_token is not None:
         out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
     else:

@@ -96,6 +96,22 @@ def supports_adaptive(model: str) -> bool:
     return any(s in (model or "") for s in ADAPTIVE_SEATS)
 
 
+_EFFORT_WORDS = ("low", "medium", "high", "xhigh", "max")   # ladder per platform docs (effort.md);
+#                default when output_config is ABSENT = "high" (confirmed 2026-08-27, docs agent:
+#                identical to explicit high, thinking or not) -- so TWO tiers sit ABOVE the default.
+
+
+def synth_effort() -> Optional[dict]:
+    """The EFFORT seam, writer half (2026-08-27, owner priority: 'we probably should try it on
+    the three modes'). GRAPHRAG_SYNTH_EFFORT=low|medium|high -> an output_config dict for the
+    writer call; unset/anything else -> None = byte-identical (the API default is effort HIGH,
+    so this lever's headroom is DOWNWARD: cost/latency shaping, measured for quality loss).
+    Seat-gated by the caller exactly like synth_thinking (probed 2026-08-27: sonnet-5/opus-5
+    accept output_config, haiku-4-5 400s 'This model does not support the effort parameter')."""
+    v = (os.environ.get("GRAPHRAG_SYNTH_EFFORT") or "").strip().lower()
+    return {"effort": v} if v in _EFFORT_WORDS else None
+
+
 def synth_thinking() -> Optional[dict]:
     """The c/d THINKING seam's env resolver (2026-08-25; arms deferred until after the projection
     wave by owner word -- the PLUMBING lands now so c/d fires without a bake cycle then).
@@ -136,7 +152,8 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
                  degrade_to: Optional[str] = None,
                  temperature: Optional[float] = None,
                  usage_sink: Optional[list] = None,
-                 thinking: Optional[dict] = None) -> tuple[dict, Optional[str]]:
+                 thinking: Optional[dict] = None,
+                 output_config: Optional[dict] = None) -> tuple[dict, Optional[str]]:
     """One forced-tool serving call with the full fallback chain. Returns (tool_input, degraded_model)
     where degraded_model is None on the primary path and the ALIAS (e.g. 'claude-haiku-4-5') when the
     degraded attempt served the answer — callers surface that as a visible caveat + trace entry.
@@ -147,6 +164,8 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
     _t = {} if temperature is None else {"temperature": temperature}
     if thinking is not None:
         _t["thinking"] = thinking                  # PRIMARY attempt only; degraded() below never thinks
+    if output_config is not None:
+        _t["output_config"] = output_config        # PRIMARY only too: the haiku rescue rejects effort
     try:
         out, _u = with_retry(lambda: ex.call_opus(client, system, user, model=model,
                                                   max_tokens=max_tokens, tool=tool, **_t))
@@ -161,7 +180,8 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
         @retry(retry=retry_if_exception_type(RETRYABLE), reraise=True,
                wait=wait_exponential(multiplier=2, min=2, max=8), stop=stop_after_attempt(2))
         def degraded():
-            _dt = {k: v for k, v in _t.items() if k != "thinking"}   # a rescue never thinks (see synth_thinking)
+            # a rescue never thinks and never carries effort (haiku rejects both; see synth_thinking)
+            _dt = {k: v for k, v in _t.items() if k not in ("thinking", "output_config")}
             return ex.call_opus(client, system, user, model=fallback, max_tokens=max_tokens, tool=tool, **_dt)
         out, _u = degraded()
         if usage_sink is not None:
@@ -172,7 +192,8 @@ def serving_call(client, system, user, *, model: str, max_tokens: int = 4096, to
 def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4096, tool: dict,
                         degrade_to: Optional[str] = None, on_token,
                         usage_sink: Optional[list] = None,
-                        thinking: Optional[dict] = None) -> tuple[dict, Optional[str]]:
+                        thinking: Optional[dict] = None,
+                        output_config: Optional[dict] = None) -> tuple[dict, Optional[str]]:
     """Streaming variant of serving_call: relays the tool's input_json_delta text via `on_token` as the note
     generates, and returns the SAME (tool_input, degraded_model). Robustness is preserved: an availability
     error degrades to the fallback model (buffered — the fast path already failed), and any other stream-path
@@ -181,7 +202,7 @@ def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4
     try:
         out, _u = with_retry(lambda: ex.call_opus_stream(client, system, user, model=model,
                                                          max_tokens=max_tokens, tool=tool, on_token=on_token,
-                                                         thinking=thinking))
+                                                         thinking=thinking, output_config=output_config))
         if usage_sink is not None:
             usage_sink.append(_u)
         return out, None
@@ -200,7 +221,8 @@ def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4
         return out, degrade_to
     except Exception:  # noqa: BLE001 — a streaming-specific failure must never lose the answer
         return serving_call(client, system, user, model=model, max_tokens=max_tokens, tool=tool,
-                            degrade_to=degrade_to, usage_sink=usage_sink, thinking=thinking)
+                            degrade_to=degrade_to, usage_sink=usage_sink, thinking=thinking,
+                            output_config=output_config)
 
 
 # ── D-AM-4: serving cost arithmetic ───────────────────────────────────────────────────────────────

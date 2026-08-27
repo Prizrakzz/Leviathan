@@ -2531,12 +2531,21 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # (2) the PROVIDER gate -- anthropic only: the bedrock InvokeModel path has no verified adaptive
     # support and BEDROCK_MODELS cannot map the 5-family seats, the same unretryable-400 shape.
     _thinking = None
+    _out_cfg = None
     if (os.environ.get("GRAPHRAG_NUMBERS_THINKING") or "").strip().lower() == "adaptive":
         from leviathan.graphrag import providers as _pv_gate
         if _pv_gate.provider() == "anthropic" and _pv_gate.supports_adaptive(model):
             _thinking = {"type": "adaptive"}
     if _thinking is not None:
         max_tokens = max(max_tokens, 6000)
+    # The EFFORT seam, numbers half (2026-08-27, dark plumbing -- same gates as thinking; the
+    # ladder is low..max with the API default = high, so unset is byte-identical AT high).
+    _ev = (os.environ.get("GRAPHRAG_NUMBERS_EFFORT") or "").strip().lower()
+    if _ev:
+        from leviathan.graphrag import providers as _pv_gate2
+        if (_ev in _pv_gate2._EFFORT_WORDS and _pv_gate2.provider() == "anthropic"
+                and _pv_gate2.supports_adaptive(model)):
+            _out_cfg = {"effort": _ev}
     reg = reg or load_registry()
     if client is None:                             # real serving path -> provider-routed + retried
         from leviathan.graphrag import providers as pv
@@ -2600,6 +2609,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                       tools=tools, messages=convo)
             if _thinking is not None:
                 kw["thinking"] = _thinking
+            if _out_cfg is not None:
+                kw["output_config"] = _out_cfg
             return client.messages.create(**kw)
         resp = pv.with_retry(_one) if pv else _one()
         if _thinking is not None:
