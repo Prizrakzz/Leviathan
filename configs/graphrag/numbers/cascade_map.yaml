@@ -663,8 +663,12 @@ refs:
   # (wf_b69ce788-4e1, 12 objections honoured): campinas crude_oil (administered Petrobras pump price,
   # decoupled from Brent, no parity instrument on that board -> petrobras_pump_parity_z), canola
   # natural_gas (AECO/Alberta basis, a hub this estate does not carry -> aeco_natural_gas_z), BOTH
-  # sorghum nitrogen nodes (sign '+' contradicts their own acres-INTO-sorghum supply mechanism -- an
-  # owner two-edit, never a binding fix), SIX generic fertilizer children whose text claims NITROGEN
+  # sorghum nitrogen nodes (sign '+' contradicted their own acres-INTO-sorghum supply mechanism --
+  # DISCHARGED 2026-08-27 EVENING as the owner THREE-edit: urea_cost + fertilizer_input_costs +
+  # natural_gas all flipped '-', the gas node being the lone acreage-decision variant of its 14
+  # siblings, so flipping only the child would have printed gas '+' above urea '-' on one energy
+  # impulse -- the wf_e623042d-5ff coherence catch; urea_cost now rides urea_z, the child stays
+  # merge-pending planned), SIX generic fertilizer children whose text claims NITROGEN
   # while the blend is two-thirds phosphate/potash (D4 refuses the basket read; their number already
   # prints via their own urea_cost parent, so binding urea_z twice on one board was refused too --
   # merge-pending, the node-merge sitting discharges them), the three freight nodes (the card has no
@@ -749,7 +753,10 @@ refs:
     status: mapped
     notes: >
       HENRY HUB, the North American ammonia feedstock -- 6 carriers (corn, corn_cbot, sorghum, and
-      the three US wheat boards), each narrating gas as the cash cost of domestic nitrogen. canola's
+      the three US wheat boards). Five narrate gas as the cash cost of domestic nitrogen (sign '+');
+      SORGHUM'S IS THE ACREAGE VARIANT (sign '-', flipped 2026-08-27 evening with its whole nitrogen
+      chain): its own text ends at "the sorghum acreage decision" -- dear gas widens sorghum's
+      lower-nitrogen-bill advantage, pulls Plains acres IN, and RAISES its supply. canola's
       natural_gas is NOT here: its mechanism names AECO/Alberta in both text and evidence_query, and
       AECO is a basis TO Henry Hub that has decoupled in sign (2018-19 egress collapse), so a US z
       answering an AECO claim is the D4 wrong-geography failure -- retagged aeco_natural_gas_z
@@ -843,19 +850,21 @@ refs:
 
   # ── THE 7-WIREABLE-NOW SITTING (2026-08-27, second sitting of the day): three PSD rows + the hogs
   # row above, adjudicated by review wf_a9af4764-0d6 -- ELEVEN objections/amendments honoured. What
-  # did NOT ship, written here so silence is never read as oversight: (1) palm_olein_dce's
-  # China_reserve_release stays planned -- SIGN-IDENTITY (the rubber/ASF_outbreak law): the driver is
-  # the RELEASE FLOW (sign '-') and a carry-in LEVEL moves AGAINST a release, so the binding would
-  # print stocks-up as bearish when the node's own two-sided text ("reserve buying does the
-  # opposite") makes stocks-up its bullish state; the discharge is the sorghum-class OWNER two-edit
-  # (sign '-' -> '0', joining the campinas/corn sign-0 family, THEN bind). (2) rapeseed_meal_zce's
-  # ASF_outbreak stays planned -- same law (see herd_size_hogs notes). (3) FOUR of the five
-  # sunflower carriers keep region `Black_Sea` and DECLINE HONESTLY -- their mechanisms claim the
-  # BASIN and Russia (~half of it, resolvable in region_map) was an elective omission the review
-  # refused; only french_rapeseed_matif's own text names Ukraine and only it was re-keyed. Un-defer
-  # = a DAG curation split into ukraine/russia nodes riding the same row (zero region_map edits).
-  # Black_Sea must NOT leave region_map.unresolved -- it is now load-bearing for four honest
-  # declines. (4) THE SAME-SHAPE TRAP, pinned before anyone falls in: brazilian_arabica_coffee's
+  # did NOT ship then, written here so silence is never read as oversight -- WITH the same-evening
+  # supersessions of the two-edits+splits sitting (owner word "go", review wf_e623042d-5ff) recorded
+  # in place: (1) palm_olein_dce's China_reserve_release: the SIGN-IDENTITY refusal (rubber/
+  # ASF_outbreak law -- a RELEASE-flow sign '-' vs a carry-in LEVEL a release drains) was DISCHARGED
+  # the same evening by exactly the owner two-edit it named: sign '-' -> '0' (the node's own
+  # two-sided text: "reserve buying does the opposite"), joining the campinas/corn sign-0 family,
+  # then bound to beginning_stock_region -- its FOURTH carrier; buffer_stock_release is now a DEAD
+  # ref name (no carrier). (2) rapeseed_meal_zce's ASF_outbreak stays planned -- same law (see
+  # herd_size_hogs notes); STILL STANDING, the one live-ref refusal. (3) the four Black_Sea basin
+  # sunflower carriers: EXECUTED the same evening -- each split into per-origin ukraine/russia
+  # children riding the same row, the un-defer gate discharged exactly as written (see the
+  # sunflower_oil_supply row notes). Black_Sea STILL must not leave region_map.unresolved: its
+  # load-bearers are now french_wheat_matif's BlackSea_export_competition and the sunflower_oil
+  # class DAG's drought/export_pace_lag (measured), not the discharged four.
+  # (4) THE SAME-SHAPE TRAP, pinned before anyone falls in: brazilian_arabica_coffee's
   # `biennial_off_year` (sign '+') and malaysian_crude_palm_oil_cme's `biennial_low_cycle` (sign
   # '+') are STANDING SIGN-IDENTITY REFUSALS of the production LEVEL -- output moves AGAINST an
   # off/low year, so binding `production`/`mpob_production` to either would narrate a bumper crop
@@ -886,7 +895,9 @@ refs:
       corn, a minority of China palm oil): never narrate this figure as a reserve VOLUME or a
       release VOLUME -- it is the reserve-policy PROXY the class notes above adjudicated, at the
       right geography. Value-proved 2026-08-27 (China beginning_stocks_mt): campinas 71 years
-      1960-2026, corn_cbot 71 years, palm_olein_dce 65 years 1964-2026. THREE CARRIERS: campinas
+      1960-2026, corn_cbot 71 years, palm_olein_dce 65 years 1964-2026. FOUR CARRIERS (the fourth,
+      palm_olein_dce's China_reserve_release, joined 2026-08-27 evening via the discharged sign
+      two-edit -- see the class note below): campinas
       China_state_reserves (sign 0) and the corn class DAG's China_state_reserves (sign 0) --
       sign-0 quantification is safe by measurement: the engine never computes off the curated sign
       (it reaches only the prompt drivers table, a +/- coherence counter that ignores '0', and a
