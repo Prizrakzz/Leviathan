@@ -1628,7 +1628,7 @@ dag_alias:
     # node would double-count one policy), campinas_corn_reference_bmf (Plano Safra is subsidised CREDIT, a
     # financing-cost channel with no acreage node on that DAG to parent), and the MATIF boards (CAP direct
     # payments have been DECOUPLED since 2003, so the acreage claim would be wrong for the modern era).
-  sunflower_oil_balance: [sunflower_oil_supply]
+  sunflower_oil_balance: [sunflower_oil_supply, ukraine_sunoil_supply, russia_sunoil_supply]  # 08-27 basin split: french_rapeseed keeps the original id; the 4 split boards carry the per-origin children
     # 1,133 props. Sunoil is the marginal substitute in the vegoil stack, so the node lands on the five
     # boards that price against it: french_rapeseed_matif (EU bottling), rapeseed_oil_zce + soybean_oil_dce
     # + palm_olein_dce (the Chinese switch), malaysian_crude_palm_oil_cme (the Indian switch). Reach 0 -> 5.
