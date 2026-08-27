@@ -2514,6 +2514,30 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # both live in-module. Rollback = unset one var, no deploy.
     if model == HAIKU:
         model = os.environ.get("GRAPHRAG_NUMBERS_MODEL") or model
+    # The c/d THINKING seam, numbers half (2026-08-27; the writer half = providers.synth_thinking,
+    # landed 2026-08-25 so c/d fires without a bake). GRAPHRAG_NUMBERS_THINKING=adaptive -> thinking
+    # {"type": "adaptive"} on every create in this lane's loop AND max_tokens raised to
+    # max(max_tokens, 6000) -- the arm design's pair (a thought budget inside 1,500 tokens would
+    # strangle the tool call it exists to improve). Unset/anything else -> None = the byte-identical
+    # thought-free call, which is the rollback (unset one var, no deploy). Scope: THIS call site
+    # only -- dispatch, the writer and the judge never read it, so an env flip cannot move a seat
+    # the arm design did not name. Thinking blocks survive multi-turn tool use by construction:
+    # the loop appends resp.content wholesale (:2750-ish), never a text-filtered copy.
+    # TWO FAIL-CLOSED GATES (review wf_e16bbcd3, both objections honoured): (1) the SEAT gate --
+    # adaptive is a 4.6+ feature and this lane's DEFAULT seat is haiku-4-5, so arming is legal only
+    # when the RESOLVED first-party seat is in the adaptive-capable set; the two env vars are
+    # otherwise a coupled rollback trap (unset the model var while the thinking var stands -> every
+    # create 400s unretryably, and run_hybrid swallows it into a numberless note SILENTLY).
+    # (2) the PROVIDER gate -- anthropic only: the bedrock InvokeModel path has no verified adaptive
+    # support and BEDROCK_MODELS cannot map the 5-family seats, the same unretryable-400 shape.
+    _ADAPTIVE_SEATS = ("sonnet-5", "opus-5", "fable-5", "opus-4-8", "opus-4-7", "opus-4-6", "sonnet-4-6")
+    _thinking = None
+    if (os.environ.get("GRAPHRAG_NUMBERS_THINKING") or "").strip().lower() == "adaptive":
+        from leviathan.graphrag import providers as _pv_gate
+        if _pv_gate.provider() == "anthropic" and any(s in model for s in _ADAPTIVE_SEATS):
+            _thinking = {"type": "adaptive"}
+    if _thinking is not None:
+        max_tokens = max(max_tokens, 6000)
     reg = reg or load_registry()
     if client is None:                             # real serving path -> provider-routed + retried
         from leviathan.graphrag import providers as pv
@@ -2573,9 +2597,30 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
 
     for _ in range(max_calls):
         def _one():
-            return client.messages.create(model=model, max_tokens=max_tokens, system=system,
-                                          tools=tools, messages=convo)
+            kw = dict(model=model, max_tokens=max_tokens, system=system,
+                      tools=tools, messages=convo)
+            if _thinking is not None:
+                kw["thinking"] = _thinking
+            return client.messages.create(**kw)
         resp = pv.with_retry(_one) if pv else _one()
+        if _thinking is not None:
+            # ARMED-LANE ONLY (unset stays byte-identical). Review wf_e16bbcd3 objections 2+3:
+            # (2) the truncation sentinel -- extract.py:557's doctrine ("NEVER silently accept a
+            # truncated structured result") reaches this raw create too: with thinking billing into
+            # the same 6,000 ceiling, a max_tokens stop has no tool_use block and the `if not uses`
+            # exit would serve the empty text as a FINAL answer, invisibly. Fail closed instead.
+            # (3) the usage line -- this lane has no usage_sink, so the armed arm's thinking spend
+            # and cache behaviour are otherwise unmeasurable from any artifact; one stdout line per
+            # create reaches the eval logs and settles whether 6,000 was the right ceiling.
+            _u = getattr(resp, "usage", None)
+            print("[numbers-thinking] stop=%s in=%s out=%s cache_read=%s" % (
+                getattr(resp, "stop_reason", None),
+                getattr(_u, "input_tokens", None), getattr(_u, "output_tokens", None),
+                getattr(_u, "cache_read_input_tokens", None)), flush=True)
+            if getattr(resp, "stop_reason", None) == "max_tokens":
+                raise RuntimeError(
+                    "numbers-thinking turn TRUNCATED at max_tokens=%d -- refusing to serve a "
+                    "partial selection as final (extract.py:557's doctrine)" % max_tokens)
         uses = [b for b in resp.content if getattr(b, "type", None) == "tool_use"]
         if not uses:
             text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
