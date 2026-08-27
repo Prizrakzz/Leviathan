@@ -909,6 +909,40 @@ refs:
       China_port_stocks scope moves; the two signed buffer_stock_release legs that need the sign
       adjudication FIRST; and cotton + soybeans_no_1_dce which are correct-by-COINCIDENCE, their
       primary IS China today) is DOCKETED, not silently inherited.
+  production_region:
+    table: silver_psd
+    metric: production_mt
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    country_rule: region           # THE POINT, same as beginning_stock_region above: `production`
+    #                                declares no country_rule and is PRIMARY-ruled, so a foreign-
+    #                                origin supply driver re-keyed onto it reads the CONTRACT's
+    #                                primary country -- the D-10 class, measured LIVE on french_
+    #                                rapeseed (EU output narrated under a Ukraine/Russia label,
+    #                                pg_rows 28, plus its Australia/Canada canola siblings).
+    keying: "commodity = contract slug; country = the ORIGIN region the driver names, via region_map"
+    native_unit: MT
+    narrate_unit: MMT
+    scale: 0.000001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      FOREIGN-ORIGIN PRODUCTION, REGION-SCOPED -- the region-ruled twin of `production` above,
+      named for what the series IS (the beginning_stock_region precedent). Born 2026-08-27 in the
+      wheat/policy origin batch (review wf_51d1b338-dbc) to fix a LIVE wrong-geography leg:
+      blacksea_rapeseed_supply fired with the EU's rapeseed production under a "Ukrainian/Russian
+      harvests" label because the primary path never consults the region token. SIX CARRIERS at
+      birth, all value-proved: ukraine_rapeseed_supply (40 MY 1987-2026) + russia_rapeseed_supply
+      (40 MY) -- the split children; australia_canola_supply (59 MY) + canadian_canola_supply
+      (63 MY) -- the same board's same-defect siblings, re-keyed in the same change; and mgex's
+      Canada_production (the SIXTH carrier of the dead wap_nonUS_revision ref -- a competing-
+      PRODUCTION level claim, not an export claim, so it rides THIS row; token re-keyed to the
+      resolving 'Canadian Prairies'). NO commodity override -- the mechanism names the contract's
+      OWN commodity at a foreign geography, a COUNTRY problem not a commodity problem (the
+      sunflower knob is for non-contract commodities; refused here with reasons in the review).
+      The 1987 floors on the ex-USSR origins are the USSR aggregation boundary: a pre-1987 silence
+      is a coverage floor, never a small crop.
   sunflower_oil_supply:
     table: silver_psd
     metric: production_mt
@@ -1791,7 +1825,10 @@ region_map:
     # export drivers
     - Russia_Ukraine
     - Global
-    - Black_Sea_EU
+    # `Black_Sea_EU` STOOD HERE and was REMOVED 2026-08-27 (the wheat-split sitting): its only
+  #  three carriers (the US wheat boards' BlackSea_export_competition) split into per-origin
+  #  children on resolving tokens, leaving the compound with ZERO carriers -- the Peru/Chile
+  #  precedent (a carrier-less compound left standing records a geography nobody claims).
     - Black_Sea
     - "Black Sea"
     # "Cote d'Ivoire, Ghana" / "Ghana, Cote d'Ivoire" MOVED to resolve 2026-08-22 (GN-2 W1.1 basin rows)
