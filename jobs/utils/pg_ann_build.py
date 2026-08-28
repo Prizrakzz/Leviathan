@@ -90,7 +90,7 @@ def main() -> int:
         assert conn.execute("SELECT 1 FROM pg_extension WHERE extname = 'vector'").fetchone(), "no pgvector"
         conn.execute("SET statement_timeout = 0")
         conn.execute("SET hnsw.ef_search = %s" % int(ef))
-        conn.execute("SET hnsw.iterative_scan = 'relaxed_order'")
+        conn.execute("SET hnsw.iterative_scan = 'strict_order'")
         conn.execute("SET hnsw.max_scan_tuples = %s" % int(pgstore._ann_mst()))
         t = args.table
 

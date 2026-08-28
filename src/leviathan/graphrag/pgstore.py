@@ -682,7 +682,7 @@ def _acquire():
             # certified ef rides EVERY connection from first connect; inert wherever no hnsw index
             # exists, and 'off' then means 'route nothing' without also meaning 'cheat at the worst ef'.
             kw["options"] = (kw.get("options", "") +
-                             f" -c hnsw.ef_search={_ann_ef()} -c hnsw.iterative_scan=relaxed_order"
+                             f" -c hnsw.ef_search={_ann_ef()} -c hnsw.iterative_scan=strict_order"
                              f" -c hnsw.max_scan_tuples={_ann_mst()}").strip()
             conn = psycopg.connect(dsn(), **kw)
         except BaseException:
