@@ -448,7 +448,7 @@ _STMT_TIMEOUT_MS = int(os.environ.get("EVIDENCE_PG_STATEMENT_TIMEOUT_MS", "30000
 # hard layers are the two above).
 _ANN_OVERFETCH = 2                      # the tie-window: inner LIMIT k*2, outer re-imposes (d, id) and cuts k
 _ANN_LOCK = None                        # lazy threading.Lock (single-flight manifest refresh)
-_ANN_CACHE: tuple = ("", 0.0, None)     # (config_key, ts, slices) -- published as ONE immutable tuple
+_ANN_CACHE: tuple = ("", 0.0, None, None)   # (config_key, ts, slices, asof_floor) -- ONE immutable tuple
 _ANN_S3 = None                          # lazy boto3 client with tight timeouts
 _ANN_COUNTERS = {"routed": 0, "belt": 0}
 
@@ -502,7 +502,7 @@ def _ann_manifest_slices() -> dict:
     import time as _t
     global _ANN_LOCK, _ANN_CACHE, _ANN_S3
     key = f"{table_name()}|{_ann_ef()}|{_ann_min_rows()}"
-    ck, ts, slices = _ANN_CACHE
+    ck, ts, slices, _floor = _ANN_CACHE
     now = _t.time()
     if slices is not None and ck == key and now - ts < _ann_ttl():
         return slices
@@ -541,10 +541,15 @@ def _ann_manifest_slices() -> dict:
                             and int(v.get("rows") or 0) >= _ann_min_rows()
                             and v.get("index") in live):
                         out[n] = v
+                # THE PIT FLOOR: the oldest non-None asof the certificate exercised. Reads asking
+                # OLDER than it route exact -- PIT-safety is certificate-bounded, never assumed.
+                floor = min([a for a in (doc.get("certified_asofs") or []) if a], default=None)
             except Exception as e:  # noqa: BLE001 -- fail closed, loudly once per TTL window
                 print(f"[pg-ann] manifest refused ({type(e).__name__}: {e}); routing NOTHING", flush=True)
-                out = {}
-        _ANN_CACHE = (key, now, out)
+                out, floor = {}, None
+        else:
+            floor = None
+        _ANN_CACHE = (key, now, out, floor)
         return out
     finally:
         _ANN_LOCK.release()
@@ -552,7 +557,7 @@ def _ann_manifest_slices() -> dict:
 
 def _ann_invalidate() -> None:
     global _ANN_CACHE
-    _ANN_CACHE = ("", 0.0, None)
+    _ANN_CACHE = ("", 0.0, None, None)
 
 
 def dense_exact_sql(t: str, where: str) -> str:
@@ -571,10 +576,12 @@ def dense_ann_sql(t: str, where: str) -> str:
             f"ORDER BY rnk LIMIT %(k)s")
 
 
-def _ann_routes(node: str, fetch_k: int | None = None) -> bool:
+def _ann_routes(node: str, fetch_k: int | None = None, asof: str | None = None) -> bool:
     """Serve-side routing: mode 'on' AND the node certified AND (when the caller states its k) the
-    certification k covers it -- recall@20 does not imply recall@60 (review fatal 2), so a slice only
-    routes for fetch_k <= its certified k."""
+    certification k covers it -- recall@20 does not imply recall@60 (review fatal 2) -- AND, when
+    the caller carries an asof, that asof is NOT OLDER than the certificate's PIT floor (the oldest
+    asof leg certification exercised): an archaeological as-of filters away most of a slice, and
+    recall under that filtering is uncertified, so those reads stay exact."""
     if _ann_mode() != "on":
         return False
     v = _ann_manifest_slices().get(node)
@@ -582,6 +589,10 @@ def _ann_routes(node: str, fetch_k: int | None = None) -> bool:
         return False
     if fetch_k is not None and int(v.get("k") or 0) < int(fetch_k):
         return False
+    if asof is not None:
+        floor = _ANN_CACHE[3]
+        if not floor or str(asof) < str(floor):
+            return False
     return True
 
 
@@ -843,7 +854,7 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
     # tie under a partial order lets Postgres return either sequence -- which downstream (stable sorts all
     # the way to the prompt) is a different ANSWER, and which would make the batch/single parity pin a
     # measurement of the planner instead of the code. The SAME tiebreak rides fetch_candidates_batch.
-    routed = (not _force_exact) and _ann_routes(node, fetch_k=fetch_k)
+    routed = (not _force_exact) and _ann_routes(node, fetch_k=fetch_k, asof=asof)
     if routed:
         # D-HN ANN dense shape (2026-08-28): the INNER order is index-friendly (no id tiebreak --
         # hnsw cannot serve one), the OUTER re-imposes the (distance, id) TOTAL order over a 2x
@@ -1006,7 +1017,7 @@ def fetch_candidates_batch(query_vec, query_text: str, nodes, *, asof: Optional[
     # set at all (the planner cannot prove node = <lateral var> against a PARTIAL index predicate);
     # the real batch form is a UNION ALL of literal-node ANN sub-selects, DOCKETED as an
     # optimization, not a correctness item.
-    nodes = [n for n in nodes if not _ann_routes(n, fetch_k=fetch_k)]
+    nodes = [n for n in nodes if not _ann_routes(n, fetch_k=fetch_k, asof=asof)]
     if not nodes:
         return out
     size = max(1, int(chunk or _BATCH_CHUNK))

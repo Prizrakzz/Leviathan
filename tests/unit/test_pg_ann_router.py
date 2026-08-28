@@ -21,9 +21,9 @@ def _clean(monkeypatch):
     for k in ("GRAPHRAG_PG_ANN", "GRAPHRAG_PG_ANN_MANIFEST", "EVIDENCE_PG_TABLE",
               "GRAPHRAG_PG_ANN_EF", "GRAPHRAG_PG_ANN_MIN_ROWS"):
         monkeypatch.delenv(k, raising=False)
-    monkeypatch.setattr(pg, "_ANN_CACHE", ("", 0.0, None))
+    monkeypatch.setattr(pg, "_ANN_CACHE", ("", 0.0, None, None))
     yield
-    pg._ANN_CACHE = ("", 0.0, None)
+    pg._ANN_CACHE = ("", 0.0, None, None)
 
 
 class _Cur:
@@ -74,13 +74,14 @@ def _arm(monkeypatch, tmp_path, node="drivers/frost", rows=5000, recall=1.0, mod
     mf = tmp_path / "manifest.json"
     mf.write_text(json.dumps({
         "built_on": built_on, "ef_search": ef, "min_rows": min_rows,
+        "certified_asofs": [None, "2026-02-15"],
         "slices": {node: {"index": "idx_a", "rows": rows, "recall": recall, "k": cert_k}}}),
         encoding="utf-8")
     monkeypatch.setenv("GRAPHRAG_PG_ANN", mode)
     monkeypatch.setenv("GRAPHRAG_PG_ANN_MANIFEST", str(mf))
     monkeypatch.setattr(pg, "_ann_live_hnsw_names",
                         lambda: {"idx_a"} if index_live else set())
-    pg._ANN_CACHE = ("", 0.0, None)
+    pg._ANN_CACHE = ("", 0.0, None, None)
 
 
 def test_armed_certified_node_takes_the_ann_shape(monkeypatch, tmp_path):
@@ -132,12 +133,12 @@ def test_low_recall_thin_slices_and_bad_manifests_route_nothing(monkeypatch, tmp
     assert not pg._ann_routes("drivers/frost")
     monkeypatch.setenv("GRAPHRAG_PG_ANN", "on")
     monkeypatch.delenv("GRAPHRAG_PG_ANN_MANIFEST", raising=False)
-    pg._ANN_CACHE = ("", 0.0, None)
+    pg._ANN_CACHE = ("", 0.0, None, None)
     assert not pg._ann_routes("drivers/frost")
     bad = tmp_path / "bad.json"
     bad.write_text("{not json", encoding="utf-8")
     monkeypatch.setenv("GRAPHRAG_PG_ANN_MANIFEST", str(bad))
-    pg._ANN_CACHE = ("", 0.0, None)
+    pg._ANN_CACHE = ("", 0.0, None, None)
     assert not pg._ann_routes("drivers/frost")
 
 
@@ -168,7 +169,7 @@ def test_batch_omits_routed_nodes_and_is_identity_when_off(monkeypatch, tmp_path
     assert seen["part"] == ["drivers/other"]
     assert "drivers/frost" not in out
     monkeypatch.delenv("GRAPHRAG_PG_ANN", raising=False)
-    pg._ANN_CACHE = ("", 0.0, None)
+    pg._ANN_CACHE = ("", 0.0, None, None)
     pg.fetch_candidates_batch([0.0, 0.0], "q", ["drivers/frost", "drivers/other"],
                               asof=None, fetch_k=5, hybrid=False)
     assert seen["part"] == ["drivers/frost", "drivers/other"]
@@ -180,3 +181,13 @@ def test_dense_templates_are_the_single_producer():
     assert pg.dense_exact_sql("evidence_props", "node = %(node)s") == GOLDEN_DENSE
     ann = pg.dense_ann_sql("evidence_props", "node = %(node)s")
     assert "LIMIT %(ok)s) ann" in ann and ann.startswith("SELECT id, ROW_NUMBER() OVER (ORDER BY d, id)")
+
+
+def test_the_pit_floor_gates_archaeological_asofs(monkeypatch, tmp_path):
+    # PIT-safety is CERTIFICATE-BOUNDED: an asof at/after the certified floor routes; older stays
+    # exact (recall under extreme date filtering is uncertified).
+    _arm(monkeypatch, tmp_path)
+    assert pg._ann_routes("drivers/frost", asof="2026-05-01")
+    assert pg._ann_routes("drivers/frost", asof="2026-02-15")
+    assert not pg._ann_routes("drivers/frost", asof="2012-01-01")
+    assert pg._ann_routes("drivers/frost", asof=None)
