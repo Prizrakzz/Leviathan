@@ -577,18 +577,18 @@ def dense_exact_sql(t: str, where: str) -> str:
 
 
 def dense_ann_sql(t: str, where: str) -> str:
-    """THE routed dense shape. ROUND 3 (2026-08-28): the inner ORDER BY carries the `, id`
-    tiebreak -- Postgres serves it as an INCREMENTAL SORT over the hnsw index's distance-ordered
-    stream, which sorts each tie group by id before LIMIT exactly as the exact leg does. Round 2
-    measured why this matters: without it, nearly every big slice failed certification at 59/60
-    (one borderline row at the last rank) and duplicate-heavy slices collapsed to 0.00 (exact
-    takes a tie group's 60 smallest ids; the raw ANN window held other members). The outer
-    re-imposed order is retained as belt. Slices where the planner refuses the index under the
-    sort are REJECTED by the certifier's EXPLAIN gate and stay exact -- adjudicated per slice.
+    """THE routed dense shape -- ROUND 7 (2026-08-28): the inner is INDEX-NATIVE (no id
+    tiebreak; ORDER BY distance LIMIT %(ok)s stops the scan at the window). The round-3 tiebreak
+    experiment was MEASURED FATAL in both scan modes (rehearsals 2 and 4: routed p50 ~7s vs
+    exact ~30ms) -- an in-index (dist, id) sort forces draining the iterative scan to
+    max_scan_tuples before LIMIT. The boundary-recall problem the tiebreak targeted is solved by
+    ef=800 instead (round 4/6 certified the giants); tie-group-pathological slices (a duplicate
+    cluster larger than the window) FAIL certification honestly and stay exact. The outer
+    re-imposed (d, id) order makes the projection deterministic over whatever window arrives.
     Same one-producer law as dense_exact_sql."""
     return (f"SELECT id, ROW_NUMBER() OVER (ORDER BY d, id) AS rnk FROM ("
             f"SELECT id, vector <=> %(qv)s::vector AS d FROM {t} WHERE {where} "
-            f"ORDER BY vector <=> %(qv)s::vector, id LIMIT %(ok)s) ann "
+            f"ORDER BY vector <=> %(qv)s::vector LIMIT %(ok)s) ann "
             f"ORDER BY rnk LIMIT %(k)s")
 
 
