@@ -434,6 +434,156 @@ def adopt_borrow_ledger(ledger):
 # measuring it first.
 _STMT_TIMEOUT_MS = int(os.environ.get("EVIDENCE_PG_STATEMENT_TIMEOUT_MS", "300000"))
 
+# ── D-HN: the gated per-slice ANN router (Q-0 wave, 2026-08-28) ─────────────────────────────────────────
+# NEVER a global hnsw index (fail-OPEN: the planner could silently adopt it for the exact statement with
+# no flip). The unit of routing is a CERTIFIED SLICE: a per-node PARTIAL hnsw index built on the shadow
+# table by jobs/utils/pg_ann_build.py, certified recall==1.0 at _ANN_EF against exact on that slice's own
+# vectors, and listed in the manifest. The router routes a node iff mode is armed AND the node is in the
+# manifest -- everything else emits the frozen exact statement byte-for-byte (the golden pin). GUCs ride
+# the CONNECT OPTIONS beside statement_timeout (connection identity: one value per process lifetime,
+# printed at first pool build -- a call-time GUC on a pooled conn would silently serve pgvector's default
+# ef=40, the probe's measured 0.40-recall setting). Rollback ladder: drop one slice's index (routes exact
+# within the manifest TTL) -> pg_evidence_swap --rollback (atomic; the hnsw table is retained as shadow)
+# -> GRAPHRAG_PG_ANN=off (env; NOTE with partial indexes still live this is plan-dependent soft-off, the
+# hard layers are the two above).
+_ANN_OVERFETCH = 2                      # the tie-window: inner LIMIT k*2, outer re-imposes (d, id) and cuts k
+_ANN_LOCK = None                        # lazy threading.Lock (single-flight manifest refresh)
+_ANN_CACHE: tuple = ("", 0.0, None)     # (config_key, ts, slices) -- published as ONE immutable tuple
+_ANN_S3 = None                          # lazy boto3 client with tight timeouts
+_ANN_COUNTERS = {"routed": 0, "belt": 0}
+
+
+def _ann_mode() -> str:
+    """'on' or 'off'. 'shadow' (the design's dark dual-read rider) is DELETED from the accepted set
+    until the measure-and-discard path exists -- review wf_f7314d29 fatal 3: as first built it silently
+    SERVED ANN rows, a fail-open inversion of the one knob whose whole purpose is to be dark."""
+    v = (os.environ.get("GRAPHRAG_PG_ANN") or "").strip().lower()
+    return "on" if v == "on" else "off"
+
+
+def _ann_ef() -> int:
+    return int(os.environ.get("GRAPHRAG_PG_ANN_EF", "100") or 100)
+
+
+def _ann_min_rows() -> int:
+    return int(os.environ.get("GRAPHRAG_PG_ANN_MIN_ROWS", "2000") or 2000)
+
+
+def _ann_ttl() -> float:
+    return float(os.environ.get("GRAPHRAG_PG_ANN_MANIFEST_TTL_S", "60") or 60)
+
+
+def _ann_live_hnsw_names() -> set:
+    """Index names of every hnsw index attached to THIS table -- the reality half of the manifest
+    join. One pooled read per refresh; any failure -> empty set = route nothing."""
+    try:
+        c = _acquire()
+        try:
+            rows = c.execute("SELECT indexname FROM pg_indexes WHERE tablename = %s "
+                             "AND indexdef LIKE '%%USING hnsw%%'", (table_name(),)).fetchall()
+            return {r[0] for r in rows}
+        finally:
+            _release(c)
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _ann_manifest_slices() -> dict:
+    """{node -> {index, rows, recall, k}} = the certified manifest JOINED WITH REALITY, TTL-cached.
+
+    Review wf_f7314d29 fatal 4, all four legs honoured: (a) the file's slices are INTERSECTED with the
+    hnsw indexes actually present on table_name() -- a dropped index leaves the route set within one
+    TTL, which is what makes the drop-one-slice rollback layer TRUE; (b) the whole manifest is REFUSED
+    (route nothing) when its built_on/ef_search/min_rows do not match this process's table and config;
+    (c) the cache key carries (table, ef, min_rows) so an env flip invalidates rather than serves a
+    stale filter; (d) the refresh is single-flight behind a lock, publishes one immutable tuple, and a
+    concurrent reader serves the stale value instead of stampeding. ANY failure -> {} = fail closed."""
+    import threading
+    import time as _t
+    global _ANN_LOCK, _ANN_CACHE, _ANN_S3
+    key = f"{table_name()}|{_ann_ef()}|{_ann_min_rows()}"
+    ck, ts, slices = _ANN_CACHE
+    now = _t.time()
+    if slices is not None and ck == key and now - ts < _ann_ttl():
+        return slices
+    if _ANN_LOCK is None:
+        _ANN_LOCK = threading.Lock()
+    if not _ANN_LOCK.acquire(blocking=False):
+        return slices if (slices is not None and ck == key) else {}   # serve stale; one refresher only
+    try:
+        out: dict = {}
+        src = (os.environ.get("GRAPHRAG_PG_ANN_MANIFEST") or "").strip()
+        if src:
+            try:
+                if src.startswith("s3://"):
+                    if _ANN_S3 is None:
+                        import boto3
+                        from botocore.config import Config
+                        _ANN_S3 = boto3.client("s3", config=Config(
+                            connect_timeout=2, read_timeout=3, retries={"max_attempts": 1}))
+                    b, k = src[5:].split("/", 1)
+                    body = _ANN_S3.get_object(Bucket=b, Key=k)["Body"].read()
+                else:
+                    body = open(src, "rb").read()
+                doc = json.loads(body)
+                if (doc.get("built_on") != f"{table_name()}"
+                        and doc.get("built_on") != f"{table_name()}_shadow"):
+                    # certified on neither this table nor its shadow twin (the swap renames the
+                    # table under the indexes) -> the certificate is about some OTHER store
+                    raise ValueError(f"manifest built_on={doc.get('built_on')} vs {table_name()}")
+                if int(doc.get("ef_search") or 0) != _ann_ef():
+                    raise ValueError(f"manifest ef={doc.get('ef_search')} vs process ef={_ann_ef()}")
+                if int(doc.get("min_rows") or 0) != _ann_min_rows():
+                    raise ValueError(f"manifest min_rows={doc.get('min_rows')} vs {_ann_min_rows()}")
+                live = _ann_live_hnsw_names()
+                for n, v in (doc.get("slices") or {}).items():
+                    if (isinstance(v, dict) and float(v.get("recall") or 0) >= 1.0
+                            and int(v.get("rows") or 0) >= _ann_min_rows()
+                            and v.get("index") in live):
+                        out[n] = v
+            except Exception as e:  # noqa: BLE001 -- fail closed, loudly once per TTL window
+                print(f"[pg-ann] manifest refused ({type(e).__name__}: {e}); routing NOTHING", flush=True)
+                out = {}
+        _ANN_CACHE = (key, now, out)
+        return out
+    finally:
+        _ANN_LOCK.release()
+
+
+def _ann_invalidate() -> None:
+    global _ANN_CACHE
+    _ANN_CACHE = ("", 0.0, None)
+
+
+def dense_exact_sql(t: str, where: str) -> str:
+    """THE frozen exact dense shape -- one producer, two consumers (fetch_candidates and the
+    certifier), so 'certified by the production statement VERBATIM' is structural, not aspirational."""
+    return (f"SELECT id, ROW_NUMBER() OVER (ORDER BY vector <=> %(qv)s::vector, id) AS rnk "
+            f"FROM {t} WHERE {where} ORDER BY vector <=> %(qv)s::vector, id LIMIT %(k)s")
+
+
+def dense_ann_sql(t: str, where: str) -> str:
+    """THE routed dense shape (inner index-friendly order over the %(ok)s tie-window, outer
+    re-imposed (d, id) total order). Same one-producer law as dense_exact_sql."""
+    return (f"SELECT id, ROW_NUMBER() OVER (ORDER BY d, id) AS rnk FROM ("
+            f"SELECT id, vector <=> %(qv)s::vector AS d FROM {t} WHERE {where} "
+            f"ORDER BY vector <=> %(qv)s::vector LIMIT %(ok)s) ann "
+            f"ORDER BY rnk LIMIT %(k)s")
+
+
+def _ann_routes(node: str, fetch_k: int | None = None) -> bool:
+    """Serve-side routing: mode 'on' AND the node certified AND (when the caller states its k) the
+    certification k covers it -- recall@20 does not imply recall@60 (review fatal 2), so a slice only
+    routes for fetch_k <= its certified k."""
+    if _ann_mode() != "on":
+        return False
+    v = _ann_manifest_slices().get(node)
+    if not v:
+        return False
+    if fetch_k is not None and int(v.get("k") or 0) < int(fetch_k):
+        return False
+    return True
+
 
 def _acquire():
     global _POOL
@@ -499,6 +649,13 @@ def _acquire():
                 # of holding a pool slot for minutes (the rev-51 pool death). Read at call time so tests
                 # and an env override take effect without re-import.
                 kw["options"] = f"-c statement_timeout={int(_STMT_TIMEOUT_MS)}"
+            # D-HN GUC CONNECTION IDENTITY, UNCONDITIONAL (review: gating on mode made 'off' the WORST
+            # configuration -- with indexes live and the flag off, a planner that adopts an hnsw path
+            # would run at pgvector's default ef=40, the probe's measured 0.40-recall setting). The
+            # certified ef rides EVERY connection from first connect; inert wherever no hnsw index
+            # exists, and 'off' then means 'route nothing' without also meaning 'cheat at the worst ef'.
+            kw["options"] = (kw.get("options", "") +
+                             f" -c hnsw.ef_search={_ann_ef()} -c hnsw.iterative_scan=relaxed_order").strip()
             conn = psycopg.connect(dsn(), **kw)
         except BaseException:
             _POOL.put(None)      # a failed connect returns the SLOT (lazy) — it must never shrink the pool
@@ -652,7 +809,8 @@ def needs_vectors(*, rerank: bool, mmr: float) -> bool:
 
 def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[str], fetch_k: int,
                      hybrid: bool = True, conn=None, with_vectors: bool = True,
-                     candidates: Optional[list[dict]] = None) -> list[dict]:
+                     candidates: Optional[list[dict]] = None,
+                     _force_exact: bool = False) -> list[dict]:
     """ONE round-trip: dense CTE + (optionally) lexical CTE, RRF-fused in SQL (c=60, same as rankers.rrf_fuse).
     Rows come back with their vectors so rerank/MMR run in-process unchanged.
 
@@ -685,8 +843,18 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
     # tie under a partial order lets Postgres return either sequence -- which downstream (stable sorts all
     # the way to the prompt) is a different ANSWER, and which would make the batch/single parity pin a
     # measurement of the planner instead of the code. The SAME tiebreak rides fetch_candidates_batch.
-    dense = (f"SELECT id, ROW_NUMBER() OVER (ORDER BY vector <=> %(qv)s::vector, id) AS rnk "
-             f"FROM {t} WHERE {where} ORDER BY vector <=> %(qv)s::vector, id LIMIT %(k)s")
+    routed = (not _force_exact) and _ann_routes(node, fetch_k=fetch_k)
+    if routed:
+        # D-HN ANN dense shape (2026-08-28): the INNER order is index-friendly (no id tiebreak --
+        # hnsw cannot serve one), the OUTER re-imposes the (distance, id) TOTAL order over a 2x
+        # tie-window and cuts k. The slice routes only because its candidate set CERTIFIED
+        # identical to exact -- by the PRODUCTION STATEMENTS VERBATIM, at a certified k covering
+        # this fetch_k, with the asof leg exercised (pg_ann_build).
+        _ANN_COUNTERS["routed"] += 1
+        params["ok"] = fetch_k * _ANN_OVERFETCH
+        dense = dense_ann_sql(t, where)
+    else:
+        dense = dense_exact_sql(t, where)
     # 7th projected column: the whole `meta` jsonb — char_start/char_end/offset_kind ride it to the citation
     # locator (Phase F: the serving read DROPPED them since 6.5, so the deterministic click-to-page leg and
     # the highlight were structurally dark; one column beats three ->> accessors and keeps the two statement
@@ -721,6 +889,17 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
         with _PG_LOCK, conn.cursor() as cur:
             cur.execute(fused, params)
             rows = cur.fetchall()
+    if routed and len(rows) < fetch_k and asof is None:
+        # D-HN SHORT-RESULT BELT, asof-honest (review: under a date <= asof filter a short result
+        # is often the TRUE answer -- the PIT filter, not starvation -- so the belt trips only on
+        # unfiltered reads, where a routed slice's >= min_rows population makes short = starved.
+        # The asof leg's correctness is carried by certification instead, which exercises it.)
+        _ANN_COUNTERS["belt"] += 1
+        _ann_invalidate()          # a starving route is a stale certificate until proven otherwise
+        print(f"[pg-ann] belt refetch node={node} got={len(rows)} k={fetch_k}", flush=True)
+        return fetch_candidates(query_vec, query_text, node, asof=asof, fetch_k=fetch_k,
+                                hybrid=hybrid, conn=conn, with_vectors=with_vectors,
+                                _force_exact=True)
     return [_project(r, with_vectors) for r in rows]
 
 
@@ -815,6 +994,19 @@ def fetch_candidates_batch(query_vec, query_text: str, nodes, *, asof: Optional[
     the sequence this returns per node is the sequence the single-node statement returns, tie for tie."""
     out: dict[str, list[dict]] = {}
     nodes = list(dict.fromkeys(nodes))                       # dedupe, PRESERVING the caller's order
+    # D-HN (2026-08-28): certified-ANN nodes are OMITTED from the batch statement -- an absent key
+    # already means "the batch did not serve this node" and the caller re-fetches it per-node at its
+    # own concurrency (the documented degrade contract above), which lands it on fetch_candidates'
+    # routed ANN path. The batch statement itself stays byte-identical for every unrouted node, and
+    # with routing off (_ann_routes always False) this filter is the identity.
+    # REVIEW OBJECTION (wf_f7314d29 medium, "forfeits EC-2's borrow collapse") ADJUDICATED WITH
+    # REASONS, NOT ABSORBED: EC-2 collapsed borrows because each borrow HELD a conn for a 0.3-13 s
+    # exact scan; a routed borrow holds ~30 ms, so even 60 routed per-node borrows cost ~2 conn-
+    # seconds a turn -- two orders under the wedge line. A LATERAL batch cannot serve the routed
+    # set at all (the planner cannot prove node = <lateral var> against a PARTIAL index predicate);
+    # the real batch form is a UNION ALL of literal-node ANN sub-selects, DOCKETED as an
+    # optimization, not a correctness item.
+    nodes = [n for n in nodes if not _ann_routes(n, fetch_k=fetch_k)]
     if not nodes:
         return out
     size = max(1, int(chunk or _BATCH_CHUNK))

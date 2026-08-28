@@ -36,29 +36,65 @@ def _stringify(v):
     return v if isinstance(v, str) else str(v)
 
 
+import threading as _threading
+
+_NUM_POOL = None
+_NUM_POOL_LOCK = _threading.Lock()
+_NUM_POOL_SIZE = int(os.environ.get("NUMBERS_PG_POOL", "4") or 4)
+_NUM_POOL_WAIT_S = int(os.environ.get("NUMBERS_PG_POOL_WAIT_S", "5") or 5)
+_NUM_STMT_MS = int(os.environ.get("NUMBERS_PG_STATEMENT_TIMEOUT_MS", "5000") or 5000)
+_NUM_BORROWS = {"n": 0}   # lane-local ledger (the evidence borrow ledger stays evidence-only)
+
+
+def _num_acquire():
+    """THE BULKHEAD POOL (D-HN companion, 2026-08-28). This lane used to borrow the EVIDENCE pool
+    ("same RDS, same DSN, already sized for concurrent walk fetches") -- and the Q-0a smoke measured
+    the consequence: evidence scans holding connections for seconds STARVED the ms-cheap numbers
+    lookups into 120s wedge failures on 12/14 rows. Numbers queries are point-reads on indexed
+    mirrors; they get a small DEDICATED pool so no evidence burst -- or any future evidence
+    regression -- can ever starve this lane again. Same DSN, same instance, separate slots."""
+    global _NUM_POOL
+    import queue as _q
+    import psycopg
+    from leviathan.graphrag import pgstore
+    if _NUM_POOL is None:
+        with _NUM_POOL_LOCK:                           # module-own lock (review: never borrow another
+            if _NUM_POOL is None:                      # module's lock -- the bulkhead's own thesis)
+                p = _q.Queue()
+                for _ in range(_NUM_POOL_SIZE):
+                    p.put(None)                        # lazy slots, the pgstore idiom
+                _NUM_POOL = p
+    _NUM_BORROWS["n"] += 1
+    try:
+        conn = _NUM_POOL.get(timeout=_NUM_POOL_WAIT_S)
+    except _q.Empty:
+        raise RuntimeError(f"numbers pg pool exhausted: no connection freed in {_NUM_POOL_WAIT_S}s "
+                           f"(size={_NUM_POOL_SIZE})")
+    if conn is None or conn.closed:
+        try:
+            # a point read that has not answered in _NUM_STMT_MS should degrade to Athena (the
+            # lane's declared patience), never hold a bulkhead slot past the waiters' window
+            conn = psycopg.connect(pgstore.dsn(), autocommit=True,
+                                   options=f"-c statement_timeout={_NUM_STMT_MS}")
+        except BaseException:
+            _NUM_POOL.put(None)
+            raise
+    return conn
+
+
 def pg_query(sql: str) -> list[dict]:
     """Execute one (build_sql-shaped) statement on the mirror and return Athena-contract rows:
-    list[dict[str, str|None]] keyed by the SELECT aliases. Reuses the evidence store's connection pool —
-    same RDS, same DSN, already sized for concurrent walk fetches.
-
-    EC-3 EXEMPTION, ENFORCED (2026-08-15). The borrow runs inside `pgstore.without_patience()`: this
-    lane keeps the LEGACY fast-fail wait (`_POOL_WAIT_S`) even on a metered turn, because the per-request
-    Athena fallback in `query_fn` below IS this lane's patience — waiting out a 300s pool horizon here
-    would trade a fast honest degrade for a slow one. It must be SAID, not assumed: the patience deadline
-    is ambient (a thread-local `_acquire` reads), and the cascade-quantify legs call this on the WALK's
-    own thread inside the orchestrator's horizon, so without the suspend this lane silently inherited it.
-    Suspend, not disable — the deadline is restored immediately after the borrow, so the walk's remaining
-    borrows keep the turn's bound and the time spent here still counts against it."""
-    from leviathan.graphrag import pgstore
-    with pgstore.without_patience():
-        conn = pgstore._acquire()
+    list[dict[str, str|None]] keyed by the SELECT aliases. Runs on the lane's OWN bulkhead pool
+    (see _num_acquire) -- the per-request Athena fallback in `query_fn` below remains this lane's
+    patience, so a saturated bulkhead degrades a lookup to Athena's latency, never to an error."""
+    conn = _num_acquire()
     try:
         with conn.cursor() as cur:
             cur.execute(sql)
             names = [d.name for d in cur.description]
             return [{n: _stringify(v) for n, v in zip(names, row)} for row in cur.fetchall()]
     finally:
-        pgstore._release(conn)
+        _NUM_POOL.put(conn)
 
 
 def query_fn():

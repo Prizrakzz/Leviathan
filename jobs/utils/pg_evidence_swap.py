@@ -102,9 +102,16 @@ def normalize_indexdef(d: str) -> str:
 
 def index_parity_missing(live_defs: list, shadow_defs: list) -> list:
     """The live table's index shapes ABSENT from the shadow — [] is the only swappable answer. Pure
-    (the guard's testable core): a shadow allowed extra indexes, never fewer."""
-    shadow_n = {normalize_indexdef(d) for d in shadow_defs}
-    return sorted({normalize_indexdef(d) for d in live_defs} - shadow_n)
+    (the guard's testable core): a shadow allowed extra indexes, never fewer.
+
+    D-HN (2026-08-28): hnsw shapes are EXCLUDED from parity on BOTH sides. A partial hnsw index's
+    normalized shape embeds its node predicate, so requiring the shadow to reproduce live's exact
+    certified slice set would block every future blue-green cycle whose certification legitimately
+    differs (review wf_f7314d29). ANN indexes are governed by the certified manifest, not by the
+    canonical index contract — the router's manifest∩pg_indexes join fails closed on any mismatch."""
+    shadow_n = {normalize_indexdef(d) for d in shadow_defs if "USING hnsw" not in (d or "")}
+    live_n = {normalize_indexdef(d) for d in live_defs if "USING hnsw" not in (d or "")}
+    return sorted(live_n - shadow_n)
 
 
 def _index_defs(conn, table: str) -> list:

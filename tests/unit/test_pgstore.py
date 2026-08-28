@@ -138,7 +138,12 @@ def test_stmt_timeout_zero_disables_bound(tiny_pool, monkeypatch):
     monkeypatch.setattr(pg, "_STMT_TIMEOUT_MS", 0)
     c = pg._acquire()
     pg._release(c)
-    assert "options" not in seen
+    # D-HN (2026-08-28) re-cut: the hnsw GUCs now ride EVERY connection unconditionally (review
+    # wf_f7314d29: gating them on the mode made 'off' the worst configuration -- a planner adopting
+    # a live hnsw index would run at pgvector's default ef=40, the probe's 0.40-recall setting).
+    # The timeout-zero property this pin protects is unchanged: NO statement_timeout fragment.
+    assert "statement_timeout" not in (seen.get("options") or "")
+    assert "hnsw.ef_search=" in (seen.get("options") or "")
 
 
 # ── integration (local pgvector container; skip if unreachable) ──────────────────────────
