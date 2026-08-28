@@ -577,11 +577,18 @@ def dense_exact_sql(t: str, where: str) -> str:
 
 
 def dense_ann_sql(t: str, where: str) -> str:
-    """THE routed dense shape (inner index-friendly order over the %(ok)s tie-window, outer
-    re-imposed (d, id) total order). Same one-producer law as dense_exact_sql."""
+    """THE routed dense shape. ROUND 3 (2026-08-28): the inner ORDER BY carries the `, id`
+    tiebreak -- Postgres serves it as an INCREMENTAL SORT over the hnsw index's distance-ordered
+    stream, which sorts each tie group by id before LIMIT exactly as the exact leg does. Round 2
+    measured why this matters: without it, nearly every big slice failed certification at 59/60
+    (one borderline row at the last rank) and duplicate-heavy slices collapsed to 0.00 (exact
+    takes a tie group's 60 smallest ids; the raw ANN window held other members). The outer
+    re-imposed order is retained as belt. Slices where the planner refuses the index under the
+    sort are REJECTED by the certifier's EXPLAIN gate and stay exact -- adjudicated per slice.
+    Same one-producer law as dense_exact_sql."""
     return (f"SELECT id, ROW_NUMBER() OVER (ORDER BY d, id) AS rnk FROM ("
             f"SELECT id, vector <=> %(qv)s::vector AS d FROM {t} WHERE {where} "
-            f"ORDER BY vector <=> %(qv)s::vector LIMIT %(ok)s) ann "
+            f"ORDER BY vector <=> %(qv)s::vector, id LIMIT %(ok)s) ann "
             f"ORDER BY rnk LIMIT %(k)s")
 
 
