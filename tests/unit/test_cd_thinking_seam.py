@@ -181,3 +181,26 @@ def test_the_writer_seam_never_arms_a_borrowed_haiku_call(monkeypatch):
     assert "thinking" not in seen[-1], "armed seam reached a pre-4.6 seat"
     an._call_opus("s", "u", model="claude-opus-5", tool={"name": "emit"})
     assert seen[-1].get("thinking") == {"type": "adaptive"}
+
+
+def test_the_writer_seams_carry_the_provider_gate_too(monkeypatch):
+    # Q-0 refuter catch (2026-08-28): the writer seams gated on SEAT only -- a bedrock arm would
+    # ship thinking/output_config onto the legacy InvokeModel path (unretryable 400, not a null).
+    from leviathan.graphrag import answer as an, providers as pv
+    monkeypatch.setenv("GRAPHRAG_SYNTH_THINKING", "adaptive")
+    monkeypatch.setenv("GRAPHRAG_SYNTH_EFFORT", "xhigh")
+    monkeypatch.setenv("GRAPHRAG_PROVIDER", "bedrock")
+    seen = []
+
+    def fake_serving_call(client, system, user, **kw):
+        seen.append(kw)
+        return {"ok": True}, None
+
+    monkeypatch.setattr(pv, "serving_call", fake_serving_call)
+    monkeypatch.setattr(pv, "make_client", lambda: object())
+    an._call_opus("s", "u", model="claude-opus-5", tool={"name": "emit"})
+    assert "thinking" not in seen[-1] and "output_config" not in seen[-1]
+    monkeypatch.setenv("GRAPHRAG_PROVIDER", "anthropic")
+    an._call_opus("s", "u", model="claude-opus-5", tool={"name": "emit"})
+    assert seen[-1].get("thinking") == {"type": "adaptive"}
+    assert seen[-1].get("output_config") == {"effort": "xhigh"}

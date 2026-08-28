@@ -8728,6 +8728,10 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
     kw = dict(model=pv.resolve_model(model), max_tokens=max_tokens or 12000, tool=tool,
               degrade_to=ex.HAIKU, usage_sink=_sink)  # answers grew
     _think = pv.synth_thinking()                       # c/d seam: None unless GRAPHRAG_SYNTH_THINKING=adaptive
+    if _think is not None and pv.provider() != "anthropic":
+        _think = None   # PROVIDER GATE, symmetric with the numbers seam (Q-0 refuter catch: this
+        #                 seam gated on SEAT only, so a bedrock arm would ship thinking/effort onto
+        #                 the legacy InvokeModel path -- an unretryable 400, not a clean null).
     if _think is not None and not pv.supports_adaptive(model):
         _think = None   # THE SEAT GATE (arm-d null-arm RCA 2026-08-27): _call_opus is NOT writer-only --
         #                 route_llm borrows it with model=HAIKU (:1951), and an ungated armed seam 400s
@@ -8735,7 +8739,8 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
     if _think is not None:
         kw["thinking"] = _think                        # both serving lanes accept it
     _eff = pv.synth_effort()                           # effort seam (dark plumbing): None = byte-identical
-    if _eff is not None and pv.supports_adaptive(model):   # same seat gate; haiku rejects effort too
+    if (_eff is not None and pv.provider() == "anthropic"
+            and pv.supports_adaptive(model)):          # provider + seat gates, symmetric with numbers
         kw["output_config"] = _eff
     if on_token is not None:
         out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
