@@ -95,11 +95,13 @@ def test_the_preset_table_and_nothing_else():
     # STILL untouched: thirteen presets, three servable.
     # T2-2 (CASCADE_HOME plan): `deep_cc1` appends the same way -- the T2-3 gate's ON arm, resolvable BY
     # NAME, dark to the wildcard. SIXTH application: fourteen presets, three servable.
+    # Q-0a (2026-08-28): `max_cc2` appends the same way -- the slot-WIDTH arm, resolvable BY NAME,
+    # dark to the wildcard. SEVENTH application: fifteen presets, three servable.
     assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2", "max", "max_c0",
-                                          "esc", "esc_r", "max_cc1", "deep_cc1",
+                                          "esc", "esc_r", "max_cc1", "max_cc2", "deep_cc1",
                                           "quick_hp", "deep_hp", "esc_hp", "esc_r_hp"})
     assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2, rm.MAX, rm.MAX_C0,
-                             rm.ESC, rm.ESC_R, rm.MAX_CC1, rm.DEEP_CC1,
+                             rm.ESC, rm.ESC_R, rm.MAX_CC1, rm.MAX_CC2, rm.DEEP_CC1,
                              rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP}
     # Every preset's `name` field agrees with its table key -- the `replace(...)`-constructed twins would
     # otherwise be able to carry their BASE's name and stamp the wrong arm on every artifact.
@@ -126,7 +128,7 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
     # fence yet -- every earlier dark preset was built on a dark base or an unflipped treatment, while this
     # one is the SHIPPED serving tier plus a paid foreign-contract slot the T2-3 gate has not adjudicated.
     assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0, rm.ESC, rm.ESC_R, rm.MAX_CC1,
-                                       rm.DEEP_CC1,
+                                       rm.MAX_CC2, rm.DEEP_CC1,
                                        rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP})
     assert rm.serving_names() == frozenset({"quick", "standard", "deep"})
     assert rm.DEEP_V2 in rm.valid_names()                              # still RESOLVABLE (stamped)

@@ -110,6 +110,7 @@ MAX_C0 = "max_c0"
 ESC = "esc"                                   # D-MW-30: the escalated SHAPE (deep's envelope, max's width)
 ESC_R = "esc_r"                               # ...plus the reserve bundle (reserve 4 + the provenance prompt)
 MAX_CC1 = "max_cc1"                           # D-MW-28 (P6): max + ONE cross-market cascade contract slot
+MAX_CC2 = "max_cc2"                           # Q-0a (2026-08-28): max + TWO slots -- the slot-WIDTH arm
 DEEP_CC1 = "deep_cc1"                         # T2-2: deep + the SAME one slot -- the T2-3 gate's ON arm
 # D-HP-8 (H1, R9): THE MATCHED DARK PRESET SET -- the handle-prose treatment's ONE enabling lever. Four
 # names, minted in ONE commit, all four in DARK_NAMES. `standard` is NOT in the set and cannot be (its
@@ -354,6 +355,20 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          cap_policy="score", order_policy="relevance",
          per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0,
          cascade_contract_slots=1),
+    # ── Q-0a THE SLOT-WIDTH ARM (2026-08-28) ────────────────────────────────────────────────────────────
+    # `max_cc2` = `max_cc1`'s EXACT fields + one more cascade-contract slot: the Q-0a arms are
+    # `--mode max_cc1` vs `--mode max_cc2`, differing by EXACTLY ONE variable (the D-MW-13 two-preset
+    # arm pattern, SEVENTH application). The question it exists to answer, judged on the frozen
+    # q0_contagion deck: does buying a SECOND reverse cross-market block make multi-order contagion
+    # answers measurably better, or does the first slot already carry the read? DARK at birth.
+    Mode(name=MAX_CC2,
+         depth=2, max_seeds=6,
+         k_by_depth=(7, 5, 3),
+         fetch_k=60, silver_cap=12,
+         scaffold_max_bullets=12, scaffold_max_absence=6,
+         cap_policy="score", order_policy="relevance",
+         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0,
+         cascade_contract_slots=2),
 )}
 
 # ── D-HP-8 THE MATCHED DARK PRESET SET (H1, R9 ratified) ────────────────────────────────────────────────
@@ -414,7 +429,7 @@ MODES[DEEP_CC1] = replace(MODES[DEEP], name=DEEP_CC1, cascade_contract_slots=1)
 # treatment; `deep_cc1` is the SHIPPED serving tier plus a paid slot, so a forgotten entry would hand every
 # `GRAPHRAG_MODES=on` turn a foreign contract block the T2-3 gate has not yet adjudicated. serving_names()
 # is UNCHANGED by this, and the pin on that fact (test_dam_modes:125) is the leak fence.
-DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1, DEEP_CC1,
+DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1, MAX_CC2, DEEP_CC1,
                                    QUICK_HP, DEEP_HP, ESC_HP, ESC_R_HP})
 
 # ── EC-3: THE METERED PREDICATE (the leaf half of a two-module fact) ────────────────────────────────

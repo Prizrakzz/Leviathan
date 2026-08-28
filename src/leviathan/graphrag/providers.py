@@ -231,10 +231,13 @@ def serving_call_stream(client, system, user, *, model: str, max_tokens: int = 4
 # caches are 5-minute ephemeral => the write premium is 1.25x input (batch_extract's 2x is the
 # 1-hour-TTL extraction lane, a DIFFERENT premium — don't unify them). Unknown model => None =>
 # the CostUsd metric is ABSENT rather than silently wrong (the DarkRefNodes 0-semantics idiom).
-# NOTE: claude-sonnet-5 is INTRO pricing through 2026-08-31; bump to (3.0, 15.0) on Sep 1.
+# Q-0 S0 (2026-08-28): sonnet-5 bumped to POST-INTRO (3.0, 15.0) -- the intro rate ($2/$10) ends
+# 2026-08-31 and virtually all wave spend lands after it; measured $/turn must not silently
+# under-report from Sep 1 (the refuter catch: eval's own table already carried the post-intro
+# rate, a 50% drift between the two producers -- eval._PRICE now DERIVES from this dict).
 SERVING_PRICES: dict[str, tuple[float, float]] = {   # alias -> ($/MTok input, $/MTok output)
     "claude-sonnet-4-6": (3.0, 15.0),
-    "claude-sonnet-5": (2.0, 10.0),
+    "claude-sonnet-5": (3.0, 15.0),
     "claude-haiku-4-5": (1.0, 5.0),
     "claude-opus-4-8": (5.0, 25.0),
     "claude-opus-5": (5.0, 25.0),

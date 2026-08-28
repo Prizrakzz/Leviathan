@@ -339,6 +339,12 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # `NumbersTableTouched` on its OWN record under a `[["table"]]` dimension
                                  # set -- never on the turn emitter, whose (intent x model x mode) set the
                                  # R14 cost ruling forbids multiplying. The two come from one producer.
+    "timing_ms",                 # Q-0 S0 (2026-08-28): latency as a FIRST-CLASS per-row column -- the
+                                 # {total, fill, rest, borrows_*} dict orchestrator.respond stamps at
+                                 # :1820. PRODUCED ONLY ON --via-orchestrator ROWS (answer() alone never
+                                 # stamps it): the Q-0 law is that a row missing this column on an arm
+                                 # that reads the latency axis is VOID, never zero. Closes the C/D
+                                 # measurement hole (per-row latency lived only in log lines).
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

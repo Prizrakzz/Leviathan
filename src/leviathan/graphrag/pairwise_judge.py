@@ -71,7 +71,7 @@ ARMS = ("A", "B")
 # and validate_checklists errors) BEFORE any judging spend: silently dropping it would run a $3 instrument
 # that is not the one that was pre-registered, and the report would look complete while missing the axis
 # the wave exists to measure.
-KNOWN_AXES: frozenset = frozenset(AXES) | {"upstream_evidence"}
+KNOWN_AXES: frozenset = frozenset(AXES) | {"upstream_evidence", "chain_completeness"}
 
 # Definitions for axes NOT already defined in `_PAIRWISE_SYS`. VERBATIM from the freeze site named in the
 # checklist yaml's header ("AXIS TEXT, FROZEN HERE", eval_checklists_dgd_chain_v1.yaml:37-44) -- copied,
@@ -85,6 +85,20 @@ _AXIS_TEXT = {
         "-- and is the LEAD TIME between the legs either stated with a basis or explicitly declared "
         "unknown? An answer that says \"the record I was shown carries no dated row for the nitrogen leg\" "
         "scores HIGH: naming the absence is upstream honesty.",
+    # Q-0 S0 (2026-08-28): frozen in the SAME commit as eval_queries_q0_contagion_v1.yaml (the
+    # refuter law: an unregistered axis raises at load, and the frozen deck may not be edited to
+    # remove it after an arm runs). Ranks on LINKS CARRIED; a DECLARED stop is a FLOOR, never an
+    # equal outcome -- the disjunctive draft ("carried the order OR said where it stopped") scored
+    # a completed 5-link chain equal to a stop at link 1 and could not locate the order ceiling.
+    "chain_completeness":
+        "chain_completeness -- how FAR along the question's causal chain does the answer actually "
+        "carry the reader, link by link? Rank primarily on the NUMBER OF LINKS CARRIED: a link "
+        "counts as carried when its mechanism is narrated AND it bears its own dated figure or an "
+        "EXPLICIT honest decline naming what is absent. An answer that stops early and SAYS where "
+        "and why it stopped ranks above one that stops undeclared at the same depth, but BELOW any "
+        "answer that genuinely carries more links -- a declared stop is a floor, not an equal "
+        "outcome. Skipped links, hand-waved jumps (\"this eventually feeds through\"), or links "
+        "asserted without either a figure or a declared absence rank lowest.",
 }
 
 
@@ -455,8 +469,14 @@ def validate_checklists(cfg: dict, queries: list[dict]) -> tuple[list[str], list
         if rid not in deck_ids:
             errs.append(f"checklists: row '{rid}' is not a deck row id")
         items = r.get("items") or []
-        if not 3 <= len(items) <= 6:
-            errs.append(f"checklists[{rid}]: {len(items)} items (the pre-registration law says 3-6)")
+        if not 3 <= len(items) <= 9:
+            # Q-0 S0 (2026-08-28): band widened 3-6 -> 3-9 in the SAME commit that freezes the
+            # q0_contagion deck (its CHANGELOG amendment (h) declares exactly this edit). The
+            # refuter-mandated item SPLIT (foreign_market_quantified vs refusal_honesty -- one
+            # item may never accept both branches when the branch is the treatment) puts 7-9
+            # items on 13 of the 14 rows; shrinking rows to fit the old band would have deleted
+            # pre-registered hallucination probes and voided the freeze.
+            errs.append(f"checklists[{rid}]: {len(items)} items (the pre-registration law says 3-9)")
         iseen: set[str] = set()
         for it in items:
             iid = str((it or {}).get("id") or "")

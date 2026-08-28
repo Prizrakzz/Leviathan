@@ -77,6 +77,17 @@ def select_queries(queries: list[dict], only_ids: str | list[str]) -> list[dict]
     return [q for q in queries if str(q.get("id")) in keep]
 
 
+def _turn_cost_usd(su: dict | None):
+    """Q-0 S0: the per-row $/turn column. Priced by providers.serving_cost_usd (the ONE pricing
+    arithmetic) off the trace's synth_usage stamp; None when the stamp is absent or the model
+    unpriced -- never zero (the CostUsd 0-semantics idiom)."""
+    if not isinstance(su, dict):
+        return None
+    from leviathan.graphrag import providers as _pv
+    return _pv.serving_cost_usd(su.get("model") or "", su.get("in") or 0, su.get("out") or 0,
+                                su.get("cache_read") or 0, su.get("cache_write") or 0)
+
+
 def _row_filter_record(queries: list[dict]) -> dict:
     """The artifact's `row_filter` block, computed from the rows that SURVIVED the filter (never from the
     argument), so it cannot describe a selection the run did not make."""
@@ -1448,6 +1459,10 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # this class of key: registering in tracekeys.py IS the artifact registration. Per-key
             # rationale lives beside each entry in tracekeys.py, not here.
             **{k: (out.get("trace") or {}).get(k) for k in tk.TRACE_RECORD_KEYS},
+            # Q-0 S0 (2026-08-28): $/turn as a first-class column, priced by the ONE producer
+            # (providers.serving_cost_usd) off the synth_usage stamp. None wherever the stamp is
+            # absent (non-orchestrator rows) -- never zero; the CostUsd 0-semantics idiom.
+            "turn_cost_usd": _turn_cost_usd((out.get("trace") or {}).get("synth_usage")),
             **{col: (out.get("intent_decision") or {}).get(dk) for dk, col in tk.DECISION_RECORD_KEYS},
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
@@ -2572,6 +2587,16 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             "mentor_voice": _os.environ.get("GRAPHRAG_MENTOR_VOICE", "on"),
             "cascade_quant": _os.environ.get("GRAPHRAG_CASCADE_QUANT", "on"),
             "answer_v2": _os.environ.get("GRAPHRAG_ANSWER_V2", "off"),
+            # Q-0 S0 (2026-08-28): the c/d + effort SEAM ENVS and the RESOLVED seats join the arm
+            # identity -- the E0 canary decides GO/NO-GO on these REQUEST-side stamps, never on
+            # output length (two samples of a nondeterministic writer always differ). Unset = None,
+            # so pre-S0 baselines parse unchanged (additive-only law).
+            "synth_thinking": _os.environ.get("GRAPHRAG_SYNTH_THINKING"),
+            "numbers_thinking": _os.environ.get("GRAPHRAG_NUMBERS_THINKING"),
+            "synth_effort": _os.environ.get("GRAPHRAG_SYNTH_EFFORT"),
+            "numbers_effort": _os.environ.get("GRAPHRAG_NUMBERS_EFFORT"),
+            "synth_seat": _os.environ.get("GRAPHRAG_SYNTH_MODEL"),
+            "numbers_seat": _os.environ.get("GRAPHRAG_NUMBERS_MODEL"),
             # D-AM-11: the arm identity above reads PROCESS ENV only, so a REQUEST-level arm (the
             # reasoning mode) was structurally invisible -- two mode arms would have been identical
             # in every reproducibility key except ts. `mode` is what the run ASKED FOR (None = the
@@ -3093,16 +3118,18 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
     return "\n".join(lines)
 
 
-_PRICE = {"claude-sonnet-4-6": (3.0 / 1e6, 15.0 / 1e6), "claude-opus-4-8": (5.0 / 1e6, 25.0 / 1e6),
-          "claude-haiku-4-5": (1.0 / 1e6, 5.0 / 1e6),
-          # D-MW-20: the two absent entries made every sonnet-5/opus-5 dry-run fall through to the
-          # sonnet-4-6 row and UNDERESTIMATE -- added here because P4's price record reads this table.
-          "claude-sonnet-5": (3.0 / 1e6, 15.0 / 1e6), "claude-opus-5": (5.0 / 1e6, 25.0 / 1e6)}
+# Q-0 S0 (2026-08-28): ONE price producer -- providers.SERVING_PRICES is the authority (the two
+# tables had already drifted 50% on the numbers seat); this derivation can never drift again.
+from leviathan.graphrag.providers import SERVING_PRICES as _SERVING_PRICES  # noqa: E402
+_PRICE = {m: (i / 1e6, o / 1e6) for m, (i, o) in _SERVING_PRICES.items()}
 
 
 def estimate_cost(queries: list[dict], *, model: str, judge_model: str | None = None,
                   via_orchestrator: bool = False) -> dict:
     # rough: answer ~3.5K input (graph + evidence) + ~0.9K out; judge ~5K input (+ numbers) + ~0.9K out
+    # ⚠ Q-0 S0 DEMOTION (refuter-measured): this 3.5k-token turn model is ~11x LOW on max-tier
+    # cascade decks (~60k-token turns). It remains the dry-run printout ONLY -- it is NOT the
+    # covenant/balance guard; pre-submit checks use the wave's own measured per-turn anchors.
     ap = _PRICE.get(model, _PRICE["claude-sonnet-4-6"])
     usd = len(queries) * (3500 * ap[0] + 900 * ap[1])
     out = {"queries": len(queries), "model": model, "answer_usd": round(usd, 2), "est_usd": round(usd, 2)}

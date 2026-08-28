@@ -801,14 +801,17 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
 
     RE-ANCHORED A SIXTH TIME (D-LD Sitting-A, 2026-08-18): `tables_queried` -- the per-table usage census,
     the first per-table record production has ever had -- was APPENDED after THAT. Tail moved by one more;
-    nothing else, and the invariant this pin polices is again unchanged."""
-    assert tk.TRACE_RECORD_KEYS[-7] == "wrong_slot_audit"
-    assert tk.TRACE_RECORD_KEYS[-6] == "slot_orphan_dropped"
-    assert tk.TRACE_RECORD_KEYS[-5] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-4] == "plan_tokens"
-    assert tk.TRACE_RECORD_KEYS[-3] == "evidence_slot_dropped"
-    assert tk.TRACE_RECORD_KEYS[-2] == "evidence_geo_dropped"
-    assert tk.TRACE_RECORD_KEYS[-1] == "tables_queried"
+    nothing else, and the invariant this pin polices is again unchanged.
+    RE-ANCHORED A SEVENTH TIME (Q-0 S0, 2026-08-28): `timing_ms` -- latency as a first-class per-row
+    column -- was APPENDED after THAT. Tail moved by one more; the invariant is again unchanged."""
+    assert tk.TRACE_RECORD_KEYS[-8] == "wrong_slot_audit"
+    assert tk.TRACE_RECORD_KEYS[-7] == "slot_orphan_dropped"
+    assert tk.TRACE_RECORD_KEYS[-6] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-5] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-4] == "evidence_slot_dropped"
+    assert tk.TRACE_RECORD_KEYS[-3] == "evidence_geo_dropped"
+    assert tk.TRACE_RECORD_KEYS[-2] == "tables_queried"
+    assert tk.TRACE_RECORD_KEYS[-1] == "timing_ms"
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
