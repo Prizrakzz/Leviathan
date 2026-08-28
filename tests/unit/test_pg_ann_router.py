@@ -70,10 +70,11 @@ def test_unset_emits_the_frozen_golden_dense_statement():
 
 
 def _arm(monkeypatch, tmp_path, node="drivers/frost", rows=5000, recall=1.0, mode="on",
-         cert_k=60, ef=100, min_rows=2000, built_on="evidence_props_shadow", index_live=True):
+         cert_k=60, ef=300, min_rows=2000, built_on="evidence_props_shadow", index_live=True,
+         mst=200000):
     mf = tmp_path / "manifest.json"
     mf.write_text(json.dumps({
-        "built_on": built_on, "ef_search": ef, "min_rows": min_rows,
+        "built_on": built_on, "ef_search": ef, "min_rows": min_rows, "max_scan_tuples": mst,
         "certified_asofs": [None, "2026-02-15"],
         "slices": {node: {"index": "idx_a", "rows": rows, "recall": recall, "k": cert_k}}}),
         encoding="utf-8")

@@ -462,7 +462,14 @@ def _ann_mode() -> str:
 
 
 def _ann_ef() -> int:
-    return int(os.environ.get("GRAPHRAG_PG_ANN_EF", "100") or 100)
+    return int(os.environ.get("GRAPHRAG_PG_ANN_EF", "300") or 300)
+
+
+def _ann_mst() -> int:
+    """hnsw.max_scan_tuples for the iterative relaxed scan. The 08-28 certification round measured
+    the default (20k) collapsing recall to 0.017 on asof-filtered 200k slices -- the scan gave up
+    before reaching the filtered rows. Part of the certificate's config identity."""
+    return int(os.environ.get("GRAPHRAG_PG_ANN_MST", "200000") or 200000)
 
 
 def _ann_min_rows() -> int:
@@ -501,7 +508,7 @@ def _ann_manifest_slices() -> dict:
     import threading
     import time as _t
     global _ANN_LOCK, _ANN_CACHE, _ANN_S3
-    key = f"{table_name()}|{_ann_ef()}|{_ann_min_rows()}"
+    key = f"{table_name()}|{_ann_ef()}|{_ann_min_rows()}|{_ann_mst()}"
     ck, ts, slices, _floor = _ANN_CACHE
     now = _t.time()
     if slices is not None and ck == key and now - ts < _ann_ttl():
@@ -533,6 +540,8 @@ def _ann_manifest_slices() -> dict:
                     raise ValueError(f"manifest built_on={doc.get('built_on')} vs {table_name()}")
                 if int(doc.get("ef_search") or 0) != _ann_ef():
                     raise ValueError(f"manifest ef={doc.get('ef_search')} vs process ef={_ann_ef()}")
+                if int(doc.get("max_scan_tuples") or 0) != _ann_mst():
+                    raise ValueError(f"manifest mst={doc.get('max_scan_tuples')} vs {_ann_mst()}")
                 if int(doc.get("min_rows") or 0) != _ann_min_rows():
                     raise ValueError(f"manifest min_rows={doc.get('min_rows')} vs {_ann_min_rows()}")
                 live = _ann_live_hnsw_names()
@@ -666,7 +675,8 @@ def _acquire():
             # certified ef rides EVERY connection from first connect; inert wherever no hnsw index
             # exists, and 'off' then means 'route nothing' without also meaning 'cheat at the worst ef'.
             kw["options"] = (kw.get("options", "") +
-                             f" -c hnsw.ef_search={_ann_ef()} -c hnsw.iterative_scan=relaxed_order").strip()
+                             f" -c hnsw.ef_search={_ann_ef()} -c hnsw.iterative_scan=relaxed_order"
+                             f" -c hnsw.max_scan_tuples={_ann_mst()}").strip()
             conn = psycopg.connect(dsn(), **kw)
         except BaseException:
             _POOL.put(None)      # a failed connect returns the SLOT (lazy) — it must never shrink the pool

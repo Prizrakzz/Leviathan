@@ -38,7 +38,7 @@ config.load_env()
 from leviathan.graphrag import evidence as ev  # noqa: E402
 from leviathan.graphrag import pgstore  # noqa: E402
 
-M, EF_CONSTRUCTION = 16, 64
+M, EF_CONSTRUCTION = 24, 128   # 08-28 round-2: recall@60 needs a better graph than 16/64 built
 SAMPLE_QUERIES = 48
 
 
@@ -91,6 +91,7 @@ def main() -> int:
         conn.execute("SET statement_timeout = 0")
         conn.execute("SET hnsw.ef_search = %s" % int(ef))
         conn.execute("SET hnsw.iterative_scan = 'relaxed_order'")
+        conn.execute("SET hnsw.max_scan_tuples = %s" % int(pgstore._ann_mst()))
         t = args.table
 
         cand = conn.execute(
@@ -100,6 +101,7 @@ def main() -> int:
 
         manifest: dict = {"generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                           "built_on": t, "ef_search": ef, "min_rows": min_rows,
+                          "max_scan_tuples": pgstore._ann_mst(),
                           "m": M, "ef_construction": EF_CONSTRUCTION,
                           "k": k, "overfetch": pgstore._ANN_OVERFETCH,
                           "certified_asofs": [None, args.asof], "slices": {}}
@@ -122,7 +124,7 @@ def main() -> int:
                     legs.append((where, p, _dense_ids(conn, pgstore.dense_exact_sql(t, where), p)))
             idx = _free_index_name(conn, t, node)
             t0 = time.time()
-            worst, certified = 1.0, False
+            worst, certified, worst_leg = 1.0, False, "-"
             with conn.transaction():               # crash/reject -> ROLLBACK -> no index at all
                 conn.execute(S.SQL(
                     "CREATE INDEX {} ON {} USING hnsw (vector vector_cosine_ops) "
@@ -139,7 +141,9 @@ def main() -> int:
                 for where, p, exact in legs:
                     approx = _dense_ids(conn, pgstore.dense_ann_sql(t, where), p)
                     recall = len(set(exact) & set(approx)) / max(1, len(exact))
-                    worst = min(worst, recall)
+                    if recall < worst:
+                        worst = recall
+                        worst_leg = "asof" if p.get("asof") else "none"
                     if worst < 1.0:
                         break
                 if worst < 1.0:
@@ -152,8 +156,8 @@ def main() -> int:
                 print(f"  CERTIFIED {node} rows={n} k={k} asof-legs=2 build+certify={build_s}s", flush=True)
             else:
                 dropped += 1
-                print(f"  REJECTED {node} rows={n} worst_recall={worst:.3f} -- rolled back, stays exact",
-                      flush=True)
+                print(f"  REJECTED {node} rows={n} worst_recall={worst:.3f} leg={worst_leg} -- "
+                      f"rolled back, stays exact", flush=True)
 
         body = json.dumps(manifest, indent=1).encode()
         if args.out.startswith("s3://"):
