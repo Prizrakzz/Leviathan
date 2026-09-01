@@ -230,6 +230,12 @@ def _patch(monkeypatch, a_vals, b_vals, log=None):
     def fake(qfn, **kw):
         if log is not None:
             log.append(kw)
+        if kw["metric"] == "settle":
+            # lane 2b's EOD fresh-level read, the REAL front_expiry row shape (measured 2026-08-29):
+            # knowledge_date + contract_month + unit, no trade_date.
+            return {"query": dict(kw), "status": "ok",
+                    "rows": [{"value": "70.59", "unit": "US cents/lb",
+                              "knowledge_date": "2026-08-14", "contract_month": "2026-09"}]}
         return recs[kw["metric"]]
     monkeypatch.setattr(cq, "fetch_window", fake)
 
@@ -256,7 +262,11 @@ def test_lane2_both_leg_standings_render_with_zero_added_fetches(monkeypatch):
     lines, tr = cq._rv_price_reading(None, SRC, TGT, _fired(), None, ASOF, calls, 0, _ERA,
                                      derived=True)
     body = "\n".join(lines)
-    assert tr["fetches"] == 2 and len(log) == 2               # ZERO added reads
+    # the STANDINGS add ZERO reads; lane 2b adds exactly ONE here -- soyoil is on the EOD fresh
+    # roster and palm honestly is not (P5: no futures card), so fetches = 2 pink + 1 settle.
+    assert tr["fetches"] == 3 and len(log) == 3
+    assert body.count("front-month settle (its own currency") == 1
+    assert "US cents/lb" in body and "the CBOT soybean oil contract" in body
     assert body.count("own price stands within its 60-month span") == 2
     assert body.count("'s own price against its own window average") == 2   # the LEG sigma lines
     assert "that spread against its own window average" in body             # ...beside the spread's
@@ -441,3 +451,111 @@ def test_su_standing_roster_miss_declines():
     fetch = _mk_fetch(_leg_entries(42, _ES_LOW_TAIL), _leg_entries(42, _ES_HIGH_TAIL))
     assert dv.su_standing(fetch, None, "cocoa_ice", WHT, "2026-09-01", 0)[2]["decline"] \
         == "su_no_roster"
+
+
+# ── GROUP 7: LANE 3 -- derived.crush_share on the MEASURED gold_board_crush contract ────────────────
+# Fixture rows are the P7-served shape VERBATIM: {knowledge_date, revision_stamp, value(STRING)}.
+def _crush_fetch(n_sessions=20, last_meal=7.1236, last_oil=7.8452, bad_last=False):
+    days = [f"2026-{7 + i // 28:02d}-{i % 28 + 1:02d}" for i in range(n_sessions)]
+    def fetch(qfn, **kw):
+        base = last_meal if kw["metric"] == "meal_value_usd_bu" else last_oil
+        rows = [{"knowledge_date": d, "revision_stamp": "cbot_board_crush_v1",
+                 "value": str(round(base - 0.01 * (n_sessions - 1 - i), 4))}
+                for i, d in enumerate(days)]
+        if bad_last and kw["metric"] == "oil_value_usd_bu":
+            rows[-1]["value"] = "-0.5"
+        return {"query": dict(kw), "rows": rows, "status": "ok"}
+    return fetch, days
+
+
+def test_crush_share_full_render_and_standing():
+    fetch, days = _crush_fetch()
+    lines, calls, tr = dv.crush_share(fetch, None, "2026-09-01", 0)
+    body = "\n".join(lines)
+    assert tr.get("fired") and tr["fetches"] == 2 and tr["sessions"] == 20
+    want = 100.0 * 7.8452 / (7.8452 + 7.1236)
+    assert f"{round(want, 1)}%" in body                                  # the desk's 52.4
+    assert "CRUSH-STANDING:" in body and "percentile of every session the record holds [N" in body
+    assert "no claim is made" in body and "delivery-month" in body       # the F4 declared absence
+    assert "never a price" in body                                       # the card's own law
+    assert all(c.get("shown") for c in calls)
+    assert reg.register_leaks(body) == [] and reg.sanitize(body) == body
+
+
+def test_crush_share_copy_surfaces_verifier_proof():
+    import re
+    fetch, _ = _crush_fetch()
+    lines, _, _ = dv.crush_share(fetch, None, "2026-09-01", 0)
+    body = "\n".join(lines)
+    assert not re.search(r"\b\d+\s+(?:sessions?|months?|observations)\b", body)
+    assert "-session" not in body                                        # measured: CHARGED, never used
+    assert re.search(r"\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}", body)    # the ISO span form
+
+
+def test_crush_share_thin_history_renders_values_without_standing():
+    fetch, _ = _crush_fetch(n_sessions=4)
+    lines, _, tr = dv.crush_share(fetch, None, "2026-09-01", 0)
+    body = "\n".join(lines)
+    assert tr.get("fired")
+    assert "oil share of the crush" in body and "CRUSH-STANDING" not in body
+    assert "percentile" not in body
+
+
+def test_crush_share_nonpositive_product_declines():
+    fetch, _ = _crush_fetch(bad_last=True)
+    assert dv.crush_share(fetch, None, "2026-09-01", 0)[2]["decline"] == "crush_share_nonpositive"
+
+
+# ── GROUP 8: the seam ────────────────────────────────────────────────────────────────────────────────
+def test_seam_flag_reader_default_off():
+    import os
+    from leviathan.graphrag import answer as an
+    old = os.environ.pop("GRAPHRAG_DERIVED_ARITH", None)
+    try:
+        assert an._derived_arith_on() is False
+        os.environ["GRAPHRAG_DERIVED_ARITH"] = "on"
+        assert an._derived_arith_on() is True
+    finally:
+        if old is None:
+            os.environ.pop("GRAPHRAG_DERIVED_ARITH", None)
+        else:
+            os.environ["GRAPHRAG_DERIVED_ARITH"] = old
+
+
+def test_seam_signatures_carry_the_omit_when_off_kwarg():
+    """The load-bearing TypeError-through-the-stub property: quantify/_run_xc accept derived_arith
+    with a False default, so a flag-off call is byte-identical and an old-signature fake still
+    raises (declines invisibly) only when someone passes the kwarg unconditionally -- which the
+    seam never does (the _dv_kw omit-when-off construction, pinned by source below)."""
+    import inspect
+    from leviathan.graphrag.numbers import cascade as cq2
+    for fn in (cq2.quantify, cq2._run_xc):
+        p = inspect.signature(fn).parameters["derived_arith"]
+        assert p.default is False and p.kind is inspect.Parameter.KEYWORD_ONLY
+    import leviathan.graphrag.answer as an
+    src = inspect.getsource(an)
+    assert '_dv_kw = {"derived_arith": True} if _derived_arith_on() else {}' in src
+    assert "base = base + _SYSTEM_DERIVED_ARITH" in src                  # gated append exists...
+    i = src.index("base = base + _SYSTEM_DERIVED_ARITH")
+    assert "_derived_arith_on()" in src[i - 200:i]                       # ...behind the flag read
+
+
+def test_seam_directive_is_register_clean_and_carries_the_license_tokens():
+    from leviathan.graphrag import answer as an
+    d = an._SYSTEM_DERIVED_ARITH
+    assert "BALANCE-STANDING" in d and "of its own history" in d
+    assert "NEVER derive any figure" in d and "DIGITS exactly as printed" in d
+    assert reg.register_leaks(d) == [] and reg.sanitize(d) == d
+
+
+def test_seam_lane_cap_is_one_producer_per_turn():
+    """DV_LANE_CAP enforced at the call site: the fork's derived branch runs su_standing XOR
+    crush_share, never both -- pinned on the source (the F5 pool law)."""
+    import inspect
+    from leviathan.graphrag.numbers import cascade as cq2
+    src = inspect.getsource(cq2._run_xc)
+    i_su = src.index("_dv.su_standing(")
+    i_cr = src.index("_dv.crush_share(")
+    seg = src[min(i_su, i_cr) - 600:max(i_su, i_cr)]
+    assert "elif" in seg                                                 # the XOR branch shape
+    assert src.count("_dv.su_standing(") == 1 and src.count("_dv.crush_share(") == 1

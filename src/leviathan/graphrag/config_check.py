@@ -113,6 +113,15 @@ SYNTHESIZED_PRICE_LEG_ALLOW: dict = {
     # synthesized price surface enters through this register, in the same change that mints it.
     "silver_futures_eod": frozenset({"settle"}),
 }
+# -- D-DA: the SYNTHESIZED-derived-leg allow-list (design v2 STEP 7, 2026-09-01) ---------------------------
+# A SEPARATE register from the price one (round-2 m3: the two registers bind DIFFERENT things -- this one
+# binds the (table, metric) set a synthesized DERIVED read can reach; the render tokens are linted by
+# _check_synthesized_derived_legs below, under different rules, and are on no card by design).
+#   * silver_wasde ending_stocks/domestic_total/exports -- lane 1's three component reads (P1: no
+#     total_use attribute exists, so the ladder IS the basis), ratified with the owner's build GO.
+SYNTHESIZED_DERIVED_LEG_ALLOW: dict = {
+    "silver_wasde": frozenset({"ending_stocks", "domestic_total", "exports"}),
+}
 # The curated avg_farm_price coverage set. PRICE_OBSERVABILITY A3 re-whitelist (2026-07-22): after the
 # silver_wasde rebuild + promote (canonical CERTIFIED, 373 releases 1995+, pg parity PASS) the probes resolved
 # the provisional set to the 10 commodities with a live, unit-clean farm/market price. R1 BINDS -- the metric's
@@ -1409,8 +1418,9 @@ def _check_synthesized_price_legs() -> list[str]:
                     f"allow-list -- add it to SYNTHESIZED_PRICE_LEG_ALLOW in the sitting that decides it")
     # the OWNER-AMENDMENT EOD surface (cascade._RV_EOD_LEVEL): same binding, its own table entry
     eod_allowed = SYNTHESIZED_PRICE_LEG_ALLOW.get(getattr(csc, "_RV_EOD_TABLE", None) or "", frozenset())
-    for m in sorted({mm for (mm, _lbl) in (getattr(csc, "_RV_EOD_LEVEL", None) or {}).values()}
-                    - eod_allowed):
+    _eod_maps = ((getattr(csc, "_RV_EOD_LEVEL", None) or {}),
+                 (getattr(csc, "_RV_EOD_FRESH", None) or {}))    # D-DA lane 2b: same binding
+    for m in sorted({mm for mp in _eod_maps for (mm, _lbl) in mp.values()} - eod_allowed):
         errs.append(f"R4c: synthesized EOD level metric {m!r} is outside the ratified allow-list")
     tables = load_registry().tables
     for t, mets in SYNTHESIZED_PRICE_LEG_ALLOW.items():
@@ -1420,6 +1430,46 @@ def _check_synthesized_price_legs() -> list[str]:
             continue
         for m in sorted(m for m in mets if m not in ts.metrics):
             errs.append(f"R4c: allow-list metric {m!r} is not a declared metric on the {t} card")
+    return errs
+
+
+def _check_synthesized_derived_legs() -> list[str]:
+    """D-DA governance (design v2 STEP 7): the derived lane's reads and render tokens are BOUND.
+
+    Three ways, mirroring _check_synthesized_price_legs' two plus the token register: (i) every
+    (table, metric) a derived producer can reach is in SYNTHESIZED_DERIVED_LEG_ALLOW -- checked
+    against derived.py's OWN constants; (ii) every registered metric is declared on its card;
+    (iii) every DV_RENDER_METRICS reader token is register-clean, sanitize-stable, and can never
+    collide with a card metric id (round-2 m2: bare 'production'/'exports' ARE ids -- the tokens
+    carry an article/phrase form, and this lint is what keeps that true under future edits)."""
+    import re as _re
+
+    from leviathan.graphrag import register as _reg
+    from leviathan.graphrag.numbers import derived as _dv
+    from leviathan.graphrag.numbers.registry import load_registry
+    errs: list[str] = []
+    tbl = getattr(_dv, "_DV_WASDE_TABLE", None)
+    allowed = SYNTHESIZED_DERIVED_LEG_ALLOW.get(tbl)
+    if allowed is None:
+        return [f"D-DA: derived lane reads table {tbl!r}, not in SYNTHESIZED_DERIVED_LEG_ALLOW"]
+    for m in sorted(set(getattr(_dv, "_DV_SU_ATTRS", ()) or ()) - allowed):
+        errs.append(f"D-DA: derived read metric {m!r} on {tbl} is outside the ratified allow-list "
+                    f"-- add it to SYNTHESIZED_DERIVED_LEG_ALLOW in the sitting that decides it")
+    tables = load_registry().tables
+    all_ids = {mid for ts in tables.values() for mid in (getattr(ts, "metrics", None) or {})}
+    for t, mets in SYNTHESIZED_DERIVED_LEG_ALLOW.items():
+        ts = tables.get(t)
+        if ts is None:
+            errs.append(f"D-DA: allow-list table {t!r} is not a registered numbers table")
+            continue
+        for m in sorted(m for m in mets if m not in ts.metrics):
+            errs.append(f"D-DA: allow-list metric {m!r} is not a declared metric on the {t} card")
+    for key, tok in sorted((getattr(_dv, "DV_RENDER_METRICS", None) or {}).items()):
+        if _re.fullmatch(r"[a-z0-9_]+", tok) or tok in all_ids:
+            errs.append(f"D-DA: render token {tok!r} ({key}) is id-shaped or collides with a card "
+                        f"metric id -- reader tokens carry an article/phrase form")
+        if _reg.register_leaks(tok) or _reg.sanitize(tok) != tok:
+            errs.append(f"D-DA: render token {tok!r} ({key}) is not register-clean/sanitize-stable")
     return errs
 
 
@@ -1476,6 +1526,8 @@ def check_price_register() -> list[str]:
     # R4c (RV-READING rider): synthesized price legs -- code-reached, map-less -- bind to the explicit
     # allow-list register above; the SEAM-B gap ("a fence with a door beside it") is closed.
     errs += _check_synthesized_price_legs()
+    # D-DA: the derived lane's reads + reader tokens bind to their own register (STEP 7).
+    errs += _check_synthesized_derived_legs()
     # R5: decline census.
     errs += _check_decline_census()
     # R5b (F3): no decline template points at the fenced farm-price metric while it is unwhitelisted.

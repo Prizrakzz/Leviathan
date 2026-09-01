@@ -44,6 +44,7 @@ INBAND = (0.5, 150.0)
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--asof", default="2026-09-01")
+    ap.add_argument("--only", default="", help="run just one probe (e.g. P7)")
     args = ap.parse_args()
     assert os.environ.get("EVIDENCE_PG_DSN"), "dda_probe requires EVIDENCE_PG_DSN"
     conn = psycopg.connect(pgstore.dsn(), autocommit=True)
@@ -58,6 +59,40 @@ def main() -> int:
         """Print each probe AS IT LANDS -- a late crash must never eat the early answers."""
         out["probes"][name] = payload
         print(f"[probe] {name}: {json.dumps(payload, default=str)[:1200]}")
+
+    if args.only == "P7":
+        # P7 -- LANE 3's contract: the gold_board_crush SERVED shape through the real card path
+        # (design v2 ROW 8: two windowed reads, commodity passed for the roll fence, trade_date join).
+        os.environ["GRAPHRAG_NUMBERS_BACKEND"] = "pg"
+        from leviathan.graphrag.numbers import query as Q
+        cols7 = [r[0] for r in q(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema=%s AND "
+            "table_name='gold_board_crush' ORDER BY ordinal_position", (SCHEMA,))]
+        emit("P7_pg_columns", cols7)
+        for metric in ("meal_value_usd_bu", "oil_value_usd_bu", "crush_margin_usd_bu"):
+            for com in ("soybeans_cbot", None):
+                try:
+                    spec = Q.NumberQuery(table="gold_board_crush", metric=metric, asof=args.asof,
+                                         commodity=com, country=None, agg="series",
+                                         t1="2026-08-01", t2=args.asof)
+                    srows = Q.run(spec, query_fn=pgnumbers.pg_query)
+                    emit(f"P7_{metric}@{com}", {
+                        "rows": len(srows or []),
+                        "keys": sorted(srows[0].keys()) if srows else [],
+                        "last2": (srows or [])[-2:],
+                    })
+                except Exception as ex:  # noqa: BLE001 -- the probe reports, never dies
+                    emit(f"P7_{metric}@{com}", f"ERROR {type(ex).__name__}: {str(ex)[:180]}")
+        body = json.dumps(out, indent=1, default=str)
+        print(body)
+        import boto3
+        s3uri = os.environ.get("EVIDENCE_S3", "")
+        if s3uri.startswith("s3://"):
+            b, _, k = s3uri[5:].partition("/")
+            key = f"{k}/probes/dda_probe_p7_{args.asof.replace('-', '')}.json".lstrip("/")
+            boto3.client("s3").put_object(Bucket=b, Key=key, Body=body.encode("utf-8"))
+            print(f"[artifact] s3://{b}/{key}")
+        return 0
 
     # P0 -- the real columns, and the commodity vocabulary
     cols = [r[0] for r in q(

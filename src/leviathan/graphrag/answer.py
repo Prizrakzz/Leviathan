@@ -324,6 +324,20 @@ _SYSTEM_CROSS_BOARD = (
     "handle, and the absence of a cross-board comparison is stated in the block's own sentence. ")
 
 
+# D-DA (2026-09-01, design v2 STEP 8): appended ONLY when GRAPHRAG_DERIVED_ARITH is on (the
+# omit-when-off idiom -- flag-off serving prompt is byte-identical). It licenses the BALANCE-STANDING
+# verdict line and fences the two writer behaviors the desk panel measured: deriving new figures from
+# served rows, and comparing the two raw stocks-to-use levels as levels.
+_SYSTEM_DERIVED_ARITH = (
+    "\nIf the block carries a line beginning 'BALANCE-STANDING', the two sheets' standings have been "
+    "COMPUTED for you: transcribe that line's comparison in its own terms ('of its own history' on both "
+    "legs), and NEVER derive any figure of your own from the component rows -- no division, no "
+    "difference, no ratio beyond the rows printed. The two raw stocks-to-use LEVELS are never compared "
+    "as levels (the block's NOTE says why -- repeat its caveat in your own words); which sheet is "
+    "tighter comes ONLY from the BALANCE-STANDING line, or is not said at all. Copy every figure as "
+    "DIGITS exactly as printed. ")
+
+
 # P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
 # the [N] rows, so (unlike Phase A) a [N]-cited dated lag is backed and will NOT be stripped.
 _SYSTEM_CASCADE = (
@@ -691,6 +705,20 @@ def _rv_regional_on() -> bool:
     `reading_flag_off`, never narrated as UNRESOLVED. Read PER CALL so the env-flip rollback is
     live -> no redeploy."""
     return os.environ.get("GRAPHRAG_RV_REGIONAL", "").strip().lower() in ("on", "1", "true")
+
+
+def _derived_arith_on() -> bool:
+    """D-DA derived-arithmetic kill-switch (GRAPHRAG_DERIVED_ARITH), read at the answer.py quantify
+    SEAM and threaded as the OMIT-WHEN-OFF `derived_arith` kwarg down quantify()->_run_xc (the
+    _rv_reading_on idiom verbatim -- NEVER an os.environ read inside cascade.py or derived.py, so the
+    ENGINE is gated by the ARGUMENT and a mis-plumbed enable can never fire it on an unasked turn).
+    DEFAULT-OFF, fail-closed; when off the kwarg is ABSENT and quantify() is byte-identical (injected
+    quantify fakes with the older signature stay valid -- the load-bearing TypeError-through-the-stub
+    property, pinned). DECLARED DEPENDENCY: the spread-object rider (lane 2) lives inside the reading
+    and therefore ALSO requires GRAPHRAG_RV_READING; with this flag on and that one off, lane 1's
+    balance-standing block still renders and lane 2 simply never runs (the reading itself is absent).
+    Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy."""
+    return os.environ.get("GRAPHRAG_DERIVED_ARITH", "").strip().lower() in ("on", "1", "true")
 
 
 def _intensity_on() -> bool:
@@ -1914,6 +1942,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             base = base + _SYSTEM_TRANSMISSION
         if _rv_regional_on():                                      # RV-REGIONAL (E1): the CROSS-BOARD
             base = base + _SYSTEM_CROSS_BOARD                      # license, omit-when-off byte-identical
+        if _derived_arith_on():                                    # D-DA: the BALANCE-STANDING license,
+            base = base + _SYSTEM_DERIVED_ARITH                    # same omit-when-off discipline
     if _pattern_records_on():
         from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
@@ -2764,6 +2794,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # RV-REGIONAL: same omit-when-off idiom; the D13 dependency on _rv_reading_on is declared
             # in _rv_regional_on's docstring and stamped by the engine as reading_flag_off.
             _rvr_kw = {"rv_regional": True} if _rv_regional_on() else {}
+            # D-DA: same omit-when-off idiom (the _rv_reading_on precedent, third application) --
+            # flag off -> kwarg ABSENT -> quantify byte-identical, older-signature fakes stay valid.
+            _dv_kw = {"derived_arith": True} if _derived_arith_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
@@ -2771,7 +2804,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                                 price_request=_price_request,
                                                                 **_pace_kw, **_chain_kw, **_xmit_kw,
                                                                 **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw,
-                                                                **_fnf_kw, **_pr_kw, **_rv_kw, **_rvr_kw)
+                                                                **_fnf_kw, **_pr_kw, **_rv_kw, **_rvr_kw,
+                                                                **_dv_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:

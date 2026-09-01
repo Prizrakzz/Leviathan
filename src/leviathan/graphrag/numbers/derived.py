@@ -367,3 +367,113 @@ def su_standing(fetch, qfn, slug_a: str, slug_b: str, asof, base: int):
     trace["fired"] = True
     trace["inband"] = inband
     return lines, calls, trace
+
+
+# ── LANE 3: the crush oil-share standing (design v2 ROWS 8-10, probe-certified P7 2026-09-01) ───────
+# THE MEASURED CONTRACT (dda_probe --only P7): a gold_board_crush card series read serves rows
+#   {knowledge_date, revision_stamp, value(STRING)}
+# -- the SESSION DATE arrives as knowledge_date, the crush_rule_version as revision_stamp, and the
+# three delivery-month columns exist in pg but are NOT served through the card (round-2 F4 measured:
+# the block DECLARES that absence, never claims aligned months). The commodity filter is real
+# (2,520 rows with soybeans_cbot vs 2,654 without -- the roll fence + foreign rows).
+_DV_CRUSH_TABLE = "gold_board_crush"
+_DV_CRUSH_COMMODITY = "soybeans_cbot"
+_DV_CRUSH_METRICS = ("meal_value_usd_bu", "oil_value_usd_bu")
+_DV_CRUSH_TRIO = frozenset({"soybeans_cbot", "soybean_meal_cbot", "soybean_oil_cbot"})
+
+
+def crush_share(fetch, qfn, asof, base: int):
+    """The lane-3 producer: ONE session's two product values (the same_observation join on the
+    session's knowledge_date -- v1's 'one row' claim was wrong, the honest rule is named), the
+    oil share from stats.share, and the share's standing over every session the card serves.
+    The desk defect this closes: 'it reports levels and never reports standing... an oil share
+    near 52% is at or near the widest in the history of the modern complex, and that single
+    sentence is the whole trade.' Returns (lines, calls, trace)."""
+    from leviathan.graphrag.numbers import stats as st
+
+    series: dict = {}
+    for metric in _DV_CRUSH_METRICS:
+        rec = fetch(qfn, table=_DV_CRUSH_TABLE, metric=metric, commodity=_DV_CRUSH_COMMODITY,
+                    country=None, t1=None, t2=None, asof=asof, agg="series", period=None,
+                    period_type="date")
+        if (rec or {}).get("status") != "ok":
+            return [], [], {"decline": "crush_read_failed"}
+        by_day: dict = {}
+        for r in (rec.get("rows") or []):
+            d = str(r.get("knowledge_date") or "").strip()
+            if not d:
+                continue
+            try:
+                by_day[d] = (float(str(r.get("value")).replace(",", "")),
+                             str(r.get("revision_stamp") or ""))
+            except (TypeError, ValueError):
+                continue
+        series[metric] = by_day
+    days = sorted(set(series[_DV_CRUSH_METRICS[0]]) & set(series[_DV_CRUSH_METRICS[1]]))
+    if not days:
+        return [], [], {"decline": "crush_no_shared_sessions"}
+    cur = days[-1]
+    meal, rule_m = series["meal_value_usd_bu"][cur]
+    oil, rule_o = series["oil_value_usd_bu"][cur]
+    sh = st.share(oil, [meal])
+    if sh["declined"]:
+        return [], [], {"decline": "crush_share_nonpositive"}
+    share_hist = []
+    for d in days:
+        s_d = st.share(series["oil_value_usd_bu"][d][0], [series["meal_value_usd_bu"][d][0]])
+        if not s_d["declined"]:
+            share_hist.append(s_d["value"])
+
+    lines: list = []
+    calls: list = []
+    shown_by_handle: dict = {}
+    n = base
+    for metric_key, mk, val in (("crush_meal_value", "crush_meal_value", meal),
+                                ("crush_oil_value", "crush_oil_value", oil)):
+        n += 1
+        word = DV_RENDER_METRICS[mk]
+        c = _dv_shown(_dv_call("CBOT board crush", mk, "the CBOT board crush", round(val, 4),
+                               f"{cur}..{cur}", asof, unit="USD/bushel", date=cur), val)
+        calls.append(c)
+        shown_by_handle[n] = c["shown"]
+        lines.append(f"- [N{n}] the CBOT board crush, {word}, session {cur}: {val:.4f} USD/bushel")
+    sh2 = round(sh["value"], 1)
+    n += 1
+    c = _dv_shown(_dv_call("CBOT board crush", "crush_share", "the CBOT board crush oil share",
+                           sh2, f"{cur}..{cur}", asof, unit="%", date=cur), sh2, round(oil, 4),
+                  round(meal, 4))
+    calls.append(c)
+    shown_by_handle[n] = c["shown"]
+    lines.append(f"- [N{n}] oil share of the crush, session {cur}: {sh2}% -- the oil value over "
+                 f"the two product values together, one session")
+    pc = st.percentile(sh["value"], share_hist)
+    h_pc = None
+    if not pc.get("declined"):
+        pv = int(round(pc["value"]))
+        n += 1
+        h_pc = n
+        c = _dv_shown(_dv_call("CBOT board crush", "crush_share_percentile",
+                               "the CBOT board crush oil share", pv,
+                               f"{days[0]}..{cur}", asof, unit="percentile", date=cur), pv)
+        calls.append(c)
+        shown_by_handle[n] = c["shown"]
+        lines.append(f"- [N{n}] where that oil share stands across every session held, "
+                     f"{days[0]}..{cur}: {_dv_ordinal(pv)} percentile")
+    lines.append(f"NOTE -- one session, one rule: both product values above are the SAME session's "
+                 f"prints under the {('board-crush rule ' + rule_m) if rule_m == rule_o else 'board-crush rules'} "
+                 f"(the served rows carry no delivery-month labels, so no claim is made that the "
+                 f"three legs share a delivery month), and a crush value is a margin component, "
+                 f"never a price.")
+    if h_pc is not None:
+        lines.append(f"CRUSH-STANDING: the oil share of the crush stands at the "
+                     f"{_dv_ordinal(int(round(pc['value'])))} percentile of every session the "
+                     f"record holds [N{h_pc}] -- an observed standing of the split itself, and no "
+                     f"statement is made about where it goes next. TRANSCRIPTION: copy every "
+                     f"figure as DIGITS exactly as printed.")
+    if not _dv_copy_ok(lines, shown_by_handle):
+        return [], [], {"decline": "crush_copy_surface"}
+    inband = _dv_inband([v for c in calls for v in (c.get("shown") or [])])
+    if inband > DV_INBAND_CAP:
+        return [], [], {"decline": "crush_unit_scale_inband", "inband": inband}
+    return lines, calls, {"fired": True, "fetches": 2, "sessions": len(days), "inband": inband,
+                          "rule": rule_m}

@@ -1332,7 +1332,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              headline: bool = False, episode_outcomes: bool = False,
              cot_outcomes: bool = False, futures_newest_first: bool | str = False,
              price_replay: bool = False, rv_reading: bool = False,
-             rv_regional: bool = False) -> tuple:
+             rv_regional: bool = False, derived_arith: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1537,7 +1537,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         # ride down as arguments -- both default False, so an rv_reading-less call is byte-identical.
         xc_lines, xc_trace = _run_xc(xc_request, sg, graph, groups, qfn, asof, near, extra_number_calls,
                                      comove=comove, reading=rv_reading, replay=price_replay,
-                                     rv_regional=rv_regional)
+                                     rv_regional=rv_regional, derived_arith=derived_arith)
         if xc_trace:
             # [SKEPTIC F3] The fired dict carries its own discriminator: a co-move sets comove:True (and omits
             # reroute_v2), so it routes to the NEW quantify_comove key and NEVER pollutes quantify_reroute_v2
@@ -3134,7 +3134,7 @@ def _load_pair_row(pair_id: str):
 
 def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list,
             *, comove: bool = False, reading: bool = False, replay: bool = False,
-            rv_regional: bool = False) -> tuple:
+            rv_regional: bool = False, derived_arith: bool = False) -> tuple:
     """Resolve the curated pair + the focus window, then run the ratio-delta fork. Returns (block_lines,
     fired_trace) -- ([], None) on ANY decline/failure so v2 NEVER breaks the v1 answer (fail-closed). `comove`
     ([SKEPTIC F3], threaded from the answer.py seam, never an env read) rides into _reroute_xc: when True a
@@ -3202,13 +3202,46 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
             # RV-READING: renders AFTER the pair fired, gated ONLY by the threaded kwargs (fail-closed
             # inside). The fence trip is the one decline that also writes a top-level trace key -- the
             # register discipline's own visibility rule (belt (a) of _RV_READING_BANNED_RX).
+            # D-DA LANE 1 (design v2, seam step): the balance-standing block renders BEFORE the price
+            # reading (balance sheets first, then price standing -- the reading's own render order),
+            # gated ONLY by the threaded kwarg and the roster; fail-closed inside su_standing.
+            if derived_arith:
+                try:
+                    from leviathan.graphrag.numbers import derived as _dv
+                    # DV_LANE_CAP = 1 IS ENFORCED HERE: exactly one derived producer per turn --
+                    # the WASDE balance-standing when both slugs are rostered, ELSE the crush share
+                    # on a soy-trio pair, else a counted roster decline. Never both (F5's pool law).
+                    d_lines: list = []
+                    d_calls: list = []
+                    d_trace: dict | None = None
+                    if source in _dv._DV_WASDE_LEGS and target in _dv._DV_WASDE_LEGS:
+                        d_lines, d_calls, d_trace = _dv.su_standing(
+                            fetch_window, qfn, source, target, asof, len(calls))
+                    elif {source, target} <= _dv._DV_CRUSH_TRIO:
+                        d_lines, d_calls, d_trace = _dv.crush_share(
+                            fetch_window, qfn, asof, len(calls))
+                    else:
+                        d_trace = {"decline": "su_no_roster"}
+                    if d_lines:
+                        calls.extend(d_calls)
+                        block = block + d_lines
+                        fired["derived_arith"] = d_trace
+                    elif d_trace:
+                        fired["derived_arith_decline"] = d_trace.get("decline") or "error"
+                        if str(d_trace.get("decline") or "").endswith("copy_surface"):
+                            try:
+                                sg.trace["quantify_derived_fenced"] = True
+                            except Exception:  # noqa: BLE001 -- traceless sg never breaks the answer
+                                pass
+                except Exception:  # noqa: BLE001 -- the lane must never break the fired fork
+                    fired["derived_arith_decline"] = "error"
             if reading:
                 if replay:
                     fired["price_reading_decline"] = "replay"
                 else:
                     p_lines, p_trace = _rv_price_reading(pair_row, source, target, fired, qfn, asof,
                                                          calls, len(calls), windows,
-                                                         regional=_regional)
+                                                         regional=_regional, derived=derived_arith)
                     if p_lines:
                         block = block + p_lines
                         fired["price_reading"] = p_trace
@@ -3958,6 +3991,7 @@ def _rv_price_reading(pair_row, source: str, target: str, fired: dict, qfn, asof
         #    would hand one leg two different percentiles depending on which rung fired -- the
         #    two-headlines class across rungs of one function). ZERO added fetches.
         _dv_att: dict = {}
+        _dv_eod_fetches = 0
         if derived:
             for lbl, vals, dts in ((la, va, da), (lb, vb, db)):
                 pc = st.percentile(vals[-1], vals)
@@ -3981,6 +4015,37 @@ def _rv_price_reading(pair_row, source: str, target: str, fired: dict, qfn, asof
                     lines.append(f"- [N{n}] {lbl}'s own price against its own window average: "
                                  f"{zl:+.2f} sigma" + _series_tag(local[-1]["query"]))
                     _dv_att[lbl] = (zl, n)
+            # D-DA lane 2b (owner-ratified fresh levels): each mapped leg's OWN front-month settle,
+            # own currency/unit -- the one-sided rung's EOD idiom verbatim (reader synthetic, the
+            # contract_month on the query, knowledge_date row key, NO conversion of anything).
+            for slug, lbl in ((source, la), (target, lb)):
+                eodf = _RV_EOD_FRESH.get(slug)
+                if eodf is None:
+                    continue
+                _dv_eod_fetches += 1
+                erec = fetch_window(qfn, table=_RV_EOD_TABLE, metric=eodf[0], commodity=slug,
+                                    country=None, t1=None, t2=None, asof=asof, agg="front_expiry",
+                                    period=None, period_type="date")
+                erow = _headline_row(erec) or {}
+                try:
+                    ev = float(str(erow.get("value")).replace(",", ""))
+                except (TypeError, ValueError):
+                    ev = None
+                if erec.get("status") == "ok" and ev is not None:
+                    eu_unit = str(erow.get("unit") or "")
+                    n += 1
+                    syn = {"query": {"table": _RV_EOD_TABLE, "metric": eodf[0], "commodity": eodf[1],
+                                     "country": None, "period": None, "asof": asof,
+                                     "contract_month": erow.get("contract_month")},
+                           "rows": [{k: v for k, v in {"value": round(ev, 4), "unit": eu_unit,
+                                                       "knowledge_date": (erow.get("knowledge_date")
+                                                                          or erow.get("trade_date"))
+                                                       }.items() if v not in (None, "")}],
+                           "status": "ok"}
+                    local.append(_shown(syn, ev))
+                    lines.append(f"- [N{n}] {eodf[1]}, front-month settle (its own currency, latest "
+                                 f"session): {ev:.2f} {eu_unit}".rstrip()
+                                 + _series_tag(syn["query"]))
         # the spread/ratio level (2 dp stored == 2 dp printed: a near-zero spread must not gamble on the
         # verifier's 1% tolerance)
         sp2 = round(float(ps["value"]), 2)
@@ -4154,7 +4219,7 @@ def _rv_price_reading(pair_row, source: str, target: str, fired: dict, qfn, asof
             return [], {"decline": "fenced"}
         calls.extend(local)
         return lines, {"form": form, "rung": rung, "alignment": verdict, "n": n_join,
-                       "metric_a": ma[0], "metric_b": mb[0], "fetches": 2,
+                       "metric_a": ma[0], "metric_b": mb[0], "fetches": 2 + _dv_eod_fetches,
                        "rows": len(local), "window": fired.get("window")}
     except Exception:  # noqa: BLE001 -- fail-closed: the reading must never break the fired fork
         return [], {"decline": "error"}
@@ -4281,6 +4346,22 @@ _RV_PRICE_ORIGIN = {
 # R4c: this is a SYNTHESIZED price surface -> registered in config_check.SYNTHESIZED_PRICE_LEG_ALLOW
 # ("silver_futures_eod": settle) in the SAME change (the adjudication R4c exists to force).
 _RV_EOD_LEVEL = {
+    "french_wheat_matif": ("settle", "the MATIF milling-wheat contract"),
+}
+# D-DA lane 2b (OWNER-RATIFIED 2026-09-01, "ship native-unit fresh levels"): each fired leg's OWN
+# front-month settle in its OWN currency/unit -- an observed fact needing no conversion layer (the
+# price-audit law stands: nothing here converts anything; the CROSS-unit spread stays the monthly
+# benchmark's). Roster = the P5-measured silver_futures_eod coverage (8 slugs; palm has no futures
+# card and stays honestly absent). Rides the reading's `derived` branch only; +1 fetch per mapped
+# leg. Same R4c register entry as _RV_EOD_LEVEL ("silver_futures_eod": settle).
+_RV_EOD_FRESH = {
+    "corn_cbot": ("settle", "the CBOT corn contract"),
+    "soft_red_winter_wheat_cbot": ("settle", "the CBOT soft red winter wheat contract"),
+    "hard_red_winter_wheat_kcbt": ("settle", "the KCBT hard red winter wheat contract"),
+    "soybeans_cbot": ("settle", "the CBOT soybean contract"),
+    "soybean_oil_cbot": ("settle", "the CBOT soybean oil contract"),
+    "soybean_meal_cbot": ("settle", "the CBOT soybean meal contract"),
+    "canola_ice": ("settle", "the ICE canola contract"),
     "french_wheat_matif": ("settle", "the MATIF milling-wheat contract"),
 }
 _RV_EOD_TABLE = "silver_futures_eod"

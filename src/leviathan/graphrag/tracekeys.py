@@ -365,6 +365,11 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
     "quantify_rv_reading_fenced",  # RV-READING: the leg-local register fence tripped and dropped the
                                  # whole reading block (the one decline that also writes a top-level
                                  # key -- the register discipline's own visibility rule).
+    "quantify_derived_fenced",   # D-DA (2026-09-01): the balance-standing block's copy-surface lint
+                                 # tripped and dropped the block WHOLE (fence-then-extend) -- same
+                                 # visibility rule as the reading's fence key above. APPENDED at the
+                                 # tail per the 12f law; the six positional tail pins re-anchor by one
+                                 # in the same commit.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

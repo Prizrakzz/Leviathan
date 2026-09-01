@@ -327,6 +327,17 @@ def _cascade_stats(out: dict) -> dict:
             "rv_regional_fetches": (int(_rv_host.get("regional_fetches") or 0)
                                     + (int(_rv_pr.get("fetches") or 0)
                                        if _rv_host.get("regional") else 0)),
+            # D-DA (2026-09-01, seam step): the balance-standing lane's judge-free counters, appended
+            # at the tail. The fired trace rides the SAME host as the reading (`derived_arith` on the
+            # fired dict); a decline rides `derived_arith_decline`; the copy-surface fence trip ALSO
+            # writes trace.quantify_derived_fenced (the reading's fence-belt idiom).
+            "dv_fired": bool(_rv_host.get("derived_arith")),
+            "dv_decline": _rv_host.get("derived_arith_decline"),
+            "dv_inband": int((_rv_host.get("derived_arith") or {}).get("inband") or 0),
+            "dv_vintage_refusals": int((_rv_host.get("derived_arith") or {}).get("vintage_refusals")
+                                       or 0),
+            "dv_dup_drops": int((_rv_host.get("derived_arith") or {}).get("dup_drops") or 0),
+            "dv_fetches": int((_rv_host.get("derived_arith") or {}).get("fetches") or 0),
             # T2a (CONVERGENCE_TIER1): quantify_pace is ENGINE-written, non-empty IFF >=1 deterministic
             # streak/window_change pace row was emitted this turn. BOOLEAN (mirror comove_fired/
             # price_leg_fired [F7]) -- an honest decline (<2 points / annual grain / flag off) leaves the
@@ -1545,6 +1556,14 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "rv_regional_price_leg": cs.get("rv_regional_price_leg"),
             "rv_regional_decline": cs.get("rv_regional_decline"),
             "rv_regional_fetches": cs.get("rv_regional_fetches"),
+            # D-DA (2026-09-01): the balance-standing lane's counters -- the Z7 hard-whitelist lesson,
+            # fourth application: without these lines the arm's own verdicts reach NO artifact.
+            "dv_fired": cs.get("dv_fired"),
+            "dv_decline": cs.get("dv_decline"),
+            "dv_inband": cs.get("dv_inband"),
+            "dv_vintage_refusals": cs.get("dv_vintage_refusals"),
+            "dv_dup_drops": cs.get("dv_dup_drops"),
+            "dv_fetches": cs.get("dv_fetches"),
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
             "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered
