@@ -18,9 +18,12 @@ from leviathan.graphrag import config_check as cc
 
 # ── loader happy path ─────────────────────────────────────────────────────────────────────────────
 class TestLoader:
-    def test_loads_seven_material_pairs(self) -> None:
+    def test_loads_twelve_material_pairs(self) -> None:
+        # 7 RV-W0 originals + 5 ratified by the RV roster sitting (2026-08-29: corn_sorghum_feed,
+        # the three rape_crush rows, palm_sunoil_vegoil -- every sign owner-sitting adjudicated,
+        # every leg census-FIRES). The 21 contextual refusal records load INERT by design.
         m = xcm.load_complex_map()
-        assert len(m.pairs) == 7
+        assert len(m.pairs) == 12
         assert all(p.materiality_tier == "material" for p in m.pairs)
 
     def test_pair_shape_matches_interface_contract(self) -> None:
@@ -156,13 +159,16 @@ class TestLintRules:
 
     def test_same_psd_code_ban(self, monkeypatch) -> None:
         # soybean_oil_cbot (4232000) and soybean_oil_dce (4232000) share a PSD code -> vacuous fork.
+        # RV-REGIONAL re-anchor (2026-08-29): B1 is FORK-KEYED now -- (code, scope) -- so two world
+        # legs on one code still red (both keys (code,'world')) under the amended message; a same-code
+        # pair whose two REGIONAL scopes differ is B1c-admitted (pinned below).
         bad = dataclasses.replace(_base_pair(), id="bad_samecode",
                                   pair=("soybean_oil_cbot", "soybean_oil_dce"),
                                   side_b={"contract": "soybean_oil_dce", "ref": "psd_ending_stock_su_ratio",
                                           "country_rule": "world"})
         _patch(monkeypatch, bad)
         errs = cc.check_complex_map()
-        assert any("same-PSD-code ban" in e for e in errs)
+        assert any("same-fork ban" in e for e in errs)
 
     def test_bad_ref_flags(self, monkeypatch) -> None:
         b = _base_pair()
@@ -173,13 +179,16 @@ class TestLintRules:
         assert any("is not a live cascade_map ref" in e for e in errs)
 
     def test_non_world_country_rule_flags(self, monkeypatch) -> None:
+        # RV-REGIONAL re-anchor (2026-08-29): the grammar widened to {world, regional}; anything else
+        # (the refused `primary` shape included) still reds under the amended message, and a MIXED
+        # world/regional pair reds its own C20 error (pinned in test_rv_regional).
         b = _base_pair()
         bad = dataclasses.replace(b, id="bad_country",
                                   side_a={"contract": b.pair[0], "ref": "psd_ending_stock_su_ratio",
                                           "country_rule": "primary"})
         _patch(monkeypatch, bad)
         errs = cc.check_complex_map()
-        assert any("only 'world' is accepted" in e for e in errs)
+        assert any("accepted values are 'world' and 'regional'" in e for e in errs)
 
     def test_bad_materiality_enum_flags(self, monkeypatch) -> None:
         bad = dataclasses.replace(_base_pair(), id="bad_mat", materiality_tier="bogus")
@@ -239,3 +248,41 @@ class TestPalmMarketingYear:
         })
         out = _compute_psd_release_dates(bronze)
         assert out.iloc[0] == "2024-10-10"
+
+
+class TestB1bCrossRowForkUniqueness:
+    """RV roster phase 3 (2026-08-29): two MATERIAL rows on the same unordered PSD-code fork resolve to
+    the SAME two World su_ratio series -- one print under two pair ids. Scoped to material on purpose:
+    the contextual tier exists to RECORD refused duplicates (campinas_sorghum_feed vs corn_sorghum_feed)."""
+
+    def test_cross_row_fork_duplicate_flags(self, monkeypatch) -> None:
+        # Two MATERIAL rows on the SAME unordered fork (4232000, 4243000): soyoil_palm_vegoil and a
+        # second row reaching the identical pair of World sheets through the DCE/olein slugs.
+        base = _base_pair()
+        dup = dataclasses.replace(
+            base, id="dup_fork",
+            pair=("soybean_oil_dce", "palm_olein_dce"),
+            side_a={"contract": "soybean_oil_dce", "ref": "psd_ending_stock_su_ratio",
+                    "country_rule": "world"},
+            side_b={"contract": "palm_olein_dce", "ref": "psd_ending_stock_su_ratio",
+                    "country_rule": "world"})
+        _patch(monkeypatch, base, dup)
+        errs = cc.check_complex_map()
+        assert any("cross-row fork uniqueness (B1b)" in e and "dup_fork" in e for e in errs)
+
+    def test_cross_row_fork_duplicate_exempt_when_deferred(self, monkeypatch) -> None:
+        # The SAME collision at contextual tier is LEGAL -- how a refused duplicate is recorded.
+        base = _base_pair()
+        dup = dataclasses.replace(
+            base, id="dup_fork_inert", materiality_tier="contextual",
+            pair=("soybean_oil_dce", "palm_olein_dce"),
+            side_a={"contract": "soybean_oil_dce", "ref": "psd_ending_stock_su_ratio",
+                    "country_rule": "world"},
+            side_b={"contract": "palm_olein_dce", "ref": "psd_ending_stock_su_ratio",
+                    "country_rule": "world"})
+        _patch(monkeypatch, base, dup)
+        assert not any("B1b" in e for e in cc.check_complex_map())
+
+    def test_authored_rows_have_unique_material_forks(self) -> None:
+        # Whole-file guard on the REAL yaml (no monkeypatch): the shipped map must be B1b-clean.
+        assert not any("B1b" in e for e in cc.check_complex_map())

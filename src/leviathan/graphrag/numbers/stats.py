@@ -34,7 +34,7 @@ RETURN CONTRACT
     (extrema is the one shape exception: it carries "min"/"max" instead of a single "value", because it
     yields two magnitudes -- the integrator injects two [N] rows.)
 
-TWO DELIBERATE EXCEPTIONS TO THE Sequence[float] SIGNATURE CONVENTION -- both named, neither smuggled
+THREE DELIBERATE EXCEPTIONS TO THE Sequence[float] SIGNATURE CONVENTION -- each named, none smuggled
     (1) D-FR-8 (FUTURES_READPATH wave). `unit_compatible()` and its decline builders below take two
     `str | None` unit labels, not a numeric series. That is a knowing departure from "every function here
     takes Sequence[float]". What it does NOT touch is the PURITY claim above: a two-string predicate reads
@@ -47,6 +47,15 @@ TWO DELIBERATE EXCEPTIONS TO THE Sequence[float] SIGNATURE CONVENTION -- both na
     LABEL axis -- because it is the only stat here whose two operands are selected BY NAME rather than by
     position. The labels stay strings and are never parsed into dates or ordered: this module holds no
     expiry vocabulary and no calendar. Purity is untouched for the same structural reason as (1).
+    (3) RV-READING (2026-08-29). `pair_spread()` takes TWO parallel label axes -- one observation-date
+    axis per leg -- because it is the only stat whose two operands come from TWO SEPARATE READS and must
+    be joined by observation rather than by position. The labels stay strings and are never parsed into
+    dates, never ordered by calendar and never differenced: the join is string equality, and
+    chronological order is the CALLER's contract (oldest -> newest, exactly as `streak` requires). This
+    module still holds no calendar. Purity is untouched for the same structural reason as (1) and (2).
+    (4) RV-REGIONAL (2026-08-29). `rolling_corr()` takes the same two parallel label axes for the same
+    join-by-observation reason as (3). Same rules: labels stay strings, never parsed, never ordered by
+    calendar; chronological order is the CALLER's contract. Purity untouched.
 """
 from __future__ import annotations
 
@@ -73,6 +82,28 @@ MIN_SPREAD_N = MIN_WINDOW_CHANGE_N  # D-AM-17: the SAME floor family, not a seco
 #                                     exactly as window_change is one across the time axis -- both need
 #                                     both legs and neither needs a third point, so the constant is
 #                                     inherited rather than re-declared one line laxer.
+MIN_PAIR_SPREAD_N = MIN_SPREAD_N    # RV-READING (D2 resolution, 2026-08-29; review m4 amendment): the
+#                                     CONSTRUCTOR's floor sits BELOW the rank floor -- so the
+#                                     ordinal-when-thin rung is REACHABLE -- but at 2, not extrema's 1:
+#                                     at a single joined observation the "highest", the "lowest" and the
+#                                     latest are ONE number rendered three ways, an ordinal placement
+#                                     with nothing to place against (review-reproduced). Two points is
+#                                     the thinnest sample at which extrema SAYS anything, which is also
+#                                     MIN_SPREAD_N's own two-endpoint logic -- inherited, never a second
+#                                     number. The rank and sigma floors are NOT relaxed: percentile /
+#                                     zscore keep refusing below 8 at their own call sites.
+
+MIN_CORR_N = MIN_ZSCORE_N           # RV-REGIONAL (2026-08-29). ONE floor family: a correlation
+#                                     estimates two means, two spreads AND a covariance, so it cannot
+#                                     need FEWER points than a z-score. Floors the JOINED n.
+MIN_CORR_WINDOW = MIN_CORR_N        # THE BINDING FLOOR (refute-v1 D9), and it floors the WINDOW LENGTH
+#                                     -- the only quantity that decides whether an individual r is
+#                                     noise. v1 floored the joined n and the window COUNT, so window=3
+#                                     over 65 shared MYs passed every named floor and produced 63
+#                                     windows of near-+/-1 noise, then ranked the latest against them.
+#                                     The inheritance argument was right; it was applied to the wrong
+#                                     variable. Same number, correct variable, a named declined branch.
+MIN_CORR_WINDOWS = 1                # one full window is a reading; zero is nothing to read.
 
 DIRECTIONS = ("up", "down")
 
@@ -177,6 +208,36 @@ UNIT_UNKNOWN_DECLINE = (
 EMPTY_SERIES_DECLINE = (
     "the {which} came back with no rows at all, so there is nothing to compute over -- an empty read "
     "(a coverage gap in this lookup), so no figure is computed")
+# RV-READING (2026-08-29): pair_spread's three refusal proses, declared as constants beside the family
+# above for the same D-FR-14 reason (registrable and lintable, never an ad-hoc f-string). Each must stay
+# register_leaks / exec_leaks / valuation / flow clean under BOTH registers and survive sanitize()
+# unchanged. The first two are FIXTURE-ONLY under the current Pink-Sheet plumbing (see the guard-tag
+# note below) -- kept because pair_spread is a general two-leg constructor and a future non-USD/mt
+# source reaches them; dropped branches would fail OPEN there instead.
+CURRENCY_MISMATCH_DECLINE = (
+    "the two series are quoted in different currencies ({a} against {b}), and this lookup never converts "
+    "between them -- both a difference and a ratio across them would carry an exchange rate this platform "
+    "does not hold, so no figure is computed")
+BOTH_UNITS_REQUIRED_DECLINE = (
+    "neither series carries a unit label, so there is no way to tell whether they are the same quantity "
+    "or two different ones -- this comparison needs both labels before it can be built, so no figure is "
+    "computed")
+NONPOSITIVE_DENOMINATOR_DECLINE = (
+    "the second series prints a value of zero or less on {k} of the {n} shared observations (first on "
+    "{when}), and a ratio across a sign change is not a relative price at all -- dropping those "
+    "observations would quietly change the sample every later figure is measured against, so no figure "
+    "is computed")
+# RV-REGIONAL (2026-08-29): rolling_corr's three refusal proses, same D-FR-14 constant discipline.
+CORR_SHORT_WINDOW_DECLINE = (
+    "a window of {w} observations is below the {floor} a correlation needs to say anything -- a "
+    "correlation over a handful of points swings between the extremes on noise alone, so no figure "
+    "is computed")
+CORR_FLAT_LEG_DECLINE = (
+    "{which} prints the same figure across every one of the {n} shared observations, so it has no "
+    "spread to correlate against -- a correlation needs both series to vary, so no figure is computed")
+CORR_THIN_DECLINE = (
+    "only {n} shared observations are held for these two series, below the {floor} a correlation "
+    "needs, so no co-movement figure is computed")
 
 UNIT_UNLABELLED = "unlabelled"          # how an absent unit is rendered in a TRACE label, never in prose
 
@@ -190,6 +251,17 @@ EMPTY_GUARD = "empty_series"
 # and copying it into a second home is what that module's own comment forbids. The caller renders the
 # reason there and passes it in, which also keeps this module free of any query import.
 CURVE_GUARD = "curve_as_calendar"
+# RV-READING (2026-08-29). Three more tags in the SAME family, minted by `pair_spread` below so its
+# caller (the cascade RV price reading) and the eval decline counters keep telling guards apart by TAG,
+# never by prose. CURRENCY is the coarser axis than unit and is checked FIRST (see pair_spread's branch
+# rationale); THIN is the constructor's own overlap floor; DENOMINATOR is the ratio form's zero-crossing
+# refusal. Under the current Pink-Sheet plumbing (every leg USD/mt, no currency column) CURRENCY and
+# DENOMINATOR are FIXTURE-ONLY -- reachable only through a future non-Pink-Sheet source -- and are
+# declared as such (D1), never presented as live behaviour.
+CURRENCY_GUARD = "currency_mismatch"
+THIN_GUARD = "thin_history"
+DENOMINATOR_GUARD = "denominator"
+CORR_GUARD = "corr_undefined"       # RV-REGIONAL: rolling_corr's own refusals join the same family.
 
 
 def _norm_unit(unit) -> str:
@@ -430,6 +502,227 @@ def spread(series: Sequence, expiries: Sequence, near, far) -> dict:
     near_val, far_val = vals[labels.index(a)], vals[labels.index(b)]
     return {"stat": "spread", "declined": False, "value": far_val - near_val, "n": n,
             "near": a, "far": b, "near_val": near_val, "far_val": far_val}
+
+
+def pair_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequence, dates_b: Sequence,
+                unit_b, *, currency_a=None, currency_b=None,
+                label_a: str = "the first series", label_b: str = "the second series") -> dict:
+    """RV-READING (2026-08-29). The constructed CROSS-SERIES spread history: join two separately-read
+    series by observation-date string equality (docstring exception (3)), then difference (units equal --
+    the KC-Chi / gold_futures_spreads shape) or ratio (units differ, currencies compatible) each joined
+    observation. Returns the WHOLE constructed history (`series`/`dates`, oldest -> newest in series_a's
+    given order) so the caller can feed percentile/zscore/streak/extrema over it -- their floors are NOT
+    relaxed here (MIN_PAIR_SPREAD_N note above).
+
+    THE ZERO-CROSSING LAW rides the return dict, never the caller's head: a difference-form spread
+    genuinely inverts (KC-Chi 2016 and 2023, per the gold_futures_spreads card: "NEVER a percent change
+    on a spread -- it crosses zero"), so `pct_change_allowed` is False on a difference and True on a
+    ratio of two positive prices (guard 10 enforces positivity).
+
+    WHY THE RATIO IS HONEST WHERE IT IS: a ratio of two SAME-currency prices in different physical units
+    carries an unrecoverable but constant positive conversion factor, and percentile / z-score / streak
+    direction / percent change are all invariant to a positive constant scaling -- so every statistic the
+    caller narrates is exactly the statistic of the true price ratio, though the LEVEL is unquotable
+    (`unit: None`; the caller's narration law: never printed with a unit, never called a price). Across
+    CURRENCIES that argument dies -- the ratio embeds an FX path this platform does not hold
+    (tables.yaml's never-FX-converted law) -- so currency incompatibility REFUSES [CURRENCY_GUARD].
+
+    BRANCH ORDER IS LOAD-BEARING: empty before units (the stats.py:173-179 ordering law -- an empty read
+    mints unit=None and must never be narrated as a unit mismatch); currency before units (the coarser,
+    PERMANENT blocker names itself rather than hiding behind a fixable spelling); the unit arm here is
+    STRICTER than `unit_compatible`'s unknown-vs-unknown=True -- deliberately, and not a fork: that
+    laxity has a measured installed-base rationale, while this stat's whole job is to CHOOSE between two
+    forms, a choice it cannot make honestly on absent labels (no installed base to preserve).
+
+    Under the current Pink-Sheet plumbing every reachable leg is USD/mt with no currency column, so the
+    currency, both-units-absent, ratio and denominator branches are FIXTURE-ONLY today (D1) -- exercised
+    by pins, reachable only through a future non-Pink-Sheet source. Every GUARDED failure is a refusal
+    on the module's standard _decline contract; a non-numeric or non-finite CELL raises TypeError from
+    `_floats` exactly as every other stat here does (the module's clean-series convention -- the caller's
+    fail-closed belt owns that class, review m6)."""
+    vals_a, vals_b = _floats(series_a), _floats(series_b)
+    dl_a = [("" if d is None else str(d)).strip() for d in dates_a]
+    dl_b = [("" if d is None else str(d)).strip() for d in dates_b]
+    params = {"labels": f"{label_a} vs {label_b}", "units": unit_pair_label(unit_a, unit_b)}
+    # 1. EMPTY, either leg -- outranks every unit/currency read (an empty read mints unit=None).
+    for vals, which in ((vals_a, label_a), (vals_b, label_b)):
+        if not vals:
+            d = empty_series_decline("pair_spread", 0, which)
+            d.update(params)
+            return d
+    # 2. AXIS LENGTH mismatch -- a caller-bug shape; a misaligned axis would join the wrong two figures.
+    for vals, dl, which in ((vals_a, dl_a, label_a), (vals_b, dl_b, label_b)):
+        if len(dl) != len(vals):
+            return _decline("pair_spread", len(vals),
+                            f"the observation axis of {which} carries {len(dl)} labels for {len(vals)} "
+                            f"values, so an observation cannot be matched to a figure", **params)
+    # 3. DUPLICATE date on either leg (mirrors spread()'s dupes: "the" figure of that date is not single).
+    for dl, which in ((dl_a, label_a), (dl_b, label_b)):
+        if len(set(dl)) != len(dl):
+            dup = next(d for i, d in enumerate(dl) if d in dl[:i])
+            return _decline("pair_spread", len(dl),
+                            f"{dup or 'a blank date'} appears on more than one row of {which}, so that "
+                            f"observation has no single figure on that leg", **params)
+    # 4. SAME SERIES -- a difference of a figure against itself.
+    if (label_a or "").strip() == (label_b or "").strip():
+        return _decline("pair_spread", len(vals_a),
+                        f"both legs name the same series ({label_a}), which is a difference of a figure "
+                        f"against itself", **params)
+    # 5. CURRENCY -- the coarser, permanent axis, checked before units. unit_compatible IS the policy
+    #    (one three-state rule, two axes): None-vs-None reads compatible, which is correct where the
+    #    currency lives inside the unit string (USD/mt), and FIXTURE-ONLY otherwise today.
+    if not unit_compatible(currency_a, currency_b):
+        return _decline("pair_spread", len(vals_a),
+                        CURRENCY_MISMATCH_DECLINE.format(a=currency_a or UNIT_UNLABELLED,
+                                                         b=currency_b or UNIT_UNLABELLED),
+                        guard=CURRENCY_GUARD, **params)
+    # 6. UNITS -- both must be KNOWN (stricter than unit_compatible, see docstring).
+    known_a, known_b = bool(_norm_unit(unit_a)), bool(_norm_unit(unit_b))
+    if not known_a and not known_b:
+        return _decline("pair_spread", len(vals_a), BOTH_UNITS_REQUIRED_DECLINE, guard=UNIT_GUARD, **params)
+    if known_a != known_b:
+        d = unit_decline("pair_spread", len(vals_a), unit_a, unit_b)   # UNIT_UNKNOWN_DECLINE, verbatim reuse
+        d.update(params)
+        return d
+    # 7. JOIN by date-string equality, preserving series_a's given order (chronology is the caller's
+    #    contract; this module never orders by calendar).
+    b_by = dict(zip(dl_b, vals_b))
+    joined = [(d, va, b_by[d]) for d, va in zip(dl_a, vals_a) if d in b_by]
+    n = len(joined)
+    # 8. The constructor's own floor (MIN_PAIR_SPREAD_N -- the thinnest consumer's, so ordinal-thin lives).
+    if n < MIN_PAIR_SPREAD_N:
+        return _decline("pair_spread", n,
+                        f"need >={MIN_PAIR_SPREAD_N} shared observations, got {n}",
+                        guard=THIN_GUARD, **params)
+    # 9. FORM.
+    if unit_compatible(unit_a, unit_b):
+        series = [va - vb for _, va, vb in joined]
+        form, unit, pct_ok = "difference", unit_a, False
+    else:
+        # 10. RATIO ONLY: a non-positive denominator anywhere refuses the WHOLE stat, never a filter --
+        #     dropping observations would quietly change the sample every later figure is measured against.
+        bad = [(d, vb) for d, _, vb in joined if vb <= 0.0]
+        if bad:
+            return _decline("pair_spread", n,
+                            NONPOSITIVE_DENOMINATOR_DECLINE.format(k=len(bad), n=n, when=bad[0][0]),
+                            guard=DENOMINATOR_GUARD, **params)
+        series = [va / vb for _, va, vb in joined]
+        form, unit, pct_ok = "ratio", None, True
+    return {"stat": "pair_spread", "declined": False, "value": series[-1], "n": n,
+            "form": form, "unit": unit, "series": series, "dates": [d for d, _, _ in joined],
+            "a_latest": joined[-1][1], "b_latest": joined[-1][2],
+            "units": unit_pair_label(unit_a, unit_b), "pct_change_allowed": pct_ok}
+
+
+def rolling_corr(series_a: Sequence, labels_a: Sequence, series_b: Sequence, labels_b: Sequence,
+                 window: int, *, label_a: str = "the first series",
+                 label_b: str = "the second series") -> dict:
+    """RV-REGIONAL (2026-08-29). The trailing-window Pearson correlation between two separately-read
+    series, joined by LABEL STRING EQUALITY (the pair_spread join -- docstring exception (4)).
+    Chronological order is the CALLER's contract; this module holds no calendar.
+
+    Returns the LATEST window's r as `value` PLUS the whole rolling series so the caller can rank it
+    with `percentile` -- reuse, never a second ranking instrument -- AND `disjoint_series` /
+    `disjoint_labels` (stride = `window`, anchored at the NEWEST observation): the honest rank basis,
+    because overlapping trailing windows share window-1 observations with each neighbour and a rank
+    over them evades MIN_PERCENTILE_N's own reason (refute-v1 D14).
+
+    UNITS AND CURRENCIES DO NOT BAR A CORRELATION, and saying so is load-bearing rather than lax: a
+    correlation is invariant to any positive affine rescaling of either leg, which is exactly the
+    property a DIFFERENCE lacks -- that is why pair_spread refuses on currency and this does not.
+    What a correlation across currencies IS NOT is a correlation of the two prices in one money: the
+    caller must narrate each series in its OWN unit.
+
+    BRANCH ORDER: empty -> axis-length -> duplicate labels -> same series -> WINDOW-LENGTH floor
+    (MIN_CORR_WINDOW -- the binding floor, on the only quantity that decides whether an individual r
+    is noise) -> join -> n floor (MIN_CORR_N) -> whole-series flatness -> per-window flatness. A
+    window in which EITHER leg has zero variance yields no r: it is EXCLUDED from `series`/`labels`
+    together (the two axes never desynchronise) and counted in `flat_windows`; if the LATEST window
+    is flat the stat DECLINES rather than reporting an older window's r under a current label. Every
+    GUARDED failure is a refusal on the module's standard _decline contract; a non-numeric cell
+    raises TypeError from `_floats` (the clean-series convention)."""
+    vals_a, vals_b = _floats(series_a), _floats(series_b)
+    la = [("" if x is None else str(x)).strip() for x in labels_a]
+    lb = [("" if x is None else str(x)).strip() for x in labels_b]
+    w = int(window)
+    params = {"labels": f"{label_a} vs {label_b}", "window": w}
+    for vals, which in ((vals_a, label_a), (vals_b, label_b)):
+        if not vals:
+            d = empty_series_decline("rolling_corr", 0, which)
+            d.update(params)
+            return d
+    for vals, lab, which in ((vals_a, la, label_a), (vals_b, lb, label_b)):
+        if len(lab) != len(vals):
+            return _decline("rolling_corr", len(vals),
+                            f"the observation axis of {which} carries {len(lab)} labels for "
+                            f"{len(vals)} values, so an observation cannot be matched to a figure",
+                            **params)
+    for lab, which in ((la, label_a), (lb, label_b)):
+        if len(set(lab)) != len(lab):
+            dup = next(x for i, x in enumerate(lab) if x in lab[:i])
+            return _decline("rolling_corr", len(lab),
+                            f"{dup or 'a blank label'} appears on more than one row of {which}, so "
+                            f"that observation has no single figure on that leg", **params)
+    if (label_a or "").strip() == (label_b or "").strip():
+        return _decline("rolling_corr", len(vals_a),
+                        f"both legs name the same series ({label_a}), which would correlate a series "
+                        f"with itself", **params)
+    if w < MIN_CORR_WINDOW:
+        return _decline("rolling_corr", len(vals_a),
+                        CORR_SHORT_WINDOW_DECLINE.format(w=w, floor=MIN_CORR_WINDOW),
+                        guard=CORR_GUARD, **params)
+    b_by = dict(zip(lb, vals_b))
+    joined = [(x, va, b_by[x]) for x, va in zip(la, vals_a) if x in b_by]
+    n = len(joined)
+    if n < MIN_CORR_N:
+        return _decline("rolling_corr", n, CORR_THIN_DECLINE.format(n=n, floor=MIN_CORR_N),
+                        guard=CORR_GUARD, **params)
+    ja = [v for _, v, _ in joined]
+    jb = [v for _, _, v in joined]
+    for vals, which in ((ja, label_a), (jb, label_b)):
+        if max(vals) == min(vals):
+            return _decline("rolling_corr", n, CORR_FLAT_LEG_DECLINE.format(which=which, n=n),
+                            guard=CORR_GUARD, **params)
+
+    def _r(sa: list, sb: list) -> float | None:
+        m = len(sa)
+        ma_, mb_ = sum(sa) / m, sum(sb) / m
+        va_ = sum((x - ma_) ** 2 for x in sa)
+        vb_ = sum((x - mb_) ** 2 for x in sb)
+        if va_ == 0.0 or vb_ == 0.0:
+            return None                                            # a flat window has no r
+        cov = sum((x - ma_) * (y - mb_) for x, y in zip(sa, sb))
+        return cov / math.sqrt(va_ * vb_)
+
+    rs: list = []
+    r_labels: list = []
+    flat = 0
+    for end in range(w - 1, n):
+        r = _r(ja[end - w + 1:end + 1], jb[end - w + 1:end + 1])
+        if r is None:
+            flat += 1
+            continue
+        rs.append(r)
+        r_labels.append(joined[end][0])
+    if not rs or r_labels[-1] != joined[-1][0]:
+        # the latest window is flat (or every window is): an older r under a current label is a lie
+        return _decline("rolling_corr", n,
+                        CORR_FLAT_LEG_DECLINE.format(which=f"{label_a} or {label_b}", n=w),
+                        guard=CORR_GUARD, flat_windows=flat, **params)
+    dis: list = []
+    dis_labels: list = []
+    end = n - 1
+    while end - w + 1 >= 0:
+        r = _r(ja[end - w + 1:end + 1], jb[end - w + 1:end + 1])
+        if r is not None:
+            dis.append(r)
+            dis_labels.append(joined[end][0])
+        end -= w
+    dis.reverse()
+    dis_labels.reverse()
+    return {"stat": "rolling_corr", "declined": False, "value": rs[-1], "n": n, "window": w,
+            "series": rs, "labels": r_labels, "windows": len(rs), "flat_windows": flat,
+            "disjoint_series": dis, "disjoint_labels": dis_labels}
 
 
 def quantiles(series: Sequence, probs: Sequence = (0.5,)) -> dict:

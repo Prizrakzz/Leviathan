@@ -345,6 +345,26 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # stamps it): the Q-0 law is that a row missing this column on an arm
                                  # that reads the latency axis is VOID, never zero. Closes the C/D
                                  # measurement hole (per-row latency lived only in log lines).
+    "xc_open_pair",              # D-XT (2026-08-29): the resolved open-lane pick + its basis {focus,
+                                 # n_seeds, focus_paired, first_paired_seed, n_pairs, n_realizable,
+                                 # probes, probe_ms, capped, pair_id, target, rank, traversed?,
+                                 # relevance?, fallback?}. ABSENT on every NAMED ask, every flag-off
+                                 # turn and every decline.
+    "xc_open_decline",           # D-XT: the SAME dict shape carrying `reason` in cascade.
+                                 # XC_OPEN_DECLINES. Registering BOTH separates the FOUR outcomes a
+                                 # census must read apart: NO MATCH (both absent, zero cost);
+                                 # ATTEMPTED-AND-DECLINED; FIRED (xc_open_pair + quantify_reroute_v2);
+                                 # and DEFERRED-BUT-NEVER-RESOLVED (xc_detect_decision.open_defer set,
+                                 # both keys absent) -- the seam-never-ran tripwire, which must read 0
+                                 # on --via-orchestrator reasoning/hybrid rows.
+    "xc_regional_decline",       # RV-REGIONAL (2026-08-29, refute-v1 E3): the NON-FIRING regional
+                                 # fork's decline channel -- {reason} from cascade.
+                                 # XC_REGIONAL_DECLINES; a fired regional fork rides
+                                 # quantify_reroute_v2 with regional:True instead. Same four-outcome
+                                 # census argument as xc_open_decline above.
+    "quantify_rv_reading_fenced",  # RV-READING: the leg-local register fence tripped and dropped the
+                                 # whole reading block (the one decline that also writes a top-level
+                                 # key -- the register discipline's own visibility rule).
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].
@@ -352,4 +372,17 @@ DECISION_RECORD_KEYS: tuple[tuple[str, str], ...] = (
     ("response_contract", "response_contract_decision"),   # the DARK selector attribution (A/B tally)
     ("kind_history", "kind_history"),                      # D-AM-1: ordered routing-transition audit
     ("mode", "mode_decision"),                             # D-AM-9: {requested, honored, invalid}, every turn
+    # D-XT (2026-08-29), APPENDED AT THE TAIL per the append-never-sort law:
+    ("xc_detect", "xc_detect_decision"),                   # THE WHOLE DICT (the response_contract
+                                                           # precedent): {tier, llm_consulted,
+                                                           # target_span, route_probe?, open_defer?,
+                                                           # open_rank?}. orchestrator has stamped this
+                                                           # dict on EVERY reasoning/hybrid turn since
+                                                           # RV2 W2 and eval.py:1480 hand-lifts ONLY
+                                                           # .tier -- everything else reached NO
+                                                           # artifact, silently: the exact class this
+                                                           # registry exists to kill, standing in its
+                                                           # own subject matter. detection_tier at
+                                                           # eval.py:1480 is LEFT ALONE (no column
+                                                           # shift; banked artifacts stay comparable).
 )

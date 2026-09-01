@@ -187,6 +187,64 @@ def load_complex_map() -> ComplexMap:
     return ComplexMap([p for p in iter_all_pairs() if p.materiality_tier == "material"])
 
 
+# ── pair-leg helpers: ONE producer (D-XT P10) ────────────────────────────────────────────────────
+# Hoisted from orchestrator.py so the gate and cascade.resolve_xc_open read the SAME leg logic --
+# a second pair-leg producer minted in cascade was the duplicate-and-drift class the D-XT round-3
+# review named (m3) and round 4 re-caught (P10). orchestrator keeps thin aliases for its callers.
+def pair_slugs(pair) -> tuple:
+    """The ordered leg slugs of a complex_map pair (interface: `.pair` = tuple of 2 slugs), with the
+    defensive side_a/side_b fallback the original orchestrator helper carried."""
+    pr = getattr(pair, "pair", None)
+    if pr and len(pr) == 2:
+        return (pr[0], pr[1])
+    return (getattr(pair, "side_a", {}).get("contract"), getattr(pair, "side_b", {}).get("contract"))
+
+
+def pair_other(pair, slug: str):
+    """The OTHER leg of `pair` relative to `slug`, or None when `slug` is not a leg."""
+    a, b = pair_slugs(pair)
+    if slug == a:
+        return b
+    if slug == b:
+        return a
+    return None
+
+
 def complex_row(pair_id: str) -> ComplexPair | None:
     """The `material` pair by id, or None (module-level convenience over load_complex_map().row)."""
     return load_complex_map().row(pair_id)
+
+
+# ── RV-REGIONAL (2026-08-29): the scope helpers, each the ONE producer for its fact (P10) ─────────
+def side_scope(side: dict) -> tuple:
+    """(country_rule, country) for one side. ('world', None) for a v1 side -- byte-identical default."""
+    s = side or {}
+    return (s.get("country_rule") or "world", s.get("country") or None)
+
+
+def pair_is_regional(pair) -> bool:
+    """True IFF BOTH sides declare country_rule == 'regional'. A SCOPE predicate ONLY: it asserts
+    nothing about tier and nothing about which contracts the request named. Mixed scopes are a LINT
+    ERROR (check_complex_map step 5), so at runtime this is a two-state fact; the runtime GATE is
+    cascade._xc_sides_ok_regional, which carries the tier and the contract-set halves."""
+    try:
+        return (side_scope(getattr(pair, "side_a", None))[0] == "regional"
+                and side_scope(getattr(pair, "side_b", None))[0] == "regional")
+    except Exception:  # noqa: BLE001 -- a malformed pair reads non-regional, fail-closed
+        return False
+
+
+def side_by_contract(pair, slug: str):
+    """The side dict whose `contract` EQUALS `slug`, or None. Keyed on the SLUG, NEVER on the ordinal
+    (refute-v1 D2: route()'s hit-count sort can yield either order, and a positional read would stamp
+    the wrong scope on a swapped request -- the cardinal class, invisible to every value check).
+    Returns None when both sides carry the same contract (a degenerate row the lint also reds)."""
+    a = dict(getattr(pair, "side_a", None) or {})
+    b = dict(getattr(pair, "side_b", None) or {})
+    if a.get("contract") == b.get("contract"):
+        return None
+    if a.get("contract") == slug:
+        return a
+    if b.get("contract") == slug:
+        return b
+    return None

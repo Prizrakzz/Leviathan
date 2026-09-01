@@ -45,7 +45,11 @@ const KNOB_ORDER = [
  * decision with its own copy, its own expectation-setting and its own measurement, not a side effect of a
  * knob table growing two fields. Recorded as not-built, deliberately.
  */
-const KNOB_DENY = ['synth_model', 'provenance_prompt'] as const;
+// Q-0 (2026-08-29, review find F4): `synth_effort` joins the deny list IN THE SAME CHANGE that mints
+// the knob. It is a WRITER property, not width — the exact class the paragraph above names — and the
+// passthrough would have rendered "synth effort  max" under "ran max" on every honored max-family turn.
+// (`handle_prose` predates this and shares the hole; carried as a docketed sibling, not fixed here.)
+const KNOB_DENY = ['synth_model', 'provenance_prompt', 'synth_effort'] as const;
 
 function fmt(v: unknown): string {
   if (Array.isArray(v)) return v.join('/'); // k_by_depth [7,5,3] -> 7/5/3

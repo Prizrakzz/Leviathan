@@ -400,3 +400,39 @@ def test_extract_call_opus_temperature_only_when_provided():
     assert seen[-1]["temperature"] == 0
     ex.call_opus(_Client(), "s", "u", model="m", tool=tool)
     assert "temperature" not in seen[-1]                                # extraction callers byte-identical
+
+
+def test_temp_kw_seat_gates_the_5_family_and_keeps_legacy_byte_identical():
+    """2026-08-29 probe RCA: sonnet-5 400s on a bare `temperature` kwarg ('deprecated for this
+    model'), and plan_turn's fail-closed wrapper turned that into a SILENT 14/14 fallback. The pin
+    must drop for the 5-family seats and stay byte-identical everywhere else (model=None = every
+    legacy caller; sonnet-4-6 = today's prod dispatch)."""
+    def accepts_temp(system, user, *, model, tool, temperature=None):
+        return {}
+
+    assert dp._temp_kw(accepts_temp) == {"temperature": 0}                       # legacy: unchanged
+    assert dp._temp_kw(accepts_temp, "claude-sonnet-4-6") == {"temperature": 0}  # prod seat: unchanged
+    assert dp._temp_kw(accepts_temp, "claude-haiku-4-5") == {"temperature": 0}
+    assert dp._temp_kw(accepts_temp, "claude-sonnet-5") == {}                    # the measured 400 seat
+    assert dp._temp_kw(accepts_temp, "claude-opus-5") == {}
+    assert dp._temp_kw(accepts_temp, "claude-fable-5") == {}
+
+
+def test_plan_turn_threads_the_model_into_the_temp_gate(monkeypatch):
+    """plan_turn must pass its RESOLVED model to _temp_kw — a 5-family dispatch seat that still
+    received temperature=0 would silently fall back on every turn (the probe's exact signature)."""
+    seen = {}
+
+    def fake_call(system, user, *, model, tool, **kw):
+        seen.update(kw)
+        return {"steps": [], "contracts": []}
+
+    class _G:
+        contracts: dict = {}
+
+    monkeypatch.setenv("GRAPHRAG_DISPATCH_MODEL", "claude-sonnet-5")
+    dp.plan_turn("q", graph=_G(), call=fake_call)
+    assert "temperature" not in seen
+    monkeypatch.setenv("GRAPHRAG_DISPATCH_MODEL", "claude-sonnet-4-6")
+    dp.plan_turn("q", graph=_G(), call=fake_call)
+    assert seen.get("temperature") == 0

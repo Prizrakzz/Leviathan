@@ -377,7 +377,7 @@ def plan(question: str, *, asof: str | None = None, graph=None, call=None,
                 "STANDING SUB-QUESTIONS ALREADY PLANNED:\n" + "\n".join(
                     f"{n + 1}. {r['title']} -- {r['question']}" for n, r in enumerate(rows)),
                 f"QUESTION: {question}") if x)
-            out = c(PLANNER_SYS, user, model=mdl, tool=_planner_tool(room), **dsp._temp_kw(c)) or {}
+            out = c(PLANNER_SYS, user, model=mdl, tool=_planner_tool(room), **dsp._temp_kw(c, mdl)) or {}
             t = str(out.get("title") or "").strip().strip('"')[:80]
             if t:
                 title, planner_ok = t, True

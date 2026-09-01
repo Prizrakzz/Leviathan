@@ -245,6 +245,23 @@ def _cascade_stats(out: dict) -> dict:
     n_xmit_links_cited = sum(1 for lk in (xmit_tr.get("links") or [])
                              if {str((lk or {}).get("source") or ""),
                                  str((lk or {}).get("target") or "")} <= cited_xmit_legs)
+    # RV-READING (2026-08-29): the directional price leg rides INSIDE the fired xc trace (divergence ->
+    # quantify_reroute_v2, co-move -> quantify_comove -- the D4 marker split), so the counters read
+    # whichever fired. price_reading present == rendered; price_reading_decline == the engine attempted
+    # and declined, by tag (the design's guard enum: empty_series | unit_mismatch | currency_mismatch |
+    # thin_history | denominator | no_metric_map | replay | fenced | error). Judge-free, the
+    # comove_fired/price_leg_fired idiom -- absent keys read False/None, never KeyError.
+    _rv_host = ((out.get("trace") or {}).get("quantify_reroute_v2")
+                or (out.get("trace") or {}).get("quantify_comove") or {})
+    # SHAPE TOLERANCE (2026-09-01): the engine writes the FIRED DICT at sg.trace[key] (the C11/F3
+    # site) while the W4.5 pins' fixtures carry the older LIST-of-pairs shape -- both are legal on
+    # this read seam. A list host resolves to the entry carrying the reading/regional stamps (they
+    # ride the fired pair entry), else its first dict, else {}.
+    if isinstance(_rv_host, list):
+        _rv_host = next((e for e in _rv_host if isinstance(e, dict) and (
+            "price_reading" in e or "price_reading_decline" in e or "regional" in e)),
+            next((e for e in _rv_host if isinstance(e, dict)), {}))
+    _rv_pr = _rv_host.get("price_reading") or {}
     return {"fired": bool(tr), "n_rows": len(cits), "n_cited": len(cited),
             "chain_fired": bool(chain_tr), "chain_decline_reason": chain_dec.get("reason"),
             "n_chain_hops_cited": len(cited_chain_metrics),
@@ -258,7 +275,10 @@ def _cascade_stats(out: dict) -> dict:
             "reroute_pairs": len((out.get("trace") or {}).get("quantify_reroute") or []),
             # RV-v2 (C11): quantify_reroute_v2 is ENGINE-written, non-empty IFF the cross-commodity fork
             # FIRED this turn (never the orchestrator enable). The negative-pin battery asserts it EMPTY.
-            "reroute_v2_pairs": len((out.get("trace") or {}).get("quantify_reroute_v2") or []),
+            # Shape-tolerant count (2026-09-01): a LIST counts its pair entries (the W4.5 fixture
+            # contract); the engine's FIRED-DICT shape counts 1 fired pair, never its ~13 keys.
+            "reroute_v2_pairs": (lambda _x: len(_x) if isinstance(_x, list) else (1 if _x else 0))(
+                (out.get("trace") or {}).get("quantify_reroute_v2")),
             # SEAM A [SKEPTIC F7]: BOOLEAN semantics -- quantify_comove is ENGINE-written, present IFF a
             # complex-wide co-move rendered this turn. NOT a len() count (a co-move fires at most one pair/era):
             # the fired dict has ~13 keys, so len() would mislead a future exact-count assert -- bool() is honest.
@@ -268,6 +288,45 @@ def _cascade_stats(out: dict) -> dict:
             # a future exact-count assert. Judge-free soak/attribution signal; the deck pins ride price_cited /
             # unit_present (citation-based), not this stat.
             "price_leg_fired": bool((out.get("trace") or {}).get("quantify_price_leg")),
+            # RV-READING: six deterministic counters (see _rv_host/_rv_pr above). rendered/form/rung/
+            # alignment read the trace the engine wrote; decline is the tag of an attempted-and-declined
+            # leg (enum: comove | no_metric_map | replay | empty_series | thin_history | unit_mismatch |
+            # currency_mismatch | denominator | shape | fenced | error); fetches is the two-fetch budget
+            # AS AN ARTIFACT, not a promise -- and a POST-FETCH decline still spent both reads (review
+            # m3: the tags after the fetch seam count 2, or the budget signal undercounts exactly the
+            # turns that spend without rendering).
+            "rv_reading_rendered": bool(_rv_pr),
+            "rv_reading_form": _rv_pr.get("form"),
+            "rv_reading_rung": _rv_pr.get("rung"),
+            "rv_reading_alignment": _rv_pr.get("alignment"),
+            "rv_reading_decline": _rv_host.get("price_reading_decline"),
+            "rv_reading_fetches": int(_rv_pr.get("fetches")
+                                      or (2 if _rv_host.get("price_reading_decline") in
+                                          ("empty_series", "thin_history", "unit_mismatch",
+                                           "currency_mismatch", "denominator", "shape", "fenced")
+                                          else 0)),
+            # RV-REGIONAL (2026-08-29, design F3): the regional fork's own judge-free counters,
+            # appended at the tail (never sorted in). The fired dict rides the SAME quantify_reroute_v2
+            # host with regional:True; a non-firing fork's tag rides trace.xc_regional_decline (E3).
+            "rv_regional_rendered": bool(_rv_host.get("regional")),
+            "rv_regional_scope_a": _rv_host.get("scope_a"),
+            "rv_regional_scope_b": _rv_host.get("scope_b"),
+            "rv_regional_rows": int(_rv_host.get("regional_rows") or 0),
+            "rv_regional_my_n": int(_rv_host.get("regional_my_n") or 0),
+            "rv_regional_verdict": (_rv_pr.get("pair_verdict") if _rv_host.get("regional") else None),
+            "rv_regional_verdict_a": (_rv_pr.get("alignment") if _rv_host.get("regional") else None),
+            "rv_regional_corr_decline": _rv_host.get("corr_decline"),
+            "rv_regional_corr_rank_decline": _rv_host.get("corr_rank_decline"),
+            "rv_regional_composition_break": bool(_rv_host.get("composition_break")),
+            "rv_regional_projection_my": bool(_rv_host.get("projection_my")),
+            "rv_regional_projection_clamped": int(_rv_host.get("projection_clamped") or 0),
+            "rv_regional_price_leg": (_rv_host.get("rv_regional_price_leg")
+                                      or (_rv_pr.get("rung") if _rv_host.get("regional") else None)),
+            "rv_regional_decline": ((out.get("trace") or {}).get("xc_regional_decline")
+                                    or {}).get("reason"),
+            "rv_regional_fetches": (int(_rv_host.get("regional_fetches") or 0)
+                                    + (int(_rv_pr.get("fetches") or 0)
+                                       if _rv_host.get("regional") else 0)),
             # T2a (CONVERGENCE_TIER1): quantify_pace is ENGINE-written, non-empty IFF >=1 deterministic
             # streak/window_change pace row was emitted this turn. BOOLEAN (mirror comove_fired/
             # price_leg_fired [F7]) -- an honest decline (<2 points / annual grain / flag off) leaves the
@@ -1467,6 +1526,25 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
             "reroute_v2_pairs": cs["reroute_v2_pairs"],
+            # RV-READING + RV-REGIONAL (2026-08-29): the per-answer projection is a HARD WHITELIST
+            # (the Z7 lesson two keys up) -- without these lines the arm's own verdict counters
+            # reached NO artifact, which is exactly how the first treatment arm's declines went
+            # unreadable. Projected verbatim from _cascade_stats.
+            "rv_reading_rendered": cs.get("rv_reading_rendered"),
+            "rv_reading_form": cs.get("rv_reading_form"),
+            "rv_reading_rung": cs.get("rv_reading_rung"),
+            "rv_reading_alignment": cs.get("rv_reading_alignment"),
+            "rv_reading_decline": cs.get("rv_reading_decline"),
+            "rv_reading_fetches": cs.get("rv_reading_fetches"),
+            "rv_regional_rendered": cs.get("rv_regional_rendered"),
+            "rv_regional_scope_a": cs.get("rv_regional_scope_a"),
+            "rv_regional_scope_b": cs.get("rv_regional_scope_b"),
+            "rv_regional_my_n": cs.get("rv_regional_my_n"),
+            "rv_regional_verdict": cs.get("rv_regional_verdict"),
+            "rv_regional_verdict_a": cs.get("rv_regional_verdict_a"),
+            "rv_regional_price_leg": cs.get("rv_regional_price_leg"),
+            "rv_regional_decline": cs.get("rv_regional_decline"),
+            "rv_regional_fetches": cs.get("rv_regional_fetches"),
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
             "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered
@@ -2593,7 +2671,12 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             # so pre-S0 baselines parse unchanged (additive-only law).
             "synth_thinking": _os.environ.get("GRAPHRAG_SYNTH_THINKING"),
             "numbers_thinking": _os.environ.get("GRAPHRAG_NUMBERS_THINKING"),
-            "synth_effort": _os.environ.get("GRAPHRAG_SYNTH_EFFORT"),
+            # Q-0 KNOB AMENDMENT (review find F1, 2026-08-29): synth_effort is now a PRESET knob that
+            # OUTRANKS the env at the writer seam (mode > env, the F5 ladder), so the header stamps
+            # the preset knob first, the env as fallback -- the _handle_prose_arm precedent below.
+            # Stamping the env alone would name an arm that did not run (--mode max with the env unset
+            # stamped null while every writer ran effort=max) -- the artifact-lies class.
+            "synth_effort": _synth_effort_arm(mode),
             "numbers_effort": _os.environ.get("GRAPHRAG_NUMBERS_EFFORT"),
             "synth_seat": _os.environ.get("GRAPHRAG_SYNTH_MODEL"),
             "numbers_seat": _os.environ.get("GRAPHRAG_NUMBERS_MODEL"),
@@ -2842,6 +2925,21 @@ def _refusal_census(per: list[dict]) -> dict:
             + int(((p.get("prose_handles") or {}) if isinstance(p.get("prose_handles"), dict) else {})
                   .get("sentences_dropped") or 0)) > 3)
     return out
+
+
+def _synth_effort_arm(mode: str | None) -> str | None:
+    """Q-0's arm stamp: the writer effort the arm's turns RECEIVED -- the requested preset's knob
+    first (mode > env at the seam, answer._call_opus), the process env as fallback. NEVER RAISES (the
+    _handle_prose_arm law below: an arm stamp is never worth a billed run), and an unknown or pre-knob
+    mode reads {} so older decks stamp the env exactly as before. Requested-mode resolution, the same
+    approximation _handle_prose_arm accepts: an arm that names a dark mode without honoring it stamps
+    the knob it asked for; per-row mode_decision remains the honored-truth column."""
+    import os as _os
+    try:
+        from leviathan.graphrag import reasoning_modes as _rm
+        return _rm.knobs(mode).get("synth_effort") or _os.environ.get("GRAPHRAG_SYNTH_EFFORT")
+    except Exception:  # noqa: BLE001 -- an arm stamp is never worth a run
+        return _os.environ.get("GRAPHRAG_SYNTH_EFFORT")
 
 
 def _handle_prose_arm(mode: str | None) -> str | None:

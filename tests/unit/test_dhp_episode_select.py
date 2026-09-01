@@ -550,12 +550,16 @@ def test_the_trace_key_is_registered_at_the_tail_with_its_denominator():
 
     RE-ANCHORED A FOURTH TIME (D-LD Sitting-A, 2026-08-18): `tables_queried` -- the per-table usage
     census, the first per-table record production has ever had -- was APPENDED after THAT. Tail moved by
-    one more; nothing else, and this key's position RELATIVE TO EVERY OLDER KEY is again unchanged."""
-    assert tk.TRACE_RECORD_KEYS[-5] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-4] == "plan_tokens"
-    assert tk.TRACE_RECORD_KEYS[-3] == "evidence_slot_dropped"
-    assert tk.TRACE_RECORD_KEYS[-2] == "evidence_geo_dropped"
-    assert tk.TRACE_RECORD_KEYS[-1] == "tables_queried"
+    one more; nothing else, and this key's position RELATIVE TO EVERY OLDER KEY is again unchanged.
+
+    RE-ANCHORED A FIFTH TIME (2026-09-01): five keys APPENDED after THAT -- timing_ms (Q-0 S0), then
+    xc_open_pair + xc_open_decline (D-XT, 08-29), then xc_regional_decline + quantify_rv_reading_fenced
+    (the RV lane, 08-29). Tail moved by five; same invariant, new offsets."""
+    assert tk.TRACE_RECORD_KEYS[-10] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-9] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-8] == "evidence_slot_dropped"
+    assert tk.TRACE_RECORD_KEYS[-7] == "evidence_geo_dropped"
+    assert tk.TRACE_RECORD_KEYS[-6] == "tables_queried"
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
     assert set(an._validate_episode_spans({"mechanism": _mech(_BACKED_A)}, _injected())) == \
         {"spans_checked", "bullets_dropped", "section_seen"}          # RE-ANCHORED, H1b fold-1 F4

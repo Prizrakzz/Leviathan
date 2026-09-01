@@ -803,15 +803,22 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     the first per-table record production has ever had -- was APPENDED after THAT. Tail moved by one more;
     nothing else, and the invariant this pin polices is again unchanged.
     RE-ANCHORED A SEVENTH TIME (Q-0 S0, 2026-08-28): `timing_ms` -- latency as a first-class per-row
-    column -- was APPENDED after THAT. Tail moved by one more; the invariant is again unchanged."""
-    assert tk.TRACE_RECORD_KEYS[-8] == "wrong_slot_audit"
-    assert tk.TRACE_RECORD_KEYS[-7] == "slot_orphan_dropped"
-    assert tk.TRACE_RECORD_KEYS[-6] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-5] == "plan_tokens"
-    assert tk.TRACE_RECORD_KEYS[-4] == "evidence_slot_dropped"
-    assert tk.TRACE_RECORD_KEYS[-3] == "evidence_geo_dropped"
-    assert tk.TRACE_RECORD_KEYS[-2] == "tables_queried"
-    assert tk.TRACE_RECORD_KEYS[-1] == "timing_ms"
+    column -- was APPENDED after THAT. Tail moved by one more; the invariant is again unchanged.
+    RE-ANCHORED AN EIGHTH TIME (2026-09-01): four keys APPENDED after THAT -- xc_open_pair +
+    xc_open_decline (the D-XT build, 08-29), then xc_regional_decline + quantify_rv_reading_fenced
+    (the RV lane, 08-29). Tail moved by four; the invariant is again unchanged."""
+    assert tk.TRACE_RECORD_KEYS[-12] == "wrong_slot_audit"
+    assert tk.TRACE_RECORD_KEYS[-11] == "slot_orphan_dropped"
+    assert tk.TRACE_RECORD_KEYS[-10] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-9] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-8] == "evidence_slot_dropped"
+    assert tk.TRACE_RECORD_KEYS[-7] == "evidence_geo_dropped"
+    assert tk.TRACE_RECORD_KEYS[-6] == "tables_queried"
+    assert tk.TRACE_RECORD_KEYS[-5] == "timing_ms"
+    assert tk.TRACE_RECORD_KEYS[-4] == "xc_open_pair"
+    assert tk.TRACE_RECORD_KEYS[-3] == "xc_open_decline"
+    assert tk.TRACE_RECORD_KEYS[-2] == "xc_regional_decline"
+    assert tk.TRACE_RECORD_KEYS[-1] == "quantify_rv_reading_fenced"
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)

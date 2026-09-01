@@ -524,11 +524,40 @@ def _pair_leg_slug(side) -> str | None:
     return casc.PSD_SLUG_ALIAS.get(contract, contract)
 
 
+def _regional_leg_ok(slug: str, country: str, *, asof: str, query_fn) -> tuple:
+    """(ok, dark_reason, reported_MY_set) for ONE (slug, country) at REGIONAL scope. Two pg reads,
+    NO SUM: (1) su_ratio existence at the LITERAL title (never folded -- the pin IS the scope);
+    (2) the EXACT reported market_year SET for su_ratio IS NOT NULL (refute-v2 E6: the column the
+    RENDER reads, never consumption_mt) -- exact sets never min/max, so a gap cannot be papered
+    over by a range."""
+    rows = query_fn(
+        f"SELECT DISTINCT market_year AS y FROM {Q.ATHENA_DB}.silver_psd "
+        f"WHERE leviathan_slug = {Q._q(slug)} AND country = {Q._q(country)} "
+        f"AND su_ratio IS NOT NULL ORDER BY market_year")
+    mys = set()
+    for r in rows or []:
+        v = (r.get("y") if isinstance(r, dict) else (r[0] if isinstance(r, (list, tuple)) else r))
+        try:
+            mys.add(int(str(v)))
+        except (TypeError, ValueError):
+            continue
+    if not mys:
+        return False, f"regional-scope-empty:{slug}@{country}", mys
+    return True, None, mys
+
+
 def _pair_verdict(pair, *, asof: str, query_fn) -> dict:
     """Per-PAIR realizability record. FIRES iff BOTH legs' World synthesis is non-empty AND both legs are
     era-disjoint; DECLINES-HONESTLY when a leg has no PSD balance sheet at all (cocoa, PSD_UNSERVED_SLUGS);
     DARK-WITH-REASON when a resolved leg has zero World rows OR fails the disjointness lint; probe-error on a pg
-    raise. `warn` carries the disjointness message (surfaced, never silent)."""
+    raise. `warn` carries the disjointness message (surfaced, never silent).
+
+    RV-REGIONAL (2026-08-29): a REGIONAL pair takes its own branch BEFORE the world path (which stays
+    byte-identical): per-leg literal-title su_ratio sets + the shared-MY floor
+    (MIN_REGIONAL_MY_N = stats.MIN_CORR_N, one floor family -- the corr row is census-PROVEN).
+    _era_disjoint / _world_synth_nonempty are NOT called on it (no cross-country SUM => no
+    double-count axis; the record says why). `warn` carries the EU composition-break years inside
+    the shared span -- surfaced, never silent."""
     pid = getattr(pair, "id", None)
     legs = [getattr(pair, "side_a", None), getattr(pair, "side_b", None)]
     slugs = [_pair_leg_slug(s) for s in legs]
@@ -536,6 +565,37 @@ def _pair_verdict(pair, *, asof: str, query_fn) -> dict:
            "verdict": None, "reason": None, "warn": None}
     if not all(slugs):
         rec["verdict"], rec["reason"] = PAIR_DARK, "unresolved-leg-slug"
+        return rec
+    try:
+        from leviathan.graphrag import complex_map as _xcm
+        if _xcm.pair_is_regional(pair):
+            from leviathan.graphrag.numbers import stats as _st
+            sets = []
+            for side in legs:
+                slug = (side or {}).get("contract")
+                country = (side or {}).get("country")
+                if not slug or not country:
+                    rec["verdict"], rec["reason"] = PAIR_DARK, "regional-scope-unpinned"
+                    return rec
+                ok, reason, mys = _regional_leg_ok(slug, country, asof=asof, query_fn=query_fn)
+                if not ok:
+                    rec["verdict"], rec["reason"] = PAIR_DARK, reason
+                    return rec
+                sets.append((country, mys))
+            shared = sets[0][1] & sets[1][1]
+            if len(shared) < _st.MIN_CORR_N:
+                rec["verdict"], rec["reason"] = PAIR_DARK, f"regional-scope-thin:{len(shared)}"
+                return rec
+            lo, hi = min(shared), max(shared)
+            breaks = [y for y in casc._eu_composition_breaks()
+                      if lo < y <= hi and any(c in casc.EU_AGGREGATE_TITLES for c, _m in sets)]
+            if breaks:
+                rec["warn"] = (f"EU composition breaks inside the shared span MY[{lo}-{hi}]: "
+                               f"{breaks} -- deltas across them carry the declared clause")
+            rec["verdict"] = PAIR_FIRES
+            return rec
+    except Exception as e:  # noqa: BLE001 -- record it; NEVER retry on Athena
+        rec["verdict"], rec["reason"] = PROBE_ERROR, str(e)[:200]
         return rec
     unserved = [s for s in slugs if s in casc.PSD_UNSERVED_SLUGS]
     if unserved:

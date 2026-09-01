@@ -96,16 +96,45 @@ def supports_adaptive(model: str) -> bool:
     return any(s in (model or "") for s in ADAPTIVE_SEATS)
 
 
+# The temperature-deprecated seat set (2026-08-29, the dispatch-probe RCA): sonnet-5 rejects a bare
+# `temperature` kwarg outright ('`temperature` is deprecated for this model', measured 400), and the
+# Claude 5 family shares the deprecation. dispatch._temp_kw pins temperature=0 (D18 determinism), so
+# an ungated pin turns EVERY plan on a 5-family dispatch seat into the swallowed-exception fallback --
+# the 14/14-fallback probe signature. Same one-constant-one-helper idiom as ADAPTIVE_SEATS.
+TEMP_DEPRECATED_SEATS = ("sonnet-5", "opus-5", "fable-5")
+
+
+def supports_temperature(model: str) -> bool:
+    """True iff the (first-party) model id still accepts a `temperature` kwarg."""
+    return not any(s in (model or "") for s in TEMP_DEPRECATED_SEATS)
+
+
 _EFFORT_WORDS = ("low", "medium", "high", "xhigh", "max")   # ladder per platform docs (effort.md);
 #                default when output_config is ABSENT = "high" (confirmed 2026-08-27, docs agent:
 #                identical to explicit high, thinking or not) -- so TWO tiers sit ABOVE the default.
 
+# The EFFORT-probed seat set (Q-0 review find F3, 2026-08-29). NOT the adaptive set: ADAPTIVE_SEATS is
+# a THINKING capability roster, and reusing a different capability's constant is exactly the
+# TEMP_DEPRECATED_SEATS RCA class (the silent 14/14 fallback). Probed 2026-08-27: sonnet-5 and opus-5
+# ACCEPT output_config; haiku-4-5 400s ("This model does not support the effort parameter"). The 4-6 /
+# 4-x seats and fable-5 are UNPROBED and therefore EXCLUDED -- every banked effort arm ran the writer
+# on opus-5 (q0_wd/q0_t artifacts, synth_seat), so this gate changes no measured behaviour; it only
+# stops an unprobed seat from receiving an unprobed kwarg. Widening this tuple requires a probe, not
+# an assumption.
+EFFORT_SEATS = ("sonnet-5", "opus-5")
+
+
+def supports_effort(model: str) -> bool:
+    """True iff the (first-party) model id names a seat PROBED to accept output_config={'effort': ...}."""
+    return any(s in (model or "") for s in EFFORT_SEATS)
+
 
 def synth_effort() -> Optional[dict]:
     """The EFFORT seam, writer half (2026-08-27, owner priority: 'we probably should try it on
-    the three modes'). GRAPHRAG_SYNTH_EFFORT=low|medium|high -> an output_config dict for the
-    writer call; unset/anything else -> None = byte-identical (the API default is effort HIGH,
-    so this lever's headroom is DOWNWARD: cost/latency shaping, measured for quality loss).
+    the three modes'). GRAPHRAG_SYNTH_EFFORT=<any _EFFORT_WORDS tier> -> an output_config dict
+    for the writer call; unset/anything else -> None = byte-identical (the API default is effort
+    HIGH, so xhigh/max sit ABOVE the default -- the upward axis Q-0 measures -- and low/medium
+    below it: cost/latency shaping, measured for quality loss).
     Seat-gated by the caller exactly like synth_thinking (probed 2026-08-27: sonnet-5/opus-5
     accept output_config, haiku-4-5 400s 'This model does not support the effort parameter')."""
     v = (os.environ.get("GRAPHRAG_SYNTH_EFFORT") or "").strip().lower()

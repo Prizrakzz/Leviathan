@@ -362,9 +362,12 @@ def test_degenerate_chain_declines(monkeypatch):
 
 
 def test_decline_reasons_are_the_shared_enum_plus_one():
-    """D7: the vertical engine's vocabulary VERBATIM + exactly ONE horizontal-only reason, so the T2b ledger
-    reads both chain engines with one enum."""
-    assert cq._XMIT_DECLINE_REASONS - cq._CHAIN_DECLINE_REASONS == {"link_comove"}
+    """D7: the vertical engine's vocabulary VERBATIM + the horizontal-only reasons, so the T2b ledger
+    reads both chain engines with one enum. D-XT (2026-08-29, P1): `open_ask_pair_precedence` joins
+    `link_comove` -- on an OPEN ask the pair engine wins and the composer declines with a reasoned
+    trace instead of a silent absence (cascade.py a5.4)."""
+    assert cq._XMIT_DECLINE_REASONS - cq._CHAIN_DECLINE_REASONS == {"link_comove",
+                                                                    "open_ask_pair_precedence"}
     assert cq._CHAIN_DECLINE_REASONS <= cq._XMIT_DECLINE_REASONS
 
 

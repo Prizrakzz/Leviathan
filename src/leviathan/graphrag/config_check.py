@@ -87,6 +87,32 @@ PRICE_TABLES = ("silver_pink_sheet",)
 # would satisfy R9's letter while vacating the context-shape rule, the never-a-chain-hop ban and the
 # never-a-relative-value-leg ban together (skeptic F11).
 POSITIONING_TABLES = ("silver_cot", "gold_cot_outcomes")
+# -- R4c: the SYNTHESIZED-price-leg allow-list (RV-READING governance rider, 2026-08-29) --------------------
+# R4's two shipped halves inspect MAP ROWS (the shape half) and MAP REFS (the name half). A SYNTHESIZED
+# engine leg -- code that fetches a price table directly, entering no map -- was inspected by NEITHER: the
+# SEAM-B farm-price pair walked through that gap un-linted, and the estate already named that failure shape
+# ("a fence with a door beside it"). This register binds the set of (table, metric) reachable by synthesized
+# engine legs to an explicit, owner-adjudicated list, checked by _check_synthesized_price_legs below against
+# the code's OWN constants -- so the next synthesized price leg is adjudicated, never merely un-linted.
+#   * silver_wasde/avg_farm_price -- SEAM B (the settled farm-price consequence pair), ratified 2026-08.
+#   * the 15 distinct pink-sheet benchmarks (17 slug mappings) -- the RV-READING pair leg (D9: enumerated EXACTLY, incl.
+#     sunflower_oil_usd_t which sits in neither the ADMITTED-20 nor the FENCED-16). These are estate-target
+#     benchmarks: admitted ONLY in PAIR shape (a spread is not a price -- gold_futures_spreads' own card),
+#     behind the dark GRAPHRAG_RV_READING flag, gated by price_replay; the section-6 `price_relative` owner
+#     ask governs the FLAG, this register governs REACHABILITY either way.
+SYNTHESIZED_PRICE_LEG_ALLOW: dict = {
+    "silver_wasde": frozenset({"avg_farm_price"}),
+    "silver_pink_sheet": frozenset({
+        "soybean_oil_usd_t", "palm_oil_cpo_usd_t", "rapeseed_oil_usd_t", "soybean_meal_usd_t",
+        "soybeans_usd_t", "maize_usd_t", "wheat_us_srw_usd_t", "wheat_us_hrw_usd_t",
+        "sunflower_oil_usd_t", "coffee_arabica_usd_t", "coffee_robusta_usd_t", "raw_sugar_world_usd_t",
+        "cotton_a_index_usd_t", "rice_thai_5pct_usd_t", "cocoa_usd_t"}),
+    # OWNER AMENDMENT (2026-08-29, the regional sitting): the absent board's OWN front settle in its
+    # OWN currency (cascade._RV_EOD_LEVEL) -- an observed fact needing no FX; the cross-currency
+    # COMPARISON stays refused. This is exactly the adjudication R4c exists to force: a new
+    # synthesized price surface enters through this register, in the same change that mints it.
+    "silver_futures_eod": frozenset({"settle"}),
+}
 # The curated avg_farm_price coverage set. PRICE_OBSERVABILITY A3 re-whitelist (2026-07-22): after the
 # silver_wasde rebuild + promote (canonical CERTIFIED, 373 releases 1995+, pg parity PASS) the probes resolved
 # the provisional set to the 10 commodities with a live, unit-clean farm/market price. R1 BINDS -- the metric's
@@ -583,21 +609,39 @@ def check_complex_map() -> list[str]:
          its ordered slot -- a shorthand/typo fails closed here rather than silently never firing.
       2. each `sideX.ref` names a real (non-deferred) cascade_map ref -> table/metric/scale/period
          inherit and the metric-in-registry lint covers a v2 leg for free.
-      3. SAME-PSD-CODE ban (B1): code(legA) != code(legB) across the 13 PSD commodity_code sheets
-         (inverted usda_psd._PSD_COMMODITY_TO_SLUGS) -- two slugs under one code resolve to a
-         byte-identical su_ratio row => a vacuous fork. HARD error. A leg with NO PSD sheet is also an
-         error (it can never carry a su_ratio-World row).
+      3. SAME-FORK ban (B1, RE-KEYED for RV-REGIONAL 2026-08-29): fork identity is the FORK KEY
+         (PSD code, scope) where scope = 'world' for a world side and the pinned country for a
+         regional one. Two sides with EQUAL fork keys resolve to a byte-identical su_ratio series =>
+         a vacuous fork, HARD error -- which still reds every v1 same-code world pair AND reds a
+         kc<->chi row at regional scope, while ADMITTING a same-code pair whose two regional scopes
+         differ (B1c: the class balance sheet does not exist in the data, so scope is the only axis
+         on which a same-code fork can be non-vacuous). A leg with NO PSD sheet stays an error.
+         B1b: no two MATERIAL rows may share the same unordered FORK-KEY pair (the `ca != cb`
+         precondition is DELETED -- refute-v1 D4: it made the guard unreachable on exactly the
+         same-code regional case it must police). Deferred rows stay exempt: recording a refused
+         duplicate is what the contextual tier is FOR.
       4. `materiality_tier` in {material, contextual, excluded}; `direction` in {opposing, co_moving}.
-      5. `country_rule` == "world" on BOTH sides -- the only accepted v1 value (Recipe-B World total-use).
+      5. `country_rule` in {world, regional}, and BOTH sides carry the SAME value -- a World leg
+         against a country leg compares an aggregate to one of its members (the C20 class in its
+         purest form).
       6. `shared_event` corresponds to a real driver id present in the DAG OR a real inter_commodity
          relation between the two contracts (resolved BARE->slug, engine F2) -- so the mechanism stays
          curated in the causal YAML. A naive slug==slug edge match is unsatisfiable for 6 of 7 pairs
          (edge targets are bare names), hence the resolver on both sides of the join.
+      7-12 (REGIONAL, design v2 sec A3): scope validation (country present + known-title + pinned
+         scope_word + the fold-source term with `scope_exception`), the EU composition-fence
+         declaration, the regional price-origin fence (a WORLD benchmark on a regional side is a
+         hard error), regional absence coverage (_RV_PRICE_SERIES origin | _RV_PRICE_ABSENCE), and
+         the label + C20 authoring requirement (every regional slug needs _XC_LABEL_REGIONAL +
+         a (slug, country) _XC_REGIONAL_C20_NOTES entry -- E4: the single most likely way the
+         feature lies).
     """
     from leviathan.graphrag import complex_map as xcm
     from leviathan.graphrag.graph import CausalGraph
     from leviathan.graphrag.numbers.cascade import load_map
     from leviathan.transforms.bronze_to_silver.usda_psd import _PSD_COMMODITY_TO_SLUGS
+
+    from leviathan.graphrag.numbers import cascade as csc
 
     errs: list[str] = []
     try:
@@ -609,6 +653,18 @@ def check_complex_map() -> list[str]:
     refs = load_map() or {}
     slug_to_code = {s: code for code, slugs in _PSD_COMMODITY_TO_SLUGS.items() for s in slugs}
     all_driver_ids = {d.id for c in graph.contracts.values() for d in c.drivers}
+    seen_forks: dict = {}                    # B1b: unordered FORK-KEY pair -> owning MATERIAL pair id
+    # step 7.2's offline title proxy (the check_chain_map known_titles idiom VERBATIM, widened with
+    # the EU title sets). The LIVE proof that PSD carries a title for a given slug is the census
+    # probe, never this lint -- stated so the lint's green is never read as a coverage claim.
+    _resolve = (csc.load_region_map() or {}).get("resolve") or {}
+    known_titles = {(v or {}).get("country") for v in _resolve.values() if (v or {}).get("country")}
+    known_titles |= set(csc._PSD_COUNTRY_FOLD.values()) | set(csc.EU_AGGREGATE_TITLES) \
+        | set(csc.EU_MEMBER_TITLES) | {"United States", "Brazil", "Vietnam", "Thailand"}
+
+    def _fork_key(side: dict, code):
+        rule, country = xcm.side_scope(side)
+        return (code, "world" if rule == "world" else country)
 
     def _edge_between(a: str, b: str) -> bool:
         for src, dst in ((a, b), (b, a)):
@@ -637,25 +693,104 @@ def check_complex_map() -> list[str]:
             ref = sd.get("ref")
             if ref not in refs:
                 errs.append(f"complex_map {pid!r}: {side}.ref {ref!r} is not a live cascade_map ref")
-        # 3. same-PSD-code ban (B1)
+        # 3. same-FORK ban (B1, fork-keyed; B1c admission rides the key itself)
         ca, cb = slug_to_code.get(a), slug_to_code.get(b)
         if ca is None:
             errs.append(f"complex_map {pid!r}: leg {a!r} maps to no PSD commodity_code (no su_ratio sheet)")
         if cb is None:
             errs.append(f"complex_map {pid!r}: leg {b!r} maps to no PSD commodity_code (no su_ratio sheet)")
-        if ca is not None and cb is not None and ca == cb:
-            errs.append(f"complex_map {pid!r}: same-PSD-code ban (B1) -- {a!r} and {b!r} both map to "
-                        f"code {ca} => byte-identical su_ratio row, vacuous fork")
+        ka = _fork_key(p.side_a, ca) if ca is not None else None
+        kb = _fork_key(p.side_b, cb) if cb is not None else None
+        if ka is not None and kb is not None and ka == kb:
+            errs.append(f"complex_map {pid!r}: same-fork ban (B1) -- {a!r} and {b!r} both resolve to "
+                        f"fork {ka} => byte-identical su_ratio series, vacuous fork")
+        # 3c. CROSS-ROW fork uniqueness (B1b, fork-keyed; the dead `ca != cb` guard DELETED --
+        #     refute-v1 D4). Scoped to `material` ON PURPOSE: every deferred row exists to RECORD a
+        #     refused duplicate (campinas_sorghum_feed deliberately collides with corn_sorghum_feed),
+        #     so linting the inert tier would red the build on the adjudication ledger itself.
+        if ka is not None and kb is not None and ka != kb and p.materiality_tier == "material":
+            prior = seen_forks.setdefault(frozenset((ka, kb)), pid)
+            if prior != pid:
+                errs.append(f"complex_map {pid!r}: cross-row fork uniqueness (B1b) -- fork "
+                            f"{sorted((ka, kb))} is already owned by {prior!r} => duplicate su_ratio pair")
         # 4. enums
         if p.materiality_tier not in ("material", "contextual", "excluded"):
             errs.append(f"complex_map {pid!r}: bad materiality_tier {p.materiality_tier!r}")
         if p.direction not in ("opposing", "co_moving"):
             errs.append(f"complex_map {pid!r}: bad direction {p.direction!r} (opposing|co_moving)")
-        # 5. country_rule world-only (v1)
+        # 5. country_rule grammar: world|regional, SAME on both sides (a World leg against a country
+        #    leg compares an aggregate to one of its members -- the C20 class in its purest form)
+        rules = []
         for side, sd in (("sideA", p.side_a), ("sideB", p.side_b)):
-            if sd.get("country_rule") != "world":
-                errs.append(f"complex_map {pid!r}: {side}.country_rule {sd.get('country_rule')!r} "
-                            f"-- only 'world' is accepted for v1")
+            rule = sd.get("country_rule")
+            rules.append(rule)
+            if rule not in ("world", "regional"):
+                errs.append(f"complex_map {pid!r}: {side}.country_rule {rule!r} "
+                            f"-- accepted values are 'world' and 'regional'")
+        if len(set(rules)) > 1:
+            errs.append(f"complex_map {pid!r}: MIXED country_rule {rules} -- a World leg against a "
+                        f"country leg compares an aggregate to one of its members (C20)")
+        # 7-12. regional scope validation (design v2 A3 + E4/E7; only for regional sides)
+        for side, sd, slug in (("sideA", p.side_a, a), ("sideB", p.side_b, b)):
+            if sd.get("country_rule") != "regional":
+                continue
+            country = sd.get("country")
+            if not country or not isinstance(country, str):
+                errs.append(f"complex_map {pid!r}: {side} regional side carries no `country` pin")
+                continue
+            if country not in known_titles:
+                errs.append(f"complex_map {pid!r}: {side}.country {country!r} is not a known title "
+                            f"(offline proxy; the census probe is the live proof)")
+            sw = sd.get("scope_word")
+            if sw not in csc._XC_SCOPE_WORDS.values():
+                errs.append(f"complex_map {pid!r}: {side}.scope_word {sw!r} is not a value of the "
+                            f"pinned _XC_SCOPE_WORDS map")
+            # 7.4 the fold-source term (refute-v1 D12)
+            folded = csc._PSD_COUNTRY_FOLD.get(country, country)
+            if country != folded and not sd.get("scope_exception"):
+                errs.append(f"complex_map {pid!r}: {side}.country {country!r} is a fold source "
+                            f"(reads as {folded!r} everywhere else) -- a literal regional pin on it "
+                            f"requires `scope_exception` naming why and citing the probe")
+            elif country == folded and not sd.get("scope_exception"):
+                prim = None
+                try:
+                    prim = csc._primary_title(slug)
+                except Exception:  # noqa: BLE001
+                    prim = None
+                if prim is not None and prim != country:
+                    errs.append(f"complex_map {pid!r}: {side}.country {country!r} diverges from the "
+                                f"board's own geography primary {prim!r} with no `scope_exception` "
+                                f"-- a mis-scope wearing a config's clothes")
+            # 8. the EU composition fence must be DECLARED
+            if country in csc.EU_AGGREGATE_TITLES and sd.get("composition_fence") != "eu":
+                errs.append(f"complex_map {pid!r}: {side} pins the EU aggregate without "
+                            f"`composition_fence: eu` -- membership changes inside a window read as "
+                            f"balance-sheet moves unless declared")
+            # 9. the regional price-origin fence (refute-v2 E2: a WORLD benchmark reds; the ABSENCE
+            #    path is the admitting alternative, so world-benchmark slugs stay authorable with a
+            #    suppressed price rung)
+            pm = csc._RV_PRICE_SERIES.get(slug)
+            if pm is not None:
+                metric = pm[0]
+                if metric in csc._RV_PRICE_WORLD_BENCHMARKS:
+                    errs.append(f"complex_map {pid!r}: {side} contract {slug!r} maps to WORLD "
+                                f"benchmark {metric!r} -- a world price may never sit on a regional "
+                                f"side; route it through _RV_PRICE_ABSENCE instead")
+                elif csc._RV_PRICE_ORIGIN.get(metric) != country:
+                    errs.append(f"complex_map {pid!r}: {side} metric {metric!r} origin "
+                                f"{csc._RV_PRICE_ORIGIN.get(metric)!r} != pinned scope {country!r}")
+            # 10. absence coverage: an unmapped regional leg needs its measured per-slug reason
+            elif slug not in csc._RV_PRICE_ABSENCE:
+                errs.append(f"complex_map {pid!r}: {side} contract {slug!r} is in neither "
+                            f"_RV_PRICE_SERIES nor _RV_PRICE_ABSENCE -- a regional pair may not "
+                            f"reach the one-sided rung without a measured absence reason")
+            # 12. the label + C20 authoring requirement (E4/E7: mechanical membership, one producer)
+            if slug not in csc._XC_LABEL_REGIONAL:
+                errs.append(f"complex_map {pid!r}: {side} contract {slug!r} has no "
+                            f"_XC_LABEL_REGIONAL entry (the ONE regional label producer)")
+            if (slug, country) not in csc._XC_REGIONAL_C20_NOTES:
+                errs.append(f"complex_map {pid!r}: {side} ({slug!r}, {country!r}) has no "
+                            f"_XC_REGIONAL_C20_NOTES entry -- the C20 clause is mandatory")
         # 6. shared_event resolvable (driver id OR curated inter_commodity edge between the two contracts)
         if p.shared_event not in all_driver_ids and not _edge_between(a, b):
             errs.append(f"complex_map {pid!r}: shared_event {p.shared_event!r} is neither a DAG driver id "
@@ -1249,6 +1384,45 @@ def _check_price_context_lane() -> list[str]:
     return errs
 
 
+def _check_synthesized_price_legs() -> list[str]:
+    """R4c (RV-READING rider, 2026-08-29): synthesized price legs are BOUND, never merely un-linted.
+
+    Checks the code's OWN constants -- cascade._RV_PRICE_TABLE / _RV_PRICE_SERIES -- against the
+    SYNTHESIZED_PRICE_LEG_ALLOW register, two ways: (i) every metric a synthesized RV leg can reach is in
+    the register (a new metric is an adjudication, not an edit); (ii) every registered metric is a
+    declared metric on its card (a register entry that outlives the card is drift). HONEST SCOPE
+    (review m1): SEAM B's table/metric are INLINE LITERALS at its call sites and are NOT code-checked
+    here -- its register entry is validated against the card only, so a SEAM-B metric change (or a
+    third synthesized leg with its own literals) stays green until its constants are hoisted to
+    module level and added to the reachable-set read below. Docketed, not silent."""
+    from leviathan.graphrag.numbers import cascade as csc
+    from leviathan.graphrag.numbers.registry import load_registry
+    errs: list[str] = []
+    tbl = getattr(csc, "_RV_PRICE_TABLE", None)
+    allowed = SYNTHESIZED_PRICE_LEG_ALLOW.get(tbl)
+    if allowed is None:
+        return [f"R4c: synthesized RV price leg reads table {tbl!r}, which is not in "
+                f"SYNTHESIZED_PRICE_LEG_ALLOW -- a synthesized price leg is adjudicated, never assumed"]
+    reachable = {m for (m, _lbl) in (getattr(csc, "_RV_PRICE_SERIES", None) or {}).values()}
+    for m in sorted(reachable - allowed):
+        errs.append(f"R4c: synthesized RV price leg metric {m!r} on {tbl} is outside the ratified "
+                    f"allow-list -- add it to SYNTHESIZED_PRICE_LEG_ALLOW in the sitting that decides it")
+    # the OWNER-AMENDMENT EOD surface (cascade._RV_EOD_LEVEL): same binding, its own table entry
+    eod_allowed = SYNTHESIZED_PRICE_LEG_ALLOW.get(getattr(csc, "_RV_EOD_TABLE", None) or "", frozenset())
+    for m in sorted({mm for (mm, _lbl) in (getattr(csc, "_RV_EOD_LEVEL", None) or {}).values()}
+                    - eod_allowed):
+        errs.append(f"R4c: synthesized EOD level metric {m!r} is outside the ratified allow-list")
+    tables = load_registry().tables
+    for t, mets in SYNTHESIZED_PRICE_LEG_ALLOW.items():
+        ts = tables.get(t)
+        if ts is None:
+            errs.append(f"R4c: allow-list table {t!r} is not a registered numbers table")
+            continue
+        for m in sorted(m for m in mets if m not in ts.metrics):
+            errs.append(f"R4c: allow-list metric {m!r} is not a declared metric on the {t} card")
+    return errs
+
+
 def check_price_register() -> list[str]:
     """PRICE_OBSERVABILITY W0.2 -- the register fence lint (AWS-free, pure). R1 unit/override discipline
     (conditional on registration -- vacuous today), R2/R8 detector probe (green now by construction), R3 wasde
@@ -1299,6 +1473,9 @@ def check_price_register() -> list[str]:
     from leviathan.graphrag.numbers.cascade import price_context_violations as _pcv
     errs += _check_no_engine_ref(load_map(), PRICE_TABLES, "R4", "price", allow=_pcv)
     errs += _check_price_context_lane()
+    # R4c (RV-READING rider): synthesized price legs -- code-reached, map-less -- bind to the explicit
+    # allow-list register above; the SEAM-B gap ("a fence with a door beside it") is closed.
+    errs += _check_synthesized_price_legs()
     # R5: decline census.
     errs += _check_decline_census()
     # R5b (F3): no decline template points at the fenced farm-price metric while it is unwhitelisted.

@@ -906,7 +906,15 @@ class TestS1UnflaggedByDesign:
         import inspect
         src = inspect.getsource(CQ)
         calls = src.count("fetch_window(qfn,") - 1        # minus the `def fetch_window(qfn, *, ...)` line
-        assert calls == 3, f"a new fetch_window call site appeared ({calls} now) -- classify it"
+        # RE-ANCHORED 3 -> 6 (2026-09-01): the 08-29 RV builds added three call sites, each a NAMED
+        # module-constant card where the S1 canary is inapplicable by table class:
+        #   _rv_price_fetch        -> _RV_PRICE_TABLE (pink sheet monthly; wide+flat, not a futures card)
+        #   _rv_one_sided_rung     -> _RV_EOD_TABLE with agg="front_expiry" (the agg itself defines the
+        #                             row; newest-first series ordering has no meaning on that read)
+        #   _regional_series       -> _PSD_TABLE at regional scope (marketing-year PSD, not a futures card)
+        assert calls == 6, f"a new fetch_window call site appeared ({calls} now) -- classify it"
+        assert "table=_RV_PRICE_TABLE" in src and 'agg="front_expiry"' in src
+        assert "fetch_window(qfn, table=_PSD_TABLE," in src
         # ...and the two that skip the canary are exactly the two constant-table reads named above. L2-5
         # made the PSD surface a KWARG, so that site's literal became a module CONSTANT and the pin follows
         # it there rather than being deleted: the constants ARE the two cards the entry above names.

@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import functools
 import re
+import time  # D-XT P3: resolve_xc_open meters its probe wall-time; the round-4 refuter caught the
+#              missing import turning EVERY open turn into a swallowed-NameError decline.
 
 from leviathan.graphrag import params as _pr
 from leviathan.graphrag.numbers import query as Q
@@ -1329,7 +1331,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              chain: bool = False, transmission: bool = False, outlook: bool = False,
              headline: bool = False, episode_outcomes: bool = False,
              cot_outcomes: bool = False, futures_newest_first: bool | str = False,
-             price_replay: bool = False) -> tuple:
+             price_replay: bool = False, rv_reading: bool = False,
+             rv_regional: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1345,6 +1348,9 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     so at a historical asof the leg would serve today's revision as if known then (the archaeology's C-2
     replay vector, which no row shape can express). Default False = byte-identical. `episode_outcomes` (OUTCOMES_JOIN J4) and `cot_outcomes` (J6) follow the
     same omit-when-off idiom: both default False, so a call that does not pass them is byte-identical.
+    `rv_reading` (RV-READING, 2026-08-29) is the SAME idiom once more: read at answer._rv_reading_on()
+    and threaded to _run_xc as `reading`, with `price_replay` riding beside it as that leg's replay belt
+    (a historical-asof turn drops the reading whole -- C-2). An rv_reading-less call is byte-identical.
 
     `futures_newest_first` (FUTURES_READPATH S1, D-FR-10) is the SAME idiom for the SAME reason, one layer
     lower: read at `answer._futures_newest_first_on()` and threaded here, so this module still performs no
@@ -1527,8 +1533,11 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             except Exception:  # noqa: BLE001
                 pass
     if xc_request and not _xmit_fired:
+        # RV-READING: `rv_reading` (answer.py-threaded, the [F3] idiom) and quantify's own price_replay
+        # ride down as arguments -- both default False, so an rv_reading-less call is byte-identical.
         xc_lines, xc_trace = _run_xc(xc_request, sg, graph, groups, qfn, asof, near, extra_number_calls,
-                                     comove=comove)
+                                     comove=comove, reading=rv_reading, replay=price_replay,
+                                     rv_regional=rv_regional)
         if xc_trace:
             # [SKEPTIC F3] The fired dict carries its own discriminator: a co-move sets comove:True (and omits
             # reroute_v2), so it routes to the NEW quantify_comove key and NEVER pollutes quantify_reroute_v2
@@ -2857,7 +2866,12 @@ def _xc_label(slug: str) -> str:
     s = (slug or "").lower()
     if "wheat" in s:
         return "world wheat (all classes)"
-    for suf in ("_cbot", "_cme", "_zce", "_dce", "_matif"):
+    # RV roster phase 3 (2026-08-29): canola_ice's PSD sheet (2226000) is the world RAPESEED aggregate
+    # (fanned with french_rapeseed_matif) -- the wheat rule's C20 class on the second aggregate. Without
+    # this the label rendered 'world canola ice' (the _ice suffix was also missing from the strip list).
+    if s == "canola_ice":
+        return "world rapeseed (incl. canola)"
+    for suf in ("_cbot", "_cme", "_zce", "_dce", "_matif", "_ice"):
         if s.endswith(suf):
             s = s[: -len(suf)]
             break
@@ -2884,29 +2898,61 @@ def _shared_event_matched(sg, shared_event) -> bool:
     return False
 
 
-def _xc_frame(pair_row, sg) -> str:
+def _xc_frame(pair_row, sg, *, open_ask: bool = False) -> str:
     """The narration frame directive, selected BY COMPLEX (RV-W2.4). soy_crush takes the joint-product path
     (a co-move is not a story; only DEMAND divergence opposes -- oil_share stays qualitative prose, there is no
     crush_margin_z serving metric); feed_grain narrates generically unless its shared_event route-matched this
-    turn (C20); substitution complexes narrate the second-balance-sheet substitution."""
+    turn (C20); substitution complexes narrate the second-balance-sheet substitution.
+
+    D-XT F2 (2026-08-29): on an OPEN ask the soy_crush DEMAND claim is dropped UNCONDITIONALLY -- the user
+    asked 'what else is affected', not 'did demand shift the crush', and asserting a demand shift onto an
+    acreage/supply question is the sign-identity class. NOT gated on _shared_event_matched: MEASURED INERT
+    (on the banked cc1_r1 admissions that matcher returns True for board_crush 14/14 and
+    soybean_crush_margin 14/14 -- a 14/14 matcher is not a gate)."""
     complex_name = str(getattr(pair_row, "complex_name", "") or "")
-    if complex_name == "soy_crush":
+    # RV roster phase 3 (2026-08-29): the crush branch is a SET -- rape_crush (the three ratified rape
+    # rows) takes the same joint-product frame; a literal-name match would have dropped it through to
+    # the substitution frame AND lost the D-XT F2 open-ask guard on exactly the class it exists for.
+    if complex_name in ("soy_crush", "rape_crush"):
+        if open_ask:
+            return ("the shock reached the second leg of the crush; meal and oil are JOINT products "
+                    "co-produced on the supply side, and the record here does not say which side moved")
         return ("the crush shifted toward one product on DEMAND (meal and oil are JOINT products co-produced on "
                 "the supply side, so a co-move is not a relative-value story; only a demand divergence opposes)")
     if complex_name == "feed_grain":
         if _shared_event_matched(sg, getattr(pair_row, "shared_event", None)):
             return "the relative feed-grain balance shifted (feed-ration substitution)"
         return "the relative feed-grain balance shifted"        # generic: no runtime signal for WHICH edge (C20)
+    # RV-REGIONAL (2026-08-29): a SET, the rape_crush lesson verbatim -- a literal-name match would
+    # drop a new origins complex through to the substitution frame AND lose the open-ask guard.
+    if complex_name in ("milling_wheat_origins",):
+        if open_ask:
+            return ("the shock reached a second ORIGIN's balance sheet; the record here does not say "
+                    "which origin won the business")
+        return ("export business moved between two ORIGINS of the same grain: one region's balance "
+                "sheet tightened as the other's loosened (origin-share reallocation, not a "
+                "substitution)")
     return "the shock reached a second balance sheet; one tightened as the other loosened (substitution)"
 
 
-def _xc_call(commodity: str, value: float, my: int, asof, *, unit: str = "%") -> dict:
+_XC_METRIC_WORLD = "su_ratio_world"          # the HEAD literal, named once (RV-REGIONAL B4)
+
+
+def _xc_call(commodity: str, value: float, my: int, asof, *, unit: str = "%",
+             metric: str = _XC_METRIC_WORLD, country: str | None = None) -> dict:
     """A synthetic call-record so a narrated v2 su_ratio/delta magnitude IS a citable, value-checkable row (the
     _delta_call discipline; both legs' rows are injected so the all-numbers strip guard backs every magnitude).
-    No _provenance -- a World figure is a cross-country synthesis, not one source row."""
-    return {"query": {"commodity": commodity, "metric": "su_ratio_world",
-                      "period": (f"MY{my}" if my is not None else None), "asof": asof},
-            "rows": [{"value": round(float(value), 4), "unit": unit}], "status": "ok"}
+    No _provenance -- a World figure is a cross-country synthesis, not one source row.
+
+    RV-REGIONAL (2026-08-29): two ADDITIVE keyword-only params. `country` is added to the query dict
+    ONLY when not None, so the World path's dict is BYTE-IDENTICAL (no new key, same metric id); a
+    regional row carries its pinned scope so citations and the series tag tell the truth (refute-v1
+    D3: _series_tag reads q['country'] verbatim)."""
+    q = {"commodity": commodity, "metric": metric,
+         "period": (f"MY{my}" if my is not None else None), "asof": asof}
+    if country is not None:
+        q["country"] = country
+    return {"query": q, "rows": [{"value": round(float(value), 4), "unit": unit}], "status": "ok"}
 
 
 def _xc_sides_ok(pair_row, source: str, target: str) -> bool:
@@ -2955,8 +3001,30 @@ def _xc_leg_lines(la, source, A, lb, target, B, calls: list, base: int, asof) ->
     return lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1))
 
 
+def _xc_fork_scan(da_by: dict, db_by: dict) -> tuple:
+    """(divergence_era_idx, comove_era_idx) over the INDEX-ALIGNED eras. The two-pass sign rule and its
+    absolute first-fire priority, extracted from _reroute_xc's loop VERBATIM (RV-REGIONAL, 2026-08-29):
+    opposite-sign wins and returns immediately; a flat leg (sign 0) is neither; the FIRST same-sign era
+    is recorded and only reported after the scan proves no era diverged. PURE -- no strings, no calls
+    list, no rendering. Shared by the World and the regional forks so the SIGN/PRIORITY rule (the
+    cardinal class) cannot fork. The RENDERING is deliberately duplicated per fork, with this note:
+    two string producers that drift produce two wrong labels, which the C20/scope pins catch; two SIGN
+    producers that drift produce a correct-looking inverted verdict, which nothing catches."""
+    comove_idx = None
+    for i in sorted(set(da_by) & set(db_by)):                   # index-aligned eras: same era_idx on both legs
+        sa, sb = _sign(da_by[i]["d"]), _sign(db_by[i]["d"])
+        if sa == 0 or sb == 0:
+            continue                                            # a flat/no-delta leg -> never a co-move (honest)
+        if sa == sb:                                            # a TRUE same-sign co-move (both real moves)
+            if comove_idx is None:
+                comove_idx = i                                  # record the FIRST; render only if no era diverges
+            continue
+        return i, comove_idx                                    # first divergence: absolute first-fire priority
+    return None, comove_idx
+
+
 def _reroute_xc(pair_row, source: str, target: str, focus_windows: list, qfn, asof,
-                calls: list, base: int, sg, comove: bool = False) -> tuple:
+                calls: list, base: int, sg, comove: bool = False, *, open_ask: bool = False) -> tuple:
     """The ratio-delta fork, labeled BY COMMODITY (RV-W2.3). BOTH legs are SYNTHESIZED World su_ratio legs over
     the SAME focus-window eras (Invariant 4 -- the shared window is FORCED, no second walk, no sibling
     retrieval), each on its OWN marketing year (C4).
@@ -2979,23 +3047,17 @@ def _reroute_xc(pair_row, source: str, target: str, focus_windows: list, qfn, as
     da_by = _leg_world_deltas(qfn, source, focus_windows, asof)
     db_by = _leg_world_deltas(qfn, target, focus_windows, asof)
     la, lb = _xc_label(source), _xc_label(target)
-    comove_idx = None                                           # first true same-sign era, deferred to pass 2
-    for i in sorted(set(da_by) & set(db_by)):                   # index-aligned eras: same era_idx on both legs
-        A, B = da_by[i], db_by[i]
-        sa, sb = _sign(A["d"]), _sign(B["d"])
-        if sa == 0 or sb == 0:
-            continue                                            # a flat/no-delta leg -> never a co-move (honest)
-        if sa == sb:                                            # a TRUE same-sign co-move (both real moves)
-            if comove_idx is None:
-                comove_idx = i                                  # record the FIRST; render only if no era diverges
-            continue
+    div_idx, comove_idx = _xc_fork_scan(da_by, db_by)           # RV-REGIONAL: the ONE sign/priority scan
+    if div_idx is not None:
+        A, B = da_by[div_idx], db_by[div_idx]
         # OPPOSITE-SIGN divergence -- the RV fork. First-fire priority: render + return here (byte-identical).
         lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1)) = _xc_leg_lines(
             la, source, A, lb, target, B, calls, base, asof)
         window = f"MY{mya0}-MY{mya1}"
         lines.append(
             f"CROSS-COMMODITY on su_ratio: {la} {pa1:g}% ({A['d']:+g}pp) vs {lb} {pb1:g}% ({B['d']:+g}pp) "
-            f"over {window} -- {_xc_frame(pair_row, sg)}; each World balance sheet aggregates DIFFERING local "
+            f"over {window} -- {_xc_frame(pair_row, sg, open_ask=open_ask)}; "
+            f"each World balance sheet aggregates DIFFERING local "
             f"marketing years, so the comparison holds at the marketing-year grain, not a shared calendar; "
             f"render '## Cross-commodity', labeled BY COMMODITY.")
         fired = {"pair_id": getattr(pair_row, "id", None), "complex": getattr(pair_row, "complex_name", None),
@@ -3071,11 +3133,21 @@ def _load_pair_row(pair_id: str):
 
 
 def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list,
-            *, comove: bool = False) -> tuple:
+            *, comove: bool = False, reading: bool = False, replay: bool = False,
+            rv_regional: bool = False) -> tuple:
     """Resolve the curated pair + the focus window, then run the ratio-delta fork. Returns (block_lines,
     fired_trace) -- ([], None) on ANY decline/failure so v2 NEVER breaks the v1 answer (fail-closed). `comove`
     ([SKEPTIC F3], threaded from the answer.py seam, never an env read) rides into _reroute_xc: when True a
-    pure same-sign complex-wide move may render (its OWN CO-MOVE marker); opposite-sign output is unaffected."""
+    pure same-sign complex-wide move may render (its OWN CO-MOVE marker); opposite-sign output is unaffected.
+
+    RV-READING (2026-08-29): `reading` (answer.py-threaded from GRAPHRAG_RV_READING, same [F3] idiom)
+    renders the directional price leg AFTER a pair fires -- it never chooses a pair (the D-XT seam owns
+    pair choice) and never rides the transmission composer's per-link calls (one reading per turn, two
+    fetches). `replay` is quantify's own price_replay belt threaded down unchanged: a historical-asof
+    turn drops the leg whole (the pink sheet is latest-only with retroactive revisions -- C-2). Both
+    default False -> flag-off is byte-identical. Declines stamp fired['price_reading_decline'] (the
+    xc_open_decline shape: a counted decline beats a silent one -- eval's rv_reading counters read it);
+    a leg-local register-fence trip additionally stamps sg.trace['quantify_rv_reading_fenced']."""
     try:
         pair_id = (xc_request or {}).get("pair_id")
         source = (xc_request or {}).get("source_slug")
@@ -3090,15 +3162,230 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
             return [], None
         # comove passed POSITIONALLY (not keyword): the gate-test stub replaces _reroute_xc with a lambda that
         # only accepts positional *a, so a keyword here would raise -> fail-closed swallow. Positional rides in.
-        block, fired = _reroute_xc(pair_row, source, target, windows, qfn, asof, calls, len(calls), sg, comove)
+        # D-XT N12: open_ask via the omit-when-off idiom -- passing the kwarg unconditionally would raise
+        # TypeError through that same stub and an open-ask turn would decline INVISIBLY. Load-bearing, not
+        # cosmetic (pinned through the stub itself).
+        _oa = {"open_ask": True} if (xc_request or {}).get("trigger") in _OPEN_TRIGGERS else {}
+        # RV-REGIONAL dispatch (fail-closed, contract-keyed). A regional pair with the flag OFF falls
+        # to _reroute_xc, whose _xc_sides_ok requires country_rule == 'world' on both sides -> ([],
+        # None) -- combined with the contextual tier, flag-off is inert twice over by construction.
+        _regional = False
+        if rv_regional:
+            try:
+                from leviathan.graphrag import complex_map as _xcm
+                _regional = (_xcm.pair_is_regional(pair_row)
+                             and _xc_sides_ok_regional(pair_row, source, target))
+            except Exception:  # noqa: BLE001
+                _regional = False
+        if _regional:
+            block, fired, _rdec = _reroute_xc_regional(pair_row, source, target, windows, qfn, asof,
+                                                       calls, len(calls), sg, comove, **_oa)
+            if _rdec and not fired:
+                # E3: the decline channel -- a non-firing regional fork has no fired dict to stamp,
+                # so the tag rides its own trace key (the xc_open_decline shape, four-outcome census)
+                try:
+                    sg.trace["xc_regional_decline"] = {"reason": _rdec}
+                except Exception:  # noqa: BLE001
+                    pass
+        else:
+            block, fired = _reroute_xc(pair_row, source, target, windows, qfn, asof, calls,
+                                       len(calls), sg, comove, **_oa)
         if fired:
             # RV2 W2 tier telemetry (D7, S2-2): the fired trace records the DETECTING tier HERE, after the
             # call -- _reroute_xc has no xc_request in scope. A 3-key request (legacy/injected) reads None;
             # the engine itself still consumes only pair_id/source/target, so the key rides inert.
             fired["detect_tier"] = (xc_request or {}).get("detect_tier")
+            # D-XT M3: the trigger path rides beside it -- absent on every legacy/named request, so the
+            # fired dict is byte-identical when the open lane never ran.
+            if (xc_request or {}).get("trigger"):
+                fired["trigger"] = xc_request.get("trigger")
+            # RV-READING: renders AFTER the pair fired, gated ONLY by the threaded kwargs (fail-closed
+            # inside). The fence trip is the one decline that also writes a top-level trace key -- the
+            # register discipline's own visibility rule (belt (a) of _RV_READING_BANNED_RX).
+            if reading:
+                if replay:
+                    fired["price_reading_decline"] = "replay"
+                else:
+                    p_lines, p_trace = _rv_price_reading(pair_row, source, target, fired, qfn, asof,
+                                                         calls, len(calls), windows,
+                                                         regional=_regional)
+                    if p_lines:
+                        block = block + p_lines
+                        fired["price_reading"] = p_trace
+                    elif p_trace:
+                        fired["price_reading_decline"] = p_trace.get("decline") or "error"
+                        if p_trace.get("decline") == "fenced":
+                            try:
+                                sg.trace["quantify_rv_reading_fenced"] = True
+                            except Exception:  # noqa: BLE001 -- a traceless sg must never break the answer
+                                pass
+            elif _regional:
+                # F1.1 (refute-v1 D13): GRAPHRAG_RV_REGIONAL alone gives no price leg -- the verdict
+                # is OMITTED with a counted reason, never narrated as UNRESOLVED (which would tell
+                # the reader the data was inconclusive when the leg simply never ran).
+                fired["rv_regional_price_leg"] = "reading_flag_off"
         return block, fired
     except Exception:  # noqa: BLE001
         return [], None
+
+
+# ── D-XT: the deferred OPEN-ASK bind (owner directive 2, 2026-08-29) ─────────────────────────────────
+XC_OPEN_PROBE_CAP = 4        # `pair_realizable` is a LIVE pg probe behind lru_cache(maxsize=64)
+#                              (cascade_census -> _pair_verdict(pgnumbers.pg_query)). NOT pure and NOT
+#                              free. MEASURED-INERT (N11): the largest candidate set any curated source
+#                              has is 4 (soybean_oil_cbot), so the cap can never truncate today. It
+#                              exists so a roster growth cannot silently uncap the probe count. NOTE the
+#                              divergence from the shipped gate's first-True loop (P23): the resolver
+#                              probes up to CAP candidates to rank them; the gate stopped at the first.
+XC_OPEN_DECLINES = ("no_focus", "focus_not_paired", "no_realizable", "crush_not_traversed", "error")
+_OPEN_TRIGGERS = ("open_walk_graph", "open_walk_idorder")
+
+
+def _xc_walk_focus(sg, graph) -> str | None:
+    """THE TURN'S FOCUS CONTRACT: the first walk seed that is a graph contract. NOT A NEW RULE -- it is
+    the expression answer.py's F2 price leg already uses to bind focus_contract, reused deliberately
+    (two focus rules that could disagree is the defect; a unit pin asserts the two agree). sg.seeds is
+    planner._seed_contracts in ROUTE ORDER -- on a planner turn that is the DISPATCH PLANNER'S OWN
+    centrality ordering under its NAMED ANCHORS rule, not a lexical hit count and not the alphabet.
+    MULTI-SEED TURNS: the head wins and the rest are RECORDED, never ranked -- scanning down for a seed
+    that happens to sit in a curated pair would let the PAIR ROSTER choose the source (the alphabet
+    defect wearing the walk's clothes); what the other seeds are worth is measured for free instead
+    (first_paired_seed in the decline/rank record). HONEST COST, measured: the head can be a GENERIC
+    contract id ('corn'/'soybeans', distinct ids from corn_cbot/soybeans_cbot, in ZERO curated pairs)
+    when the planner named the generic first; those turns decline focus_not_paired -- a ROSTER finding,
+    reported as one (P7). Never raises."""
+    try:
+        return next((c for c in (getattr(sg, "seeds", None) or [])
+                     if c in getattr(graph, "contracts", {})), None)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _xc_walk_index(sg, source: str) -> dict:
+    """{contract_id -> {"relevance": float, "relations": set, "tracked": bool}} over the CONTRACT nodes
+    THIS walk admitted. `relations` holds the relation of the edge the walk TRAVERSED OUT OF `source` to
+    reach this contract (planner stamps via_edge = {**e, "_from": cid, ...}).
+    N5 (round-3 refuter, ADOPTED AS THE EXCLUSION): a D-MW-28 CASCADE SLOT also stamps _from, relation
+    AND tracked: True (planner.py:689-696) -- and that edge is traversed in REVERSE (the foreign
+    contract declared the seed as ITS driver), so counting it would score `traversed` on the opposite
+    direction from the one this key measures. EXCLUDED by reason == REASON_DOWNSTREAM_CONTRACT.
+    Measured bite on the frozen deck: ZERO -- excluded for correctness, not for effect.
+    M2: the relation set is a UNION and the per-pair match is explicit at the call site -- no
+    max((rank, relevance, relation)) string compare (that picked the surviving relation LEXICALLY where
+    a node carries two: mcpo->soybean_oil carries substitutes_for AND competes_with). `tracked` is
+    RECORDED, never RANKED (every non-seed contract arrives through the cross_links wave, which already
+    gates on e["tracked"] -- the test was decorative). Never raises."""
+    from leviathan.graphrag.planner import REASON_DOWNSTREAM_CONTRACT
+    out: dict = {}
+    for n in (getattr(sg, "nodes", None) or []):
+        if getattr(n, "kind", None) != "contract":
+            continue
+        cid = getattr(n, "id", None)
+        if not cid:
+            continue
+        ve = getattr(n, "via_edge", None) or {}
+        rel = (str(ve.get("relation") or "")
+               if (ve.get("_from") == source and ve.get("reason") != REASON_DOWNSTREAM_CONTRACT) else "")
+        e = out.setdefault(cid, {"relevance": 0.0, "relations": set(), "tracked": False})
+        e["relevance"] = max(e["relevance"], float(getattr(n, "relevance", 0.0) or 0.0))
+        e["tracked"] = e["tracked"] or (ve.get("tracked") is True)
+        if rel:
+            e["relations"].add(rel)
+    return out
+
+
+def _xc_open_rank(rank, ids: list, by_id: dict, source: str, sg) -> list:
+    """[(pair_id, other_leg, stamp), ...] best first, over the REALIZABLE candidate ids (P11: written
+    plainly -- `by_id` maps pair_id -> pair row, `other` is complex_map.pair_other).
+
+    idorder: the shipped PAIR_CAP=1 rule applied to a source the GRAPH chose -- curated-id order. Never
+    empty when ids is non-empty, so crush_not_traversed is unreachable on this path (M1 by construction).
+    graph (SHIPS DARK): the walk ranks -- traversed = 1 iff the walk traversed THIS PAIR'S OWN relation
+    out of source to the partner (explicit per-pair match, M2); a crushed_into candidate whose crush edge
+    was not traversed is DROPPED (m4: a crush relation is an accounting identity, true without dated
+    evidence); sort (-traversed, -relevance, pair_id). M1: crush_only is computed over the candidate set
+    BEFORE the loop -- when the walk lights nothing and the set is not all-crush, fall back to idorder
+    stamped fallback=id_order (a reorder failure is never a decline)."""
+    from leviathan.graphrag import complex_map as cm
+    idorder = []
+    for pid in ids:
+        other = cm.pair_other(by_id[pid], source)
+        if other:
+            idorder.append((pid, other, {"rank": "idorder"}))
+    if rank != "graph":
+        return idorder
+    idx = _xc_walk_index(sg, source)
+    crush_only = all(str(getattr(by_id[p], "relation", "") or "") == "crushed_into" for p, _, _ in idorder)
+    rows = []
+    for pid, other, _ in idorder:
+        prel = str(getattr(by_id[pid], "relation", "") or "")
+        traversed = 1 if (prel and prel in idx.get(other, {}).get("relations", ())) else 0
+        if prel == "crushed_into" and not traversed:
+            continue
+        rel_score = float(idx.get(other, {}).get("relevance", 0.0) or 0.0)
+        rows.append((pid, other, {"rank": "graph", "traversed": traversed,
+                                  "relevance": round(rel_score, 6)}))
+    rows.sort(key=lambda r: (-r[2]["traversed"], -r[2]["relevance"], r[0]))
+    if rows and any(r[2]["traversed"] for r in rows):
+        return rows
+    if crush_only:
+        return []
+    return [(pid, other, dict(stamp, rank="graph", fallback="id_order"))
+            for pid, other, stamp in idorder]
+
+
+def resolve_xc_open(xc_request: dict, sg, graph) -> tuple:
+    """THE DEFERRED OPEN-ASK BIND (owner directive 2, 2026-08-29). The orchestrator DETECTED the ask and
+    withheld SOURCE; this binds SOURCE to the walk's own focus, takes that source's curated MATERIAL
+    census-realizable pairs, and picks one. Returns (resolved_request | None, decline_dict | None) --
+    never a bare None. A request without `defer` rides through IDENTICAL (the `is` object): that is how
+    every NAMED ask, every legacy request and every flag-off turn bypasses this function untouched.
+    IT CANNOT FIRE A TURN THE DETECTOR DID NOT LICENSE, and it cannot reach a market outside the curated
+    roster: SOURCE comes from the walk, the PARTNER comes from complex_map, and every candidate must pass
+    the per-pair census. Never raises (a resolver failure degrades to no fork, never a 500)."""
+    try:
+        if not isinstance(xc_request, dict) or xc_request.get("defer") != "walk":
+            return (xc_request, None)
+        req = dict(xc_request)
+        source = _xc_walk_focus(sg, graph)
+        _seeds = [c for c in (getattr(sg, "seeds", None) or []) if c in getattr(graph, "contracts", {})]
+        if not source:
+            return (None, {"reason": "no_focus", "n_seeds": len(_seeds)})
+        from leviathan.graphrag import complex_map as cm
+        try:
+            pairs = list(getattr(cm.load_complex_map(), "pairs", []) or [])
+        except Exception:  # noqa: BLE001 -- a map-load failure is a decline, never a raise
+            pairs = []
+        cands = sorted((p for p in pairs if source in cm.pair_slugs(p)), key=lambda p: p.id)
+        _alt = next((c for c in _seeds if any(c in cm.pair_slugs(p) for p in pairs)), None)
+        _base = {"focus": source, "n_seeds": len(_seeds), "focus_paired": bool(cands),
+                 "first_paired_seed": _alt, "n_pairs": len(cands)}
+        if not cands:
+            return (None, dict(_base, reason="focus_not_paired"))
+        _t0, ids, probes = time.perf_counter(), [], 0
+        by_id = {p.id: p for p in cands}
+        for p in cands:
+            if probes >= XC_OPEN_PROBE_CAP:
+                break
+            probes += 1
+            if _xmit_pair_realizable(p.id) and cm.pair_other(p, source):
+                ids.append(p.id)
+        _base |= {"n_realizable": len(ids), "probes": probes,
+                  "probe_ms": int((time.perf_counter() - _t0) * 1000),
+                  "capped": probes >= XC_OPEN_PROBE_CAP < len(cands)}
+        if not ids:
+            return (None, dict(_base, reason="no_realizable"))
+        rows = _xc_open_rank(req.get("rank"), ids, by_id, source, sg)
+        if not rows:
+            return (None, dict(_base, reason="crush_not_traversed"))
+        pid, other, stamp = rows[0]
+        out = {k: v for k, v in req.items() if k not in ("defer", "rank")}
+        out["pair_id"], out["source_slug"], out["target_slug"] = pid, source, other
+        out["trigger"] = "open_walk_graph" if req.get("rank") == "graph" else "open_walk_idorder"
+        out["xc_open_rank"] = dict(_base, pair_id=pid, target=other, **stamp)
+        return (out, None)
+    except Exception:  # noqa: BLE001 -- degrade to no fork, never a 500, never a guess
+        return (None, {"reason": "error"})
 
 
 # ── SEAM B: F2 price-response leg (Alternative B) ─────────────────────────────────────────────────────
@@ -3255,6 +3542,1084 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         return lines, fired
     except Exception:  # noqa: BLE001 -- fail-closed: a price-leg failure must never break the v1 answer
         return [], None
+
+
+# ── RV-READING: the directional price leg on a FIRED cross-commodity pair (2026-08-29) ────────────────
+# The pair's price standing (constructed spread history + rank/sigma/streak) set beside the balance-sheet
+# divergence the fork already rendered, with a deterministic three-valued alignment verdict -- an OBSERVED
+# reading, never a forecast (the R3 / BANNED_PATTERN doctrine; the leg-local fence below is belt three).
+# SEAM: renders in _run_xc AFTER _reroute_xc returns `fired` -- it never chooses a pair (the D-XT seam owns
+# pair choice), and _reroute_xc stays byte-identical (its comove positional-stub and the transmission
+# composer's direct per-link calls both forbid touching it; the reading deliberately does NOT ride
+# transmission links -- one reading per turn, two fetches, POST-CAP). Gated ONLY by the answer.py-threaded
+# `rv_reading` kwarg (GRAPHRAG_RV_READING read THERE, never here -- the [F3]/pace discipline), and dropped
+# whole on any historical-asof turn via the SAME price_replay belt the R4 context lane rides (the pink
+# sheet is latest-only with retroactive WB revisions -- C-2). R4 GOVERNANCE: this is a SYNTHESIZED leg (no
+# map row for either R4 half to inspect), so config_check's R4c term binds _RV_PRICE_TABLE +
+# _RV_PRICE_SERIES to an explicit allow-list -- the fence gets no silent door beside it (the SEAM-B gap,
+# closed). The section-6 owner ask (a `price_relative` R4 lane) governs the FLAG flip; the build is dark
+# and correct either way.
+_RV_PRICE_TABLE = "silver_pink_sheet"
+_RV_PRICE_MONTHS = 60          # the card's OWN 5-year z window (tables.yaml zscore_5yr twins) -- one
+#                                window family, never a second number declared here.
+# slug -> (pink-sheet metric, reader label). The label names the COMMODITY, never the contract (the
+# _xc_label rule); every ABSENCE is an honest decline and each is written down -- silence is not admission:
+#   palm_olein_dce      -- the WB carries CPO, not olein; a CPO price under an olein label is the
+#                          undisclosed-substitute class (the A3 defect at _price_pair)
+#   white_sugar         -- the WB carries raw world/EU/US sugar, no white-sugar series
+#   barley, sorghum     -- WB DISCONTINUED both after 2020-08; a windowed read to a 2026 asof returns a
+#                          2020 number wearing a current label (the card's own trap (1))
+#   canola_ice, french_rapeseed_matif, rapeseed_meal_zce -- no canola/rapeseed SEED and no rapeseed meal
+#                          on the card (only rapeseed OIL)
+#   every JSE / MATIF / CEPEA / DCE-grade slug -- no WB world benchmark corresponds
+_RV_PRICE_SERIES = {
+    "soybean_oil_cbot":             ("soybean_oil_usd_t",     "world soybean oil"),
+    "soybean_oil_dce":              ("soybean_oil_usd_t",     "world soybean oil"),
+    "malaysian_crude_palm_oil_cme": ("palm_oil_cpo_usd_t",    "world crude palm oil"),
+    "rapeseed_oil_zce":             ("rapeseed_oil_usd_t",    "world rapeseed oil"),
+    "soybean_meal_cbot":            ("soybean_meal_usd_t",    "world soybean meal"),
+    "soybean_meal_dce":             ("soybean_meal_usd_t",    "world soybean meal"),
+    "soybeans_cbot":                ("soybeans_usd_t",        "world soybeans"),
+    "corn_cbot":                    ("maize_usd_t",           "world maize (US Gulf)"),
+    "soft_red_winter_wheat_cbot":   ("wheat_us_srw_usd_t",    "US soft red winter wheat"),
+    "hard_red_winter_wheat_kcbt":   ("wheat_us_hrw_usd_t",    "US hard red winter wheat"),
+    "sunflower_oil":                ("sunflower_oil_usd_t",   "world sunflower oil"),
+    "arabica_coffee":               ("coffee_arabica_usd_t",  "world arabica coffee"),
+    "robusta_coffee":               ("coffee_robusta_usd_t",  "world robusta coffee"),
+    "raw_sugar":                    ("raw_sugar_world_usd_t", "world raw sugar"),
+    "cotton":                       ("cotton_a_index_usd_t",  "the Cotton A Index"),
+    "rough_rice_cbot":              ("rice_thai_5pct_usd_t",  "Thai 5% broken white rice"),
+    "cocoa":                        ("cocoa_usd_t",           "world cocoa"),
+}
+# D6 (C20 on the PRICE leg): where the balance-sheet label (_xc_label) and the price label name DIFFERENT
+# aggregates, the directive says so out loud -- the not-the-same-aggregate sentence, per leg. Without it
+# the reading is the C20 class the estate calls cardinal (an all-class number narrated as one class).
+_RV_C20_NOTES = {
+    "soft_red_winter_wheat_cbot":  "all-class world wheat on its balance-sheet row, while this price is "
+                                   "the US soft red winter benchmark specifically",
+    "hard_red_winter_wheat_kcbt":  "all-class world wheat on its balance-sheet row, while this price is "
+                                   "the US hard red winter benchmark specifically",
+    "corn_cbot":                   "world corn on its balance-sheet row, while this price is the US Gulf "
+                                   "maize benchmark specifically",
+    "rough_rice_cbot":             "world rough rice on its balance-sheet row, while this price is the "
+                                   "Thai 5% broken white export benchmark specifically",
+    "cotton":                      "world cotton on its balance-sheet row, while this price is the Cotton "
+                                   "A Index specifically",
+}
+# The leg-local forward-modal fence (belt (a) of three; the pace_register_ok precedent). Bare
+# narrow/widen/rose/fell are NOT fenced -- honest past-tense observation (fencing the bare stem is the
+# squeez\w* collision register.py already learned); what is fenced is the FORWARD modal + the valuation
+# adjectives + the trade framing. One hit drops the whole block.
+_RV_READING_BANNED_RX = re.compile(
+    r"\b(should|will|would|ought to|is likely to|expects?|expected|due to|set to|poised to|primed to)\s+"
+    r"(re)?(narrow|widen|converge|diverge|revert|normalis\w*|normaliz\w*|close|mean[- ]revert)\w*\b"
+    r"|\bmean[- ]reversion\b|\bcloses? the gap\b"
+    r"|\b(too|historically) (wide|narrow|cheap|rich|expensive)\b"
+    r"|\bconvergence (trade|play|setup)\b", re.I)
+_RV_WINDOW_RX = re.compile(r"^MY(\d{4})-MY(\d{4})$")   # D3: mya0 is NOT in the fired interface; it is
+#                                                       recovered by this PINNED parse of fired['window']
+#                                                       (f"MY{mya0}-MY{mya1}") -- the alternative (adding
+#                                                       myA0 to the dict) breaks the _reroute_xc-unchanged
+#                                                       promise. A parse miss omits the verdict, honestly.
+
+
+def _months_back(asof, n: int) -> str:
+    """`asof` minus `n` months, as a first-of-month ISO date -- pure string arithmetic on the SUPPLIED
+    asof (the _covering_my idiom: this module reads no clock)."""
+    y, m = int(str(asof)[:4]), int(str(asof)[5:7])
+    tot = y * 12 + (m - 1) - int(n)
+    return f"{tot // 12:04d}-{tot % 12 + 1:02d}-01"
+
+
+def _rv_price_series(qfn, metric: str, asof) -> dict:
+    """ONE windowed pink-sheet read: the trailing _RV_PRICE_MONTHS months to `asof`. The pink sheet is
+    WIDE and FLAT -- no commodity_col, no country_col, the metric IS the series -- so both are None. PIT
+    is the fetch_window stack's (t2 clamp + the card's publication_lag_days as-of guard + data_date
+    semantics); the replay belt is applied ABOVE this call, at the _run_xc gate."""
+    return fetch_window(qfn, table=_RV_PRICE_TABLE, metric=metric, commodity=None, country=None,
+                        t1=_months_back(asof, _RV_PRICE_MONTHS), t2=asof, asof=asof,
+                        agg="series", period=None, period_type="date")
+
+
+def _rv_axes(rec: dict, card_metric) -> tuple:
+    """(values, dates, unit) off a pink-sheet series call-record, oldest -> newest as fetched (ASC total
+    order). Rows missing a parseable value or a date are skipped -- the join is by date, so a dateless
+    row can never be joined honestly. Unit: the fetched row's own (the F6 rule), card unit as fallback.
+
+    THE ROW'S DATE KEY IS `knowledge_date` (measured 2026-08-29, the treatment-arm RCA): query._extras
+    surfaces the DP-5-normalized date under the knowledge alias for silver_pink_sheet
+    (knowledge_date_col == date), and the row carries NO `unit` key at all -- the first arm's fixtures
+    invented both, so every cloud row declined empty_series while the suite was green. The fixture
+    shape is now pinned to the REAL keys."""
+    vals, dates, unit = [], [], ""
+    for r in (rec.get("rows") or []):
+        d = str(r.get("date") or r.get("data_date") or r.get("knowledge_date") or "")[:10]
+        try:
+            v = float(str(r.get("value")).replace(",", ""))
+        except (TypeError, ValueError):
+            continue
+        if not d:
+            continue
+        vals.append(v)
+        dates.append(d)
+        if not unit and r.get("unit"):
+            unit = str(r.get("unit"))
+    if not unit:
+        unit = str(getattr(card_metric, "unit", None) or "")
+    return vals, dates, unit
+
+
+def _rv_call(metric: str, tag: str, value, period: str, asof, *, unit: str,
+             date: str | None = None) -> dict:
+    """A synthetic pink-sheet call-record so a narrated reading magnitude IS a citable, value-checkable
+    [N] row (the _xc_call/_price_call discipline). `tag` is the READER-FACING series expression riding
+    the query's commodity slot ('world crude palm oil', 'world soybean oil minus world crude palm oil')
+    so _series_tag renders '[series: <tag>; table: <pink-sheet label>]' -- the W4 A/B scope discipline.
+    THE RAW METRIC ID NEVER RIDES THE TAG: `register.internal_leaks` matches the *_usd_t vocabulary on
+    the model's copy-surface (measured -- the design's own template leaked it; the pin caught it), so
+    the id stays machine-side in `metric` for the locator while the tag speaks reader words (the A1/F21
+    table_label rule, applied to the series axis). Derived rows carry EXPLICIT unit strings (D5: eval's
+    unit_present pin covers every valued citation on this table) and the latest observation's date
+    (one-sided: derived-later-than-inputs, the _endpoint_row doctrine)."""
+    row: dict = {"value": value, "unit": unit}
+    if date:
+        row["knowledge_date"] = date        # the REAL pink-sheet row key (measured 2026-08-29): the
+        #                                     DP-5 date surfaces as knowledge_date, and it is the key
+        #                                     citations.from_number stamps [known ...] from
+    return {"query": {"table": _RV_PRICE_TABLE, "metric": metric, "commodity": tag,
+                      "country": None, "period": period, "asof": asof},
+            "rows": [row], "status": "ok"}
+
+
+def _rv_ordinal(p: float) -> str:
+    """41.0 -> '41st' (reader-facing rank token; the ROW stores the same rounded integer, so the printed
+    figure and the injected figure are one number, never a 1%-tolerance gamble on a small rank)."""
+    i = int(round(p))
+    if 10 <= i % 100 <= 20:
+        return f"{i}th"
+    return f"{i}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(i % 10, 'th') }"
+
+
+def _rv_era_bounds(fired: dict, source: str, windows: list | None):
+    """(w_lo_ym, w_hi_ym) -- the fired era's OWN CALENDAR month bounds, recovered exactly as the
+    landed verdict recovers them (_RV_WINDOW_RX parse matched back through _my_span(w, source)).
+    Leg-symmetric by construction (the F1 fix); None on any miss."""
+    m = _RV_WINDOW_RX.match(str(fired.get("window") or ""))
+    if not (m and windows):
+        return None
+    want = list(range(int(m.group(1)), int(m.group(2)) + 1))
+    era = next((w for w in windows if _my_span(w, source) == want), None)
+    if era is None:
+        return None
+    asof_d = str(fired.get("asof") or "")[:10]
+    hi = str(era[1])[:10]
+    return (str(era[0])[:7], (min(hi, asof_d) if asof_d else hi)[:7])
+
+
+def _rv_one_sided_rung(source: str, target: str, fired: dict, qfn, asof, calls: list, base: int,
+                       windows: list | None, *, missing: str, reason: str) -> tuple:
+    """REGIONAL one-sided price rung (design B4.2 + the OWNER AMENDMENT 2026-08-29): the MAPPED leg
+    renders its own level + own percentile + its own per-leg verdict (fundamentals direction vs its
+    OWN price direction -- no FX anywhere in that comparison); the ABSENT leg speaks its OWN settle
+    in its OWN currency when silver_futures_eod holds it (_RV_EOD_LEVEL -- one front-expiry read; a
+    front-month HISTORY needs the per-session roll only gold_futures_spreads precomputes, so the
+    level renders and the history honestly does not); then the MEASURED per-slug absence sentence
+    for the comparable history. NO cross-leg price figure exists in this rung by construction --
+    the cross-currency comparison stays refused with its reason named. Reached ONLY with
+    regional=True (LOCK 1). Never raises past the caller's belt."""
+    from leviathan.graphrag.numbers import stats as st
+    ma = _RV_PRICE_SERIES.get(source) or _RV_PRICE_SERIES.get(target)
+    mapped = source if _RV_PRICE_SERIES.get(source) else target
+    try:
+        declared = getattr(_registry().get(_RV_PRICE_TABLE), "metrics", None) or {}
+    except Exception:  # noqa: BLE001
+        declared = {}
+    if not ma or ma[0] not in declared:                 # refute-v2 E5: the declared gate applies HERE too
+        return [], {"decline": "no_metric_map"}
+    rec = _rv_price_series(qfn, ma[0], asof)
+    fetches = 1
+    if rec.get("status") != "ok":
+        return [], {"decline": "empty_series", "fetches": fetches}
+    vals, dts, unit = _rv_axes(rec, declared.get(ma[0]))
+    if not vals:
+        return [], {"decline": "empty_series", "fetches": fetches}
+    lbl = ma[1]
+    local: list = []
+    lines: list = []
+    n = base
+    ym = dts[-1][:7]
+    n += 1
+    local.append(_shown(_rv_call(ma[0], lbl, round(vals[-1], 4), f"{dts[-1]}..{dts[-1]}", asof,
+                                 unit=unit or "unlabelled", date=dts[-1]), vals[-1]))
+    lines.append(f"- [N{n}] {lbl}, monthly benchmark price {ym}: {vals[-1]:.2f} "
+                 f"{unit}".rstrip() + _series_tag(local[-1]["query"]))
+    pc = st.percentile(vals[-1], vals)
+    if not pc.get("declined"):
+        n += 1
+        pv = int(round(pc["value"]))
+        local.append(_shown(_rv_call(ma[0], lbl, pv, f"{dts[0]}..{dts[-1]}", asof,
+                                     unit="percentile", date=dts[-1]), pv, pc["n"]))
+        lines.append(f"- [N{n}] where {lbl}'s own price stands within its {pc['n']}-month span to "
+                     f"{ym}: {_rv_ordinal(pv)} percentile" + _series_tag(local[-1]["query"]))
+    # the per-leg verdict: the MAPPED leg's own fundamentals delta vs its OWN price change
+    d_leg = fired.get("dA") if mapped == fired.get("commodityA") else fired.get("dB")
+    bounds = _rv_era_bounds({**fired, "asof": asof}, source, windows)
+    change = _rv_leg_window_change(vals, dts, bounds[0], bounds[1]) if bounds else None
+    leg_verdict = _regional_leg_verdict(d_leg, change)
+    # OWNER AMENDMENT: the absent board's OWN settle, own currency -- an observed fact, no FX
+    eod = _RV_EOD_LEVEL.get(missing)
+    eod_rendered = False
+    if eod is not None:
+        fetches += 1
+        erec = fetch_window(qfn, table=_RV_EOD_TABLE, metric=eod[0], commodity=missing,
+                            country=None, t1=None, t2=None, asof=asof, agg="front_expiry",
+                            period=None, period_type="date")
+        erow = _headline_row(erec) or {}
+        try:
+            ev = float(str(erow.get("value")).replace(",", ""))
+        except (TypeError, ValueError):
+            ev = None
+        if erec.get("status") == "ok" and ev is not None:
+            eu_unit = str(erow.get("unit") or "")
+            n += 1
+            # a READER-facing synthetic (the _rv_call law: the raw contract slug in a tag fires
+            # register.internal_leaks -- pin-caught twice now); the machine metric/table ride the
+            # locator; the session date is the row's `knowledge_date` (the REAL front_expiry row
+            # shape, measured 2026-08-29 -- there is no trade_date key); `contract_month` rides the
+            # query so the tag names the DELIVERY MONTH (D-OJ-5: a survivor-basis level without its
+            # delivery month is a scope mis-attribution).
+            syn = {"query": {"table": _RV_EOD_TABLE, "metric": eod[0], "commodity": eod[1],
+                             "country": None, "period": None, "asof": asof,
+                             "contract_month": erow.get("contract_month")},
+                   "rows": [{k: v for k, v in {"value": round(ev, 4), "unit": eu_unit,
+                                               "knowledge_date": (erow.get("knowledge_date")
+                                                                  or erow.get("trade_date"))}.items()
+                             if v not in (None, "")}],
+                   "status": "ok"}
+            local.append(_shown(syn, ev))
+            lines.append(f"- [N{n}] {eod[1]}, front-month settle (its own currency, latest session): "
+                         f"{ev:.2f} {eu_unit}".rstrip() + _series_tag(syn["query"]))
+            eod_rendered = True
+    vw = _RV_VERDICT_WORD.get(leg_verdict, "UNRESOLVED")
+    lines.append(
+        f"VERDICT ({vw}) on the {lbl} leg: its own balance-sheet move is set against its OWN price "
+        f"move only. The pair verdict is ONE-SIDED: {reason}."
+        + (f" The {eod[1]}'s own settle is shown above in its own currency; no cross-currency "
+           f"comparison is made between the two boards -- a difference needs one unit and a ratio "
+           f"would carry an exchange rate this platform does not hold." if eod_rendered else
+           " No cross-currency comparison is made between the two boards.")
+        + " These are the sources' own published figures -- not exchange settles re-based, not a "
+          "board level for the other contract. Render under '## Cross-commodity', after the "
+          "balance-sheet rows, as an OBSERVED standing: no statement is made about where either "
+          "price goes next.")
+    if _RV_REGIONAL_BANNED_RX.search("\n".join(lines)):
+        return [], {"decline": "fenced"}
+    calls.extend(local)
+    return lines, {"form": None, "rung": "one_sided", "alignment": leg_verdict,
+                   "pair_verdict": "one_sided", "n": 0, "metric_a": ma[0], "fetches": fetches,
+                   "absent_leg": missing, "shown_leg": mapped, "eod_level": eod_rendered,
+                   "rows": len(local)}
+
+
+def _rv_price_reading(pair_row, source: str, target: str, fired: dict, qfn, asof,
+                      calls: list, base: int, windows: list | None = None, *,
+                      regional: bool = False) -> tuple:
+    """The reading composer. Returns (lines, trace) on render; ([], {'decline': tag}) on any honest
+    decline; ([], None) only on a shape so broken there is nothing to record. Synthetic rows are built
+    LOCALLY and appended to `calls` only after the leg-local fence passes -- a fenced drop must leave no
+    orphan [N] rows behind. A = `source` ALWAYS (the orientation law: _reroute_xc labels legs off
+    source/target, so dA and the spread must be measured on the same leg or the verdict silently
+    inverts -- pinned both ways).
+
+    REVIEW ROUND 1 (2026-08-29, wf_64ebc032) folded, four confirmed findings:
+    * F1 (the cardinal class): the verdict's price window is the fired ERA's OWN CALENDAR DATES
+      (recovered from `windows` by matching `_my_span` against the fired MY string), NEVER an MY
+      reconstruction from `_my_start(source)` -- the two legs' MY calendars differ (corn 9 vs SRW 6),
+      so an MY-rebuilt clip followed the leg the user happened to name and the SAME facts produced
+      OPPOSITE verdicts across orientations. Era dates are leg-symmetric by construction.
+    * M3: a coverage floor -- the era must sit INSIDE the price history's own envelope, or the
+      verdict is omitted; a point count alone let 'the window they share' describe months the price
+      series never held.
+    * M4: a CO-MOVE turn DECLINES the reading outright. The co-move block's own directive is
+      'su_ratio percentages only'; appending a price-relative verdict under that marker put two
+      contradicting directives in one block. (Supersedes the earlier own-marker ruling -- measured
+      conflict beats the plan.)
+    * M1/M2: derived rows carry PLAIN-WORD metric tokens and span-form periods -- `query.metric`
+      reaches the reader through citations.from_number's fallback, and a bare 'YYYY-MM' period gets
+      MY-prefixed by citations._period_label (the documented MYMY class). Never raises."""
+    try:
+        from leviathan.graphrag.numbers import stats as st
+        if fired.get("comove"):
+            return [], {"decline": "comove"}
+        ma, mb = _RV_PRICE_SERIES.get(source), _RV_PRICE_SERIES.get(target)
+        if ma is None and mb is None:
+            return [], {"decline": "no_metric_map"}     # zero-mapped: unchanged (refute-v2 E18 pins it)
+        if ma is None or mb is None:
+            if not regional:                            # LOCK 1 (refute-v1 D1): World pairs are UNTOUCHED
+                return [], {"decline": "no_metric_map"}  # -- HEAD behaviour, byte-identical; three landed
+            #                                              pairs decline through this exact branch
+            missing = target if mb is None else source
+            reason = _RV_PRICE_ABSENCE.get(missing)
+            if reason is None:                          # LOCK 2: never a fabricated absence reason
+                return [], {"decline": "no_absence_reason"}
+            return _rv_one_sided_rung(source, target, fired, qfn, asof, calls, base, windows,
+                                      missing=missing, reason=reason)
+        try:
+            declared = getattr(_registry().get(_RV_PRICE_TABLE), "metrics", None) or {}
+        except Exception:  # noqa: BLE001
+            declared = {}
+        if ma[0] not in declared or mb[0] not in declared:
+            return [], {"decline": "no_metric_map"}     # undeclared attribute -> decline, never a 0-row SQL
+        ra = _rv_price_series(qfn, ma[0], asof)
+        rb = _rv_price_series(qfn, mb[0], asof)
+        if ra.get("status") != "ok" or rb.get("status") != "ok":
+            return [], {"decline": "empty_series"}
+        va, da, ua = _rv_axes(ra, declared.get(ma[0]))
+        vb, db, ub = _rv_axes(rb, declared.get(mb[0]))
+        if not va or not vb:
+            return [], {"decline": "empty_series"}
+        la, lb = ma[1], mb[1]
+        ps = st.pair_spread(va, da, ua, vb, db, ub, label_a=la, label_b=lb)
+        if ps.get("declined"):
+            # m2: a structural (shape) decline carries no guard tag by design in stats; it is a
+            # data-shape refusal, never an exception -- "error" is reserved for the except below.
+            guard = ps.get("guard") or "shape"
+            if guard not in (st.UNIT_GUARD, st.CURRENCY_GUARD, st.DENOMINATOR_GUARD):
+                return [], {"decline": guard}
+            # level_only rung (FIXTURE-ONLY under Pink-Sheet plumbing -- every leg USD/mt): the two legs
+            # read ONE AT A TIME, each its own level + own rank, and the spread's absence is said in the
+            # refusal's own words.
+            local: list = []
+            lines: list = []
+            n = base
+            for lbl, met, vals, dts, unit in ((la, ma[0], va, da, ua), (lb, mb[0], vb, db, ub)):
+                n += 1
+                ym = dts[-1][:7]
+                local.append(_shown(_rv_call(met, lbl, round(vals[-1], 4), f"{dts[-1]}..{dts[-1]}", asof,
+                                             unit=unit or "unlabelled", date=dts[-1]), vals[-1]))
+                lines.append(f"- [N{n}] {lbl}, monthly benchmark price {ym}: {vals[-1]:.2f} "
+                             f"{unit}".rstrip() + _series_tag(local[-1]["query"]))
+                pc = st.percentile(vals[-1], vals)
+                if not pc.get("declined"):
+                    n += 1
+                    pv = int(round(pc["value"]))
+                    local.append(_shown(_rv_call(met, lbl, pv, f"{dts[0]}..{dts[-1]}", asof,
+                                                 unit="percentile", date=dts[-1]),
+                                        pv, pc["n"]))
+                    lines.append(f"- [N{n}] where {lbl}'s own price stands within its {pc['n']}-month "
+                                 f"span to {ym}: {_rv_ordinal(pv)} percentile"
+                                 + _series_tag(local[-1]["query"]))
+            lines.append(f"PRICE-RELATIVE declined: {ps.get('reason')} -- the two legs are read one at a "
+                         f"time above and no spread between them is computed. These are World Bank monthly "
+                         f"cash benchmark AVERAGES, as published at the current WB release -- not exchange "
+                         f"settles, not a board level for either contract. Render under "
+                         f"'## Cross-commodity', after the balance-sheet rows, as an OBSERVED standing: "
+                         f"no statement is made about where either price goes next.")
+            if _RV_READING_BANNED_RX.search("\n".join(lines)):
+                return [], {"decline": "fenced"}
+            calls.extend(local)
+            return lines, {"form": None, "rung": "level_only", "alignment": "undetermined",
+                           "n": 0, "metric_a": ma[0], "metric_b": mb[0], "fetches": 2,
+                           "decline_guard": guard}
+        # -- constructed history in hand ------------------------------------------------------------
+        n_join = int(ps["n"])
+        series, dates = ps["series"], ps["dates"]
+        form = ps["form"]
+        ym = dates[-1][:7]
+        span = f"{dates[0]}..{dates[-1]}"                  # M2: span-form period -- never a bare YYYY-MM
+        obs = f"{dates[-1]}..{dates[-1]}"                  #     (citations._period_label MY-prefixes those)
+        pair_word = "spread" if form == "difference" else "ratio"
+        sunit = (ps.get("unit") or "") if form == "difference" else "ratio"
+        joiner = "minus" if form == "difference" else "over"
+        expr_tag = f"{la} {joiner} {lb}"                   # reader-side (the series tag)
+        # M1: the derived rows' metric tokens are PLAIN WORDS -- citations.from_number renders
+        # query.metric through _metric_display_name, whose fallback is the raw string, so a *_usd_t
+        # expression there reaches the reader's Sources block and fires internal_leaks (review-executed).
+        # The true metric ids ride the trace (metric_a/metric_b below), never a rendered surface.
+        m_spread = f"monthly benchmark {pair_word}"
+        fmtv = (lambda v: f"{v:.2f}x") if form == "ratio" else \
+               (lambda v: f"{v:+.2f} {sunit}".rstrip())    # m7: one rendering per family, everywhere
+        local = []
+        lines = []
+        n = base
+        # the two leg levels (each leg's own [N] level row -- the only place its own magnitude prints;
+        # their metric ids ARE declared card metrics, so from_number renders the card label -- clean)
+        for lbl, met, latest, unit, dt in ((la, ma[0], ps["a_latest"], ua, dates[-1]),
+                                           (lb, mb[0], ps["b_latest"], ub, dates[-1])):
+            n += 1
+            local.append(_shown(_rv_call(met, lbl, round(float(latest), 4), obs, asof,
+                                         unit=unit, date=dt), latest))
+            lines.append(f"- [N{n}] {lbl}, monthly benchmark price {ym}: {float(latest):.2f} "
+                         f"{unit}".rstrip() + _series_tag(local[-1]["query"]))
+        # the spread/ratio level (2 dp stored == 2 dp printed: a near-zero spread must not gamble on the
+        # verifier's 1% tolerance)
+        sp2 = round(float(ps["value"]), 2)
+        n += 1
+        h_sp = n
+        local.append(_shown(_rv_call(m_spread, expr_tag, sp2, obs, asof, unit=sunit,
+                                     date=dates[-1]), sp2))
+        if form == "difference":
+            lines.append(f"- [N{h_sp}] {la} {joiner} {lb}, monthly benchmark spread {ym}: {sp2:+.2f} "
+                         f"{sunit}".rstrip() + _series_tag(local[-1]["query"]))
+        else:
+            lines.append(f"- [N{h_sp}] {la} relative to {lb}, monthly benchmark ratio {ym}: {sp2:.2f}x"
+                         + _series_tag(local[-1]["query"]))
+        rung = "full"
+        rank_bits = []
+        if n_join >= st.MIN_PERCENTILE_N:
+            pc = st.percentile(ps["value"], series)
+            zs = st.zscore(ps["value"], series)
+            up, down = st.streak(series, "up"), st.streak(series, "down")
+            pv = int(round(pc["value"]))
+            n += 1
+            h_pc = n
+            local.append(_shown(_rv_call(f"{pair_word} percentile", expr_tag, pv, span, asof,
+                                         unit="percentile", date=dates[-1]),
+                                pv, n_join))
+            # K1 RCA (2026-09-01, audited pair 101703Z/103129Z): a FREE-standing window-length numeral
+            # on the writer's copy-surface ("of the prior 58 months") has no backing row, so the P9-B
+            # all-numbers guard stripped the reading's own payoff sentence. The hyphenated "{n}-month"
+            # form is the extractor's duration-modifier exemption (measured surviving in the same
+            # corpus) -- every copy-surface handed to the writer MUST use it.
+            lines.append(f"- [N{h_pc}] where that {pair_word} stands within its own {n_join}-month span "
+                         f"to {ym}: {_rv_ordinal(pv)} percentile" + _series_tag(local[-1]["query"]))
+            rank_bits.append(f"the {_rv_ordinal(pv)} percentile of the {n_join}-month window to {ym} "
+                             f"[N{h_pc}]")
+            if zs.get("declined"):
+                rung = "no_sigma"
+                rank_bits.append(f"every month of that {n_join}-month window prints the same "
+                                 f"{pair_word}, so no sigma is computed")
+            else:
+                z2 = round(float(zs["value"]), 2)
+                n += 1
+                h_z = n
+                local.append(_shown(_rv_call(f"{pair_word} sigma", expr_tag, z2, span, asof,
+                                             unit="sigma vs the window mean",
+                                             date=dates[-1]), z2))
+                lines.append(f"- [N{h_z}] that {pair_word} against its own window average: {z2:+.2f} sigma"
+                             + _series_tag(local[-1]["query"]))
+                rank_bits.append(f"{z2:+.2f} sigma against that window's own average [N{h_z}]")
+            run, word = (up["value"], "rises") if (up.get("value") or 0) > 0 else \
+                        (down.get("value") or 0, "falls")
+            if run:
+                n += 1
+                h_st = n
+                local.append(_shown(_rv_call(f"{pair_word} streak", expr_tag, int(run), span, asof,
+                                             unit="consecutive months",
+                                             date=dates[-1]), int(run)))
+                lines.append(f"- [N{h_st}] consecutive monthly {word} in that {pair_word} ending {ym}: "
+                             f"{int(run)}" + _series_tag(local[-1]["query"]))
+                # K1 pair #2 (2026-09-01, 113447Z): the streak clause is DECOUPLED from the payoff
+                # rank_bits. The writer respells a small count as a word ("after two consecutive
+                # monthly rises [N]") even under the TRANSCRIPTION directive, and that one handle's
+                # per-handle mismatch then deletes the WHOLE payoff sentence (percentile+sigma+level).
+                # The streak stays a block row above; if the writer narrates it and respells, only
+                # its own garnish sentence dies -- the payoff survives.
+        else:
+            # ordinal_thin: 2 <= n_join < 8 -- the estate's ordinal-when-thin instrument. extrema, never
+            # a rank the floor refuses.
+            rung = "ordinal_thin"
+            ex = st.extrema(series)
+            hi2, lo2 = round(float(ex["max"]), 2), round(float(ex["min"]), 2)
+            n += 1
+            h_hi = n
+            local.append(_shown(_rv_call(f"{pair_word} extreme", expr_tag, hi2, span, asof, unit=sunit,
+                                         date=dates[-1]), hi2, n_join))
+            lines.append(f"- [N{h_hi}] the highest {pair_word} across the {n_join}-month history held: "
+                         f"{fmtv(hi2)}" + _series_tag(local[-1]["query"]))
+            n += 1
+            h_lo = n
+            local.append(_shown(_rv_call(f"{pair_word} extreme", expr_tag, lo2, span, asof, unit=sunit,
+                                         date=dates[-1]), lo2, n_join))
+            lines.append(f"- [N{h_lo}] the lowest {pair_word} across the {n_join}-month history held: "
+                         f"{fmtv(lo2)}" + _series_tag(local[-1]["query"]))
+            rank_bits.append(f"the held history for this pair is only a {n_join}-month span, below the "
+                             f"{st.MIN_PERCENTILE_N}-month floor a rank or a sigma needs, so the "
+                             f"{pair_word} is placed ORDINALLY against the months held -- the highest is "
+                             f"{fmtv(hi2)} [N{h_hi}] and the lowest {fmtv(lo2)} [N{h_lo}] -- and no "
+                             f"percentile and no z-score is computed")
+        # -- the alignment verdict (F1 fix: the price window is the fired ERA's OWN CALENDAR DATES,
+        #    leg-symmetric by construction -- the fired MY string is matched back to its era via
+        #    _my_span(w, source), which reproduces exactly the string _reroute_xc minted. The sign flip
+        #    happens EXACTLY once, at rel_tight's named negation -- su_ratio is a LOOSENESS measure, so
+        #    A tightening RELATIVE to B means dA - dB < 0, while the spread RISING means A got dearer
+        #    relative to B; swapping the legs negates BOTH terms, so the verdict word cannot move) ----
+        verdict = "undetermined"
+        set_against = ""
+        m = _RV_WINDOW_RX.match(str(fired.get("window") or ""))
+        d_a, d_b = fired.get("dA"), fired.get("dB")
+        era = None
+        if m and windows:
+            my_span_want = list(range(int(m.group(1)), int(m.group(2)) + 1))
+            era = next((w for w in windows
+                        if _my_span(w, source) == my_span_want), None)
+        if era is not None and d_a is not None and d_b is not None:
+            w_lo = str(era[0])[:7]
+            w_hi = min(str(era[1])[:10], str(asof)[:10])[:7]
+            # M3 coverage floor: the era must sit INSIDE the price history's envelope -- a direction
+            # asserted over months the series never held is the claim, falsified.
+            if dates[0][:7] <= w_lo and w_hi <= dates[-1][:7]:
+                clipped = [v for v, dt in zip(series, dates) if w_lo <= dt[:7] <= w_hi]
+                if len(clipped) >= 2:
+                    sc = clipped[-1] - clipped[0]
+                    rel_tight = -(float(d_a) - float(d_b))   # > 0 <=> A TIGHTENED relative to B
+                    if _sign(rel_tight) != 0 and _sign(sc) != 0:
+                        verdict = "aligned" if _sign(rel_tight) == _sign(sc) else "at_odds"
+                        va_word = "TIGHTENED" if float(d_a) < 0 else "LOOSENED"
+                        vb_word = "TIGHTENED" if float(d_b) < 0 else "LOOSENED"
+                        sc_word = "rose" if sc > 0 else "fell"
+                        agree = ("the SAME direction" if verdict == "aligned" else "OPPOSITE directions")
+                        # m5: WORDS ONLY here -- the pp figures already stand above with their own [N]
+                        # handles, and a re-printed rounded twin (no handle, second spelling) was the
+                        # two-headlines class.
+                        set_against = (
+                            f" Set against the balance sheets above: over {fired.get('window')} {la}'s "
+                            f"stocks-to-use {va_word} while {lb}'s {vb_word} (the figures stand in the "
+                            f"rows above), and the {pair_word} {sc_word} over that era's own months -- "
+                            f"the fundamental gap and the price {pair_word} moved in {agree} over that "
+                            f"era.")
+        # -- the directive paragraph ----------------------------------------------------------------
+        if form == "difference":
+            level_clause = (f"{la} stands {abs(sp2):.2f} {sunit} {'over' if sp2 >= 0 else 'under'} "
+                            f"{lb} [N{h_sp}]")
+            what_it_is = (f"the figure is a {pair_word} in the shared unit and is never a level of "
+                          f"either commodity")
+        else:
+            level_clause = f"{la} stands at {sp2:.2f} times {lb} [N{h_sp}]"
+            what_it_is = ("the two series are quoted in different units, so this is a RATIO and not a "
+                          "difference: a scale-free relative reading whose rank and sigma are exactly "
+                          "those of the underlying relative price, and it is never quotable as a price "
+                          "of either commodity in any unit")
+        notes = [f"{_RV_C20_NOTES[s]}" for s in (source, target) if s in _RV_C20_NOTES]
+        c20 = ("" if not notes
+               else " NOTE -- not the same aggregate: " + "; and ".join(notes) + ".")
+        lines.append(
+            f"PRICE-RELATIVE on the monthly benchmark {pair_word}: {level_clause} -- "
+            + "; ".join(rank_bits) + f".{set_against} These are World Bank monthly cash benchmark "
+            f"AVERAGES, as published at the current WB release -- not exchange settles, not a board "
+            f"level for either contract; {what_it_is}.{c20} Render under '## Cross-commodity', after "
+            f"the balance-sheet rows, as an OBSERVED standing: no statement is made about where the "
+            f"{pair_word} goes next. TRANSCRIPTION: copy every figure in this block as DIGITS exactly "
+            f"as printed -- the consecutive-months count and the hyphenated N-month window form "
+            f"included; a count respelled in words or a window length written as a bare number fails "
+            f"the citation verifier and deletes the sentence it sits in.")
+        if _RV_READING_BANNED_RX.search("\n".join(lines)):
+            return [], {"decline": "fenced"}
+        calls.extend(local)
+        return lines, {"form": form, "rung": rung, "alignment": verdict, "n": n_join,
+                       "metric_a": ma[0], "metric_b": mb[0], "fetches": 2,
+                       "rows": len(local), "window": fired.get("window")}
+    except Exception:  # noqa: BLE001 -- fail-closed: the reading must never break the fired fork
+        return [], {"decline": "error"}
+
+
+# ── RV-REGIONAL: the same-commodity cross-BOARD fork at REGIONAL scope (2026-08-29) ──────────────────
+# Design: data/batch_runs/regional_rv_sitting/design_v2_20260829.md (SOUND-WITH-FIXES + the E-fix
+# charter in docs/private/DXT_RV_CONTINUATION.md sec 4a) + the OWNER AMENDMENT (the EU leg speaks its
+# own price in its own currency; only the CROSS-currency comparison stays refused). Flag:
+# GRAPHRAG_RV_REGIONAL, read at the answer seam ONLY, threaded as the omit-when-off `rv_regional`
+# kwarg. The pair row ships CONTEXTUAL (the loader hides it), so flag-off is inert twice over.
+from collections import namedtuple as _namedtuple
+
+_XcMetricSpec = _namedtuple("_XcMetricSpec",
+                            ("key", "word", "unit", "sep", "delta_unit", "metric_id", "scale"))
+_P4_SCALE: float | None = 100.0      # MEASURED (probe P4, data/batch_runs/rv_regional_probe_20260829
+#                                      .json): the native silver_psd.su_ratio column IS the raw
+#                                      ending_stocks/consumption ratio (implied_scale 1.0 on all six
+#                                      probed cells, both scopes) -- so the narrate-% scale is 100,
+#                                      the SAME family as the World path's psd_ending_stock_su_ratio
+#                                      scale:100. Pinned against the banked probe cells. A None here
+#                                      SKIPS the su_ratio metric at render (fail-closed).
+_XC_REGIONAL_METRICS = (             # ORDERED; the census curates which become ROWS (design B3)
+    _XcMetricSpec(key="su_ratio", word="stocks-to-use", unit="%", sep="", delta_unit="pp",
+                  metric_id="su_ratio_regional", scale=_P4_SCALE),
+    _XcMetricSpec(key="exports_mt", word="exports", unit="MMT", sep=" ", delta_unit="MMT",
+                  metric_id="exports_regional", scale=1e-6),
+)
+_XC_REGIONAL_FETCH_CAP = 4           # 2 metrics x 2 legs; a breach DECLINES the block (never truncates)
+XC_REGIONAL_METRIC_CAP = 2
+XC_REGIONAL_MAX_ROWS_INJECTED = 18   # 4 lines x 3 rows + corr + corr-rank + US price level + US price
+#                                      pct + MATIF own-currency level + its session row = 18 (the
+#                                      owner amendment adds the EOD pair; the D-DV-1 namespace law)
+XC_REGIONAL_DECLINES = ("not_regional_pair", "scope_unresolved", "no_history", "thin_history",
+                        "composition_break", "projection_undeclared", "c20_missing", "cap",
+                        "fenced", "error")
+from leviathan.graphrag.numbers.stats import MIN_CORR_N as _MIN_CORR_N  # noqa: E402 -- pure leaf,
+#                                             no cycle; ONE floor family (the census-proven-corr law)
+MIN_REGIONAL_MY_N = _MIN_CORR_N              # census floor == the corr floor == 8
+XC_REGIONAL_CORR_WINDOW = _MIN_CORR_N        # window == the floor -> >=8 shared MYs guarantees >=1 window
+_XC_SCOPE_WORDS = {"United States": "US", "European Union": "EU", "France": "France",
+                   "Brazil": "Brazil", "Vietnam": "Vietnam", "Thailand": "Thailand"}
+# ONE producer for the regional label (refute-v2 E7): the map holds the slug's AGGREGATE word; the
+# renderer prepends the pinned scope word. NO string surgery on _xc_label (two producers drift).
+_XC_LABEL_REGIONAL = {
+    "hard_red_winter_wheat_kcbt": "wheat (all classes)",
+    "soft_red_winter_wheat_cbot": "wheat (all classes)",
+    "french_wheat_matif": "wheat (all classes)",
+}
+# The C20 clause per (slug, country) -- MANDATORY, doubled; a block that cannot render both declines
+# c20_missing. "This is the single most likely way this feature lies." (design E4)
+_XC_REGIONAL_C20_NOTES = {
+    ("hard_red_winter_wheat_kcbt", "United States"):
+        "ALL-CLASS US wheat on its balance-sheet row, while the Kansas City board is the hard red "
+        "winter contract specifically",
+    ("soft_red_winter_wheat_cbot", "United States"):
+        "ALL-CLASS US wheat on its balance-sheet row, while the Chicago board is the soft red "
+        "winter contract specifically",
+    ("french_wheat_matif", "European Union"):
+        "the ALL-CLASS European Union aggregate on its balance-sheet row, while the MATIF board is "
+        "the French milling-wheat contract specifically, and France is not separable on this sheet",
+}
+# Belt (a) delta over the landed reading fence: the ACTUAL cross-currency failure mode -- a model
+# converting one board into the other's money to compare. Bare comparatives stay un-regexed (the
+# squeez lesson); the STRUCTURAL fence is that no cross-leg price figure exists on a cross-currency
+# pair at all.
+_RV_REGIONAL_BANNED_RX = re.compile(
+    _RV_READING_BANNED_RX.pattern
+    + r"|\b(in (dollar|euro)[- ]terms|converted (to|into) (dollars|euros|usd|eur)"
+      r"|dollar[- ]equivalent|euro[- ]equivalent|fx[- ]adjusted"
+      r"|at (the )?(current |prevailing )?exchange rate)\b", re.I)
+# Per-slug MEASURED absence reasons for the COMPARABLE-history half (refute-v1 D1: never one
+# wheat-shaped constant -- three landed World pairs decline through the same seam and must keep
+# their own honest reasons). The MATIF entry speaks to the missing marketing-year-grain HISTORY;
+# the board's own LEVEL renders regardless (the owner amendment, _RV_EOD_LEVEL below).
+_RV_MATIF_EOD_FIRST_OBS = "2026-08-06"   # tables.yaml "measured first banked trade date";
+#                                          RE-MEASURED by probe P8 before the census pin banks.
+_RV_PRICE_ABSENCE = {
+    "french_wheat_matif": (
+        "No comparable price HISTORY is held for the MATIF milling-wheat contract at this grain: "
+        "the World Bank publishes no European milling-wheat benchmark, and this estate's own "
+        "per-delivery-month record for that contract begins " + _RV_MATIF_EOD_FIRST_OBS + " -- no "
+        "single delivery month spans the marketing-year window this comparison is measured over"),
+    "sorghum": (
+        "No comparable price history is held for sorghum: the World Bank discontinued its sorghum "
+        "benchmark after 2020-08, so a read to this as-of would return a 2020 figure under a "
+        "current label"),
+    "barley": (
+        "No comparable price history is held for barley: the World Bank discontinued its barley "
+        "benchmark after 2020-08"),
+    "canola_ice": (
+        "No comparable price history is held for canola: the World Bank carries rapeseed OIL but "
+        "no rapeseed or canola SEED benchmark"),
+    "french_rapeseed_matif": (
+        "No comparable price history is held for the MATIF rapeseed contract: the World Bank "
+        "carries no rapeseed SEED benchmark"),
+    "rapeseed_meal_zce": (
+        "No comparable price history is held for rapeseed meal: the World Bank carries no "
+        "rapeseed-meal benchmark"),
+    "white_sugar": (
+        "No comparable price history is held for white sugar: the World Bank carries raw world, EU "
+        "and US sugar, and no white-sugar series"),
+    "palm_olein_dce": (
+        "No comparable price history is held for palm olein: the World Bank carries crude palm "
+        "oil, not olein; a CPO price under an olein label would be an undisclosed substitute"),
+}
+# The two frozen price-scope sets (design B4.3, used by config_check step 9): a WORLD composite may
+# never sit on a REGIONAL side (printing a world price against a regional sheet is the scope
+# mismatch one level up from C20); an ORIGIN benchmark is admitted IFF its origin equals the pin.
+# maize_usd_t stays in the world set DELIBERATELY pending its own adjudication (refute-v2 E14
+# recorded the misfile question; fail-closed keeps it banned on a regional side either way).
+_RV_PRICE_WORLD_BENCHMARKS = frozenset({
+    "soybean_oil_usd_t", "palm_oil_cpo_usd_t", "rapeseed_oil_usd_t", "soybean_meal_usd_t",
+    "soybeans_usd_t", "maize_usd_t", "sunflower_oil_usd_t", "coffee_arabica_usd_t",
+    "coffee_robusta_usd_t", "raw_sugar_world_usd_t", "cotton_a_index_usd_t", "cocoa_usd_t"})
+_RV_PRICE_ORIGIN = {
+    "wheat_us_srw_usd_t": "United States",
+    "wheat_us_hrw_usd_t": "United States",
+    "rice_thai_5pct_usd_t": "Thailand"}
+# OWNER AMENDMENT (2026-08-29): the board's OWN settle, in its OWN currency, from silver_futures_eod
+# -- an observed fact needing no FX. Front-expiry latest-session read (ONE fetch; a front-month
+# HISTORY would need a per-session roll this estate precomputes only in gold_futures_spreads, so the
+# level renders and the history honestly does not -- self-healing via that gold lane, never here).
+# R4c: this is a SYNTHESIZED price surface -> registered in config_check.SYNTHESIZED_PRICE_LEG_ALLOW
+# ("silver_futures_eod": settle) in the SAME change (the adjudication R4c exists to force).
+_RV_EOD_LEVEL = {
+    "french_wheat_matif": ("settle", "the MATIF milling-wheat contract"),
+}
+_RV_EOD_TABLE = "silver_futures_eod"
+
+
+def _eu_composition_breaks() -> tuple:
+    """The accession/exit marketing years, COMPUTED from EU_MEMBERSHIP -- never a second hand-kept
+    list (refute-v1 D20: v1 declared a literal and asserted the derivation; the pin now sits on the
+    VALUE as a regression tripwire on EU_MEMBERSHIP, not as a second source of truth)."""
+    ys = {my for (my, _x) in EU_MEMBERSHIP.values()}
+    ys |= {x for (_a, x) in EU_MEMBERSHIP.values() if x is not None}
+    return tuple(sorted(ys))
+
+
+def _composition_break(country: str, my0: int, my1: int):
+    """The FIRST membership break strictly inside (my0, my1] for an EU-aggregate scope, else None.
+    Non-EU scopes return None (the US has no analogue). Pure; no I/O."""
+    if country not in EU_AGGREGATE_TITLES:
+        return None
+    for y in _eu_composition_breaks():
+        if my0 < y <= my1:
+            return y
+    return None
+
+
+def _settled_my_ceiling(slug: str, asof) -> int | None:
+    """The newest marketing year that has ENDED at asof, per the LEG'S OWN MY calendar:
+    _covering_my(asof, slug) - 1. Pure; reads no clock. (refute-v1 D8: with period=None/agg=series
+    the vintage partition emits NO market_year band, so the series carries USDA's current
+    PROJECTION MY -- a forecast that must neither ride a correlation nor ride a delta row
+    undeclared.)"""
+    my = _covering_my(str(asof)[:10], slug)
+    return None if my is None else my - 1
+
+
+def _xc_sides_ok_regional(pair_row, source: str, target: str) -> bool:
+    """Fail-closed regional gate, the _xc_sides_ok sibling (refute-v1 D2). Requires:
+    materiality_tier == 'material'; the two SIDE CONTRACTS are exactly {source, target} (a set
+    compare -- route()'s hit-count sort can yield either order); the two side contracts are
+    DISTINCT; both sides country_rule == 'regional' with a non-empty country; and the two countries
+    DIFFER. Never raises."""
+    try:
+        from leviathan.graphrag import complex_map as xcm
+        if getattr(pair_row, "materiality_tier", None) != "material":
+            return False
+        sides = [dict(getattr(pair_row, "side_a", None) or {}),
+                 dict(getattr(pair_row, "side_b", None) or {})]
+        contracts = [s.get("contract") or "" for s in sides]
+        if len(set(contracts)) != 2 or set(contracts) != {source, target}:
+            return False
+        if not xcm.pair_is_regional(pair_row):
+            return False
+        countries = [s.get("country") or "" for s in sides]
+        return all(countries) and countries[0] != countries[1]
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _xc_regional_scope(pair_row, slug: str):
+    """(country, scope_word) for the leg whose CONTRACT equals `slug` -- resolved through
+    complex_map.side_by_contract, NEVER by side ordinal (refute-v1 D2: a positional read would stamp
+    'United States' on the MATIF leg of a swapped request -- the cardinal class, invisible to every
+    value check because both figures transcribe correctly). None when the slug is not a side
+    contract or carries no pinned country."""
+    try:
+        from leviathan.graphrag import complex_map as xcm
+        side = xcm.side_by_contract(pair_row, slug)
+        if not side:
+            return None
+        country = side.get("country") or None
+        if not country:
+            return None
+        return (country, _XC_SCOPE_WORDS.get(country, country))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _xc_label_regional(slug: str, scope_word: str) -> str:
+    """'US wheat (all classes)' -- the ONE producer (refute-v2 E7): the aggregate word comes off
+    _XC_LABEL_REGIONAL (lint-required per authored regional slug), the scope word off the pinned
+    map. Never string surgery on _xc_label."""
+    return f"{scope_word} {_XC_LABEL_REGIONAL.get(slug, slug.replace('_', ' '))}"
+
+
+def _regional_series(qfn, slug: str, country: str, metric: str, asof) -> tuple:
+    """(values, MY-int labels, unit) for ONE (slug, country, metric) -- the WHOLE reported history in
+    ONE read: fetch_window(period=None, period_type='marketing_year', agg='series'). _window_kwargs
+    binds a marketing_year leg as period-only (t1/t2 IGNORED), which is why a windowed MY read does
+    not exist and the World path loops per-MY. `country` is passed LITERALLY -- never
+    _PSD_COUNTRY_FOLD-folded: the pin IS the scope (lint step 7.4). Rows are SORTED by the `period`
+    extra rather than trusting fetch order (a defensive improvement over _rv_axes, pinned)."""
+    rec = fetch_window(qfn, table=_PSD_TABLE, metric=metric, commodity=slug, country=country,
+                       t1=None, t2=None, asof=asof, agg="series", period=None,
+                       period_type="marketing_year")
+    if rec.get("status") != "ok":
+        return [], [], ""
+    rows = []
+    unit = ""
+    for r in (rec.get("rows") or []):
+        try:
+            my = int(str(r.get("period") or r.get("market_year") or "").strip() or "x")
+        except ValueError:
+            continue
+        try:
+            v = float(str(r.get("value")).replace(",", ""))
+        except (TypeError, ValueError):
+            continue
+        rows.append((my, v))
+        if not unit and r.get("unit"):
+            unit = str(r.get("unit"))
+    rows.sort(key=lambda t: t[0])
+    return [v for _, v in rows], [my for my, _ in rows], unit
+
+
+def _leg_regional_deltas(slug: str, spec, windows: list, series_vals: list, series_mys: list) -> dict:
+    """Mirrors _leg_world_deltas' return shape EXACTLY -- {era_idx: {'d': delta, 'a': (my, val, rd),
+    'b': (my, val, rd)}} -- so _xc_fork_scan consumes it unchanged. The era -> MY mapping stays
+    _my_span(w, slug), byte-identical to the World path, which keeps fired['window'] parseable by
+    _RV_WINDOW_RX and matchable back to its era by _my_span (the landed F1 fix). ONLY the VALUE
+    lookup changes: an index into the one-shot series, never a per-MY fetch."""
+    by_my = dict(zip(series_mys, series_vals))
+    scale = float(spec.scale)
+    out: dict = {}
+    for i, w in enumerate(windows or []):
+        pts = [(my, by_my[my] * scale, None) for my in _my_span(w, slug) if my in by_my]
+        if len(pts) >= 2:
+            a, b = pts[0], pts[-1]
+            out[i] = {"d": b[1] - a[1], "a": a, "b": b}
+    return out
+
+
+def _fmt_reg(v: float, spec) -> str:
+    """'34.2%' / '19.6 MMT' -- the value in the spec's own unit word, sep off the spec (what makes
+    MMT renderable at all; the World producer's baked '%' could not say it)."""
+    return f"{v:g}{spec.sep}{spec.unit}"
+
+
+def _xc_regional_leg_lines(legs: list, specs: list, calls: list, base: int, asof,
+                           ceiling_by_slug: dict) -> tuple:
+    """FORKED from _xc_leg_lines (refute-v1 D3/D16: the World producer hardcodes country='World',
+    metric=su_ratio_world and the %/pp format -- parameterizing six render points would put the
+    shipped World render at risk for a convenience, so the STRING half is duplicated and the SIGN
+    half is shared via _xc_fork_scan). Metric-major loop: per (metric, leg) ONE reader line + THREE
+    citable rows (endpoint + baseline + delta) -- the [N] stride is 3, each line's handle the FIRST
+    of its three (B4.1). Every injected row carries country=<pinned scope> and metric=<spec id>.
+    `legs` = [(label, slug, country, deltas_by_metric_key)]. Returns (lines, projection_flag)."""
+    n = base
+    lines: list = []
+    projection = False
+    for spec in specs:
+        for (lbl, slug, country, by_metric) in legs:
+            A = by_metric.get(spec.key)
+            if not A:
+                continue
+            (my_lo, p_lo, _r0), (my_hi, p_hi, _r1) = A["a"], A["b"]
+            n += 1
+            handle = n
+            calls.append(_shown(_xc_call(lbl, p_hi, my_hi, asof, unit=spec.unit,
+                                         metric=spec.metric_id, country=country),
+                                p_hi, p_lo, A["d"]))
+            n += 1
+            calls.append(_xc_call(lbl, p_lo, my_lo, asof, unit=spec.unit,
+                                  metric=spec.metric_id, country=country))
+            n += 1
+            calls.append(_xc_call(lbl, A["d"], my_hi, asof, unit=spec.delta_unit,
+                                  metric=spec.metric_id, country=country))
+            proj = ""
+            ceil = ceiling_by_slug.get(slug)
+            if ceil is not None and my_hi > ceil:
+                # D8: an unsettled era MY renders its MANDATORY declared clause (or the block declines
+                # projection_undeclared at the caller -- the clause is minted here so it cannot be lost)
+                proj = (f" -- MY{my_hi} is USDA's current projection for a marketing year that has "
+                        f"not ended, not a settled figure")
+                projection = True
+            lines.append(f"- [N{handle}] {lbl} {spec.word} MY{my_hi}: {_fmt_reg(p_hi, spec)} "
+                         f"(vs MY{my_lo} {_fmt_reg(p_lo, spec)}, "
+                         f"{A['d']:+g}{spec.sep}{spec.delta_unit} over the window){proj}"
+                         + _series_tag({"commodity": lbl, "country": country, "table": _PSD_TABLE}))
+    return lines, projection
+
+
+_RV_VERDICT_WORD = {"aligned": "ALIGNED", "at_odds": "TENSION", "undetermined": "UNRESOLVED"}
+#   trace values stay the LANDED enum {aligned, at_odds, undetermined} (refute-v2 E8: `one_sided` is
+#   a PAIR-verdict value, carried on rv_regional_verdict; the per-leg values never widen the enum).
+
+
+def _rv_leg_window_change(vals: list, dates: list, w_lo: str, w_hi: str):
+    """The mapped leg's OWN within-era price change, computed on the series ALREADY FETCHED for its
+    level and percentile. w_lo/w_hi are the fired era's OWN CALENDAR month bounds (the F1
+    leg-symmetry fix, reused unchanged). The M3 COVERAGE FLOOR rides here verbatim: the era must sit
+    INSIDE the price history's envelope or None -- a direction asserted over months the series never
+    held is the claim, falsified. Fewer than 2 clipped points -> None. NEVER a cross-leg quantity."""
+    if not vals or not dates:
+        return None
+    if not (dates[0][:7] <= w_lo and w_hi <= dates[-1][:7]):
+        return None
+    clipped = [v for v, dt in zip(vals, dates) if w_lo <= dt[:7] <= w_hi]
+    if len(clipped) < 2:
+        return None
+    return clipped[-1] - clipped[0]
+
+
+def _regional_leg_verdict(d_leg, price_change) -> str:
+    """A NEW INSTRUMENT, not a reuse (refute-v1 D6). The landed verdict negates the RELATIVE
+    -(dA - dB) against a SPREAD change; this negates ONE leg's own fundamental delta against THAT
+    leg's own price change. Same sign discipline -- the flip happens EXACTLY once, at the named
+    negation, because su_ratio is a LOOSENESS measure -- but a different quantity, pinned as its own
+    instrument on both leg orders. The None tests precede _sign (refute-v1 D17: _sign raises on
+    None)."""
+    if price_change is None or d_leg is None:
+        return "undetermined"
+    f = _sign(-float(d_leg))                       # > 0 <=> this leg's own sheet TIGHTENED
+    p = _sign(float(price_change))
+    if f == 0 or p == 0:
+        return "undetermined"
+    return "aligned" if f == p else "at_odds"
+
+
+def _reroute_xc_regional(pair_row, source: str, target: str, focus_windows: list, qfn, asof,
+                         calls: list, base: int, sg, comove: bool = False, *,
+                         open_ask: bool = False) -> tuple:
+    """The REGIONAL fork: same _xc_fork_scan sign law, its own render (scoped tags, per-metric specs,
+    the C20 clauses, the composition fence). Returns (block_lines, fired, decline_tag) -- the THIRD
+    element is the E3 decline channel (a non-firing fork has no fired dict to stamp); the caller
+    stamps it without entering the fired body. Rows extend `calls` ONLY after the fence passes.
+    Never raises."""
+    try:
+        if not _xc_sides_ok_regional(pair_row, source, target):
+            return [], None, "not_regional_pair"
+        scope_a = _xc_regional_scope(pair_row, source)
+        scope_b = _xc_regional_scope(pair_row, target)
+        if not scope_a or not scope_b:
+            return [], None, "scope_unresolved"
+        (country_a, word_a), (country_b, word_b) = scope_a, scope_b
+        if (source, country_a) not in _XC_REGIONAL_C20_NOTES \
+                or (target, country_b) not in _XC_REGIONAL_C20_NOTES \
+                or source not in _XC_LABEL_REGIONAL or target not in _XC_LABEL_REGIONAL:
+            return [], None, "c20_missing"          # E4: the single most likely way this feature lies
+        la = _xc_label_regional(source, word_a)
+        lb = _xc_label_regional(target, word_b)
+        specs = [s for s in _XC_REGIONAL_METRICS if s.scale is not None][:XC_REGIONAL_METRIC_CAP]
+        if not specs:
+            return [], None, "no_history"           # P4 unbanked -> su_ratio dark; nothing renders
+        # -- the 4 reads (2 metrics x 2 legs), ONE fetch each; deltas + corr ride the SAME reads ----
+        series: dict = {}
+        fetches = 0
+        for spec in specs:
+            for slug, country in ((source, country_a), (target, country_b)):
+                fetches += 1
+                if fetches > _XC_REGIONAL_FETCH_CAP:
+                    return [], None, "cap"
+                metric = "su_ratio" if spec.key == "su_ratio" else spec.key
+                series[(spec.key, slug)] = _regional_series(qfn, slug, country, metric, asof)
+        su = specs[0]
+        va, mya, _ua = series.get((su.key, source), ([], [], ""))
+        vb, myb, _ub = series.get((su.key, target), ([], [], ""))
+        if not va or not vb:
+            return [], None, "no_history"
+        shared = sorted(set(mya) & set(myb))
+        if len(shared) < MIN_REGIONAL_MY_N:
+            return [], None, "thin_history"
+        legs = []
+        for slug, country, lbl in ((source, country_a, la), (target, country_b, lb)):
+            by_metric = {}
+            for spec in specs:
+                vals, mys, _u = series.get((spec.key, slug), ([], [], ""))
+                if vals:
+                    by_metric[spec.key] = _leg_regional_deltas(slug, spec, focus_windows, vals, mys)
+            legs.append((lbl, slug, country, by_metric))
+        da_by = legs[0][3].get(su.key) or {}
+        db_by = legs[1][3].get(su.key) or {}
+        div_idx, comove_idx = _xc_fork_scan(da_by, db_by)
+        idx = div_idx if div_idx is not None else (comove_idx if comove else None)
+        if idx is None:
+            return [], None, "no_history"           # no divergent (or renderable co-move) era: honest
+        era_legs = [(lbl, slug, country, {k: v[idx] for k, v in bm.items() if idx in v})
+                    for (lbl, slug, country, bm) in legs]
+        ceilings = {source: _settled_my_ceiling(source, asof),
+                    target: _settled_my_ceiling(target, asof)}
+        local: list = []
+        lines, projection = _xc_regional_leg_lines(era_legs, specs, local, base, asof, ceilings)
+        A, B = da_by[idx], db_by[idx]
+        (mya0, pa0, _), (mya1, pa1, _) = A["a"], A["b"]
+        (_myb0, pb0, _), (_myb1, pb1, _) = B["a"], B["b"]
+        window = f"MY{mya0}-MY{mya1}"
+        # -- the rolling co-movement row + its (non-overlapping) rank, on the PROJECTION-CLAMPED set --
+        from leviathan.graphrag.numbers import stats as st
+        ceil_pair = min(c for c in ceilings.values() if c is not None) if any(
+            c is not None for c in ceilings.values()) else None
+        clamped = 0
+        cva, cmya, cvb, cmyb = va, mya, vb, myb
+        if ceil_pair is not None:
+            cva = [v for v, m in zip(va, mya) if m <= ceil_pair]
+            cmya = [m for m in mya if m <= ceil_pair]
+            cvb = [v for v, m in zip(vb, myb) if m <= ceil_pair]
+            cmyb = [m for m in myb if m <= ceil_pair]
+            clamped = len(shared) - len(set(cmya) & set(cmyb))
+        corr = st.rolling_corr(cva, [str(m) for m in cmya], cvb, [str(m) for m in cmyb],
+                               XC_REGIONAL_CORR_WINDOW, label_a=la, label_b=lb)
+        n = base + len(local)
+        corr_bits = []
+        corr_decline = corr.get("guard") if corr.get("declined") else None
+        rank_decline = None
+        if not corr.get("declined"):
+            c2 = round(float(corr["value"]), 2)
+            n += 1
+            h_c = n
+            local.append(_shown(_xc_call(f"{la} vs {lb}", c2, int(corr["labels"][-1]), asof,
+                                         unit="correlation", metric="su_ratio_regional_corr",
+                                         country=f"{country_a} and {country_b}"), c2,
+                                int(corr["window"])))
+            lines.append(f"- [N{h_c}] rolling {corr['window']}-marketing-year correlation between "
+                         f"the two regions' stocks-to-use, ending MY{corr['labels'][-1]}: {c2:+.2f}"
+                         + _series_tag({"commodity": f"{la} vs {lb}",
+                                        "country": f"{country_a} and {country_b}",
+                                        "table": _PSD_TABLE}))
+            corr_bits.append(f"the two regions' stocks-to-use co-move at {c2:+.2f} over the trailing "
+                             f"{corr['window']}-marketing-year window [N{h_c}]")
+            dis = corr.get("disjoint_series") or []
+            if len(dis) >= st.MIN_PERCENTILE_N:
+                pc = st.percentile(corr["value"], dis)
+                if not pc.get("declined"):
+                    pv = int(round(pc["value"]))
+                    n += 1
+                    h_r = n
+                    local.append(_shown(_xc_call(f"{la} vs {lb}", pv, int(corr["labels"][-1]), asof,
+                                                 unit="percentile", metric="su_ratio_regional_corr",
+                                                 country=f"{country_a} and {country_b}"),
+                                        pv, len(dis)))
+                    lines.append(f"- [N{h_r}] where that correlation stands within its own "
+                                 f"{len(dis)} NON-OVERLAPPING windows: {_rv_ordinal(pv)} percentile"
+                                 + _series_tag({"commodity": f"{la} vs {lb}",
+                                                "table": _PSD_TABLE}))
+                    corr_bits.append(f"the {_rv_ordinal(pv)} percentile of its {len(dis)} "
+                                     f"non-overlapping windows [N{h_r}]")
+            else:
+                rank_decline = f"disjoint_windows:{len(dis)}"   # expected below a ~64-MY shared span
+        # -- composition fence (A4): a membership break inside the era window is DECLARED, never
+        #    silent and never a silent drop --
+        comp_break = _composition_break(country_b, mya0, mya1) or _composition_break(
+            country_a, mya0, mya1)
+        comp_clause = ""
+        if comp_break:
+            comp_clause = (f" The EU aggregate's own membership changed at MY{comp_break} inside "
+                           f"this window, so part of this change is composition and not balance "
+                           f"sheet.")
+        frame = _xc_frame(pair_row, sg, open_ask=open_ask)
+        note_a = _XC_REGIONAL_C20_NOTES[(source, country_a)]
+        note_b = _XC_REGIONAL_C20_NOTES[(target, country_b)]
+        marker_line = (
+            f"CROSS-BOARD on stocks-to-use: {la} {pa1:g}% ({A['d']:+g}pp) vs {lb} {pb1:g}% "
+            f"({B['d']:+g}pp) over {window} -- {frame}; each balance sheet is its REGION'S OWN "
+            f"aggregate at the marketing-year grain, not a shared calendar and not a world total; "
+            f"no cross-currency price comparison is made anywhere in this block. "
+            + ("; ".join(corr_bits) + ". " if corr_bits else "")
+            + f"NOTE -- not the same aggregate: {note_a}; and {note_b}.{comp_clause} "
+            f"Render under '## Cross-commodity', labeled BY REGION, after any world rows.")
+        lines.append(marker_line)
+        if projection:
+            if "not a settled figure" not in "\n".join(lines):
+                return [], None, "projection_undeclared"
+        if len(local) > XC_REGIONAL_MAX_ROWS_INJECTED:
+            return [], None, "cap"                  # declines WHOLE -- a half-scorecard reads complete
+        if _RV_REGIONAL_BANNED_RX.search("\n".join(lines)):
+            return [], None, "fenced"
+        calls.extend(local)
+        fired = {"pair_id": getattr(pair_row, "id", None),
+                 "complex": getattr(pair_row, "complex_name", None),
+                 "commodityA": source, "dA": round(A["d"], 4), "su_ratio_A": round(pa1, 4),
+                 "myA": mya1, "commodityB": target, "dB": round(B["d"], 4),
+                 "su_ratio_B": round(pb1, 4), "myB": _myb1, "window": window,
+                 "reroute_v2": True, "regional": True,
+                 "scope_a": country_a, "scope_b": country_b,
+                 "regional_rows": len(local), "regional_fetches": fetches,
+                 "regional_my_n": len(shared), "projection_my": projection,
+                 "projection_clamped": clamped,
+                 "composition_break": bool(comp_break)}
+        if comove_idx is not None and div_idx is None:
+            fired["comove"] = True
+        if corr_decline:
+            fired["corr_decline"] = corr_decline
+        if rank_decline:
+            fired["corr_rank_decline"] = rank_decline
+        return lines, fired, None
+    except Exception:  # noqa: BLE001 -- fail-closed: the regional fork must never break the v1 answer
+        return [], None, "error"
 
 
 # ── CHAIN ENGINE v1: multi-hop quantified cascade (a REAL [N] at every hop) ────────────────────────────
@@ -3698,7 +5063,11 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
 #     `xc_request` from the detector), so the composer declines outright without one.
 _XMIT_DECLINE_REASONS = frozenset(
     {"root_not_grounded", "hop_dark", "hop_thin", "degenerate", "cap", "error",   # the vertical enum, VERBATIM
-     "link_comove"})                                                              # + the ONE horizontal reason
+     "link_comove",                                                               # + the ONE horizontal reason
+     # D-XT a5.4 (2026-08-29): on an OPEN ask the PAIR wins and the transmission composer is suppressed
+     # BEFORE selection (the guard sits above _xmit_select, which picks by FILE ORDER -- the alphabet
+     # defect in another costume). A reasoned decline, never a silent absence, so the T2b ledger reads it.
+     "open_ask_pair_precedence"})
 
 
 def _xmit_pair_realizable(pair_id: str) -> bool:
@@ -3852,7 +5221,15 @@ def _xmit_focus(sg, graph, xc_request: dict) -> str | None:
     the "how far did the palm squeeze travel through soyoil into meal?" multi-hop ask); FALLBACK = the walk's
     focus contract (trigger 2, "the walk is already standing in the complex"). BOTH triggers are gated by the
     RV2 detector upstream -- the caller declines outright without an `xc_request` -- so the fork is NEVER
-    volunteered on the analyst's own initiative."""
+    volunteered on the analyst's own initiative.
+
+    D-XT N2 (2026-08-29): a DEFERRED request is inert here. Round 3 claimed structural inertness from
+    omitting source_slug; that was FALSE -- this function falls back to the walk's focus seed, precisely
+    the contract the deferred request is waiting to be bound to, so the deferral would have routed itself
+    down trigger 2 with the composer's file-order selection. One line closes it; the a5.4 precedence
+    guard stops being the only belt."""
+    if (xc_request or {}).get("defer"):
+        return None
     src = (xc_request or {}).get("source_slug")
     if src:
         return str(src)
@@ -3919,6 +5296,14 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
     try:
         if not xc_request:                                        # the RV2 fence: never volunteered
             return [], None, None
+        # D-XT a5.4: on an OPEN ask the PAIR wins -- suppress the composer BEFORE selection (which picks
+        # by FILE ORDER, the alphabet defect in another costume; and _xmit_focus carries zero information
+        # about an open ask). chain_id None deliberately (N10): no chain was selected, but the T2b ledger
+        # reads a uniform decline shape. _xmit_fired stays False, so _run_xc still runs. NOTE (P22): both
+        # measurement arms pin transmission OFF, so this guard's only validation is its unit pin.
+        if (xc_request or {}).get("trigger") in _OPEN_TRIGGERS:
+            return [], None, {"chain_id": None, "reason": "open_ask_pair_precedence",
+                              "trigger": xc_request.get("trigger")}
         chains = load_transmission_map()
         if not chains:
             return [], None, None
@@ -3966,7 +5351,12 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
             src, tgt = lk.get("source"), lk.get("target")
             # `comove` rides in POSITIONALLY, exactly as _run_xc passes it (a gate-test stub replaces
             # _reroute_xc with a positional-only lambda). Threaded from the seam, never read from env here.
-            blk, fired = _reroute_xc(prow, src, tgt, windows, mqfn, asof, calls, len(calls), sg, comove)
+            # D-XT F2 belt-and-braces: the a5.4 guard makes an open ask unreachable here, but link 2 of
+            # xmit_palm_soyoil_meal is soymeal_soyoil_crush (complex soy_crush) -- the frame guard is
+            # threaded anyway (omit-when-off, N12's stub discipline).
+            _oa = {"open_ask": True} if (xc_request or {}).get("trigger") in _OPEN_TRIGGERS else {}
+            blk, fired = _reroute_xc(prow, src, tgt, windows, mqfn, asof, calls, len(calls), sg, comove,
+                                     **_oa)
             entry = {"link": i, "pair_id": lk.get("pair_id"), "source": src, "target": tgt,
                      "nature": lk.get("nature")}                  # `nature` = the map HINT, next to the record
             if fired:

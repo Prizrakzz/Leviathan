@@ -43,6 +43,9 @@ THREADS values, it does not redesign seams:
   grammar   handle_prose                           -> answer._system(handles=) + the [E]/[N] render passes
                                                       + the digit-lint CHARGE (D-HP-8, R9: ONE knob for the
                                                       whole bundle; GRAPHRAG_HANDLE_PROSE kills, never enables)
+  synth     synth_effort                           -> answer._call_opus(effort=) via BOTH bodies' call_kw
+                                                      threads (Q-0: mode > env, gated to providers.EFFORT_SEATS
+                                                      -- the PROBED effort seats, never the adaptive roster)
 
 `max` / `max_c0` (D-MW-13, STEP-0-CALIBRATED + RATIFIED 2026-08-11) -- the Full-cascade tier. `max_seeds`
 KEEPS its name and becomes the tier seed CEILING (6); the dispatch planner decides the REALIZED cardinality
@@ -212,6 +215,17 @@ class Mode:
     # `is not None`, so a literal False would MINT the key into deep's trace stamp and break the
     # byte-identity law the whole table rests on.
     handle_prose: bool | None = None
+    # Q-0 EFFORT KNOB (T-pair verdict, 2026-08-29), appended LAST -- the appended-last law, SIXTH
+    # application. The WRITER effort tier for THIS turn, consumed beside `synth_model` at the answer.py
+    # synthesis seam (mode > env > API-default -- the F5 precedence ladder, one rung lower).
+    # A KNOB AND NOT A PROCESS-WIDE FLIP because the measurement said so: writer effort=max won the
+    # max-tier pairwise judgment 3/3 (free at that tier), while the DEEP-tier transfer FAILED
+    # non-inferiority (out +21%, grounding 3-0 against) -- the frozen rule BLOCKED the process-wide
+    # GRAPHRAG_SYNTH_EFFORT flip, so the winner ships on the tier that measured it and no other.
+    # The env survives for eval arms and process-wide experiments; the mode outranks it. None on every
+    # non-max preset (the byte-identity law: `knobs()` filters `is not None`). Value grammar =
+    # providers._EFFORT_WORDS; a table pin asserts membership so an invalid tier can never ship.
+    synth_effort: str | None = None
 
 
 MODES: dict[str, Mode] = {m.name: m for m in (
@@ -278,7 +292,11 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          # rows cited a reserved node, both runs; P3-B: the reserve cost strip 1.17x/1.31x at
          # identical width. Reservation ships OFF, no fix cycle (D-GD-3 discipline); re-open paths
          # are D-MW-17's token budget and D-HP. The admission MACHINERY stays built and dark.
-         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0),
+         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0,
+         # Q-0 (2026-08-29): effort=max rides the WHOLE max family (max/max_c0/max_cc1/max_cc2 all
+         # carry it) so every two-preset arm pair stays ONE-variable -- the T-pair verdict's winner,
+         # shipped on the tier that measured it (the deep tier measured AGAINST and stays unset).
+         synth_effort="max"),
     # THE P3 OFF CONTROL, retained as the historical arm identity (P3 artifacts stamp honored=max_c0).
     # Since the 12c termination zeroed max's own reserve the two presets are now BYTE-IDENTICAL except
     # name; max_c0 stays permanently dark and is NEVER the shipped tier.
@@ -288,7 +306,8 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          fetch_k=60, silver_cap=12,
          scaffold_max_bullets=12, scaffold_max_absence=6,
          cap_policy="score", order_policy="relevance",
-         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0),
+         per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0,
+         synth_effort="max"),          # Q-0: rides the family (the byte-identical-twin pin holds)
     # ── D-MW-30 THE ESCALATED BUNDLE (ratified 12e, 2026-08-12) ─────────────────────────────────────────
     # `esc` = DEEP's identity + the 12e-measured max SHAPE. Every pre-plan knob (silver_cap, max_seeds,
     # xc_force) and every non-walk knob (fetch_k, scaffold caps, budget_scale) is DEEP's VALUE, not max's --
@@ -354,7 +373,8 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          scaffold_max_bullets=12, scaffold_max_absence=6,
          cap_policy="score", order_policy="relevance",
          per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0,
-         cascade_contract_slots=1),
+         cascade_contract_slots=1,
+         synth_effort="max"),          # Q-0: rides the family (max vs max_cc1 stays one-variable)
     # ── Q-0a THE SLOT-WIDTH ARM (2026-08-28) ────────────────────────────────────────────────────────────
     # `max_cc2` = `max_cc1`'s EXACT fields + one more cascade-contract slot: the Q-0a arms are
     # `--mode max_cc1` vs `--mode max_cc2`, differing by EXACTLY ONE variable (the D-MW-13 two-preset
@@ -368,7 +388,8 @@ MODES: dict[str, Mode] = {m.name: m for m in (
          scaffold_max_bullets=12, scaffold_max_absence=6,
          cap_policy="score", order_policy="relevance",
          per_seed_budget=63, per_seed_evidence_cap=24, per_seed_probe_cap=24, per_seed_reserve=0,
-         cascade_contract_slots=2),
+         cascade_contract_slots=2,
+         synth_effort="max"),          # Q-0: rides the family (max_cc1 vs max_cc2 stays one-variable)
 )}
 
 # ── D-HP-8 THE MATCHED DARK PRESET SET (H1, R9 ratified) ────────────────────────────────────────────────

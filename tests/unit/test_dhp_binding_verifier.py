@@ -606,9 +606,14 @@ def test_the_new_trace_key_is_appended_at_the_tail_and_v1_mints_none():
     RE-ANCHORED (D-LD Sitting-A, 2026-08-18): `tables_queried` -- the per-table usage census -- was
     APPENDED after this key, so the tail moved by one. The invariant this pin actually protects is
     UNCHANGED and is re-stated positionally below: V2's key is still AFTER every older key and was never
-    INSERTED ahead of one."""
-    assert tk.TRACE_RECORD_KEYS[-2] == "evidence_geo_dropped"
-    assert tk.TRACE_RECORD_KEYS[-1] == "tables_queried"
+    INSERTED ahead of one.
+
+    RE-ANCHORED AGAIN (2026-09-01): five later appends moved the tail -- timing_ms, then xc_open_pair +
+    xc_open_decline (the D-XT build, 08-29), then xc_regional_decline + quantify_rv_reading_fenced (the
+    RV lane, 08-29). All five were APPENDED in order; same invariant, new offsets."""
+    assert tk.TRACE_RECORD_KEYS[-7] == "evidence_geo_dropped"
+    assert tk.TRACE_RECORD_KEYS[-6] == "tables_queried"
+    assert tk.TRACE_RECORD_KEYS[-1] == "quantify_rv_reading_fenced"
     assert "geo_checked" not in tk.TRACE_RECORD_KEYS and "geo_mismatch" not in tk.TRACE_RECORD_KEYS
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
 

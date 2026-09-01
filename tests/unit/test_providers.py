@@ -96,6 +96,34 @@ def test_persistent_throttle_degrades_to_haiku_and_tags():
     assert all(k["model"] == "claude-sonnet-4-6" for k in c.calls[:4])     # after 4 primary attempts
 
 
+def test_degraded_attempt_strips_output_config_and_thinking():
+    """Q-0 review F8: the haiku rescue must never carry `output_config` (haiku 400s on the effort
+    parameter, measured 2026-08-27) nor `thinking`. The strip at the degrade site was correct but
+    unpinned -- a future edit to `_dt` would have redded nothing."""
+    c = _FakeClient([_rate_limited()] * 4 + [_ok()])
+    out, degraded = pv.serving_call(c, "sys", "user", model="claude-sonnet-4-6", tool=_TOOL,
+                                    degrade_to="claude-haiku-4-5",
+                                    output_config={"effort": "max"}, thinking={"type": "adaptive"})
+    assert degraded == "claude-haiku-4-5" and out["tldr"] == "t"
+    for k in c.calls[:4]:                                                  # the primary carried both
+        assert k.get("output_config") == {"effort": "max"} and k.get("thinking")
+    rescue = c.calls[-1]
+    assert rescue["model"] == "claude-haiku-4-5"
+    assert "output_config" not in rescue and "thinking" not in rescue      # the rescue carried neither
+
+
+def test_effort_seats_are_the_probed_set_not_the_adaptive_roster():
+    """Q-0 review F3: ADAPTIVE_SEATS is a THINKING capability roster; reusing it for effort is the
+    TEMP_DEPRECATED_SEATS RCA class. EFFORT_SEATS holds only PROBED seats (2026-08-27: sonnet-5 and
+    opus-5 accept output_config; haiku-4-5 400s; 4-6/4-x and fable-5 unprobed). Every banked effort
+    arm ran the writer on opus-5 (q0_wd/q0_t synth_seat), so this gate changes no measured run."""
+    assert pv.EFFORT_SEATS == ("sonnet-5", "opus-5")
+    assert pv.supports_effort("claude-opus-5") and pv.supports_effort("claude-sonnet-5")
+    for unprobed in ("claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8",
+                     "claude-haiku-4-5", "claude-fable-5"):
+        assert not pv.supports_effort(unprobed), unprobed
+
+
 def test_correctness_errors_never_retry_or_degrade():
     c = _FakeClient([_ok(stop="max_tokens")])                              # truncation guard fires
     with pytest.raises(ValueError):

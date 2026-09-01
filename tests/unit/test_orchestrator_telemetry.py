@@ -522,9 +522,12 @@ def test_tables_queried_reaches_the_trace_on_a_hybrid_turn(monkeypatch):
 
 def test_tables_queried_is_registered_so_it_reaches_an_artifact():
     """REGISTRATION IS THE LIFT: a trace key absent from `TRACE_RECORD_KEYS` reaches NO eval artifact,
-    silently. Appended at the TAIL, per the 12f append-never-sort law."""
+    silently. Appended at the TAIL, per the 12f append-never-sort law.
+
+    RE-ANCHORED (2026-09-01): five later appends (timing_ms; the two D-XT keys; the two RV keys) moved
+    the tail -- the key is still registered and still AFTER every older key."""
     from leviathan.graphrag import tracekeys as tk
-    assert tk.TRACE_RECORD_KEYS[-1] == "tables_queried"
+    assert tk.TRACE_RECORD_KEYS[-6] == "tables_queried"
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
 
 

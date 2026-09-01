@@ -171,12 +171,15 @@ def test_the_two_new_policy_fields_default_to_none_on_every_pre_ddv_preset():
     # the trace-stamp column order -- append, never insert.
     # D-HP-8 re-pin (H1): `handle_prose` appends AFTER cascade_contract_slots -- the tail moves a FIFTH
     # time and every slice below shifts left by one. Same law, same reason.
-    assert rm.KNOB_FIELDS[-1] == "handle_prose"
-    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-3:-1]
-    assert rm.KNOB_FIELDS[-4] == "synth_model"
-    assert rm.KNOB_FIELDS[-8:-4] == ("per_seed_budget", "per_seed_evidence_cap",
+    # Q-0 re-pin (2026-08-29): `synth_effort` appends AFTER handle_prose -- the tail moves a SIXTH
+    # time and every slice below shifts left by one. Same law, same reason.
+    assert rm.KNOB_FIELDS[-1] == "synth_effort"
+    assert rm.KNOB_FIELDS[-2] == "handle_prose"
+    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-4:-2]
+    assert rm.KNOB_FIELDS[-5] == "synth_model"
+    assert rm.KNOB_FIELDS[-9:-5] == ("per_seed_budget", "per_seed_evidence_cap",
                                      "per_seed_probe_cap", "per_seed_reserve")
-    assert rm.KNOB_FIELDS[-10:-8] == ("cap_policy", "order_policy")     # appended, never sorted in
+    assert rm.KNOB_FIELDS[-11:-9] == ("cap_policy", "order_policy")     # appended, never sorted in
     for name in (rm.QUICK, rm.STANDARD, rm.DEEP):
         m = rm.MODES[name]
         assert m.cap_policy is None and m.order_policy is None, name
@@ -246,10 +249,61 @@ def test_max_preset_matches_the_step0_calibrated_values():
         # reserve 4 -> 0: the P3 gate termination (plan 12c) -- 0/8 upstream cited both runs +
         # strip 1.17x/1.31x at identical width. Reservation OFF, no fix cycle.
         "per_seed_budget": 63, "per_seed_evidence_cap": 24, "per_seed_probe_cap": 24,
-        "per_seed_reserve": 0}
+        "per_seed_reserve": 0,
+        # Q-0 (2026-08-29): the T-pair verdict's winner rides the tier that measured it -- writer
+        # effort=max, the whole max family, mode > env at the synthesis seam. Deep stays UNSET
+        # (its transfer FAILED non-inferiority; the frozen rule blocked the process-wide flip).
+        "synth_effort": "max"}
     for absent in ("node_budget", "evidence_cap", "probe_cap"):
         assert absent not in rm.knobs(rm.MAX), absent
         assert getattr(rm.MODES[rm.MAX], absent) is None, absent
+
+
+# ══ Q-0 -- the effort knob (T-pair verdict, 2026-08-29) ══════════════════════════════════════════════
+def test_synth_effort_rides_the_whole_max_family_and_no_other_preset():
+    """One-variable arm pairs survive: max/max_c0 differ [], max/max_cc1 differ [slots], max_cc1/max_cc2
+    differ [slots]. Every NON-max preset must not so much as MINT the key (the byte-identity law), and
+    DEEP in particular stays unset -- its tier MEASURED AGAINST the flip (non-inferiority failed).
+    Review F5/F6 amendments: the negative set is DERIVED (a preset minted tomorrow cannot escape it),
+    and the grammar pin binds THE TABLE to providers._EFFORT_WORDS -- an invalid tier on any preset
+    would fail OPEN at the seam (no output_config, env nullified: the silent-null-arm class), so it
+    must never survive the suite."""
+    from leviathan.graphrag import providers as pv
+    family = {rm.MAX, rm.MAX_C0, rm.MAX_CC1, rm.MAX_CC2}
+    for name in family:
+        assert rm.knobs(name).get("synth_effort") == "max", name
+    for name in set(rm.MODES) - family:                             # DERIVED, never enumerated (F6)
+        assert "synth_effort" not in rm.knobs(name), name
+        assert rm.MODES[name].synth_effort is None, name
+    for m in rm.MODES.values():                                     # the TABLE-to-grammar bind (F5)
+        assert m.synth_effort is None or m.synth_effort in pv._EFFORT_WORDS, m.name
+
+
+def test_call_opus_effort_mode_beats_env(monkeypatch):
+    """The F5 precedence, one rung lower: the threaded kwarg wins over GRAPHRAG_SYNTH_EFFORT; absent,
+    the env seam decides exactly as before; an invalid word resolves to NO output_config (fail-open),
+    never a 400 at the API."""
+    from leviathan.graphrag import answer as an2
+    from leviathan.graphrag import providers as pv
+    seen: dict = {}
+
+    def fake_call(client, sys_blocks, user, **kw):
+        seen.update(kw)
+        return {}, None
+
+    monkeypatch.setattr(pv, "make_client", lambda: None)
+    monkeypatch.setattr(pv, "serving_call", fake_call)
+    monkeypatch.setattr(pv, "provider", lambda: "anthropic")
+    monkeypatch.setenv("GRAPHRAG_SYNTH_EFFORT", "low")
+    an2._call_opus("s", "u", model="claude-opus-5", tool={}, effort="max")
+    assert seen.get("output_config") == {"effort": "max"}           # mode wins
+    seen.clear()
+    an2._call_opus("s", "u", model="claude-opus-5", tool={})
+    assert seen.get("output_config") == {"effort": "low"}           # absent -> env, unchanged
+    seen.clear()
+    monkeypatch.delenv("GRAPHRAG_SYNTH_EFFORT")
+    an2._call_opus("s", "u", model="claude-opus-5", tool={}, effort="turbo")
+    assert "output_config" not in seen                              # invalid word -> fail-open, no 400
 
 
 def test_max_and_max_c0_are_now_byte_identical_twins():

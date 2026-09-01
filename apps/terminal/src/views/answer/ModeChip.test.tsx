@@ -101,6 +101,31 @@ describe('ModeChip — what actually ran (D-AM-14)', () => {
     expect(knobs).toHaveTextContent('63');
   });
 
+  it('the Q-0 effort knob never renders: writer property, not width', async () => {
+    // Q-0 (2026-08-29, review find F4). synth_effort rides the max family's knob dict; the open-shape
+    // passthrough would have rendered "synth effort  max" under "ran max" -- the same
+    // writer-identity-by-side-effect class the deny list exists for.
+    const user = userEvent.setup();
+    render(
+      <ModeChip
+        result={turn({
+          intent_decision: { mode: { requested: 'max', honored: 'max', invalid: false } },
+          trace: {
+            mode_knobs: {
+              ...KNOBS,
+              per_seed_budget: 63,
+              synth_effort: 'max',
+            },
+          },
+        })}
+      />,
+    );
+    await user.click(screen.getByTestId('mode-chip-toggle'));
+    const knobs = screen.getByTestId('mode-chip-knobs');
+    expect(knobs).not.toHaveTextContent('synth effort');
+    expect(knobs).toHaveTextContent('per seed budget');
+  });
+
   describe('renders NOTHING when nothing non-standard ran', () => {
     it('a standard turn', () => {
       render(

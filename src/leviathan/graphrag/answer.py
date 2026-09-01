@@ -304,6 +304,26 @@ _SYSTEM_MENTOR = (
     "Ground strictly in what is shown; if evidence was provided, cite at least one dated source.")
 
 
+# RV-REGIONAL (2026-08-29, charter E1): appended ONLY when GRAPHRAG_RV_REGIONAL is on (the
+# omit-when-off idiom -- flag-off serving prompt is byte-identical). It licenses the EXISTING
+# '## Cross-commodity' heading on a CROSS-BOARD line (no tenth heading -- the D-RC nine-name law
+# stands) and SCOPES the world-basis and price-direction sentences of the CROSS-COMMODITY paragraph
+# away from regional rows: a regional block's rows are each REGION'S OWN aggregate, its price
+# stance arrives ONLY through the block's own VERDICT line, and no cross-currency comparison may
+# be made or implied.
+_SYSTEM_CROSS_BOARD = (
+    "\nIf the block carries a line beginning 'CROSS-BOARD', the SAME commodity's balance sheets are being "
+    "compared across two REGIONS (two boards' own supply regions): render the '## Cross-commodity' section "
+    "for it exactly as a CROSS-COMMODITY line licenses, labeled BY REGION -- but the world-basis sentences "
+    "of the CROSS-COMMODITY rule do NOT apply to these rows (each row is its REGION'S OWN aggregate, never "
+    "a world total; the block's NOTE names exactly what each aggregate is -- repeat that note's caveat in "
+    "your own words). You have NO price-direction license from the regional balance sheets themselves: any "
+    "price stance comes ONLY from the block's own VERDICT line, transcribed with its stated scope. If the "
+    "two boards settle in different currencies, NEVER compare, convert or rank their prices against each "
+    "other in any words -- each board's price may be stated only in its own currency with its own [N] "
+    "handle, and the absence of a cross-board comparison is stated in the block's own sentence. ")
+
+
 # P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
 # the [N] rows, so (unlike Phase A) a [N]-cited dated lag is backed and will NOT be stripped.
 _SYSTEM_CASCADE = (
@@ -644,6 +664,33 @@ def _price_leg_on() -> bool:
     quantify() is byte-identical to today (the cascade rows are unchanged). Read PER CALL (never memoized) so
     the env-flip rollback is live -> serving rev 51, no redeploy (mirror _comove_on)."""
     return os.environ.get("GRAPHRAG_CASCADE_PRICE_LEG", "").strip().lower() in ("on", "1", "true")
+
+
+def _rv_reading_on() -> bool:
+    """RV-READING directional-price-leg kill-switch (GRAPHRAG_RV_READING), read at the answer.py quantify
+    SEAM and threaded as the OMIT-WHEN-OFF `rv_reading` kwarg down quantify()->_run_xc (the _price_leg_on
+    idiom -- NEVER an os.environ read inside cascade.py, so the ENGINE is gated by the ARGUMENT and a
+    mis-plumbed enable can never fire it on an unasked turn). DEFAULT-OFF, fail-closed: only a
+    case-insensitive on/1/true enables it. When off the kwarg is ABSENT and quantify() is byte-identical
+    (injected quantify fakes with the older signature stay valid). The leg additionally rides quantify's
+    own `price_replay` belt: a historical-asof turn drops it whole (C-2 -- the pink sheet is latest-only
+    with retroactive WB revisions). Sub-flag GRAPHRAG_RV_READING_OUTCOMES (the parked outcomes-join
+    analogue) has NO code behind it by design -- a negative pin holds it dark while the pattern-records
+    ledger sits below its >=20-ESR-vintage gate. Read PER CALL (never memoized) so the env-flip rollback
+    is live -> no redeploy."""
+    return os.environ.get("GRAPHRAG_RV_READING", "").strip().lower() in ("on", "1", "true")
+
+
+def _rv_regional_on() -> bool:
+    """RV-REGIONAL cross-board kill-switch (GRAPHRAG_RV_REGIONAL), read at the answer.py quantify
+    SEAM and threaded as the OMIT-WHEN-OFF `rv_regional` kwarg down quantify()->_run_xc (the
+    _rv_reading_on idiom verbatim -- NEVER an os.environ read inside cascade.py). DEFAULT-OFF,
+    fail-closed. DECLARED DEPENDENCY (refute-v1 D13): the regional PRICE half exists only under
+    GRAPHRAG_RV_READING as well -- with this flag on and that one off, the block renders the
+    balance-sheet scorecard + the correlation and the VERDICT is omitted with the counted reason
+    `reading_flag_off`, never narrated as UNRESOLVED. Read PER CALL so the env-flip rollback is
+    live -> no redeploy."""
+    return os.environ.get("GRAPHRAG_RV_REGIONAL", "").strip().lower() in ("on", "1", "true")
 
 
 def _intensity_on() -> bool:
@@ -1865,6 +1912,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             base = base + _SYSTEM_CHAIN
         if _transmission_on():                                     # ditto the HORIZONTAL chain's paragraph
             base = base + _SYSTEM_TRANSMISSION
+        if _rv_regional_on():                                      # RV-REGIONAL (E1): the CROSS-BOARD
+            base = base + _SYSTEM_CROSS_BOARD                      # license, omit-when-off byte-identical
     if _pattern_records_on():
         from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
@@ -1889,9 +1938,10 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
 _SYSTEM = _SYSTEM_MENTOR                                              # module-level default (importers/tests)
 
 
-def route(query: str, graph: gph.CausalGraph) -> list[str]:
-    """TIER 1 (lexical): contracts whose id/aliases/commodity-token appear in the query (accent/case-insensitive),
-    most-hits first. Fast + precise, but blind to coreference/paraphrase ('a frost in Brazil', 'that contract')."""
+def route_scored(query: str, graph: gph.CausalGraph) -> list[tuple[int, str]]:
+    """TIER 1 (lexical), SCORED: (hit_count, contract_id) most-hits-first. `route` is this function with
+    the counts dropped -- ONE producer, so the two can never disagree. Split out for D-XT's route_probe
+    (N4): the shipped `route` discards the counts, which made any tie-count instrument structurally 1."""
     scored = []
     for cid, c in graph.contracts.items():
         forms = [cid, cid.replace("_", " ")] + list(c.aliases) + cid.split("_")
@@ -1899,7 +1949,15 @@ def route(query: str, graph: gph.CausalGraph) -> list[str]:
         n = len(m.findall(query))
         if n:
             scored.append((n, cid))
-    return [cid for _, cid in sorted(scored, reverse=True)]
+    return sorted(scored, reverse=True)
+
+
+def route(query: str, graph: gph.CausalGraph) -> list[str]:
+    """TIER 1 (lexical): contracts whose id/aliases/commodity-token appear in the query (accent/case-insensitive),
+    most-hits first. Fast + precise, but blind to coreference/paraphrase ('a frost in Brazil', 'that contract').
+    BYTE-IDENTICAL to its pre-D-XT self by construction: same scoring loop, same sorted(scored, reverse=True),
+    same projection -- just via the ONE scored producer above."""
+    return [cid for _, cid in route_scored(query, graph)]
 
 
 _PROFILE_CACHE: dict = {}
@@ -2634,6 +2692,27 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 _price_request = {"focus_contract": _focus}
         try:                                                      # GRACEFUL (R6): a raise here must NEVER 500
             _t_quant = time.perf_counter()                        # W6.1-0 stage timer (MsQuantify)
+            # ── OPEN-TARGET RESOLUTION (D-XT, owner directive 2, 2026-08-29) ─────────────────────────
+            # The orchestrator DETECTED the ask; SOURCE and the PAIR are bound HERE, the first point in
+            # the turn where the walk exists. Gated by the ARGUMENT (`defer`) exactly like price_request
+            # -- this module reads NO env for it. INSIDE the quantify try (M7) AND in its own belt (P21:
+            # a resolver failure must degrade to "no fork", never lose the whole quantify block). A
+            # DECLINE rebinds xc_request to None, so quantify sees exactly what a no-ask turn sees.
+            if isinstance(xc_request, dict) and xc_request.get("defer") == "walk":
+                try:
+                    xc_request, _xc_open_dec = cq.resolve_xc_open(xc_request, sg, graph)
+                except Exception:  # noqa: BLE001 -- P21: the fork dies, the quantify block survives
+                    xc_request, _xc_open_dec = None, {"reason": "error"}
+                if xc_request and xc_request.get("xc_open_rank"):
+                    try:
+                        sg.trace["xc_open_pair"] = xc_request["xc_open_rank"]
+                    except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+                        pass
+                elif _xc_open_dec:
+                    try:
+                        sg.trace["xc_open_decline"] = _xc_open_dec       # ONE shape, always a dict
+                    except Exception:  # noqa: BLE001
+                        pass
             # T2a: the pace kwarg is OMITTED when the flag is off (the orchestrator `_xc` omit-when-None
             # idiom) -- the flag-off call is byte-identical to rev 52, and injected quantify fakes with the
             # older signature stay valid.
@@ -2678,6 +2757,13 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # (estate-wide). Both env seams are read HERE, once, and folded by `_newest_first_scope`.
             _nf_scope = _newest_first_scope(_futures_newest_first_on(), _series_newest_first_on())
             _fnf_kw = {"futures_newest_first": _nf_scope} if _nf_scope else {}
+            # RV-READING: the same omit-when-off idiom -- flag off -> kwarg ABSENT -> byte-identical, and
+            # injected quantify fakes with the older signature stay valid. The replay belt is _pr_kw's,
+            # threaded inside quantify to the reading leg unchanged.
+            _rv_kw = {"rv_reading": True} if _rv_reading_on() else {}
+            # RV-REGIONAL: same omit-when-off idiom; the D13 dependency on _rv_reading_on is declared
+            # in _rv_regional_on's docstring and stamped by the engine as reading_flag_off.
+            _rvr_kw = {"rv_regional": True} if _rv_regional_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
@@ -2685,7 +2771,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                                 price_request=_price_request,
                                                                 **_pace_kw, **_chain_kw, **_xmit_kw,
                                                                 **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw,
-                                                                **_fnf_kw, **_pr_kw)
+                                                                **_fnf_kw, **_pr_kw, **_rv_kw, **_rvr_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:
@@ -2745,6 +2831,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     if _handles:
         on_token = _plan_filtered_token_relay(on_token)
     call_kw = {"on_token": on_token} if (on_token is not None and call is _call_opus) else {}
+    # Q-0 EFFORT KNOB: threaded ONLY on the real path (injected fakes keep their plain signatures --
+    # the on_token guard's own rule) and only when the honored preset minted the key; absent -> the
+    # env seam inside _call_opus decides, byte-identical to before this knob existed.
+    if (mode_knobs or {}).get("synth_effort") and call is _call_opus:
+        call_kw["effort"] = mode_knobs["synth_effort"]
     _emit(on_stage, "synthesizing")                               # prompt assembled; the model call starts NOW
     _emit(on_stage, "drafting")                                   # F7: the engine feed is CLOSED — prose mode
     _t_synth = time.perf_counter()                                # W6.1-0 stage timer (MsSynthLLM)
@@ -8679,7 +8770,7 @@ def _pop_usage(structured) -> dict | None:
 
 
 def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temperature=None,
-               max_tokens: int | None = None) -> dict:
+               max_tokens: int | None = None, effort: str | None = None) -> dict:
     """The real serving call — provider-routed (Anthropic API or Bedrock via providers.py) with the
     production fallback chain (backoff retry -> Sonnet->Haiku degradation, tagged). PROMPT CACHING: the
     system prompt is always a cached block, and when `user` arrives as a (stable_prefix, volatile_tail)
@@ -8738,10 +8829,16 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
         #                 the router on a pre-4.6 seat, killing the answer before the writer runs.
     if _think is not None:
         kw["thinking"] = _think                        # both serving lanes accept it
-    _eff = pv.synth_effort()                           # effort seam (dark plumbing): None = byte-identical
+    # Q-0 EFFORT: mode > env (the synth_model F5 precedence, one rung lower) -- a per-turn preset knob
+    # must beat a process-wide default, or a task env would silently strip the tier the measurement
+    # shipped it on. `effort` arrives ONLY from the mode-knob thread at the synthesis call site;
+    # anything outside providers._EFFORT_WORDS resolves None (fail-open, table-pinned upstream).
+    _eff = ({"effort": effort} if effort in pv._EFFORT_WORDS else None) if effort is not None \
+        else pv.synth_effort()                         # effort seam (dark plumbing): None = byte-identical
     if (_eff is not None and pv.provider() == "anthropic"
-            and pv.supports_adaptive(model)):          # provider + seat gates, symmetric with numbers
-        kw["output_config"] = _eff
+            and pv.supports_effort(model)):            # provider gate + the EFFORT-probed seat set (F3:
+        kw["output_config"] = _eff                     # ADAPTIVE_SEATS is a THINKING roster; 4-6/4-x are
+        #                                                effort-UNPROBED and every banked arm ran opus-5)
     if on_token is not None:
         out, degraded = pv.serving_call_stream(client, sys_blocks, user, on_token=on_token, **kw)
     else:
@@ -8993,13 +9090,19 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # promise handle substitution while the schema still demanded a model-authored ledger, or the reverse.
     # One resolution, four seams, both bodies -- the `_provenance` / `_census` / `_outlook` discipline.
     # (`_handles` is resolved ABOVE, at the ledger seam, because the prompt needs it before this call.)
+    # Q-0 EFFORT ON THE SECOND SYNTHESIS PATH (review find F2), spelled identically to the L2 body:
+    # this is the documented GRAPHRAG_PLANNER=onehop rollback lane, and a knob that shapes every L2
+    # turn but vanished here would run the writer at the API default while the trace stamp said "max"
+    # -- the null-arm class, on exactly the path a rollback puts every turn on.
+    _oh_kw = ({"effort": mode_knobs["synth_effort"]}
+              if (mode_knobs or {}).get("synth_effort") and call is _call_opus else {})
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               response_contract=_rc_active,
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
                               census=_census,                                 # D-CC-1, both bodies
                               handles=_handles),                              # D-HP-7/8, both bodies
                       _pack(sp, vp, use_blocks), model=model,
-                      tool=_answer_tool(handles=_handles))
+                      tool=_answer_tool(handles=_handles), **_oh_kw)
     _banned_mood = _count_banned_mood(structured)                 # P9-A: RAW output, pre-sanitize
     _banned_val = _count_banned_valuation(structured)             # DP-6: valuation/flow raw counts, pre-sanitize
     _banned_flow = _count_banned_flow(structured)
