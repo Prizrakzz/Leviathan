@@ -104,6 +104,13 @@ MIN_CORR_WINDOW = MIN_CORR_N        # THE BINDING FLOOR (refute-v1 D9), and it f
 #                                     The inheritance argument was right; it was applied to the wrong
 #                                     variable. Same number, correct variable, a named declined branch.
 MIN_CORR_WINDOWS = 1                # one full window is a reading; zero is nothing to read.
+MIN_SU_HISTORY_N = MIN_PERCENTILE_N  # D-DA (2026-09-01, design v2 ROW 3). ONE floor family: a
+#                                     stocks-to-use standing is a percentile of the leg's own
+#                                     marketing-year history, so its history floor IS the rank floor --
+#                                     inherited, never a second laxer constant beside the consumer.
+MIN_SHARE_N = 1                     # D-DA ROW 9: a share is two parts of ONE observation (one session's
+#                                     two crush values); the floor that matters is the parts' own signs,
+#                                     policed inside share() itself, not a sample count.
 
 DIRECTIONS = ("up", "down")
 
@@ -238,6 +245,17 @@ CORR_FLAT_LEG_DECLINE = (
 CORR_THIN_DECLINE = (
     "only {n} shared observations are held for these two series, below the {floor} a correlation "
     "needs, so no co-movement figure is computed")
+# D-DA (2026-09-01): the derived-arithmetic lane's three refusal proses, same constant discipline.
+VINTAGE_SKEW_DECLINE = (
+    "the figures this derivation needs were published on different dates ({stamps}), and dividing or "
+    "differencing across publication vintages manufactures a number no single release ever printed -- "
+    "so no derived figure is computed")
+RATIO_DENOMINATOR_DECLINE = (
+    "the denominator prints {denom}, and a ratio over a zero-or-negative base is not a proportion of "
+    "anything -- so no derived figure is computed")
+SHARE_NONPOSITIVE_DECLINE = (
+    "a value share needs every part non-negative and their sum positive (got part {part} against a "
+    "total of {total}) -- so no derived figure is computed")
 
 UNIT_UNLABELLED = "unlabelled"          # how an absent unit is rendered in a TRACE label, never in prose
 
@@ -399,6 +417,52 @@ def window_change(series: Sequence, t1: int, t2: int) -> dict:
     pct = None if start == 0.0 else 100.0 * delta / start
     return {"stat": "window_change", "declined": False, "value": delta, "n": n,
             "start_val": start, "end_val": end, "pct_change": pct, "t1": t1, "t2": t2}
+
+
+def ratio(numerator, denominator, *, scale: float = 1.0) -> dict:
+    """One governed quotient (D-DA ROW 2: the stocks-to-use division the writer must never do).
+    Declines on a zero-or-negative denominator (DENOMINATOR_GUARD) and ECHOES both inputs so the
+    caller mints its component rows from the SAME floats it divided -- the derived level and its
+    components can never drift apart."""
+    num, den = float(numerator), float(denominator)
+    for v in (num, den):
+        if math.isnan(v) or math.isinf(v):
+            raise TypeError(f"ratio input is not finite: {v!r}")
+    if den <= 0.0:
+        return _decline("ratio", 0, RATIO_DENOMINATOR_DECLINE.format(denom=den),
+                        guard=DENOMINATOR_GUARD, numerator=num, denominator=den)
+    return {"stat": "ratio", "declined": False, "value": scale * num / den, "n": 1,
+            "numerator": num, "denominator": den, "scale": scale}
+
+
+def share(part, other_parts: Sequence) -> dict:
+    """`part` as a fraction of (part + sum(other_parts)), scaled to percent (D-DA ROW 9: the crush
+    oil-share). Declines on a negative part or a non-positive total (SHARE_NONPOSITIVE_DECLINE) --
+    a NEGATIVE crush MARGIN does not block the share (the share is bounded, the margin is not), but a
+    negative product VALUE does. Returns the total beside the value so the caller's line can print
+    both from one producer."""
+    p = float(part)
+    rest = _floats(other_parts)
+    total = p + sum(rest)
+    if p < 0.0 or any(r < 0.0 for r in rest) or total <= 0.0:
+        return _decline("share", 1 + len(rest), SHARE_NONPOSITIVE_DECLINE.format(part=p, total=total),
+                        guard=DENOMINATOR_GUARD, part=p, total=total)
+    return {"stat": "share", "declined": False, "value": 100.0 * p / total, "n": 1 + len(rest),
+            "part": p, "total": total}
+
+
+def same_vintage(stamps: Sequence) -> tuple[bool, str | None]:
+    """The D-DA vintage fence: EXACT knowledge-date STRING equality and nothing else. This module
+    holds no calendar and must never learn one (labels are never parsed into dates), so a skew
+    'tolerance' is not expressible here -- MAX_VINTAGE_SKEW = 0 is structural, not a discipline.
+    FAIL-CLOSED: any empty or None stamp is a False, because a derivation over an unstamped input
+    cannot prove its inputs share a release. Returns (ok, the shared stamp or None)."""
+    ss = [str(s).strip() if s is not None else "" for s in (stamps or [])]
+    if not ss or any(not s for s in ss):
+        return (False, None)
+    if len(set(ss)) != 1:
+        return (False, None)
+    return (True, ss[0])
 
 
 def revision_count(vintage_rows: Sequence, direction: str) -> dict:

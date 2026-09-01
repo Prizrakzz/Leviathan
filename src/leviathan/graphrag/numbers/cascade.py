@@ -3823,7 +3823,7 @@ def _rv_one_sided_rung(source: str, target: str, fired: dict, qfn, asof, calls: 
 
 def _rv_price_reading(pair_row, source: str, target: str, fired: dict, qfn, asof,
                       calls: list, base: int, windows: list | None = None, *,
-                      regional: bool = False) -> tuple:
+                      regional: bool = False, derived: bool = False) -> tuple:
     """The reading composer. Returns (lines, trace) on render; ([], {'decline': tag}) on any honest
     decline; ([], None) only on a shape so broken there is nothing to record. Synthetic rows are built
     LOCALLY and appended to `calls` only after the leg-local fence passes -- a fenced drop must leave no
@@ -3951,6 +3951,36 @@ def _rv_price_reading(pair_row, source: str, target: str, fired: dict, qfn, asof
                                          unit=unit, date=dt), latest))
             lines.append(f"- [N{n}] {lbl}, monthly benchmark price {ym}: {float(latest):.2f} "
                          f"{unit}".rstrip() + _series_tag(local[-1]["query"]))
+        # ── D-DA LANE 2 (design v2 ROWS 6-7; dark -- `derived` defaults False and the prod call site
+        #    does not pass it): each leg's OWN standing beside its level, closing the confirmed R5
+        #    asymmetry (the full rung printed levels with no rank while level_only and the one-sided
+        #    rung both rank). SAMPLE = the leg's UNJOINED series (refute m1: the joined subsample
+        #    would hand one leg two different percentiles depending on which rung fired -- the
+        #    two-headlines class across rungs of one function). ZERO added fetches.
+        _dv_att: dict = {}
+        if derived:
+            for lbl, vals, dts in ((la, va, da), (lb, vb, db)):
+                pc = st.percentile(vals[-1], vals)
+                if not pc.get("declined"):
+                    pv = int(round(pc["value"]))
+                    n += 1
+                    local.append(_shown(_rv_call("monthly benchmark percentile", lbl, pv,
+                                                 f"{dts[0]}..{dts[-1]}", asof, unit="percentile",
+                                                 date=dts[-1]), pv, pc["n"]))
+                    lines.append(f"- [N{n}] where {lbl}'s own price stands within its "
+                                 f"{pc['n']}-month span to {dts[-1][:7]}: {_rv_ordinal(pv)} "
+                                 f"percentile" + _series_tag(local[-1]["query"]))
+                zs = st.zscore(vals[-1], vals)
+                if not zs.get("declined"):
+                    zl = round(float(zs["value"]), 2)
+                    n += 1
+                    local.append(_shown(_rv_call("monthly benchmark sigma", lbl, zl,
+                                                 f"{dts[0]}..{dts[-1]}", asof,
+                                                 unit="sigma vs the window mean",
+                                                 date=dts[-1]), zl))
+                    lines.append(f"- [N{n}] {lbl}'s own price against its own window average: "
+                                 f"{zl:+.2f} sigma" + _series_tag(local[-1]["query"]))
+                    _dv_att[lbl] = (zl, n)
         # the spread/ratio level (2 dp stored == 2 dp printed: a near-zero spread must not gamble on the
         # verifier's 1% tolerance)
         sp2 = round(float(ps["value"]), 2)
@@ -4038,6 +4068,23 @@ def _rv_price_reading(pair_row, source: str, target: str, fired: dict, qfn, asof
                              f"{pair_word} is placed ORDINALLY against the months held -- the highest is "
                              f"{fmtv(hi2)} [N{h_hi}] and the lowest {fmtv(lo2)} [N{h_lo}] -- and no "
                              f"percentile and no z-score is computed")
+        # D-DA LANE 2 attribution clause (ROW 7): ENGINE-named, never writer-derived, and never an
+        # arithmetic identity (refute M3 -- no dSpread==dA-dB claim anywhere). The leg with the
+        # larger own-history |sigma| carries the move; inside DV_ATTRIB_MARGIN neither leg is named.
+        # Digits on both sigmas, each backed by its own [N] handle's shown pool -- verifier-proof.
+        if derived and len(_dv_att) == 2:
+            from leviathan.graphrag.numbers.derived import DV_ATTRIB_MARGIN
+            (_al, (_az, _ah)), (_bl, (_bz, _bh)) = list(_dv_att.items())
+            if abs(_az - _bz) > DV_ATTRIB_MARGIN:
+                if abs(_az) >= abs(_bz):
+                    _r, _o = (_al, _az, _ah), (_bl, _bz, _bh)
+                else:
+                    _r, _o = (_bl, _bz, _bh), (_al, _az, _ah)
+                rank_bits.append(f"the move sits on {_r[0]} -- its own price at {_r[1]:+.2f} sigma "
+                                 f"[N{_r[2]}] against {_o[0]} at {_o[1]:+.2f} sigma [N{_o[2]}]")
+            else:
+                rank_bits.append("both legs stand at similar points in their own histories, so "
+                                 "neither leg is named as carrying the move")
         # -- the alignment verdict (F1 fix: the price window is the fired ERA's OWN CALENDAR DATES,
         #    leg-symmetric by construction -- the fired MY string is matched back to its era via
         #    _my_span(w, source), which reproduces exactly the string _reroute_xc minted. The sign flip

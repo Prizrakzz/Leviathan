@@ -140,16 +140,24 @@ def _parse_release_ym_from_page(html: str) -> str | None:
 
     Returns:
         ``"YYYYMmm"`` string (e.g. ``"2026M05"``), or ``None`` if not found.
+
+    2026-09-01 FIX (the zero-advance RCA): the page now lists MULTIPLE editions' PDF anchors at
+    once (measured: ``CMO-Pink-Sheet-August-2026.pdf`` x2 AND ``CMO-Pink-Sheet-July-2026.pdf`` x2
+    on one page), and ``.search()`` took whichever appeared FIRST in the HTML -- the archive link
+    -- so three catch-up fires in a row derived the stale month and the zero-advance tripwire
+    (correctly) refused. The release is now the LATEST month across every anchor on the page.
     """
-    m = _PDF_DATE_RE.search(html)
-    if not m:
+    found: list[tuple[int, int]] = []
+    for month_name, year_str in _PDF_DATE_RE.findall(html):
+        try:
+            found.append((int(year_str),
+                          datetime.datetime.strptime(month_name, "%B").month))
+        except ValueError:
+            continue
+    if not found:
         return None
-    month_name, year_str = m.group(1), m.group(2)
-    try:
-        month_num = datetime.datetime.strptime(month_name, "%B").month
-    except ValueError:
-        return None
-    return f"{year_str}M{month_num:02d}"
+    year, month_num = max(found)
+    return f"{year}M{month_num:02d}"
 
 
 def _release_ym_from_override(release_month: str) -> str:
