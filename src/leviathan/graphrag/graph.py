@@ -419,9 +419,11 @@ class CausalGraph:
 
         Each row is the DECLARING contract plus the declared edge verbatim (`mechanism` is the string
         D-MW-28 scores cos(query, .) against, and it already reads in the right direction: the foreign
-        contract wrote it to describe how `commodity` moves IT). `seed` is the resolved commodity that
-        DECLARED the edge and `seed_node` the node it is filed under, so a row is self-describing in an
-        artifact.
+        contract wrote it to describe how `commodity` moves IT). `seed` is the resolved DRIVER contract
+        (the market that cascades into the declarer -- the row's PARENT in the consequence direction),
+        `contract` is the DECLARING foreign market, and `seed_node` the node the row is filed under, so
+        a row is self-describing in an artifact. (The build-loop index comment says the same; this
+        sentence previously inverted the two roles -- corrected with the cascade-walk accessor edit.)
 
         NEVER RAISES on an unknown/unresolved id -- it returns []. `cross_links` may KeyError because it is
         a contract lookup; this is an index read on the walk's hot path and a routing surprise must never
@@ -453,6 +455,12 @@ class CausalGraph:
         candidate set, tie-break and tradeable-foreign flag. This is the audit surface the STEP-0 census
         pins against -- a resolution nobody can re-read is a resolution nobody can revisit."""
         return [dict(r) for r in self._rev_table]
+
+    def rev_cross_link_seeds(self) -> list[str]:
+        """Every seed NODE with at least one inverted edge, sorted -- the public enumerator the reach
+        census and the cascade-walk lint read instead of the private `_rev_index` (walk charter STEP 1;
+        the one graph.py addition the round-3 recon priced)."""
+        return sorted(self._rev_index)
 
     def rev_cross_link_buckets(self) -> dict:
         """The THREE-BUCKET decomposition (+ the two fence counters), so a shrink decision reads decomposed

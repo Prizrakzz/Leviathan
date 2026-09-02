@@ -1332,7 +1332,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              headline: bool = False, episode_outcomes: bool = False,
              cot_outcomes: bool = False, futures_newest_first: bool | str = False,
              price_replay: bool = False, rv_reading: bool = False,
-             rv_regional: bool = False, derived_arith: bool = False) -> tuple:
+             rv_regional: bool = False, derived_arith: bool = False,
+             cascade_walk: dict | None = None) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1435,6 +1436,11 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # takes that early return.
     try:
         sg.trace["quantify_dark_refs"] = dark
+        # WALK-CHARTER A2 (the uncounted base wave): stamped 0 HERE -- before the all-dark early
+        # return, the quantify_dark_refs discipline verbatim -- then OVERWRITTEN with the wave's real
+        # spec count after the fan below. One key, present on every quantifying turn, zero included;
+        # ABSENT still means "this turn never quantified", never "zero reads".
+        sg.trace["quantify_wave_reads"] = 0
     except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
         pass
     if not groups and not chain and not transmission:
@@ -1444,11 +1450,20 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         # modal episodes turn, and a leg that only ran when the cascade also fired would be a leg whose
         # coverage tracked something unrelated to episodes. Flag off -> the kwarg is absent -> this branch
         # is byte-identical to today (no read, no line, no trace key).
+        e_lines: list = []
         if episode_outcomes:
-            e_lines, e_trace = _episode_leg_or_nothing(sg, qfn, asof, extra_number_calls,
-                                                       futures_newest_first=futures_newest_first)
-            if e_lines:
-                return _BLOCK_HEADER + "\n".join(e_lines), [], []
+            e_lines = _episode_leg_or_nothing(sg, qfn, asof, extra_number_calls,
+                                              futures_newest_first=futures_newest_first)[0]
+        # CASCADE EPISODE WALK: like J4, the leg owns NO groups (its firings come off the trace
+        # answer._l2_blocks already stamped) so it must not die on this early return -- the v3
+        # refute named exactly this branch as the modal episodes turn. Runs AFTER J4 so the A4
+        # dedup gate reads a key J4 has already written. Kwarg absent -> byte-identical.
+        if cascade_walk:
+            e_lines = e_lines + _cascade_walk_leg_or_nothing(
+                sg, graph, cascade_walk, qfn, asof, extra_number_calls,
+                futures_newest_first=futures_newest_first)[0]
+        if e_lines:
+            return _BLOCK_HEADER + "\n".join(e_lines), [], []
         return None, [], []                                       # both flags False -> byte-identical early
         #                                                           return; either chain engine runs over empty
         #                                                           groups (their grounding checks are their own:
@@ -1476,6 +1491,12 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     with ThreadPoolExecutor(max_workers=width) as pool:
         records = list(pool.map(                                     # order preserved; _run_one never raises
             lambda s: _run_one(qfn, s, futures_newest_first=futures_newest_first), flat))
+    try:
+        # A2: the wave's REAL spec count (every flat spec ran exactly one _run_one read). This is the
+        # single largest read producer on a quantifying turn and was invisible to any ceiling before.
+        sg.trace["quantify_wave_reads"] = len(flat)
+    except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+        pass
     base = len(extra_number_calls)
     block_lines, trace, era_deltas = _assemble(records, kept, base, extra_number_calls)
     # T2a pace legs (CONVERGENCE_TIER1): gated ONLY by the answer.py-threaded `pace` kwarg
@@ -1535,10 +1556,16 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     if xc_request and not _xmit_fired:
         # RV-READING: `rv_reading` (answer.py-threaded, the [F3] idiom) and quantify's own price_replay
         # ride down as arguments -- both default False, so an rv_reading-less call is byte-identical.
+        _xc_base = len(extra_number_calls)                        # A3: the fork's calls-delta baseline
         xc_lines, xc_trace = _run_xc(xc_request, sg, graph, groups, qfn, asof, near, extra_number_calls,
                                      comove=comove, reading=rv_reading, replay=price_replay,
                                      rv_regional=rv_regional, derived_arith=derived_arith)
         if xc_trace:
+            # A3 (walk charter): the fired fork's spend, measured as the calls-delta at fork exit --
+            # the adjudicated proxy (the RV sub-legs count their own `fetches` beside it). This is
+            # what lets a turn ceiling read RV2/comove instead of declining `turn_spend_unknown` on
+            # exactly the cross-commodity turns a consequence leg fires on.
+            xc_trace["net_reads"] = len(extra_number_calls) - _xc_base
             # [SKEPTIC F3] The fired dict carries its own discriminator: a co-move sets comove:True (and omits
             # reroute_v2), so it routes to the NEW quantify_comove key and NEVER pollutes quantify_reroute_v2
             # (which eval reads as reroute_v2_pairs -- the rv2 NEGATIVE pins assert it empty).
@@ -1557,12 +1584,21 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         p_lines, p_trace = _price_pair(price_request, sg, graph, groups, qfn, asof, near,
                                        extra_number_calls, len(extra_number_calls),
                                        futures_newest_first=futures_newest_first)
-        if p_trace:
+        if p_trace and p_trace.get("price_leg"):
             try:
                 sg.trace["quantify_price_leg"] = p_trace
             except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
                 pass
             block_lines = block_lines + p_lines
+        elif p_trace:
+            # A2/v3 STEP 2(4): a POST-FETCH pair-atomic decline now returns a payload (price_leg:
+            # False + net_reads) so the two spent fetches are countable. Routed on the discriminator
+            # to an UNREGISTERED key -- the quantify_chain_decline / quantify_transmission_decline
+            # sibling shape -- so eval's `price_leg_fired` (bool of the FIRED key) is byte-unchanged.
+            try:
+                sg.trace["quantify_price_leg_decline"] = p_trace
+            except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+                pass
     # THE TWO CHAIN ENGINES, both purely APPENDED after every other engine's lines so each existing line keeps
     # its byte position -- flag-off is byte-identical AND the flag-on diff is additive-only.
     #
@@ -1612,6 +1648,13 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     if episode_outcomes:
         block_lines = block_lines + _episode_leg_or_nothing(
             sg, qfn, asof, extra_number_calls, futures_newest_first=futures_newest_first)[0]
+    # CASCADE EPISODE WALK: AFTER the J4 call, and the ordering is load-bearing rather than
+    # cosmetic -- the A4 dedup gate reads `quantify_episode_outcomes`, which J4 writes above.
+    # Kwarg absent -> no read, no line, no trace key, byte-identical.
+    if cascade_walk:
+        block_lines = block_lines + _cascade_walk_leg_or_nothing(
+            sg, graph, cascade_walk, qfn, asof, extra_number_calls,
+            futures_newest_first=futures_newest_first)[0]
     # OUTCOMES JOIN J6 -- the COT OUTCOME PAIRING, CONTEXT LANE ONLY (D-OJ-17/18). Gated on the threaded
     # `cot_outcomes` kwarg AND on `not outlook` AND on a positioning context leg having actually
     # rendered. All three, because D1's ratified text is a SPLIT and the half most easily dropped is the
@@ -3523,11 +3566,15 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
                           "node_key": None, "leg": ("price", None), "era_idx": None})
         recs = [_run_one(qfn, s, futures_newest_first=futures_newest_first)   # 2 fetches at SESSION asof
                 for s in specs]                                              # (settled actual)
+        # Pair-atomic declines AFTER the two fetches return a PAYLOAD (walk charter A2 / v3 STEP
+        # 2(4)): the spend happened and must be countable. `price_leg: False` is the discriminator
+        # the seam routes on; the pre-fetch declines above stay bare `([], None)` -- no attempt,
+        # zero-trace turns stay zero-trace.
         if any(r.get("status") != "ok" for r in recs):
-            return [], None                                       # pair-atomic: both settle or the pair declines
+            return [], {"price_leg": False, "net_reads": 2, "reason": "endpoint_not_ok"}
         p_a, p_b = _float_val(recs[0]), _float_val(recs[1])
         if p_a is None or p_b is None:
-            return [], None
+            return [], {"price_leg": False, "net_reads": 2, "reason": "endpoint_unreadable"}
         # the _apply_unit_overrides fetched unit (F6), read off the SAME row _float_val took the level from
         # (agg='latest' makes these single-row today; keeping value and unit on one row is what stops a
         # future multi-row WASDE fetch from printing one MY's number under another MY's unit)
@@ -3571,10 +3618,17 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
              f"render under '## The record', the level is the [N] row and the direction is prose."),
         ]
         fired = {"price_leg": True, "focus": focus, "commodity": commodity, "unit": (u_a or u_b),
-                 "my_lo": lab_a, "p_lo": round(p_a, 4), "my_hi": lab_b, "p_hi": round(p_b, 4)}
+                 "my_lo": lab_a, "p_lo": round(p_a, 4), "my_hi": lab_b, "p_hi": round(p_b, 4),
+                 "net_reads": 2}                                  # A2: the literal two fetches above
         return lines, fired
     except Exception:  # noqa: BLE001 -- fail-closed: a price-leg failure must never break the v1 answer
-        return [], None
+        return [], {"price_leg": False, "reason": "error"}        # spend UNKNOWN, said so (review D4):
+        #                                                           DELIBERATELY no net_reads -- the seam
+        #                                                           routes this to the decline key and the
+        #                                                           missing counter makes the walk decline
+        #                                                           turn_spend_unknown; a bare None left
+        #                                                           "unknown" indistinguishable from
+        #                                                           "never ran" and 2 paid reads scored 0
 
 
 # ── RV-READING: the directional price leg on a FIRED cross-commodity pair (2026-08-29) ────────────────
@@ -5039,7 +5093,8 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
             if key > best_key:                                     # strictly-greater -> FIRST (file order) wins ties
                 selected, root_node, eras, best_key = c, rn, w, key
         if selected is None:                                       # a row matched the focus but no grounded root
-            return [], None, {"chain_id": focus_rows[0].get("id"), "reason": "root_not_grounded"}
+            return [], None, {"chain_id": focus_rows[0].get("id"), "reason": "root_not_grounded",
+                              "net_reads": 0}
         selected_id = selected.get("id")
         hops = selected.get("hops") or []
         # ── per-hop resolution (sec 2.1) + the DOWNSTREAM-ONLY grain guard (sec 2.2(3), S5) ──
@@ -5048,11 +5103,11 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
         for i, hop in enumerate(hops):
             res = _chain_resolve_hop(graph, focus, hop, eras, asof, root_node, is_root=(i == 0))
             if res is None:
-                return [], None, {"chain_id": selected_id, "reason": "error", "hop": i}
+                return [], None, {"chain_id": selected_id, "reason": "error", "hop": i, "net_reads": 0}
             identity, specs, meta = res
             rank = _GRAIN_RANK.get(meta["period_type"], 0)
             if prev_rank is not None and rank < prev_rank:         # finer than its parent: spread-MY-over-months
-                return [], None, {"chain_id": selected_id, "reason": "error", "hop": i}
+                return [], None, {"chain_id": selected_id, "reason": "error", "hop": i, "net_reads": 0}
             prev_rank = rank
             resolved.append({"idx": i, "identity": identity, "specs": specs, "meta": meta})
         # ── degenerate-hop guard (sec 2.3): COLLAPSE consecutive identical-identity hops; decline if <2 distinct ──
@@ -5065,7 +5120,8 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
                 distinct.append({"identity": r["identity"], "specs": r["specs"], "meta": r["meta"],
                                  "idxs": [r["idx"]], "names": [r["meta"]["node"]]})
         if len(distinct) < 2:                                      # a 1-series "chain" is just a node (per-node
-            return [], None, {"chain_id": selected_id, "reason": "degenerate"}   # cascade already serves it)
+            return [], None, {"chain_id": selected_id, "reason": "degenerate",   # cascade already serves it)
+                              "net_reads": 0}
         # ── cap (sec 3.4): reuse-before-fetch, CHAIN_CAP NET, cap-ATOMIC (never a truncated chain) ──
         reuse: dict = {}
         for rec in records or []:
@@ -5073,7 +5129,8 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
         all_specs = [s for d in distinct for s in d["specs"]]
         need = [s for s in all_specs if _chain_spec_key(s) not in reuse]
         if len(need) > CHAIN_CAP:
-            return [], None, {"chain_id": selected_id, "reason": "cap", "net": len(need)}
+            return [], None, {"chain_id": selected_id, "reason": "cap", "net": len(need),
+                              "net_reads": 0}                      # declined BEFORE fetching; `net` = the ask
         # ── fetch the misses in ONE pool wave (the R5 shape); reuse consumes prior records ──
         fetched: dict = {}
         if need:
@@ -5112,7 +5169,8 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
             ok_cur = cur is not None and cur.get("status") == "ok" and bool(cur.get("rows"))
             if not (ok_any or ok_cur):
                 return [], None, {"chain_id": selected_id, "reason": "hop_dark",
-                                  "hop": d["idxs"][0], "node": " / ".join(d["names"])}
+                                  "hop": d["idxs"][0], "node": " / ".join(d["names"]),
+                                  "net_reads": len(need)}          # POST-fetch decline: the wave was paid
             hop_recs.append({"d": d, "eras": eras_b, "cur": cur})
         # ── PASS 2: inject [N] rows (continue-count) + render (all hops confirmed live) ──
         lines: list = []
@@ -5165,7 +5223,8 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
         # Drops any register-tripping line + its handle and renumbers the chain tail; byte-identical when clean.
         lines = _chain_register_fence(lines, calls, base)
         fired = {"chain_id": selected_id, "contract": focus, "window": window_lbl,
-                 "hops": hop_trace, "n_rows": len(calls) - base}    # honest post-fence count (== n-base when clean)
+                 "hops": hop_trace, "n_rows": len(calls) - base,    # honest post-fence count (== n-base when clean)
+                 "net_reads": len(need)}                            # A2/v3 STEP 2(2): the fetch wave's real cost
         return lines, fired, None
     except Exception as e:  # noqa: BLE001 -- fail-closed: never break the v1 answer
         return [], None, ({"chain_id": selected_id, "reason": "error", "detail": type(e).__name__[:40]}
@@ -5232,6 +5291,16 @@ def _xmit_memo_qfn(qfn):
 
     _q.memo = memo
     return _q
+
+
+def _xmit_stamp_reads(payload: dict, mqfn) -> dict:
+    """A2 (walk charter): stamp the memo's distinct round-trip count on a post-prewarm payload.
+    A None mqfn (the default-backend path -- `_xmit_memo_qfn(None)` passes through) leaves the key
+    ABSENT: an unmeasurable spend must read as UNKNOWN downstream (the turn ceiling declines on it),
+    never as a number, and raising here would convert a fired chain into an error decline."""
+    if mqfn is not None and payload is not None:
+        payload["net_reads"] = len(mqfn.memo)
+    return payload
 
 
 def _xmit_su_keys(links: list, windows: list) -> list:
@@ -5431,7 +5500,7 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
         # measurement arms pin transmission OFF, so this guard's only validation is its unit pin.
         if (xc_request or {}).get("trigger") in _OPEN_TRIGGERS:
             return [], None, {"chain_id": None, "reason": "open_ask_pair_precedence",
-                              "trigger": xc_request.get("trigger")}
+                              "trigger": xc_request.get("trigger"), "net_reads": 0}
         chains = load_transmission_map()
         if not chains:
             return [], None, None
@@ -5444,9 +5513,10 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
         selected_id = selected.get("id")
         links = selected.get("links") or []
         if chain_fired:                                           # D11: the vertical engine already fired
-            return [], None, {"chain_id": selected_id, "reason": "cap", "yielded_to": "quantify_chain"}
+            return [], None, {"chain_id": selected_id, "reason": "cap", "yielded_to": "quantify_chain",
+                              "net_reads": 0}
         if _xmit_degenerate(links):
-            return [], None, {"chain_id": selected_id, "reason": "degenerate"}
+            return [], None, {"chain_id": selected_id, "reason": "degenerate", "net_reads": 0}
         # ── ONE anchor window from the ROOT source node's own evidence (2.3), FORCED on every link ──
         # Every horizontal link is PSD marketing-year, so there is NO cross-grain alignment problem; the window
         # end is <= session asof by the R3 derive-side clamp. `_xc_focus_windows` is the same Invariant-4
@@ -5460,12 +5530,13 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
         # narrate two DIFFERENT eras as "the SHARED anchor window". One anchor, forced on every link.
         windows = _xc_focus_windows(sg, graph, groups, links[0].get("source"), near, asof)[:1]
         if not windows:
-            return [], None, {"chain_id": selected_id, "reason": "root_not_grounded"}
+            return [], None, {"chain_id": selected_id, "reason": "root_not_grounded", "net_reads": 0}
         # ── cap: priced BEFORE any fetch, ATOMIC (3.3 control-2) ──
         keys = _xmit_su_keys(links, windows)
         net = 2 * len(keys)                                       # 2 PSD components per World su_ratio synthesis
         if net > TRANSMISSION_CAP:
-            return [], None, {"chain_id": selected_id, "reason": "cap", "net": net}
+            return [], None, {"chain_id": selected_id, "reason": "cap", "net": net,
+                              "net_reads": 0}                     # declined BEFORE the prewarm; `net` = the ask
         mqfn = _xmit_memo_qfn(qfn)
         _xmit_prewarm(mqfn, keys, asof)                           # PHASE 1 -- the only parallel step
         # ── PHASE 2: `_reroute_xc` VERBATIM per link over the hot memo (zero new pg round-trips) ──
@@ -5508,14 +5579,16 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
                 # 2.4: a chain whose HEAD link is dark declines WHOLE -- nothing reader-facing, ZERO [N] rows
                 # (the mentor answers qualitatively, as today). The belt keeps the handle ledger honest.
                 calls[base:] = []
-                return [], None, {"chain_id": selected_id, "reason": reason, "link": i}
+                return [], None, _xmit_stamp_reads(               # POST-prewarm: the memo's distinct round-trips
+                    {"chain_id": selected_id, "reason": reason, "link": i}, mqfn)
             link_trace.append(entry)
             stopped_at, stop_reason = i, reason
             break
         n_rendered = sum(1 for e in link_trace if e.get("rendered") in ("divergence", "comove"))
         if not n_rendered:
             calls[base:] = []                                     # defensive: nothing rendered -> no orphans
-            return [], None, {"chain_id": selected_id, "reason": "degenerate"}
+            return [], None, _xmit_stamp_reads(
+                {"chain_id": selected_id, "reason": "degenerate"}, mqfn)
         # The HANDOFF names the FIRST link the chain does NOT quantify: the link that declined (rendered
         # 'truncated'), or -- when a co-move at a hub ENDED the divergence chain (D4) -- the one after it.
         # A co-move on the LAST link leaves nothing downstream, so no handoff prints (both links rendered).
@@ -5531,9 +5604,11 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
         lines.append(_xmit_marker(path, window_lbl))
         if not _xmit_register_fence(lines):                       # 5.1 fences, ATOMIC + rows rolled back
             calls[base:] = []
-            return [], None, {"chain_id": selected_id, "reason": "error", "detail": "register_fence"}
-        fired_trace = {"chain_id": selected_id, "focus": focus, "window": window_lbl,
-                       "links": link_trace, "n_rows": len(calls) - base}
+            return [], None, _xmit_stamp_reads(
+                {"chain_id": selected_id, "reason": "error", "detail": "register_fence"}, mqfn)
+        fired_trace = _xmit_stamp_reads(                          # A2/v3 STEP 2(1): `.memo` is the honest
+            {"chain_id": selected_id, "focus": focus, "window": window_lbl,   # round-trip counter
+             "links": link_trace, "n_rows": len(calls) - base}, mqfn)
         if stopped_at is not None:
             fired_trace["stopped_at"], fired_trace["stop_reason"] = stopped_at, stop_reason
         return lines, fired_trace, None
@@ -5785,7 +5860,11 @@ def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
             span = str((w or {}).get("span") or "")
             t1, t2 = str((w or {}).get("start") or ""), str((w or {}).get("end") or "")
             entry = {"node": node, "slug": slug, "span": span, "start": t1, "end": t2,
-                     "status": None, "reason": None}
+                     "status": None, "reason": None,
+                     "reads": 0}                                  # A2/v3 STEP 2(5): READ, never inferred --
+            #                                                       every entry minted with 0, set at the
+            #                                                       actual read sites below (a reason->cost
+            #                                                       map is what K7's wording forbids)
             try:
                 span_days = _iso_days(t2) - _iso_days(t1)
             except (TypeError, ValueError):
@@ -5833,6 +5912,7 @@ def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
             deep, sat_b = _tape_read(qfn, slug=slug, t1=lo, t2=hi, asof=asof,
                                      contract_months=months or None,
                                      futures_newest_first=futures_newest_first)
+            entry["reads"] = 2                                    # curve + deep, both paid by here
             if sat_a or sat_b:
                 entry.update(status="declined", reason=EP_DECLINE_READ_TRUNCATED)
                 trace.append(entry)
@@ -5861,6 +5941,7 @@ def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
                 # the conservative PENDING verdict exactly as it was.
                 edge_rows, sat_c = _tape_read(qfn, slug=slug, t1=t2, t2=hi, asof=asof,
                                               futures_newest_first=futures_newest_first)
+                entry["reads"] = 3                                # + the lazy edge re-ask
                 edge_frame = _tape_frame(slug, edge_rows)
                 edge = (OC.tape_edges(edge_frame) or {}).get(str(slug)) if len(edge_frame) else None
                 entry["slug_tape_edge"] = str(edge) if edge else None
@@ -5883,6 +5964,778 @@ def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
                          realized_sessions=res.get("realized_sessions"), handle=f"N{n}")
             trace.append(entry)
     return lines, trace
+
+
+# ══ CASCADE EPISODE WALK (charter v4: amendments A1-A6 + both refute adjudications) ═════════════════
+#
+# WHAT IT IS. The graph's own consequence render: on a root-focused turn, price the root board AND
+# the boards the graph DECLARES it cascades into over the SAME dated driver-event firing window,
+# then read the declared sign against the two observed moves (stats.sign_agreement -- a WORD, never
+# a number). A6: the firing windows are the root TREE'S driver-slice episodes, read from the turn's
+# own `episodes_injected` -- the interlock: never a window the model was not shown. First order is
+# the modal render (owner Q2); one firing renders, labeled (owner Q3 -- frequency floors deny the
+# tail). Every absence is DECLARED with a counted reason; the writer transcribes, never derives.
+#
+# WHAT IT NEVER DOES: no pooled rung, no tally, no ratio, no threshold word, no lag glyph, no
+# forward vocabulary; the relation token is ORIENTATION-FREE (the directional claim rides the SIGN
+# and the parent/child order of the two cells, never the token); firing selection reads RECENCY
+# only, never an outcome (MAJOR-5).
+CW_READS_PER_CELL = 3       # curve + deep + the reserved lazy tape-edge re-ask (J4's own shape)
+CW_MAX_FIRINGS = 2          # depth-in-time bound (taken only when exactly ONE child is admissible)
+CW_MAX_CHILDREN = 3         # breadth bound; every un-priced admissible child is NAMED (K2)
+CW_CAP = 12                 # 1 root + 3 children at ONE firing = 4 cells x 3 reads = 12; or
+#                             (1 root + 1 child) x 2 firings x 3 = 12. BREADTH IS DEFAULT; the
+#                             deep-vs-wide rule is deterministic and outcome-independent (below).
+CW_TURN_CEILING = 60        # against the MEASURED turn spend (_cw_turn_spent) -- the bound is
+#                             a RUNAWAY TRIPWIRE, never a ration (owner doctrine: quality beats
+#                             latency, a budget must never bind on a legitimate shape). SIZED
+#                             ABOVE the measured worst legitimate pre-walk turn (~44 reads per
+#                             the round-3 refute; the sitting-3 arm measured 25 on two live
+#                             turns where v3's 30 BOUND and the walk yielded -- corrected
+#                             here, 2026-09-02) plus the walk's own CW_CAP=12: 44 + 12 = 56 < 60.
+#                             exactly as good as the landed counters, which is why an unmeasured
+#                             fired producer declines the leg (never read as zero). SCOPE (review
+#                             D3): the ceiling binds the PRE-WALK producers; J6 runs AFTER the
+#                             walk and spends up to COT_OUTCOME_MAX_ROWS closed reads plus one
+#                             read per declining horizon OUTSIDE this bound -- its per-entry
+#                             `reads` counters make that spend measurable post-hoc (K7's arm
+#                             clause reads them), and bounding J6's own fan is J6's docket.
+CW_SPAN_MIN_DAYS = 45       # r2-calibrated (cw_probe_fence_r2_20260901): excludes the 22-day n=2
+#                             microstructure window class; keeps the measured real events (62/67d).
+CW_SPAN_MAX_DAYS = 270      # r2-CERTIFIED: every 242-267d selected window closed cleanly; the
+#                             measured failures start at 563d. The single-contract basis's real
+#                             reach -- NOT J4's 1460d contract-life bound; each keeps its own name.
+
+# Orientation-free relation phrases (v3 remedy (b)): each phrase reads identically under (A, B)
+# and (B, A); config_check's directional-verb lint holds it. An unmapped relation DECLINES.
+_CW_RELATION_WORDS = {
+    "competes_with": "compete for the same demand",
+    "substitutes_for": "stand in for one another in the same use",
+    "crushed_into": "are joined by the same crush",
+    "correlates_with": "move together in the record",
+    "leads_lags": "the record places a lead-lag between them",
+}
+
+# Reader label per slug the walk can put on a surface (resolve-or-decline, never a raw slug on a
+# reader line, letters-only). EVERY VALUE IS display._contract_label's OWN SPELLING, and the lint
+# pins that equality (STEP-12 review D9: a second board vocabulary put two names on one page and a
+# display label in the machine locator killed the chart; ONE vocabulary, display owns it). The
+# roster covers the shipping hops PLUS every covered root that clears the seed gate
+# (hard_red_spring_wheat_mgex -- review D1's reproduced KeyError root).
+_CW_BOARD_LABEL = {
+    "corn_cbot": "CBOT corn",
+    "hard_red_winter_wheat_kcbt": "KCBT hrw wheat",
+    "soft_red_winter_wheat_cbot": "CBOT srw wheat",
+    "soybeans_cbot": "CBOT soybeans",
+    "soybean_meal_cbot": "CBOT soybean meal",
+    "soybean_oil_cbot": "CBOT soybean oil",
+    "arabica_coffee": "ICE arabica coffee",
+    "robusta_coffee": "ICE robusta coffee",
+    "raw_sugar": "ICE raw sugar",
+    "white_sugar": "ICE white sugar",
+    "rapeseed_oil_zce": "ZCE rapeseed oil",
+    "rapeseed_meal_zce": "ZCE rapeseed meal",
+    "hard_red_spring_wheat_mgex": "MGEX hrs wheat",
+    # engine-reachable roots whose hops decline at the CHILD gates (cross-currency mostly) --
+    # labeled so the decline is the honest child reason, never root_unlabeled (the lint decides
+    # the roster; an unlisted covered root is a lint error, not a serve-time surprise).
+    "canola_ice": "ICE canola",
+    "french_rapeseed_matif": "MATIF rapeseed",
+    "french_wheat_matif": "MATIF french wheat",
+    "rough_rice_cbot": "CBOT rice",
+    "south_african_white_maize_jse": "JSE white maize",
+}
+
+_CW_LAG_RX = re.compile(r"^(\d+)-(\d+)\s+quarters?$")
+
+# The honest WHY of every walk absence -- observation words only, no numerals, no direction verbs.
+_CW_ABSENCE_WHY = {
+    "child_uncovered": "the record carries no board price history for that market",
+    "cross_currency": "the two boards settle in different currencies, so no shared read is taken",
+    "sign_not_unanimous": "the declared relations disagree on direction, so no direction is read",
+    "sign_undeclared": "the declared relation does not commit to a direction here",
+    "lag_gate": "the declared response horizon is longer than a single firing window",
+    "relation_unmapped": "the declared relation has no phrase in the curated register",
+    "blurb_not_unanimous": "the curated descriptions of this pair disagree",
+    "node_cycle": "the path folds back onto the same market",
+    "composer_narrated_pair": "another engine already narrates this pair on this turn",
+    "child_not_priced_budget": "the read budget covers the markets above only",
+    "j4_budget_deferred": "the episode leg already declined this window on its own budget",
+    "j4_owns_window": "the episode leg already carries this window's move for that market",
+    "horizon_open": "the horizon on this window has not closed yet, so no move is measured here",
+    # the CELL-side reasons a reader can actually see (review minor: the OC decline enum and the
+    # seam's own read declines reach ROW 4; the ADMISSION reasons above ride the trace only except
+    # child_uncovered/composer_narrated_pair, which both surfaces share).
+    "read_truncated": "the tape read for this window overflows its bound, so no move is measured",
+    "no_tape_rows": "the tape carries no rows for this market over this window",
+    "no_move": "the record does not close a move for this market over this window",
+    "unmapped_slug": "the record carries no board price history for that market",
+    "pre_coverage": "this window predates that board's own price history",
+    "coverage_straddle": "this window straddles the start of that board's price history",
+    "no_anchor_session": "no usable session opens this window on that board",
+    "no_surviving_contract": "no single delivery month lives across this window on that board",
+    "no_endpoint_session": "that board has no session at this window's close",
+    "bad_endpoint_price": "the closing print on that board is unusable",
+    "no_spanning_contract": "no single delivery month spans this window on that board",
+    "span_inverted": "this window's dates are inverted, so nothing is measured",
+    "span_exceeds_contract_life": "no single delivery month can span a window this long",
+}
+
+
+def _cw_min_lag_quarters(lag):
+    """The MINIMUM declared quarters of an edge's free-text lag, or None when unparseable. A GATE
+    only (unparseable DECLINES); never rendered -- both numerals of '0-2 quarters' extract as claim
+    magnitudes under the verifier, so the string can never sit on a copy surface."""
+    m = _CW_LAG_RX.match(str(lag or "").strip())
+    return int(m.group(1)) if m else None
+
+
+def _cw_currency(slug: str):
+    try:
+        from leviathan.silver import futures_eod_contracts as FC
+        return (FC.CONTRACT_MAP.get(slug) or {}).get("currency")
+    except Exception:  # noqa: BLE001 -- an unknown slug reads as no currency -> the gate declines
+        return None
+
+
+def _cw_kept_contracts(sg) -> set:
+    """Hop-2 membership: the `_xc_walk_index` iteration shape with the relevance read DELIBERATELY
+    omitted -- membership is read, rank is never read (A1)."""
+    try:
+        return {n.id for n in (getattr(sg, "nodes", None) or [])
+                if getattr(n, "kind", None) == "contract" and getattr(n, "id", None)}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _cw_j4_index(sg) -> dict:
+    """A4: keyed on (the slug J4 actually PRICED, span token) so child cells never collide by
+    construction; only the ROOT cell consults it. Never raises on a traceless sg."""
+    try:
+        entries = (getattr(sg, "trace", None) or {}).get("quantify_episode_outcomes") or []
+        return {(str(e.get("slug")), str(e.get("span"))): e for e in entries
+                if isinstance(e, dict) and e.get("slug")}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _cw_narrated_pairs(sg) -> set:
+    """K3 extended (refute-v3 major-2): the market pairs OTHER engines narrate this turn -- the
+    transmission composer's links AND the RV2/comove fork's pair. A name-vocabulary miss here
+    fails OPEN (the pair renders twice rather than the walk over-declining); the arm's K3 clause
+    measures exactly that."""
+    tr = getattr(sg, "trace", None) or {}
+    pairs: set = set()
+    # per-source belts (review minor): one malformed host must not erase the pairs the OTHER
+    # engine supplied -- a single try around both loops failed open for both at once.
+    try:
+        for lk in (tr.get("quantify_transmission") or {}).get("links") or []:
+            try:
+                s, t = str(lk.get("source") or ""), str(lk.get("target") or "")
+                if s and t:
+                    pairs.add(frozenset((s, t)))
+            except Exception:  # noqa: BLE001
+                continue
+    except Exception:  # noqa: BLE001
+        pass
+    for key in ("quantify_reroute_v2", "quantify_comove"):
+        try:
+            d = tr.get(key) or {}
+            s, t = str(d.get("commodityA") or ""), str(d.get("commodityB") or "")
+            if s and t:
+                pairs.add(frozenset((s, t)))
+        except Exception:  # noqa: BLE001
+            continue
+    return pairs
+
+
+def _cw_turn_spent(sg):
+    """THE ENUMERATION (A2/K7), written in ONE place: the walk's ceiling binds on exactly the
+    producers that spend BEFORE the walk runs -- the base wave, the two chain engines (fired AND
+    declined), the price leg (fired AND declined), the RV2/comove fork, and J4's entry list.
+    J6 is DELIBERATELY OUTSIDE the set (STEP-12 review D3, confirmed): quantify calls the walk
+    ABOVE `_cot_outcome_legs`, so J6's key is structurally absent here and an enumerated term
+    that can never be read would make the claimed set a fiction; J6's own post-walk spend is
+    bounded beside CW_TURN_CEILING's comment instead. Returns the summed reads, or None when ANY
+    present payload in the set carries no counter -- ABSENT IS NEVER ZERO; the caller declines
+    `turn_spend_unknown` (the fail-closed direction the round-3 refute demanded)."""
+    tr = getattr(sg, "trace", None) or {}
+    wave = tr.get("quantify_wave_reads")
+    if not isinstance(wave, int):
+        return None                                   # stamped 0-included on every quantifying turn
+    total = wave
+    for key in ("quantify_transmission", "quantify_transmission_decline",
+                "quantify_chain", "quantify_chain_decline",
+                "quantify_price_leg", "quantify_price_leg_decline",
+                "quantify_reroute_v2", "quantify_comove"):
+        p = tr.get(key)
+        if not p:
+            continue
+        nr = p.get("net_reads") if isinstance(p, dict) else None
+        if not isinstance(nr, int):
+            return None
+        total += nr
+    for e in tr.get("quantify_episode_outcomes") or []:
+        r = (e or {}).get("reads")
+        if not isinstance(r, int):
+            return None
+        total += r
+    return total
+
+
+def _cw_firings(sg, graph, root: str, cov_start: str) -> tuple:
+    """A6.1 as adjudicated: the root TREE'S driver windows, read from the turn's own
+    `episodes_injected` (the interlock -- never a window the model was not shown), each firing
+    KEYED AND LABELLED by the RESOLVED SLICE via the SHIPPED `ev.slice_for_driver` (refute M1/M3:
+    38 slices are reached by more than one tree id, including semantic opposites, and a hand map
+    would be a fourth copy of a shipped resolver). Dedupe by (start, end); recency sort here,
+    selection at the caller. Returns (firings, grounded_slices)."""
+    try:
+        recs = list((getattr(sg, "trace", None) or {}).get("episodes_injected") or [])
+    except Exception:  # noqa: BLE001 -- a traceless sg simply has no firings
+        return [], []
+    c = (getattr(graph, "contracts", None) or {}).get(root) if graph is not None else None
+    tree = {str(d.id) for d in (getattr(c, "drivers", None) or [])}
+    if not recs or not tree:
+        return [], []
+    from leviathan.graphrag import evidence as _ev    # lazy: the _xmit_pair_realizable idiom
+    firings, seen, grounded = [], set(), []
+    for rec in recs:
+        nid = str((rec or {}).get("node") or "")
+        if nid not in tree:
+            continue
+        try:
+            sl = _ev.slice_for_driver(nid)
+        except Exception:  # noqa: BLE001 -- an unresolvable driver cannot have been injected
+            sl = None
+        if not sl:
+            continue
+        if sl not in grounded:
+            grounded.append(sl)
+        for w in (rec or {}).get("windows") or []:
+            t1, t2 = str((w or {}).get("start") or ""), str((w or {}).get("end") or "")
+            try:
+                span_days = _iso_days(t2) - _iso_days(t1)
+            except (TypeError, ValueError):
+                continue                              # an unreadable window is not a firing
+            if not (CW_SPAN_MIN_DAYS <= span_days <= CW_SPAN_MAX_DAYS):
+                continue
+            if t1 < cov_start or (t1, t2) in seen:
+                continue
+            seen.add((t1, t2))
+            firings.append({"start": t1, "end": t2,
+                            "span": str((w or {}).get("span") or f"{t1[:7]}..{t2[:7]}"),
+                            "span_days": span_days, "slice": sl,
+                            "node_token": nid})       # M4: the injected line's OWN token, verbatim
+    firings.sort(key=lambda f: (f["end"], f["start"]), reverse=True)   # MAJOR-5: recency only
+    # one window per VISIBLE clock (review minor): two day-grain windows sharing a month-span
+    # token would put two magnitudes for one board under one rendered window; the later one drops.
+    seen_tok: set = set()
+    firings = [f for f in firings
+               if not (f["span"] in seen_tok or seen_tok.add(f["span"]))]
+    return firings, grounded
+
+
+def _cw_slice_label(sl: str) -> str:
+    """The reader label for a firing slice -- display's own vocabulary, plain-words fallback."""
+    try:
+        from leviathan.graphrag import display as dp
+        return dp.node_label(sl, "driver")
+    except Exception:  # noqa: BLE001
+        return str(sl).replace("_", " ")
+
+
+def _cw_cell(qfn, slug: str, t1: str, t2: str, span_tok: str, asof, *,
+             futures_newest_first: bool | str = False) -> tuple:
+    """ONE cell, the J4 pricing sequence VERBATIM (dry run -> curve -> candidates -> deep ->
+    saturation decline -> frame -> span_outcome -> the lazy PENDING edge re-ask). Returns
+    (record, reads); the record carries the raw outcome dict under '_res' for the call mint and
+    the caller pops it before tracing."""
+    from leviathan.graphrag.numbers import outcomes as OC
+    rec = {"slug": slug, "span": span_tok, "status": None, "reason": None, "reads": 0}
+    dry = OC.span_outcome(_tape_frame("", []), slug=slug, span_start=t1, span_end=t2, asof=asof,
+                          event_key="cascade_walk", tape_edge=None)
+    if str(dry.get("status") or "") == OC.STATUS_PENDING:
+        rec.update(status="pending", reason="horizon_open")
+        return rec, 0
+    dr = dry.get("decline_reason")
+    if dr and dr != OC.DECLINE_NO_ANCHOR_SESSION:
+        rec.update(status="declined", reason=dr)
+        return rec, 0
+    lo = _iso_shift(t1, -OC.OUTCOME_LOOKBACK_DAYS)
+    hi = _iso_shift(t2, OC.SURVIVE_DAYS + OC.OUTCOME_LOOKBACK_DAYS)
+    curve, sat_a = _tape_read(qfn, slug=slug, t1=lo, t2=t1, asof=asof,
+                              futures_newest_first=futures_newest_first)
+    months = _episode_candidates(curve, t2)
+    deep, sat_b = _tape_read(qfn, slug=slug, t1=lo, t2=hi, asof=asof,
+                             contract_months=months or None,
+                             futures_newest_first=futures_newest_first)
+    rec["reads"] = 2
+    if sat_a or sat_b:
+        rec.update(status="declined", reason=EP_DECLINE_READ_TRUNCATED)
+        return rec, 2
+    tape = _tape_frame(slug, curve, deep)
+    if not len(tape):
+        rec.update(status="declined", reason=EP_DECLINE_NO_TAPE)
+        return rec, 2
+    res = OC.span_outcome(tape, slug=slug, span_start=t1, span_end=t2, asof=asof,
+                          event_key="cascade_walk")
+    if str(res.get("status") or "") == OC.STATUS_PENDING:
+        edge_rows, sat_c = _tape_read(qfn, slug=slug, t1=t2, t2=hi, asof=asof,
+                                      futures_newest_first=futures_newest_first)
+        rec["reads"] = 3
+        ef = _tape_frame(slug, edge_rows)
+        edge = (OC.tape_edges(ef) or {}).get(str(slug)) if len(ef) else None
+        if edge is not None and not sat_c:
+            res = OC.span_outcome(tape, slug=slug, span_start=t1, span_end=t2, asof=asof,
+                                  event_key="cascade_walk", tape_edge=edge)
+    st = str(res.get("status") or "")
+    if st != OC.STATUS_CLOSED or res.get("move_pct") is None:
+        rec.update(status=("pending" if st == OC.STATUS_PENDING else "declined"),
+                   reason=res.get("decline_reason") or st or "no_move")
+        return rec, rec["reads"]
+    rec.update(status="closed", move_pct=round(float(res["move_pct"]), 4),
+               anchor_date=str(res.get("anchor_date")), endpoint_date=str(res.get("endpoint_date")),
+               contract_month=str(res.get("contract_month_used")), _res=res)
+    return rec, rec["reads"]
+
+
+def _cw_fences(rec_a: dict, rec_b: dict, span_days: int) -> tuple:
+    """MAJOR-8, constants from the banked K0 artifacts: the realized-interval fence
+    (|d_anchor| + |d_endpoint| <= min(7 days, a tenth of the span)) and the tenor fence
+    (same-or-adjacent delivery month). Returns (interval_ok, tenor_ok)."""
+    d_anchor = abs(_iso_days(rec_a["anchor_date"]) - _iso_days(rec_b["anchor_date"]))
+    d_end = abs(_iso_days(rec_a["endpoint_date"]) - _iso_days(rec_b["endpoint_date"]))
+    ri = (d_anchor + d_end) <= min(7.0, 0.10 * span_days)
+
+    def _mk(ym):
+        s = str(ym or "")[:7]
+        try:
+            return int(s[:4]) * 12 + int(s[5:7])
+        except (TypeError, ValueError):
+            return None
+
+    ma, mb = _mk(rec_a.get("contract_month")), _mk(rec_b.get("contract_month"))
+    return ri, (ma is not None and mb is not None and abs(ma - mb) <= 1)
+
+
+def _cw_cell_line(n: int, slug: str, rec: dict, asof) -> str:
+    """ROW 1 -- the J4 cell template VERBATIM with the curated board label in the query (v3 minor:
+    the call record is the producer; tag and ledger read the same string the model sees)."""
+    label = _CW_BOARD_LABEL[slug]
+    q = {"commodity": label, "country": None, "contract_month": rec.get("contract_month"),
+         "table": _TAPE_TABLE}
+    return (f"- [N{n}] {label} settle change across the episode window {rec['span']} "
+            f"(one delivery month held at both ends, as-of {asof}): {rec['move_pct']:+g} %"
+            + _series_tag(q))
+
+
+def _cw_call(slug: str, rec: dict, asof) -> dict:
+    """The synthetic call record the [N] handle indexes -- `_episode_outcome_call` VERBATIM, the
+    raw slug in query.commodity exactly as J4 keeps it (review D9, confirmed: a display label in
+    the query poisons the citations LOCATOR -- the /v1/series chart params read loc.commodity
+    unresolved -- and mints a second board vocabulary in the Sources ledger. The READER line keeps
+    display's label through `_cw_cell_line`'s own tag dict; the machine identity stays machine)."""
+    return _episode_outcome_call(slug, rec["_res"], rec["span"], asof)
+
+
+def _cw_hop_header(label_a: str, label_b: str, phrases: list, blurb: str, firing_label: str) -> str:
+    """ROW 3 -- keyed on the PAIR: the union of orientation-free relation phrases + ONE blurb +
+    the firing clause in WORDS. `firing_label` is the INJECTED EPISODES LINE'S OWN NODE TOKEN
+    verbatim (M4 as adjudicated -- one window, one spelling on both surfaces; the caller falls
+    back to the display slice label only when the injected token carries a digit, which the
+    register fence would otherwise drop the block over). The window token itself rides the ROW-1
+    templates only, so this line stays letters-only under the numeral scan."""
+    rel = "; ".join(phrases)
+    tail = f" -- {blurb}" if blurb else ""
+    return (f"CONSEQUENCE HOP {label_a} and {label_b}: the graph records these markets "
+            f"{rel}{tail}; measured over the {firing_label} firing window, whose dated span rides "
+            f"the rows for this hop.")
+
+
+def _cw_verdict_line(label_a: str, label_b: str, verdict: str) -> str:
+    """ROW 2 -- the three-valued read, letters only, no handles (a handle digit here would be a
+    numeral outside a ROW-1 template). In-sample clause ON the line (MAJOR-12)."""
+    if verdict == "aligned":
+        mid = "the declared relation held on this firing"
+    elif verdict == "at_odds":
+        mid = "the two moves sat at odds with the declared relation on this firing"
+    else:
+        mid = "the record declines to read a direction on this firing -- state that plainly"
+    return (f"CONSEQUENCE READ {label_a} and {label_b}: {mid}; the moves above are the record, "
+            f"in-sample on the named window only, never extended beyond it.")
+
+
+def _cw_absence(label: str, reason: str) -> str:
+    """ROW 4 -- an absence in words, its reason from the counted vocabulary."""
+    why = _CW_ABSENCE_WHY.get(reason, "the record does not carry a measurable read here")
+    return f"CONSEQUENCE ABSENCE {label}: {why}."
+
+
+# THE MARKER PREFIX, minted ONCE and read by BOTH the producer (`_cw_marker`) and the answer-seam
+# gate (`answer._cascade_walk_block_on`) -- the tl.LINE_PREFIX discipline: a persona MANDATE may
+# ship only when the assembled volatile prompt actually carries a walk block (W4-D3's +10-
+# hallucination lesson), and producer and gate cannot drift apart if they build from one string.
+CW_MARKER_PREFIX = "CASCADE EPISODE WALK ("
+
+
+def _cw_marker(order: str) -> str:
+    """ROW 5 -- the fixed no-conclusion marker: the transcription discipline, the order label
+    (K3), the episodes-sourcing clause (v3 remedy (h)) and its A6/M4 extension (one window, the
+    same window, both surfaces)."""
+    return (f"{CW_MARKER_PREFIX}{order} order): the rows above are observed settle changes on "
+            f"the same dated firing window, one board per row; each hop's read is stated beside "
+            f"it, in-sample on the named window only. Cite the [N] rows verbatim; never derive a "
+            f"ratio, a spread, a lag or any magnitude the rows do not print; direction beyond the "
+            f"stated read is the analyst's, never the engine's. Do not mint a new episodes-section "
+            f"bullet from a consequence row -- the enumeration stays the episodes mandate's, and "
+            f"the firing window named here is the same dated window that section enumerates.")
+
+
+_CW_SPAN_TOKEN_RX = re.compile(r"\d{4}-\d{2}\.\.\d{4}-\d{2}")
+
+
+def _cw_register_fence(lines: list) -> bool:
+    """The `_xmit_register_fence` shape (atomic, whole-block, rows rolled back by the caller) PLUS
+    the walk's two scans: every digit-bearing line is a ROW-1 cell template (K5 -- zero counts,
+    zero lag numerals, zero date glyphs anywhere else), and every ROW-1 line carries exactly ONE
+    dated window token (one clock per line)."""
+    from leviathan.graphrag import register as reg
+    for ln in lines or []:
+        if not (pace_register_ok(ln) and reg.count_valuation_words(ln) == 0
+                and reg.count_flow_words(ln) == 0):
+            return False
+        if ln.startswith("- [N"):
+            if len(_CW_SPAN_TOKEN_RX.findall(ln)) != 1:
+                return False
+        elif any(ch.isdigit() for ch in ln):
+            return False
+    return True
+
+
+def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, base: int, *,
+                       futures_newest_first: bool | str = False) -> tuple:
+    """The leg proper. Returns `(lines, payload)` -- payload ALWAYS a dict once the leg ran (the
+    J4 precedent: `outcome` in {fired, declined, fenced}; an ABSENT trace key means the leg did
+    not run, never that it declined). NEVER raises past the wrapper's belt.
+
+    THE DEEP-VS-WIDE RULE (refute-v3 major-3, resolved deterministically, outcome-independent):
+    more than one admissible child -> BREADTH at the single most recent firing (up to
+    CW_MAX_CHILDREN cells + the root); exactly one child WITH an admissible grandchild ->
+    depth-in-graph at one firing (three cells, SECOND ORDER); exactly one child, no grandchild ->
+    depth-in-time (two firings, two cells each). Every shape prices <= CW_CAP reads."""
+    payload: dict = {"outcome": "declined", "root": None, "order": "first", "path": [],
+                     "firings": [], "cells": [], "declines": [],
+                     "children_declared": 0, "children_priced": 0, "children_named": 0,
+                     "grounded_tree_slices": [], "net_reads": 0}
+
+    def _decline(scope, reason, **kw):
+        payload["declines"].append(dict({"scope": scope, "reason": reason}, **kw))
+        return [], payload
+
+    root = str((walk_request or {}).get("focus_contract") or "")
+    payload["root"] = root or None
+    if not root:
+        return _decline("root", "no_focus")
+    try:
+        from leviathan.silver import futures_eod_contracts as FC
+        cov = FC.PRICE_COVERAGE_START
+    except Exception:  # noqa: BLE001
+        return _decline("root", "error")
+    if root not in cov and graph is not None and graph.contract_node(root) == root:
+        # THE BASE-CONTRACT FOCUS (sitting-3 arm finding, 2026-09-02): the focus-first seed on two
+        # corn rows was the BASE yaml contract `corn` -- a loaded contract NAMED AS ITS OWN NODE,
+        # uncovered, that duplicates its priced twin's declarations (every rev row is seeded
+        # corn_cbot). It is the node's own twin, not another board, so the walk re-roots on the
+        # node's canonical PRICED seed. This is NOT the alias-collapse class the seed gate below
+        # refuses (french_maize_matif is a different board on a different currency and is not
+        # named as its node) -- the `contract_node(root) == root` test is exactly that boundary.
+        seeds = {str(r.get("seed")) for r in graph.rev_cross_links(root)}
+        if len(seeds) == 1 and next(iter(seeds)) in cov:
+            payload["focus_base_contract"] = root
+            root = next(iter(seeds))
+            payload["root"] = root
+    if root not in cov:
+        return _decline("root", "root_uncovered")
+    if root not in _CW_BOARD_LABEL:
+        # review D1 (reproduced KeyError on hard_red_spring_wheat_mgex before its label landed):
+        # an unlabeled root DECLINES with a name, zero reads -- never an error payload.
+        return _decline("root", "root_unlabeled")
+    rows = [r for r in (graph.rev_cross_links(root) if graph is not None else [])]
+    if rows and any(str(r.get("seed")) != root for r in rows):
+        # graph.py files every row of a node under ONE canonical seed, so this is all-or-nothing:
+        # a covered non-canonical focus must DECLINE, never silently walk another contract's edges.
+        return _decline("root", "focus_not_node_seed")
+    if not rows:
+        return _decline("root", "no_declared_children")
+    # ── children: A1 union (the graph's declaration IS the admission), gated BEFORE any read ──
+    node = graph.contract_node
+    by_child: dict = {}
+    for r in rows:
+        by_child.setdefault(str(r.get("contract")), []).append(r)
+    admissible: list = []
+    for child in sorted(by_child):
+        crows = by_child[child]
+        if child not in cov:
+            _decline("child", "child_uncovered", child=child)
+            continue
+        if node(child) == node(root):
+            _decline("child", "node_cycle", child=child)
+            continue
+        if _cw_currency(child) != _cw_currency(root):
+            _decline("child", "cross_currency", child=child)
+            continue
+        signs = {str(r.get("sign")) for r in crows}
+        if signs - {"+", "-"}:
+            _decline("child", ("sign_undeclared" if signs <= {"0", "None", ""} else
+                               "sign_not_unanimous"), child=child)
+            continue
+        if len(signs) != 1:
+            _decline("child", "sign_not_unanimous", child=child)
+            continue
+        if any(_cw_min_lag_quarters(r.get("lag")) != 0 for r in crows):
+            _decline("child", "lag_gate", child=child)
+            continue
+        rels = sorted({str(r.get("relation")) for r in crows})
+        if any(rel not in _CW_RELATION_WORDS for rel in rels):
+            _decline("child", "relation_unmapped", child=child)
+            continue
+        blurbs = sorted({str(r.get("blurb") or "").strip() for r in crows} - {""})
+        if len(blurbs) > 1:
+            _decline("child", "blurb_not_unanimous", child=child)
+            continue
+        if child not in _CW_BOARD_LABEL:
+            _decline("child", "child_uncovered", child=child)
+            continue
+        admissible.append({"child": child, "sign": signs.pop(), "relations": rels,
+                           "blurb": (blurbs[0] if blurbs else "")})
+    payload["children_declared"] = len(admissible)
+    if not admissible:
+        payload["outcome"] = "declined"
+        return [], payload
+    narrated = _cw_narrated_pairs(sg)
+    kept_admissible = []
+    for a in admissible:
+        if frozenset((root, a["child"])) in narrated:
+            _decline("child", "composer_narrated_pair", child=a["child"])
+            payload["children_named"] += 1
+        else:
+            kept_admissible.append(a)
+    admissible = kept_admissible
+    if not admissible:
+        payload["outcome"] = "declined"
+        return [], payload
+    named_budget = admissible[CW_MAX_CHILDREN:]
+    admissible = admissible[:CW_MAX_CHILDREN]
+    for a in named_budget:
+        _decline("child", "child_not_priced_budget", child=a["child"])
+        payload["children_named"] += 1
+    # ── firings (A6) ──
+    firings, grounded = _cw_firings(sg, graph, root, str(cov[root]))
+    payload["grounded_tree_slices"] = grounded
+    if not firings:
+        payload["children_named"] += len(admissible)   # K2 (review D5): a root-scope decline after
+        return _decline("root", "no_firing_window")    # enumeration NAMES the children, never loses them
+    # ── the deep-vs-wide shape (deterministic; see the docstring) ──
+    grand = None
+    if len(admissible) == 1:
+        child = admissible[0]["child"]
+        keep = _cw_kept_contracts(sg)
+        g_rows: dict = {}
+        for r2 in (graph.rev_cross_links(child) if graph is not None else []):
+            if str(r2.get("seed")) == child:
+                g_rows.setdefault(str(r2.get("contract")), []).append(r2)
+        for g2 in sorted(g_rows):                     # ascending id, first QUALIFYING group wins
+            rows2 = g_rows[g2]
+            # the SAME per-pair unanimity ladder hop 1 runs (review minor: a first-row-wins read
+            # here could mint a verdict off a declaration hop 1 would refuse as non-unanimous)
+            signs2 = {str(r.get("sign")) for r in rows2}
+            rels2 = sorted({str(r.get("relation")) for r in rows2})
+            blurbs2 = sorted({str(r.get("blurb") or "").strip() for r in rows2} - {""})
+            if frozenset((child, g2)) in narrated:
+                # review D8: the grandchild hop was the ONE pair-narrating surface the K3 check
+                # missed -- and the sole live second-order shape IS the fork's own crush pair.
+                payload["declines"].append({"scope": "child", "reason": "composer_narrated_pair",
+                                            "child": g2})
+                continue
+            if (g2 in keep and g2 in cov and g2 in _CW_BOARD_LABEL
+                    and signs2 <= {"+", "-"} and len(signs2) == 1
+                    and all(_cw_min_lag_quarters(r.get("lag")) == 0 for r in rows2)
+                    and all(rel in _CW_RELATION_WORDS for rel in rels2)
+                    and len(blurbs2) <= 1
+                    and _cw_currency(g2) == _cw_currency(child)
+                    and len({node(root), node(child), node(g2)}) == 3):
+                grand = {"child": g2, "sign": sorted(signs2)[0], "relations": rels2,
+                         "blurb": (blurbs2[0] if blurbs2 else ""), "parent": child}
+                break
+    if len(admissible) > 1 or grand is not None:
+        firings = firings[:1]
+    else:
+        firings = firings[:CW_MAX_FIRINGS]
+    payload["firings"] = [{"span": f["span"], "slice": f["slice"], "start": f["start"],
+                           "end": f["end"], "span_days": f["span_days"],
+                           "node_token": f.get("node_token")} for f in firings]
+    # ── the turn ceiling, MEASURED, before any read (A2/K7) ──
+    spent = _cw_turn_spent(sg)
+    payload["turn_spent_before"] = spent
+    if spent is None:
+        payload["children_named"] += len(admissible)
+        return _decline("root", "turn_spend_unknown")
+    cells_planned = sum(1 + len(admissible) + (1 if grand is not None else 0) for _ in firings)
+    if cells_planned * CW_READS_PER_CELL > CW_CAP:
+        # the review's belt: the shape rules above keep every plan at or under CW_CAP today, so
+        # this is unreachable -- until a future knob change; then it DECLINES, never over-spends.
+        payload["children_named"] += len(admissible)
+        return _decline("root", "cap")
+    if spent + cells_planned * CW_READS_PER_CELL > CW_TURN_CEILING:
+        payload["children_named"] += len(admissible)
+        return _decline("root", "turn_budget_spent")
+    # ── measurement + render ──
+    from leviathan.graphrag.numbers import stats as _st
+    j4 = _cw_j4_index(sg)
+    lines: list = []
+    n = base
+    reads_spent = 0
+    priced_children: set = set()
+    rendered_pairs: list = []
+    for f in firings:
+        t1, t2, span_tok, span_days = f["start"], f["end"], f["span"], f["span_days"]
+        # M4 as adjudicated: the firing label is the INJECTED LINE'S OWN NODE TOKEN verbatim --
+        # one window, one spelling on both surfaces; the display slice label is the fallback ONLY
+        # when the token carries a digit (two live ids do; the fence would drop the block).
+        tok = str(f.get("node_token") or "")
+        firing_lab = tok if (tok and not any(ch.isdigit() for ch in tok)) \
+            else _cw_slice_label(f["slice"])
+        j4_hit = j4.get((root, span_tok))
+        if j4_hit is not None and str(j4_hit.get("status")) == "closed":
+            # review D6 (confirmed): verdicting off a magnitude the BLOCK does not carry handed
+            # the writer an uncitable read, and J4's handle cannot ride a non-ROW-1 line under the
+            # numeral fence. So a closed J4 hit DEFERS the firing -- no double-price (K11), no
+            # uncited verdict; the handle rides the trace and the absence names the fact. A4's
+            # cite-the-handle clause is charter-corrected as measured-impossible.
+            root_rec = {"slug": root, "span": span_tok, "status": "declined",
+                        "reason": "j4_owns_window", "reads": 0,
+                        "j4_handle": str(j4_hit.get("handle") or "")}
+        elif j4_hit is not None and str(j4_hit.get("reason")) in (EP_DECLINE_BUDGET,
+                                                                  EP_DECLINE_READ_TRUNCATED):
+            # refute-v3 major-5: J4's OWN budget/saturation declines are honoured, never re-spent.
+            root_rec = {"slug": root, "span": span_tok, "status": "declined",
+                        "reason": "j4_budget_deferred", "reads": 0}
+        else:
+            root_rec, rr = _cw_cell(qfn, root, t1, t2, span_tok, asof,
+                                    futures_newest_first=futures_newest_first)
+            reads_spent += rr
+        if root_rec["status"] == "closed" and root_rec.get("_res") is not None:
+            n += 1
+            calls.append(_shown(_cw_call(root, root_rec, asof), root_rec["move_pct"]))
+            root_rec["handle"] = f"N{n}"
+            lines.append(_cw_cell_line(n, root, root_rec, asof))
+        payload["cells"].append({k: v for k, v in root_rec.items() if k != "_res"})
+        if root_rec["status"] != "closed":
+            lines.append(_cw_absence(_CW_BOARD_LABEL[root],
+                                     str(root_rec.get("reason") or "no_move")))
+            continue
+        legs = list(admissible) + ([grand] if grand is not None else [])
+        for a in legs:
+            child = a["child"]
+            parent = a.get("parent") or root
+            parent_rec = root_rec
+            if parent != root:
+                parent_rec = next((c for c in payload["cells"]
+                                   if c.get("slug") == parent and c.get("span") == span_tok
+                                   and c.get("status") == "closed"), None)
+            if str(cov[child]) > t1:
+                # review minor: a firing that predates the CHILD's own board history declines
+                # arithmetically -- A6.2's zero-read discipline; span_outcome would only say the
+                # same thing after two paid reads.
+                crec, cr = {"slug": child, "span": span_tok, "status": "declined",
+                            "reason": "pre_coverage", "reads": 0}, 0
+            else:
+                crec, cr = _cw_cell(qfn, child, t1, t2, span_tok, asof,
+                                    futures_newest_first=futures_newest_first)
+            reads_spent += cr
+            phrases = [_CW_RELATION_WORDS[rel] for rel in a["relations"]]
+            rendered_pairs.append((parent, child))
+            lines.append(_cw_hop_header(_CW_BOARD_LABEL[parent], _CW_BOARD_LABEL[child],
+                                        phrases, a["blurb"], firing_lab))
+            if crec["status"] == "closed" and crec.get("_res") is not None:
+                n += 1
+                calls.append(_shown(_cw_call(child, crec, asof), crec["move_pct"]))
+                crec["handle"] = f"N{n}"
+                lines.append(_cw_cell_line(n, child, crec, asof))
+                priced_children.add(child)
+                if parent_rec is None:
+                    lines.append(_cw_verdict_line(_CW_BOARD_LABEL[parent],
+                                                  _CW_BOARD_LABEL[child], "undetermined"))
+                else:
+                    ri_ok, tenor_ok = _cw_fences(parent_rec, crec, span_days)
+                    crec["interval_ok"], crec["tenor_ok"] = ri_ok, tenor_ok
+                    if ri_ok and tenor_ok:
+                        verdict = _st.sign_agreement(parent_rec["move_pct"], crec["move_pct"],
+                                                     a["sign"])["value"]
+                    else:
+                        verdict = "undetermined"      # K4: a fence-failed pair NEVER verdicts
+                    crec["verdict"] = verdict
+                    lines.append(_cw_verdict_line(_CW_BOARD_LABEL[parent],
+                                                  _CW_BOARD_LABEL[child], verdict))
+            else:
+                lines.append(_cw_absence(_CW_BOARD_LABEL[child],
+                                         str(crec.get("reason") or "no_move")))
+            payload["cells"].append({k: v for k, v in crec.items() if k != "_res"})
+    payload["children_priced"] = len(priced_children & {a["child"] for a in admissible})
+    payload["children_named"] += sum(1 for a in admissible
+                                     if a["child"] not in priced_children)
+    payload["net_reads"] = reads_spent
+    # K3 ORDER HONESTY (review D7, confirmed): order and path derive from what was RENDERED --
+    # the hop headers actually emitted -- never from admission or pricing, so the marker, the
+    # trace and the page can never disagree about the depth the reader was shown.
+    seen_m: list = [root]
+    for (_p, c) in rendered_pairs:
+        if c not in seen_m:
+            seen_m.append(c)
+    payload["path"] = seen_m
+    payload["order"] = "second" if any(p != root for (p, _c) in rendered_pairs) else "first"
+    if not any(c.get("status") == "closed" for c in payload["cells"]):
+        # review minor: a block with zero [N] rows must not ship a marker claiming rows -- the
+        # dormant-clause discipline. The absences stay in the trace; the block stays unshipped.
+        payload["outcome"] = "declined"
+        calls[base:] = []
+        return [], payload
+    if not lines:
+        payload["outcome"] = "declined"
+        return [], payload
+    lines.append(_cw_marker(payload["order"]))
+    if not _cw_register_fence(lines):
+        calls[base:] = []                             # ATOMIC: the whole block drops, rows rolled
+        payload["outcome"] = "fenced"                 # back, and the trip is a counted outcome
+        payload["cells"] = [dict(c, handle=None) for c in payload["cells"]]
+        return [], payload
+    payload["outcome"] = "fired"
+    return lines, payload
+
+
+def _cascade_walk_leg_or_nothing(sg, graph, walk_request: dict, qfn, asof, calls: list, *,
+                                 futures_newest_first: bool | str = False) -> tuple:
+    """R6 belt at the one place both quantify return paths reach it (the `_episode_leg_or_nothing`
+    precedent). Writes the ONE registered trace key whenever the leg RAN -- `outcome` carries
+    fired/declined/fenced, so an absent key means 'did not run', never 'declined'."""
+    _b = len(calls)
+    try:
+        lines, payload = _cascade_walk_legs(sg, graph, walk_request, qfn, asof, calls, _b,
+                                            futures_newest_first=futures_newest_first)
+    except Exception:  # noqa: BLE001 -- fail-closed: the walk must never break the v1 answer
+        calls[_b:] = []                               # review D2: the belt rolls the LEDGER back
+        #                                               too -- an orphan call record would widen
+        #                                               the verifier's acceptance pool (the W4
+        #                                               class) and stretch the [N] index range
+        lines, payload = [], {"outcome": "declined",
+                              "declines": [{"scope": "root", "reason": "error"}]}
+    if payload is not None:
+        try:
+            sg.trace["quantify_cascade_walk"] = payload
+        except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+            pass
+    return lines, payload
 
 
 # -- J6: THE COT OUTCOME PAIRING, CONTEXT LANE ONLY (D-OJ-17 / D-OJ-18) -----------------------------
@@ -6110,14 +6963,16 @@ def _cot_outcome_legs(records: list, kept: list, base: int, calls: list, *, qfn,
         seen.add(slug)
         event_date = _cot_event_date(rec)
         if not event_date:
-            trace.append({"slug": slug, "status": "declined", "reason": "undated_positioning_row"})
+            trace.append({"slug": slug, "status": "declined", "reason": "undated_positioning_row",
+                          "reads": 0})
             continue
         floor = _cot_coverage_start(slug)
         for h in OC.HORIZON_DAYS:
             if len(lines) >= COT_OUTCOME_MAX_ROWS:
                 break
             entry = {"slug": slug, "event_date": event_date, "horizon_days": int(h),
-                     "coverage_start": floor, "status": None, "reason": None}
+                     "coverage_start": floor, "status": None, "reason": None,
+                     "reads": 0}                                  # A2: J6's read, counted at the read site
             # THE DRY RUN, the same shape J4 uses: `anchored_outcome` over an EMPTY frame answers every
             # question that does not need the tape -- the horizon family, the per-contract coverage
             # floor, and the as-of half of the clamp -- through the SAME engine, so the pre-check and
@@ -6138,6 +6993,7 @@ def _cot_outcome_legs(records: list, kept: list, base: int, calls: list, *, qfn,
                 continue
             rows = _cot_outcome_read(qfn, slug=slug, event_date=event_date, horizon_days=int(h),
                                      asof=asof)
+            entry["reads"] = 1                                    # the one gold_cot_outcomes read, paid
             row = next((r for r in rows if str((r or {}).get("status") or "closed")
                         == OC.STATUS_CLOSED), None)
             if row is None:

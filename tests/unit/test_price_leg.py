@@ -211,7 +211,10 @@ def test_price_pair_atomic_one_endpoint_missing_declines():
     calls: list = []
     lines, fired = cq._price_pair({"focus_contract": "corn_cbot"}, _sg([n]), None, [], _wasde_qfn(
         {"2011/12": "3.60"}), "2013-06-01", "2012", calls, 0)      # 2012/13 absent -> not ok
-    assert lines == [] and fired is None
+    # A2 / walk charter (v3 STEP 2(4)): the POST-FETCH pair-atomic decline is now a PAYLOAD -- the
+    # two spent fetches are countable and the seam routes it to the unregistered
+    # quantify_price_leg_decline on the price_leg discriminator. Still zero lines, zero handles.
+    assert lines == [] and fired == {"price_leg": False, "net_reads": 2, "reason": "endpoint_not_ok"}
     assert calls == []                                            # no half-minted handle left behind
 
 

@@ -1,0 +1,328 @@
+{
+  "census_id": "dcq_reach_v2",
+  "measured_utc": "2026-09-01T19:23:29+00:00",
+  "graph_version": "23d00882960f",
+  "recipe": "D-CQ REACH CENSUS v2 -- the $0, offline, in-run reproducible reach artifact.\n\nRUN:  python data/consequence_leg/reach_census_v2.py            (writes reach_census_v2_<UTC date>.json)\n\nWHY v2 EXISTS. The round-1 census walked `graph.cross_links()` (contract -> declared\ndriver_commodity). That is the AUTHORED ARROW REVERSED: `InterCommodityEdge.driver_commodity`\nmeans THE TARGET DRIVES THIS CONTRACT (schema.py:64-70; graph.py:70-72 states the inversion\nin so many words), so the CONSEQUENCE index is `rev_cross_links` -- \"the markets this one\ncascades into\". Round 1 also resolved node -> tape slug through `complex_map.resolve_bare_commodity`,\nwhose curated bare-name table has no entry for `srw_wheat`/`hrw_wheat`/`hrs_wheat`/`rice`/\n`rapeseed_meal`/`white_maize`; that, not a data absence, is why round 1 reported wheat and rice\nas unreachable. v2 takes the slug straight off the graph's OWN resolution (`row['seed']` and\n`row['contract']` are already loaded contract ids, resolved once at load with the recorded\ntie-break) -- one producer, no second guess, no alias collapse.\n\nRECONCILIATION: 67 directed measurable pairs and 185 measurement-distinct triples, which is\nexactly what the round-1 refuter measured independently.\n\nEVERY NUMBER HERE IS A GATE THE LEG ACTUALLY APPLIES, and they are reported DECOMPOSED so a\nscope decision reads the ladder rather than one headline count.\n",
+  "index_walked": "graph.rev_cross_links  (the CONSEQUENCE direction; cross_links is the arrow reversed)",
+  "slug_resolution": "row['seed'] / row['contract'] -- the graph's OWN load-time resolution, NOT complex_map.resolve_bare_commodity (round-1's wheat/rice blindness)",
+  "buckets": {
+    "edges": 146,
+    "resolved": 122,
+    "unresolvable-no-node": 24,
+    "unresolvable-no-contract": 0,
+    "untradeable_foreign_edges": 10,
+    "seeds_with_pairs": 23,
+    "contracts_reaching_pairs": 32
+  },
+  "roots_with_admissible_hops": [
+    "arabica_coffee",
+    "canola",
+    "corn",
+    "french_wheat",
+    "hrs_wheat",
+    "hrw_wheat",
+    "rapeseed",
+    "rapeseed_meal",
+    "rapeseed_oil",
+    "raw_sugar",
+    "rice",
+    "robusta_coffee",
+    "soybean_meal",
+    "soybean_oil",
+    "soybeans",
+    "srw_wheat",
+    "white_maize",
+    "white_sugar"
+  ],
+  "coverage_floors": {
+    "arabica_coffee": "2018-12-24",
+    "canola": "2018-12-24",
+    "corn": "2010-06-06",
+    "french_wheat": "2026-08-06",
+    "hrs_wheat": "2025-09-09",
+    "hrw_wheat": "2014-01-02",
+    "rapeseed": "2026-08-06",
+    "rapeseed_meal": "2015-10-08",
+    "rapeseed_oil": "2015-10-08",
+    "raw_sugar": "2018-12-24",
+    "rice": "2010-06-07",
+    "robusta_coffee": "2018-12-24",
+    "soybean_meal": "2010-06-06",
+    "soybean_oil": "2010-06-06",
+    "soybeans": "2010-06-06",
+    "srw_wheat": "2010-06-06",
+    "white_maize": "2026-07-29",
+    "white_sugar": "2018-12-24"
+  },
+  "counts": {
+    "admissible_hop_edge_rows": 70,
+    "directed_measurable_pairs": 67,
+    "measurement_distinct_triples": 185,
+    "node_distinct_triples": 182,
+    "fully_admissible_first_order_hops": 15,
+    "fully_admissible_second_order_triples": 8
+  },
+  "reconciliation": {
+    "refuter_measured_pairs": 67,
+    "refuter_measured_triples": 185,
+    "agrees": true
+  },
+  "signs_on_admissible_rows": {
+    "+": 49,
+    "0": 16,
+    "-": 5
+  },
+  "relations_on_admissible_rows": {
+    "substitutes_for": 18,
+    "crushed_into": 8,
+    "competes_with": 37,
+    "correlates_with": 6,
+    "leads_lags": 1
+  },
+  "min_lag_quarters_distribution": {
+    "0": 52,
+    "1": 13,
+    "2": 5
+  },
+  "cross_currency_pairs": 33,
+  "parallel_edge_sign_conflicts": {
+    "soybean_oil_cbot->rapeseed_oil_zce": [
+      {
+        "relation": "substitutes_for",
+        "sign": "+",
+        "lag": "0-1 quarters"
+      },
+      {
+        "relation": "competes_with",
+        "sign": "-",
+        "lag": "0-2 quarters"
+      }
+    ],
+    "soybeans_cbot->canola_ice": [
+      {
+        "relation": "substitutes_for",
+        "sign": "+",
+        "lag": "0-2 quarters"
+      },
+      {
+        "relation": "competes_with",
+        "sign": "-",
+        "lag": "1-3 quarters"
+      }
+    ]
+  },
+  "reciprocal_sign_disagreements": [
+    {
+      "forward": "corn_cbot->soybeans_cbot",
+      "forward_signs": [
+        "+"
+      ],
+      "reverse_signs": [
+        "0"
+      ]
+    },
+    {
+      "forward": "rapeseed_oil_zce->soybean_oil_cbot",
+      "forward_signs": [
+        "+"
+      ],
+      "reverse_signs": [
+        "+",
+        "-"
+      ]
+    },
+    {
+      "forward": "soybean_oil_cbot->rapeseed_oil_zce",
+      "forward_signs": [
+        "+",
+        "-"
+      ],
+      "reverse_signs": [
+        "+"
+      ]
+    },
+    {
+      "forward": "soybean_oil_cbot->soybeans_cbot",
+      "forward_signs": [
+        "+"
+      ],
+      "reverse_signs": [
+        "0"
+      ]
+    },
+    {
+      "forward": "soybeans_cbot->corn_cbot",
+      "forward_signs": [
+        "0"
+      ],
+      "reverse_signs": [
+        "+"
+      ]
+    },
+    {
+      "forward": "soybeans_cbot->soybean_oil_cbot",
+      "forward_signs": [
+        "0"
+      ],
+      "reverse_signs": [
+        "+"
+      ]
+    }
+  ],
+  "fully_admissible_first_order": [
+    [
+      "arabica_coffee",
+      "robusta_coffee",
+      "substitutes_for",
+      "+",
+      "0-3 quarters"
+    ],
+    [
+      "corn_cbot",
+      "hard_red_winter_wheat_kcbt",
+      "competes_with",
+      "+",
+      "0-2 quarters"
+    ],
+    [
+      "corn_cbot",
+      "soft_red_winter_wheat_cbot",
+      "competes_with",
+      "+",
+      "0-2 quarters"
+    ],
+    [
+      "corn_cbot",
+      "soybean_meal_cbot",
+      "competes_with",
+      "+",
+      "0-4 quarters"
+    ],
+    [
+      "hard_red_winter_wheat_kcbt",
+      "soft_red_winter_wheat_cbot",
+      "competes_with",
+      "+",
+      "0-1 quarters"
+    ],
+    [
+      "rapeseed_oil_zce",
+      "rapeseed_meal_zce",
+      "crushed_into",
+      "+",
+      "0-1 quarters"
+    ],
+    [
+      "raw_sugar",
+      "white_sugar",
+      "substitutes_for",
+      "+",
+      "0-1 quarters"
+    ],
+    [
+      "robusta_coffee",
+      "arabica_coffee",
+      "substitutes_for",
+      "+",
+      "0-3 quarters"
+    ],
+    [
+      "soft_red_winter_wheat_cbot",
+      "hard_red_winter_wheat_kcbt",
+      "competes_with",
+      "+",
+      "0-1 quarters"
+    ],
+    [
+      "soybean_meal_cbot",
+      "soybean_oil_cbot",
+      "competes_with",
+      "-",
+      "0-1 quarters"
+    ],
+    [
+      "soybean_meal_cbot",
+      "soybeans_cbot",
+      "crushed_into",
+      "+",
+      "0-1 quarters"
+    ],
+    [
+      "soybean_oil_cbot",
+      "soybean_meal_cbot",
+      "competes_with",
+      "-",
+      "0-2 quarters"
+    ],
+    [
+      "soybean_oil_cbot",
+      "soybeans_cbot",
+      "crushed_into",
+      "+",
+      "0-2 quarters"
+    ],
+    [
+      "soybeans_cbot",
+      "soybean_meal_cbot",
+      "crushed_into",
+      "+",
+      "0-1 quarters"
+    ],
+    [
+      "white_sugar",
+      "raw_sugar",
+      "substitutes_for",
+      "+",
+      "0-1 quarters"
+    ]
+  ],
+  "fully_admissible_second_order": [
+    [
+      "corn_cbot",
+      "hard_red_winter_wheat_kcbt",
+      "soft_red_winter_wheat_cbot"
+    ],
+    [
+      "corn_cbot",
+      "soft_red_winter_wheat_cbot",
+      "hard_red_winter_wheat_kcbt"
+    ],
+    [
+      "corn_cbot",
+      "soybean_meal_cbot",
+      "soybean_oil_cbot"
+    ],
+    [
+      "corn_cbot",
+      "soybean_meal_cbot",
+      "soybeans_cbot"
+    ],
+    [
+      "soybean_meal_cbot",
+      "soybean_oil_cbot",
+      "soybeans_cbot"
+    ],
+    [
+      "soybean_oil_cbot",
+      "soybean_meal_cbot",
+      "soybeans_cbot"
+    ],
+    [
+      "soybean_oil_cbot",
+      "soybeans_cbot",
+      "soybean_meal_cbot"
+    ],
+    [
+      "soybeans_cbot",
+      "soybean_meal_cbot",
+      "soybean_oil_cbot"
+    ]
+  ],
+  "uncovered_rev_index_nodes": [
+    "barley",
+    "palm_oil",
+    "palm_olein",
+    "sorghum",
+    "sunflower_oil"
+  ]
+}

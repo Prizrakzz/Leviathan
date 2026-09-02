@@ -381,7 +381,8 @@ def test_all_hops_windowless_declines_root_not_grounded_and_injects_nothing(monk
     lines, fired, decline = cq._chain_legs(_sg(["wheat"], _windowless_root_nodes([])), _skeleton_graph(),
                                            [], [], _qfn_factory(), ASOF, "2010", calls)
     assert lines == [] and fired is None and not calls
-    assert decline == {"chain_id": "wheat_area_su", "reason": "root_not_grounded"}
+    assert decline == {"chain_id": "wheat_area_su", "reason": "root_not_grounded",
+                       "net_reads": 0}            # A2: pre-fetch decline -- zero paid, said so
 
 
 def test_windowless_root_with_downstream_hop_absent_from_walk_declines(monkeypatch):
@@ -504,7 +505,8 @@ def test_root_not_grounded_declines(monkeypatch):
     _cm(monkeypatch, _skeleton_chain())
     sg = _sg(["wheat"], [_evnode("wheat", "something_else", "export", ["2010-08-05"])])   # root absent
     _l, fired, decline = cq._chain_legs(sg, _skeleton_graph(), [], [], _qfn_factory(), ASOF, "2010", [])
-    assert fired is None and decline == {"chain_id": "wheat_area_su", "reason": "root_not_grounded"}
+    assert fired is None and decline == {"chain_id": "wheat_area_su", "reason": "root_not_grounded",
+                                         "net_reads": 0}
 
 
 def test_no_focus_match_is_zero_trace(monkeypatch):

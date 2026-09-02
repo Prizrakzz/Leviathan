@@ -253,6 +253,8 @@ def _cascade_stats(out: dict) -> dict:
     # comove_fired/price_leg_fired idiom -- absent keys read False/None, never KeyError.
     _rv_host = ((out.get("trace") or {}).get("quantify_reroute_v2")
                 or (out.get("trace") or {}).get("quantify_comove") or {})
+    # CASCADE EPISODE WALK: the leg's ONE registered key (absent == did not run, the J4 precedent).
+    _cw = (out.get("trace") or {}).get("quantify_cascade_walk") or {}
     # SHAPE TOLERANCE (2026-09-01): the engine writes the FIRED DICT at sg.trace[key] (the C11/F3
     # site) while the W4.5 pins' fixtures carry the older LIST-of-pairs shape -- both are legal on
     # this read seam. A list host resolves to the entry carrying the reading/regional stamps (they
@@ -338,6 +340,39 @@ def _cascade_stats(out: dict) -> dict:
                                        or 0),
             "dv_dup_drops": int((_rv_host.get("derived_arith") or {}).get("dup_drops") or 0),
             "dv_fetches": int((_rv_host.get("derived_arith") or {}).get("fetches") or 0),
+            # CASCADE EPISODE WALK (charter v4, 2026-09-01): the leg's judge-free counters off its
+            # ONE registered key. `outcome` carries fired/declined/fenced (the J4 precedent: an
+            # absent key means the leg did not run); the K2 rectangle identities are recorded as
+            # booleans so a silent drop is a red column, never an inference. The no-free-numeral
+            # deck pin's SERVE-side half is the engine's own fence (outcome == 'fenced' when it
+            # trips); the byte-level half lives in test_cascade_walk on real rendered lines.
+            "cw_outcome": _cw.get("outcome"),
+            "cw_rendered": _cw.get("outcome") == "fired",
+            "cw_order": _cw.get("order"),
+            "cw_root": _cw.get("root"),
+            "cw_path": _cw.get("path"),
+            "cw_cells_declared": len(_cw.get("cells") or []),
+            "cw_cells_measured": sum(1 for c in _cw.get("cells") or []
+                                     if c.get("status") == "closed"),
+            "cw_j4_skips": sum(1 for c in _cw.get("cells") or [] if c.get("j4_handle")),
+            "cw_children_declared": int(_cw.get("children_declared") or 0),
+            "cw_children_priced": int(_cw.get("children_priced") or 0),
+            "cw_children_named": int(_cw.get("children_named") or 0),
+            # K2's rectangle as a RECORDED boolean: every declared child is priced or named,
+            # exactly. True on walk-less rows (no key, nothing to violate) so the deck pin reads
+            # all-True, never None-noise.
+            "cw_child_identity_ok": (_cw.get("outcome") is None
+                                     or int(_cw.get("children_declared") or 0)
+                                     == int(_cw.get("children_priced") or 0)
+                                     + int(_cw.get("children_named") or 0)),
+            "cw_verdicts": {v: sum(1 for x in _cw.get("cells") or [] if x.get("verdict") == v)
+                            for v in ("aligned", "at_odds", "undetermined")},
+            "cw_declines": [d.get("reason") for d in _cw.get("declines") or []],
+            "cw_reads": int(_cw.get("net_reads") or 0),
+            "cw_turn_spent": _cw.get("turn_spent_before"),        # K7's own measurement (review
+            #                                                       minor: unprojected, the ceiling
+            #                                                       was unreadable from any arm)
+            "cw_grounded_slices": len(_cw.get("grounded_tree_slices") or []),
             # T2a (CONVERGENCE_TIER1): quantify_pace is ENGINE-written, non-empty IFF >=1 deterministic
             # streak/window_change pace row was emitted this turn. BOOLEAN (mirror comove_fired/
             # price_leg_fired [F7]) -- an honest decline (<2 points / annual grain / flag off) leaves the
@@ -1564,6 +1599,26 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "dv_vintage_refusals": cs.get("dv_vintage_refusals"),
             "dv_dup_drops": cs.get("dv_dup_drops"),
             "dv_fetches": cs.get("dv_fetches"),
+            # CASCADE EPISODE WALK (charter v4): the same hard-whitelist projection (the Z7
+            # lesson, 5th application) -- without these lines the walk's own K1/K2/K7 counters
+            # reach NO artifact and the arm's declines go unreadable.
+            "cw_outcome": cs.get("cw_outcome"),
+            "cw_rendered": cs.get("cw_rendered"),
+            "cw_order": cs.get("cw_order"),
+            "cw_root": cs.get("cw_root"),
+            "cw_path": cs.get("cw_path"),
+            "cw_cells_declared": cs.get("cw_cells_declared"),
+            "cw_cells_measured": cs.get("cw_cells_measured"),
+            "cw_j4_skips": cs.get("cw_j4_skips"),
+            "cw_children_declared": cs.get("cw_children_declared"),
+            "cw_children_priced": cs.get("cw_children_priced"),
+            "cw_children_named": cs.get("cw_children_named"),
+            "cw_child_identity_ok": cs.get("cw_child_identity_ok"),
+            "cw_verdicts": cs.get("cw_verdicts"),
+            "cw_declines": cs.get("cw_declines"),
+            "cw_reads": cs.get("cw_reads"),
+            "cw_turn_spent": cs.get("cw_turn_spent"),
+            "cw_grounded_slices": cs.get("cw_grounded_slices"),
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
             "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered

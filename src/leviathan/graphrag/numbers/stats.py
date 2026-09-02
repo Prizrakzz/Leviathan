@@ -823,6 +823,36 @@ def quantiles(series: Sequence, probs: Sequence = (0.5,)) -> dict:
             "quantiles": out, "probs": ps}
 
 
+def sign_agreement(parent_move, child_move, edge_sign) -> dict:
+    """CASCADE EPISODE WALK (charter STEP 3): the three-valued verdict on ONE declared hop over ONE
+    shared firing window -- 'aligned' when sign(child) == sign(parent) * edge_sign, 'at_odds' when
+    exactly opposite, 'undetermined' otherwise. PURE: two floats and a declared sign in, one word
+    out. No calendar, no labels, no counts, no thresholds -- the fences that decide WHETHER a pair
+    may be compared (currency, realized-interval, tenor, unanimity) live at the seam and must run
+    BEFORE this; a pair that fails them never reaches here, so 'undetermined' from THIS function
+    means only: the edge declines to declare ('0'/None/non-unanimous handled upstream as sign None)
+    or a leg's move is exactly zero.
+
+    DELIBERATELY ABSENT FROM STAT_REGISTRY. That registry is the AGENT TOOL ENUM; this is an ENGINE
+    calculator on a deterministic scored path. New agent-callable stats are gated by their own
+    doctrine review (AM-3), so widening the enum is never a side effect of adding an engine
+    function. RETURN CONTRACT: the standard {"stat", "declined", "value"} shape -- `value` is the
+    verdict WORD (the rendered token), never a number, so no copy surface can mistake it for a
+    magnitude."""
+    try:
+        p = float(parent_move)
+        c = float(child_move)
+    except (TypeError, ValueError):
+        return {"stat": "sign_agreement", "declined": False, "value": "undetermined"}
+    es = {"+": 1, "-": -1}.get(str(edge_sign or "").strip())
+    sp = (p > 0) - (p < 0)
+    sc = (c > 0) - (c < 0)
+    if es is None or sp == 0 or sc == 0:
+        return {"stat": "sign_agreement", "declined": False, "value": "undetermined"}
+    return {"stat": "sign_agreement", "declined": False,
+            "value": ("aligned" if sc == sp * es else "at_odds")}
+
+
 # ---------------------------------------------------------------------------------------------------
 # ENUM-LOCKED registry -- the tool-schema source. Keys are the frozen public stat names.
 # ---------------------------------------------------------------------------------------------------

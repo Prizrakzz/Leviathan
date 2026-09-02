@@ -175,7 +175,10 @@ _DV_WASDE_LEGS = {
                                    "united_states"),
 }
 _DV_SU_ATTRS = ("ending_stocks", "domestic_total", "exports")
-DV_SU_COVERAGE_FLOOR = 0.80          # M7: >= this share of fetched MYs must survive the fences
+DV_SU_COVERAGE_FLOOR = 0.80          # M7, AMENDED by the P8 RCA (2026-09-01): binds on the RECENT
+#                                      window's coverage, never share-of-fetched -- ancient vintage
+#                                      refusals are the fence WORKING and must not dark the lane
+DV_SU_RECENT_WINDOW = 10             # the decision-relevant span the coverage floor measures
 DV_SU_CONTIGUOUS_TAIL = 5            # ...and the most recent N MYs must all survive
 _DV_ORD_SUFFIX = {1: "st", 2: "nd", 3: "rd"}
 
@@ -272,11 +275,22 @@ def su_standing(fetch, qfn, slug_a: str, slug_b: str, asof, base: int):
             hist.append(r["value"])
             hist_mys.append(my)
             survived[my] = (es, dt, ex, stamp, r["value"])
+        # THE FLOOR'S DENOMINATOR (P8 RCA, 2026-09-01, data/batch_runs/dda_p8_rca_20260901.json):
+        # v1 measured share-of-FETCHED, and real corn came in at 14/18 = 0.778 -- under the floor by
+        # 0.022 -- because the vintage fence CORRECTLY refused four ANCIENT marketing years
+        # (2009/10-2012/13, whose final revisions genuinely landed across different releases) while
+        # every recent year was clean. Punishing the lane for honest refusals of ancient scatter
+        # inverts the fence's own purpose. The floor now binds where the standing's decision lives:
+        # the RECENT window's coverage + the contiguous tail; the full-fetch share is TELEMETRY.
         n_f = len(mys)
-        if not hist or (len(hist) / n_f) < DV_SU_COVERAGE_FLOOR \
+        recent = mys[-DV_SU_RECENT_WINDOW:]
+        cov_recent = (sum(1 for my in recent if my in survived) / len(recent)) if recent else 0.0
+        trace[f"coverage_full_{slug}"] = round(len(hist) / n_f, 3) if n_f else None
+        if not hist or cov_recent < DV_SU_COVERAGE_FLOOR \
                 or any(my not in survived for my in mys[-DV_SU_CONTIGUOUS_TAIL:]):
             return [], [], {"decline": "su_history_gappy",
-                            "coverage": round(len(hist) / n_f, 3) if n_f else None}
+                            "coverage_recent": round(cov_recent, 3),
+                            "coverage_full": round(len(hist) / n_f, 3) if n_f else None}
         cur_my = hist_mys[-1]
         es, dt, ex, stamp, level = survived[cur_my]
         role = " (a USDA projection)" if es[2] == "projection" else ""

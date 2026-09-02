@@ -370,6 +370,29 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # visibility rule as the reading's fence key above. APPENDED at the
                                  # tail per the 12f law; the six positional tail pins re-anchor by one
                                  # in the same commit.
+    "quantify_cascade_walk",     # CASCADE EPISODE WALK (charter v4, 2026-09-01): the leg's ONE
+                                 # registered key (the one-key-per-producer discipline; the J4
+                                 # fired==bool(key) precedent applies -- `outcome` in
+                                 # {fired, declined, fenced} rides INSIDE, an ABSENT key means the
+                                 # leg did not run, never that it declined). The payload carries the
+                                 # whole ledger: root, order, path, firings (slice-keyed, A6),
+                                 # per-cell records with per-cell `reads`, the K2 rectangle counts
+                                 # (children_declared == priced + named), the counted declines, and
+                                 # `grounded_tree_slices` -- the K1 diagnostic the A6 refute (M5)
+                                 # required to ride INSIDE this key rather than as a second column.
+                                 # APPENDED at the tail per the 12f law; the 23 negative-index tail
+                                 # pins across 4 test files re-anchor by one in the SAME commit
+                                 # (the refute's own count -- not six).
+    "quantify_wave_reads",       # A2 (STEP-12 review minor, the D-AM-3 silent-lift class): the base
+                                 # wave's spec count -- the single largest read producer on every
+                                 # quantifying turn, stamped 0-included beside quantify_dark_refs
+                                 # and overwritten with len(flat) after the fan. Without this column
+                                 # K7's total-reads clause ('read from the counters, NEVER inferred')
+                                 # is unmeasurable from any arm artifact. A plain int. APPENDED at
+                                 # the tail in the SAME commit as quantify_cascade_walk, so the tail
+                                 # pins re-anchor ONCE for both. `quantify_price_leg_decline` stays
+                                 # deliberately UNREGISTERED (the quantify_chain_decline sibling
+                                 # precedent; eval's price_leg_fired reads the FIRED key only).
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

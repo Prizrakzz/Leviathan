@@ -1535,6 +1535,185 @@ def check_price_register() -> list[str]:
     return errs
 
 
+def check_cascade_walk() -> list[str]:
+    """CASCADE EPISODE WALK governance (charter v4 STEP 9, A6-adjudicated). PURE reads only --
+    graph YAMLs, the contract map, cascade.py's own constants, the driver-slice config (refute M2:
+    config_check stays S3-free; the ARTIFACT half of the A6 lint -- which resolvable slices carry
+    windows -- lives with timeline.check_artifact / the banked-fixture unit tests, never here).
+
+    (i)   _CW_BOARD_LABEL covers EXACTLY the slugs on fully-admissible first-order hops (drift
+          either way errors), every label letters-only, register-clean, never id-shaped.
+    (ii)  _CW_RELATION_WORDS covers every relation on an admissible edge; every phrase is
+          ORIENTATION-FREE (no directed-verb token, no ordered placeholder).
+    (iii) every admissible edge's blurb: present, within the blurb word cap, free of claim
+          numerals and curation-telemetry tokens, register-clean, and DIRECTION-CONSISTENT with
+          its own sign (a '+' edge with a pressuring/capping predicate errors, and conversely).
+    (iv)  supply-keyed language on any SIGNED shipping edge errors (the robusta re-key's fence).
+    (v)   the walk's physical read is exactly (silver_futures_eod, settle) and nothing walk-owned
+          is registered in SYNTHESIZED_PRICE_LEG_ALLOW.
+    (vi)  every rev-index node resolves to ONE seed (the walk's all-or-nothing focus gate).
+    (vii) display labels for every RESOLVABLE tree-driver slice of a shipping parent are
+          digit-free (the section301 minor -- a digit-bearing ROW-3 label would drop the whole
+          block at the serve-time fence).
+    (viii) the census TRIPWIRE via the public enumerator: recompute the reach counts and WARN on
+          drift against the banked postrekey census -- printed, never a hard floor (the artifact
+          is a moving input)."""
+    import datetime as _dt
+    import re as _re
+
+    from leviathan.graphrag import graph as _G
+    from leviathan.graphrag import register as _reg
+    from leviathan.graphrag import verify as _vf
+    from leviathan.graphrag.numbers import cascade as _cq
+    from leviathan.silver import futures_eod_contracts as _FC
+    errs: list[str] = []
+    g = _G.CausalGraph.load()
+    cov = _FC.PRICE_COVERAGE_START
+    cmap = _FC.CONTRACT_MAP
+    floor = _dt.date(2024, 1, 1)
+    lag_rx = _cq._CW_LAG_RX
+    node = g.contract_node
+
+    def _cur(s):
+        return (cmap.get(s) or {}).get("currency")
+
+    rows_all: list = []
+    for nd in g.rev_cross_link_seeds():
+        for r in g.rev_cross_links(nd):
+            if r.get("seed") in cov and r.get("contract") in cov:
+                rows_all.append(r)
+    # THE LINT'S LADDER IS THE ENGINE'S LADDER, exactly (STEP-12 review D1, confirmed: a 2024
+    # coverage floor here -- a CENSUS episode-history gate the engine does not have -- hid the one
+    # root the engine crashed on). The census's own floored count rides only the (viii) tripwire.
+    adm = [r for r in rows_all
+           if (node(r["seed"]) != node(r["contract"]) and _cur(r["seed"]) == _cur(r["contract"])
+               and lag_rx.match(str(r.get("lag") or "").strip())
+               and int(lag_rx.match(str(r.get("lag") or "").strip()).group(1)) == 0)]
+    shipping = [r for r in adm if str(r.get("sign")) in ("+", "-")]
+    # (i) the board-label register: every ENGINE-REACHABLE surface slug -- the shipping hops' two
+    # sides PLUS every covered root that clears the seed gate (the engine renders the root's own
+    # label on ROW 1/ROW 4 before any child gate runs).
+    roots_reachable = set()
+    for nd in g.rev_cross_link_seeds():
+        rws = [r for r in g.rev_cross_links(nd) if r.get("seed") in cov]
+        if rws and all(str(r.get("seed")) == str(rws[0].get("seed")) for r in rws):
+            roots_reachable.add(str(rws[0]["seed"]))
+    need = sorted({r["seed"] for r in shipping} | {r["contract"] for r in shipping}
+                  | roots_reachable)
+    have = sorted(_cq._CW_BOARD_LABEL)
+    for s in sorted(set(need) - set(have)):
+        errs.append(f"walk: engine-reachable slug {s!r} has no _CW_BOARD_LABEL entry "
+                    f"(the root gate declines it honestly, but the roster should decide that)")
+    for s in sorted(set(have) - set(need)):
+        errs.append(f"walk: _CW_BOARD_LABEL entry {s!r} is on no reachable surface (stale row)")
+    from leviathan.graphrag import display as _dp
+    for s, lab in _cq._CW_BOARD_LABEL.items():
+        if lab != _dp._contract_label(s):
+            errs.append(f"walk: board label {lab!r} diverges from display._contract_label({s!r}) "
+                        f"== {_dp._contract_label(s)!r} -- ONE vocabulary, display owns it "
+                        f"(review D9)")
+        if any(ch.isdigit() for ch in lab):
+            errs.append(f"walk: board label {lab!r} carries a digit (the ROW-3 numeral fence)")
+        if "_" in lab or lab.strip() != lab or not lab:
+            errs.append(f"walk: board label {lab!r} is id-shaped or unclean")
+        if _reg.internal_leaks(lab):
+            errs.append(f"walk: board label {lab!r} trips the internal-leak register")
+    # (ii) relation phrases -- coverage + orientation-freedom.
+    rels_needed = sorted({str(r.get("relation")) for r in adm})
+    for rel in rels_needed:
+        if rel not in _cq._CW_RELATION_WORDS:
+            errs.append(f"walk: admissible relation {rel!r} has no orientation-free phrase")
+    directed = _re.compile(r"\b(into|from|drives|leads|feeds|yields|refined|crushed)\b", _re.I)
+    for rel, phrase in _cq._CW_RELATION_WORDS.items():
+        if directed.search(phrase) or "{" in phrase:
+            errs.append(f"walk: relation phrase {phrase!r} ({rel}) is directional or templated")
+        if any(ch.isdigit() for ch in phrase):
+            errs.append(f"walk: relation phrase {phrase!r} carries a digit")
+    # (iii) blurbs on admissible edges.
+    telemetry = _re.compile(r"AUTHOR-ON-STRUCTURE|Tier\s*\d|lift\s*[\d.]|Jaccard|co-mention"
+                            r"|\bprops\b", _re.I)
+    pressuring = _re.compile(r"\b(caps?|capping|pressur\w*|weighs? on|drags?|dampens?)\b", _re.I)
+    supportive = _re.compile(r"\b(supports?|supporting|lifts?|boosts?|underpins?)\b", _re.I)
+    for r in adm:
+        b = str(r.get("blurb") or "").strip()
+        where = f"{r['seed']}->{r['contract']} ({r.get('relation')})"
+        if not b:
+            errs.append(f"walk: admissible edge {where} has no blurb")
+            continue
+        if len(b.split()) > 18:
+            errs.append(f"walk: blurb on {where} exceeds the word cap")
+        if any(_vf._claim_numbers_with_decimals(b)):   # returns (nums, decs) -- () truthy trap
+            errs.append(f"walk: blurb on {where} carries claim numerals")
+        if telemetry.search(b):
+            errs.append(f"walk: blurb on {where} carries curation-telemetry tokens")
+        if (_reg.count_valuation_words(b) or _reg.count_flow_words(b)
+                or not _cq.pace_register_ok(b)):
+            errs.append(f"walk: blurb on {where} trips a register fence")
+        sign = str(r.get("sign"))
+        if sign == "+" and pressuring.search(b) and not supportive.search(b):
+            errs.append(f"walk: '+' edge {where} carries a pressuring/capping blurb predicate")
+        if sign == "-" and supportive.search(b) and not pressuring.search(b):
+            errs.append(f"walk: '-' edge {where} carries a supportive blurb predicate")
+    # (iv) supply-keyed language on signed shipping edges -- PRIMARY clause only. The re-key
+    # adjudication deliberately KEEPS the other regime in the CONDITIONAL prose ("conversely
+    # cheap, abundant robusta..." -- the recon's own remedy, and V2-3's raw material), so the
+    # fence binds the clause the SIGN is keyed to: everything before the first ';' or
+    # 'conversely'. A primary clause keyed to supply inverts under the price-vs-price read.
+    supply_keyed = _re.compile(r"\b(abundan\w*|ample|glut|crop size)\b|cheap[^.]{0,40}supply",
+                               _re.I)
+    for r in shipping:
+        m = str(r.get("mechanism") or "")
+        primary = _re.split(r";|\bconversely\b", m, maxsplit=1, flags=_re.I)[0]
+        if supply_keyed.search(primary):
+            errs.append(f"walk: SIGNED shipping edge {r['seed']}->{r['contract']} keys its "
+                        f"PRIMARY mechanism clause to supply (re-key to the driver-price "
+                        f"convention; conditional regimes belong after ';'/'conversely')")
+    # (v) the physical read is exactly the adjudicated one. (The docstring's earlier negative
+    # claim about SYNTHESIZED_PRICE_LEG_ALLOW was WRONG -- (silver_futures_eod, settle) is
+    # legitimately registered there by the RV owner amendment; the walk reuses the same physical
+    # read and registers nothing new, which is what this clause actually holds.)
+    if (_cq._TAPE_TABLE, _cq._TAPE_METRIC) != ("silver_futures_eod", "settle"):
+        errs.append("walk: the tape read moved off (silver_futures_eod, settle)")
+    # (vi) one seed per rev-index node.
+    for nd in g.rev_cross_link_seeds():
+        seeds = {str(r.get("seed")) for r in g.rev_cross_links(nd)}
+        if len(seeds) > 1:
+            errs.append(f"walk: rev-index node {nd!r} resolves to multiple seeds {sorted(seeds)}")
+    # (vii) digit-free slice labels for the shipping parents' resolvable tree drivers.
+    try:
+        from leviathan.graphrag import evidence as _ev
+        parents = sorted({r["seed"] for r in shipping})
+        unresolved: list = []
+        for p in parents:
+            c = g.contracts.get(p)
+            for d in (getattr(c, "drivers", None) or []):
+                sl = _ev.slice_for_driver(str(d.id))
+                if not sl:
+                    unresolved.append(f"{p}:{d.id}")
+                    continue
+                if any(ch.isdigit() for ch in _cq._cw_slice_label(sl)):
+                    errs.append(f"walk: slice label for {sl!r} (driver {d.id!r} of {p}) carries "
+                                f"a digit -- a ROW-3 header naming it would drop the block")
+        if unresolved:
+            # M2's pure half, WARN-shaped like the (viii) tripwire: an unresolvable tree driver is
+            # LAWFUL (no text slice -> serving never injects it) but it silently shrinks the
+            # walk's firing pool, so the count is printed for a human, never a hard floor.
+            print(f"WARN cascade_walk: {len(unresolved)} tree drivers on shipping parents "
+                  f"resolve to no evidence slice (pool shrink, lawful) -- first few: "
+                  f"{unresolved[:5]}")
+    except Exception as exc:  # noqa: BLE001 -- the alias config failing to load IS an error
+        errs.append(f"walk: driver-slice label sweep failed to run ({type(exc).__name__})")
+    # (viii) the census tripwire -- WARN only, never a hard floor. The CENSUS count keeps the
+    # 2024 episode-history floor (that gate is the census's, not the engine's -- review D1).
+    n_census = len({(r["seed"], r["contract"], r.get("relation"), r.get("sign"),
+                     str(r.get("lag"))) for r in shipping
+                    if cov[r["seed"]] < floor and cov[r["contract"]] < floor})
+    if n_census != 15:
+        print(f"WARN cascade_walk: censused shipping hop count moved (15 -> {n_census}) -- "
+              f"re-run the reach census and re-bank before citing pool numbers")
+    return errs
+
+
 def check_numbers_schema_pins() -> list[str]:
     """Card-vs-DDL column pins for EVERY numbers-registry table (AWS-free; the node_silver_map pattern).
     Born from the silver_nasa_power incident (2026-07-21): the BF-W1 compaction moved country/region/month
@@ -2662,7 +2841,8 @@ def main() -> int:
                         ("futures_outcomes", check_futures_outcomes()),
                         ("pattern_outcomes", check_pattern_outcomes()),
                         ("pace_collapse", check_pace_collapse()),
-                        ("question_shapes", check_question_shapes())):
+                        ("question_shapes", check_question_shapes()),
+                        ("cascade_walk", check_cascade_walk())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

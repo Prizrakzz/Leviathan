@@ -338,6 +338,40 @@ _SYSTEM_DERIVED_ARITH = (
     "DIGITS exactly as printed. ")
 
 
+# CASCADE EPISODE WALK (charter v4, 2026-09-01): appended ONLY when GRAPHRAG_CASCADE_WALK is on (the
+# omit-when-off idiom -- flag-off serving prompt byte-identical). A conditional LICENSE like its
+# CROSS_BOARD/DERIVED_ARITH siblings, never a section mandate, so a walk-less turn carries a dormant
+# clause rather than a demand for a block that is not there (the +10-hallucination class).
+_SYSTEM_CASCADE_WALK = (
+    "\nIf the block carries lines beginning 'CONSEQUENCE HOP', a declared cross-market relation has "
+    "been MEASURED for you over one dated firing window: transcribe each hop's [N] rows verbatim with "
+    "their handles, and take the direction read ONLY from that hop's CONSEQUENCE READ line, in its own "
+    "words, with its in-sample clause -- an 'at odds' read is a finding to state plainly, never to "
+    "explain away. NEVER derive any figure from two rows (no ratio, no spread, no gap, no per-unit "
+    "arithmetic), never attribute either move to the other as cause, and never extend a read beyond "
+    "its named window. A 'CONSEQUENCE ABSENCE' line is a stated limit of the record: repeat it in "
+    "your own words rather than filling the gap. The firing window named in a CONSEQUENCE HOP line "
+    "is the same dated window the '## Episodes' section enumerates -- never mint a new episode "
+    "bullet from these rows. ")
+
+
+# THE MANDATE HALF (charter STEP 8's marker-presence gate, built 2026-09-02 after the arm measured
+# 1-of-3 uptake under the license alone). Appended ONLY when `_cascade_walk_block_on(vp)` holds --
+# i.e. the volatile prompt really carries a walk block -- so a walk-less turn never sees a demand
+# for a section it cannot fill (W4-D3's own reason). The LICENSE above stays flag-only.
+_SYSTEM_CASCADE_WALK_MANDATE = (
+    "\nTHE BLOCK CARRIES CONSEQUENCE HOP LINES, AND RENDERING THEM IS MANDATORY: under '## The "
+    "record', for EVERY CONSEQUENCE HOP in the block, write the two boards' settle-change rows with "
+    "their [N] handles and figures copied as DIGITS exactly as printed, name the dated firing window "
+    "in words exactly as the hop names it, and state that hop's CONSEQUENCE READ in its own terms "
+    "('held' / 'sat at odds' / 'declines to read a direction'). Never drop a hop for being "
+    "inconvenient to the thesis -- an 'at odds' read is the finding. State the read in the block's "
+    "own words and add NO mechanism story of your own to it (no 'because', no 'rather than', no "
+    "substitution or pass-through gloss -- the K8 panel convicted exactly that clause). A "
+    "CONSEQUENCE ABSENCE line is repeated as a stated limit. This section is not optional on this "
+    "turn. ")
+
+
 # P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
 # the [N] rows, so (unlike Phase A) a [N]-cited dated lag is backed and will NOT be stripped.
 _SYSTEM_CASCADE = (
@@ -719,6 +753,19 @@ def _derived_arith_on() -> bool:
     balance-standing block still renders and lane 2 simply never runs (the reading itself is absent).
     Read PER CALL (never memoized) so the env-flip rollback is live -> no redeploy."""
     return os.environ.get("GRAPHRAG_DERIVED_ARITH", "").strip().lower() in ("on", "1", "true")
+
+
+def _cascade_walk_on() -> bool:
+    """CASCADE EPISODE WALK kill-switch (GRAPHRAG_CASCADE_WALK), read at the answer.py quantify
+    SEAM and threaded as the OMIT-WHEN-OFF `cascade_walk` REQUEST DICT down quantify() (the
+    _rv_reading_on idiom -- NEVER an os.environ read inside cascade.py, so the ENGINE is gated by
+    the ARGUMENT and a mis-plumbed enable can never fire it on an unasked turn). DEFAULT-OFF,
+    fail-closed; when off the kwarg is ABSENT and quantify() is byte-identical (older-signature
+    quantify fakes stay valid). DECLARED DEPENDENCY (charter A6/Q5): the leg's firing windows are
+    the turn's own `episodes_injected`, so it renders nothing unless GRAPHRAG_TIMELINE is on --
+    doubly inert by construction, exactly as chartered. Read PER CALL so the env-flip rollback is
+    live -> no redeploy."""
+    return os.environ.get("GRAPHRAG_CASCADE_WALK", "").strip().lower() in ("on", "1", "true")
 
 
 def _intensity_on() -> bool:
@@ -1396,6 +1443,19 @@ def _episodes_on(volatile_prompt: str | None) -> bool:
     return _timeline_on() and _tl.LINE_PREFIX in (volatile_prompt or "")
 
 
+def _cascade_walk_block_on(volatile_prompt: str | None) -> bool:
+    """THE WALK'S SEAM GATE -- `_episodes_on` verbatim in shape (charter STEP 8, built after the
+    sitting-3 arm measured why it matters): the CONSEQUENCE MANDATE ships iff BOTH legs hold --
+    leg 1 the kill-switch (`_cascade_walk_on`), leg 2 the EVIDENCE: the assembled VOLATILE prompt
+    actually carries a walk block (its ROW-5 marker, `cascade.CW_MARKER_PREFIX`, the shared constant
+    the producer builds from). MEASURED REASON (arm 2026-09-02, 3 walk-fired rows): under the
+    conditional LICENSE alone the writer transcribed the walk on 1 of 3 -- a license is optional
+    by construction; a mandate that ships only when the block exists is the W4-D3 shape that made
+    the episodes section real without the +10-hallucination mode on walk-less turns."""
+    from leviathan.graphrag.numbers import cascade as _cq   # lazy: answer imports cascade at the seam
+    return _cascade_walk_on() and _cq.CW_MARKER_PREFIX in (volatile_prompt or "")
+
+
 # W5-D5: the '## Outlook' RESERVED HEADING -- injected-only, exactly the '## Cross-commodity' /
 # '## Complex-wide move' / '## Recorded history' shape. Appended to the persona ONLY on a turn where all
 # three outlook legs held, so with the flag off _system() is BYTE-IDENTICAL to pre-W5.
@@ -1893,7 +1953,8 @@ _SYSTEM_HANDLES = (
 
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
             response_contract: str | None = None, budget: str | None = None,
-            census: dict | None = None, provenance: bool = False, handles: bool = False) -> str:
+            census: dict | None = None, provenance: bool = False, handles: bool = False,
+            cascade_walk: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -1944,6 +2005,19 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             base = base + _SYSTEM_CROSS_BOARD                      # license, omit-when-off byte-identical
         if _derived_arith_on():                                    # D-DA: the BALANCE-STANDING license,
             base = base + _SYSTEM_DERIVED_ARITH                    # same omit-when-off discipline
+        if _cascade_walk_on():                                     # CASCADE EPISODE WALK: the
+            base = base + _SYSTEM_CASCADE_WALK                     # CONSEQUENCE license, same idiom
+            if cascade_walk:                                       # + the MANDATE, marker-gated at
+                base = base + _SYSTEM_CASCADE_WALK_MANDATE         #   the seam (the _episodes_on shape)
+            #                                                        DECLARED DEVIATION from charter
+            #                                                        STEP 8's marker-presence gate:
+            #                                                        flag-only, the CROSS_BOARD /
+            #                                                        DERIVED_ARITH sibling precedent
+            #                                                        -- the text is a conditional
+            #                                                        LICENSE, never a section
+            #                                                        mandate, so a walk-less turn
+            #                                                        carries a dormant clause, not
+            #                                                        a demand (review minor, noted)
     if _pattern_records_on():
         from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
@@ -2797,6 +2871,15 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # D-DA: same omit-when-off idiom (the _rv_reading_on precedent, third application) --
             # flag off -> kwarg ABSENT -> quantify byte-identical, older-signature fakes stay valid.
             _dv_kw = {"derived_arith": True} if _derived_arith_on() else {}
+            # CASCADE EPISODE WALK: same omit-when-off idiom. The ROOT is the turn's focus
+            # contract, resolved HERE with the price_request focus-first idiom and packed as an
+            # ARGUMENT -- the engine reads no env and resolves no focus of its own.
+            _cw_kw = {}
+            if _cascade_walk_on():
+                _cw_focus = next((c for c in (getattr(sg, "seeds", None) or [])
+                                  if c in graph.contracts), None)
+                if _cw_focus:
+                    _cw_kw = {"cascade_walk": {"focus_contract": _cw_focus}}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
@@ -2805,7 +2888,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                                 **_pace_kw, **_chain_kw, **_xmit_kw,
                                                                 **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw,
                                                                 **_fnf_kw, **_pr_kw, **_rv_kw, **_rvr_kw,
-                                                                **_dv_kw)
+                                                                **_dv_kw, **_cw_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:
@@ -2913,6 +2996,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                          [h for n in sg.nodes for h in (getattr(n, "evidence", None) or [])],
                                          sg.trace)
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
+                              cascade_walk=_cascade_walk_block_on(vp),
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               census=_census,                     # D-CC-1: None on every dark turn
                               provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
@@ -9131,6 +9215,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _oh_kw = ({"effort": mode_knobs["synth_effort"]}
               if (mode_knobs or {}).get("synth_effort") and call is _call_opus else {})
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
+                              cascade_walk=_cascade_walk_block_on(vp),
                               response_contract=_rc_active,
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
                               census=_census,                                 # D-CC-1, both bodies

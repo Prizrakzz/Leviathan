@@ -559,3 +559,32 @@ def test_seam_lane_cap_is_one_producer_per_turn():
     seg = src[min(i_su, i_cr) - 600:max(i_su, i_cr)]
     assert "elif" in seg                                                 # the XOR branch shape
     assert src.count("_dv.su_standing(") == 1 and src.count("_dv.crush_share(") == 1
+
+
+def test_su_standing_ancient_vintage_scatter_never_darks_the_lane():
+    """THE P8 RCA PIN (2026-09-01): real corn = 18 fetched MYs, 4 ANCIENT refusals (final revisions
+    across releases), a flawless recent tail -- share-of-fetched 0.778 < 0.80 darked the lane under
+    v1's floor. The amended floor binds on the RECENT window: this exact shape now FIRES, and the
+    full-fetch share rides the trace as telemetry."""
+    ent = _leg_entries(18, [2000.0 - 30.0 * i for i in range(18)])
+    for i in range(4):                                     # scatter the four OLDEST exports stamps
+        my, v, _ = ent["exports"][i]
+        ent["exports"][i] = (my, v, f"19{90 + i}-01-15")
+    fetch = _mk_fetch(ent, _leg_entries(18, [600.0 + 30.0 * i for i in range(18)]))
+    lines, _, tr = dv.su_standing(fetch, None, CORN, WHT, "2026-09-01", 0)
+    assert tr.get("fired"), tr
+    assert tr["vintage_refusals"] == 4
+    assert tr["coverage_full_corn_cbot"] == round(14 / 18, 3)
+    assert any("BALANCE-STANDING" in l for l in lines)
+
+
+def test_su_standing_recent_gap_still_declines():
+    """The amendment relaxes NOTHING recent: a refusal inside the 10-MY window below the floor (or
+    any tail-5 gap) still declines -- the fence's teeth stay where the decision lives."""
+    ent = _leg_entries(18, [2000.0 - 30.0 * i for i in range(18)])
+    for i in (9, 10, 11):                                  # three refusals INSIDE the recent window
+        my, v, _ = ent["exports"][i]
+        ent["exports"][i] = (my, v, "2019-06-11")
+    fetch = _mk_fetch(ent, _leg_entries(18, [600.0 + 30.0 * i for i in range(18)]))
+    _, _, tr = dv.su_standing(fetch, None, CORN, WHT, "2026-09-01", 0)
+    assert tr.get("decline") == "su_history_gappy" and tr["coverage_recent"] < 0.80

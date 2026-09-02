@@ -307,7 +307,8 @@ def test_ungrounded_root_declines_root_not_grounded(monkeypatch):
         _sg(), SimpleNamespace(contracts={}), [], {"source_slug": PALM, "pair_id": "soyoil_palm_vegoil"},
         _qfn_factory([]), ASOF, None, calls, comove=True)         # no groups, no walk nodes -> no anchor window
     assert (lines, fired) == ([], None) and decline == {"chain_id": "xmit_palm_soyoil_meal",
-                                                        "reason": "root_not_grounded"}
+                                                        "reason": "root_not_grounded",
+                                                        "net_reads": 0}
     assert calls == []
 
 
@@ -315,7 +316,8 @@ def test_dark_head_link_declines_the_whole_chain_with_zero_rows(monkeypatch):
     seen: list = []
     lines, fired, decline, calls, _ = _run(monkeypatch, [FLAGSHIP], qfn=_qfn_factory(seen, dark=(PALM,)))
     assert (lines, fired) == ([], None)
-    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "hop_dark", "link": 1}
+    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "hop_dark", "link": 1,
+                       "net_reads": 12}          # A2: post-prewarm -- the memo's 12 distinct round-trips
     assert calls == []                                            # nothing reader-facing, no orphan handles
 
 
@@ -327,7 +329,8 @@ def test_head_comove_with_the_comove_flag_off_declines_link_comove(monkeypatch):
     lines, fired, decline, calls, _ = _run(monkeypatch, [FLAGSHIP], comove=False,
                                            qfn=_qfn_factory([], stocks=stocks))
     assert (lines, fired) == ([], None) and calls == []
-    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "link_comove", "link": 1}
+    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "link_comove", "link": 1,
+                       "net_reads": 12}          # A2: post-prewarm
     assert decline["reason"] in cq._XMIT_DECLINE_REASONS
 
 
@@ -343,7 +346,8 @@ def test_flat_leg_declines_hop_thin(monkeypatch):
         {"source_slug": PALM, "pair_id": "soyoil_palm_vegoil"}, _qfn_factory([]), ASOF, None, calls,
         comove=True)
     assert (lines, fired) == ([], None) and calls == []
-    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "hop_thin", "link": 1}
+    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "hop_thin", "link": 1,
+                       "net_reads": 12}          # A2: post-prewarm
 
 
 def test_degenerate_chain_declines(monkeypatch):
@@ -358,7 +362,8 @@ def test_degenerate_chain_declines(monkeypatch):
     lines, fired, decline = cq._transmission_legs(
         _sg(), SimpleNamespace(contracts={}), _groups(PALM),
         {"source_slug": PALM, "pair_id": "soyoil_palm_vegoil"}, _qfn_factory([]), ASOF, None, calls)
-    assert (lines, fired) == ([], None) and decline == {"chain_id": "dup", "reason": "degenerate"}
+    assert (lines, fired) == ([], None) and decline == {"chain_id": "dup", "reason": "degenerate",
+                                                        "net_reads": 0}
 
 
 def test_decline_reasons_are_the_shared_enum_plus_one():
@@ -377,7 +382,8 @@ def test_cap_is_atomic_and_priced_before_any_fetch(monkeypatch):
     seen: list = []
     lines, fired, decline, calls, _ = _run(monkeypatch, [FLAGSHIP], seen=seen, qfn=_qfn_factory(seen))
     assert (lines, fired) == ([], None) and calls == []
-    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "cap", "net": 12}
+    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "cap", "net": 12,
+                       "net_reads": 0}           # A2: declined BEFORE the prewarm -- zero paid
     assert seen == []                                             # NOT ONE fetch paid on the capped turn
 
 
@@ -422,7 +428,8 @@ def test_vertical_chain_fired_makes_transmission_yield(monkeypatch):
     lines, fired, decline, calls, _ = _run(monkeypatch, [FLAGSHIP], chain_fired=True, seen=seen,
                                            qfn=_qfn_factory(seen))
     assert (lines, fired) == ([], None) and calls == [] and seen == []
-    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "cap", "yielded_to": "quantify_chain"}
+    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "cap", "yielded_to": "quantify_chain",
+                       "net_reads": 0}
 
 
 def test_seam_transmission_fire_suppresses_the_vertical_chain(monkeypatch):
@@ -558,7 +565,8 @@ def test_register_trip_declines_the_whole_chain_atomically(monkeypatch):
     monkeypatch.setattr(cq, "_xmit_marker", lambda p, w: "TRANSMISSION CHAIN: momentum is accelerating")
     lines, fired, decline, calls, _ = _run(monkeypatch, [FLAGSHIP])
     assert (lines, fired) == ([], None) and calls == []
-    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "error", "detail": "register_fence"}
+    assert decline == {"chain_id": "xmit_palm_soyoil_meal", "reason": "error", "detail": "register_fence",
+                       "net_reads": 12}          # A2: the chain was fully priced before the fence tripped
 
 
 def test_engine_never_reads_the_env_and_never_mints_a_threshold():

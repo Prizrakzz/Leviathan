@@ -360,7 +360,16 @@ def test_the_censuss_15_qualifying_pairs_are_all_reachable(real, census):
         rows = real.rev_cross_links(seed)
         hit = [r for r in rows if r["contract"] == foreign]
         assert hit, f"{seed} -> {foreign} unreachable"
-        assert hit[0]["mechanism"] == pair["mechanism"]
+        if (seed, foreign) == ("robusta_coffee", "arabica_coffee"):
+            # THE ONE RECON-CITED EXCEPTION (walk round-3, 2026-09-01): this edge was RE-KEYED to
+            # the driver-PRICE convention (the census's supply-keyed text -- "Cheap, abundant
+            # robusta..." -- was the one supply-keyed signed shipping row; sign '-' -> '+'). The
+            # banked census predates the re-key, so this pin anchors the NEW text's head instead
+            # of the stale census byte-equality; every other pair stays byte-equal.
+            assert hit[0]["sign"] == "+"
+            assert hit[0]["mechanism"].startswith("Higher robusta prices")
+        else:
+            assert hit[0]["mechanism"] == pair["mechanism"]
         # eligibility, as the walk will judge it: distinct evidence slices (backed is structural)
         assert real.contract_node(seed) != real.contract_node(foreign) == pair["foreign_node"]
 
