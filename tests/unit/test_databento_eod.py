@@ -699,6 +699,53 @@ class TestListingIntervalDecade:
         assert got == {"CPOZ6": date(2017, 1, 1), "CPOZ2": date(2017, 6, 1)}
         assert T.symbol_anchors_from_artifact(None) == {}
 
+    def test_a_d0_below_the_root_floor_is_a_sentinel_not_an_anchor(self, caplog):
+        """D3 defect 1, hardening half. A resolve interval is CLIPPED to the requested window, so
+        a legitimate ``d0`` is never earlier than the window start and never earlier than the
+        root's first usable date. An epoch-zero timestamp renders as ``1970-01-01`` and would
+        anchor the decade decode in the 1970s -- it is ABSENT, and the symbol falls back to the
+        window anchor where ``_anchor_fallbacks`` counts it."""
+        import logging
+        from datetime import date
+        caplog.set_level(logging.WARNING)
+        art = {"resolve_step2": [{"result": {
+            "42371742": [{"d0": "1970-01-01", "d1": "2026-01-01", "s": "CPOU0"}],
+            "43": [{"d0": "2025-09-16", "d1": "2026-01-01", "s": "CPOZ9"}]}}]}
+        got = T.symbol_anchors_from_artifact(art, root="CPO")
+        assert got == {"CPOZ9": date(2025, 9, 16)}, "the 1970 sentinel is not an anchor"
+        assert "d0 BEFORE the 2016-08-01 floor" in caplog.text and "CPOU0@1970-01-01" in caplog.text
+        # the floor is the root's own first usable date, never below the dataset's
+        assert T.anchor_floor("CPO") == date(2016, 8, 1)
+        assert T.anchor_floor("ZC") == date(2010, 6, 6) == T.anchor_floor(None)
+        assert T.anchor_floor("KC") == date(2018, 12, 23)
+        # ... and a REAL anchor at the floor is kept (>= is inside)
+        floor_art = {"resolve_step2": [{"result": {
+            "9": [{"d0": "2016-08-01", "d1": "2017-01-01", "s": "CPOZ6"}]}}]}
+        assert T.symbol_anchors_from_artifact(floor_art, root="CPO") == {"CPOZ6": date(2016, 8, 1)}
+
+    def test_the_real_cpou0_2025_anchor_puts_it_exactly_at_the_horizon_edge(self):
+        """The row the D3 dry-run refused. VERBATIM from the real symbology artifact
+        ``raw/.../root=CPO/year=2025/symbology_CPO_2025.json`` (2026-09-03):
+        ``{"d0": "2025-09-16", "d1": "2026-01-01", "s": "CPOU0"}`` on instrument 42371742.
+        CPOU0 is September 2030 -- exactly 60 months out, the deepest LISTED month, LEGITIMATE.
+        The decode was never wrong; the row's TRADE DATE was."""
+        from datetime import date
+        art = {"resolve_step2": [{"result": {
+            "42371742": [{"d0": "2025-09-16", "d1": "2026-01-01", "s": "CPOU0"}]}}]}
+        anchors = T.symbol_anchors_from_artifact(art, root="CPO")
+        assert anchors == {"CPOU0": date(2025, 9, 16)}
+        assert T.contract_month_str("CPOU0", "CPO", GLBX, 2025,
+                                    anchor=anchors["CPOU0"]) == "2030-09"
+        # exactly at the edge -> INSIDE (60 is the deepest listed month, not a violation)
+        edge = pd.DataFrame({"raw_symbol": ["CPOU0"],
+                             "trade_date": pd.to_datetime(["2025-09-16"]),
+                             "contract_month": ["2030-09"]})
+        assert T.contract_horizon_violations(edge, "CPO").empty
+        T.lint_contract_horizon(edge, "CPO", label="x")
+        # one month past the edge is not
+        over = edge.assign(contract_month=["2030-10"])
+        assert int(T.contract_horizon_violations(over, "CPO")["months_ahead"].iloc[0]) == 61
+
 
 class TestSettlementSpine:
     """The V2-4 build item: the statistics stream IS the row skeleton for SETTLEMENT_TAPE_ROOTS."""
@@ -776,6 +823,31 @@ class TestSettlementSpine:
         assert rec["horizon_months"] == 60 and rec["rows_beyond_horizon"] == 0
         assert rec["anchor_fallbacks"] == 3, \
             "no anchors supplied: every outright decoded on the window anchor, and that is COUNTED"
+
+    def test_a_zero_settlement_mark_is_nulled_and_counted_never_served_as_a_price(self):
+        # Measured 2026-09-03 on the real CPO tape: every settle == 0.0 (305 rows, 0.26%) sat on the
+        # newly listed DEEPEST month before its first real settlement. A zero mark is not a price;
+        # it is nulled and COUNTED (absent is never zero). The other settles are untouched.
+        s = self._stat
+        frame = pd.concat([self._frame(), pd.DataFrame([
+            s("CPOU0", 45, "2017-01-04T20:00:00Z", "2017-01-04T00:00:00Z",
+              T.STAT_TYPE_SETTLEMENT_PRICE, price=0.0),
+        ])], ignore_index=True)
+        stats = T.build_statistics_bronze(frame, root="CPO", request_year=2017,
+                                          keep_instrument_id=True)
+        out, rec = T.build_settlement_bronze(stats, None, dataset=GLBX, root="CPO",
+                                             request_year=2017)
+        zero_row = out[out["raw_symbol"] == "CPOU0"]
+        assert len(zero_row) == 1 and zero_row["settle"].isna().all()
+        assert rec["zero_settles_nulled"] == 1
+        assert out[out["raw_symbol"] != "CPOU0"]["settle"].notna().all()
+        assert len(out) == 5 == rec["rows_out"]                # the row stays (a session), only its mark is null
+        # the clean frame counts zero -- the counter is a fact, not a default
+        clean_stats = T.build_statistics_bronze(self._frame(), root="CPO", request_year=2017,
+                                                keep_instrument_id=True)
+        _o, clean_rec = T.build_settlement_bronze(clean_stats, None, dataset=GLBX, root="CPO",
+                                                  request_year=2017)
+        assert clean_rec["zero_settles_nulled"] == 0
 
     def test_a_matching_bar_attaches_and_a_stray_bar_is_dropped(self):
         stats = T.build_statistics_bronze(self._frame(), root="CPO", request_year=2017,
@@ -869,6 +941,154 @@ class TestSettlementSpine:
         rec = T.glbx_settle_coverage(df)
         assert rec["oi_keys_without_settle"] == 1
         assert T.glbx_settle_coverage(pd.DataFrame())["oi_keys_without_settle"] is None
+
+
+class TestUnitWindowFence:
+    """D3 DEFECT 2 (and the true cause of DEFECT 1): ONE UNIT OWNS ONE SESSION.
+
+    Measured on the real CPO tape, all eleven units (2026-09-03). The vendor windows an ohlcv-1d
+    payload on ``ts_event`` and this module dates a bar by that same ``ts_event``, so a bar's
+    trade_date is in-window BY CONSTRUCTION; ``statistics`` is windowed on ``ts_recv`` but dated by
+    ``ts_ref``, so a December settlement republished on January 1-3 lands in the NEXT year's
+    payload. Measured: EVERY year boundary straddles (12-61 reduced keys each), the 2019 unit also
+    re-serves four mid-2018 sessions, and the 2025 unit carries one epoch-zero ``ts_ref``. 492
+    out-of-window keys, 348 of them colliding with a key the owning unit already had -- and with
+    the 2025 unit absent (it died on the horizon lint) that is exactly the 260 duplicate natural
+    keys ``assert_no_duplicates`` refused.
+    """
+
+    @staticmethod
+    def _stat(sym, iid, ts_recv, ts_ref, stat_type=None, *, price=None, qty=None, action=1,
+              flags=0):
+        return {"ts_recv": ts_recv, "ts_event": ts_recv, "rtype": 24, "publisher_id": 1,
+                "instrument_id": iid, "ts_ref": ts_ref, "symbol": sym,
+                "price": T.UNDEF_PRICE if price is None else int(round(price * SCALE)),
+                "quantity": T.UNDEF_STAT_QUANTITY if qty is None else qty,
+                "sequence": 0, "ts_in_delta": 0,
+                "stat_type": T.STAT_TYPE_SETTLEMENT_PRICE if stat_type is None else stat_type,
+                "channel_id": 65535, "update_action": action, "stat_flags": flags}
+
+    def test_the_real_epoch_zero_ts_ref_is_fenced_before_the_horizon_lint_sees_it(self):
+        """THE ROW THAT KILLED CPO/2025, VERBATIM. Seven CPOU0 settlement records on instrument
+        42371742 carry ``ts_ref = 0`` (the UNSET sentinel; UINT64-max already becomes NaT, epoch
+        zero renders as a real 1970-01-01) and price 0. Reduced last-by-ts_recv they became ONE
+        row dated 1970-01-01 against contract_month 2030-09 -- 728 months ahead -- and the horizon
+        lint refused the whole unit. The delivery month was right; the session was not."""
+        s = self._stat
+        df = pd.DataFrame([
+            # the two REAL in-window records (ts_ref 2025-09-16, its listing day)
+            s("CPOU0", 42371742, "2025-09-16T22:34:44.052068494Z", "2025-09-16T00:00:00Z", price=0),
+            s("CPOU0", 42371742, "2025-09-21T11:08:42.623828900Z", "2025-09-16T00:00:00Z", price=0),
+            # ... and two of the seven REAL epoch-zero ones
+            s("CPOU0", 42371742, "2025-09-22T12:37:27.385467583Z", "1970-01-01T00:00:00Z", price=0),
+            s("CPOU0", 42371742, "2025-09-28T13:04:23.356329000Z", "1970-01-01T00:00:00Z", price=0),
+        ])
+        rec = {}
+        out = T.build_statistics_bronze(df, root="CPO", request_year=2025,
+                                        keep_instrument_id=True, record=rec)
+        assert out["trade_date"].tolist() == [pd.Timestamp("2025-09-16")]
+        assert rec["stat_rows_outside_unit_window"] == 2
+        assert rec["stat_dates_outside_unit_window"] == ["1970-01-01"]
+        assert rec["unit_trade_date_window"] == ["2025-01-01", "2026-01-01"]
+        # ... and the settlement spine now builds where the shipped code raised
+        anchors = {"CPOU0": __import__("datetime").date(2025, 9, 16)}
+        bronze, srec = T.build_settlement_bronze(out, None, dataset=GLBX, root="CPO",
+                                                 request_year=2025, symbol_anchors=anchors)
+        assert len(bronze) == 1 and bronze["contract_month"].iloc[0] == "2030-09"
+        assert srec["rows_beyond_horizon"] == 0 and srec["anchor_fallbacks"] == 0
+        # the WITNESS: without the fence that row is exactly the 728-month refusal
+        lifted = pd.DataFrame({"raw_symbol": ["CPOU0"],
+                               "trade_date": pd.to_datetime(["1970-01-01"]),
+                               "contract_month": ["2030-09"]})
+        v = T.contract_horizon_violations(lifted, "CPO")
+        assert len(v) == 1 and int(v["months_ahead"].iloc[0]) == 728
+        with pytest.raises(ValueError, match="outside the declared listing horizon"):
+            T.lint_contract_horizon(lifted, "CPO", label="databento settlement CPO/2025")
+
+    def test_the_year_end_straddle_belongs_to_the_unit_whose_window_holds_the_session(self):
+        """THE 2016/2017 BOUNDARY, VERBATIM. The 2016 payload's last ts_recv is
+        2016-12-30T22:43Z; the 2017 payload re-publishes the SAME 2016-12-30 session between
+        2017-01-01T19:03Z and 2017-01-03T14:49Z (59 reduced keys, settle IDENTICAL on all 59).
+        The 2016 unit owns 2016-12-30 because its window contains it."""
+        s = self._stat
+        dec30_in_2016_payload = pd.DataFrame([
+            s("CPOZ7", 206811, "2016-12-30T22:43:29.970734535Z", "2016-12-30T00:00:00Z",
+              price=627.25, flags=2)])
+        dec30_in_2017_payload = pd.DataFrame([
+            s("CPOZ7", 206811, "2017-01-01T19:03:17.848282882Z", "2016-12-30T00:00:00Z",
+              price=627.25, flags=3),
+            s("CPOF7", 655350, "2017-01-03T20:00:00Z", "2017-01-03T00:00:00Z", price=692.50)])
+        keep = T.build_statistics_bronze(dec30_in_2016_payload, root="CPO", request_year=2016)
+        assert keep["trade_date"].tolist() == [pd.Timestamp("2016-12-30")], \
+            "the 2016 unit's window [2016-08-01, 2017-01-01) HOLDS 2016-12-30"
+        rec = {}
+        drop = T.build_statistics_bronze(dec30_in_2017_payload, root="CPO", request_year=2017,
+                                         record=rec)
+        assert drop["trade_date"].tolist() == [pd.Timestamp("2017-01-03")]
+        assert rec["stat_rows_outside_unit_window"] == 1
+        assert rec["stat_dates_outside_unit_window"] == ["2016-12-30"]
+        # THE DEFECT ITSELF: concatenated, the two units no longer claim the same session
+        both = pd.concat([keep, drop], ignore_index=True)
+        sizes = both.groupby(["raw_symbol", "trade_date"]).size()
+        assert int((sizes > 1).sum()) == 0
+
+    def test_a_late_republication_months_from_its_own_session_is_fenced_too(self):
+        """Not only the boundary: the real 2019 unit re-serves 2018-10-12, 2018-10-17, 2018-11-16
+        and 2018-12-17 (one key each). Same rule, no special case."""
+        rec = {}
+        df = pd.DataFrame([
+            self._stat("CPOZ8", 1, "2019-02-01T20:00:00Z", "2018-10-12T00:00:00Z", price=600.0),
+            self._stat("CPOZ9", 2, "2019-02-01T20:00:00Z", "2019-02-01T00:00:00Z", price=610.0)])
+        out = T.build_statistics_bronze(df, root="CPO", request_year=2019, record=rec)
+        assert out["trade_date"].tolist() == [pd.Timestamp("2019-02-01")]
+        assert rec["stat_dates_outside_unit_window"] == ["2018-10-12"]
+
+    def test_the_window_is_clipped_at_the_root_floor_and_open_at_the_top(self):
+        assert T.unit_trade_date_window("CPO", 2016) == (pd.Timestamp("2016-08-01"),
+                                                         pd.Timestamp("2017-01-01"))
+        assert T.unit_trade_date_window("CPO", 2026) == (pd.Timestamp("2026-01-01"),
+                                                         pd.Timestamp("2027-01-01"))
+        assert T.unit_trade_date_window("ZC", 2010) == (pd.Timestamp("2010-06-06"),
+                                                        pd.Timestamp("2011-01-01"))
+        # the band IS year_window, so a unit can never disown a session the fetch bought
+        for root, year in (("CPO", 2016), ("CPO", 2026), ("ZC", 2010), ("KE", 2014)):
+            lo, hi = T.unit_trade_date_window(root, year)
+            assert (lo.date().isoformat(), hi.date().isoformat()) == T.year_window(root, year)
+
+    def test_a_whole_unit_outside_its_window_fails_closed(self):
+        df = pd.DataFrame([
+            self._stat("CPOF7", 1, "2017-01-03T20:00:00Z", "2016-12-30T00:00:00Z", price=1.0)])
+        with pytest.raises(ValueError, match="ALL 1 statistics record"):
+            T.build_statistics_bronze(df, root="CPO", request_year=2018)
+
+    def test_a_clean_unit_records_a_zero_never_an_absence(self):
+        rec = {}
+        df = pd.DataFrame([
+            self._stat("CPOF7", 1, "2017-01-03T20:00:00Z", "2017-01-03T00:00:00Z", price=1.0)])
+        T.build_statistics_bronze(df, root="CPO", request_year=2017, record=rec)
+        assert rec["stat_rows_outside_unit_window"] == 0
+        assert rec["stat_dates_outside_unit_window"] == []
+
+    def test_the_fifteen_bar_driven_roots_are_untouched_because_the_join_never_matched(self):
+        """MEASURED on the real ZC/2017 payload (2026-09-03): 71 statistics records / 15 reduced
+        keys carry ts_ref 2016-12-30, NONE of them matches a 2017 bar key, and the joined bronze
+        is byte-identical with and without the fence (2,725 rows both ways). The fence states a
+        rule the bar-driven path already had by construction; it cannot move a shipped row."""
+        bars, _ = T.build_ohlcv_bronze(
+            _ohlcv([_bar("2017-01-03T00:00:00Z", 1, "ZCH7", 3.5525),
+                    _bar("2017-01-04T00:00:00Z", 1, "ZCH7", 3.5600)]),
+            dataset=GLBX, root="ZC", request_year=2017)
+        raw = pd.DataFrame([
+            self._stat("ZCH7", 1, "2017-01-01T19:03:00Z", "2016-12-30T00:00:00Z", price=3.4900),
+            self._stat("ZCH7", 1, "2017-01-03T20:00:00Z", "2017-01-03T00:00:00Z", price=3.5875)])
+        fenced = T.build_statistics_bronze(raw, root="ZC", request_year=2017)
+        unfenced = raw.copy()
+        unfenced["ts_ref"] = ["2017-01-02T00:00:00Z", "2017-01-03T00:00:00Z"]
+        unfenced = T.build_statistics_bronze(unfenced, root="ZC", request_year=2017)
+        assert len(unfenced) == 2 and len(fenced) == 1, "the 2016-12-30 key is the one dropped"
+        assert T.join_glbx_statistics(bars, fenced).equals(
+            T.join_glbx_statistics(bars, unfenced)), \
+            "an out-of-window statistics key has no bar to join to -- the bronze is identical"
 
 
 class TestMonthContinuity:

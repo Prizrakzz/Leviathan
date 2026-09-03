@@ -522,6 +522,16 @@ class TestSettlementTapeUnit:
         assert set(silver["source"]) == {"databento_glbx_mdp3"}
         assert silver["close"].isna().all() and silver["settle"].notna().all()
 
+    def test_the_unit_record_carries_the_window_fence_counters(self):
+        """D3 defect 2: the loader's unit record must NAME how many statistics records belonged
+        to another unit, and which sessions they were -- a silent drop of a vendor record is what
+        let two units claim 2016-12-30 in the first place. Zero is recorded, never omitted."""
+        pytest.importorskip("databento")
+        _b, stats = T2.load_unit_bronze(self._s3(), "b", dataset=T.GLBX, root="CPO", year=2017)
+        assert stats["stat_rows_outside_unit_window"] == 0
+        assert stats["stat_dates_outside_unit_window"] == []
+        assert stats["unit_trade_date_window"] == ["2017-01-01", "2018-01-01"]
+
     def test_a_settlement_tape_unit_without_its_statistics_object_is_a_missing_unit(self):
         with pytest.raises(FileNotFoundError, match="statistics"):
             T2.load_unit_bronze(self._s3(with_stats=False), "b", dataset=T.GLBX, root="CPO",

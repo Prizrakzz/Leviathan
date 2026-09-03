@@ -1076,7 +1076,7 @@ def load_unit_bronze(s3_client, bucket: str, *, dataset: str, root: str, year: i
     symbology = symbology_from_artifact(artifact)
     # The per-symbol resolved listing-interval starts (d0) -- the decade-decode anchor for roots
     # that declare a listing horizon (V2-4 M1); inert for the others.
-    anchors = symbol_anchors_from_artifact(artifact)
+    anchors = symbol_anchors_from_artifact(artifact, root=root)
     raw = (empty_ohlcv_frame() if payload is None
            else decode_dbn(payload, schema="ohlcv-1d", symbology_json=symbology))
     bronze, stats = build_ohlcv_bronze(raw, dataset=dataset, root=root, request_year=year,
@@ -1100,7 +1100,7 @@ def load_unit_bronze(s3_client, bucket: str, *, dataset: str, root: str, year: i
         else:
             stat_raw = decode_dbn(stat_payload, schema="statistics", symbology_json=symbology)
             stat_df = build_statistics_bronze(stat_raw, root=root, request_year=year,
-                                              keep_instrument_id=settlement_tape)
+                                              keep_instrument_id=settlement_tape, record=stats)
         # BEFORE the join, while both frames still exist: is the ts_ref trading date on the same
         # calendar as the ts_event UTC day? A systematic skew matches nothing and is otherwise silent.
         # (Inert on the empty bar frame of a settlement-tape root.)

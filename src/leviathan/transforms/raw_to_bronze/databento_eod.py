@@ -352,14 +352,37 @@ def contract_month_str(symbol: str, root: str, dataset: str, request_year: int,
     return CONTRACT_MONTH_FMT % (year, month)
 
 
-def symbol_anchors_from_artifact(artifact: Optional[dict]) -> dict[str, date]:
+def anchor_floor(root: Optional[str] = None) -> date:
+    """The earliest date a resolved listing interval may legitimately start on.
+
+    A ``symbology.resolve`` interval is CLIPPED to the requested window, so a well-formed ``d0`` is
+    never earlier than the unit's window start -- which is itself never earlier than the root's
+    first usable date. Anything below that floor is therefore not a listing date at all but an
+    UNSET-timestamp sentinel (epoch zero renders as ``1970-01-01``), and using it as the decade
+    anchor would resolve every symbol into the 1970s. ``root`` unknown -> the dataset floor."""
+    glbx = datetime.strptime(_GLBX_FIRST, "%Y-%m-%d").date()
+    if root is None or root not in ROOT_FIRST_DATE:
+        return glbx
+    return max(glbx, datetime.strptime(ROOT_FIRST_DATE[root], "%Y-%m-%d").date())
+
+
+def symbol_anchors_from_artifact(artifact: Optional[dict],
+                                 *, root: Optional[str] = None) -> dict[str, date]:
     """``{raw_symbol: earliest d0}`` over the symbology artifact's STEP-2 chunks -- the per-symbol
     resolved listing-interval start that anchors the decade decode for horizon-declaring roots.
     Empty when the artifact is absent or carries no usable ``d0`` (the decode then anchors on the
-    window start, which the horizon slack is sized for)."""
+    window start, which the horizon slack is sized for).
+
+    A ``d0`` BELOW :func:`anchor_floor` is an epoch-zero / unset-timestamp sentinel, never a
+    listing date, and is treated as ABSENT -- the symbol falls back to the window anchor and is
+    counted in ``anchor_fallbacks`` (:func:`_anchor_fallbacks`), never silently anchored on 1970.
+    A resolve interval is clipped to the requested window, so this test cannot reject a real
+    anchor: every legitimate ``d0`` is at or after the window start, hence at or after the floor."""
     out: dict[str, date] = {}
     if not artifact:
         return out
+    floor = anchor_floor(root)
+    sentinels: dict[str, date] = {}
     for chunk in artifact.get("resolve_step2") or []:
         if not isinstance(chunk, dict):
             continue
@@ -372,8 +395,19 @@ def symbol_anchors_from_artifact(artifact: Optional[dict]) -> dict[str, date]:
                     d = date.fromisoformat(str(d0)[:10])
                 except ValueError:
                     continue
+                if d < floor:
+                    if sym not in sentinels or d < sentinels[sym]:
+                        sentinels[sym] = d
+                    continue
                 if sym not in out or d < out[sym]:
                     out[sym] = d
+    stray = sorted(s for s in sentinels if s not in out)
+    if stray:
+        logger.warning(
+            "databento symbology%s: %d symbol(s) carry a d0 BEFORE the %s floor (an unset-"
+            "timestamp sentinel, not a listing date) -- decoding them on the window anchor "
+            "instead: %s", f" {root}" if root else "", len(stray), floor.isoformat(),
+            ", ".join(f"{s}@{sentinels[s].isoformat()}" for s in stray[:10]))
     return out
 
 
@@ -411,7 +445,13 @@ def _anchor_fallbacks(symbols: Iterable[str], root: str, anchors: Optional[dict[
 def contract_horizon_violations(frame: pd.DataFrame, root: str) -> pd.DataFrame:
     """Rows whose ``contract_month`` sits more than the root's declared listing horizon AFTER
     ``trade_date``'s month, or more than one month BEFORE it (V2-4 M1's row-level lint). Empty for
-    a root with no declared horizon. Pure; the caller decides whether to raise."""
+    a root with no declared horizon. Pure; the caller decides whether to raise.
+
+    THE BASIS IS THE ROW'S OWN TRADE DATE, never the decode anchor ``d0`` and never the window
+    start: a row is measured against the session it prints on, so the lint stays sound for a
+    symbol whose anchor was degraded to the window fallback. ``months_ahead`` counts WHOLE MONTHS
+    (calendar-month index difference), and the horizon edge is INSIDE -- a contract exactly
+    ``horizon`` months out is the deepest listed month, not a violation."""
     horizon = GLBX_LISTING_HORIZON_MONTHS.get(root)
     if horizon is None or frame is None or frame.empty:
         return pd.DataFrame(columns=["raw_symbol", "trade_date", "contract_month", "months_ahead"])
@@ -430,13 +470,14 @@ def lint_contract_horizon(frame: pd.DataFrame, root: str, *, label: str) -> None
     reach a registered surface. Inert for roots that declare no horizon."""
     bad = contract_horizon_violations(frame, root)
     if len(bad):
-        detail = ", ".join(f"{r.raw_symbol}@{str(r.trade_date)[:10]}->{r.contract_month}"
-                           f"({int(r.months_ahead) if pd.notna(r.months_ahead) else 'nan'}m)"
+        detail = ", ".join(f"{r.raw_symbol} traded {str(r.trade_date)[:10]} -> {r.contract_month}"
+                           f"({int(r.months_ahead) if pd.notna(r.months_ahead) else 'nan'}m ahead)"
                            for r in bad.head(10).itertuples())
         raise ValueError(
             f"{label}: {len(bad)} row(s) carry a contract_month outside the declared listing "
-            f"horizon of {GLBX_LISTING_HORIZON_MONTHS[root]} months (grace {_HORIZON_GRACE_MONTHS} "
-            f"month before): {detail} -- the decade decode lifted a delivery month, refusing"
+            f"horizon of {GLBX_LISTING_HORIZON_MONTHS[root]} months AHEAD OF THEIR OWN TRADE DATE "
+            f"(grace {_HORIZON_GRACE_MONTHS} month before): {detail} -- either the decade decode "
+            f"lifted a delivery month or the row's trade date is not a real session, refusing"
         )
 
 
@@ -747,6 +788,70 @@ _STATS_REQUIRED = ("ts_recv", "ts_ref", "instrument_id", "symbol", "price", "qua
                    "stat_type", "update_action")
 
 
+def unit_trade_date_window(root: str, request_year: int) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """The half-open ``[lo, hi)`` band of TRADING DATES one ``(root, request_year)`` unit owns --
+    :func:`year_window` as timestamps, un-clipped at the top.
+
+    ``through`` is deliberately NOT applied: an as-of incremental payload for the current year
+    carries only sessions up to today, which are inside this band by construction, and clipping
+    the top would make a unit's ownership depend on when it ran."""
+    first = datetime.strptime(ROOT_FIRST_DATE[root], "%Y-%m-%d").date()
+    lo = max(first, date(int(request_year), 1, 1))
+    return pd.Timestamp(lo), pd.Timestamp(date(int(request_year) + 1, 1, 1))
+
+
+def fence_statistics_to_unit_window(work: pd.DataFrame, *, root: str, request_year: int,
+                                    label: str) -> tuple[pd.DataFrame, dict]:
+    """Drop statistics records whose ``trade_date`` is not one of this unit's own sessions.
+
+    *** WHY THIS EXISTS: THE TWO LEGS ARE WINDOWED ON DIFFERENT CLOCKS. ***
+    The vendor windows an ohlcv-1d payload on ``ts_event`` and this module dates a bar by that
+    same ``ts_event``, so a bar's ``trade_date`` is inside the request window BY CONSTRUCTION.
+    ``statistics`` is windowed on ``ts_recv`` but dated by ``ts_ref`` -- so a settlement for the
+    LAST SESSION OF A YEAR that the vendor (re)publishes on January 1-3 lands in the NEXT year's
+    payload, and a late republication lands months away from its own session. Measured on the real
+    CPO tape (2026-09-03, all eleven units): every year boundary straddles, 12-61 keys each, plus
+    four mid-2018 dates re-served inside the 2019 unit and one epoch-zero ``ts_ref`` (CPOU0, unset
+    sentinel -> 1970-01-01) inside the 2025 unit; 492 out-of-window keys in all, of which 348
+    collide with a key the OWNING unit already carries.
+
+    The bar-driven path already has this rule, silently: those records LEFT-join onto bars that do
+    not exist for an out-of-window date, so they never reach bronze. A settlement-tape root has no
+    bars to join against -- the statistics keys ARE the rows -- so the rule has to be stated. Two
+    units both emitting the same session is exactly the duplicate natural key
+    ``assert_no_duplicates`` refuses on the assembled frame (measured: 260 duplicate keys), and
+    the fix is ownership, never a dedupe: the unit whose window CONTAINS the trading date owns it.
+
+    Cost, measured and accepted: the owning unit's copy of a boundary session is the one published
+    ON that session, so the next-day open_interest and the final ``settle_flags`` that arrive in
+    the following unit are dropped with it (2016-12-30: settle IDENTICAL on all 59 colliding keys,
+    open_interest present on 9 of them in the 2017 unit and NULL in the 2016 unit). That is the
+    same trade the bar-driven path has always made. Fails closed when EVERY key is outside the
+    band -- a straddle is a handful of sessions, a whole unit is a mis-wired year."""
+    lo, hi = unit_trade_date_window(root, request_year)
+    td = pd.to_datetime(work["trade_date"], errors="coerce")
+    inside = (td >= lo) & (td < hi)
+    n_out = int((~inside).sum())
+    rec = {"stat_rows_outside_unit_window": n_out,
+           "stat_dates_outside_unit_window": [],
+           "unit_trade_date_window": [lo.date().isoformat(), hi.date().isoformat()]}
+    if not n_out:
+        return work, rec
+    dates = sorted({str(d)[:10] for d in td[~inside].dropna()})
+    rec["stat_dates_outside_unit_window"] = dates[:10]
+    if n_out == len(work):
+        raise ValueError(
+            f"{label}: ALL {n_out} statistics record(s) carry a ts_ref trading date outside this "
+            f"unit's window [{lo.date()}, {hi.date()}) (dates: {', '.join(dates[:10])}) -- a "
+            f"boundary straddle is a handful of sessions, a whole unit is a mis-wired year"
+        )
+    logger.info("%s: %d record(s) carry a ts_ref trading date outside this unit's window "
+                "[%s, %s) and belong to another unit -- dropped (dates: %s%s)",
+                label, n_out, lo.date(), hi.date(), ", ".join(dates[:10]),
+                " ..." if len(dates) > 10 else "")
+    return work[inside], rec
+
+
 def build_statistics_bronze(
     df: pd.DataFrame,
     *,
@@ -754,6 +859,7 @@ def build_statistics_bronze(
     request_year: int,
     prices_are_fixed: bool = True,
     keep_instrument_id: bool = False,
+    record: Optional[dict] = None,
 ) -> pd.DataFrame:
     """GLBX ``statistics`` -> one row per ``(raw_symbol, trade_date)`` carrying ``settle`` /
     ``open_interest`` / ``settle_flags``. PURE.
@@ -776,6 +882,14 @@ def build_statistics_bronze(
         ships no decoder for them).
       * **``quantity`` is masked by hand** -- ``to_df`` NaN-substitutes UNDEF_PRICE on price fields
         only, so an unmasked settlement row leaks i64-max into ``open_interest``.
+      * **a record whose ``ts_ref`` trading date is not one of this unit's sessions belongs to
+        another unit** and is dropped (:func:`fence_statistics_to_unit_window`). The two legs are
+        windowed on different clocks, so the year-end republication of a December settlement
+        arrives inside the NEXT year's payload; the bar-driven path discards those silently by
+        having no bar to join them to, and this states the same rule where there are no bars.
+
+    ``record``, when supplied, is UPDATED IN PLACE with the fence's counters (the function still
+    returns only the frame) so the caller's unit record can carry them.
     """
     dataset = GLBX
     if ROOT_MAP.get(root, (None, None))[0] != dataset:
@@ -810,6 +924,15 @@ def build_statistics_bronze(
     ref = pd.to_datetime(work["ts_ref"], utc=True, errors="coerce")
     work["trade_date"] = ref.dt.tz_localize(None).dt.normalize()
     work = work[work["trade_date"].notna()]
+    if work.empty:
+        return pd.DataFrame(columns=cols)
+    # ONE UNIT OWNS ONE SESSION. UINT64-max ts_ref is already NaT above; epoch-zero renders as a
+    # real 1970-01-01 and only this fence catches it.
+    work, window_rec = fence_statistics_to_unit_window(
+        work, root=root, request_year=request_year,
+        label=f"databento statistics {root}/{request_year}")
+    if record is not None:
+        record.update(window_rec)
     if work.empty:
         return pd.DataFrame(columns=cols)
 
@@ -941,6 +1064,18 @@ def build_settlement_bronze(
     else:
         base["instrument_id"] = pd.Series([pd.NA] * len(base), dtype="Int64", index=base.index)
     base["settle"] = pd.to_numeric(base["settle"], errors="coerce").astype("float64")
+    # A settlement MARK of zero (or below) is not a price. Measured 2026-09-03 on the real CPO tape:
+    # every zero settle (305 rows, 0.26%) sat on the newly listed DEEPEST month (the 60-month horizon
+    # edge) before that contract had any real settlement -- the exchange marks it 0 until it does.
+    # Nulled and COUNTED (absent is never zero; a 0 that reached silver would be a phantom -100%
+    # move on the first real print). Settlement-tape roots only, by construction of this function;
+    # the bar-driven path for the 15 shipped roots is untouched.
+    zero_mask = base["settle"].notna() & (base["settle"] <= 0.0)
+    zero_settles_nulled = int(zero_mask.sum())
+    if zero_settles_nulled:
+        base.loc[zero_mask, "settle"] = np.nan
+        logger.info("databento settlement %s/%s: %d zero settle mark(s) nulled (deepest-month "
+                    "placeholders, not prices)", root, request_year, zero_settles_nulled)
     base["open_interest"] = pd.to_numeric(base["open_interest"], errors="coerce").astype("Int64")
     base["settle_flags"] = pd.to_numeric(base["settle_flags"], errors="coerce").astype("Int64")
 
@@ -974,7 +1109,8 @@ def build_settlement_bronze(
            "bar_keys_attached": attached, "bars_without_settlement_dropped": strays,
            "horizon_months": GLBX_LISTING_HORIZON_MONTHS.get(root),
            "rows_beyond_horizon": int(len(contract_horizon_violations(out, root))),
-           "anchor_fallbacks": anchor_fallbacks}
+           "anchor_fallbacks": anchor_fallbacks,
+           "zero_settles_nulled": zero_settles_nulled}
     logger.info("databento settlement %s/%s: %d rows from %d statistics keys, %d bar keys "
                 "attached (%d stray bars dropped)", root, request_year, len(out), len(base),
                 attached, strays)
@@ -1256,7 +1392,7 @@ def extract_databento_bronze(
             stat_raw = decode_dbn(statistics_bytes, schema="statistics",
                                   symbology_json=symbology_json)
             stat_df = build_statistics_bronze(stat_raw, root=root, request_year=request_year,
-                                              keep_instrument_id=settlement_tape)
+                                              keep_instrument_id=settlement_tape, record=stats)
         if settlement_tape:
             bronze, srec = build_settlement_bronze(stat_df, bronze, dataset=dataset, root=root,
                                                    request_year=request_year,
