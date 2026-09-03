@@ -78,8 +78,10 @@ SLUG_TO_ROOT: dict[str, str] = {slug: root for root, (_ds, slug) in ROOT_MAP.ite
 from leviathan.transforms.raw_to_bronze.databento_eod import ICE_DATASETS  # noqa: E402
 
 # --- gate 3: the plan's measured outright ohlcv-1d bar counts (lines 574-589) -------------------
-# Spot-check years only -- that is what the plan measured. Encoded as a CONSTANT so a drift in the
-# gate and a drift in the data cannot be confused for each other.
+# Spot-check years only for the 15 plan roots -- that is what the plan measured. Encoded as a
+# CONSTANT so a drift in the gate and a drift in the data cannot be confused for each other. The
+# settlement-tape root CPO is the one exception and carries EVERY year: it has no plan row, and its
+# rows come from the D3 silver dry-run, which measured all of them (see the block at the tail).
 EXPECTED_BARS: dict[tuple[str, int], int] = {
     ("ZC", 2010): 2070, ("ZC", 2013): 3171, ("ZC", 2016): 2852, ("ZC", 2019): 2960,
     ("ZC", 2022): 3031, ("ZC", 2025): 2750, ("ZC", 2026): 1669,
@@ -103,6 +105,19 @@ EXPECTED_BARS: dict[tuple[str, int], int] = {
     ("RS", 2019): 2839, ("RS", 2022): 2677, ("RS", 2025): 2868, ("RS", 2026): 1646,
     ("RC", 2019): 3746, ("RC", 2022): 2975, ("RC", 2025): 3282, ("RC", 2026): 1931,
     ("W", 2019): 2879, ("W", 2022): 2983, ("W", 2025): 3682, ("W", 2026): 2124,
+    # CPO (V2-4 M3, banked 2026-09-03): NOT a plan row -- the settlement tape was never in the
+    # plan's table, so these are the D3 SILVER DRY-RUN's rows_out per (CPO, year) (job 062c52b8 on
+    # futures-eod-silver rev 6: exit 0, publish state VALIDATED, 116,228 rows, and an independent
+    # local reproduction over the same raw objects matched it exactly). That is the KE-2013 idiom
+    # applied to a whole root: bank the MEASURED number as the assertion so a re-run is pinned
+    # against the transform's own output. CPO is GLBX, so gate 3 reads it off the SILVER frame
+    # (basis='silver') and the numbers are directly comparable. EVERY year is listed, not spot
+    # checks, because the dry-run measured every year. 2026 is a PARTIAL year -- the window runs
+    # 2016-08-01 .. 2026-09-01, exclusive of the vendor's available end -- so it is RECORDED, NOT
+    # GATED through PARTIAL_YEARS, exactly like every other root's current year.
+    ("CPO", 2016): 6456, ("CPO", 2017): 15111, ("CPO", 2018): 15147, ("CPO", 2019): 13358,
+    ("CPO", 2020): 10347, ("CPO", 2021): 8223, ("CPO", 2022): 8926, ("CPO", 2023): 7429,
+    ("CPO", 2024): 8142, ("CPO", 2025): 12937, ("CPO", 2026): 10152,
 }
 BAR_TOLERANCE = 0.02
 # 2026 was a PARTIAL year when the plan measured it and it keeps growing, so an equality-with-2%
@@ -124,14 +139,16 @@ _ICE_ROOTS = frozenset(r for r, (ds, _s) in ROOT_MAP.items() if ds in ICE_DATASE
 # assertion. `test_every_gated_year_is_actually_fetched` keeps this pair in lockstep with
 # ROOT_FIRST_DATE.
 RECORDED_NOT_GATED: frozenset[tuple[str, int]] = frozenset({("KE", 2013)})
-# Roots whose EXPECTED_BARS rows are NOT YET BANKED (V2-4 M3): CPO's rows are the D3 silver
-# DRY-RUN's rows_out per (CPO, year) on the existing 'silver' basis (the KE-2013 precedent -- the
-# transform's own measured output, so a re-run is pinned against it), and the dry-run has not
-# happened at commit A. A pending root FAILS gate 3 by name ('not banked') rather than passing
-# vacuously; the shadow harness waives gate 3 on purpose (--skip 3) and the canonical harness
-# runs only after the rows are banked and this set is emptied. Lint both ways: a pending root
-# must have ZERO rows, and a root with rows must not be pending.
-EXPECTED_BARS_PENDING: frozenset[str] = frozenset({"CPO"})
+# Roots whose EXPECTED_BARS rows are NOT YET BANKED (V2-4 M3). EMPTY since 2026-09-03: the D3
+# silver dry-run (job 062c52b8) ran and CPO's eleven rows are banked above on the 'silver' basis,
+# so gate 3 now judges every ROOT_MAP root and nothing is waiting. The MECHANISM stays, because the
+# next settlement-tape root arrives the same way: it has no plan-measured table, so it is named here
+# from the moment its ROOT_MAP row lands until its own dry-run banks its rows. A pending root FAILS
+# gate 3 by name ('not banked') rather than passing vacuously; the shadow harness waives gate 3 on
+# purpose (--skip 3) while a root is pending, and the canonical harness runs only once this set is
+# empty. Lint both ways: a pending root must have ZERO rows, and a root with rows must not be
+# pending.
+EXPECTED_BARS_PENDING: frozenset[str] = frozenset()
 assert EXPECTED_BARS_PENDING <= set(ROOT_MAP), "EXPECTED_BARS_PENDING must name ROOT_MAP roots"
 assert not {r for r, _y in EXPECTED_BARS} & EXPECTED_BARS_PENDING, \
     "a root with EXPECTED_BARS rows banked must be removed from EXPECTED_BARS_PENDING"

@@ -192,9 +192,12 @@ class TestGate3BarCounts:
         assert fails == [] and rec["rows"][0]["gated"] is False
 
     def test_a_pending_root_fails_by_name_rather_than_passing_vacuously(self, eod, monkeypatch):
-        """V2-4 M3: CPO's rows are banked from the silver DRY-RUN's rows_out, which has not
-        happened at commit A. Until then gate 3 must FAIL on the root by NAME -- an unmeasurable
-        basis is not a pass -- and the shadow harness waives it with --skip 3 on purpose."""
+        """V2-4 M3: a root whose EXPECTED_BARS rows are not yet banked must FAIL gate 3 by NAME --
+        an unmeasurable basis is not a pass -- and the shadow harness waives it with --skip 3 on
+        purpose. CPO's rows WERE banked on 2026-09-03, so the shipped set is empty (pinned by
+        `test_nothing_is_pending_the_dry_run_bank`) and the mechanism -- which the NEXT
+        settlement-tape root will need -- is exercised through a monkeypatched PENDING. The exact
+        message is part of the pin: it is the operator's instruction."""
         monkeypatch.setattr(G, "EXPECTED_BARS", {("ZC", 2026): 46})
         monkeypatch.setattr(G, "PARTIAL_YEARS", frozenset())
         monkeypatch.setattr(G, "EXPECTED_BARS_PENDING", frozenset({"CPO"}))
@@ -204,19 +207,58 @@ class TestGate3BarCounts:
                          "EXPECTED_BARS_PENDING; an unmeasurable basis is not a pass"]
         assert rec["roots_pending_bank"] == ["CPO"]
 
-    def test_the_shipped_pending_set_is_exactly_the_unbanked_settlement_tape_root(self):
+    def test_nothing_is_pending_the_dry_run_bank(self, eod):
+        """The SHIPPED state after the D3 dry-run: NOTHING is pending, so gate 3 neither passes a
+        root vacuously nor fails one by name on an otherwise-correct table. The pin is on the
+        SHIPPED constants, unmonkeypatched -- re-adding a pending root without banking its rows
+        must break here."""
+        assert G.EXPECTED_BARS_PENDING == frozenset()
+        fails, rec = G.gate3_bar_counts(eod)
+        assert rec["roots_pending_bank"] == []
+        assert not any("NOT BANKED" in f for f in fails)
+
+    def test_the_shipped_pending_set_is_EMPTY_and_the_lint_holds_both_ways(self):
         # Both directions: a pending root has ZERO rows, a root with rows is not pending, and
         # only a settlement-tape root (counts from the dry-run, not the plan) may be pending.
-        assert G.EXPECTED_BARS_PENDING == frozenset({"CPO"})
+        # The D3 dry-run banked CPO, so the set is empty and the one settlement-tape root the
+        # estate has IS fully represented in the table -- the state the empty set must mean.
+        assert G.EXPECTED_BARS_PENDING == frozenset()
         assert not {r for r, _y in G.EXPECTED_BARS} & G.EXPECTED_BARS_PENDING
         assert G.EXPECTED_BARS_PENDING <= G.SETTLEMENT_TAPE_ROOTS <= set(G.ROOT_MAP)
+        assert G.SETTLEMENT_TAPE_ROOTS <= {r for r, _y in G.EXPECTED_BARS}, \
+            "an EMPTY pending set means every settlement-tape root has its dry-run rows banked"
+
+    def test_the_cpo_rows_are_the_d3_silver_dry_run_s_measured_rows_out(self):
+        """V2-4 M3 CLOSED. The eleven (CPO, year) rows are the D3 silver dry-run's rows_out --
+        job 062c52b8 on futures-eod-silver rev 6 (2026-09-03, exit 0, publish state VALIDATED,
+        116,228 rows) -- on the 'silver' basis, which is exactly what gate 3 reads for a GLBX
+        root. Pinned literally: a drift in the gate and a drift in the data must never be
+        confusable, and the total is the job's own published row count."""
+        cpo = {y: n for (r, y), n in G.EXPECTED_BARS.items() if r == "CPO"}
+        assert cpo == {2016: 6456, 2017: 15111, 2018: 15147, 2019: 13358, 2020: 10347,
+                       2021: 8223, 2022: 8926, 2023: 7429, 2024: 8142, 2025: 12937,
+                       2026: 10152}
+        assert sum(cpo.values()) == 116228
+        # ... and gate 3 reads CPO off the SILVER frame, the basis the rows were measured on.
+        df = rows("malaysian_crude_palm_oil_cme", "2026-12", _bdays("2026-01-05", 10))
+        _fails, rec = G.gate3_bar_counts(df)
+        assert all(r["basis"] == "silver" for r in rec["rows"] if r["root"] == "CPO")
+        # 2026 is PARTIAL (window 2016-08-01 .. 2026-09-01, exclusive of the vendor's available
+        # end): recorded, never gated -- the same treatment every other root's current year gets.
+        assert 2026 in G.PARTIAL_YEARS
+        assert [r["year"] for r in rec["rows"] if r["root"] == "CPO" and not r["gated"]] == [2026]
+        assert sorted(r["year"] for r in rec["rows"] if r["root"] == "CPO" and r["gated"]) == \
+            [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
 
     def test_the_shipped_table_covers_every_root_and_can_fire(self):
-        # The constant is the plan's measured table; every root must appear, and at least one FULL
-        # (gated) year per root -- otherwise the gate is decorative for that root. A root whose
-        # rows are PENDING the dry-run bank is exempt here and FAILS gate 3 by name instead.
+        # The constant is the plan's measured table (plus the D3 dry-run's CPO rows); every root
+        # must appear, and at least one FULL (gated) year per root -- otherwise the gate is
+        # decorative for that root. A root whose rows are PENDING the dry-run bank is exempt here
+        # and FAILS gate 3 by name instead; with the set now EMPTY the coverage is total, and the
+        # subtraction is kept so the exemption stays honest if a root is ever pending again.
         roots = {r for r, _y in G.EXPECTED_BARS}
         assert roots == set(G.ROOT_MAP) - G.EXPECTED_BARS_PENDING
+        assert roots == set(G.ROOT_MAP), "nothing is pending, so EVERY root must be covered"
         for root in roots:
             gated = [y for (r, y) in G.EXPECTED_BARS
                      if r == root and y not in G.PARTIAL_YEARS
