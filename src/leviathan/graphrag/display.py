@@ -203,10 +203,38 @@ def check_display_names() -> list[str]:
         if not t.startswith("silver_"):
             errs.append(f"table key {t!r} should start with 'silver_'")
     drivers = all_driver_ids()
-    for nid in sorted(_nodes()):                                    # every `nodes:` override is a real driver id
-        if drivers and nid not in drivers:
-            errs.append(f"node override {nid!r} is not a real driver id in causal/*.yaml")
+    slices = all_driver_slice_ids()
+    # Every `nodes:` override is a REAL id in one of the two curated id spaces the label path serves:
+    # a causal driver id, or a configured driver-slice id (configs/graphrag/driver_slices.yaml). The
+    # cascade walk labels its ROW-3 firing header through node_label(<slice id>, "driver") -- the slice
+    # IS the resolved unit the walk fires on -- so a slice whose de-underscored id carries a digit
+    # (indonesia_b40_palm) needs an override here exactly like a driver id would (V2-4 commit C, M4).
+    for nid in sorted(_nodes()):
+        if (drivers or slices) and nid not in drivers and nid not in slices:
+            errs.append(f"node override {nid!r} is not a real driver id in causal/*.yaml "
+                        f"nor a configured driver-slice id in driver_slices.yaml")
     return errs
+
+
+@functools.lru_cache(maxsize=1)
+def all_driver_slice_ids() -> frozenset[str]:
+    """Every configured driver-slice id (the top-level ``drivers:`` keys of driver_slices.yaml) -- the second
+    id space a ``nodes:`` override may name. Pure config read; no evidence import (display must stay leaf).
+
+    THE SAME SHAPE :func:`leviathan.graphrag.evidence.driver_specs` reads (through ``_driver_raw()``, the
+    FIRST reader of this file): the id space is the ``drivers:`` MAPPING'S KEYS, nothing deeper -- so a
+    ``drivers:`` block that is not a mapping has no ids at all, and this returns the empty set rather than
+    raising. That direction matters: ``config_check.main`` evaluates every check in one tuple, so an
+    exception here would take the whole lint runner down instead of flagging the override it guards."""
+    p = _CFG / "driver_slices.yaml"
+    if not p.exists():
+        return frozenset()
+    try:
+        doc = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001
+        return frozenset()
+    dr = doc.get("drivers") if isinstance(doc, dict) else None
+    return frozenset(map(str, dr)) if isinstance(dr, dict) else frozenset()
 
 
 def check_display_vocab() -> list[str]:

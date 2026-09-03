@@ -5,6 +5,8 @@ this module, and ``config_check.check_futures_roll`` must FAIL if a second imple
 """
 from __future__ import annotations
 
+from datetime import date
+
 import pandas as pd
 import pytest
 from leviathan.graphrag import config_check as cc
@@ -110,6 +112,133 @@ class TestRuleTables:
         monkeypatch.setattr(FR, "DELIVERY_CYCLES", {**FR.DELIVERY_CYCLES,
                                                     "french_wheat_matif": (3, 5, 9, 13)})
         assert any("non-month value" in e for e in FR.lint_roll_rule())
+
+
+class TestForwardMonthFloor:
+    """V2-4 -- the TENOR RULE'S HOME. The CME USD palm calendar future settles to the CUMULATIVE
+    AVERAGE of its OWN contract month's Bursa fixings, so a contract read inside its own month is a
+    partial average and not a price. This module owns the rule because it owns the eligibility
+    predicate; a copy anywhere else is F-L again."""
+
+    def test_the_table_names_exactly_the_averaging_board_at_floor_ONE(self):
+        """RECALIBRATED 2 -> 1 (STEP-12 review MAJ-2). The contract becomes a running average only
+        from its OWN month's first business day, so `month >= read_month + 1` at both the anchor and
+        the endpoint already makes both reads pure forward marks -- 1 is necessary AND sufficient,
+        and the extra month of margin measurably cost the MAJOR-8 tenor fence (16/72 endpoint dates
+        soyoil<->palm, 14/72 soybeans<->palm: a parent at X or X+1 is not adjacent to a child at
+        X+2)."""
+        assert FR.FORWARD_MONTH_FLOOR == {"malaysian_crude_palm_oil_cme": 1}
+        assert FR.forward_month_floor("malaysian_crude_palm_oil_cme") == 1
+
+    def test_an_unlisted_slug_is_ZERO_which_IS_the_shipped_rule(self):
+        """The floor-0 identity, stated over the WHOLE map: every other contract reads 0, so the
+        anchor filter is the shipped expression byte-for-byte and the endpoint filter never runs."""
+        floored = set(FR.FORWARD_MONTH_FLOOR)
+        assert len(FC.CONTRACT_MAP) - len(floored) == 30
+        for slug in sorted(set(FC.CONTRACT_MAP) - floored):
+            assert FR.forward_month_floor(slug) == 0, slug
+        assert FR.forward_month_floor("not_a_contract_at_all") == 0     # never raises: 0 = no rule
+
+    def test_the_lint_binds_the_table_BOTH_WAYS(self, monkeypatch):
+        assert FR.lint_roll_rule() == []
+        monkeypatch.setattr(FR, "FORWARD_MONTH_FLOOR", {"not_a_contract": 2})
+        assert any("names unmapped slug" in e for e in FR.lint_roll_rule())
+        monkeypatch.setattr(FR, "FORWARD_MONTH_FLOOR", {"brazilian_arabica_coffee": 2})
+        assert any("cash reference has no delivery-month axis" in e for e in FR.lint_roll_rule())
+        for bad in (0, -1, 2.0, True, "2"):
+            monkeypatch.setattr(FR, "FORWARD_MONTH_FLOOR", {"corn_cbot": bad})
+            assert any("must be an int >= 1" in e for e in FR.lint_roll_rule()), bad
+        # ...and the ACCESSOR half: a table the accessor does not agree with is a floor no caller
+        # can read (the accessor is the only public door, so drift here is silent).
+        monkeypatch.setattr(FR, "FORWARD_MONTH_FLOOR", {"corn_cbot": 2})
+        monkeypatch.setattr(FR, "forward_month_floor", lambda s: 0)
+        assert any("but FORWARD_MONTH_FLOOR declares 2" in e for e in FR.lint_roll_rule())
+
+    def test_front_month_never_names_the_running_average_month_as_front(self):
+        """THE EXCLUSION CASE, front-month half: the nearest listed month at the trade date is the
+        trade month itself, and on this board that month's settle is an average still accruing."""
+        df = _rows("malaysian_crude_palm_oil_cme", "2026-03-10",
+                   ["2026-03", "2026-04", "2026-05", "2026-06"], oi=[9999, 800, 700, 600])
+        # OI would have crowned 2026-03 outright; the floor makes it ineligible before OI is read.
+        # At floor 1 the answer is the NEXT month -- already a pure forward mark on 2026-03-10.
+        assert FR.front_month(df)["contract_month"].iloc[0] == "2026-04"
+        # the control: the same frame on a point-in-time board keeps the shipped answer
+        corn = _rows("corn_cbot", "2026-03-10", ["2026-03", "2026-05", "2026-07", "2026-09"],
+                     oi=[9999, 800, 700, 600])
+        assert FR.front_month(corn)["contract_month"].iloc[0] == "2026-03"
+
+    def test_outcome_contract_floors_at_BOTH_the_anchor_and_the_endpoint(self):
+        """THE EXCLUSION CASE, survivor half. The endpoint's OWN month survives by last_print --
+        a CPO contract prints to the last business day of its delivery month, so for any endpoint
+        early in month X the shipped rule picks X and prices a partial average against a forward
+        mark at the anchor. Both floors bind, and the anchor floor alone would not reach it."""
+        months = ["2026-03", "2026-04", "2026-05", "2026-06", "2026-07"]
+        frames = []
+        for i, cm in enumerate(months):
+            days = pd.bdate_range("2025-12-01", pd.Timestamp(cm + "-01") + pd.offsets.MonthEnd(1))
+            frames.append(pd.DataFrame({
+                "leviathan_slug": "malaysian_crude_palm_oil_cme", "trade_date": days,
+                "contract_month": cm, "settle": [900.0 + i + 0.1 * j for j in range(len(days))],
+                "open_interest": 1000 - i, "volume": None, "instrument_kind": "futures",
+                "raw_symbol": f"CPO{i}", "unit": "USD/metric ton", "currency": "USD",
+                "settle_kind": "settlement", "source": "databento_glbx_mdp3"}))
+        tape = pd.concat(frames, ignore_index=True)
+        lp = FR.contract_last_print(tape)
+        at = tape[tape["trade_date"] == pd.Timestamp("2026-01-05")]
+        # endpoint 2026-03-04: the 2026-03 contract prints to 2026-03-31, five days past it, so
+        # the shipped survival test would crown the month whose average is 3 sessions old.
+        got = FR.outcome_contract(at, horizon_end=pd.Timestamp("2026-03-04").date(), last_print=lp)
+        assert list(got["contract_month"]) == ["2026-04"]      # endpoint month + 1, anchor month + 3
+        # and the ANCHOR floor alone is not the rule: with the anchor in 2026-01 every listed month
+        # clears 2026-02, so only the endpoint floor can refuse 2026-03 -- the month the endpoint
+        # sits inside, and the only month floor 1 has to refuse.
+        assert FR.forward_month_floor("malaysian_crude_palm_oil_cme") == 1
+
+    def test_the_endpoint_floor_exempts_an_unfloored_slug_ROW_WISE_in_a_MIXED_frame(self):
+        """Review m1. What protects the other 30 boards is the `~floored |` DISJUNCT, not the
+        `.any()` fast path -- so the case that proves it is a frame carrying BOTH: one anchor
+        session, corn and palm side by side. Corn keeps a delivery month BELOW the horizon month
+        (the shipped answer, which a month-start(horizon_end) bound applied to every row would have
+        thrown away) while palm is pushed past it."""
+        frames = []
+        for slug, months, sym in (("corn_cbot", ["2026-03", "2026-05"], "ZC"),
+                                  ("malaysian_crude_palm_oil_cme",
+                                   ["2026-03", "2026-04", "2026-05"], "CPO")):
+            for i, cm in enumerate(months):
+                days = pd.bdate_range("2025-12-01",
+                                      pd.Timestamp(cm + "-01") + pd.offsets.MonthEnd(1))
+                frames.append(pd.DataFrame({
+                    "leviathan_slug": slug, "trade_date": days, "contract_month": cm,
+                    "settle": [500.0 + i + 0.1 * j for j in range(len(days))],
+                    "open_interest": 1000 - i, "volume": None, "instrument_kind": "futures",
+                    "raw_symbol": f"{sym}{i}", "unit": FC.CONTRACT_MAP[slug]["unit"],
+                    "currency": FC.CONTRACT_MAP[slug]["currency"],
+                    "settle_kind": "settlement", "source": "databento_glbx_mdp3"}))
+        tape = pd.concat(frames, ignore_index=True)
+        at = tape[tape["trade_date"] == pd.Timestamp("2026-01-05")]      # ONE mixed anchor frame
+        assert set(at["leviathan_slug"]) == {"corn_cbot", "malaysian_crude_palm_oil_cme"}
+        got = FR.outcome_contract(at, horizon_end=date(2026, 3, 4),
+                                  last_print=FR.contract_last_print(tape))
+        picked = dict(zip(got["leviathan_slug"], got["contract_month"]))
+        assert picked["corn_cbot"] == "2026-03"                  # the horizon's OWN month, kept
+        assert picked["malaysian_crude_palm_oil_cme"] == "2026-04"
+
+    def test_the_endpoint_floor_is_INERT_on_an_unfloored_slug(self):
+        """The byte-identity direction that matters most: with floor 0 the endpoint bound would be
+        month-start(horizon_end), which is NOT implied by the anchor filter -- it would silently
+        re-select for the other 30 contracts. A corn contract whose delivery month sits BEFORE the
+        horizon close but which still prints past it must stay selectable, exactly as it is today."""
+        days = pd.bdate_range("2023-11-01", "2024-06-14")
+        tape = pd.DataFrame({
+            "leviathan_slug": "corn_cbot", "trade_date": days, "contract_month": "2024-03",
+            "settle": [480.0 + 0.2 * i for i in range(len(days))],
+            "open_interest": 5000, "volume": None, "instrument_kind": "futures",
+            "raw_symbol": "ZCH4", "unit": "US cents/bushel", "currency": "USD",
+            "settle_kind": "settlement", "source": "databento_glbx_mdp3"})
+        at = tape[tape["trade_date"] == pd.Timestamp("2024-01-02")]
+        got = FR.outcome_contract(at, horizon_end=date(2024, 4, 1),
+                                  last_print=FR.contract_last_print(tape))
+        assert list(got["contract_month"]) == ["2024-03"]      # month < horizon month, STILL picked
 
 
 class TestInputContract:

@@ -84,12 +84,56 @@ def test_all_driver_ids_includes_parent_only_ids(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(dp, "_CFG", tmp_path)
     dp.all_driver_ids.cache_clear()
+    dp.all_driver_slice_ids.cache_clear()                  # V2-4 m5: the SECOND _CFG-keyed cache
     try:
         ids = dp.all_driver_ids()
         assert "declared_driver" in ids
         assert "parent_only_driver" in ids                 # the P0.4 fix: parents are folded in
     finally:
         dp.all_driver_ids.cache_clear()                    # never leak the fixture cache to other tests
+        dp.all_driver_slice_ids.cache_clear()
+
+
+def _reset_display_caches():
+    """Every _CFG-keyed lru_cache in display, in one place: a test that repoints _CFG at a fixture
+    must clear ALL of them or the next test reads the fixture (V2-4 m5 -- all_driver_slice_ids was
+    the fourth, and a new cache added beside these belongs here too)."""
+    dp._cfg.cache_clear()
+    dp.all_regime_ids.cache_clear()
+    dp.all_driver_ids.cache_clear()
+    dp.all_driver_slice_ids.cache_clear()
+
+
+def test_all_driver_slice_ids_is_FAIL_CLOSED_on_a_list_shaped_drivers_block(tmp_path, monkeypatch):
+    """MAJ-1. `drivers:` is a MAPPING of slice id -> spec; a LIST there has no id space at all. The
+    accessor must answer "no ids" rather than raise, because config_check.main evaluates every check
+    in ONE tuple -- a raise here takes the whole lint runner down instead of flagging the override
+    that the empty set now correctly flags. Fail-closed in both halves: no ids, and the error."""
+    causal = tmp_path / "causal"
+    causal.mkdir()
+    (causal / "fixture.yaml").write_text(
+        "contract: test_contract\n"
+        "drivers:\n"
+        "- id: real_driver\n"
+        "convergence:\n"
+        "- name: bullish_test_regime\n",
+        encoding="utf-8")
+    (tmp_path / "driver_slices.yaml").write_text(           # a LIST where a mapping belongs
+        "drivers:\n- frost\n- drought\n", encoding="utf-8")
+    (tmp_path / "display_names.yaml").write_text(
+        "regimes:\n"
+        "  bullish_test_regime: test regime (price-supportive)\n"
+        "nodes:\n"
+        "  frost: Frost\n",
+        encoding="utf-8")
+    monkeypatch.setattr(dp, "_CFG", tmp_path)
+    _reset_display_caches()
+    try:
+        assert dp.all_driver_slice_ids() == frozenset()     # no ids, NO raise
+        errs = dp.check_display_names()                     # ...and the lint still RUNS
+        assert any("'frost'" in e and "not a real driver id" in e for e in errs), errs
+    finally:
+        _reset_display_caches()
 
 
 def test_check_display_vocab_clean_and_flags_stale(monkeypatch):

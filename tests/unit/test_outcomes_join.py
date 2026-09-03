@@ -188,6 +188,87 @@ class TestSurvivorSelection:
         assert list(first["contract_month"]) == ["2024-05"] == list(second["contract_month"])
 
 
+class TestTheForwardMonthFloorReachesTheSpanRead:
+    """V2-4 -- `span_outcome` is the walk's and J4's pricing sequence, and it selects through
+    `futures_roll.outcome_contract`. The floor therefore has to arrive HERE, through the shared
+    predicate, without this module knowing anything about averaging boards."""
+
+    PALM = "malaysian_crude_palm_oil_cme"
+
+    def _palm_tape(self, months, first="2025-10-01"):
+        """Sixty listed months in the CPO shape: every contract prints to the LAST BUSINESS DAY OF
+        ITS OWN DELIVERY MONTH, which is what makes the endpoint's own month survive t2 + 5 and is
+        the whole reason the floor exists."""
+        frames = []
+        for i, cm in enumerate(months):
+            days = pd.bdate_range(first, pd.Timestamp(cm + "-01") + pd.offsets.MonthEnd(1))
+            frames.append(pd.DataFrame({
+                "leviathan_slug": self.PALM, "trade_date": days, "contract_month": cm,
+                "settle": [900.0 + 3.0 * i + 0.05 * j for j in range(len(days))],
+                "unit": "USD/metric ton", "currency": "USD", "settle_kind": "settlement",
+                "open_interest": [1000 - i] * len(days), "volume": [None] * len(days),
+                "instrument_kind": ["futures"] * len(days)}))
+        return pd.concat(frames, ignore_index=True)
+
+    def test_the_survivor_sits_at_least_ONE_month_past_the_endpoint_month(self):
+        """RE-ANCHORED +2 -> +1 (STEP-12 review MAJ-2). The rule the floor encodes is "never read a
+        month that is still accruing", and a contract starts accruing on ITS OWN month's first
+        business day -- so the endpoint month + 1 is already a pure forward mark and the second
+        month was margin. It was not free margin: it pushed the child two months past a parent the
+        MAJOR-8 tenor fence requires to be same-or-adjacent."""
+        months = [f"2026-{m:02d}" for m in range(1, 13)] + [f"2027-{m:02d}" for m in range(1, 13)]
+        tape = self._palm_tape(months)
+        for span_end, want in (("2026-03-04", "2026-04"), ("2026-03-31", "2026-04"),
+                               ("2026-06-15", "2026-07"), ("2026-11-02", "2026-12")):
+            row = OC.span_outcome(tape, slug=self.PALM, span_start="2026-01-05",
+                                  span_end=span_end, asof="2027-06-01")
+            assert row["status"] == OC.STATUS_CLOSED, (span_end, row["decline_reason"])
+            used = row["contract_month_used"]
+            assert used == want, (span_end, used)
+            end_m = int(span_end[:4]) * 12 + int(span_end[5:7])
+            used_m = int(used[:4]) * 12 + int(used[5:7])
+            assert used_m - end_m >= 1, (span_end, used)
+
+    def test_the_move_is_read_on_that_one_forward_contract_at_both_ends(self):
+        months = [f"2026-{m:02d}" for m in range(1, 13)]
+        tape = self._palm_tape(months)
+        row = OC.span_outcome(tape, slug=self.PALM, span_start="2026-01-05",
+                              span_end="2026-03-04", asof="2027-06-01")
+        m4 = tape[tape["contract_month"] == "2026-04"].set_index("trade_date")["settle"]
+        px0, px1 = m4[pd.Timestamp(row["anchor_date"])], m4[pd.Timestamp(row["endpoint_date"])]
+        assert row["px0"] == pytest.approx(px0) and row["px1"] == pytest.approx(px1)
+        assert row["move_pct"] == pytest.approx(100.0 * (px1 - px0) / px0)
+
+    def test_a_floored_out_window_declines_as_no_spanning_contract_not_as_a_new_reason(self):
+        """The absence VOCABULARY is untouched: a board that lists nothing far enough forward is
+        the existing 'no ONE contract spans this window' fact, so no reader-facing word is minted.
+
+        RE-CUT for floor 1: the board now lists only through the endpoint's own month, so nothing
+        clears endpoint + 1 (at floor 2 the same point needed a tape one month longer)."""
+        tape = self._palm_tape(["2026-01", "2026-02"])
+        row = OC.span_outcome(tape, slug=self.PALM, span_start="2026-01-05",
+                              span_end="2026-02-10", asof="2027-06-01")
+        assert row["decline_reason"] == OC.DECLINE_NO_SPANNING_CONTRACT
+        assert row["move_pct"] is None
+
+    def test_the_same_shape_on_an_unfloored_board_keeps_the_shipped_answer(self):
+        """The control: corn on the identical tape shape takes the endpoint's own month, because
+        for a point-in-time settle that IS the right contract."""
+        months = ["2026-03", "2026-05", "2026-07", "2026-09"]
+        frames = []
+        for i, cm in enumerate(months):
+            days = pd.bdate_range("2025-10-01", pd.Timestamp(cm + "-01") + pd.offsets.MonthEnd(1))
+            frames.append(pd.DataFrame({
+                "leviathan_slug": CORN, "trade_date": days, "contract_month": cm,
+                "settle": [470.0 + 3.0 * i + 0.05 * j for j in range(len(days))],
+                "unit": "US cents/bushel", "currency": "USD", "settle_kind": "settlement",
+                "open_interest": [1000 - i] * len(days), "volume": [None] * len(days),
+                "instrument_kind": ["futures"] * len(days)}))
+        row = OC.span_outcome(pd.concat(frames, ignore_index=True), slug=CORN,
+                              span_start="2026-01-05", span_end="2026-03-04", asof="2027-06-01")
+        assert row["contract_month_used"] == "2026-03"
+
+
 class TestRuleVersioning:
 
     def test_the_survivor_rule_is_a_second_rule_with_its_own_version(self):

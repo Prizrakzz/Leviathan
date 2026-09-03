@@ -321,7 +321,12 @@ def test_non_unanimous_parallel_signs_decline_sign_not_unanimous():
 
 def test_root_gates_on_the_real_graph_cost_zero_reads():
     """focus_not_node_seed (french_maize_matif reaches corn's rev rows, every seed is corn_cbot)
-    and root_uncovered (palm carries no coverage floor) -- on the LIVE graph, pre-read."""
+    and root_uncovered -- on the LIVE graph, pre-read.
+
+    RE-KEYED (V2-4 walk-side commit, 2026-09-03): the root_uncovered witness WAS the palm slug and
+    can no longer be -- palm now carries a coverage floor and a board label, so it clears the root
+    ladder. The witness moves to palm_olein_dce, which is the sole seed of its own node (so the
+    seed gate passes it, exactly as palm's did) and has no floor because DCE never landed."""
     from leviathan.graphrag import graph as G
     g = G.CausalGraph.load()
     qfn = _WTape({})
@@ -342,10 +347,25 @@ def test_root_gates_on_the_real_graph_cost_zero_reads():
     finally:
         mp.undo()
     assert any(d["reason"] == "focus_not_node_seed" for d in p1["declines"])
+    # THE WITNESS'S OWN FUTURE (review m8): palm_olein_dce is uncovered only because DCE has landed
+    # no canonical bytes. The day it does and PRICE_COVERAGE_START gains a floor, this decline flips
+    # to root_unlabeled (the label gate runs first and no DCE board is in _CW_BOARD_LABEL) -- that is
+    # the SAME re-key this comment sits above, not a bug: move the witness to whichever slug is then
+    # uncovered, never patch the reason string.
     _l, p2 = cq._cascade_walk_leg_or_nothing(_w_sg(), g,
-                                             {"focus_contract": "malaysian_crude_palm_oil_cme"},
+                                             {"focus_contract": "palm_olein_dce"},
                                              qfn, ASOF_W, [])
     assert any(d["reason"] == "root_uncovered" for d in p2["declines"])
+    # ...and the AFFIRMATIVE half of the same re-key: the palm slug now CLEARS every root gate
+    # (covered, labeled, its node's own seed) and its declines are the honest CHILD reasons --
+    # still at zero reads, because the walk gates children before it reads anything.
+    _l, p3 = cq._cascade_walk_leg_or_nothing(_w_sg(), g,
+                                             {"focus_contract": "malaysian_crude_palm_oil_cme"},
+                                             qfn, ASOF_W, [])
+    reasons = {d["reason"] for d in p3["declines"]}
+    assert not (reasons & {"root_uncovered", "root_unlabeled", "focus_not_node_seed",
+                           "no_declared_children"})
+    assert reasons <= {"cross_currency", "child_uncovered", "no_firing_window"}
     assert qfn.sql == []
 
 
@@ -1307,3 +1327,189 @@ def test_quantify_early_return_carries_the_context_pair():
     assert stripped == b_walk
     b_again, _s, _c = _q({"focus_contract": ROOT})
     assert b_again == b_walk                                        # deterministic, byte for byte
+
+
+# == V2-4 -- THE PALM BOARD ON THE WALK (commit C, DARK on serving by construction) ==================
+#
+# The tenor rule lives in futures_roll (FORWARD_MONTH_FLOOR); what these pins hold is that it ARRIVES
+# here through the shipped pricing sequence and that the MAJOR-8 tenor fence -- same-or-adjacent
+# delivery month -- is still satisfiable once one leg of a hop is floored a month out.
+#
+# RE-CUT 2026-09-03 (STEP-12 review MAJ-2). The first cut of this fixture OMITTED the endpoint month
+# from the soyoil tape, which parked the parent on X+1 and made a floor-2 child (X+2) look adjacent;
+# the review measured the omission as the only reason the fence cleared (16 of 72 real endpoint
+# dates fail it at floor 2). Both branches are now pinned on a soyoil tape that DOES list the
+# endpoint month -- parent at X+1 because a CBOT oil contract stops trading mid-delivery-month, and
+# parent at X on a board that trades through it -- and the fence clears on the rule's own merits at
+# floor 1 in BOTH.
+import pandas as pd
+from leviathan.silver import futures_roll as FR
+
+PALM = "malaysian_crude_palm_oil_cme"
+SOYOIL = "soybean_oil_cbot"
+
+# X = the endpoint month of the walk's firing window (W_END 2021-06-25) = 2021-06.
+# THE PARENT, realistic CBOT shape: the endpoint month IS listed, and it is excluded by the BOARD'S
+# OWN calendar (a soybean-oil contract's last trading day is the business day before the 15th of its
+# delivery month) rather than by a hole in the fixture -- so the parent lands on X+1 honestly.
+_LIFE_SOYOIL = {"2021-05": ("2021-02-15", "2021-05-14"),
+                "2021-06": ("2021-02-15", "2021-06-14"),   # X -- LISTED, dies before t2 + 5
+                "2021-07": ("2021-02-15", "2021-07-14"),   # X+1 -- nearest survivor, floor 0
+                "2021-08": ("2021-02-15", "2021-08-13")}
+# ...and the same board on a venue that trades INTO its delivery month, so the endpoint's own month
+# survives t2 + 5 and the parent lands on X itself. This is the branch floor 2 could not serve.
+_LIFE_SOYOIL_X = dict(_LIFE_SOYOIL, **{"2021-06": ("2021-02-15", "2021-06-30")})
+# THE CHILD: the CPO calendar shape -- every contract prints to the last business day of its OWN
+# delivery month, which is exactly why the shipped survivor rule would otherwise crown the
+# endpoint's own still-accruing average.
+_LIFE_PALM = {"2021-06": ("2021-02-15", "2021-06-30"),     # X -- survives t2+5, FLOORED OUT
+              "2021-07": ("2021-02-15", "2021-07-30"),     # X+1 -- the floored survivor
+              "2021-08": ("2021-02-15", "2021-08-31"),
+              "2021-09": ("2021-02-15", "2021-09-30")}
+
+
+def _v24_rows(life, priced_month, px0, px1, unit, currency):
+    d, end = _dt.date.fromisoformat("2021-02-15"), _dt.date.fromisoformat("2021-08-15")
+    out = []
+    while d <= end:
+        iso = d.isoformat()
+        for cm, (first, last) in life.items():
+            if not (first <= iso <= last):
+                continue
+            settle = (px0 if iso <= W_START else px1) if cm == priced_month else 400.0
+            out.append({"value": settle, "knowledge_date": iso, "contract_month": cm,
+                        "unit": unit, "currency": currency, "settle_kind": "settlement"})
+        d += _dt.timedelta(days=1)
+    return out
+
+
+def _v24_graph():
+    """A soyoil root with the palm child the LIVE graph declares (substitutes_for, plus, 0-2q)."""
+    edge = {"seed": SOYOIL, "contract": PALM, "relation": "substitutes_for", "sign": "+",
+            "lag": "0-2 quarters", "blurb": "the two oils stand in for one another in the same uses",
+            "mechanism": "m"}
+    nodes = {SOYOIL: "soybean_oil", PALM: "palm_oil"}
+    return SimpleNamespace(
+        contracts={SOYOIL: SimpleNamespace(drivers=[SimpleNamespace(id="heat")])},
+        rev_cross_links=lambda c, _n=nodes: ([dict(edge)] if _n.get(c, c) == "soybean_oil" else []),
+        contract_node=lambda c, _n=nodes: _n.get(c, c))
+
+
+def _v24_tape_rows(soyoil_life=None, soyoil_priced="2021-07"):
+    return {SOYOIL: _v24_rows(soyoil_life or _LIFE_SOYOIL, soyoil_priced, 60.0, 69.0,
+                              "US cents/pound", "USD"),
+            PALM: _v24_rows(_LIFE_PALM, "2021-07", 900.0, 990.0, "USD/metric ton", "USD")}
+
+
+def _mk_month(s):
+    return int(str(s)[:4]) * 12 + int(str(s)[5:7])
+
+
+def test_the_floored_palm_child_lands_one_month_out_and_CLEARS_the_tenor_fence():
+    """The whole point of the sitting: a floored child is still PAIRABLE. The endpoint month is in
+    BOTH tapes; the parent takes X+1 because its own board stops trading mid-delivery-month, and the
+    child is pushed to X+1 by the floor -- so the MAJOR-8 tenor fence (same-or-adjacent) sees the
+    SAME month and the hop renders a verdict rather than declining."""
+    calls: list = []
+    qfn = _WTape(_v24_tape_rows())
+    lines, payload = cq._cascade_walk_leg_or_nothing(
+        _w_sg(), _v24_graph(), {"focus_contract": SOYOIL}, qfn, ASOF_W, calls)
+    assert payload["outcome"] == "fired" and payload["order"] == "first"
+    cells = {c["slug"]: c for c in payload["cells"]}
+    assert cells[SOYOIL]["status"] == cells[PALM]["status"] == "closed"
+    # X = the endpoint month, 2021-06 -- LISTED on both boards and taken by neither.
+    assert cells[SOYOIL]["contract_month"] == "2021-07"
+    assert cells[PALM]["contract_month"] == "2021-07"
+    assert abs(_mk_month(cells[SOYOIL]["contract_month"])
+               - _mk_month(cells[PALM]["contract_month"])) == 0
+    assert cq._cw_fences(cells[SOYOIL], cells[PALM], 112) == (True, True)   # interval, TENOR
+    # ...and the hop reached the reader as a verdict on the curated palm board label
+    assert any(ln.startswith("CONSEQUENCE HOP CBOT soybean oil and CME palm oil") for ln in lines)
+    assert any(ln.startswith("CONSEQUENCE READ") and "held" in ln for ln in lines)
+    assert any("[N2] CME palm oil" in ln and "+10 %" in ln for ln in lines)
+    assert cq._cw_register_fence(lines)
+    # the machine slug NEVER leaves for the display label: the [N] call keeps the raw slug (review
+    # D9 -- a display label in query.commodity kills the /v1/series chart locator).
+    assert {c["query"]["commodity"] for c in calls} == {SOYOIL, PALM}
+    assert not any(PALM in ln for ln in lines)
+
+
+def test_the_fence_ALSO_clears_when_the_parent_lands_on_the_endpoint_month_itself(monkeypatch):
+    """The other branch of MAJ-2, and the one that decided the recalibration. On a parent board that
+    trades THROUGH its delivery month the shipped rule lands on X, so the child's floor is the whole
+    tenor gap: at 1 the pair is adjacent and the hop serves; at 2 it is two months apart and the
+    MAJOR-8 fence refuses a hop whose two legs both priced fine. That is the 16-of-72 coverage the
+    review measured, reproduced here as a cell-level A/B on one fixture."""
+    qfn = _WTape(_v24_tape_rows(soyoil_life=_LIFE_SOYOIL_X, soyoil_priced="2021-06"))
+    soy, _r = cq._cw_cell(qfn, SOYOIL, W_START, W_END, W_SPAN, ASOF_W)
+    palm, _r = cq._cw_cell(qfn, PALM, W_START, W_END, W_SPAN, ASOF_W)
+    assert soy["status"] == palm["status"] == "closed"
+    assert soy["contract_month"] == "2021-06"                    # X -- it survives t2 + 5 here
+    assert palm["contract_month"] == "2021-07"                   # X+1 -- the shipped floor
+    assert cq._cw_fences(soy, palm, 112) == (True, True)
+    # ...and the counterfactual, measured rather than argued: floor 2 pushes the child to X+2 and
+    # the tenor half of the SAME fence goes False on the SAME two priced cells.
+    monkeypatch.setattr(FR, "FORWARD_MONTH_FLOOR", {PALM: 2})
+    palm2, _r = cq._cw_cell(_WTape(_v24_tape_rows(soyoil_life=_LIFE_SOYOIL_X,
+                                                  soyoil_priced="2021-06")),
+                            PALM, W_START, W_END, W_SPAN, ASOF_W)
+    assert palm2["contract_month"] == "2021-08"
+    assert cq._cw_fences(soy, palm2, 112) == (True, False)       # interval OK, TENOR refused
+
+
+def test_without_the_floor_the_palm_cell_would_price_the_endpoint_s_OWN_month(monkeypatch):
+    """The guard on the guard. Emptying FORWARD_MONTH_FLOOR must visibly MOVE the palm cell -- if
+    it did not, the pin above would be testing the fixture rather than the rule."""
+    monkeypatch.setattr(FR, "FORWARD_MONTH_FLOOR", {})
+    _l, payload = cq._cascade_walk_leg_or_nothing(
+        _w_sg(), _v24_graph(), {"focus_contract": SOYOIL}, _WTape(_v24_tape_rows()), ASOF_W, [])
+    cells = {c["slug"]: c for c in payload["cells"]}
+    assert cells[PALM]["contract_month"] == "2021-06"        # the still-accruing average month
+
+
+def test_the_floor_is_BYTE_IDENTICAL_on_every_non_palm_turn(monkeypatch):
+    """The other direction, and the one that governs the live rev: no floored slug is reachable on
+    a corn turn, so the whole rendered block, the payload and the minted calls must be identical
+    with the floor table present and with it emptied."""
+    def _run():
+        calls: list = []
+        qfn = _WTape({ROOT: _w_tape_rows(), CHILD: _w_tape_rows()})
+        lines, payload = cq._cascade_walk_leg_or_nothing(
+            _w_sg(), _w_graph([_w_edge()]), {"focus_contract": ROOT}, qfn, ASOF_W, calls)
+        return lines, payload, calls, list(qfn.sql)
+
+    with_floor = _run()
+    monkeypatch.setattr(FR, "FORWARD_MONTH_FLOOR", {})
+    without = _run()
+    assert with_floor == without
+    assert FR._floor_months(pd.Series([ROOT, CHILD, GRAND])).tolist() == [0, 0, 0]
+
+
+def test_the_episode_candidate_window_SHIFTS_rather_than_narrows():
+    """The zero-margin hazard, pinned: with the floor and no shift the deep read would be scoped to
+    [X, X+1, X+2] of which the selector can only take X+floor and up -- at the shipped floor of 1
+    that leaves two usable months, at 2 exactly one, and one missing settlement row would decline a
+    window on a board that priced fine. The window MOVES instead, so the margin is the same at every
+    floor. The arithmetic is pinned at both 1 (shipped) and 2 (the pre-recalibration value, kept as
+    the general case -- the shift is a function of the argument, not of the table)."""
+    curve = [{"contract_month": m} for m in
+             ("2021-05", "2021-06", "2021-07", "2021-08", "2021-09", "2021-10", "2021-11")]
+    assert cq._episode_candidates(curve, "2021-06-25") == ["2021-06", "2021-07", "2021-08"]
+    assert cq._episode_candidates(curve, "2021-06-25", floor_months=1) == \
+        ["2021-07", "2021-08", "2021-09"]
+    assert cq._episode_candidates(curve, "2021-06-25", floor_months=2) == \
+        ["2021-08", "2021-09", "2021-10"]
+    for k in (1, 2):
+        assert len(cq._episode_candidates(curve, "2021-06-25", floor_months=k)) == \
+            cq.EPISODE_OUTCOME_CANDIDATES
+    # the shipped floor is what the cell actually passes, so pin the join to the table once
+    assert cq._episode_candidates(curve, "2021-06-25",
+                                  floor_months=FR.forward_month_floor(PALM)) == \
+        ["2021-07", "2021-08", "2021-09"]
+    # floor 0 is the shipped expression byte for byte, INCLUDING the year wrap the arithmetic adds
+    months = sorted({r["contract_month"] for r in curve})
+    for end in ("2021-01-04", "2021-06-25", "2021-12-31", "2022-03-01"):
+        assert cq._episode_candidates(curve, end) == \
+            [m for m in months if m >= str(end)[:7]][:cq.EPISODE_OUTCOME_CANDIDATES]
+    wrap = [{"contract_month": m} for m in ("2021-12", "2022-01", "2022-02", "2022-03")]
+    assert cq._episode_candidates(wrap, "2021-12-20", floor_months=2) == ["2022-02", "2022-03"]

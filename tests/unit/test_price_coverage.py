@@ -56,11 +56,29 @@ class TestTheMapIsMeasuredNotAssumed:
         assert len(unlanded) == 5, unlanded
         for slug in unlanded:
             assert slug not in FC.PRICE_COVERAGE_START
-        # The palm slug is now a Databento root with NO canonical rows yet: absent by doctrine
-        # until its backfill is canonical and MEASURED (the walk-side commit lands the literal).
-        assert "malaysian_crude_palm_oil_cme" not in FC.PRICE_COVERAGE_START
-        with pytest.raises(ValueError, match="no PRICE_COVERAGE_START"):
-            FC.coverage_start_for("malaysian_crude_palm_oil_cme")
+        # V2-4 walk-side commit (2026-09-03): the palm slug LEFT this witness set. Its floor is the
+        # one PROVISIONAL literal in the map (see the sibling test below), landed with the walk's
+        # board label because check_cascade_walk errors in both directions; the map grew 25 -> 26.
+        assert len(FC.PRICE_COVERAGE_START) == 26
+        assert "malaysian_crude_palm_oil_cme" in FC.PRICE_COVERAGE_START
+
+    def test_the_palm_floor_is_PROVISIONAL_and_can_only_ever_UNDER_claim(self):
+        """The ONE unmeasured floor in the map, and the fence on its direction of error.
+
+        The doctrine (futures_eod_contracts.py, PRICE_COVERAGE_START header) is unchanged -- a
+        floor is MEASURED from canonical bytes -- but the walk-side commit has to carry a literal
+        or check_cascade_walk fails in both directions, so the root's own first usable date stands
+        in until the promote is measured (D9). What this pin holds is the DIRECTION: the literal
+        can never sit EARLIER than the earliest session the fetch can even request, so a wrong
+        provisional under-claims coverage (windows decline) and never over-claims it (windows serve
+        a curve the bytes do not have -- the KCBT/CEPEA hole shape). ROOT_FIRST_DATE is IMPORTED,
+        not restated, so the two literals cannot drift apart in the wrong direction."""
+        from leviathan.transforms.raw_to_bronze.databento_eod import ROOT_FIRST_DATE
+        root_first = date.fromisoformat(ROOT_FIRST_DATE["CPO"])
+        palm = FC.PRICE_COVERAGE_START["malaysian_crude_palm_oil_cme"]
+        assert palm >= root_first, (palm, root_first)
+        assert palm == date(2016, 8, 1) == root_first      # PROVISIONAL: still the root's own floor
+        assert FC.coverage_start_for("malaysian_crude_palm_oil_cme") == palm
 
     def test_the_matif_floor_is_the_first_BANKED_trade_date(self):
         """The other half of the same rule, in the affirmative. D-PR-24 armed the leg 2026-08-05

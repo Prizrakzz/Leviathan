@@ -4408,6 +4408,11 @@ _RV_EOD_LEVEL = {
 # benchmark's). Roster = the P5-measured silver_futures_eod coverage (8 slugs; palm has no futures
 # card and stays honestly absent). Rides the reading's `derived` branch only; +1 fetch per mapped
 # leg. Same R4c register entry as _RV_EOD_LEVEL ("silver_futures_eod": settle).
+# DOCKET (V2-4 commit C, review m4): the "palm has no futures card" clause above is now dated -- palm
+# GAINS one at the serving flip (its CME USD backfill becomes canonical at D9), and the roster row is
+# added THEN, off the same P5 coverage measurement every other row here came from. Not added now: this
+# roster is a read-path fact, and a row for a board whose canonical bytes are not registered would
+# fetch a level that does not exist yet.
 _RV_EOD_FRESH = {
     "corn_cbot": ("settle", "the CBOT corn contract"),
     "soft_red_winter_wheat_cbot": ("settle", "the CBOT soft red winter wheat contract"),
@@ -5756,18 +5761,27 @@ def _tape_frame(slug: str, *row_sets):
                                  keep="last").reset_index(drop=True)
 
 
-def _episode_candidates(rows: list, span_end) -> list:
+def _episode_candidates(rows: list, span_end, *, floor_months: int = 0) -> list:
     """The delivery months the deep read is scoped to: the nearest expiries at or after the span end.
 
     A contract's last print lands 7-20 days into its OWN delivery month, so a contract that survives
     `t2 + survive_days` has a delivery month at or after `t2`'s. Taking the nearest few of those, rather
     than the whole curve, is what keeps the deep read inside the row cap on a long span.
 
+    `floor_months` is the slug's `futures_roll.FORWARD_MONTH_FLOOR` (0 for all but the averaging
+    boards) and it SHIFTS the window rather than narrowing it: without the shift a floored slug's
+    three candidates would be [X, X+1, X+2] of which the selector can only ever take X+floor and up,
+    so the usable margin would SHRINK WITH THE FLOOR (two months at the shipped floor of 1, one at 2,
+    none at 3) -- and a single missing settlement row would then decline the window as
+    `no_spanning_contract` on a board that priced fine. Shifting keeps the margin at three whatever
+    the floor is. floor 0 reproduces `span_end[:7]` byte for byte.
+
     THE COST, STATED: if all of them fail the survival test while a FARTHER expiry would have passed,
     this window declines where the tape held an answer. Option D selects the NEAREST surviving contract,
     so a farther one can never change a window that DOES resolve -- the bound only ever costs coverage,
     never correctness, and the decline is visible in the trace."""
-    want = str(span_end)[:7]
+    k = int(str(span_end)[5:7]) - 1 + int(floor_months)
+    want = f"{int(str(span_end)[:4]) + k // 12:04d}-{k % 12 + 1:02d}"
     months = sorted({str((r or {}).get("contract_month"))
                      for r in rows or [] if (r or {}).get("contract_month")})
     return [m for m in months if m >= want][:EPISODE_OUTCOME_CANDIDATES]
@@ -5841,6 +5855,7 @@ def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
     The failure direction is a FALSE pending, and it needs a tape gap wider than the 14-day read tail --
     beyond the measured maximum gap of 11 days (CZCE, Chinese New Year / Golden Week)."""
     from leviathan.graphrag.numbers import outcomes as OC
+    from leviathan.silver import futures_roll as FR
 
     lines: list = []
     trace: list = []
@@ -5908,7 +5923,7 @@ def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
             hi = _iso_shift(t2, OC.SURVIVE_DAYS + OC.OUTCOME_LOOKBACK_DAYS)
             curve, sat_a = _tape_read(qfn, slug=slug, t1=lo, t2=t1, asof=asof,
                                       futures_newest_first=futures_newest_first)
-            months = _episode_candidates(curve, t2)
+            months = _episode_candidates(curve, t2, floor_months=FR.forward_month_floor(slug))
             deep, sat_b = _tape_read(qfn, slug=slug, t1=lo, t2=hi, asof=asof,
                                      contract_months=months or None,
                                      futures_newest_first=futures_newest_first)
@@ -6085,6 +6100,10 @@ _CW_BOARD_LABEL = {
     "soybeans_cbot": "CBOT soybeans",
     "soybean_meal_cbot": "CBOT soybean meal",
     "soybean_oil_cbot": "CBOT soybean oil",
+    # V2-4: the CME USD palm calendar future, covered from its PROVISIONAL 2016-08-01 floor. The
+    # label is display._contract_label's own spelling (hierarchy {node palm_oil, exchange CME});
+    # the tenor floor that keeps its cells off a still-accruing average lives in futures_roll.
+    "malaysian_crude_palm_oil_cme": "CME palm oil",
     "arabica_coffee": "ICE arabica coffee",
     "robusta_coffee": "ICE robusta coffee",
     "raw_sugar": "ICE raw sugar",
@@ -6308,6 +6327,7 @@ def _cw_cell(qfn, slug: str, t1: str, t2: str, span_tok: str, asof, *,
     (record, reads); the record carries the raw outcome dict under '_res' for the call mint and
     the caller pops it before tracing."""
     from leviathan.graphrag.numbers import outcomes as OC
+    from leviathan.silver import futures_roll as FR
     rec = {"slug": slug, "span": span_tok, "status": None, "reason": None, "reads": 0}
     dry = OC.span_outcome(_tape_frame("", []), slug=slug, span_start=t1, span_end=t2, asof=asof,
                           event_key="cascade_walk", tape_edge=None)
@@ -6322,7 +6342,7 @@ def _cw_cell(qfn, slug: str, t1: str, t2: str, span_tok: str, asof, *,
     hi = _iso_shift(t2, OC.SURVIVE_DAYS + OC.OUTCOME_LOOKBACK_DAYS)
     curve, sat_a = _tape_read(qfn, slug=slug, t1=lo, t2=t1, asof=asof,
                               futures_newest_first=futures_newest_first)
-    months = _episode_candidates(curve, t2)
+    months = _episode_candidates(curve, t2, floor_months=FR.forward_month_floor(slug))
     deep, sat_b = _tape_read(qfn, slug=slug, t1=lo, t2=hi, asof=asof,
                              contract_months=months or None,
                              futures_newest_first=futures_newest_first)

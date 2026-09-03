@@ -33,6 +33,7 @@ def _wire(monkeypatch, tmp_path, *, causal_yaml: str, driver_yaml: str, mirror: 
     monkeypatch.setattr(ev, "_DRIVER_PATH", drv)
     ev._reset()
     dp.all_driver_ids.cache_clear()
+    dp.all_driver_slice_ids.cache_clear()                     # V2-4 m5: also _CFG-keyed, also cached
     if mirror:
         dsm.write()                                           # manifest_path() derives from _DRIVER_PATH.parent
 
@@ -40,6 +41,7 @@ def _wire(monkeypatch, tmp_path, *, causal_yaml: str, driver_yaml: str, mirror: 
 def _reset():
     ev._reset()
     dp.all_driver_ids.cache_clear()
+    dp.all_driver_slice_ids.cache_clear()                     # V2-4 m5: also _CFG-keyed, also cached
 
 
 def test_clean_config_passes(tmp_path, monkeypatch):

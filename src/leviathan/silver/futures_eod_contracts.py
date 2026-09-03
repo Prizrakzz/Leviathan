@@ -222,9 +222,25 @@ CASH_INDEX_SLUGS: frozenset[str] = frozenset(
 # MIN(trade_date) WHERE settle IS NOT NULL over the registered partitions (Athena or the pg
 # mirror) -- the scratchpad/measure_coverage_floors.py this comment once named is not in the tree.
 #
-# V2-4 (2026-09-02): malaysian_crude_palm_oil_cme is ABSENT here on purpose until its CME USD
-# backfill is CANONICAL and measured (the walk-side commit lands the literal); its ROOT_FIRST_DATE
-# is 2016-08-01, and the floor must be the first banked settle-bearing trade date, never that.
+# V2-4 (2026-09-02 / 2026-09-03): malaysian_crude_palm_oil_cme's floor is the ONE entry in this map
+# that is NOT yet measured from canonical bytes. It carries the root's own first usable date as a
+# PROVISIONAL literal so the walk-side commit is atomic (check_cascade_walk clause (i) errors in
+# BOTH directions -- a board label with no floor is a stale row, a floor with no label is a missing
+# entry -- so the floor, the label and the tenor rule land together or not at all). The doctrine
+# above is NOT relaxed: the literal must be RE-ANCHORED to the D9-measured first settle-bearing
+# trade date before any serving rev is built from it, and the direction of the provisional error is
+# fenced by a pin (the literal can never sit EARLIER than ROOT_FIRST_DATE['CPO'], which is the
+# earliest date the fetch can even request), so a wrong provisional can only under-claim coverage.
+# Until an image is built from this commit the entry is inert on serving: the live rev declines
+# palm before any coverage read.
+#
+# FLIP CHECKLIST (review m3, 2026-09-03): the serving rev must not be registered until this literal
+# equals the D9-measured MIN(trade_date) WHERE settle IS NOT NULL. This is a HARD gate on the flip,
+# not a docket -- the pin in tests/unit/test_price_coverage.py fences only the DIRECTION of the
+# provisional error (>= ROOT_FIRST_DATE['CPO'], so it can only under-claim), and no test can tell a
+# provisional literal from a measured one. Nothing new is pinned here on purpose: the measurement
+# lives in D9, and a second pin restating 2016-08-01 would have to be edited by the same hand that
+# re-anchors the literal, which is exactly the check that would then not be checking anything.
 #
 # WHAT READS THIS (W2b-D3/D4): the coverage-aware decline guard and the event-study floor. The
 # routing rule is deterministic -- a window entirely >= the floor serves from silver_futures_eod;
@@ -276,6 +292,8 @@ PRICE_COVERAGE_START: dict[str, date] = {
     "frozen_orange_juice": date(2018, 12, 24),            # databento_ifus_impact
     "hard_red_spring_wheat_mgex": date(2025, 9, 9),       # miax
     "hard_red_winter_wheat_kcbt": date(2014, 1, 2),       # databento_glbx_mdp3
+    # PROVISIONAL = ROOT_FIRST_DATE; re-anchor to the D9-measured first settle before the serving rev
+    "malaysian_crude_palm_oil_cme": date(2016, 8, 1),     # databento_glbx_mdp3
     "rapeseed_meal_zce": date(2015, 10, 8),               # czce
     "rapeseed_oil_zce": date(2015, 10, 8),                # czce
     "raw_sugar": date(2018, 12, 24),                      # databento_ifus_impact

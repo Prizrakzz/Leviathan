@@ -41,6 +41,11 @@ from leviathan.silver import futures_eod_contracts as FC
 
 # BUMP THIS when the rule's behaviour changes -- a consumer that stored a parity result under one
 # version must not compare it against another. Never reuse a version for a changed rule.
+# V2-4 (2026-09-03, review m2): FORWARD_MONTH_FLOOR changes front_month's eligibility predicate too,
+# and this version is NOT bumped for the same reason OUTCOME_CONTRACT_RULE_VERSION is not -- the only
+# floored slug is palm, palm is in NEITHER gold roster (gold_futures_spreads, gold_futures_outcomes),
+# so no stored row on any version can differ; bump BOTH at the serving flip if the owner wants
+# row-level provenance to name the floor.
 ROLL_RULE_VERSION = "front_month_v2"
 
 # OUTCOMES_JOIN J1.b -- the SECOND, SEPARATELY VERSIONED selection rule (survival-selected single
@@ -130,6 +135,61 @@ DELIVERY_CYCLES: dict[str, tuple[int, ...]] = {
     # are gone because DCE moved to METHOD_VOLUME once W1c proved the volume column -- and
     # check_futures_roll asserts BOTH directions, so leaving them would now be a hard failure.)
 }
+
+# FORWARD-MONTH FLOOR (V2-4 tenor rule): the minimum number of months the priced delivery month must
+# sit FORWARD of the anchor month (front_month AND outcome_contract) and of the horizon-end month
+# (outcome_contract).
+#
+# WHY 1 AND NOT 2 (RECALIBRATED 2026-09-03, STEP-12 review MAJ-2; the charter's "AT LEAST TWO MONTHS
+# FORWARD" was the sitting owner's conservative reading of the CME spec, corrected by measurement).
+# The contract for month M becomes a RUNNING AVERAGE only from M's own first business day -- before
+# that its settle is a pure forward mark, exactly like every other board's. `month >= read_month + 1`
+# therefore holds at BOTH reads the floor governs (the anchor and the endpoint), so floor 1 is
+# NECESSARY -- floor 0 lets the endpoint's own month in, which is the partial-average read -- and
+# SUFFICIENT: no month it admits can be accruing at either end. Floor 2 was margin with no rule
+# behind it, and the review measured what the margin cost: 16 of 72 endpoint dates on the
+# soyoil<->palm tenor fence (MAJOR-8, same-or-adjacent delivery month) and 14 of 72 on
+# soybeans<->palm, because a parent at X or X+1 cannot be adjacent to a child pushed to X+2.
+#
+# WHY A CURATED PER-SLUG TABLE AND NOT A RULE: nothing in this module knows an expiry calendar --
+# "expiry" is INFERRED from last_print_date (contract_last_print) -- so the survivor rule happily
+# picks the endpoint's OWN delivery month whenever that month still prints past t2 + survive_days.
+# For every board whose settle is a POINT-IN-TIME mark that is correct, and it is what the other 30
+# slugs get. It is wrong for the CME USD Malaysian Crude Palm Oil CALENDAR future (rulebook 204),
+# whose settle is the CUMULATIVE AVERAGE of its own contract month's Bursa third-forward FCPO
+# settlements at the KL fixing: a contract read INSIDE its own month is a partial average, not a
+# price, and differencing it against a forward mark at the anchor books the accrual as a move.
+#
+# AN ABSENT SLUG == 0 == THE SHIPPED RULE. The anchor filter with a zero offset is the shipped
+# expression byte-for-byte, and the endpoint filter does not run at all when no row in the frame
+# carries a floor -- so gold_futures_outcomes / pattern_records selections for the other 30 slugs
+# are unchanged, which is why OUTCOME_CONTRACT_RULE_VERSION is NOT bumped here (no floored slug can
+# produce a stored row until its coverage floor lands AND an image is built from this commit; the
+# bump is the owner's call at the serving flip).
+FORWARD_MONTH_FLOOR: dict[str, int] = {
+    "malaysian_crude_palm_oil_cme": 1,
+}
+
+
+def forward_month_floor(slug: str) -> int:
+    """Months the priced delivery month must sit forward of the anchor/endpoint month. 0 = the
+    shipped rule (the accessor, so no caller reads the table directly and drifts from it)."""
+    return int(FORWARD_MONTH_FLOOR.get(str(slug), 0))
+
+
+def _floor_months(slugs: pd.Series):
+    """Per-row forward-month floor, as an int64 month count (0 for every unlisted slug)."""
+    return slugs.map(forward_month_floor).to_numpy(dtype="int64")
+
+
+def _floored_month_bound(anchors: pd.Series, months):
+    """``anchors`` truncated to its month start, pushed forward ``months`` months -- the lower bound
+    a delivery month must clear. With an all-zero ``months`` this is month-start(anchors) exactly,
+    which is the shipped eligibility expression."""
+    return pd.Series(
+        pd.to_datetime(anchors.to_numpy().astype("datetime64[M]")
+                       + months.astype("timedelta64[M]")),
+        index=anchors.index)
 
 FRONT_MONTH_COLUMNS: list[str] = [
     "leviathan_slug", "trade_date", "contract_month", "raw_symbol", "settle", "close",
@@ -262,9 +322,12 @@ def front_month(df: pd.DataFrame, *, rule_version: str = ROLL_RULE_VERSION) -> p
     if work.empty:
         return pd.DataFrame(columns=FRONT_MONTH_COLUMNS)
 
-    # Eligibility: not yet in delivery, and (delivery-cycle slugs only) a LISTED month.
+    # Eligibility: not yet in delivery (plus the slug's FORWARD_MONTH_FLOOR, 0 for all but the
+    # averaging boards -- so a CPO "front" is never the month whose average is still accruing), and
+    # (delivery-cycle slugs only) a LISTED month.
     work["_trade_month"] = work["trade_date"].values.astype("datetime64[M]")
-    work = work[work["_month"] >= pd.to_datetime(work["_trade_month"])]
+    work = work[work["_month"] >= _floored_month_bound(
+        work["_trade_month"], _floor_months(work["leviathan_slug"]))]
     cyc = work["roll_method"] == METHOD_DELIVERY_CYCLE
     if cyc.any():
         keep = pd.Series(True, index=work.index)
@@ -478,9 +541,11 @@ def outcome_contract(df: pd.DataFrame, *, horizon_end, survive_days: int = OUTCO
     if work.empty:
         return pd.DataFrame(columns=OUTCOME_CONTRACT_COLUMNS)
 
-    # D8 eligibility -- SHARED with front_month, never re-derived.
+    # D8 eligibility -- SHARED with front_month, never re-derived (FORWARD_MONTH_FLOOR included:
+    # the ANCHOR half of the floor).
     work["_trade_month"] = work["trade_date"].values.astype("datetime64[M]")
-    work = work[work["_month"] >= pd.to_datetime(work["_trade_month"])]
+    work = work[work["_month"] >= _floored_month_bound(
+        work["_trade_month"], _floor_months(work["leviathan_slug"]))]
     cyc = work["_roll_method"] == METHOD_DELIVERY_CYCLE
     if cyc.any():
         keep = pd.Series(True, index=work.index)
@@ -494,6 +559,24 @@ def outcome_contract(df: pd.DataFrame, *, horizon_end, survive_days: int = OUTCO
     work["horizon_end"] = _resolve_horizon_end(work, horizon_end)
     if work["horizon_end"].isna().any():
         raise ValueError("outcome_contract: horizon_end did not parse as a date for every anchor")
+
+    # THE ENDPOINT HALF OF THE FORWARD-MONTH FLOOR. The anchor half above cannot reach it: a span
+    # runs forward, so a month that clears `anchor + floor` can still be the month the ENDPOINT sits
+    # inside -- which for an averaging board is the partial-average read the floor exists to refuse.
+    #
+    # WHAT PROTECTS THE OTHER 30 SLUGS IS THE `~floored |` DISJUNCT, not the `.any()` (review m1, an
+    # earlier comment here misattributed it). The bound this builds is month-start(horizon_end) for a
+    # zero floor, which is NOT implied by the anchor filter and WOULD silently re-select -- so an
+    # unfloored row has to be exempted ROW-WISE, and it is, which is what makes a MIXED frame (corn
+    # and palm at one anchor) correct rather than merely rare. The `.any()` is an inert fast path: with
+    # an all-zero `_fl`, `~floored` is all-True and the filter is already a no-op.
+    _fl = _floor_months(work["leviathan_slug"])
+    if _fl.any():
+        floored = pd.Series(_fl > 0, index=work.index)
+        bound = _floored_month_bound(work["horizon_end"], _fl)
+        work = work[~floored | (work["_month"] >= bound)]
+        if work.empty:
+            return pd.DataFrame(columns=OUTCOME_CONTRACT_COLUMNS)
 
     lp = last_print.copy()
     if len(lp):
@@ -577,6 +660,25 @@ def lint_roll_rule() -> list[str]:
             errs.append(f"{slug}: delivery-cycle method with no curated DELIVERY_CYCLES entry")
         if method != METHOD_DELIVERY_CYCLE and slug in DELIVERY_CYCLES:
             errs.append(f"{slug}: has a DELIVERY_CYCLES entry but rolls by {method!r}")
+
+    # V2-4 -- THE FORWARD-MONTH FLOOR TABLE, bound BOTH WAYS like DELIVERY_CYCLES above: every
+    # floored slug is a real, non-cash contract carrying an int >= 1 (a 0 row is a lie -- it reads
+    # as a curated decision and behaves as no rule at all), and the ACCESSOR agrees with the table
+    # in both directions, so a caller can never read a floor the table does not declare.
+    for slug, k in sorted(FORWARD_MONTH_FLOOR.items()):
+        if slug not in FC.CONTRACT_MAP:
+            errs.append(f"FORWARD_MONTH_FLOOR names unmapped slug {slug!r}")
+        elif slug in FC.CASH_INDEX_SLUGS:
+            errs.append(f"{slug}: a cash reference has no delivery-month axis to floor")
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            errs.append(f"{slug}: forward-month floor must be an int >= 1, got {k!r}")
+        elif forward_month_floor(slug) != k:
+            errs.append(f"{slug}: forward_month_floor() returns {forward_month_floor(slug)!r} "
+                        f"but FORWARD_MONTH_FLOOR declares {k!r}")
+    for slug in sorted(set(FC.CONTRACT_MAP) - set(FORWARD_MONTH_FLOOR)):
+        if forward_month_floor(slug) != 0:
+            errs.append(f"{slug}: has no FORWARD_MONTH_FLOOR row but the accessor returns "
+                        f"{forward_month_floor(slug)!r} -- an unlisted slug IS the shipped rule")
 
     for slug, cycle in sorted(DELIVERY_CYCLES.items()):
         if slug not in FC.CONTRACT_MAP:

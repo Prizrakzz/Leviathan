@@ -1730,11 +1730,17 @@ def check_cascade_walk() -> list[str]:
         errs.append(f"walk: driver-slice label sweep failed to run ({type(exc).__name__})")
     # (viii) the census tripwire -- WARN only, never a hard floor. The CENSUS count keeps the
     # 2024 episode-history floor (that gate is the census's, not the engine's -- review D1).
+    # 15 -> 19 (V2-4 commit C, 2026-09-03): the palm board's coverage floor admits exactly its FOUR
+    # graph-declared hops (soyoil<->palm both ways x {substitutes_for, competes_with}, plus
+    # palm->soybeans), and the census was RE-BANKED against them at
+    # data/consequence_leg/reach_census_v2_20260903_palm.json (graph fc9760ed68c0;
+    # fully_admissible_first_order_hops 19, produced by data/consequence_leg/reach_census_v2.py --
+    # offline, $0, no LLM). Bump this literal WITH a re-bank, never on its own.
     n_census = len({(r["seed"], r["contract"], r.get("relation"), r.get("sign"),
                      str(r.get("lag"))) for r in shipping
                     if cov[r["seed"]] < floor and cov[r["contract"]] < floor})
-    if n_census != 15:
-        print(f"WARN cascade_walk: censused shipping hop count moved (15 -> {n_census}) -- "
+    if n_census != 19:
+        print(f"WARN cascade_walk: censused shipping hop count moved (19 -> {n_census}) -- "
               f"re-run the reach census and re-bank before citing pool numbers")
     return errs
 
