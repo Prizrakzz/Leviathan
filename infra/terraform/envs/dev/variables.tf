@@ -242,9 +242,9 @@ variable "futures_eod_image_digest" {
   # clamp. The previous digest (2f3efb7c, tag 20260729w1c) 422'd 15/15 units on every fire --
   # fetch_databento_eod.py overwrote the clamped window with `today + 1`, one day past the vendor's
   # available end, on the only path that submits.
-  # 2026-09-03: repinned to tag 20260903-worker-cpo-f1110d9b (commit f1110d9b): CPO root + SETTLEMENT_TAPE_ROOTS
+  # 2026-09-03 (r2): repinned to tag 20260903-worker-cpo2-7f465765 (commit 7f465765): CPO root + the D3 lane fix (unit-window fence, zero marks)
   # settlement-spine bronze + statistics-only buy; the palm slug re-pointed to the CME USD tape (V2-4).
-  default     = "sha256:4f380ffe6d7ee15760bc1394a38fd611ea5064bf341c08df1270a9cd59b46493"
+  default     = "sha256:a4946d83f891ce61a0a9104ae74119bed124b92822223d5aedbe8c135551e1df"
 
   validation {
     condition     = var.futures_eod_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_image_digest))
@@ -270,9 +270,9 @@ variable "futures_eod_silver_image_digest" {
   #     --status ACTIVE --query 'reverse(sort_by(jobDefinitions,&revision))[0].containerProperties.image'
   type        = string
   description = "sha256 digest override for the futures_eod SILVER jobdef only. Empty = share futures_eod_image_digest with the two fetch jobdefs."
-  # 2026-09-03: repinned to tag 20260903-worker-cpo-f1110d9b (commit f1110d9b): CPO root + SETTLEMENT_TAPE_ROOTS
+  # 2026-09-03 (r2): repinned to tag 20260903-worker-cpo2-7f465765 (commit 7f465765): CPO root + the D3 lane fix (unit-window fence, zero marks)
   # settlement-spine bronze + statistics-only buy; the palm slug re-pointed to the CME USD tape (V2-4).
-  default     = "sha256:4f380ffe6d7ee15760bc1394a38fd611ea5064bf341c08df1270a9cd59b46493"
+  default     = "sha256:a4946d83f891ce61a0a9104ae74119bed124b92822223d5aedbe8c135551e1df"
 
   validation {
     condition     = var.futures_eod_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_silver_image_digest))
