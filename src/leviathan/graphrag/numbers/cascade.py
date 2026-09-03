@@ -6006,6 +6006,62 @@ CW_SPAN_MAX_DAYS = 270      # r2-CERTIFIED: every 242-267d selected window close
 #                             measured failures start at 563d. The single-contract basis's real
 #                             reach -- NOT J4's 1460d contract-life bound; each keeps its own name.
 
+# -- V2-1 CONTEXT CELL: a RIDER on the walk (GRAPHRAG_CASCADE_CONTEXT threads INSIDE walk_request as
+#    `context`/`replay`, built at the answer.py seam beside focus_contract; this module reads no env).
+#    ONE non-verdicted row beside a firing whose RESOLVED SLICE has a curated pink-sheet series, read at
+#    the TURN's asof in ONE fetch, its ONE clock on the line = the World Bank release stamp. Flag-off is
+#    byte-identical by construction: no `kind` key, no payload['context'], the marker bytes unchanged.
+CW_CONTEXT_CAP = 2            # one read per cell x one cell per firing x CW_MAX_FIRINGS -> 2, OUTSIDE
+#                               CW_CAP. BINDS ONLY THE DEPTH-IN-TIME SHAPE: breadth/grandchild truncate
+#                               firings[:1], so the live bound on every root the rider fires on today is
+#                               1 (the lint pins == CW_MAX_FIRINGS).
+CW_CONTEXT_READS_PER_CELL = 1
+CW_CONTEXT_MIN_OBS = 3        # a COVERAGE floor, never a path guarantee: the printed magnitude is
+#                               last/first over two endpoints; three in-window prints make 'from X
+#                               through Y' name a run. THE ONE ZERO-COST FLOOR (refute m2): the exact
+#                               first-of-month COUNT over [t1, min(t2, asof - the CARD's
+#                               publication_lag_days)] -- the lag is read off the card at the call, never
+#                               a second constant here. For the record: the shortest interval that can
+#                               hold three first-of-month prints is 59 days (Feb 1..Apr 1, non-leap) and
+#                               91 days guarantees three, so a span test would be redundant with the
+#                               count -- which is why there is no CW_CONTEXT_MIN_SPAN_DAYS.
+CW_CONTEXT_TOKEN = "] CONTEXT "        # ROW-1C's class token right after the handle; minted ONCE here.
+#                                        The answer-seam gate keys on the ROW SHAPE below (refute M2: the
+#                                        bare token is ten characters a retrieved heading can carry).
+CW_CONTEXT_LINE_RX = re.compile(r"^- \[N\d+" + re.escape(CW_CONTEXT_TOKEN), re.M)
+#                                        ^ the SINGLE producer of the gate shape: built from the token,
+#                                          read by `answer._cascade_context_block_on` (the CW_MARKER_PREFIX
+#                                          law -- producer and gate cannot drift if they build from one string).
+CW_CONTEXT_WORDS_PREFIX = "CONSEQUENCE CONTEXT "
+_CW_CONTEXT_TABLE = "silver_pink_sheet"
+_CW_CONTEXT_UNIT_FMT = "percent change in {unit}"     # the card's declared unit rides inside, verbatim
+_CW_CONTEXT_SERIES = {        # RESOLVED SLICE -> (card metric, READER label); keyed on the slice the shipped
+#                               resolver returns, never node_token (broiler_economics <- poultry_expansion AND
+#                               broiler_margins, subgraph-order dependent). v1 map = the card's EXISTING consumer
+#                               naming (config_check.check_cascade_context clause (c) pins each slice name
+#                               VERBATIM in its metric's desc; that desc is ALSO the licence for the marker's
+#                               'a market the firing names' clause -- refute m7). avian_influenza is NOT mapped
+#                               -- an owner curation decision (its desc edit is a live prompt change);
+#                               cattle_on_feed / livestock_feed_demand / african_swine_fever unmapped, each for
+#                               a measured reason (design v1/v2 record). PRE-ARM GATE (refute M4): KC0b (does a
+#                               mapped slice WIN position 1 on a covered root) is RE-RUN against the artifact
+#                               that will actually serve the arm before any arm fires -- the map is asof-fragile
+#                               by construction (one live window today).
+    "broiler_economics":      ("chicken_usd_t", "world chicken"),
+    "cattle_cycle_herd_size": ("beef_usd_t",    "world beef"),
+}
+_CW_MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August",
+              "September", "October", "November", "December")
+_CW_RELEASE_STAMP_RX = re.compile(r"^\d{4}M\d{2}$")   # the WB stamp's ONE shape ('2026M08'); any other declines
+# The counted decline vocabulary (all trace-only; no CONSEQUENCE ABSENCE line is ever minted for a
+# context cell because no header promises one). `mixed_release_stamp` is UNREACHABLE under the card's
+# constant global stamp (DP-2: latest_release_ym is one value for the whole table) and is kept as a belt;
+# `error` is the per-firing exception belt (refute M1) -- the CELL declines, the walk block ships.
+_CW_CONTEXT_DECLINES = ("unmapped_slice", "replay", "root_declined", "budget_cap", "context_cap",
+                        "grain_thin", "empty_series", "read_error", "no_release_stamp",
+                        "mixed_release_stamp", "stamp_shape", "no_unit", "no_move", "render_fence",
+                        "error")
+
 # Orientation-free relation phrases (v3 remedy (b)): each phrase reads identically under (A, B)
 # and (B, A); config_check's directional-verb lint holds it. An unmapped relation DECLINES.
 _CW_RELATION_WORDS = {
@@ -6372,6 +6428,125 @@ def _cw_absence(label: str, reason: str) -> str:
     return f"CONSEQUENCE ABSENCE {label}: {why}."
 
 
+# -- V2-1 CONTEXT CELL helpers ----------------------------------------------------------------------
+def _cw_first_of_months(t1: str, t_end: str) -> list:
+    """Every first-of-month ISO date d with t1 <= d <= t_end -- pure string/int arithmetic (the
+    _months_back idiom; no clock)."""
+    y, m = int(t1[:4]), int(t1[5:7])
+    out: list = []
+    while True:
+        d = f"{y:04d}-{m:02d}-01"
+        if d > t_end:
+            break
+        if d >= t1:
+            out.append(d)
+        m += 1
+        if m == 13:
+            y, m = y + 1, 1
+    return out
+
+
+def _cw_context_rec(sl: str, span_tok: str) -> dict:
+    """The context cell's record, minted by the CALLER before the read so the per-firing exception
+    belt (refute M1) can still count a read that was paid before a later step raised."""
+    metric, label = _CW_CONTEXT_SERIES[sl]
+    return {"kind": "context", "slice": sl, "metric": metric, "label": label, "span": span_tok,
+            "status": None, "reason": None, "reads": 0}
+
+
+def _cw_context_cell(qfn, rec: dict, t1: str, t2: str, asof, *, lag_days: int, card_metric,
+                     futures_newest_first: bool | str = False) -> dict:
+    """ONE context cell, mutating and returning `rec`: the zero-cost coverage floor -> ONE fetch_window
+    at the TURN's asof -> _rv_axes (the measured row shape: date under knowledge_date, NO unit key, card
+    unit fallback) -> in-window clip -> grain -> stamp (ONE clock) -> move. `rec['reads']` is set at the
+    paying site, never inferred. The caller's belt catches anything this raises."""
+    metric = rec["metric"]
+    t_end = min(t2, _iso_shift(asof, -int(lag_days or 0)))
+    if len(_cw_first_of_months(t1, t_end)) < CW_CONTEXT_MIN_OBS:
+        rec.update(status="declined", reason="grain_thin")             # A6.2: arithmetic, $0
+        return rec
+    # futures_newest_first threads like the board cells; harmless either way -- Q.run re-sorts a
+    # newest-first series back to chronological before any consumer sees it.
+    r = fetch_window(qfn, table=_CW_CONTEXT_TABLE, metric=metric, commodity=None, country=None,
+                     t1=t1, t2=t2, asof=asof, agg="series", period=None, period_type="date",
+                     futures_newest_first=futures_newest_first)
+    rec["reads"] = CW_CONTEXT_READS_PER_CELL                              # counted at the paying site
+    if r.get("status") == "error":
+        rec.update(status="declined", reason="read_error")
+        return rec
+    if r.get("status") != "ok":
+        rec.update(status="declined", reason="empty_series")
+        return rec
+    vals, dates, unit = _rv_axes(r, card_metric)
+    keep = [(v, d) for v, d in zip(vals, dates) if t1 <= d <= t2]        # belt: never a row outside the window
+    if len(keep) < CW_CONTEXT_MIN_OBS:
+        rec.update(status="declined", reason="grain_thin")
+        return rec
+    # the ONE clock: every returned row must carry the WB release stamp (refute m3: absent is never
+    # zero, PER ROW -- a partially stamped series declines rather than borrowing its neighbours' stamp).
+    stamps = [str((x or {}).get("revision_stamp") or "").strip() for x in (r.get("rows") or [])]
+    if not stamps or any(not s for s in stamps):
+        rec.update(status="declined", reason="no_release_stamp")
+        return rec
+    if len(set(stamps)) != 1:
+        rec.update(status="declined", reason="mixed_release_stamp")     # two clocks -> no line
+        return rec
+    stamp = stamps[0]
+    if not _CW_RELEASE_STAMP_RX.match(stamp):
+        rec.update(status="declined", reason="stamp_shape")
+        return rec
+    if not str(unit or "").strip():
+        rec.update(status="declined", reason="no_unit")                 # refute m9: a unit is a ROW fact
+        return rec
+    first, last = keep[0][0], keep[-1][0]
+    if not first:
+        rec.update(status="declined", reason="no_move")
+        return rec
+    rec.update(status="closed", move_pct=round((last / first - 1.0) * 100.0, 4), n_obs=len(keep),
+               first_date=keep[0][1], last_date=keep[-1][1],
+               first_month=_CW_MONTHS[int(keep[0][1][5:7]) - 1],
+               last_month=_CW_MONTHS[int(keep[-1][1][5:7]) - 1],
+               unit=str(unit), revision_stamp=stamp)
+    return rec
+
+
+def _cw_context_line(n: int, rec: dict) -> str:
+    """ROW-1C: the class token right after the handle; the window token = SCOPE, the returned months =
+    BASIS, the release stamp = CLOCK (no as-of on this line -- one clock). 'cash benchmark price', never
+    'settle' (the card's own first note)."""
+    q = {"commodity": rec["label"], "country": None, "table": _CW_CONTEXT_TABLE}
+    return (f"- [N{n}{CW_CONTEXT_TOKEN}{rec['label']} monthly cash benchmark price measured on the monthly "
+            f"prints from {rec['first_month']} through {rec['last_month']} inside the episode window "
+            f"{rec['span']} (per the World Bank release {rec['revision_stamp']}): {rec['move_pct']:+g} %"
+            + _series_tag(q))
+
+
+def _cw_context_words(rec: dict) -> str:
+    """ROW-2C: standalone, letters only -- no hop possessive, no comparison invitation."""
+    return (f"{CW_CONTEXT_WORDS_PREFIX}{rec['label']}: this row is not part of any hop's read and carries "
+            f"no direction of its own; it is the monthly world cash average the World Bank publishes for "
+            f"that market, at its current published revision of the months the row names, placed beside "
+            f"the walk for scope only.")
+
+
+def _cw_context_call(rec: dict, asof) -> dict:
+    """The synthetic call the [N] handle indexes: READER-WORD metric (the _rv_call idiom -- never the card
+    id, so the ledger never says 'chicken price = a percent'); the release stamp and the machine metric
+    ride the ROW (`source_metric`, which citations.from_number copies onto the LOCATOR so a drill-down can
+    draw the level series the percent was computed on -- refute M5); the stamp's one RENDERING is the line."""
+    call = _rv_call("monthly benchmark change", rec["label"], rec["move_pct"], rec["span"], asof,
+                    unit=_CW_CONTEXT_UNIT_FMT.format(unit=rec["unit"]), date=rec["last_date"])
+    call["rows"][0]["revision_stamp"] = rec["revision_stamp"]
+    call["rows"][0]["source_metric"] = rec["metric"]
+    return call
+
+
+def _cw_board_row_closed(cells: list) -> bool:
+    """The dormant-clause guard's predicate: does at least one BOARD cell close? A context cell is never
+    the row that licenses a marker -- a block whose only magnitude is a chicken price ships NOTHING."""
+    return any(c.get("status") == "closed" and c.get("kind") != "context" for c in cells or [])
+
+
 # THE MARKER PREFIX, minted ONCE and read by BOTH the producer (`_cw_marker`) and the answer-seam
 # gate (`answer._cascade_walk_block_on`) -- the tl.LINE_PREFIX discipline: a persona MANDATE may
 # ship only when the assembled volatile prompt actually carries a walk block (W4-D3's +10-
@@ -6379,17 +6554,30 @@ def _cw_absence(label: str, reason: str) -> str:
 CW_MARKER_PREFIX = "CASCADE EPISODE WALK ("
 
 
-def _cw_marker(order: str) -> str:
+def _cw_marker(order: str, context: bool = False) -> str:
     """ROW 5 -- the fixed no-conclusion marker: the transcription discipline, the order label
     (K3), the episodes-sourcing clause (v3 remedy (h)) and its A6/M4 extension (one window, the
-    same window, both surfaces)."""
-    return (f"{CW_MARKER_PREFIX}{order} order): the rows above are observed settle changes on "
-            f"the same dated firing window, one board per row; each hop's read is stated beside "
+    same window, both surfaces). V2-1: with `context` the OPENING clause is conditional (a block
+    carrying a CONTEXT row never states a universal it then retracts) and ONE sentence is appended --
+    COUNT-FREE (review F1, 2026-09-02: the depth-in-time shape renders one context pair PER FIRING up
+    to CW_CONTEXT_CAP, so the sentence names no row count; 'each' is per row);
+    context=False is byte-identical to the pre-rider literal (pinned). The appended sentence's
+    'a market the firing names' is LICENSED by the card itself: the mapped metric's desc names the
+    slice as its consumer (chicken_usd_t: 'the demand-side output price behind broiler_economics';
+    beef_usd_t: '... behind cattle_cycle_herd_size'), and check_cascade_context clause (c) pins that
+    naming VERBATIM -- it is the one relation the block asserts, and the card asserts it first."""
+    head = ("the [N] rows above are observed records on the same dated firing window, one series per row"
+            if context else
+            "the rows above are observed settle changes on the same dated firing window, one board per row")
+    tail = (" Rows marked CONTEXT are monthly cash averages for a market the firing names, not board "
+            "settle changes -- transcribe each with its own handle and read it against nothing."
+            if context else "")
+    return (f"{CW_MARKER_PREFIX}{order} order): {head}; each hop's read is stated beside "
             f"it, in-sample on the named window only. Cite the [N] rows verbatim; never derive a "
             f"ratio, a spread, a lag or any magnitude the rows do not print; direction beyond the "
             f"stated read is the analyst's, never the engine's. Do not mint a new episodes-section "
             f"bullet from a consequence row -- the enumeration stays the episodes mandate's, and "
-            f"the firing window named here is the same dated window that section enumerates.")
+            f"the firing window named here is the same dated window that section enumerates." + tail)
 
 
 _CW_SPAN_TOKEN_RX = re.compile(r"\d{4}-\d{2}\.\.\d{4}-\d{2}")
@@ -6434,6 +6622,20 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         return [], payload
 
     root = str((walk_request or {}).get("focus_contract") or "")
+    # V2-1 rider: the flag is read at the answer.py seam and threaded INSIDE the request dict (never
+    # here); `replay` is the SAME already-resolved historical-asof bool the seam built as _pr_kw.
+    context_on = bool((walk_request or {}).get("context"))
+    replay_on = bool((walk_request or {}).get("replay"))
+    if context_on:                                    # omit-when-off: stamped ONLY under the rider,
+        payload["context"] = {"planned": None, "admitted": 0, "rendered": 0, "reads": 0,  # and EARLY,
+                              "cap": CW_CONTEXT_CAP, "board_reads_planned": None,         # so a root-
+                              "declines": [], "slices": None}                             # scope decline
+    #                                                   carries the ledger. planned/slices stay None
+    #                                                   until the firing enumeration has happened
+    #                                                   (review F2: a PRE-enumeration decline never
+    #                                                   says "zero were planned"), board_reads_planned
+    #                                                   until the board plan exists -- absent is
+    #                                                   never zero.
     payload["root"] = root or None
     if not root:
         return _decline("root", "no_focus")
@@ -6575,21 +6777,55 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     payload["firings"] = [{"span": f["span"], "slice": f["slice"], "start": f["start"],
                            "end": f["end"], "span_days": f["span_days"],
                            "node_token": f.get("node_token")} for f in firings]
+    if context_on:
+        # V2-1 (review F2): the context PLAN is stamped from the enumeration the moment it exists --
+        # BEFORE the ceiling tests -- so a root-scope decline below can never report "zero were
+        # planned" about a mapped firing it lost; on such a decline every mapped firing is recorded
+        # as root_declined, so the ledger's rectangle (planned == rendered + declines) still closes.
+        payload["context"]["slices"] = [f["slice"] for f in firings if f["slice"] in _CW_CONTEXT_SERIES]
+        payload["context"]["planned"] = len(payload["context"]["slices"])
+
+    def _ctx_root_declined():
+        if context_on:
+            for f in firings:
+                if f["slice"] in _CW_CONTEXT_SERIES:
+                    payload["context"]["declines"].append({"slice": f["slice"], "span": f["span"],
+                                                           "reason": "root_declined"})
     # ── the turn ceiling, MEASURED, before any read (A2/K7) ──
     spent = _cw_turn_spent(sg)
     payload["turn_spent_before"] = spent
     if spent is None:
         payload["children_named"] += len(admissible)
+        _ctx_root_declined()
         return _decline("root", "turn_spend_unknown")
     cells_planned = sum(1 + len(admissible) + (1 if grand is not None else 0) for _ in firings)
     if cells_planned * CW_READS_PER_CELL > CW_CAP:
         # the review's belt: the shape rules above keep every plan at or under CW_CAP today, so
         # this is unreachable -- until a future knob change; then it DECLINES, never over-spends.
         payload["children_named"] += len(admissible)
+        _ctx_root_declined()
         return _decline("root", "cap")
     if spent + cells_planned * CW_READS_PER_CELL > CW_TURN_CEILING:
         payload["children_named"] += len(admissible)
+        _ctx_root_declined()
         return _decline("root", "turn_budget_spent")
+    # V2-1 SUBORDINATE ADMISSION (F2 as adjudicated): the board test above keeps its bytes; a context
+    # cell spends only SLACK -- admitted per firing iff spent + board_reads + admitted + 1 <=
+    # CW_TURN_CEILING, else the CELL declines budget_cap and the block ships. board_reads is the PLAN
+    # (outcome-independent, known before any read -- MAJOR-5 clean) and is stamped (refute m6) so a
+    # budget_cap decline is auditable from the artifact without re-deriving the shape.
+    board_reads = cells_planned * CW_READS_PER_CELL
+    ctx_admitted = 0
+    ctx_rendered = 0
+    _ctx_lag, _ctx_declared = 0, None
+    if context_on:
+        payload["context"]["board_reads_planned"] = board_reads   # planned/slices: stamped at enumeration
+        try:
+            _ctx_ts = _registry().get(_CW_CONTEXT_TABLE)
+            _ctx_lag = int(getattr(_ctx_ts, "publication_lag_days", 0) or 0)
+            _ctx_declared = getattr(_ctx_ts, "metrics", None) or {}
+        except Exception:  # noqa: BLE001 -- an unreadable card declines every cell as read_error, never raises
+            _ctx_lag, _ctx_declared = 0, None
     # ── measurement + render ──
     from leviathan.graphrag.numbers import stats as _st
     j4 = _cw_j4_index(sg)
@@ -6634,6 +6870,10 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         if root_rec["status"] != "closed":
             lines.append(_cw_absence(_CW_BOARD_LABEL[root],
                                      str(root_rec.get("reason") or "no_move")))
+            if context_on and f["slice"] in _CW_CONTEXT_SERIES:
+                # a declined-root firing emits NO context row (the cell rides only a closed root)
+                payload["context"]["declines"].append({"slice": f["slice"], "span": span_tok,
+                                                       "reason": "root_declined"})
             continue
         legs = list(admissible) + ([grand] if grand is not None else [])
         for a in legs:
@@ -6682,6 +6922,68 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 lines.append(_cw_absence(_CW_BOARD_LABEL[child],
                                          str(crec.get("reason") or "no_move")))
             payload["cells"].append({k: v for k, v in crec.items() if k != "_res"})
+        if context_on:
+            # -- V2-1 CONTEXT CELL: one non-verdicted pair per admitted firing, AFTER the firing's
+            # child rows (reached only when the root cell closed). THE WHOLE EMISSION IS BELTED
+            # (refute M1): an exception here declines the CELL with reason 'error', rolls back its own
+            # call/lines/handle, counts a read that was actually paid, and the walk block ships
+            # unchanged -- a rider may never cost the walk its block.
+            _cd = payload["context"]["declines"]
+            _n0, _c0, _l0, _r0 = n, len(calls), len(lines), ctx_rendered
+            xrec = None
+            try:
+                if f["slice"] not in _CW_CONTEXT_SERIES:
+                    _cd.append({"slice": f["slice"], "span": span_tok, "reason": "unmapped_slice"})
+                elif replay_on:
+                    # the C-2 belt on the card's own 'no true as-of replay' declaration: COUNTED,
+                    # zero reads, never silenced by the seam
+                    _cd.append({"slice": f["slice"], "span": span_tok, "reason": "replay"})
+                elif ctx_admitted >= CW_CONTEXT_CAP:
+                    _cd.append({"slice": f["slice"], "span": span_tok, "reason": "context_cap"})
+                elif spent + board_reads + ctx_admitted + 1 > CW_TURN_CEILING:
+                    _cd.append({"slice": f["slice"], "span": span_tok, "reason": "budget_cap"})
+                elif _ctx_declared is None:
+                    _cd.append({"slice": f["slice"], "span": span_tok, "reason": "read_error"})
+                else:
+                    ctx_admitted += 1
+                    payload["context"]["admitted"] = ctx_admitted
+                    xrec = _cw_context_rec(f["slice"], span_tok)
+                    _cw_context_cell(qfn, xrec, t1, t2, asof, lag_days=_ctx_lag,
+                                     card_metric=_ctx_declared.get(xrec["metric"]),
+                                     futures_newest_first=futures_newest_first)
+                    if xrec["status"] == "closed":
+                        l1, l2 = _cw_context_line(n + 1, xrec), _cw_context_words(xrec)
+                        if _cw_register_fence([l1, l2]):      # the PAIR is atomic and pre-fenced
+                            xcall = _shown(_cw_context_call(xrec, asof), xrec["move_pct"])
+                            n += 1
+                            calls.append(xcall)
+                            xrec["handle"] = f"N{n}"
+                            lines.extend([l1, l2])
+                            ctx_rendered += 1
+                            payload["context"]["rendered"] = ctx_rendered
+                        else:
+                            xrec.update(status="declined", reason="render_fence")
+                            _cd.append({"slice": f["slice"], "span": span_tok,
+                                        "reason": "render_fence"})
+                    elif xrec.get("reason"):
+                        _cd.append({"slice": f["slice"], "span": span_tok, "reason": xrec["reason"]})
+            except Exception:  # noqa: BLE001 -- the rider's OWN belt: the cell declines, the walk ships
+                n = _n0
+                calls[_c0:] = []
+                lines[_l0:] = []
+                ctx_rendered = _r0
+                payload["context"]["rendered"] = _r0
+                if xrec is None:
+                    xrec = {"kind": "context", "slice": f["slice"], "span": span_tok,
+                            "status": None, "reason": None, "reads": 0}
+                xrec.pop("handle", None)
+                xrec.update(status="declined", reason="error")
+                _cd.append({"slice": f["slice"], "span": span_tok, "reason": "error"})
+            if xrec is not None:
+                xr = int(xrec.get("reads") or 0)                  # paid iff the fetch returned
+                reads_spent += xr
+                payload["context"]["reads"] += xr
+                payload["cells"].append(dict(xrec))
     payload["children_priced"] = len(priced_children & {a["child"] for a in admissible})
     payload["children_named"] += sum(1 for a in admissible
                                      if a["child"] not in priced_children)
@@ -6695,20 +6997,29 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
             seen_m.append(c)
     payload["path"] = seen_m
     payload["order"] = "second" if any(p != root for (p, _c) in rendered_pairs) else "first"
-    if not any(c.get("status") == "closed" for c in payload["cells"]):
+    if not _cw_board_row_closed(payload["cells"]):
         # review minor: a block with zero [N] rows must not ship a marker claiming rows -- the
         # dormant-clause discipline. The absences stay in the trace; the block stays unshipped.
+        # V2-1: the predicate KIND-FILTERS context cells (a context cell is never the row that
+        # licenses a marker); unreachable under the emit-after-closed-root placement, kept as the belt.
         payload["outcome"] = "declined"
         calls[base:] = []
+        if context_on:
+            payload["context"]["rendered"] = 0
         return [], payload
     if not lines:
         payload["outcome"] = "declined"
         return [], payload
-    lines.append(_cw_marker(payload["order"]))
+    # V2-1: the marker's opening clause is conditional under a rendered context row; the no-context
+    # call is the pre-rider call, byte for byte.
+    lines.append(_cw_marker(payload["order"], context=True) if ctx_rendered
+                 else _cw_marker(payload["order"]))
     if not _cw_register_fence(lines):
         calls[base:] = []                             # ATOMIC: the whole block drops, rows rolled
         payload["outcome"] = "fenced"                 # back, and the trip is a counted outcome
         payload["cells"] = [dict(c, handle=None) for c in payload["cells"]]
+        if context_on:
+            payload["context"]["rendered"] = 0
         return [], payload
     payload["outcome"] = "fired"
     return lines, payload

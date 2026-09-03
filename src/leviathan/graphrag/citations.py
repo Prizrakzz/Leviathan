@@ -627,6 +627,13 @@ def from_number(call: dict, i: int) -> Citation:
     locator = {"kind": "number", **{k: q.get(k) for k in ("table", "metric", "commodity", "country", "period", "asof")}}
     if cmonth:
         locator["contract_month"] = cmonth      # the drill-down must re-run the expiry that was quoted
+    # V2-1 CONTEXT CELL (refute M5): a synthesized reader-word row (`metric` = 'monthly benchmark change',
+    # which no card declares, so the /v1/series drill-down 400s on it) carries the CARD metric the
+    # percent was computed on under `source_metric`; it rides the locator so a client can draw the level
+    # series instead. Byte-inert on every row that carries no such key (none did before this rider).
+    _srcm = str(rH.get("source_metric") or "").strip()
+    if _srcm:
+        locator["source_metric"] = _srcm
     return Citation(id=f"N{i}", kind="number", label=label, source=src, date=kd,
                     value=(str(value) if value is not None else None), unit=(unit or None),
                     locator=locator, payload={"query": q, "rows": rows[:3]})

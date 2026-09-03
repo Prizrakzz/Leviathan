@@ -372,6 +372,26 @@ _SYSTEM_CASCADE_WALK_MANDATE = (
     "turn. ")
 
 
+# V2-1 CONTEXT CELL MANDATE: appended ONLY when `_cascade_context_block_on(vp)` holds (the rider flag AND
+# the walk flag AND an actually-rendered ROW-1C in the volatile prompt -- the _episodes_on shape, keyed on
+# the ROW SHAPE `cascade.CW_CONTEXT_LINE_RX`, never a bare token). Its own gate, not the walk's, because
+# the modal walk block carries NO context row. PHRASED POSITIVELY (the J6 COT_OUTCOME_ADDENDUM doctrine,
+# cascade.py: the surest way to put an idiom into a draft is to write it into the prompt as a
+# prohibition -- refute M3): it says what to write and names no forbidden phrase. The row's own token
+# is NOT written here (one producer). COUNT-FREE (review F1, 2026-09-02): the depth-in-time shape
+# renders one context pair PER FIRING up to cascade.CW_CONTEXT_CAP, so the mandate names no row count
+# -- 'each ... once' is per row, and no singular ('one row' / 'that row') appears (pinned).
+_SYSTEM_CASCADE_CONTEXT = (
+    "\nTHE BLOCK CARRIES ROWS MARKED CONTEXT (a [N] handle followed by the word CONTEXT, with a "
+    "CONSEQUENCE CONTEXT line under each): under '## The record', in a sub-bullet headed Context, "
+    "transcribe each such row once with its own handle and its figure copied as DIGITS exactly as "
+    "printed, as a standalone observation about the series it names over the months and the dated "
+    "window it states, per the World Bank release it names. Each is a monthly cash average for its "
+    "market, and each row stands on its own: this engine holds no measurement joining it to any other "
+    "row, so each is narrated as a dated fact on its own handle, and each hop's read stays with its "
+    "CONSEQUENCE READ line. ")
+
+
 # P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
 # the [N] rows, so (unlike Phase A) a [N]-cited dated lag is backed and will NOT be stripped.
 _SYSTEM_CASCADE = (
@@ -766,6 +786,18 @@ def _cascade_walk_on() -> bool:
     doubly inert by construction, exactly as chartered. Read PER CALL so the env-flip rollback is
     live -> no redeploy."""
     return os.environ.get("GRAPHRAG_CASCADE_WALK", "").strip().lower() in ("on", "1", "true")
+
+
+def _cascade_context_on() -> bool:
+    """V2-1 CONTEXT-CELL kill-switch (GRAPHRAG_CASCADE_CONTEXT), read at the answer.py quantify SEAM
+    and threaded INSIDE the walk request dict as `context` (+ `replay`, the seam's already-resolved
+    historical-asof bool) -- the _rv_reading_on idiom: NEVER an os.environ read inside cascade.py.
+    DEFAULT-OFF, fail-closed; when off the request dict is byte-identical to today's {focus_contract}.
+    DECLARED DEPENDENCY (the _rv_regional_on precedent, fourth application): a RIDER on
+    GRAPHRAG_CASCADE_WALK (the request exists only under it) and transitively on GRAPHRAG_TIMELINE (no
+    episodes_injected -> no firing -> no cell). Read PER CALL so the env-flip rollback is live -> no
+    redeploy."""
+    return os.environ.get("GRAPHRAG_CASCADE_CONTEXT", "").strip().lower() in ("on", "1", "true")
 
 
 def _intensity_on() -> bool:
@@ -1456,6 +1488,24 @@ def _cascade_walk_block_on(volatile_prompt: str | None) -> bool:
     return _cascade_walk_on() and _cq.CW_MARKER_PREFIX in (volatile_prompt or "")
 
 
+def _cascade_context_block_on(volatile_prompt: str | None) -> bool:
+    """THE RIDER'S SEAM GATE -- `_cascade_walk_block_on` in shape, keyed on ROW-1C's OWN ROW SHAPE
+    (`cascade.CW_CONTEXT_LINE_RX`: a line START of '- [N<digits>' followed by the one minted class
+    token -- refute M2: the bare ten-character token is something a retrieved numbered heading
+    (a bracketed index followed by 'CONTEXT AND BACKGROUND') can carry into the volatile prompt,
+    and the mandate must never ship on a turn with no context row -- so this docstring does not
+    spell the token either). The mandate ships iff the rider flag, the WALK BLOCK GATE and an
+    actually-rendered context row all hold. The pair is atomic at the producer, so the row's presence
+    proves ROW-2C is there too. REVIEW F3 (2026-09-02): the walk's own marker is REQUIRED beside the
+    row shape (`_cascade_walk_block_on`, which carries the walk flag) -- evidence text is rendered
+    raw with its newlines into the volatile prompt, so a retrieved chunk carrying the row shape at a
+    line start could otherwise arm this mandate on a turn with no walk block at all; a context row
+    cannot exist outside a walk block, so the conjunction is strictly tighter and costs nothing."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    return (_cascade_context_on() and _cascade_walk_block_on(volatile_prompt)
+            and _cq.CW_CONTEXT_LINE_RX.search(volatile_prompt or "") is not None)
+
+
 # W5-D5: the '## Outlook' RESERVED HEADING -- injected-only, exactly the '## Cross-commodity' /
 # '## Complex-wide move' / '## Recorded history' shape. Appended to the persona ONLY on a turn where all
 # three outlook legs held, so with the flag off _system() is BYTE-IDENTICAL to pre-W5.
@@ -1954,7 +2004,7 @@ _SYSTEM_HANDLES = (
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
             response_contract: str | None = None, budget: str | None = None,
             census: dict | None = None, provenance: bool = False, handles: bool = False,
-            cascade_walk: bool = False) -> str:
+            cascade_walk: bool = False, cascade_context: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -1986,6 +2036,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     caller resolves it with `_handle_prose_active`, never with the raw knob: a persona that promised
     handle substitution on a turn where the renderer cannot run would ship handle-littered, number-free
     prose to the reader (section 2's MUTUAL-EXCLUSION law).
+    `cascade_context` (V2-1) appends the CONTEXT-row mandate under the walk's own flag branch, threaded
+    from both bodies as `_cascade_context_block_on(vp)`; DEFAULT FALSE -> byte-identical.
     Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
@@ -2009,6 +2061,9 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             base = base + _SYSTEM_CASCADE_WALK                     # CONSEQUENCE license, same idiom
             if cascade_walk:                                       # + the MANDATE, marker-gated at
                 base = base + _SYSTEM_CASCADE_WALK_MANDATE         #   the seam (the _episodes_on shape)
+            if cascade_context and _cascade_context_on():          # V2-1: the CONTEXT mandate, row-
+                base = base + _SYSTEM_CASCADE_CONTEXT              #   gated at the seam, its own flag,
+            #                                                        pure append
             #                                                        DECLARED DEVIATION from charter
             #                                                        STEP 8's marker-presence gate:
             #                                                        flag-only, the CROSS_BOARD /
@@ -2879,7 +2934,16 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 _cw_focus = next((c for c in (getattr(sg, "seeds", None) or [])
                                   if c in graph.contracts), None)
                 if _cw_focus:
-                    _cw_kw = {"cascade_walk": {"focus_contract": _cw_focus}}
+                    _cw_req = {"focus_contract": _cw_focus}
+                    if _cascade_context_on():
+                        # V2-1 CONTEXT CELL (rider): two keys, present ONLY under its own flag -- the
+                        # walk request is byte-identical with the flag off. `replay` is the SAME
+                        # already-resolved historical-asof bool (_pr_kw, above); the ENGINE counts the
+                        # decline, this seam never silences it.
+                        _cw_req["context"] = True
+                        if _pr_kw:
+                            _cw_req["replay"] = True
+                    _cw_kw = {"cascade_walk": _cw_req}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
@@ -2997,6 +3061,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                          sg.trace)
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               cascade_walk=_cascade_walk_block_on(vp),
+                              cascade_context=_cascade_context_block_on(vp),
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               census=_census,                     # D-CC-1: None on every dark turn
                               provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
@@ -9216,6 +9281,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
               if (mode_knobs or {}).get("synth_effort") and call is _call_opus else {})
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               cascade_walk=_cascade_walk_block_on(vp),
+                              cascade_context=_cascade_context_block_on(vp),
                               response_contract=_rc_active,
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
                               census=_census,                                 # D-CC-1, both bodies

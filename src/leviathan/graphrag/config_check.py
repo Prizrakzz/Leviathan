@@ -100,13 +100,17 @@ POSITIONING_TABLES = ("silver_cot", "gold_cot_outcomes")
 #     benchmarks: admitted ONLY in PAIR shape (a spread is not a price -- gold_futures_spreads' own card),
 #     behind the dark GRAPHRAG_RV_READING flag, gated by price_replay; the section-6 `price_relative` owner
 #     ask governs the FLAG, this register governs REACHABILITY either way.
+#   * beef_usd_t / chicken_usd_t -- the V2-1 CONTEXT CELL (cascade._CW_CONTEXT_SERIES): a non-verdicted
+#     window change beside a walk firing, behind GRAPHRAG_CASCADE_CONTEXT inside walk_request, price_replay
+#     belted; this register governs REACHABILITY, check_cascade_context clause (c) governs the MAP.
 SYNTHESIZED_PRICE_LEG_ALLOW: dict = {
     "silver_wasde": frozenset({"avg_farm_price"}),
     "silver_pink_sheet": frozenset({
         "soybean_oil_usd_t", "palm_oil_cpo_usd_t", "rapeseed_oil_usd_t", "soybean_meal_usd_t",
         "soybeans_usd_t", "maize_usd_t", "wheat_us_srw_usd_t", "wheat_us_hrw_usd_t",
         "sunflower_oil_usd_t", "coffee_arabica_usd_t", "coffee_robusta_usd_t", "raw_sugar_world_usd_t",
-        "cotton_a_index_usd_t", "rice_thai_5pct_usd_t", "cocoa_usd_t"}),
+        "cotton_a_index_usd_t", "rice_thai_5pct_usd_t", "cocoa_usd_t",
+        "beef_usd_t", "chicken_usd_t"}),                    # V2-1 context cell, registered with the surface
     # OWNER AMENDMENT (2026-08-29, the regional sitting): the absent board's OWN front settle in its
     # OWN currency (cascade._RV_EOD_LEVEL) -- an observed fact needing no FX; the cross-currency
     # COMPARISON stays refused. This is exactly the adjudication R4c exists to force: a new
@@ -1403,7 +1407,10 @@ def _check_synthesized_price_legs() -> list[str]:
     (review m1): SEAM B's table/metric are INLINE LITERALS at its call sites and are NOT code-checked
     here -- its register entry is validated against the card only, so a SEAM-B metric change (or a
     third synthesized leg with its own literals) stays green until its constants are hoisted to
-    module level and added to the reachable-set read below. Docketed, not silent."""
+    module level and added to the reachable-set read below. Docketed, not silent.
+    V2-1 (2026-09-02): cascade._CW_CONTEXT_SERIES -- the third synthesized pink-sheet surface -- is
+    FOLDED into the reachable set in the same change that minted it (never a door beside the fence);
+    both maps read the same table, so one allow-list entry binds both."""
     from leviathan.graphrag.numbers import cascade as csc
     from leviathan.graphrag.numbers.registry import load_registry
     errs: list[str] = []
@@ -1412,7 +1419,11 @@ def _check_synthesized_price_legs() -> list[str]:
     if allowed is None:
         return [f"R4c: synthesized RV price leg reads table {tbl!r}, which is not in "
                 f"SYNTHESIZED_PRICE_LEG_ALLOW -- a synthesized price leg is adjudicated, never assumed"]
-    reachable = {m for (m, _lbl) in (getattr(csc, "_RV_PRICE_SERIES", None) or {}).values()}
+    if getattr(csc, "_CW_CONTEXT_TABLE", tbl) != tbl:
+        errs.append(f"R4c: the V2-1 context series reads {getattr(csc, '_CW_CONTEXT_TABLE', None)!r}, "
+                    f"not the pink-sheet table this register binds")
+    reachable = ({m for (m, _lbl) in (getattr(csc, "_RV_PRICE_SERIES", None) or {}).values()}
+                 | {m for (m, _lbl) in (getattr(csc, "_CW_CONTEXT_SERIES", None) or {}).values()})   # V2-1 fold
     for m in sorted(reachable - allowed):
         errs.append(f"R4c: synthesized RV price leg metric {m!r} on {tbl} is outside the ratified "
                     f"allow-list -- add it to SYNTHESIZED_PRICE_LEG_ALLOW in the sitting that decides it")
@@ -1549,12 +1560,18 @@ def check_cascade_walk() -> list[str]:
           numerals and curation-telemetry tokens, register-clean, and DIRECTION-CONSISTENT with
           its own sign (a '+' edge with a pressuring/capping predicate errors, and conversely).
     (iv)  supply-keyed language on any SIGNED shipping edge errors (the robusta re-key's fence).
-    (v)   the walk's physical read is exactly (silver_futures_eod, settle) and nothing walk-owned
-          is registered in SYNTHESIZED_PRICE_LEG_ALLOW.
+    (v)   the walk has TWO registered physical reads, each bound by its own register term: the
+          TAPE (silver_futures_eod, settle), pinned here, and the V2-1 CONTEXT SERIES
+          (silver_pink_sheet, {beef_usd_t, chicken_usd_t}), bound by check_cascade_context
+          clause (e) through SYNTHESIZED_PRICE_LEG_ALLOW. Nothing walk-owned enters that register
+          un-adjudicated.
     (vi)  every rev-index node resolves to ONE seed (the walk's all-or-nothing focus gate).
     (vii) display labels for every RESOLVABLE tree-driver slice of a shipping parent are
           digit-free (the section301 minor -- a digit-bearing ROW-3 label would drop the whole
-          block at the serve-time fence).
+          block at the serve-time fence); and -- the SAME resolver walk (refute m8: one
+          enumeration, never a second copy of root admission) -- every slice in the V2-1 context
+          map is REACHED by it (a mapped slice no shipping parent's tree resolves to is a stale
+          row and errors).
     (viii) the census TRIPWIRE via the public enumerator: recompute the reach counts and WARN on
           drift against the banked postrekey census -- printed, never a hard floor (the artifact
           is a moving input)."""
@@ -1671,7 +1688,8 @@ def check_cascade_walk() -> list[str]:
     # (v) the physical read is exactly the adjudicated one. (The docstring's earlier negative
     # claim about SYNTHESIZED_PRICE_LEG_ALLOW was WRONG -- (silver_futures_eod, settle) is
     # legitimately registered there by the RV owner amendment; the walk reuses the same physical
-    # read and registers nothing new, which is what this clause actually holds.)
+    # read and registers nothing new, which is what this clause actually holds.) (V2-1,
+    # 2026-09-02: the context series is the walk's SECOND registered read; its own clause binds it.)
     if (_cq._TAPE_TABLE, _cq._TAPE_METRIC) != ("silver_futures_eod", "settle"):
         errs.append("walk: the tape read moved off (silver_futures_eod, settle)")
     # (vi) one seed per rev-index node.
@@ -1684,6 +1702,7 @@ def check_cascade_walk() -> list[str]:
         from leviathan.graphrag import evidence as _ev
         parents = sorted({r["seed"] for r in shipping})
         unresolved: list = []
+        reached: set = set()
         for p in parents:
             c = g.contracts.get(p)
             for d in (getattr(c, "drivers", None) or []):
@@ -1691,9 +1710,15 @@ def check_cascade_walk() -> list[str]:
                 if not sl:
                     unresolved.append(f"{p}:{d.id}")
                     continue
+                reached.add(sl)
                 if any(ch.isdigit() for ch in _cq._cw_slice_label(sl)):
                     errs.append(f"walk: slice label for {sl!r} (driver {d.id!r} of {p}) carries "
                                 f"a digit -- a ROW-3 header naming it would drop the block")
+        # V2-1 reachability, folded into THIS enumeration (refute m8): a context-map slice no
+        # shipping parent's tree resolves to can never fire and is a stale row.
+        for sl in sorted(set(getattr(_cq, "_CW_CONTEXT_SERIES", None) or {}) - reached):
+            errs.append(f"walk: V2-1 context-map slice {sl!r} is reached by no shipping parent's "
+                        f"tree driver (stale row -- the shipped resolver cannot select it)")
         if unresolved:
             # M2's pure half, WARN-shaped like the (viii) tripwire: an unresolvable tree driver is
             # LAWFUL (no text slice -> serving never injects it) but it silently shrinks the
@@ -1711,6 +1736,111 @@ def check_cascade_walk() -> list[str]:
     if n_census != 15:
         print(f"WARN cascade_walk: censused shipping hop count moved (15 -> {n_census}) -- "
               f"re-run the reach census and re-bank before citing pool numbers")
+    return errs
+
+
+def check_cascade_context() -> list[str]:
+    """V2-1 CONTEXT CELL governance (design v2, refute-adjudicated 2026-09-02). PURE reads only --
+    the numbers registry card, cascade.py's and answer.py's constants/source (S3-free, CI-safe).
+    Reachability -- clause (a) of the design -- is FOLDED into check_cascade_walk's clause (vii)
+    resolver walk (refute m8), so this check never re-implements root admission.
+
+    (b)  CARD: the context table is the pink sheet; every mapped metric is declared on that card with
+         a non-empty unit, and the cell's unit string carries the card's declared unit verbatim.
+    (c)  CONSUMER NAMING (the source-of-truth pin): each mapped slice's name appears VERBATIM in its
+         metric's card desc -- the map can never grow without the curation happening first, in the
+         card, where a human reads it (avian_influenza is not a row for exactly this reason).
+    (d)  LABEL DISCIPLINE: the reader label is letters-and-spaces only, digit-free, register-clean,
+         never id-shaped, and the card label's head noun (label minus ' price') is inside it.
+    (e)  R4c: every mapped (table, metric) is registered in SYNTHESIZED_PRICE_LEG_ALLOW.
+    (f)  CONSTANT DRIFT PINS: CW_CONTEXT_CAP == CW_MAX_FIRINGS; CW_SPAN_MAX_DAYS < 365 (two same-named
+         first-of-month prints need a window of a year, so the spelled months are unambiguous);
+         CW_CONTEXT_MIN_OBS >= 3; the row token begins with '] ', occurs in cascade.py's source
+         exactly once as a literal and in answer.py never; the gate regex matches the producer's own
+         rendered row and NOT a retrieved '[1] CONTEXT AND BACKGROUND' heading (refute M2).
+    (g)  The ARTIFACT half (does a mapped slice carry a serve-reachable window on a covered root today)
+         reads S3 and lives with the KC0b probe, which RE-RUNS as a pre-arm gate (refute M4) -- never
+         here."""
+    import re as _re
+
+    from leviathan.graphrag import answer as _ans
+    from leviathan.graphrag import register as _reg
+    from leviathan.graphrag.numbers import cascade as _cq
+    from leviathan.graphrag.numbers.registry import load_registry
+    errs: list[str] = []
+    tbl = getattr(_cq, "_CW_CONTEXT_TABLE", None)
+    series = getattr(_cq, "_CW_CONTEXT_SERIES", None) or {}
+    if tbl != "silver_pink_sheet":
+        errs.append(f"context: the context table moved off silver_pink_sheet ({tbl!r})")
+    card = load_registry().tables.get(tbl or "")
+    if card is None:
+        errs.append(f"context: table {tbl!r} is not a registered numbers table")
+        return errs
+    fmt = str(getattr(_cq, "_CW_CONTEXT_UNIT_FMT", "") or "")
+    allowed = SYNTHESIZED_PRICE_LEG_ALLOW.get(tbl, frozenset())
+    for sl, (metric, label) in sorted(series.items()):
+        m = (getattr(card, "metrics", None) or {}).get(metric)
+        # (b) card + unit
+        if m is None:
+            errs.append(f"context: mapped metric {metric!r} ({sl}) is not declared on the {tbl} card")
+            continue
+        unit = str(getattr(m, "unit", None) or "").strip()
+        if not unit:
+            errs.append(f"context: mapped metric {metric!r} ({sl}) declares no unit")
+        elif unit not in fmt.format(unit=unit):
+            errs.append(f"context: the cell unit format {fmt!r} does not carry the card unit {unit!r}")
+        # (c) consumer naming, verbatim in the desc
+        desc = str(getattr(m, "desc", None) or "")
+        if sl not in desc:
+            errs.append(f"context: slice {sl!r} is not named in {metric!r}'s card desc -- the map "
+                        f"grows only after the card names the consumer (curation first)")
+        # (d) label discipline
+        if not label or not _re.fullmatch(r"[a-z][a-z ]*", label) or label.strip() != label:
+            errs.append(f"context: reader label {label!r} ({sl}) is not lowercase letters and spaces")
+        if (_reg.count_valuation_words(label) or _reg.count_flow_words(label)
+                or not _cq.pace_register_ok(label) or _reg.internal_leaks(label)):
+            errs.append(f"context: reader label {label!r} ({sl}) trips a register fence")
+        head = str(getattr(m, "label", None) or "").replace(" price", "").strip()
+        if not head or head not in label:
+            errs.append(f"context: reader label {label!r} does not carry the card label's head noun "
+                        f"{head!r}")
+        # (e) R4c membership
+        if metric not in allowed:
+            errs.append(f"context: mapped metric {metric!r} is outside SYNTHESIZED_PRICE_LEG_ALLOW"
+                        f"[{tbl}] -- a synthesized price surface is adjudicated, never assumed")
+    # (f) constant drift pins
+    if getattr(_cq, "CW_CONTEXT_CAP", None) != getattr(_cq, "CW_MAX_FIRINGS", None):
+        errs.append("context: CW_CONTEXT_CAP != CW_MAX_FIRINGS (one cell per firing is the derivation)")
+    if not (int(getattr(_cq, "CW_SPAN_MAX_DAYS", 0) or 0) < 365):
+        errs.append("context: CW_SPAN_MAX_DAYS >= 365 -- two same-named first-of-month prints could "
+                    "share one window and the spelled months would be ambiguous")
+    if int(getattr(_cq, "CW_CONTEXT_MIN_OBS", 0) or 0) < 3:
+        errs.append("context: CW_CONTEXT_MIN_OBS < 3 -- 'from X through Y' must name a run")
+    tok = str(getattr(_cq, "CW_CONTEXT_TOKEN", "") or "")
+    if not tok.startswith("] "):
+        errs.append(f"context: CW_CONTEXT_TOKEN {tok!r} does not sit right after the handle")
+    try:
+        c_src = open(_cq.__file__, encoding="utf-8").read()
+        a_src = open(_ans.__file__, encoding="utf-8").read()
+        if c_src.count(tok) != 1:                      # the bare substring: the constant's own literal
+            errs.append(f"context: the row token occurs {c_src.count(tok)} times in cascade.py "
+                        f"(one producer -- every other site builds from CW_CONTEXT_TOKEN)")
+        if tok in a_src:
+            errs.append("context: the row token appears in answer.py (the gate must build from "
+                        "cascade.CW_CONTEXT_LINE_RX, never a copy)")
+    except Exception as exc:  # noqa: BLE001 -- an unreadable source IS an error
+        errs.append(f"context: source scan failed ({type(exc).__name__})")
+    rx = getattr(_cq, "CW_CONTEXT_LINE_RX", None)
+    sample = {"label": "world chicken", "first_month": "January", "last_month": "July",
+              "span": "2026-01..2026-08", "revision_stamp": "2026M08", "move_pct": -1.1429}
+    try:
+        row = _cq._cw_context_line(3, sample)
+        if rx is None or not rx.search("x\n" + row + "\ny"):
+            errs.append("context: CW_CONTEXT_LINE_RX does not match the producer's own rendered row")
+        if rx is not None and rx.search("[1] CONTEXT AND BACKGROUND\n- [1] CONTEXT and outlook"):
+            errs.append("context: CW_CONTEXT_LINE_RX matches a retrieved numbered heading (refute M2)")
+    except Exception as exc:  # noqa: BLE001
+        errs.append(f"context: the producer could not render the sample row ({type(exc).__name__})")
     return errs
 
 
@@ -2842,7 +2972,8 @@ def main() -> int:
                         ("pattern_outcomes", check_pattern_outcomes()),
                         ("pace_collapse", check_pace_collapse()),
                         ("question_shapes", check_question_shapes()),
-                        ("cascade_walk", check_cascade_walk())):
+                        ("cascade_walk", check_cascade_walk()),
+                        ("cascade_context", check_cascade_context())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

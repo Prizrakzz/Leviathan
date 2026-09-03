@@ -532,10 +532,12 @@ def test_r4c_catches_a_stray_synthesized_metric(monkeypatch):
     """R4c fail-closed proof: a metric added to the code without a register sitting reds the build."""
     from leviathan.graphrag import config_check as cc
     stray = dict(cq._RV_PRICE_SERIES)
-    stray["cocoa_smuggled"] = ("beef_usd_t", "world beef")          # declared on the card, NOT ratified
+    # re-anchored 2026-09-02: beef_usd_t is now RATIFIED (the V2-1 context cell registered it), so the
+    # stray is copper_usd_mt -- declared on the card, on no synthesized surface, NOT ratified.
+    stray["cocoa_smuggled"] = ("copper_usd_mt", "world copper")
     monkeypatch.setattr(cq, "_RV_PRICE_SERIES", stray)
     errs = cc._check_synthesized_price_legs()
-    assert any("beef_usd_t" in e and "outside the ratified allow-list" in e for e in errs)
+    assert any("copper_usd_mt" in e and "outside the ratified allow-list" in e for e in errs)
 
 
 def test_r4_fences_untouched():

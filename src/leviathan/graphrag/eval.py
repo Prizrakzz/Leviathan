@@ -351,9 +351,11 @@ def _cascade_stats(out: dict) -> dict:
             "cw_order": _cw.get("order"),
             "cw_root": _cw.get("root"),
             "cw_path": _cw.get("path"),
-            "cw_cells_declared": len(_cw.get("cells") or []),
+            # V2-1: both counters kind-filter context cells (byte-identical on every banked artifact --
+            # today's cells carry no `kind` key; 'no kind' means board).
+            "cw_cells_declared": sum(1 for c in _cw.get("cells") or [] if c.get("kind") != "context"),
             "cw_cells_measured": sum(1 for c in _cw.get("cells") or []
-                                     if c.get("status") == "closed"),
+                                     if c.get("status") == "closed" and c.get("kind") != "context"),
             "cw_j4_skips": sum(1 for c in _cw.get("cells") or [] if c.get("j4_handle")),
             "cw_children_declared": int(_cw.get("children_declared") or 0),
             "cw_children_priced": int(_cw.get("children_priced") or 0),
@@ -373,6 +375,24 @@ def _cascade_stats(out: dict) -> dict:
             #                                                       minor: unprojected, the ceiling
             #                                                       was unreadable from any arm)
             "cw_grounded_slices": len(_cw.get("grounded_tree_slices") or []),
+            # V2-1 CONTEXT CELL (rider on the walk): its ledger rides INSIDE quantify_cascade_walk under
+            # payload['context'] (absent when the rider is off) and its cells under kind == 'context'.
+            # APPENDED at the tail, never sorted in (the rv_regional precedent). STATED PLAINLY (refute
+            # m5): every eval ARTIFACT row gains these cw_context_* keys on every run, flag off included
+            # (the cw_* precedent -- the row SHAPE changes; serving bytes do not), so a diff against a
+            # banked artifact is not drift; and `cw_reads` above INCLUDES the context reads on rider-on
+            # rows (payload['net_reads'] is the walk's honest total spend) -- the context share is
+            # `cw_context_reads` below.
+            "cw_context_on": "context" in _cw,
+            "cw_context_planned": int((_cw.get("context") or {}).get("planned") or 0),
+            "cw_context_admitted": int((_cw.get("context") or {}).get("admitted") or 0),
+            "cw_context_rendered": int((_cw.get("context") or {}).get("rendered") or 0),
+            "cw_context_reads": int((_cw.get("context") or {}).get("reads") or 0),
+            "cw_context_declines": [d.get("reason") for d in (_cw.get("context") or {}).get("declines")
+                                    or []],
+            "cw_context_slices": (_cw.get("context") or {}).get("slices") or [],
+            "cw_context_cells_measured": sum(1 for c in _cw.get("cells") or []
+                                             if c.get("kind") == "context" and c.get("status") == "closed"),
             # T2a (CONVERGENCE_TIER1): quantify_pace is ENGINE-written, non-empty IFF >=1 deterministic
             # streak/window_change pace row was emitted this turn. BOOLEAN (mirror comove_fired/
             # price_leg_fired [F7]) -- an honest decline (<2 points / annual grain / flag off) leaves the
@@ -931,7 +951,10 @@ _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "a
                    # decline-matrix teeth: trace-key equality (the price_decline_guard idiom) on the
                    # coverage verdict BOTH lanes stamp -- 'legacy' | 'straddle' | 'uncovered', list-tolerant
                    # like chain_decline_reason, with 'absent' accepting an un-routed (fully covered) turn.
-                   "curve_cited", "expiry_labeled", "settle_kind_stated", "futures_coverage_route")
+                   "curve_cited", "expiry_labeled", "settle_kind_stated", "futures_coverage_route",
+                   # V2-1: trace-only boolean pin; the NEGATIVE branch is the realizable teeth (a root
+                   # with no mapped tree slice can never render). Tail, never sorted in.
+                   "cw_context_rendered")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -1055,6 +1078,12 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # flag-gated + data-dependent, and on the OFF arm it is the byte-identity assertion made
             # deterministic (flag absent -> the engine cannot write the key, so the pin cannot flap).
             res[k] = cs["transmission_fired"] == bool(want)
+        elif k == "cw_context_rendered":
+            # V2-1 CONTEXT CELL: trace-only boolean pin (the chain_fired idiom) off the walk's ONE key.
+            # The NEGATIVE branch is structural teeth: a root whose tree carries no mapped slice cannot
+            # render (pinned false on every such deck row); the positive is flag-gated + data-dependent
+            # (KC1 reads the counters).
+            res[k] = (int(cs.get("cw_context_rendered") or 0) > 0) == bool(want)
         elif k == "min_transmission_hops_cited":
             # >= N LINKS whose BOTH legs' World su_ratio [N] rows are cited in the STRUCTURED prose. CALIBRATION-
             # GATED (6.1, fold-pass finding 2): which links render divergence vs co-move is WINDOW-contingent, so
@@ -1133,6 +1162,13 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # price table with GOVERNED units (unit_overrides, three-way lint-bound to CONTRACT_MAP), so a
             # served per-expiry settle satisfies price_cited, and unit_present becomes the exchange-unit
             # discipline on ten currencies (c/bu, USD/mt, BRL/60-kg bag, ...) with no FX conversion anywhere.
+            # V2-1 CONTEXT CELL (review F4, 2026-09-02): the walk rider's percent-change context row
+            # (silver_pink_sheet, reader-word metric 'monthly benchmark change', value = a window move)
+            # satisfies this predicate exactly as the RV 'monthly benchmark percentile / sigma' rows do --
+            # a SYNTHESIZED pink-sheet window row, not a level. Semantics deliberately unchanged. DECK
+            # GUIDANCE: a row that means 'a pink/EOD LEVEL was cited' pins cw_context_rendered: false
+            # beside price_cited: true, and an arm attribution reads cw_context_rendered before
+            # crediting a price_cited delta to price serving.
             pc = [c for c in cits if (c.get("locator") or {}).get("table") in ("silver_pink_sheet", "silver_wasde", "silver_futures_prices", "silver_futures_eod")
                   and c.get("value") is not None]
             if k == "price_cited":
@@ -1619,6 +1655,16 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "cw_reads": cs.get("cw_reads"),
             "cw_turn_spent": cs.get("cw_turn_spent"),
             "cw_grounded_slices": cs.get("cw_grounded_slices"),
+            # V2-1 CONTEXT CELL: the same hard-whitelist projection (the Z7 lesson, 6th application) --
+            # without these lines the arm's own context verdicts reach NO artifact.
+            "cw_context_on": cs.get("cw_context_on"),
+            "cw_context_planned": cs.get("cw_context_planned"),
+            "cw_context_admitted": cs.get("cw_context_admitted"),
+            "cw_context_rendered": cs.get("cw_context_rendered"),
+            "cw_context_reads": cs.get("cw_context_reads"),
+            "cw_context_declines": cs.get("cw_context_declines"),
+            "cw_context_slices": cs.get("cw_context_slices"),
+            "cw_context_cells_measured": cs.get("cw_context_cells_measured"),
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
             "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered

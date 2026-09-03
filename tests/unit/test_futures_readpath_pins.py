@@ -915,8 +915,18 @@ class TestS1UnflaggedByDesign:
         # RE-ANCHORED 6 -> 7 (2026-09-01, D-DA lane 2b): the reading's derived branch adds the EOD
         # FRESH-LEVEL read -- _RV_EOD_TABLE with agg="front_expiry" again, the one-sided rung's own
         # classification verbatim (owner-ratified native-unit fresh levels).
-        assert calls == 7, f"a new fetch_window call site appeared ({calls} now) -- classify it"
+        # RE-ANCHORED 7 -> 8 (2026-09-02, V2-1 CONTEXT CELL): the walk's rider adds ONE pink-sheet
+        # read -- _cw_context_cell -> _CW_CONTEXT_TABLE (the pink sheet again: wide+flat, no
+        # delivery-month axis, the _rv_price_fetch class). It THREADS the canary like the board cells
+        # (harmless either way: Q.run re-sorts a newest-first series before any consumer sees it), so
+        # it joins the threaded column, never the unflagged one -- pinned on the body below.
+        assert calls == 8, f"a new fetch_window call site appeared ({calls} now) -- classify it"
         assert "table=_RV_PRICE_TABLE" in src and 'agg="front_expiry"' in src
+        ctx_site = inspect.getsource(CQ._cw_context_cell)
+        assert "fetch_window(qfn, table=_CW_CONTEXT_TABLE," in ctx_site
+        assert "futures_newest_first=futures_newest_first" in ctx_site, \
+            "the V2-1 context read dropped the canary -- classify it, do not lose it"
+        assert CQ._CW_CONTEXT_TABLE == CQ._RV_PRICE_TABLE
         assert "fetch_window(qfn, table=_PSD_TABLE," in src
         # ...and the two that skip the canary are exactly the two constant-table reads named above. L2-5
         # made the PSD surface a KWARG, so that site's literal became a module CONSTANT and the pin follows
