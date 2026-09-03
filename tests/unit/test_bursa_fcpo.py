@@ -52,6 +52,25 @@ FETCH = _load("jobs/ingest/fetch_bursa_fcpo.py", "fetch_bursa_fcpo")
 
 _AS_OF = "2026-07-29"
 
+# V2-4 (2026-09-02): the Bursa leg is PARKED -- the SHIPPED BURSA_CODE_MAP is EMPTY because the
+# palm slug now carries the CME USD tape (Databento root CPO). The parser and the producer are
+# unchanged and are exercised here under the HISTORICAL binding, injected per test into BOTH
+# halves that read the map (the transform module and the producer's imported name); the tests
+# that pin the PARKED truth reset the map to {} explicitly.
+_HISTORICAL_BINDING = {"FCPO": "malaysian_crude_palm_oil_cme"}
+
+
+@pytest.fixture(autouse=True)
+def _injected_bursa_binding(monkeypatch):
+    monkeypatch.setattr(T, "BURSA_CODE_MAP", dict(_HISTORICAL_BINDING))
+    monkeypatch.setattr(FETCH, "BURSA_CODE_MAP", dict(_HISTORICAL_BINDING))
+
+
+def _park(monkeypatch) -> None:
+    """The SHIPPED state: no bursa slug, empty map on both halves."""
+    monkeypatch.setattr(T, "BURSA_CODE_MAP", {})
+    monkeypatch.setattr(FETCH, "BURSA_CODE_MAP", {})
+
 # The rendered header the producer scrapes into the side channel, verbatim from the live page's
 # column labels (capture_notes.md, resolved cell-by-cell against the first rendered row).
 THEAD = ["NO", "NAME", "MONTH", "OPEN", "BID", "ASK", "LAST DONE", "CHANGE", "HIGH", "LOW", "VOL",
@@ -362,16 +381,30 @@ class TestTheDateComesFromTheKey:
 
 # ---------------------------------------------------------------------------
 class TestCodeMap:
-    def test_the_code_map_is_bound_to_the_contract_map_both_ways(self):
+    def test_the_code_map_is_bound_to_the_contract_map_both_ways(self, monkeypatch):
+        # Against the SHIPPED map: both sides are EMPTY while the leg is parked, and the
+        # import-time lint holds as set() == set().
+        _park(monkeypatch)
         assert T._lint_code_map() == []
         assert set(T.BURSA_CODE_MAP.values()) == {
-            s for s, r in FC.CONTRACT_MAP.items() if r["source"] == "bursa"}
+            s for s, r in FC.CONTRACT_MAP.items() if r["source"] == "bursa"} == set()
 
-    def test_the_slug_is_the_curated_one_and_the_labels_come_from_the_map(self):
+    def test_the_leg_is_parked_and_the_palm_slug_carries_the_cme_usd_tape(self, monkeypatch):
+        """V2-4 (2026-09-02): the slug's price record moved to databento_glbx_mdp3 / USD; the
+        Bursa MYR binding is PARKED (REFUSED venue, zero rows) -- slug_for_code fails closed on
+        every code, so a landed capture could never be labelled under the USD record."""
+        _park(monkeypatch)
+        assert T.BURSA_CODE_MAP == {}
         rec = FC.CONTRACT_MAP["malaysian_crude_palm_oil_cme"]
+        assert rec == {"unit": "USD/metric ton", "currency": "USD",
+                       "settle_kind": "settlement", "source": "databento_glbx_mdp3"}
+        assert not [s for s, r in FC.CONTRACT_MAP.items() if r["source"] == "bursa"]
+        with pytest.raises(ValueError, match="not one of"):
+            T.slug_for_code("FCPO")
+
+    def test_the_parser_labels_rows_from_the_injected_binding(self):
+        # The historical binding (autouse fixture): the parser is intact and keeps its 55 pins.
         assert T.BURSA_CODE_MAP == {"FCPO": "malaysian_crude_palm_oil_cme"}
-        assert rec["unit"] == "MYR/t" and rec["currency"] == "MYR"
-        assert rec["settle_kind"] == "settlement", "SETT. PRICE, not LAST DONE"
         df, _ = bronze()
         assert set(df["leviathan_slug"]) == {"malaysian_crude_palm_oil_cme"}
 
@@ -472,13 +505,34 @@ class TestProducer:
                 assert mod.main([*base, flag]) == 0, f"{mod.__name__} rejected {flag}"
         capsys.readouterr()
 
-    def test_the_task_enumeration_bound_is_the_transforms_code_map(self):
+    def test_the_task_enumeration_bound_is_the_transforms_code_map(self, monkeypatch):
         """``futures_eod_task.BURSA_CODES`` duplicates BURSA_CODE_MAP's keys with no import binding
         them (the task imports the map lazily so the two W1c halves can land independently). A code
         added to CONTRACT_MAP would otherwise import-time-force the transform's map to grow while
-        ``bursa_units`` silently stopped discovering that code's captures."""
+        ``bursa_units`` silently stopped discovering that code's captures. PARKED (V2-4): both
+        are EMPTY, and () == tuple({}) is the pin."""
+        _park(monkeypatch)
         task = _load("jobs/batch/futures_eod_task.py", "futures_eod_task_bursa")
-        assert task.BURSA_CODES == tuple(T.BURSA_CODE_MAP)
+        assert task.BURSA_CODES == tuple(T.BURSA_CODE_MAP) == ()
+
+    def test_a_parked_producer_refuses_before_any_aws_call_and_before_the_browser(
+            self, monkeypatch, caplog):
+        """V2-4 m5: with the SHIPPED empty map a real capture would land bytes under a code the
+        silver leg refuses -- so the producer refuses FIRST, spending no Fargate run. The dry-run
+        stays green (argparse never validates a default), which is what the parked leg's smoke
+        needs."""
+        _park(monkeypatch)
+
+        def _boom(*a, **k):
+            raise AssertionError("must not reach S3 / the browser while parked")
+
+        monkeypatch.setattr(FETCH, "raw_exists", _boom)
+        monkeypatch.setattr(FETCH, "_browser", _boom)
+        monkeypatch.setattr(FETCH, "get_required_env", _boom)
+        assert FETCH.main(["--as-of-date", _AS_OF, "--bucket", "b", "--aws-region",
+                           "us-east-1"]) == 1
+        assert "PARKED bursa" in caplog.text
+        assert FETCH.main(["--dry-run", "--as-of-date", _AS_OF]) == 0
 
     def test_the_dry_run_touches_no_browser_and_no_aws(self, capsys):
         assert FETCH.main(["--dry-run", "--as-of-date", _AS_OF]) == 0

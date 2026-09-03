@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-"""PRICE_AND_PLAYBOOKS W2 -- the eight deterministic gates for the Databento leg.
+"""PRICE_AND_PLAYBOOKS W2 -- the nine deterministic gates for the Databento leg (eight from the
+plan + gate 9, the V2-4 month-continuity gate).
 
     1. ``(leviathan_slug, trade_date, raw_symbol)`` UNIQUENESS across the entire table -- the F2
        trap. Any duplicate is a HARD FAIL, never a dedupe: the dedupe already happened in the
@@ -66,7 +67,12 @@ if str(_REPO / "src") not in sys.path:
 
 from leviathan.silver import futures_eod_contracts as FC  # noqa: E402
 from leviathan.silver import futures_roll as FR  # noqa: E402
-from leviathan.transforms.raw_to_bronze.databento_eod import ICE_BAR_RULE, ROOT_MAP  # noqa: E402
+from leviathan.transforms.raw_to_bronze.databento_eod import (  # noqa: E402
+    ICE_BAR_RULE,
+    ROOT_MAP,
+    SETTLEMENT_TAPE_ROOTS,
+    month_continuity_holes,
+)
 
 SLUG_TO_ROOT: dict[str, str] = {slug: root for root, (_ds, slug) in ROOT_MAP.items()}
 from leviathan.transforms.raw_to_bronze.databento_eod import ICE_DATASETS  # noqa: E402
@@ -118,9 +124,26 @@ _ICE_ROOTS = frozenset(r for r, (ds, _s) in ROOT_MAP.items() if ds in ICE_DATASE
 # assertion. `test_every_gated_year_is_actually_fetched` keeps this pair in lockstep with
 # ROOT_FIRST_DATE.
 RECORDED_NOT_GATED: frozenset[tuple[str, int]] = frozenset({("KE", 2013)})
+# Roots whose EXPECTED_BARS rows are NOT YET BANKED (V2-4 M3): CPO's rows are the D3 silver
+# DRY-RUN's rows_out per (CPO, year) on the existing 'silver' basis (the KE-2013 precedent -- the
+# transform's own measured output, so a re-run is pinned against it), and the dry-run has not
+# happened at commit A. A pending root FAILS gate 3 by name ('not banked') rather than passing
+# vacuously; the shadow harness waives gate 3 on purpose (--skip 3) and the canonical harness
+# runs only after the rows are banked and this set is emptied. Lint both ways: a pending root
+# must have ZERO rows, and a root with rows must not be pending.
+EXPECTED_BARS_PENDING: frozenset[str] = frozenset({"CPO"})
+assert EXPECTED_BARS_PENDING <= set(ROOT_MAP), "EXPECTED_BARS_PENDING must name ROOT_MAP roots"
+assert not {r for r, _y in EXPECTED_BARS} & EXPECTED_BARS_PENDING, \
+    "a root with EXPECTED_BARS rows banked must be removed from EXPECTED_BARS_PENDING"
+assert EXPECTED_BARS_PENDING <= SETTLEMENT_TAPE_ROOTS, \
+    "only a settlement-tape root may be pending (its counts come from the D3 dry-run, not the plan)"
 
 # --- gate 4 -------------------------------------------------------------------------------------
-DEFERRED_SAMPLE = 20
+# The most-deferred contracts are sampled PER SLUG (STEP-12 F6). A table-wide top-20 by lead
+# collapses onto whichever root lists furthest out -- CPO lists 60 months (~1,800 days of lead
+# against ~1,000 for the deepest ZC/ZS month), so once palm is canonical all 20 slots would be palm
+# and the F5 check would silently stop sampling the 15 shipped roots (the ZCZ8 measured case).
+DEFERRED_SAMPLE_PER_SLUG = 3
 DEFERRED_MIN_ROWS = 30
 
 # --- gate 5 -------------------------------------------------------------------------------------
@@ -156,7 +179,7 @@ _DAG_SCHEDULES: tuple[str, ...] = ("futures_eod_databento", "futures_eod_free")
 _PRODUCER_TASK = "jobs/batch/futures_eod_task.py"
 _ROW_VALIDATOR_TOKEN = "row_validator=FC.lint_frame"
 
-GATE_IDS = (1, 2, 3, 4, 5, 6, 7, 8)
+GATE_IDS = (1, 2, 3, 4, 5, 6, 7, 8, 9)
 _FORBIDDEN_REPORT_PREFIXES = ("raw/", "bronze/", "silver/", "gold/")
 _ALLOWLIST = frozenset({"get_object", "list_objects_v2", "head_object", "get_paginator"})
 
@@ -406,6 +429,12 @@ def gate3_bar_counts(df: pd.DataFrame, *, tolerance: float = BAR_TOLERANCE,
     observed = work.groupby(["root", "year"]).size()
     ice_roots = {r for r, (ds, _s) in ROOT_MAP.items() if ds in ICE_DATASETS}
     rows, fails = [], []
+    # A root whose EXPECTED_BARS rows are pending the D3 dry-run cannot pass this gate: an
+    # unmeasurable basis is not a pass (V2-4 M3). Named, so the operator banks the rows.
+    for root in sorted(EXPECTED_BARS_PENDING):
+        fails.append(f"(3) {root}: EXPECTED_BARS rows NOT BANKED yet (pending the silver dry-run's "
+                     f"rows_out per year on the 'silver' basis) -- bank them and empty "
+                     f"EXPECTED_BARS_PENDING; an unmeasurable basis is not a pass")
     for (root, year), expected in sorted(EXPECTED_BARS.items()):
         basis = "raw" if root in ice_roots else "silver"
         if basis == "raw":
@@ -427,7 +456,50 @@ def gate3_bar_counts(df: pd.DataFrame, *, tolerance: float = BAR_TOLERANCE,
                          f"basis={basis})")
     return fails, {"rows": rows, "tolerance": tolerance,
                    "partial_years_recorded_not_gated": sorted(PARTIAL_YEARS),
-                   "pairs_recorded_not_gated": sorted(f"{r}/{y}" for r, y in RECORDED_NOT_GATED)}
+                   "pairs_recorded_not_gated": sorted(f"{r}/{y}" for r, y in RECORDED_NOT_GATED),
+                   "roots_pending_bank": sorted(EXPECTED_BARS_PENDING)}
+
+
+# ---------------------------------------------------------------------------
+# gate 9 -- month continuity per root (V2-4 M2)
+# ---------------------------------------------------------------------------
+def gate9_month_continuity(df: pd.DataFrame, *, slugs=None) -> tuple[list[str], dict]:
+    """Every calendar month between a Databento root's first and last banked trade date carries
+    >= 1 trade date (per run of consecutive years). An internal hole is invisible to
+    PRICE_COVERAGE_START -- covers() routes a window inside it to the table, which declines
+    no_tape_rows instead of naming the floor -- so a hole is a FAIL that names the months. The
+    CPO tape's measured Jan-Jul 2016 hole is why the root's floor opens 2016-08-01; this gate is
+    what keeps a second hole from ever landing silently. Free-leg slugs are outside ROOT_MAP and
+    are not judged here (their legs are forward-accumulation captures with declared gaps).
+
+    ``slugs`` (STEP-12 F7) SCOPES the judgement to the slugs a sitting touched. Unscoped, the gate
+    judges every Databento root on the frame -- which at the CPO sitting's D8 includes the 15
+    shipped roots' NEVER-MEASURED history (KE from 2014, ICE from 2018-12-24, ZR's thin years),
+    so a pre-existing estate hole would red the sitting and roll a continuous CPO back. The
+    runbook records the estate's pre-state on the canonical prefix BEFORE promote (D6b) and runs
+    D8 scoped to the slug it touched; the scope is stamped in the artifact, and a scope that
+    judges nothing is a FAIL, not a pass."""
+    if "leviathan_slug" not in df.columns or "trade_date" not in df.columns:
+        return ["(9) frame is missing leviathan_slug/trade_date"], {}
+    work = df[df["leviathan_slug"].isin(set(SLUG_TO_ROOT))]
+    scope = sorted(set(slugs)) if slugs else None
+    if scope:
+        unknown = [s for s in scope if s not in SLUG_TO_ROOT]
+        if unknown:
+            return [f"(9) scope names slug(s) outside the Databento roots: {', '.join(unknown)}"], \
+                {"scope": scope, "holes": {}, "slugs_judged": []}
+        work = work[work["leviathan_slug"].isin(set(scope))]
+        if work.empty:
+            return [f"(9) none of the scoped slug(s) carry rows on the frame: {', '.join(scope)} "
+                    f"-- a scope that judges nothing is not a pass"], \
+                {"scope": scope, "holes": {}, "slugs_judged": []}
+    holes = month_continuity_holes(work)
+    fails = [f"(9) {SLUG_TO_ROOT.get(slug, '?')}/{slug}: {len(months)} empty calendar month(s) "
+             f"inside the banked span: {', '.join(months[:12])}"
+             f"{' ...' if len(months) > 12 else ''}"
+             for slug, months in sorted(holes.items())]
+    return fails, {"holes": holes, "scope": scope,
+                   "slugs_judged": sorted(set(work["leviathan_slug"].astype(str)))}
 
 
 def load_ice_raw_bar_counts(s3, bucket: str, manifest_prefix: str) -> dict:
@@ -463,11 +535,14 @@ def load_ice_raw_bar_counts(s3, bucket: str, manifest_prefix: str) -> dict:
 # ---------------------------------------------------------------------------
 # gate 4 -- no forward fill (F5)
 # ---------------------------------------------------------------------------
-def gate4_no_forward_fill(df: pd.DataFrame, *, sample: int = DEFERRED_SAMPLE,
+def gate4_no_forward_fill(df: pd.DataFrame, *, sample: int = DEFERRED_SAMPLE_PER_SLUG,
                           min_rows: int = DEFERRED_MIN_ROWS) -> tuple[list[str], dict]:
-    """The 20 most DEFERRED contracts (largest lead from first print to delivery month) must each
-    show distinct-trade-date < business-day span. ``ZCZ8`` returned 110 bars against ~139 business
-    days; equality means something filled, and a fill manufactures term-structure flatness."""
+    """The ``sample`` most DEFERRED contracts OF EVERY SLUG (largest lead from first print to
+    delivery month) must each show distinct-trade-date < business-day span. ``ZCZ8`` returned 110
+    bars against ~139 business days; equality means something filled, and a fill manufactures
+    term-structure flatness. PER SLUG, never table-wide (STEP-12 F6): the furthest-listing root
+    (CPO, 60 months out) would otherwise monopolise every slot and the 15 shipped roots would
+    silently leave the sample."""
     need = {"leviathan_slug", "contract_month", "trade_date"}
     if need - set(df.columns):
         return [f"(4) frame is missing {sorted(need - set(df.columns))}"], {}
@@ -487,7 +562,10 @@ def gate4_no_forward_fill(df: pd.DataFrame, *, sample: int = DEFERRED_SAMPLE,
     month_start = pd.to_datetime(agg["contract_month"].astype("string") + "-01", errors="coerce")
     agg["lead_days"] = (month_start - agg["first"]).dt.days
     agg = agg.sort_values(["lead_days", "leviathan_slug", "contract_month"],
-                          ascending=[False, True, True]).head(sample)
+                          ascending=[False, True, True])
+    # PER SLUG: the `sample` most-deferred contracts of EVERY slug on the frame, never a
+    # table-wide top-N (which the furthest-listing root monopolises).
+    agg = agg.groupby("leviathan_slug", sort=False).head(sample)
     agg["bdays"] = [int(np.busday_count(f.date(), l.date()) + 1)
                     for f, l in zip(agg["first"], agg["last"])]
     agg["filled"] = agg["distinct"] >= agg["bdays"]
@@ -498,7 +576,8 @@ def gate4_no_forward_fill(df: pd.DataFrame, *, sample: int = DEFERRED_SAMPLE,
     fails = [f"(4) {r['leviathan_slug']} {r['contract_month']}: {r['distinct_dates']} distinct "
              f"trade dates >= {r['bday_span']} business days -- NOT strictly less, something "
              f"forward-filled" for r in recs if r["filled"]]
-    return fails, {"sampled": recs, "sample_size": len(recs)}
+    return fails, {"sampled": recs, "sample_size": len(recs), "per_slug": sample,
+                   "slugs_covered": sorted(set(agg["leviathan_slug"].astype(str)))}
 
 
 # ---------------------------------------------------------------------------
@@ -838,9 +917,10 @@ def gate8_chain_hooks(repo: Path = _REPO) -> tuple[list[str], dict]:
 def evaluate(*, eod: pd.DataFrame = None, manifests: list[dict] = None,
              flat: pd.DataFrame = None, skip: set = frozenset(), repo: Path = _REPO,
              eod_uri: str = "", manifest_uri: str = "", flat_uri: str = "",
-             ice_raw_counts: dict = None) -> dict:
-    """Run all eight gates and build the artifact. PURE apart from the generated_at stamp and
-    gate 8's repo reads."""
+             ice_raw_counts: dict = None, continuity_slugs=None) -> dict:
+    """Run all nine gates and build the artifact. PURE apart from the generated_at stamp and
+    gate 8's repo reads. ``continuity_slugs`` scopes gate 9 (STEP-12 F7) and is stamped into the
+    artifact as ``continuity_scope`` (None = every Databento root)."""
     results: dict = {}
     failures: list[str] = []
 
@@ -867,10 +947,11 @@ def evaluate(*, eod: pd.DataFrame = None, manifests: list[dict] = None,
     _run(6, lambda: gate6_settle_kind_cross_tab(eod), has_eod)
     _run(7, lambda: gate7_front_month_parity(eod, flat), has_eod and flat is not None)
     _run(8, lambda: gate8_chain_hooks(repo), True)
+    _run(9, lambda: gate9_month_continuity(eod, slugs=continuity_slugs), has_eod)
 
     return {
         "gate": "futures_eod_gate",
-        "plan": "docs/private/PRICE_AND_PLAYBOOKS_PLAN.md W2 gates 1-8",
+        "plan": "docs/private/PRICE_AND_PLAYBOOKS_PLAN.md W2 gates 1-8 + V2-4 gate 9",
         "generated_at": datetime.now(tz=timezone.utc).isoformat(),
         "eod_uri": eod_uri, "manifest_uri": manifest_uri, "futures_prices_uri": flat_uri,
         # Stamped into every artifact: the F2 dedupe rule in force when these rows were built is
@@ -878,6 +959,7 @@ def evaluate(*, eod: pd.DataFrame = None, manifests: list[dict] = None,
         "ice_bar_rule": ICE_BAR_RULE,
         "roll_rule_version": FR.ROLL_RULE_VERSION,
         "waived": sorted(skip),
+        "continuity_scope": sorted(set(continuity_slugs)) if continuity_slugs else None,
         "gates": {str(k): v for k, v in sorted(results.items())},
         "failures": failures,
         "verdict": "PASS" if not failures else "FAIL",
@@ -888,22 +970,26 @@ _GATE_TITLES = {
     1: "(leviathan_slug, trade_date, raw_symbol) uniqueness, table-wide",
     2: "dropped-symbol count NON-ZERO for every root",
     3: "bar-count reconciliation vs the plan table (+/-2%)",
-    4: "no forward fill on 20 deferred contracts",
+    4: "no forward fill on the most-deferred contracts of EVERY slug (per-slug sample)",
     5: "IFEU sanity (robusta / white sugar)",
     6: "settle_kind x source cross-tab + settlement rows carry a settle",
     7: "12/12 front-month parity vs silver_futures_prices",
     8: "chain hooks (byte-identity / F013 / unit lint / parity)",
+    9: "month continuity per Databento root (no empty calendar month inside the banked span; "
+       "scoped by --continuity-slug when a sitting names its slugs)",
 }
 
 
 def render_report(art: dict) -> str:
     """ASCII-only report (the Windows console is cp1252)."""
-    L = ["=== silver_futures_eod W2 gate (8 deterministic checks) ===",
+    L = [f"=== silver_futures_eod W2 gate ({len(GATE_IDS)} deterministic checks) ===",
          f"generated_at   : {art['generated_at']}",
          f"eod            : {art['eod_uri'] or 'n/a'}",
          f"manifests      : {art['manifest_uri'] or 'n/a'}",
          f"futures_prices : {art['futures_prices_uri'] or 'n/a'}",
          f"ICE_BAR_RULE   : {art['ice_bar_rule']}   roll_rule: {art['roll_rule_version']}",
+         f"gate 9 scope   : "
+         f"{', '.join(art.get('continuity_scope') or []) or 'every Databento root (unscoped)'}",
          ""]
     for num in GATE_IDS:
         rec = art["gates"].get(str(num)) or {}
@@ -990,6 +1076,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="s3 uri / local path of silver_futures_prices (gate 7)")
     ap.add_argument("--skip", action="append", type=int, default=None, choices=list(GATE_IDS),
                     help="explicitly WAIVE a gate (recorded in the artifact); repeatable")
+    ap.add_argument("--continuity-slug", action="append", default=None, dest="continuity_slugs",
+                    help="SCOPE gate 9 (month continuity) to this leviathan_slug (repeatable): the "
+                         "slug(s) a sitting touched. Unscoped judges every Databento root, which "
+                         "includes the 15 shipped roots' never-measured history -- record that "
+                         "pre-state on the canonical prefix BEFORE a promote (runbook D6b) and "
+                         "scope the post-promote run; the scope is stamped in the artifact")
     ap.add_argument("--report-s3", default=None)
     ap.add_argument("--aws-region", default="us-east-1")
     args = ap.parse_args(argv)
@@ -1011,7 +1103,8 @@ def main(argv: list[str] | None = None) -> int:
 
     art = evaluate(eod=eod, manifests=manifests, flat=flat, skip=set(args.skip or []),
                    eod_uri=args.eod_uri or "", manifest_uri=args.manifest_uri or "",
-                   flat_uri=args.futures_prices_uri or "", ice_raw_counts=ice_raw_counts)
+                   flat_uri=args.futures_prices_uri or "", ice_raw_counts=ice_raw_counts,
+                   continuity_slugs=set(args.continuity_slugs or []))
     print(render_report(art))
     if args.report_s3:
         print(f"report artifact -> {_put_report(args.report_s3, art, args.aws_region)}")

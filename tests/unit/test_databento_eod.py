@@ -529,14 +529,17 @@ class TestGlbxSettleCoverage:
 
 
 class TestRootCoverage:
-    def test_fifteen_roots_all_mapped_into_contract_map(self):
-        assert len(T.ROOT_MAP) == 15
+    def test_sixteen_roots_all_mapped_into_contract_map(self):
+        # 15 -> 16 (V2-4, 2026-09-02): CPO joined the GLBX block, and the loop below REQUIRES the
+        # palm slug's CONTRACT_MAP source to be databento_glbx_mdp3 -- the Route B re-key.
+        assert len(T.ROOT_MAP) == 16
         for root, (dataset, slug) in T.ROOT_MAP.items():
             assert dataset in T.DATASET_SLUGS
             assert slug in FC.CONTRACT_MAP
             assert FC.CONTRACT_MAP[slug]["source"] == f"databento_{T.DATASET_SLUGS[dataset]}"
+        assert T.ROOT_MAP["CPO"] == (T.GLBX, "malaysian_crude_palm_oil_cme")
 
-    def test_none_of_the_fifteen_is_a_cash_index(self):
+    def test_none_of_the_sixteen_is_a_cash_index(self):
         slugs = {slug for _r, (_d, slug) in T.ROOT_MAP.items()}
         assert not (slugs & FC.CASH_INDEX_SLUGS)
 
@@ -544,6 +547,11 @@ class TestRootCoverage:
         assert T.ROOT_FIRST_DATE["ZC"] == "2010-06-06"
         assert T.ROOT_FIRST_DATE["KE"] == "2014-01-01"
         assert T.ROOT_FIRST_DATE["KC"] == T.ROOT_FIRST_DATE["RC"] == "2018-12-23"
+        # CPO opens at the 60-month regime, NOT the GLBX dataset first date (V2-4 M2: the tape has
+        # a Jan-Jul 2016 hole and an unverified, id-recycled 24-month regime before it).
+        assert T.ROOT_FIRST_DATE["CPO"] == "2016-08-01"
+        assert T.SETTLEMENT_TAPE_ROOTS == frozenset({"CPO"})
+        assert T.SETTLEMENT_TAPE_ROOTS <= set(T.ROOT_MAP)
 
 
 class TestDbnDecodeLane:
@@ -613,3 +621,286 @@ class TestDbnDecodeLane:
                            symbology_json=self._symbology_json("42", "ZCZ6"),
                            max_version=5)
         assert len(raw) == 1
+
+
+# ===========================================================================
+# V2-4 (2026-09-02) -- CPO on the Databento lane: the settlement-spine bronze, the listing-
+# interval-anchored decade decode, the horizon lint and the month-continuity census.
+# ===========================================================================
+_PROBE = __import__("pathlib").Path(__file__).resolve().parents[2] / "data" / "batch_runs" \
+    / "cpo_databento_probe_20260902.json"
+
+
+def _probe_years() -> dict[int, list[str]]:
+    """``{year: outright symbols}`` from the committed $0 probe (the measured symbol sets)."""
+    import json
+    doc = json.loads(_PROBE.read_text(encoding="utf-8"))
+    return {int(y["year"]): list(y.get("outrights") or []) for y in doc["years"]}
+
+
+class TestListingIntervalDecade:
+    """V2-4 M1: CPO terminates on the last CME business day of the month OR the first business
+    day of the NEXT month, so CPOZ<d> resolves inside the next-year window and the bare
+    download-year rule lifts it a decade (measured: 2017 CPOZ6 -> 2026-12). The fix anchors on
+    the resolved listing interval for roots that DECLARE a horizon; the 7 live GLBX roots keep the
+    shipped rule byte-for-byte."""
+
+    LIFTED = {2017: "CPOZ6", 2019: "CPOZ8", 2020: "CPOZ9", 2021: "CPOZ0", 2022: "CPOZ1",
+              2023: "CPOZ2", 2025: "CPOZ4", 2026: "CPOZ5"}
+
+    def test_the_probe_s_december_straddlers_decode_to_the_prior_december(self):
+        years = _probe_years()
+        for year, sym in self.LIFTED.items():
+            assert sym in years[year], f"{sym} is not in the probe window {year}"
+            got = T.contract_month_str(sym, "CPO", GLBX, year)
+            assert got == f"{year - 1}-12", f"{year} {sym} -> {got} (a decade lift?)"
+
+    def test_every_probe_outright_decodes_inside_the_listing_horizon(self):
+        """No symbol in any 2016+ window may land outside [Dec of year-1, Dec of year+5]."""
+        for year, syms in _probe_years().items():
+            if year < 2016:
+                continue
+            for sym in syms:
+                cm = T.contract_month_str(sym, "CPO", GLBX, year)
+                assert f"{year - 1}-12" <= cm <= f"{year + 5}-12", (year, sym, cm)
+
+    def test_the_bare_rule_would_have_lifted_them(self):
+        # The measurement the fix answers, kept as a witness: the shipped rule reads digit 6 in a
+        # 2017 window as 2026.
+        assert T.resolve_glbx_year(6, 2017) == 2026
+
+    def test_a_symbol_s_own_d0_anchor_is_honoured(self):
+        from datetime import date
+        # CPOZ2 first listed in December 2017 (60 months out) decodes to 2022-12 on its own d0.
+        assert T.contract_month_str("CPOZ2", "CPO", GLBX, 2017,
+                                    anchor=date(2017, 12, 1)) == "2022-12"
+        # ... and to the same month on the window-start fallback (the +12-month slack).
+        assert T.contract_month_str("CPOZ2", "CPO", GLBX, 2017) == "2022-12"
+
+    def test_an_impossible_symbol_fails_closed_rather_than_lifting(self):
+        # CPOZ3 cannot be listed in the 2017 window (2023-12 is 71+ months past January 2017).
+        with pytest.raises(ValueError, match="no decade candidate"):
+            T.contract_month_str("CPOZ3", "CPO", GLBX, 2017)
+
+    def test_the_seven_live_glbx_roots_keep_the_shipped_rule_byte_for_byte(self):
+        assert "ZC" not in T.GLBX_LISTING_HORIZON_MONTHS
+        assert T.contract_month_str("ZCH6", "ZC", GLBX, 2016) == "2016-03"
+        assert T.contract_month_str("ZCH6", "ZC", GLBX, 2026) == "2026-03"
+        # the shipped rule's own decade wrap is UNCHANGED for an undeclared root
+        assert T.contract_month_str("ZCZ5", "ZC", GLBX, 2026) == "2035-12"
+
+    def test_symbol_anchors_come_from_the_step2_chunks(self):
+        from datetime import date
+        art = {"resolve_step2": [{"result": {
+            "42": [{"d0": "2017-01-01", "d1": "2017-01-04", "s": "CPOZ6"}],
+            "43": [{"d0": "2017-12-04", "d1": None, "s": "CPOZ2"},
+                   {"d0": "2017-06-01", "d1": "2017-09-01", "s": "CPOZ2"}]}}]}
+        got = T.symbol_anchors_from_artifact(art)
+        assert got == {"CPOZ6": date(2017, 1, 1), "CPOZ2": date(2017, 6, 1)}
+        assert T.symbol_anchors_from_artifact(None) == {}
+
+
+class TestSettlementSpine:
+    """The V2-4 build item: the statistics stream IS the row skeleton for SETTLEMENT_TAPE_ROOTS."""
+
+    @staticmethod
+    def _stat(sym, iid, ts_recv, ts_ref, stat_type, *, price=None, qty=None, action=1, flags=0):
+        return {"ts_recv": ts_recv, "ts_event": ts_recv, "rtype": 24, "publisher_id": 1,
+                "instrument_id": iid, "ts_ref": ts_ref, "symbol": sym,
+                "price": T.UNDEF_PRICE if price is None else int(round(price * SCALE)),
+                "quantity": T.UNDEF_STAT_QUANTITY if qty is None else qty,
+                "sequence": 0, "ts_in_delta": 0, "stat_type": stat_type, "channel_id": 65535,
+                "update_action": action, "stat_flags": flags}
+
+    def _frame(self) -> pd.DataFrame:
+        s = self._stat
+        return pd.DataFrame([
+            s("CPOZ6", 42, "2017-01-03T20:00:00Z", "2017-01-03T00:00:00Z",
+              T.STAT_TYPE_SETTLEMENT_PRICE, price=790.25, flags=8),
+            s("CPOZ6", 42, "2017-01-03T20:00:00Z", "2017-01-03T00:00:00Z",
+              T.STAT_TYPE_OPEN_INTEREST, qty=120),
+            s("CPOF7", 43, "2017-01-03T20:00:00Z", "2017-01-03T00:00:00Z",
+              T.STAT_TYPE_SETTLEMENT_PRICE, price=795.0),
+            s("CPOF7", 43, "2017-01-04T20:00:00Z", "2017-01-04T00:00:00Z",
+              T.STAT_TYPE_SETTLEMENT_PRICE, price=796.5),
+            s("CPOF7", 43, "2017-01-04T20:00:00Z", "2017-01-04T00:00:00Z",
+              T.STAT_TYPE_OPEN_INTEREST, qty=130),
+            s("CPOZ1", 44, "2017-01-04T20:00:00Z", "2017-01-04T00:00:00Z",
+              T.STAT_TYPE_SETTLEMENT_PRICE, price=810.0),
+            # a settlement later RETRACTED -> no row for that key
+            s("CPOZ1", 44, "2017-01-05T20:00:00Z", "2017-01-05T00:00:00Z",
+              T.STAT_TYPE_SETTLEMENT_PRICE, price=811.0),
+            s("CPOZ1", 44, "2017-01-05T22:00:00Z", "2017-01-05T00:00:00Z",
+              T.STAT_TYPE_SETTLEMENT_PRICE, price=811.0, action=T.STAT_UPDATE_ACTION_DELETE),
+            # the spread complex is dropped by the outright filter
+            s("CPOF7-CPOG7", 99, "2017-01-04T20:00:00Z", "2017-01-04T00:00:00Z",
+              T.STAT_TYPE_SETTLEMENT_PRICE, price=1.0),
+        ])
+
+    def test_membership(self):
+        assert T.SETTLEMENT_TAPE_ROOTS == frozenset({"CPO"})
+        assert T.SETTLEMENT_TAPE_ROOTS <= set(T.ROOT_MAP)
+        assert T.GLBX_LISTING_HORIZON_MONTHS == {"CPO": 60}
+
+    def test_keep_instrument_id_default_keeps_the_five_column_shape(self):
+        five = T.build_statistics_bronze(self._frame(), root="CPO", request_year=2017)
+        assert list(five.columns) == ["raw_symbol", "trade_date", "settle", "open_interest",
+                                      "settle_flags"]
+        six = T.build_statistics_bronze(self._frame(), root="CPO", request_year=2017,
+                                        keep_instrument_id=True)
+        assert list(six.columns) == list(five.columns) + ["instrument_id"]
+        assert six.drop(columns=["instrument_id"]).equals(five)
+        assert six["instrument_id"].tolist() == [43, 43, 44, 42]
+
+    def test_rows_carry_settle_and_null_ohlcv_with_the_anchored_decode(self):
+        stats = T.build_statistics_bronze(self._frame(), root="CPO", request_year=2017,
+                                          keep_instrument_id=True)
+        out, rec = T.build_settlement_bronze(stats, None, dataset=GLBX, root="CPO",
+                                             request_year=2017)
+        assert list(out.columns) == T.BRONZE_COLUMNS
+        assert len(out) == 4 == rec["rows_out"] == rec["statistics_keys"]
+        assert out["settle"].notna().all()
+        for col in ("open", "high", "low", "close"):
+            assert out[col].isna().all(), col
+        assert out["volume"].isna().all() and out["publisher_id"].isna().all()
+        assert str(out["volume"].dtype) == "Int64"
+        by = out.set_index("raw_symbol")["contract_month"].to_dict()
+        assert by["CPOZ6"] == "2016-12", "the December straddler: never 2026-12"
+        assert by["CPOF7"] == "2017-01" and by["CPOZ1"] == "2021-12"
+        assert set(out["leviathan_slug"]) == {"malaysian_crude_palm_oil_cme"}
+        assert set(out["dataset"]) == {GLBX} and set(out["root"]) == {"CPO"}
+        assert out.set_index(["raw_symbol", "trade_date"]).loc[
+            ("CPOZ6", pd.Timestamp("2017-01-03")), "open_interest"] == 120
+        assert out["instrument_id"].tolist() == [43, 43, 44, 42]
+        assert rec["settlement_base"] is True and rec["bar_keys_attached"] == 0
+        assert rec["horizon_months"] == 60 and rec["rows_beyond_horizon"] == 0
+        assert rec["anchor_fallbacks"] == 3, \
+            "no anchors supplied: every outright decoded on the window anchor, and that is COUNTED"
+
+    def test_a_matching_bar_attaches_and_a_stray_bar_is_dropped(self):
+        stats = T.build_statistics_bronze(self._frame(), root="CPO", request_year=2017,
+                                          keep_instrument_id=True)
+        bars, _ = T.build_ohlcv_bronze(_ohlcv([
+            _bar("2017-01-03T00:00:00Z", 43, "CPOF7", 795.0, vol=3),
+            _bar("2017-01-10T00:00:00Z", 43, "CPOF7", 799.0, vol=5),   # no settlement that day
+        ]), dataset=GLBX, root="CPO", request_year=2017)
+        out, rec = T.build_settlement_bronze(stats, bars, dataset=GLBX, root="CPO",
+                                             request_year=2017)
+        assert len(out) == 4, "the skeleton is the statistics keys; the stray bar adds no row"
+        row = out.set_index(["raw_symbol", "trade_date"]).loc[("CPOF7", pd.Timestamp("2017-01-03"))]
+        assert row["close"] == pytest.approx(795.0) and row["volume"] == 3
+        assert row["settle"] == pytest.approx(795.0)
+        assert rec["bar_keys_attached"] == 1 and rec["bars_without_settlement_dropped"] == 1
+        assert out["close"].notna().sum() == 1, "every other row keeps OHLC NULL"
+
+    def test_an_empty_statistics_frame_yields_zero_rows(self):
+        out, rec = T.build_settlement_bronze(pd.DataFrame(), None, dataset=GLBX, root="CPO",
+                                             request_year=2017)
+        assert out.empty and list(out.columns) == T.BRONZE_COLUMNS and rec["rows_out"] == 0
+
+    def test_a_non_member_root_is_refused(self):
+        with pytest.raises(ValueError, match="not a settlement-tape root"):
+            T.build_settlement_bronze(pd.DataFrame(), None, dataset=GLBX, root="ZC",
+                                      request_year=2017)
+
+    def test_anchor_fallbacks_are_counted_and_logged_for_a_horizon_declaring_root(self, caplog):
+        """STEP-12 F10: a symbol without a resolved d0 decodes on the window anchor -- bounded by
+        the decode window and linted by the horizon fence, but a degraded anchor is NAMED AND
+        COUNTED in the unit record, never silent. A root with no declared horizon reports the
+        count as ABSENT (None), not zero: the anchor is inert there."""
+        import logging
+        from datetime import date
+
+        caplog.set_level(logging.INFO)
+        stats = T.build_statistics_bronze(self._frame(), root="CPO", request_year=2017,
+                                          keep_instrument_id=True)
+        full = {"CPOZ6": date(2016, 12, 1), "CPOF7": date(2017, 1, 1), "CPOZ1": date(2017, 1, 4)}
+        out, rec = T.build_settlement_bronze(stats, None, dataset=GLBX, root="CPO",
+                                             request_year=2017, symbol_anchors=full)
+        assert rec["anchor_fallbacks"] == 0 and "no resolved d0 anchor" not in caplog.text
+        by = out.set_index("raw_symbol")["contract_month"].to_dict()
+        assert by == {"CPOZ6": "2016-12", "CPOF7": "2017-01", "CPOZ1": "2021-12"}
+        partial = {"CPOZ6": date(2016, 12, 1), "CPOF7": date(2017, 1, 1)}
+        _o, rec = T.build_settlement_bronze(stats, None, dataset=GLBX, root="CPO",
+                                            request_year=2017, symbol_anchors=partial)
+        assert rec["anchor_fallbacks"] == 1
+        assert ("databento settlement CPO/2017: 1 of 3 outright(s) carry no resolved d0 anchor"
+                in caplog.text) and "CPOZ1" in caplog.text
+        _o, rec = T.build_settlement_bronze(pd.DataFrame(), None, dataset=GLBX, root="CPO",
+                                            request_year=2017)
+        assert rec["anchor_fallbacks"] == 0
+        # the bar leg of the same root counts the same way ...
+        _b, rec = T.build_ohlcv_bronze(_ohlcv([
+            _bar("2017-01-03T00:00:00Z", 43, "CPOF7", 795.0, vol=3)]),
+            dataset=GLBX, root="CPO", request_year=2017)
+        assert rec["anchor_fallbacks"] == 1
+        # ... and a bar-driven root declares no horizon: absent, never zero
+        _b, rec = T.build_ohlcv_bronze(_ohlcv([
+            _bar("2017-01-03T00:00:00Z", 43, "ZCH7", 3.5, vol=3)]),
+            dataset=GLBX, root="ZC", request_year=2017)
+        assert rec["anchor_fallbacks"] is None
+        _b, rec = T.build_ohlcv_bronze(T.empty_ohlcv_frame(), dataset=GLBX, root="ZC",
+                                       request_year=2017)
+        assert rec["anchor_fallbacks"] is None
+
+    def test_the_horizon_lint_refuses_a_decade_lifted_row(self):
+        bad = pd.DataFrame({"raw_symbol": ["CPOZ6"], "trade_date": pd.to_datetime(["2017-01-03"]),
+                            "contract_month": ["2026-12"]})
+        v = T.contract_horizon_violations(bad, "CPO")
+        assert len(v) == 1 and int(v["months_ahead"].iloc[0]) == 119
+        with pytest.raises(ValueError, match="outside the declared listing horizon"):
+            T.lint_contract_horizon(bad, "CPO", label="x")
+        ok = pd.DataFrame({"raw_symbol": ["CPOZ6", "CPOZ1"],
+                           "trade_date": pd.to_datetime(["2017-01-03", "2017-01-03"]),
+                           "contract_month": ["2016-12", "2021-12"]})
+        assert T.contract_horizon_violations(ok, "CPO").empty
+        T.lint_contract_horizon(ok, "CPO", label="x")
+        # inert for a root with no declared horizon
+        assert T.contract_horizon_violations(bad.assign(raw_symbol="ZCZ6"), "ZC").empty
+
+    def test_empty_ohlcv_frame_passes_the_bar_builder_s_column_check(self):
+        out, rec = T.build_ohlcv_bronze(T.empty_ohlcv_frame(), dataset=GLBX, root="CPO",
+                                        request_year=2017)
+        assert out.empty and rec["rows_out"] == 0
+
+    def test_glbx_settle_coverage_reports_oi_keys_without_settle(self):
+        df = pd.DataFrame({"settle": [1.0, np.nan, 3.0, np.nan],
+                           "open_interest": pd.array([1, 2, None, None], dtype="Int64")})
+        rec = T.glbx_settle_coverage(df)
+        assert rec["oi_keys_without_settle"] == 1
+        assert T.glbx_settle_coverage(pd.DataFrame())["oi_keys_without_settle"] is None
+
+
+class TestMonthContinuity:
+    """V2-4 M2: an internal hole in a banked span must never route to no_tape_rows silently."""
+
+    def test_a_hole_names_the_missing_months(self):
+        f = pd.DataFrame({"leviathan_slug": ["x"] * 4,
+                          "trade_date": pd.to_datetime(["2016-08-02", "2016-09-01", "2016-11-03",
+                                                        "2017-01-04"])})
+        assert T.month_continuity_holes(f) == {"x": ["2016-10", "2016-12"]}
+
+    def test_a_continuous_span_has_no_holes(self):
+        f = pd.DataFrame({"leviathan_slug": ["x"] * 3,
+                          "trade_date": pd.to_datetime(["2016-08-02", "2016-09-01", "2016-10-03"])})
+        assert T.month_continuity_holes(f) == {}
+
+    def test_non_adjacent_years_are_two_spans_not_one_hole(self):
+        f = pd.DataFrame({"leviathan_slug": ["x"] * 3,
+                          "trade_date": pd.to_datetime(["2016-12-30", "2018-01-04", "2018-02-01"])})
+        assert T.month_continuity_holes(f) == {}
+
+    def test_the_measured_cpo_hole_sits_outside_the_floor(self):
+        # The 2015 window ends CPON6 (Jul 2016) and the 2016 window's first decoded month is
+        # 2016-08: Jan..Jul 2016 resolve nothing. The root's first usable date is the answer.
+        years = _probe_years()
+        months_2016 = sorted({T.contract_month_str(s, "CPO", GLBX, 2016) for s in years[2016]})
+        assert months_2016[0] == "2016-08"
+        assert T.ROOT_FIRST_DATE["CPO"] == "2016-08-01"
+        assert T.root_years("CPO", 2026) == list(range(2016, 2027))
+        assert T.year_window("CPO", 2016) == ("2016-08-01", "2017-01-01")
+        assert T.window_anchor("CPO", 2016).isoformat() == "2016-08-01"
+
+    def test_an_empty_or_shapeless_frame_is_inert(self):
+        assert T.month_continuity_holes(pd.DataFrame()) == {}
+        assert T.month_continuity_holes(pd.DataFrame({"trade_date": [1]})) == {}

@@ -172,6 +172,7 @@ class TestGate3BarCounts:
     def test_passes_within_tolerance(self, eod, monkeypatch):
         monkeypatch.setattr(G, "EXPECTED_BARS", {("ZC", 2026): 46})
         monkeypatch.setattr(G, "PARTIAL_YEARS", frozenset())
+        monkeypatch.setattr(G, "EXPECTED_BARS_PENDING", frozenset())
         fails, rec = G.gate3_bar_counts(eod)
         assert rec["rows"][0]["observed"] == 46 and rec["rows"][0]["gated"] is True
         assert fails == []
@@ -186,14 +187,36 @@ class TestGate3BarCounts:
     def test_the_partial_year_is_recorded_not_gated(self, eod, monkeypatch):
         monkeypatch.setattr(G, "EXPECTED_BARS", {("ZC", 2026): 99999})
         monkeypatch.setattr(G, "PARTIAL_YEARS", frozenset({2026}))
+        monkeypatch.setattr(G, "EXPECTED_BARS_PENDING", frozenset())
         fails, rec = G.gate3_bar_counts(eod)
         assert fails == [] and rec["rows"][0]["gated"] is False
 
+    def test_a_pending_root_fails_by_name_rather_than_passing_vacuously(self, eod, monkeypatch):
+        """V2-4 M3: CPO's rows are banked from the silver DRY-RUN's rows_out, which has not
+        happened at commit A. Until then gate 3 must FAIL on the root by NAME -- an unmeasurable
+        basis is not a pass -- and the shadow harness waives it with --skip 3 on purpose."""
+        monkeypatch.setattr(G, "EXPECTED_BARS", {("ZC", 2026): 46})
+        monkeypatch.setattr(G, "PARTIAL_YEARS", frozenset())
+        monkeypatch.setattr(G, "EXPECTED_BARS_PENDING", frozenset({"CPO"}))
+        fails, rec = G.gate3_bar_counts(eod)
+        assert fails == ["(3) CPO: EXPECTED_BARS rows NOT BANKED yet (pending the silver dry-run's "
+                         "rows_out per year on the 'silver' basis) -- bank them and empty "
+                         "EXPECTED_BARS_PENDING; an unmeasurable basis is not a pass"]
+        assert rec["roots_pending_bank"] == ["CPO"]
+
+    def test_the_shipped_pending_set_is_exactly_the_unbanked_settlement_tape_root(self):
+        # Both directions: a pending root has ZERO rows, a root with rows is not pending, and
+        # only a settlement-tape root (counts from the dry-run, not the plan) may be pending.
+        assert G.EXPECTED_BARS_PENDING == frozenset({"CPO"})
+        assert not {r for r, _y in G.EXPECTED_BARS} & G.EXPECTED_BARS_PENDING
+        assert G.EXPECTED_BARS_PENDING <= G.SETTLEMENT_TAPE_ROOTS <= set(G.ROOT_MAP)
+
     def test_the_shipped_table_covers_every_root_and_can_fire(self):
         # The constant is the plan's measured table; every root must appear, and at least one FULL
-        # (gated) year per root -- otherwise the gate is decorative for that root.
+        # (gated) year per root -- otherwise the gate is decorative for that root. A root whose
+        # rows are PENDING the dry-run bank is exempt here and FAILS gate 3 by name instead.
         roots = {r for r, _y in G.EXPECTED_BARS}
-        assert roots == set(G.ROOT_MAP)
+        assert roots == set(G.ROOT_MAP) - G.EXPECTED_BARS_PENDING
         for root in roots:
             gated = [y for (r, y) in G.EXPECTED_BARS
                      if r == root and y not in G.PARTIAL_YEARS
@@ -247,6 +270,95 @@ class TestGate4NoForwardFill:
     def test_reports_when_no_contract_is_long_enough(self, eod):
         fails, _ = G.gate4_no_forward_fill(eod, sample=5, min_rows=10_000)
         assert any("cannot sample deferred" in f for f in fails)
+
+    def test_the_sample_is_per_slug_and_never_collapses_onto_the_furthest_listing_root(self, eod):
+        """STEP-12 F6: CPO lists 60 months out (~1,800 days of lead against ~1,000 for the deepest
+        corn month). A table-wide top-N is 100% palm once palm is canonical -- measured below --
+        so the sample is the N most-deferred contracts of EVERY slug and the shipped roots never
+        leave the F5 check."""
+        palm = "malaysian_crude_palm_oil_cme"
+        d = _bdays("2026-01-05", 40)
+        sparse = [x for i, x in enumerate(d) if i % 3]
+        deep = [rows(palm, f"{2029 + i // 12}-{i % 12 + 1:02d}", sparse,
+                     settle=np.linspace(900, 950, len(sparse)), oi=1) for i in range(25)]
+        df = pd.concat([eod, *deep], ignore_index=True)
+        fails, rec = G.gate4_no_forward_fill(df, sample=3, min_rows=10)
+        assert fails == []
+        by_slug: dict[str, int] = {}
+        for r in rec["sampled"]:
+            by_slug[r["leviathan_slug"]] = by_slug.get(r["leviathan_slug"], 0) + 1
+        assert set(by_slug) == {"corn_cbot", "robusta_coffee", "white_sugar", palm}
+        assert set(rec["slugs_covered"]) == set(by_slug) and len(rec["slugs_covered"]) >= 2
+        assert by_slug[palm] == 3 and by_slug["corn_cbot"] == 2 and rec["per_slug"] == 3
+        # the collapse the per-slug pick prevents: the 20 most-deferred contracts TABLE-WIDE are
+        # every one of them palm
+        first = df.groupby(["leviathan_slug", "contract_month"])["trade_date"].transform("min")
+        lead = (pd.to_datetime(df["contract_month"] + "-01") - first).dt.days
+        top = (df.assign(lead=lead).drop_duplicates(["leviathan_slug", "contract_month"])
+               .nlargest(20, "lead"))
+        assert set(top["leviathan_slug"]) == {palm}
+
+    def test_a_filled_contract_on_the_deep_listing_root_still_fires(self):
+        d = _bdays("2026-01-05", 60)
+        df = rows("malaysian_crude_palm_oil_cme", "2030-12", d, settle=np.linspace(900, 960, 60),
+                  oi=1)
+        fails, rec = G.gate4_no_forward_fill(df, sample=3, min_rows=10)
+        assert rec["sampled"][0]["filled"] is True
+        assert any("something forward-filled" in f for f in fails)
+
+
+class TestGate9MonthContinuity:
+    """V2-4 M2 in the harness, scoped per STEP-12 F7: unscoped it judges every Databento root;
+    a sitting scopes it to the slugs it touched so the estate's never-measured history cannot
+    red the sitting -- and a scope that judges nothing is a FAIL."""
+
+    _PALM = "malaysian_crude_palm_oil_cme"
+
+    @staticmethod
+    def _monthly(slug: str, months: list[str]) -> pd.DataFrame:
+        dates = [pd.Timestamp(f"{m}-05") for m in months]
+        return rows(slug, "2027-12", dates, settle=[100.0] * len(dates), oi=1)
+
+    def _frame(self) -> pd.DataFrame:
+        return pd.concat([self._monthly("corn_cbot", ["2026-01", "2026-02", "2026-04"]),
+                          self._monthly(self._PALM, ["2026-01", "2026-02", "2026-03", "2026-04"])],
+                         ignore_index=True)
+
+    def test_unscoped_names_a_hole_in_any_databento_root(self):
+        fails, rec = G.gate9_month_continuity(self._frame())
+        assert len(fails) == 1 and "ZC/corn_cbot" in fails[0] and "2026-03" in fails[0]
+        assert rec["scope"] is None
+        assert rec["slugs_judged"] == ["corn_cbot", self._PALM]
+
+    def test_the_scope_judges_only_the_sitting_s_slugs(self):
+        fails, rec = G.gate9_month_continuity(self._frame(), slugs={self._PALM})
+        assert fails == []
+        assert rec["scope"] == [self._PALM] and rec["slugs_judged"] == [self._PALM]
+        # ... and a hole INSIDE the scope still fires
+        fails, rec = G.gate9_month_continuity(self._frame(), slugs={"corn_cbot"})
+        assert len(fails) == 1 and "2026-03" in fails[0] and rec["scope"] == ["corn_cbot"]
+
+    def test_a_scope_that_judges_nothing_is_not_a_pass(self):
+        corn_only = self._monthly("corn_cbot", ["2026-01", "2026-02", "2026-03"])
+        fails, rec = G.gate9_month_continuity(corn_only, slugs={self._PALM})
+        assert fails and "judges nothing is not a pass" in fails[0]
+        assert rec["slugs_judged"] == []
+        fails, _ = G.gate9_month_continuity(corn_only, slugs={"not_a_databento_slug"})
+        assert fails and "outside the Databento roots" in fails[0]
+
+    def test_evaluate_stamps_the_scope_and_the_cli_carries_the_flag(self, capsys):
+        art = G.evaluate(eod=self._frame(), skip={1, 2, 3, 4, 5, 6, 7, 8})
+        assert art["continuity_scope"] is None and art["gates"]["9"]["status"] == "FAIL"
+        art = G.evaluate(eod=self._frame(), skip={1, 2, 3, 4, 5, 6, 7, 8},
+                         continuity_slugs={self._PALM})
+        assert art["continuity_scope"] == [self._PALM]
+        assert art["gates"]["9"]["status"] == "PASS" and art["verdict"] == "PASS"
+        report = G.render_report(art)
+        assert f"gate 9 scope   : {self._PALM}" in report
+        assert report.isascii()
+        with pytest.raises(SystemExit):
+            G.main(["--help"])
+        assert "--continuity-slug" in capsys.readouterr().out
 
 
 class TestGate5IfeuSanity:
@@ -454,9 +566,10 @@ class TestGate8ChainHooks:
 
 
 class TestEvaluate:
-    def test_all_eight_run_and_pass_together(self, monkeypatch):
+    def test_all_nine_run_and_pass_together(self, monkeypatch):
         monkeypatch.setattr(G, "EXPECTED_BARS", {("ZC", 2026): 60})
         monkeypatch.setattr(G, "PARTIAL_YEARS", frozenset())
+        monkeypatch.setattr(G, "EXPECTED_BARS_PENDING", frozenset())
         eod, flat = _parity_pair()
         # give the frame the IFEU rows gate 5 needs (sparse, like everything else)
         d = _parity_dates()
@@ -471,7 +584,7 @@ class TestEvaluate:
                  "dropped_count": 15} for r in G.ROOT_MAP]
         art = G.evaluate(eod=eod, manifests=mans, flat=flat, repo=_REPO)
         statuses = {k: v["status"] for k, v in art["gates"].items()}
-        assert set(statuses) == {"1", "2", "3", "4", "5", "6", "7", "8"}
+        assert set(statuses) == {"1", "2", "3", "4", "5", "6", "7", "8", "9"}
         assert art["verdict"] == "PASS", art["failures"]
         G.render_report(art).encode("ascii")
 
@@ -483,10 +596,23 @@ class TestEvaluate:
 
     def test_an_explicit_waiver_is_recorded_and_does_not_fail(self):
         art = G.evaluate(eod=None, manifests=None, flat=None, repo=_REPO,
-                         skip={1, 2, 3, 4, 5, 6, 7})
+                         skip={1, 2, 3, 4, 5, 6, 7, 9})
         assert art["gates"]["1"]["status"] == "WAIVED"
-        assert art["waived"] == [1, 2, 3, 4, 5, 6, 7]
+        assert art["gates"]["9"]["status"] == "WAIVED"
+        assert art["waived"] == [1, 2, 3, 4, 5, 6, 7, 9]
         assert art["verdict"] == "PASS"
+
+    def test_the_shadow_waiver_set_leaves_the_local_gates_armed(self, eod, monkeypatch):
+        """V2-4 M3: the shadow prefix carries ONLY the CPO partitions, so gates 3/5/7 are
+        structurally red on it and are WAIVED there (recorded), while 1/2/4/6/8/9 still run."""
+        monkeypatch.setattr(G, "EXPECTED_BARS_PENDING", frozenset())
+        mans = [{"root": r, "year": 2026, "resolved_symbols": 20, "outright_count": 5,
+                 "dropped_count": 15} for r in G.ROOT_MAP]
+        art = G.evaluate(eod=eod, manifests=mans, flat=None, repo=_REPO, skip={3, 5, 7})
+        assert art["waived"] == [3, 5, 7]
+        for num in (1, 2, 4, 6, 9):
+            assert art["gates"][str(num)]["status"] in ("PASS", "FAIL"), num
+        assert art["gates"]["9"]["status"] == "PASS"
 
     def test_report_is_ascii_only_on_a_failing_run(self):
         art = G.evaluate(eod=None, manifests=None, flat=None, repo=_REPO)

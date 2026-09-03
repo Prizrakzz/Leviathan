@@ -5,8 +5,9 @@ WHY THIS MODULE EXISTS (the FUTURES v1.5 lesson, generalized)
 v1.5 had ONE unit fact living in three places (the transform ``UNIT_MAP``, the numbers card's
 ``unit_overrides``, and the tracked lint constant) and needed ``config_check.check_futures_lite`` to
 bind them three-way so they could never drift. ``silver_futures_eod`` widens that problem hard: 31
-contracts across 10 publication sources, four settlement semantics, and TEN currencies -- and the
-unit vocabulary is no longer a US-exchange list (EUR/t, CNY/t, MYR/t, ZAR/t, BRL/60-kg bag, CAD/t).
+slugs, 10 sources in the vocabulary, 9 with slugs (Bursa parked), four
+settlement semantics, and TEN currencies -- and the unit vocabulary is no longer a US-exchange list
+(EUR/t, CNY/t, MYR/t, ZAR/t, BRL/60-kg bag, CAD/t).
 
 So the map is ``{slug: {unit, currency, settle_kind, source}}`` and it lives in EXACTLY one module.
 It is deliberately NOT under ``transforms/raw_to_bronze/<vendor>.py`` (the v1.5 home): W1a/W1b/W1c/W2
@@ -93,6 +94,18 @@ CONTRACT_MAP: dict[str, dict[str, str]] = {
                           "settle_kind": "settlement", "source": "databento_glbx_mdp3"},
     "rough_rice_cbot": {"unit": "USD/cwt", "currency": "USD",
                         "settle_kind": "settlement", "source": "databento_glbx_mdp3"},
+    # V2-4 (2026-09-02): the CME USD Malaysian Crude Palm Oil Calendar future (Globex CPO, rulebook
+    # 204; 25 mt; USD/mt; tick 0.25) via the GLBX.MDP3 statistics schema -- a SETTLEMENT-MARK tape:
+    # financially settled to the contract-month average of the Bursa third-forward FCPO settlement
+    # at the KL USD/MYR 3:30pm fixing; Globex volume 0, OI in ClearPort swaps. The slug's NAME, its
+    # CFTC code 037021 and its hierarchy row (exchange CME) always named this contract; only this
+    # price record said Bursa/MYR under the note 'Databento CPO is a dead contract' -- REFUTED by
+    # data/batch_runs/cpo_databento_probe_20260902.json. The Bursa MYR FCPO bulletin binding is
+    # PARKED (REFUSED venue, zero rows): BURSA_CODE_MAP is EMPTY until a bursa slug is minted
+    # (transforms/raw_to_bronze/bursa_fcpo.py). Usable history opens 2016-08-01 (ROOT_FIRST_DATE:
+    # the tape has a Jan-Jul 2016 hole and an unverified 24-month regime before it).
+    "malaysian_crude_palm_oil_cme": {"unit": "USD/metric ton", "currency": "USD",
+                                     "settle_kind": "settlement", "source": "databento_glbx_mdp3"},
     # -- ICE US via Databento IFUS.IMPACT. settle_kind=close, NOT settlement: the ICE `statistics`
     #    schema (the real settlement series) costs $1,696 on IFUS and is EXCLUDED, so `settle` is
     #    the ohlcv-1d session close, labeled honestly (plan line 1652).
@@ -144,9 +157,10 @@ CONTRACT_MAP: dict[str, dict[str, str]] = {
                                  "settle_kind": "cash_index", "source": "cepea"},
     "campinas_corn_reference_bmf": {"unit": "BRL/60-kg bag", "currency": "BRL",
                                     "settle_kind": "cash_index", "source": "cepea"},
-    # -- Bursa Malaysia FCPO daily settlement bulletin (W1b; Databento CPO is a dead contract) --
-    "malaysian_crude_palm_oil_cme": {"unit": "MYR/t", "currency": "MYR",
-                                     "settle_kind": "settlement", "source": "bursa"},
+    # -- Bursa Malaysia FCPO daily settlement bulletin (W1b): NO slug while PARKED. The palm slug
+    #    carried this binding (MYR/t) until V2-4 re-keyed it to the CME USD tape above; the venue
+    #    is REFUSED (S2) and armed nowhere, and a bursa slug is a CONTRACT_MAP + configs/commodities
+    #    decision (docket). 'bursa' stays in SOURCES so the parked parser keeps its vocabulary.
     # -- MIAX Futures (ex-MGEX) daily settlement file (W1b; absent from Databento entirely) -----
     #    UNIT CORRECTED 2026-07-29 from "US cents/bushel" to "USD/bushel" against the live file: the
     #    CSV publishes decimal DOLLARS/bushel (MWEU6 = 7.0250), not cents. The value is NEVER
@@ -204,7 +218,13 @@ CASH_INDEX_SLUGS: frozenset[str] = frozenset(
 #     that does not exist -- the exact shape of the CEPEA nine-year hole.
 #   * the ICE floor is 2018-12-24, not the plan's 2018-12-23; rough_rice_cbot is 2010-06-07, a day
 #     after its GLBX siblings.
-# Regenerate with scratchpad/measure_coverage_floors.py after any backfill that extends history.
+# Regenerate after any backfill that extends history by MEASURING the canonical bytes: per slug,
+# MIN(trade_date) WHERE settle IS NOT NULL over the registered partitions (Athena or the pg
+# mirror) -- the scratchpad/measure_coverage_floors.py this comment once named is not in the tree.
+#
+# V2-4 (2026-09-02): malaysian_crude_palm_oil_cme is ABSENT here on purpose until its CME USD
+# backfill is CANONICAL and measured (the walk-side commit lands the literal); its ROOT_FIRST_DATE
+# is 2016-08-01, and the floor must be the first banked settle-bearing trade date, never that.
 #
 # WHAT READS THIS (W2b-D3/D4): the coverage-aware decline guard and the event-study floor. The
 # routing rule is deterministic -- a window entirely >= the floor serves from silver_futures_eod;

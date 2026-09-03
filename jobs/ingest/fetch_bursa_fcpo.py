@@ -332,9 +332,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     # --mode exists ONLY so that an operator or a scheduler copying the CZCE/MIAX/DCE invocation
     # gets the plan's gate-8 error instead of a silent no-op. There is no backfill to run.
     ap.add_argument("--mode", choices=["incremental", "backfill"], default="incremental")
+    # PARKED (V2-4, 2026-09-02): BURSA_CODE_MAP is EMPTY, so `choices` is [] -- argparse never
+    # validates a DEFAULT, so the dry-run producers still load, but an explicit `--code FCPO` is an
+    # argparse 'invalid choice' error and a real capture is refused below BEFORE the browser.
     ap.add_argument("--code", default="FCPO", choices=sorted(BURSA_CODE_MAP),
-                    help="the venue's product selector value. Only FCPO is a CONTRACT_MAP slug "
-                         "today; FPKO/FSOY/FEPO/FPOL are later legs")
+                    help="the venue's product selector value. No Bursa slug exists while the leg "
+                         "is parked (BURSA_CODE_MAP is empty; the explicit form of this flag is an "
+                         "argparse error); FCPO/FPKO/FSOY/FEPO/FPOL are later CONTRACT_MAP "
+                         "decisions")
     ap.add_argument("--as-of-date", "--as-of", default=None, dest="as_of",
                     help="the capture date used in the raw key AND as the trade date (default: "
                          "today, UTC). It must be the MALAYSIAN calendar day of the T session; the "
@@ -375,6 +380,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"key    : {key}")
         print("(dry-run -- no browser, no writes)")
         return 0
+
+    if not BURSA_CODE_MAP:
+        # PARKED: no source=='bursa' slug exists, so a capture would land raw bytes under a code
+        # the silver leg then refuses (slug_for_code / build_bursa_fcpo_silver fail closed). Refuse
+        # HERE, before any AWS call and before the browser, so a parked producer can never spend a
+        # Fargate run on bytes nothing can publish.
+        logger.error("PARKED bursa: BURSA_CODE_MAP is EMPTY (the palm slug carries the CME USD tape "
+                     "since V2-4); refusing to capture %s for %s -- nothing fetched, NOTHING WRITTEN. "
+                     "Mint a bursa slug (CONTRACT_MAP + configs/commodities) before arming this leg",
+                     code, as_of)
+        return 1
 
     bucket = args.bucket or get_required_env("LEVIATHAN_BUCKET")
     aws_region = args.aws_region or get_required_env("AWS_REGION")

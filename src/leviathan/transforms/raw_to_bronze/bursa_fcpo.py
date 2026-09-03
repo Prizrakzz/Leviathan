@@ -4,10 +4,10 @@ WHAT THIS MODULE OWNS
 ---------------------
 The venue-specific half of ``silver_futures_eod``'s Bursa leg, and nothing else:
 
-  * :data:`BURSA_CODE_MAP` -- the ONE product code this leg keeps (FCPO), bound to CONTRACT_MAP's
-    ``source == "bursa"`` rows in both directions by an import-time assertion. The venue's selector
-    also offers FPKO / FSOY / FEPO / FPOL; each of those is a future CONTRACT_MAP decision, never
-    something this parser infers;
+  * :data:`BURSA_CODE_MAP` -- the product codes this leg keeps (EMPTY while PARKED, V2-4 2026-09-02:
+    the palm slug moved to the CME USD tape), bound to CONTRACT_MAP's ``source == "bursa"`` rows in
+    both directions by an import-time assertion. The venue's selector offers FCPO / FPKO / FSOY /
+    FEPO / FPOL; each is a future CONTRACT_MAP decision, never something this parser infers;
   * the ``thead`` pin (the JSE precedent) over the API's 13 POSITIONAL elements;
   * the embedded-HTML decode of the three cells that are not plain strings;
   * the ``ses=day`` session guard;
@@ -78,7 +78,12 @@ logger = get_logger(__name__)
 # Codes
 # ---------------------------------------------------------------------------
 # The venue's own product-selector value -> the leviathan slug. EXACT match.
-BURSA_CODE_MAP: dict[str, str] = {"FCPO": "malaysian_crude_palm_oil_cme"}
+# PARKED 2026-09-02 (V2-4): malaysian_crude_palm_oil_cme now carries the CME USD tape (source
+# databento_glbx_mdp3), so no source=='bursa' slug exists and this map is EMPTY by the lint below --
+# the parser stays intact and is exercised under a fixture-injected binding ({"FCPO": <slug>});
+# a bursa slug is a CONTRACT_MAP + configs/commodities decision (docket). slug_for_code fails
+# closed on every code while parked, and the producer refuses before the browser.
+BURSA_CODE_MAP: dict[str, str] = {}
 
 BURSA_SOURCE = "bursa"
 

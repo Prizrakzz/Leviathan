@@ -43,6 +43,25 @@ def _load(rel: str, name: str):
 
 TASK = _load("jobs/batch/futures_eod_task.py", "futures_eod_task_bursa_silver")
 
+# V2-4 (2026-09-02): the Bursa leg is PARKED (BURSA_CODE_MAP is EMPTY; the palm slug carries the
+# CME USD tape). The projection is exercised under the HISTORICAL binding injected into the
+# parser's map, this module's derived slug set AND the slug's CONTRACT_MAP record (MYR/t, MYR,
+# settlement, bursa -- exactly tests/unit/silver/test_futures_eod_free_chain.py::_inject_bursa,
+# so a MYR bulletin frame is never labelled with the CME USD record here; STEP-12 F9). TestParked
+# pins the SHIPPED refusal against the map captured BEFORE the fixture runs.
+_SLUG = "malaysian_crude_palm_oil_cme"
+_HISTORICAL_BURSA_RECORD = {"unit": "MYR/t", "currency": "MYR", "settle_kind": "settlement",
+                            "source": "bursa"}
+_SHIPPED_CONTRACT_MAP = {slug: dict(rec) for slug, rec in FC.CONTRACT_MAP.items()}
+
+
+@pytest.fixture(autouse=True)
+def _injected_bursa_binding(monkeypatch):
+    monkeypatch.setattr(T, "BURSA_CODE_MAP", {"FCPO": _SLUG})
+    monkeypatch.setattr(S, "_BURSA_SLUGS", frozenset({_SLUG}))
+    monkeypatch.setattr(FC, "CONTRACT_MAP",
+                        {**FC.CONTRACT_MAP, _SLUG: dict(_HISTORICAL_BURSA_RECORD)})
+
 
 def bronze(as_of: str = _AS_OF) -> pd.DataFrame:
     return T.build_bronze(_DAY.read_bytes(), code="FCPO", as_of_date=as_of)[0]
@@ -69,11 +88,16 @@ class TestTheContractShape:
         assert FC.lint_frame(silver(bronze())) == []
 
     def test_the_labels_are_map_derived_and_never_source_parsed(self):
+        # The test's own claim, stated as the map: whatever CONTRACT_MAP says for the slug is what
+        # the row carries -- and under the injected HISTORICAL binding that is the Bursa record,
+        # asserted LITERALLY: a MYR bulletin is MYR/t in MYR from source bursa, never the palm
+        # slug's shipped CME USD record (the SHIPPED leg refuses these rows, see TestParked).
         out = silver(bronze())
+        assert FC.contract_for(_SLUG) == _HISTORICAL_BURSA_RECORD
         assert set(out["unit"]) == {"MYR/t"} and set(out["currency"]) == {"MYR"}
         assert set(out["settle_kind"]) == {"settlement"}, "SETT. PRICE, not LAST DONE"
         assert set(out["source"]) == {"bursa"}
-        assert set(out["leviathan_slug"]) == {"malaysian_crude_palm_oil_cme"}
+        assert set(out["leviathan_slug"]) == {_SLUG}
 
     def test_every_row_is_a_futures_row_with_a_delivery_month(self):
         out = silver(bronze())
@@ -216,6 +240,32 @@ class TestRefusals:
 
 
 # ---------------------------------------------------------------------------
+class TestParked:
+    """V2-4 (2026-09-02): with the SHIPPED empty map this leg owns NO slug, so a MYR bulletin
+    frame can never be labelled with the palm slug's USD record by this projection."""
+
+    def test_the_shipped_leg_refuses_every_frame(self, monkeypatch):
+        b = bronze()                                   # parsed under the injected binding
+        monkeypatch.setattr(S, "_BURSA_SLUGS", frozenset())
+        with pytest.raises(ValueError, match="not Bursa contracts"):
+            S.build_bursa_fcpo_silver(b)
+
+    def test_the_shipped_slug_set_is_empty_and_the_palm_record_is_usd(self):
+        # The SHIPPED derived set is frozenset(BURSA_CODE_MAP.values()) at import, and the
+        # transform's import-time lint binds that map to CONTRACT_MAP's source=='bursa' slugs --
+        # so 'no bursa slug in the map' IS 'the shipped set is empty'.
+        # ... read from the map captured at import, BEFORE the autouse fixture injected history
+        assert not [s for s, r in _SHIPPED_CONTRACT_MAP.items() if r["source"] == "bursa"]
+        rec = _SHIPPED_CONTRACT_MAP[_SLUG]
+        assert rec["source"] == "databento_glbx_mdp3" and rec["currency"] == "USD"
+        assert rec["unit"] == "USD/metric ton"
+        # ... and the fixture's injection is exactly the historical record, on the palm slug only
+        assert FC.contract_for(_SLUG) == _HISTORICAL_BURSA_RECORD
+        assert {s for s, r in FC.CONTRACT_MAP.items()
+                if r != _SHIPPED_CONTRACT_MAP.get(s)} == {_SLUG}
+
+
+# ---------------------------------------------------------------------------
 class TestHostWiring:
     def test_the_task_dispatches_this_builder(self):
         assert TASK._silver_builder("bursa") is S.build_bursa_fcpo_silver
@@ -232,6 +282,9 @@ class TestHostWiring:
         session (the bronze recordsTotal check is the other half of that same guard)."""
         spec = TASK.source_spec("bursa")
         out = silver(bronze())
+        # Under the injected HISTORICAL binding the map-derived source IS the leg's publication
+        # source, so the floor's source-equality scope holds with no relabel (STEP-12 F9).
+        assert set(out["source"]) == {"bursa"} == set(spec.publication_sources)
         assert TASK.assert_row_floor(out, spec, mode="backfill") == []
         bad = TASK.assert_row_floor(out.head(19), spec, mode="backfill")
         assert bad and "floor >= 20" in bad[0] and _AS_OF in bad[0]

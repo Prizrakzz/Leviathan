@@ -563,6 +563,19 @@ class TestContractMap:
         with pytest.raises(ValueError, match="missing from CONTRACT_MAP"):
             FC.contract_for("not_a_contract")
 
+    def test_the_palm_slug_carries_the_cme_usd_tape_and_the_bursa_binding_is_parked(self):
+        """V2-4 (2026-09-02, Route B): malaysian_crude_palm_oil_cme -- named _cme, CFTC code
+        037021 'USD MALAYSIAN CRUDE PALM OIL - CME', hierarchy exchange CME -- was bound to the
+        parked Bursa MYR bulletin under the note 'Databento CPO is a dead contract', REFUTED by
+        data/batch_runs/cpo_databento_probe_20260902.json. The record now names its own USD tape;
+        no source=='bursa' slug exists until one is minted. The count stays 31: no new commodity."""
+        assert FC.CONTRACT_MAP["malaysian_crude_palm_oil_cme"] == {
+            "unit": "USD/metric ton", "currency": "USD",
+            "settle_kind": "settlement", "source": "databento_glbx_mdp3"}
+        assert not [s for s, r in FC.CONTRACT_MAP.items() if r["source"] == "bursa"]  # parked
+        assert "bursa" in FC.SOURCES, "the vocabulary keeps the venue for the parked parser"
+        assert len(FC.CONTRACT_MAP) == 31
+
 
 # -- the three-way unit bind ----------------------------------------------------------------------
 def test_unit_map_three_way_equality():

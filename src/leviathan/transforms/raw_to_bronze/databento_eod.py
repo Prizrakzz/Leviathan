@@ -4,14 +4,19 @@ WHAT THIS MODULE OWNS
 ---------------------
 The vendor-specific half of ``silver_futures_eod``'s Databento leg, and NOTHING else:
 
-  * :data:`ROOT_MAP` -- vendor root -> ``(dataset id, leviathan_slug)`` for the 15 covered
+  * :data:`ROOT_MAP` -- vendor root -> ``(dataset id, leviathan_slug)`` for the 16 covered
     contracts. It carries NO unit / currency / settle_kind / source: W1.0 moved that authority to
     :mod:`leviathan.silver.futures_eod_contracts` on purpose (ten producers land against one table,
     so a per-transform unit map is by construction not single-source). This module never writes a
     unit; the bronze_to_silver step reads ``contract_for(slug)``.
   * the OUTRIGHT filter (F1) -- regex AND an exact root match;
   * the symbol -> ``(leviathan_slug, contract_month)`` decode, including the DOWNLOAD-YEAR-ANCHORED
-    decade rule for the single-digit GLBX year code (D2);
+    decade rule for the single-digit GLBX year code (D2) and, for roots that DECLARE a listing
+    horizon (:data:`GLBX_LISTING_HORIZON_MONTHS`), the LISTING-INTERVAL-ANCHORED form of it (V2-4
+    M1: a December contract that terminates on the first business day of the NEXT month resolves
+    inside the next calendar-year window, and the bare download-year rule lifts it a decade);
+  * the SETTLEMENT-SPINE bronze for :data:`SETTLEMENT_TAPE_ROOTS` -- roots whose price history IS
+    the statistics stream (settle/OI populated, OHLCV NULL, bars LEFT-joined if any exist);
   * the fixed-point 1e-9 price scaling and the undefined-sentinel masking;
   * the GLBX ``statistics`` reduction + join -> ``settle`` / ``open_interest`` (D3);
   * the ICE double-bar rule (D4, :data:`ICE_BAR_RULE`).
@@ -66,8 +71,9 @@ IFUS = "IFUS.IMPACT"
 IFEU = "IFEU.IMPACT"
 ICE_DATASETS: frozenset[str] = frozenset({IFUS, IFEU})
 
-# The 15 Databento-covered contracts (plan lines 542-558). The other 16 slugs in CONTRACT_MAP are
-# W1a/W1b/W1c legs (CZCE / DCE / JSE / CEPEA / Bursa / MIAX / Euronext) and W2 must never touch them.
+# The 16 Databento-covered contracts (plan lines 542-558; +CPO, V2-4 2026-09-02). The other 15
+# slugs in CONTRACT_MAP are W1a/W1b/W1c legs (CZCE / DCE / JSE / CEPEA / MIAX / Euronext) and W2
+# must never touch them.
 # NOTE the IFEU white-sugar root is the SINGLE character "W" ("WS" is a 422) -- nothing here may
 # assume a two-character root.
 ROOT_MAP: dict[str, tuple[str, str]] = {
@@ -79,6 +85,11 @@ ROOT_MAP: dict[str, tuple[str, str]] = {
     "ZW": (GLBX, "soft_red_winter_wheat_cbot"),
     "KE": (GLBX, "hard_red_winter_wheat_kcbt"),
     "ZR": (GLBX, "rough_rice_cbot"),
+    # V2-4 (2026-09-02): USD Malaysian Crude Palm Oil Calendar futures (CME rulebook 204) -- a
+    # SETTLEMENT-MARK tape (Globex volume 0; OI in ClearPort swaps): see SETTLEMENT_TAPE_ROOTS.
+    # $0 probe: data/batch_runs/cpo_databento_probe_20260902.json (120 outrights, stats $0.0894).
+    # The slug is the EXISTING palm slug re-keyed from the parked Bursa MYR binding (Route B).
+    "CPO": (GLBX, "malaysian_crude_palm_oil_cme"),
     # -- IFUS.IMPACT (ICE US; canola lives here, plan line 556) -------------------------------
     "KC": (IFUS, "arabica_coffee"),
     "SB": (IFUS, "raw_sugar"),
@@ -101,8 +112,48 @@ ROOT_FIRST_DATE: dict[str, str] = {
     **{r: _GLBX_FIRST for r, (ds, _s) in ROOT_MAP.items() if ds == GLBX},
     **{r: _ICE_FIRST for r, (ds, _s) in ROOT_MAP.items() if ds in ICE_DATASETS},
     "KE": "2014-01-01",
+    # CPO (V2-4 M2, MEASURED on data/batch_runs/cpo_databento_probe_20260902.json): the tape has a
+    # ~7-month HOLE -- the 2015 window lists CPOF6..CPON6 while the 2016 window's first decoded
+    # month is 2016-08 (Jan..Jul 2016 resolve NOTHING under CPO.FUT), and the 2010-2015 24-month
+    # regime is UNVERIFIED (20-25 outrights/yr, 195-249 recycled instrument_ids). A blanket
+    # 2010-06-06 floor would claim coverage the tape does not have (the KCBT/CEPEA hole shape), and
+    # covers() would route a 2016-02..06 window to the table to decline no_tape_rows instead of
+    # naming the floor. The usable window therefore opens at the 60-month regime's first session
+    # month; the pre-2016 regime is a separate owner decision (docket).
+    "CPO": "2016-08-01",
 }
 assert set(ROOT_FIRST_DATE) == set(ROOT_MAP), "ROOT_FIRST_DATE must cover exactly the ROOT_MAP roots"
+
+# SETTLEMENT-TAPE ROOTS (V2-4): GLBX roots whose price history IS the statistics stream. The probe
+# priced ohlcv-1d at $0.0000 for 2014-2026 (no Globex trade bars) while statistics priced non-zero
+# every year; the bar-driven bronze (build_ohlcv_bronze -> LEFT-join statistics) would therefore
+# land ZERO rows and red every unit. For these roots the fetch buys statistics ONLY and the bronze
+# row skeleton is the reduced statistics keys with open/high/low/close/volume NULL
+# (build_settlement_bronze). F3 holds: settle is never a close, and a close is never a settle.
+SETTLEMENT_TAPE_ROOTS: frozenset[str] = frozenset({"CPO"})
+assert SETTLEMENT_TAPE_ROOTS <= {r for r, (ds, _s) in ROOT_MAP.items() if ds == GLBX}, \
+    "SETTLEMENT_TAPE_ROOTS must be GLBX roots (statistics is a GLBX-only leg)"
+
+# LISTING HORIZON per root, in months (V2-4 M1). A root that DECLARES a horizon decodes its
+# single-digit year code with the LISTING-INTERVAL-ANCHORED rule (resolve_glbx_contract_year) and
+# lints every bronze row against it (lint_contract_horizon). CME lists CPO for 60 CONSECUTIVE
+# months, and its contracts terminate on the last CME business day of the month OR the first
+# business day of the NEXT month -- so CPOZ6 (Dec 2016) resolves inside the 2017 window, where the
+# bare download-year rule reads the digit 6 as 2026 (measured: 2017 CPOZ6 -> 2026-12, 2019 CPOZ8
+# -> 2028-12, ... 8 of the probe's 17 windows). A root ABSENT from this map keeps the shipped
+# download-year rule byte-for-byte (the 7 live GLBX roots' December contracts expire mid-month and
+# never straddle a window; none lists past ~3 years).
+GLBX_LISTING_HORIZON_MONTHS: dict[str, int] = {"CPO": 60}
+assert set(GLBX_LISTING_HORIZON_MONTHS) <= {r for r, (ds, _s) in ROOT_MAP.items() if ds == GLBX}, \
+    "GLBX_LISTING_HORIZON_MONTHS must name GLBX roots only"
+# The decode anchor is the symbol's resolved listing-interval start (d0) when the symbology
+# artifact carries it, else the (root, year) WINDOW start -- which can sit up to 12 months before
+# a contract's real listing date, so the decode horizon carries that slack on top of the declared
+# listing depth. The ROW lint (trade_date vs contract_month) uses the bare declared horizon.
+_HORIZON_WINDOW_SLACK_MONTHS = 12
+# A contract may print on the first business day(s) AFTER its delivery month ends (the CPO
+# termination rule), i.e. contract_month == trade month - 1. Never earlier.
+_HORIZON_GRACE_MONTHS = 1
 
 
 def root_years(root: str, through_year: int) -> list[int]:
@@ -212,11 +263,57 @@ def resolve_glbx_year(year_digit: int, request_year: int) -> int:
     return candidate
 
 
-def decode_symbol(symbol: str, root: str, dataset: str, request_year: int) -> tuple[int, int]:
+def window_anchor(root: str, request_year: int) -> date:
+    """The DEFAULT decode anchor for one ``(root, request_year)``: the request window's first
+    day (the root's first usable date inside its first year, Jan 1 otherwise). Deterministic,
+    clock-free, and the same value the fetch job's ``year_window`` opens on."""
+    first = datetime.strptime(ROOT_FIRST_DATE[root], "%Y-%m-%d").date()
+    return max(first, date(int(request_year), 1, 1))
+
+
+def _month_index(year: int, month: int) -> int:
+    return int(year) * 12 + int(month) - 1
+
+
+def resolve_glbx_contract_year(year_digit: int, month: int, root: str, anchor: date) -> int:
+    """The LISTING-INTERVAL-ANCHORED decade rule (V2-4 M1), for roots that declare a horizon.
+
+    The delivery month ``(year, month)`` is the unique decade candidate inside
+    ``[anchor month - 1, anchor month + horizon + 12]`` where ``horizon`` is the root's declared
+    listing depth (:data:`GLBX_LISTING_HORIZON_MONTHS`): a decade is 120 months apart and that
+    window is at most 74 months wide for a 60-month listing, so exactly one candidate fits.
+
+    ``anchor`` is the symbol's resolved listing-interval start (``d0`` from the symbology artifact)
+    when the caller has it, else the window start (:func:`window_anchor`) -- the +12 slack exists
+    for that fallback (a contract first listed in December of the window year sits 12 months past
+    the window's January anchor). The one-month grace BEFORE the anchor is the CPO termination
+    rule: a December contract prints on the first business day of January.
+
+    Roots WITHOUT a declared horizon must not reach this function -- their decode is the shipped
+    download-year rule, byte-for-byte."""
+    horizon = GLBX_LISTING_HORIZON_MONTHS.get(root)
+    if horizon is None:
+        raise ValueError(f"root {root!r} declares no GLBX_LISTING_HORIZON_MONTHS entry")
+    base = resolve_glbx_year(year_digit, anchor.year)     # smallest year >= anchor year
+    lo = _month_index(anchor.year, anchor.month) - _HORIZON_GRACE_MONTHS
+    hi = _month_index(anchor.year, anchor.month) + int(horizon) + _HORIZON_WINDOW_SLACK_MONTHS
+    for candidate in (base - 10, base, base + 10):
+        if lo <= _month_index(candidate, month) <= hi:
+            return candidate
+    raise ValueError(
+        f"{root}: no decade candidate for year digit {year_digit} / month {month} lies inside "
+        f"[{anchor} - {_HORIZON_GRACE_MONTHS}m, + {int(horizon) + _HORIZON_WINDOW_SLACK_MONTHS}m]"
+    )
+
+
+def decode_symbol(symbol: str, root: str, dataset: str, request_year: int,
+                  *, anchor: Optional[date] = None) -> tuple[int, int]:
     """``(contract_year, contract_month_number)`` for one outright symbol. FAIL CLOSED.
 
     GLBX ``ZCH6`` -> month code ``H`` + single-digit year ``6``, disambiguated by
-    :func:`resolve_glbx_year` against ``request_year``.
+    :func:`resolve_glbx_year` against ``request_year`` -- or, for a root that declares a listing
+    horizon (:data:`GLBX_LISTING_HORIZON_MONTHS`), by :func:`resolve_glbx_contract_year` against
+    ``anchor`` (the symbol's resolved listing-interval start; the window start when absent).
 
     ICE ``KC  FMZ0026!`` -> month code ``Z`` + the fixed-width 4-digit field ``0026``. The plan
     calls that field a 4-digit year and it is UNAMBIGUOUS either way it is read (``0026`` -> 26 ->
@@ -230,7 +327,11 @@ def decode_symbol(symbol: str, root: str, dataset: str, request_year: int) -> tu
         )
     if dataset == GLBX:
         code, digit = symbol[-2], symbol[-1]
-        return resolve_glbx_year(int(digit), request_year), MONTH_CODES[code]
+        month = MONTH_CODES[code]
+        if root in GLBX_LISTING_HORIZON_MONTHS:
+            a = anchor if anchor is not None else window_anchor(root, request_year)
+            return resolve_glbx_contract_year(int(digit), month, root, a), month
+        return resolve_glbx_year(int(digit), request_year), month
     # ICE: ... FM<code><dddd>!
     body = symbol.split()[-1]           # "FMZ0026!"
     code = body[2]
@@ -244,10 +345,99 @@ def decode_symbol(symbol: str, root: str, dataset: str, request_year: int) -> tu
     return year, MONTH_CODES[code]
 
 
-def contract_month_str(symbol: str, root: str, dataset: str, request_year: int) -> str:
+def contract_month_str(symbol: str, root: str, dataset: str, request_year: int,
+                       *, anchor: Optional[date] = None) -> str:
     """The ``YYYY-MM`` delivery-month string for one outright symbol."""
-    year, month = decode_symbol(symbol, root, dataset, request_year)
+    year, month = decode_symbol(symbol, root, dataset, request_year, anchor=anchor)
     return CONTRACT_MONTH_FMT % (year, month)
+
+
+def symbol_anchors_from_artifact(artifact: Optional[dict]) -> dict[str, date]:
+    """``{raw_symbol: earliest d0}`` over the symbology artifact's STEP-2 chunks -- the per-symbol
+    resolved listing-interval start that anchors the decade decode for horizon-declaring roots.
+    Empty when the artifact is absent or carries no usable ``d0`` (the decode then anchors on the
+    window start, which the horizon slack is sized for)."""
+    out: dict[str, date] = {}
+    if not artifact:
+        return out
+    for chunk in artifact.get("resolve_step2") or []:
+        if not isinstance(chunk, dict):
+            continue
+        for entries in (chunk.get("result") or {}).values():
+            for e in entries or []:
+                sym, d0 = e.get("s"), e.get("d0")
+                if not sym or not d0:
+                    continue
+                try:
+                    d = date.fromisoformat(str(d0)[:10])
+                except ValueError:
+                    continue
+                if sym not in out or d < out[sym]:
+                    out[sym] = d
+    return out
+
+
+def contract_month_map(symbols: Iterable[str], root: str, dataset: str, request_year: int,
+                       anchors: Optional[dict[str, date]] = None) -> dict[str, str]:
+    """``{raw_symbol: 'YYYY-MM'}`` for a set of outrights, each decoded against its own resolved
+    listing anchor when one is known."""
+    anchors = anchors or {}
+    return {s: contract_month_str(s, root, dataset, request_year, anchor=anchors.get(s))
+            for s in symbols}
+
+
+def _anchor_fallbacks(symbols: Iterable[str], root: str, anchors: Optional[dict[str, date]],
+                      *, label: str) -> Optional[int]:
+    """How many outrights of a HORIZON-DECLARING root decode on the WINDOW anchor because the
+    symbology artifact carried no resolved ``d0`` for them (an artifact with no STEP-2 chunks, or
+    one re-landed by an older fetch). The fallback is bounded by the 74-month decode window and
+    backstopped by the row lint, but a degraded anchor must be NAMED AND COUNTED (STEP-12 F10),
+    never silent: the count rides in the unit record and is logged at INFO when non-zero. ``None``
+    for a root that declares no horizon -- the anchor is inert there and a count would be noise
+    (absence declared, not a zero)."""
+    if root not in GLBX_LISTING_HORIZON_MONTHS:
+        return None
+    syms = list(symbols)
+    have = anchors or {}
+    missing = sorted(s for s in syms if s not in have)
+    if missing:
+        logger.info("%s: %d of %d outright(s) carry no resolved d0 anchor -- decoding them on "
+                    "the window anchor instead (bounded by the decode window, linted by the "
+                    "horizon fence): %s%s", label, len(missing), len(syms),
+                    ", ".join(missing[:10]), " ..." if len(missing) > 10 else "")
+    return len(missing)
+
+
+def contract_horizon_violations(frame: pd.DataFrame, root: str) -> pd.DataFrame:
+    """Rows whose ``contract_month`` sits more than the root's declared listing horizon AFTER
+    ``trade_date``'s month, or more than one month BEFORE it (V2-4 M1's row-level lint). Empty for
+    a root with no declared horizon. Pure; the caller decides whether to raise."""
+    horizon = GLBX_LISTING_HORIZON_MONTHS.get(root)
+    if horizon is None or frame is None or frame.empty:
+        return pd.DataFrame(columns=["raw_symbol", "trade_date", "contract_month", "months_ahead"])
+    td = pd.to_datetime(frame["trade_date"], errors="coerce")
+    cm = pd.to_datetime(frame["contract_month"].astype(str) + "-01", errors="coerce")
+    ahead = (cm.dt.year * 12 + cm.dt.month) - (td.dt.year * 12 + td.dt.month)
+    bad = frame.loc[(ahead > int(horizon)) | (ahead < -_HORIZON_GRACE_MONTHS) | ahead.isna(),
+                    ["raw_symbol", "trade_date", "contract_month"]].copy()
+    bad["months_ahead"] = ahead[bad.index]
+    return bad.reset_index(drop=True)
+
+
+def lint_contract_horizon(frame: pd.DataFrame, root: str, *, label: str) -> None:
+    """HARD FAIL when any bronze row lies outside the root's declared listing horizon -- the
+    decade-lift shape (a January trade date carrying a delivery month ten years out) must never
+    reach a registered surface. Inert for roots that declare no horizon."""
+    bad = contract_horizon_violations(frame, root)
+    if len(bad):
+        detail = ", ".join(f"{r.raw_symbol}@{str(r.trade_date)[:10]}->{r.contract_month}"
+                           f"({int(r.months_ahead) if pd.notna(r.months_ahead) else 'nan'}m)"
+                           for r in bad.head(10).itertuples())
+        raise ValueError(
+            f"{label}: {len(bad)} row(s) carry a contract_month outside the declared listing "
+            f"horizon of {GLBX_LISTING_HORIZON_MONTHS[root]} months (grace {_HORIZON_GRACE_MONTHS} "
+            f"month before): {detail} -- the decade decode lifted a delivery month, refusing"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -438,6 +628,13 @@ def dedupe_ice_bars(df: pd.DataFrame, *, rule: str = ICE_BAR_RULE) -> tuple[pd.D
 _OHLCV_REQUIRED = ("ts_event", "instrument_id", "symbol", "open", "high", "low", "close", "volume")
 
 
+def empty_ohlcv_frame() -> pd.DataFrame:
+    """The decoded-ohlcv shape with ZERO rows -- what a settlement-tape root feeds
+    :func:`build_ohlcv_bronze` when no ohlcv payload exists (the column check there runs BEFORE
+    the empty check, so the columns must be present)."""
+    return pd.DataFrame(columns=list(_OHLCV_REQUIRED))
+
+
 def build_ohlcv_bronze(
     df: pd.DataFrame,
     *,
@@ -446,6 +643,7 @@ def build_ohlcv_bronze(
     request_year: int,
     prices_are_fixed: bool = True,
     ice_bar_rule: str = ICE_BAR_RULE,
+    symbol_anchors: Optional[dict[str, date]] = None,
 ) -> tuple[pd.DataFrame, dict]:
     """One ``(dataset, root, request_year)`` ohlcv-1d frame -> bronze rows. PURE.
 
@@ -472,10 +670,12 @@ def build_ohlcv_bronze(
     missing = [c for c in _OHLCV_REQUIRED if c not in work.columns]
     if missing:
         raise ValueError(f"databento ohlcv {root}/{request_year}: frame is missing {missing}")
+    ohlcv_label = f"databento ohlcv {root}/{request_year}"
     if work.empty:
         return pd.DataFrame(columns=BRONZE_COLUMNS), {
             "rows_in": 0, "rows_out": 0, "outright_symbols": 0, "dropped_symbols": 0,
-            "ice_dedupe": None, "root": root, "dataset": dataset, "year": int(request_year)}
+            "ice_dedupe": None, "root": root, "dataset": dataset, "year": int(request_year),
+            "anchor_fallbacks": _anchor_fallbacks([], root, symbol_anchors, label=ohlcv_label)}
 
     keep, drop = partition_symbols(work["symbol"], root, dataset)
     work = work[work["symbol"].isin(set(keep))].copy()
@@ -485,7 +685,8 @@ def build_ohlcv_bronze(
         return pd.DataFrame(columns=BRONZE_COLUMNS), {
             "rows_in": int(len(df)), "rows_out": 0, "outright_symbols": 0,
             "dropped_symbols": len(drop), "ice_dedupe": None, "root": root,
-            "dataset": dataset, "year": int(request_year)}
+            "dataset": dataset, "year": int(request_year),
+            "anchor_fallbacks": _anchor_fallbacks([], root, symbol_anchors, label=ohlcv_label)}
 
     work = work.rename(columns={"symbol": "raw_symbol"})
     assert_symbol_instrument_1to1(work, label=f"databento ohlcv {root}/{request_year}")
@@ -494,8 +695,10 @@ def build_ohlcv_bronze(
     work["ts_event"] = ts
     work["trade_date"] = ts.dt.tz_localize(None).dt.normalize()
 
-    month_by_symbol = {s: contract_month_str(s, root, dataset, request_year) for s in keep}
+    month_by_symbol = contract_month_map(keep, root, dataset, request_year, symbol_anchors)
+    anchor_fallbacks = _anchor_fallbacks(keep, root, symbol_anchors, label=ohlcv_label)
     work["contract_month"] = work["raw_symbol"].map(month_by_symbol)
+    lint_contract_horizon(work, root, label=ohlcv_label)
 
     for col in ("open", "high", "low", "close"):
         work[col] = (scale_fixed_price(work[col].to_numpy()).to_numpy()
@@ -530,7 +733,8 @@ def build_ohlcv_bronze(
     stats = {"rows_in": int(len(df)), "rows_out": int(len(out)),
              "outright_symbols": len(keep), "dropped_symbols": len(drop),
              "ice_dedupe": dedupe_stats, "ice_probe": ice_probe, "root": root,
-             "dataset": dataset, "year": int(request_year)}
+             "dataset": dataset, "year": int(request_year),
+             "anchor_fallbacks": anchor_fallbacks}
     logger.info("databento ohlcv %s/%s: %d rows, %d outright symbols, %d dropped",
                 root, request_year, len(out), len(keep), len(drop))
     return out, stats
@@ -549,9 +753,14 @@ def build_statistics_bronze(
     root: str,
     request_year: int,
     prices_are_fixed: bool = True,
+    keep_instrument_id: bool = False,
 ) -> pd.DataFrame:
     """GLBX ``statistics`` -> one row per ``(raw_symbol, trade_date)`` carrying ``settle`` /
     ``open_interest`` / ``settle_flags``. PURE.
+
+    ``keep_instrument_id=True`` (the settlement-spine path, V2-4) appends the key's
+    ``instrument_id`` as a sixth column; the default keeps the five-column shape the seven live
+    GLBX roots' LEFT join has always consumed, byte-identical.
 
     Three rules, each for a measured reason:
 
@@ -574,7 +783,8 @@ def build_statistics_bronze(
             f"statistics is a GLBX-only leg (root {root!r} is not GLBX) -- the ICE statistics "
             f"schema costs $1,696 (IFUS) + $264 (IFEU) and is EXCLUDED by the plan"
         )
-    cols = ["raw_symbol", "trade_date", "settle", "open_interest", "settle_flags"]
+    cols = (["raw_symbol", "trade_date", "settle", "open_interest", "settle_flags"]
+            + (["instrument_id"] if keep_instrument_id else []))
     work = df.copy()
     if "ts_recv" not in work.columns:
         work = work.reset_index()
@@ -612,6 +822,10 @@ def build_statistics_bronze(
         logger.warning("databento statistics %s/%s: every statistic was retracted (%d deletes)",
                        root, request_year, deleted)
         return pd.DataFrame(columns=cols)
+    # The key's instrument_id (one per (raw_symbol, date) by F-A, asserted above): the settlement
+    # spine carries it into BRONZE_COLUMNS where the bar frame would otherwise have supplied it.
+    iid = (latest.drop_duplicates(subset=["raw_symbol", "trade_date"], keep="last")
+           [["raw_symbol", "trade_date", "instrument_id"]])
 
     settle_rows = latest[latest["stat_type"] == STAT_TYPE_SETTLEMENT_PRICE].copy()
     if prices_are_fixed:
@@ -632,6 +846,9 @@ def build_statistics_bronze(
     out = settle_rows.merge(oi_rows, on=["raw_symbol", "trade_date"], how="outer")
     out["open_interest"] = out["open_interest"].astype("Int64")
     out["settle_flags"] = out["settle_flags"].astype("Int64")
+    if keep_instrument_id:
+        out = out.merge(iid, on=["raw_symbol", "trade_date"], how="left")
+        out["instrument_id"] = pd.to_numeric(out["instrument_id"], errors="coerce").astype("Int64")
     out = out[cols].sort_values(["raw_symbol", "trade_date"], kind="mergesort").reset_index(drop=True)
     logger.info("databento statistics %s/%s: %d (symbol, date) keys (%d retracted)",
                 root, request_year, len(out), deleted)
@@ -661,6 +878,107 @@ def join_glbx_statistics(ohlcv: pd.DataFrame, stats: pd.DataFrame) -> pd.DataFra
     matched = int(out["settle"].notna().sum())
     logger.info("databento GLBX statistics join: %d/%d bars carry a settlement", matched, len(out))
     return out[BRONZE_COLUMNS].reset_index(drop=True)
+
+
+def build_settlement_bronze(
+    stats: Optional[pd.DataFrame],
+    bars: Optional[pd.DataFrame],
+    *,
+    dataset: str,
+    root: str,
+    request_year: int,
+    symbol_anchors: Optional[dict[str, date]] = None,
+) -> tuple[pd.DataFrame, dict]:
+    """The SETTLEMENT-SPINE bronze for a :data:`SETTLEMENT_TAPE_ROOTS` root (V2-4). PURE.
+
+    The row skeleton is the reduced statistics keys -- ``(raw_symbol, ts_ref trade_date)`` with
+    ``settle`` (stat_type 3) and ``open_interest`` (stat_type 9) outer-merged, last-by-ts_recv,
+    deletes honoured, exactly what :func:`build_statistics_bronze` returns with
+    ``keep_instrument_id=True``. Every key becomes a row carrying ``leviathan_slug`` / ``dataset`` /
+    ``root`` / the decoded ``contract_month`` (the listing-interval-anchored decade rule) with
+    ``open`` / ``high`` / ``low`` / ``close`` NaN and ``volume`` / ``publisher_id`` NULL. Bars, if
+    any, LEFT-join onto those keys: a bar with no settlement on a mark tape is a stray and is
+    dropped -- the mirror of :func:`join_glbx_statistics` stated in the row shape. F3 holds in
+    both directions: no close ever becomes a settle, no settle ever becomes a close.
+
+    ``stats`` empty -> zero rows (the caller's floor decides what that means); a non-member root
+    raises (the seven live GLBX roots keep the bar-driven path byte-for-byte)."""
+    if root not in SETTLEMENT_TAPE_ROOTS:
+        raise ValueError(f"root {root!r} is not a settlement-tape root (SETTLEMENT_TAPE_ROOTS = "
+                         f"{sorted(SETTLEMENT_TAPE_ROOTS)}); the bar-driven bronze owns it")
+    if ROOT_MAP.get(root, (None, None))[0] != dataset:
+        raise ValueError(f"root {root!r} does not belong to dataset {dataset!r} (ROOT_MAP)")
+    slug = ROOT_MAP[root][1]
+    label = f"databento settlement {root}/{request_year}"
+    empty_stats = {"rows_in": 0, "rows_out": 0, "outright_symbols": 0, "dropped_symbols": 0,
+                   "ice_dedupe": None, "root": root, "dataset": dataset, "year": int(request_year),
+                   "settlement_base": True, "statistics_keys": 0, "bar_keys_attached": 0,
+                   "bars_without_settlement_dropped": 0,
+                   "horizon_months": GLBX_LISTING_HORIZON_MONTHS.get(root),
+                   "rows_beyond_horizon": 0,
+                   "anchor_fallbacks": _anchor_fallbacks([], root, symbol_anchors, label=label)}
+    if stats is None or stats.empty:
+        return pd.DataFrame(columns=BRONZE_COLUMNS), empty_stats
+
+    keep, drop = partition_symbols(stats["raw_symbol"], root, dataset)
+    base = stats[stats["raw_symbol"].isin(set(keep))].copy()
+    if base.empty:
+        return pd.DataFrame(columns=BRONZE_COLUMNS), dict(empty_stats, rows_in=int(len(stats)),
+                                                          dropped_symbols=len(drop))
+    base["trade_date"] = pd.to_datetime(base["trade_date"]).dt.normalize()
+    base["contract_month"] = base["raw_symbol"].map(
+        contract_month_map(keep, root, dataset, request_year, symbol_anchors))
+    anchor_fallbacks = _anchor_fallbacks(keep, root, symbol_anchors, label=label)
+    base["leviathan_slug"] = slug
+    base["dataset"] = dataset
+    base["root"] = root
+    for col in ("open", "high", "low", "close"):
+        base[col] = np.nan
+    base["volume"] = pd.Series([pd.NA] * len(base), dtype="Int64", index=base.index)
+    base["publisher_id"] = pd.Series([pd.NA] * len(base), dtype="Int64", index=base.index)
+    if "instrument_id" in base.columns:
+        base["instrument_id"] = pd.to_numeric(base["instrument_id"], errors="coerce").astype("Int64")
+    else:
+        base["instrument_id"] = pd.Series([pd.NA] * len(base), dtype="Int64", index=base.index)
+    base["settle"] = pd.to_numeric(base["settle"], errors="coerce").astype("float64")
+    base["open_interest"] = pd.to_numeric(base["open_interest"], errors="coerce").astype("Int64")
+    base["settle_flags"] = pd.to_numeric(base["settle_flags"], errors="coerce").astype("Int64")
+
+    attached = 0
+    strays = 0
+    if bars is not None and not bars.empty:
+        # the bar columns that ATTACH to a statistics key (a projection, not a vocabulary)
+        attach = ["raw_symbol", "trade_date", "open", "high", "low", "close", "volume",
+                  "publisher_id"]
+        b = bars[[c for c in attach if c in bars.columns]].copy()
+        b["trade_date"] = pd.to_datetime(b["trade_date"]).dt.normalize()
+        b = b.drop_duplicates(subset=["raw_symbol", "trade_date"], keep="last")
+        keys = set(zip(base["raw_symbol"], base["trade_date"]))
+        strays = int(sum((s, d) not in keys for s, d in zip(b["raw_symbol"], b["trade_date"])))
+        merged = base.drop(columns=[c for c in attach[2:] if c in base.columns]).merge(
+            b, on=["raw_symbol", "trade_date"], how="left")
+        for col in ("open", "high", "low", "close"):
+            merged[col] = pd.to_numeric(merged[col], errors="coerce").astype("float64")
+        merged["volume"] = pd.to_numeric(merged["volume"], errors="coerce").astype("Int64")
+        merged["publisher_id"] = pd.to_numeric(merged["publisher_id"], errors="coerce").astype("Int64")
+        attached = int(merged["close"].notna().sum())
+        base = merged
+
+    assert_symbol_instrument_1to1(base, label=label, ts_col="trade_date")
+    lint_contract_horizon(base, root, label=label)
+    out = base[BRONZE_COLUMNS].sort_values(["raw_symbol", "trade_date"], kind="mergesort")
+    out = out.reset_index(drop=True)
+    rec = {"rows_in": int(len(stats)), "rows_out": int(len(out)), "outright_symbols": len(keep),
+           "dropped_symbols": len(drop), "ice_dedupe": None, "root": root, "dataset": dataset,
+           "year": int(request_year), "settlement_base": True, "statistics_keys": int(len(base)),
+           "bar_keys_attached": attached, "bars_without_settlement_dropped": strays,
+           "horizon_months": GLBX_LISTING_HORIZON_MONTHS.get(root),
+           "rows_beyond_horizon": int(len(contract_horizon_violations(out, root))),
+           "anchor_fallbacks": anchor_fallbacks}
+    logger.info("databento settlement %s/%s: %d rows from %d statistics keys, %d bar keys "
+                "attached (%d stray bars dropped)", root, request_year, len(out), len(base),
+                attached, strays)
+    return out, rec
 
 
 def statistics_join_diagnostics(ohlcv: pd.DataFrame, stats: Optional[pd.DataFrame], *,
@@ -713,9 +1031,10 @@ def glbx_settle_coverage(bronze: pd.DataFrame) -> dict:
     Returned per unit so the producer task can floor it."""
     if bronze is None or bronze.empty or "settle" not in bronze.columns:
         return {"rows": 0, "settle_nonnull": 0, "settle_nonnull_frac": None,
-                "open_interest_nonnull_frac": None}
+                "open_interest_nonnull_frac": None, "oi_keys_without_settle": None}
     n = int(len(bronze))
-    settle_n = int(pd.to_numeric(bronze["settle"], errors="coerce").notna().sum())
+    settle = pd.to_numeric(bronze["settle"], errors="coerce")
+    settle_n = int(settle.notna().sum())
     oi = bronze["open_interest"] if "open_interest" in bronze.columns else None
     return {
         "rows": n,
@@ -723,7 +1042,50 @@ def glbx_settle_coverage(bronze: pd.DataFrame) -> dict:
         "settle_nonnull_frac": round(settle_n / n, 4),
         "open_interest_nonnull_frac": (round(int(oi.notna().sum()) / n, 4)
                                        if oi is not None else None),
+        # KP2's instrument (V2-4): 'settlement rows present for every OI-bearing key'. On a
+        # settlement-spine root an OI key with no settle is a row the mark tape published OI for
+        # but no mark -- counted, never silently NULL.
+        "oi_keys_without_settle": (int((oi.notna() & settle.isna()).sum())
+                                   if oi is not None else None),
     }
+
+
+def month_continuity_holes(frame: pd.DataFrame, *, slug_col: str = "leviathan_slug",
+                           date_col: str = "trade_date") -> dict[str, list[str]]:
+    """``{slug: ['YYYY-MM', ...]}`` -- the calendar months INSIDE a slug's banked span that carry
+    ZERO trade dates (V2-4 M2's month-continuity gate). PURE.
+
+    Measured per maximal run of CONSECUTIVE calendar years present in the frame (a repair run over
+    two non-adjacent years is two spans, not one hole), from the run's first trade date's month
+    to its last trade date's month. An internal hole is the shape ``covers()`` cannot see: a
+    window inside it routes to the table and declines ``no_tape_rows`` instead of naming the floor
+    -- so a hole must fail the producer/gate, never land."""
+    if frame is None or len(frame) == 0 or slug_col not in frame.columns or date_col not in frame.columns:
+        return {}
+    td = pd.to_datetime(frame[date_col], errors="coerce")
+    work = pd.DataFrame({"slug": frame[slug_col].astype(str).to_numpy(),
+                         "ym": (td.dt.year * 12 + td.dt.month - 1).to_numpy(),
+                         "year": td.dt.year.to_numpy()}).dropna()
+    holes: dict[str, list[str]] = {}
+    for slug, g in work.groupby("slug"):
+        years = sorted({int(y) for y in g["year"]})
+        runs: list[list[int]] = []
+        for y in years:
+            if runs and y == runs[-1][-1] + 1:
+                runs[-1].append(y)
+            else:
+                runs.append([y])
+        present = {int(v) for v in g["ym"]}
+        missing: list[str] = []
+        for run in runs:
+            sub = g[g["year"].isin(run)]
+            lo, hi = int(sub["ym"].min()), int(sub["ym"].max())
+            for ym in range(lo, hi + 1):
+                if ym not in present:
+                    missing.append(f"{ym // 12:04d}-{ym % 12 + 1:02d}")
+        if missing:
+            holes[str(slug)] = missing
+    return holes
 
 
 def apply_ice_settle(ohlcv: pd.DataFrame) -> pd.DataFrame:
@@ -852,7 +1214,7 @@ def decode_dbn(raw_bytes: bytes, *, schema: str,
 
 
 def extract_databento_bronze(
-    ohlcv_bytes: bytes,
+    ohlcv_bytes: Optional[bytes],
     *,
     dataset: str,
     root: str,
@@ -860,16 +1222,32 @@ def extract_databento_bronze(
     statistics_bytes: Optional[bytes] = None,
     symbology_json: Optional[dict] = None,
     ice_bar_rule: str = ICE_BAR_RULE,
+    symbol_anchors: Optional[dict[str, date]] = None,
 ) -> tuple[pd.DataFrame, dict]:
     """The module's single I/O-free-but-vendor-decoding entry point: raw bytes -> bronze rows.
 
     GLBX takes ``statistics_bytes`` (D3); ICE must not (the schema is excluded from the buy) and
-    routes through :func:`apply_ice_settle` (D4)."""
-    raw = decode_dbn(ohlcv_bytes, schema="ohlcv-1d", symbology_json=symbology_json)
+    routes through :func:`apply_ice_settle` (D4). A :data:`SETTLEMENT_TAPE_ROOTS` root takes an
+    ABSENT ``ohlcv_bytes`` (the fetch buys statistics only) and REQUIRES ``statistics_bytes`` --
+    the tape IS the statistics stream, so 'no statistics payload' is a missing unit, never a
+    settle-stays-NULL warning."""
+    settlement_tape = root in SETTLEMENT_TAPE_ROOTS
+    if ohlcv_bytes is None:
+        if not settlement_tape:
+            raise ValueError(f"{dataset} {root}/{request_year}: no ohlcv-1d payload and the root "
+                             f"is not a settlement-tape root")
+        raw = empty_ohlcv_frame()
+    else:
+        raw = decode_dbn(ohlcv_bytes, schema="ohlcv-1d", symbology_json=symbology_json)
     bronze, stats = build_ohlcv_bronze(raw, dataset=dataset, root=root,
-                                       request_year=request_year, ice_bar_rule=ice_bar_rule)
+                                       request_year=request_year, ice_bar_rule=ice_bar_rule,
+                                       symbol_anchors=symbol_anchors)
     if dataset == GLBX:
         if statistics_bytes is None:
+            if settlement_tape:
+                raise ValueError(
+                    f"{dataset} {root}/{request_year}: a settlement-tape root with NO statistics "
+                    f"payload -- the tape IS the statistics stream (SETTLEMENT_TAPE_ROOTS)")
             logger.warning("databento %s/%s: no statistics payload -- settle stays NULL (F3: the "
                            "ohlcv close is NOT the settlement and is never substituted)",
                            root, request_year)
@@ -877,8 +1255,15 @@ def extract_databento_bronze(
         else:
             stat_raw = decode_dbn(statistics_bytes, schema="statistics",
                                   symbology_json=symbology_json)
-            stat_df = build_statistics_bronze(stat_raw, root=root, request_year=request_year)
-        bronze = join_glbx_statistics(bronze, stat_df)
+            stat_df = build_statistics_bronze(stat_raw, root=root, request_year=request_year,
+                                              keep_instrument_id=settlement_tape)
+        if settlement_tape:
+            bronze, srec = build_settlement_bronze(stat_df, bronze, dataset=dataset, root=root,
+                                                   request_year=request_year,
+                                                   symbol_anchors=symbol_anchors)
+            stats.update(srec)
+        else:
+            bronze = join_glbx_statistics(bronze, stat_df)
     else:
         if statistics_bytes is not None:
             raise ValueError(

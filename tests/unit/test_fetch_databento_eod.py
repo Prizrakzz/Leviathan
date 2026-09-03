@@ -771,3 +771,413 @@ class TestRawExistsFailsClosed:
                                              lambda _key: self._client_error("SlowDown", 503),
                                              "--force-overwrite")
         assert rc == 0 and submitted == ["ohlcv-1d", "statistics"]
+
+
+# ---------------------------------------------------------------------------
+# V2-4 (2026-09-02) -- the SETTLEMENT-TAPE root CPO: statistics-only buy, no ohlcv-1d leg, and
+# a NON-BLOCKING unit on a thin payload.
+# ---------------------------------------------------------------------------
+CPO_2026 = {301: "CPOZ6", 302: "CPOF7", 401: "CPOF7-CPOG7", 402: "CPOZ6-CPOF7"}
+
+
+class TestSettlementTapeFetch:
+    def test_schemas_for_buys_statistics_only_on_a_settlement_tape_root(self):
+        assert F.schemas_for("GLBX.MDP3", "CPO", no_statistics=False) == ["statistics"]
+        assert F.schemas_for("GLBX.MDP3", "CPO", no_statistics=True) == []
+        # the shipped roots are UNCHANGED
+        assert F.schemas_for("GLBX.MDP3", "ZC", no_statistics=False) == ["ohlcv-1d", "statistics"]
+        assert F.schemas_for("GLBX.MDP3", "ZC", no_statistics=True) == ["ohlcv-1d"]
+        assert F.schemas_for("IFUS.IMPACT", "KC", no_statistics=False) == ["ohlcv-1d"]
+
+    def test_cpo_dry_run_prints_the_symbology_and_statistics_keys_only(self, capsys):
+        assert F.main(["--mode", "backfill", "--root", "CPO", "--year", "2016", "--dry-run"]) == 0
+        out = capsys.readouterr().out
+        assert "dataset=glbx_mdp3/root=CPO/year=2016/symbology_CPO_2016.json" in out
+        assert "statistics_CPO_2016.dbn.zst" in out
+        assert "ohlcv-1d_CPO" not in out
+        assert "units: 1" in out
+
+    def test_cpo_backfill_units_open_at_the_60_month_regime(self):
+        units = F.select_units(["CPO"], None, 2026)
+        assert [y for _d, _r, y in units] == list(range(2016, 2027))
+        assert F.select_units(["CPO"], [2015, 2016], 2026) == [("GLBX.MDP3", "CPO", 2016)]
+        assert F.year_window("CPO", 2016) == ("2016-08-01", "2017-01-01")
+
+    def test_the_cost_table_never_quotes_ohlcv_for_a_settlement_tape_root(self):
+        c = FakeClient(CPO_2026, cost_per_symbol={"ohlcv-1d": 0.25, "statistics": 0.05})
+        table = F.build_cost_table(c, [("GLBX.MDP3", "CPO", 2026)])
+        row = table["rows"][0]
+        assert row["ohlcv_usd"] == 0.0
+        assert row["statistics_usd"] == pytest.approx(0.10)      # 2 outrights x 0.05
+        assert row["dropped"] == 2 and table["zero_drop_roots"] == []
+        assert {x["schema"] for x in c.cost_calls} == {"statistics"}
+
+    @staticmethod
+    def _drive_cpo(monkeypatch, tmp_path, *extra, land=None, root="CPO",
+                   outrights=("CPOZ6", "CPOF7"), mode="backfill", download=None):
+        """``main()`` for ONE unit (``root``/2026, CPO by default) with the head answering 404
+        (nothing landed yet). ``mode`` picks the operator form (``--mode backfill --year 2026``)
+        or the nightly form (``--mode incremental --since 2026-08-28`` with the vendor window
+        pinned). Returns ``(exit_code, [landed keys], [submitted schemas])``."""
+        landed: list[str] = []
+        submitted: list[str] = []
+        TestRawExistsFailsClosed._s3(
+            monkeypatch, lambda _key: TestRawExistsFailsClosed._client_error("404", 404))
+        art = {"dataset": "GLBX.MDP3", "root": root, "year": 2026,
+               "outright_symbols": list(outrights), "dropped_count": 2,
+               "window": {"start": "2026-01-01", "end_exclusive": "2026-09-02"}}
+
+        def _download(client, job_id, out_dir, **kw):
+            path = tmp_path / f"{job_id}.dbn.zst"
+            path.write_bytes(b"\x28\xb5\x2f\xfd" + b"x" * 512)
+            return [str(path)]
+
+        monkeypatch.setattr(F, "load_env", lambda *a, **k: None)
+        monkeypatch.setattr(F, "load_api_key", lambda *a, **k: "not-a-real-key")
+        monkeypatch.setattr(F, "make_client", lambda key: object())
+        monkeypatch.setattr(F, "resolve_outrights", lambda client, **kw: dict(art))
+        monkeypatch.setattr(F, "land_bytes",
+                            land or (lambda bucket, key, data, **kw: landed.append(key)))
+        monkeypatch.setattr(F, "submit_unit",
+                            lambda client, artifact, schema: (submitted.append(schema)
+                                                              or {"id": f"job-{schema}"}))
+        monkeypatch.setattr(F, "wait_and_download", download or _download)
+        monkeypatch.setattr(F, "incremental_window",
+                            lambda client, dataset, since, today: ("2026-08-28", "2026-09-03"))
+        window = ["--year", "2026"] if mode == "backfill" else ["--since", "2026-08-28"]
+        rc = F.main(["--mode", mode, "--root", root, *window,
+                     "--bucket", "test-bucket", "--aws-region", "us-east-1",
+                     "--download-dir", str(tmp_path), *extra])
+        return rc, landed, submitted
+
+    @staticmethod
+    def _cpo_keys():
+        ds = "glbx_mdp3"
+        return (raw_databento_key(ds, "CPO", 2026, F.symbology_filename("CPO", 2026)),
+                raw_databento_key(ds, "CPO", 2026, F.payload_filename("statistics", "CPO", 2026)))
+
+    @staticmethod
+    def _thin(shape: str, landed: list[str]):
+        """The two THIN shapes as ``(land, download)`` overrides: the 200-byte size floor raised
+        by ``land_bytes`` on the statistics object, or a vendor job that completed with ZERO
+        ``.dbn.zst`` files. Every other object still lands into ``landed``."""
+        from leviathan.common.validation import SchemaValidationError
+
+        def _land(bucket, key, data, **kw):
+            if shape == "size_floor" and "statistics_" in key:
+                raise SchemaValidationError(f"[{key}] File size 170 bytes is below the minimum "
+                                            f"200 bytes for source 'databento'.")
+            landed.append(key)
+
+        def _download(client, job_id, out_dir, **kw):
+            return [] if shape == "zero_files" else None
+
+        return _land, (_download if shape == "zero_files" else None)
+
+    def test_the_buy_submits_statistics_only_and_lands_two_objects(self, monkeypatch, tmp_path):
+        sym_key, stats_key = self._cpo_keys()
+        rc, landed, submitted = self._drive_cpo(monkeypatch, tmp_path)
+        assert rc == 0
+        assert submitted == ["statistics"], "no ohlcv-1d batch job for a settlement-tape root"
+        assert landed == [sym_key, stats_key]
+
+    def test_no_statistics_on_a_settlement_tape_root_buys_nothing_and_fails_the_unit(
+            self, monkeypatch, tmp_path, caplog):
+        rc, landed, submitted = self._drive_cpo(monkeypatch, tmp_path, "--no-statistics")
+        assert rc == 1 and submitted == []
+        assert "buys NOTHING" in caplog.text
+        sym_key, _ = self._cpo_keys()
+        assert landed == [sym_key], "the symbology artifact still lands; no payload does"
+
+    @pytest.mark.parametrize("shape", ["size_floor", "zero_files"])
+    def test_a_thin_statistics_payload_is_non_blocking_on_the_settlement_tape_root_in_the_nightly(
+            self, monkeypatch, tmp_path, caplog, shape):
+        """V2-4 m10, INCREMENTAL (the nightly): the raw size floor (an empty DBN is ~150-190 B
+        against 200) and a zero-file vendor job must log and continue for CPO -- one thin mark
+        tape can never red the fetch phase for 15 roots. Pinned in the mode the design scoped it
+        to; the backfill twin below is the positive control (STEP-12 F1)."""
+        import logging
+
+        caplog.set_level(logging.INFO)
+        landed: list[str] = []
+        land, download = self._thin(shape, landed)
+        rc, _l, submitted = self._drive_cpo(monkeypatch, tmp_path, land=land, download=download,
+                                            mode="incremental")
+        assert rc == 0, "thin payload on a settlement-tape root is NOT a failure in the nightly"
+        assert submitted == ["statistics"]
+        assert landed == [self._cpo_keys()[0]], "nothing but the symbology artifact landed"
+        assert "SETTLEMENT_TAPE_THIN" in caplog.text
+        assert "FAILED" not in caplog.text
+        assert "thin_settlement_tape_payloads=1 settlement_tape_skipped=0" in caplog.text
+
+    @pytest.mark.parametrize("shape", ["size_floor", "zero_files"])
+    def test_the_same_thin_payload_FAILS_a_backfill_unit(self, monkeypatch, tmp_path, caplog,
+                                                          shape):
+        """STEP-12 F1: the thin swallow is NOT mode-blind. An operator ``--mode backfill`` unit
+        that lands nothing is FAILED / exit 1 (K6 fires as written), mirroring the silver task's
+        'backfill units stay BLOCKING'; only the nightly skips."""
+        import logging
+
+        caplog.set_level(logging.INFO)
+        landed: list[str] = []
+        land, download = self._thin(shape, landed)
+        rc, _l, submitted = self._drive_cpo(monkeypatch, tmp_path, land=land, download=download,
+                                            mode="backfill")
+        assert rc == 1, "a backfill unit that landed nothing must exit 1"
+        assert submitted == ["statistics"]
+        assert landed == [self._cpo_keys()[0]]
+        assert "FAILED GLBX.MDP3 CPO/2026" in caplog.text
+        assert "SETTLEMENT_TAPE_THIN" not in caplog.text
+        assert "thin_settlement_tape_payloads=0 settlement_tape_skipped=0" in caplog.text
+
+    def test_the_same_thin_payload_still_fails_a_bar_driven_root(self, monkeypatch, tmp_path):
+        """The positive control: the non-blocking path is keyed on SETTLEMENT_TAPE_ROOTS, so a
+        thin payload on ZC is still the loud FAILED unit it always was -- in BOTH modes."""
+        from leviathan.common.validation import SchemaValidationError
+
+        landed: list[str] = []
+
+        def _land(bucket, key, data, **kw):
+            if "statistics_" in key:
+                raise SchemaValidationError("thin")
+            landed.append(key)
+
+        for mode in ("backfill", "incremental"):
+            rc, _l, submitted = self._drive_cpo(monkeypatch, tmp_path, root="ZC",
+                                                outrights=("ZCH6", "ZCZ6"), mode=mode)
+            assert rc == 0 and submitted == ["ohlcv-1d", "statistics"]   # the drive is green
+            rc, _l, submitted = self._drive_cpo(monkeypatch, tmp_path, root="ZC",
+                                                outrights=("ZCH6", "ZCZ6"), land=_land, mode=mode)
+            assert rc == 1, f"a thin payload on a bar-driven root is still a FAILED unit ({mode})"
+            assert submitted == ["ohlcv-1d", "statistics"]
+
+    def test_a_split_payload_is_never_thin(self, monkeypatch, tmp_path, caplog):
+        """STEP-12 F5: ``got 2`` (a split or duplicated vendor payload) is NOT 'the vendor
+        delivered nothing usable'. Backfill: a hard FAILED unit. Nightly: skipped under the
+        whole-unit fence, but as SETTLEMENT_TAPE_SKIPPED -- never counted as a thin payload."""
+        import logging
+
+        caplog.set_level(logging.INFO)
+
+        def _two(client, job_id, out_dir, **kw):
+            paths = []
+            for i in (1, 2):
+                path = tmp_path / f"{job_id}-{i}.dbn.zst"
+                path.write_bytes(b"\x28\xb5\x2f\xfd" + b"x" * 512)
+                paths.append(str(path))
+            return paths
+
+        rc, landed, _s = self._drive_cpo(monkeypatch, tmp_path, download=_two, mode="backfill")
+        assert rc == 1 and landed == [self._cpo_keys()[0]]
+        assert "FAILED GLBX.MDP3 CPO/2026" in caplog.text and "got 2" in caplog.text
+        assert "SETTLEMENT_TAPE_THIN" not in caplog.text
+        caplog.clear()
+        rc, landed, _s = self._drive_cpo(monkeypatch, tmp_path, download=_two,
+                                         mode="incremental")
+        assert rc == 0 and landed == [self._cpo_keys()[0]]
+        assert "SETTLEMENT_TAPE_SKIPPED GLBX.MDP3 CPO/2026: RuntimeError" in caplog.text
+        assert "SETTLEMENT_TAPE_THIN" not in caplog.text
+        assert "thin_settlement_tape_payloads=0 settlement_tape_skipped=1" in caplog.text
+
+    def test_is_thin_payload_error_names_exactly_the_two_shapes(self):
+        from leviathan.common.validation import SchemaValidationError
+        assert F._is_thin_payload_error(SchemaValidationError("x"))
+        assert F._is_thin_payload_error(F.EmptyVendorPayload(
+            "CPO/2026 statistics: expected exactly ONE .dbn.zst from job j, got 0"))
+        assert issubclass(F.EmptyVendorPayload, RuntimeError)
+        # a CLASS, not a message match: the 'got 2' split-payload shape is a hard failure ...
+        assert not F._is_thin_payload_error(RuntimeError(
+            "CPO/2026 statistics: expected exactly ONE .dbn.zst from job j, got 2: ['a', 'b']"))
+        # ... and so is the old message on a plain RuntimeError
+        assert not F._is_thin_payload_error(RuntimeError(
+            "CPO/2026 statistics: expected exactly ONE .dbn.zst from job j, got 0: []"))
+        assert not F._is_thin_payload_error(RuntimeError("job j is EXPIRED"))
+        assert not F._is_thin_payload_error(TimeoutError("did not reach 'done'"))
+        assert not F._is_thin_payload_error(ValueError("x"))
+
+
+# ---------------------------------------------------------------------------------------------
+# STEP-12 F2 -- in the NIGHTLY the settlement-tape unit is non-blocking AS A WHOLE. The SFN Fetch
+# Map has no Catch, so an exit 1 out of this producer fails the execution before Silver and stales
+# the 15 shipped roots' promote; and the scheduled command carries no --root, so a SystemExit out
+# of CPO's resolve (index 1 of 16 in sorted(ROOT_MAP)) would strand the 14 roots after it.
+# Backfill keeps every failure blocking. Every scenario the review's verifier enumerated is here.
+# ---------------------------------------------------------------------------------------------
+class TestSettlementTapeWholeUnitNonBlocking:
+    @staticmethod
+    def _drive(monkeypatch, tmp_path, *, mode="incremental", roots=("CPO", "ZC"),
+               cpo_wait=None, cpo_resolve=None, zc_wait=None, zc_resolve=None, raw_exists=None,
+               dag_command=False):
+        """``main()`` over ``roots`` with per-root failure injection. ``cpo_wait`` / ``zc_wait``
+        are raised by ``wait_and_download`` for that root's jobs; ``cpo_resolve`` /
+        ``zc_resolve`` by ``resolve_outrights``. ``dag_command=True`` runs the scheduled DAG
+        command verbatim (no ``--root``: all 16 roots, ``--lookback-days 5``)."""
+        landed: list[str] = []
+        submitted: list[tuple[str, str]] = []
+        if raw_exists is None:
+            TestRawExistsFailsClosed._s3(
+                monkeypatch, lambda _key: TestRawExistsFailsClosed._client_error("404", 404))
+        else:
+            monkeypatch.setattr(F, "raw_exists", raw_exists)
+
+        def _resolve(client, *, dataset, root, year):
+            if root == "CPO" and cpo_resolve is not None:
+                raise cpo_resolve
+            if root == "ZC" and zc_resolve is not None:
+                raise zc_resolve
+            return {"dataset": dataset, "root": root, "year": year,
+                    "outright_symbols": [f"{root}H6", f"{root}Z6"], "dropped_count": 2}
+
+        def _download(client, job_id, out_dir, **kw):
+            if job_id.startswith("CPO-") and cpo_wait is not None:
+                raise cpo_wait
+            if job_id.startswith("ZC-") and zc_wait is not None:
+                raise zc_wait
+            path = tmp_path / f"{job_id}.dbn.zst"
+            path.write_bytes(b"\x28\xb5\x2f\xfd" + b"x" * 512)
+            return [str(path)]
+
+        monkeypatch.setattr(F, "load_env", lambda *a, **k: None)
+        monkeypatch.setattr(F, "load_api_key", lambda *a, **k: "not-a-real-key")
+        monkeypatch.setattr(F, "make_client", lambda key: object())
+        monkeypatch.setattr(F, "incremental_window",
+                            lambda client, dataset, since, today: ("2026-08-28", "2026-09-03"))
+        monkeypatch.setattr(F, "resolve_outrights", _resolve)
+        monkeypatch.setattr(F, "land_bytes", lambda bucket, key, data, **kw: landed.append(key))
+        monkeypatch.setattr(F, "submit_unit",
+                            lambda client, art, schema: (submitted.append((art["root"], schema))
+                                                         or {"id": f"{art['root']}-{schema}"}))
+        monkeypatch.setattr(F, "wait_and_download", _download)
+        if dag_command:
+            argv = ["--mode", "incremental", "--lookback-days", "5"]
+        else:
+            argv = ["--mode", mode]
+            argv += ["--year", "2026"] if mode == "backfill" else ["--since", "2026-08-28"]
+            for r in roots:
+                argv += ["--root", r]
+        rc = F.main([*argv, "--bucket", "b", "--aws-region", "us-east-1",
+                     "--download-dir", str(tmp_path)])
+        return rc, landed, submitted
+
+    @staticmethod
+    def _payload_roots(landed) -> set[str]:
+        return {k.split("/root=")[1].split("/")[0] for k in landed if k.endswith(".dbn.zst")}
+
+    @staticmethod
+    def _zc_payloads(landed) -> list[str]:
+        return [k for k in landed if "/root=ZC/" in k and k.endswith(".dbn.zst")]
+
+    def test_control_both_units_green(self, monkeypatch, tmp_path, caplog):
+        import logging
+        caplog.set_level(logging.INFO)
+        rc, landed, submitted = self._drive(monkeypatch, tmp_path)
+        assert rc == 0 and len(self._zc_payloads(landed)) == 2
+        assert ("CPO", "statistics") in submitted
+        assert "thin_settlement_tape_payloads=0 settlement_tape_skipped=0" in caplog.text
+        assert "skipped_units=" not in caplog.text
+
+    def test_a_cpo_vendor_timeout_is_skipped_and_the_family_lands(self, monkeypatch, tmp_path,
+                                                                    caplog):
+        import logging
+        caplog.set_level(logging.INFO)
+        rc, landed, _s = self._drive(
+            monkeypatch, tmp_path,
+            cpo_wait=TimeoutError("job CPO-statistics did not reach 'done' within 7200s"))
+        assert rc == 0, "the run must exit 0: the Fetch Map has no Catch"
+        assert len(self._zc_payloads(landed)) == 2, "ZC's two payloads still land"
+        assert "SETTLEMENT_TAPE_SKIPPED GLBX.MDP3 CPO/2026: TimeoutError: job CPO-statistics" \
+            in caplog.text
+        assert "FAILED" not in caplog.text and "SETTLEMENT_TAPE_THIN" not in caplog.text
+        assert ("thin_settlement_tape_payloads=0 settlement_tape_skipped=1 "
+                "skipped_units=CPO/2026") in caplog.text
+
+    def test_a_cpo_expired_job_is_skipped(self, monkeypatch, tmp_path, caplog):
+        import logging
+        caplog.set_level(logging.INFO)
+        rc, landed, _s = self._drive(
+            monkeypatch, tmp_path,
+            cpo_wait=RuntimeError("job CPO-statistics is EXPIRED -- the free 30-day re-download "
+                                  "window has closed; a re-submit is a NEW charge"))
+        assert rc == 0 and len(self._zc_payloads(landed)) == 2
+        assert "SETTLEMENT_TAPE_SKIPPED GLBX.MDP3 CPO/2026: RuntimeError: job CPO-statistics is " \
+               "EXPIRED" in caplog.text
+
+    def test_a_cpo_step2_systemexit_no_longer_strands_the_roster(self, monkeypatch, tmp_path,
+                                                                  caplog):
+        """The DAG's command verbatim (no --root -> all 16 roots in ONE task; CPO sorts second).
+        Before F2 a STEP-2 SystemExit out of CPO aborted the process with 14 roots never
+        fetched; now it is skipped by name and every other root lands."""
+        import logging
+        caplog.set_level(logging.INFO)
+        rc, landed, submitted = self._drive(
+            monkeypatch, tmp_path, dag_command=True,
+            cpo_resolve=SystemExit("STEP-2 FAILURE GLBX.MDP3 CPO/2026: 40 of 73 ids unresolvable"))
+        assert rc == 0
+        others = sorted(set(F.ROOT_MAP) - {"CPO"})
+        assert self._payload_roots(landed) == set(others), "every other root landed a payload"
+        assert not [s for s in submitted if s[0] == "CPO"], "nothing was submitted for CPO"
+        assert "SETTLEMENT_TAPE_SKIPPED GLBX.MDP3 CPO/" in caplog.text
+        assert ": SystemExit: STEP-2 FAILURE" in caplog.text
+        assert "settlement_tape_skipped=1" in caplog.text
+
+    def test_a_cpo_head_throttle_is_skipped_and_buys_nothing(self, monkeypatch, tmp_path,
+                                                             caplog):
+        import logging
+        caplog.set_level(logging.INFO)
+
+        def _raw_exists(bucket, key, region):
+            if "/root=CPO/" in key:
+                raise RuntimeError("HeadObject throttled (503 SlowDown) -- fails CLOSED")
+            return False
+
+        rc, landed, submitted = self._drive(monkeypatch, tmp_path, raw_exists=_raw_exists)
+        assert rc == 0 and len(self._zc_payloads(landed)) == 2
+        assert ("CPO", "statistics") not in submitted, "a false 'absent' must never buy"
+        assert "SETTLEMENT_TAPE_SKIPPED GLBX.MDP3 CPO/2026: RuntimeError: HeadObject" in caplog.text
+
+    def test_the_same_timeout_on_a_bar_driven_root_still_reds_the_run(self, monkeypatch,
+                                                                        tmp_path, caplog):
+        """Positive control: the whole-unit fence is keyed on SETTLEMENT_TAPE_ROOTS."""
+        import logging
+        caplog.set_level(logging.INFO)
+        rc, landed, _s = self._drive(monkeypatch, tmp_path,
+                                     zc_wait=TimeoutError("job ZC-ohlcv-1d did not reach 'done'"))
+        assert rc == 1
+        assert "FAILED GLBX.MDP3 ZC/2026" in caplog.text
+        assert "SETTLEMENT_TAPE_SKIPPED" not in caplog.text
+
+    def test_a_systemexit_on_a_bar_driven_root_still_aborts(self, monkeypatch, tmp_path):
+        with pytest.raises(SystemExit, match="STEP-2"):
+            self._drive(monkeypatch, tmp_path,
+                        zc_resolve=SystemExit("STEP-2 FAILURE GLBX.MDP3 ZC/2026"))
+
+    def test_backfill_keeps_a_cpo_failure_blocking(self, monkeypatch, tmp_path, caplog):
+        """Operator mode: a vendor timeout on the CPO unit is FAILED / exit 1 (K6), and a STEP-2
+        SystemExit aborts exactly as it does on every other root."""
+        import logging
+        caplog.set_level(logging.INFO)
+        rc, landed, _s = self._drive(
+            monkeypatch, tmp_path, mode="backfill",
+            cpo_wait=TimeoutError("job CPO-statistics did not reach 'done' within 7200s"))
+        assert rc == 1
+        assert "FAILED GLBX.MDP3 CPO/2026" in caplog.text
+        assert "SETTLEMENT_TAPE_SKIPPED" not in caplog.text
+        with pytest.raises(SystemExit, match="STEP-2"):
+            self._drive(monkeypatch, tmp_path, mode="backfill",
+                        cpo_resolve=SystemExit("STEP-2 FAILURE GLBX.MDP3 CPO/2026"))
+
+    def test_keyboard_interrupt_still_aborts_even_on_the_nightly_cpo_unit(self, monkeypatch,
+                                                                            tmp_path):
+        """The handlers are ``except SystemExit`` / ``except Exception`` by name, never
+        ``BaseException``: an operator's Ctrl-C is never swallowed as a skip."""
+        with pytest.raises(KeyboardInterrupt):
+            self._drive(monkeypatch, tmp_path, cpo_resolve=KeyboardInterrupt())
+
+    def test_the_dry_run_states_the_fence_per_mode(self, capsys):
+        assert F.main(["--mode", "backfill", "--root", "CPO", "--year", "2026", "--dry-run"]) == 0
+        out = capsys.readouterr().out
+        assert "backfill: BLOCKING unit" in out
+        assert F.main(["--mode", "incremental", "--root", "CPO", "--since", "2026-08-28",
+                       "--dry-run"]) == 0
+        out = capsys.readouterr().out
+        assert "incremental: NON-BLOCKING unit" in out

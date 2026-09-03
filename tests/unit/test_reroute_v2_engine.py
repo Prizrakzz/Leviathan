@@ -477,7 +477,9 @@ def test_quantify_writes_trace_key_on_fire(monkeypatch):
                                         extra_number_calls=[],
                                         xc_request={"pair_id": "p", "source_slug": "soybean_oil_cbot",
                                                     "target_slug": "malaysian_crude_palm_oil_cme"})
-    assert sg.trace.get("quantify_reroute_v2") == {"pair_id": "p", "reroute_v2": True}
+    # 9af92649 A3 RE-PIN: the fired xc_trace now carries net_reads = calls-delta at fork exit (cascade.py
+    # `xc_trace["net_reads"] = len(extra_number_calls) - _xc_base`); the stub _run_xc spends nothing -> literal 0.
+    assert sg.trace.get("quantify_reroute_v2") == {"pair_id": "p", "reroute_v2": True, "net_reads": 0}
     assert block is not None and "## Cross-commodity" in block
 
 

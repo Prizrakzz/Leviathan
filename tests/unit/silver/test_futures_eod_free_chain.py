@@ -54,6 +54,29 @@ _MIAX_SUITE = _load("tests/unit/test_miax_eod.py", "miax_suite")
 _W1C_FIXTURES = _REPO / "tests" / "fixtures" / "w1c"
 _DCE_SUITE = _load("tests/unit/test_dce_eod.py", "dce_suite")
 
+# V2-4 (2026-09-02): the Bursa leg is PARKED -- the SHIPPED roster (task.BURSA_CODES) and map
+# (bursa_fcpo.BURSA_CODE_MAP) are EMPTY because the palm slug carries the CME USD tape. The seams
+# below are exercised under the HISTORICAL binding, injected explicitly, so none of them goes
+# vacuous; the shipped state is pinned alongside.
+_BURSA_SLUG = "malaysian_crude_palm_oil_cme"
+_PARKED_SOURCES = frozenset({"bursa"})
+
+
+def _inject_bursa(monkeypatch) -> None:
+    from leviathan.transforms.bronze_to_silver import bursa_fcpo as BS
+    from leviathan.transforms.raw_to_bronze import bursa_fcpo as BT
+
+    monkeypatch.setattr(BT, "BURSA_CODE_MAP", {"FCPO": _BURSA_SLUG})
+    monkeypatch.setattr(BS, "_BURSA_SLUGS", frozenset({_BURSA_SLUG}))
+    monkeypatch.setattr(TASK, "BURSA_CODES", ("FCPO",))
+    # ... and the slug's HISTORICAL price record (MYR/t, source bursa): the projection writes
+    # unit/currency/source from CONTRACT_MAP and the leg's floor scopes rows by source equality,
+    # so the whole former state is what the seam runs under -- never a MYR bulletin labelled USD.
+    monkeypatch.setattr(FC, "CONTRACT_MAP", {
+        **FC.CONTRACT_MAP,
+        _BURSA_SLUG: {"unit": "MYR/t", "currency": "MYR", "settle_kind": "settlement",
+                      "source": "bursa"}})
+
 
 class FakeS3:
     """get_object / list_objects_v2 over an in-memory ``{key: bytes}`` map."""
@@ -163,7 +186,11 @@ class TestW1cBrowserLegSeams:
         assert TASK.dce_units(s3, "b") == [raw_dce_history_key("p", 2016),
                                            raw_dce_daily_key("p", "2026-07-29")]
         assert TASK.euronext_units(s3, "b") == [raw_euronext_key("EBM-DPAR", "2026-07-29")]
-        assert TASK.bursa_units(s3, "b") == [raw_bursa_key("FCPO", "2026-07-29")]
+        # PARKED (V2-4): the shipped roster is EMPTY, so the reader discovers nothing ...
+        assert TASK.BURSA_CODES == ()
+        assert TASK.bursa_units(s3, "b") == []
+        # ... and under the historical code it still sees only its own prefix.
+        assert TASK.bursa_units(s3, "b", codes=["FCPO"]) == [raw_bursa_key("FCPO", "2026-07-29")]
 
     def test_the_euronext_loader_reaches_the_other_halves_builder(self):
         key = raw_euronext_key("EBM-DPAR", "2026-07-29")
@@ -173,12 +200,17 @@ class TestW1cBrowserLegSeams:
         assert set(bronze["leviathan_slug"]) == {"french_wheat_matif"}
         assert stats
 
-    def test_the_bursa_loader_reaches_the_other_halves_builder(self):
+    def test_the_bursa_loader_reaches_the_other_halves_builder(self, monkeypatch):
         key = raw_bursa_key("FCPO", "2026-07-29")
         s3 = FakeS3({key: (self._W1C / "bursa_fcpo_api_sample.json").read_bytes()})
+        # SHIPPED (parked): the transform fails closed on the code before any row is built.
+        with pytest.raises(ValueError, match="not one of"):
+            TASK.load_bursa_capture(s3, "b", key)
+        # Under the injected historical binding the seam is intact.
+        _inject_bursa(monkeypatch)
         bronze, stats = TASK.load_bursa_capture(s3, "b", key)
         assert len(bronze) == 24                       # the 24 listed delivery months
-        assert set(bronze["leviathan_slug"]) == {"malaysian_crude_palm_oil_cme"}
+        assert set(bronze["leviathan_slug"]) == {_BURSA_SLUG}
         assert stats
 
     def test_a_key_missing_its_identity_segment_refuses_to_guess(self):
@@ -270,17 +302,31 @@ class TestHostEndToEnd:
         assert self._run(monkeypatch, objects, "--source", "euronext", "--mode", "backfill",
                          "--row-floor", "report") == 0
 
-    def test_bursa_backfill_is_green(self, monkeypatch):
+    def test_bursa_backfill_is_parked_on_the_shipped_roster(self, monkeypatch, caplog):
+        """V2-4: BURSA_CODES == () so the leg selects NO unit and exits 1 -- 'no session unit(s)
+        selected' -- before a single byte is read. A landed capture cannot be published by it."""
+        objects = {raw_bursa_key("FCPO", "2026-07-29"):
+                   (_W1C_FIXTURES / "bursa_fcpo_api_sample.json").read_bytes()}
+        assert self._run(monkeypatch, objects, "--source", "bursa", "--mode", "backfill") == 1
+        assert "no session unit(s) selected" in caplog.text
+
+    def test_bursa_backfill_is_green_under_the_historical_binding(self, monkeypatch):
+        _inject_bursa(monkeypatch)
         objects = {raw_bursa_key("FCPO", "2026-07-29"):
                    (_W1C_FIXTURES / "bursa_fcpo_api_sample.json").read_bytes()}
         assert self._run(monkeypatch, objects, "--source", "bursa", "--mode", "backfill") == 0
 
-    def test_a_bursa_night_capture_never_publishes_as_the_daily_settlement(self, monkeypatch):
+    def test_a_bursa_night_capture_never_publishes_as_the_daily_settlement(self, monkeypatch,
+                                                                            caplog):
         """The after-hours body is a COMPLETE, plausible 24-month table with different prices, so
-        the refusal has to be a hard error all the way out to the exit code."""
+        the refusal has to be a hard error all the way out to the exit code. Exercised under the
+        injected binding (V2-4 m4): on the shipped empty roster the run exits 1 BEFORE any parser
+        runs, which would make this pin vacuous -- the refusal reason is asserted, not the code."""
+        _inject_bursa(monkeypatch)
         objects = {raw_bursa_key("FCPO", "2026-07-29"):
                    (_W1C_FIXTURES / "bursa_fcpo_api_night_sample.json").read_bytes()}
         assert self._run(monkeypatch, objects, "--source", "bursa", "--mode", "backfill") == 1
+        assert "T+1" in caplog.text, "the refusal must be the night-session guard, not the roster"
 
     # Every leg in the table, and the W1c three that were the last to arrive. The split is PINNED
     # rather than tolerated: a leg is legal either wired end to end, or declared-only while it
@@ -336,6 +382,10 @@ class TestHostEndToEnd:
             for src in spec.publication_sources:
                 assert src in FC.SOURCES
                 slugs = {s for s, r in FC.CONTRACT_MAP.items() if r["source"] == src}
+                if src in _PARKED_SOURCES:
+                    # V2-4: a PARKED leg keeps its spec and its vocabulary but owns no slug.
+                    assert not slugs, f"{src} is parked and must own no CONTRACT_MAP slug"
+                    continue
                 assert slugs, f"{src} has no CONTRACT_MAP slugs"
 
 

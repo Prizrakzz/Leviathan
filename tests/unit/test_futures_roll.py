@@ -79,6 +79,14 @@ class TestRuleTables:
         want = {s for s in FC.CONTRACT_MAP if FR.roll_method_for(s) == FR.METHOD_DELIVERY_CYCLE}
         assert set(FR.DELIVERY_CYCLES) == want
 
+    def test_the_palm_slug_rolls_by_open_interest_and_lost_its_bursa_cycle_row(self):
+        """V2-4 (2026-09-02): the slug moved to databento_glbx_mdp3, so it rolls by OI and its
+        twelve-month Bursa cycle row is RETIRED -- lint refuses a cycle row on an OI slug."""
+        assert FR.roll_method_for("malaysian_crude_palm_oil_cme") == FR.METHOD_OPEN_INTEREST
+        assert "malaysian_crude_palm_oil_cme" not in FR.DELIVERY_CYCLES
+        assert set(FR.DELIVERY_CYCLES) == {"hard_red_spring_wheat_mgex", "french_wheat_matif",
+                                           "french_maize_matif", "french_rapeseed_matif"}
+
     def test_lint_fires_when_a_source_loses_its_method(self, monkeypatch):
         broken = dict(FR.ROLL_METHOD_BY_SOURCE)
         broken.pop("czce")

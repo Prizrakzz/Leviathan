@@ -13,7 +13,7 @@ does the LAST mile and nothing more:
     never a local copy. ``lint_frame`` compares them back against ``CONTRACT_MAP`` verbatim and
     fails the whole stage on drift, so a guessed unit cannot survive to S3;
   * set ``instrument_kind='futures'`` with a NON-NULL ``contract_month`` on every row. None of the
-    15 Databento contracts is a cash reference (``CASH_INDEX_SLUGS`` is the two CEPEA slugs), and a
+    16 Databento contracts is a cash reference (``CASH_INDEX_SLUGS`` is the two CEPEA slugs), and a
     NULL month on a futures row collapses N natural keys to one, which ``duplicate_check`` cannot
     see because SQL treats each NULL as distinct;
   * leave ``expiry_date`` NULL -- it is recorded only where PUBLISHED and is NEVER derived from the
@@ -64,7 +64,8 @@ def build_databento_eod_silver(bronze: pd.DataFrame) -> pd.DataFrame:
     if alien:
         raise ValueError(
             f"databento silver: slug(s) {alien} are not Databento-covered contracts -- W2 owns "
-            f"exactly the 15 ROOT_MAP slugs; the other 16 are W1a/W1b/W1c legs"
+            f"exactly the {len(databento_slugs)} ROOT_MAP slugs; the other "
+            f"{len(FC.CONTRACT_MAP) - len(databento_slugs)} are W1a/W1b/W1c legs"
         )
     bad_dataset = sorted({d for d in df["dataset"].dropna().unique() if d not in DATASET_SLUGS})
     if bad_dataset:
@@ -73,10 +74,13 @@ def build_databento_eod_silver(bronze: pd.DataFrame) -> pd.DataFrame:
     out = pd.DataFrame(index=df.index)
     out["trade_date"] = pd.to_datetime(df["trade_date"], errors="coerce").astype("datetime64[us]")
     out["contract_month"] = df["contract_month"].astype("string")
-    # Not one of the 15 is a cash reference, so instrument_kind is a constant here and
+    # Not one of the 16 is a cash reference, so instrument_kind is a constant here and
     # contract_month must be non-null on every row (lint_frame invariant 1, both directions).
     out["instrument_kind"] = "futures"
     out["raw_symbol"] = df["raw_symbol"].astype("string")
+    # settle may be NULL on a bar with no settlement (F3); open/high/low/close/volume may be NULL
+    # on a SETTLEMENT-TAPE row (the statistics spine carries no bar) -- every one of those columns
+    # is nullable on the F010 contract, and the settle-only card serves settle alone.
     out["settle"] = pd.to_numeric(df["settle"], errors="coerce").astype("float64")
     # unit / currency / settle_kind / source are MAP-DERIVED, one lookup per slug (not per row).
     recs = {slug: FC.contract_for(slug) for slug in slugs}

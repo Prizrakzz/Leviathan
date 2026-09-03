@@ -116,8 +116,10 @@ ROLL_METHOD_BY_SOURCE: dict[str, str] = {
 # Front = the nearest listed month not yet in delivery. Every METHOD_DELIVERY_CYCLE slug must
 # appear here and nothing else may (check_futures_roll asserts both directions).
 DELIVERY_CYCLES: dict[str, tuple[int, ...]] = {
-    # Bursa FCPO lists all twelve consecutive calendar months.
-    "malaysian_crude_palm_oil_cme": (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
+    # (The Bursa FCPO twelve-month row for malaysian_crude_palm_oil_cme was RETIRED 2026-09-02 when
+    # that slug moved to databento_glbx_mdp3 / METHOD_OPEN_INTEREST (V2-4); restore all-12 under a
+    # bursa slug when the parked Bursa leg is minted -- lint_roll_rule refuses a cycle row on an
+    # open_interest slug.)
     # MIAX (ex-MGEX) hard red spring wheat: the classic Mar/May/Jul/Sep/Dec grain cycle.
     "hard_red_spring_wheat_mgex": (3, 5, 7, 9, 12),
     # Euronext/MATIF listed cycles.

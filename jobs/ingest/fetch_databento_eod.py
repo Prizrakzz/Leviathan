@@ -37,7 +37,35 @@ MODES
 ``--mode incremental --since YYYY-MM-DD``
     D5. Re-resolves the CURRENT year, requests ``[since, today+1)`` and lands the payload in the
     same ``year={current}`` prefix under an as-of filename. Measured at $0.016/day for all 15
-    roots -- a rounding error, and shaped to slot into ``jobs/batch/futures_eod_task.py``.
+    original roots (+CPO's statistics-only leg, ~$0.001/day) -- a rounding error, and shaped to
+    slot into ``jobs/batch/futures_eod_task.py``.
+
+SETTLEMENT-TAPE ROOTS (V2-4)
+----------------------------
+A root in ``SETTLEMENT_TAPE_ROOTS`` (CPO) buys the ``statistics`` schema ONLY: its ohlcv-1d
+prices at $0.0000 from 2014 (no Globex trade bars), and an empty DBN (~150-190 B) would fail the
+200-byte floor inside ``land_bytes`` AFTER the vendor job -- a red every fire. ``--no-statistics``
+on such a root buys nothing and is refused.
+
+THE EXACT NON-BLOCKING CONTRACT (V2-4 m10, widened by the STEP-12 review F1/F2):
+
+* ``--mode incremental`` (the nightly; the scheduled command carries no ``--root``, so all 16
+  roots run in ONE task) -- the settlement-tape unit is NON-BLOCKING AS A WHOLE. ANY failure of
+  that unit is logged with the exception class, counted and skipped, never ``failures += 1`` and
+  never re-raised: a thin/empty statistics payload (the size floor, or a zero-file batch job:
+  ``SETTLEMENT_TAPE_THIN``), and every other shape -- a vendor-job timeout past
+  ``--max-wait-seconds``, an EXPIRED job, a STEP-2 / F-A ``SystemExit`` out of the resolve, a
+  fail-closed ``raw_exists`` (``SETTLEMENT_TAPE_SKIPPED``). The SFN Fetch Map carries no Catch, so
+  an exit 1 here would fail the execution before Silver and stale the other 15 roots' promote; the
+  estate law is that the family must never be staled by the new root. ``KeyboardInterrupt`` is
+  NOT caught (``SystemExit`` and ``Exception`` are caught by name, never ``BaseException``).
+  Nothing is landed for a skipped unit, nothing is re-submitted, and the silver task's own
+  per-unit verdict is where the missing session is judged.
+* ``--mode backfill`` (operator-driven, ``--root CPO``) STAYS BLOCKING, exactly like the silver
+  task's backfill units: a unit that lands nothing -- thin payload included -- is ``FAILED``,
+  ``failures += 1``, exit 1, so the runbook's K6 ('any unit FAILED -> STOP') fires as written.
+  There are no 15 roots to stale on an operator backfill, and an exit 0 that landed 10/11 raw
+  units would be a lie.
 ``--cost-only``
     THE PRE-BUY GATE. Runs the full resolve + ``metadata.get_cost`` for every requested
     ``(root, year)`` and prints a per-root-per-year and per-DATASET cost table plus a grand total,
@@ -124,6 +152,7 @@ from leviathan.transforms.raw_to_bronze.databento_eod import (  # noqa: E402
     GLBX,
     ROOT_FIRST_DATE,
     ROOT_MAP,
+    SETTLEMENT_TAPE_ROOTS,
     partition_symbols,
     root_years,
     year_window,
@@ -141,6 +170,35 @@ STATISTICS_SCHEMA = "statistics"
 # GLBX statistics is $1.76 for the whole backfill and carries the ONLY real settlements and the
 # ONLY open interest in the wave. ICE statistics is $1,696 (IFUS) + $264 (IFEU) -- EXCLUDED.
 STATISTICS_DATASETS: frozenset[str] = frozenset({GLBX})
+
+
+def schemas_for(dataset: str, root: str, *, no_statistics: bool) -> list[str]:
+    """The schemas ONE ``(dataset, root)`` unit buys, in submit order.
+
+    SETTLEMENT_TAPE_ROOTS buy statistics ONLY: ohlcv-1d prices at $0.0000 from 2014 (no bars), and
+    an empty DBN (~150-190 B) fails the 200-byte floor inside ``land_bytes`` AFTER the vendor job
+    -- a red every fire. ``--no-statistics`` on such a root buys nothing (the caller refuses)."""
+    if root in SETTLEMENT_TAPE_ROOTS:
+        return [] if no_statistics else [STATISTICS_SCHEMA]
+    out = [OHLCV_SCHEMA]
+    if dataset in STATISTICS_DATASETS and not no_statistics:
+        out.append(STATISTICS_SCHEMA)
+    return out
+
+
+class EmptyVendorPayload(RuntimeError):
+    """A batch job that completed with NO ``.dbn.zst`` at all (a zero-record window). A distinct
+    class, not a message match: ``got 2`` (a split or duplicated payload) is NOT 'nothing usable'
+    and stays a plain ``RuntimeError`` -- a hard failure on every root, in every mode."""
+
+
+def _is_thin_payload_error(exc: BaseException) -> bool:
+    """The two 'the vendor delivered nothing usable' shapes a settlement-tape unit tolerates AS
+    THIN: the raw size floor (an empty DBN is ~150-190 B against the 200-byte floor) and
+    :class:`EmptyVendorPayload`. Nothing else -- a ``got N>1`` payload is a hard failure."""
+    from leviathan.common.validation import SchemaValidationError
+
+    return isinstance(exc, (SchemaValidationError, EmptyVendorPayload))
 
 # symbology.resolve documents a 2,000-symbol cap; the orchestrator's live smoke batched step 2 at
 # <= 500 and that conservative value is kept deliberately.
@@ -505,7 +563,8 @@ def build_cost_table(client, units: list[tuple[str, str, int]], *,
             cap = dataset_available_end(client, dataset)          # cached + free
             end = min(date.fromisoformat(window_override[1]), cap).isoformat()
             art["window"] = {"start": window_override[0], "end_exclusive": end}
-        ohlcv = cost_for_unit(client, art, OHLCV_SCHEMA)
+        # A settlement-tape root is never quoted on ohlcv-1d: the submit never buys it (schemas_for).
+        ohlcv = 0.0 if root in SETTLEMENT_TAPE_ROOTS else cost_for_unit(client, art, OHLCV_SCHEMA)
         stats = (cost_for_unit(client, art, STATISTICS_SCHEMA)
                  if with_statistics and dataset in STATISTICS_DATASETS else 0.0)
         rows.append({
@@ -746,7 +805,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Databento futures EOD raw producer (W2 / D1 + D5)")
     ap.add_argument("--mode", choices=["backfill", "incremental"], required=True)
     ap.add_argument("--root", action="append", dest="roots", default=None,
-                    choices=sorted(ROOT_MAP), help="repeatable; default = all 15")
+                    choices=sorted(ROOT_MAP), help="repeatable; default = all 16")
     ap.add_argument("--year", action="append", type=int, dest="years", default=None,
                     help="repeatable; backfill only. Default = every usable year for the root")
     ap.add_argument("--through-year", type=int, default=None,
@@ -804,11 +863,15 @@ def main(argv: Optional[list[str]] = None) -> int:
             ds = DATASET_SLUGS[dataset]
             print(f"  {dataset:<13s} {root:<4s} {year}  ->  "
                   f"s3://<bucket>/{raw_databento_key(ds, root, year, symbology_filename(root, year))}")
-            print(f"                              "
-                  f"s3://<bucket>/{raw_databento_key(ds, root, year, payload_filename(OHLCV_SCHEMA, root, year))}")
-            if dataset in STATISTICS_DATASETS and not args.no_statistics:
+            for schema in schemas_for(dataset, root, no_statistics=args.no_statistics):
                 print(f"                              "
-                      f"s3://<bucket>/{raw_databento_key(ds, root, year, payload_filename(STATISTICS_SCHEMA, root, year))}")
+                      f"s3://<bucket>/{raw_databento_key(ds, root, year, payload_filename(schema, root, year))}")
+            if root in SETTLEMENT_TAPE_ROOTS:
+                fence = ("NON-BLOCKING unit: any failure is logged, counted and skipped"
+                         if args.mode == "incremental" else
+                         "BLOCKING unit: a thin/empty payload is FAILED, exit 1")
+                print(f"                              (settlement-tape root: statistics ONLY, "
+                      f"no ohlcv-1d; {args.mode}: {fence})")
         return 0
 
     load_env()
@@ -846,8 +909,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     out_dir = args.download_dir or tempfile.mkdtemp(prefix="databento_")
 
     failures = 0
+    thin = 0
+    skipped = 0
+    skipped_units: list[str] = []
     for dataset, root, year in units:
         ds = DATASET_SLUGS[dataset]
+        settlement_tape = root in SETTLEMENT_TAPE_ROOTS
+        # The settlement-tape unit is non-blocking in the NIGHTLY only (see SETTLEMENT-TAPE ROOTS
+        # in the module docstring). Computed ONCE per unit and consulted by every handler below:
+        # backfill stays blocking, so an operator buy that lands nothing is FAILED / exit 1 (K6).
+        nonblocking = settlement_tape and args.mode == "incremental"
         try:
             art = resolve_outrights(client, dataset=dataset, root=root, year=year)
             if args.mode == "incremental":
@@ -877,9 +948,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                 logger.warning("%s %s/%s: no outrights -- nothing to buy", dataset, root, year)
                 continue
 
-            schemas = [OHLCV_SCHEMA]
-            if dataset in STATISTICS_DATASETS and not args.no_statistics:
-                schemas.append(STATISTICS_SCHEMA)
+            schemas = schemas_for(dataset, root, no_statistics=args.no_statistics)
+            if not schemas:
+                raise RuntimeError(f"{root}/{year}: --no-statistics on a settlement-tape root "
+                                   f"buys NOTHING (its tape IS the statistics stream)")
             for schema in schemas:
                 key = raw_databento_key(ds, root, year, payload_filename(schema, root, year, as_of))
                 # THE ONLY raw_exists CALL SITE ON THIS LEG, and the next statement is a BILLABLE
@@ -889,7 +961,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                 # exits 1. Nothing is submitted for this unit, nothing is overwritten, and the other
                 # units still run. There is no "nothing to fetch" exit-0 path on this producer for
                 # such a run to fall through to: the only early return is the empty-unit-set exit 1
-                # far above, and the final line is `return 1 if failures else 0`.
+                # far above, and the final line is `return 1 if failures else 0`. (The ONE unit
+                # that is skipped rather than FAILED is a settlement-tape root in incremental mode,
+                # and it is skipped LOUDLY: SETTLEMENT_TAPE_SKIPPED + a counter in the done line.)
                 if not args.force_overwrite and raw_exists(bucket, key, aws_region):
                     logger.info("skip %s (raw exists; --force-overwrite to replace)", key)
                     continue
@@ -899,23 +973,65 @@ def main(argv: Optional[list[str]] = None) -> int:
                                           poll_seconds=args.poll_seconds,
                                           max_wait_seconds=args.max_wait_seconds)
                 payloads = [p for p in paths if p.endswith(".dbn.zst")]
-                if len(payloads) != 1:
-                    raise RuntimeError(
-                        f"{root}/{year} {schema}: expected exactly ONE .dbn.zst from job {job_id} "
-                        f"(split_duration='none'), got {len(payloads)}: {payloads}")
-                with open(payloads[0], "rb") as fh:
-                    data = fh.read()
-                land_bytes(bucket, key, data,
-                           source_label=f"databento batch {dataset} {schema} {root} job={job_id}",
-                           content_type="application/zstd", region=aws_region,
-                           min_size_source="databento")
-        except SystemExit:
-            raise
-        except Exception:  # noqa: BLE001 -- one unit's failure must not abort the rest
+                try:
+                    if not payloads:
+                        raise EmptyVendorPayload(
+                            f"{root}/{year} {schema}: expected exactly ONE .dbn.zst from job "
+                            f"{job_id} (split_duration='none'), got 0: the vendor job completed "
+                            f"with NO payload file")
+                    if len(payloads) != 1:
+                        raise RuntimeError(
+                            f"{root}/{year} {schema}: expected exactly ONE .dbn.zst from job "
+                            f"{job_id} (split_duration='none'), got {len(payloads)}: {payloads}")
+                    with open(payloads[0], "rb") as fh:
+                        data = fh.read()
+                    land_bytes(bucket, key, data,
+                               source_label=f"databento batch {dataset} {schema} {root} job={job_id}",
+                               content_type="application/zstd", region=aws_region,
+                               min_size_source="databento")
+                except Exception as exc:  # noqa: BLE001
+                    if not (nonblocking and _is_thin_payload_error(exc)):
+                        raise
+                    # NON-BLOCKING (V2-4 m10) -- incremental (nightly) ONLY; backfill stays
+                    # blocking (the raise above falls to the per-unit handler -> FAILED, exit 1).
+                    # A thin/empty statistics payload on a settlement-MARK tape is logged and
+                    # skipped, never a family-wide red. Nothing is landed for it (the size floor
+                    # refused the bytes), the next fire re-covers the window, and the silver task
+                    # judges the unit on its own verdict.
+                    thin += 1
+                    logger.warning(
+                        "SETTLEMENT_TAPE_THIN %s %s/%s %s: %s: %s -- non-blocking (the mark tape "
+                        "delivered nothing usable for this window; nothing landed, run continues)",
+                        dataset, root, year, schema, type(exc).__name__, exc)
+        except SystemExit as exc:
+            # A STEP-2 / F-A SystemExit out of resolve_outrights. On any other root (or in
+            # backfill) it aborts the process as it always did; on the nightly's settlement-tape
+            # unit it must not strand the roots sorted after it (the DAG runs all 16 in one task).
+            if not nonblocking:
+                raise
+            skipped += 1
+            skipped_units.append(f"{root}/{year}")
+            logger.error("SETTLEMENT_TAPE_SKIPPED %s %s/%s: %s: %s -- non-blocking (incremental "
+                         "settlement-tape unit; nothing landed, nothing re-submitted, the run "
+                         "continues so the other roots' promote is never staled by this root)",
+                         dataset, root, year, type(exc).__name__, exc)
+        except Exception as exc:  # noqa: BLE001 -- one unit's failure must not abort the rest
+            if nonblocking:
+                skipped += 1
+                skipped_units.append(f"{root}/{year}")
+                logger.error("SETTLEMENT_TAPE_SKIPPED %s %s/%s: %s: %s -- non-blocking "
+                             "(incremental settlement-tape unit; nothing landed, nothing "
+                             "re-submitted, the run continues so the other roots' promote is "
+                             "never staled by this root)",
+                             dataset, root, year, type(exc).__name__, exc)
+                continue
             logger.exception("FAILED %s %s/%s", dataset, root, year)
             failures += 1
 
-    logger.info("done -- units=%d failures=%d", len(units), failures)
+    logger.info("done -- units=%d failures=%d thin_settlement_tape_payloads=%d "
+                "settlement_tape_skipped=%d%s",
+                len(units), failures, thin, skipped,
+                (" skipped_units=" + ",".join(skipped_units)) if skipped_units else "")
     return 1 if failures else 0
 
 

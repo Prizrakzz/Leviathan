@@ -1021,8 +1021,10 @@ def test_transmission_declines_on_an_open_ask_with_a_traced_reason(monkeypatch):
         _sg(seeds=[PALM]), _graph(PALM, SOY), [{"commodity": PALM, "eras": []}], req,
         lambda sql: [], "2026-02-15", None, [], comove=False, chain_fired=False)
     assert lines == [] and fired is None
+    # 9af92649 A2 RE-PIN: every PRE-FETCH transmission decline now stamps net_reads 0 (cascade.py
+    # _transmission_legs, the open-ask guard literal) -- declined before any fetch, so the spend is exactly 0.
     assert decline == {"chain_id": None, "reason": "open_ask_pair_precedence",
-                       "trigger": "open_walk_idorder"}
+                       "trigger": "open_walk_idorder", "net_reads": 0}
     assert "chain_id" in decline and decline["chain_id"] is None
     assert called == []                                             # suppressed ABOVE the selector
 

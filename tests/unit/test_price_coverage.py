@@ -52,8 +52,15 @@ class TestTheMapIsMeasuredNotAssumed:
         the bytes, never by the arm."""
         unlanded = [s for s, rec in FC.CONTRACT_MAP.items() if rec["source"] in ("dce", "bursa")]
         assert unlanded, "fixture guard: the unlanded browser slugs should exist in CONTRACT_MAP"
+        # V2-4 (2026-09-02): Bursa is PARKED with zero slugs, so the witness is the five DCE slugs.
+        assert len(unlanded) == 5, unlanded
         for slug in unlanded:
             assert slug not in FC.PRICE_COVERAGE_START
+        # The palm slug is now a Databento root with NO canonical rows yet: absent by doctrine
+        # until its backfill is canonical and MEASURED (the walk-side commit lands the literal).
+        assert "malaysian_crude_palm_oil_cme" not in FC.PRICE_COVERAGE_START
+        with pytest.raises(ValueError, match="no PRICE_COVERAGE_START"):
+            FC.coverage_start_for("malaysian_crude_palm_oil_cme")
 
     def test_the_matif_floor_is_the_first_BANKED_trade_date(self):
         """The other half of the same rule, in the affirmative. D-PR-24 armed the leg 2026-08-05

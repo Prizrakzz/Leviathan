@@ -53,7 +53,17 @@ def main(argv=None) -> int:
     ap.add_argument("--first-year", type=int, default=2010)
     ap.add_argument("--bucket", default=os.environ.get("LEVIATHAN_BUCKET"))
     ap.add_argument("--suffix", default="", help="artifact name suffix (partial re-runs)")
+    # V2-4 sitting (2026-09-02): the FREE record-count instrument. metadata.get_record_count is
+    # unbilled (verified in databento 0.82.0: dataset/start/end/symbols/schema/stype_in), so the
+    # per-year statistics + ohlcv-1d record counts and, for --density-years, the PER-OUTRIGHT
+    # statistics counts (does every listed month carry records?) are measured at $0.
+    ap.add_argument("--record-counts", action="store_true",
+                    help="also bank metadata.get_record_count per year for both schemas (free)")
+    ap.add_argument("--density-years", default="",
+                    help="comma-separated years whose PER-OUTRIGHT statistics record counts are "
+                         "banked (free; one metadata call per outright)")
     args = ap.parse_args(argv)
+    density_years = {int(y) for y in args.density_years.split(",") if y.strip()}
 
     from jobs.ingest.fetch_databento_eod import (  # noqa: E402
         _resolve_chunk_salvaging, RESOLVE_CHUNK, call_with_backoff, dataset_available_end,
@@ -117,6 +127,25 @@ def main(argv=None) -> int:
             row["cost_usd"] = {OHLCV: round(c_o, 4), STATS: round(c_s, 4)}
             total_ohlcv += c_o
             total_stats += c_s
+            if args.record_counts and keep:
+                counts = {}
+                for schema in (STATS, OHLCV):
+                    counts[schema] = int(call_with_backoff(
+                        client.metadata.get_record_count, dataset=DATASET, symbols=keep,
+                        schema=schema, stype_in="raw_symbol", start=s, end=e))
+                row["record_count"] = counts
+                _log(f"{year}: record_count statistics={counts[STATS]} ohlcv-1d={counts[OHLCV]}")
+            if year in density_years and keep:
+                per = {}
+                for sym in keep:
+                    per[sym] = int(call_with_backoff(
+                        client.metadata.get_record_count, dataset=DATASET, symbols=[sym],
+                        schema=STATS, stype_in="raw_symbol", start=s, end=e))
+                    time.sleep(0.2)
+                row["statistics_records_per_outright"] = per
+                zero = sorted(k for k, v in per.items() if v == 0)
+                _log(f"{year}: per-outright statistics records: {len(per)} outrights, "
+                     f"{len(zero)} with ZERO records {zero[:10]}")
             _log(f"{year}: ids={len(ids)} outrights={len(keep)} dropped={len(drop)} "
                  f"ohlcv=${c_o:.4f} statistics=${c_s:.4f} first={keep[:3]}")
         except Exception as exc:  # noqa: BLE001

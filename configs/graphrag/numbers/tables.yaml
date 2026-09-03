@@ -2532,6 +2532,7 @@ tables:
           soybean_oil_cbot:               "US cents/lb"
           soybean_meal_cbot:              "USD/short ton"
           rough_rice_cbot:                "USD/cwt"
+          malaysian_crude_palm_oil_cme:   "USD/metric ton"   # V2-4: CME USD palm CALENDAR future -- a settlement MARK, see notes
           # databento_ifus_impact
           arabica_coffee:                 "US cents/lb"
           raw_sugar:                      "US cents/lb"
@@ -2557,8 +2558,8 @@ tables:
           # cepea
           brazilian_arabica_coffee:       "BRL/60-kg bag"
           campinas_corn_reference_bmf:    "BRL/60-kg bag"
-          # bursa
-          malaysian_crude_palm_oil_cme:   "MYR/t"
+          # (bursa: the MYR/t FCPO binding for malaysian_crude_palm_oil_cme is PARKED since V2-4
+          #  2026-09-02 -- the slug carries the CME USD tape above; the Bursa venue is refused.)
           # miax -- DOLLARS/bushel, not CBOT cents: the settlement CSV publishes 7.0250, a factor
           # of 100 from corn's ~430. Source-faithful; never scaled to match the CBOT convention.
           hard_red_spring_wheat_mgex:     "USD/bushel"
@@ -2567,7 +2568,11 @@ tables:
           french_maize_matif:             "EUR/t"
           french_rapeseed_matif:          "EUR/t"
     notes: >
-      31 contract slugs across 10 publication sources. commodity = the CONTRACT slug; the delivery month is
+      31 slugs, 10 sources in the vocabulary, 9 with slugs (Bursa parked). The Bursa FCPO binding is
+      PARKED since V2-4: malaysian_crude_palm_oil_cme rows are CME settlement MARKS on a zero-volume
+      board -- the contract is financially settled to the monthly average of the Bursa third-forward
+      FCPO settlement at the KL USD/MYR fixing, so a month inside its own delivery month is a running
+      average, not a traded price. commodity = the CONTRACT slug; the delivery month is
       the `contract_month` column ('YYYY-MM'), which is NULL for exactly the two CEPEA cash references
       (brazilian_arabica_coffee, campinas_corn_reference_bmf) -- `instrument_kind` (futures | cash_index)
       is the discriminator that makes that NULL legal rather than a defect. DELIVERY MONTH: a read that

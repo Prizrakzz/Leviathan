@@ -420,3 +420,374 @@ class TestJanuaryStraddle:
         jan = pd.DataFrame({"trade_date": pd.to_datetime(["2027-01-04", "2027-01-05"])})
         assert T2._truncation_error(dec, spec, mode="incremental", since="2026-12-30") is None
         assert T2._truncation_error(jan, spec, mode="incremental", since="2026-12-30") is None
+
+
+# ---------------------------------------------------------------------------
+# V2-4 (2026-09-02) -- the SETTLEMENT-TAPE unit on the silver side: the statistics stream is the
+# row skeleton, the ohlcv payload is ABSENT by design, the straddle probe looks for statistics,
+# the nightly unit is NON-BLOCKING, and a backfill assembly must be month-continuous.
+# ---------------------------------------------------------------------------
+class TestSettlementTapeUnit:
+    @staticmethod
+    def _artifact() -> dict:
+        d0, d1 = "2017-01-01", "2018-01-01"
+        return {
+            "dataset": T.GLBX, "root": "CPO", "year": 2017,
+            "leviathan_slug": "malaysian_crude_palm_oil_cme",
+            "window": {"start": d0, "end_exclusive": d1},
+            "outright_symbols": ["CPOZ6", "CPOF7"], "dropped_symbols": ["CPOZ6-CPOF7"],
+            "dropped_count": 1,
+            "resolve_step1": {"result": {"CPO.FUT": [{"d0": d0, "d1": d1, "s": "42"},
+                                                     {"d0": d0, "d1": d1, "s": "43"}]},
+                              "stype_in": "parent", "stype_out": "instrument_id"},
+            # CPOZ6 (Dec 2016) is listed only until its first-business-day-of-January termination
+            "resolve_step2": [{"result": {"42": [{"d0": d0, "d1": "2017-01-04", "s": "CPOZ6"}],
+                                          "43": [{"d0": d0, "d1": d1, "s": "CPOF7"}]},
+                               "stype_in": "instrument_id", "stype_out": "raw_symbol"}],
+        }
+
+    @staticmethod
+    def _stats_dbn(*, in_band: bool = False) -> bytes:
+        dbn = pytest.importorskip("databento_dbn")
+        mappings = []
+        if in_band:
+            # a batch DBN carries its own SymbolMappingMsg set; decode_dbn PREFERS it and the
+            # artifact is only the fallback -- so an artifact with no STEP-2 chunks still decodes
+            from datetime import date
+            from types import SimpleNamespace as _NS
+            mappings = [
+                _NS(raw_symbol="CPOZ6", intervals=[_NS(start_date=date(2017, 1, 1),
+                                                       end_date=date(2017, 1, 4), symbol="42")]),
+                _NS(raw_symbol="CPOF7", intervals=[_NS(start_date=date(2017, 1, 1),
+                                                       end_date=date(2018, 1, 1), symbol="43")]),
+            ]
+        meta = dbn.Metadata(dataset="GLBX.MDP3", start=0, stype_in=dbn.SType.RAW_SYMBOL,
+                            stype_out=dbn.SType.INSTRUMENT_ID, schema=dbn.Schema.STATISTICS,
+                            symbols=["CPOZ6", "CPOF7"], partial=[], not_found=[],
+                            mappings=mappings)
+        rows = []
+
+        def _msg(iid, day, stat_type, price=None, qty=None):
+            ts = int(pd.Timestamp(f"{day}T20:00:00Z").value)
+            ref = int(pd.Timestamp(f"{day}T00:00:00Z").value)
+            return bytes(dbn.StatMsg(
+                publisher_id=1, instrument_id=iid, ts_event=ts, ts_recv=ts, ts_ref=ref,
+                price=T.UNDEF_PRICE if price is None else int(round(price * SCALE)),
+                quantity=T.UNDEF_STAT_QUANTITY if qty is None else qty,
+                sequence=0, ts_in_delta=0, stat_type=stat_type, channel_id=65535,
+                update_action=dbn.StatUpdateAction.NEW, stat_flags=0))
+
+        rows.append(_msg(42, "2017-01-03", dbn.StatType.SETTLEMENT_PRICE, price=790.25))
+        rows.append(_msg(42, "2017-01-03", dbn.StatType.OPEN_INTEREST, qty=120))
+        rows.append(_msg(43, "2017-01-03", dbn.StatType.SETTLEMENT_PRICE, price=795.0))
+        rows.append(_msg(43, "2017-01-04", dbn.StatType.SETTLEMENT_PRICE, price=796.5))
+        rows.append(_msg(43, "2017-01-04", dbn.StatType.OPEN_INTEREST, qty=130))
+        return bytes(meta.encode()) + b"".join(rows)
+
+    def _s3(self, *, with_stats: bool = True, artifact: dict | None = None,
+            in_band: bool = False) -> FakeS3:
+        art = self._artifact() if artifact is None else artifact
+        objs = {raw_databento_key("glbx_mdp3", "CPO", 2017, "symbology_CPO_2017.json"):
+                json.dumps(art).encode("utf-8")}
+        if with_stats:
+            objs[raw_databento_key("glbx_mdp3", "CPO", 2017,
+                                   "statistics_CPO_2017.dbn.zst")] = self._stats_dbn(in_band=in_band)
+        return FakeS3(objs)
+
+    def test_the_loader_builds_the_settlement_spine_with_no_ohlcv_object(self):
+        pytest.importorskip("databento")
+        s3 = self._s3()
+        bronze, stats = T2.load_unit_bronze(s3, "b", dataset=T.GLBX, root="CPO", year=2017)
+        assert stats["settlement_base"] is True
+        assert len(bronze) == 3 == stats["rows_out"]
+        assert bronze["settle"].notna().all()
+        for col in ("open", "high", "low", "close"):
+            assert bronze[col].isna().all(), col
+        assert bronze["volume"].isna().all()
+        by = bronze.set_index("raw_symbol")["contract_month"].to_dict()
+        assert by["CPOZ6"] == "2016-12", "the December straddler decodes on its listing interval"
+        assert by["CPOF7"] == "2017-01"
+        assert bronze.set_index(["raw_symbol", "trade_date"]).loc[
+            ("CPOZ6", pd.Timestamp("2017-01-03")), "open_interest"] == 120
+        assert stats["dropped_symbols_recorded"] == 1
+        assert stats["glbx_settle_coverage"]["settle_nonnull_frac"] == 1.0
+        assert stats["glbx_settle_coverage"]["oi_keys_without_settle"] == 0
+        assert stats["rows_beyond_horizon"] == 0 and stats["horizon_months"] == 60
+        assert stats["anchor_fallbacks"] == 0, "every outright carried its resolved d0"
+        assert not any("ohlcv-1d" in k for k in s3.gets), "no ohlcv-1d object is ever asked for"
+        # ... and the silver projection tolerates the NULL bar columns
+        silver = S.build_databento_eod_silver(bronze)
+        assert FC.lint_frame(silver) == []
+        assert set(silver["unit"]) == {"USD/metric ton"} and set(silver["currency"]) == {"USD"}
+        assert set(silver["source"]) == {"databento_glbx_mdp3"}
+        assert silver["close"].isna().all() and silver["settle"].notna().all()
+
+    def test_a_settlement_tape_unit_without_its_statistics_object_is_a_missing_unit(self):
+        with pytest.raises(FileNotFoundError, match="statistics"):
+            T2.load_unit_bronze(self._s3(with_stats=False), "b", dataset=T.GLBX, root="CPO",
+                                year=2017)
+
+    def test_an_artifact_without_step2_decodes_on_the_window_anchor_and_counts_the_fallbacks(
+            self, caplog):
+        """STEP-12 F10: a symbology artifact re-landed by an older fetch carries no
+        ``resolve_step2`` (so no ``d0`` per symbol). The DBN's own in-band mappings still decode
+        the symbols and every outright falls back to the WINDOW anchor -- bounded by the 74-month
+        decode window, backstopped by the row lint -- but that degraded anchor is NAMED AND
+        COUNTED in the unit record, never silent."""
+        import logging
+
+        pytest.importorskip("databento")
+        caplog.set_level(logging.INFO)
+        art = {k: v for k, v in self._artifact().items() if k != "resolve_step2"}
+        assert T.symbol_anchors_from_artifact(art) == {}
+        bronze, stats = T2.load_unit_bronze(self._s3(artifact=art, in_band=True), "b",
+                                            dataset=T.GLBX, root="CPO", year=2017)
+        assert len(bronze) == 3
+        assert stats["anchor_fallbacks"] == 2
+        assert "databento settlement CPO/2017: 2 of 2 outright(s) carry no resolved d0 anchor" \
+            in caplog.text
+        by = bronze.set_index("raw_symbol")["contract_month"].to_dict()
+        assert by["CPOZ6"] == "2016-12" and by["CPOF7"] == "2017-01", \
+            "the window anchor still resolves this shape (the grace month admits December)"
+        # ... and the fully-anchored artifact counts ZERO
+        _b, full = T2.load_unit_bronze(self._s3(), "b", dataset=T.GLBX, root="CPO", year=2017)
+        assert full["anchor_fallbacks"] == 0
+
+    def test_the_straddle_probe_looks_for_statistics_on_a_settlement_tape_root(self):
+        stats_only = FakeS3({raw_databento_key("glbx_mdp3", "CPO", 2027,
+                                               "statistics_CPO_20270104.dbn.zst"): b"x"})
+        ohlcv_only = FakeS3({raw_databento_key("glbx_mdp3", "CPO", 2027,
+                                               "ohlcv-1d_CPO_20270104.dbn.zst"): b"x"})
+        assert T2._incremental_unit_landed(stats_only, "b", T.GLBX, "CPO", 2027) is True
+        assert T2._incremental_unit_landed(ohlcv_only, "b", T.GLBX, "CPO", 2027) is False
+        # the bar-driven roots are UNCHANGED: ohlcv-1d is what they look for
+        zc_stats = FakeS3({raw_databento_key("glbx_mdp3", "ZC", 2027,
+                                             "statistics_ZC_20270104.dbn.zst"): b"x"})
+        zc_ohlcv = FakeS3({raw_databento_key("glbx_mdp3", "ZC", 2027,
+                                             "ohlcv-1d_ZC_20270104.dbn.zst"): b"x"})
+        assert T2._incremental_unit_landed(zc_stats, "b", T.GLBX, "ZC", 2027) is False
+        assert T2._incremental_unit_landed(zc_ohlcv, "b", T.GLBX, "ZC", 2027) is True
+
+    def test_unit_root_reads_the_label(self):
+        assert T2._unit_root("GLBX.MDP3 CPO/2026") == "CPO"
+        assert T2._unit_root("GLBX.MDP3 ZC/2026") == "ZC"
+        assert T2._unit_root("2026-07-29") is None
+        assert T2._unit_root("IFUS.IMPACT XX/2026") is None
+
+
+class TestSettlementTapeNonBlocking:
+    """V2-4 m10 on the SILVER side, as narrowed by STEP-12 F3. In the nightly a CPO unit that is
+    THIN keeps its partial rows (the merge is a union, new-wins -- a dropped frame left permanent
+    silent holes in the palm partition), a MISSING statistics payload is skipped, any OTHER
+    exception is the blocking FAILED it always was, and every thin is stamped machine-readably.
+    A BACKFILL keeps the unit blocking (an empty year is a stop, K7)."""
+
+    _PALM = "malaysian_crude_palm_oil_cme"
+    _REAL_PUBLISH = staticmethod(T2.publish)
+
+    def _run(self, monkeypatch, *, mode: str, cpo_loader, caplog, zc_dates=None,
+             since="2026-07-27", merge=False, s3=None, published=None):
+        import logging
+        caplog.set_level(logging.INFO)
+        monkeypatch.setattr(T2, "get_thread_local_s3_client",
+                            lambda region: s3 if s3 is not None else FakeS3({}))
+        # the healthy bar-driven unit
+        zc = _bronze(zc_dates or ["2026-07-27", "2026-07-28", "2026-07-29"])
+
+        def _units(args, s3_client, bucket, spec):
+            return [("GLBX.MDP3 ZC/2026", lambda: (zc, {"rows_out": 3}), T.GLBX),
+                    ("GLBX.MDP3 CPO/2026", cpo_loader, T.GLBX)]
+
+        # the truncation verdict is keyed on the frame: healthy for corn, THIN for a palm frame
+        # carrying fewer than 3 sessions (the walk below needs a passing second fire)
+        def _trunc(bronze, spec, *, mode, since, dataset=None):
+            if (len(bronze) and set(bronze["leviathan_slug"]) == {self._PALM}
+                    and bronze["trade_date"].nunique() < 3):
+                return (f"only {bronze['trade_date'].nunique()} of 5 expected session(s) present "
+                        f"-- treating as a truncated download")
+            return None
+
+        def _publish(df, contract, auth, s3c, glue, **kw):
+            if published is not None:
+                published.append(df.copy())
+            return self._REAL_PUBLISH(df, contract, auth, s3c, glue, **kw)
+
+        monkeypatch.setattr(T2, "select_units", _units)
+        monkeypatch.setattr(T2, "_truncation_error", _trunc)
+        monkeypatch.setattr(T2, "publish", _publish)
+        argv = ["--bucket", "b", "--aws-region", "us-east-1", "--mode", mode]
+        if mode == "incremental":
+            argv += ["--since", since]
+            if not merge:
+                argv += ["--no-merge"]
+        return T2.main(argv)
+
+    @classmethod
+    def _palm_frame(cls, dates=("2026-07-27",)):
+        return _bronze(list(dates), sym="CPOU6", slug=cls._PALM)
+
+    @staticmethod
+    def _skips_record(caplog) -> dict:
+        tag = "SETTLEMENT_TAPE_SKIPS "
+        lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith(tag)]
+        assert len(lines) == 1, lines
+        return json.loads(lines[0][len(tag):])
+
+    @staticmethod
+    def _unit_stats(caplog, label: str) -> dict:
+        tag = f"unit {label}: "
+        lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith(tag)]
+        assert len(lines) == 1, lines
+        return json.loads(lines[0][len(tag):])
+
+    def test_a_thin_settlement_tape_unit_keeps_its_partial_rows_and_does_not_red_the_nightly(
+            self, monkeypatch, caplog):
+        published: list = []
+        rc = self._run(monkeypatch, mode="incremental", caplog=caplog,
+                       cpo_loader=lambda: (self._palm_frame(), {"rows_out": 1}),
+                       published=published)
+        assert rc == 0
+        assert "SETTLEMENT_TAPE_THIN GLBX.MDP3 CPO/2026" in caplog.text
+        assert "publish dry-run" in caplog.text, "the family still publishes"
+        df = published[-1]
+        palm = df[df["leviathan_slug"] == self._PALM]
+        assert len(palm) == 1 and set(palm["trade_date"]) == {pd.Timestamp("2026-07-27")}, \
+            "the PARTIAL frame is KEPT, never dropped"
+        assert int((df["leviathan_slug"] == "corn_cbot").sum()) == 3
+        # the machine-readable stamps: the unit line and the run-level record
+        stats = self._unit_stats(caplog, "GLBX.MDP3 CPO/2026")
+        assert stats["settlement_tape_thin"] == 1 and stats["rows_kept"] == 1
+        assert "truncated download" in stats["settlement_tape_thin_reason"]
+        assert self._skips_record(caplog) == {
+            "settlement_tape_thin": 1, "settlement_tape_thin_units": ["GLBX.MDP3 CPO/2026"]}
+        assert "settlement_tape_thin" not in json.dumps(self._unit_stats(caplog, "GLBX.MDP3 ZC/2026"))
+
+    def test_a_thin_fire_followed_by_a_pass_leaves_no_hole_in_canonical(self, monkeypatch,
+                                                                         caplog):
+        """The verifier's walk: Mon 07-27 + Tue 07-28 ABSENT from the mark tape, Wed 07-29
+        PRESENT. Fire 1 (a window ending 07-29) is THIN; before F3 its frame was dropped and
+        07-29 -- present in the payload -- never landed. Now fire 1 publishes 07-29 and fire 2
+        (a passing window from 07-30) merges on top of it: every session ANY fire's payload
+        held is in canonical."""
+        contract = _contract()
+        published: list = []
+        rc = self._run(monkeypatch, mode="incremental", caplog=caplog, since="2026-07-25",
+                       cpo_loader=lambda: (self._palm_frame(["2026-07-29"]), {}),
+                       published=published)
+        assert rc == 0 and "SETTLEMENT_TAPE_THIN" in caplog.text
+        fire1 = published[-1]
+        palm1 = fire1[fire1["leviathan_slug"] == self._PALM].reset_index(drop=True)
+        assert set(palm1["trade_date"]) == {pd.Timestamp("2026-07-29")}
+        key, body = _canonical_body(palm1, contract)     # what fire 1 wrote for the palm partition
+        caplog.clear()
+        published.clear()
+        rc = self._run(monkeypatch, mode="incremental", caplog=caplog, since="2026-07-30",
+                       zc_dates=["2026-07-30", "2026-07-31", "2026-08-03"],
+                       cpo_loader=lambda: (self._palm_frame(["2026-07-30", "2026-07-31",
+                                                             "2026-08-03"]), {}),
+                       merge=True, s3=FakeS3({key: body}), published=published)
+        assert rc == 0 and "SETTLEMENT_TAPE_THIN" not in caplog.text
+        fire2 = published[-1]
+        palm2 = fire2[fire2["leviathan_slug"] == self._PALM]
+        assert set(palm2["trade_date"].dt.strftime("%Y-%m-%d")) == {
+            "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-03"}, "no hole: 07-29 survived"
+
+    def test_a_missing_statistics_object_does_not_red_the_nightly_either(self, monkeypatch, caplog):
+        def _raise():
+            raise FileNotFoundError("GLBX.MDP3 CPO/2026: settlement-tape root with NO statistics "
+                                    "payload")
+
+        rc = self._run(monkeypatch, mode="incremental", caplog=caplog, cpo_loader=_raise)
+        assert rc == 0
+        assert "SETTLEMENT_TAPE_THIN" in caplog.text and "FileNotFoundError" in caplog.text
+        assert self._skips_record(caplog)["settlement_tape_thin_units"] == ["GLBX.MDP3 CPO/2026"]
+
+    @pytest.mark.parametrize("exc", [ValueError("settle_flags out of range on one row"),
+                                     RuntimeError("DBN version 9 is NEWER than the client"),
+                                     KeyError("ts_ref"), OSError("transient S3 fault")])
+    def test_any_other_exception_on_the_cpo_unit_is_still_a_blocking_failure(self, monkeypatch,
+                                                                              caplog, exc):
+        """STEP-12 F3 (2): the except-path swallow is the m10 shape ONLY. A bad row, a decode
+        error or a transient fault on the palm unit is the loud FAILED it is on every root --
+        a skip there is the silent-hole class."""
+        def _raise():
+            raise exc
+
+        rc = self._run(monkeypatch, mode="incremental", caplog=caplog, cpo_loader=_raise)
+        assert rc == 1
+        assert "FAILED" in caplog.text and "GLBX.MDP3 CPO/2026" in caplog.text
+        assert "SETTLEMENT_TAPE_THIN" not in caplog.text and "SETTLEMENT_TAPE_SKIPS" not in caplog.text
+
+    def test_the_except_path_swallow_is_exactly_the_missing_payload_shape(self):
+        assert T2._settlement_tape_thin_exception(FileNotFoundError("no statistics payload"))
+        for exc in (ValueError("x"), RuntimeError("x"), KeyError("x"), OSError("x"),
+                    PermissionError("x")):
+            assert not T2._settlement_tape_thin_exception(exc), type(exc).__name__
+
+    def test_the_same_verdict_still_fails_a_backfill(self, monkeypatch, caplog):
+        rc = self._run(monkeypatch, mode="backfill", caplog=caplog,
+                       cpo_loader=lambda: (self._palm_frame(), {}))
+        assert rc == 1
+        assert "SETTLEMENT_TAPE_THIN" not in caplog.text and "SETTLEMENT_TAPE_SKIPS" not in caplog.text
+
+    def test_a_truncated_bar_driven_unit_still_fails_the_nightly(self, monkeypatch, caplog):
+        """The positive control: the non-blocking path is keyed on the ROOT, so corn's truncation
+        is the loud red it always was."""
+        monkeypatch.setattr(T2, "get_thread_local_s3_client", lambda region: FakeS3({}))
+        zc = _bronze(["2026-07-27"])
+        monkeypatch.setattr(T2, "select_units", lambda *a, **k: [
+            ("GLBX.MDP3 ZC/2026", lambda: (zc, {}), T.GLBX)])
+        monkeypatch.setattr(T2, "_truncation_error", lambda *a, **k: "only 1 of 5 -- truncated")
+        assert T2.main(["--bucket", "b", "--aws-region", "us-east-1", "--mode", "incremental",
+                        "--since", "2026-07-27", "--no-merge"]) == 1
+
+    def test_a_healthy_fire_stamps_nothing(self, monkeypatch, caplog):
+        rc = self._run(monkeypatch, mode="incremental", caplog=caplog,
+                       cpo_loader=lambda: (self._palm_frame(["2026-07-27", "2026-07-28",
+                                                             "2026-07-29"]), {}))
+        assert rc == 0
+        assert "SETTLEMENT_TAPE_THIN" not in caplog.text and "SETTLEMENT_TAPE_SKIPS" not in caplog.text
+
+
+class TestMonthContinuityOnBackfill:
+    """V2-4 M2: an internal hole in a backfill assembly fails the run BEFORE any byte is staged,
+    naming the months -- covers() would otherwise route a window inside it to the table."""
+
+    def _run(self, monkeypatch, frame, caplog, *extra):
+        import logging
+        caplog.set_level(logging.INFO)
+        monkeypatch.setattr(T2, "get_thread_local_s3_client", lambda region: FakeS3({}))
+        monkeypatch.setattr(T2, "select_units", lambda *a, **k: [
+            ("GLBX.MDP3 ZC/2026", lambda: (frame, {}), T.GLBX)])
+        monkeypatch.setattr(T2, "_truncation_error", lambda *a, **k: None)
+        return T2.main(["--bucket", "b", "--aws-region", "us-east-1", "--mode", "backfill",
+                        *extra])
+
+    def test_a_hole_fails_the_backfill_and_names_the_months(self, monkeypatch, caplog):
+        rc = self._run(monkeypatch, _bronze(["2026-01-05", "2026-02-05", "2026-04-06"]), caplog)
+        assert rc == 1
+        assert "MONTH_CONTINUITY corn_cbot" in caplog.text and "2026-03" in caplog.text
+        assert "publish dry-run" not in caplog.text, "nothing is staged past a hole"
+
+    def test_a_continuous_span_publishes(self, monkeypatch, caplog):
+        rc = self._run(monkeypatch, _bronze(["2026-01-05", "2026-02-05", "2026-03-05"]), caplog)
+        assert rc == 0 and "MONTH_CONTINUITY" not in caplog.text
+
+    def test_report_mode_records_the_hole_and_publishes(self, monkeypatch, caplog):
+        """STEP-12 F8: ``--continuity report`` mirrors ``--row-floor report`` -- the lawful way to
+        publish a shipped-root REPAIR backfill over a real vendor-outage month. The hole is still
+        named (MONTH_CONTINUITY), the run continues, the bytes stage."""
+        rc = self._run(monkeypatch, _bronze(["2026-01-05", "2026-02-05", "2026-04-06"]), caplog,
+                       "--continuity", "report")
+        assert rc == 0
+        assert "MONTH_CONTINUITY corn_cbot" in caplog.text and "2026-03" in caplog.text
+        assert "--continuity report: continuing anyway" in caplog.text
+        assert "publish dry-run" in caplog.text
+
+    def test_enforce_is_the_default_and_the_only_other_value_is_report(self, monkeypatch, caplog):
+        rc = self._run(monkeypatch, _bronze(["2026-01-05", "2026-02-05", "2026-04-06"]), caplog,
+                       "--continuity", "enforce")
+        assert rc == 1 and "continuing anyway" not in caplog.text
+        with pytest.raises(SystemExit):
+            T2.main(["--bucket", "b", "--aws-region", "us-east-1", "--mode", "backfill",
+                     "--continuity", "maybe"])

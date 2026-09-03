@@ -2260,7 +2260,7 @@ _FUTURES_EOD_UNIT_OVERRIDES: dict = {
     "french_wheat_matif": "EUR/t", "french_maize_matif": "EUR/t", "french_rapeseed_matif": "EUR/t",
     "rapeseed_meal_zce": "CNY/t", "rapeseed_oil_zce": "CNY/t", "palm_olein_dce": "CNY/t",
     "soybean_meal_dce": "CNY/t", "soybean_oil_dce": "CNY/t", "soybeans_no_1_dce": "CNY/t",
-    "soybeans_no_2_dce": "CNY/t", "malaysian_crude_palm_oil_cme": "MYR/t",
+    "soybeans_no_2_dce": "CNY/t", "malaysian_crude_palm_oil_cme": "USD/metric ton",
     "south_african_white_maize_jse": "ZAR/t", "south_african_yellow_maize_jse": "ZAR/t",
     "brazilian_arabica_coffee": "BRL/60-kg bag", "campinas_corn_reference_bmf": "BRL/60-kg bag",
 }

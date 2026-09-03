@@ -73,6 +73,19 @@ EQUALS the leg's publication source -- never a substring test, never a line coun
 ``str.contains``. And per F-C the floors are armed only after probe P10 has recalibrated them
 against a real backfill, which is what ``--row-floor report`` is for.
 
+THE MONTH-CONTINUITY GATE (V2-4 M2) AND ``--continuity``
+---------------------------------------------------------
+A databento BACKFILL assembly must carry >= 1 trade date in every calendar month inside each slug's
+banked span; a hole fails the run before a byte is staged, naming the months (the settlement-tape
+backfill runs under the default ``enforce``). ``--continuity report`` mirrors ``--row-floor
+report`` (STEP-12 F8): the holes are still logged as ``MONTH_CONTINUITY`` lines but the run
+continues -- the lawful way to publish a shipped-root REPAIR backfill over a REAL vendor-outage
+month. The 15 shipped roots' continuity has never been measured (KE from 2014, ICE from
+2018-12-24, ZR's thin years), so without a report mode a re-derivation of e.g. KE/2015 after a
+transform fix would exit 1 on a genuine historical gap with no way to publish the correct bytes.
+The gate harness's gate 9 names the same holes again, scoped or waived on the operator's own
+record. Incremental runs carry a 5-day window and are not a continuity claim in either mode.
+
 THE PUBLISH CONTRACT, BY MODE
 -----------------------------
 ``--publish-mode dry-run`` (the DEFAULT)
@@ -191,14 +204,19 @@ from leviathan.transforms.raw_to_bronze.databento_eod import (  # noqa: E402
     IFEU,
     IFUS,
     ROOT_MAP,
+    SETTLEMENT_TAPE_ROOTS,
     apply_ice_settle,
     build_ohlcv_bronze,
+    build_settlement_bronze,
     build_statistics_bronze,
     decode_dbn,
+    empty_ohlcv_frame,
     glbx_settle_coverage,
     join_glbx_statistics,
+    month_continuity_holes,
     root_years,
     statistics_join_diagnostics,
+    symbol_anchors_from_artifact,
     symbology_from_artifact,
 )
 from leviathan.transforms.raw_to_bronze.dce_eod import (  # noqa: E402
@@ -352,7 +370,11 @@ _MIN_SILVER_ROWS_PER_DAY_BURSA = 20
 # date. Both are enumeration bounds ONLY -- the authoritative product/code -> slug maps live in the
 # transforms (linted against CONTRACT_MAP both ways), exactly as CEPEA_INDICATORS does.
 EURONEXT_PRODUCTS: tuple[str, ...] = ("EBM-DPAR", "EMA-DPAR", "ECO-DPAR")
-BURSA_CODES: tuple[str, ...] = ("FCPO",)
+# PARKED 2026-09-02 (V2-4): the palm slug's price record moved to the CME USD tape (Databento root
+# CPO), so no source=='bursa' slug exists and this roster is EMPTY -- bursa_units discovers nothing
+# and `--source bursa` exits 1 ('no session unit(s) selected') until a bursa slug is minted.
+# test_bursa_fcpo pins BURSA_CODES == tuple(BURSA_CODE_MAP), both empty.
+BURSA_CODES: tuple[str, ...] = ()
 # The contract's declared natural key. Asserted UNIQUE on the assembled frame before a single byte
 # is staged: `duplicate_check` runs downstream of the write, `lint_frame` checks conditional
 # nullability and per-slug label coherence only, and `build_partitioned_publish` performs no
@@ -1039,37 +1061,56 @@ def load_unit_bronze(s3_client, bucket: str, *, dataset: str, root: str, year: i
     ``parent -> instrument_id``, and injecting it maps every instrument to the literal ``'ZC.FUT'``
     so the outright filter drops 100% of the purchased bars."""
     ds = DATASET_SLUGS[dataset]
+    settlement_tape = root in SETTLEMENT_TAPE_ROOTS
     sym_key = raw_databento_key(ds, root, year, databento_symbology_filename(root, year))
-    ohlcv_key = resolve_payload_key(s3_client, bucket, dataset=dataset, root=root, year=year,
-                                    schema="ohlcv-1d", mode=mode)
+    # A settlement-tape root buys NO ohlcv-1d payload (fetch: schemas_for); its bar frame is the
+    # empty decoded shape and the statistics stream is the row skeleton (build_settlement_bronze).
+    ohlcv_key = None if settlement_tape else resolve_payload_key(
+        s3_client, bucket, dataset=dataset, root=root, year=year, schema="ohlcv-1d", mode=mode)
     sym_raw = _get(s3_client, bucket, sym_key)
     artifact = json.loads(sym_raw.decode("utf-8")) if sym_raw else {}
-    payload = _get(s3_client, bucket, ohlcv_key)
-    if payload is None:
+    payload = None if ohlcv_key is None else _get(s3_client, bucket, ohlcv_key)
+    if payload is None and not settlement_tape:
         raise FileNotFoundError(f"no ohlcv-1d payload at s3://{bucket}/{ohlcv_key}")
 
     symbology = symbology_from_artifact(artifact)
-    raw = decode_dbn(payload, schema="ohlcv-1d", symbology_json=symbology)
+    # The per-symbol resolved listing-interval starts (d0) -- the decade-decode anchor for roots
+    # that declare a listing horizon (V2-4 M1); inert for the others.
+    anchors = symbol_anchors_from_artifact(artifact)
+    raw = (empty_ohlcv_frame() if payload is None
+           else decode_dbn(payload, schema="ohlcv-1d", symbology_json=symbology))
     bronze, stats = build_ohlcv_bronze(raw, dataset=dataset, root=root, request_year=year,
-                                       ice_bar_rule=ice_bar_rule)
+                                       ice_bar_rule=ice_bar_rule, symbol_anchors=anchors)
     stats["dropped_symbols_recorded"] = artifact.get("dropped_count")
+    stats["settlement_base"] = settlement_tape
 
     if dataset == GLBX:
         stat_key = resolve_payload_key(s3_client, bucket, dataset=dataset, root=root, year=year,
                                        schema="statistics", mode=mode)
         stat_payload = _get(s3_client, bucket, stat_key)
         if stat_payload is None:
+            if settlement_tape:
+                raise FileNotFoundError(
+                    f"{dataset} {root}/{year}: settlement-tape root with NO statistics payload at "
+                    f"s3://{bucket}/{stat_key} -- the tape IS the statistics stream")
             logger.warning("%s %s/%s: no statistics payload -- settle stays NULL (F3: the ohlcv "
                            "close is NOT the settlement and is never substituted)",
                            dataset, root, year)
             stat_df = None
         else:
             stat_raw = decode_dbn(stat_payload, schema="statistics", symbology_json=symbology)
-            stat_df = build_statistics_bronze(stat_raw, root=root, request_year=year)
+            stat_df = build_statistics_bronze(stat_raw, root=root, request_year=year,
+                                              keep_instrument_id=settlement_tape)
         # BEFORE the join, while both frames still exist: is the ts_ref trading date on the same
         # calendar as the ts_event UTC day? A systematic skew matches nothing and is otherwise silent.
+        # (Inert on the empty bar frame of a settlement-tape root.)
         stats["statistics_join"] = statistics_join_diagnostics(bronze, stat_df)
-        bronze = join_glbx_statistics(bronze, stat_df)
+        if settlement_tape:
+            bronze, srec = build_settlement_bronze(stat_df, bronze, dataset=dataset, root=root,
+                                                   request_year=year, symbol_anchors=anchors)
+            stats.update(srec)
+        else:
+            bronze = join_glbx_statistics(bronze, stat_df)
         stats["glbx_settle_coverage"] = glbx_settle_coverage(bronze)
     else:
         # stats["ice_probe"] arrives from build_ohlcv_bronze, measured PRE-dedupe -- re-probing
@@ -1281,8 +1322,32 @@ def publish(df: pd.DataFrame, contract: dict, auth, s3_client, glue_client, *,
     return plan.run()
 
 
+def _settlement_tape_thin_exception(exc: BaseException) -> bool:
+    """The ONE except-path shape the nightly's settlement-tape unit may swallow (V2-4 m10, narrowed
+    by STEP-12 F3): the statistics payload is ABSENT under the raw prefix -- the fetch side landed
+    nothing because its 200-byte floor refused an empty DBN or the vendor job returned no file --
+    and :func:`load_unit_bronze` raises ``FileNotFoundError`` naming the key. (The other thin
+    shape, a landed-but-thin tape, is a FRAME, not an exception: it takes the truncation-verdict
+    branch and its partial rows are KEPT.) Every other exception -- a bad row, a decode error, a
+    transient S3 fault -- is a blocking FAILED: a skip there is the silent-hole class the review
+    named."""
+    return isinstance(exc, FileNotFoundError)
+
+
+def _unit_root(label: str) -> Optional[str]:
+    """The vendor root out of a databento unit label (``'GLBX.MDP3 CPO/2026'`` -> ``'CPO'``);
+    None for any other leg's label."""
+    try:
+        _ds, tail = label.split(" ", 1)
+        root, _year = tail.split("/", 1)
+    except ValueError:
+        return None
+    return root if root in ROOT_MAP else None
+
+
 def _incremental_unit_landed(s3_client, bucket: str, dataset: str, root: str, year: int) -> bool:
-    """Has an ``ohlcv-1d`` payload actually landed under this ``(root, year)`` raw prefix?
+    """Has an ``ohlcv-1d`` payload (``statistics``, for a settlement-tape root -- the only schema it
+    buys) actually landed under this ``(root, year)`` raw prefix?
 
     Asked ONLY of the year the January straddle ADDS. The fetch leg keys the whole incremental
     window under ``year(--since)`` (jobs/ingest/fetch_databento_eod.py, incremental branch: the
@@ -1293,7 +1358,8 @@ def _incremental_unit_landed(s3_client, bucket: str, dataset: str, root: str, ye
     shown rather than hidden."""
     if s3_client is None:
         return True
-    token = databento_payload_prefix("ohlcv-1d", root)
+    token = databento_payload_prefix("statistics" if root in SETTLEMENT_TAPE_ROOTS else "ohlcv-1d",
+                                     root)
     prefix = raw_databento_key(DATASET_SLUGS[dataset], root, year, "")
     return any(key.rsplit("/", 1)[-1].startswith(token) and key.endswith(".dbn.zst")
                for key in _list_keys(s3_client, bucket, prefix))
@@ -1419,6 +1485,13 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="plan gate 5, the per-source per-day SILVER row floor. 'report' logs the "
                          "violations and continues -- that is probe P10, which derives the venue "
                          "holiday calendars empirically from a backfill BEFORE the gate is armed")
+    ap.add_argument("--continuity", default="enforce", choices=["enforce", "report"],
+                    dest="continuity",
+                    help="V2-4 M2, the month-continuity gate on a databento BACKFILL assembly. "
+                         "'report' logs the MONTH_CONTINUITY holes and continues -- the lawful "
+                         "way to publish a shipped-root REPAIR backfill over a real vendor-outage "
+                         "month (the 15 roots' continuity has never been measured). The default "
+                         "stays enforce, which is what a settlement-tape backfill runs under")
     ap.add_argument("--mode", choices=["backfill", "incremental"], default="backfill")
     ap.add_argument("--root", action="append", dest="roots", default=None, choices=sorted(ROOT_MAP))
     ap.add_argument("--year", action="append", type=int, dest="years", default=None)
@@ -1487,21 +1560,73 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     frames: list[pd.DataFrame] = []
     failures = 0
+    thin = 0
+    thin_units: list[str] = []
     for label, loader, unit_dataset in units:
+        # V2-4 m10 -- a SETTLEMENT-TAPE unit is NON-BLOCKING in the nightly: its mark tape can miss
+        # a session (CME publishes marks web-only on months without OI) and the fetch side already
+        # skips a thin payload, so the silver side must not turn that into a family-wide red either
+        # (a truncation verdict or a missing statistics payload here would exit 1 after publishing
+        # and the promote task would never run for the other 15 roots). Backfill units stay
+        # BLOCKING: an operator-driven backfill with an empty year is a stop (K7), not a skip.
+        #
+        # STEP-12 F3 -- non-blocking is NOT 'drop the unit'. The nightly's window is 5 days and
+        # merge_with_canonical unions only what THIS run holds, so a fire that dropped its partial
+        # CPO frame left every session that sat only inside skipped windows PERMANENTLY absent
+        # from canonical, silently (the shipped cadence loses a present Wednesday after a Mon+Tue
+        # absence in three exit-0 fires). So: (1) a THIN verdict KEEPS the partial frame -- the
+        # merge is a union, new-wins, so partial rows can never shrink canonical and every session
+        # the tape delivered lands; (2) the except-path swallow is narrowed to the m10 shape (no
+        # statistics payload under the raw prefix -> FileNotFoundError); anything else stays a
+        # blocking FAILED; (3) the thin count and the unit ids are stamped machine-readably
+        # (settlement_tape_thin=1 in the unit stats line, SETTLEMENT_TAPE_SKIPS {json} after the
+        # loop) so an alarm or the census can count N consecutive thins.
+        nonblocking = (args.mode == "incremental" and spec.name == "databento"
+                       and _unit_root(label) in SETTLEMENT_TAPE_ROOTS)
         try:
             bronze, stats = loader()
             trunc = _truncation_error(bronze, spec, mode=args.mode, since=args.since,
                                       dataset=unit_dataset)
             if trunc:
+                if nonblocking:
+                    thin += 1
+                    thin_units.append(label)
+                    stats = dict(stats, settlement_tape_thin=1, settlement_tape_thin_reason=trunc,
+                                 rows_kept=int(len(bronze)))
+                    logger.error("SETTLEMENT_TAPE_THIN %s: %s -- non-blocking (the PARTIAL frame "
+                                 "of %d row(s) is KEPT: the merge is a union, new-wins, so every "
+                                 "session the tape delivered lands and canonical can never "
+                                 "shrink; the family publishes with it)",
+                                 label, trunc, len(bronze))
+                    logger.info("unit %s: %s", label, json.dumps(
+                        {k: v for k, v in stats.items() if k != "ice_dedupe"}, sort_keys=True))
+                    if len(bronze):
+                        frames.append(bronze)
+                    continue
                 logger.error("%s: %s", label, trunc)
                 failures += 1
                 continue
             logger.info("unit %s: %s", label, json.dumps(
                 {k: v for k, v in stats.items() if k != "ice_dedupe"}, sort_keys=True))
             frames.append(bronze)
-        except Exception:  # noqa: BLE001 -- one unit's failure must not abort the rest
+        except Exception as exc:  # noqa: BLE001 -- one unit's failure must not abort the rest
+            if nonblocking and _settlement_tape_thin_exception(exc):
+                thin += 1
+                thin_units.append(label)
+                logger.exception("SETTLEMENT_TAPE_THIN %s %s -- non-blocking (%s: no statistics "
+                                 "payload landed for this fire; the unit is skipped and the "
+                                 "family publishes without it)",
+                                 spec.unit_label, label, type(exc).__name__)
+                continue
             logger.exception("FAILED %s %s", spec.unit_label, label)
             failures += 1
+    if thin:
+        logger.warning("%d settlement-tape unit(s) thin this fire (partial rows kept / missing "
+                       "payload skipped)", thin)
+        # The machine-readable stamp: ONE JSON record a metric filter or the census can count.
+        logger.info("SETTLEMENT_TAPE_SKIPS %s", json.dumps(
+            {"settlement_tape_thin": thin, "settlement_tape_thin_units": thin_units},
+            sort_keys=True))
 
     if not frames:
         logger.error("no bronze frames produced from %d %s(s)", len(units), spec.unit_label)
@@ -1515,6 +1640,27 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # The F2 precondition, enforced on the automated path rather than in a script nobody calls.
     assert_no_duplicates(df)
+
+    # V2-4 M2 -- MONTH CONTINUITY on a backfill assembly: every calendar month inside a slug's
+    # banked span (per run of consecutive years) must carry >= 1 trade date. An internal hole is
+    # exactly what PRICE_COVERAGE_START cannot express -- covers() routes a window inside it to the
+    # table, which then declines no_tape_rows instead of naming the floor -- so a hole FAILS the
+    # run before a byte is staged, naming the missing months. Incremental runs carry a 5-day window
+    # and are not a continuity claim. ``--continuity report`` (STEP-12 F8) mirrors ``--row-floor
+    # report``: the holes are logged and the run continues -- a shipped-root REPAIR backfill over
+    # a real vendor-outage month must have a lawful way to publish the correct bytes.
+    if args.mode == "backfill" and spec.name == "databento":
+        holes = month_continuity_holes(df)
+        if holes:
+            for slug, months in sorted(holes.items()):
+                logger.error("MONTH_CONTINUITY %s: %d calendar month(s) inside the banked span "
+                             "carry NO trade date: %s", slug, len(months), ", ".join(months))
+            if args.continuity == "enforce":
+                return 1
+            logger.warning("--continuity report: continuing anyway (%d slug(s) carry holes -- a "
+                           "shipped-root repair backfill over a real vendor-outage month; the "
+                           "holes above are RECORDED, not fenced, and the gate harness's gate 9 "
+                           "names them again)", len(holes))
 
     # PLAN GATE 5, on the rows THIS RUN produced -- before the merge, so a thin session is caught
     # rather than hidden inside a year of merged history.
