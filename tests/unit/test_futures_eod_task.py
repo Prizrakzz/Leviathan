@@ -801,3 +801,688 @@ class TestMonthContinuityOnBackfill:
         with pytest.raises(SystemExit):
             T2.main(["--bucket", "b", "--aws-region", "us-east-1", "--mode", "backfill",
                      "--continuity", "maybe"])
+
+
+class TestPerUnitWithhold:
+    """LANE A / A-2 -- a truncation verdict withholds ONE unit; the family still gates and promotes.
+
+    THE MEASURED BLAST RADIUS THIS CLOSES. A truncation verdict on one unit increments a run-level
+    ``failures`` counter whose only expression is ``return 1 if failures else 0`` -- AFTER the
+    shadow publish. In the state machine (infra/terraform/modules/step_functions/main.tf:225-284)
+    Silver is a Map state with Retry and NO Catch, Next = Gate, and Gate Next = Promote, so a
+    non-zero Silver exit ends the execution there. ONE unit's verdict therefore cost all 16 boards
+    (ROOT_MAP: GLBX 8, IFUS 6, IFEU 2) their gate and their promote on 2026-09-02 and 2026-09-03.
+
+    SENSITIVITY IS UNTOUCHED: same predicate, same one-holiday margin, same D-PR-16 lag. Only the
+    CONSEQUENCE moves, from 16 boards to 1 unit. And it is only safe to move it now: making a
+    KNOWN-WRONG check non-blocking would have made a whole-dataset false verdict quiet, whereas
+    with A-1 a truncation verdict means something again.
+
+    DEFAULT OFF, and that is deliberate -- see ``test_the_withhold_is_off_until_it_has_a_surface``.
+    """
+
+    _ROOTS = sorted(T.ROOT_MAP)
+    _SINCE = "2026-07-27"
+    _DATES = ["2026-07-27", "2026-07-28", "2026-07-29"]
+    _REAL_PUBLISH = staticmethod(T2.publish)
+
+    @pytest.fixture(autouse=True)
+    def _fixture_calendar(self, monkeypatch, tmp_path):
+        """A-R14 -- THE TIME BOMB, DISARMED. These ~24 cases drive main(), which runs the REAL
+        arming lint against the REAL shipped calendar with a window year taken from ``_SINCE`` and
+        the real clock. That is vacuous only while NOTHING is armed: the moment an operator arms a
+        venue per the fill-and-arm workflow, every calendar year in which the run's window year is
+        not also armed turns this whole class into VENUE_CALENDAR refusals (rc == 1) and reds a
+        suite that has nothing to do with the calendar. The sibling lint class already points at a
+        tmp fixture; this one now does too, so the withhold's pins measure the withhold.
+        """
+        import yaml
+        from leviathan.silver import venue_calendar as VC
+        path = tmp_path / "venue_holidays.yaml"
+        path.write_text(yaml.safe_dump({"version": 1, "datasets": {}}, sort_keys=False),
+                        encoding="utf-8")
+        monkeypatch.setattr(VC, "VENUE_HOLIDAYS_PATH", path)
+        VC.load_venue_holidays.cache_clear()
+        yield
+        VC.load_venue_holidays.cache_clear()
+
+    @classmethod
+    def _units_for(cls, roots):
+        return [(f"{T.ROOT_MAP[r][0]} {r}/2026", r, T.ROOT_MAP[r][1]) for r in roots]
+
+    def _run(self, monkeypatch, caplog, *, truncate=None, mode="incremental", withhold="on",
+             roots=None, source="databento", published=None, rows_kept=1):
+        """16 units by default, ``truncate`` naming the roots whose frame is charged as truncated.
+
+        The truncation verdict is monkeypatched (as the m10 suite does) so the harness measures the
+        CONSEQUENCE of a verdict, never the arithmetic that produces one -- that arithmetic has its
+        own suite in tests/unit/silver/test_futures_eod_truncation_floor.py.
+        """
+        import logging
+        caplog.set_level(logging.INFO)
+        truncate = dict(truncate or {})
+        roots = list(roots if roots is not None else self._ROOTS)
+        monkeypatch.setattr(T2, "get_thread_local_s3_client", lambda region: FakeS3({}))
+        if withhold is None:
+            monkeypatch.delenv("LEVIATHAN_UNIT_WITHHOLD", raising=False)
+        else:
+            monkeypatch.setenv("LEVIATHAN_UNIT_WITHHOLD", withhold)
+        current: dict = {}
+
+        def _bind(label, root, slug):
+            def _load():
+                current["label"] = label
+                if root in truncate:
+                    n = truncate[root]
+                    dates = self._DATES[:n]
+                else:
+                    dates = self._DATES
+                return _bronze(dates, sym=f"{root}Z6", slug=slug), {"rows_out": len(dates)}
+            return _load
+
+        units = [(label, _bind(label, root, slug), T.ROOT_MAP[root][0])
+                 for label, root, slug in self._units_for(roots)]
+        monkeypatch.setattr(T2, "select_units", lambda *a, **k: units)
+
+        def _trunc(bronze, spec, *, mode, since, dataset=None):
+            root = T2._unit_root(current.get("label", ""))
+            if root in truncate:
+                return (f"only {truncate[root]} of 3 expected session(s) present "
+                        f"(window 2026-07-27..2026-07-29) -- treating as a truncated download, "
+                        f"not a thin market")
+            return None
+
+        monkeypatch.setattr(T2, "_truncation_error", _trunc)
+
+        def _publish(df, contract, auth, s3c, glue, **kw):
+            if published is not None:
+                published.append(df.copy())
+            return self._REAL_PUBLISH(df, contract, auth, s3c, glue, **kw)
+
+        monkeypatch.setattr(T2, "publish", _publish)
+        argv = ["--bucket", "b", "--aws-region", "us-east-1", "--mode", mode, "--source", source]
+        if mode == "incremental":
+            argv += ["--since", self._SINCE, "--no-merge"]
+        return T2.main(argv)
+
+    @staticmethod
+    def _record(caplog) -> dict:
+        tag = "UNIT_WITHHOLD_RECORD "
+        lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith(tag)]
+        assert len(lines) == 1, lines
+        return json.loads(lines[0][len(tag):])
+
+    @staticmethod
+    def _withheld_lines(caplog) -> list:
+        return [r.getMessage() for r in caplog.records
+                if r.getMessage().startswith("UNIT_WITHHELD ")]
+
+    def test_one_withheld_unit_lets_fifteen_siblings_publish_and_exits_zero(
+            self, monkeypatch, caplog):
+        """THE 15-SIBLINGS PIN. This is the whole point of A-2: on 09-02 and 09-03 the gate and the
+        promote never ran for any board because one unit was charged."""
+        published: list = []
+        rc = self._run(monkeypatch, caplog, truncate={"RC": 1}, published=published)
+        assert rc == 0
+        assert "publish dry-run" in caplog.text, "the family still publishes"
+        df = published[-1]
+        slugs = set(df["leviathan_slug"])
+        assert len(slugs) == 16, sorted(slugs)
+        healthy = [s for r, s in ((r, T.ROOT_MAP[r][1]) for r in self._ROOTS) if r != "RC"]
+        assert all(int((df["leviathan_slug"] == s).sum()) == 3 for s in healthy)
+        assert int((df["leviathan_slug"] == T.ROOT_MAP["RC"][1]).sum()) == 1, \
+            "the withheld unit's PARTIAL rows still ride the merge (STEP-12 F3)"
+
+    def test_the_withheld_unit_is_declared_by_name_with_its_reason_and_its_slug(
+            self, monkeypatch, caplog):
+        """A withhold that is not DECLARED is a silent skip. The line carries the unit label, the
+        slug (which is what an operator or a per-slug freshness emitter needs), the rows kept, and
+        the verdict verbatim."""
+        rc = self._run(monkeypatch, caplog, truncate={"RC": 1})
+        assert rc == 0
+        lines = self._withheld_lines(caplog)
+        assert len(lines) == 1, lines
+        assert lines[0].startswith("UNIT_WITHHELD IFEU.IMPACT RC/2026 slug=robusta_coffee "
+                                   "rows_kept=1: ")
+        assert "expected session(s) present" in lines[0] and "truncated download" in lines[0]
+        stats = TestSettlementTapeNonBlocking._unit_stats(caplog, "IFEU.IMPACT RC/2026")
+        assert stats["unit_withheld"] == 1 and stats["rows_kept"] == 1
+        assert "truncated download" in stats["unit_withheld_reason"]
+
+    def test_the_summary_line_counts_units_and_withholds(self, monkeypatch, caplog):
+        """The machine-readable record, mirroring SETTLEMENT_TAPE_SKIPS. The two halves are kept
+        SEPARATE in the JSON (kept-partial vs genuinely empty) and counted TOGETHER in the text,
+        because the operator's question is "which boards did not fully publish this fire"."""
+        rc = self._run(monkeypatch, caplog, truncate={"RC": 1, "W": 0})
+        assert rc == 0
+        assert ("UNIT_WITHHOLD_SUMMARY units=16 withheld=2 "
+                "truncated=['IFEU.IMPACT RC/2026', 'IFEU.IMPACT W/2026']") in caplog.text
+        assert self._record(caplog) == {
+            "units": 16, "withheld": 2, "withheld_empty": 1, "withheld_partial_kept": 1,
+            "rows_kept": 1, "truncated": ["IFEU.IMPACT RC/2026", "IFEU.IMPACT W/2026"],
+            "slugs": ["robusta_coffee", "white_sugar"]}
+
+    def test_an_empty_withheld_unit_names_its_slug_from_the_root_map(self, monkeypatch, caplog):
+        """An EMPTY unit has no frame to ask for its slug, so the label's root is resolved through
+        the same ROOT_MAP select_units built the label from. It must never guess."""
+        rc = self._run(monkeypatch, caplog, truncate={"W": 0})
+        assert rc == 0
+        assert ("UNIT_WITHHELD IFEU.IMPACT W/2026 slug=white_sugar rows_kept=0: "
+                in self._withheld_lines(caplog)[0])
+        assert self._record(caplog)["withheld_empty"] == 1
+
+    def test_every_unit_withheld_is_exit_one(self, monkeypatch, caplog):
+        """THE ALL-WITHHELD PIN. Every board truncated is a FAMILY-wide verdict, not a per-unit
+        one, so it keeps the exit code it has today -- and it keeps it whether or not the units
+        held partial rows, because "all 16 boards are truncated" is the alarm regardless.
+
+        It still PUBLISHES first: the F3 discipline is that data is never dropped to make a point,
+        and a partial frame can only ADD sessions to canonical (union, new-wins, no-shrink).
+        """
+        published: list = []
+        rc = self._run(monkeypatch, caplog, truncate={r: 1 for r in self._ROOTS},
+                       published=published)
+        assert rc == 1
+        assert ("UNIT_WITHHOLD_ALL 15 of 16 unit(s) withheld (+1 settlement-tape thin)"
+                in caplog.text), \
+            "the CPO mark tape takes the m10 arm first; it still published nothing complete"
+        assert "publish dry-run" in caplog.text, "the partial rows are still written"
+        assert len(published[-1]) == 16
+        assert self._record(caplog)["withheld"] == 15
+        assert "SETTLEMENT_TAPE_THIN GLBX.MDP3 CPO/2026" in caplog.text
+
+    def test_every_unit_withheld_and_all_empty_is_exit_one_with_nothing_published(
+            self, monkeypatch, caplog):
+        """The zero-row corner of the same pin: nothing to publish, and the existing
+        no-bronze-frames exit survives with the withhold count added to its message."""
+        rc = self._run(monkeypatch, caplog, truncate={r: 0 for r in self._ROOTS})
+        assert rc == 1
+        assert ("no bronze frames produced from 16 (root, year)(s) (15 withheld as truncated)"
+                in caplog.text)
+        assert "publish dry-run" not in caplog.text
+
+    def test_a_single_unit_run_whose_only_unit_is_withheld_is_exit_one(self, monkeypatch, caplog):
+        """The regression fence for the m10 suite's positive control
+        (test_a_truncated_bar_driven_unit_still_fails_the_nightly): a run selecting ONE unit that
+        is then withheld is "every unit withheld", so it stays exit 1."""
+        rc = self._run(monkeypatch, caplog, roots=["ZC"], truncate={"ZC": 1})
+        assert rc == 1
+        assert "UNIT_WITHHOLD_ALL 1 of 1 unit(s) withheld" in caplog.text
+
+    def test_a_withheld_units_partial_rows_still_ride_the_merge(self, monkeypatch, caplog):
+        """THE F3 PIN, GENERALISED. STEP-12 F3 measured that DROPPING a partial frame left every
+        session that sat only inside skipped windows permanently absent from canonical, silently
+        (the shipped cadence loses a present Wednesday after a Mon+Tue absence in three exit-0
+        fires). Doing that on 16 units instead of 1 would reopen the class 16 times wider.
+
+        Here the withheld unit holds ONLY the Wednesday: it must be in the published frame.
+        """
+        published: list = []
+        monkeypatch.setattr(TestPerUnitWithhold, "_DATES", ["2026-07-29"], raising=False)
+        rc = self._run(monkeypatch, caplog, truncate={"RC": 1}, roots=["ZC", "RC"],
+                       published=published)
+        assert rc == 0
+        df = published[-1]
+        rc_rows = df[df["leviathan_slug"] == "robusta_coffee"]
+        assert set(rc_rows["trade_date"].dt.strftime("%Y-%m-%d")) == {"2026-07-29"}, \
+            "the session the payload DID deliver lands; dropping it would lose it for good"
+
+    @pytest.mark.parametrize("exc", [ValueError("settle_flags out of range on one row"),
+                                     RuntimeError("DBN version 9 is NEWER than the client"),
+                                     KeyError("ts_ref"), OSError("transient S3 fault")])
+    def test_a_non_floor_exception_is_still_exit_one(self, monkeypatch, caplog, exc):
+        """A-2 scopes the TRUNCATION verdict and nothing else. A bad row, a decode error or a
+        transient fault is the loud FAILED it has always been -- swallowing those is the
+        silent-hole class, and the m10 suite already pins the same boundary for CPO."""
+        import logging
+        caplog.set_level(logging.INFO)
+        monkeypatch.setenv("LEVIATHAN_UNIT_WITHHOLD", "on")
+        monkeypatch.setattr(T2, "get_thread_local_s3_client", lambda region: FakeS3({}))
+
+        def _raise():
+            raise exc
+
+        zc = _bronze(self._DATES)
+        monkeypatch.setattr(T2, "select_units", lambda *a, **k: [
+            ("GLBX.MDP3 ZC/2026", lambda: (zc, {}), T.GLBX),
+            ("IFEU.IMPACT RC/2026", _raise, T.IFEU)])
+        monkeypatch.setattr(T2, "_truncation_error", lambda *a, **k: None)
+        rc = T2.main(["--bucket", "b", "--aws-region", "us-east-1", "--mode", "incremental",
+                      "--since", self._SINCE, "--no-merge"])
+        assert rc == 1
+        assert "FAILED" in caplog.text and "IFEU.IMPACT RC/2026" in caplog.text
+        assert self._withheld_lines(caplog) == []
+        assert self._record(caplog)["withheld"] == 0, "the record still clears the metric"
+
+    def test_a_backfill_truncation_is_still_blocking(self, monkeypatch, caplog):
+        """K7, already the estate's ruling in this file: an operator-driven backfill with an empty
+        year is a STOP, not a skip. A-2 is incremental-only."""
+        rc = self._run(monkeypatch, caplog, mode="backfill", roots=["ZC", "RC"],
+                       truncate={"RC": 1})
+        assert rc == 1
+        assert self._withheld_lines(caplog) == []
+        assert "UNIT_WITHHOLD_SUMMARY" not in caplog.text
+        assert "IFEU.IMPACT RC/2026: only 1 of 3 expected session(s) present" in caplog.text
+
+    def test_a_healthy_fire_records_withheld_zero(self, monkeypatch, caplog):
+        """The summary is emitted on EVERY eligible fire, healthy ones included. freshness.py's
+        own words: "An alarm that only receives a datapoint while it is breaching can never
+        CLEAR." The per-unit UNIT_WITHHELD line is the one that is absent when healthy -- that is
+        what the metric filter counts, and its default_value = 0 clears the metric."""
+        rc = self._run(monkeypatch, caplog)
+        assert rc == 0
+        assert self._withheld_lines(caplog) == []
+        assert "UNIT_WITHHOLD_SUMMARY units=16 withheld=0 truncated=[]" in caplog.text
+        assert self._record(caplog) == {
+            "units": 16, "withheld": 0, "withheld_empty": 0, "withheld_partial_kept": 0,
+            "rows_kept": 0, "truncated": [], "slugs": []}
+
+    def test_the_free_legs_never_reach_the_withhold_path(self, monkeypatch, caplog):
+        """The 22:30Z free chain is the NO-OP witness for this whole lane. Its five legs carry
+        min_rows_per_unit = 0, so _truncation_error returns before any of this code; and even when
+        a verdict is forced onto a non-databento leg here, the withhold path is not eligible and
+        the verdict is the blocking failure it has always been."""
+        import logging
+        caplog.set_level(logging.INFO)
+        monkeypatch.setenv("LEVIATHAN_UNIT_WITHHOLD", "on")
+        monkeypatch.setattr(T2, "get_thread_local_s3_client", lambda region: FakeS3({}))
+        monkeypatch.setattr(T2, "select_units", lambda *a, **k: [
+            ("2026-07-29", lambda: (_bronze(["2026-07-29"]), {}), None)])
+        monkeypatch.setattr(T2, "_truncation_error", lambda *a, **k: "forced verdict")
+        rc = T2.main(["--bucket", "b", "--aws-region", "us-east-1", "--mode", "incremental",
+                      "--source", "czce", "--since", self._SINCE, "--no-merge"])
+        assert rc == 1
+        assert self._withheld_lines(caplog) == []
+        assert "UNIT_WITHHOLD_SUMMARY" not in caplog.text and "LANE_A_LEVERS" not in caplog.text
+        assert T2._SOURCE_SPECS["czce"].min_rows_per_unit == 0, \
+            "the real reason a free leg never gets here: it has no per-unit floor at all"
+
+    def test_the_withhold_is_off_until_it_has_a_surface(self, monkeypatch, caplog):
+        """THE DEVIATION, PINNED. The Lane A design has the withhold default ON; this build ships
+        it default OFF, and the reason is measured rather than cautious.
+
+        Exit 1 is TODAY the only path by which this failure reaches the owner
+        (infra/terraform/modules/silver_observability/main.tf:212-245: "this alarm is the ONLY path
+        by which a class-A/E1/F producer failure reaches the owner"). FreshnessLagDays cannot see
+        one withheld board -- it is TABLE-granular (freshness.py:136-151 takes MAX LastModified
+        over the whole canonical prefix, and the 13 non-ICE slugs rewrite their objects every
+        fire) -- and the value census has no recency term (jobs/audit/value_census.py:214-233). So
+        turning exit 1 into exit 0 BEFORE the UNIT_WITHHELD metric filter and its alarms exist
+        would make the failure SILENT, which is strictly worse than a family-wide red. The withhold
+        arms with its surface, in one operator act, never by landing code.
+        """
+        rc = self._run(monkeypatch, caplog, truncate={"RC": 1}, withhold=None)
+        assert rc == 1, "default OFF: the pre-Lane-A blocking behaviour"
+        assert self._withheld_lines(caplog) == []
+        assert "IFEU.IMPACT RC/2026: only 1 of 3 expected session(s) present" in caplog.text
+        assert "LANE_A_LEVERS venue_calendar=on unit_withhold=OFF" in caplog.text, \
+            "the state of a fence must never have to be inferred from behaviour"
+        for value in ("off", "0", "", "yes please"):
+            caplog.clear()
+            assert self._run(monkeypatch, caplog, truncate={"RC": 1}, withhold=value) == 1, value
+        for value in ("on", "1", "true", "yes"):
+            caplog.clear()
+            assert self._run(monkeypatch, caplog, truncate={"RC": 1}, withhold=value) == 0, value
+
+
+class TestVenueCalendarArmingLint:
+    """LANE A / A-1c -- the arming lint at the call site, scoped to the datasets a run selected.
+
+    An unarmed venue is NOT a refusal: that is the pre-Lane-A world for that venue, carried by the
+    one-holiday margin exactly as it is today, and it is what makes landing this code safe while
+    the calendar is still being filled. An ARMED venue that stops covering a year the window
+    touches IS a refusal -- that is DRIFT on a fence someone is relying on, and it must never be
+    silent. The "this year AND next" requirement lives in CI instead, so the forcing function reds
+    there before any 08:00Z fire can red in production.
+    """
+
+    @staticmethod
+    def _calendar(monkeypatch, tmp_path, doc):
+        import yaml
+        from leviathan.silver import venue_calendar as VC
+        path = tmp_path / "venue_holidays.yaml"
+        path.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+        monkeypatch.setattr(VC, "VENUE_HOLIDAYS_PATH", path)
+        VC.load_venue_holidays.cache_clear()
+        return path
+
+    @staticmethod
+    def _armed(dataset, year, day):
+        return {"version": 1, "datasets": {dataset: {
+            "venue": "fixture", "source_url": "https://example.invalid/cal",
+            "years": {year: {"complete": True, "verified_on": "2026-09-04",
+                             "verified_by": "fixture",
+                             "holidays": [{"day": day, "name": "a named closure",
+                                           "basis": "published"}]}}}}}
+
+    def _run(self, monkeypatch, caplog, since):
+        import logging
+        caplog.set_level(logging.INFO)
+        monkeypatch.setattr(T2, "get_thread_local_s3_client", lambda region: FakeS3({}))
+        monkeypatch.setattr(T2, "select_units", lambda *a, **k: [
+            ("IFEU.IMPACT RC/2026", lambda: (_bronze(["2026-07-29"], slug="robusta_coffee"), {}),
+             T.IFEU)])
+        monkeypatch.setattr(T2, "_truncation_error", lambda *a, **k: None)
+        return T2.main(["--bucket", "b", "--aws-region", "us-east-1", "--mode", "incremental",
+                        "--since", since, "--no-merge"])
+
+    @pytest.fixture(autouse=True)
+    def _cold_cache(self):
+        from leviathan.silver import venue_calendar as VC
+        VC.load_venue_holidays.cache_clear()
+        yield
+        VC.load_venue_holidays.cache_clear()
+
+    def test_an_unarmed_venue_does_not_refuse_the_run(self, monkeypatch, caplog, tmp_path):
+        self._calendar(monkeypatch, tmp_path, {"version": 1, "datasets": {
+            T.IFEU: {"venue": "v", "source_url": "TO BE FILLED", "years": {}}}})
+        assert self._run(monkeypatch, caplog, "2026-07-27") == 0
+        assert "VENUE_CALENDAR" not in caplog.text
+
+    def test_an_armed_venue_that_stops_covering_the_window_refuses_by_name(
+            self, monkeypatch, caplog, tmp_path):
+        """The window's years are what the lint requires -- not a fixed roster. A run whose
+        --since sits in a year the armed venue does not declare is refused, naming both."""
+        self._calendar(monkeypatch, tmp_path, self._armed(T.IFEU, 2026, "2026-08-31"))
+        assert self._run(monkeypatch, caplog, "2025-12-30") == 1
+        assert "VENUE_CALENDAR IFEU.IMPACT: 2025 is missing or not complete: true" in caplog.text
+        assert "VENUE_CALENDAR refusing the run" in caplog.text
+        assert "publish dry-run" not in caplog.text, "nothing is staged past the refusal"
+
+    def test_the_refusal_is_scoped_to_the_datasets_the_run_selected(self, monkeypatch, caplog,
+                                                                     tmp_path):
+        """--root ZC needs only GLBX, so a stale IFUS calendar must not stop it. This is why the
+        lint runs AFTER select_units; the stated cost of that placement is that select_units' S3
+        LISTs have already run, and a LIST writes nothing."""
+        doc = self._armed(T.IFUS, 2026, "2026-08-31")
+        self._calendar(monkeypatch, tmp_path, doc)
+        assert self._run(monkeypatch, caplog, "2025-12-30") == 0, \
+            "the run selects IFEU only; IFUS being stale is not its problem"
+        assert "VENUE_CALENDAR" not in caplog.text
+
+    def test_the_off_switch_disarms_the_lint_too(self, monkeypatch, caplog, tmp_path):
+        """RB2 must be a complete rollback: a lever that turned the arithmetic off but left the
+        refusal armed would be a rollback that still reds."""
+        self._calendar(monkeypatch, tmp_path, self._armed(T.IFEU, 2026, "2026-08-31"))
+        monkeypatch.setenv("LEVIATHAN_VENUE_CALENDAR", "off")
+        assert self._run(monkeypatch, caplog, "2025-12-30") == 0
+        assert "VENUE_CALENDAR" not in caplog.text
+        assert "LANE_A_LEVERS venue_calendar=OFF" in caplog.text
+
+
+class TestFixPassResolvedState:
+    """FIX PASS -- A-R2, A-R3, A-R6, A-R7 and A-R13 at the CALL SITE.
+
+    WHAT THE BANKED FIRES ACTUALLY SAID, because every pin below exists because of it. On the
+    2026-09-02 08:30Z fire two units failed and the log named them: ``IFEU.IMPACT RC/2026`` and
+    ``IFEU.IMPACT W/2026``, both "only 1 of 3 expected session(s) present (window
+    2026-08-28..2026-09-01)". That window ends at T-1 over three weekdays -- the LAG 1 arithmetic
+    -- while this tree declares IFEU lag 2. On the 2026-09-04 08:36Z fire all 16 units passed, and
+    IFEU passed holding TWO sessions, which lag 1 would have red-ed (expected 4, present 2) and
+    lag 2 does not (expected 3, present 2, green on the margin). So the resolved lag CHANGED
+    between the two fires, and NOTHING IN EITHER LOG SAID SO: the run printed a verdict and no
+    inputs, so settling it took a reconstruction from banked CloudWatch events days later.
+
+    The plumbing itself is sound and is pinned here so it stays that way -- select_units sets
+    ``dataset = ROOT_MAP[root][0]`` unconditionally for every databento unit, all 16 roots carry a
+    non-empty token, and those tokens are the same module-level constants the lag map and the
+    calendar key on. What was missing was never the wiring; it was the DETECTOR.
+    """
+
+    _SINCE = "2026-07-27"
+    _DATES = ["2026-07-27", "2026-07-28", "2026-07-29"]
+
+    @pytest.fixture(autouse=True)
+    def _cold_cache(self):
+        from leviathan.silver import venue_calendar as VC
+        VC.load_venue_holidays.cache_clear()
+        yield
+        VC.load_venue_holidays.cache_clear()
+
+    @staticmethod
+    def _calendar(monkeypatch, tmp_path, text: str):
+        from leviathan.silver import venue_calendar as VC
+        path = tmp_path / "venue_holidays.yaml"
+        path.write_text(text, encoding="utf-8")
+        monkeypatch.setattr(VC, "VENUE_HOLIDAYS_PATH", path)
+        VC.load_venue_holidays.cache_clear()
+        return path
+
+    _EMPTY_CAL = "version: 1\ndatasets: {}\n"
+    _BROKEN_CAL = ("version: 1\ndatasets:\n  IFEU.IMPACT:\n    venue: v\n"
+                   "    source_url: https://example.invalid/c\n    years:\n      2026:\n"
+                   "        complete: 'true'\n        verified_on: '2026-09-04'\n"
+                   "        verified_by: t\n        holidays: []\n")
+
+    def _run(self, monkeypatch, caplog, *, roots=("ZC", "RC"), truncate=(), raise_on=(),
+             argv_extra=()):
+        import logging
+        caplog.set_level(logging.INFO)
+        monkeypatch.setattr(T2, "get_thread_local_s3_client", lambda region: FakeS3({}))
+
+        def _bind(root, slug):
+            def _load():
+                if root in raise_on:
+                    raise RuntimeError(f"{root} exploded")
+                return _bronze(self._DATES, sym=f"{root}Z6", slug=slug), {"rows_out": 3}
+            return _load
+
+        units = [(f"{T.ROOT_MAP[r][0]} {r}/2026", _bind(r, T.ROOT_MAP[r][1]), T.ROOT_MAP[r][0])
+                 for r in roots]
+        monkeypatch.setattr(T2, "select_units", lambda *a, **k: units)
+
+        def _trunc(bronze, spec, *, mode, since, dataset=None):
+            slug = str(bronze["leviathan_slug"].iloc[0]) if len(bronze) else ""
+            root = next((r for r in roots if T.ROOT_MAP[r][1] == slug), "")
+            if root in truncate:
+                return ("only 1 of 3 expected session(s) present (window "
+                        "2026-07-27..2026-07-29) -- treating as a truncated download, "
+                        "not a thin market")
+            return None
+
+        monkeypatch.setattr(T2, "_truncation_error", _trunc)
+        return T2.main(["--bucket", "b", "--aws-region", "us-east-1", "--mode", "incremental",
+                        "--since", self._SINCE, "--no-merge", *argv_extra])
+
+    @staticmethod
+    def _levers(caplog) -> str:
+        lines = [r.getMessage() for r in caplog.records
+                 if r.getMessage().startswith("LANE_A_LEVERS ")]
+        assert len(lines) == 1, lines
+        return lines[0]
+
+    @staticmethod
+    def _floors(caplog) -> dict:
+        tag = "SESSION_FLOOR "
+        out = {}
+        for rec in caplog.records:
+            msg = rec.getMessage()
+            if msg.startswith(tag):
+                rec_json = json.loads(msg[len(tag):])
+                out[rec_json["unit"]] = rec_json
+        return out
+
+    # ------------------------------------------------------------------ A-R2
+    def test_every_databento_unit_carries_a_lag_mapped_dataset_token(self):
+        """A-R2, THE PLUMBING QUESTION, ANSWERED BY READING THE PATH RATHER THAN GUESSING IT.
+
+        The review carried "the dataset token is not reaching the check" as a live hypothesis and
+        the refutation called it unreachable. It IS unreachable, and this is the pin that keeps it
+        so: ROOT_MAP's 16 roots all carry a non-empty dataset, every one of those tokens is a key
+        in _EXPECTED_LAG_SESSIONS, and they are the SAME module-level constants -- imported, not
+        re-spelt -- that the lag map and the calendar look up. A future refactor that starts
+        returning None (or a differently-spelt token) for a databento unit reds here, where the
+        cost is a test, rather than in a fire that silently falls back to lag 1.
+        """
+        assert len(T.ROOT_MAP) == 16
+        assert [r for r, (ds, _slug) in T.ROOT_MAP.items() if not ds] == []
+        tokens = sorted({ds for ds, _slug in T.ROOT_MAP.values()})
+        assert tokens == sorted([T.GLBX, T.IFUS, T.IFEU])
+        for token in tokens:
+            assert token in T2._EXPECTED_LAG_SESSIONS, token
+        assert T2._EXPECTED_LAG_SESSIONS == {T.GLBX: 1, T.IFUS: 2, T.IFEU: 2}
+        assert T2._EXPECTED_LAG_SESSIONS.get(None or "", 1) == 1, "the documented fallback"
+
+    def test_select_units_hands_every_databento_unit_its_dataset(self, monkeypatch):
+        """The same claim one level up, at the function that builds the tuples the loop unpacks."""
+        monkeypatch.setattr(T2, "_incremental_unit_landed", lambda *a, **k: True)
+
+        class _Args:
+            roots = None
+            mode = "incremental"
+            since = "2026-07-27"
+            years = None
+            ice_bar_rule = "prefer_on_venue_publisher"
+
+        units = T2.select_units(_Args(), FakeS3({}), "b", T2._SOURCE_SPECS["databento"])
+        assert units, "the roster is not empty"
+        assert all(ds in T2._EXPECTED_LAG_SESSIONS for _lbl, _ld, ds in units)
+        assert all(lbl.startswith(ds) for lbl, _ld, ds in units), \
+            "the LABEL carries the dataset too -- which is how the 09-02 fire named IFEU"
+
+    # ------------------------------------------------------------------ A-R3
+    def test_the_levers_line_prints_what_the_run_resolved(self, monkeypatch, caplog, tmp_path):
+        """A-R3 + the brief. The run-level half: how many units, which dataset tokens actually
+        arrived, the lag each resolves to, and the calendar years the window touches.
+
+        ``datasets=[]`` on a 16-unit fire would prove the token is not arriving, from the log
+        alone, on the first fire, with no AWS call. And ``lags={'IFEU.IMPACT': 2, ...}`` is the
+        single line whose absence made the 09-02 fire unreadable.
+        """
+        self._calendar(monkeypatch, tmp_path, self._EMPTY_CAL)
+        assert self._run(monkeypatch, caplog, roots=("ZC", "RC", "KC")) == 0
+        line = self._levers(caplog)
+        assert "LANE_A_LEVERS venue_calendar=on unit_withhold=OFF units=3" in line
+        assert "datasets=['GLBX.MDP3', 'IFEU.IMPACT', 'IFUS.IMPACT']" in line
+        assert "lags={'GLBX.MDP3': 1, 'IFEU.IMPACT': 2, 'IFUS.IMPACT': 2}" in line
+        assert "calendar_years=[2026" in line, "year(--since); a straddle adds year(T-1)"
+        assert "declaring=[] armed=[]" in line
+
+    def test_the_session_floor_line_is_emitted_for_a_failing_unit_too(self, monkeypatch, caplog,
+                                                                      tmp_path):
+        """A-R3's per-unit half, and the exact gap the incident had.
+
+        A unit charged as truncated takes the ERROR branch and emits NO ``unit ...`` stats line --
+        which is why the 09-02 fire's two failing IFEU units left nothing behind but a verdict.
+        SESSION_FLOOR is emitted BEFORE the branch, so the failing unit is precisely the one whose
+        resolved dataset, lag, window, weekday count, holidays removed and present/expected are on
+        the record.
+        """
+        self._calendar(monkeypatch, tmp_path, self._EMPTY_CAL)
+        assert self._run(monkeypatch, caplog, roots=("ZC", "RC"), truncate=("RC",)) == 1
+        floors = self._floors(caplog)
+        assert sorted(floors) == ["GLBX.MDP3 ZC/2026", "IFEU.IMPACT RC/2026"]
+        failing = floors["IFEU.IMPACT RC/2026"]
+        assert failing["dataset"] == "IFEU.IMPACT" and failing["lag"] == 2
+        assert failing["verdict"] == "truncated"
+        assert failing["holidays_removed"] == [] and failing["calendar"] == "on"
+        assert set(failing) >= {"since", "window_end", "weekdays", "expected", "present"}
+        assert floors["GLBX.MDP3 ZC/2026"]["lag"] == 1
+        assert floors["GLBX.MDP3 ZC/2026"]["verdict"] == "ok"
+        assert "unit IFEU.IMPACT RC/2026:" not in caplog.text, \
+            "the failing unit still emits no stats line -- which is why SESSION_FLOOR exists"
+
+    def test_the_floor_line_is_absent_where_the_floor_does_not_apply(self, monkeypatch, caplog):
+        """The 22:30Z free chain: min_rows_per_unit = 0, the floor never applies, and nothing is
+        logged for it. A line emitted where no fence runs would be noise pretending to be state."""
+        import logging
+        caplog.set_level(logging.INFO)
+        monkeypatch.setattr(T2, "get_thread_local_s3_client", lambda region: FakeS3({}))
+        monkeypatch.setattr(T2, "select_units", lambda *a, **k: [
+            ("2026-07-29", lambda: (_bronze(["2026-07-29"], sym="RM701",
+                                            slug="rapeseed_meal_zce"), {}), None)])
+        rc = T2.main(["--bucket", "b", "--aws-region", "us-east-1", "--mode", "incremental",
+                      "--source", "czce", "--since", self._SINCE, "--no-merge",
+                      "--row-floor", "report"])
+        assert rc == 0
+        assert "SESSION_FLOOR" not in caplog.text and "LANE_A_LEVERS" not in caplog.text
+        assert T2._SOURCE_SPECS["czce"].min_rows_per_unit == 0, "the reason: no per-unit floor"
+
+    # ------------------------------------------------------------------ A-R7
+    def test_a_malformed_calendar_is_a_named_refusal_not_a_traceback(self, monkeypatch, caplog,
+                                                                     tmp_path):
+        """A-R7. The module's rule 2 promises a hard error on a malformed file, and it delivered
+        one -- as an uncaught ValueError out of ``main``. Fail-closed, but the operator got a stack
+        trace where every other fence in this file gives one line naming the file and the lever.
+        """
+        self._calendar(monkeypatch, tmp_path, self._BROKEN_CAL)
+        assert self._run(monkeypatch, caplog, roots=("RC",)) == 1
+        assert "VENUE_CALENDAR refusing the run" in caplog.text
+        assert "venue_holidays.yaml is unreadable" in caplog.text
+        assert "complete must be a BOOLEAN" in caplog.text, "the reason, not just the refusal"
+        assert "LEVIATHAN_VENUE_CALENDAR=off" in caplog.text, "and the lever that gets past it"
+        assert "publish dry-run" not in caplog.text, "nothing is staged past the refusal"
+
+    # ------------------------------------------------------------------ A-R6
+    def test_the_off_switch_survives_an_unreadable_calendar(self, monkeypatch, caplog, tmp_path):
+        """A-R6. RB2 must be a COMPLETE rollback, and the most likely reason anyone reaches for it
+        is a bad calendar edit -- which was the one case it did not cover: the levers line called
+        ``declaring_datasets()`` unguarded, so the run died inside the LOG LINE, on exactly the
+        file the rollback exists to escape from.
+        """
+        self._calendar(monkeypatch, tmp_path, self._BROKEN_CAL)
+        monkeypatch.setenv("LEVIATHAN_VENUE_CALENDAR", "off")
+        assert self._run(monkeypatch, caplog, roots=("RC",)) == 0
+        line = self._levers(caplog)
+        assert "venue_calendar=OFF" in line
+        assert "declaring=[] armed=[]" in line, "off means off: the file is not read at all"
+        assert "VENUE_CALENDAR" not in caplog.text.replace("LEVIATHAN_VENUE_CALENDAR", "")
+
+    def test_an_unreadable_calendar_is_printed_as_unreadable_never_thrown_from_a_log_line(
+            self, monkeypatch, caplog, tmp_path):
+        """The other half of A-R6: with the calendar ON and the file broken, the levers line still
+        prints -- saying UNREADABLE -- and the REFUSAL is what stops the run. A log line must
+        never be the thing that raises."""
+        self._calendar(monkeypatch, tmp_path, self._BROKEN_CAL)
+        assert self._run(monkeypatch, caplog, roots=("RC",)) == 1
+        line = self._levers(caplog)
+        assert "declaring=UNREADABLE armed=UNREADABLE" in line
+        assert "venue_calendar=on" in line
+
+    # ------------------------------------------------------------------ A-R13
+    def test_the_family_verdict_counts_what_published_not_a_denominator(self, monkeypatch, caplog,
+                                                                        tmp_path):
+        """A-R13. ``all_withheld`` was ``(withheld + thin) == len(units)`` -- a denominator any
+        unit in neither bucket could dilute.
+
+        THE CONSTRUCTIBLE CASE: one root raises (a non-floor failure, so it is neither withheld nor
+        thin) and every other root is withheld. Nothing published. The old denominator read
+        1 + 0 != 2 and stayed silent about it; counting the units that actually took the healthy
+        path says what is true -- no board published fully -- and says it in the line an operator
+        reads. The exit code was already 1 here on the exception; what changes is that the
+        family-wide event is NAMED.
+        """
+        self._calendar(monkeypatch, tmp_path, self._EMPTY_CAL)
+        monkeypatch.setenv("LEVIATHAN_UNIT_WITHHOLD", "on")
+        rc = self._run(monkeypatch, caplog, roots=("ZC", "RC"), truncate=("RC",),
+                       raise_on=("ZC",))
+        assert rc == 1
+        assert "UNIT_WITHHOLD_ALL 1 of 2 unit(s) withheld" in caplog.text
+        assert "FAILED" in caplog.text, "the exception is still a blocking failure"
+
+    def test_a_single_publishing_sibling_clears_the_family_verdict(self, monkeypatch, caplog,
+                                                                   tmp_path):
+        """The anti-vacuity half. One board that publishes fully is enough to make the fire a
+        per-unit event rather than a family-wide one, which is the entire point of the withhold."""
+        self._calendar(monkeypatch, tmp_path, self._EMPTY_CAL)
+        monkeypatch.setenv("LEVIATHAN_UNIT_WITHHOLD", "on")
+        assert self._run(monkeypatch, caplog, roots=("ZC", "RC"), truncate=("RC",)) == 0
+        assert "UNIT_WITHHOLD_ALL" not in caplog.text
+        assert "UNIT_WITHHOLD_SUMMARY units=2 withheld=1" in caplog.text
+
+    # ------------------------------------------------------------------ A-R11 at the call site
+    def test_a_contradicted_entry_is_warned_once_per_unit_and_summarised(self, monkeypatch,
+                                                                         caplog, tmp_path):
+        """A-R11 at the call site. A declared date the TAPE holds rows on is the one calendar
+        defect the arming lint cannot see -- it checks a year's presence and its declared
+        completeness, never its correctness. It never changes a verdict; it names the entry."""
+        self._calendar(monkeypatch, tmp_path,
+                       "version: 1\ndatasets:\n  GLBX.MDP3:\n    venue: v\n"
+                       "    source_url: https://example.invalid/c\n    years:\n      2026:\n"
+                       "        complete: false\n        verified_on: '2026-09-04'\n"
+                       "        verified_by: t\n        holidays:\n"
+                       "          - {day: 2026-07-28, name: a wrong entry, basis: tape}\n")
+        assert self._run(monkeypatch, caplog, roots=("ZC",)) == 0
+        assert "VENUE_CALENDAR_CONTRADICTED GLBX.MDP3 ZC/2026" in caplog.text
+        assert "['2026-07-28']" in caplog.text
+        assert '"contradicted": ["GLBX.MDP3 ZC/2026"]' in caplog.text

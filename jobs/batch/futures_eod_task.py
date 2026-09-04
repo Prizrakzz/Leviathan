@@ -157,6 +157,7 @@ import yaml  # noqa: E402
 from leviathan.common.config import get_required_env, load_env  # noqa: E402
 from leviathan.common.logging import get_logger  # noqa: E402
 from leviathan.silver import futures_eod_contracts as FC  # noqa: E402
+from leviathan.silver import venue_calendar  # noqa: E402
 from leviathan.silver.flat_producer import authorize_for_contract  # noqa: E402
 from leviathan.silver.partitioned_producer import build_partitioned_publish  # noqa: E402
 from leviathan.silver.registry import CONFIGS_SILVER_DIR, load_registry  # noqa: E402
@@ -278,10 +279,81 @@ _MIN_ROWS_PER_UNIT = 25
 # weekend). So the GLBX path is unchanged by construction, and only the ICE legs move.
 _EXPECTED_LAG_SESSIONS: dict[str, int] = {GLBX: 1, IFUS: 2, IFEU: 2}
 
+# LANE A ROLLBACK LEVERS. Both are read from the environment, and BOTH ANNOUNCE THEMSELVES when
+# they are not at their default -- a fence whose state has to be inferred from behaviour is the
+# class of defect this whole lane exists to close.
+#
+# Stated honestly, because it changes what "rollback" costs: neither of these is a RUNTIME toggle.
+# The jobdef is digest-pinned and a Batch env change is a new jobdef revision -- the same operation
+# as repinning the image. So the real one-step rollback is the REPIN, and these two exist for the
+# case where exactly one half must be kept.
+#
+# Only the literal strings below disable a lever. A typo therefore leaves the lever ON rather than
+# silently reverting a fence, which is the fail-closed direction: an operator who meant to roll
+# back and mistyped sees the fence still armed in the log, instead of a quiet reversion nobody
+# reads.
+_OFF_VALUES = frozenset({"off", "0", "false", "no"})
 
-def _truncation_error(bronze, spec, *, mode: str, since: str | None,
-                      dataset: str | None = None) -> str | None:
-    """The truncated-download verdict for ONE bronze unit, or None when the unit is healthy.
+
+def _switch_on(name: str, env=None) -> bool:
+    raw = (env if env is not None else os.environ).get(name, "")
+    return str(raw).strip().lower() not in _OFF_VALUES
+
+
+def _calendar_on(env=None) -> bool:
+    """A-1/A-3: LEVIATHAN_VENUE_CALENDAR=off restores the pre-Lane-A arithmetic byte for byte.
+
+    DEFAULT ON. The calendar can only ever REMOVE a false truncation verdict -- the predicate and
+    the one-holiday margin are untouched -- and an unarmed venue subtracts nothing, so the default
+    is byte-identical to today for every venue whose calendar is still empty.
+    """
+    return _switch_on("LEVIATHAN_VENUE_CALENDAR", env)
+
+
+def _withhold_on(env=None) -> bool:
+    """A-2: LEVIATHAN_UNIT_WITHHOLD=on scopes a truncation verdict to the ONE unit it judged.
+
+    DEFAULT OFF, and that is a DEVIATION from the Lane A design taken deliberately and fail-closed.
+    MEASURED reason: exit 1 is today the ONLY path by which this failure reaches the owner --
+    infra/terraform/modules/silver_observability/main.tf:212-245, whose own comment reads "this
+    alarm is the ONLY path by which a class-A/E1/F producer failure reaches the owner". Neither
+    FreshnessLagDays (TABLE-granular: freshness.py:136-151 takes MAX LastModified over the whole
+    canonical prefix, and the 13 non-ICE slugs rewrite objects every fire) nor the value census
+    (jobs/audit/value_census.py:214-233 censuses value-column non-null statistics with no recency
+    term) can see one withheld board. So turning exit 1 into exit 0 BEFORE the UNIT_WITHHELD metric
+    filter and its two alarms exist would make the failure silent, which is strictly worse than
+    today. The withhold arms with the alarms, in one operator act, never by landing code.
+
+    A-R10 -- WHERE ARMING IT REACHES, stated because an operator will read this before setting it.
+    ``leviathan-dev-futures-eod-silver`` is ONE jobdef and therefore ONE container environment for
+    THREE tasks: the databento chain's silver leg (--publish-mode shadow), the databento chain's
+    PROMOTE leg (--publish-mode canonical), and the 22:30Z free chain's five silver legs. The free
+    legs are inert here (min_rows_per_unit = 0). The PROMOTE leg is not: with this armed, a
+    truncated unit exits 0 on the canonical leg too, so CANONICAL is promoted with a knowingly
+    short board. That is bounded -- merge_with_canonical is union / new-wins with an explicit
+    no-partition-may-shrink assertion, so a short board can never REMOVE a session -- and it is
+    exactly what the 3-consecutive-fires alarm is sized for. Which is the second reason the alarm
+    must be live first, not the first.
+    """
+    return str((env if env is not None else os.environ)
+               .get("LEVIATHAN_UNIT_WITHHOLD", "")).strip().lower() in {"on", "1", "true", "yes"}
+
+
+def _session_floor_facts(bronze, spec, *, mode: str, since: str | None,
+                         dataset: str | None = None) -> dict:
+    """Everything the session floor RESOLVED for ONE unit -- the verdict AND how it got there.
+
+    THE FIX-PASS FINDING THIS EXISTS FOR (A-R3, and the brief's own requirement). The 2026-09-02
+    08:30Z fire printed ``IFEU.IMPACT RC/2026: only 1 of 3 expected session(s) present (window
+    2026-08-28..2026-09-01)``. That window ends at T-1 and counts 3 weekdays: it is the LAG 1
+    arithmetic. The committed code declares IFEU lag 2 (D-PR-16), under which the same fire's
+    window is 2026-08-28..2026-08-31 with expected 2. So the image that ran that fire resolved a
+    DIFFERENT lag from the one in the tree -- and nothing in the log said so, because the only
+    thing the run ever printed was the verdict. A fence whose resolved inputs are invisible cannot
+    be debugged from its own fire; it took a banked-log reconstruction to establish something the
+    run knew and did not say. This function returns those inputs, ``main`` logs them per unit as
+    SESSION_FLOOR, and ``_truncation_error`` is now defined as ``facts["verdict"]`` so the two can
+    never disagree.
 
     backfill: the flat per-unit floor (full-year semantics, unchanged).
     incremental: DAY COVERAGE -- distinct trade dates in the unit vs the weekday sessions in
@@ -289,15 +361,18 @@ def _truncation_error(bronze, spec, *, mode: str, since: str | None,
     dataset publishes to, derived from _EXPECTED_LAG_SESSIONS (D-PR-16): T-1 for GLBX, T-2 for both
     ICE datasets. ``dataset`` is None for every non-databento leg, which resolves to lag 1 -- the
     pre-D-PR-16 behaviour, unchanged. Pure, so tests feed it frames directly."""
+    facts: dict = {"dataset": dataset, "mode": mode, "applies": False, "verdict": None}
     if not spec.min_rows_per_unit:
-        return None
+        return facts
     if mode != "incremental":
+        facts.update(applies=True, floor=int(spec.min_rows_per_unit), rows=int(len(bronze)))
         if len(bronze) < spec.min_rows_per_unit:
-            return (f"only {len(bronze)} bronze rows (floor {spec.min_rows_per_unit}) -- "
-                    f"treating as a truncated download, not a thin market")
-        return None
+            facts["verdict"] = (f"only {len(bronze)} bronze rows "
+                                f"(floor {spec.min_rows_per_unit}) -- treating as a truncated "
+                                f"download, not a thin market")
+        return facts
     if not since:                                       # incremental always computes since; belt only
-        return None
+        return facts
     lag = _EXPECTED_LAG_SESSIONS.get(dataset or "", 1)
     # Step back `lag` WEEKDAY sessions from yesterday-UTC. periods=lag with end= pinned means
     # element [0] is the lag-th session back, and lag=1 collapses to "the last weekday on or before
@@ -313,23 +388,108 @@ def _truncation_error(bronze, spec, *, mode: str, since: str | None,
     # construction) rather than plumbed through the shared loop, so this function stays pure and the
     # tests keep feeding it frames directly. A frame spanning two years is left unclipped, i.e.
     # judged exactly as it is today.
+    facts.update(applies=True, lag=int(lag), since=since_d.isoformat())
     if len(bronze):
         years = set(pd.to_datetime(bronze["trade_date"]).dt.year.unique().tolist())
         if len(years) == 1:
             y = int(next(iter(years)))
             since_d = max(since_d, date(y, 1, 1))
             window_end = min(window_end, date(y, 12, 31))
+            facts.update(since=since_d.isoformat(), clipped_to_year=y)
             if since_d > window_end:
-                return None
-    expected = len(pd.bdate_range(since_d.isoformat(), window_end.isoformat()))
+                facts["clipped_out"] = True
+                return facts
+    # LANE A / A-1 -- VENUE CALENDARS. pd.bdate_range is freq B: Mon-Fri, no holiday awareness, and
+    # that was the defect in one line. `expected` is now the weekday sessions in the window MINUS
+    # the dates this DATASET is declared to have published nothing on (see
+    # src/leviathan/silver/venue_calendar.py and configs/silver/venue_holidays.yaml).
+    #
+    # Four properties this shape has on purpose:
+    #   * the D-PR-45 year clip above runs BEFORE the subtraction and is not read by it -- the clip
+    #     moves since_d/window_end and the subtraction only reads them;
+    #   * a WEEKEND-dated entry subtracts nothing by construction, because we iterate the weekday
+    #     range. US Independence Day 2026-07-04 is a Saturday and the observed no-settlement date
+    #     is Friday 2026-07-03, so a stray Saturday entry is inert rather than a silent -1;
+    #   * `expected <= 0` still yields NO verdict, so an all-holiday window is not a verdict;
+    #   * an UNDECLARED or unarmed dataset resolves to an empty set, so its arithmetic is
+    #     byte-identical to the pre-Lane-A behaviour ON A WINDOW OF ANY LENGTH. That last clause is
+    #     load-bearing and was FALSE until the fix pass: before A-R4's `removed` guard below, a
+    #     window holding exactly one weekday session diverged from HEAD for EVERY dataset, GLBX --
+    #     which declares nothing -- included. 1,366 measured cases; see the guard's own comment.
+    sessions = [ts.date().isoformat() for ts in
+                pd.bdate_range(since_d.isoformat(), window_end.isoformat())]
+    calendar_on = _calendar_on()
+    hol = venue_calendar.holidays_for(dataset or "") if calendar_on else frozenset()
+    # The dates the calendar actually SUBTRACTED FROM THIS WINDOW -- not the dataset's whole
+    # declared set. A-R4 turns on this distinction, and so does the contradiction check below.
+    removed = [d for d in sessions if d in hol]
+    expected = len(sessions) - len(removed)
+    facts.update(window_end=window_end.isoformat(), weekdays=len(sessions), expected=expected,
+                 calendar="on" if calendar_on else "off", holidays_removed=list(removed))
     if expected <= 0:
-        return None
+        return facts
     present = int(bronze["trade_date"].nunique()) if len(bronze) else 0
-    if present < expected - 1:                          # one-holiday margin; venue calendars differ
-        return (f"only {present} of {expected} expected session(s) present "
-                f"(window {since_d.isoformat()}..{window_end.isoformat()}) -- treating as a "
-                f"truncated download, not a thin market")
-    return None
+    facts["present"] = present
+    # A-R11 -- THE CONTRADICTION THE ARITHMETIC ALREADY COMPUTES AND NOBODY READ. If a declared
+    # no-settlement date is WRONG, the unit holds rows on it. That is a direct contradiction of the
+    # entry and it costs nothing to name; it never changes a verdict, so a false calendar entry
+    # becomes OBSERVED rather than merely bounded (Lane A O3).
+    #
+    # NARROWED from the review's suggested `present > expected`, and the narrowing is measured:
+    # under D-PR-16 an ICE unit's window ends at T-2 while its frame may legitimately hold the T-1
+    # bar, so `present > expected` is the ROUTINE healthy shape for IFUS/IFEU and would have made
+    # the warning fire on every healthy ICE fire. A row ON a declared closure cannot be routine.
+    if calendar_on and removed and len(bronze):
+        held = set(pd.to_datetime(bronze["trade_date"]).dt.strftime("%Y-%m-%d"))
+        facts["contradicted"] = sorted(held & set(removed))
+    # LANE A / A-3 -- the sensitivity hole A-1 opens, closed in the same breath. Subtracting a
+    # holiday from an already-short window can drive the ICE `expected` from 2 to 1 on a Tue/Wed/Thu
+    # fire, and at expected 1 the predicate `present < expected - 1` reads `present < 0`, which is
+    # FALSE for every frame INCLUDING an empty one -- i.e. a holiday week would turn the ICE
+    # detector OFF on 3 of the 5 weekly fires. So an EMPTY unit is a truncated download whenever any
+    # session was expected. This is a STRENGTHENING, never a widening: an empty unit already fails
+    # today whenever expected >= 2, and every scheduled window has expected >= 2 (measured 3/3/3/4/5
+    # at lag 1 and 2/2/2/3/4 at lag 2 across the TUE-SAT fires), so no scheduled window moves
+    # verdict and the existing pin test_empty_unit_is_truncated is unchanged.
+    #
+    # The one-holiday margin below is BYTE-IDENTICAL. D-PR-16's law -- do not widen the margin, it
+    # is the only ICE liveness detector this leg has -- is honoured literally: A-1 corrects what
+    # `expected` MEANS, it does not buy slack.
+    #
+    # A-3 rides the SAME switch as A-1 on purpose: A-3 exists only to close the hole A-1 opens, so
+    # LEVIATHAN_VENUE_CALENDAR=off has to restore the pre-Lane-A arithmetic BYTE FOR BYTE, not
+    # nearly. It costs nothing to tie them: with the calendar off every scheduled window has
+    # expected >= 2, where `present == 0` already implies `present < expected - 1`.
+    #
+    # FIX PASS / A-R4 -- `removed`, NOT `calendar_on`, IS THE GUARD, and it was MEASURED. Riding
+    # the switch alone made A-3 fire on any window holding exactly ONE weekday session, holiday or
+    # not: a 19,699-case differential against the HEAD blob (fire dates 2026-06-01..2027-02-01 x
+    # lookback {1,2,3,5,7} x dataset {GLBX, IFUS, IFEU, None, unknown} x every present-count)
+    # returned 1,392 divergences, of which 1,366 removed NO holiday at all and EVERY ONE of those
+    # sat on a 1-weekday window -- 316 of them plain GLBX, which declares nothing anywhere in the
+    # shipped file. The scheduled 08:00Z path never reaches a 1-session window (--lookback-days 5
+    # measured clean, 0 divergences outside IFEU's declared date), but a one-day operator REPAIR
+    # run -- the kind this file documents at --no-merge "REPAIR USE ONLY" and --row-floor report --
+    # does, and it would have red-ed on any root that legitimately published no bar that day.
+    # Gating on `removed` keeps every case A-3 was built for (an ICE window at lag 2 whose
+    # `expected` the calendar drove 2 -> 1: removed is non-empty, an empty unit is still caught)
+    # and restores EXACT byte-identity to HEAD on every holiday-free window OF ANY LENGTH. Re-run
+    # after the guard: 26 divergences, all IFEU, all in windows containing the declared 2026-08-31.
+    if (calendar_on and removed and present == 0) or present < expected - 1:  # one-holiday margin
+        facts["verdict"] = (f"only {present} of {expected} expected session(s) present "
+                            f"(window {since_d.isoformat()}..{window_end.isoformat()}) -- "
+                            f"treating as a truncated download, not a thin market")
+    return facts
+
+
+def _truncation_error(bronze, spec, *, mode: str, since: str | None,
+                      dataset: str | None = None) -> str | None:
+    """The truncated-download verdict for ONE bronze unit, or None when the unit is healthy.
+
+    Defined as ``_session_floor_facts(...)["verdict"]`` -- ONE arithmetic, so the SESSION_FLOOR
+    line and the verdict can never drift apart. Every caller and every existing pin keeps this
+    signature and this return type."""
+    return _session_floor_facts(bronze, spec, mode=mode, since=since, dataset=dataset)["verdict"]
 
 # ---------------------------------------------------------------------------
 # PLAN GATE 5 -- the per-SOURCE per-DAY floors, on rows WRITTEN TO SILVER for that leg's slugs.
@@ -1345,6 +1505,24 @@ def _unit_root(label: str) -> Optional[str]:
     return root if root in ROOT_MAP else None
 
 
+def _unit_slug(label: str, bronze=None) -> str:
+    """The leviathan_slug a unit speaks for, for the withhold declaration (LANE A / A-2).
+
+    The FRAME is the authority when it holds rows -- it is what would have been published. An EMPTY
+    unit has no frame to ask, so the label's root is resolved through ROOT_MAP, which is the same
+    mapping select_units used to build the label. Neither path can guess: a label that is not a
+    databento unit resolves to "?" rather than to a plausible-looking slug.
+    """
+    if bronze is not None and len(bronze) and "leviathan_slug" in getattr(bronze, "columns", []):
+        slugs = sorted({str(s) for s in bronze["leviathan_slug"].unique()})
+        if len(slugs) == 1:
+            return slugs[0]
+        if slugs:
+            return "+".join(slugs)
+    root = _unit_root(label)
+    return ROOT_MAP[root][1] if root else "?"
+
+
 def _incremental_unit_landed(s3_client, bucket: str, dataset: str, root: str, year: int) -> bool:
     """Has an ``ohlcv-1d`` payload (``statistics``, for a settlement-tape root -- the only schema it
     buys) actually landed under this ``(root, year)`` raw prefix?
@@ -1558,10 +1736,104 @@ def main(argv: Optional[list[str]] = None) -> int:
         logger.error("no %s unit(s) selected for --source %s", spec.unit_label, spec.name)
         return 1
 
+    lane_a_scope = spec.name == "databento" and args.mode == "incremental"
+    window_years: set[int] = set()
+    if lane_a_scope:
+        window_years = {datetime.strptime(args.since, "%Y-%m-%d").year,
+                        (datetime.now(tz=timezone.utc).date() - timedelta(days=1)).year}
+        # LANE A / A-1c + FIX PASS A-R3 -- THE RESOLVED STATE, PRINTED BEFORE ANY FENCE CAN REFUSE.
+        #
+        # The state of a fence must never have to be INFERRED from behaviour, and the fix pass
+        # showed what that costs when it is: the 09-02 fire resolved lag 1 for an IFEU unit while
+        # the tree declares lag 2, and settling that took a banked-log reconstruction because the
+        # run printed a verdict and nothing else. This line prints what the RUN resolved -- how
+        # many units, which dataset tokens actually arrived, the lag each of them resolves to, and
+        # the calendar years the window touches -- and the per-unit SESSION_FLOOR line below
+        # carries the rest (window, weekdays, holidays removed, expected/present), because
+        # present/expected are per-unit facts that cannot exist before the units are loaded.
+        #
+        # `datasets=[]` on a 16-unit fire would prove the token is not arriving, from the log
+        # alone, on the first fire, with no AWS call. (It cannot happen on this tree --
+        # select_units sets dataset = ROOT_MAP[root][0] unconditionally for every databento unit
+        # and all 16 roots carry a non-empty token -- which is exactly why the DETECTOR is the
+        # deliverable and not a plumbing change: what failed was observability, not the wiring.)
+        #
+        # A-R6 -- the roster lookups are guarded. LEVIATHAN_VENUE_CALENDAR=off must be a COMPLETE
+        # rollback, and the most likely reason anyone reaches for it is a bad calendar edit: an
+        # unguarded declaring_datasets() raises out of the LOG LINE on exactly that file, i.e. the
+        # one case the rollback exists for. Off means off, and unreadable is printed, never thrown.
+        declaring: object = []
+        armed: object = []
+        if _calendar_on():
+            try:
+                declaring = venue_calendar.declaring_datasets()
+                armed = venue_calendar.armed_datasets()
+            except ValueError:
+                declaring = armed = "UNREADABLE"
+        logger.info("LANE_A_LEVERS venue_calendar=%s unit_withhold=%s units=%d datasets=%s "
+                    "lags=%s calendar_years=%s declaring=%s armed=%s",
+                    "on" if _calendar_on() else "OFF",
+                    "on" if _withhold_on() else "OFF",
+                    len(units), sorted({d for _lbl, _ld, d in units if d}),
+                    {d: _EXPECTED_LAG_SESSIONS.get(d or "", 1)
+                     for d in sorted({d for _lbl, _ld, d in units if d})},
+                    sorted(window_years), declaring, armed)
+
+    # LANE A / A-1c -- THE ARMING LINT, scoped to the datasets this run actually selected (--root ZC
+    # needs only GLBX) and to the calendar YEARS this run's window actually touches. It is placed
+    # here, after select_units, precisely so it can be that specific; the cost of that placement,
+    # stated: the S3 LISTs in select_units have already run. They are LISTs, they write nothing.
+    #
+    # WHAT IT REFUSES, and what it deliberately does not. A venue that has never been armed is NOT
+    # a refusal -- that is the pre-Lane-A world for that venue, carried by the one-holiday margin
+    # exactly as it is today, which is what makes landing this code safe while the calendar is
+    # still being filled. A venue that HAS been armed and then stops covering a year the window
+    # touches IS a refusal: that is DRIFT on a fence someone is relying on. The "this year AND
+    # next" requirement lives in CI instead -- tests/unit/silver/test_venue_holidays.py, the test
+    # named test_the_calendar_must_be_armed_before_the_deadline -- so the forcing function reds in
+    # CI before any 08:00Z fire can red in production.
+    if lane_a_scope and _calendar_on():
+        # A-R7 -- a MALFORMED calendar is the named refusal this module's rule 2 promises, not an
+        # uncaught traceback. It was already fail-closed (the ValueError exits non-zero) but the
+        # operator got a stack trace where every other fence in this file gets one line saying
+        # which file, which dataset-year and which lever.
+        try:
+            reasons = venue_calendar.assert_armed({d for _lbl, _ld, d in units if d},
+                                                  window_years)
+        except ValueError as exc:
+            logger.error("VENUE_CALENDAR refusing the run: %s is unreadable -- %s. Fix the file "
+                         "or set LEVIATHAN_VENUE_CALENDAR=off",
+                         venue_calendar.VENUE_HOLIDAYS_PATH.name, exc)
+            return 1
+        for reason in reasons:
+            logger.error("VENUE_CALENDAR %s", reason)
+        if reasons:
+            logger.error("VENUE_CALENDAR refusing the run: %d dataset-year(s) of the declared "
+                         "calendar are missing for the window %s..T-1. Fill "
+                         "%s or set LEVIATHAN_VENUE_CALENDAR=off", len(reasons), args.since,
+                         venue_calendar.VENUE_HOLIDAYS_PATH.name)
+            return 1
+
     frames: list[pd.DataFrame] = []
     failures = 0
     thin = 0
     thin_units: list[str] = []
+    # A-R13 -- the family-wide verdict counts what actually PUBLISHED, never a denominator. See the
+    # all_withheld comment below the loop for the boundary this closes and the one it names.
+    published_units = 0
+    # LANE A / A-2 -- PER-UNIT WITHHOLD. See _withhold_on() for why this is DEFAULT OFF: exit 1 is
+    # today the only surface this failure has, so the withhold arms together with its metric filter
+    # and alarms, never by landing code. Scoped to incremental databento because that is the only
+    # place _truncation_error can fire at all in incremental (min_rows_per_unit is set on the
+    # databento spec only); naming the source anyway keeps the blast radius readable.
+    withhold_eligible = lane_a_scope and _withhold_on()
+    withheld = 0
+    withheld_empty = 0
+    withheld_partial_kept = 0
+    withheld_units: list[str] = []
+    withheld_slugs: list[str] = []
+    withheld_rows_kept = 0
+    contradicted_units: list[str] = []
     for label, loader, unit_dataset in units:
         # V2-4 m10 -- a SETTLEMENT-TAPE unit is NON-BLOCKING in the nightly: its mark tape can miss
         # a session (CME publishes marks web-only on months without OI) and the fetch side already
@@ -1585,8 +1857,34 @@ def main(argv: Optional[list[str]] = None) -> int:
                        and _unit_root(label) in SETTLEMENT_TAPE_ROOTS)
         try:
             bronze, stats = loader()
+            # FIX PASS / A-R3 + the brief -- WHAT THIS UNIT'S FLOOR ACTUALLY RESOLVED, on every
+            # unit, BEFORE the verdict branches. It is emitted for the FAILING units too, which is
+            # the whole point: on 2026-09-02 the two IFEU units printed an ERROR line and NO stats
+            # line at all, so the fire's own log could not say which lag, which window or which
+            # holidays it had resolved -- and the answer (lag 1 against a tree that declares lag 2)
+            # had to be reconstructed from banked CloudWatch events days later.
+            #
+            # The verdict still comes from _truncation_error -- the name every existing pin and
+            # every test harness in this repo patches -- and _truncation_error is DEFINED as
+            # _session_floor_facts(...)["verdict"], so in production the line and the verdict are
+            # one computation. Cost of asking twice: one bdate_range over <= 7 days per unit per
+            # fire, against the S3 reads this loop already did.
+            facts = _session_floor_facts(bronze, spec, mode=args.mode, since=args.since,
+                                         dataset=unit_dataset)
             trunc = _truncation_error(bronze, spec, mode=args.mode, since=args.since,
                                       dataset=unit_dataset)
+            if facts.get("applies"):
+                logger.info("SESSION_FLOOR %s", json.dumps(
+                    dict(facts, unit=label, verdict=("truncated" if trunc else "ok")),
+                    sort_keys=True))
+            if facts.get("contradicted"):
+                # A-R11. Never changes a verdict; it names an entry the tape contradicts.
+                contradicted_units.append(label)
+                logger.warning("VENUE_CALENDAR_CONTRADICTED %s dataset=%s: the tape holds rows on "
+                               "%s, which %s declares as a no-settlement date -- re-verify the "
+                               "entry in %s against the venue's published calendar",
+                               label, unit_dataset, facts["contradicted"], unit_dataset,
+                               venue_calendar.VENUE_HOLIDAYS_PATH.name)
             if trunc:
                 if nonblocking:
                     thin += 1
@@ -1603,12 +1901,49 @@ def main(argv: Optional[list[str]] = None) -> int:
                     if len(bronze):
                         frames.append(bronze)
                     continue
+                if withhold_eligible:
+                    # LANE A / A-2 -- the generalisation of the m10 non-blocking contract to every
+                    # OTHER incremental databento unit. SENSITIVITY IS UNTOUCHED: same predicate,
+                    # same one-holiday margin, same D-PR-16 lag. Only the CONSEQUENCE is scoped,
+                    # from 16 boards losing their gate and their promote (Silver is a Map state
+                    # with Retry and NO Catch, Next=Gate, Gate Next=Promote) to ONE unit.
+                    #
+                    # The PARTIAL frame is KEPT, and that is STEP-12 F3's ruling generalised rather
+                    # than an improvisation: merge_with_canonical unions only what THIS run holds,
+                    # so a fire that DROPPED a partial frame left every session that sat only
+                    # inside skipped windows permanently absent from canonical, silently. Dropping
+                    # partial frames on 16 units instead of 1 would reopen that measured
+                    # silent-hole class 16 times wider. Keeping them is safe because every
+                    # row-level fence is upstream of the merge and still runs on the kept rows:
+                    # assert_no_duplicates on both keys, FC.lint_frame as a mandatory
+                    # row_validator, and the no-partition-may-shrink assertion. A partial frame can
+                    # only ADD sessions.
+                    rows_kept = int(len(bronze))
+                    slug = _unit_slug(label, bronze)
+                    withheld += 1
+                    withheld_units.append(label)
+                    withheld_slugs.append(slug)
+                    withheld_rows_kept += rows_kept
+                    if rows_kept:
+                        withheld_partial_kept += 1
+                    else:
+                        withheld_empty += 1
+                    stats = dict(stats, unit_withheld=1, unit_withheld_reason=trunc,
+                                 rows_kept=rows_kept)
+                    logger.error("UNIT_WITHHELD %s slug=%s rows_kept=%d: %s", label, slug,
+                                 rows_kept, trunc)
+                    logger.info("unit %s: %s", label, json.dumps(
+                        {k: v for k, v in stats.items() if k != "ice_dedupe"}, sort_keys=True))
+                    if rows_kept:
+                        frames.append(bronze)
+                    continue
                 logger.error("%s: %s", label, trunc)
                 failures += 1
                 continue
             logger.info("unit %s: %s", label, json.dumps(
                 {k: v for k, v in stats.items() if k != "ice_dedupe"}, sort_keys=True))
             frames.append(bronze)
+            published_units += 1
         except Exception as exc:  # noqa: BLE001 -- one unit's failure must not abort the rest
             if nonblocking and _settlement_tape_thin_exception(exc):
                 thin += 1
@@ -1627,9 +1962,56 @@ def main(argv: Optional[list[str]] = None) -> int:
         logger.info("SETTLEMENT_TAPE_SKIPS %s", json.dumps(
             {"settlement_tape_thin": thin, "settlement_tape_thin_units": thin_units},
             sort_keys=True))
+    if contradicted_units:
+        # A-R11, the machine-readable half. A declared no-settlement date the TAPE contradicts is
+        # the one calendar defect this lane could not otherwise see (Lane A O3: the lint checks a
+        # year's PRESENCE and its declared completeness, never its CORRECTNESS). It never changes
+        # a verdict; it names the entry to re-verify.
+        logger.warning("VENUE_CALENDAR_CONTRADICTED_SUMMARY %s", json.dumps(
+            {"units": len(contradicted_units), "contradicted": contradicted_units},
+            sort_keys=True))
+
+    # LANE A / A-2 -- THE SURFACE. Emitted on EVERY eligible fire, healthy ones included, and the
+    # reason is written down in freshness.py's own words: "An alarm that only receives a datapoint
+    # while it is breaching can never CLEAR." The per-unit UNIT_WITHHELD line is the one that is
+    # absent when healthy; it is what the metric filter counts, and its default_value = 0 is what
+    # clears the metric. The tags are uppercase and prefix-distinct from the existing per-unit
+    # stats line ("unit {label}: {json}"), which the test helper matches by prefix.
+    # "Every board this run selected failed to publish fully" is a FAMILY-wide verdict, not a
+    # per-unit one, so it keeps the exit code it has today. The settlement-tape THIN units count
+    # toward it: a fire in which 15 boards are withheld and the 16th is an expected-thin mark tape
+    # published nothing complete either, and calling that exit 0 would be the silence A-2 is not
+    # allowed to buy. It requires withheld >= 1, so a run with only m10 thins is byte-identical to
+    # today and TestSettlementTapeNonBlocking's 9 pins stay green.
+    #
+    # A-R13 -- COUNTED, NOT INFERRED FROM A DENOMINATOR. This was `(withheld + thin) == len(units)`,
+    # which a unit in neither bucket could dilute: a unit whose window clips to `expected <= 0`
+    # takes the healthy path and lands in no counter, so 15 withheld + 1 such unit read as
+    # "not all withheld". `published_units` counts the units that actually took the healthy path
+    # and published, so the family-wide verdict now asks the question it means: did ANY board
+    # publish fully? The residual boundary, named rather than hidden: that clipped unit DOES
+    # publish (it has rows and no verdict), so it still clears the family verdict -- correctly,
+    # because something published, but it can be a very small something.
+    all_withheld = bool(withheld) and published_units == 0
+    if withhold_eligible:
+        summary = (f"UNIT_WITHHOLD_SUMMARY units={len(units)} withheld={withheld} "
+                   f"truncated={withheld_units}")
+        (logger.warning if withheld else logger.info)(summary)
+        logger.info("UNIT_WITHHOLD_RECORD %s", json.dumps(
+            {"units": len(units), "withheld": withheld, "withheld_empty": withheld_empty,
+             "withheld_partial_kept": withheld_partial_kept, "rows_kept": withheld_rows_kept,
+             "truncated": withheld_units, "slugs": withheld_slugs}, sort_keys=True))
+        if all_withheld:
+            # EVERY board truncated is a family-wide event, not a per-unit one, so it keeps the
+            # exit code it has today. It still PUBLISHES first: the F3 discipline is that data is
+            # never dropped to make a point, and the partial rows can only add sessions.
+            logger.error("UNIT_WITHHOLD_ALL %d of %d unit(s) withheld (+%d settlement-tape thin) "
+                         "-- no board this run selected published fully; that is a family-wide "
+                         "verdict and stays exit 1", withheld, len(units), thin)
 
     if not frames:
-        logger.error("no bronze frames produced from %d %s(s)", len(units), spec.unit_label)
+        logger.error("no bronze frames produced from %d %s(s) (%d withheld as truncated)",
+                     len(units), spec.unit_label, withheld)
         return 1
     df = build_silver(frames, source=spec.name)
     if args.mode == "incremental" and args.since:
@@ -1685,7 +2067,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                        run_id=args.run_id, shadow_prefix=args.shadow_prefix)
     logger.info("publish %s: source=%s state=%s rows=%d", auth.mode.value, spec.name,
                 manifest.state.value, len(df))
-    return 1 if failures else 0
+    return 1 if failures or all_withheld else 0
 
 
 if __name__ == "__main__":

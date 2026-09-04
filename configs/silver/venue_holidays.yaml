@@ -1,0 +1,144 @@
+# silver_futures_eod -- THE VENUE NO-SETTLEMENT CALENDAR (LANE A / A-1)
+#
+# WHAT THIS IS. Per DATABENTO DATASET, the trade dates on which that dataset published NO daily bar
+# for the roots this leg buys. Read by src/leviathan/silver/venue_calendar.py and used by exactly
+# one thing: the `expected` session count in jobs/batch/futures_eod_task._truncation_error.
+#
+# WHAT THIS IS NOT. Not a bank-holiday list, not a trading-hours calendar, not a settlement
+# calendar for anything but these roots. A venue that trades a SHORTENED session and still settles
+# is NOT listed. A date here is a claim about a TAPE, not about a country.
+#
+# WHY IT EXISTS, MEASURED FROM THE BANKED FIRES -- and the arithmetic is written out because the
+# first draft of this paragraph got it wrong.
+#
+# The check counts weekday sessions off pd.bdate_range (freq B: Mon-Fri, no holiday awareness).
+# Two fires are on the record.
+#
+#   2026-09-02 08:30Z. Exactly two units failed, and their log lines name the venue:
+#     "IFEU.IMPACT RC/2026: only 1 of 3 expected session(s) present (window 2026-08-28..2026-09-01)"
+#     "IFEU.IMPACT W/2026:  only 1 of 3 expected session(s) present (window 2026-08-28..2026-09-01)"
+#   Every GLBX unit (7) and every IFUS unit (6) on that same fire logged a healthy `unit ...` line.
+#   That same-fire control is what attributes the closure to ICE EUROPE and to no other venue.
+#   NOTE THE WINDOW: it ends at T-1 and holds 3 weekdays, which is the LAG 1 arithmetic. This tree
+#   declares IFEU lag 2 (D-PR-16), under which the same fire's window is 2026-08-28..2026-08-31
+#   with expected 2. So the image that ran that fire did NOT apply the declared ICE lag.
+#
+#   2026-09-04 08:36Z. All 16 units healthy. By D-PR-16's own session-count method
+#   (max rows_out / outright_symbols across a dataset's roots) IFEU held 2 sessions -- RC 18/10,
+#   W 24/14 -- while GLBX held 4 and IFUS 3 on the same fire. At lag 1 that fire scores IFEU
+#   expected 4, present 2, i.e. 2 < 3: it would have RED-ed. It did not. At lag 2 it scores
+#   expected 3, present 2, green with the margin FULLY CONSUMED. The lag therefore changed between
+#   the two fires, which is the 2026-09-03 r2 image repin recorded in
+#   infra/terraform/envs/dev/variables.tf. And the weekday that IFEU is missing from that window
+#   (2026-08-31, 09-01, 09-02) while GLBX is 4/4 and IFUS 3/3 is 2026-08-31 -- an ICE-Europe-only
+#   absence, measured on a fire where nothing else was wrong.
+#
+# WHAT THE 2026-08-31 ENTRY THEREFORE BUYS, both readings, both measured:
+#   * on the arithmetic the 09-02 fire ACTUALLY ran (lag 1, expected 3, present 1) the entry makes
+#     expected 2, and 1 < 1 is False: the family-wide RED becomes GREEN. It closes the incident.
+#   * on the CORRECT lag 2 (the 09-04 fire) the entry makes expected 2 against present 2, taking
+#     the unit from `present == expected - 1` back to `present == expected`. It gives the margin
+#     back.
+# WHAT IT DOES NOT BUY, said plainly so nobody re-derives a false premise: under lag 2 alone the
+# closure never RED-ed a healthy unit -- the one-holiday margin is named for absorbing exactly one
+# holiday and it did. Under the correct lag the calendar's value is the MARGIN, not the red: with
+# the margin consumed by the closure, the NEXT absence for any reason false-reds both ICE boards,
+# and that is the state D-PR-16 explicitly refused to leave this leg in.
+#
+# THE TWO CLAIMS, AND THEY ARE NOT THE SAME CLAIM.
+#   * A HOLIDAY ENTRY claims one thing about one date, with a name and a basis. It subtracts from
+#     `expected` as soon as it is written. It can only ever REMOVE a false truncation verdict --
+#     the margin and the predicate are untouched -- so a wrong entry costs one day of detector
+#     sensitivity and never a byte of data (databento has a history endpoint and the canonical
+#     merge is union / new-wins / no-shrink).
+#   * `complete: true` on a YEAR claims that the year holds NO OTHER such date. That is an
+#     EXHAUSTIVENESS claim and it is the only thing that ARMS a venue-year. Writing it over a
+#     partial list would be a mis-INFERRED floor -- the 2026-08-18 ALARM RCA class. A year that
+#     cannot be verified exhaustively stays `complete: false` and its verified entries still work.
+#
+# ARMING, AND WHY AN UNARMED VENUE IS NOT A REFUSAL. An absent file, and a venue with no complete
+# year, mean "not armed": the pre-Lane-A arithmetic for that venue, byte for byte, no refusal. Once
+# a venue IS armed, a later year going missing REFUSES the run by name -- that is calendar DRIFT on
+# a fence someone is relying on, and it must never be silent.
+#   tests/unit/silver/test_venue_holidays.py::test_the_calendar_must_be_armed_before_the_deadline
+# reds in CI from 2026-12-01 -- a month before the D-PR-45 January straddle can pull a window into
+# the next calendar year -- so the forcing function fires in CI, never in a 08:00Z fire.
+#
+# HOW A YEAR GETS FILLED, WITHOUT GUESSING.
+#   1. python scripts/silver/derive_venue_sessions.py --dataset IFEU.IMPACT --years 2019-2025
+#      prints, per dataset-year, the weekday dates on which ALL of that dataset's roots published
+#      ZERO canonical rows. Those are CANDIDATES, never answers. The script applies NO frequency
+#      floor on purpose: a once-in-a-decade closure (a state funeral, a national day of mourning)
+#      is exactly the tail a ">= N years" screen would deny.
+#   2. A human resolves every candidate against the venue's PUBLISHED calendar (source_url below)
+#      into a named entry, or leaves it out. A date absent in exactly one year may be a vendor
+#      OUTAGE, not a holiday. An unresolved candidate stays OUT and is carried by the margin.
+#   3. When -- and only when -- the year's list is exhaustive, flip `complete: true`, fill
+#      verified_on / verified_by, and replace the source_url placeholder with the real citation.
+#
+# FIELDS (every one required; a malformed file is a HARD ERROR, never a silently empty set --
+# the difference between "declared" and "mistyped" must never be silent):
+#   dataset.venue        plain-language description of the tape
+#   dataset.source_url   the venue's published calendar; a placeholder is legal only while unarmed
+#   year.complete        BOOLEAN. true == "this list is exhaustive for this year"
+#   year.verified_on     ISO date the check was made
+#   year.verified_by     who / which decision made it
+#   year.holidays        list of {day, name, basis}
+#   entry.day            ISO YYYY-MM-DD, inside the year block it sits in
+#   entry.name           the MECHANISM, named. Never "holiday", never blank
+#   entry.basis          one of: published | tape | published+tape
+#                          published      -- the venue's published calendar only (the only basis
+#                                            available for a FUTURE year, which has no tape)
+#                          tape           -- established from banked rows or a measured absence,
+#                                            not yet cross-checked against the published calendar
+#                          published+tape -- both agree; the target state for every PAST year
+#
+# A WEEKEND-DATED ENTRY SUBTRACTS NOTHING by construction (the arithmetic iterates a weekday
+# range). This matters: US Independence Day 2026-07-04 is a SATURDAY and the observed
+# no-settlement date is Friday 2026-07-03, so the OBSERVED date is what belongs here.
+version: 1
+datasets:
+
+  GLBX.MDP3:
+    venue: "CME Globex -- CME/CBOT/KCBT agricultural products (ZC ZS ZL ZM ZW KE ZR CPO)"
+    source_url: "TO BE FILLED -- CME Group holiday calendar, Agriculture product group"
+    # UNARMED ON PURPOSE. No date here can be verified from the seat that built this lane, and a
+    # guessed CME calendar would be exactly the mis-inferred floor this estate has an RCA for.
+    # Until a year is filled and marked complete, GLBX is judged exactly as it is today.
+    years: {}
+
+  IFUS.IMPACT:
+    venue: "ICE Futures U.S. -- softs (KC SB CC CT OJ) and canola (RS)"
+    source_url: "TO BE FILLED -- ICE Futures U.S. published holiday calendar"
+    # UNARMED ON PURPOSE -- see above.
+    years: {}
+
+  IFEU.IMPACT:
+    venue: "ICE Futures Europe -- Robusta coffee (RC) and White sugar (W)"
+    source_url: "TO BE FILLED -- ICE Futures Europe published holiday calendar"
+    years:
+      2026:
+        # NOT complete. Exactly ONE date in this year has been established, and claiming the year
+        # is exhaustive on the strength of one measured absence would be the mis-inferred floor
+        # this file exists to avoid. The entry below still subtracts; the year still does not arm.
+        complete: false
+        verified_on: "2026-09-04"
+        verified_by: "LANE A fix pass -- banked silver logs of the 2026-09-02 08:30Z (FAILED) and
+          2026-09-04 08:36Z (PASSED) futures-eod-silver fires"
+        holidays:
+          # BASIS, in full, and every clause of it is a reading rather than a recollection:
+          #   1. the two failing lines on the 2026-09-02 fire are labelled IFEU.IMPACT RC/2026 and
+          #      IFEU.IMPACT W/2026 -- the venue is READ, not inferred;
+          #   2. all 7 GLBX and all 6 IFUS units on that SAME fire logged healthy unit lines, so
+          #      the absence is ICE Europe's alone and not a vendor-wide outage;
+          #   3. on the 2026-09-04 fire, which passed, IFEU held 2 sessions (RC 18 rows / 10
+          #      outrights, W 24 / 14) against a 3-weekday window of 2026-08-31, 09-01, 09-02,
+          #      while GLBX held 4/4 and IFUS 3/3 -- the one weekday IFEU is missing is
+          #      2026-08-31;
+          #   4. date.fromisoformat('2026-08-31').strftime('%a') is 'Mon' and 2026-09-07 is in
+          #      September, so it is the LAST Monday of August.
+          # That is a measured absence of the tape on a named, dated mechanism -- basis `tape`. It
+          # becomes `published+tape` when an operator cross-checks it against the ICE Futures
+          # Europe published calendar cited above; nothing here is a claim about UK bank holidays
+          # in general, only about what this dataset published for RC and W on that date.
+          - {day: 2026-08-31, name: "UK Summer bank holiday", basis: tape}
