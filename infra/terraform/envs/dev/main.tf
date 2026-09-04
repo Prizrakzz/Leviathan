@@ -1307,6 +1307,17 @@ resource "aws_iam_role_policy" "silver_publisher_intermediates" {
         "arn:aws:s3:::leviathan-dev-shahem-001/bronze/*",
         "arn:aws:s3:::leviathan-dev-shahem-001",
       ]
+      }, {
+      # PINK VINTAGES FLIP 2026-09-04 (measured at D5): the canonical leg re-derives the release
+      # clock from the raw_meta/ SIDECARS (origin Last-Modified = clock rung 1) and the publisher
+      # role was AccessDenied on every one of them, so it fell to rung 2 (derived_month_first) while
+      # the shadow leg on the flat-silver role read all four. Identical bytes today only because no
+      # sidecar carries origin_last_modified yet; the next fetch writes it, and shadow vs canonical
+      # would then DIVERGE on release_date. READ ONLY -- sidecars are written by the fetch roles.
+      Sid      = "RawMetaSidecarsRead"
+      Effect   = "Allow"
+      Action   = ["s3:GetObject"]
+      Resource = ["arn:aws:s3:::leviathan-dev-shahem-001/raw_meta/*"]
     }]
   })
 }
