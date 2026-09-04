@@ -2895,7 +2895,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # construction; a live turn's asof is today and resolves False. Same omit-when-off idiom.
             from datetime import datetime as _dtn, timezone as _tzu
             _pr_kw = ({"price_replay": True}
-                      if (asof or "")[:10] < _dtn.now(_tzu.utc).date().isoformat() else {})
+                      if asof and str(asof)[:10] < _dtn.now(_tzu.utc).date().isoformat() else {})
             # R9 CONTEXT LANE (D1): the already-resolved outlook bool goes DOWN as an argument. Omitted on
             # a fenced turn -> byte-identical call.
             _ol_kw = {"outlook": True} if _outlook else {}
@@ -2936,6 +2936,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 if _cw_focus:
                     _cw_req = {"focus_contract": _cw_focus}
                     if _cascade_context_on():
+            # A MISSING asof is NOT a historical one: `"" < today` is True, so an unguarded compare armed the
+            # replay belt on every asof-less direct call (eval's non-orchestrator path, tests). The
+            # orchestrator defaults asof to today before it reaches here; this seam now needs a REAL date
+            # (pink v3 refute, 2026-09-03). Same omit-when-off idiom.
                         # V2-1 CONTEXT CELL (rider): two keys, present ONLY under its own flag -- the
                         # walk request is byte-identical with the flag off. `replay` is the SAME
                         # already-resolved historical-asof bool (_pr_kw, above); the ENGINE counts the

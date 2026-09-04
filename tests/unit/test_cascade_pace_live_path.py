@@ -238,3 +238,36 @@ def test_headline_flag_is_read_at_the_seam_and_threaded_not_env_read(monkeypatch
     _run()
     assert seen.get("headline") is True and cq._HEADLINE_ON is True
     cq._set_headline(False)                                          # leave the module as we found it
+
+
+# -- the historical-asof seam: a MISSING asof is not a historical one (pink v3 refute, 2026-09-03) --------
+def test_price_replay_belt_needs_a_real_asof_not_an_empty_one(monkeypatch):
+    """`(asof or "")[:10] < today` was True on asof=None ("" sorts before any date), so every asof-less
+    DIRECT call (eval's non-orchestrator path, tests) armed the replay belt for a turn that has no as-of
+    date at all. Three shapes, one seam: None -> omitted; a pinned past date -> True (the deterministic
+    re-run shape); today -> omitted (the live shape). The orchestrator's today-default never reaches
+    this seam with None, which is why prod and every arm were safe; the direct path was not."""
+    from datetime import datetime as _dtn, timezone as _tzu
+    from leviathan.graphrag.numbers import cascade as cq
+    _wire(monkeypatch)
+    seen: dict = {}
+    real = cq.quantify
+
+    def _spy(*a, **kw):
+        seen.clear()
+        seen.update(kw)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(cq, "quantify", _spy)
+
+    def _go(asof):
+        return an.answer(QUESTION, graph=_graph(), planner="l2", asof=asof, retrieve=_fake_retrieve,
+                         call=_fake_call, numbers_lookup=_qfn, route_fn=lambda q, gr: ["corn_cbot"])
+
+    _go(None)
+    assert "price_replay" not in seen, "a missing asof armed the replay belt"
+    _go(ASOF)                                                            # 2026-07-12: strictly historical
+    assert seen.get("price_replay") is True
+    _go(_dtn.now(_tzu.utc).date().isoformat())                           # live shape
+    assert "price_replay" not in seen
+
