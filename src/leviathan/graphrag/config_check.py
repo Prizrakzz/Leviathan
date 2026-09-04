@@ -1937,6 +1937,36 @@ def check_prompt_quarantine() -> list[str]:
     idiom on the same card)."""
     import json as _json
     from leviathan.graphrag.numbers import agent as na
+def check_vintage_grain() -> list[str]:
+    """QUERY-FIX-2 -- every VINTAGE card declares an identity group, so the as-known dedup can never
+    collapse a whole series to ONE row (AWS-free; the check_numbers_schema_pins pattern).
+
+    THE CLASS, REPRODUCED 2026-09-03: ``build_sql``'s vintage branch emits
+    ``PARTITION BY {', '.join(ts.group_cols()) or '1'}`` (query.py:874). ``group_cols()`` returns
+    ``grain_cols`` when declared, else the non-empty subset of commodity/country/period(+metric)
+    (registry.py:365-373). A WIDE card whose metric IS the series -- no commodity_col, no country_col,
+    no period_col -- therefore returns [] and the emitted window becomes ``PARTITION BY 1``: one
+    partition over the whole table, ``_rn = 1`` keeps exactly ONE row, and a 60-month series read comes
+    back with a single value. No exception, no truncation sentinel, no other lint. Silent, total data
+    loss on the one shape the vintage branch exists to serve.
+
+    Measured at HEAD: all ELEVEN shipped vintage cards pass (every one has non-empty group_cols), so
+    this lint lands byte-identical on the estate as it stands and closes the CLASS ahead of the first
+    grain-less card rather than after it."""
+    from leviathan.graphrag.numbers.registry import load_registry
+    errs: list[str] = []
+    for tid, ts in sorted(load_registry().tables.items()):
+        if ts.knowledge_semantics != "vintage":
+            continue
+        if not ts.group_cols():
+            errs.append(
+                f"vintage_grain {tid}: vintage card {tid} declares no grain_cols and no "
+                f"commodity/country/period col, so build_sql emits PARTITION BY 1 "
+                f"(query.py:874) and a whole-series read collapses to ONE row -- a silent, "
+                f"total data loss no other lint catches")
+    return errs
+
+
     from leviathan.graphrag.numbers.registry import load_registry
     reg = load_registry()
     quarantined = sorted(tid for tid, ts in reg.tables.items() if getattr(ts, "quarantined", False))
@@ -3022,6 +3052,7 @@ def main() -> int:
     # bundle, never in a lint.
     from leviathan.graphrag.evidence import (never_written_slice_warnings, read_dark_slice_warnings,
                                              term_collision_warnings)
+                        ("vintage_grain", check_vintage_grain()),
     cross = term_collision_warnings()
     if cross:
         print(f"WARN term_cross_fire ({len(cross)} word-boundary term collisions across slices -- "

@@ -1331,3 +1331,142 @@ def test_wasde_tiebreak_oracle_sql_run_parity():
         assert len(kept) == 1 and kept[0]["estimate"] == want, (my, "oracle")
         assert len(got) == 1 and got[0][0] == want, (my, "sql")
         assert kept[0]["estimate"] == got[0][0]                       # oracle == SQL, by row-run not string
+
+
+# -- QUERY-FIX-1 / QUERY-FIX-2 (PINK SHEET VINTAGES lane (a), 2026-09-03). TWO DEFECTS IN SHIPPED
+#    CODE, both reproduced before they were fixed, and both fixed BEFORE any vintage card exists that
+#    would reach them:
+#
+#      QUERY-FIX-1 -- `agg='latest'` on a vintage card whose date_col is TIMESTAMP-typed raised
+#        KeyError('date'). `extras` is (EXPRESSION, alias) and _extras built the date entry from
+#        _sel_date, which for a timestamp date_col is `substr(CAST(date AS varchar), 1, 10)` -- not
+#        the bare column -- so keying `dict(extras)` on the raw name missed. Across the ELEVEN
+#        shipped vintage cards nine carry no date_col at all and the two that do are string-typed,
+#        which is the only reason this arm has never executed in production.
+#
+#      QUERY-FIX-2 -- a vintage card with NO grain_cols and no commodity/country/period col emits
+#        `PARTITION BY 1`, so `_rn = 1` keeps ONE row and a whole-series read collapses to a single
+#        value. No exception, no truncation sentinel, no other lint. Silent, total data loss.
+# --------------------------------------------------------------------------------------------------
+def _pink_vintages(*, grain: bool = True) -> TableSpec:
+    """The proposed bitemporal Pink Sheet card: WIDE, vintage, a TIMESTAMP date_col, and a metric
+    that IS the series (no commodity/country/period axis) -- the exact shape both defects need."""
+    return TableSpec(
+        id="silver_pink_sheet_vintages", description="bitemporal WB Pink Sheet",
+        shape="wide", period_type="date",
+        date_col="date", date_col_type="timestamp",
+        knowledge_date_col="release_date", knowledge_semantics="vintage",
+        provenance_col="release_ym", publication_lag_days=0,
+        grain_cols=["date"] if grain else [],
+        metrics={"soybean_oil_usd_t": Metric(unit="USD/t")},
+    )
+
+
+def _vintage_cards() -> list[str]:
+    reg = load_registry()
+    return sorted(tid for tid, ts in reg.tables.items() if ts.knowledge_semantics == "vintage")
+
+
+def test_shipped_vintage_card_count_is_eleven():
+    """The byte-identity claim below is only as strong as the set it covers, so the set is pinned.
+    A twelfth vintage card must re-run that proof rather than inherit it."""
+    assert len(_vintage_cards()) == 11
+
+
+def test_agg_latest_compiles_on_a_timestamp_date_col_vintage_card():
+    """QUERY-FIX-1's regression pin. On HEAD this raised KeyError('date')."""
+    sql = build_sql(NumberQuery(table="silver_pink_sheet_vintages", metric="soybean_oil_usd_t",
+                                asof="2026-03-15", agg="latest", limit=60), _pink_vintages())
+    assert "ORDER BY data_date DESC" in sql and sql.strip().endswith("LIMIT 1")
+    outer = sql.rsplit(") AS _v", 1)[1]
+    # the outer scope sees ALIASES only -- the substr EXPRESSION must never leak there
+    assert "substr(" not in outer
+    assert "ROW_NUMBER() OVER (PARTITION BY date ORDER BY release_date DESC)" in sql
+
+
+def test_query_fix_1_is_byte_identical_on_every_shipped_vintage_card():
+    """The whole safety argument for touching build_sql at all: the eleven shipped vintage cards
+    must emit exactly what they emitted before. Nine carry no date_col and never reach the branch;
+    the two that do (silver_esr's week_ending_date, silver_wap_table01_revisions' release_month) are
+    STRING-typed, and _sel_date is the identity on a string date_col -- so the lookup key is the
+    bare column, exactly as before. Asserted by construction rather than by promise."""
+    reg = load_registry()
+    for tid in _vintage_cards():
+        ts = reg.tables[tid]
+        if not ts.date_col:
+            continue
+        assert ts.date_col_type != "timestamp", (
+            f"{tid} is a TIMESTAMP-date vintage card -- it now reaches the agg=latest arm that has "
+            f"never executed, so the byte-identity claim must be re-measured for it")
+        assert _Q._sel_date(ts, ts.date_col) == ts.date_col
+
+
+def test_grainless_vintage_card_reproduces_the_partition_by_1_trap():
+    """QUERY-FIX-2's subject, reproduced. This is what the lint refuses -- and note there is NO
+    error here: the SQL is valid and returns one row for a sixty-month series."""
+    ts = _pink_vintages(grain=False)
+    assert ts.group_cols() == []
+    sql = build_sql(NumberQuery(table="silver_pink_sheet_vintages", metric="soybean_oil_usd_t",
+                                asof="2026-03-15", agg="series", limit=60), ts)
+    assert "PARTITION BY 1" in sql
+
+
+def test_grain_cols_date_partitions_on_the_data_month():
+    sql = build_sql(NumberQuery(table="silver_pink_sheet_vintages", metric="soybean_oil_usd_t",
+                                asof="2026-03-15", agg="series", limit=60), _pink_vintages())
+    assert "PARTITION BY date" in sql and "PARTITION BY 1" not in sql
+
+
+def test_partition_by_1_really_does_collapse_a_whole_series_to_one_row():
+    """A string assertion cannot show DATA LOSS. Run both forms on a real engine over two vintages
+    x three months and count the rows that come back."""
+    import sqlite3
+
+    con = sqlite3.connect(":memory:")
+    con.execute("ATTACH ':memory:' AS leviathan_dev")
+    con.execute("""CREATE TABLE leviathan_dev.silver_pink_sheet_vintages (
+        date TEXT, soybean_oil_usd_t REAL, release_date TEXT, release_ym TEXT)""")
+    rows = []
+    for month in ("2026-01-01", "2026-02-01", "2026-03-01"):
+        rows.append((month, 900.0, "2026-02-01", "2026M02"))
+        rows.append((month, 910.0, "2026-03-01", "2026M03"))   # the newer vintage restates it
+    con.executemany("INSERT INTO leviathan_dev.silver_pink_sheet_vintages VALUES (?,?,?,?)", rows)
+
+    good = build_sql(NumberQuery(table="silver_pink_sheet_vintages", metric="soybean_oil_usd_t",
+                                 asof="2026-03-15", agg="series", limit=60), _pink_vintages())
+    bad = build_sql(NumberQuery(table="silver_pink_sheet_vintages", metric="soybean_oil_usd_t",
+                                asof="2026-03-15", agg="series", limit=60),
+                    _pink_vintages(grain=False))
+    got_good = con.execute(good).fetchall()
+    got_bad = con.execute(bad).fetchall()
+    assert len(got_good) == 3, "one row per data month, newest vintage on or before asof"
+    assert {r[0] for r in got_good} == {910.0}
+    assert len(got_bad) == 1, (
+        "PARTITION BY 1 must collapse the series -- if this ever returns 3 the trap has moved and "
+        "the lint below is guarding nothing")
+
+
+def test_check_vintage_grain_passes_every_shipped_card_and_fails_a_grainless_one(monkeypatch):
+    """QUERY-FIX-2 as the lint actually runs. Both directions: it is GREEN on the estate as it
+    stands (so it lands byte-identical), and it is RED on the shape it exists to refuse."""
+    from leviathan.graphrag import config_check as C
+
+    assert C.check_vintage_grain() == []
+
+    reg = load_registry()
+    reg.tables["silver_pink_sheet_vintages"] = _pink_vintages(grain=False)
+    monkeypatch.setattr("leviathan.graphrag.numbers.registry.load_registry", lambda: reg)
+    errs = C.check_vintage_grain()
+    assert len(errs) == 1
+    assert "silver_pink_sheet_vintages" in errs[0]
+    assert "PARTITION BY 1" in errs[0]
+    assert "no grain_cols" in errs[0]
+
+
+def test_check_vintage_grain_is_registered_in_the_build_lint():
+    """A check nobody calls is a check that does not exist -- the Z7 lesson."""
+    import inspect
+
+    from leviathan.graphrag import config_check as C
+    src = inspect.getsource(C.main) if hasattr(C, "main") else inspect.getsource(C)
+    assert '("vintage_grain", check_vintage_grain())' in src

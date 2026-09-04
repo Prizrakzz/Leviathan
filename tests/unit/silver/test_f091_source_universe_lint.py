@@ -53,13 +53,66 @@ _LINT = _REPO / "scripts" / "silver" / "f091_source_universe_lint.py"
 #     the lint's whole purpose: C-1 shipped it as a reported docket precisely so a lane closing two
 #     of its files would show up here as a number rather than as a claim.
 #   143 -> 140 docket literals -- the three literals the two files owed, now covered.
-PIN_RAW_LITERALS = 339
-PIN_RAW_FILES = 126
-PIN_UNIVERSE_LITERALS = 169
-PIN_UNIVERSE_FILES = 93
-PIN_COVERED_FILES = 12
-PIN_DOCKET_FILES = 81
-PIN_DOCKET_LITERALS = 140
+#
+# RE-MEASURED AGAIN 2026-09-04 by the PSD HONEST-CLOCK lane (lane E), and every delta is
+# attributable BY NAME to that one change. The measurement is a two-tree diff: the lint run against
+# a clean `git archive HEAD` export reproduces the pre-change pins EXACTLY (339 / 126 / 169 / 93 /
+# 12 / 81 / 140), and the same lint run against HEAD-plus-only-this-lane's-files gives the values
+# below. Nothing else in the working tree is folded in.
+#   +2 raw literals in src/leviathan/transforms/bronze_to_silver/usda_psd.py (9 -> 11):
+#     `_CLOCK_COUNTER_KEYS`, the counters the shadow gate reads off the producer's structured log,
+#     and `_STAMP_CONSTANCY_KEY`, the sheet-cell key the per-snapshot stamp assertion groups on.
+#   +1 raw / +1 universe literal and +1 raw / +1 universe FILE:
+#     src/leviathan/transforms/bronze_to_silver/psd_clock.py is NEW -- the one clock function the
+#     monthly wide producer, the long companion and any future archive lane all call -- and it
+#     declares `_PSD_MONTH_END_CODES`, the eight World Markets and Trade sheet codes that take
+#     month-END rather than the registered WASDE day.
+#   +1 DOCKET file / +1 docket literal, and COVERED does not move: psd_clock.py carries no written
+#     refusal registry, and it should not be given one to buy coverage. `_PSD_MONTH_END_CODES` is
+#     not a source universe whose complement is REFUSED -- it is a DAY-RULE set whose complement
+#     takes the other convention, and all 39 complement members are served. The lint's docket is
+#     REPORTED, never fatal, and this is exactly the kind of entry the docket exists to carry
+#     honestly rather than to be argued out of.
+#
+# RE-MEASURED AGAIN 2026-09-04 by the PINK SHEET VINTAGES lanes (a)+(b), and every delta is
+# attributable BY NAME to that one change. Measured by running the lint over TWO populations off the
+# same scan -- `git ls-files` alone, and `git ls-files` plus this lane's four NEW producer files --
+# so the numbers below are the DELTA, which is independent of whatever else sits in this shared
+# working tree (a concurrent PSD lane is moving PIN_RAW_LITERALS at the same time; measured
+# committed-only 341 -> with-pink 344, i.e. +3, whatever the absolute reads on any given day).
+#   +3 raw / +2 raw FILES, from exactly two of the four new producers:
+#     raw_to_bronze/pink_sheet_breaks.py declares 2 (DESCRIPTION_SHEET_CANDIDATES and its
+#     _REFUSED_SHEETS companion) and jobs/ingest/backfill_pink_sheet_vintages.py declares 1
+#     (_RETRYABLE_STATUS). jobs/batch/pink_sheet_vintages_task.py and
+#     jobs/batch/pink_sheet_archive_task.py declare NO module-level static collection literal and so
+#     never enter `literal_counts_by_file` at all -- which is why raw FILES moves by 2, not 4.
+#   +1 universe literal / +1 universe FILE: pink_sheet_breaks.DESCRIPTION_SHEET_CANDIDATES, a
+#     3-element tuple whose name matches `sheets?`. It is the only universe-shaped literal the lane
+#     adds; backfill's _RETRYABLE_STATUS is a set of HTTP status codes with no universe-shaped name,
+#     and the lane's other new collections (DECLINES, VINTAGE_QUARANTINE_REASONS, _ORIGIN_RANK) hold
+#     NAMES rather than constants, so the static-member rule excludes them -- correctly: a vocabulary
+#     of module constants is not a claim about a source's members.
+#   +1 COVERED and the DOCKET DOES NOT MOVE (82 files / 141 literals, unchanged):
+#     pink_sheet_breaks.py ships `_REFUSED_SHEETS`, a real written refusal naming the one sheet it
+#     deliberately does not read for a break log and saying IN THE COMMENT that the list is
+#     INCOMPLETE (the workbook's full sheet list was not reachable from the authoring seat). It is
+#     therefore added to PIN_REFUSAL_REGISTRIES below as well -- coverage and the registry set move
+#     together or the two assertions contradict each other post-commit.
+#
+# THESE ARE THE POST-COMMIT VALUES, and the pin's own rule above is why: the census is re-derived
+# over the COMMITTED producer files, and a new producer "enters this pin in the commit that adds
+# it". Until BOTH lanes commit, five assertions here read short -- raw literal / universe literal /
+# file-list / docket-and-coverage / refusal-registry -- because the new producers are on disk and
+# NOT yet in `git ls-files`. That gap is the pin working as designed, not a loosened fence, and it
+# closes the moment each lane commits. TestGatePosture's docket assertion counts the UNFILTERED
+# report and therefore already reads the post-commit docket.
+PIN_RAW_LITERALS = 345          # 339 base + 3 lane E + 3 pink
+PIN_RAW_FILES = 129             # 126 base + 1 lane E + 2 pink
+PIN_UNIVERSE_LITERALS = 171     # 169 base + 1 lane E + 1 pink
+PIN_UNIVERSE_FILES = 95         # 93 base + 1 lane E + 1 pink
+PIN_COVERED_FILES = 13          # 12 base + 0 lane E + 1 pink (pink_sheet_breaks._REFUSED_SHEETS)
+PIN_DOCKET_FILES = 82           # 81 base + 1 lane E + 0 pink
+PIN_DOCKET_LITERALS = 141       # 140 base + 1 lane E + 0 pink
 
 # The written refusals the estate holds today: (file, literal). The plan text said FOUR; the 08-25
 # measurement said SEVEN in code plus one in config; the C-2 change added TWO more in usda_nass.py
@@ -85,10 +138,16 @@ PIN_REFUSAL_REGISTRIES = frozenset({
     ("src/leviathan/transforms/raw_to_bronze/usda_nass.py", "_RECORDED_STAT_CAT_EXCLUSIONS"),
     ("src/leviathan/transforms/raw_to_bronze/usda_nass.py", "_RECORDED_COMMODITY_EXCLUSIONS"),
     ("src/leviathan/transforms/raw_to_bronze/world_bank_pink_sheet.py", "_REFUSED_SERIES"),
+    # PINK SHEET VINTAGES lanes (a)+(b), 2026-09-04. `DESCRIPTION_SHEET_CANDIDATES` is a claim about
+    # which sheet carries the series-replacement log, so `_REFUSED_SHEETS` names the sheet the module
+    # deliberately does NOT read for that log and why. It says IN ITS OWN COMMENT that it is
+    # INCOMPLETE -- the workbook's full sheet list was not reachable from the authoring seat -- which
+    # is the honest shape here: `covered` means a written refusal EXISTS, never that it is complete.
+    ("src/leviathan/transforms/raw_to_bronze/pink_sheet_breaks.py", "_REFUSED_SHEETS"),
 })
 PIN_REFUSAL_REGISTRIES_CONFIG = frozenset({"configs/sources/cftc_cot.yaml::not_covered:"})
 
-# The 92 files the census names, re-banked here because data/f091/source_universe_census.json is an
+# The 95 files the census names, re-banked here because data/f091/source_universe_census.json is an
 # UNTRACKED main-tree artifact this suite cannot read. The list is not decoration: a rename or a
 # deletion moves the totals without changing their shape, and only the list says which file left.
 PIN_UNIVERSE_FILE_LIST = (
@@ -135,6 +194,7 @@ PIN_UNIVERSE_FILE_LIST = (
     "src/leviathan/transforms/bronze_to_silver/noaa_iod.py",
     "src/leviathan/transforms/bronze_to_silver/noaa_oni.py",
     "src/leviathan/transforms/bronze_to_silver/pink_sheet.py",
+    "src/leviathan/transforms/bronze_to_silver/psd_clock.py",  # lane E, 2026-09-04 -- docket
     "src/leviathan/transforms/bronze_to_silver/sagis_cec.py",
     "src/leviathan/transforms/bronze_to_silver/sagis_deliveries.py",
     "src/leviathan/transforms/bronze_to_silver/sagis_weekly_exports.py",
@@ -176,6 +236,9 @@ PIN_UNIVERSE_FILE_LIST = (
     "src/leviathan/transforms/raw_to_bronze/nass_citrus.py",
     "src/leviathan/transforms/raw_to_bronze/noaa_iod.py",
     "src/leviathan/transforms/raw_to_bronze/noaa_oni.py",
+    # PINK SHEET VINTAGES lanes (a)+(b), 2026-09-04 -- covered by _REFUSED_SHEETS, so it enters the
+    # list and the COVERED count together and the docket does not move.
+    "src/leviathan/transforms/raw_to_bronze/pink_sheet_breaks.py",  # covered
     "src/leviathan/transforms/raw_to_bronze/unica_biweekly_pdf.py",
     "src/leviathan/transforms/raw_to_bronze/unica_html.py",
     "src/leviathan/transforms/raw_to_bronze/usda_esr.py",

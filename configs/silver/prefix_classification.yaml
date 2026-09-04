@@ -94,6 +94,20 @@ prefixes:
     evidence: reports/silver_readiness/20260712_p65impl/stray_json_objects.json
     note: Stray `_run_log.json` inside the silver_pink_sheet table prefix; metadata, not a table row.
 
+  - prefix: silver/pink_sheet_vintages/_run_log.json
+    classification: metadata
+    package: SILVER-F061
+    match: exact
+    outcome: crawler_exclude
+    hive_ignored: true
+    note: >-
+      The TWIN of the entry above, declared in the change that created the object rather than
+      re-found by a later stray-object sweep. jobs/batch/pink_sheet_vintages_task.py writes this
+      run log INSIDE a registered table root, so without an explicit entry prefix_guard.py
+      classifies it as the implicit `table` class -- the same shape SILVER-F061 had to clean up for
+      the sibling. Control-plane artifact: it carries the run's object/vintage counts, the clock
+      rungs, and the quarantine map, never a table row.
+
   - prefix: silver/psd/_run_log.json
     classification: metadata
     package: SILVER-F061

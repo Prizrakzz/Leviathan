@@ -888,8 +888,18 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
             # The dedup subquery exposes ALIASES only -- order by the chronological axis's alias,
             # never the raw column: Athena AND Postgres both reject the raw name in the outer scope
             # (COLUMN_NOT_FOUND, live-caught at the BF-W2 step-11 serving smoke gate).
+            # DP-5 DEFECT (found + reproduced 2026-09-03): `extras` is (EXPRESSION, alias) and for a
+            # date_col_type=timestamp card _extras built the date entry from _sel_date -> the
+            # substr(CAST(date AS varchar), 1, 10) EXPRESSION, not the bare column, so keying this
+            # lookup on the raw name raised KeyError('date'). Across all ELEVEN vintage cards nine
+            # carry no date_col and never reach this branch, and the two that do (silver_esr's
+            # week_ending_date, silver_wap_table01_revisions' release_month) are string-typed -- which
+            # is the only reason this arm has never executed. Look the date col up by the SAME
+            # expression _extras used; for a string-typed date_col _sel_date returns the bare column,
+            # so every shipped card emits byte-identical SQL (measured, both directions).
             alias = dict(extras)
-            order_alias = alias[ts.date_col] if ts.date_col else "(year * 100 + month)"
+            order_alias = (alias[_sel_date(ts, ts.date_col)] if ts.date_col
+                           else "(year * 100 + month)")
             return base + f" ORDER BY {order_alias} DESC, {_total_order(extras, inc_country)} LIMIT 1"
         else:
             base += f" ORDER BY {_series_order(extras, inc_country, newest_first=nf)}"

@@ -39,7 +39,11 @@ from leviathan.silver.types import (
 # derived from a table this estate publishes, it is a second projection of the same USDA bulk object
 # that silver_psd already reads, and it carries no roll or policy version. So SILVER moves and gold
 # does not, which is what the two asserts below record separately rather than by totalling.
-EXPECTED_TABLE_COUNT = 52
+# 52 -> 53, PINK SHEET VINTAGES lane (a) (2026-09-03): silver_pink_sheet_vintages, the
+# BITEMPORAL companion to silver_pink_sheet -- one row per (data month, WB release) against
+# the sibling's one row per month. SILVER moves and gold does not, and the sibling's own row
+# count is untouched: this is a NEW table under a NEW root, never a widening of the served one.
+EXPECTED_TABLE_COUNT = 53
 
 
 @pytest.fixture(scope="module")
@@ -64,7 +68,10 @@ def test_registry_has_exactly_the_live_43_plus_gold(reg):
     # 43 -> 47: the four-family wave close enumerated at EXPECTED_TABLE_COUNT above. This assert is
     # the one that records that all four widened SILVER and none of them widened gold.
     # 47 -> 48: silver_psd_attributes (projection wave Lane 3) -- the same recording, one table on.
-    assert len(silver) == 48
+    # 48 -> 49: silver_pink_sheet_vintages (PINK SHEET VINTAGES lane (a)) -- SILVER again, and
+    # gold again unmoved: a bitemporal restatement of a silver source is still that source's
+    # own layer, not a derivation carrying a rule of its own.
+    assert len(silver) == 49
     # the ESR pair + WASDE + model_predictions are all present (registered surfaces).
     for must in ("silver_esr", "silver_esr_compact", "silver_wasde", "silver_model_predictions"):
         assert must in names
@@ -112,7 +119,13 @@ def test_partition_modes_match_the_r0_tally(reg):
     # object set and there is nothing to enumerate per release. Deliberately NOT partitioned on
     # release_date -- that would mint a projected/registered grid over a table the loader reads
     # whole, which is the Jul-2026 LIST-storm shape this estate spent a wave undoing.
-    assert modes == {"flat": 35, "projected": 7, "registered": 10}
+    # flat 35 -> 36: silver_pink_sheet_vintages (PINK SHEET VINTAGES lane (a)) -- FLAT like
+    # silver_pink_sheet itself. Volume makes flat correct (800 months x ~79 columns x N
+    # releases is ~3,193 rows at four vintages), and release_date is deliberately an IN-FILE
+    # STRING column rather than a partition key: partitioning on it would mint exactly the
+    # projected/registered grid this estate spent a wave undoing, over a table the loader
+    # reads whole. projected does NOT move, and cannot.
+    assert modes == {"flat": 36, "projected": 7, "registered": 10}
 
 
 def test_projection_field_is_quarantined_iff_projected(reg):

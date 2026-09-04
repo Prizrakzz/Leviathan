@@ -11,7 +11,8 @@
   "skip_existing": false,
   "asof": "<aws.scheduler.scheduled-time>",
   "gate_tables": [
-    "silver_pink_sheet"
+    "silver_pink_sheet",
+    "silver_pink_sheet_vintages"
   ],
   "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/pink_sheet_monthly/census.json",
   "gate_jobdef": "leviathan-dev-silver-gate",
@@ -22,7 +23,7 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "fetch->bronze(36col)->silver",
+  "chain_shape": "fetch->bronze(36col)->silver(latest-only + vintages)",
   "phases": [
     {
       "name": "fetch",
@@ -76,9 +77,22 @@
           "env": {},
           "publishes": true,
           "publish_mode": "shadow_canonical"
+        },
+        {
+          "id": "pink_sheet_vintages",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "jobs/batch/pink_sheet_vintages_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "shadow_canonical"
         }
       ]
     }
   ],
-  "notes": "World Bank one-DAG-two-commodities SPLIT into pink_sheet (Wave 1) and food_cpi (Wave 2) under the one world_bank catalog family; full workbook self-heals. Bronze is a named 36-col jobdef. D-SG G2-1(c) 2026-08-16, owner decision D23: the cron moved from the 4th to the 8th. The WB publishes 'around the first Tuesday' (fetch_world_bank_pink_sheet.py header, latest possible the 7th), so a fire on the 4th re-downloaded the PRIOR month's workbook into the SAME release= key, bronze skipped it, and the chain exited 0 having landed nothing -- the 2026-08-04 fire is the measured case (release=2026M07, a legal month-1). The 8th removes the cause; the fetch's new release-recency fence detects it if the WB slips further. food_cpi moves to the same new cron -- the two already shared cron(0 16 4 * ? *), so the collision profile is unchanged. The fetch leg also regained --skip-existing-s3 (store_true, default False, so a bare command OVERWROTE the same release key every fire) and --asof, which the fence measures the discovered release against."
+  "notes": "World Bank one-DAG-two-commodities SPLIT into pink_sheet (Wave 1) and food_cpi (Wave 2) under the one world_bank catalog family; full workbook self-heals. Bronze is a named 36-col jobdef. D-SG G2-1(c) 2026-08-16, owner decision D23: the cron moved from the 4th to the 8th. The WB publishes 'around the first Tuesday' (fetch_world_bank_pink_sheet.py header, latest possible the 7th), so a fire on the 4th re-downloaded the PRIOR month's workbook into the SAME release= key, bronze skipped it, and the chain exited 0 having landed nothing -- the 2026-08-04 fire is the measured case (release=2026M07, a legal month-1). The 8th removes the cause; the fetch's new release-recency fence detects it if the WB slips further. food_cpi moves to the same new cron -- the two already shared cron(0 16 4 * ? *), so the collision profile is unchanged. The fetch leg also regained --skip-existing-s3 (store_true, default False, so a bare command OVERWROTE the same release key every fire) and --asof, which the fence measures the discovered release against. PINK SHEET VINTAGES lane (a) 2026-09-03: (1) the fetch is RE-ORDERED -- the object is now keyed on the month the WORKBOOK derives (last monthly row + 1), the page label is a log field, --skip-existing-s3 is an ADVISORY pre-probe that can never return, and the recency fence measures ADVANCE below the download instead of page freshness above it; every fire therefore performs exactly one full workbook GET (0.55-0.75 MB, +2-6 s, $0 AWS) where a label-key hit used to perform none. (2) a SECOND silver task, pink_sheet_vintages, builds the BITEMPORAL sibling silver_pink_sheet_vintages (one row per data month PER RELEASE) from the same bronze; it is publishes:true / shadow_canonical, so gen_dag_schedules_tfvars renders a shadow task in the silver phase AND a second canonical task in the promote phase on leviathan-dev-silver-publisher-runner with both KMS env entries. The vintages table is a SIBLING under its own root with its own F010 contract and NO numbers card, so nothing model-facing moves and silver/pink_sheet is untouched. gate_tables gains it; select_branch routes it to BRANCH_B (no PG_MIRROR_TABLES entry), whose stages are feature_probe / value_census / config_check -- no census stage, hence no rolling-census baseline is needed or created."
 }

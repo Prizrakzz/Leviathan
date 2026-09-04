@@ -1774,6 +1774,76 @@ def silver_pink_sheet_key() -> str:
     return "silver/pink_sheet/part-000.parquet"
 
 
+def raw_pink_sheet_archive_key(release_ym: str, filename: str) -> str:
+    """S3 key for a BACKFILLED World Bank Pink Sheet release (origin-epoch or Wayback).
+
+    A SEPARATE ``source=`` prefix, deliberately: ``jobs/batch/pink_sheet_task.py`` relists exactly
+    ``_RAW_PREFIX = 'raw/production/source=world_bank_pink_sheet/'`` and nothing else, so an archived
+    vintage is STRUCTURALLY unreachable from the scheduled bronze fire and therefore from the served
+    latest-only table.  Invariance by PREFIX, not by a runtime gate a cron can bypass -- and the
+    trailing slash is what makes it true (``source=world_bank_pink_sheet/`` is not a prefix of
+    ``source=world_bank_pink_sheet_archive/``).  Pinned in
+    ``tests/unit/test_pink_sheet_prefix_fence.py``.
+
+    ``raw_pink_sheet_key`` is deliberately NOT parameterized to serve both roots: that would change a
+    call signature on the SERVED path and break flag-off byte-identity.
+
+    Args:
+        release_ym: Release year-month in ``YYYYMmm`` format, e.g. ``"2025M01"``.
+        filename:   Original workbook filename, e.g. ``"CMO-Historical-Data-Monthly.xlsx"``.
+
+    Returns:
+        ``"raw/production/source=world_bank_pink_sheet_archive/release={release_ym}/{filename}"``
+    """
+    return (
+        f"raw/production/"
+        f"source=world_bank_pink_sheet_archive/"
+        f"release={release_ym}/"
+        f"{filename}"
+    )
+
+
+def bronze_pink_sheet_archive_key(release_ym: str) -> str:
+    """S3 key for a BACKFILLED Pink Sheet bronze Parquet (one archived release).
+
+    Sibling of ``bronze_pink_sheet_key`` under its own source prefix:
+    ``jobs/batch/pink_sheet_silver_task.py`` relists exactly
+    ``_BRONZE_PREFIX = 'bronze/production/source=world_bank_pink_sheet/'``, so the SERVED builder
+    cannot see this object.  Only ``jobs/batch/pink_sheet_vintages_task.py`` reads both prefixes, and
+    the table it writes has no numbers card.
+
+    Args:
+        release_ym: Release year-month in ``YYYYMmm`` format, e.g. ``"2025M01"``.
+
+    Returns:
+        ``"bronze/production/source=world_bank_pink_sheet_archive/release={release_ym}/part-000.parquet"``
+    """
+    return (
+        f"bronze/production/"
+        f"source=world_bank_pink_sheet_archive/"
+        f"release={release_ym}/"
+        f"part-000.parquet"
+    )
+
+
+def silver_pink_sheet_vintages_key() -> str:
+    """S3 key for the BITEMPORAL World Bank Pink Sheet silver Parquet.
+
+    One row per (data month, WB release).  Each release restates the WHOLE history back to 1960-01
+    (measured on six vintages: 780/792/796/798/799/800 rows, each a hole-free 1960M01..R-1), so every
+    row of one release carries ONE release stamp -- which is exactly what the served one-clock fences
+    require.
+
+    A SIBLING of ``silver/pink_sheet``, NEVER nested inside it: the flat table's recovery strategy is a
+    bounded full relist under its own root and would swallow a nested object (the silver/psd vs
+    silver/psd_attributes law above).
+
+    Returns:
+        ``"silver/pink_sheet_vintages/part-000.parquet"``
+    """
+    return "silver/pink_sheet_vintages/part-000.parquet"
+
+
 def bronze_unica_key(harvest_year: str) -> str:
     """S3 key for a UNICA Center-South production bronze Parquet (one harvest year).
 

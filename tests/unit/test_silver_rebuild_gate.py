@@ -207,7 +207,12 @@ def test_branch_selection_all_45_tables():
     # registry.WHITELIST_ABSENT_DEFAULT until the 2026-08-26 flip, which is when Branch A and the
     # pg-mirror count moved (with P1_TABLES, in the flip change); the orphan roster never moved at
     # all -- the flip put the table straight into psd_monthly.json's gate_tables instead.
-    assert len(names) == 52, f"expected 52 F010 tables, got {len(names)}"
+    # PINK SHEET VINTAGES lane (a) (2026-09-03): 52 -> 53. silver_pink_sheet_vintages's F010
+    # contract landed and this pin moved with it. It routes to BRANCH B, not A -- consumers is
+    # `feature_layer` (no numbers card in that commit) and it is absent from P1_TABLES, so the
+    # branch arithmetic below is unchanged and the pg mirror is never promised a table it
+    # cannot reload.
+    assert len(names) == 53, f"expected 53 F010 tables, got {len(names)}"
 
     branch_a = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_A}
     branch_b = {t for t in names if g.select_branch(t, silver_reg=silver) == g.BRANCH_B}

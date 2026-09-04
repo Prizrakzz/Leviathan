@@ -68,6 +68,10 @@ DOMAIN = {
     "silver_nass_annual": "production", "silver_nass_citrus": "production",
     "silver_nass_crop_progress": "crop_condition", "silver_noaa_iod": "climate",
     "silver_noaa_oni": "climate", "silver_pink_sheet": "prices",
+    # PINK SHEET VINTAGES lane (a): the BITEMPORAL companion to silver_pink_sheet. Same source, same
+    # 37 governed series, same domain -- one row per (data month, WB release) instead of the
+    # latest-only collapse, which is a STORAGE difference and not a subject one.
+    "silver_pink_sheet_vintages": "prices",
     "silver_production": "production", "silver_psd": "balance_sheet",
     # PROJECTION WAVE Lane 3: the LONG companion to silver_psd. Same source, same sheets, same
     # domain -- 56 attribute labels against the wide pivot's 11, not a different subject.
@@ -112,6 +116,11 @@ PER_VINTAGE = {
     # bronze_ingest_date) latest-wins dedup collapses RE-PRINTS of the same vintage, which is
     # re-print hygiene, not retention: retention here is per-vintage, exactly as the wide table's.
     "silver_psd_attributes",
+    # PINK SHEET VINTAGES lane (a): retention is the table's entire reason for existing. Each WB
+    # release restates the WHOLE history back to 1960-01 (measured on six vintages:
+    # 780/792/796/798/799/800 rows, each hole-free), and every one of those restatements is kept.
+    # The SIBLING silver_pink_sheet stays latest-only, untouched.
+    "silver_pink_sheet_vintages",
 }
 # BF-W2 SILVER-F031 option-b: ESR retains one weekly as_of vintage per (slug, week) -- the serving
 # compact gains a REGISTERED as_of_date partition dimension (never re-projection). Flipped from the
@@ -136,7 +145,9 @@ R2_OWNER = {
     "silver_nasa_power": "SILVER-F046", "silver_nass_annual": "SILVER-F020",
     "silver_nass_citrus": "SILVER-F056", "silver_nass_crop_progress": "SILVER-F062",
     "silver_noaa_iod": "SILVER-F041", "silver_noaa_oni": "SILVER-F057",
-    "silver_pink_sheet": "SILVER-F023", "silver_production": "SILVER-F022",
+    "silver_pink_sheet": "SILVER-F023",
+    "silver_pink_sheet_vintages": "SILVER-F023",   # same producing family as the latest-only sibling
+    "silver_production": "SILVER-F022",
     "silver_psd": "SILVER-F062", "silver_sagis_cec": "SILVER-F058",
     "silver_sagis_weekly_deliveries": "SILVER-F042", "silver_sagis_weekly_exports": "SILVER-F059",
     "silver_unica_annual_state": "SILVER-F062", "silver_unica_biweekly_release_series": "SILVER-F062",
@@ -194,6 +205,11 @@ PRODUCER = {
     "silver_noaa_iod": (_T + "noaa_iod.py", _J + "noaa_iod_task.py", "producer"),
     "silver_noaa_oni": (_T + "noaa_oni.py", _J + "noaa_oni_task.py", "producer"),
     "silver_pink_sheet": (_T + "pink_sheet.py", _J + "pink_sheet_silver_task.py", "producer"),
+    # PINK SHEET VINTAGES lane (a): the SAME transform module (build_silver_vintages sits beside
+    # build_silver), a DIFFERENT batch task. The task reads BOTH bronze prefixes -- the scheduled
+    # one and the archive backfill's -- and is the only job in the estate that does.
+    "silver_pink_sheet_vintages": (_T + "pink_sheet.py", _J + "pink_sheet_vintages_task.py",
+                                   "producer"),
     "silver_production": (_T + "faostat_production.py", None, "producer"),
     "silver_psd": (_T + "usda_psd.py", _J + "psd_silver_task.py", "producer"),
     # PROJECTION WAVE Lane 3: the long companion. The batch task path lands in the SAME integration
@@ -252,6 +268,10 @@ WRITER_SCHEMA_PINNED = {
 # registry contract before every write (leviathan.silver.arrow_schema.cast_to_contract). Appended as
 # a disjoint update so the set literal above stays owned by LANE OB.
 WRITER_SCHEMA_PINNED |= {"silver_production", "silver_pink_sheet", "silver_conab_coffee"}
+# PINK SHEET VINTAGES lane (a): the bitemporal sibling publishes through the same
+# leviathan.silver.flat_producer path (build_flat_publish -> pa_schema_from_contract), so its INV-2
+# writer schema is pinned from this contract before every write, exactly as its sibling's is.
+WRITER_SCHEMA_PINNED |= {"silver_pink_sheet_vintages"}
 # LANE W (SILVER-F021/F045/F046/F047 -- the weather family): the three weather producers now write
 # THROUGH the pinned pyarrow schemas in leviathan.transforms.bronze_to_silver._weather_schema
 # (NASA_POWER_WIDE_SCHEMA / CHIRPS_LONG_SCHEMA / CPC_SOIL_LONG_SCHEMA). Disjoint |= update so the
@@ -281,6 +301,15 @@ SERVING_TABLE_OVERRIDE = {
 KNOWLEDGE_DATE_OVERRIDE = {
     "silver_nass_citrus": ("release_date", "vintage", 0),
     "silver_sagis_cec": ("release_date", "vintage", 0),
+    # PINK SHEET VINTAGES lane (a) -- (release_date, vintage, 0). NO numbers card is registered in
+    # this commit, so the PIT trio has to be declared here or the value_census vintage-adequacy row
+    # has nothing to key on. release_date is a PHYSICAL STRING 'YYYY-MM-DD' column and NEVER the
+    # 'YYYYMmm' release_ym label: the as-of guard is a lexical compare, and '2026M08' <= '2026-03-15'
+    # is silently False for every row, so a label knowledge column returns zero rows while a
+    # one-clock gate still passes. publication_lag_days 0 because release_date IS the publication
+    # event, not a data date with a lag (the silver_esr as_of precedent). Superseded 1:1 if a numbers
+    # TableSpec is ever minted (numbers_spec wins in build_contract) -- which is STEP 9, not this one.
+    "silver_pink_sheet_vintages": ("release_date", "vintage", 0),
     "silver_wap_table01_revisions": ("release_month", "year_month", None),
     # SILVER-F059: the derived week_ending_date (CURATION_OVERRIDES additive_columns_hidden below)
     # makes SAGIS weekly exports a data_date table. +5d ratified: SAGIS posts the cumulative file a
@@ -339,8 +368,17 @@ NATURAL_KEY_FALLBACK = {
     # there made the as-of collapse a structural no-op, the Lane-3 review's fatal #1). silver_psd is
     # the estate's own demonstration that the two are different objects: its natural_key carries
     # release_date, its card's serving grain does not.
+    # THE HONEST-CLOCK RE-GRAIN (2026-09-04, lane E). release_date JOINED this key.
+    # Until then release_date was DERIVED from (market_year, wasde_release_month) by
+    # a marketing-year rotation, so it carried no information the key did not
+    # already have. Under the honest clock wasde_release_month is the CALENDAR month
+    # of the release, so two genuinely different releases twelve months apart SHARE
+    # it -- and without release_date the declared key is not a key, and the
+    # producer's latest-only dedup deletes the older VINTAGE rather than a re-print.
+    # MEASURED over the three banked bronze snapshots: physical rows 3,397,958 ->
+    # 3,401,565 (+3,607) and the served roster 1,079,487 -> 1,080,307 (+820).
     "silver_psd_attributes": ["leviathan_slug", "country", "market_year", "wasde_release_month",
-                              "attribute"],
+                              "release_date", "attribute"],
 }
 
 # Tall numbers value column (the actual measure lives in ONE column; metric NAMES are row values).
@@ -822,6 +860,39 @@ _F047_WEATHER_NOTE: dict = {
     ),
 }
 
+# PINK SHEET VINTAGES lane (a): the GOVERNED value set -- 37 price series + blended_npk_index + the
+# 38 z-scores, i.e. every column of SILVER_VINTAGE_COLUMNS that is not an axis (date/year/month) and
+# not a vintage stamp (release_ym/release_date/release_date_source). Spelled out rather than derived
+# so the generator stays JSON/YAML-only and deterministic (it never imports a transform), and in the
+# transform's own column order so a reviewer can diff it against SILVER_VINTAGE_COLUMNS by eye.
+_PINK_SHEET_VINTAGE_VALUE_COLUMNS: list[str] = [
+    "urea_usd_mt", "dap_usd_mt", "potassium_usd_mt", "natural_gas_us_usd_mmbtu",
+    "natural_gas_eu_usd_mmbtu", "phosphate_rock_usd_mt", "brent_crude_usd_bbl",
+    "blended_npk_index", "soybeans_usd_t", "soybean_oil_usd_t", "soybean_meal_usd_t",
+    "palm_oil_cpo_usd_t", "raw_sugar_world_usd_t", "wheat_us_hrw_usd_t", "wheat_us_srw_usd_t",
+    "rapeseed_oil_usd_t", "urea_usd_mt_zscore_5yr", "dap_usd_mt_zscore_5yr",
+    "potassium_usd_mt_zscore_5yr", "natural_gas_us_usd_mmbtu_zscore_5yr",
+    "natural_gas_eu_usd_mmbtu_zscore_5yr", "phosphate_rock_usd_mt_zscore_5yr",
+    "brent_crude_usd_bbl_zscore_5yr", "blended_npk_index_zscore_5yr",
+    "soybeans_usd_t_zscore_5yr", "soybean_oil_usd_t_zscore_5yr", "soybean_meal_usd_t_zscore_5yr",
+    "palm_oil_cpo_usd_t_zscore_5yr", "raw_sugar_world_usd_t_zscore_5yr",
+    "wheat_us_hrw_usd_t_zscore_5yr", "wheat_us_srw_usd_t_zscore_5yr",
+    "rapeseed_oil_usd_t_zscore_5yr", "coconut_oil_usd_t", "groundnuts_usd_t",
+    "groundnut_oil_usd_t", "palm_kernel_oil_usd_t", "fish_meal_usd_t", "sunflower_oil_usd_t",
+    "barley_usd_t", "sorghum_usd_t", "orange_usd_t", "cotton_a_index_usd_t", "rubber_rss3_usd_t",
+    "coffee_arabica_usd_t", "coffee_robusta_usd_t", "cocoa_usd_t", "rice_thai_5pct_usd_t",
+    "maize_usd_t", "raw_sugar_eu_usd_t", "raw_sugar_us_usd_t", "beef_usd_t", "chicken_usd_t",
+    "tsp_usd_mt", "copper_usd_mt", "coconut_oil_usd_t_zscore_5yr", "groundnuts_usd_t_zscore_5yr",
+    "groundnut_oil_usd_t_zscore_5yr", "palm_kernel_oil_usd_t_zscore_5yr",
+    "fish_meal_usd_t_zscore_5yr", "sunflower_oil_usd_t_zscore_5yr", "barley_usd_t_zscore_5yr",
+    "sorghum_usd_t_zscore_5yr", "orange_usd_t_zscore_5yr", "cotton_a_index_usd_t_zscore_5yr",
+    "rubber_rss3_usd_t_zscore_5yr", "coffee_arabica_usd_t_zscore_5yr",
+    "coffee_robusta_usd_t_zscore_5yr", "cocoa_usd_t_zscore_5yr",
+    "rice_thai_5pct_usd_t_zscore_5yr", "maize_usd_t_zscore_5yr", "raw_sugar_eu_usd_t_zscore_5yr",
+    "raw_sugar_us_usd_t_zscore_5yr", "beef_usd_t_zscore_5yr", "chicken_usd_t_zscore_5yr",
+    "tsp_usd_mt_zscore_5yr", "copper_usd_mt_zscore_5yr",
+]
+
 CURATION_OVERRIDES: dict = {
     "silver_chirps": _F047_WEATHER_NOTE,
     "silver_nasa_power": _F047_WEATHER_NOTE,
@@ -1120,6 +1191,98 @@ CURATION_OVERRIDES: dict = {
         "sunflower_oil_usd_t": 0.28,
         "sunflower_oil_usd_t_zscore_5yr": 0.25,
     }},
+    # -- PINK SHEET VINTAGES lane (a). FOUR facts build_contract cannot derive for a table with no
+    # numbers card, each for its own reason:
+    #
+    #  (1) required_nonnull -- the default is a copy of natural_key ([release_date, date]), but two
+    #      more columns are non-null BY CONSTRUCTION and load-bearing: release_ym is the row's
+    #      provenance stamp (the one the served one-clock fences read) and release_date_source names
+    #      which rung of the clock ladder minted release_date. A null in either is an unattributable
+    #      vintage row, and ABSENT IS NEVER ZERO -- so they are declared, not assumed.
+    #  (2) nullable_overrides -- the same two columns, on the INV-2 WRITER side. The default
+    #      `nullable = cn not in natural_key` is a heuristic and it is wrong here in one direction:
+    #      release_ym / release_date_source sit outside the key yet can never be null. The flag is
+    #      load-bearing (flat_producer.pa_schema_from_contract turns it into
+    #      pa.field(..., nullable=...)), so leaving it True would silently admit an illegal null.
+    #  (3) value_columns -- with NO numbers card, build_contract falls back to "the numeric
+    #      non-date non-key columns of the source contract's required_columns", which is the TWO
+    #      metrics that contract names. That would leave stage_value_census measuring 2 columns on a
+    #      75-column price table -- a gate that passes because it is looking at almost nothing. The
+    #      governed value set is the SIBLING's, verbatim: 37 price series + 38 z-scores. When the
+    #      numbers card lands (STEP 9) numbers_spec supplies exactly this set and the override
+    #      becomes redundant rather than contradictory.
+    #  (4) min_nonnull_frac_overrides -- COPIED verbatim from the sibling. The six thin columns are
+    #      thin for the same measured reason on both tables (WB coverage starts late: sunflower oil
+    #      2002-02, palm-kernel oil 1996-01, plus the 36-month z warm-up on top), and a vintage row
+    #      inherits its release's own history, so the floors transfer exactly.
+    #
+    #  (5) freshness_sla.max_lag_days -- MEASURED, and it is a live-alarm fact, not bookkeeping.
+    #      `dag_catalog.effective_sla_lag_days` computes a table's ceiling as
+    #      `cadence_default + publication_lag_days`, and `build_catalog` takes the MINIMUM across a
+    #      family. silver_pink_sheet gets 45 + 40 = 85 (monthly, and the World Bank publishes a
+    #      month's data about 40 days after it). This table's `publication_lag_days` is 0 -- rightly,
+    #      because its knowledge column is release_date, which IS the publication instant -- so the
+    #      derived ceiling would be 45 + 0 = 45 and, being the tightest in the world_bank family,
+    #      would pull the FAMILY ceiling from 85 to 45 and false-fire the freshness alarm against
+    #      silver_pink_sheet's perfectly legitimate 40-day lag. (Measured: the emitted
+    #      silver_observability.auto.tfvars.json moved world_bank 85 -> 45, and
+    #      test_food_cpi_freshness_ceiling_is_not_widened_by_its_publication_lag went red.)
+    #      THE TWO LAGS ARE DIFFERENT FACTS AND BOTH ARE TRUE: the PIT lag is 0 (a release is known
+    #      the day it is released) while the FRESHNESS lag is 40 (the newest DATA MONTH still trails
+    #      by about that much, exactly as it does in the sibling, because both are built from the
+    #      same bronze on the same monthly fire). So the freshness ceiling is stated EXPLICITLY at
+    #      the sibling's 85 rather than derived from a PIT field that is answering another question.
+    "silver_pink_sheet_vintages": {
+        "required_nonnull": ["date", "release_ym", "release_date", "release_date_source"],
+        "nullable_overrides": {"release_ym": False, "release_date_source": False},
+        "freshness_sla": {"max_lag_days": 85},
+        "value_columns": _PINK_SHEET_VINTAGE_VALUE_COLUMNS,
+        "min_nonnull_frac_overrides": {
+            "rapeseed_oil_usd_t": 0.30,
+            "rapeseed_oil_usd_t_zscore_5yr": 0.26,
+            "palm_kernel_oil_usd_t": 0.36,
+            "palm_kernel_oil_usd_t_zscore_5yr": 0.33,
+            "sunflower_oil_usd_t": 0.28,
+            "sunflower_oil_usd_t_zscore_5yr": 0.25,
+        },
+        "notes_append": (
+            " PINK SHEET VINTAGES lane (a): the BITEMPORAL companion to silver_pink_sheet -- one row "
+            "per (data month, WB release), where the sibling keeps one row per month at the current "
+            "revision. natural_key is [release_date, date] with the VINTAGE AXIS FIRST, reading 'one "
+            "restatement of a data month per release'; release_ym is deliberately NOT in the key, "
+            "being a rendering of release_date rather than an independent fact. release_date is an "
+            "IN-FILE STRING 'YYYY-MM-DD' column and NOT a Hive partition key -- partition_keys is "
+            "EMPTY because the table is flat, so stage_feature_probe's partition-key forgiveness "
+            "(the silver_wasde 'release_date=' precedent) does not apply and the column must "
+            "genuinely be in the parquet footer, which it is. A STRING and never a timestamp: the "
+            "as-of guard is a lexical CAST(release_date AS varchar) <= '<asof>', so a timestamp "
+            "renders 'YYYY-MM-DD HH:MM:...' and silently EXCLUDES a release published ON the asof. "
+            "Each release is a FULL as-published history back to 1960-01 (measured on six vintages: "
+            "780/792/796/798/799/800 rows, each hole-free), which is what keeps one clock on every "
+            "row of a release and therefore keeps a point-in-time window from spanning two. The "
+            "z-scores are RE-COMPUTED per release over that release's own restated history -- "
+            "copying the current z onto an older vintage's rows would put a number derived from "
+            "post-asof revisions on a row stamped with a past release. latest_release_ym is dropped "
+            "on purpose: on a vintage row it and release_ym are one fact in two renderings. "
+            "HOW A ROW'S CLOCK RUNG IS READ: release_date_source names the rung of the ladder in "
+            "leviathan.common.pink_sheet_release.release_clock that minted release_date, and it is "
+            "one of four values. origin_last_modified = the ORIGIN's HTTP Last-Modified recorded at "
+            "capture in the raw_meta sidecar, whose month equals the derived release month; "
+            "origin_last_modified_clamped = the same, except the header landed on the month-END and "
+            "was clamped one day earlier, because a month-end stamp is unselectable at every asof "
+            "inside its own release month under the lexical as-of guard; derived_month_first = the "
+            "FIRST day of the derived release month, the fallback, measured 1-5 days EARLY against "
+            "the six workbooks' own Description stamps; derived_month_first_archive = the same "
+            "fallback on a body replayed from the web archive, kept DISTINCT because the archive's "
+            "own Last-Modified is the crawl's and may never reach rung 1. The rung is a property of "
+            "the CAPTURE, not of the row: rung 1 is reachable only because "
+            "jobs/batch/pink_sheet_vintages_task.py reads each release's raw_meta sidecar and hands "
+            "the header to the builder -- bronze carries no clock column -- so a release whose "
+            "sidecar is absent or unreadable takes rung 2, declared by absence rather than guessed. "
+            "Count the values to tell an origin-clocked vintage from an archive-clocked one; the "
+            "four already-banked objects all read derived_month_first, and that zero is measured."
+        ),
+    },
     # ── ESR changes_1000mt UPSTREAM TERMINATION (2026-07-23 gate FAIL triage): the FAS ESR
     # /allCountries response DROPPED the `changes` field entirely between the 20260524 and
     # 20260712 fetches -- immutable raw proof: every record of as_of=20260712/17/23 for
@@ -1249,6 +1412,29 @@ CURATION_OVERRIDES: dict = {
                                        "production_mt_revision": 0.025,
                                        "ending_stocks_mt_revision": 0.025,
                                        "consumption_mt_revision": 0.025},
+        "notes_append": (
+            " THE CLOCK IS THE SOURCE'S OWN STAMP (lane E, 2026-09-04). release_date is no longer "
+            "derived from a marketing-year rotation of month_code; it is the row's own "
+            "(Calendar_Year, Month) stamp resolved to a DAY. THE MONTH IS MEASURED AND THE DAY IS A "
+            "CONVENTION, and the convention is named: the registered silver_wasde release day for "
+            "that calendar month; month-END for the eight World Markets and Trade circular sheets "
+            "(111000, 114200, 223000, 240000, 571120, 585100, 612000, 711100), which do not ride the "
+            "WASDE day; month-END again for a stamp month silver_wasde does not carry, which today is "
+            "exactly two months (2006-07 and 2008-10) covering 51,454 of 247,294 rows (20.81%); and "
+            "1 January of the MARKETING year for the pre-WASDE-tracking mass at month_code 0. Every "
+            "one of those four dispositions is COUNTED by the producer and read by the gate. "
+            "MEASURED against the retired rotation on three banked bronze snapshots: the eight _mt "
+            "value columns, su_ratio and su_ratio_yoy_delta are BYTE-IDENTICAL on all 247,036 joined "
+            "keys, the row count moves 247,036 -> 247,294 (+258 older vintages the retired vintage "
+            "key was deleting), and the distinct release_date count collapses 809 -> 439 of which 708 "
+            "fabricated dates were dates USDA never published. su_ratio_yoy_delta keeps its 0.6 "
+            "floor: it is taken over the LATEST-VINTAGE reduction of each marketing year, so a "
+            "superseded vintage carries NULL and no WITHIN-marketing-year difference is ever emitted "
+            "under a year-over-year label. The three *_revision columns are ordered by release_date, "
+            "not by wasde_release_month: a marketing year's releases WRAP the calendar for every "
+            "MYS != 1 commodity, and the month-ordered sort inverted the sign for 38 of the 47 mapped "
+            "codes -- invisible at ~2.5% column density until an archive backfill makes it dense."
+        ),
     },
     # PROJECTION WAVE Lane 3 -- silver_psd_attributes. ONE fact build_contract cannot derive, and it
     # is a PIT fact rather than a style one. The generated required_nonnull mirrors the natural key,
@@ -1264,9 +1450,27 @@ CURATION_OVERRIDES: dict = {
     "silver_psd_attributes": {
         # (natural_key rides NATURAL_KEY_FALLBACK above -- derivation time, so the nullable
         # heuristic sees the physical grain; see the comment there for the serving-grain split.)
+        # release_date is now a natural-key MEMBER as well as the knowledge column (lane E), so
+        # its non-null assertion is doubly load-bearing; the list is unchanged because it already
+        # named it.
         "required_nonnull": ["leviathan_slug", "country", "market_year", "wasde_release_month",
                              "attribute", "attribute_id", "release_date", "unit"],
         "nullable_overrides": {"release_date": False, "unit": False, "attribute_id": False},
+        "notes_append": (
+            " THE CLOCK IS THE SOURCE'S OWN STAMP, AND release_date JOINED THE KEY (lane E, "
+            "2026-09-04). This table shares one clock function with silver_psd: release_date is the "
+            "row's own (Calendar_Year, Month) stamp resolved to a day by the named conventions on "
+            "that card. Because wasde_release_month is now the CALENDAR month of the release, two "
+            "releases twelve months apart share it, so the natural key GAINS release_date -- without "
+            "it the declared key is not a key and the producer's latest-only dedup would delete the "
+            "older VINTAGE rather than a re-print. The cost is MEASURED, not projected: over three "
+            "banked bronze snapshots the physical row count moves 3,397,958 -> 3,401,565 (+3,607, "
+            "+0.106%) and the served roster -- the subset the pg mirror admits -- moves 1,079,487 -> "
+            "1,080,307 (+820, +0.076%), with ZERO grain duplicates on the widened key. Growth is "
+            "strictly upward by construction (a key gaining a column cannot merge rows) and the "
+            "mirror sits on an instance with storage autoscaling OFF, so the shadow gate carries a "
+            "declared RED CEILING on it rather than a projection."
+        ),
     },
     "silver_mpob": {"freshness_sla": {"cadence": "monthly"}},        # MPOB monthly palm statistics
     "silver_modis_ndvi": {"freshness_sla": {"cadence": "monthly"}},  # 16-day composite; monthly interim
@@ -1456,6 +1660,29 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
         note = ov.get("drift_notes", {}).get(row.get("column") or row.get("name") or "")
         if note:
             row["note"] = note
+    # value_columns (PINK SHEET VINTAGES lane (a)): the INV-5 governed value set for a table with NO
+    # numbers card. build_contract's card-less fallback is "the numeric non-date non-key columns of
+    # the source contract's required_columns", which is honest but narrow -- a 75-column price table
+    # would ship a 2-column value census and a 2-column feature probe, i.e. a gate that passes
+    # because it is looking at almost nothing. Declared here so the census has real force before the
+    # card exists; when a card lands, numbers_spec supplies the same set and this becomes redundant
+    # rather than contradictory. FAIL-CLOSED: every name must be a declared physical column, or a
+    # typo would silently NARROW the very contract this override exists to widen.
+    if "value_columns" in ov:
+        unknown = [cn for cn in ov["value_columns"] if cn not in by_name]
+        if unknown:
+            raise KeyError(f"{name}: value_columns override names {unknown!r}, which are not "
+                           f"declared physical columns")
+        contract["value_columns"] = list(ov["value_columns"])
+        # THE INCUMBENT min_nonnull_frac IS PRESERVED, not re-derived. Re-writing the provisional
+        # 0.5 here duplicated build_contract's default literal in a second place, so the day that
+        # default moves -- it is explicitly PROVISIONAL, "pending per-source calibration" -- this
+        # ONE table would silently keep 0.5 while every other table followed. The override widens
+        # the value SET; it says nothing about the threshold. The only case that must still move is
+        # an override that EMPTIES value_columns: a table with no value columns can have no
+        # non-null fraction, and leaving a float there would point a census at nothing.
+        if not ov["value_columns"]:
+            contract["min_nonnull_frac"] = None
     for key in ("natural_key", "required_nonnull", "coverage_axis", "vintage_waiver",
                 "min_nonnull_frac_overrides", "min_nonnull_frac_season_overrides",
                 "schema_version"):

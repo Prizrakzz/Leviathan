@@ -116,7 +116,31 @@ def test_generator_covers_exactly_the_45_baseline_tables(gen):
     #                                   DOMAIN / PRODUCER / TALL_VALUE_COL instead, so this name
     #                                   stays OUT of HAND_AUTHORED_CONTRACTS and the write path
     #                                   keeps owning it.
-    assert len(on_disk) == 52
+    #   +1 silver_pink_sheet_vintages -- PINK SHEET VINTAGES lane (a) (2026-09-03), a SEVENTH
+    #                                   synthetic R0 record, authored from SILVER_VINTAGE_COLUMNS +
+    #                                   the INV-2 cast block. Contract GENERATED (not hand-authored,
+    #                                   the silver_psd_attributes disposition), so this name stays
+    #                                   OUT of HAND_AUTHORED_CONTRACTS and BOTH halves of the
+    #                                   byte-identity gate keep covering it. It is a SIBLING of
+    #                                   silver_pink_sheet under its own root, and no numbers card is
+    #                                   registered against it in that commit.
+    #
+    #   THE R0 RECORD ITSELF IS GITIGNORED, AND THAT IS TRUE OF ALL SEVEN. `.gitignore` excludes
+    #   `reports/silver_readiness/`, and gen_registry_from_baseline derives its whole name list from
+    #   that glob -- so on a CLEAN CHECKOUT `--check` sees zero contracts and the `in baseline`
+    #   assertions above are unreachable, not false. This is a PRE-EXISTING property of the seam
+    #   (records #1-#6 share it), stated here rather than left for a future reader to rediscover:
+    #     * THE COMMITTED ARTIFACT IS THE GENERATED CONTRACT -- configs/silver/tables/<table>.yaml
+    #       and its DDL render. Those ARE in git, they are what every consumer reads, and the
+    #       byte-identity gate compares the generator's output against them.
+    #     * THE R0 RECORD IS AN INPUT, and it rides the same way the gitignored configs/graphrag
+    #       subtree does in the flip checklist: through the config mirror / image tar
+    #       (scripts/ops/make_worker_context_tar.py overlays it, fingerprinted), never through the
+    #       commit.
+    #     * SO A GREEN `--check` HERE PROVES the generator still reproduces the committed contracts
+    #       from the record on THIS disk. It does not prove a clean checkout can regenerate them,
+    #       and it is not read as if it did.
+    assert len(on_disk) == 53
     assert "gold_pattern_records" in on_disk
     assert "silver_futures_eod" in on_disk
     assert "gold_board_crush" in on_disk
@@ -124,6 +148,8 @@ def test_generator_covers_exactly_the_45_baseline_tables(gen):
     assert "silver_ams_gtr" in baseline                  # synthetic R0 record #5
     assert "silver_psd_attributes" in baseline           # synthetic R0 record #6
     assert "silver_psd_attributes" not in gen.HAND_AUTHORED_CONTRACTS
+    assert "silver_pink_sheet_vintages" in baseline      # synthetic R0 record #7
+    assert "silver_pink_sheet_vintages" not in gen.HAND_AUTHORED_CONTRACTS
 
 
 class TestNullableOverrides:

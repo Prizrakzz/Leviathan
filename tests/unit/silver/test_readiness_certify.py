@@ -372,7 +372,11 @@ def test_runner_build_evidence_smoke(tmp_path):
     # 51 -> 52: + silver_psd_attributes (PROJECTION WAVE Lane 3, 2026-08-25). It lands BLOCKED with
     # no census and that is the honest state -- the transform has a full-object proof but no batch
     # task and no canonical publish yet, so there is nothing on S3 for the value census to read.
-    assert len(evidence) == 52
+    # 52 -> 53: + silver_pink_sheet_vintages (PINK SHEET VINTAGES lane (a), 2026-09-03). It
+    # lands BLOCKED with no census and that is the honest state -- the transform and the batch
+    # task both exist, but no canonical publish has run, so there is nothing on S3 for the
+    # value census to read.
+    assert len(evidence) == 53
     assert {e.table for e in evidence} == set(reg.names())    # one row per registry table, no dups
     cert = certify_all(evidence)
     # Structural, and true whatever the artifact tree says: a certificate covers every table and

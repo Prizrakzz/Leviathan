@@ -305,10 +305,20 @@ def family_of(table_name: str) -> str:
 def effective_sla_lag_days(contract: dict) -> tuple[int, str]:
     """Return ``(max_lag_days, basis)`` -- the interim freshness ceiling for a table.
 
-    Precedence: an explicit registry ``freshness_sla.max_lag_days`` (none set today) >
-    the cadence default (:data:`CADENCE_DEFAULT_LAG_DAYS`) > the monthly-ish fallback. A
-    ``publication_lag_days`` (e.g. ESR=7) is added as grace so the alarm never fires on the
-    expected publication delay."""
+    Precedence: an explicit registry ``freshness_sla.max_lag_days`` > the cadence default
+    (:data:`CADENCE_DEFAULT_LAG_DAYS`) > the monthly-ish fallback. A ``publication_lag_days``
+    (e.g. ESR=7) is added as grace so the alarm never fires on the expected publication delay.
+
+    THE FIRST RUNG IS NO LONGER EMPTY -- it used to say "(none set today)" and that stopped being
+    true with ``silver_pink_sheet_vintages``, where it is the MECHANISM of a live-alarm fix rather
+    than bookkeeping.  ``build_catalog`` takes the MINIMUM ceiling across a family, and that table's
+    two lags are DIFFERENT FACTS that both happen to be true: its PIT ``publication_lag_days`` is 0
+    (its knowledge column is ``release_date``, which IS the publication instant) while its FRESHNESS
+    lag is the sibling's ~40 days (the newest DATA MONTH trails by about that much, because both are
+    built from the same bronze on the same monthly fire).  Derived, its ceiling would have been
+    45+0 and, being the tightest in the ``world_bank`` family, would have pulled the FAMILY ceiling
+    from 85 to 45 and false-fired against ``silver_pink_sheet``'s legitimate lag.  So the registry
+    states 85 explicitly here and leaves ``publication_lag_days`` at 0."""
     fs = contract.get("freshness_sla") or {}
     grace = int(contract.get("publication_lag_days") or 0)
     explicit = fs.get("max_lag_days")

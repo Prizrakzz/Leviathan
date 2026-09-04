@@ -413,6 +413,31 @@ sources:
     expected_min_rows: 100
     duplicate_check: full
 
+  # The BITEMPORAL sibling. Its contract is its OWN, not a copy of the block above: copying
+  # `natural_key: [date]` with `duplicate_check: full` would fire quality.py's
+  # `duplicate_natural_keys` hard failure on essentially EVERY row of a full-restatement table,
+  # because every `date` recurs once per release. With the vintage axis in the key, and FIRST --
+  # reading "one restatement of a data month per release" -- `duplicate_check: full` is only now a
+  # real invariant rather than a guaranteed red. `release_ym` is deliberately ABSENT from the key:
+  # it is a rendering of release_date, not an independent fact, and keying on both is the
+  # string-identity class that lost 1,049 FCOJ COT weeks.
+  - source_key: pink_sheet_vintages
+    title: World Bank Pink Sheet bitemporal vintages silver
+    glue_table: silver_pink_sheet_vintages
+    s3_prefix: s3://leviathan-dev-shahem-001/silver/pink_sheet_vintages/
+    status: certified_driver
+    grain: monthly date x WB release
+    required_columns: [date, release_ym, release_date, release_date_source, soybean_oil_usd_t, palm_oil_cpo_usd_t]
+    natural_key: [release_date, date]
+    date_columns: [date, year, month]
+    availability_columns: [date]
+    # ITS OWN FLOOR, not the sibling's 100. Two full modern vintages are ~1,590 rows and the four
+    # already banked give ~3,193, so 1500 REDS a collapse to a single vintage or a truncated history
+    # while never falsely redding a legitimate rebuild. The sibling's 100 would pass a one-vintage
+    # collapse blind -- which is the exact failure this table exists to make visible.
+    expected_min_rows: 1500
+    duplicate_check: full
+
   - source_key: fred_fx
     title: FRED FX silver
     glue_table: silver_fred_fx

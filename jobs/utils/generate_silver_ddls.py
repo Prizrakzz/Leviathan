@@ -42,6 +42,13 @@ _SOURCES = {
     "silver_fred_fx": "silver/fred_fx/",
     "silver_futures_prices": "silver/futures_prices/",
     "silver_pink_sheet": "silver/pink_sheet/",
+    # PINK SHEET VINTAGES lane (a): a FLAT sibling, so this legacy generator can legally see it
+    # (_protected_tables refuses only projected/registered contracts). The DDL actually checked in
+    # was rendered by the F011 registry generator, which is AWS-free and is the authority; the entry
+    # is here so a legacy sweep does not silently omit the table -- and so
+    # config_check.check_numbers_schema_pins has a DDL to pin the card against when the card lands,
+    # instead of printing "no DDL file -- skipped".
+    "silver_pink_sheet_vintages": "silver/pink_sheet_vintages/",
     "silver_psd": "silver/psd/",
     "silver_wap_table01": "silver/wap_table01/",
     "silver_wap_table01_revisions": "silver/wap_table01_revisions/",

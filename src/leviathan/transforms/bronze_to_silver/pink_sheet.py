@@ -295,6 +295,57 @@ SILVER_COLUMNS: list[str] = (
 # The 37 renamed price columns (after pivot + rename).
 _VALUE_COLS: list[str] = list(_SERIES_RENAME.values())
 
+# ---------------------------------------------------------------------------
+# The BITEMPORAL sibling's column contract (silver_pink_sheet_vintages).
+#
+# ``latest_release_ym`` is DROPPED ON PURPOSE. On a latest-only row it answers "which release last
+# set this month's values"; on a VINTAGE row it and ``release_ym`` are ONE FACT IN TWO RENDERINGS,
+# and carrying both invites a join on the wrong one -- the string-identity class that lost 1,049
+# FCOJ COT weeks. Three columns take its place:
+#
+#   release_ym          'YYYYMmm'    the WB release this row was published in (provenance_col)
+#   release_date        'YYYY-MM-DD' the KNOWLEDGE DATE, a PYTHON STRING (never a timestamp: the
+#                                    as-of guard is a lexical CAST(col AS varchar) <= '<asof>', so a
+#                                    timestamp renders 'YYYY-MM-DD HH:MM:...' and a release
+#                                    published ON the asof is silently EXCLUDED)
+#   release_date_source token        which rung of the clock ladder minted release_date, counted per
+#                                    row so the 1-5 day early-knowledge window of the derived
+#                                    fallback is never silenced
+# ---------------------------------------------------------------------------
+SILVER_VINTAGE_COLUMNS: list[str] = (
+    [c for c in SILVER_COLUMNS if c != "latest_release_ym"]
+    + ["release_ym", "release_date", "release_date_source"]
+)
+
+# ---------------------------------------------------------------------------
+# THE VINTAGE BUILDER'S TWO BRONZE ORIGINS, and its CLOSED QUARANTINE VOCABULARY.
+#
+# ORIGINS. The scheduled chain writes under ``bronze/production/source=world_bank_pink_sheet/`` and
+# the backfill under ``...=world_bank_pink_sheet_archive/``; BOTH carry ``source ==
+# 'world_bank_pink_sheet'`` on every row, because the archive bronze is built by the SAME shipped
+# extractor. So the row's own ``source`` column cannot tell the two apart and the caller -- which
+# listed the two prefixes separately and therefore KNOWS -- declares the origin per frame.
+#
+# QUARANTINE, NEVER AN ABORT. A release that breaks a per-release premise takes ITSELF out of the
+# table under a named, counted reason; it never raises past the loop. One bad release aborting the
+# whole build is a live hazard, not a purity win: this task is a publishes:true leg of the
+# autonomous pink_sheet_monthly chain, so a single backfilled overlap would red the served chain.
+# The names are a CLOSED set so `built + quarantined == releases seen` holds exactly.
+# ---------------------------------------------------------------------------
+ORIGIN_SCHEDULED = "scheduled"
+ORIGIN_ARCHIVE = "archive"
+_ORIGIN_RANK = {ORIGIN_SCHEDULED: 0, ORIGIN_ARCHIVE: 1}
+
+VINTAGE_QUARANTINE_NOT_FULL_RESTATEMENT = "not_full_restatement"
+VINTAGE_QUARANTINE_DUPLICATE_RESTATEMENT = "duplicate_restatement"
+VINTAGE_QUARANTINE_PIVOT_DUPLICATE_COLUMNS = "pivot_duplicate_columns"
+
+VINTAGE_QUARANTINE_REASONS: frozenset[str] = frozenset({
+    VINTAGE_QUARANTINE_NOT_FULL_RESTATEMENT,
+    VINTAGE_QUARANTINE_DUPLICATE_RESTATEMENT,
+    VINTAGE_QUARANTINE_PIVOT_DUPLICATE_COLUMNS,
+})
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -432,3 +483,286 @@ def build_silver(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     wide = wide.merge(latest_ym, on="date", how="left")
 
     return wide[SILVER_COLUMNS].reset_index(drop=True)
+
+
+def _vintage_wide(long_one_release: pd.DataFrame) -> pd.DataFrame:
+    """Pivot + scale + z ONE release's long bronze frame into the wide vintage shape.
+
+    Everything ``build_silver`` does per-table this does PER RELEASE, with the two collapse blocks
+    (the ``_release_sort`` dedup and the per-date ``latest_release_ym`` max) deliberately absent --
+    there is nothing to collapse inside a single release.
+    """
+    # Step 0 -- the SAME _SERIES_RENAME normalisation. It exists because two World Bank naming
+    # conventions pivot to the same governed column, and the ARCHIVE widens that convention set, so
+    # the post-pivot duplicate-column tripwire below must stay armed on this path too.
+    frame = long_one_release.copy()
+    frame["series_name"] = frame["series_name"].replace(_SERIES_RENAME)
+
+    # One release restates each (date, series_name) exactly once. If it does not, the "full
+    # as-published history" premise is false for that release and the caller must hear about it
+    # BEFORE a pivot raises an opaque "Index contains duplicate entries" further down.
+    #
+    # THIS RAISE IS AN INTERNAL SIGNAL, NOT THE TABLE'S FAILURE MODE. build_silver_vintages already
+    # deduped (release_ym, date, series_name) across the two bronze prefixes before calling here, so
+    # what survives to trip this is the case dedup CANNOT fix: Step 0 collapsed two DIFFERENT source
+    # spellings onto one governed name inside a single release. The caller catches it and QUARANTINES
+    # that release under a counted name; one bad release never aborts the whole build.
+    dupes = frame.duplicated(subset=["date", "series_name"]).sum()
+    if dupes:
+        release = str(frame["release_ym"].iloc[0]) if len(frame) else "?"
+        raise ValueError(
+            f"pink_sheet vintages: release {release} carries {int(dupes)} duplicate "
+            f"(date, series_name) rows; a release is one full as-published history and cannot "
+            f"restate a month twice"
+        )
+
+    wide = frame.pivot(index="date", columns="series_name", values="value_usd")
+    wide.columns.name = None
+    wide = wide.reset_index()
+
+    if wide.columns.duplicated().any():
+        bad = sorted(set(wide.columns[wide.columns.duplicated()]))
+        raise ValueError(
+            f"pink_sheet vintages pivot produced duplicate columns {bad}; series_name "
+            "normalization (Step 0) did not collapse a cross-convention alias."
+        )
+
+    for col in _VALUE_COLS:
+        if col not in wide.columns:
+            wide[col] = float("nan")
+
+    for col, scale in _SERIES_UNIT_SCALE.items():
+        if col in wide.columns and scale != 1.0:
+            wide[col] = wide[col] * scale
+
+    wide["date"] = pd.to_datetime(wide["date"])
+    wide = wide.sort_values("date").reset_index(drop=True)
+    wide["year"] = wide["date"].dt.year.astype(int)
+    wide["month"] = wide["date"].dt.month.astype(int)
+
+    wide["blended_npk_index"] = wide[_NPK_COLS].mean(axis=1, skipna=False)
+
+    # THE Z-SCORES ARE RE-COMPUTED PER RELEASE, over THAT release's own restated history. Copying
+    # today's z onto an older vintage's rows would put a number derived from POST-ASOF revisions on
+    # a row stamped with a PAST release -- a leak on the one metric the table advertises PIT-clean.
+    # Same window, same min_periods, same Option-A epsilon (a window with no dispersion has no
+    # z-score; a 0.0 there asserts "exactly at the 5-year mean", which constant data cannot support).
+    for col in _VALUE_COLS + ["blended_npk_index"]:
+        z_col = f"{col}_zscore_5yr"
+        roll = wide[col].rolling(_ZSCORE_WINDOW, min_periods=_ZSCORE_MIN_PERIODS)
+        std = roll.std()
+        std = std.where(std > 1e-9)
+        wide[z_col] = (wide[col] - roll.mean()) / std
+
+    for col, floor_year in _ZSCORE_VALID_FROM.items():
+        z_col = f"{col}_zscore_5yr"
+        if z_col in wide.columns:
+            wide.loc[wide["year"] < floor_year, z_col] = None
+
+    return wide
+
+
+def build_silver_vintages(
+    dfs: list[pd.DataFrame],
+    *,
+    origins: "list[str] | None" = None,
+    clocks: "dict[str, dict] | None" = None,
+    declines: "dict[str, str] | None" = None,
+    counters: "dict[str, int] | None" = None,
+) -> pd.DataFrame:
+    """Transform Pink Sheet bronze frames into the BITEMPORAL table: one row per (month, release).
+
+    ``build_silver`` COLLAPSES releases (newest wins per ``(date, series_name)``) and serves the
+    current revision of every month.  This builder GROUPS BY ``release_ym`` instead and keeps every
+    release whole, so a point-in-time read can ask what the World Bank had published as of a past
+    date rather than what it says today.
+
+    Everything upstream is already bitemporal -- raw is one immutable object per release and every
+    bronze row carries ``release_ym`` -- so no new capture is needed: the first build retroactively
+    recovers every release already banked.
+
+    THE FULL-RESTATEMENT PREMISE.  Each release restates the whole history back to 1960-01 (measured
+    on six vintages: 780/792/796/798/799/800 rows, each hole-free), so every row of one release
+    carries ONE release stamp.  That is what keeps the served one-clock fences reachable-but-never-
+    tripped: a 60-month point-in-time window selects exactly one release per data month, so a
+    mixed-stamp window cannot arise.  Under SPARSE last-changed storage it would be the DOMINANT
+    outcome and both riders would silently disable themselves -- which is why storage shape here is a
+    SERVING question, not a size question.
+
+    THE TWO PREFIXES MEET HERE, SO THE COLLISION IS ADJUDICATED HERE.  The scheduled chain and the
+    Wayback backfill can both hold one release: ``select_captures`` is not year-bounded, and
+    ``_land`` only checks the ARCHIVE key.  Unioned, that release restates every
+    ``(date, series_name)`` twice.  The rule is DEDUP ON ``(release_ym, date, series_name)``,
+    PREFERRING THE SCHEDULED FRAME -- the scheduled object is the one the origin served us directly,
+    the archive one is a replay of the same publication -- and the drop is COUNTED, split into rows
+    whose values agreed and rows whose values did NOT (the second is a real finding about the
+    archive replay, and it is reported rather than resolved silently).
+
+    THE FULL-RESTATEMENT GATE (G-A1), IN THE PRODUCER.  The fetch lands a holed release deliberately
+    -- raw is the asset -- and says the vintage builder is where it is refused.  This is that place:
+    every release is measured with ``is_full_restatement(months, release_ym)`` against the month it
+    is FILED under, and a release that fails is QUARANTINED under a counted name from
+    :data:`VINTAGE_QUARANTINE_REASONS`.  Quarantine, never an abort: this builder is a
+    ``publishes:true`` leg of the autonomous ``pink_sheet_monthly`` chain, so one bad release
+    raising past the loop would red the served chain instead of dropping itself out of the table.
+
+    Args:
+        dfs: Bronze DataFrames, one or more per release, each with columns
+             ``(date, series_name, value_usd, release_ym, source)``.  Frames from the SCHEDULED and
+             the ARCHIVE bronze prefixes may be mixed; this builder is the only place the two meet.
+        origins: Parallel to *dfs*: :data:`ORIGIN_SCHEDULED` or :data:`ORIGIN_ARCHIVE` per frame.
+             The row's own ``source`` column CANNOT answer this (archive bronze is built by the same
+             shipped extractor and carries the same ``source`` value), so the caller -- which listed
+             the two prefixes separately -- declares it.  ``None`` means "all scheduled", and then
+             the dedup preference degenerates to input order, which is deterministic.
+        clocks: ``{release_ym: {'http_last_modified': str | None, 'archive': bool}}`` read from the
+             raw_meta sidecars.  THIS IS WHAT MAKES RUNG 1 OF THE CLOCK LADDER REACHABLE: without it
+             every row takes ``derived_month_first`` and the ladder is documentation only.  A
+             release absent from the mapping takes rung 2, which is the honest answer for a release
+             whose sidecar was never written or could not be read.
+        declines: Optional mutable dict, filled ``{release_ym: reason}`` for every QUARANTINED
+             release.  Absence is never zero: the caller logs the dict, empty or not.
+        counters: Optional mutable dict, filled with the dedup and gate tallies.
+
+    Returns:
+        A DataFrame with columns matching :data:`SILVER_VINTAGE_COLUMNS` (exact order), sorted by
+        ``(release_ym, date)``.  ``release_date`` is a PYTHON STRING ``'YYYY-MM-DD'``.  Returns an
+        empty DataFrame with those columns if ``dfs`` is empty/all-empty, or if EVERY release
+        quarantined (in which case *declines* says which and why).
+    """
+    from leviathan.common.pink_sheet_release import is_full_restatement, release_clock
+
+    declined: dict = declines if declines is not None else {}
+    tally: dict = counters if counters is not None else {}
+    tally.setdefault("releases_seen", 0)
+    tally.setdefault("releases_built", 0)
+    tally.setdefault("releases_quarantined", 0)
+    tally.setdefault("duplicate_rows_dropped", 0)
+    tally.setdefault("duplicate_rows_dropped_value_conflict", 0)
+    tally.setdefault("releases_in_both_prefixes", 0)
+    tally.setdefault("clock_rung_1", 0)
+    tally.setdefault("clock_rung_2", 0)
+    tally.setdefault("rows_dropped_null_release_ym", 0)
+
+    if not dfs:
+        return pd.DataFrame(columns=SILVER_VINTAGE_COLUMNS)
+
+    ranks = list(origins or [])
+    tagged: list[pd.DataFrame] = []
+    for i, df in enumerate(dfs):
+        frame = df.copy()
+        origin = ranks[i] if i < len(ranks) else ORIGIN_SCHEDULED
+        if origin not in _ORIGIN_RANK:
+            raise ValueError(
+                f"pink_sheet vintages: frame {i} declares origin {origin!r}, which is not one of "
+                f"{sorted(_ORIGIN_RANK)}; the origin decides which frame wins a cross-prefix "
+                f"collision and may not be guessed"
+            )
+        frame["_origin_rank"] = _ORIGIN_RANK[origin]
+        frame["_frame_ix"] = i
+        tagged.append(frame)
+
+    combined = pd.concat(tagged, ignore_index=True)
+    if combined.empty:
+        return pd.DataFrame(columns=SILVER_VINTAGE_COLUMNS)
+
+    # ---- THE CROSS-PREFIX DEDUP -------------------------------------------------------------
+    # Stable sort on (rank, frame index) then keep='first': the SCHEDULED frame wins, and among
+    # frames of equal rank the earlier one does, so the outcome does not depend on dict order or on
+    # how many objects a prefix happened to hold.
+    _key = ["release_ym", "date", "series_name"]
+    # A NULL release stamp is DROPPED AND COUNTED, never coerced. `astype(str)` below would turn
+    # NaN into the string 'nan' and file those rows as a release called "nan" -- a fabricated
+    # vintage key, which is the exact class of defect the content key exists to prevent.
+    null_release = int(combined["release_ym"].isna().sum())
+    if null_release:
+        tally["rows_dropped_null_release_ym"] = null_release
+        combined = combined.loc[combined["release_ym"].notna()]
+        if combined.empty:
+            return pd.DataFrame(columns=SILVER_VINTAGE_COLUMNS)
+    combined["release_ym"] = combined["release_ym"].astype(str)
+    combined = combined.sort_values(["_origin_rank", "_frame_ix"], kind="mergesort")
+    dup_mask = combined.duplicated(subset=_key, keep="first")
+    n_dupes = int(dup_mask.sum())
+    if n_dupes:
+        winners = combined.loc[~dup_mask].set_index(_key)["value_usd"]
+        losers = combined.loc[dup_mask]
+        aligned = losers.set_index(_key)["value_usd"]
+        # A value conflict is a FINDING about the archive replay, not a reason to refuse: the
+        # scheduled frame still wins by rule, and the count is what makes the disagreement visible.
+        conflict = 0
+        try:
+            paired = aligned.to_frame("loser").join(winners.rename("winner"), how="left")
+            conflict = int((paired["loser"].fillna(-1e308) != paired["winner"].fillna(-1e308)).sum())
+        except Exception:  # noqa: BLE001
+            # -1 IS "UNMEASURED", NOT ZERO -- a BELT WITH NO MEASURED TRIGGER. The winner index is
+            # unique by construction (duplicated(keep="first")), so this branch has never fired; it
+            # exists so a future shape that breaks the join reports "unmeasured" rather than 0,
+            # which would assert the archive agreed with the scheduled frame on evidence nobody has.
+            conflict = -1
+        tally["duplicate_rows_dropped"] = n_dupes
+        tally["duplicate_rows_dropped_value_conflict"] = conflict
+        tally["releases_in_both_prefixes"] = int(
+            losers.loc[losers["_origin_rank"] > 0, "release_ym"].nunique()
+        ) if "_origin_rank" in losers.columns else 0
+        combined = combined.loc[~dup_mask]
+    combined = combined.drop(columns=["_origin_rank", "_frame_ix"]).reset_index(drop=True)
+
+    out: list[pd.DataFrame] = []
+    # 'YYYYMmm' is fixed-width, so lexicographic order IS chronological order.
+    for release in sorted(str(r) for r in combined["release_ym"].dropna().unique()):
+        slice_ = combined.loc[combined["release_ym"].astype(str) == release]
+        if slice_.empty:
+            continue
+        tally["releases_seen"] += 1
+
+        # ---- G-A1, HERE AND NOWHERE ELSE ----------------------------------------------------
+        # Measured against the DECLARED release, not against the run's own max: a workbook whose
+        # last labelled monthly row is blank files one month HIGH and lands one month SHORT, and
+        # max(seq)+1 self-certifies that shape as complete.
+        stamps = pd.to_datetime(slice_["date"])
+        months = sorted({f"{d.year:04d}M{d.month:02d}" for d in stamps})
+        if not is_full_restatement(months, release):
+            declined[release] = VINTAGE_QUARANTINE_NOT_FULL_RESTATEMENT
+            tally["releases_quarantined"] += 1
+            continue
+
+        try:
+            wide = _vintage_wide(slice_)
+        except ValueError as exc:
+            reason = (VINTAGE_QUARANTINE_PIVOT_DUPLICATE_COLUMNS
+                      if "duplicate columns" in str(exc)
+                      else VINTAGE_QUARANTINE_DUPLICATE_RESTATEMENT)
+            declined[release] = reason
+            tally["releases_quarantined"] += 1
+            continue
+
+        wide["release_ym"] = release
+        # ONE release_clock CALL PER RELEASE, so every row of a release shares one clock BY
+        # CONSTRUCTION rather than by a post-hoc equality check. The bytes are not available at this
+        # layer and the ladder does not read them -- rung 1 needs the CAPTURE-TIME HTTP header, which
+        # the caller lifts out of the raw_meta sidecar and hands over in `clocks`.
+        meta = (clocks or {}).get(release) or {}
+        release_date, source = release_clock(
+            release,
+            http_last_modified=meta.get("http_last_modified"),
+            archive=bool(meta.get("archive", False)),
+        )
+        wide["release_date"] = release_date
+        wide["release_date_source"] = source
+        tally["clock_rung_1" if str(source).startswith("origin_") else "clock_rung_2"] += 1
+        tally["releases_built"] += 1
+        out.append(wide)
+
+    if not out:
+        return pd.DataFrame(columns=SILVER_VINTAGE_COLUMNS)
+
+    frame = pd.concat(out, ignore_index=True)
+    frame = frame.sort_values(["release_ym", "date"]).reset_index(drop=True)
+    # DTYPE IS PART OF THE CONTRACT, not a coincidence of the writer: a pandas datetime here would
+    # render 'YYYY-MM-DD HH:MM:...' through the as-of guard and stamp
+    # '[known 2026-09-02 00:00:00.000]' into every citation footer.
+    frame["release_date"] = frame["release_date"].astype(str)
+    frame["release_date_source"] = frame["release_date_source"].astype(str)
+    frame["release_ym"] = frame["release_ym"].astype(str)
+    return frame[SILVER_VINTAGE_COLUMNS].reset_index(drop=True)
