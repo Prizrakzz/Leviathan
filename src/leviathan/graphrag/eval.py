@@ -292,7 +292,8 @@ def _cascade_stats(out: dict) -> dict:
     _cw_great_slug = ((_cw.get("path") or [None])[-1]
                       if int(_cw_deep.get("order_n") or 0) == 3 else None)
     _cw_deepest = (next((c for c in reversed(_cw.get("cells") or [])
-                         if c.get("kind") != "context" and c.get("slug") == _cw_great_slug), None)
+                         if c.get("kind") not in ("context", "fx")
+                         and c.get("slug") == _cw_great_slug), None)
                    if _cw_great_slug else None)
     # SHAPE TOLERANCE (2026-09-01): the engine writes the FIRED DICT at sg.trace[key] (the C11/F3
     # site) while the W4.5 pins' fixtures carry the older LIST-of-pairs shape -- both are legal on
@@ -392,9 +393,13 @@ def _cascade_stats(out: dict) -> dict:
             "cw_path": _cw.get("path"),
             # V2-1: both counters kind-filter context cells (byte-identical on every banked artifact --
             # today's cells carry no `kind` key; 'no kind' means board).
-            "cw_cells_declared": sum(1 for c in _cw.get("cells") or [] if c.get("kind") != "context"),
+            # V2-3: the filters gain 'fx' -- an exchange rate is not a board cell. No-op on
+            # every banked artifact (no cell carries kind 'fx' today).
+            "cw_cells_declared": sum(1 for c in _cw.get("cells") or []
+                                     if c.get("kind") not in ("context", "fx")),
             "cw_cells_measured": sum(1 for c in _cw.get("cells") or []
-                                     if c.get("status") == "closed" and c.get("kind") != "context"),
+                                     if c.get("status") == "closed"
+                                     and c.get("kind") not in ("context", "fx")),
             "cw_j4_skips": sum(1 for c in _cw.get("cells") or [] if c.get("j4_handle")),
             "cw_children_declared": int(_cw.get("children_declared") or 0),
             "cw_children_priced": int(_cw.get("children_priced") or 0),
@@ -487,6 +492,45 @@ def _cascade_stats(out: dict) -> dict:
             "cw_deep_identity_ok": _cw_deep_ok,
             # ...and its companion: the belt state the rectangle cannot see. Bar it at zero rows.
             "cw_deep_error": bool(_cw_deep.get("error")),
+            # V2-3 (L9): the depth the PAGE showed, beside cw_order_n (the depth the CLOSED cells
+            # earned). Projected so cw_order stays comparable across arms -- a short chain and a
+            # holed chain are different findings and used to look the same.
+            "cw_order_rendered": _cw_deep.get("order_n_rendered"),
+            # V2-3 CROSS-CURRENCY (rider on the walk): its ledger rides INSIDE quantify_cascade_walk
+            # under payload['xccy'] (absent when the rider is off) and its cells under kind == 'fx'.
+            # APPENDED at the tail, never sorted in (the rv_regional precedent). Same plain
+            # statement as the other two riders': every eval ARTIFACT row gains these keys on every
+            # run, flag off included -- the row SHAPE changes, serving bytes do not.
+            # THE FX RECTANGLE, closable from these numbers alone:
+            #   fx_planned == fx_rendered + fx_cache_hits + |fx_declines|          (always -- the
+            #     whole-block rollbacks name every dropped cell 'block_fenced', so the identity
+            #     holds on the fenced path too, not only on the fired one)
+            #   fx_planned == fx_admitted + fx_cache_hits + |pre-admit declines|   (no belt trip)
+            #   ON A BELT ROW (cw_xccy_error True) BOTH identities are VACUOUS: the belt replaces the
+            #   payload, so a rate read paid before the raise is carried by nothing here (fix
+            #   re-review minor 1) -- read cw_xccy_error first, the rectangle second.
+            "cw_xccy_on": "xccy" in _cw,
+            # ...and the belt state the rectangle cannot see, the cw_deep_error companion: the
+            # wrapper stamps payload['xccy'] = {'error': True} on a raise under the rider, so
+            # cw_xccy_on stays TRUE on that row and a treatment error can never score as a control.
+            # Bar it at zero rows, exactly as cw_deep_error is barred.
+            "cw_xccy_error": bool((_cw.get("xccy") or {}).get("error")),
+            "cw_xccy_rendered": int((_cw.get("xccy") or {}).get("rendered") or 0),
+            "cw_xccy_pairs": (_cw.get("xccy") or {}).get("pairs") or [],
+            "cw_fx_planned": int((_cw.get("xccy") or {}).get("fx_planned") or 0),
+            "cw_fx_admitted": int((_cw.get("xccy") or {}).get("fx_admitted") or 0),
+            "cw_fx_rendered": int((_cw.get("xccy") or {}).get("fx_rendered") or 0),
+            "cw_fx_reads": int((_cw.get("xccy") or {}).get("fx_reads") or 0),
+            "cw_fx_cache_hits": int((_cw.get("xccy") or {}).get("fx_cache_hits") or 0),
+            "cw_fx_declines": [d.get("reason") for d in (_cw.get("xccy") or {}).get("declines")
+                               or []],
+            "cw_fx_flips_sign": int((_cw.get("xccy") or {}).get("fx_flips_sign") or 0),
+            "cw_fx_unpriced_verdicts": int((_cw.get("xccy") or {}).get("fx_unpriced_verdicts") or 0),
+            # K0c's DENOMINATOR: hops that cleared BOTH board fences AND held a closed FX cell, i.e.
+            # the hops on which the flip test actually RAN. The gate is
+            # cw_fx_flips_sign / cw_fx_gate_checked -- never over all rendered hops, which would
+            # dilute it with fence-failed rows that can never fire the numerator.
+            "cw_fx_gate_checked": int((_cw.get("xccy") or {}).get("fx_gate_checked") or 0),
             # T2a (CONVERGENCE_TIER1): quantify_pace is ENGINE-written, non-empty IFF >=1 deterministic
             # streak/window_change pace row was emitted this turn. BOOLEAN (mirror comove_fired/
             # price_leg_fired [F7]) -- an honest decline (<2 points / annual grain / flag off) leaves the
@@ -1048,7 +1092,12 @@ _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "a
                    "curve_cited", "expiry_labeled", "settle_kind_stated", "futures_coverage_route",
                    # V2-1: trace-only boolean pin; the NEGATIVE branch is the realizable teeth (a root
                    # with no mapped tree slice can never render). Tail, never sorted in.
-                   "cw_context_rendered")
+                   "cw_context_rendered",
+                   # V2-3: APPENDED AT THE TAIL, never sorted in. Its NEGATIVE branch is the
+                   # structural teeth: a root whose every declared child shares its currency can
+                   # NEVER render a cross-currency hop, so `false` is pinnable on every such deck
+                   # row regardless of the flag; the positive is flag-gated + data-dependent.
+                   "cw_xccy_rendered")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -1172,6 +1221,11 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # flag-gated + data-dependent, and on the OFF arm it is the byte-identity assertion made
             # deterministic (flag absent -> the engine cannot write the key, so the pin cannot flap).
             res[k] = cs["transmission_fired"] == bool(want)
+        elif k == "cw_xccy_rendered":
+            # V2-3 CROSS-CURRENCY: the same trace-only boolean pin, reading the counter its own key
+            # names (there is no second hop counter -- the duplicate was dropped rather than
+            # reconciled).
+            res[k] = (int(cs.get("cw_xccy_rendered") or 0) > 0) == bool(want)
         elif k == "cw_context_rendered":
             # V2-1 CONTEXT CELL: trace-only boolean pin (the chain_fired idiom) off the walk's ONE key.
             # The NEGATIVE branch is structural teeth: a root whose tree carries no mapped slice cannot
@@ -1780,6 +1834,20 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "cw_walk_elapsed_ms": cs.get("cw_walk_elapsed_ms"),   # POP before any byte diff
             "cw_deep_identity_ok": cs.get("cw_deep_identity_ok"),
             "cw_deep_error": cs.get("cw_deep_error"),
+            "cw_order_rendered": cs.get("cw_order_rendered"),
+            "cw_xccy_on": cs.get("cw_xccy_on"),
+            "cw_xccy_error": cs.get("cw_xccy_error"),
+            "cw_xccy_rendered": cs.get("cw_xccy_rendered"),
+            "cw_xccy_pairs": cs.get("cw_xccy_pairs"),
+            "cw_fx_planned": cs.get("cw_fx_planned"),
+            "cw_fx_admitted": cs.get("cw_fx_admitted"),
+            "cw_fx_rendered": cs.get("cw_fx_rendered"),
+            "cw_fx_reads": cs.get("cw_fx_reads"),
+            "cw_fx_cache_hits": cs.get("cw_fx_cache_hits"),
+            "cw_fx_declines": cs.get("cw_fx_declines"),
+            "cw_fx_flips_sign": cs.get("cw_fx_flips_sign"),
+            "cw_fx_unpriced_verdicts": cs.get("cw_fx_unpriced_verdicts"),
+            "cw_fx_gate_checked": cs.get("cw_fx_gate_checked"),
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
             "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered

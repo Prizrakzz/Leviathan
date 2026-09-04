@@ -262,11 +262,16 @@ def test_lane2_both_leg_standings_render_with_zero_added_fetches(monkeypatch):
     lines, tr = cq._rv_price_reading(None, SRC, TGT, _fired(), None, ASOF, calls, 0, _ERA,
                                      derived=True)
     body = "\n".join(lines)
-    # the STANDINGS add ZERO reads; lane 2b adds exactly ONE here -- soyoil is on the EOD fresh
-    # roster and palm honestly is not (P5: no futures card), so fetches = 2 pink + 1 settle.
-    assert tr["fetches"] == 3 and len(log) == 3
-    assert body.count("front-month settle (its own currency") == 1
+    # the STANDINGS add ZERO reads; lane 2b adds one EOD read PER MAPPED LEG.
+    # RE-ANCHORED 3 -> 4 (2026-09-04, V2-3 law L8): the V2-4 docket that kept palm off this roster
+    # -- "palm has no futures card" -- is DISCHARGED. Its CME USD backfill went canonical at D9 and
+    # serves at rev 126, so malaysian_crude_palm_oil_cme joined _RV_EOD_FRESH off the same
+    # silver_futures_eod coverage every other row came from, and BOTH legs of this pair now print
+    # their own front-month settle in their own currency. Nothing converts anything.
+    assert tr["fetches"] == 4 and len(log) == 4
+    assert body.count("front-month settle (its own currency") == 2
     assert "US cents/lb" in body and "the CBOT soybean oil contract" in body
+    assert "CME palm oil, front-month settle (its own currency" in body
     assert body.count("own price stands within its 60-month span") == 2
     assert body.count("'s own price against its own window average") == 2   # the LEG sigma lines
     assert "that spread against its own window average" in body             # ...beside the spread's

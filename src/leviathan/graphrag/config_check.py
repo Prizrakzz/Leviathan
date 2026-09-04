@@ -112,10 +112,20 @@ SYNTHESIZED_PRICE_LEG_ALLOW: dict = {
         "cotton_a_index_usd_t", "rice_thai_5pct_usd_t", "cocoa_usd_t",
         "beef_usd_t", "chicken_usd_t"}),                    # V2-1 context cell, registered with the surface
     # OWNER AMENDMENT (2026-08-29, the regional sitting): the absent board's OWN front settle in its
-    # OWN currency (cascade._RV_EOD_LEVEL) -- an observed fact needing no FX; the cross-currency
-    # COMPARISON stays refused. This is exactly the adjudication R4c exists to force: a new
-    # synthesized price surface enters through this register, in the same change that mints it.
+    # OWN currency (cascade._RV_EOD_LEVEL) -- an observed fact needing no FX. This is exactly the
+    # adjudication R4c exists to force: a new synthesized price surface enters through this
+    # register, in the same change that mints it.
+    #
+    # SUPERSEDED IN PART, 2026-09-04 (V2-3, owner decision #1 -- the amendment above said "the
+    # cross-currency COMPARISON stays refused", and this register REWRITES that clause rather than
+    # silently contradicting it). WHAT IS NOW ADMITTED: an exchange RATE, as an OBSERVED rate on its
+    # own dated prints, on its own [N] handle, multiplied into NOTHING; and a cross-currency
+    # comparison ONLY as a SIGN test over two OWN-CURRENCY percent moves, with both currencies named
+    # on the page in words and the rate cited on its own row. WHAT STAYS REFUSED, unchanged: a
+    # cross-currency LEVEL or MAGNITUDE comparison, and ANY restatement of a board figure in another
+    # currency. Nothing anywhere converts a price.
     "silver_futures_eod": frozenset({"settle"}),
+    "silver_fred_fx": frozenset({"cny_usd", "cad_usd", "eur_usd", "zar_usd"}),
 }
 # -- D-DA: the SYNTHESIZED-derived-leg allow-list (design v2 STEP 7, 2026-09-01) ---------------------------
 # A SEPARATE register from the price one (round-2 m3: the two registers bind DIFFERENT things -- this one
@@ -1410,7 +1420,9 @@ def _check_synthesized_price_legs() -> list[str]:
     module level and added to the reachable-set read below. Docketed, not silent.
     V2-1 (2026-09-02): cascade._CW_CONTEXT_SERIES -- the third synthesized pink-sheet surface -- is
     FOLDED into the reachable set in the same change that minted it (never a door beside the fence);
-    both maps read the same table, so one allow-list entry binds both."""
+    both maps read the same table, so one allow-list entry binds both.
+    V2-3 (2026-09-04): cascade._CW_FX_CROSS on cascade._CW_FX_TABLE -- the cross-currency leg's
+    exchange-rate surface -- is folded the same way, against its OWN table entry."""
     from leviathan.graphrag.numbers import cascade as csc
     from leviathan.graphrag.numbers.registry import load_registry
     errs: list[str] = []
@@ -1433,6 +1445,15 @@ def _check_synthesized_price_legs() -> list[str]:
                  (getattr(csc, "_RV_EOD_FRESH", None) or {}))    # D-DA lane 2b: same binding
     for m in sorted({mm for mp in _eod_maps for (mm, _lbl) in mp.values()} - eod_allowed):
         errs.append(f"R4c: synthesized EOD level metric {m!r} is outside the ratified allow-list")
+    # V2-3 (2026-09-04): the CROSS-CURRENCY leg's exchange-rate surface (cascade._CW_FX_CROSS on
+    # cascade._CW_FX_TABLE) is FOLDED INTO THE FENCE, never left to a door beside it -- the same
+    # binding, its own table entry. The generic loop below then validates those metrics against the
+    # card, so the register and the card cannot drift apart either.
+    fx_allowed = SYNTHESIZED_PRICE_LEG_ALLOW.get(getattr(csc, "_CW_FX_TABLE", None) or "",
+                                                 frozenset())
+    for m in sorted({mm for (mm, _lbl) in (getattr(csc, "_CW_FX_CROSS", None) or {}).values()}
+                    - fx_allowed):
+        errs.append(f"R4c: V2-3 exchange-rate metric {m!r} is outside the ratified allow-list")
     tables = load_registry().tables
     for t, mets in SYNTHESIZED_PRICE_LEG_ALLOW.items():
         ts = tables.get(t)
@@ -1550,6 +1571,13 @@ def check_price_register() -> list[str]:
 # so a pin can read it by attribute (post-fix re-review minor 6). A curation edit that moves it is a
 # WARN in the lint, never silent.
 CW_MEASURED_MAX_OUT_DEGREE = (4, "corn_cbot")
+CW_MEASURED_MAX_OUT_DEGREE_XCCY = (7, "corn_cbot")   # V2-3, MEASURED 2026-09-04 against the SHIPPED
+#                               ladder with `xccy=True`: corn_cbot declares seven admissible
+#                               children once the cross-currency gate lifts (+french_wheat_matif,
+#                               +south_african_white_maize_jse, +south_african_yellow_maize_jse).
+#                               CW_DEEP_MAX_CHILDREN is 6, so the seventh is declined BY NAME as
+#                               child_not_priced_budget and counted -- never a silent drop, which is
+#                               why this pair is a WARN tripwire and not an error.
 
 
 def check_cascade_walk() -> list[str]:
@@ -1566,11 +1594,12 @@ def check_cascade_walk() -> list[str]:
           numerals and curation-telemetry tokens, register-clean, and DIRECTION-CONSISTENT with
           its own sign (a '+' edge with a pressuring/capping predicate errors, and conversely).
     (iv)  supply-keyed language on any SIGNED shipping edge errors (the robusta re-key's fence).
-    (v)   the walk has TWO registered physical reads, each bound by its own register term: the
-          TAPE (silver_futures_eod, settle), pinned here, and the V2-1 CONTEXT SERIES
+    (v)   the walk has THREE registered physical reads, each bound by its own register term: the
+          TAPE (silver_futures_eod, settle), pinned here; the V2-1 CONTEXT SERIES
           (silver_pink_sheet, {beef_usd_t, chicken_usd_t}), bound by check_cascade_context
-          clause (e) through SYNTHESIZED_PRICE_LEG_ALLOW. Nothing walk-owned enters that register
-          un-adjudicated.
+          clause (e) through SYNTHESIZED_PRICE_LEG_ALLOW; and the V2-3 EXCHANGE RATE
+          (silver_fred_fx, the _CW_FX_CROSS metrics), bound through the SAME register by
+          _check_synthesized_price_legs. Nothing walk-owned enters that register un-adjudicated.
     (vi)  every rev-index node resolves to ONE seed (the walk's all-or-nothing focus gate).
     (vii) display labels for every RESOLVABLE tree-driver slice of a shipping parent are
           digit-free (the section301 minor -- a digit-bearing ROW-3 label would drop the whole
@@ -1580,7 +1609,22 @@ def check_cascade_walk() -> list[str]:
           row and errors).
     (viii) the census TRIPWIRE via the public enumerator: recompute the reach counts and WARN on
           drift against the banked postrekey census -- printed, never a hard floor (the artifact
-          is a moving input)."""
+          is a moving input). It keeps the SAME-CURRENCY basis its artifact was banked on.
+    (xi)  V2-3: _CW_CURRENCY_WORD covers EXACTLY the currencies of labelled boards, drift BOTH ways;
+          every word letters-and-spaces only, register-clean.
+    (xii) V2-3: _CW_FX_CROSS carries no STALE row (one-directional by construction -- the map
+          DEFINES admissibility, so the missing direction is unreachable), and no mapped metric is a
+          fixed 90-calendar-day change column (a different clock from the firing window).
+    (xiii) V2-3 constant-drift pins: CW_FX_CAP/CW_FX_MIN_OBS/CW_FX_READS_PER_CELL, the ONE-producer
+          token, CW_XCCY_CLAUSE_MARK as a prefix of CW_XCCY_CLAUSE, and CW_FX_LINE_RX matching the
+          producer's own row but NOT a retrieved bracketed heading.
+
+    THE LADDER IS THE ENGINE'S LADDER (V2-3): the `adm` comprehension's currency term is
+    `_cw_fx_metric`, the same predicate the shipped admission gate calls, plus the board-intrinsic
+    cash-index exclusion -- so the day the rider flips, the lint censuses what the engine admits.
+    MEASURED 2026-09-04: adm 25 -> 52, shipping 24 -> 50, shipping parents 13 -> 15, clause (i)
+    MISSING and STALE both empty (the board-label row and the gate edit are COUPLED), clause (ii)
+    gains `leads_lags` with zero unmapped relations."""
     import datetime as _dt
     import re as _re
 
@@ -1600,6 +1644,11 @@ def check_cascade_walk() -> list[str]:
     def _cur(s):
         return (cmap.get(s) or {}).get("currency")
 
+    def _xok(a, b):
+        """V2-3: THE LINT LADDER IS THE ENGINE LADDER. Same currency, or a pair the shipped
+        `_cw_fx_metric` admits (exactly one side USD and a card column for the other)."""
+        return a == b or _cq._cw_fx_metric(a, b) is not None
+
     rows_all: list = []
     for nd in g.rev_cross_link_seeds():
         for r in g.rev_cross_links(nd):
@@ -1608,8 +1657,16 @@ def check_cascade_walk() -> list[str]:
     # THE LINT'S LADDER IS THE ENGINE'S LADDER, exactly (STEP-12 review D1, confirmed: a 2024
     # coverage floor here -- a CENSUS episode-history gate the engine does not have -- hid the one
     # root the engine crashed on). The census's own floored count rides only the (viii) tripwire.
+    # V2-3: the currency term is the LADDER's, not an equality -- and the two CASH-INDEX terms ride
+    # beside it. THEY ARE DEAD TODAY and they stay: the only cash-index boards in the estate are
+    # BRL, and BRL has no `_CW_FX_CROSS` entry, so `_xok` already excludes both live rows here. But
+    # the reason the ENGINE tests cash-index FIRST is board-intrinsic (contract_month NULL by design
+    # -> the tenor fence can never pass), not currency-scoped, so the lint states the intrinsic
+    # form and is the belt for the day a BRL column lands.
     adm = [r for r in rows_all
-           if (node(r["seed"]) != node(r["contract"]) and _cur(r["seed"]) == _cur(r["contract"])
+           if (node(r["seed"]) != node(r["contract"])
+               and _xok(_cur(r["seed"]), _cur(r["contract"]))
+               and not _cq._cw_cash_index(r["seed"]) and not _cq._cw_cash_index(r["contract"])
                and lag_rx.match(str(r.get("lag") or "").strip())
                and int(lag_rx.match(str(r.get("lag") or "").strip()).group(1)) == 0)]
     shipping = [r for r in adm if str(r.get("sign")) in ("+", "-")]
@@ -1742,12 +1799,26 @@ def check_cascade_walk() -> list[str]:
     # data/consequence_leg/reach_census_v2_20260903_palm.json (graph fc9760ed68c0;
     # fully_admissible_first_order_hops 19, produced by data/consequence_leg/reach_census_v2.py --
     # offline, $0, no LLM). Bump this literal WITH a re-bank, never on its own.
+    # V2-3 (2026-09-04): THE TRIPWIRE KEEPS ITS OWN BASIS. `adm`/`shipping` above are now the
+    # WIDENED cross-currency ladder, but the banked artifact
+    # (data/consequence_leg/reach_census_v2_20260903_palm.json, produced by reach_census_v2.py) was
+    # computed with `cur(a) == cur(b)`, so comparing the widened count to 19 would compare two
+    # different questions and fire a WARN that means nothing. The same-currency filter is re-applied
+    # HERE so the tripwire stays comparable to its own bank; the WIDENED count is printed beside it
+    # as a measurement, never as a floor. MEASURED THIS SITTING: same-currency 19 (unchanged),
+    # widened 32.
+    _ship_same = [r for r in shipping if _cur(r["seed"]) == _cur(r["contract"])]
     n_census = len({(r["seed"], r["contract"], r.get("relation"), r.get("sign"),
-                     str(r.get("lag"))) for r in shipping
+                     str(r.get("lag"))) for r in _ship_same
                     if cov[r["seed"]] < floor and cov[r["contract"]] < floor})
+    n_census_x = len({(r["seed"], r["contract"], r.get("relation"), r.get("sign"),
+                       str(r.get("lag"))) for r in shipping
+                      if cov[r["seed"]] < floor and cov[r["contract"]] < floor})
     if n_census != 19:
         print(f"WARN cascade_walk: censused shipping hop count moved (19 -> {n_census}) -- "
               f"re-run the reach census and re-bank before citing pool numbers")
+    print(f"NOTE cascade_walk: V2-3 widened-ladder shipping census {n_census_x} on the same "
+          f"2024 floor (same-currency basis {n_census}); adm {len(adm)}, shipping {len(shipping)}.")
     # (ix) V2-5 THE HOP-1 OUT-DEGREE CENSUS, SPELLED AGAINST THE ENGINE'S OWN LADDER (ERROR).
     # It calls `cascade._cw_admissible_children` -- the SHIPPED ladder, lifted out of the leg for
     # exactly this purpose -- so lint-ladder == engine-ladder BY CONSTRUCTION and lifts the day the
@@ -1782,6 +1853,26 @@ def check_cascade_walk() -> list[str]:
     # ERRORs only ABOVE 6, so a curation edit taking corn_cbot from 4 to 6 would land with no red,
     # no WARN and no re-measure, silently consuming the entire headroom CW_DEEP_MAX_CHILDREN was
     # sized on. The banked pair is the (viii) tripwire's discipline: bumped only WITH a re-measure.
+    # V2-3: the SAME census over the WIDENED ladder -- a MEASUREMENT, never an error. Above
+    # CW_DEEP_MAX_CHILDREN the engine does NOT drop silently: the paid-cell selection declines the
+    # excess as `child_not_priced_budget` and NAMES it (K2), and the runtime width belt bounds the
+    # rendered total at cw_children + CW_FREE_ALLOWANCE. MEASURED 2026-09-04: 7 on corn_cbot (the
+    # V2-5 comment predicted 6 -- it was written before south_african_yellow_maize_jse gained the
+    # board-label row that makes corn_cbot's seventh child engine-reachable). Bumped only WITH a
+    # re-measure, the (viii) discipline.
+    _xmax_deg, _xmax_root = 0, None
+    for r in sorted({r["seed"] for r in rows_all}):
+        if r not in cov or r not in _cq._CW_BOARD_LABEL:
+            continue
+        _xadm, _xdec, _xrd = _cq._cw_admissible_children(g, cov, node, r, xccy=True)
+        if _xrd is None and len(_xadm) > _xmax_deg:
+            _xmax_deg, _xmax_root = len(_xadm), r
+    if (_xmax_deg, _xmax_root) != CW_MEASURED_MAX_OUT_DEGREE_XCCY:
+        print(f"WARN cascade_walk: measured max hop-1 out-degree UNDER THE CROSS-CURRENCY LADDER "
+              f"moved ({CW_MEASURED_MAX_OUT_DEGREE_XCCY[0]} on "
+              f"{CW_MEASURED_MAX_OUT_DEGREE_XCCY[1]!r} -> {_xmax_deg} on {_xmax_root!r}) -- "
+              f"CW_DEEP_MAX_CHILDREN {_cq.CW_DEEP_MAX_CHILDREN} pays that many and NAMES the rest; "
+              f"re-measure before treating the headroom as real")
     if (_max_deg, _max_root) != CW_MEASURED_MAX_OUT_DEGREE:
         print(f"WARN cascade_walk: measured max hop-1 out-degree moved "
               f"({CW_MEASURED_MAX_OUT_DEGREE[0]} on {CW_MEASURED_MAX_OUT_DEGREE[1]!r} -> "
@@ -1793,12 +1884,69 @@ def check_cascade_walk() -> list[str]:
         print(f"WARN cascade_walk: pre-walk worst recomputed {_prewalk} vs banked "
               f"CW_PREWALK_MEASURED_WORST {_cq.CW_PREWALK_MEASURED_WORST} (three terms are "
               f"config-driven: CASCADE_CAP/CHAIN_CAP/TRANSMISSION_CAP) -- re-measure before bumping")
+    # (xi) V2-3: the CURRENCY WORDS cover EXACTLY the currencies of _CW_BOARD_LABEL boards, drift
+    # BOTH ways (a board whose currency has no word would put an empty string on a reader line; a
+    # word for a currency no board carries is a stale row). Every word letters-and-spaces only.
+    _need_ccy = {c for c in (_cur(s) for s in _cq._CW_BOARD_LABEL) if c}
+    _have_ccy = set(_cq._CW_CURRENCY_WORD)
+    for c in sorted(_need_ccy - _have_ccy):
+        errs.append(f"walk: board currency {c!r} has no _CW_CURRENCY_WORD entry (a reader line "
+                    f"would name it with an empty string)")
+    for c in sorted(_have_ccy - _need_ccy):
+        errs.append(f"walk: _CW_CURRENCY_WORD entry {c!r} is on no labelled board (stale row)")
+    for c, w in sorted(_cq._CW_CURRENCY_WORD.items()):
+        if not w or not _re.fullmatch(r"[A-Za-z ]+", w) or _reg.internal_leaks(w):
+            errs.append(f"walk: currency word {w!r} ({c}) is empty, not letters-only, or leaks")
+    # (xii) V2-3: _CW_FX_CROSS, ONE-DIRECTIONAL BY CONSTRUCTION. The map DEFINES admissibility
+    # through `_cw_fx_metric`, so "a currency on an admissible cross hop but missing from the map"
+    # is structurally unreachable and is not asserted; only the STALE direction can fire.
+    _cross_seen = {(_cur(r["seed"]) if _cur(r["seed"]) != _cq.CW_XCCY_USD else _cur(r["contract"]))
+                   for r in adm if _cur(r["seed"]) != _cur(r["contract"])}
+    for c in sorted(set(_cq._CW_FX_CROSS) - _cross_seen):
+        errs.append(f"walk: _CW_FX_CROSS entry {c!r} appears on no admissible cross-currency hop "
+                    f"(stale row -- the shipped ladder cannot reach it)")
+    # (xii, second half) THE WRONG-CLOCK BAN: no mapped metric may be a fixed-lag change column.
+    # frankfurter_fx.py's *_pct_change_90d is a 90-CALENDAR-DAY lag against a firing window
+    # calibrated to [CW_SPAN_MIN_DAYS, CW_SPAN_MAX_DAYS] -- a different clock, silently.
+    for c, (m, _lbl) in sorted(_cq._CW_FX_CROSS.items()):
+        if str(m).endswith("_pct_change_90d"):
+            errs.append(f"walk: _CW_FX_CROSS metric {m!r} ({c}) is a fixed 90-day-lag column, not "
+                        f"the rate itself -- the window clock and the column clock disagree")
+    # (xiii) V2-3 CONSTANT-DRIFT PINS (the check_cascade_context clause (f) shape).
+    _cw_src = open(_cq.__file__, encoding="utf-8").read()
+    if not (_cq.CW_FX_CAP == 3 and _cq.CW_FX_CAP <= _cq.CW_DEEP_MAX_CHILDREN):
+        errs.append(f"walk: CW_FX_CAP {_cq.CW_FX_CAP} drifted (3, and never above "
+                    f"CW_DEEP_MAX_CHILDREN {_cq.CW_DEEP_MAX_CHILDREN})")
+    if _cq.CW_FX_MIN_OBS < 2:
+        errs.append("walk: CW_FX_MIN_OBS below 2 -- two dated prints ARE the clock on this row")
+    if _cq.CW_FX_READS_PER_CELL != 1:
+        errs.append("walk: CW_FX_READS_PER_CELL moved off ONE fetch per FX cell")
+    if not _cq.CW_FX_TOKEN.startswith("] "):
+        errs.append("walk: CW_FX_TOKEN must follow the handle bracket")
+    if _cw_src.count(_cq.CW_FX_TOKEN) != 1:
+        errs.append("walk: CW_FX_TOKEN is minted more than once (one producer)")
+    if not _cq.CW_XCCY_CLAUSE.startswith(_cq.CW_XCCY_CLAUSE_MARK):
+        errs.append("walk: CW_XCCY_CLAUSE_MARK is not a prefix of CW_XCCY_CLAUSE -- the seam gate "
+                    "and the producer would drift")
+    if _cq.CW_FX_LINE_RX.search("- [1] EXCHANGE RATE TABLE for the quarter") is not None:
+        errs.append("walk: CW_FX_LINE_RX matches a retrieved bracketed heading (too loose)")
+    if _cq.CW_FX_LINE_RX.search("- [N7] EXCHANGE RATE euros per US dollar measured on") is None:
+        errs.append("walk: CW_FX_LINE_RX does not match the producer's own rendered row")
+    if _cw_src.count("CW_DEEP_TURN_CEILING") != 3:
+        # its definition, the regime selection line, and the ONE design note beside `_cw_slack` are
+        # the only three occurrences IN cascade.py; a fourth means someone made a note live.
+        print(f"WARN cascade_walk: CW_DEEP_TURN_CEILING now occurs "
+              f"{_cw_src.count('CW_DEEP_TURN_CEILING')} times in cascade.py (was 3)")
     print(f"NOTE cascade_walk: CW_TURN_CEILING {_cq.CW_TURN_CEILING}; the walk's own plan never "
           f"exceeded 37 of 60 measured (5 reached turns, spent-before-walk 13/14/19/25/25). "
           f"CW_DEEP_TURN_CEILING {_cq.CW_DEEP_TURN_CEILING} = 44 pre-walk allowance + CW_DEEP_CAP "
-          f"{_cq.CW_DEEP_CAP} + CW_CONTEXT_CAP {_cq.CW_CONTEXT_CAP} + 7 FX allowance; it BINDS only "
-          f"if all six pre-walk terms spend their caps at once ({_prewalk}+{_cq.CW_DEEP_CAP}+"
-          f"{_cq.CW_CONTEXT_CAP} > {_cq.CW_DEEP_TURN_CEILING}), which no measured turn approached. "
+          f"{_cq.CW_DEEP_CAP} + CW_CONTEXT_CAP {_cq.CW_CONTEXT_CAP} + 7 rider allowance, and that "
+          f"allowance IS the arithmetic the engine enforces: `_cw_slack` budgets both riders "
+          f"against the REGIME's ceiling ({_cq.CW_DEEP_TURN_CEILING} under deep/xccy, {_cq.CW_TURN_CEILING} off), so the "
+          f"reserve is reachable and CW_CONTEXT_CAP/CW_FX_CAP {_cq.CW_FX_CAP} bind inside it. It "
+          f"BINDS only if all six pre-walk terms spend their caps at once ({_prewalk}+"
+          f"{_cq.CW_DEEP_CAP}+{_cq.CW_CONTEXT_CAP} > {_cq.CW_DEEP_TURN_CEILING}), which no measured "
+          f"turn approached. "
           f"The {_prewalk} is a MEASUREMENT, not an enumeration: its xc-fork term is a calls-delta, "
           f"so no identity is asserted over it. Max shipped hop-1 out-degree {_max_deg} "
           f"({_max_root!r}) against CW_DEEP_MAX_CHILDREN {_cq.CW_DEEP_MAX_CHILDREN}.")

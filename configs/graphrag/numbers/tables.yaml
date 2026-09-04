@@ -823,9 +823,15 @@ tables:
     date_col: date
     knowledge_semantics: data_date
     metrics:
-      brl_usd: {label: "BRL/USD exchange rate", unit: "BRL per USD (FRED)", desc: "Brazilian real per US dollar; higher = weaker real"}
-      ars_usd: {label: "ARS/USD exchange rate", unit: "ARS per USD (FRED)", desc: "Argentine peso per US dollar; higher = weaker peso"}
-      cny_usd: {label: "CNY/USD exchange rate", unit: "CNY per USD (FRED)", desc: "Chinese yuan per US dollar; higher = weaker yuan"}
+      # V2-3 fix pass: the three incumbents carried "(FRED)" while all eleven FX-1/FX-3 crosses below
+      # carry "(ECB via Frankfurter)" and display_names.yaml labels the table "ECB reference rates".
+      # citations.from_number renders SOURCE then UNIT on the same line, so a live CNY citation read
+      # "ECB reference rates ... = 6.72 CNY per USD (FRED)" -- and every row of the tape carries
+      # source == frankfurter, so "(FRED)" was the wrong half. The id keeps its documented legacy
+      # misnomer (ADR-003); the READER-FACING unit does not.
+      brl_usd: {label: "BRL/USD exchange rate", unit: "BRL per USD (ECB via Frankfurter)", desc: "Brazilian real per US dollar; higher = weaker real"}
+      ars_usd: {label: "ARS/USD exchange rate", unit: "ARS per USD (ECB via Frankfurter)", desc: "Argentine peso per US dollar; higher = weaker peso"}
+      cny_usd: {label: "CNY/USD exchange rate", unit: "CNY per USD (ECB via Frankfurter)", desc: "Chinese yuan per US dollar; higher = weaker yuan"}
       brl_usd_pct_change_90d: {label: "BRL/USD 90-day % change", unit: "pct", desc: "BRL/USD 90-day percent change"}
       ars_usd_pct_change_90d: {label: "ARS/USD 90-day % change", unit: "pct", desc: "ARS/USD 90-day percent change"}
       cny_usd_pct_change_90d: {label: "CNY/USD 90-day % change", unit: "pct", desc: "CNY/USD 90-day percent change"}

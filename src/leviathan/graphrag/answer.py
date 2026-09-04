@@ -362,7 +362,15 @@ _SYSTEM_CASCADE_WALK = (
 _SYSTEM_CASCADE_WALK_MANDATE = (
     "\nTHE BLOCK CARRIES CONSEQUENCE HOP LINES, AND RENDERING THEM IS MANDATORY: under '## The "
     "record', for EVERY CONSEQUENCE HOP in the block, write the two boards' settle-change rows with "
-    "their [N] handles and figures copied as DIGITS exactly as printed, name the dated firing window "
+    # V2-3 (L6), DECLARED LIVE PROMPT CHANGE, owner-ratified: this clause is UNCONDITIONAL, so the
+    # serving prompt gains it on walk turns with GRAPHRAG_CASCADE_XCCY off. It is POSITIVE, carries
+    # no negative, and is TRUE OF EVERY WALK BLOCK -- today every hop is same-currency and both rows
+    # name US dollars -- so it is vacuously correct on flag-off turns. The ENGINE's flag-off
+    # byte-identity is untouched. Gating it would need a SECOND mandate literal, which is exactly the
+    # producer/gate drift the CW_MARKER_PREFIX law exists to stop.
+    "their [N] handles and figures copied as DIGITS exactly as printed -- each figure is a move "
+    "inside the currency its own row names; write each on its own handle as a fact about that "
+    "board -- name the dated firing window "
     "in words exactly as the hop names it, and state that hop's CONSEQUENCE READ in its own terms "
     "('held' / 'sat at odds' / 'declines to read a direction'). Never drop a hop for being "
     "inconvenient to the thesis -- an 'at odds' read is the finding. State the read in the block's "
@@ -403,6 +411,22 @@ _SYSTEM_CASCADE_DEEP = (
     "the block states, each with its own handle and its own read as printed. The window was defined by "
     "an unrelated market's episode, so each hop is a pairwise reading on that window; leave any chain "
     "across hops to the reader, and let each hop's read stay with its own CONSEQUENCE READ line. ")
+
+
+# V2-3: the CROSS-CURRENCY mandate, appended only when the block actually carries a hop whose two
+# boards settle in different currencies (the row gate is `_cascade_xccy_block_on`, keyed on the hop
+# header's own minted clause literal). POSITIVE-ONLY with ZERO negatives (the J6 addendum doctrine /
+# V2-1 refute M3): naming the abuse -- 'never restate one figure in the other currency, never
+# compare their sizes' -- is the surest way to put it into the draft, and K8(b) is the instrument
+# that measures whether the positive phrasing held.
+_SYSTEM_CASCADE_XCCY = (
+    "\nTHE BLOCK CARRIES A HOP WHOSE TWO BOARDS SETTLE IN DIFFERENT CURRENCIES: the hop's own "
+    "sentence names both currencies -- name them the same way in your own line, and write each "
+    "board's figure as a move inside that board's own currency, copied as DIGITS exactly as "
+    "printed. Take the direction from that hop's CONSEQUENCE READ line together with its currency "
+    "clause, in the block's own words. Where a row marked EXCHANGE RATE is present, transcribe it "
+    "once with its own handle as a dated fact about the rate itself. Every figure on this page is "
+    "already in the currency its own row names. ")
 
 
 # P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
@@ -825,6 +849,22 @@ def _cascade_deep_on() -> bool:
     block, never inside it, and a behavioural pin holds that independence.
     Read PER CALL so the env-flip rollback is live -> no redeploy."""
     return os.environ.get("GRAPHRAG_CASCADE_DEEP", "").strip().lower() in ("on", "1", "true")
+
+
+def _cascade_xccy_on() -> bool:
+    """V2-3 CROSS-CURRENCY kill-switch (GRAPHRAG_CASCADE_XCCY), read at the answer.py quantify SEAM
+    and threaded INSIDE walk_request as `xccy` -- the engine reads NO environment and resolves no
+    focus of its own (the V2-1/V2-5 idiom, third application).
+
+    DECLARED DEPENDENCIES: a RIDER on GRAPHRAG_CASCADE_WALK (the request exists only under it) and
+    transitively on GRAPHRAG_TIMELINE (no episodes -> no firing windows -> no walk). It IMPLIES the
+    deep regime -- the rider LIFTS children, so it needs the breadth -- and the seam sets `deep`
+    alongside it; the ENGINE enforces the same implication independently, so a request built
+    without this seam cannot run the rider at the narrow constants.
+
+    Read PER CALL, never memoized: a serving process is long-lived, so the env-flip rollback must
+    take effect without a redeploy."""
+    return os.environ.get("GRAPHRAG_CASCADE_XCCY", "").strip().lower() in ("on", "1", "true")
 
 
 def _intensity_on() -> bool:
@@ -1544,6 +1584,21 @@ def _cascade_deep_block_on(volatile_prompt: str | None) -> bool:
             and _cq.CW_THIRD_ORDER_MARKER in (volatile_prompt or ""))
 
 
+def _cascade_xccy_block_on(volatile_prompt: str | None) -> bool:
+    """V2-3's SEAM GATE -- the same row-gate idiom, SIXTH application, keyed on the HOP HEADER's OWN
+    MINTED LITERAL (`cascade.CW_XCCY_CLAUSE_MARK`, the one string the header producer builds its
+    currency clause from) and NOT on `CW_FX_LINE_RX`: a row-shape regex would miss every hop whose
+    FX cell declined, which is exactly the case where the block still carries two currencies and the
+    writer still needs the instruction. The producer mints that literal ONLY on a hop whose child
+    cell CLOSED, so the mandate can never ship demanding a figure for a hop that has none. It
+    conjoins the walk block gate for the same reason the context gate does: evidence text is
+    rendered raw into the volatile prompt, so a retrieved chunk carrying the clause must not arm a
+    mandate on a turn with no walk block at all."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    return (_cascade_xccy_on() and _cascade_walk_block_on(volatile_prompt)
+            and _cq.CW_XCCY_CLAUSE_MARK in (volatile_prompt or ""))
+
+
 # W5-D5: the '## Outlook' RESERVED HEADING -- injected-only, exactly the '## Cross-commodity' /
 # '## Complex-wide move' / '## Recorded history' shape. Appended to the persona ONLY on a turn where all
 # three outlook legs held, so with the flag off _system() is BYTE-IDENTICAL to pre-W5.
@@ -2043,7 +2098,7 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             response_contract: str | None = None, budget: str | None = None,
             census: dict | None = None, provenance: bool = False, handles: bool = False,
             cascade_walk: bool = False, cascade_context: bool = False,
-            cascade_deep: bool = False) -> str:
+            cascade_deep: bool = False, cascade_xccy: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -2097,24 +2152,34 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         if _derived_arith_on():                                    # D-DA: the BALANCE-STANDING license,
             base = base + _SYSTEM_DERIVED_ARITH                    # same omit-when-off discipline
         if _cascade_walk_on():                                     # CASCADE EPISODE WALK: the
-            base = base + _SYSTEM_CASCADE_WALK                     # CONSEQUENCE license, same idiom
+            base = base + _SYSTEM_CASCADE_WALK                     # CONSEQUENCE license, same idiom.
+            #                                                        THIS APPEND, AND ONLY THIS ONE,
+            #                                                        is a DECLARED DEVIATION from
+            #                                                        charter STEP 8's marker-presence
+            #                                                        gate: flag-only, the CROSS_BOARD
+            #                                                        / DERIVED_ARITH sibling
+            #                                                        precedent -- the text is a
+            #                                                        conditional LICENSE, never a
+            #                                                        section mandate, so a walk-less
+            #                                                        turn carries a dormant clause,
+            #                                                        not a demand (review minor,
+            #                                                        noted). Every MANDATE below is
+            #                                                        gated on its own rendered marker
+            #                                                        or clause at the seam, which is
+            #                                                        the charter's own shape.
             if cascade_walk:                                       # + the MANDATE, marker-gated at
                 base = base + _SYSTEM_CASCADE_WALK_MANDATE         #   the seam (the _episodes_on shape)
             if cascade_context and _cascade_context_on():          # V2-1: the CONTEXT mandate, row-
                 base = base + _SYSTEM_CASCADE_CONTEXT              #   gated at the seam, its own flag,
+                #                                                      a pure append
             if cascade_deep and _cascade_deep_on():                # V2-5: the DEEP mandate, marker-
                 base = base + _SYSTEM_CASCADE_DEEP                 #   gated the same way. DEFAULT
-            #                                                          FALSE -> byte-identical.
-            #                                                        pure append
-            #                                                        DECLARED DEVIATION from charter
-            #                                                        STEP 8's marker-presence gate:
-            #                                                        flag-only, the CROSS_BOARD /
-            #                                                        DERIVED_ARITH sibling precedent
-            #                                                        -- the text is a conditional
-            #                                                        LICENSE, never a section
-            #                                                        mandate, so a walk-less turn
-            #                                                        carries a dormant clause, not
-            #                                                        a demand (review minor, noted)
+                #                                                      FALSE -> byte-identical.
+            if cascade_xccy and _cascade_xccy_on():                # V2-3: the CROSS-CURRENCY
+                base = base + _SYSTEM_CASCADE_XCCY                 #   mandate, clause-gated at the
+                #                                                      seam, its own flag, a pure
+                #                                                      append. DEFAULT FALSE ->
+                #                                                      byte-identical.
     if _pattern_records_on():
         from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
@@ -2982,19 +3047,29 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 if _cw_focus:
                     _cw_req = {"focus_contract": _cw_focus}
                     if _cascade_context_on():
-                        # V2-1 CONTEXT CELL (rider): two keys, present ONLY under its own flag -- the
-                        # walk request is byte-identical with the flag off. `replay` is the SAME
-                        # already-resolved historical-asof bool (_pr_kw, above); the ENGINE counts the
-                        # decline, this seam never silences it.
+                        # V2-1 CONTEXT CELL (rider): present ONLY under its own flag -- the walk
+                        # request is byte-identical with the flag off.
                         _cw_req["context"] = True
-                        if _pr_kw:
-                            _cw_req["replay"] = True
-                    # V2-5 DEEPER/WIDER (rider): ONE key, present only under its OWN flag, set at
-                    # `if _cw_focus:` scope and NOT inside the context branch above -- deep must fire
-                    # with GRAPHRAG_CASCADE_CONTEXT off, which is its prod state. This seam never
-                    # writes V2-3's `xccy` (pinned), so the engine's union regime is inert here.
-                    if _cascade_deep_on():
+                    # V2-3 CROSS-CURRENCY (rider): ONE key, its own flag.
+                    if _cascade_xccy_on():
+                        _cw_req["xccy"] = True
+                    # V2-5 DEEPER/WIDER (rider): ONE key, set at `if _cw_focus:` scope and NOT inside
+                    # the context branch -- deep must fire with GRAPHRAG_CASCADE_CONTEXT off, which is
+                    # its prod state. V2-3 lifts children, so it takes the SAME regime: the union
+                    # lives at this ONE site (and the engine enforces it a second time).
+                    if _cascade_xccy_on() or _cascade_deep_on():
                         _cw_req["deep"] = True
+                    # V2-3 (L1) THE REPLAY HOIST. `replay` is the SAME already-resolved historical-asof
+                    # bool the seam built as _pr_kw, and it belongs to EVERY rider, never to one
+                    # rider's branch. NESTED UNDER CONTEXT it was DEAD on exactly the flip shape --
+                    # xccy on, context off -- so a price_replay turn would have read fill-forward
+                    # backfilled exchange-rate rows that did not exist at the replayed as-of, under
+                    # `knowledge_semantics: data_date`. The engine counts the decline; this seam never
+                    # silences it. INSERTION ORDER is preserved: context-alone still assembles
+                    # {focus_contract, context, replay} exactly as it does today.
+                    if _pr_kw and (_cascade_context_on() or _cascade_xccy_on()
+                                   or _cascade_deep_on()):
+                        _cw_req["replay"] = True
                     _cw_kw = {"cascade_walk": _cw_req}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
@@ -3115,6 +3190,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                               cascade_walk=_cascade_walk_block_on(vp),
                               cascade_context=_cascade_context_block_on(vp),
                               cascade_deep=_cascade_deep_block_on(vp),
+                              cascade_xccy=_cascade_xccy_block_on(vp),
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               census=_census,                     # D-CC-1: None on every dark turn
                               provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
@@ -9336,6 +9412,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                               cascade_walk=_cascade_walk_block_on(vp),
                               cascade_context=_cascade_context_block_on(vp),
                               cascade_deep=_cascade_deep_block_on(vp),
+                              cascade_xccy=_cascade_xccy_block_on(vp),
                               response_contract=_rc_active,
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
                               census=_census,                                 # D-CC-1, both bodies

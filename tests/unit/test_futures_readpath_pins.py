@@ -920,13 +920,23 @@ class TestS1UnflaggedByDesign:
         # delivery-month axis, the _rv_price_fetch class). It THREADS the canary like the board cells
         # (harmless either way: Q.run re-sorts a newest-first series before any consumer sees it), so
         # it joins the threaded column, never the unflagged one -- pinned on the body below.
-        assert calls == 8, f"a new fetch_window call site appeared ({calls} now) -- classify it"
+        # RE-ANCHORED 8 -> 9 (2026-09-04, V2-3 CROSS-CURRENCY): the walk's second rider adds ONE
+        # exchange-rate read -- _cw_fx_cell -> _CW_FX_TABLE (silver_fred_fx: a wide+flat daily rate
+        # series with NO delivery-month axis, the _rv_price_fetch class again). It THREADS the canary
+        # for exactly the same reason the context read does, so it joins the threaded column and
+        # never the unflagged one -- pinned on the body below.
+        assert calls == 9, f"a new fetch_window call site appeared ({calls} now) -- classify it"
         assert "table=_RV_PRICE_TABLE" in src and 'agg="front_expiry"' in src
         ctx_site = inspect.getsource(CQ._cw_context_cell)
         assert "fetch_window(qfn, table=_CW_CONTEXT_TABLE," in ctx_site
         assert "futures_newest_first=futures_newest_first" in ctx_site, \
             "the V2-1 context read dropped the canary -- classify it, do not lose it"
         assert CQ._CW_CONTEXT_TABLE == CQ._RV_PRICE_TABLE
+        fx_site = inspect.getsource(CQ._cw_fx_cell)
+        assert "fetch_window(qfn, table=_CW_FX_TABLE," in fx_site
+        assert "futures_newest_first=futures_newest_first" in fx_site, \
+            "the V2-3 exchange-rate read dropped the canary -- classify it, do not lose it"
+        assert CQ._CW_FX_TABLE == "silver_fred_fx" != CQ._RV_PRICE_TABLE
         assert "fetch_window(qfn, table=_PSD_TABLE," in src
         # ...and the two that skip the canary are exactly the two constant-table reads named above. L2-5
         # made the PSD surface a KWARG, so that site's literal became a module CONSTANT and the pin follows

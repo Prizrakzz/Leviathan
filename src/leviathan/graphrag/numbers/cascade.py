@@ -4408,11 +4408,11 @@ _RV_EOD_LEVEL = {
 # benchmark's). Roster = the P5-measured silver_futures_eod coverage (8 slugs; palm has no futures
 # card and stays honestly absent). Rides the reading's `derived` branch only; +1 fetch per mapped
 # leg. Same R4c register entry as _RV_EOD_LEVEL ("silver_futures_eod": settle).
-# DOCKET (V2-4 commit C, review m4): the "palm has no futures card" clause above is now dated -- palm
-# GAINS one at the serving flip (its CME USD backfill becomes canonical at D9), and the roster row is
-# added THEN, off the same P5 coverage measurement every other row here came from. Not added now: this
-# roster is a read-path fact, and a row for a board whose canonical bytes are not registered would
-# fetch a level that does not exist yet.
+# DOCKET DISCHARGED (V2-3 law L8, 2026-09-04): the "palm has no futures card" clause above is now
+# HISTORY -- the CME USD backfill went canonical at D9 (116,228 rows, 11 partitions, floor
+# 2016-08-01) and rev 126 serves it, so the docketed row lands here off the same silver_futures_eod
+# coverage every other row came from. ITS OWN CURRENCY IS USD, like every other row on this roster:
+# nothing here converts anything, and the reader label is display._contract_label's own spelling.
 _RV_EOD_FRESH = {
     "corn_cbot": ("settle", "the CBOT corn contract"),
     "soft_red_winter_wheat_cbot": ("settle", "the CBOT soft red winter wheat contract"),
@@ -4422,6 +4422,7 @@ _RV_EOD_FRESH = {
     "soybean_meal_cbot": ("settle", "the CBOT soybean meal contract"),
     "canola_ice": ("settle", "the ICE canola contract"),
     "french_wheat_matif": ("settle", "the MATIF milling-wheat contract"),
+    "malaysian_crude_palm_oil_cme": ("settle", "CME palm oil"),
 }
 _RV_EOD_TABLE = "silver_futures_eod"
 
@@ -6075,9 +6076,10 @@ CW_DEEP_TURN_CEILING = 80     # = 44 (the pre-walk allowance the shipped test pi
 #                               7 covering the 7 non-root cells exactly). A LITERAL WITH A MEASURED
 #                               NOTE, never a derivation -- and it BINDS if the enumerated 65 ever
 #                               materialises (65 + 27 + 2 = 94 > 80): fail-closed, counted as
-#                               turn_budget_spent, never silent. It bounds the WALK'S OWN BOARD PLAN
-#                               only -- the V2-1 rider's subordinate slack test keeps reading
-#                               CW_TURN_CEILING in BOTH regimes.
+#                               turn_budget_spent, never silent. It bounds the board plan AND, since
+#                               the V2-3 fix pass, the RIDER SLACK: `_cw_slack` reads the regime's
+#                               own ceiling, so the 7 reserved here are actually reachable (they
+#                               were not, and config_check's NOTE said they were).
 _CW_ORDER_WORDS = {1: "first", 2: "second", 3: "third"}    # read via .get(order_n, "third"): a
 #                               KeyError here would be swallowed by the wrapper belt into a silent
 #                               whole-block 'declined', the worst possible failure mode for a label.
@@ -6170,6 +6172,77 @@ _CW_CONTEXT_DECLINES = ("unmapped_slice", "replay", "root_declined", "budget_cap
                         "mixed_release_stamp", "stamp_shape", "no_unit", "no_move", "render_fence",
                         "error")
 
+# -- V2-3 CROSS-CURRENCY RIDER (GRAPHRAG_CASCADE_XCCY, threaded INSIDE walk_request as `xccy`; this
+#    module reads no env). THE RULE, unchanged through three refutes: admit a cross-currency hop iff
+#    EXACTLY ONE side is USD and the FX card holds <ccy>_usd; NEVER construct a cross rate; every
+#    figure stays in its OWN settlement currency; the verdict is stats.sign_agreement over two
+#    own-currency percent moves; the exchange rate is ONE cited row over the FIRING WINDOW itself.
+#    The rider LIFTS children, so it selects the V2-5 DEEP REGIME by the same `deep_on` union above
+#    -- V2-3 mints NO cap pair and NO trim ladder of its own (the constants law).
+CW_XCCY_USD = "USD"
+CW_FX_CAP = 3                 # distinct crosses priced per TURN, OUTSIDE the board cap (the
+#                               CW_CONTEXT_CAP shape). MEASURED: the widest root carries exactly 3
+#                               distinct crosses among its admitted children (CAD, CNY, EUR); every
+#                               other root carries 2, 1 or 0.
+CW_FX_READS_PER_CELL = 1
+CW_FX_MIN_OBS = 2             # two dated prints ARE the clock. The context cell's 3 is a MONTHLY
+#                               grain floor and does not transfer -- MEASURED 42 to 186 daily prints
+#                               per banked firing window, so this floor never binds on a real firing.
+CW_FX_TOKEN = "] EXCHANGE RATE "       # ROW-1X's class token right after the handle; minted ONCE here.
+CW_FX_LINE_RX = re.compile(r"^- \[N\d+" + re.escape(CW_FX_TOKEN), re.M)
+#                                        ^ LINT-ONLY (clause (xii)). The answer-seam gate keys on
+#                                          CW_XCCY_CLAUSE_MARK instead, because a hop whose FX cell
+#                                          declined renders WORDS AND NO ROW -- a row-shape regex
+#                                          would miss exactly the case the mandate must still cover.
+CW_FX_WORDS_PREFIX = "CONSEQUENCE CURRENCY "
+# THE HOP HEADER'S OWN CURRENCY CLAUSE, minted ONCE: the MARK is what the seam gate greps for, the
+# CLAUSE is what the producer renders (the CW_MARKER_PREFIX law -- one string, so producer and gate
+# cannot drift). It exists ONLY on a hop whose child cell CLOSED, so the mandate can never ship
+# demanding a figure for a hop that has none (the W4-D3 shape).
+CW_XCCY_CLAUSE_MARK = "; each board is priced in its own settlement currency here, "
+CW_XCCY_CLAUSE = CW_XCCY_CLAUSE_MARK + "{a} and {b}, and no exchange rate is applied to either figure."
+_CW_FX_TABLE = "silver_fred_fx"
+_CW_FX_UNIT_FMT = "percent change in {unit}"
+#                               ^ the READER LABEL rides inside this, NEVER the card's unit string:
+#                                 citations.py prints a call row's unit on the RENDERED citation
+#                                 label (and falls back to the CARD's unit when the row carries
+#                                 none), so an unset unit would put the card's own machine-shaped
+#                                 'CNY per USD (ECB via Frankfurter)' string on a page.
+_CW_FX_CROSS = {              # non-USD currency -> (card metric, READER label). The map DEFINES
+    "CNY": ("cny_usd", "Chinese yuan per US dollar"),          # admissibility (clause (xii) reads it
+    "CAD": ("cad_usd", "Canadian dollars per US dollar"),      # one-directionally: a stale entry
+    "EUR": ("eur_usd", "euros per US dollar"),                 # errors, a missing one is structurally
+    "ZAR": ("zar_usd", "South African rand per US dollar"),    # unreachable).
+}
+_CW_CURRENCY_WORD = {         # WORDS on every reader surface, never ISO codes. EXACTLY the
+    "USD": "US dollars",      # currencies of _CW_BOARD_LABEL boards (clause (xi) pins both
+    "CNY": "Chinese yuan",    # directions): BRL is absent because both BRL boards are cash indices
+    "CAD": "Canadian dollars",  # and carry no label; MYR is absent because V2-4 re-keyed palm to
+    "EUR": "euros",           # the CME USD tape.
+    "ZAR": "South African rand",
+}
+_CW_FX_DECLINES = ("replay", "fx_cap", "budget_cap", "no_card", "no_metric", "cache_declined",
+                   "read_error", "empty_series", "grain_thin", "no_unit", "no_move", "render_fence",
+                   "block_fenced", "error")
+_CW_FX_PRE_ADMIT = ("replay", "fx_cap", "budget_cap", "no_card", "no_metric", "cache_declined")
+#   'read_error' is deliberately NOT here: it is the POST-read name minted at the paying site (a paid
+#   read that came back status=error), so counting it pre-admit made the pre-admit identity FALSE on
+#   exactly that path (fix re-review major 1, MEASURED). Rungs 6/6b carry their own pre-read names.
+#                               ^ the FIVE rungs that decline BEFORE a read is paid ('cache_declined'
+#                                 is rung 2's zero-read arm). Named as a tuple so the FX rectangle is
+#                                 auditable from the artifact alone:
+#                                 fx_planned == fx_admitted + fx_cache_hits + |pre-admit declines|,
+#                                 and the simpler total fx_planned == fx_rendered + fx_cache_hits +
+#                                 |declines| holds on EVERY path including the exception belt and
+#                                 the whole-block register fence ('block_fenced', which is a BELT
+#                                 TRIP and therefore in the full tuple only -- those cells WERE
+#                                 admitted and paid, so counting them pre-admit would double them).
+#                                 THE CONSUMER (build-review minor): the suite's closure pin
+#                                 test_every_fx_decline_reason_is_named_in_the_tuple runs every
+#                                 xccy fixture in the group and asserts each reason it observes is a
+#                                 member of this tuple -- the 'declines are NAMED and COUNTED' law
+#                                 is enforced there, not merely documented here.
+
 # Orientation-free relation phrases (v3 remedy (b)): each phrase reads identically under (A, B)
 # and (B, A); config_check's directional-verb lint holds it. An unmapped relation DECLINES.
 _CW_RELATION_WORDS = {
@@ -6212,6 +6285,10 @@ _CW_BOARD_LABEL = {
     "french_wheat_matif": "MATIF french wheat",
     "rough_rice_cbot": "CBOT rice",
     "south_african_white_maize_jse": "JSE white maize",
+    # V2-3: COUPLED to the cross-currency gate, not optional -- the widened ladder makes this slug
+    # an engine-reachable hop surface (corn_cbot->south_african_yellow_maize_jse), and clause (i)
+    # errors in the MISSING direction without it and as a STALE row without the gate edit.
+    "south_african_yellow_maize_jse": "JSE yellow maize",
 }
 
 _CW_LAG_RX = re.compile(r"^(\d+)-(\d+)\s+quarters?$")
@@ -6220,6 +6297,14 @@ _CW_LAG_RX = re.compile(r"^(\d+)-(\d+)\s+quarters?$")
 _CW_ABSENCE_WHY = {
     "child_uncovered": "the record carries no board price history for that market",
     "cross_currency": "the two boards settle in different currencies, so no shared read is taken",
+    # V2-3 admission-scope reasons (trace-only, per the dict header: they mint no ROW 4) plus the
+    # one CELL-side verdict reason. Observation words only, numeral-free, direction-verb-free.
+    "cross_currency_no_pair_rate":
+        "the record carries no exchange rate between those two settlement currencies",
+    "cross_currency_unmapped": "the record carries no settlement currency for that board",
+    "cash_index_board": "that board settles on a cash index with no delivery month",
+    "fx_flips_sign": "the exchange rate moved further than the board priced in it over this window, "
+                     "and it moved the same way, so no direction is read",
     "sign_not_unanimous": "the declared relations disagree on direction, so no direction is read",
     "sign_undeclared": "the declared relation does not commit to a direction here",
     "lag_gate": "the declared response horizon is longer than a single firing window",
@@ -6264,6 +6349,45 @@ def _cw_currency(slug: str):
         return (FC.CONTRACT_MAP.get(slug) or {}).get("currency")
     except Exception:  # noqa: BLE001 -- an unknown slug reads as no currency -> the gate declines
         return None
+
+
+def _cw_cash_index(slug: str) -> bool:
+    """V2-3: does this board settle on a CASH INDEX (futures_eod_contracts' own `settle_kind`)?
+    `_cw_currency`'s idiom with the OPPOSITE failure direction -- unknown REFUSES (returns True),
+    because a cash-index board carries contract_month NULL by design, so `_cw_fences` returns
+    tenor_ok False on every pair it touches and the hop could only ever render a cell that can
+    never verdict.
+
+    THE ORDERING LAW (v1 refute F1, MEASURED): this test runs BEFORE the FX-column test in the
+    admission ladder or it is dead code -- the only cash-index boards in the estate are
+    brazilian_arabica_coffee and campinas_corn_reference_bmf, both BRL, and BRL has no
+    `_CW_FX_CROSS` entry, so an FX-first order mis-buckets those two hops (7/0 under the wrong
+    order, 5/2 under this one)."""
+    try:
+        from leviathan.silver import futures_eod_contracts as FC
+        row = FC.CONTRACT_MAP.get(slug)
+        if not row:
+            return True                    # no declared board -> no settle kind -> REFUSE
+        return str(row.get("settle_kind") or "") == "cash_index"
+    except Exception:  # noqa: BLE001 -- unreadable map -> refuse
+        return True
+
+
+def _cw_fx_metric(cur_a, cur_b):
+    """V2-3: the (card metric, READER label) pair for a cross, or None when the pair is not
+    admissible. Admissible iff the two currencies DIFFER, both are truthy, EXACTLY ONE is USD, and
+    the card carries a column for the other. NO cross rate is ever constructed."""
+    if not cur_a or not cur_b or cur_a == cur_b:
+        return None
+    if (cur_a == CW_XCCY_USD) == (cur_b == CW_XCCY_USD):
+        return None                                   # both USD (impossible here) or neither
+    other = cur_b if cur_a == CW_XCCY_USD else cur_a
+    return _CW_FX_CROSS.get(other)
+
+
+def _cw_currency_words(cur) -> str:
+    """V2-3: the reader WORD for a settlement currency -- never an ISO code on a reader surface."""
+    return _CW_CURRENCY_WORD.get(str(cur or ""), "")
 
 
 def _cw_kept_contracts(sg) -> set:
@@ -6508,7 +6632,8 @@ def _cw_call(slug: str, rec: dict, asof) -> dict:
     return _episode_outcome_call(slug, rec["_res"], rec["span"], asof)
 
 
-def _cw_hop_header(label_a: str, label_b: str, phrases: list, blurb: str, firing_label: str) -> str:
+def _cw_hop_header(label_a: str, label_b: str, phrases: list, blurb: str, firing_label: str,
+                   *, xccy: tuple | None = None) -> str:
     """ROW 3 -- keyed on the PAIR: the union of orientation-free relation phrases + ONE blurb +
     the firing clause in WORDS. `firing_label` is the INJECTED EPISODES LINE'S OWN NODE TOKEN
     verbatim (M4 as adjudicated -- one window, one spelling on both surfaces; the caller falls
@@ -6517,22 +6642,48 @@ def _cw_hop_header(label_a: str, label_b: str, phrases: list, blurb: str, firing
     templates only, so this line stays letters-only under the numeral scan."""
     rel = "; ".join(phrases)
     tail = f" -- {blurb}" if blurb else ""
-    return (f"CONSEQUENCE HOP {label_a} and {label_b}: the graph records these markets "
+    base = (f"CONSEQUENCE HOP {label_a} and {label_b}: the graph records these markets "
             f"{rel}{tail}; measured over the {firing_label} firing window, whose dated span rides "
-            f"the rows for this hop.")
+            f"the rows for this hop")
+    # V2-3: the SPLIT keeps the flag-off literal byte-exact -- `xccy` None returns exactly the
+    # shipped string. The clause exists ONLY on a CLOSED child cell (the caller's own gate), so the
+    # seam gate that keys on CW_XCCY_CLAUSE_MARK can never arm on a figure-less hop.
+    if not xccy:
+        return base + "."
+    return base + CW_XCCY_CLAUSE.format(a=_cw_currency_words(xccy[0]), b=_cw_currency_words(xccy[1]))
 
 
-def _cw_verdict_line(label_a: str, label_b: str, verdict: str) -> str:
+def _cw_verdict_line(label_a: str, label_b: str, verdict: str, *, xccy: tuple | None = None,
+                     reason: str | None = None) -> str:
     """ROW 2 -- the three-valued read, letters only, no handles (a handle digit here would be a
-    numeral outside a ROW-1 template). In-sample clause ON the line (MAJOR-12)."""
-    if verdict == "aligned":
+    numeral outside a ROW-1 template). In-sample clause ON the line (MAJOR-12).
+
+    V2-3: a FOURTH mid-variant, taken first when `reason` is 'fx_flips_sign'; and a currency tail
+    on every cross-currency hop. THE TAIL IS REWORDED, NEVER DOUBLED, ON THAT FOURTH VARIANT
+    (v3 refute major-5, MEASURED on the rendered bytes): the shipped tail says the direction IS
+    read on each board's own-currency move, which contradicts a mid that has just said no direction
+    was read at all -- under a mandate to state the READ in the block's own terms. On that branch
+    the tail states the currencies and claims no direction."""
+    if reason == "fx_flips_sign":
+        mid = ("the exchange rate between the two settlement currencies moved further over this "
+               "window than the board priced in it did, and it moved the same way, so the record "
+               "declines to read a direction on this firing -- state that plainly")
+    elif verdict == "aligned":
         mid = "the declared relation held on this firing"
     elif verdict == "at_odds":
         mid = "the two moves sat at odds with the declared relation on this firing"
     else:
         mid = "the record declines to read a direction on this firing -- state that plainly"
-    return (f"CONSEQUENCE READ {label_a} and {label_b}: {mid}; the moves above are the record, "
-            f"in-sample on the named window only, never extended beyond it.")
+    base = (f"CONSEQUENCE READ {label_a} and {label_b}: {mid}; the moves above are the record, "
+            f"in-sample on the named window only, never extended beyond it")
+    if not xccy:
+        return base + "."
+    wa, wb = _cw_currency_words(xccy[0]), _cw_currency_words(xccy[1])
+    if reason == "fx_flips_sign":
+        return base + f"; each figure above stays a move inside its own settlement currency, {wa} and {wb}."
+    return (base + "; the direction is read on each board's own-currency move, so the exchange-rate "
+            f"move between {wa} and {wb} over this window sits inside that comparison and is not "
+            "removed from it.")
 
 
 def _cw_absence(label: str, reason: str) -> str:
@@ -6654,10 +6805,107 @@ def _cw_context_call(rec: dict, asof) -> dict:
     return call
 
 
+# -- V2-3 FX CELL helpers ---------------------------------------------------------------------------
+def _cw_fx_rec(metric: str, label: str, cur_a, cur_b, span_tok: str) -> dict:
+    """The FX cell's record, minted by the CALLER before the read so the belt can still count a read
+    that was paid before a later step raised (the `_cw_context_rec` idiom)."""
+    return {"kind": "fx", "metric": metric, "label": label, "cross": f"{cur_a}>{cur_b}",
+            "cur_a": cur_a, "cur_b": cur_b, "span": span_tok,
+            "status": None, "reason": None, "reads": 0}
+
+
+def _cw_fx_cell(qfn, rec: dict, t1: str, t2: str, asof, *, card_metric,
+                futures_newest_first: bool | str = False) -> dict:
+    """ONE exchange-rate cell, mutating and returning `rec`: ONE fetch_window over THE FIRING WINDOW
+    ITSELF [t1, t2] -> `_rv_axes` -> in-window clip -> obs floor -> unit -> move.
+
+    WHY THE FIRING WINDOW AND NOT EITHER BOARD'S REALIZED ANCHOR..ENDPOINT: `_cw_fences` already
+    bounds each board's realized interval to within min(7 days, a tenth of the span) of the window
+    (MEASURED on 158 cross pairs: d_anchor in {0,1,3}, d_end in {0,1,2,3}, max sum 3), and a
+    board-keyed basis would make the SAME pair read differently depending on which board is root --
+    and 7 of the 19 undirected pairs render in both directions.
+
+    NO REVISION-STAMP BLOCK: the card is date-typed under `knowledge_semantics: data_date` and
+    carries no revision stamp, so the two returned print dates ARE the clock and both are named on
+    the line. That is NOT a claim that the series is never revised -- the card records that the
+    newer crosses were FILL-FORWARD BACKFILLED across the full history, which is precisely why the
+    caller's ladder declines `replay` on a historical-asof turn before any read is paid.
+
+    The magnitude is (last/first - 1) * 100 over the returned prints. NO RATE MULTIPLIES ANY PRICE
+    ANYWHERE: this row is an observed rate on its own handle, and nothing converts anything."""
+    r = fetch_window(qfn, table=_CW_FX_TABLE, metric=rec["metric"], commodity=None, country=None,
+                     t1=t1, t2=t2, asof=asof, agg="series", period=None, period_type="date",
+                     futures_newest_first=futures_newest_first)
+    rec["reads"] = CW_FX_READS_PER_CELL                              # counted at the paying site
+    if r.get("status") == "error":
+        rec.update(status="declined", reason="read_error")
+        return rec
+    if r.get("status") != "ok":
+        rec.update(status="declined", reason="empty_series")
+        return rec
+    vals, dates, unit = _rv_axes(r, card_metric)
+    keep = [(v, d) for v, d in zip(vals, dates) if t1 <= d <= t2]    # belt: never a row outside the window
+    if len(keep) < CW_FX_MIN_OBS:
+        rec.update(status="declined", reason="grain_thin")
+        return rec
+    if not str(unit or "").strip():
+        rec.update(status="declined", reason="no_unit")
+        return rec
+    first, last = keep[0][0], keep[-1][0]
+    if not first:
+        rec.update(status="declined", reason="no_move")
+        return rec
+    rec.update(status="closed", move_pct=round((last / first - 1.0) * 100.0, 4), n_obs=len(keep),
+               first_date=keep[0][1], last_date=keep[-1][1], unit=str(unit))
+    return rec
+
+
+def _cw_fx_line(n: int, rec: dict) -> str:
+    """ROW-1X: the class token right after the handle; the window token = SCOPE, the two returned
+    print dates = the ONE clock (no as-of on this line). The reader LABEL is the series axis."""
+    q = {"commodity": rec["label"], "country": None, "table": _CW_FX_TABLE}
+    return (f"- [N{n}{CW_FX_TOKEN}{rec['label']} measured on the exchange-rate prints from "
+            f"{rec['first_date']} through {rec['last_date']} inside the episode window "
+            f"{rec['span']}: {rec['move_pct']:+g} %" + _series_tag(q))
+
+
+def _cw_fx_words(rec: dict) -> str:
+    """ROW-2X, PRICED: standalone, letters only. It states what the row is and what it is not."""
+    return (f"{CW_FX_WORDS_PREFIX}{_cw_currency_words(rec['cur_a'])} and "
+            f"{_cw_currency_words(rec['cur_b'])}: the row above is the exchange rate between those "
+            f"two settlement currencies over the same window, carried as a dated fact on its own "
+            f"handle; each board figure on this hop stays a move inside the currency its own row "
+            f"names.")
+
+
+def _cw_fx_words_unpriced(cur_a, cur_b) -> str:
+    """ROW-2X, UNPRICED: the words ride FREE at zero reads whenever the FX cell did not close."""
+    return (f"{CW_FX_WORDS_PREFIX}{_cw_currency_words(cur_a)} and {_cw_currency_words(cur_b)}: the "
+            f"two boards on this hop settle in those currencies, and the rate between them is named "
+            f"here in words only and is not priced on this page; each board figure stays a move "
+            f"inside the currency its own row names.")
+
+
+def _cw_fx_call(rec: dict, asof) -> dict:
+    """The synthetic call the [N] handle indexes. THE UNIT IS BUILT FROM THE READER LABEL, never
+    from `rec['unit']` (the card's own string): citations reads a call row's unit onto the RENDERED
+    citation label and falls back to the CARD's unit when the row carries none, so an unset or
+    card-shaped unit puts a raw provenance string in front of the reader. `_rv_call` hard-codes the
+    pink-sheet table, so the table and the machine metric are overridden here -- the metric rides
+    the ROW as `source_metric`, which citations.from_number copies onto the LOCATOR."""
+    call = _rv_call("exchange rate change", rec["label"], rec["move_pct"], rec["span"], asof,
+                    unit=_CW_FX_UNIT_FMT.format(unit=rec["label"]), date=rec["last_date"])
+    call["query"]["table"] = _CW_FX_TABLE
+    call["rows"][0]["source_metric"] = rec["metric"]
+    return call
+
+
 def _cw_board_row_closed(cells: list) -> bool:
     """The dormant-clause guard's predicate: does at least one BOARD cell close? A context cell is never
-    the row that licenses a marker -- a block whose only magnitude is a chicken price ships NOTHING."""
-    return any(c.get("status") == "closed" and c.get("kind") != "context" for c in cells or [])
+    the row that licenses a marker -- a block whose only magnitude is a chicken price ships NOTHING.
+    V2-3: an FX row is never that row either -- an exchange rate is not a board."""
+    return any(c.get("status") == "closed" and c.get("kind") not in ("context", "fx")
+               for c in cells or [])
 
 
 # THE MARKER PREFIX, minted ONCE and read by BOTH the producer (`_cw_marker`) and the answer-seam
@@ -6672,7 +6920,7 @@ CW_MARKER_PREFIX = "CASCADE EPISODE WALK ("
 CW_THIRD_ORDER_MARKER = CW_MARKER_PREFIX + "third order)"
 
 
-def _cw_marker(order: str, context: bool = False) -> str:
+def _cw_marker(order: str, context: bool = False, fx: bool = False) -> str:
     """ROW 5 -- the fixed no-conclusion marker: the transcription discipline, the order label
     (K3), the episodes-sourcing clause (v3 remedy (h)) and its A6/M4 extension (one window, the
     same window, both surfaces). V2-1: with `context` the OPENING clause is conditional (a block
@@ -6698,13 +6946,18 @@ def _cw_marker(order: str, context: bool = False) -> str:
     third = (" Each row above is a coincidence test between two boards over a window an unrelated "
              "market's episode defined; the chain across them is the reader's inference, never the "
              "engine's." if order == "third" else "")
+    # V2-3: ONE COUNT-FREE sentence, appended LAST, only when an exchange-rate row actually rendered.
+    # `fx=False` is byte-identical to both shipped literals (pinned).
+    fxt = (" Rows marked EXCHANGE RATE are the rate between two settlement currencies over the same "
+           "window -- transcribe each with its own handle, and never convert, rebase or net any "
+           "board figure with it." if fx else "")
     return (f"{CW_MARKER_PREFIX}{order} order): {head}; each hop's read is stated beside "
             f"it, in-sample on the named window only. Cite the [N] rows verbatim; never derive a "
             f"ratio, a spread, a lag or any magnitude the rows do not print; direction beyond the "
             f"stated read is the analyst's, never the engine's. Do not mint a new episodes-section "
             f"bullet from a consequence row -- the enumeration stays the episodes mandate's, and "
             f"the firing window named here is the same dated window that section enumerates."
-            + third + tail)
+            + third + tail + fxt)
 
 
 _CW_SPAN_TOKEN_RX = re.compile(r"\d{4}-\d{2}\.\.\d{4}-\d{2}")
@@ -6736,7 +6989,7 @@ def _cw_free(cov, slug: str, firing: dict) -> bool:
     return str(cov[slug]) > str(firing["start"])
 
 
-def _cw_admissible_children(graph, cov, node, root: str) -> tuple:
+def _cw_admissible_children(graph, cov, node, root: str, *, xccy: bool = False) -> tuple:
     """The HOP-1 ladder, lifted VERBATIM out of `_cascade_walk_legs` so config_check clause (ix) can
     census the engine's OWN out-degree instead of a second implementation that can drift.
 
@@ -6744,7 +6997,15 @@ def _cw_admissible_children(graph, cov, node, root: str) -> tuple:
     'focus_not_node_seed' or 'no_declared_children' -- the THIRD return arm carries the two root-scope
     returns that live inside the lifted range. `node` is `graph.contract_node`, BOUND AT THE CALL SITE
     (refute-v4 major-0: it used to be assigned inside this range and is still needed after it).
-    `declines` is the child-scope decline list in the SAME order the shipped loop appended it."""
+    `declines` is the child-scope decline list in the SAME order the shipped loop appended it.
+
+    V2-3: `xccy` LIFTS the currency gate into a LADDER whose ORDER IS LOAD-BEARING (v1 refute F1).
+    With `xccy` False the gate is the pre-rider two lines, byte for byte, at zero reads. With it
+    True: cash-index FIRST (both cash-index boards are BRL and BRL has no FX column, so an
+    FX-first order makes that branch dead code and mis-buckets two hops -- 7/0 wrong, 5/2 right),
+    then the FX column, then ADMIT carrying `xccy=(cur_root, cur_child)` and `fx=<card metric>` on
+    the record. EVERY BRANCH IS PRE-READ. `cross_currency` is RE-SCOPED, never deleted: it stays
+    the flag-off reason and stays true for any future board whose currency has no column."""
     declines: list = []
 
     def _dec(reason, child):
@@ -6770,9 +7031,21 @@ def _cw_admissible_children(graph, cov, node, root: str) -> tuple:
         if node(child) == node(root):
             _dec("node_cycle", child)
             continue
-        if _cw_currency(child) != _cw_currency(root):
-            _dec("cross_currency", child)
-            continue
+        cur_r, cur_c = _cw_currency(root), _cw_currency(child)
+        _x, _fx = None, None
+        if cur_r != cur_c:
+            if not xccy:
+                _dec("cross_currency", child)          # the pre-rider bytes, exactly, zero reads
+                continue
+            if _cw_cash_index(child) or _cw_cash_index(root):
+                _dec("cash_index_board", child)        # FIRST: see the docstring's ordering law
+                continue
+            _fx = _cw_fx_metric(cur_r, cur_c)
+            if _fx is None:
+                _dec(("cross_currency_unmapped" if not (cur_r and cur_c)
+                      else "cross_currency_no_pair_rate"), child)
+                continue
+            _x = (cur_r, cur_c)
         signs = {str(r.get("sign")) for r in crows}
         if signs - {"+", "-"}:
             _dec(("sign_undeclared" if signs <= {"0", "None", ""} else
@@ -6796,7 +7069,7 @@ def _cw_admissible_children(graph, cov, node, root: str) -> tuple:
             _dec("child_uncovered", child)
             continue
         admissible.append({"child": child, "sign": signs.pop(), "relations": rels,
-                           "blurb": (blurbs[0] if blurbs else "")})
+                           "blurb": (blurbs[0] if blurbs else ""), "xccy": _x, "fx": _fx})
     return admissible, declines, None
 
 
@@ -6937,6 +7210,13 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     #    `xccy` is minted NOW so V2-3 lands one seam key instead of re-cutting four selection lines;
     #    nothing sets `xccy` in this build (pinned at the answer.py seam), so the union is measurably
     #    inert and the flag-off path is the shipped path on the shipped globals.
+    # V2-3 CROSS-CURRENCY RIDER: its own bool, read from the SAME request dict. `xccy_on` gates the
+    # currency ladder, the FX cell, the currency words and the seam clause; `deep_on` gates the
+    # breadth/cap regime -- and THE ENGINE ITSELF enforces xccy => deep on the line below (v3 refute
+    # major-3: the implication used to live only at the answer.py seam, so any request built without
+    # that seam -- a unit fixture, a future caller -- would have run the rider at CW_MAX_CHILDREN=3
+    # and silently dropped lifted children with no decline naming the loss).
+    xccy_on = bool((walk_request or {}).get("xccy"))
     deep_on = bool((walk_request or {}).get("deep") or (walk_request or {}).get("xccy"))
     cw_children = CW_DEEP_MAX_CHILDREN if deep_on else CW_MAX_CHILDREN
     cw_cap = CW_DEEP_CAP if deep_on else CW_CAP
@@ -6946,11 +7226,14 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     #                                       read a MODULE GLOBAL where every other reads a regime
     #                                       LOCAL selected here. Not regime-split today (the belt is
     #                                       deep-only), but the pattern is the law, so it is a local.
-    # every name the stamp closure reads must exist before the FIRST root-scope decline below
-    grand = None
-    great = None
+    # every name the stamp closure reads must exist before the FIRST root-scope decline below.
+    # V2-3 (L9): the two next-hop legs are collected in ONE DICT keyed by the _CW_HOP_LEVELS
+    # vocabulary, so the ledger stamp's zip and the render loop's absent-dispatch both READ that
+    # dict instead of re-spelling 'grand'/'great' at two more sites.
+    hop_legs: dict = {L: None for L in _CW_HOP_LEVELS}
     free_set: set = set()
     admissible: list = []
+    same_ccy: list = []
     if deep_on:                                       # omit-when-off (the payload['context']
         payload["deep"] = {"cap": cw_cap, "ceiling": cw_ceiling,   # precedent): NO new key ever
                            "max_children": cw_children,            # appears in an off-run payload
@@ -6961,6 +7244,10 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                            #                   constant in eval.py -- L3 / refute-v4 fatal 3
                            "cells_planned": None, "paid_cells": None,   # every PRE-enumeration plan
                            "order_n": None,             # field is None, never 0. elapsed_ms is the
+                           # V2-3 (L9): the depth the PAGE SHOWED, beside the depth the closed
+                           # cells earned -- `order_n` walks CLOSED cells only, so a hole caps it,
+                           # and an arm comparing cw_order across regimes needs both numbers.
+                           "order_n_rendered": None,
                            "elapsed_ms": None,          # ONE NONDETERMINISTIC FIELD in this payload
                            #                   (a wall clock, stamped by the wrapper): EXCLUDE IT
                            #                   from every byte comparison of a flag-ON artifact --
@@ -6987,7 +7274,8 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                              priced=payload["children_priced"],
                              named=payload["children_named"],
                              free=len(free_set & kids))
-        for lvl, leg in zip(_CW_HOP_LEVELS, (grand, great)):   # the vocabulary, never a re-spelling
+        for lvl in _CW_HOP_LEVELS:                # the vocabulary, never a re-spelling (V2-3 L9:
+            leg = hop_legs[lvl]                   # ONE collection, read by key)
             row = hops[lvl]
             dec = 1 if leg is not None else 0
             fre = 1 if (leg is not None and leg["child"] in free_set) else 0
@@ -7014,6 +7302,15 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     #                                                   says "zero were planned"), board_reads_planned
     #                                                   until the board plan exists -- absent is
     #                                                   never zero.
+    if xccy_on:                                       # V2-3: the SAME omit-when-off shape, stamped
+        payload["xccy"] = {"rendered": 0, "pairs": [], "fx_planned": 0,   # EARLY so a root-scope
+                           "fx_admitted": 0, "fx_rendered": 0,           # decline still carries a
+                           "fx_reads": 0, "fx_cache_hits": 0,            # closed rectangle.
+                           "fx_flips_sign": 0, "fx_unpriced_verdicts": 0,
+                           "fx_gate_checked": 0,     # K0c's DENOMINATOR: hops that passed BOTH
+                           #                           board fences AND held a closed FX cell, i.e.
+                           #                           the hops on which the flip test actually ran
+                           "cap": CW_FX_CAP, "declines": []}
     payload["root"] = root or None
     if not root:
         return _decline("root", "no_focus")
@@ -7046,7 +7343,8 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     # (refute-v4 major-0). `graph is None` is reachable -- it declines `no_declared_children` inside
     # the helper on empty rows -- so the binding is guarded rather than assumed.
     node = graph.contract_node if graph is not None else None
-    admissible, _adm_decl, _root_decl = _cw_admissible_children(graph, cov, node, root)
+    admissible, _adm_decl, _root_decl = _cw_admissible_children(graph, cov, node, root,
+                                                                xccy=xccy_on)
     if _root_decl is not None:
         return _decline("root", _root_decl)
     payload["declines"].extend(_adm_decl)
@@ -7116,10 +7414,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
             _lvl = _CW_HOP_LEVELS[_hop_i]
             _hop = _cw_next_hop(graph, cov, node, keep, narrated, _hop_parent, _hop_path, payload,
                                 level=_lvl, verbose=deep_on)
-            if _lvl == "grand":
-                grand = _hop
-            else:
-                great = _hop
+            hop_legs[_lvl] = _hop                     # V2-3 L9: ONE dispatch, keyed by the level
             if _hop is None:
                 if deep_on:
                     _decline(_lvl, "no_next_hop")     # append side-effect only (the :6772 idiom)
@@ -7128,7 +7423,15 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
             # -- including node-distinctness across the WHOLE path (four distinct nodes at hop 3).
             _hop_parent = _hop["child"]
             _hop_path = _hop_path | {node(_hop_parent)}
-    if same_ccy_n > 1 or grand is not None:
+    # THE ONE-FIRING RULE, V2-3-CORRECTED (build-refute major-2, MEASURED): the depth-in-time shape
+    # exists ONLY for the root whose spine is a SINGLE same-currency child, so the test is `!= 1`,
+    # never `> 1`. `same_ccy_n == 0` was structurally unreachable before the rider (the hop-1 ladder
+    # declined every cross-currency child, so the count equalled len(admissible) and an empty
+    # admissible set had already returned); with lifted children admitted it is LIVE -- a root whose
+    # only children are lifted (rapeseed_meal_zce, french_wheat_matif today) fell through to two
+    # firings, and on firing 2 the per-firing legs are `same_ccy` == [], so the engine paid a second
+    # root cell and rendered a bare ROW-1 that no hop, read or absence ever referred to.
+    if same_ccy_n != 1 or hop_legs["grand"] is not None:
         firings = firings[:1]
     else:
         firings = firings[:CW_MAX_FIRINGS]
@@ -7149,8 +7452,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         # down the only chain, so a free ancestor implies every descendant free (refute-v4 major-1)
         # and the rule would only have deleted declared absence rows.
         _legs_all = ([{"child": a["child"], "parent": root} for a in admissible]
-                     + ([grand] if grand is not None else [])
-                     + ([great] if great is not None else []))
+                     + [L for L in (hop_legs[k] for k in _CW_HOP_LEVELS) if L is not None])
         free_set = {L["child"] for L in _legs_all
                     if all(_cw_free(cov, L["child"], f) for f in firings)}
         # THE PAID-CELL SELECTION, in the existing ascending-slug order, one pass. A FREE child rides
@@ -7186,6 +7488,30 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 _decline("child", "width_belt", child=a["child"])
                 payload["children_named"] += 1
         admissible = kept
+    # V2-3 (L5), THE PER-FIRING LEGS SOURCE: the LIFTED (cross-currency) children ride the depth
+    # shape's FIRST firing; the same-currency spine, and its next hops when there are any, ride
+    # EVERY firing. MEASURED as the only configuration with zero same-currency loss, zero next-hop
+    # loss AND zero second-firing loss -- 'ride every firing' re-creates the very second-firing loss
+    # the switch exists to stop, and 'decline by name' costs two reachable-today lifted hops. The
+    # switch itself already reads the SAME-CURRENCY COUNT (V2-5 minted `same_ccy_n` for exactly this
+    # inheritance); this is the same predicate as a LIST, taken AFTER the paid-cell selection so it
+    # names the children that actually survived. Flag-off and xccy-off it EQUALS `admissible`
+    # element for element in the same order (every record carries xccy None), so both the plan and
+    # the render loop reduce to the shipped expressions.
+    same_ccy = [a for a in admissible if not a.get("xccy")]
+    # ONE POPULATION FOR BOTH READERS (build-review minor, adopted): the shape switch above runs
+    # BEFORE the paid-cell selection -- it has to, because `free_set` is defined over the SELECTED
+    # firings -- so it reads the PRE-belt count while the per-firing legs read this POST-belt list.
+    # THE POPULATION THAT DECIDES THE SHAPE IS THIS ONE, `same_ccy`: the switch's verdict is re-taken
+    # here against the children that actually survived the paid-cell selection and the width belt,
+    # under the SAME predicate (`!= 1`), and the stamped plan is truncated with it so the artifact
+    # and the render loop can never disagree about how many firings ran. Xccy-off it is INERT --
+    # `same_ccy` is `admissible`, and two firings imply a single admissible child that no budget can
+    # drop -- so the deep golden does not move. Nothing downstream of this line has read `firings`
+    # yet (the context plan, the ceiling test and `paid_cells` all follow).
+    if len(firings) > 1 and len(same_ccy) != 1:
+        firings = firings[:1]
+        payload["firings"] = payload["firings"][:1]
     if context_on:
         # V2-1 (review F2): the context PLAN is stamped from the enumeration the moment it exists --
         # BEFORE the ceiling tests -- so a root-scope decline below can never report "zero were
@@ -7214,15 +7540,18 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         # len(admissible) -- SHAPE 2 prices 1 + |admissible| + grand + great, which is 4 today and
         # stays correct the day V2-3 admits an FX sibling beside the depth child.
         paid_cells = sum((1
-                          + sum(1 for a in admissible if a["child"] not in free_set)
-                          + (1 if grand is not None and grand["child"] not in free_set else 0)
-                          + (1 if great is not None and great["child"] not in free_set else 0))
-                         for _ in firings)
+                          + sum(1 for a in (admissible if _fi == 0 else same_ccy)
+                                if a["child"] not in free_set)
+                          + sum(1 for k in _CW_HOP_LEVELS
+                                if hop_legs[k] is not None
+                                and hop_legs[k]["child"] not in free_set))
+                         for _fi, _f in enumerate(firings))
         cells_planned = paid_cells
         payload["deep"]["cells_planned"] = cells_planned
         payload["deep"]["paid_cells"] = paid_cells
     else:
-        cells_planned = sum(1 + len(admissible) + (1 if grand is not None else 0) for _ in firings)
+        cells_planned = sum(1 + len(admissible)
+                            + (1 if hop_legs["grand"] is not None else 0) for _ in firings)
     if cells_planned * CW_READS_PER_CELL > cw_cap:
         # the review's belt: the shape rules above keep every plan at or under the cap today, so
         # this is unreachable -- until a future knob change; then it DECLINES, never over-spends.
@@ -7238,15 +7567,42 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     # CW_TURN_CEILING, else the CELL declines budget_cap and the block ships. board_reads is the PLAN
     # (outcome-independent, known before any read -- MAJOR-5 clean) and is stamped (refute m6) so a
     # budget_cap decline is auditable from the artifact without re-deriving the shape.
-    # THE 60-vs-80 ASYMMETRY, STATED (build-refute minor): the rider's slack test reads
-    # CW_TURN_CEILING (60) in BOTH regimes -- by design, the rider is regime-independent -- while the
-    # deep walk was itself admitted against CW_DEEP_TURN_CEILING (80). So a WIDE deep plan can starve
-    # every context cell as budget_cap. That is the intended precedence (the board block outranks the
-    # rider), it is COUNTED as budget_cap and never silent, and it is why the rider's own cap is 2.
+    # THE 60-vs-80 ASYMMETRY IS GONE (build-refute minor + build-review minor, both adopted): the
+    # slack test now reads THE REGIME'S OWN CEILING, `cw_ceiling` -- 80 under deep/xccy, 60 off --
+    # the same number the board plan was admitted against two lines up. It read the bare 60 in both
+    # regimes, which made the 7 reads CW_DEEP_TURN_CEILING reserves for the riders inside 80
+    # (44 pre-walk + CW_DEEP_CAP 27 + CW_CONTEXT_CAP 2 + 7) STRUCTURALLY UNREACHABLE: a wide deep
+    # plan starved every rider cell as budget_cap while config_check's NOTE said otherwise. V2-3
+    # makes the deep regime the FX rider's unconditional state (xccy => deep), so that was no longer
+    # an edge case but the default. The precedence is unchanged -- the board block still outranks
+    # both riders, a starved cell is still COUNTED as budget_cap and never silent -- and the riders'
+    # own caps (CW_CONTEXT_CAP 2, CW_FX_CAP 3) still bind well inside the 7.
     board_reads = cells_planned * CW_READS_PER_CELL
     ctx_admitted = 0
     ctx_rendered = 0
+    fx_admitted = 0
+    fx_rendered = 0
+    fx_cache_hits = 0
+
+    def _cw_slack() -> int:
+        """V2-3 (L3): the ceiling left after the board PLAN and every RIDER read already admitted --
+        the ONE arithmetic BOTH riders call, so the context cell and the FX cell can never
+        double-spend it (MEASURED on the v1 draft: 58/60 then 59/61). Arithmetically identical to
+        the shipped context test whenever fx_admitted is 0 AND the regime is off, which is every
+        flag-off turn, so the rewrite of that test below is behaviour-preserving off. It reads
+        `cw_ceiling`, THE REGIME'S OWN CEILING -- the same number the board plan two lines up was
+        admitted against -- so the rider allowance the deep ceiling was sized to carry is actually
+        reachable (see the note above)."""
+        return cw_ceiling - (spent + board_reads + ctx_admitted + fx_admitted)
     _ctx_lag, _ctx_declared = 0, None
+    _fx_declared = None
+    if xccy_on:
+        # the FX card is hoisted ONCE PER TURN beside the context one: an unreadable registry
+        # declines every FX cell as read_error and never raises.
+        try:
+            _fx_declared = getattr(_registry().get(_CW_FX_TABLE), "metrics", None) or {}
+        except Exception:  # noqa: BLE001 -- an unreadable card declines every cell, never raises
+            _fx_declared = None
     if context_on:
         payload["context"]["board_reads_planned"] = board_reads   # planned/slices: stamped at enumeration
         try:
@@ -7263,7 +7619,19 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     reads_spent = 0
     priced_children: set = set()
     rendered_pairs: list = []
-    for f in firings:
+    # V2-3 (L3, rung 2): the FX read cache is per TURN, not per firing -- 'one read per distinct
+    # cross per turn' is literal. The key carries the SPAN as well as the cross so a future shape
+    # change can never serve one window's rate under another window's handle; today every FX cell in
+    # a turn belongs to firing 1 (the lifted children ride it), so the span term is a belt, not a cost.
+    fx_by_cross: dict = {}
+    # V2-3 (build-refute major-1): the (cross, span) of every FX cell that actually RENDERED, in
+    # render order. `len(fx_rendered_keys) == fx_rendered` is the invariant -- the render belt's
+    # rollback truncates this list back to `_r0` by the same token -- and the whole-block rollbacks
+    # below turn it into one NAMED decline per rendered cell, so the FX rectangle closes on the
+    # fenced path too. Without it a fenced block reported fx_planned 1 / fx_rendered 0 / declines []
+    # with a read genuinely paid and named by nothing.
+    fx_rendered_keys: list = []
+    for _fi, f in enumerate(firings):
         t1, t2, span_tok, span_days = f["start"], f["end"], f["span"], f["span_days"]
         # M4 as adjudicated: the firing label is the INJECTED LINE'S OWN NODE TOKEN verbatim --
         # one window, one spelling on both surfaces; the display slice label is the fallback ONLY
@@ -7309,8 +7677,8 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         # the grand cell (appended below before the great leg is processed), `_cw_fences` applies the
         # SAME interval and tenor tests, a fence failure forces 'undetermined' (K4) and the row still
         # ships, and the whole-block register fence stays atomic with caller rollback.
-        legs = (list(admissible) + ([grand] if grand is not None else [])
-                + ([great] if great is not None else []))
+        legs = (list(admissible if (not deep_on or _fi == 0) else same_ccy)
+                + [L for L in (hop_legs[k] for k in _CW_HOP_LEVELS) if L is not None])
         for a in legs:
             child = a["child"]
             parent = a.get("parent") or root
@@ -7337,28 +7705,184 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
             reads_spent += cr
             phrases = [_CW_RELATION_WORDS[rel] for rel in a["relations"]]
             rendered_pairs.append((parent, child))
+            # V2-3 (M7): the currency clause -- and therefore the seam literal the persona gate
+            # greps for -- exists ONLY on a CLOSED cell, so the mandate can never ship demanding a
+            # figure for a hop that printed an absence (the W4-D3 shape).
+            _cl = (crec["status"] == "closed" and crec.get("_res") is not None)
+            _x = (a.get("xccy") if (xccy_on and _cl) else None)
             lines.append(_cw_hop_header(_CW_BOARD_LABEL[parent], _CW_BOARD_LABEL[child],
-                                        phrases, a["blurb"], firing_lab))
-            if crec["status"] == "closed" and crec.get("_res") is not None:
+                                        phrases, a["blurb"], firing_lab, xccy=_x))
+            if _cl:
                 n += 1
                 calls.append(_shown(_cw_call(child, crec, asof), crec["move_pct"]))
                 crec["handle"] = f"N{n}"
                 lines.append(_cw_cell_line(n, child, crec, asof))
                 priced_children.add(child)
+                # -- V2-3 BELT A: THE FX ADMISSION LADDER, SEVEN RUNGS IN ONE ORDER, READ ONLY --
+                # It appends NO line, mints no handle and needs no rollback; the whole rung set is
+                # wrapped in one belt whose handler declines the record by name. `fxrec` is set to
+                # None IMMEDIATELY BEFORE the try (v3 refute major-4: a name reused across the leg
+                # would otherwise leave the PREVIOUS hop's rate bound and feed another hop's
+                # exchange-rate move into this hop's verdict -- the leaked-name class).
+                fxrec = None
+                _fx_minted = False
+                _fx_dec = None
+                try:
+                    if _x:                                    # rung 1, ENTRY: a same-currency hop
+                        #                                       mints nothing and counts nothing
+                        payload["xccy"]["fx_planned"] += 1
+                        _ck = (a["fx"], span_tok)
+                        if _ck in fx_by_cross:                # rung 2, CACHE: one read per distinct
+                            fxrec = fx_by_cross[_ck]          #   cross per turn, zero reads here
+                            if str(fxrec.get("status")) == "closed":
+                                fx_cache_hits += 1
+                                payload["xccy"]["fx_cache_hits"] = fx_cache_hits
+                            else:
+                                # A CACHE HIT ON A DECLINED RATE IS NOT A FREE PASS (build-refute
+                                # minor, adopted). The cache is written in rung 7 BEFORE the status
+                                # test, so a second hop on a cross whose first read declined
+                                # (grain_thin / no_unit / no_move / read_error) -- or whose render
+                                # was fenced -- used to count `fx_cache_hits` and NOTHING ELSE,
+                                # under-counting by one per extra hop the population that shipped
+                                # with no priced rate on the page. It now DECLINES BY NAME at zero
+                                # reads, and 'cache_declined' is a PRE-ADMIT reason, so both
+                                # rectangles still close: it takes the cache hit's place in the
+                                # first and joins |declines| in the second.
+                                _fx_dec = "cache_declined"
+                        elif replay_on:                       # rung 3: the card's newer crosses were
+                            _fx_dec = "replay"                #   FILL-FORWARD BACKFILLED, so a
+                            #                                     historical as-of would read rows
+                            #                                     that did not exist then. 0 reads.
+                        elif fx_admitted >= CW_FX_CAP:        # rung 4
+                            _fx_dec = "fx_cap"
+                        elif _cw_slack() < 1:                 # rung 5: the ONE slack arithmetic
+                            _fx_dec = "budget_cap"
+                        elif _fx_declared is None:            # rung 6: an unreadable card
+                            _fx_dec = "no_card"               #   (pre-read; 'read_error' is the
+                            #                                     POST-read name at the paying site)
+                        elif a["fx"][0] not in _fx_declared:  # rung 6b: a READABLE card that does
+                            #                                   NOT declare the mapped column. All
+                            #                                   four _CW_FX_CROSS metrics exist on
+                            #                                   the live card today, so this is
+                            #                                   latent -- but without it rung 7
+                            #                                   pays a read and hands _cw_fx_cell a
+                            #                                   card_metric of None, spending
+                            #                                   CW_FX_CAP on a cell that can only
+                            #                                   error. The ladder DECLINES BY NAME,
+                            #                                   pre-read, at zero cost (build-refute
+                            #                                   minor, adopted).
+                            _fx_dec = "no_metric"
+                        else:                                 # rung 7, ADMIT
+                            fx_admitted += 1
+                            payload["xccy"]["fx_admitted"] = fx_admitted
+                            fxrec = _cw_fx_rec(a["fx"][0], a["fx"][1], _x[0], _x[1], span_tok)
+                            _fx_minted = True                 # the record is minted BEFORE the read
+                            _cw_fx_cell(qfn, fxrec, t1, t2, asof,
+                                        card_metric=_fx_declared.get(fxrec["metric"]),
+                                        futures_newest_first=futures_newest_first)
+                            fx_by_cross[_ck] = fxrec
+                            if fxrec["status"] != "closed":
+                                _fx_dec = str(fxrec.get("reason") or "no_move")
+                except Exception:  # noqa: BLE001 -- the FX cell declines, the walk block ships
+                    _fx_dec = "error"
+                    if fxrec is not None and fxrec.get("status") != "closed":
+                        fxrec.update(status="declined", reason="error")
+                if _fx_minted and fxrec is not None:
+                    _xr = int(fxrec.get("reads") or 0)        # paid iff the fetch returned
+                    reads_spent += _xr
+                    payload["xccy"]["fx_reads"] += _xr
+                if _fx_dec and _x:
+                    payload["xccy"]["declines"].append({"cross": f"{_x[0]}>{_x[1]}",
+                                                        "span": span_tok, "reason": _fx_dec})
                 if parent_rec is None:
                     lines.append(_cw_verdict_line(_CW_BOARD_LABEL[parent],
-                                                  _CW_BOARD_LABEL[child], "undetermined"))
+                                                  _CW_BOARD_LABEL[child], "undetermined",
+                                                  xccy=_x))
                 else:
                     ri_ok, tenor_ok = _cw_fences(parent_rec, crec, span_days)
                     crec["interval_ok"], crec["tenor_ok"] = ri_ok, tenor_ok
-                    if ri_ok and tenor_ok:
+                    # V2-3 (L4) THE DOMINANCE GATE, the TRUE sign-flip predicate. A board priced in
+                    # <ccy> is worth P/X in USD, so its USD move carries the sign of
+                    # (m_local - m_fx): the own-currency and common-denomination signs differ IFF
+                    # the rate moved FURTHER **and** THE SAME WAY. The USD leg is invariant, so only
+                    # the NON-USD leg can flip -- and it is read off the admissible record's OWN
+                    # root currency (`_x[0]`), never off a loop variable that may be stale.
+                    # MEASURED on 142 verdictable cross window-pairs: the co-signed predicate fires
+                    # 4 times and matches the redenominated ground truth 142 of 142; the bare
+                    # magnitude test fires 20, of which 16 are false positives.
+                    _nonusd = (parent_rec if (_x and _x[0] != CW_XCCY_USD) else crec)
+                    _vr = None
+                    if not (ri_ok and tenor_ok):
+                        verdict = "undetermined"      # K4: a fence-failed pair NEVER verdicts
+                    elif (_x and fxrec is not None and fxrec.get("status") == "closed"
+                          and abs(fxrec["move_pct"]) > abs(_nonusd["move_pct"])
+                          and (fxrec["move_pct"] > 0) == (_nonusd["move_pct"] > 0)):
+                        verdict, _vr = "undetermined", "fx_flips_sign"
+                        payload["xccy"]["fx_flips_sign"] += 1
+                        payload["xccy"]["fx_gate_checked"] += 1
+                    else:
+                        if _x:
+                            if fxrec is not None and fxrec.get("status") == "closed":
+                                payload["xccy"]["fx_gate_checked"] += 1
+                            else:
+                                # DECLARED LIMIT (owner decision #4): with no closed FX cell the
+                                # engine holds no flip input and still reads the two own-currency
+                                # signs -- the sign test is currency-free by construction and both
+                                # currencies are named on the page. The population is COUNTED so it
+                                # is readable from every artifact row.
+                                payload["xccy"]["fx_unpriced_verdicts"] += 1
                         verdict = _st.sign_agreement(parent_rec["move_pct"], crec["move_pct"],
                                                      a["sign"])["value"]
-                    else:
-                        verdict = "undetermined"      # K4: a fence-failed pair NEVER verdicts
                     crec["verdict"] = verdict
+                    if _vr is not None:
+                        crec["verdict_reason"] = _vr
                     lines.append(_cw_verdict_line(_CW_BOARD_LABEL[parent],
-                                                  _CW_BOARD_LABEL[child], verdict))
+                                                  _CW_BOARD_LABEL[child], verdict,
+                                                  xccy=_x, reason=_vr))
+                # -- V2-3 BELT B: RENDER, with its marks captured IMMEDIATELY AFTER the verdict
+                # append so a raised render trims ONLY its own lines and its own call and can never
+                # orphan the child ROW-1, its handle or its verdict (the D2 orphan-call class).
+                if _x:
+                    _n0, _c0, _l0, _r0 = n, len(calls), len(lines), fx_rendered
+                    try:
+                        if _fx_minted and fxrec is not None and fxrec.get("status") == "closed":
+                            l1, l2 = _cw_fx_line(n + 1, fxrec), _cw_fx_words(fxrec)
+                            if _cw_register_fence([l1, l2]):   # the PAIR is atomic and pre-fenced
+                                calls.append(_shown(_cw_fx_call(fxrec, asof), fxrec["move_pct"]))
+                                n += 1
+                                fxrec["handle"] = f"N{n}"
+                                lines.extend([l1, l2])
+                                fx_rendered += 1
+                                fx_rendered_keys.append((f"{_x[0]}>{_x[1]}", span_tok))
+                                payload["xccy"]["fx_rendered"] = fx_rendered
+                            else:
+                                fxrec.update(status="declined", reason="render_fence")
+                                payload["xccy"]["declines"].append(
+                                    {"cross": f"{_x[0]}>{_x[1]}", "span": span_tok,
+                                     "reason": "render_fence"})
+                        elif not (fxrec is not None and fxrec.get("status") == "closed"):
+                            # no priced rate anywhere on this page for this cross: the words ride
+                            # FREE, letters-only, at zero reads. A CACHE HIT on a cross that IS
+                            # priced adds nothing here -- the rate already sits on the page once,
+                            # under its own handle, and this hop's header and read lines name both
+                            # currencies unconditionally.
+                            lines.append(_cw_fx_words_unpriced(_x[0], _x[1]))
+                    except Exception:  # noqa: BLE001 -- the render declines, the block ships
+                        n = _n0
+                        calls[_c0:] = []
+                        lines[_l0:] = []
+                        fx_rendered = _r0
+                        fx_rendered_keys[_r0:] = []           # len(...) == fx_rendered, restored
+                        payload["xccy"]["fx_rendered"] = _r0
+                        if fxrec is not None:
+                            fxrec.pop("handle", None)
+                            fxrec.update(status="declined", reason="error")
+                        payload["xccy"]["declines"].append({"cross": f"{_x[0]}>{_x[1]}",
+                                                            "span": span_tok, "reason": "error"})
+                    payload["xccy"]["rendered"] += 1
+                    payload["xccy"]["pairs"].append(f"{_x[0]}>{_x[1]}")
+                    if _fx_minted and fxrec is not None:
+                        payload["cells"].append(dict(fxrec))
             else:
                 lines.append(_cw_absence(_CW_BOARD_LABEL[child],
                                          str(crec.get("reason") or "no_move")))
@@ -7367,8 +7891,8 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 # `absent` counts RENDERED pre_coverage CELLS, and is deliberately NOT a rectangle
                 # term: on the two-firing shape one free LEG renders TWO absences, so absent can
                 # exceed free. It is the diagnostic that makes the over-reservation visible.
-                payload["deep"]["hops"]["great" if a is great else
-                                        "grand" if a is grand else "child"]["absent"] += 1
+                payload["deep"]["hops"][next((k for k in _CW_HOP_LEVELS if a is hop_legs[k]),
+                                             "child")]["absent"] += 1
         if context_on:
             # -- V2-1 CONTEXT CELL: one non-verdicted pair per admitted firing, AFTER the firing's
             # child rows (reached only when the root cell closed). THE WHOLE EMISSION IS BELTED
@@ -7387,7 +7911,8 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                     _cd.append({"slice": f["slice"], "span": span_tok, "reason": "replay"})
                 elif ctx_admitted >= CW_CONTEXT_CAP:
                     _cd.append({"slice": f["slice"], "span": span_tok, "reason": "context_cap"})
-                elif spent + board_reads + ctx_admitted + 1 > CW_TURN_CEILING:
+                elif _cw_slack() < 1:                 # V2-3 (L3): the ONE slack arithmetic, which
+                    #                                      is where this rider now SEES the FX reads
                     _cd.append({"slice": f["slice"], "span": span_tok, "reason": "budget_cap"})
                 elif _ctx_declared is None:
                     _cd.append({"slice": f["slice"], "span": span_tok, "reason": "read_error"})
@@ -7459,13 +7984,37 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         # would be swallowed by the wrapper belt into a silent whole-block 'declined', the worst
         # possible failure mode for a label. `payload["path"]` above is UNCHANGED: it is the
         # RENDERED chain, absences included, because the page really did show those rows.
+        # V2-3 (build-review minor): the kind filter is the SAME one `_cw_board_row_closed` and both
+        # eval cell filters carry -- ('context', 'fx'). An FX cell carries no `slug` key at all, so
+        # the un-widened form seeded a bare None into a membership set the order label reads.
+        # Harmless on today's rendered_pairs (always slug strings); it was the one place the new
+        # kind was missed, and a set that can hold None is not a set of slugs.
         _closed = {c.get("slug") for c in payload["cells"]
-                   if c.get("kind") != "context" and c.get("status") == "closed"}
+                   if c.get("kind") not in ("context", "fx") and c.get("status") == "closed"}
         order_n = _cw_order_n(root, rendered_pairs, _closed)
         payload["deep"]["order_n"] = order_n
+        # V2-3 (L9): the depth the PAGE SHOWED, from the SAME lifted expression with the rendered
+        # children standing in for the closed ones. `order_n` is the honest label (a hole caps it);
+        # this one says how far the rendered chain ran, so an arm comparing cw_order across regimes
+        # can tell "the chain was short" from "a cell in the chain declined".
+        payload["deep"]["order_n_rendered"] = _cw_order_n(root, rendered_pairs,
+                                                          {c for (_p, c) in rendered_pairs})
         payload["order"] = _CW_ORDER_WORDS.get(order_n, "third")
     else:
         payload["order"] = "second" if any(p != root for (p, _c) in rendered_pairs) else "first"
+    def _fx_block_fenced():
+        """V2-3 (build-refute major-1, MEASURED): A WHOLE-BLOCK ROLLBACK NAMES THE FX CELLS IT DROPS.
+        `fx_rendered` goes to zero with the block, so ONE decline per cell that had RENDERED -- its
+        own cross, its own span, in render order -- is exactly what keeps
+        fx_planned == fx_rendered + fx_cache_hits + |declines| true on the fenced path. Before this,
+        a fenced block reported fx_planned 1 / fx_rendered 0 / declines [] with an FX read genuinely
+        paid and named by nothing. Called at ALL THREE whole-block returns: only the register fence
+        is reachable with fx_rendered > 0 (a rendered FX cell implies a closed board child, hence a
+        closed board row and a non-empty `lines`), and the other two are covered anyway so the
+        rectangle is STRUCTURAL on every path rather than argued from reachability."""
+        for _fx_cross, _fx_span in fx_rendered_keys:
+            payload["xccy"]["declines"].append({"cross": _fx_cross, "span": _fx_span,
+                                                "reason": "block_fenced"})
     if not _cw_board_row_closed(payload["cells"]):
         # review minor: a block with zero [N] rows must not ship a marker claiming rows -- the
         # dormant-clause discipline. The absences stay in the trace; the block stays unshipped.
@@ -7475,20 +8024,35 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         calls[base:] = []
         if context_on:
             payload["context"]["rendered"] = 0
+        if xccy_on:
+            _fx_block_fenced()
+            payload["xccy"].update(rendered=0, fx_rendered=0, pairs=[])
         return [], payload
     if not lines:
         payload["outcome"] = "declined"
+        # V2-3: the THIRD early return. `lines` empty implies no hop header was ever appended,
+        # hence zero lifted hops rendered and a ledger already at zero -- MEASURED-UNREACHABLE and
+        # reset anyway, because the cost is one line and the failure mode is an eval mirror scoring
+        # a page that shipped nothing.
+        if xccy_on:
+            _fx_block_fenced()
+            payload["xccy"].update(rendered=0, fx_rendered=0, pairs=[])
         return [], payload
     # V2-1: the marker's opening clause is conditional under a rendered context row; the no-context
     # call is the pre-rider call, byte for byte.
-    lines.append(_cw_marker(payload["order"], context=True) if ctx_rendered
-                 else _cw_marker(payload["order"]))
+    # V2-3: BOTH branches of the conditional expression carry `fx=` or the sentence is silently
+    # dropped on context-bearing blocks. fx=False is byte-identical to both shipped literals.
+    lines.append(_cw_marker(payload["order"], context=True, fx=bool(fx_rendered)) if ctx_rendered
+                 else _cw_marker(payload["order"], fx=bool(fx_rendered)))
     if not _cw_register_fence(lines):
         calls[base:] = []                             # ATOMIC: the whole block drops, rows rolled
         payload["outcome"] = "fenced"                 # back, and the trip is a counted outcome
         payload["cells"] = [dict(c, handle=None) for c in payload["cells"]]
         if context_on:
             payload["context"]["rendered"] = 0
+        if xccy_on:
+            _fx_block_fenced()
+            payload["xccy"].update(rendered=0, fx_rendered=0, pairs=[])
         if deep_on:
             # THE DEEP LEDGER ZEROES WITH THE BLOCK (build-refute minor B5, MEASURED: a fenced
             # third-order block still projected order_n 3, paid_cells 4, plan_reads 12 and a hop-3
@@ -7499,6 +8063,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
             # taking them, so the per-level rectangle still closes. cap/ceiling/max_* stay: they
             # are config echoes, not claims about a shipped block.
             payload["deep"]["order_n"] = None
+            payload["deep"]["order_n_rendered"] = None
             payload["deep"]["cells_planned"] = None
             payload["deep"]["paid_cells"] = None
             for _row in payload["deep"]["hops"].values():
@@ -7545,6 +8110,14 @@ def _cascade_walk_leg_or_nothing(sg, graph, walk_request: dict, qfn, asof, calls
             # rather than the vacuous True that `all()` over an empty dict returns, and reads the
             # state off cw_deep_error instead (build-refute major-2).
             payload["deep"] = {"error": True}
+        if bool((walk_request or {}).get("xccy")):
+            # ...AND THE SAME SENTENCE FOR THE CROSS-CURRENCY REGIME (build-refute major-3,
+            # MEASURED). Under the flip GRAPHRAG_CASCADE_DEEP stays OFF and `deep` is set by
+            # `xccy`, so a belt row that stamped only `deep` was INDISTINGUISHABLE from a
+            # deep-only CONTROL row: eval's cw_xccy_on reads `"xccy" in _cw`, which was False.
+            # Same shape, same reason, same fail-closed dict -- and eval projects a
+            # cw_xccy_error companion beside cw_deep_error. Flag off -> no 'xccy' key.
+            payload["xccy"] = {"error": True}
     if isinstance(payload, dict) and "deep" in payload:
         # THE ONE NONDETERMINISTIC FIELD IN THE WHOLE PAYLOAD. Two runs of the same turn agree on
         # every other byte and never on this one, so EXCLUDE elapsed_ms from every byte comparison

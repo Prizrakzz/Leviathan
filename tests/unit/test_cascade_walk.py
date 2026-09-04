@@ -459,7 +459,8 @@ def test_wave_counter_absent_is_unknown_never_zero():
 # ── the register fence: atomic, rolled back, counted ────────────────────────────────────────────────
 def test_fence_trip_drops_the_whole_block_and_rolls_back_rows(monkeypatch):
     monkeypatch.setattr(cq, "_cw_marker",
-                        lambda order: "CASCADE EPISODE WALK: momentum is accelerating into 2027")
+                        lambda order, context=False, fx=False:
+                        "CASCADE EPISODE WALK: momentum is accelerating into 2027")
     calls = [{"query": {}, "rows": [], "shown": [1.0]}]            # a pre-existing foreign call
     lines, payload, calls_out, _q, _s = _w_run(calls=calls)
     assert payload["outcome"] == "fenced" and lines == []
@@ -1039,8 +1040,10 @@ def test_dormant_guard_kind_filters_context_cells():
     import inspect
     src = inspect.getsource(cq._cascade_walk_legs)
     assert 'if not _cw_board_row_closed(payload["cells"])' in src
-    assert 'c.get("kind") != "context"' in inspect.getsource(cq._cw_board_row_closed)
+    assert ('c.get("kind") not in ("context", "fx")'
+            in inspect.getsource(cq._cw_board_row_closed))
     assert cq._cw_board_row_closed([{"status": "closed", "kind": "context"}]) is False   # declines
+    assert cq._cw_board_row_closed([{"status": "closed", "kind": "fx"}]) is False        # V2-3
     assert cq._cw_board_row_closed([{"status": "closed", "kind": "context"},
                                     {"status": "closed", "slug": ROOT}]) is True
     assert cq._cw_board_row_closed([{"status": "declined", "slug": ROOT}]) is False
@@ -1256,9 +1259,17 @@ def test_context_mandate_and_gate_ride_the_row_shape_and_both_flags(monkeypatch)
     # `if _cw_focus:` scope (NOT inside the context branch -- see the behavioural pin below), and the
     # mandate gate in BOTH serving bodies. The seam NEVER writes V2-3's `xccy`, so the engine's
     # union is MEASURABLY inert in this build.
-    assert 'if _cascade_deep_on():' in a_src and '_cw_req["deep"] = True' in a_src
+    # V2-3 RE-ANCHOR (tighter, never looser): the `deep` key now rides the RIDER UNION at that same
+    # `if _cw_focus:` scope, because the cross-currency rider lifts children and therefore needs the
+    # same regime; V2-3's own key is set beside it, and `replay` was HOISTED out of the context
+    # branch to the union (L1 -- nested, it was DEAD on exactly the flip shape).
+    assert ('if _cascade_xccy_on() or _cascade_deep_on():' in a_src
+            and '_cw_req["deep"] = True' in a_src)
+    assert 'if _cascade_xccy_on():' in a_src and '_cw_req["xccy"] = True' in a_src
     assert a_src.count("cascade_deep=_cascade_deep_block_on(vp),") == 2
-    assert '"xccy"' not in a_src
+    assert a_src.count("cascade_xccy=_cascade_xccy_block_on(vp),") == 2
+    assert 'if _pr_kw and (_cascade_context_on() or _cascade_xccy_on()' in a_src
+    assert a_src.count('_cw_req["replay"] = True') == 1     # ONE site, at the union
     # the mandate gate reads the marker BY ATTRIBUTE, never as a copied string (the tl.LINE_PREFIX
     # discipline: producer and gate build from ONE literal and cannot drift)
     assert '_cq.CW_THIRD_ORDER_MARKER in (volatile_prompt or "")' in a_src
@@ -1293,11 +1304,23 @@ def test_context_constants_and_map_pins():
     src = open(cq.__file__, encoding="utf-8").read()
     assert src.count(cq.CW_CONTEXT_TOKEN) == 1 and "os.environ" not in src   # one producer, no env
     assert cq.CW_CONTEXT_TOKEN not in open(ans.__file__, encoding="utf-8").read()
-    # the two board-budget tests now read the SELECTED LOCALS (V2-5); the V2-1 rider's subordinate
-    # admission keeps reading CW_TURN_CEILING in BOTH regimes, so its pin survives byte-verbatim.
+    # the two board-budget tests read the SELECTED LOCALS (V2-5)...
     assert "if spent + cells_planned * CW_READS_PER_CELL > cw_ceiling:" in src
     assert "if cells_planned * CW_READS_PER_CELL > cw_cap:" in src
-    assert "spent + board_reads + ctx_admitted + 1 > CW_TURN_CEILING" in src
+    # V2-3 RE-ANCHOR (L3): the shipped inequality is REPLACED by the ONE slack helper that BOTH
+    # riders call, so a third rider cannot admit on its own arithmetic. Three assertions where
+    # there was one, and the old literal is pinned ABSENT.
+    assert src.count("def _cw_slack() -> int:") == 1
+    assert src.count("_cw_slack() < 1") == 2
+    assert "spent + board_reads + ctx_admitted + 1 > CW_TURN_CEILING" not in src
+    # ...AND SO DOES THE RIDER SLACK, from the V2-3 FIX PASS on (build-refute minor + build-review
+    # minor, both adopted): the rider is budgeted against `cw_ceiling`, the SAME number the board
+    # plan two lines above it was admitted against -- 80 under deep/xccy, 60 off. The bare-60 form
+    # made CW_DEEP_TURN_CEILING's own 7-read rider allowance structurally unreachable while
+    # config_check's NOTE asserted it. The V2-1 "regime-independent" wording is retired WITH the
+    # arithmetic; nothing off-regime moves, because off-regime cw_ceiling IS CW_TURN_CEILING.
+    assert "return CW_TURN_CEILING - (spent + board_reads + ctx_admitted + fx_admitted)" not in src
+    assert "return cw_ceiling - (spent + board_reads + ctx_admitted + fx_admitted)" in src
 
 
 def test_check_cascade_context_and_r4c_fold_green(monkeypatch):
@@ -1323,7 +1346,10 @@ def test_check_cascade_context_and_r4c_fold_green(monkeypatch):
 
 def test_cw_context_rendered_expect_key_negative_branch():
     from leviathan.graphrag import eval as EV
-    assert EV._CASCADE_EXPECT[-1] == "cw_context_rendered"
+    # V2-3 RE-ANCHOR: the tail-append law made EXPLICIT rather than shifted -- the new key lands at
+    # the tail and the context key keeps its position one in from it.
+    assert EV._CASCADE_EXPECT[-1] == "cw_xccy_rendered"
+    assert EV._CASCADE_EXPECT[-2] == "cw_context_rendered"
     empty = {"citations": [], "trace": {}, "structured": None, "answer": ""}
     assert EV._cascade_asserts({"expect": {"cw_context_rendered": False}}, empty)["cw_context_rendered"] is True
     assert EV._cascade_asserts({"expect": {"cw_context_rendered": True}}, empty)["cw_context_rendered"] is False
@@ -2053,7 +2079,18 @@ def test_the_shape_switch_reads_the_same_currency_count_not_the_list_length():
     src = open(cq.__file__, encoding="utf-8").read()
     assert ('same_ccy_n = sum(1 for a in admissible '
             'if _cw_currency(a["child"]) == _cw_currency(root))') in src
-    assert "if same_ccy_n == 1:" in src and "if same_ccy_n > 1 or grand is not None:" in src
+    # V2-3 (L9) RE-ANCHOR: the two next-hop legs live in ONE dict keyed by _CW_HOP_LEVELS, so the
+    # switch reads that dict rather than a second hand-spelled local.
+    assert "if same_ccy_n == 1:" in src
+    # V2-3 FIX PASS: the PREDICATE MOVED, '> 1' -> '!= 1'. The depth-in-time shape exists only for a
+    # root whose spine is a SINGLE same-currency child; `== 0` was unreachable before the rider and
+    # is live now (a root whose only children are lifted), and it used to fall through to two
+    # firings and pay a hop-less second root cell.
+    assert 'if same_ccy_n > 1 or hop_legs["grand"] is not None:' not in src
+    assert 'if same_ccy_n != 1 or hop_legs["grand"] is not None:' in src
+    # ...and the SAME predicate is re-taken POST-belt against the population the render loop reads,
+    # so the two can never disagree about the shape (build-review minor).
+    assert 'if len(firings) > 1 and len(same_ccy) != 1:' in src
     # the depth child is the UNIQUE same-currency member, never admissible[0] (refute-v4 major-2):
     # today they are the same element; the day V2-3 admits an FX sibling they are not.
     assert 'child = next(a["child"] for a in admissible' in src
@@ -2075,16 +2112,23 @@ def test_the_deep_locals_are_read_nowhere_a_shipped_constant_should_be():
         return [ln for ln in code if tok in ln]
 
     # every CODE line mentioning a shipped knob, enumerated: the four selection lines and the
-    # off-path truncation, plus the V2-1 rider's own admission test, which is regime-independent by
-    # design and therefore keeps reading CW_TURN_CEILING in BOTH regimes. Nothing else.
+    # off-path truncation. Nothing else -- and after the V2-3 fix pass NOT the rider's admission
+    # test either, which now reads the regime LOCAL like every other budget in the leg.
     assert _lines_with("CW_MAX_CHILDREN") == [
         "cw_children = CW_DEEP_MAX_CHILDREN if deep_on else CW_MAX_CHILDREN",
         "named_budget = admissible[CW_MAX_CHILDREN:]",
         "admissible = admissible[:CW_MAX_CHILDREN]"]
     assert _lines_with("CW_CAP") == ["cw_cap = CW_DEEP_CAP if deep_on else CW_CAP"]
+    # V2-3 FIX PASS: CW_TURN_CEILING now appears on the REGIME SELECTION LINE AND NOWHERE ELSE in
+    # the leg -- `_cw_slack` reads `cw_ceiling`, so the whole leg budgets against ONE number chosen
+    # in ONE place. The docstring line inside the helper is stripped by the comment/blank filter
+    # below only if it is a comment, so the enumeration is taken over CODE lines mentioning the token.
     assert _lines_with("CW_TURN_CEILING") == [
-        "cw_ceiling = CW_DEEP_TURN_CEILING if deep_on else CW_TURN_CEILING",
-        "elif spent + board_reads + ctx_admitted + 1 > CW_TURN_CEILING:"]
+        "cw_ceiling = CW_DEEP_TURN_CEILING if deep_on else CW_TURN_CEILING"]
+    # ...and BOTH budget tests spell the local: the board plan's and the riders' -- ONE number,
+    # chosen once, spent by every gate in the leg.
+    assert "if spent + cells_planned * CW_READS_PER_CELL > cw_ceiling:" in code
+    assert "return cw_ceiling - (spent + board_reads + ctx_admitted + fx_admitted)" in code
     assert "cw_order_max = CW_DEEP_MAX_ORDER if deep_on else 2" in src
     # ...and the two board belts read the LOCALS, never the globals
     assert "if cells_planned * CW_READS_PER_CELL > cw_cap:" in src
@@ -2191,7 +2235,8 @@ def test_the_eval_projections_read_the_deep_ledger_without_re_deriving_it():
     assert off["cw_deep_on"] is False and off["cw_deep_identity_ok"] is True
     assert off["cw_child_identity_ok"] is True and off["cw_plan_reads"] is None
     # _CASCADE_EXPECT is NOT edited: every new key is an ARTIFACT projection, never a deck word
-    assert EV._CASCADE_EXPECT[-1] == "cw_context_rendered"
+    assert EV._CASCADE_EXPECT[-1] == "cw_xccy_rendered"        # V2-3 re-anchor
+    assert EV._CASCADE_EXPECT[-2] == "cw_context_rendered"
     assert not any("deep" in k for k in EV._CASCADE_EXPECT)
 
 
@@ -2676,3 +2721,1262 @@ def test_g1_the_flag_off_population_reproduces_the_banked_head_golden():
     # the nested run's own status is context, not the gate: an unrelated red elsewhere in the walk
     # suite must not fail a test named for the BANK join (post-fix re-review minor 3)
     assert _exit_note[0] == 0, _exit_note[1]
+
+
+# -- G1d AS A SUITE PIN: the DEEP-ON / XCCY-OFF gate, banked BEFORE the V2-3 cross-currency build --
+def test_g1d_the_deep_on_xccy_off_population_reproduces_the_banked_deep_golden():
+    """THE SECOND BYTE-IDENTITY LAW (V2-3 law L10). G1 above holds the leg still with the deep flag
+    OFF, and is BLIND to the regime V2-3 edits inside: the cross-currency build refactors the three
+    budget inequalities into one `_cw_slack` helper, re-collects the hop ledger as a dict keyed by
+    _CW_HOP_LEVELS, and threads a new request key through the same selection line. Each of those can
+    move a deep-on turn while every flag-off turn stays byte-identical.
+
+    IT JOINS TWO BANKED POPULATIONS, from data/consequence_leg/v23_golden_deep_bank.py:
+
+      bank_native (46 keys) -- the calls the fixtures themselves make with `deep` set, from a GREEN
+      run: breadth on four children, the third-order chain, the free cell, the width belt, the hop-3
+      verdict rows, the closed rectangle on every root-scope decline.
+
+      bank_forced (140 keys, 100 of them forced) -- every non-xccy call re-asked with deep=True,
+      which IS the regime prod takes when GRAPHRAG_CASCADE_DEEP=on: under that flag every served
+      turn is a deep turn, the odd shapes included (root declines, the palm free leg, the fenced
+      block, the price-replay belt, the exception belt, the context rider). Forcing reds this
+      suite's flag-off assertions (15 at HEAD 1085f03d), and a red test stops making calls, so that
+      pass is a SUBSET by construction -- which is why the native pass exists to cover the five deep
+      calls it truncates away (hop-3 verdict rows, breadth-4).
+
+    XCCY IS EXCLUDED FROM BOTH BANKS BY CONSTRUCTION -- the cross-currency path is the ONE path V2-3
+    is allowed to change, and a golden that banked it would be a golden that had to be re-banked,
+    which is not a gate. The producer erases payload['deep']['elapsed_ms'] to a KIND TOKEN (never
+    pops it), so the comparison is total on every other byte and never on the one wall clock.
+
+    A DIFF IS NOT AUTOMATICALLY A REGRESSION, AND IS NEVER WAVED THROUGH: law L9 deliberately ADDS
+    payload['deep']['order_n_rendered'] to this regime. Re-anchor the bank on the (key, field) list
+    this pin prints, with the reason written down beside it; never loosen the join.
+
+    THE NATIVE PASS MUST BE GREEN; the forced pass's exitstatus is recorded, not gated (it is red by
+    construction). RECURSION IS CLOSED BY THE V2-5 SENTINEL: the producer exports V25_GOLDEN_INNER=1
+    and both golden pins skip under it. COST: two suite runs, ~4 minutes, $0, offline, no AWS."""
+    import hashlib
+    import json
+    import os
+    import subprocess
+    import sys
+    import tempfile
+
+    if os.environ.get("V25_GOLDEN_INNER") == "1":
+        pytest.skip("inner golden-bank run -- a producer's own subprocess, never re-entered")
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    bank_path = os.path.join(repo, "data", "consequence_leg", "v23_golden_deep_on.json")
+    producer = os.path.join(repo, "data", "consequence_leg", "v23_golden_deep_bank.py")
+    assert os.path.exists(bank_path) and os.path.exists(producer)
+    out = os.path.join(tempfile.mkdtemp(prefix="v23g1d_"), "post.json")
+    env = dict(os.environ, V23_GOLDEN_OUT=out)
+    env.pop("GRAPHRAG_CASCADE_DEEP", None)      # the REQUEST key carries the regime, never the env:
+    env.pop("GRAPHRAG_CASCADE_CONTEXT", None)   # the producer strips GRAPHRAG_* anyway, and these
+    #                                             two pops say which reads would have mattered
+    proc = subprocess.run([sys.executable, producer], cwd=repo, env=env,
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, (proc.stdout or "")[-2000:] + (proc.stderr or "")[-2000:]
+    old = json.load(open(bank_path, encoding="utf-8"))
+    new = json.load(open(out, encoding="utf-8"))
+    _native_exit = (new["native"]["pytest_exitstatus"],
+                    (new["native"].get("pytest_tail") or "")[-800:])   # asserted LAST
+    # RE-ANCHORED BY THE V2-3 FIX PASS (2026-09-04), on a NAMED single-cause measurement, printed by
+    # data/consequence_leg/v23_golden_diff.py against the pre-fix bank:
+    #   bank_native  46 -> 49 keys, ZERO field diffs on all 46 carried-over keys (the 3 new keys are
+    #                the fix group's own deep calls; a superset is never a diff on this join).
+    #   bank_forced 140 -> 143 keys, ONE key changed and TWO dropped, all from ONE test:
+    #                test_context_budget_is_subordinate_never_the_block. #0's context cell now
+    #                ADMITS where it declined budget_cap -- `_cw_slack` reads the REGIME's ceiling
+    #                (80 under the forcing) instead of the bare 60, which is fix 4 itself -- so
+    #                context.admitted/reads/rendered 0 -> 1, net_reads 4 -> 5, the ROW-1C line and
+    #                its call appear, and the budget_cap decline disappears. #1 and #2 then vanish
+    #                because that test's FIRST assertion fails under forcing and a red test stops
+    #                making calls: the SUBSET-BY-CONSTRUCTION property this bank's own docstring
+    #                declares, not a lost shape (native keeps all three, un-forced and green).
+    #   excluded_xccy_keys 1 -> 40: the pre-fix bank predated the V2-3 fixture group, so it recorded
+    #                the V2-5 union call alone. The exclusion is measured, never assumed.
+    # The producer was run TWICE before re-banking; both runs produced identical section shas.
+    for section, n_keys, banked_sha in (
+            ("bank_native", 49,
+             "d43c743557a64d361340d579ed32cde0bd153fc001923fd1f4d6255e0b1e2065"),
+            ("bank_forced", 143,
+             "16a040f0371b84eac88ee15e0d2c07de8c5a7b05618f6c99154dd936d4673beb")):
+        ob, nb = old[section], new[section]
+        assert len(ob) == n_keys, (section, len(ob))
+        missing = [k for k in ob if k not in nb]
+        assert missing == [], (section, missing)
+        # PER-KEY CONTENT, field by field, so a failure NAMES the drifted field
+        diffs = [(k, f) for k in ob for f in ("lines", "payload", "calls_delta", "raised",
+                                              "forced", "traced_is_payload", "request", "asof")
+                 if ob[k].get(f) != nb[k].get(f)]
+        assert diffs == [], (section, diffs[:5])
+        # EVERY banked call is deep-on and xccy-off -- the population the bank claims to be
+        assert all((v.get("request") or {}).get("deep") for v in ob.values())
+        assert not any((v.get("request") or {}).get("xccy") for v in ob.values())
+        # the wall clock is ERASED, not popped: the field is present on every deep payload and
+        # carries the kind token, so a build that stopped stamping it is a diff, not a silence
+        assert all(isinstance(v["payload"], dict) and v["payload"]["deep"]["elapsed_ms"]
+                   == "__INT_MS__" for v in ob.values())
+        # THE SHARPEST FORM: hash the post-build run RESTRICTED to the banked keys with the
+        # producer's OWN serialization. Equal => byte-identical, not merely field-equal.
+        sub = {k: nb[k] for k in ob}
+        sub_sha = hashlib.sha256(json.dumps(sub, ensure_ascii=False, sort_keys=True,
+                                            separators=(",", ":")).encode("utf-8")).hexdigest()
+        assert sub_sha == old[section.split("_")[1]]["bank_sha256"], section
+        assert sub_sha == banked_sha, section
+    # EVERY xccy call in this suite is excluded from both banks BY NAME -- the exclusion is a
+    # MEASUREMENT, not an accident: the cross-currency path is the one path V2-3 is allowed to
+    # change, and a golden that banked it would be a golden that had to be re-banked. The pre-fix
+    # bank named ONE key (it predated the V2-3 fixture group); the fix pass re-measured it at 40.
+    _excl = old["native"]["excluded_xccy_keys"]
+    assert _excl == old["forced"]["excluded_xccy_keys"] and len(_excl) == 40
+    assert all(k.startswith("tests/unit/test_cascade_walk.py::") for k in _excl)
+    assert ("tests/unit/test_cascade_walk.py::"
+            "test_the_regime_is_the_union_with_v23s_key_and_the_union_is_inert_here#0") in _excl
+    # ...and the FRESH run excludes the same population, so a fixture that silently stopped asking
+    # for the rider would move this number rather than quietly shrinking the measured lane
+    assert new["native"]["excluded_xccy_keys"] == _excl
+    # the forced pass is RED BY CONSTRUCTION (it forces the regime onto flag-off fixtures), so its
+    # status is context, never the gate; the NATIVE pass is the one that must be green
+    assert new["forced"]["pytest_exitstatus"] != 0
+    assert _native_exit[0] == 0, _native_exit[1]
+
+
+# ================================================================================================
+# V2-3 CROSS-CURRENCY RIDER (built dark 2026-09-04). THE FIRST LAW IS FLAG-OFF BYTE-IDENTITY -- the
+# walk serves live at rev 126 -- and it is held by TWO goldens above (G1 flag-off, G1d deep-on) plus
+# the producer pins in this group. Everything below runs the SHIPPED leg on fixtures; nothing here
+# touches the substrate.
+# ================================================================================================
+X_CNY = "rapeseed_oil_zce"          # CNY, coverage floor 2015-10-08
+X_CAD = "canola_ice"                # CAD, coverage floor 2018-12-24
+X_BRL = "brazilian_arabica_coffee"     # BRL CASH INDEX -- the ordering law's own board
+#                                        (campinas_corn_reference_bmf is the OTHER one; it shares
+#                                        corn's node, so node_cycle would decline it one rung
+#                                        earlier and the ordering law would go untested)
+
+
+def _x_fx_rows(v0=1.0, v1=1.05, t1="2021-02-15", t2="2021-08-15", unit="CNY per USD"):
+    """Daily exchange-rate prints in the MEASURED silver_fred_fx row shape: value + a date under the
+    knowledge alias. The rate steps from v0 to v1 halfway through, so last/first - 1 is exact."""
+    d, end = _dt.date.fromisoformat(t1), _dt.date.fromisoformat(t2)
+    mid = _dt.date.fromisoformat(t1) + (end - _dt.date.fromisoformat(t1)) / 2
+    out = []
+    while d <= end:
+        out.append({"value": (v0 if d <= mid else v1), "knowledge_date": d.isoformat(),
+                    "unit": unit})
+        d += _dt.timedelta(days=1)
+    return out
+
+
+def _x_graph(children=(X_CNY,), sign="+", **kw):
+    return _w_graph([_w_edge(contract=c, sign=sign) for c in children], **kw)
+
+
+def _x_tape(children=(X_CNY,), fx=None, root_rows=None, child_rows=None):
+    rows = {ROOT: root_rows if root_rows is not None else _w_tape_rows()}
+    for c in children:
+        rows[c] = child_rows if child_rows is not None else _w_tape_rows()
+    for metric, frows in (fx or {"cny_usd": _x_fx_rows()}).items():
+        rows[metric] = frows
+    return _WTape(rows)
+
+
+def _x_run(children=(X_CNY,), request=None, sg=None, graph=None, qfn=None, calls=None,
+           sign="+", fx=None):
+    graph = graph if graph is not None else _x_graph(children, sign=sign)
+    qfn = qfn if qfn is not None else _x_tape(children, fx=fx)
+    req = request if request is not None else {"focus_contract": ROOT, "xccy": True}
+    return _w_run(sg=sg, graph=graph, qfn=qfn, calls=calls, request=req)
+
+
+def _x_ledger(payload):
+    return payload.get("xccy") or {}
+
+
+def _x_fx_cell(payload):
+    return next((c for c in payload["cells"] if c.get("kind") == "fx"), None)
+
+
+def _x_rect(payload):
+    """THE FX RECTANGLE, the form that holds on EVERY path including the belts."""
+    x = _x_ledger(payload)
+    return (int(x.get("fx_planned") or 0)
+            == int(x.get("fx_rendered") or 0) + int(x.get("fx_cache_hits") or 0)
+            + len(x.get("declines") or []))
+
+
+# -- CONSTANTS, VOCABULARY, ONE PRODUCER -------------------------------------------------------------
+def test_v23_constants_and_one_producer_pins():
+    from leviathan.graphrag import answer as ans
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert cq.CW_XCCY_USD == "USD"
+    assert cq.CW_FX_CAP == 3 and cq.CW_FX_CAP <= cq.CW_DEEP_MAX_CHILDREN
+    assert cq.CW_FX_READS_PER_CELL == 1 and cq.CW_FX_MIN_OBS >= 2
+    assert cq.CW_FX_TOKEN.startswith("] ") and src.count(cq.CW_FX_TOKEN) == 1
+    assert cq.CW_FX_TOKEN not in open(ans.__file__, encoding="utf-8").read()
+    assert cq.CW_XCCY_CLAUSE.startswith(cq.CW_XCCY_CLAUSE_MARK)
+    # the LINT-ONLY regex: it matches the producer's own row and NOT a retrieved bracketed heading
+    assert cq.CW_FX_LINE_RX.search("- [N7] EXCHANGE RATE euros per US dollar measured on") is not None
+    assert cq.CW_FX_LINE_RX.search("- [1] EXCHANGE RATE TABLE for the quarter") is None
+    # the shipped knobs the rider does NOT move
+    assert cq.CW_CONTEXT_CAP == cq.CW_MAX_FIRINGS == 2 and cq.CW_TURN_CEILING == 60
+    assert cq.CW_DEEP_MAX_CHILDREN == 6 and cq.CW_DEEP_CAP == 27
+    # the pre-admit tuple is the rectangle's own vocabulary, and it is a SUBSET of the full one
+    assert set(cq._CW_FX_PRE_ADMIT) <= set(cq._CW_FX_DECLINES)
+    # V2-3 FIX PASS: 'cache_declined' is rung 2's ZERO-READ arm and therefore PRE-ADMIT (it takes
+    # the cache hit's place in the first rectangle); 'block_fenced' is a BELT TRIP on cells that
+    # WERE admitted and paid, so it joins the full tuple only -- counting it pre-admit would double
+    # them. Both directions are what keeps the two rectangles closable from the artifact alone.
+    # fix re-review major 1: 'read_error' is the POST-read name (a paid read that came back
+    # status=error) and is NOT pre-admit; rungs 6/6b carry their own pre-read names.
+    assert set(cq._CW_FX_PRE_ADMIT) == {"replay", "fx_cap", "budget_cap", "no_card", "no_metric",
+                                        "cache_declined"}
+    assert "read_error" in cq._CW_FX_DECLINES and "read_error" not in cq._CW_FX_PRE_ADMIT
+    assert "block_fenced" in cq._CW_FX_DECLINES and "block_fenced" not in cq._CW_FX_PRE_ADMIT
+
+
+def test_v23_words_are_words_and_the_maps_agree_with_the_boards():
+    from leviathan.graphrag import display as dp
+    from leviathan.graphrag import register as reg
+    from leviathan.silver import futures_eod_contracts as FC
+    # owner decision #5, DECLARED BLAST RADIUS: silver_fred_fx is already a live citing surface, so
+    # every existing FX citation takes this label too. The card attributes the data to the ECB.
+    assert dp.table_label("silver_fred_fx") == "ECB reference rates"
+    board_ccy = {(FC.CONTRACT_MAP.get(s) or {}).get("currency") for s in cq._CW_BOARD_LABEL}
+    assert set(cq._CW_CURRENCY_WORD) == {c for c in board_ccy if c}
+    assert set(cq._CW_CURRENCY_WORD) == {"USD", "CNY", "CAD", "EUR", "ZAR"}
+    assert set(cq._CW_FX_CROSS) == set(cq._CW_CURRENCY_WORD) - {"USD"}
+    for c, w in cq._CW_CURRENCY_WORD.items():
+        assert w and all(ch.isalpha() or ch == " " for ch in w) and not reg.internal_leaks(w)
+        assert cq._cw_currency_words(c) == w
+    assert cq._cw_currency_words(None) == "" and cq._cw_currency_words("BRL") == ""
+    # no metric is a fixed-lag change column (the wrong-clock ban)
+    assert not any(m.endswith("_pct_change_90d") for (m, _l) in cq._CW_FX_CROSS.values())
+
+
+def test_v23_absence_vocabulary_is_observation_words_only():
+    from leviathan.graphrag import register as reg
+    for reason in ("cross_currency_no_pair_rate", "cross_currency_unmapped", "cash_index_board",
+                   "fx_flips_sign"):
+        why = cq._CW_ABSENCE_WHY[reason]
+        line = cq._cw_absence("CBOT corn", reason)
+        assert not any(ch.isdigit() for ch in why)
+        assert cq.pace_register_ok(line) and reg.count_valuation_words(line) == 0
+        assert reg.count_flow_words(line) == 0 and not reg.internal_leaks(line)
+    assert "cross_currency" in cq._CW_ABSENCE_WHY          # the flag-off reason is RE-SCOPED, not deleted
+
+
+# -- THE PURE HELPERS ---------------------------------------------------------------------------------
+def test_cw_fx_metric_truth_table():
+    assert cq._cw_fx_metric("USD", "CNY") == ("cny_usd", "Chinese yuan per US dollar")
+    assert cq._cw_fx_metric("CNY", "USD") == ("cny_usd", "Chinese yuan per US dollar")
+    assert cq._cw_fx_metric("USD", "USD") is None          # equal -> not a cross
+    assert cq._cw_fx_metric("CNY", "CAD") is None          # NEITHER side USD -> never constructed
+    assert cq._cw_fx_metric("CAD", "EUR") is None
+    assert cq._cw_fx_metric(None, "CNY") is None and cq._cw_fx_metric("USD", "") is None
+    assert cq._cw_fx_metric("USD", "BRL") is None          # no card column -> no pair rate
+
+
+def test_cw_cash_index_refuses_on_the_unknown():
+    assert cq._cw_cash_index(X_BRL) is True
+    assert cq._cw_cash_index("campinas_corn_reference_bmf") is True
+    assert cq._cw_cash_index(ROOT) is False and cq._cw_cash_index(X_CNY) is False
+    assert cq._cw_cash_index("not_a_board_at_all") is True   # unknown -> REFUSE
+
+
+# -- THE ADMISSION LADDER: ORDER IS LOAD-BEARING ------------------------------------------------------
+def test_the_ladder_is_the_pre_rider_bytes_with_the_flag_off():
+    from leviathan.silver import futures_eod_contracts as FC
+    g = _x_graph((X_CNY,))
+    adm, dec, rd = cq._cw_admissible_children(g, FC.PRICE_COVERAGE_START, g.contract_node, ROOT)
+    assert rd is None and adm == []
+    assert dec == [{"scope": "child", "reason": "cross_currency", "child": X_CNY}]
+
+
+def test_the_ladder_admits_the_cross_and_carries_its_pair_rate():
+    from leviathan.silver import futures_eod_contracts as FC
+    g = _x_graph((X_CNY,))
+    adm, dec, rd = cq._cw_admissible_children(g, FC.PRICE_COVERAGE_START, g.contract_node, ROOT,
+                                              xccy=True)
+    assert rd is None and dec == [] and len(adm) == 1
+    assert adm[0]["xccy"] == ("USD", "CNY")
+    assert adm[0]["fx"] == ("cny_usd", "Chinese yuan per US dollar")
+    # a SAME-currency child carries None on both keys, which is what makes every downstream
+    # predicate inert by construction rather than by argument
+    g2 = _w_graph([_w_edge()])
+    adm2, _d2, _r2 = cq._cw_admissible_children(g2, FC.PRICE_COVERAGE_START, g2.contract_node,
+                                                ROOT, xccy=True)
+    assert adm2[0]["xccy"] is None and adm2[0]["fx"] is None
+
+
+def test_the_cash_index_test_comes_before_the_fx_column_test():
+    """F1's ORDERING LAW, held two ways. (a) SOURCE: the cash-index branch precedes the FX-column
+    branch inside the ladder. (b) BEHAVIOUR: with a BRL column FORCED onto the map -- the only way
+    the two orders can disagree, since BRL has no real column -- the cash-index reason still wins."""
+    import inspect
+
+    from leviathan.silver import futures_eod_contracts as FC
+    src = inspect.getsource(cq._cw_admissible_children)
+    assert src.index("_cw_cash_index(child)") < src.index("_cw_fx_metric(cur_r, cur_c)")
+    g = _x_graph((X_BRL,))
+    cov = dict(FC.PRICE_COVERAGE_START)
+    _adm, dec, _rd = cq._cw_admissible_children(g, cov, g.contract_node, ROOT, xccy=True)
+    assert dec == [{"scope": "child", "reason": "cash_index_board", "child": X_BRL}]
+
+
+def test_the_ladder_names_the_missing_pair_rate_and_the_missing_currency(monkeypatch):
+    from leviathan.silver import futures_eod_contracts as FC
+    g = _x_graph((X_CNY,))
+    monkeypatch.setattr(cq, "_CW_FX_CROSS", {})            # no column for ANY cross
+    _adm, dec, _rd = cq._cw_admissible_children(g, FC.PRICE_COVERAGE_START, g.contract_node, ROOT,
+                                                xccy=True)
+    assert dec == [{"scope": "child", "reason": "cross_currency_no_pair_rate", "child": X_CNY}]
+    monkeypatch.setattr(cq, "_cw_currency", lambda s: (None if s == X_CNY else "USD"))
+    _a2, dec2, _r2 = cq._cw_admissible_children(g, FC.PRICE_COVERAGE_START, g.contract_node, ROOT,
+                                                xccy=True)
+    assert dec2 == [{"scope": "child", "reason": "cross_currency_unmapped", "child": X_CNY}]
+
+
+def test_k0_admission_numbers_on_the_live_graph():
+    """K0 as a BUILD-STOP number, recomputed from the SHIPPED ladder against the LIVE graph -- a
+    curation change that moves a count fails the build rather than drifting."""
+    from leviathan.graphrag import graph as G
+    from leviathan.silver import futures_eod_contracts as FC
+    g = G.CausalGraph.load()
+    cov, node = FC.PRICE_COVERAGE_START, g.contract_node
+    roots = sorted({str(r.get("seed")) for nd in g.rev_cross_link_seeds()
+                    for r in g.rev_cross_links(nd)})
+    base = on = 0
+    reasons: dict = {}
+    for r in roots:
+        if r not in cov or r not in cq._CW_BOARD_LABEL:
+            continue
+        a_off, _d_off, rd_off = cq._cw_admissible_children(g, cov, node, r)
+        a_on, d_on, rd_on = cq._cw_admissible_children(g, cov, node, r, xccy=True)
+        base += len(a_off) if rd_off is None else 0
+        if rd_on is None:
+            on += len(a_on)
+            for d in d_on:
+                reasons.setdefault(d["reason"], []).append(f"{r}->{d['child']}")
+    assert (base, on, on - base) == (23, 45, 22)
+    assert sorted(reasons.get("cross_currency_no_pair_rate") or []) == [
+        "canola_ice->french_rapeseed_matif", "canola_ice->rapeseed_meal_zce",
+        "french_rapeseed_matif->canola_ice", "rapeseed_meal_zce->french_rapeseed_matif",
+        "rapeseed_oil_zce->french_rapeseed_matif"]
+    assert sorted(reasons.get("cash_index_board") or []) == [
+        "robusta_coffee->brazilian_arabica_coffee", "soybeans_cbot->campinas_corn_reference_bmf"]
+    assert reasons.get("cross_currency_unmapped") is None   # MEASURED UNREACHABLE, kept as a belt
+    assert "south_african_yellow_maize_jse" in cq._CW_BOARD_LABEL     # the COUPLED label row
+
+
+# -- THE ENGINE ENFORCES xccy => deep ------------------------------------------------------------------
+def test_the_engine_enforces_xccy_implies_deep():
+    """v3 refute major-3: the implication used to live only at the answer.py seam, so ANY request
+    built without that seam -- a unit fixture, a future caller -- would run the rider at the narrow
+    constants and drop lifted children with no decline naming the loss."""
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert ('deep_on = bool((walk_request or {}).get("deep") '
+            'or (walk_request or {}).get("xccy"))') in src
+    _l, p, _c, _q, _s = _x_run(request={"focus_contract": ROOT, "xccy": True})
+    assert p["deep"]["max_children"] == cq.CW_DEEP_MAX_CHILDREN == 6
+    assert p["deep"]["cap"] == cq.CW_DEEP_CAP == 27 and p["deep"]["ceiling"] == 80
+    assert "xccy" in p                                     # ...and the rider's own ledger is stamped
+
+
+# -- FLAG-OFF BYTE IDENTITY ------------------------------------------------------------------------
+def test_v23_producers_are_byte_identical_with_the_keyword_defaults():
+    hop = cq._cw_hop_header("CBOT corn", "CBOT srw wheat", ["compete for the same demand"],
+                            "b", "heat")
+    assert hop == cq._cw_hop_header("CBOT corn", "CBOT srw wheat",
+                                    ["compete for the same demand"], "b", "heat", xccy=None)
+    assert hop.endswith("the rows for this hop.") and cq.CW_XCCY_CLAUSE_MARK not in hop
+    for v in ("aligned", "at_odds", "undetermined"):
+        line = cq._cw_verdict_line("CBOT corn", "CBOT srw wheat", v)
+        assert line == cq._cw_verdict_line("CBOT corn", "CBOT srw wheat", v, xccy=None, reason=None)
+        assert line.endswith("never extended beyond it.")
+        assert "settlement currency" not in line and "exchange-rate" not in line
+    assert cq._cw_marker("first") == _PLAIN_MARKER == cq._cw_marker("first", fx=False)
+    assert cq._cw_marker("first", context=True) == cq._cw_marker("first", context=True, fx=False)
+    assert "EXCHANGE RATE" not in cq._cw_marker("first", context=True)
+
+
+def test_v23_flag_off_leg_carries_no_ledger_and_no_fx_cell():
+    lines, payload, calls, qfn, _s = _w_run()
+    assert "xccy" not in payload and payload["outcome"] == "fired"
+    assert not any(c.get("kind") == "fx" for c in payload["cells"])
+    assert not any(cq.CW_FX_TOKEN in ln or cq.CW_XCCY_CLAUSE_MARK in ln for ln in lines)
+    assert not any("fred_fx" in (s or "") for s in qfn.sql)
+
+
+# -- THE FX ADMISSION LADDER, RUNG BY RUNG -----------------------------------------------------------
+def test_the_fx_entry_rung_never_fires_on_a_same_currency_hop():
+    """RUNG 1. Without it BELT A ran on every closed SAME-currency child too, where the record's
+    `fx` is None, and would have minted an FX record on a None metric."""
+    _l, p, _c, qfn, _s = _w_run(request={"focus_contract": ROOT, "xccy": True})
+    x = _x_ledger(p)
+    assert p["outcome"] == "fired" and x["fx_planned"] == 0 and x["rendered"] == 0
+    assert x["fx_admitted"] == 0 and x["declines"] == [] and x["pairs"] == []
+    assert _x_fx_cell(p) is None and not any("fred_fx" in (s or "") for s in qfn.sql)
+    assert _x_rect(p)
+
+
+def test_the_cross_currency_hop_prices_the_rate_once_and_renders_both_rows():
+    lines, p, calls, qfn, _s = _x_run()
+    x = _x_ledger(p)
+    assert p["outcome"] == "fired" and x["rendered"] == 1 and x["pairs"] == ["USD>CNY"]
+    assert x["fx_planned"] == x["fx_admitted"] == x["fx_rendered"] == x["fx_reads"] == 1
+    assert x["fx_cache_hits"] == 0 and x["declines"] == [] and _x_rect(p)
+    rec = _x_fx_cell(p)
+    assert rec["status"] == "closed" and rec["metric"] == "cny_usd" and rec["reads"] == 1
+    assert rec["move_pct"] == 5.0 and rec["cross"] == "USD>CNY"
+    row = next(ln for ln in lines if cq.CW_FX_TOKEN in ln)
+    assert "Chinese yuan per US dollar" in row and "+5 %" in row and W_SPAN in row
+    assert "ECB reference rates" in row                        # the display label rides the tag
+    words = next(ln for ln in lines if ln.startswith(cq.CW_FX_WORDS_PREFIX))
+    assert "Chinese yuan" in words and "US dollars" in words and "CNY" not in words
+    assert not any(ch.isdigit() for ch in words)
+    # the HOP header and the READ line both name the two currencies, unconditionally
+    hop = next(ln for ln in lines if ln.startswith("CONSEQUENCE HOP"))
+    assert cq.CW_XCCY_CLAUSE_MARK in hop and "US dollars and Chinese yuan" in hop
+    read = next(ln for ln in lines if ln.startswith("CONSEQUENCE READ"))
+    assert "exchange-rate move between US dollars and Chinese yuan" in read
+    # ...and the WHOLE block still passes the register fence, one clock per ROW-1
+    assert cq._cw_register_fence(lines)
+    assert lines[-1] == cq._cw_marker(p["order"], fx=True) and "EXCHANGE RATE" in lines[-1]
+    assert len(calls) == 3                                     # root + child + the rate
+
+
+def test_the_fx_cache_pays_once_per_cross_per_turn():
+    """RUNG 2. Two children on ONE cross would otherwise burn two of the three FX admissions and
+    render the same rate twice under two handles."""
+    kids = (X_CNY, "rapeseed_meal_zce")
+    lines, p, calls, qfn, _s = _x_run(children=kids)
+    x = _x_ledger(p)
+    assert p["outcome"] == "fired" and x["rendered"] == 2 and x["pairs"] == ["USD>CNY", "USD>CNY"]
+    assert x["fx_planned"] == 2 and x["fx_admitted"] == 1 and x["fx_cache_hits"] == 1
+    assert x["fx_rendered"] == 1 and x["fx_reads"] == 1 and _x_rect(p)
+    assert sum(1 for ln in lines if cq.CW_FX_TOKEN in ln) == 1        # ONE row, ONE handle
+    assert sum(1 for s in qfn.sql if "cny_usd" in (s or "")) == 1
+    # the cached hop adds NO second words line: the rate is already on the page under its handle
+    assert sum(1 for ln in lines if ln.startswith(cq.CW_FX_WORDS_PREFIX)) == 1
+    assert sum(1 for ln in lines if cq.CW_XCCY_CLAUSE_MARK in ln) == 2   # both hops name both
+
+
+def test_the_replay_rung_declines_at_zero_reads():
+    lines, p, _c, qfn, _s = _x_run(request={"focus_contract": ROOT, "xccy": True, "replay": True})
+    x = _x_ledger(p)
+    assert x["fx_planned"] == 1 and x["fx_admitted"] == 0 and x["fx_reads"] == 0
+    assert x["declines"] == [{"cross": "USD>CNY", "span": W_SPAN, "reason": "replay"}]
+    assert not any("cny_usd" in (s or "") for s in qfn.sql) and _x_rect(p)
+    # the WORDS still ride, free, and say plainly that the rate is not priced here
+    words = next(ln for ln in lines if ln.startswith(cq.CW_FX_WORDS_PREFIX))
+    assert "not priced on this page" in words and cq._cw_register_fence(lines)
+
+
+def test_the_fx_cap_rung_binds_on_distinct_crosses(monkeypatch):
+    monkeypatch.setattr(cq, "CW_FX_CAP", 1)
+    fx = {"cny_usd": _x_fx_rows(), "cad_usd": _x_fx_rows(v1=1.10, unit="CAD per USD")}
+    lines, p, _c, _q, _s = _x_run(children=(X_CAD, X_CNY), fx=fx)
+    x = _x_ledger(p)
+    assert x["cap"] == 1 and x["fx_planned"] == 2 and x["fx_admitted"] == 1
+    assert [d["reason"] for d in x["declines"]] == ["fx_cap"]
+    assert sum(1 for ln in lines if cq.CW_FX_TOKEN in ln) == 1 and _x_rect(p)
+
+
+def test_the_budget_rung_calls_the_one_slack_helper():
+    """RUNG 5 / L3: the FX cell and the V2-1 context cell now see EACH OTHER's admissions. The
+    board plan here is 2 cells x 3 reads = 6, so a wave spend of (the REGIME's ceiling) - 6 leaves
+    ZERO slack and the FX cell declines budget_cap -- at zero FX reads, with the block still
+    shipping.
+
+    RE-ANCHORED ON THE V2-3 FIX PASS: the boundary is CW_DEEP_TURN_CEILING, not CW_TURN_CEILING,
+    because `xccy` implies `deep` and `_cw_slack` now budgets against the regime's OWN ceiling --
+    the same number the board plan two lines above it was admitted against. The old bare-60 form
+    made the 7 rider reads CW_DEEP_TURN_CEILING reserves structurally unreachable. The SHAPE of the
+    pin is unchanged: one read short of the ceiling declines, one read of slack admits."""
+    _ceil = cq.CW_DEEP_TURN_CEILING
+    assert _ceil == 80 and cq.CW_TURN_CEILING == 60      # the boundary really is the deep one
+    tight = _w_sg(trace_extra={"quantify_wave_reads": _ceil - 6})
+    lines, p, _c, qfn, _s = _x_run(sg=tight)
+    x = _x_ledger(p)
+    assert p["outcome"] == "fired" and x["fx_admitted"] == 0 and x["fx_reads"] == 0
+    assert [d["reason"] for d in x["declines"]] == ["budget_cap"] and _x_rect(p)
+    assert not any("cny_usd" in (s or "") for s in qfn.sql)
+    slack = _w_sg(trace_extra={"quantify_wave_reads": _ceil - 7})
+    _l2, p2, _c2, _q2, _s2 = _x_run(sg=slack)
+    assert _x_ledger(p2)["fx_admitted"] == 1 and _x_ledger(p2)["fx_reads"] == 1
+    # ...and the OLD boundary now ADMITS, which is the whole point of the fix: a spend that left
+    # zero slack against the bare 60 leaves 20 against the regime's own 80.
+    old = _w_sg(trace_extra={"quantify_wave_reads": cq.CW_TURN_CEILING - 6})
+    _l3, p3, _c3, _q3, _s3 = _x_run(sg=old)
+    assert _x_ledger(p3)["fx_admitted"] == 1 and _x_ledger(p3)["declines"] == []
+
+
+def test_the_read_error_rung_declines_an_unreadable_card(monkeypatch):
+    monkeypatch.setattr(cq, "_registry", lambda: (_ for _ in ()).throw(RuntimeError("no card")))
+    lines, p, _c, qfn, _s = _x_run()
+    x = _x_ledger(p)
+    assert p["outcome"] == "fired" and [d["reason"] for d in x["declines"]] == ["no_card"]
+    assert x["fx_reads"] == 0 and not any("cny_usd" in (s or "") for s in qfn.sql)
+    assert _x_rect(p)
+
+
+def test_a_raising_fx_read_leaves_the_child_row_intact_and_never_leaks_a_record(monkeypatch):
+    """BELT A + the v3 refute's leaked-name class. A raise on the SECOND hop's FX read must not
+    leave the FIRST hop's rate bound: `fxrec` is set to None immediately before the try."""
+    _real = cq._cw_fx_cell
+
+    def _boom(qfn, rec, *a, **kw):
+        if rec["metric"] == "cny_usd":       # the SECOND hop, alphabetically
+            raise RuntimeError("fx cell exploded")
+        return _real(qfn, rec, *a, **kw)
+
+    monkeypatch.setattr(cq, "_cw_fx_cell", _boom)
+    rows = {ROOT: _w_tape_rows(), X_CNY: _w_tape_rows(), X_CAD: _w_tape_rows(),
+            "cny_usd": _x_fx_rows(), "cad_usd": _x_fx_rows(unit="CAD per USD")}
+    lines, p, calls, _q, _s = _x_run(children=(X_CAD, X_CNY), qfn=_WTape(rows),
+                                     graph=_x_graph((X_CAD, X_CNY)))
+    x = _x_ledger(p)
+    assert p["outcome"] == "fired"
+    assert [d["reason"] for d in x["declines"]] == ["error"]
+    assert [d["cross"] for d in x["declines"]] == ["USD>CNY"] and _x_rect(p)
+    # BOTH children still carry their ROW-1, their [N] handle and their verdict -- BELT A appends
+    # nothing, so a raise inside it can orphan nothing (the D2 class)
+    for kid in (X_CAD, X_CNY):
+        cell = next(c for c in p["cells"] if c.get("slug") == kid)
+        assert cell["status"] == "closed" and cell["handle"] and cell["verdict"]
+    # THE LEAK PIN: the CAD rate closed and rendered, and the CNY hop did NOT inherit it -- its OWN
+    # record declined by name, it holds NO flip input, and that population is COUNTED.
+    cad = next(c for c in p["cells"] if c.get("kind") == "fx" and c.get("cross") == "USD>CAD")
+    cny = next(c for c in p["cells"] if c.get("kind") == "fx" and c.get("cross") == "USD>CNY")
+    assert cad["status"] == "closed" and cad.get("handle") and x["fx_rendered"] == 1
+    assert cny["status"] == "declined" and cny["reason"] == "error" and "handle" not in cny
+    assert x["fx_unpriced_verdicts"] == 1 and x["fx_gate_checked"] == 1
+    assert cq._cw_register_fence(lines)
+
+
+# -- THE DOMINANCE GATE ------------------------------------------------------------------------------
+def test_the_gate_fires_only_when_the_rate_moved_further_AND_the_same_way():
+    """L4 / v3's M1. MEASURED on 142 verdictable cross window-pairs: the co-signed predicate fires
+    4 times and matches the redenominated truth 142 of 142; the bare magnitude test fires 20, of
+    which 16 are false positives -- about one verdict in seven thrown away for nothing."""
+    # the board legs both move +15 %; a +20 % rate is LARGER and CO-SIGNED -> the sign flips under a
+    # common denomination, so the record declines to read a direction
+    fx_up = {"cny_usd": _x_fx_rows(v0=1.0, v1=1.20)}
+    lines, p, _c, _q, _s = _x_run(fx=fx_up)
+    x = _x_ledger(p)
+    kid = next(c for c in p["cells"] if c.get("slug") == X_CNY)
+    assert kid["verdict"] == "undetermined" and kid["verdict_reason"] == "fx_flips_sign"
+    assert x["fx_flips_sign"] == 1 and x["fx_gate_checked"] == 1 and x["fx_unpriced_verdicts"] == 0
+    read = next(ln for ln in lines if ln.startswith("CONSEQUENCE READ"))
+    assert "moved further over this window" in read and "it moved the same way" in read
+    # ...and the line does NOT then claim a direction WAS read (v3 refute major-5)
+    assert "the direction is read on each board" not in read
+    assert "stays a move inside its own settlement currency" in read
+    assert cq._cw_register_fence(lines)
+    # a LARGER but OPPOSITELY SIGNED rate does NOT fire -- v2's predicate would have stripped it
+    fx_dn = {"cny_usd": _x_fx_rows(v0=1.20, v1=1.0)}
+    _l2, p2, _c2, _q2, _s2 = _x_run(fx=fx_dn)
+    kid2 = next(c for c in p2["cells"] if c.get("slug") == X_CNY)
+    assert kid2["verdict"] == "aligned" and "verdict_reason" not in kid2
+    assert _x_ledger(p2)["fx_flips_sign"] == 0 and _x_ledger(p2)["fx_gate_checked"] == 1
+    # a SMALLER co-signed rate does not fire either
+    fx_sm = {"cny_usd": _x_fx_rows(v0=1.0, v1=1.02)}
+    _l3, p3, _c3, _q3, _s3 = _x_run(fx=fx_sm)
+    assert _x_ledger(p3)["fx_flips_sign"] == 0
+
+
+def test_the_non_usd_leg_is_read_from_the_admissible_record_never_a_loop_variable():
+    """The MINOR's fix, held behaviourally: with the ROOT on the non-USD side the gate must compare
+    the rate against the PARENT record, not the child's. Same numbers, mirrored roles."""
+    import inspect
+    src = inspect.getsource(cq._cascade_walk_legs)
+    assert '_nonusd = (parent_rec if (_x and _x[0] != CW_XCCY_USD) else crec)' in src
+    assert "cur_r" not in src                              # the leaked loop name is not in the leg
+
+
+def test_an_fx_declined_hop_still_verdicts_and_the_population_is_counted():
+    """Owner decision #4, DECLARED: the sign test is currency-free by construction, so a hop whose
+    FX cell declined still verdicts -- and `fx_unpriced_verdicts` makes that population readable
+    from every artifact row."""
+    _l, p, _c, _q, _s = _x_run(request={"focus_contract": ROOT, "xccy": True, "replay": True})
+    x = _x_ledger(p)
+    kid = next(c for c in p["cells"] if c.get("slug") == X_CNY)
+    assert kid["verdict"] == "aligned" and "verdict_reason" not in kid
+    assert x["fx_unpriced_verdicts"] == 1 and x["fx_gate_checked"] == 0
+
+
+# -- M7: THE CLAUSE EXISTS ONLY ON A CLOSED CELL -------------------------------------------------------
+def test_a_declining_lifted_child_gets_the_plain_header_and_no_seam_literal(monkeypatch):
+    rows = {ROOT: _w_tape_rows(), "cny_usd": _x_fx_rows()}        # the CHILD tape is EMPTY -> declines
+    lines, p, _c, qfn, _s = _x_run(qfn=_WTape(rows))
+    x = _x_ledger(p)
+    hop = next(ln for ln in lines if ln.startswith("CONSEQUENCE HOP"))
+    assert cq.CW_XCCY_CLAUSE_MARK not in hop and hop.endswith("the rows for this hop.")
+    assert any(ln.startswith("CONSEQUENCE ABSENCE") for ln in lines)
+    assert x["rendered"] == 0 and x["fx_planned"] == 0 and _x_rect(p)
+    assert not any("cny_usd" in (s or "") for s in qfn.sql)      # no rate for a hop with no figure
+    from leviathan.graphrag import answer as ans
+    monkeypatch.setenv("GRAPHRAG_CASCADE_XCCY", "on")
+    monkeypatch.setenv("GRAPHRAG_CASCADE_WALK", "on")
+    assert ans._cascade_xccy_block_on("\n".join(lines)) is False
+
+
+def test_the_xccy_seam_gate_needs_all_three_legs(monkeypatch):
+    from leviathan.graphrag import answer as ans
+    monkeypatch.setenv("GRAPHRAG_CASCADE_WALK", "on")
+    monkeypatch.setenv("GRAPHRAG_CASCADE_XCCY", "on")
+    vp_full = cq.CW_MARKER_PREFIX + "first order): x" + cq.CW_XCCY_CLAUSE_MARK
+    assert ans._cascade_xccy_block_on(vp_full) is True
+    assert ans._cascade_xccy_block_on(cq.CW_MARKER_PREFIX + "first order): x") is False  # no clause
+    assert ans._cascade_xccy_block_on(cq.CW_XCCY_CLAUSE_MARK) is False                   # no walk block
+    monkeypatch.delenv("GRAPHRAG_CASCADE_XCCY")
+    assert ans._cascade_xccy_block_on(vp_full) is False
+    # the gate keys on the CLAUSE MARK, never on the row regex -- a words-only hop has no row
+    import inspect
+    gsrc = inspect.getsource(ans._cascade_xccy_block_on)
+    body = gsrc.split(chr(34) * 3)[-1]                 # past the docstring, which NAMES the regex
+    #                                                    it deliberately does not use
+    assert "_cq.CW_XCCY_CLAUSE_MARK in (volatile_prompt" in body
+    assert "CW_FX_LINE_RX" not in body and "CW_FX_LINE_RX" in gsrc
+
+
+# -- L1: THE REPLAY HOIST ------------------------------------------------------------------------------
+def test_the_replay_key_rides_the_rider_union_not_the_context_branch(monkeypatch):
+    """L1, the sharpest defect in the lane: nested under context, the replay bool was DEAD on
+    exactly the flip shape (xccy on, context off), so a price_replay turn would have read
+    fill-forward backfilled exchange-rate rows that did not exist at the replayed as-of."""
+    from leviathan.graphrag import answer as ans
+    monkeypatch.delenv("GRAPHRAG_CASCADE_CONTEXT", raising=False)
+    monkeypatch.delenv("GRAPHRAG_CASCADE_DEEP", raising=False)
+    monkeypatch.setenv("GRAPHRAG_CASCADE_XCCY", "on")
+    assert ans._cascade_xccy_on() is True and ans._cascade_context_on() is False
+    _pr_kw = {"price_replay": True}                      # the seam's own already-resolved bool
+    req = {"focus_contract": ROOT}
+    if ans._cascade_context_on():
+        req["context"] = True
+    if ans._cascade_xccy_on():
+        req["xccy"] = True
+    if ans._cascade_xccy_on() or ans._cascade_deep_on():
+        req["deep"] = True
+    if _pr_kw and (ans._cascade_context_on() or ans._cascade_xccy_on() or ans._cascade_deep_on()):
+        req["replay"] = True
+    assert req == {"focus_contract": ROOT, "xccy": True, "deep": True, "replay": True}
+    _l, p, _c, qfn, _s = _x_run(request=req)
+    assert [d["reason"] for d in _x_ledger(p)["declines"]] == ["replay"]
+    assert not any("fred_fx" in (s or "") for s in qfn.sql)      # ZERO reads on the FX table
+    # ...and with every rider off the request is the shipped dict, key for key
+    monkeypatch.delenv("GRAPHRAG_CASCADE_XCCY")
+    req2 = {"focus_contract": ROOT}
+    if ans._cascade_context_on():
+        req2["context"] = True
+    if ans._cascade_xccy_on():
+        req2["xccy"] = True
+    if ans._cascade_xccy_on() or ans._cascade_deep_on():
+        req2["deep"] = True
+    if _pr_kw and (ans._cascade_context_on() or ans._cascade_xccy_on() or ans._cascade_deep_on()):
+        req2["replay"] = True
+    assert req2 == {"focus_contract": ROOT}
+
+
+# -- L5: THE LIFTED CHILDREN RIDE THE FIRST FIRING -----------------------------------------------------
+def test_lifted_children_ride_the_first_firing_and_the_spine_rides_both():
+    """L5, MEASURED as the only zero-loss configuration: riding EVERY firing re-creates the very
+    second-window loss the switch exists to stop, and declining by name costs two reachable hops."""
+    win2 = [{"start": C_START, "end": C_END, "span": C_SPAN, "n": 20},
+            {"start": "2025-06-01", "end": "2025-12-20", "span": "2025-06..2025-12", "n": 9}]
+    steps = ("2025-06-01", C_START)
+    rows = {ROOT: _c_tape_rows(steps), CHILD: _c_tape_rows(steps), X_CNY: _c_tape_rows(steps),
+            "cny_usd": _x_fx_rows(t1="2025-01-01", t2="2026-10-01")}
+    g = _w_graph([_w_edge(contract=CHILD), _w_edge(contract=X_CNY)])
+    calls: list = []
+    lines, p = cq._cascade_walk_leg_or_nothing(_w_sg(windows=win2), g,
+                                               {"focus_contract": ROOT, "xccy": True},
+                                               _WTape(rows), ASOF_C, calls)
+    assert p["outcome"] == "fired" and len(p["firings"]) == 2      # the SECOND window survives
+    same = [ln for ln in lines if "CBOT srw wheat" in ln and ln.startswith("CONSEQUENCE HOP")]
+    lift = [ln for ln in lines if "ZCE rapeseed oil" in ln and ln.startswith("CONSEQUENCE HOP")]
+    assert len(same) == 2 and len(lift) == 1                       # spine both, lifted first only
+    assert _x_ledger(p)["rendered"] == 1 and _x_ledger(p)["fx_reads"] == 1
+    # the PLAN counts what the loop renders: firing 1 = root + 2 kids, firing 2 = root + 1 kid
+    assert p["deep"]["cells_planned"] == p["deep"]["paid_cells"] == 5
+    assert p["net_reads"] == 5 * 2 + 1                          # 2 reads per closed cell + 1 rate
+    assert cq._cw_register_fence(lines)
+
+
+# -- L9: THE HOP-LEG DICT AND THE RENDERED ORDER -------------------------------------------------------
+def test_the_hop_legs_are_one_dict_and_the_rendered_order_is_stamped():
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert "hop_legs: dict = {L: None for L in _CW_HOP_LEVELS}" in src
+    assert "hop_legs[_lvl] = _hop" in src
+    assert "zip(_CW_HOP_LEVELS, (grand, great))" not in src        # the re-spelled tuple is GONE
+    assert '"great" if a is great else' not in src                 # ...and so is the dispatch chain
+    _l, p, _c, _q, _s = _d_run(_d_chain(), qfn=_d_tape(ROOT, CHILD, GRAND, GREAT),
+                               sg=_w_sg(kept=(GRAND, GREAT)))
+    assert p["deep"]["order_n"] == 3 and p["deep"]["order_n_rendered"] == 3
+    # a HOLE caps order_n at the last CLOSED hop while the RENDERED depth still says what the page
+    # showed -- the two numbers are different findings and used to look the same
+    _l2, p2, _c2, _q2, _s2 = _d_run(_d_chain(great=FREE_LEG),
+                                    qfn=_d_tape(ROOT, CHILD, GRAND),
+                                    sg=_w_sg(kept=(GRAND, FREE_LEG)))
+    assert p2["deep"]["order_n"] == 2 and p2["deep"]["order_n_rendered"] == 3
+
+
+# -- THE LEDGER ZEROES WITH THE BLOCK ------------------------------------------------------------------
+def test_all_three_early_returns_zero_the_xccy_ledger(monkeypatch):
+    # (a) the REGISTER FENCE trip
+    monkeypatch.setattr(cq, "_cw_marker",
+                        lambda order, context=False, fx=False:
+                        "CASCADE EPISODE WALK: momentum is accelerating into 2027")
+    _l, p, calls, _q, _s = _x_run()
+    assert p["outcome"] == "fenced"
+    assert _x_ledger(p)["rendered"] == 0 and _x_ledger(p)["fx_rendered"] == 0
+    assert _x_ledger(p)["pairs"] == []
+    monkeypatch.undo()
+    # (b) the DORMANT-ROW belt: no board cell closes -> the block ships nothing
+    rows = {"cny_usd": _x_fx_rows()}
+    _l2, p2, _c2, _q2, _s2 = _x_run(qfn=_WTape(rows))
+    assert p2["outcome"] == "declined" and _x_ledger(p2)["rendered"] == 0
+    # (c) the source pin for the THIRD return, which is measured-unreachable and reset anyway
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert src.count('payload["xccy"].update(rendered=0, fx_rendered=0, pairs=[])') == 3
+
+
+def test_a_root_scope_decline_still_carries_a_closed_xccy_rectangle():
+    _l, p, _c, qfn, _s = _x_run(sg=_w_sg(windows=[]))
+    assert any(d["reason"] == "no_firing_window" for d in p["declines"])
+    x = _x_ledger(p)
+    assert x == {"rendered": 0, "pairs": [], "fx_planned": 0, "fx_admitted": 0, "fx_rendered": 0,
+                 "fx_reads": 0, "fx_cache_hits": 0, "fx_flips_sign": 0, "fx_unpriced_verdicts": 0,
+                 "fx_gate_checked": 0, "cap": cq.CW_FX_CAP, "declines": []}
+    assert qfn.sql == []
+
+
+# -- THE CALL RECORD, THE UNIT AND THE LOCATOR ---------------------------------------------------------
+def test_the_fx_call_carries_the_reader_unit_the_right_table_and_the_machine_metric():
+    _l, p, calls, _q, _s = _x_run()
+    rec = _x_fx_cell(p)
+    call = next(c for c in calls if c["query"].get("table") == cq._CW_FX_TABLE)
+    assert call["query"]["metric"] == "exchange rate change"        # reader words in the ledger
+    assert call["query"]["commodity"] == "Chinese yuan per US dollar"
+    assert call["rows"][0]["source_metric"] == "cny_usd"            # the machine id on the LOCATOR
+    assert call["rows"][0]["unit"] == "percent change in Chinese yuan per US dollar"
+    assert "FRED" not in call["rows"][0]["unit"] and "CNY" not in call["rows"][0]["unit"]
+    assert call["rows"][0]["knowledge_date"] == rec["last_date"]
+
+
+def test_the_fx_row_is_never_the_row_that_licenses_a_marker():
+    assert cq._cw_board_row_closed([{"status": "closed", "kind": "fx"}]) is False
+    assert cq._cw_board_row_closed([{"status": "closed", "kind": "fx"},
+                                    {"status": "closed", "slug": ROOT}]) is True
+
+
+# -- THE PERSONA -----------------------------------------------------------------------------------
+def test_the_walk_mandate_takes_the_positive_currency_needle_unconditionally():
+    from leviathan.graphrag import answer as ans
+    """DECLARED live prompt change (owner decision #3): the clause is POSITIVE, carries no negative,
+    and is TRUE of every walk block -- today every hop is same-currency and both rows name US
+    dollars -- so it is vacuously correct on flag-off turns."""
+    m = ans._SYSTEM_CASCADE_WALK_MANDATE
+    assert "each figure is a move inside the currency its own row names" in m
+    assert "write each on its own handle as a fact about that board" in m
+    assert "name the dated firing window in words exactly as the hop names it" in m
+    needle = ("their [N] handles and figures copied as DIGITS exactly as printed -- each figure is "
+              "a move inside the currency its own row names; write each on its own handle as a "
+              "fact about that board -- name the dated firing window ")
+    assert needle in m                                       # the POSITIVE pin on the needle itself
+    for banned in ("never", "not ", "avoid"):                # the clause itself carries no negative
+        assert banned not in needle.lower(), banned
+
+
+def test_the_xccy_mandate_is_positive_only_and_appends_after_the_deep_one(monkeypatch):
+    from leviathan.graphrag import answer as ans
+    x = ans._SYSTEM_CASCADE_XCCY
+    for banned in ("never", "do not", "don't", "must not", "avoid"):
+        assert banned not in x.lower(), banned
+    assert "TWO BOARDS SETTLE IN DIFFERENT CURRENCIES" in x
+    a_src = open(ans.__file__, encoding="utf-8").read()
+    assert a_src.index("_SYSTEM_CASCADE_DEEP = (") < a_src.index("_SYSTEM_CASCADE_XCCY = (")
+    assert a_src.index("base = base + _SYSTEM_CASCADE_DEEP") < \
+        a_src.index("base = base + _SYSTEM_CASCADE_XCCY")
+    monkeypatch.setenv("GRAPHRAG_CASCADE_WALK", "on")
+    monkeypatch.setenv("GRAPHRAG_CASCADE_XCCY", "on")
+    on = ans._system(cascade_walk=True, cascade_xccy=True)
+    off = ans._system(cascade_walk=True, cascade_xccy=False)
+    assert x in on and x not in off
+    assert on.replace(x, "") == off                            # a PURE append, nothing rewritten
+    monkeypatch.delenv("GRAPHRAG_CASCADE_XCCY")
+    assert ans._system(cascade_walk=True, cascade_xccy=True) == off
+
+
+# -- GOVERNANCE: THE LINT, THE REGISTER, THE TRACE KEY -------------------------------------------------
+def test_the_widened_lint_is_green_and_has_teeth(monkeypatch):
+    from leviathan.graphrag import config_check as cc
+    assert cc.check_cascade_walk() == []
+    assert cc.check_cascade_context() == [] and cc._check_synthesized_price_legs() == []
+    # clause (i) in the MISSING direction: the board-label row and the gate edit are COUPLED
+    monkeypatch.setattr(cq, "_CW_BOARD_LABEL",
+                        {k: v for k, v in cq._CW_BOARD_LABEL.items()
+                         if k != "south_african_yellow_maize_jse"})
+    assert any("south_african_yellow_maize_jse" in e and "_CW_BOARD_LABEL" in e
+               for e in cc.check_cascade_walk())
+    monkeypatch.undo()
+    # clause (xii) in the STALE direction (the only one it can measure)
+    monkeypatch.setattr(cq, "_CW_FX_CROSS", dict(cq._CW_FX_CROSS,
+                                                 JPY=("jpy_usd", "Japanese yen per US dollar")))
+    assert any("_CW_FX_CROSS entry 'JPY'" in e for e in cc.check_cascade_walk())
+    # ...and the R4c FOLD has teeth from inside the FENCE, never a door beside it
+    assert any("outside the ratified allow-list" in e for e in cc._check_synthesized_price_legs())
+
+
+def test_the_curation_rows_that_the_widened_ladder_makes_lint_required():
+    """Both edits are LINT-REQUIRED the moment the ladder widens; restoring either one reds the
+    clause it belongs to, so they cannot silently drift back."""
+    from leviathan.graphrag import config_check as cc
+    from leviathan.graphrag import graph as G
+    g = G.CausalGraph.load()
+    edges = [r for nd in g.rev_cross_link_seeds() for r in g.rev_cross_links(nd)]
+    canola = [r for r in edges if r.get("seed") == "soybeans_cbot"
+              and r.get("contract") == "canola_ice" and str(r.get("sign")) == "+"]
+    assert canola and all("drags" not in str(r.get("blurb")) for r in canola)
+    assert any("lifts canola" in str(r.get("blurb")) for r in canola)
+    zce = [r for r in edges if r.get("seed") == "soybean_oil_cbot"
+           and r.get("contract") == "rapeseed_oil_zce"]
+    assert zce and all("abundant" not in str(r.get("mechanism")).lower() for r in zce)
+    assert any("conversely" in str(r.get("mechanism")) for r in zce)
+    assert all("Abundant soyoil" not in str(r.get("blurb")) for r in zce)
+    assert cc.check_cascade_walk() == []
+
+
+def test_v23_registers_one_trace_key_and_the_ledger_rides_inside_it():
+    from leviathan.graphrag import tracekeys as tk
+    assert tk.TRACE_RECORD_KEYS[-1] == "quantify_wave_reads"
+    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_cascade_walk"
+    assert not any("xccy" in k or "fx" in k or "deep" in k for k in tk.TRACE_RECORD_KEYS)
+
+
+def test_the_eval_projections_read_the_xccy_ledger_without_re_deriving_it():
+    from leviathan.graphrag import eval as EV
+    _l, p, _c, _q, _s = _x_run()
+    st_ = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p},
+                             "structured": None, "answer": ""})
+    assert st_["cw_xccy_on"] is True and st_["cw_xccy_rendered"] == 1
+    assert st_["cw_xccy_pairs"] == ["USD>CNY"] and st_["cw_fx_reads"] == 1
+    assert st_["cw_fx_planned"] == st_["cw_fx_admitted"] == st_["cw_fx_rendered"] == 1
+    assert st_["cw_fx_declines"] == [] and st_["cw_fx_cache_hits"] == 0
+    assert st_["cw_fx_flips_sign"] == 0 and st_["cw_fx_gate_checked"] == 1
+    assert st_["cw_order_rendered"] == p["deep"]["order_n_rendered"]
+    # the FX cell is NOT a board cell on either counter
+    assert st_["cw_cells_declared"] == 2 and st_["cw_cells_measured"] == 2
+    # walk-less and flag-off rows read the flag-off shape, never KeyError
+    empty = EV._cascade_stats({"citations": [], "trace": {}, "structured": None, "answer": ""})
+    assert empty["cw_xccy_on"] is False and empty["cw_xccy_rendered"] == 0
+    assert empty["cw_fx_declines"] == [] and empty["cw_order_rendered"] is None
+    # ...and the expect key reads the counter its own key names, both branches
+    e = {"citations": [], "trace": {}, "structured": None, "answer": ""}
+    assert EV._cascade_asserts({"expect": {"cw_xccy_rendered": False}}, e)["cw_xccy_rendered"]
+    assert not EV._cascade_asserts({"expect": {"cw_xccy_rendered": True}}, e)["cw_xccy_rendered"]
+    # the artifact HARD-WHITELIST projection carries every counter (the Z7 lesson: without them the
+    # arm's own verdicts reach NO artifact row)
+    esrc = open(EV.__file__, encoding="utf-8").read()
+    for k in ("cw_xccy_on", "cw_xccy_rendered", "cw_xccy_pairs", "cw_fx_planned",
+              "cw_fx_admitted", "cw_fx_rendered", "cw_fx_reads", "cw_fx_cache_hits",
+              "cw_fx_declines", "cw_fx_flips_sign", "cw_fx_unpriced_verdicts",
+              "cw_fx_gate_checked", "cw_order_rendered"):
+        assert esrc.count("\"" + k + "\"" + ": cs.get(" + "\"" + k + "\"" + ")") == 1, k
+
+
+# -- L8: THE PALM EOD ROSTER ROW -----------------------------------------------------------------------
+def test_the_palm_board_joins_the_eod_fresh_levels_roster():
+    """L8: the V2-4 docket's own condition -- palm's canonical CME USD bytes are registered and
+    serving at rev 126 -- so the row lands, off the same coverage every other row came from."""
+    from leviathan.graphrag import config_check as cc
+    from leviathan.graphrag import display as dp
+    from leviathan.silver import futures_eod_contracts as FC
+    row = cq._RV_EOD_FRESH["malaysian_crude_palm_oil_cme"]
+    assert row == ("settle", "CME palm oil") == (row[0], dp._contract_label(
+        "malaysian_crude_palm_oil_cme"))
+    assert (FC.CONTRACT_MAP["malaysian_crude_palm_oil_cme"] or {})["currency"] == "USD"
+    assert "malaysian_crude_palm_oil_cme" in FC.PRICE_COVERAGE_START
+    assert len(cq._RV_EOD_FRESH) == 9
+    assert all(m == "settle" for (m, _l) in cq._RV_EOD_FRESH.values())
+    assert cc._check_synthesized_price_legs() == []       # the same R4c register entry binds it
+
+
+# ================================================================================================
+# V2-3 FIX PASS (2026-09-04). The STEP-12 review + refute were both SOUND_WITH_FIXES and every
+# finding was adopted. THESE ARE THE PINS FOR THE FIXES -- one group, at the tail, so the fix set
+# is readable as a unit and the sitting it belongs to is named.
+# ================================================================================================
+_X_W2 = {"start": "2021-02-20", "end": "2021-05-10", "span": "2021-02..2021-05", "n": 5}
+#        ^ a SECOND firing window inside the same fixture tape (both root cells close on it), so a
+#          two-firing shape is constructible without a window the tape cannot serve.
+
+
+def _x_two_windows():
+    return _w_sg(windows=[{"start": W_START, "end": W_END, "span": W_SPAN, "n": 7}, _X_W2])
+
+
+# -- FIX 1: THE FX RECTANGLE ON THE FENCED PATH --------------------------------------------------
+def test_the_block_fence_names_every_rendered_fx_cell_and_keeps_the_rectangle(monkeypatch):
+    """BUILD-REFUTE MAJOR-1, MEASURED: the whole-block register-fence rollback zeroed rendered /
+    fx_rendered / pairs and appended NOTHING, so a fenced block reported fx_planned 1, fx_rendered
+    0, fx_cache_hits 0, declines [] -- 1 != 0 -- with fx_reads 1 GENUINELY PAID and named by
+    nothing. The rollback now appends one {cross, span, reason: block_fenced} per FX cell that had
+    rendered, and this is `_x_rect` applied to a fenced path carrying fx_planned > 0 (the suite's
+    other fenced pin asserts fx_planned == 0 and so could never see it)."""
+    monkeypatch.setattr(cq, "_cw_marker",
+                        lambda order, context=False, fx=False:
+                        "CASCADE EPISODE WALK: momentum is accelerating into 2027")
+    _l, p, calls, _q, _s = _x_run()
+    x = _x_ledger(p)
+    assert p["outcome"] == "fenced" and calls == []          # the whole block rolled back
+    assert x["fx_planned"] == 1 and x["fx_reads"] == 1       # the read was PAID
+    assert x["rendered"] == 0 and x["fx_rendered"] == 0 and x["pairs"] == []
+    assert x["declines"] == [{"cross": "USD>CNY", "span": W_SPAN, "reason": "block_fenced"}]
+    assert _x_rect(p)                                        # 1 == 0 + 0 + 1
+    # the reason is in the FULL tuple and NOT in the pre-admit one: those cells were admitted and
+    # paid, so counting them pre-admit would double them in the first rectangle
+    assert "block_fenced" in cq._CW_FX_DECLINES
+    assert (x["fx_planned"] == x["fx_admitted"] + x["fx_cache_hits"]
+            + sum(1 for d in x["declines"] if d["reason"] in cq._CW_FX_PRE_ADMIT))
+    # ...and the FX cell itself carries no handle after the rollback, like every other cell
+    assert all(c.get("handle") is None for c in p["cells"])
+
+
+# -- FIX 2: A ZERO-SAME-CURRENCY ROOT NEVER PAYS AN ORPHAN SECOND ROOT CELL ----------------------
+def test_a_root_whose_children_are_all_lifted_never_pays_a_second_root_cell():
+    """BUILD-REFUTE MAJOR-2, MEASURED. `same_ccy_n == 0` was unreachable before the rider and is
+    live now: rapeseed_meal_zce (CNY, 2 lifted children) and french_wheat_matif (EUR, 3) are the
+    live roots. It fell through to `firings[:CW_MAX_FIRINGS]`, and on firing 2 the per-firing legs
+    are `same_ccy` == [] -- so the engine paid a second root cell and rendered a bare ROW-1 that no
+    CONSEQUENCE HOP, READ or ABSENCE ever referred to. The switch reads `!= 1` now."""
+    kids = (X_CNY, "rapeseed_meal_zce")                      # BOTH lifted: same_ccy_n == 0
+    lines, p, calls, _q, _s = _x_run(children=kids, sg=_x_two_windows())
+    assert p["outcome"] == "fired"
+    assert len(p["firings"]) == 1 and p["firings"][0]["span"] == W_SPAN
+    assert sum(1 for c in p["cells"] if c.get("slug") == ROOT) == 1
+    assert sum(1 for ln in lines if ln.startswith("- [N") and "CBOT corn" in ln) == 1
+    # every rendered ROW-1 is referred to by a hop: one root + two lifted children + the ONE rate
+    assert sum(1 for ln in lines if ln.startswith("- [N")) == 4
+    assert sum(1 for ln in lines if ln.startswith("CONSEQUENCE HOP")) == 2
+    assert cq._cw_register_fence(lines) and _x_rect(p)
+    # and the two-firing shape is still REACHABLE -- the fix narrows the switch, it does not close it
+    _l2, p2, _c2, _q2, _s2 = _w_run(sg=_x_two_windows())
+    assert len(p2["firings"]) == 2                           # one same-currency child, no grand leg
+
+
+# -- FIX 6: ONE POPULATION FOR THE SHAPE SWITCH AND THE PER-FIRING LEGS --------------------------
+def test_the_post_belt_population_decides_the_firing_shape(monkeypatch):
+    """BUILD-REVIEW MINOR, adopted. The switch runs BEFORE the paid-cell selection -- it must,
+    because `free_set` is defined over the SELECTED firings -- so it read the PRE-belt count while
+    the render loop read the POST-belt list. THE POPULATION THAT DECIDES IS `same_ccy`: the same
+    `!= 1` predicate is re-taken against the children that survived, and payload[firings] is
+    truncated with it. Here the lone same-currency child loses the single paid slot to the
+    alphabetically-earlier lifted one, so `same_ccy` is empty while two firings were planned."""
+    monkeypatch.setattr(cq, "CW_DEEP_MAX_CHILDREN", 1)
+    lines, p, _c, _q, _s = _x_run(children=(X_CNY, CHILD), sg=_x_two_windows())
+    assert any(d.get("reason") == "child_not_priced_budget" and d.get("child") == CHILD
+               for d in p["declines"])                       # the same-currency child WAS dropped
+    assert p["outcome"] == "fired" and len(p["firings"]) == 1
+    assert sum(1 for c in p["cells"] if c.get("slug") == ROOT) == 1
+    assert sum(1 for ln in lines if ln.startswith("CONSEQUENCE HOP")) == 1
+    assert p["deep"]["cells_planned"] == 2                   # ONE firing: root + the lifted child
+    assert cq._cw_register_fence(lines) and _x_rect(p)
+
+
+# -- FIX 3: THE EXCEPTION BELT CARRIES THE XCCY REGIME -------------------------------------------
+def test_the_exception_belt_carries_the_xccy_regime_and_eval_projects_it(monkeypatch):
+    """BUILD-REFUTE MAJOR-3, MEASURED: the belt re-stamped payload[deep] under the rider UNION but
+    nothing for xccy, so eval's `cw_xccy_on` (xccy in _cw) projected False. Under the flip
+    GRAPHRAG_CASCADE_DEEP stays OFF and `deep` is set BY `xccy` -- so a treatment error row was
+    indistinguishable from a deep-only CONTROL row."""
+    from leviathan.graphrag import eval as EV
+
+    def _boom(*_a, **_kw):
+        raise RuntimeError("leg exploded")
+
+    monkeypatch.setattr(cq, "_cascade_walk_legs", _boom)
+    calls = ["a-prior-call"]
+    lines, p = cq._cascade_walk_leg_or_nothing(_w_sg(), _x_graph(),
+                                               {"focus_contract": ROOT, "xccy": True},
+                                               _x_tape(), ASOF_W, calls)
+    assert lines == [] and calls == ["a-prior-call"]         # the ledger rolls back, nothing else
+    assert p["outcome"] == "declined" and p["declines"] == [{"scope": "root", "reason": "error"}]
+    assert p["xccy"] == {"error": True} and p["deep"]["error"] is True
+    st_ = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p},
+                             "structured": None, "answer": ""})
+    assert st_["cw_xccy_on"] is True and st_["cw_xccy_error"] is True
+    assert st_["cw_deep_error"] is True and st_["cw_deep_identity_ok"] is None
+    assert st_["cw_fx_planned"] == 0 and st_["cw_fx_declines"] == []
+    # ...and a DEEP-ONLY belt row carries NO xccy key at all, so the two regimes stay separable
+    calls2: list = []
+    _l2, p2 = cq._cascade_walk_leg_or_nothing(_w_sg(), _x_graph(),
+                                              {"focus_contract": ROOT, "deep": True},
+                                              _x_tape(), ASOF_W, calls2)
+    assert p2["deep"]["error"] is True and "xccy" not in p2
+    st2 = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p2},
+                             "structured": None, "answer": ""})
+    assert st2["cw_xccy_on"] is False and st2["cw_xccy_error"] is False
+    # the companion reaches the ARTIFACT row, or the arm's own verdict reaches no row at all (Z7)
+    esrc = open(EV.__file__, encoding="utf-8").read()
+    assert esrc.count('"cw_xccy_error": cs.get("cw_xccy_error")') == 1
+
+
+# -- FIX 4: THE RIDER SLACK IS BUDGETED AGAINST THE REGIME'S OWN CEILING --------------------------
+def test_the_rider_slack_reads_the_regimes_own_ceiling():
+    """BUILD-REFUTE MINOR + BUILD-REVIEW MINOR, both adopted. `_cw_slack` read the bare 60 in both
+    regimes while the board plan was admitted against 80, which made the 7 reads
+    CW_DEEP_TURN_CEILING reserves for the riders STRUCTURALLY UNREACHABLE -- and V2-3 makes the deep
+    regime the FX rider's unconditional state, so that was the default rather than an edge case.
+    The behavioural half is test_the_budget_rung_calls_the_one_slack_helper; this is the arithmetic
+    config_check's NOTE prints, asserted against the constants it names."""
+    import inspect
+    src = inspect.getsource(cq._cascade_walk_legs)
+    assert "return cw_ceiling - (spent + board_reads + ctx_admitted + fx_admitted)" in src
+    assert "CW_TURN_CEILING - (spent" not in src
+    assert cq.CW_DEEP_TURN_CEILING - (44 + cq.CW_DEEP_CAP + cq.CW_CONTEXT_CAP) == 7
+    assert cq.CW_CONTEXT_CAP + cq.CW_FX_CAP <= 7             # both riders' caps fit the reserve
+    assert cq.CW_TURN_CEILING - (44 + cq.CW_CAP) >= 0        # ...and the off regime is unchanged
+
+
+# -- FIX 5: THE ORDER LABEL'S CLOSED SET EXCLUDES FX CELLS ---------------------------------------
+def test_the_order_label_closed_set_excludes_fx_cells():
+    """BUILD-REVIEW MINOR, adopted. An FX cell carries NO `slug` key, so the un-widened kind filter
+    seeded a bare None into the membership set `_cw_order_n` reads -- the one place the new kind was
+    missed, while _cw_board_row_closed and both eval cell filters were widened correctly."""
+    import inspect
+    src = inspect.getsource(cq._cascade_walk_legs)
+    assert 'if c.get("kind") not in ("context", "fx") and c.get("status") == "closed"' in src
+    assert 'if c.get("kind") != "context" and c.get("status") == "closed"' not in src
+    _l, p, _c, _q, _s = _x_run()
+    assert _x_fx_cell(p)["status"] == "closed"               # a CLOSED fx cell is on the payload
+    assert p["deep"]["order_n"] == p["deep"]["order_n_rendered"] == 1
+    assert None not in {c.get("slug") for c in p["cells"]
+                        if c.get("kind") not in ("context", "fx") and c.get("status") == "closed"}
+
+
+# -- FIX 8: A CACHE HIT ON A DECLINED RATE IS NOT A FREE PASS ------------------------------------
+def test_a_cache_hit_on_a_declined_rate_declines_by_name():
+    """BUILD-REFUTE MINOR, adopted. `fx_by_cross[_ck]` is written in rung 7 BEFORE the status test,
+    so a second hop on a cross whose first read DECLINED counted fx_cache_hits and nothing else --
+    the ledger under-counted the hops that shipped with no priced rate by one per extra hop. Rung 2
+    now splits: a CLOSED record is a free pass and counts a cache hit; a declined one DECLINES BY
+    NAME at zero reads. cache_declined is PRE-ADMIT, so both rectangles still close."""
+    kids = (X_CNY, "rapeseed_meal_zce")                      # ONE cross, TWO hops
+    thin = {"cny_usd": _x_fx_rows(t1="2021-04-01", t2="2021-04-01")}   # one print -> grain_thin
+    lines, p, _c, qfn, _s = _x_run(children=kids, fx=thin)
+    x = _x_ledger(p)
+    assert p["outcome"] == "fired" and x["fx_planned"] == 2 and x["fx_admitted"] == 1
+    assert x["fx_rendered"] == 0 and x["fx_cache_hits"] == 0
+    assert [d["reason"] for d in x["declines"]] == ["grain_thin", "cache_declined"]
+    assert [d["cross"] for d in x["declines"]] == ["USD>CNY", "USD>CNY"]
+    assert sum(1 for s in qfn.sql if "cny_usd" in (s or "")) == 1      # STILL one read per cross
+    assert x["fx_reads"] == 1 and x["fx_unpriced_verdicts"] == 2
+    assert _x_rect(p)                                                  # 2 == 0 + 0 + 2
+    assert (x["fx_planned"] == x["fx_admitted"] + x["fx_cache_hits"]
+            + sum(1 for d in x["declines"] if d["reason"] in cq._CW_FX_PRE_ADMIT))
+    # both hops still carry the unpriced words -- the page never claims a rate it does not hold
+    assert sum(1 for ln in lines if ln.startswith(cq.CW_FX_WORDS_PREFIX)) == 2
+    assert all("not priced on this page" in ln for ln in lines
+               if ln.startswith(cq.CW_FX_WORDS_PREFIX))
+    # ...and a CLOSED first read still buys the second hop its free pass, unchanged
+    _l2, p2, _c2, _q2, _s2 = _x_run(children=kids)
+    assert _x_ledger(p2)["fx_cache_hits"] == 1 and _x_ledger(p2)["declines"] == []
+
+
+# -- FIX 9: THE LADDER CHECKS THE CARD DECLARES THE MAPPED METRIC BEFORE PAYING -------------------
+def test_the_ladder_declines_an_undeclared_metric_before_paying_the_read(monkeypatch):
+    """BUILD-REFUTE MINOR, adopted. Rung 6 tested only `_fx_declared is None`; rung 7 then paid a
+    read and handed `_cw_fx_cell` a card_metric of None for a missing column. All four
+    _CW_FX_CROSS metrics exist on the live card today, so this is LATENT -- but the day a column is
+    dropped the engine spent CW_FX_CAP on a cell that could only error."""
+    class _Card:
+        metrics = {"brl_usd": SimpleNamespace(unit="BRL per USD (ECB via Frankfurter)")}
+
+    monkeypatch.setattr(cq, "_registry", lambda: SimpleNamespace(get=lambda _t: _Card()))
+    lines, p, _c, qfn, _s = _x_run()
+    x = _x_ledger(p)
+    assert p["outcome"] == "fired"                           # the BLOCK still ships
+    assert [d["reason"] for d in x["declines"]] == ["no_metric"]
+    assert x["fx_planned"] == 1 and x["fx_admitted"] == 0 and x["fx_reads"] == 0
+    assert not any("cny_usd" in (s or "") for s in qfn.sql)  # THE READ WAS NEVER PAID
+    assert _x_rect(p) and cq._cw_register_fence(lines)
+
+
+# -- FIX 7: THE MEASURED CALIBRATION CASE, AS A FIXTURE -------------------------------------------
+_XC_PALM, _XC_ZCE = "malaysian_crude_palm_oil_cme", X_CNY
+_XC_START, _XC_END, _XC_SPAN = "2022-01-01", "2022-08-01", "2022-01..2022-08"
+_XC_T0, _XC_T1 = "2021-10-01", "2022-10-15"
+# X = the endpoint month of the firing window = 2022-08. Palm's forward_month_floor is 1, so it
+# lands on X+1 = 2022-09; ZCE's is 0, so it lands on X itself -- ADJACENT months, which is exactly
+# what the MAJOR-8 tenor fence admits, so the pair verdicts rather than declining.
+_XC_LIFE = {"2022-08": (_XC_T0, "2022-08-31"),
+            "2022-09": (_XC_T0, "2022-09-30"),
+            "2022-10": (_XC_T0, _XC_T1)}
+
+
+def _xc_rows(priced_month, px0, px1, unit, currency):
+    d, end = _dt.date.fromisoformat(_XC_T0), _dt.date.fromisoformat(_XC_T1)
+    out = []
+    while d <= end:
+        iso = d.isoformat()
+        for cm, (first, last) in _XC_LIFE.items():
+            if not (first <= iso <= last):
+                continue
+            settle = (px0 if iso <= _XC_START else px1) if cm == priced_month else 400.0
+            out.append({"value": settle, "knowledge_date": iso, "contract_month": cm,
+                        "unit": unit, "currency": currency, "settle_kind": "settlement"})
+        d += _dt.timedelta(days=1)
+    return out
+
+
+def _xc_fx_rows(v1):
+    d, end = _dt.date.fromisoformat(_XC_T0), _dt.date.fromisoformat(_XC_T1)
+    step = _dt.date.fromisoformat(_XC_START)
+    out = []
+    while d <= end:
+        out.append({"value": (1.0 if d <= step else v1), "knowledge_date": d.isoformat(),
+                    "unit": "CNY per USD"})
+        d += _dt.timedelta(days=1)
+    return out
+
+
+def _xc_run(fx_v1):
+    edge = _w_edge(seed=_XC_PALM, contract=_XC_ZCE, relation="substitutes_for", sign="+",
+                   lag="0-2 quarters",
+                   blurb="the two oils stand in for one another in the same uses")
+    nodes = {_XC_PALM: "palm_oil", _XC_ZCE: "rapeseed_oil"}
+    graph = SimpleNamespace(
+        contracts={_XC_PALM: SimpleNamespace(drivers=[SimpleNamespace(id="heat")])},
+        rev_cross_links=lambda c, _n=nodes: ([dict(edge)] if _n.get(c, c) == "palm_oil" else []),
+        contract_node=lambda c, _n=nodes: _n.get(c, c))
+    sg = _w_sg(windows=[{"start": _XC_START, "end": _XC_END, "span": _XC_SPAN, "n": 9}])
+    qfn = _WTape({_XC_PALM: _xc_rows("2022-09", 100.0, 98.6978, "USD/metric ton", "USD"),
+                  _XC_ZCE: _xc_rows("2022-08", 100.0, 104.5577, "CNY/metric ton", "CNY"),
+                  "cny_usd": _xc_fx_rows(fx_v1)})
+    calls: list = []
+    lines, payload = cq._cascade_walk_leg_or_nothing(
+        sg, graph, {"focus_contract": _XC_PALM, "xccy": True}, qfn, ASOF_W, calls)
+    return lines, payload, calls, qfn
+
+
+def test_the_dominance_gate_on_the_measured_palm_to_zce_calibration_case():
+    """L4's OWN MEASUREMENT, as a fixture (build-review minor: the predicate was pinned on synthetic
+    +15 %/+20 % legs, so the measurement that justified choosing the co-signed form over the bare
+    magnitude test lived only in prose). THE REAL CASE, on the REAL slugs and the REAL window:
+
+      CME palm oil -> ZCE rapeseed oil, 2022-01-01..2022-08-01
+      palm  -1.3022 % (USD, its own currency)
+      ZCE   +4.5577 % (CNY, its own currency)      -> own-currency verdict AT_ODDS
+      CNY per US dollar  +6.2475 %                 -> larger AND co-signed with the non-USD leg
+      ZCE redenominated  (1.045577/1.062475 - 1)   = -1.5904 %, which is ALIGNED with palm
+
+    So the own-currency at_odds is an artefact of the denomination, and the gate refuses to print a
+    direction rather than printing the wrong one. A constant edit that broke the calibration would
+    have to flip one of these three numbers to stay green."""
+    lines, p, calls, _q = _xc_run(1.062475)
+    palm = next(c for c in p["cells"] if c.get("slug") == _XC_PALM)
+    zce = next(c for c in p["cells"] if c.get("slug") == _XC_ZCE)
+    fx = _x_fx_cell(p)
+    assert p["outcome"] == "fired"
+    assert palm["move_pct"] == -1.3022 and palm["contract_month"] == "2022-09"
+    assert zce["move_pct"] == 4.5577 and zce["contract_month"] == "2022-08"
+    assert fx["move_pct"] == 6.2475 and fx["cross"] == "USD>CNY" and fx["status"] == "closed"
+    assert (zce["interval_ok"], zce["tenor_ok"]) == (True, True)     # the pair really is verdictable
+    # THE GATE FIRES: the rate moved further than the non-USD board AND the same way
+    assert abs(fx["move_pct"]) > abs(zce["move_pct"])
+    assert (fx["move_pct"] > 0) == (zce["move_pct"] > 0)
+    assert zce["verdict"] == "undetermined" and zce["verdict_reason"] == "fx_flips_sign"
+    assert _x_ledger(p)["fx_flips_sign"] == 1 and _x_ledger(p)["fx_gate_checked"] == 1
+    assert _x_rect(p) and cq._cw_register_fence(lines)
+    # THE GROUND TRUTH THE GATE IS PROTECTING: in a common denomination the two moves AGREE
+    assert round((1.045577 / 1.062475 - 1.0) * 100.0, 4) == -1.5904
+    assert (round((1.045577 / 1.062475 - 1.0) * 100.0, 4) < 0) == (palm["move_pct"] < 0)
+    # ...and WITHOUT the dominant rate the SAME pair prints at_odds -- the verdict the gate withheld
+    _l2, p2, _c2, _q2 = _xc_run(1.005)
+    zce2 = next(c for c in p2["cells"] if c.get("slug") == _XC_ZCE)
+    assert zce2["verdict"] == "at_odds" and "verdict_reason" not in zce2
+    assert _x_ledger(p2)["fx_flips_sign"] == 0 and _x_ledger(p2)["fx_gate_checked"] == 1
+
+
+# -- FIX 10: THE CARD'S UNIT STRINGS AGREE WITH THE TABLE'S OWN LABEL -----------------------------
+def test_the_fx_card_units_name_the_ecb_reference_rate_never_fred():
+    """BUILD-REFUTE MINOR, adopted. display_names.yaml labels silver_fred_fx ECB reference rates
+    while three incumbent metrics still carried (FRED) in their unit -- and citations.from_number
+    renders SOURCE then UNIT on the same reader line, so a live CNY citation read ECB reference
+    rates ... = 6.72 CNY per USD (FRED). Every row of the tape carries source == frankfurter, so
+    (FRED) was the wrong half. The table ID keeps its documented legacy misnomer (ADR-003)."""
+    from leviathan.graphrag import display as dp
+    card = cq._registry().get(cq._CW_FX_TABLE)
+    assert dp.table_label(cq._CW_FX_TABLE) == "ECB reference rates"
+    metrics = getattr(card, "metrics", None) or {}
+    for m, _lbl in cq._CW_FX_CROSS.values():
+        unit = str(getattr(metrics[m], "unit", "") or "")
+        assert unit and "FRED" not in unit and "ECB via Frankfurter" in unit
+    assert not any("FRED" in str(getattr(v, "unit", "") or "") for v in metrics.values())
+
+
+# -- THE CONSUMER OF _CW_FX_DECLINES -------------------------------------------------------------
+def test_every_fx_decline_reason_this_group_can_produce_is_named_in_the_tuple(monkeypatch):
+    """BUILD-REVIEW MINOR, adopted: `_CW_FX_DECLINES` had no engine or lint consumer, so the
+    declines-are-NAMED-and-COUNTED law was documented rather than enforced -- a future rung emitting
+    an unlisted reason would reach the artifact unnoticed. THIS IS THE CONSUMER. It runs the group's
+    own fixtures and closes over every reason they produce."""
+    seen: set = set()
+
+    def _take(p):
+        seen.update(str(d.get("reason")) for d in (_x_ledger(p).get("declines") or []))
+        assert _x_rect(p), sorted(seen)
+
+    _take(_x_run(request={"focus_contract": ROOT, "xccy": True, "replay": True})[1])   # replay
+    _take(_x_run(children=(X_CNY, "rapeseed_meal_zce"),                                # grain_thin
+                 fx={"cny_usd": _x_fx_rows(t1="2021-04-01", t2="2021-04-01")})[1])     # + cache_declined
+    _take(_x_run(sg=_w_sg(trace_extra={                                                # budget_cap
+        "quantify_wave_reads": cq.CW_DEEP_TURN_CEILING - 6}))[1])
+    monkeypatch.setattr(cq, "CW_FX_CAP", 1)                                            # fx_cap
+    _take(_x_run(children=(X_CAD, X_CNY),
+                 fx={"cny_usd": _x_fx_rows(),
+                     "cad_usd": _x_fx_rows(v1=1.10, unit="CAD per USD")})[1])
+    monkeypatch.undo()
+    monkeypatch.setattr(cq, "_registry",
+                        lambda: (_ for _ in ()).throw(RuntimeError("no card")))        # read_error
+    _take(_x_run()[1])
+    monkeypatch.undo()
+    monkeypatch.setattr(cq, "_cw_marker",                                              # block_fenced
+                        lambda order, context=False, fx=False:
+                        "CASCADE EPISODE WALK: momentum is accelerating into 2027")
+    _take(_x_run()[1])
+    monkeypatch.undo()
+    assert seen >= {"replay", "grain_thin", "cache_declined", "budget_cap", "fx_cap",
+                    "no_card", "block_fenced"}
+    assert seen <= set(cq._CW_FX_DECLINES), sorted(seen - set(cq._CW_FX_DECLINES))
+
+
+def test_the_context_rider_budgets_against_the_REGIME_ceiling_under_deep():
+    """V2-3 fix re-review minor 6: FIX-4 made `_cw_slack` budget BOTH riders against the regime's
+    own ceiling, and the deep golden's only moved fixture was the CONTEXT cell -- admitted where it
+    used to decline budget_cap under forced deep. That move was recorded, not pinned. This is the
+    pin, the exact mirror of test_context_budget_is_subordinate_never_the_block one regime up: with a
+    2-cell board plan (6 reads) a wave spend of CW_DEEP_TURN_CEILING - 6 leaves zero slack and the
+    context cell declines budget_cap at zero reads while the walk still fires; one read of slack
+    admits it; and the OLD bare-60 boundary now ADMITS under deep, which is the whole point."""
+    req = {"focus_contract": ROOT, "context": True, "deep": True}
+    _ceil = cq.CW_DEEP_TURN_CEILING
+    assert _ceil == 80 and cq.CW_TURN_CEILING == 60
+    tight = _c_sg(trace_extra={"quantify_wave_reads": _ceil - 6})
+    lines, payload, calls, qfn, _s = _c_run(request=req, sg=tight)
+    assert payload["outcome"] == "fired"
+    assert not any(d["reason"] == "turn_budget_spent" for d in payload["declines"])
+    assert [d["reason"] for d in payload["context"]["declines"]] == ["budget_cap"]
+    assert payload["context"]["reads"] == 0 and not any("chicken_usd_t" in s for s in qfn.sql)
+    slack = _c_sg(trace_extra={"quantify_wave_reads": _ceil - 7})
+    _l2, p2, _c2, _q2, _s2 = _c_run(request=req, sg=slack)
+    assert p2["outcome"] == "fired" and p2["context"]["rendered"] == 1 and p2["context"]["reads"] == 1
+    old = _c_sg(trace_extra={"quantify_wave_reads": cq.CW_TURN_CEILING - 6})
+    _l3, p3, _c3, _q3, _s3 = _c_run(request=req, sg=old)
+    assert p3["context"]["rendered"] == 1 and p3["context"]["declines"] == []
+
