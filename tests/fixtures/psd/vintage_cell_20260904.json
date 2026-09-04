@@ -1,0 +1,32 @@
+{
+ "note": "silver_psd_attributes VINTAGE-FAN parity cell, measured on the FIRST honest-clock canonical object (2026-09-04, promote dfd6015b/105e8076). Under a bulk-union table a marketing year's vintages are the releases that TOUCHED it, dated from their own (Calendar_Year, Month) stamp; the retired rotation's thirteen dates per cell never existed.",
+ "measured_on": "2026-09-04",
+ "commodity": "soybeans_cbot",
+ "country": "United States",
+ "attribute": "Crush",
+ "vintages": {
+  "1998": [
+   "2014-04-09"
+  ],
+  "2004": [
+   "2016-08-12"
+  ],
+  "2010": [
+   "2014-11-10"
+  ],
+  "2023": [
+   "2026-04-09",
+   "2026-07-10"
+  ],
+  "2024": [
+   "2026-04-09",
+   "2026-07-10"
+  ],
+  "2025": [
+   "2026-05-12",
+   "2026-07-10",
+   "2026-08-12"
+  ]
+ },
+ "last_fully_registered_calendar_year": 2024
+}

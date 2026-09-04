@@ -164,9 +164,14 @@ AGGS = ["latest", "series"]
 PSD_ATTR_CELL_COMMODITY = "soybeans_cbot"
 PSD_ATTR_CELL_COUNTRY = "United States"
 PSD_ATTR_CELL_METRIC = "Crush"                       # byte-exact USDA label (L2-0 census); single unit
-PSD_ATTR_VINTAGE_CELLS = [("1998", "2001-06-30"),    # the month_code-0 era, read contemporaneously
-                          ("2010", "2011-01-15"),    # INSIDE MY2010's fan -> an EARLIER vintage wins
-                          ("2010", "2026-07-01")]    # the settled end of the SAME year -> the LATEST
+# R7b RE-DERIVED ON THE HONEST AXIS (2026-09-04, against the first canonical object; banked in
+# tests/fixtures/psd/vintage_cell_20260904.json). The retired pairs read EMPTY on two of three legs --
+# MY1998 @2001-06-30 and MY2010 @2011-01-15 both return 0 rows because a bulk-union table carries each
+# cell's LATEST print, known 2014-04-09 / 2014-11-10 -- and an empty leg matches vacuously. The honest
+# fan for this cell lives in 2026: MY2023's Crush was touched on 2026-04-09 and again on 2026-07-10.
+PSD_ATTR_VINTAGE_CELLS = [("1998", "2026-07-01"),    # the month_code-0 era's latest print (known 2014-04-09) -> 1 row
+                          ("2023", "2026-05-01"),    # INSIDE MY2023's honest fan -> the 2026-04-09 vintage wins
+                          ("2023", "2026-08-01")]    # past the whole fan -> the 2026-07-10 vintage (a DIFFERENT row)
 
 
 def _norm_value(v) -> str:

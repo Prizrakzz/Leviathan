@@ -162,11 +162,13 @@ def test_psd_attributes_vintage_cells_span_the_fan_by_the_producer_s_own_clock()
     # calendar year the as-ofs straddle, plus the month_code-0 anchor. The calendar
     # year is READ FROM THE AS-OFS, not assumed to equal the marketing year -- that
     # assumption is exactly what the retired rotation baked in.
-    fan_year = int(mid[:4])
-    assert all("%04d-%02d" % (fan_year, m) in cal for m in range(1, 13)), (
-        "the banked calendar must cover every month of %d for this premise to be measurable"
-        % fan_year
-    )
+    # THE CALENDAR PROPERTY (thirteen distinct dates, no tie) is measured at the LAST FULLY
+    # REGISTERED calendar year at or before the mid as-of: the current year is only registered
+    # through its newest WASDE, and a synthetic frame stamped past that month would RAISE (the
+    # clock refuses a stamp newer than the calendar), not measure anything. The REAL fan the two
+    # as-ofs straddle is asserted separately below, from the banked measurement of this cell.
+    fan_year = max(y for y in range(2006, int(mid[:4]) + 1)
+                   if all("%04d-%02d" % (y, m) in cal for m in range(1, 13)))
     frame = pd.DataFrame({
         "commodity_code": [code] * 13,
         "month_code":     list(range(13)),
@@ -180,12 +182,21 @@ def test_psd_attributes_vintage_cells_span_the_fan_by_the_producer_s_own_clock()
     # produce (registered days over 2006+ are 8..14).
     assert len(set(dates)) == 13
     assert dates.count("%04d-01-01" % my) == 1
-    assert any(d <= mid for d in dates) and any(d > mid for d in dates), (
-        f"the mid-fan as-of {mid} must sit STRICTLY inside MY{my}'s vintage span {dates[0]}..{dates[-1]}"
-    )
-    assert all(d <= settled for d in dates), f"the settled as-of {settled} must be past the whole fan"
-    # ...and the two as-ofs must therefore select DIFFERENT vintages of the same cell.
-    assert max(d for d in dates if d <= mid) != max(d for d in dates if d <= settled)
+    # THE REAL FAN, from the banked measurement of this cell on the first honest-clock canonical
+    # object (R7b, 2026-09-04): every leg must return rows (an EMPTY leg matches vacuously on both
+    # backends -- the hazard the retired pairs fell into), and the two modern as-ofs must select
+    # DIFFERENT real vintages of the same cell, or the fan never MOVES.
+    banked = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "psd"
+                         / "vintage_cell_20260904.json").read_text(encoding="ascii"))
+    assert banked["commodity"] == parity.PSD_ATTR_CELL_COMMODITY
+    assert banked["attribute"] == parity.PSD_ATTR_CELL_METRIC
+    real = banked["vintages"]
+    for my_s, asof in cells:
+        assert any(v <= asof for v in real[my_s]), (
+            f"leg MY{my_s} @{asof} would return NO rows: this cell's honest vintages are {real[my_s]}")
+    mod_v = real[str(my)]
+    assert max(v for v in mod_v if v <= mid) != max(v for v in mod_v if v <= settled), (
+        f"the two modern as-ofs {mid} / {settled} select the SAME real vintage of MY{my} ({mod_v})")
 
 
 def test_psd_attributes_cell_compiles_to_one_deterministically_ordered_row():
