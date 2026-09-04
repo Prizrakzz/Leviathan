@@ -807,21 +807,21 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     RE-ANCHORED AN EIGHTH TIME (2026-09-01): four keys APPENDED after THAT -- xc_open_pair +
     xc_open_decline (the D-XT build, 08-29), then xc_regional_decline + quantify_rv_reading_fenced
     (the RV lane, 08-29). Tail moved by four; the invariant is again unchanged."""
-    assert tk.TRACE_RECORD_KEYS[-15] == "wrong_slot_audit"
-    assert tk.TRACE_RECORD_KEYS[-14] == "slot_orphan_dropped"
-    assert tk.TRACE_RECORD_KEYS[-13] == "episode_spans_validated"
-    assert tk.TRACE_RECORD_KEYS[-12] == "plan_tokens"
-    assert tk.TRACE_RECORD_KEYS[-11] == "evidence_slot_dropped"
-    assert tk.TRACE_RECORD_KEYS[-10] == "evidence_geo_dropped"
-    assert tk.TRACE_RECORD_KEYS[-9] == "tables_queried"
-    assert tk.TRACE_RECORD_KEYS[-8] == "timing_ms"
-    assert tk.TRACE_RECORD_KEYS[-7] == "xc_open_pair"
-    assert tk.TRACE_RECORD_KEYS[-6] == "xc_open_decline"
-    assert tk.TRACE_RECORD_KEYS[-5] == "xc_regional_decline"
-    assert tk.TRACE_RECORD_KEYS[-4] == "quantify_rv_reading_fenced"
-    assert tk.TRACE_RECORD_KEYS[-3] == "quantify_derived_fenced"    # D-DA append, 09-01
-    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application)
-    assert tk.TRACE_RECORD_KEYS[-1] == "quantify_wave_reads"      # A2 wave counter, same commit
+    assert tk.TRACE_RECORD_KEYS[-17] == "wrong_slot_audit"
+    assert tk.TRACE_RECORD_KEYS[-16] == "slot_orphan_dropped"
+    assert tk.TRACE_RECORD_KEYS[-15] == "episode_spans_validated"
+    assert tk.TRACE_RECORD_KEYS[-14] == "plan_tokens"
+    assert tk.TRACE_RECORD_KEYS[-13] == "evidence_slot_dropped"
+    assert tk.TRACE_RECORD_KEYS[-12] == "evidence_geo_dropped"
+    assert tk.TRACE_RECORD_KEYS[-11] == "tables_queried"
+    assert tk.TRACE_RECORD_KEYS[-10] == "timing_ms"
+    assert tk.TRACE_RECORD_KEYS[-9] == "xc_open_pair"
+    assert tk.TRACE_RECORD_KEYS[-8] == "xc_open_decline"
+    assert tk.TRACE_RECORD_KEYS[-7] == "xc_regional_decline"
+    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_rv_reading_fenced"
+    assert tk.TRACE_RECORD_KEYS[-5] == "quantify_derived_fenced"    # D-DA append, 09-01
+    assert tk.TRACE_RECORD_KEYS[-4] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application)
+    assert tk.TRACE_RECORD_KEYS[-3] == "quantify_wave_reads"      # A2 wave counter, same commit
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)

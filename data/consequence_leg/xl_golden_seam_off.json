@@ -1,0 +1,962 @@
+{
+ "what": "D-XL FLAG-OFF SEAM GOLDEN -- the planner surface, the answer-seam signatures and kwarg-assembly block, the _system deck and the resolved off-state, measured with every GRAPHRAG_* name absent. Wraps nothing: cq.quantify cannot be rewrapped without flooring the live-path deck (10 reds on a pure no-op, measured).",
+ "basis": "HEAD 9f928623 (product surface identical to 6679c154: HEAD touches only infra/terraform/envs/dev/variables.tf)",
+ "collector": "one clean-env python subprocess, no pytest, no wrapping",
+ "bank_sha256": "5eaaff55798c52c6e77ead25d3d5250ee823b557eb73c957463238d84bd6d407",
+ "sections": [
+  "flags_off",
+  "negative_pins",
+  "plan_fields",
+  "plan_tool",
+  "planner_sys",
+  "seam_block",
+  "seam_kwarg_keys_off",
+  "signatures",
+  "system_deck"
+ ],
+ "how_the_gate_uses_it": "re-run with GRAPHRAG_EXTREME_LOCATOR unset after the build; every section must reproduce EXACTLY except the two the build itself creates and which the pin checks rather than forbids: `signatures` gains its appended TAIL parameters, and `negative_pins` flips to minted",
+ "bank": {
+  "flags_off": {
+   "_cascade_context_on": false,
+   "_cascade_deep_on": false,
+   "_cascade_walk_on": false,
+   "_cascade_xccy_on": false,
+   "_chain_on": false,
+   "_comove_on": false,
+   "_composition_census_on": false,
+   "_cot_outcomes_on": false,
+   "_derived_arith_on": false,
+   "_episode_outcomes_on": false,
+   "_episode_scaffold_on": false,
+   "_futures_newest_first_on": false,
+   "_handle_menu_on": true,
+   "_headline_on": false,
+   "_intensity_on": false,
+   "_outlook_on": false,
+   "_pace_leg_on": false,
+   "_pattern_records_on": false,
+   "_price_leg_on": false,
+   "_recency_stamp_on": false,
+   "_rv_reading_on": false,
+   "_rv_regional_on": false,
+   "_series_newest_first_on": true,
+   "_timeline_on": false,
+   "_tldr_coherence_on": false,
+   "_transmission_on": false
+  },
+  "negative_pins": {
+   "leviathan.graphrag.answer._extreme_locator_block_on": false,
+   "leviathan.graphrag.answer._extreme_locator_on": false,
+   "leviathan.graphrag.answer._record_from": false,
+   "leviathan.graphrag.config_check.check_extreme_locator": false,
+   "leviathan.graphrag.dispatch._xl_block": false,
+   "leviathan.graphrag.numbers.cascade.XL_BOARD_LABEL": false,
+   "leviathan.graphrag.numbers.cascade.XL_CAP": false,
+   "leviathan.graphrag.numbers.query.EXTREME_ROW_AGGS": false,
+   "leviathan.graphrag.numbers.stats.EXTREME_TIE_RULE": false,
+   "leviathan.graphrag.numbers.stats.extreme_locator": false,
+   "leviathan.graphrag.orchestrator._extreme_locator_decision": false
+  },
+  "plan_fields": [
+   [
+    "steps",
+    "list[str]",
+    "__MISSING__"
+   ],
+   [
+    "contracts",
+    "list[str]",
+    "__MISSING__"
+   ],
+   [
+    "asof",
+    "str | None",
+    "None"
+   ],
+   [
+    "near",
+    "str | None",
+    "None"
+   ],
+   [
+    "country",
+    "str | None",
+    "None"
+   ],
+   [
+    "xc_explicit",
+    "bool",
+    "False"
+   ],
+   [
+    "xc_target",
+    "str | None",
+    "None"
+   ],
+   [
+    "answer_mode_outlook",
+    "bool",
+    "False"
+   ],
+   [
+    "evidence_shape",
+    "bool",
+    "False"
+   ],
+   [
+    "degraded",
+    "bool",
+    "False"
+   ],
+   [
+    "data_families",
+    "list[str]",
+    "__MISSING__"
+   ],
+   [
+    "fallback",
+    "bool",
+    "False"
+   ]
+  ],
+  "plan_tool": {
+   "empty_mc2": {
+    "len": 3437,
+    "sha256": "bbc5a0135495bd5c99a851964c37c4d14a60273f3c5c3a4e139248ae96a81f21"
+   },
+   "six_ids_mc6": {
+    "len": 3518,
+    "sha256": "bcdef1f29c2ed48b42ceaa35cc0a34febc7a41465c00e96d5af615177f1925aa"
+   },
+   "two_ids_mc2": {
+    "len": 3460,
+    "sha256": "76df9adb18e07d2854f6b74dc2118d448e525eb32ddd7c8b6e9a5570608a285a"
+   }
+  },
+  "planner_sys": {
+   "PLANNER_SYS_equals_default": true,
+   "PLANNER_SYS_sha256": "3b931ac7ce742ed976e84e21f5bb923de8a98053d36f6273ec1963adb3158dcd",
+   "default_len": 26595,
+   "default_sha256": "3b931ac7ce742ed976e84e21f5bb923de8a98053d36f6273ec1963adb3158dcd",
+   "renders": {
+    "mc1_xc0": {
+     "len": 26595,
+     "sha256": "47175e39db5dbdc5777c64f2f91c392512f2b2c0270afe27d8a3f11e7505f71d"
+    },
+    "mc1_xc1": {
+     "len": 30134,
+     "sha256": "6734d7bbef4030bef15c5db9e7875a5bfc4833c8434ae3782c6d74cbc5e8e595"
+    },
+    "mc2_xc0": {
+     "len": 26595,
+     "sha256": "3b931ac7ce742ed976e84e21f5bb923de8a98053d36f6273ec1963adb3158dcd"
+    },
+    "mc2_xc1": {
+     "len": 30134,
+     "sha256": "c96928d6113feffa3cb2778e0d73a8701575ee33c900cc61c1ec17de02a3958a"
+    },
+    "mc3_xc0": {
+     "len": 26595,
+     "sha256": "5f7935d66666b39a8d1c26aa6cdb9c7844077c9d327961a93ff276f2bf86f637"
+    },
+    "mc3_xc1": {
+     "len": 30134,
+     "sha256": "d698559cb0e59796674b2dae59a5734124f67f65d72395221dfba249d782639e"
+    },
+    "mc4_xc0": {
+     "len": 26595,
+     "sha256": "c3a449d32eabc8cdf6c3dc7e444c62bbde4c98a60fd6cbc888d0d562a385ca28"
+    },
+    "mc4_xc1": {
+     "len": 30134,
+     "sha256": "5c14d7e59bc4671f8d95c8f6c97bbdcdda0e05dac33892d645ff01a8e6673ae1"
+    },
+    "mc5_xc0": {
+     "len": 26595,
+     "sha256": "2685bcf0d566477a03faa924bc063159fc63672d6ab3f0cc7d8699eb5a306fd6"
+    },
+    "mc5_xc1": {
+     "len": 30134,
+     "sha256": "7927432572520190c06c51f118cf93441e40bc0af6d9a13a6fdef08c183bddbe"
+    },
+    "mc6_xc0": {
+     "len": 26595,
+     "sha256": "96caa92b49bceff5c8093d55e4d7ce3973e3e00fce58c1d307e1eab1b63fc75b"
+    },
+    "mc6_xc1": {
+     "len": 30134,
+     "sha256": "0d0523c8eb249479bc147fcfd20c0a4a98516341986825380bd720956d6d78a1"
+    }
+   }
+  },
+  "seam_block": {
+   "end_anchor": "**_dv_kw, **_cw_kw)",
+   "len": 8399,
+   "n_lines": 98,
+   "sha256": "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074",
+   "start_anchor": "_pace_kw = {\"pace\": True} if _pace_leg_on() else {}"
+  },
+  "seam_kwarg_keys_off": {
+   "always_passed": [
+    "qfn",
+    "asof",
+    "near",
+    "extra_number_calls",
+    "xc_request",
+    "comove",
+    "price_request"
+   ],
+   "asof_dependent_not_env": [
+    "price_replay"
+   ],
+   "keys": [
+    "futures_newest_first"
+   ]
+  },
+  "signatures": {
+   "answer._answer_l2": [
+    [
+     "query",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "graph",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "model",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "asof",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "near",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "call",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "retrieve",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "routed",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "extra_context",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "extra_number_calls",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "extra_resolver",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "focus_driver",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "use_blocks",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "silver_lookup",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "on_stage",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "numbers_lookup",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "xc_request",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "outlook",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "response_contract",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "mode_knobs",
+     "KEYWORD_ONLY",
+     "None"
+    ]
+   ],
+   "answer._system": [
+    [
+     "outlook",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "episodes",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "recency",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "response_contract",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "budget",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "census",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "provenance",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "handles",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "cascade_walk",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "cascade_context",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "cascade_deep",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "cascade_xccy",
+     "KEYWORD_ONLY",
+     "False"
+    ]
+   ],
+   "answer.answer": [
+    [
+     "query",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "graph",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "model",
+     "KEYWORD_ONLY",
+     "'claude-sonnet-4-6'"
+    ],
+    [
+     "k",
+     "KEYWORD_ONLY",
+     "5"
+    ],
+    [
+     "asof",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "near",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "max_contracts",
+     "KEYWORD_ONLY",
+     "2"
+    ],
+    [
+     "retrieve",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "call",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "route_fn",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "driver_retrieve",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "extra_context",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "extra_number_calls",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "extra_resolver",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "planner",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "focus_driver",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "silver_lookup",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "on_stage",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "numbers_lookup",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "xc_request",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "outlook",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "response_contract",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "mode_knobs",
+     "KEYWORD_ONLY",
+     "None"
+    ]
+   ],
+   "cascade.quantify": [
+    [
+     "sg",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "graph",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "qfn",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "asof",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "near",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "extra_number_calls",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "xc_request",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "comove",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "price_request",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "pace",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "chain",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "transmission",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "outlook",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "headline",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "episode_outcomes",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "cot_outcomes",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "futures_newest_first",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "price_replay",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "rv_reading",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "rv_regional",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "derived_arith",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "cascade_walk",
+     "KEYWORD_ONLY",
+     "None"
+    ]
+   ],
+   "dispatch._plan_tool": [
+    [
+     "contract_ids",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "max_contracts",
+     "POSITIONAL_OR_KEYWORD",
+     "2"
+    ]
+   ],
+   "dispatch._validate": [
+    [
+     "out",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "contract_ids",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "max_contracts",
+     "POSITIONAL_OR_KEYWORD",
+     "2"
+    ]
+   ],
+   "dispatch.plan_turn": [
+    [
+     "query",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "graph",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "state_block",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "today",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "state_contracts",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "call",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "model",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "max_contracts",
+     "KEYWORD_ONLY",
+     "2"
+    ],
+    [
+     "xc_open",
+     "KEYWORD_ONLY",
+     "False"
+    ]
+   ],
+   "dispatch.planner_sys": [
+    [
+     "max_contracts",
+     "POSITIONAL_OR_KEYWORD",
+     "2"
+    ],
+    [
+     "xc_open",
+     "KEYWORD_ONLY",
+     "False"
+    ]
+   ],
+   "orchestrator.run_hybrid": [
+    [
+     "query",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "asof",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "graph",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "call",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "retrieve",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "model",
+     "KEYWORD_ONLY",
+     "'claude-sonnet-4-6'"
+    ],
+    [
+     "client",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "numbers_model",
+     "KEYWORD_ONLY",
+     "'claude-haiku-4-5'"
+    ],
+    [
+     "query_fn",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "planner",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "extra_context",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "route_fn",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "near",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "silver_lookup",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "on_stage",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "focus_driver",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "xc_request",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "outlook",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "numbers_query",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "families",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "response_contract",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "mode_knobs",
+     "KEYWORD_ONLY",
+     "None"
+    ]
+   ],
+   "orchestrator.run_reasoning": [
+    [
+     "query",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "asof",
+     "POSITIONAL_OR_KEYWORD",
+     "__EMPTY__"
+    ],
+    [
+     "graph",
+     "KEYWORD_ONLY",
+     "__EMPTY__"
+    ],
+    [
+     "call",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "retrieve",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "model",
+     "KEYWORD_ONLY",
+     "'claude-sonnet-4-6'"
+    ],
+    [
+     "planner",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "extra_context",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "route_fn",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "near",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "silver_lookup",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "on_stage",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "focus_driver",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "qfn",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "xc_request",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "outlook",
+     "KEYWORD_ONLY",
+     "False"
+    ],
+    [
+     "response_contract",
+     "KEYWORD_ONLY",
+     "None"
+    ],
+    [
+     "mode_knobs",
+     "KEYWORD_ONLY",
+     "None"
+    ]
+   ]
+  },
+  "system_deck": {
+   "all_off": {
+    "len": 21163,
+    "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
+   },
+   "budget": {
+    "len": 21163,
+    "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
+   },
+   "cascade_context": {
+    "len": 21163,
+    "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
+   },
+   "cascade_deep": {
+    "len": 21163,
+    "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
+   },
+   "cascade_walk": {
+    "len": 21163,
+    "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
+   },
+   "cascade_xccy": {
+    "len": 21163,
+    "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
+   },
+   "episodes_false": {
+    "len": 21163,
+    "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
+   },
+   "episodes_true": {
+    "len": 29791,
+    "sha256": "f5c7750107a96c5bdd8096786c6d4bce26f05765e0d0b8747ac666a91c330ffb"
+   },
+   "handles": {
+    "len": 28374,
+    "sha256": "a49324ad37a61a9945bb5abcca298fd58fbd4837f03c0615d7f79dcada3867fb"
+   },
+   "outlook": {
+    "len": 25806,
+    "sha256": "c97e2c911bef7ed4a58ae605c5764e05920137ebfb967efcdddd08ddc0cf8fb0"
+   },
+   "prod_rev127": {
+    "len": 21163,
+    "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
+   },
+   "provenance": {
+    "len": 21657,
+    "sha256": "fbe493811bdc1387634c95c2afc4097c50fb37d3173ad19eac8b37152c6e09ef"
+   },
+   "recency": {
+    "len": 21847,
+    "sha256": "0e09c460020350c76227cc3d447931eb96a8eeefdece752cce4f02df05ffdf6e"
+   },
+   "response_contract": {
+    "len": 21163,
+    "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
+   }
+  }
+ }
+}

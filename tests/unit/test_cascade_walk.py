@@ -1297,8 +1297,14 @@ def test_context_constants_and_map_pins():
     assert set(cq._CW_CONTEXT_DECLINES) >= {"error", "no_unit", "no_release_stamp", "budget_cap",
                                             "context_cap", "replay", "grain_thin", "render_fence",
                                             "root_declined", "unmapped_slice"}
-    assert tk.TRACE_RECORD_KEYS[-1] == "quantify_wave_reads"
-    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_cascade_walk"
+    # D-XL RE-ANCHOR (2026-09-04), by exactly TWO and never loosened -- the 13th application of
+    # the tail-append law: the locator appends `quantify_extreme_locator` and
+    # `extreme_second_hop`, so every negative-index pin on this tuple moves in by two while its
+    # VALUE is unchanged. The two new names are pinned here rather than left as "whatever is
+    # last", because an unnamed tail pin cannot tell an append from a sort.
+    assert tk.TRACE_RECORD_KEYS[-2:] == ("quantify_extreme_locator", "extreme_second_hop")
+    assert tk.TRACE_RECORD_KEYS[-3] == "quantify_wave_reads"
+    assert tk.TRACE_RECORD_KEYS[-4] == "quantify_cascade_walk"
     assert not any("context" in k for k in tk.TRACE_RECORD_KEYS)   # NO new trace key: the ledger rides inside
     assert not any("deep" in k for k in tk.TRACE_RECORD_KEYS)      # V2-5: same law, same ledger
     src = open(cq.__file__, encoding="utf-8").read()
@@ -1348,8 +1354,12 @@ def test_cw_context_rendered_expect_key_negative_branch():
     from leviathan.graphrag import eval as EV
     # V2-3 RE-ANCHOR: the tail-append law made EXPLICIT rather than shifted -- the new key lands at
     # the tail and the context key keeps its position one in from it.
-    assert EV._CASCADE_EXPECT[-1] == "cw_xccy_rendered"
-    assert EV._CASCADE_EXPECT[-2] == "cw_context_rendered"
+    # D-XL RE-ANCHOR (2026-09-04), by exactly THREE and never loosened: the locator appends
+    # xl_rendered / xl_date_cited / xl_hop_rendered at the tail, so the two walk keys move from
+    # [-1]/[-2] to [-4]/[-5] and the three new ones are pinned by name in their own order.
+    assert EV._CASCADE_EXPECT[-3:] == ("xl_rendered", "xl_date_cited", "xl_hop_rendered")
+    assert EV._CASCADE_EXPECT[-4] == "cw_xccy_rendered"
+    assert EV._CASCADE_EXPECT[-5] == "cw_context_rendered"
     empty = {"citations": [], "trace": {}, "structured": None, "answer": ""}
     assert EV._cascade_asserts({"expect": {"cw_context_rendered": False}}, empty)["cw_context_rendered"] is True
     assert EV._cascade_asserts({"expect": {"cw_context_rendered": True}}, empty)["cw_context_rendered"] is False
@@ -2235,8 +2245,11 @@ def test_the_eval_projections_read_the_deep_ledger_without_re_deriving_it():
     assert off["cw_deep_on"] is False and off["cw_deep_identity_ok"] is True
     assert off["cw_child_identity_ok"] is True and off["cw_plan_reads"] is None
     # _CASCADE_EXPECT is NOT edited: every new key is an ARTIFACT projection, never a deck word
-    assert EV._CASCADE_EXPECT[-1] == "cw_xccy_rendered"        # V2-3 re-anchor
-    assert EV._CASCADE_EXPECT[-2] == "cw_context_rendered"
+    # D-XL RE-ANCHOR, by exactly THREE and never loosened (xl_rendered / xl_date_cited /
+    # xl_hop_rendered appended at the tail); the two walk keys keep their VALUES.
+    assert EV._CASCADE_EXPECT[-3:] == ("xl_rendered", "xl_date_cited", "xl_hop_rendered")
+    assert EV._CASCADE_EXPECT[-4] == "cw_xccy_rendered"        # V2-3 re-anchor
+    assert EV._CASCADE_EXPECT[-5] == "cw_context_rendered"
     assert not any("deep" in k for k in EV._CASCADE_EXPECT)
 
 
@@ -2842,6 +2855,184 @@ def test_g1d_the_deep_on_xccy_off_population_reproduces_the_banked_deep_golden()
     # status is context, never the gate; the NATIVE pass is the one that must be green
     assert new["forced"]["pytest_exitstatus"] != 0
     assert _native_exit[0] == 0, _native_exit[1]
+
+
+# -- G1x AS A SUITE PIN: the D-XL LOCATOR flag-off SEAM gate, banked BEFORE the extreme-locator ----
+def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
+    """THE THIRD BYTE-IDENTITY LAW (D-XL phase 1), and the one neither sibling above can see.
+
+    G1 and G1d both wrap `_cascade_walk_leg_or_nothing`. D-XL DOES NOT TOUCH THAT FUNCTION. It edits
+    the PLANNER CONSTITUTION (dispatch.planner_sys / _plan_tool / Plan / _validate / plan_turn), the
+    ANSWER SEAM (`_answer_l2`'s kwarg-assembly block, `answer`, `_system`), the ORCHESTRATOR THREAD
+    (run_reasoning / run_hybrid) and `quantify`'s own signature. With GRAPHRAG_EXTREME_LOCATOR absent
+    every one of those must render the bytes it renders today, and nothing in the estate would
+    notice if one moved -- which is what this bank is for.
+
+    IT WRAPS NOTHING, AND THAT IS A MEASUREMENT RATHER THAN A PREFERENCE. `cq.quantify` cannot be
+    instrumented: a pure identity no-op rewrap (`_ORIG = cq.quantify; _w = wraps(_ORIG)(lambda *a,
+    **k: _ORIG(*a, **k)); cq.quantify = _w`), recording nothing at all, reds 10 tests across the
+    live-path deck -- test_f7_stage_events.py floors its reasoning turn and loses every stage event,
+    so `names.index("walk")` raises ValueError. Those seven suites are 329/329 GREEN without it, and
+    deferring the import and patch to the first `pytest_runtest_setup` reproduces the same 10 reds,
+    so it is the REBINDING, not the import order. A producer whose own instrument reds the deck is
+    not a gate (G1d's own law: the native pass must be green). So the producer OBSERVES the seam
+    statically and purely instead, which is exactly what an ADDITIVE build needs: every D-XL seam
+    edit is an added parameter, prompt block, schema property or kwarg line.
+
+    WHAT IT JOINS, from data/consequence_leg/xl_golden_seam_bank.py ->
+    data/consequence_leg/xl_golden_seam_off.json:
+      planner_sys        12 renders (max_contracts 1..6 x xc_open False/True) + the default + the
+                         `PLANNER_SYS == planner_sys()` identity -- E1/E2's blast radius.
+      plan_tool          three roster states serialized canonically -- E3 claims an empty roster
+                         leaves the schema JSON byte-identical; this is where that is checked.
+      plan_fields        Plan's fields as an ORDERED (name, type, default) tuple -- E4 appends five
+                         at the TAIL, so anything landing elsewhere moves this list.
+      signatures         ten ordered parameter lists -- E5/E6/E11/E12/E18/E32 all append.
+      seam_block         the kwarg-assembly block's source bytes, located by ANCHOR LINES (never by
+                         line number: E1-E15 insert above it) -- E16 inserts INTO it.
+      system_deck        14 `_system` renders -- E18's "DEFAULT FALSE so every existing caller is
+                         byte-identical".
+      flags_off /        the resolved off-state and the kwarg key set the seam hands `quantify`.
+      seam_kwarg_keys_off
+      negative_pins      the 11 names D-XL MINTS, every one absent at HEAD. A negative pin that never
+                         had a moment of being true is not a pin; this is that moment.
+
+    THE ENV IS STRIPPED IN THE PRODUCER'S CHILD PROCESS, so a runner that exported a GRAPHRAG_* flag
+    cannot bank its own shell. VERIFIED at bank time: three bare runs and one run with
+    GRAPHRAG_EXTREME_LOCATOR=on + CASCADE_WALK=on + CASCADE_DEEP=on exported all produced the SAME
+    sha. This pin pops the locator flag anyway, to say which read would have mattered.
+
+    AFTER THE BUILD, TWO SECTIONS ARE EXPECTED TO MOVE, AND THIS PIN CHECKS THEM RATHER THAN
+    FORBIDDING THEM: `signatures` gains its appended TAIL parameters, and `negative_pins` flips to
+    minted. EVERY OTHER SECTION IS UNCHANGED OR THE FLAG LEAKED. Re-anchor on a named measurement,
+    never by loosening the join.
+
+    RECURSION IS CLOSED BY THE V2-5 SENTINEL: both sibling producers run this whole suite in a
+    subprocess, so without the sentinel this pin would fire three extra times inside their inner runs
+    and measure nothing. COST: one clean-env import, ~5 seconds, $0, offline, no AWS."""
+    import hashlib
+    import json
+    import os
+    import subprocess
+    import sys
+    import tempfile
+
+    if os.environ.get("V25_GOLDEN_INNER") == "1":
+        pytest.skip("inner golden-bank run -- a producer's own subprocess, never re-entered")
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    bank_path = os.path.join(repo, "data", "consequence_leg", "xl_golden_seam_off.json")
+    producer = os.path.join(repo, "data", "consequence_leg", "xl_golden_seam_bank.py")
+    assert os.path.exists(bank_path) and os.path.exists(producer)
+    out = os.path.join(tempfile.mkdtemp(prefix="xlg1x_"), "post.json")
+    env = dict(os.environ, XL_GOLDEN_OUT=out)
+    env.pop("GRAPHRAG_EXTREME_LOCATOR", None)   # THE FLAG IS OFF -- that is the gate. (The producer
+    #                                             strips every GRAPHRAG_* in its own child anyway;
+    #                                             this pop names the read that would have mattered.)
+    proc = subprocess.run([sys.executable, producer], cwd=repo, env=env,
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, (proc.stdout or "")[-2000:] + (proc.stderr or "")[-2000:]
+    old = json.load(open(bank_path, encoding="utf-8"))
+    new = json.load(open(out, encoding="utf-8"))
+    ob, nb = old["bank"], new["bank"]
+
+    # THE SECTIONS THAT MUST NOT MOVE AT ALL, named one by one so a failure says WHICH surface
+    # drifted rather than "the sha changed".
+    #
+    # RE-ANCHORED 2026-09-04 BY THE D-XL BUILD, ON NAMED MEASUREMENTS AND NEVER BY LOOSENING. Phase 1
+    # listed seven sections here, and THREE of them were always going to move -- the producer's own
+    # docstring said so in the same breath ("E4 appends five fields at the TAIL", "E16 inserts INTO
+    # this block", and every `_*_on` helper D-XL mints lands in the flags census). Leaving them in this
+    # list would have made the pin fail on the build it was written to gate. So each of the three is
+    # moved BELOW and re-anchored on the EXACT shape of its own change: `plan_fields` must be the
+    # banked list with the seven D-XL fields spliced immediately before `fallback` and nothing else
+    # touched; `seam_block` must be byte-identical to the bank ONCE the D-XL insertion is cut out
+    # (`sans_xl_sha256`, computed by the producer); `flags_off` must be the banked map plus exactly the
+    # D-XL helper names, every one of them False. The four that remain here are the ones the build
+    # promises never to move at all.
+    for section in ("planner_sys", "plan_tool", "system_deck", "seam_kwarg_keys_off"):
+        assert nb[section] == ob[section], section
+
+    # plan_fields: an APPEND AT THE TAIL, before `fallback`. Anything landing elsewhere fails.
+    _of = [f[0] for f in ob["plan_fields"]]
+    _nf = [f[0] for f in nb["plan_fields"]]
+    assert _of[-1] == "fallback" and _nf[-1] == "fallback", (_of[-1], _nf[-1])
+    assert _nf[:len(_of) - 1] == _of[:-1], (_of, _nf)          # every banked field, in order, unmoved
+    _added = _nf[len(_of) - 1:-1]
+    assert _added in ([], ["price_extreme", "xl_kind", "xl_board", "xl_direction", "xl_since",
+                           "xl_scope", "xl_confidence"]), _added
+    # ...and their TYPES and DEFAULTS, so an appended field cannot be a required one
+    for name, typ, dflt in nb["plan_fields"][len(_of) - 1:-1]:
+        assert dflt in ("False", "None"), (name, typ, dflt)
+
+    # seam_block: byte-identical to the bank ONCE the D-XL kwarg block is cut out. This is the whole
+    # of "E16 inserted a kwarg and moved nothing else", measured rather than promised.
+    assert nb["seam_block"]["sans_xl_sha256"] == ob["seam_block"]["sha256"], "the seam block moved by "\
+        "more than the D-XL insertion"
+    # the end anchor moves with the LAST kwarg the seam expands; the recovery above is what makes
+    # that safe, so the pin names the two it accepts rather than accepting any string.
+    assert nb["seam_block"]["end_anchor"] in (ob["seam_block"]["end_anchor"], "**_eod_kw)")
+
+    # flags_off: the banked map, plus EXACTLY the D-XL helpers, every one False. A pre-existing flag
+    # whose OFF value moved is the flag leaking, which is what this whole bank is for.
+    for k, v in ob["flags_off"].items():
+        assert nb["flags_off"][k] == v, (k, v, nb["flags_off"].get(k))
+    _newflags = sorted(set(nb["flags_off"]) - set(ob["flags_off"]))
+    assert _newflags in ([], ["_extrema_own_date_on", "_extreme_locator_on", "_xl_kind_extreme_on",
+                              "_xl_kind_windowed_on", "_xl_lane_promote_on",
+                              "_xl_superlative_strip_on"]), _newflags
+    assert all(nb["flags_off"][k] is False for k in _newflags), _newflags
+
+    # ...and the specific facts inside them, so the bank cannot be re-anchored into vacuity
+    assert len(ob["planner_sys"]["renders"]) == 12
+    assert ob["planner_sys"]["PLANNER_SYS_equals_default"] is True
+    assert nb["planner_sys"]["PLANNER_SYS_equals_default"] is True
+    # the planner constitution's own bytes, pinned to the LITERAL -- E1 inserts the XL block
+    # producer immediately before `planner_sys`, and with the roster empty this must not move
+    assert ob["planner_sys"]["default_sha256"] == (
+        "3b931ac7ce742ed976e84e21f5bb923de8a98053d36f6273ec1963adb3158dcd")
+    assert ob["planner_sys"]["default_len"] == 26595
+    assert len(ob["plan_tool"]) == 3 and len(ob["system_deck"]) == 14
+    assert ob["seam_block"]["sha256"] == (
+        "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074")
+    assert ob["seam_block"]["len"] == 8399 and ob["seam_block"]["n_lines"] == 98
+    # ...and the LITERAL the re-anchor above rests on: the fresh block, D-XL insertion removed, must
+    # hash to the banked HEAD block. Pinned to the constant so a future edit cannot re-bank into it.
+    assert nb["seam_block"]["sans_xl_sha256"] == (
+        "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074")
+    # the OFF-state kwarg key set: `futures_newest_first` alone (its `_series_newest_first_on`
+    # half defaults ON estate-wide), and E16 must not add a key to it
+    assert ob["seam_kwarg_keys_off"]["keys"] == ["futures_newest_first"]
+    assert "extreme_locator" not in ob["seam_kwarg_keys_off"]["keys"]
+    assert "extreme_locator" not in nb["seam_kwarg_keys_off"]["keys"]
+
+    # SIGNATURES: every banked parameter must still be present, IN ORDER, as a PREFIX of the fresh
+    # one. That is precisely "appended at the TAIL so no existing keyword moves" (E12, E32) -- an
+    # append passes, an insertion or a reorder fails, and the build is not forced to re-bank.
+    for fn, params in ob["signatures"].items():
+        fresh = nb["signatures"][fn]
+        assert fresh[:len(params)] == params, (fn, params, fresh[:len(params)])
+
+    # NEGATIVE PINS: absent at HEAD. After the build they flip to minted -- checked, not forbidden.
+    assert len(ob["negative_pins"]) == 11
+    assert set(ob["negative_pins"].values()) == {False}, ob["negative_pins"]
+    assert set(nb["negative_pins"]) == set(ob["negative_pins"])
+
+    # THE SHARPEST FORM, while the build has not landed: the whole-bank sha, with the producer's own
+    # serialization. Once D-XL lands, `signatures` and `negative_pins` move BY DESIGN and this
+    # equality is expected to be re-anchored on that named measurement -- the per-section asserts
+    # above are the ones that must hold on both sides of the build.
+    body = json.dumps(nb, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    fresh_sha = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    assert fresh_sha == new["bank_sha256"]           # the producer agrees with itself
+    if fresh_sha != old["bank_sha256"]:
+        moved = [s for s in ob if nb.get(s) != ob[s]]
+        # THE CLOSED SET OF SECTIONS THE D-XL BUILD IS PERMITTED TO MOVE, each re-anchored above on
+        # the exact shape of its own change. Anything else in this list is the flag leaking.
+        assert moved and set(moved) <= {"signatures", "negative_pins", "plan_fields", "seam_block",
+                                        "flags_off"}, moved
+    else:
+        assert fresh_sha == (
+            "5eaaff55798c52c6e77ead25d3d5250ee823b557eb73c957463238d84bd6d407")
 
 
 # ================================================================================================
@@ -3553,8 +3744,14 @@ def test_the_curation_rows_that_the_widened_ladder_makes_lint_required():
 
 def test_v23_registers_one_trace_key_and_the_ledger_rides_inside_it():
     from leviathan.graphrag import tracekeys as tk
-    assert tk.TRACE_RECORD_KEYS[-1] == "quantify_wave_reads"
-    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_cascade_walk"
+    # D-XL RE-ANCHOR (2026-09-04), by exactly TWO and never loosened -- the 13th application of
+    # the tail-append law: the locator appends `quantify_extreme_locator` and
+    # `extreme_second_hop`, so every negative-index pin on this tuple moves in by two while its
+    # VALUE is unchanged. The two new names are pinned here rather than left as "whatever is
+    # last", because an unnamed tail pin cannot tell an append from a sort.
+    assert tk.TRACE_RECORD_KEYS[-2:] == ("quantify_extreme_locator", "extreme_second_hop")
+    assert tk.TRACE_RECORD_KEYS[-3] == "quantify_wave_reads"
+    assert tk.TRACE_RECORD_KEYS[-4] == "quantify_cascade_walk"
     assert not any("xccy" in k or "fx" in k or "deep" in k for k in tk.TRACE_RECORD_KEYS)
 
 

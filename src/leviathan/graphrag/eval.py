@@ -193,6 +193,232 @@ def _call_grained_citations(out: dict) -> list[dict]:
     return [c for c in _num_citations(out) if _INT_CIT_ID_RX.fullmatch(str(c.get("id") or ""))]
 
 
+def _xl_sentences(prose: str) -> list[str]:
+    """SENTENCES, ON THE ESTATE'S OWN BOUNDARY -- `verify._SENT_SPLIT`, the module that mints every other
+    predicate this counter is built from.
+
+    IT SHIPPED AS A HAND-ROLLED `re.compile(r"[^.!?]+[.!?]?")` AND THAT REGEX CUT INSIDE DECIMAL FIGURES
+    (re-review NEW 1, MEASURED). On the leg's own canonical row -- soybean meal, value 554.4, rendered
+    '554.4' by the shipped `citations._fmt` -- a FULLY COMPLIANT transcription split at the decimal
+    point, the in-scope sentence became "4 USD/short ton on 2022-04-19 [N1], read from ...", no served
+    row backs 4.0, and `xl_threshold_echo` scored 1 ON A CORRECT ANSWER. K27c is the alias's declared
+    ZERO-TOLERANCE kill, so gating it at 0 would have redded a compliant turn on every board whose
+    extreme is sub-1000 and fractional -- and the mandate REQUIRES the figure be copied "as DIGITS
+    exactly as printed". The instrument measured itself.
+
+    `verify._SENT_SPLIT` is `(?<=[.!?;])\\s+`: it requires WHITESPACE after the terminator, so '554.4'
+    is never cut -- the same rule `verify._BOUND` states in the shipped verifier ("never a decimal point
+    (needs trailing space/EOL)"), which is the boundary the `number_unbacked` charge this counter mirrors
+    is actually made on. It also breaks on ';', which is the estate's settled CLAUSE scope
+    (`register._SENT_ITER`, the same pattern) and is the scope the mandate itself is written at: "put the
+    located DATE and the LEVEL in the SAME clause as the [N] handle".
+
+    THE CLAUSE SCOPE COSTS `_xl_threshold_echo` THE SEMICOLON-JOINED K27b EVASION (measured 1 -> 0 on
+    that shape alone; colon, comma, em-dash and single-clause all unchanged). It is DECLARED, not
+    restored: see that counter's docstring for the law and for the sibling instrument
+    (`register.unbacked_levels`) that charges the shape instead."""
+    from leviathan.graphrag import verify as _vf
+    return [s for s in _vf._SENT_SPLIT.split(prose or "") if s.strip()]
+
+
+def _xl_cite_values(c: dict) -> list[float]:
+    """The magnitudes ONE served citation's rows carry, at scale 1 -- the pool a sentence citing that
+    handle is entitled to state figures from."""
+    out: list[float] = []
+    for r in ((c or {}).get("payload") or {}).get("rows") or []:
+        try:
+            out.append(float(str((r or {}).get("value")).replace(",", "")))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+# ---- D-XL FIX PASS 3, NEW 1 (MAJOR): THE POOL IS THE HANDLE'S **FULL** SERVED ROW SET --------------
+# Fix pass 2 made the backing pool PER SENTENCE (re-review NEW 2) but built it from
+# `citations[].payload.rows`, which `citations.from_number` TRUNCATES to `rows[:3]` (citations.py:658).
+# A sentence transcribing the FOURTH-or-older print of a call it cites was therefore convicted on a
+# CORRECT transcription -- the same class NEW 2 closed, surviving on every call that served more than
+# three rows. MEASURED on a five-row series [100..500] served beside a locator row: "...up from 100 in
+# January [N3]." scored `xl_threshold_echo` = 1 while `verify._num_backed(100.0,
+# verify._all_row_vals(number_calls))` is True, so the SHIPPED verifier does NOT strip that sentence and
+# this column disagreed with the very rule it mirrors. "the series ran 100 to 500 [N3]" scored 1 in BOTH
+# series orientations, because with n > 3 one end is always outside `rows[:3]`; under the documented
+# `GRAPHRAG_SERIES_NEWEST_FIRST=off` rollback the charged figure is the citation's OWN RENDERED HEADLINE.
+#
+# THE MECHANISM IS THIS FILE'S OWN, ~800 LINES BELOW. `_eod_rows` reads BOTH surfaces and says why:
+# "citations[].payload.rows is TRUNCATED to the first three rows ...; out['number_calls'] is the FULL,
+# untruncated list, and BOTH orchestrator lanes attach it". The same union, keyed by HANDLE instead of
+# by table. `number_calls_full` is preferred over `number_calls` for the reason `_served_rows` states:
+# on the HYBRID lane -- which is the locator's own lane -- the cascade seam appends its injected legs to
+# a COPY that only `answer` holds and returns as `number_calls_full`, while the orchestrator's
+# `number_calls` is that copy's PREFIX (answer.py:3996), so the POSITION join is correct on either
+# surface and COMPLETE only on the first.
+#
+# THE JOIN IS POSITION, which is the producer's own rule rather than an inference: `citations.build`
+# renders the k-th call as `from_number(call, k)` -> `[Nk]` (citations.py:1319), the same rule
+# `answer._xl_locator_handles` keys on ("the k-th entry is [Nk]"). A CYCLE-5 letter-suffixed extra
+# ('[N1b]') is a sibling ROW of call 1 (`extra_number_citations`), so it reads call 1's own set.
+#
+# IT CANNOT WIDEN INTO AN AMNESTY. The pool stays PER SENTENCE and PER CITED HANDLE, which is strictly
+# narrower than the all-rows pool `verify` charges `number_unbacked` over; a figure no handle in the
+# sentence served is still charged, and the kill's target -- the threshold the QUESTION named, served by
+# no handle at all -- is untouched.
+_XL_CALL_IDX_RX = re.compile(r"\AN(\d+)[a-z]?\Z")
+
+
+def _xl_call_values(out: dict) -> dict:
+    """CALL INDEX -> every value that call served, at scale 1 and UNTRUNCATED."""
+    calls = out.get("number_calls_full") or out.get("number_calls") or []
+    full: dict = {}
+    for i, c in enumerate(calls, start=1):
+        if not isinstance(c, dict):
+            continue
+        vals: list[float] = []
+        for r in (c.get("rows") or []):
+            try:
+                vals.append(float(str((r or {}).get("value")).replace(",", "")))
+            except (TypeError, ValueError):
+                continue
+        full[i] = vals
+    return full
+
+
+def _xl_served_pool(out: dict) -> dict:
+    """RENDERED HANDLE ('[N3]') -> the FULL served value set of the call that handle stands for.
+
+    The two-source union `_eod_rows` makes for silver_futures_eod, keyed by HANDLE: the citation's own
+    payload rows -- present however the turn was produced, and the ONLY surface left once
+    `server._public_result` strips `number_calls_full` from anything that leaves the service -- unioned
+    with the call list's UNTRUNCATED rows, which the eval harness's own direct `orchestrator.respond`
+    call does receive. Neither source alone is sufficient and neither can contradict the other: the
+    payload is a PREFIX of its own call's rows by construction (`rows[:3]`)."""
+    full = _xl_call_values(out)
+    served: dict = {f"[N{i}]": list(v) for i, v in full.items()}
+    for c in _num_citations(out):
+        cid = str(c.get("id") or "")
+        if not cid:
+            continue
+        vals = served.get(f"[{cid}]", []) + _xl_cite_values(c)
+        m = _XL_CALL_IDX_RX.match(cid)
+        if m:
+            vals += full.get(int(m.group(1)), [])
+        served[f"[{cid}]"] = list(dict.fromkeys(vals))
+    return served
+
+
+def _xl_threshold_echo(sents: list, pools: list) -> int:
+    """K27c's ZERO-TOLERANCE COUNTER: claim magnitudes stated in LOCATOR-CITED sentences that NO row
+    THAT SENTENCE'S OWN CITED HANDLES served backs, at SCALE 1.
+
+    `verify._claim_numbers_in` is the estate's ONE extractor for "is this a stated figure", and it
+    already exempts ISO dates, bare years and the `2012M12` delivery token (measured) -- so the only
+    magnitudes it yields here are figures the sentence asserts. `verify._num_backed` at scale 1 is the
+    SAME predicate the shipped verifier charges `number_unbacked` with, so a correct transcription of a
+    served figure can never be convicted and the level the QUESTION named always is.
+
+    THE POOL IS PER-SENTENCE, AND THAT IS THE FIX FOR RE-REVIEW NEW 2 (MEASURED). It shipped charging
+    every in-scope numeral against the LOCATOR ROWS ALONE, so "CBOT corn's highest settle was 849 on
+    2012-08-21 [N1], read from 2010-06-06 to 2026-09-01, while CBOT soybean meal settled at 554.4 [N3]."
+    scored 1 -- the soybean-meal figure is correctly transcribed from ITS OWN served row and was charged
+    anyway. That is the shape the mandate EXPLICITLY INSTRUCTS ("When a sentence cites more than one
+    handle AND states any figure, state a figure from EVERY handle it cites"), and a locator turn is a
+    hybrid turn that also carries SILVER NUMBERS rows, so it is the ordinary shape rather than an exotic
+    one. `_xl_cited` now hands each in-scope sentence the union of the rows its OWN cited handles served
+    -- the per-sentence form of the all-rows pool `verify._num_backed` is charged over for
+    `number_unbacked`. The kill's actual target is untouched: the level the QUESTION named is served by
+    NO handle on the turn, so it has nothing backing it in any pool.
+
+    THE POOL IS THE HANDLE'S FULL SERVED SET, NEVER ITS CITATION PAYLOAD (FIX PASS 3, NEW 1, MEASURED).
+    `citations.from_number` truncates the payload to `rows[:3]`, so the per-sentence pool as first built
+    convicted a CORRECT transcription of any print beyond a call's third served row -- "...up from 100
+    in January [N3]." on a five-row series scored 1 while the shipped verifier's own
+    `_num_backed(100.0, _all_row_vals(number_calls))` was True. `_xl_served_pool` reads BOTH surfaces
+    (see the note above it), so this counter and `number_unbacked` now answer to the same rows.
+
+    WHAT THIS COUNTER DOES NOT REACH, DECLARED RATHER THAN DISCOVERED (FIX PASS 3, NEW 2, MEASURED).
+    The sentence boundary is `verify._SENT_SPLIT`, which breaks on ';' as well as '.!?', so the counter
+    is CLAUSE-scoped: "Corn has been above 800 before; its highest settle was 849 on 2012-08-21 [N1]."
+    -- the K27b evasion the mandate forbids in as many words -- scores 0 here, because the clause
+    stating 800 cites no handle and is therefore out of scope, while the COLON form of the same evasion
+    scores 1. That reach is NOT restored, and the reason is the estate's own law rather than a
+    convenience: `register._SENT_ITER` is the same pattern and the persona states the rule to the model
+    directly -- "every clause after a semicolon that states a level carries its own handle inside it"
+    (answer.py's own CASE-2 note: "a handle in the lead clause does not reach a level in a LATER clause
+    of the same physical line", MEASURED there). A pool that let a lead-clause handle back a later
+    clause's figure would contradict the law the writer is graded on.
+    THE SHAPE IS NOT INVISIBLE TO THE ESTATE: `register.unbacked_levels` -- the deterministic sibling
+    behind `price_target_backed` -- charges it, returning ('800', 'Corn has been above 800 before;') on
+    the semicolon shape and a hit on the period shape, and 0 on the colon shape this counter catches.
+    The two instruments are COMPLEMENTARY and cover colon + semicolon + period between them, so AN ARM
+    MUST READ `xl_threshold_echo` BESIDE `register.unbacked_levels`, never alone. The pin measures both
+    columns on all three punctuations:
+    tests/unit/test_extreme_locator.py::test_fix3_new_2_the_semicolon_evasion_rides_the_sibling."""
+    from leviathan.graphrag import verify as _vf
+    n = 0
+    for s, pool in zip(sents or [], pools or []):
+        for v in _vf._claim_numbers_in(_vf._HANDLE.sub("", s)):
+            if not _vf._num_backed(v, pool or []):
+                n += 1
+    return n
+
+
+def _xl_rx_hits(sents: list, rx_name: str) -> int:
+    """Sentences matching one of cascade.py's K27c vocabularies. The pattern is fetched BY NAME from the
+    module that mints it, never re-spelled here -- the `_XL_SUPERLATIVE_RX` discipline: one mint site,
+    so the mandate's clause, this counter and any later strip cannot drift apart."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    rx = getattr(_cq, rx_name)
+    return sum(1 for s in (sents or []) if rx.search(s))
+
+
+def _xl_clock_ok(c: dict) -> bool:
+    """ONE CLOCK PER ROW, checked on the CITATION: the locator's `located_date` rider is the served
+    row's OWN session date. Both must be present and equal -- an absent rider is the pre-D-XL shape and
+    is not credited."""
+    loc = str(((c or {}).get("locator") or {}).get("located_date") or "")[:10]
+    rows = ((c or {}).get("payload") or {}).get("rows") or []
+    kd = str(((rows[0] if rows else {}) or {}).get("knowledge_date") or "")[:10]
+    return bool(loc) and loc == kd
+
+
+def _xl_cited(out: dict, prose: str) -> tuple:
+    """D-XL K27c's SCOPE, resolved once: (the locator's own citations, the values they served, the
+    sentences of `prose` that cite one of them, and the SERVED POOL EACH OF THOSE SENTENCES CITES).
+
+    THE DISCRIMINATOR IS THE METRIC, `cascade.XL_METRIC` -- a READER-WORD string no card declares and
+    only this leg mints -- so a numbers-agent row, a walk row or a derived row can never be scored as a
+    locator row. THE SCOPE IS THE SENTENCE, and it is the same scope the mandate's clauses are written
+    at: every K27c counter below convicts only a sentence that CITES a located row, so a record claim
+    minted by the walk, the derived lane or pattern_records is not charged to this lane on either arm.
+
+    THE BACKING POOL IS THE SENTENCE'S OWN CITED HANDLES, not the locator's rows (re-review NEW 2): a
+    sentence that cites [N1] (locator) and [N3] (an ordinary numbers row) is entitled to state a figure
+    from EITHER, which is exactly what the mandate tells the writer to do. `pools` is parallel to
+    `sents` and carries, per sentence, the union of every served numeric citation whose rendered handle
+    that sentence contains -- locator rows for locator handles, the numbers-agent rows for their own.
+    THAT POOL IS THE HANDLE'S **FULL** SERVED SET, not its citation payload (FIX PASS 3, NEW 1): the
+    payload is truncated to `rows[:3]`, so a compliant transcription of a call's fourth-or-older print
+    was convicted. `_xl_served_pool` unions the payload with the untruncated call list, the two-source
+    idiom `_eod_rows` already makes in this file.
+
+    Empty on every turn the leg did not fire, which is what makes the three counters attributable."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    cits = [c for c in _num_citations(out)
+            if str((c.get("locator") or {}).get("metric") or "") == _cq.XL_METRIC]
+    vals = [v for c in cits for v in _xl_cite_values(c)]
+    toks = [f"[{c.get('id')}]" for c in cits if c.get("id")]
+    # EVERY served numeric citation on the turn, keyed by its own rendered handle, carrying that
+    # handle's FULL served row set rather than the payload's `rows[:3]` prefix (FIX PASS 3, NEW 1)
+    served = _xl_served_pool(out)
+    sents, pools = [], []
+    for s in _xl_sentences(prose):
+        if not any(t in s for t in toks):
+            continue
+        sents.append(s)
+        pools.append([v for tok, vv in served.items() if tok in s for v in vv])
+    return cits, vals, sents, pools
+
+
 def _cascade_stats(out: dict) -> dict:
     """Deterministic cascade signals: the quantify trace + kind=number citations + POST-verify STRUCTURED
     prose. NEVER scan out['answer'] for handles — the '## Sources' footer re-renders every ledgered [N]
@@ -260,6 +486,14 @@ def _cascade_stats(out: dict) -> dict:
     # Every value below is read straight off the payload with .get; nothing is re-derived here.
     _cw_deep = _cw.get("deep") or {}
     _cw_hops = _cw_deep.get("hops") or {}
+    # D-XL: the locator's ONE registered ENGINE key (absent == the leg did not run, never that it
+    # declined), the SECOND PRODUCER's own key, and the DISPATCH decision -- which lives on the
+    # intent_decision record and is lifted WHOLE by DECISION_RECORD_KEYS, so the two exactness columns
+    # below compare what the ENGINE served against what the PLANNER asked for on the same turn.
+    _xl = (out.get("trace") or {}).get("quantify_extreme_locator") or {}
+    _xl_hop = (out.get("trace") or {}).get("extreme_second_hop") or {}
+    _xl_dec = (out.get("intent_decision") or {}).get("extreme_locator") or {}
+    _xl_cits, _xl_vals, _xl_sents, _xl_pools = _xl_cited(out, prose)
     # THE PER-LEVEL RECTANGLE AS A RECORDED BOOLEAN: for each of child/grand/great,
     # declared == priced + named + free (`absent` counts RENDERED cells and is deliberately NOT a
     # rectangle term -- one free leg can render two absences on the two-firing shape). PLUS the
@@ -531,6 +765,103 @@ def _cascade_stats(out: dict) -> dict:
             # cw_fx_flips_sign / cw_fx_gate_checked -- never over all rendered hops, which would
             # dilute it with fence-failed rows that can never fire the numerator.
             "cw_fx_gate_checked": int((_cw.get("xccy") or {}).get("fx_gate_checked") or 0),
+            # ── D-XL (E34): the LOCATOR's judge-free counters, APPENDED at the TAIL of the cw_* block,
+            # never sorted in (the rv_regional / V2-5 precedent). Every eval ARTIFACT row gains these on
+            # every run, flag-off included: the row SHAPE changes, serving bytes do not, and a diff
+            # against a banked artifact on these keys is not drift.
+            "xl_outcome": _xl.get("outcome"),
+            "xl_rendered": _xl.get("outcome") == "fired",
+            "xl_kind": _xl.get("kind"),
+            # THE SERVED KIND AND THE ASKED KIND ARE TWO FACTS, and a windowed fallback is exactly where
+            # they differ -- so both are projected and the pair IS the fallback signal.
+            "xl_kind_requested": _xl.get("kind_requested"),
+            "xl_board": _xl.get("board"),
+            "xl_direction": _xl.get("direction"),
+            "xl_scope": _xl.get("scope"),
+            "xl_since": _xl.get("since"),
+            "xl_located_date": _xl.get("located_date"),
+            "xl_span_start": _xl.get("span_start"),
+            "xl_span_end": _xl.get("span_end"),
+            "xl_n_prints": _xl.get("n_prints"),
+            # THE ONE COLUMN THAT MAKES THE DEFECT THIS LEG FIXES MEASURABLE: a cited extreme whose
+            # citation clock is the SERIES END rather than the observation's own date is the standing
+            # `extrema` defect arriving through the fix.
+            #
+            # IT READS THE CITATION, NEVER THE SPAN (refute major 5, MEASURED). The shipped definition
+            # was `located_date != span_end`, which CONVICTS A LEGITIMATE FRESH RECORD: when a board's
+            # extreme IS its newest print -- the common shape at record highs -- the two are equal and a
+            # correct turn scored False, so a deck pin on this column failed on exactly the rows the leg
+            # serves best. The column cannot answer "is the clock right" from two payload fields that are
+            # legitimately equal; it has to compare the CITATION's own clock against the ROW's own date,
+            # which is the defect's actual shape. Absent locator citation -> False, fail-closed, which is
+            # what the absent-key behaviour did before.
+            "xl_date_cited": bool(_xl_cits) and all(_xl_clock_ok(c) for c in _xl_cits),
+            "xl_recent_rendered": bool(_xl.get("recent")),
+            "xl_reads": int(_xl.get("reads") or 0),
+            "xl_rows_fenced": int(_xl.get("rows_fenced") or 0),
+            "xl_declines": [d.get("reason") for d in (_xl.get("declines") or [])],
+            # THE UPTAKE INSTRUMENT: did the located date reach the reader's prose at all?
+            "xl_date_in_prose": bool(_xl.get("located_date")
+                                     and str(_xl.get("located_date")) in prose),
+            # F3: the model fields that SELECT the served magnitude, projected per fired row so the arm
+            # can gate them at 1.0 against the deck row's own expectation.
+            "xl_board_exact": (None if _xl.get("outcome") != "fired"
+                               else (_xl.get("board") == _xl_dec.get("board"))),
+            "xl_direction_exact": (None if _xl.get("outcome") != "fired"
+                                   else (_xl.get("direction") == _xl_dec.get("direction"))),
+            # BOTH OF THESE READ `kind_requested`, THE ASK'S OWN KIND (refute minor 2, MEASURED). The
+            # engine MUTATES `kind` to 'extreme' on every windowed fallback -- that is the design -- so
+            # comparing the served kind against the planner's scored a legitimate
+            # `window_straddles_coverage` turn as a PLANNER MISMATCH (xl_kind_exact False) while
+            # `xl_since_exact` went None, and an arm gating either at 1.0 failed on every straddle. The
+            # payload now preserves the requested kind at entry; the fallback itself is visible in
+            # `xl_declines` and in `xl_kind`, where it belongs.
+            "xl_kind_exact": (None if _xl.get("outcome") != "fired"
+                              else ((_xl.get("kind_requested") or _xl.get("kind"))
+                                    == _xl_dec.get("kind"))),
+            "xl_since_exact": (None if (_xl.get("kind_requested") or _xl.get("kind"))
+                               != "windowed_extreme"
+                               else (_xl.get("since") == _xl_dec.get("since"))),
+            # M5: the ONLY superlative instrument in this lane, projected on BOTH arms, and SCOPED at
+            # its producer to sentences citing a locator handle (refute minor 4). There is deliberately
+            # NO `xl_unspanned_stripped` column -- there is no strip to count.
+            "xl_unspanned_superlative": int((out.get("trace") or {}).get("xl_unspanned_superlative") or 0),
+            # ── K27c: THE THRESHOLD ALIAS'S THREE COUNTERS, the alias's only measurement ─────────────
+            # The alias ("has corn ever been above 800" IS that board's extreme) cuts the stated level
+            # out of every field, row and payload STRUCTURALLY -- so the one surface left is the prose,
+            # the mandate closes it (K27b), and these count what gets through. All three are scoped to
+            # LOCATOR-CITED SENTENCES, so they are attributable to this lane and read 0 on the control
+            # arm by construction (no locator handles to cite).
+            #   xl_threshold_echo -- claim numerals in those sentences that NO row THE SENTENCE'S OWN
+            #     CITED HANDLES served backs, at SCALE 1 (`verify._num_backed`, the same predicate the
+            #     shipped verifier charges `number_unbacked` with, over the per-sentence form of the same
+            #     all-rows pool). A correctly transcribed served figure is never charged -- including the
+            #     second figure of a two-handle sentence, which the mandate INSTRUCTS (re-review NEW 2);
+            #     the level the QUESTION named, echoed as a figure beside a served handle, always is,
+            #     because no handle on the turn served it. This is the alias's zero-tolerance kill.
+            "xl_threshold_echo": _xl_threshold_echo(_xl_sents, _xl_pools),
+            #   xl_threshold_verdict -- the yes/no ANSWER to the comparison, stated as this engine's own.
+            #     The engine compared nothing: it served a dated row and the reader makes the comparison.
+            "xl_threshold_verdict": _xl_rx_hits(_xl_sents, "_XL_VERDICT_RX"),
+            #   xl_window_duration_gloss -- the named floor restated as a LENGTH OF TIME ("over the past
+            #     five years" for "since 2020"), which is arithmetic against today this engine never did.
+            #     The mandate's "never restate it as a length of time" clause, counted.
+            "xl_window_duration_gloss": _xl_rx_hits(_xl_sents, "_XL_DURATION_RX"),
+            # THE SECOND PRODUCER's own counters, from its own key.
+            "xl_hop_rendered": bool(_xl_hop.get("nodes")),
+            "xl_hop_gap_days": _xl_hop.get("gap_days"),
+            "xl_hop_nodes": len(_xl_hop.get("nodes") or []),
+            "xl_hop_episodes": sum(int(v or 0) for v in (_xl_hop.get("episodes_per_node") or {}).values()),
+            "xl_hop_receipts": int(_xl_hop.get("receipts") or 0),
+            "xl_hop_ev_reads": int(_xl_hop.get("ev_reads") or 0),
+            # THE BUDGET CLAIM'S OWN HONESTY COLUMN (refute minor 5). The hop's stated budget is one
+            # retrieval with rerank OFF, and that is only enforceable over the partial the hop itself
+            # configures. Prod and eval pass `retrieve=None`, so this is False on every serving row --
+            # but an A/B arm that overrides retrieval buys a cross-encoder pass on the synthesis hot
+            # path, and the artifact now says so instead of the claim being made for a callable the
+            # hop never configured.
+            "xl_hop_retr_injected": bool(_xl_hop.get("retr_injected")),
+            "xl_hop_declines": [d.get("reason") for d in (_xl_hop.get("declines") or [])],
             # T2a (CONVERGENCE_TIER1): quantify_pace is ENGINE-written, non-empty IFF >=1 deterministic
             # streak/window_change pace row was emitted this turn. BOOLEAN (mirror comove_fired/
             # price_leg_fired [F7]) -- an honest decline (<2 points / annual grain / flag off) leaves the
@@ -565,6 +896,13 @@ def _pit_clean(out: dict, asof) -> bool:
             return False
         per = str(loc.get("period") or "")
         if ".." in per and per.split("..")[-1] > str(asof):
+            return False
+        # D-XL (E30): the LOCATED EXTREME's own session date. Byte-inert on every existing citation --
+        # no locator carried this key before this design -- and it is the one PIT fact the clauses above
+        # cannot see: `asof` here is the READ's cutoff, so a located date beyond it would be a leak the
+        # `leg_asof > asof` clause passes trivially.
+        _ld = str(loc.get("located_date") or "")
+        if _ld and leg_asof and _ld > leg_asof:
             return False
         m = _re.fullmatch(r"MY(\d{4})", per)
         if m:
@@ -706,6 +1044,17 @@ def _injected_episodes(out: dict) -> list[dict]:
             start, _, end = str(sp).partition("..")
             if len(start) >= 7:
                 eps.append({"node": node, "span": str(sp), "start": start[:7], "end": (end or start)[:7]})
+    # D-XL (E34): the SECOND HOP's windows are MATCHABLE HERE and appended NOWHERE ELSE. The hop
+    # deliberately stays OUT of `episodes_injected` -- J4, the walk and `_validate_episode_spans` all
+    # read that key and a hop window inside it would be double-enumerated -- but a bullet that
+    # transcribes a hop window IS transcribing something the model was SHOWN, so convicting it as
+    # INVENTED would be exactly wrong. Its own key, read here, on the same shape.
+    _hop = (out.get("trace") or {}).get("extreme_second_hop") or {}
+    for node, span in (_hop.get("spans") or {}).items():
+        start, _, end = str(span).partition("..")
+        if len(start) >= 7:
+            eps.append({"node": str(node), "span": str(span), "start": start[:7],
+                        "end": (end or start)[:7]})
     return eps
 
 
@@ -1097,7 +1446,13 @@ _CASCADE_EXPECT = ("cascade_fired", "min_cascade_cited", "delta_row", "fork", "a
                    # structural teeth: a root whose every declared child shares its currency can
                    # NEVER render a cross-currency hop, so `false` is pinnable on every such deck
                    # row regardless of the flag; the positive is flag-gated + data-dependent.
-                   "cw_xccy_rendered")
+                   "cw_xccy_rendered",
+                   # D-XL: APPENDED AT THE TAIL, never sorted in. THE NEGATIVE BRANCHES ARE THE
+                   # REALIZABLE TEETH -- a non-extreme deck row must leave `xl_rendered` false whatever
+                   # the flag does, and `xl_date_cited` false on a fired row is the FATAL this leg
+                   # exists to prevent (a citation clock that is the span end rather than the located
+                   # date is the standing defect arriving through the fix).
+                   "xl_rendered", "xl_date_cited", "xl_hop_rendered")
 
 
 def _cascade_asserts(q: dict, out: dict) -> dict | None:
@@ -1232,6 +1587,20 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # render (pinned false on every such deck row); the positive is flag-gated + data-dependent
             # (KC1 reads the counters).
             res[k] = (int(cs.get("cw_context_rendered") or 0) > 0) == bool(want)
+        elif k == "xl_rendered":
+            # D-XL: trace-only boolean pin (the chain_fired idiom) off the locator's ONE ENGINE key.
+            # The NEGATIVE branch is the realizable teeth: a non-extreme-shaped deck row must leave the
+            # key absent -> false, whatever the flag does. The positive is flag-gated + data-dependent.
+            res[k] = bool(cs.get("xl_rendered")) == bool(want)
+        elif k == "xl_date_cited":
+            # THE FATAL, PINNED: on a fired row the citation clock must be the LOCATED session, not the
+            # span end. Absent key -> False, so a non-fired row pinned true fails honestly.
+            res[k] = bool(cs.get("xl_date_cited")) == bool(want)
+        elif k == "xl_hop_rendered":
+            # The SECOND PRODUCER's own boolean, off its own key. Its negative branch is teeth too:
+            # with the timeline off, or the gap inside the degeneracy floor, the hop MUST stay false
+            # while the locator rows still render.
+            res[k] = bool(cs.get("xl_hop_rendered")) == bool(want)
         elif k == "min_transmission_hops_cited":
             # >= N LINKS whose BOTH legs' World su_ratio [N] rows are cited in the STRUCTURED prose. CALIBRATION-
             # GATED (6.1, fold-pass finding 2): which links render divergence vs co-move is WINDOW-contingent, so
@@ -1848,6 +2217,45 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "cw_fx_flips_sign": cs.get("cw_fx_flips_sign"),
             "cw_fx_unpriced_verdicts": cs.get("cw_fx_unpriced_verdicts"),
             "cw_fx_gate_checked": cs.get("cw_fx_gate_checked"),
+            # D-XL (E34): the SAME hard-whitelist projection (the Z7 lesson) -- without these lines the
+            # locator's own verdicts reach NO artifact, which is the whole failure mode this whitelist
+            # discipline exists to prevent. Projected on EVERY row, flag-off included.
+            "xl_outcome": cs.get("xl_outcome"),
+            "xl_rendered": cs.get("xl_rendered"),
+            "xl_kind": cs.get("xl_kind"),
+            "xl_kind_requested": cs.get("xl_kind_requested"),   # the ASK's kind; xl_kind is the SERVED one
+            "xl_board": cs.get("xl_board"),
+            "xl_direction": cs.get("xl_direction"),
+            "xl_scope": cs.get("xl_scope"),
+            "xl_since": cs.get("xl_since"),
+            "xl_located_date": cs.get("xl_located_date"),
+            "xl_span_start": cs.get("xl_span_start"),
+            "xl_span_end": cs.get("xl_span_end"),
+            "xl_n_prints": cs.get("xl_n_prints"),
+            "xl_date_cited": cs.get("xl_date_cited"),
+            "xl_recent_rendered": cs.get("xl_recent_rendered"),
+            "xl_reads": cs.get("xl_reads"),
+            "xl_rows_fenced": cs.get("xl_rows_fenced"),
+            "xl_declines": cs.get("xl_declines"),
+            "xl_date_in_prose": cs.get("xl_date_in_prose"),
+            "xl_board_exact": cs.get("xl_board_exact"),
+            "xl_direction_exact": cs.get("xl_direction_exact"),
+            "xl_kind_exact": cs.get("xl_kind_exact"),
+            "xl_since_exact": cs.get("xl_since_exact"),
+            "xl_unspanned_superlative": cs.get("xl_unspanned_superlative"),
+            # K27c: the threshold alias's three counters (the same hard-whitelist rule -- a counter that
+            # reaches no artifact cannot compute G9's kills).
+            "xl_threshold_echo": cs.get("xl_threshold_echo"),
+            "xl_threshold_verdict": cs.get("xl_threshold_verdict"),
+            "xl_window_duration_gloss": cs.get("xl_window_duration_gloss"),
+            "xl_hop_rendered": cs.get("xl_hop_rendered"),
+            "xl_hop_gap_days": cs.get("xl_hop_gap_days"),
+            "xl_hop_nodes": cs.get("xl_hop_nodes"),
+            "xl_hop_episodes": cs.get("xl_hop_episodes"),
+            "xl_hop_receipts": cs.get("xl_hop_receipts"),
+            "xl_hop_ev_reads": cs.get("xl_hop_ev_reads"),
+            "xl_hop_retr_injected": cs.get("xl_hop_retr_injected"),
+            "xl_hop_declines": cs.get("xl_hop_declines"),
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
             "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered

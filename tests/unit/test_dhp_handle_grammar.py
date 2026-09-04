@@ -767,36 +767,42 @@ def test_dhp4_keys_are_appended_at_the_tail_never_inserted():
     # 9af92649 RE-PIN (NINTH application): TWO tail appends (quantify_cascade_walk, quantify_wave_reads) shift
     # every index below left by two; the 37-key registry at 9af92649^ is a STRICT PREFIX of the 39 -- nothing
     # was inserted (the "floor_cause at index 0" red was this pure shift, the old [-18] now reading old [-16]).
-    assert keys[-20:-15] == ("prose_handles", "error", "floor_cause", "bare_digit_count",
+    # D-XL RE-ANCHOR (2026-09-04, the THIRTEENTH application of the same law): TWO tail appends
+    # (quantify_extreme_locator, extreme_second_hop) shift every index below left by two, and the
+    # 39-key registry is a STRICT PREFIX of the 41 -- nothing was inserted. Values unchanged.
+    assert keys[-22:-17] == ("prose_handles", "error", "floor_cause", "bare_digit_count",
                              "citation_resolved")
-    assert keys[-15] == "wrong_slot_audit"
+    assert keys[-17] == "wrong_slot_audit"
     # H1 RE-PIN (FIX W2 / finding NF-2): `slot_orphan_dropped` appends AFTER it. Same law, same one-line
     # re-anchor -- the H0 slice moves left by one more and nothing before it moves at all.
-    assert keys[-14] == "slot_orphan_dropped"
+    assert keys[-16] == "slot_orphan_dropped"
     # H1b RE-PIN (D-HP-15): `episode_spans_validated` appends after THAT. Third application of the same
     # law in this wave, and the third one-line re-anchor -- which is the whole point of writing the pin
     # against the tail rather than against a frozen absolute index.
-    assert keys[-13] == "episode_spans_validated"
+    assert keys[-15] == "episode_spans_validated"
     # G1 AMENDMENT A3 RE-PIN (2026-08-14): `plan_tokens` -- the popped planning region's SIZE, never its
     # text -- appends after THAT. Fourth application of the same law, fourth one-line re-anchor, and
     # nothing before the H0 slice moves at all.
-    assert keys[-12] == "plan_tokens"
+    assert keys[-14] == "plan_tokens"
     # G1 REMEDIATION D2(b) RE-PIN (2026-08-14): `evidence_slot_dropped` -- clause (2b)'s remedy census --
     # appends after THAT. Fifth application of the same law, fifth one-line re-anchor.
-    assert keys[-11] == "evidence_slot_dropped"
+    assert keys[-13] == "evidence_slot_dropped"
     # D-HP-25 RE-PIN (2026-08-15, plan 10.30.6): `evidence_geo_dropped` -- V2's [E] geo-containment
     # census -- appends after THAT. SIXTH application of the same law and the sixth one-line re-anchor,
     # which is exactly what a tail-anchored pin is for. NOTE WHAT DID *NOT* NEED A LINE: V1's own two
     # counters (`geo_checked` / `geo_mismatch`) ride INSIDE `number_handles` and mint no top-level key,
     # so they shift no column at all -- the `escalation_decision` idiom, one registered key per producer.
-    assert keys[-10] == "evidence_geo_dropped"
+    assert keys[-12] == "evidence_geo_dropped"
     # D-LD SITTING-A RE-PIN (2026-08-18): `tables_queried` -- the per-table usage census, the estate's
     # first -- appends after THAT. SEVENTH application of the same law and the seventh one-line re-anchor.
-    assert keys[-9] == "tables_queried"
+    assert keys[-11] == "tables_queried"
     # 9af92649: the walk key then the A2 wave-reads counter APPENDED after quantify_derived_fenced, in that order.
-    assert keys[-8:] == ("timing_ms", "xc_open_pair", "xc_open_decline", "xc_regional_decline",
-                         "quantify_rv_reading_fenced", "quantify_derived_fenced", "quantify_cascade_walk",
-                         "quantify_wave_reads")
+    assert keys[-10:-2] == ("timing_ms", "xc_open_pair", "xc_open_decline", "xc_regional_decline",
+                            "quantify_rv_reading_fenced", "quantify_derived_fenced",
+                            "quantify_cascade_walk", "quantify_wave_reads")
+    # ...and the D-XL pair, NAMED at the tail rather than left as "whatever is last": an unnamed tail
+    # pin cannot tell an append from a sort, which is the whole failure this test exists to catch.
+    assert keys[-2:] == ("quantify_extreme_locator", "extreme_second_hop")
     for older in ("number_handles", "rerank_lane", "walk_shape", "escalation_decision"):
         assert keys.index(older) < keys.index("prose_handles")
     assert len(set(keys)) == len(keys)

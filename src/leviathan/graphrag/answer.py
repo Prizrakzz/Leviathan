@@ -429,6 +429,65 @@ _SYSTEM_CASCADE_XCCY = (
     "already in the currency its own row names. ")
 
 
+# ── D-XL: THE PRICE-EXTREME LOCATOR'S PERSONA LEGS ────────────────────────────────────────────────
+# THE LICENSE, flag-only and CONDITIONAL ("If the block carries lines beginning ..."), so a locator-less
+# turn carries a dormant clause rather than a demand -- the CROSS_BOARD / DERIVED_ARITH / CASCADE_WALK
+# sibling precedent. Every MANDATE below is gated on its OWN rendered row shape at the seam.
+_SYSTEM_EXTREME_LOCATOR = (
+    "\nIf the block carries lines of the shape '<board> settle high on <date>' or '<board> settle low "
+    "on <date>', one board's own dated price extreme has been LOCATED for you by a direct read of that "
+    "board's record: the date and the level on it are the SAME observation, and the row states the span "
+    "of record it searched. Transcribe such a row with its [N] handle, its figure copied as DIGITS "
+    "exactly as printed, its own delivery month and its own words for the kind of print. ")
+
+
+# THE LOCATOR MANDATE, ROW-GATED at the seam (`_extreme_locator_block_on(vp)` -- the lane flag AND the
+# row shape actually present in the volatile prompt, the _episodes_on shape). MANDATE FROM THE START and
+# PHRASED POSITIVELY: the walk measured writer uptake at 1 of 3 under a license alone, and a two-clock
+# narrative is a harder ask. In THIS lane the mandate is the ONLY enforcement of the span rule -- the
+# whole-sentence strip is deferred to its own commit -- so both forms are named explicitly.
+_SYSTEM_EXTREME_LOCATOR_MANDATE = (
+    "\nTHE BLOCK CARRIES A LOCATED PRICE EXTREME, AND RENDERING IT IS MANDATORY: under '## The record', "
+    "for EVERY such row, put the located DATE and the LEVEL in the SAME clause as the [N] handle, with "
+    "the figure copied as DIGITS exactly as printed, and quote that row's own delivery month and its "
+    "own words for the kind of print -- never a re-spelling of them. State the row's own span of record "
+    "alongside any superlative, in the row's own words: 'the highest settle in the record read from "
+    "<start> to <end>' carries; 'its record high' with no span does not, and counts against this leg. "
+    "The basis is a union of every listed delivery month, exactly as the row says, so never write that "
+    "the front month peaked and never call the figure 'the price' without its delivery month. Where a "
+    "row names a starting point the question itself gave, echo that starting point exactly as the row "
+    "writes it, and never restate it as a length of time. When a sentence cites more than one handle "
+    "AND states any figure, state a figure from EVERY handle it cites; otherwise cite one handle per "
+    "sentence. State no change, ratio, distance, percentage or arrow between two cited figures, or "
+    "between a cited figure and today -- this engine measured none of them. "
+    # K27b: THE THRESHOLD ALIAS'S ONLY FENCE, and it is the alias's whole safety argument. A level-ever
+    # ask ("has corn ever been above 800") IS this board's extreme, asked with a comparison the reader
+    # will make -- and the stated level enters NO field, NO row and NO payload BY CONSTRUCTION, because
+    # its product would be a comparison against a magnitude this engine never read and never validated
+    # for units. The one surface the structural cut cannot reach is the PROSE, so it is closed here, in
+    # PERSONA TEXT (the planner's frozen block is untouched, and its measurement with it). Both halves
+    # are named: the ECHOED NUMERAL, which reads as a served figure beside a served handle, and the
+    # YES/NO VERDICT, which reads as this engine's own comparison. `eval.xl_threshold_echo` and
+    # `xl_threshold_verdict` count both on locator-cited sentences (K27c).
+    "A LEVEL THE QUESTION ITSELF NAMED IS NOT A FIGURE THIS ENGINE SERVED: never write that level as a "
+    "number anywhere in your answer, and never state a yes-or-no verdict on whether the record is above "
+    "or below it. State the located date and the located level from the row, in the row's own words, "
+    "and let the reader make the comparison. ")
+
+
+# THE HOP MANDATE, SEPARATELY gated (`_extreme_hop_block_on(vp)`, which additionally REQUIRES the
+# locator gate). A locator-only turn ships the locator clause alone -- which is the whole point of
+# splitting them: the hop declines INDEPENDENTLY on `timeline_off` and `hop_degenerate`, and shipping a
+# two-clock mandate over an absent block is the +10-hallucination class.
+_SYSTEM_EXTREME_HOP_MANDATE = (
+    "\nTHE BLOCK ALSO CARRIES 'AT THAT TIME' LINES, recounted at the located date: under '## Episodes', "
+    "narrate them DATED and in the PAST TENSE, only from what those lines show. Say plainly that the "
+    "windows and reports named there are drawn from the record this system holds TODAY and re-read at "
+    "the located date -- never that they are what was known then. Do not mint a new episodes-section "
+    "bullet from these lines; the enumeration stays the episodes mandate's, and a window that appears in "
+    "both places is one window. ")
+
+
 # P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
 # the [N] rows, so (unlike Phase A) a [N]-cited dated lag is backed and will NOT be stripped.
 _SYSTEM_CASCADE = (
@@ -572,6 +631,71 @@ def _count_banned_mood(structured: dict) -> int:
 
 def _structured_prose(structured: dict) -> str:
     return (structured.get("tldr") or "") + " " + (structured.get("mechanism") or "")
+
+
+# THE SENTENCE BOUNDARY FOR THE D-XL COUNTERS IS `register._SENT_ITER`, THE ESTATE'S OWN (re-review
+# NEW 1, MEASURED). This shipped as a hand-rolled `re.compile(r"[^.!?]+[.!?]?")`, which CUTS INSIDE A
+# DECIMAL FIGURE: "Soybean meal's record high settle was 554.4 on 2022-04-19 [N1]." split into
+# ["...was 554.", "4 on 2022-04-19 [N1]."], putting the SUPERLATIVE in the fragment with no handle and
+# the HANDLE in the fragment with no superlative -- so `_count_unspanned_superlatives` scored 0 while
+# the same claim with an INTEGER figure scored 1. The M5 instrument went silent on exactly the rows it
+# polices, and `citations._fmt` preserves the decimal on every board whose extreme is sub-1000 and
+# fractional (554.4, 339.75, 68.42, 0.5 all cut; 849 and 1,234 not). `register._SENT_ITER` is
+# `(?<=[.!?;])\s+` -- whitespace REQUIRED after the terminator, so a decimal is never a boundary -- and
+# it is the boundary `register.unbacked_levels` and `verify` already charge claims on, which this
+# module's own comments at `_SCAFFOLD_RESTATE_CAP` and the CASE-2 format fence cite as CLAUSE scope.
+# That is the scope the locator mandate is written at ("put the located DATE and the LEVEL in the SAME
+# clause as the [N] handle"), so the counter now reads at the scope the persona states.
+
+
+def _xl_locator_handles(number_calls: list | None) -> set:
+    """THE LOCATOR'S OWN [N] HANDLES on this turn, as rendered tokens ('[N3]').
+
+    THE HANDLE IS THE POSITION, which is the producer's own rule rather than an inference: every leg
+    that appends to this list numbers its row `n = len(calls) + 1` immediately before appending, so the
+    k-th entry is [Nk]. The discriminator is `query.metric == cascade.XL_METRIC`, a string NO card
+    declares and only this leg mints -- so a numbers-agent row or a walk row can never be mistaken for a
+    locator row. Empty on every turn the leg did not fire, which is what makes the counter below
+    attributable."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    return {f"[N{i}]" for i, c in enumerate(number_calls or [], start=1)
+            if str(((c or {}).get("query") or {}).get("metric") or "") == _cq.XL_METRIC}
+
+
+def _count_unspanned_superlatives(structured: dict, *, handles: set) -> int:
+    """D-XL M5, and in THIS lane it is the WHOLE superlative instrument.
+
+    A sentence is CONVICTED iff it CITES A LOCATOR HANDLE, matches `cascade._XL_SUPERLATIVE_RX` and does
+    NOT match `cascade._XL_SPAN_CLAUSE_RX` -- a record claim about a located row that the row's own span
+    does not back. Both vocabularies are minted ONCE in cascade.py beside the rest of the leg's, so this
+    counter and the later strip cannot drift apart. Scanned on tldr + mechanism, on the RAW draft
+    PRE-sanitize (the `_count_banned_mood` discipline: measuring after the neutralizers would read 0
+    forever), split on `register._SENT_ITER` -- the estate's own boundary, which never cuts a decimal
+    figure (see the note above this function; the hand-rolled regex that did silenced this counter on
+    every fractional board).
+
+    `handles` IS REQUIRED, NOT DEFAULTED, and that is the fix for refute minor 4. Unscoped, this scanned
+    EVERY sentence of every turn and counted record claims minted by the walk, the derived lane and
+    pattern_records -- measured at 2 on a two-sentence fixture carrying no locator block at all -- so the
+    instrument was not attributable to this lane on either arm. A default would let a future call site
+    silently reacquire that defect; the scope is now something every caller has to state.
+
+    WHAT IT READS ON EACH ARM, STATED RATHER THAN LEFT TO BE DISCOVERED: on the CONTROL arm the locator
+    mints no handles, so the set is empty and this reads 0 BY CONSTRUCTION. That is the correct
+    denominator for the question M5 asks -- "did THIS lane's rows produce a record claim its own span
+    does not carry" -- and it is why the column is read beside `xl_rendered` rather than on its own. The
+    instrument still ships on both arms and CHANGES NO BYTE. The whole-sentence REMOVAL is a later commit
+    with its own flag and its own arm, because the class it reaches is provably not empty."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    if not handles:
+        return 0
+    n = 0
+    for sent in reg._SENT_ITER.split(_structured_prose(structured)):
+        if not any(h in sent for h in handles):
+            continue
+        if _cq._XL_SUPERLATIVE_RX.search(sent) and not _cq._XL_SPAN_CLAUSE_RX.search(sent):
+            n += 1
+    return n
 
 
 def _count_banned_valuation(structured: dict) -> int:
@@ -865,6 +989,124 @@ def _cascade_xccy_on() -> bool:
     Read PER CALL, never memoized: a serving process is long-lived, so the env-flip rollback must
     take effect without a redeploy."""
     return os.environ.get("GRAPHRAG_CASCADE_XCCY", "").strip().lower() in ("on", "1", "true")
+
+
+def _extreme_locator_on() -> bool:
+    """D-XL kill-switch (GRAPHRAG_EXTREME_LOCATOR), read at the ORCHESTRATOR seam (for the planner
+    roster and the request build) and at the answer.py quantify SEAM (for the omit-when-off kwarg), and
+    threaded DOWN as ARGUMENTS -- NEVER an `os.environ` read inside cascade.py, query.py or dispatch.py,
+    so the ENGINE is gated by the ARGUMENT and a mis-plumbed enable cannot fire on an unasked turn.
+    DEFAULT-OFF, fail-closed.
+
+    DECLARED DEPENDENCIES, stated here rather than discovered: the SECOND HOP's episode half is
+    transitively gated on GRAPHRAG_TIMELINE (`episodes_for` returns [] with it off), and the persona
+    appends sit INSIDE the `GRAPHRAG_CASCADE_QUANT != 'off'` branch of `_system`, so with CASCADE_QUANT
+    off a turn would ship locator rows with no licensing clause -- the walk has exactly the same shape,
+    so it is a PRECEDENT rather than a defect, and it is declared here.
+
+    Read PER CALL, never memoized: a serving process is long-lived, so the env-flip rollback must take
+    effect without a redeploy."""
+    return os.environ.get("GRAPHRAG_EXTREME_LOCATOR", "").strip().lower() in ("on", "1", "true")
+
+
+def _xl_kind_extreme_on() -> bool:
+    """D-XL sub-flag XL_KIND_EXTREME -- the tape-wide superlative. A RIDER on the lane flag."""
+    return os.environ.get("XL_KIND_EXTREME", "").strip().lower() in ("on", "1", "true")
+
+
+def _xl_kind_windowed_on() -> bool:
+    """D-XL sub-flag XL_KIND_WINDOWED -- the superlative from a floor the ASK ITSELF names. A RIDER."""
+    return os.environ.get("XL_KIND_WINDOWED", "").strip().lower() in ("on", "1", "true")
+
+
+def _xl_kinds_served() -> tuple:
+    """THE SERVED KIND TUPLE, minted from TWO independent sub-flags over cascade.XL_KINDS -- THE ONE
+    LITERAL. A kind that is off has its enum member ABSENT from `_plan_tool`'s `xl_kind` enum AND from
+    the validator's accepted set, both from that one literal, so a cut kind is unreachable BY
+    CONSTRUCTION rather than by a runtime check.
+
+    THREE STATES ARE REFUSED, EACH WITH ITS OWN NAME, AND ALL THREE RAISE:
+
+    `xl_kind_flags_invalid` -- WINDOWED ON, EXTREME OFF. A PRODUCT decision, not an implementation
+    limit: a windowed-only lane answers "what was corn's highest settle since 2020" and DECLINES "what
+    was corn's highest settle ever" -- the plainer, commoner and more obviously answerable of the two --
+    while the served block still tells the planner to classify the second one. The estate would be
+    shipping a prompt whose positive shape it refuses to serve.
+
+    `xl_kind_rollback_unmeasured` -- EXTREME ON, WINDOWED OFF. THE SERVED BLOCK IS ALWAYS A MEASURED
+    BLOCK, and this commit carries exactly ONE measured block: the frozen seven-field text whose sha the
+    lint pins. Serving a WIDENED block with a NARROWED enum would promote the windowed shape as a
+    positive while removing the member that expresses it -- a "since 2020" ask would classify `extreme`
+    and be served the ALL-TIME high, which is the fabrication class arriving through the rollback rather
+    than through a defect. The extreme-only rollback therefore needs its OWN measured block and its own
+    held-out authoring; until it has one, this state does not arm.
+
+    `xl_window_floor_uncalibrated` -- THE WINDOWED KIND ARMED WHILE `cascade.XL_MIN_WINDOW_ROWS` IS None.
+    THIS IS THE K32 KILL, AND IT IS NOW ENFORCED RATHER THAN REMEMBERED (review major 2). The constant's
+    own docstring already claimed this function refused the state; it did not -- measured, with both
+    sub-flags on and the floor None, this returned ('extreme', 'windowed_extreme') and the windowed lane
+    armed with `window_too_thin` INERT, which is exactly the flip-time kill the docstring promised to
+    block: a stalled board serves "the highest corn settle since 2026-01" over two prints, rendered as a
+    fact. The floor is produced by a $0 tape census that has not run, there is deliberately no candidate
+    default to mistake for a decision, and until that census produces a number the windowed lane does not
+    arm. `config_check.check_extreme_locator` prints the same fact as a non-fatal NOTE; this is the fence.
+
+    THE CALLER TREATS A RAISE AS "THE LANE DOES NOT ARM" (an empty roster, an absent kwarg), never as a
+    turn failure: fail-closed, and the turn is untouched."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    ext, win = _xl_kind_extreme_on(), _xl_kind_windowed_on()
+    if win and not ext:
+        raise ValueError("xl_kind_flags_invalid: XL_KIND_WINDOWED without XL_KIND_EXTREME -- the lane "
+                         "does not arm in the windowed-only state")
+    if ext and not win:
+        raise ValueError("xl_kind_rollback_unmeasured: XL_KIND_EXTREME without XL_KIND_WINDOWED needs "
+                         "its OWN measured prompt block, which this commit does not carry")
+    if win and _cq.XL_MIN_WINDOW_ROWS is None:
+        raise ValueError("xl_window_floor_uncalibrated: XL_KIND_WINDOWED needs cascade."
+                         "XL_MIN_WINDOW_ROWS, which ships PENDING its own $0 tape census -- with it None "
+                         "the window_too_thin gate is inert and the windowed lane does not arm")
+    return tuple(_cq.XL_KINDS) if (ext and win) else ()
+
+
+def _xl_lane_promote_on() -> bool:
+    """D-XL ROUTE sub-flag (XL_LANE_PROMOTE), a DECLARED RIDER on the lane flag. It is the ONE part of
+    this design that changes a ROUTE -- promotion-only, `numbers_only -> hybrid`, never a demotion --
+    which is exactly why it carries its own sub-flag and its own row in the flip's env list. BUILT DARK;
+    armed only on a measured share of positives routing numbers_only."""
+    return os.environ.get("XL_LANE_PROMOTE", "").strip().lower() in ("on", "1", "true")
+
+
+def _xl_superlative_strip_on() -> bool:
+    """D-XL M5: DECLARED HERE AND READ BY NO CALL SITE IN THIS COMMIT.
+
+    The whole-sentence removal of an UNSPANNED superlative ships in its OWN later commit with its OWN
+    arm and this flag -- the extrema-clock precedent -- because the class the drop reaches is provably
+    NOT EMPTY on the control arm, so a treatment-gated strip would make the arm compare two different
+    RENDER PASSES instead of two blocks. This lane ships the COUNTER only, on both arms, changing no
+    byte. The name is minted now so the docket has one; a pin asserts no call site reads it."""
+    return os.environ.get("GRAPHRAG_XL_SUPERLATIVE_STRIP", "").strip().lower() in ("on", "1", "true")
+
+
+def _extrema_own_date_on() -> bool:
+    """THE STANDING extrema CLOCK DEFECT's kill-switch (GRAPHRAG_EXTREMA_OWN_DATE), BUILT DARK.
+
+    `stats.extrema` computes first-occurrence `argmin`/`argmax` that NOTHING READS, and three of its
+    four live mint sites stamp a DIFFERENT date on the cited row: the numbers agent's extrema rows carry
+    the handle's LATEST knowledge date, and the RV reading's and the derived lane's ordinal-when-thin
+    rungs both pass the SERIES END. An extrema_max row for a 2022 peak therefore renders `[known
+    2026-09-02]` -- 'one clock per row' is an estate law, and a row stamped with the series end asserts
+    that the peak was observed on a date it was not.
+
+    WHEN ON: the extreme row carries THE EXTREME'S OWN date, recovered from the already-computed and
+    unread index against the SAME date axis the value axis was built from, in ONE pass by the same drop
+    rule; where a call site cannot produce an aligned date axis it DECLINES and counts
+    `extrema_axis_unavailable` rather than guessing. WHEN OFF: byte-identical on all three surfaces.
+
+    IT IS SHIPPED DARK AND FLIPPED IN ITS OWN COMMIT WITH ITS OWN ARM: it changes live rendered bytes on
+    three serving surfaces for a defect the locator does not depend on, so flipping it here would make
+    the locator's arm measure its own instrument. Read at the seams the existing flags are read at and
+    threaded DOWN as an argument -- never an env read inside agent.py / cascade.py / derived.py."""
+    return os.environ.get("GRAPHRAG_EXTREMA_OWN_DATE", "").strip().lower() in ("on", "1", "true")
 
 
 def _intensity_on() -> bool:
@@ -1510,6 +1752,19 @@ def _record_through(evidence: list | None) -> str | None:
     return max(dates) if dates else None
 
 
+def _record_from(evidence: list | None) -> str | None:
+    """D-XL (E14): the OLDEST usable reported date across this turn's evidence -- the record's LOWER
+    edge, exactly symmetric with `_record_through` above and on the SAME single axis (reported dates
+    only). It is the CORPUS floor the second hop states when a located date precedes it.
+
+    THE TAPE floor is a DIFFERENT FACT and never comes from here: it rides the locator ROW as its own
+    MEASURED `_span_start`, and `futures_eod_contracts.coverage_start_for` is only the lint's
+    cross-check. Conflating the two would let a corpus with a shallow document floor describe a board
+    whose tape reaches back fifteen years."""
+    dates = [d for d in (_usable_date((h or {}).get("date")) for h in (evidence or []) if isinstance(h, dict)) if d]
+    return min(dates) if dates else None
+
+
 def _recency_ledger_suffix(record_through: str | None) -> str:
     """The per-turn VOLATILE record-edge sentence (flag-gated; '' when off or dateless -- the caller
     concatenates unconditionally so the seam stays one line). Rides the GROUNDING LEDGER, never the
@@ -1597,6 +1852,186 @@ def _cascade_xccy_block_on(volatile_prompt: str | None) -> bool:
     from leviathan.graphrag.numbers import cascade as _cq
     return (_cascade_xccy_on() and _cascade_walk_block_on(volatile_prompt)
             and _cq.CW_XCCY_CLAUSE_MARK in (volatile_prompt or ""))
+
+
+def _extreme_locator_block_on(volatile_prompt: str | None) -> bool:
+    """D-XL (E15): the LOCATOR's seam gate -- `_episodes_on` verbatim in shape. Both legs: the
+    kill-switch, and the EVIDENCE, i.e. the assembled VOLATILE prompt actually carries a locator ROW.
+
+    A ROW SHAPE, NEVER A BARE TOKEN, and that is mandatory rather than stylistic: retrieved evidence
+    text is rendered RAW with its newlines into the volatile prompt, so a bare marker token is something
+    a retrieved numbered heading can carry. `cascade.XL_ROW_LINE_RX` is the shared constant the producer
+    builds its own line from, so producer and gate cannot drift apart. The import is LAZY for the
+    same reason every sibling gate's is: this module imports cascade at the seam, never at load."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    return (_extreme_locator_on()
+            and _cq.XL_ROW_LINE_RX.search(volatile_prompt or "") is not None)
+
+
+def _extreme_hop_block_on(volatile_prompt: str | None) -> bool:
+    """D-XL (E15): the SECOND HOP's own gate -- a ROW SHAPE with a MINTED TOKEN
+    (`cascade.XL_HOP_LINE_RX`: the prefix, the bracketed token, a node label and a dated window),
+    never a bare prefix, because a retrieved chunk that happens to open with those words would
+    otherwise arm a two-clock mandate over a block that does not exist.
+
+    It CONJOINS the locator gate for the same reason the walk's context gate conjoins the walk's: a hop
+    line cannot exist outside a locator block, so the conjunction is strictly tighter and costs
+    nothing. The split is the whole point -- the hop declines INDEPENDENTLY on `timeline_off` and
+    `hop_degenerate`, and a locator-only turn must ship the locator clause alone."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    return (_extreme_locator_block_on(volatile_prompt)
+            and _cq.XL_HOP_LINE_RX.search(volatile_prompt or "") is not None)
+
+
+def _iso_ord(d) -> int:
+    """An ISO date as a day ordinal -- gap arithmetic without a datetime import at every call site."""
+    import datetime as _dt
+    return _dt.date.fromisoformat(str(d)[:10]).toordinal()
+
+
+def _cq_xl_min_hop_days() -> int:
+    from leviathan.graphrag.numbers import cascade as _cq
+    return int(_cq.XL_MIN_HOP_DAYS)
+
+
+def _extreme_hop_lines(sg, graph, query: str, xl_request: dict, located: str, turn_asof: str, *,
+                       retrieve=None, mode_knobs: dict | None = None, hop: dict) -> list:
+    """D-XL (E17): the SECOND AS-OF HOP's rendered lines. Returns [] on any decline, all of them counted
+    on `hop['declines']`.
+
+    WHAT IT READS, AND WHY DRIVER SLICES FIRST. Root windows are GAP_DAYS mega-blobs (the walk's own
+    K0(a) measured corn 1991-11..2026-09 on one root), so a contract node's episode line cannot supply a
+    tight window around a located date; the viable substrate is the SHARP modern windows on DRIVER
+    slices. The hop enumerates the routed board's grounded driver slices FIRST, up to XL_DRIVER_FAN in
+    the walk's own grounding order, then the contract node itself as ONE labelled extra whose line is
+    EXPECTED to be a mega-window and is allowed to be.
+
+    THE PIT PIN IS MADE TRUE RATHER THAN RESTATED. `episodes_for` selects its receipt on the WINDOW axis
+    but STORES the receipt's PUBLICATION date, and its own leakage argument ("a receipt can carry no
+    byte the prompt did not already hold") is conditional on the evidence having been retrieved at the
+    SAME as-of -- true against the turn's, FALSE against the located date. So the evidence list is
+    pre-filtered on the PUBLICATION axis BEFORE the call, and the pin then reads: every receipt
+    publication date and every retrieved prop date returned by this hop is <= the located date.
+
+    THE BUDGET IS PRICED HONESTLY. `ev.retrieve` is PER NODE and routes to one pg round trip per call,
+    and the turn's own retrieval partial carries `rerank=True` -- so root + three drivers would be four
+    round trips AND four cross-encoder passes on the synthesis hot path. THE CHOICE MADE: EPISODES ON
+    ALL SELECTED NODES (0 SQL -- the timeline artifact is already warm for the turn) PLUS EXACTLY ONE
+    RETRIEVAL, on the ROOT only, with rerank OFF (the `probe_retr` idiom, which also keeps injected
+    retrieval fakes working). `near=located` reuses the existing soft proximity bonus -- no new
+    parameter. The per-driver alternative is DOCKETED WITH ITS PRICE.
+
+    THIS BLOCK IS NOT REGISTER-FENCED, and that is stated with its reason: its lines carry RETRIEVED
+    corpus prose, and putting that under `pace_register_ok` would drop the block on a receipt's own
+    vocabulary. That surface already exists un-fenced at `_l2_blocks`, so the hop introduces no new
+    copy-surface class. It carries ZERO [N] handles and zero engine-minted magnitudes beyond dates and
+    report counts."""
+    import functools
+
+    from leviathan.graphrag import evidence as ev
+    from leviathan.graphrag import timeline as tl
+    from leviathan.graphrag.numbers import cascade as _cq
+
+    board = str(xl_request.get("board") or "")
+    label = _cq.XL_BOARD_LABEL.get(board) or board
+    nodes = [n for n in (sg.nodes or []) if n.contract == board]
+    drivers = [n for n in nodes if n.kind == "driver" and n.evidence][:int(_cq.XL_DRIVER_FAN)]
+    root = next((n for n in nodes if n.kind == "contract"), None)
+    selected = drivers + ([root] if root is not None else [])
+    if not selected:
+        hop["declines"].append({"reason": "no_grounded_node"})
+        return []
+    lines = [f"THE RECORD AROUND {located} for {label}: the dated windows and reports covering that "
+             f"date, drawn from the corpus this system holds TODAY and re-read at {located} -- never "
+             f"what was known then."]
+    # THE CONTENT COUNTER (refute minor 6). `len(lines) > 1` was not a content test: the RECORD FLOOR
+    # sentence appended at the tail is a second line, so a hop with ZERO episodes and ZERO retrieved
+    # props shipped a header plus a floor sentence -- un-fenced, carrying no hop row and nothing to
+    # recount -- into the volatile prompt. Counted at the APPEND SITES rather than re-derived from the
+    # rendered strings, so it cannot drift from what was actually appended. A REPORTS-only block is
+    # CONTENT and ships (it recounts real dated reports); the hop MANDATE stays off there anyway,
+    # because `_extreme_hop_block_on` keys on the hop ROW SHAPE, not on this block's presence.
+    n_content = 0
+    if not _timeline_on():
+        # DECLARED, NEVER INFERRED: `episodes_for` returns [] unless the timeline kill-switch is on, so
+        # the episode half is transitively gated. Counted, and NEVER narrated as "nothing happened".
+        hop["declines"].append({"reason": "timeline_off"})
+    for n in selected:
+        hop["nodes"].append(n.id)
+        eps = []
+        if _timeline_on():
+            _ev = [h for h in (n.evidence or [])
+                   if isinstance(h, dict) and str(h.get("date") or "")[:10] <= located]
+            try:
+                eps = tl.episodes_for(n.id, located, evidence=_ev) or []
+            except Exception:  # noqa: BLE001 -- an artifact problem is a decline, never a raise
+                eps = []
+        hop["episodes_per_node"][n.id] = len(eps)
+        if not eps:
+            continue
+        e = eps[0]
+        # THE WINDOW IS RECORDED under THIS key -- never appended to `episodes_injected`, which J4, the
+        # walk and `_validate_episode_spans` all read. `eval._injected_episodes` reads it from here, so
+        # a bullet transcribing a hop window is MATCHABLE rather than convicted as invented.
+        hop.setdefault("spans", {})[n.id] = tl.month_span(e)
+        # THE LABEL COMES FROM THE RESOLVER'S OWN VOCABULARY (display.node_label), never a raw slug:
+        # `register.internal_leaks` fences a raw id on a model-facing surface and never relaxes.
+        from leviathan.graphrag import display as _dp
+        nlabel = _dp.node_label(n.id, kind=n.kind, contract=n.contract) or n.id
+        r = e.get("receipt")
+        tail = (f'e.g. {tl.receipt_when(r)}: "{r["text"]}"' if r
+                else "no in-window report is carried for it")
+        if r:
+            hop["receipts"] += 1
+        # ITS OWN PREFIX AND ITS OWN MINTED TOKEN, never `tl.LINE_PREFIX`: rendering through
+        # `render_line` would make these lines byte-shaped like injected episode lines while
+        # deliberately staying OUT of `episodes_injected`, so the scorer would convict a bullet
+        # transcribing a hop window as INVENTED.
+        lines.append(f"{_cq.XL_HOP_PREFIX}{_cq.XL_HOP_TOKEN} {nlabel}, {tl.month_span(e)}: "
+                     f"{e.get('n')} report dates; {tail}. This window is recounted as of {located} and "
+                     f"may continue past it.")
+        n_content += 1
+    # THE ONE RETRIEVAL: the ROOT only, rerank OFF, at the located date.
+    if root is not None:
+        _fk = {"fetch_k": mode_knobs["fetch_k"]} if (mode_knobs or {}).get("fetch_k") else {}
+        # THE `probe_retr` IDIOM, VERBATIM (refute minor 5): the partial is built ONLY when no retrieval
+        # was injected, and the injected one is adopted by the same `probe = probe_retrieve or retrieve`
+        # line the walk's own probe seam uses (planner.py). The BUDGET CLAIM this docstring makes --
+        # one retrieval, rerank OFF -- is only enforceable over the partial THIS function configures, so
+        # an injected callable is now RECORDED rather than adopted silently: an A/B arm that overrides
+        # retrieval can buy a cross-encoder pass on the synthesis hot path, and the artifact says so
+        # instead of the claim being made for a callable this function never configured.
+        xl_probe = (None if retrieve
+                    else functools.partial(ev.retrieve, mode="hybrid", rerank=False, **_fk))
+        xl_retr = xl_probe or retrieve
+        hop["retr_injected"] = retrieve is not None
+        hop["retr_rerank_off"] = (retrieve is None
+                                  or getattr(retrieve, "keywords", {}).get("rerank") is False)
+        try:
+            props = xl_retr(query, root.id, k=int(_cq.XL_EV_K), asof=located, near=located) or []
+            hop["ev_reads"] = 1
+        except Exception:  # noqa: BLE001 -- one failed read is a decline, never a turn failure
+            props = []
+            hop["declines"].append({"reason": "retrieval_error"})
+        kept = [p for p in props if isinstance(p, dict)
+                and str(p.get("date") or "")[:10] <= located][:int(_cq.XL_EV_K)]
+        hop["retrieved"] = len(kept)
+        n_content += len(kept)
+        for p in kept:
+            lines.append(f'REPORTS AROUND {located} for {label}: {str(p.get("date"))[:10]} '
+                         f'({p.get("source") or "?"}): "{str(p.get("text") or "")[:180]}"')
+    floor = _record_from([h for n in (sg.nodes or []) for h in (getattr(n, "evidence", None) or [])])
+    if floor and located < floor:
+        # THE TWO FLOORS, NEVER CONFLATED: this is the CORPUS floor (reported dates), stated only when
+        # the located date precedes it. The TAPE floor is the locator row's own measured span start.
+        lines.append(f"THE RECORD FLOOR for this question is {floor}: the located date precedes the "
+                     f"oldest reported evidence this turn holds, so nothing above recounts it.")
+    if not n_content:
+        # ZERO episodes and ZERO retrieved props: the header and the floor sentence are not a block.
+        # Counted, so "the hop ran and found nothing" stays distinguishable from "the hop did not run".
+        hop["declines"].append({"reason": "no_hop_content"})
+        return []
+    return lines
 
 
 # W5-D5: the '## Outlook' RESERVED HEADING -- injected-only, exactly the '## Cross-commodity' /
@@ -2098,7 +2533,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             response_contract: str | None = None, budget: str | None = None,
             census: dict | None = None, provenance: bool = False, handles: bool = False,
             cascade_walk: bool = False, cascade_context: bool = False,
-            cascade_deep: bool = False, cascade_xccy: bool = False) -> str:
+            cascade_deep: bool = False, cascade_xccy: bool = False,
+            extreme_locator: bool = False, extreme_hop: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -2132,6 +2568,12 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     prose to the reader (section 2's MUTUAL-EXCLUSION law).
     `cascade_context` (V2-1) appends the CONTEXT-row mandate under the walk's own flag branch, threaded
     from both bodies as `_cascade_context_block_on(vp)`; DEFAULT FALSE -> byte-identical.
+    `extreme_locator` / `extreme_hop` (D-XL, E18) are TWO keyword-only booleans, DEFAULT FALSE so every
+    existing caller is byte-identical, threaded from BOTH serving bodies as
+    `_extreme_locator_block_on(vp)` / `_extreme_hop_block_on(vp)`. Under the lane flag ALONE the persona
+    gains a conditional LICENSE; the two MANDATES are gated on their OWN rendered row shapes, and they
+    are SPLIT because the hop declines independently of the locator -- shipping a two-clock mandate over
+    an absent block is the +10-hallucination class.
     Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
@@ -2180,6 +2622,19 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
                 #                                                      seam, its own flag, a pure
                 #                                                      append. DEFAULT FALSE ->
                 #                                                      byte-identical.
+        if _extreme_locator_on():                                  # D-XL: the LOCATOR license, the
+            base = base + _SYSTEM_EXTREME_LOCATOR                  #   CROSS_BOARD / DERIVED_ARITH
+            #                                                          flag-only sibling shape -- a
+            #                                                          CONDITIONAL clause, dormant on
+            #                                                          a rowless turn, never a demand
+            if extreme_locator:                                    # + the MANDATE, ROW-gated at the
+                base = base + _SYSTEM_EXTREME_LOCATOR_MANDATE      #   seam (the _episodes_on shape)
+            if extreme_hop:                                        # + the HOP mandate, SEPARATELY
+                base = base + _SYSTEM_EXTREME_HOP_MANDATE          #   row-gated: it declines on its
+                #                                                      own (timeline_off /
+                #                                                      hop_degenerate) and a
+                #                                                      locator-only turn must ship the
+                #                                                      locator clause ALONE
     if _pattern_records_on():
         from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
@@ -2811,7 +3266,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                extra_resolver=None, focus_driver: str | None = None, use_blocks: bool = False,
                silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
                outlook: bool = False, response_contract: str | None = None,
-               mode_knobs: dict | None = None) -> dict:
+               mode_knobs: dict | None = None,
+               xl_request: dict | None = None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -2822,7 +3278,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     `mode_knobs` (D-AM-10) is the reasoning mode's RESOLVED knob dict, threaded down as ONE argument
     (this body reads no environment for it). Empty/None on every standard and every dark turn, and
     every consumer below uses the omit-when-empty idiom -- so the walk call, the ground call, the
-    retrieval partial, the persona and the scaffold seam are BYTE-IDENTICAL unless a mode is honored."""
+    retrieval partial, the persona and the scaffold seam are BYTE-IDENTICAL unless a mode is honored.
+
+    `xl_request` (D-XL, E12) is the ALREADY-RESOLVED price-extreme request the orchestrator built from
+    the planner's own detection -- board, direction, kind, scope, since. THIS MODULE PERFORMS NO
+    CLASSIFICATION: the ENGINE is gated by the ARGUMENT, there is no regex grammar anywhere in this
+    lane, and None -> the quantify kwarg is ABSENT -> byte-identical."""
     from leviathan.graphrag import planner as pl
     # D-AM-10 retrieval width: rebound PER CALL on the local partial (never a module-global mutation),
     # so concurrent turns on different modes cannot see each other's fetch_k. Absent -> the kwarg is
@@ -3071,6 +3532,24 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                    or _cascade_deep_on()):
                         _cw_req["replay"] = True
                     _cw_kw = {"cascade_walk": _cw_req}
+            # D-XL: the seam CONSUMES the request the orchestrator already resolved from the planner's
+            # own detection -- it classifies NOTHING. Same omit-when-off idiom: flag off, or no request,
+            # or a request with no resolved board -> the kwarg is ABSENT -> quantify byte-identical, and
+            # an injected quantify fake written against the older signature stays valid. NO `sg.trace`
+            # write happens here on a decline: a DISPATCH decline lives on `decided['extreme_locator']`
+            # and the ENGINE alone writes `quantify_extreme_locator`.
+            _xl_kw = {}
+            if _extreme_locator_on() and isinstance(xl_request, dict) and xl_request.get("board"):
+                _xl_req = dict(xl_request)
+                if _pr_kw:
+                    _xl_req["replay"] = True     # the SAME already-resolved historical-asof bool
+                _xl_kw = {"extreme_locator": _xl_req}
+            # THE EXTREMA-CLOCK REPAIR, BUILT DARK: the SAME omit-when-off idiom, so with the flag unset
+            # the kwarg is ABSENT and the three sites render exactly the bytes they render today. It is
+            # a SEPARATE flag from the locator's because it changes LIVE rendered bytes on surfaces the
+            # locator does not depend on -- flipping it in this lane's arm would make that arm measure
+            # its own instrument, which is the same reason the superlative strip is deferred.
+            _eod_kw = {"extrema_own_date": True} if _extrema_own_date_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
@@ -3079,7 +3558,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                                 **_pace_kw, **_chain_kw, **_xmit_kw,
                                                                 **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw,
                                                                 **_fnf_kw, **_pr_kw, **_rv_kw, **_rvr_kw,
-                                                                **_dv_kw, **_cw_kw)
+                                                                **_dv_kw, **_cw_kw, **_xl_kw,
+                                                                **_eod_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:
@@ -3093,6 +3573,62 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             logging.getLogger(__name__).warning("cascade quantify failed (%s: %s); proceeding qualitative",
                                                 type(e).__name__, str(e)[:160])
             sg.trace["quantify_error"] = type(e).__name__
+    # ══ D-XL (E17): THE SECOND AS-OF HOP -- "what was happening then" ════════════════════════════════
+    # WHERE, AND WHY HERE. Immediately AFTER the quantify try/except, in its OWN belt. Two facts force
+    # it: `retr` is built above and consumed only by `pl.ground` -- it never reaches `cq.quantify` --
+    # and the `Subgraph` carries seeds/nodes/fired_regimes/mermaid/trace and NO query string. A
+    # second-hop failure must never lose the quantify block, hence a belt of its own.
+    if _extreme_locator_on() and isinstance(xl_request, dict) and xl_request.get("board"):
+        _xl_hop: dict = {"turn_asof": str(asof or "")[:10], "nodes": [], "episodes_per_node": {},
+                         "receipts": 0, "ev_reads": 0, "declines": []}
+        try:
+            _xl_pay = (sg.trace or {}).get("quantify_extreme_locator") or {}
+            # THE HOP ANCHORS ON THE ROW THE ANSWER LEADS WITH (refute major 1, MEASURED). On the
+            # windowed kind the payload carries TWO located dates: `window_located_date` is ROW W's --
+            # the row the ask asked for, rendered FIRST, [N1] -- and `located_date` is ROW A's tape-wide
+            # anchor. Reading `located_date` alone headed the block "THE RECORD AROUND 2012-08-21" for an
+            # answer whose figure was 2022-04-29, and the hop mandate then made the writer narrate "AT
+            # THAT TIME" for a date that is not the answer's. `window_located_date` is present only on a
+            # windowed row that SERVED (the fallbacks never write it), so the fallback keeps ROW A's date
+            # by construction rather than by a second branch.
+            _D = str(_xl_pay.get("window_located_date") or _xl_pay.get("located_date") or "")[:10]
+            _A = str(asof or "")[:10]
+            _xl_hop["located_date"] = _D
+            _xl_hop["anchor"] = ("window_located_date" if _xl_pay.get("window_located_date")
+                                 else "located_date")
+            if not (_D and _A):
+                _xl_hop["declines"].append({"reason": "no_located_date"})
+            elif _D > _A:
+                # ONE-DIRECTIONAL SAFETY, ASSERTED RATHER THAN ASSUMED. It holds by construction (the
+                # locator read was PIT-guarded at A with the publication lag applied), and it is
+                # asserted anyway because the leakage argument only runs one way: `evidence.retrieve`
+                # and `pgstore.fetch_candidates` both filter `date <= asof`, so a hop at D is a
+                # STRICTLY NARROWER cut than the turn already admits. The dangerous shape is the
+                # reverse -- a future lower bound applied without re-applying the cutoff. Fail-closed.
+                _xl_hop["declines"].append({"reason": "located_after_asof"})
+            elif (_iso_ord(_A) - _iso_ord(_D)) <= _cq_xl_min_hop_days():
+                # DEGENERACY GUARD: `episodes_for(node, D)` would return the same windows `_l2_blocks`
+                # already rendered at A, and the retrieval the same props -- two clocks that are one.
+                _xl_hop["gap_days"] = _iso_ord(_A) - _iso_ord(_D)
+                _xl_hop["declines"].append({"reason": "hop_degenerate"})
+            else:
+                _xl_hop["gap_days"] = _iso_ord(_A) - _iso_ord(_D)
+                _xl_hop_lines = _extreme_hop_lines(sg, graph, query, xl_request, _D, _A,
+                                                  retrieve=retrieve, mode_knobs=mode_knobs,
+                                                  hop=_xl_hop)
+                if _xl_hop_lines:
+                    volatile_blocks = volatile_blocks + ["\n".join(_xl_hop_lines)]
+        except Exception as e:  # noqa: BLE001 -- the hop must never cost the quantify block
+            _xl_hop["declines"].append({"reason": "error"})
+            sg.trace["extreme_second_hop_error"] = type(e).__name__
+        try:
+            # THE HOP APPENDS NOTHING TO `episodes_injected` -- J4, the walk and
+            # `_validate_episode_spans` all read that key, and `eval._injected_episodes` would convict a
+            # bullet transcribing a hop window as INVENTED while the same node's window appeared twice
+            # in one prompt. Its own key, its own prefix, its own minted token.
+            sg.trace["extreme_second_hop"] = _xl_hop
+        except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+            pass
     # Clause A' (thin-turn honesty fix): a per-turn GROUNDING LEDGER line enumerating the EXACT valid handle
     # ranges for this turn, so the model cannot mint an [E]/[N] handle beyond what the engine actually holds.
     # Stays in the VOLATILE tail (never the cached constant) so the cache prefix is unchanged.
@@ -3191,6 +3727,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                               cascade_context=_cascade_context_block_on(vp),
                               cascade_deep=_cascade_deep_block_on(vp),
                               cascade_xccy=_cascade_xccy_block_on(vp),
+                              extreme_locator=_extreme_locator_block_on(vp),   # D-XL: row-gated
+                              extreme_hop=_extreme_hop_block_on(vp),           # D-XL: separately gated
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               census=_census,                     # D-CC-1: None on every dark turn
                               provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
@@ -3204,6 +3742,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _banned_exec = _count_banned_exec(structured)                 # W5: A2 execution idioms, RAW (pinned 0 always)
     _unbacked = _count_unbacked_levels(structured)                # W5.0: bare price levels, RAW (derivation gate)
     _bare_digits = _count_bare_digits(structured)                 # D-HP-4(c): the digit-lint ESCAPE COUNTER
+    # D-XL (E19) M5: THE ARM-CONSTANT SUPERLATIVE COUNTER, on the RAW draft, PRE-sanitize, on BOTH
+    # arms. It CHANGES NO BYTE, so it is arm-constant by construction and the arm measures the block
+    # rather than its own instrument. In THIS lane it is the WHOLE superlative instrument: the
+    # whole-sentence removal ships in its own later commit with its own flag and its own arm.
+    _xl_unspanned = _count_unspanned_superlatives(
+        structured, handles=_xl_locator_handles(extra_number_calls))
     # A4: the counters above are computed HERE and the draft they were computed on is destroyed BELOW --
     # verify_citations mutates `structured` in place, _humanize_structured rewrites it, sanitize cleans the
     # render. Snapshot it while it still exists (flag-gated; None -> the key is absent, not null).
@@ -3466,6 +4010,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
                                       "bare_digit_count": _bare_digits,   # D-HP-4(c): always on, gates nothing
+                                      # D-XL M5: BOTH arms, changes no byte, gates nothing
+                                      "xl_unspanned_superlative": _xl_unspanned,
                                       "citation_resolved": _typed_resolved(verifier),   # D-HP-4(d), G1 (6)
                                       "outlook_mode": _outlook, "market_register": _mr,
                                       **({"degraded_model": degraded} if degraded else {}),
@@ -9221,7 +9767,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
            extra_resolver=None, planner: str | None = None, focus_driver: str | None = None,
            silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
            outlook: bool = False, response_contract: str | None = None,
-           mode_knobs: dict | None = None) -> dict:
+           mode_knobs: dict | None = None,
+           xl_request: dict | None = None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -9286,7 +9833,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                           extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
                           silver_lookup=silver_lookup, on_stage=on_stage, numbers_lookup=numbers_lookup,
                           xc_request=xc_request, outlook=outlook, response_contract=response_contract,
-                          mode_knobs=mode_knobs)
+                          mode_knobs=mode_knobs, xl_request=xl_request)
     if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
         extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
@@ -9413,6 +9960,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                               cascade_context=_cascade_context_block_on(vp),
                               cascade_deep=_cascade_deep_block_on(vp),
                               cascade_xccy=_cascade_xccy_block_on(vp),
+                              extreme_locator=_extreme_locator_block_on(vp),   # D-XL, both bodies
+                              extreme_hop=_extreme_hop_block_on(vp),           # D-XL, both bodies
                               response_contract=_rc_active,
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
                               census=_census,                                 # D-CC-1, both bodies
@@ -9425,6 +9974,12 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _banned_exec = _count_banned_exec(structured)                 # W5: A2 execution idioms, RAW (pinned 0 always)
     _unbacked = _count_unbacked_levels(structured)                # W5.0: bare price levels, RAW (derivation gate)
     _bare_digits = _count_bare_digits(structured)                 # D-HP-4(c): the digit-lint ESCAPE COUNTER
+    # D-XL (E19) M5: THE ARM-CONSTANT SUPERLATIVE COUNTER, on the RAW draft, PRE-sanitize, on BOTH
+    # arms. It CHANGES NO BYTE, so it is arm-constant by construction and the arm measures the block
+    # rather than its own instrument. In THIS lane it is the WHOLE superlative instrument: the
+    # whole-sentence removal ships in its own later commit with its own flag and its own arm.
+    _xl_unspanned = _count_unspanned_superlatives(
+        structured, handles=_xl_locator_handles(extra_number_calls))
     # A4 on the SECOND synthesis path. There is no single choke point -- verify_citations is called from
     # _answer_l2 AND from here, and this is the documented GRAPHRAG_PLANNER=onehop rollback lane. Snapshotting
     # only the L2 body would leave the fallback with no raw draft, i.e. a silent hole in the audit exactly on
@@ -9553,6 +10108,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
                       "bare_digit_count": _bare_digits,            # D-HP-4(c): always on, gates nothing
+                      "xl_unspanned_superlative": _xl_unspanned,   # D-XL M5: both arms, both bodies
                       "citation_resolved": _typed_resolved(verifier),   # D-HP-4(d), G1 (6)
                       "outlook_mode": _outlook, "market_register": _mr,
                       "record_through": _rec_through,              # D-RC-13: observational, both bodies

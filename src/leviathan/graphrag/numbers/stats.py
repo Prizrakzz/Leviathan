@@ -73,6 +73,19 @@ MIN_WINDOW_CHANGE_N = 2   # need both endpoints
 MIN_REVISION_N = 2        # need >=2 vintages to observe one revision
 MIN_EXTREMA_N = 1         # a single point trivially is its own min and max
 MIN_YOY_N = 2             # need the point `periods` back plus the latest
+
+EXTREME_TIE_RULE = "last"
+"""D-XL (E26): on equal values the LATEST observation wins.
+
+MINTED IN THIS LEAF and imported by ``numbers/query.py`` -- never the reverse. This module's own
+docstring asserts it reads no filesystem, network, clock or global state, and ``cascade.py`` relies on
+that leaf status BY NAME; ``query.py`` imports ``registry`` (pydantic + YAML) at its own head, so the
+reverse import would hand this leaf that whole graph and a latent cycle.
+
+DECLARED rather than left to a call site: ``extrema``'s silent convention is FIRST occurrence
+(``vals.index``, below) and "when was it at its peak LAST time" asks for the opposite end. Enforced by
+the DESC tiebreak in ``query._extreme_order`` and by ``extreme_locator``'s own index pick; pinned by
+IDENTITY (``query.EXTREME_TIE_RULE is stats.EXTREME_TIE_RULE``), never by a re-typed string."""
 MIN_QUANTILE_N = MIN_PERCENTILE_N   # OUTCOMES_JOIN AM-3: ONE floor family. A spread over a handful of
 #                                     firings fakes the same precision a rank over them does, so the
 #                                     outcome join's coverage floor IS this module's refusal floor --
@@ -92,6 +105,15 @@ MIN_PAIR_SPREAD_N = MIN_SPREAD_N    # RV-READING (D2 resolution, 2026-08-29; rev
 #                                     MIN_SPREAD_N's own two-endpoint logic -- inherited, never a second
 #                                     number. The rank and sigma floors are NOT relaxed: percentile /
 #                                     zscore keep refusing below 8 at their own call sites.
+MIN_EXTREME_N = MIN_PAIR_SPREAD_N   # D-XL (E26): the DATED-EXTREME calculator's floor, and it is
+#                                     MIN_PAIR_SPREAD_N (= 2), NOT MIN_EXTREMA_N (= 1). This estate
+#                                     adjudicated the question at the constant above -- 'at a single
+#                                     joined observation the highest, the lowest and the latest are ONE
+#                                     number rendered three ways'. INHERITED, never a second number.
+#                                     INERT on the SQL path (LIMIT 1 always returns one row); it binds
+#                                     only on the pure-Python companion path. The SUPERLATIVE itself is
+#                                     fenced by the MEASURED span and count the row carries, never by a
+#                                     count floor -- frequency floors deny the tail.
 
 MIN_CORR_N = MIN_ZSCORE_N           # RV-REGIONAL (2026-08-29). ONE floor family: a correlation
 #                                     estimates two means, two spreads AND a covariance, so it cannot
@@ -493,6 +515,68 @@ def extrema(series: Sequence) -> dict:
     hi = max(vals)
     return {"stat": "extrema", "declined": False, "value": None, "n": n,
             "min": lo, "max": hi, "argmin": vals.index(lo), "argmax": vals.index(hi)}
+
+
+def extreme_locator(series: Sequence, dates: Sequence, direction: str, *,
+                    labels: Sequence | None = None, truncated: bool = False) -> dict:
+    """D-XL (E27): the DATED extreme of a series -- ONE magnitude, ITS OWN date, and the label of the
+    row it came from. The pure calculator, and the SQL branch's ORACLE.
+
+    DELIBERATELY ABSENT FROM STAT_REGISTRY -- that registry is the AGENT TOOL ENUM
+    (``agent.stats_tool_schema`` enumerates ``sorted(ST.STAT_NAMES)``) and this is an ENGINE
+    calculator on a deterministic scored path (the ``quantiles`` / ``sign_agreement`` rulings).
+
+    WHY IT IS NOT ``extrema``. ``extrema`` returns TWO magnitudes and FIRST-occurrence indices no
+    caller has ever read; three of its four call sites stamp the SERIES END on the cited row, and the
+    fourth returns UNDATED extremes to a distribution summary. This returns ONE magnitude under the
+    standard ``value`` key -- because the product is ONE cited row -- and its ``date`` is that row's
+    own axis cell.
+
+    DECLINES, IN BRANCH ORDER:
+      (a) axis-length mismatch -- the ``_series_axis`` law: a value axis and a date axis of different
+          lengths cannot be zipped, and zipping them anyway dates the wrong observation;
+      (b) any UNDATED cell (``select_front_expiry`` refuses the same shape);
+      (c) ``truncated`` -- a HARD DECLINE, never a caveat: WHICH END a saturated series keeps is
+          flag-dependent (the newest-first canary), so the extreme of a truncated series is the
+          extreme of whichever half the cap happened to keep;
+      (d) ``n < MIN_EXTREME_N``.
+    TIES are REPORTED as ``n_ties`` and picked per ``EXTREME_TIE_RULE`` ('last' -> the LATEST
+    occurrence), never declined."""
+    direction = str(direction or "").strip().lower()
+    if direction not in ("max", "min"):
+        return _decline("extreme_locator", 0, f"direction must be 'max' or 'min', got {direction!r}",
+                        direction=direction)
+    ds = list(dates or [])
+    vals_raw = list(series or [])
+    if len(ds) != len(vals_raw):
+        return _decline("extreme_locator", len(vals_raw),
+                        f"axis length mismatch: {len(vals_raw)} values, {len(ds)} dates",
+                        direction=direction)
+    lbs = list(labels or [None] * len(vals_raw))
+    if len(lbs) != len(vals_raw):
+        return _decline("extreme_locator", len(vals_raw),
+                        f"axis length mismatch: {len(vals_raw)} values, {len(lbs)} labels",
+                        direction=direction)
+    for i, d in enumerate(ds):
+        if d is None or not str(d).strip():
+            return _decline("extreme_locator", len(vals_raw), f"undated cell at index {i}",
+                            direction=direction)
+    if truncated:
+        return _decline("extreme_locator", len(vals_raw),
+                        "the series was TRUNCATED at the row cap: which end a saturated read keeps is "
+                        "flag-dependent, so its extreme is not the tape's extreme", direction=direction)
+    vals = _floats(vals_raw)
+    n = len(vals)
+    if n < MIN_EXTREME_N:
+        return _decline("extreme_locator", n, f"need >={MIN_EXTREME_N} points, got {n}",
+                        direction=direction)
+    target = max(vals) if direction == "max" else min(vals)
+    idxs = [i for i, v in enumerate(vals) if v == target]
+    pick = idxs[-1] if EXTREME_TIE_RULE == "last" else idxs[0]
+    return {"stat": "extreme_locator", "declined": False, "value": target, "n": n,
+            "direction": direction, "date": str(ds[pick]), "label": lbs[pick], "index": pick,
+            "n_ties": len(idxs), "tie_rule": EXTREME_TIE_RULE,
+            "first_date": str(ds[0]), "last_date": str(ds[-1])}
 
 
 def yoy_delta(series: Sequence, periods: int = 1) -> dict:

@@ -393,6 +393,24 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # pins re-anchor ONCE for both. `quantify_price_leg_decline` stays
                                  # deliberately UNREGISTERED (the quantify_chain_decline sibling
                                  # precedent; eval's price_leg_fired reads the FIRED key only).
+    "quantify_extreme_locator",  # D-XL (E33): the LOCATOR's ONE registered key, written by the ENGINE
+                                 # ONLY -- a DISPATCH decline rides decided['extreme_locator'] instead,
+                                 # so an ABSENT key means the leg DID NOT RUN, never that it declined.
+                                 # `outcome` in {fired, declined, fenced} and `kind` in
+                                 # {extreme, windowed_extreme} both ride INSIDE it, which is why the
+                                 # two kinds cost ONE key rather than two. Carries: board, label,
+                                 # kind, direction, scope, since, located_date, value, unit,
+                                 # contract_month, settle_kind, currency, span_start, span_end,
+                                 # n_prints, recent{...} or window_* on the windowed path, reads,
+                                 # rows_fenced, rendered, declines[].
+    "extreme_second_hop",        # D-XL: the SECOND PRODUCER's own key. The hop runs in answer.py,
+                                 # AFTER quantify, because `retr` never reaches cascade.py and the
+                                 # Subgraph carries no query string -- so it is a second producer, not
+                                 # a second field of the first. Carries: located_date, turn_asof,
+                                 # gap_days, nodes[], episodes_per_node{}, receipts, retrieved,
+                                 # ev_reads, declines[]. IT IS NEVER APPENDED TO episodes_injected.
+                                 # BOTH keys land in ONE commit per the 12f law, so the negative-index
+                                 # tail pins across the test files re-anchor ONCE, by two.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].
@@ -413,4 +431,10 @@ DECISION_RECORD_KEYS: tuple[tuple[str, str], ...] = (
                                                            # own subject matter. detection_tier at
                                                            # eval.py:1480 is LEFT ALONE (no column
                                                            # shift; banked artifacts stay comparable).
+    # D-XL (E33), APPENDED AT THE TAIL, same law and same reason: the WHOLE decision dict
+    # {detected, fired, suppressed_reason, kind, board, direction, scope, since, confidence} is lifted
+    # into the eval record, so the DISPATCH half of this lane is measurable with NO eval column edit and
+    # no column shift -- and the engine-only-key law holds by construction, because the engine's own key
+    # is never written on a dispatch decline.
+    ("extreme_locator", "extreme_locator_decision"),
 )

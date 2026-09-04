@@ -49,6 +49,48 @@ SELECTION keyed on another column -- pick the front expiry by the ONE named, ver
 THAT row as it stands. The rule is never re-derived here; it is IMPORTED and RUN
 (``leviathan.silver.futures_roll``, fenced by ``config_check.check_futures_roll``)."""
 
+EXTREME_ROW_AGGS = frozenset({"max_row", "min_row"})
+"""D-XL (E22) -- the two EXTREME-ROW SELECTION tokens.
+
+A FROZENSET, and that is load-bearing rather than stylistic: the set is a MEMBERSHIP test at three
+sites and never a sequence to concatenate. ``("sum",) + EXTREME_ROW_AGGS`` raises TypeError, which is
+exactly why ``_is_series_branch`` joins two ``in`` tests with ``or`` instead of extending its tuple.
+
+TWO TOKENS rather than one agg plus a ``direction`` field: ``NumberQuery``'s field set is unchanged,
+so nothing new can leak onto any surface.
+
+ENGINE-ONLY. ``agent._forced_spec`` REFUSES both tokens BEFORE it constructs a ``NumberQuery``,
+because that function passes the model's RAW tool input through and the pydantic Literal below is
+therefore NOT the fence on the model lane."""
+
+# MINTED IN THE PURE LEAF and imported HERE -- never the reverse. `stats.py`'s own docstring asserts it
+# reads no filesystem, network, clock or global state and `cascade.py` relies on that leaf status by
+# name; this module imports `registry` (pydantic + YAML) above, so the reverse import would hand the
+# leaf that whole graph and a latent cycle. The lint pins BOTH the identity and the import DIRECTION.
+from leviathan.graphrag.numbers.stats import EXTREME_TIE_RULE  # noqa: E402,F401
+
+XL_ROSTER_MIN_SPAN_DAYS = 1095    # GATE 1 (ROSTER): static, import-time, ADMISSION ONLY
+XL_MIN_TAPE_ROWS = 730            # GATE 2 (ROW): the measured `_n`      -- PENDING G0b
+XL_MIN_TAPE_SPAN_DAYS = 1095      # GATE 2 (ROW): the measured span days -- PENDING G0b
+"""D-XL M1 -- TWO GATES, NEVER ONE, AND THEY ANSWER DIFFERENT QUESTIONS.
+
+GATE 1, THE ROSTER GATE, is ``(today - PRICE_COVERAGE_START[slug]).days >= XL_ROSTER_MIN_SPAN_DAYS``,
+evaluated at IMPORT, admission only. It is the only gate an import-time roster can honestly apply: at
+import there is NO SERVED TAPE, and the planner enum, the literal roster and the lint all read the
+roster at import.
+
+GATE 2, THE ROW GATE, is applied at SERVE time to the MEASURED ``_n`` and the MEASURED
+``_span_end - _span_start`` the selection carries on its own row, declining ``tape_too_short`` with
+those numbers named. ITS SCOPE IS THE TAPE-WIDE ROW (ROW A) ONLY, and that is a MEASUREMENT rather
+than an assumption: applied to the trailing-window row it declines the recent row on EVERY board by
+construction, because that window IS ``XL_RECENT_DAYS`` (728 days measured against a 1095-day floor).
+Both rows come off one tape; the tape is admitted once.
+
+BOTH GATE-2 VALUES SHIP PENDING G0b, and say so here: the 1095/730 pair was computed from
+PRICE_COVERAGE_START -- the map this design demotes to a lint cross-check -- and computed SPAN DAYS
+ONLY, so 730 was measured on nothing. G0b's second clause is a PASS/FAIL against the SERVED tape and
+SETS them. WHAT THE STATIC MAP LICENSES IS A PREDICTION, stated as such."""
+
 
 class NumberQuery(BaseModel):
     table: str
@@ -67,7 +109,22 @@ class NumberQuery(BaseModel):
     #                                                  ('2026-12,2027-03,2027-05'). Ignored-by-construction on
     #                                                  tables with no contract_month_col -- build_sql RAISES there
     #                                                  rather than serving a continuous series as an expiry.
-    agg: Literal["latest", "series", "sum", "mean", "max", "min", "front_expiry"] = "latest"
+    agg: Literal["latest", "series", "sum", "mean", "max", "min", "front_expiry",
+                 "max_row", "min_row"] = "latest"
+    #                                                  D-XL (E21) -- `max_row`/`min_row` are the
+    #                                                  EXTREME-ROW SELECTION: a SELECTION keyed on
+    #                                                  `value`, not an aggregation (the FRONT_EXPIRY_AGG
+    #                                                  argument above -- `_agg` projects `value` ALONE
+    #                                                  and would discard the date, the expiry, the kind
+    #                                                  of print and the currency, which are the entire
+    #                                                  product here). Deliberately NOT declared in
+    #                                                  agent.tool_schema: an ENGINE read minted by a
+    #                                                  fenced producer that renders its own row.
+    #                                                  THE LITERAL IS NOT THE FENCE: `agent._forced_spec`
+    #                                                  passes the model's raw tool input into
+    #                                                  NumberQuery, so it REFUSES these two tokens there,
+    #                                                  in the `_clamp_limit` shape but raising rather
+    #                                                  than clamping.
     #                                                  D-PQ A' -- `front_expiry` is the EXCHANGE-SETTLE ANCHOR
     #                                                  read and it is a SELECTION, not an aggregation: the
     #                                                  newest session on/before the as-of is read WHOLE (every
@@ -698,6 +755,75 @@ def _series_order(extras: list[tuple[str, str]], include_country: bool, *, newes
     return ", ".join(f"{a} DESC NULLS LAST" for a in _order_aliases(extras, include_country) + ["value"])
 
 
+XL_REFUSAL_ATTR = "xl_read_reason"
+"""THE ATTRIBUTE NAME an extreme-branch refusal stamps on its own exception, read by
+``cascade._xl_read_reason``. ONE string, two modules, so neither can spell it alone."""
+
+
+def _extreme_refusal(reason: str, msg: str) -> ValueError:
+    """A CARD-AXIS REFUSAL THAT CARRIES ITS OWN NAME, as a structured attribute on the exception.
+
+    NEW FINDING 3 (re-review), MEASURED: `cascade._xl_read_reason` classified these raises by SUBSTRING,
+    and the ``year_month`` message below contains the words "release stamp" while SAYING that the card
+    carries none -- so it was filed as ``vintage_card``, whose reader sentence ("this source records a
+    release stamp rather than an observation date") states the OPPOSITE of the raise. A message is prose
+    for a human; it is not a classification key, and a reword silently demotes a named boundary.
+
+    The type stays ``ValueError`` -- every existing ``except ValueError`` around this compiler keeps its
+    exact behaviour -- and the NAME rides beside the message. `build_sql` does not catch, and `run` calls
+    it without a wrapper, so the attribute reaches `cascade._xl_read` intact.
+
+    The names are cascade's decline vocabulary; `config_check` clause (13) parses THIS module's own
+    ``_extreme_refusal("...")`` literals and asserts they equal `cascade.XL_READ_ERROR_REASONS` and that
+    every one has a reader sentence -- so the producer and the vocabulary cannot drift apart."""
+    exc = ValueError(msg)
+    setattr(exc, XL_REFUSAL_ATTR, reason)
+    return exc
+
+
+def _extreme_order(extras: list[tuple[str, str]], include_country: bool, *, agg: str) -> str:
+    """D-XL (E23): the EXTREME-ROW SELECTION's ORDER BY -- the extreme first, then EXTREME_TIE_RULE.
+
+    EVERY TERM CARRIES AN EXPLICIT ``NULLS LAST``, the ``_series_order`` law verbatim: Presto defaults
+    NULLS LAST regardless of direction, Postgres defaults NULLS FIRST on DESC, and ``settle`` is NULL on
+    ~10k rows. A bare DESC would locate a DIFFERENT peak on the two backends for the same SQL, which is
+    this branch's one unsurvivable failure.
+
+    THE TIEBREAK IS ``_order_aliases`` REVERSED, AND THAT IS A PRIORITY LIST, NOT A DATE LIST (measured
+    on the futures card: ['year', 'knowledge_date', 'contract_month']). year DESC then knowledge_date
+    DESC IS a true chronological DESC because year derives from trade_date; the trailing contract_month
+    DESC means a SAME-SESSION tie picks the FURTHEST delivery month -- deterministic, and stated."""
+    d = "DESC" if agg == "max_row" else "ASC"
+    return f"value {d} NULLS LAST, " + ", ".join(f"{a} DESC NULLS LAST"
+                                                 for a in _order_aliases(extras, include_country))
+
+
+def _extreme_window(ts: TableSpec, val: str) -> str:
+    """D-XL (E23): the three window aggregates that make the ONE returned row STATE ITS OWN POPULATION
+    AND SPAN -- OVER PRICED ROWS ONLY.
+
+    ``COUNT(<value>)`` skips NULLs by SQL definition, so it cannot over-claim the population by the
+    ~10k unpriced rows; the two span aggregates carry an explicit CASE for the same reason, so a bare
+    MIN cannot start the span before the board's first print.
+
+    ``FILTER (WHERE ...)`` IS DELIBERATELY NOT USED, and the reason is PORTABILITY: this compiler serves
+    an Athena/Presto lane AND a Postgres mirror, FILTER-alongside-OVER support differs between them, and
+    locating a different peak on the two backends is the one failure this branch cannot survive.
+
+    THE SPAN EXPRESSION IS ``_sel_date``, NOT the raw order column: the futures card declares
+    ``date_col_type: timestamp``, so a bare ``MIN(trade_date)`` would render 'YYYY-MM-DD HH:MM:...'. A
+    data_date card with NO ``date_col`` DECLINES here (``extrema_axis_unavailable``) rather than falling
+    back to the INT ``(year*100 + month)`` expression, which would render ``_span_start=202609``."""
+    if not ts.date_col:
+        raise _extreme_refusal("extrema_axis_unavailable",
+                               "table has no date_col: an extreme's span cannot be dated "
+                               "(extrema_axis_unavailable)")
+    span = _sel_date(ts, ts.date_col)
+    return (f", COUNT({val}) OVER () AS _n"
+            f", MIN(CASE WHEN {val} IS NOT NULL THEN {span} END) OVER () AS _span_start"
+            f", MAX(CASE WHEN {val} IS NOT NULL THEN {span} END) OVER () AS _span_end")
+
+
 def _is_series_branch(spec: NumberQuery, ts: TableSpec) -> bool:
     """Does this spec compile through the SERIES/default arm (``ORDER BY <total order> LIMIT <limit>``)?
     Mirrors build_sql's own control flow, so the re-sort in ``run()`` can never disagree with the SQL it is
@@ -710,7 +836,12 @@ def _is_series_branch(spec: NumberQuery, ts: TableSpec) -> bool:
     curve and then collapses to ONE row. Saying so HERE is load-bearing rather than cosmetic: this
     predicate gates the newest-first re-sort in ``run()``, and a front-expiry read re-sorted as though it
     were a truncated series would reverse the very rows the roll rule is about to be handed."""
-    if spec.agg in ("sum", "mean", "max", "min", FRONT_EXPIRY_AGG):
+    if spec.agg in ("sum", "mean", "max", "min", FRONT_EXPIRY_AGG) or spec.agg in EXTREME_ROW_AGGS:
+        # D-XL (E24): the extreme-row SELECTION is NOT a series branch either -- it compiles
+        # `ORDER BY value <dir> ... LIMIT 1` and returns exactly one row, so there is nothing for the
+        # newest-first re-sort to undo and nothing that can truncate. The membership test is joined
+        # with `or` rather than folded into the tuple because EXTREME_ROW_AGGS is a FROZENSET and
+        # `("sum",) + frozenset(...)` raises TypeError.
         return False
     if spec.agg == "latest":
         return not _order_col(ts)
@@ -847,6 +978,36 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
         return f"SELECT {fn}(value) AS value FROM ({sql}) AS _v"
 
     table = ts.athena_table or spec.table                     # agent-facing id -> physical Glue table
+    if spec.agg in EXTREME_ROW_AGGS:
+        # D-XL (E25): a SELECTION, not an aggregate. `_agg` below projects `value` ALONE and would
+        # discard the date, the expiry, the kind of print and the currency -- which are the entire
+        # product here. ONE row, CAP-FREE: `LIMIT 1` cannot truncate, so `spec.limit` is IGNORED BY
+        # CONSTRUCTION (the CURVE_ROW_CAP argument) and the branch is excluded from
+        # `_is_series_branch` exactly as front_expiry is (the mirror-the-compiler law).
+        # EACH REFUSAL CARRIES ITS OWN NAME (see `_extreme_refusal`). These three messages are PROSE and
+        # two of them share the words "release stamp" while asserting opposite facts about the card, so
+        # the classifier reads the stamped attribute and never the text.
+        if ts.knowledge_semantics != "data_date":
+            if ts.knowledge_semantics == "year_month":
+                raise _extreme_refusal(
+                    "month_only_card",
+                    f"agg={spec.agg!r} is legal only on a data_date card (as-known == "
+                    f"observed); {spec.table} declares knowledge_semantics='year_month', "
+                    f"which carries no release stamp and no per-observation date at all "
+                    f"-- an extreme cannot be DATED on it")
+            raise _extreme_refusal(
+                "vintage_card",
+                f"agg={spec.agg!r} is legal only on a data_date card (as-known == "
+                f"observed); {spec.table} declares "
+                f"knowledge_semantics={ts.knowledge_semantics!r}, where the row's date is "
+                f"a release stamp and the observation is a period -- two clocks, not one")
+        if not order:
+            raise _extreme_refusal(
+                "extrema_axis_unavailable",
+                f"table {spec.table} has no chronological column, so an extreme cannot be "
+                f"DATED -- and a dated extreme is the whole product of agg={spec.agg!r}")
+        return (f"SELECT {sel}{_extreme_window(ts, val)} FROM {db}.{table} WHERE {where}"
+                f" ORDER BY {_extreme_order(extras, inc_country, agg=spec.agg)} LIMIT 1")
     if spec.agg == FRONT_EXPIRY_AGG:
         # THE WHOLE NEWEST SESSION, every listed expiry -- the rule cannot pick a front month from one row.
         # DENSE_RANK (not ROW_NUMBER) is the point: a session returns ~13 rows that must ALL survive, and

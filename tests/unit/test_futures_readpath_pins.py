@@ -997,8 +997,14 @@ class TestS1UnflaggedByDesign:
         # years-stale stocks-to-use ratio into REGIME FIRING. The other two legs are threaded through the
         # same `_rows` helper and provably cannot move (see silverleg._rows' own docstring, and the
         # unchanged-leg pins in tests/unit/test_cascade_home_small_items.py).
-        assert sorted(threaded) == ["agent", "agent", "agent", "cascade", "cascade", "server",
-                                    "silverleg"], threaded
+        # D-XL RE-ANCHOR (2026-09-04), AND THE DECISION THIS PIN EXISTS TO FORCE. The price-extreme
+        # locator adds a THIRD cascade read site (`_xl_read`, the extreme-row SELECTION), and it is
+        # THREADED rather than classified: the canary is passed straight through to `Q.run`. It is
+        # inert on this branch by construction -- `_is_series_branch` is False for both extreme-row
+        # tokens, so `run()` performs no re-sort on it -- but threading it costs nothing and keeps
+        # the census honest, whereas an unthreaded site would sit in the column this pin reds on.
+        assert sorted(threaded) == ["agent", "agent", "agent", "cascade", "cascade", "cascade",
+                                    "server", "silverleg"], threaded
         assert unthreaded == [], (f"an UNCLASSIFIED serving Q.run site exists ({unthreaded}) "
                                   f"-- thread it, or classify it in 7.4")
 

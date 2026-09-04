@@ -2333,8 +2333,32 @@ def _clamp_limit(v) -> int:
 
 def _forced_spec(asof: str, inp: dict) -> Q.NumberQuery:
     """Build a NumberQuery from the model's tool input, FORCING asof (drop any asof the model tried to pass)
-    and CLAMPING limit to the cap (D-CW-1c -- the field is model-emittable now, and only downward)."""
+    and CLAMPING limit to the cap (D-CW-1c -- the field is model-emittable now, and only downward), and
+    REFUSING an ENGINE-ONLY agg (D-XL, E38).
+
+    WHY THE THIRD CLAUSE EXISTS, AND WHY IT RAISES WHERE `_clamp_limit` CLAMPS. This function passes the
+    model's RAW tool input into `NumberQuery`, with no agg re-verify -- which is exactly why
+    `_clamp_limit` exists in code beside its schema declaration. D-XL widens the pydantic Literal to
+    admit `max_row`/`min_row`, so after that edit the Literal is no longer the fence here: a model
+    emitting `agg='max_row'` would reach the extreme-row branch on ANY card through this lane, with no
+    row template, no register fence, no roster, no deny-list, no `_shown` binding and no
+    `located_extreme` staleness suppression -- and a citation whose `[known ...]` footer is an old date
+    on a row nobody fenced. `_clamp_limit`'s own rule gives the distinction: "a too-large limit is a
+    mis-sized request, not a leakage or attribution error, and refusing the whole lookup over it would
+    cost a real answer". An engine-only agg IS an attribution error, so the honest handling is the D-PQ
+    SCHEMA-1 taxonomy -- a REJECTED SPEC, said in words the model can act on, raised inside `_exec`'s
+    inner try so the loop keeps its budget and the model can re-issue with `agg='max'`. Stripping the
+    key silently would answer a DIFFERENT question than the one asked (the model wanted a dated extreme;
+    `latest` is not that) and would teach the model nothing.
+
+    THE TOKENS ARE IMPORTED from `query.py` (`Q.EXTREME_ROW_AGGS`), never re-typed here: the symbol is
+    the join. The LOCATOR's own path is untouched -- `cascade._xl_call` / `_xl_locate` build their
+    `NumberQuery` directly and never call this function."""
     data = {k: v for k, v in inp.items() if k != "asof"}
+    if str(data.get("agg") or "") in Q.EXTREME_ROW_AGGS:      # D-XL: BEFORE NumberQuery(**data)
+        raise ValueError(f"agg={data['agg']!r} is an ENGINE-ONLY selection and is not available to a "
+                         f"lookup: it is minted by a fenced producer that renders its own row. Use "
+                         f"agg='max' or agg='min' for the level, or agg='series' and read the dates.")
     if "limit" in data:
         data["limit"] = _clamp_limit(data["limit"])
     return Q.NumberQuery(asof=asof, **data)

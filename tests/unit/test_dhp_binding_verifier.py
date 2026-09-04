@@ -611,12 +611,12 @@ def test_the_new_trace_key_is_appended_at_the_tail_and_v1_mints_none():
     RE-ANCHORED AGAIN (2026-09-01): five later appends moved the tail -- timing_ms, then xc_open_pair +
     xc_open_decline (the D-XT build, 08-29), then xc_regional_decline + quantify_rv_reading_fenced (the
     RV lane, 08-29). All five were APPENDED in order; same invariant, new offsets."""
-    assert tk.TRACE_RECORD_KEYS[-10] == "evidence_geo_dropped"
-    assert tk.TRACE_RECORD_KEYS[-9] == "tables_queried"
-    assert tk.TRACE_RECORD_KEYS[-4] == "quantify_rv_reading_fenced"
-    assert tk.TRACE_RECORD_KEYS[-3] == "quantify_derived_fenced"    # D-DA append, 09-01
-    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application)
-    assert tk.TRACE_RECORD_KEYS[-1] == "quantify_wave_reads"      # A2 wave counter, same commit
+    assert tk.TRACE_RECORD_KEYS[-12] == "evidence_geo_dropped"
+    assert tk.TRACE_RECORD_KEYS[-11] == "tables_queried"
+    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_rv_reading_fenced"
+    assert tk.TRACE_RECORD_KEYS[-5] == "quantify_derived_fenced"    # D-DA append, 09-01
+    assert tk.TRACE_RECORD_KEYS[-4] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application)
+    assert tk.TRACE_RECORD_KEYS[-3] == "quantify_wave_reads"      # A2 wave counter, same commit
     assert "geo_checked" not in tk.TRACE_RECORD_KEYS and "geo_mismatch" not in tk.TRACE_RECORD_KEYS
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
 

@@ -564,7 +564,7 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
                   near: str | None = None, silver_lookup=None, on_stage=None,
                   focus_driver: str | None = None, qfn=None, xc_request: dict | None = None,
                   outlook: bool = False, response_contract: str | None = None,
-                  mode_knobs: dict | None = None) -> dict:
+                  mode_knobs: dict | None = None, xl_request: dict | None = None) -> dict:
     # reroute v2: xc_request rides down to the cascade quantify seam (lane C) ONLY when the gate produced one
     # (flag on + explicit ask). None -> the kwarg is omitted so the answer() call is byte-identical to today.
     _xc = {"xc_request": xc_request} if xc_request is not None else {}
@@ -573,10 +573,13 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
     _ol = {"outlook": True} if outlook else {}
     _rck = {"response_contract": response_contract} if response_contract else {}   # D-RC: same idiom
     _mk = {"mode_knobs": mode_knobs} if mode_knobs else {}                         # D-AM-10: same idiom
+    # D-XL (E11): the SAME omit-when-None idiom as `_xc`. None -> the kwarg is ABSENT -> the
+    # an.answer() call is byte-identical and an injected answer fake with the older signature is valid.
+    _xl = {"xl_request": xl_request} if xl_request is not None else {}
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
                     extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
                     on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn,
-                    **_xc, **_ol, **_rck, **_mk)
+                    **_xc, **_ol, **_rck, **_mk, **_xl)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -589,7 +592,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                silver_lookup=None, on_stage=None, focus_driver: str | None = None,
                xc_request: dict | None = None, outlook: bool = False,
                numbers_query: str | None = None, families=None,
-               response_contract: str | None = None, mode_knobs: dict | None = None) -> dict:
+               response_contract: str | None = None, mode_knobs: dict | None = None,
+               xl_request: dict | None = None) -> dict:
     """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
     only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
     answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
@@ -708,12 +712,13 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     _ol = {"outlook": True} if outlook else {}                           # W5-D4: same omit-when-off idiom
     _rck = {"response_contract": response_contract} if response_contract else {}   # D-RC: same idiom
     _mk = {"mode_knobs": mode_knobs} if mode_knobs else {}                         # D-AM-10: same idiom
+    _xl = {"xl_request": xl_request} if xl_request is not None else {}             # D-XL: omit when None
     try:
         out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                         extra_resolver=_resolve, planner=planner, route_fn=route_fn,
                         near=near, silver_lookup=silver_lookup, on_stage=on_stage,
                         focus_driver=focus_driver, numbers_lookup=query_fn,
-                        **_xc, **_ol, **_rck, **_mk)
+                        **_xc, **_ol, **_rck, **_mk, **_xl)
     finally:
         pool.shutdown(wait=False)
     if not holder.get("resolved"):      # early-return paths (e.g. no contract match) skip synthesis —
@@ -1203,6 +1208,79 @@ def _escalation_decision(plan, kind: str | None, honored: str | None, planned_se
     return {"flagged": flagged, "fired": reason is None, "suppressed_reason": reason,
             "planned_seeds": int(planned_seeds),
             "xc_explicit": tr.get("xc_explicit"), "answer_mode_outlook": tr.get("answer_mode_outlook")}
+
+
+XL_SUPPRESSED_REASONS = ("no_plan", "lane", "switch", "shape", "kind", "confidence", "board",
+                         "direction", "since")
+"""D-XL: the CLOSED `suppressed_reason` enum, FIRST-BLOCKER-WINS IN THIS ORDER, plus None iff a request
+was built. Two evaluations are CONDITIONAL and that is a law rather than an accident: `direction` is
+evaluated only for kinds that CONSUME it, and `since` only for `windowed_extreme`. `board` sits AHEAD of
+`direction` because a kind that ignores direction must not decline on it.
+
+IT IS PUBLIC AND IT IS BOUND (refute minor 8). The nine reasons are spelled as INLINE LITERALS in
+`_extreme_locator_decision` below -- which is the readable form and stays -- and nothing checked that
+this tuple and those literals were the same set, so a tenth reason could appear with no lint noticing
+while `eval` lifts the whole dict through DECISION_RECORD_KEYS and a drifted name reaches the artifact
+silently. `config_check.check_extreme_locator` clause (11) now parses this module's own source for the
+`out["suppressed_reason"] = "..."` assignments and asserts BOTH the SET and the FIRST-APPEARANCE ORDER
+against this tuple -- so the enum and its order are one fact, checked, not two facts that agree today.
+
+IT LIVES HERE RATHER THAN BESIDE `XL_DECLINE_TEMPLATES` (a declared deviation from the remedy as
+written): this is the DISPATCH decision's vocabulary, its one producer is in this module, and
+`orchestrator` reaches `cascade` only through LAZY function-local imports -- a module-level constant
+there would either force an import-time edge or be read through a second lazy import for no gain. The
+lint reads both vocabularies anyway, which is where they meet."""
+
+
+def _extreme_locator_decision(plan, kind: str | None, roster: dict, switch_on: bool,
+                              kinds_served: tuple = (), conf_floor: str = "high") -> dict:
+    """THE D-XL DECISION, stamped on EVERY turn. PURE: it reads the plan's own fields, the roster and
+    the two already-resolved switches, and MUTATES NOTHING.
+
+    WHY IT IS STAMPED ON EVERY LANE. `fired` is False on any lane that is not reasoning/hybrid -- the
+    `lane` blocker -- so the REQUEST exists only where the cascade quantify seam does, while the
+    DECISION exists everywhere and `lane` is therefore COUNTABLE. An extreme ask reads to the planner
+    like an observed lookup, so a real fraction of positives may route `numbers_only`, and the honest
+    outcome there is a named, counted decline rather than a silence.
+
+    WHY THE DISPATCH DECLINE LIVES HERE AND NOT IN THE TRACE KEY. `quantify_extreme_locator` is written
+    by the ENGINE ALONE, and its ABSENCE means the leg DID NOT RUN -- never that it declined. A dispatch
+    decline that wrote into that key would make those two states indistinguishable. This dict rides
+    `decided['extreme_locator']` and is lifted WHOLE into the eval record through DECISION_RECORD_KEYS,
+    so it adds NO eval column and needs no eval.py edit to be measurable.
+
+    CONFIDENCE IS AN ENUM, NOT A FLOAT, and the FLOOR SHIPS AT 'high' (fail-closed): a model-emitted
+    probability is uncalibrated and the estate holds no instrument that could calibrate it. The frozen
+    prompt deliberately does NOT tell the model which level acts -- that would be an invitation to
+    inflate the level it reports."""
+    order = {"low": 0, "medium": 1, "high": 2}
+    detected = bool(getattr(plan, "price_extreme", False))
+    out = {"detected": detected, "fired": False, "suppressed_reason": None,
+           "kind": getattr(plan, "xl_kind", None), "board": getattr(plan, "xl_board", None),
+           "direction": getattr(plan, "xl_direction", None),
+           "scope": getattr(plan, "xl_scope", None), "since": getattr(plan, "xl_since", None),
+           "confidence": getattr(plan, "xl_confidence", None)}
+    if plan is None:
+        out["suppressed_reason"] = "no_plan"
+    elif kind not in ("reasoning", "hybrid"):
+        out["suppressed_reason"] = "lane"
+    elif not switch_on:
+        out["suppressed_reason"] = "switch"
+    elif not detected:
+        out["suppressed_reason"] = "shape"
+    elif out["kind"] not in (kinds_served or ()):
+        out["suppressed_reason"] = "kind"
+    elif order.get(str(out["confidence"] or ""), -1) < order.get(conf_floor, 2):
+        out["suppressed_reason"] = "confidence"
+    elif out["board"] not in (roster or {}):
+        out["suppressed_reason"] = "board"
+    elif out["direction"] not in ("max", "min"):
+        out["suppressed_reason"] = "direction"
+    elif out["kind"] == "windowed_extreme" and not out["since"]:
+        out["suppressed_reason"] = "since"
+    else:
+        out["fired"] = True
+    return out
 
 
 def _census_ctx(effective: str | None):
@@ -2343,8 +2421,22 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
         # D-XT: the OPEN-ASK prompt paragraph renders only under the flag's llm leg (omit-when-off, so
         # the flag-off call is byte-identical incl. the _SYS_RENDERS key and the prompt-cache prefix).
         _xo = {"xc_open": True} if "llm" in _xc_open_legs() else {}
+        # D-XL (E7): the ONE env read for this flag on this path, and the roster + the served-kind
+        # tuple travel TOGETHER -- they move the prompt section, the schema enum and the validator's
+        # re-verify as one. Flag off, or an invalid sub-flag pair, -> the kwargs are ABSENT -> the
+        # planner call, its render-cache key and its prompt-cache prefix are byte-identical.
+        _xl = {}
+        if an._extreme_locator_on():
+            try:
+                _xlk = an._xl_kinds_served()
+            except ValueError:
+                _xlk = ()          # a REFUSED sub-flag state: the lane does not arm, fail-closed
+            if _xlk:
+                from leviathan.graphrag.numbers import cascade as _cq  # lazy: no import-time cycle
+                _xl = {"xl_boards": _cq.XL_BOARD_LABEL, "xl_kinds": _xlk}
         p = dp.plan_turn(query, graph=graph, state_block=sblock, today=_today(),
-                         state_contracts=(state.contracts if state else None), call=call, **_pc, **_xo)
+                         state_contracts=(state.contracts if state else None), call=call,
+                         **_pc, **_xo, **_xl)
         _ms_dispatch = int((_time.perf_counter() - _t_disp) * 1000)
         plan = None if p.fallback else p
     if plan is not None:
@@ -2427,6 +2519,29 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
         decided = (decided or {}) | {"intent": "hybrid", "family_facet_promoted": True,
                                      "family_facet_families": list(plan.data_families)}
         print("FAMILY_FACET_PROMOTED families=" + ",".join(plan.data_families))  # ASCII soak-grep surface
+
+    # ── D-XL (E10) XL_LANE_PROMOTE: PROMOTION-ONLY numbers_only -> hybrid, BUILT DARK ────────────────
+    # An extreme ask reads to the planner like an observed lookup, so a share of positives may route
+    # `numbers_only`, where the cascade quantify seam is unreachable and the honest outcome is a `lane`
+    # decline. This is the remedy, the family-facet block verbatim in shape, and it is the ONE part of
+    # this design that changes a ROUTE -- which is why it carries its OWN sub-flag and its own row in
+    # the flip's env list, and why it is armed only on a MEASURED share of positives.
+    # m3, NAMED RATHER THAN DISCOVERED IN THE ARM: D-AM-1's PRICE TIEBREAK above demotes reasoning/
+    # hybrid -> numbers_only and stamps `price_decline_reroute`. Without the exclusion a deliberately
+    # demoted turn would be promoted straight back here and `_kind_hist` would carry both entries -- an
+    # audit trail that reads as a routing loop. Never a demotion, never a contract change.
+    if (kind == "numbers_only" and plan is not None and getattr(plan, "price_extreme", False)
+            and an._extreme_locator_on() and an._xl_lane_promote_on()
+            and not (decided or {}).get("price_decline_reroute")):
+        try:
+            from leviathan.graphrag.numbers import cascade as _cq  # lazy: no import-time cycle
+            _xl_board_ok = plan.xl_board in _cq.XL_BOARD_LABEL
+        except Exception:  # noqa: BLE001 -- a roster problem must never break a turn
+            _xl_board_ok = False
+        if _xl_board_ok:
+            _kind_hist.append("xl_lane:numbers_only->hybrid")           # D-AM-1
+            kind = "hybrid"
+            decided = (decided or {}) | {"intent": "hybrid", "xl_lane_promoted": True}
 
     # ── typed context attachments (P2), part 2: RESOLVE (asof is final here — plan.asof already applied)
     # then override the resolved route. Placed after BOTH route_fn bindings (session coreference + planner)
@@ -2550,6 +2665,31 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
                     _xd["open_rank"] = xc_request.get("rank")
                 if _xd is not decided["xc_detect"] and _xd != decided["xc_detect"]:
                     decided = decided | {"xc_detect": _xd}
+    # ── D-XL (E9): THE PRICE-EXTREME REQUEST, built beside the decision, the `xc_request` shape ───────
+    # THE DECISION IS STAMPED ON EVERY LANE (so `lane` is countable); the REQUEST exists only where the
+    # cascade quantify seam does. Flag off -> `fired` False -> the request is None -> the answer call is
+    # byte-identical, and the decision still records `switch` so a flag-off turn is attributable too.
+    xl_request = None
+    _xl_roster: dict = {}
+    _xl_kinds: tuple = ()
+    if an._extreme_locator_on():
+        try:
+            _xl_kinds = an._xl_kinds_served()
+        except ValueError:
+            _xl_kinds = ()                       # a REFUSED sub-flag state -> the lane does not arm
+        if _xl_kinds:
+            try:
+                from leviathan.graphrag.numbers import cascade as _cq  # lazy: no import-time cycle
+                _xl_roster = _cq.XL_BOARD_LABEL
+            except Exception:  # noqa: BLE001 -- a roster problem must never break a turn
+                _xl_roster, _xl_kinds = {}, ()
+    _xl_dec = _extreme_locator_decision(plan, kind, _xl_roster,
+                                        bool(an._extreme_locator_on() and _xl_kinds),
+                                        kinds_served=_xl_kinds)
+    decided = (decided or {}) | {"extreme_locator": _xl_dec}
+    if _xl_dec["fired"]:
+        xl_request = {"board": _xl_dec["board"], "direction": _xl_dec["direction"],
+                      "kind": _xl_dec["kind"], "scope": _xl_dec["scope"], "since": _xl_dec["since"]}
     # ── W5-D4: the outlook gate, TWO-TIER and FAIL-CLOSED ────────────────────────────────────────────────
     # outlook fires IFF plan.answer_mode_outlook (the LLM detection) AND intent.is_outlook_explicit(query)
     # (a deterministic regex NECESSARY condition) -- the RV2 `_xc_request` shape, which requires both tiers
@@ -2594,6 +2734,10 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
         "also_matched": list(_rc_all[1:])}}
     _rck = {"response_contract": _rc_name} \
         if (_rc_name and _rc_name in an._response_contracts_enabled()) else {}
+    # D-XL: the OMIT-WHEN-NONE kwarg for BOTH lane call sites, resolved ONCE beside the other
+    # conditional kwargs (the `_rck` / `_pc` / `_xo` idiom). With no request the keyword is ABSENT, so
+    # an injected `run_hybrid` / `run_reasoning` fake written against the pre-D-XL signature stays valid.
+    _xlr = {"xl_request": xl_request} if xl_request is not None else {}
     # D-AM-9: the mode stamp, UNCONDITIONALLY, beside the contract decision (the ratified position).
     # It rides EVERY turn including dark ones -- that free tally of what users would pick is the
     # whole point of stage 0 -- and tracekeys lifts it into the eval record as `mode_decision`.
@@ -2660,14 +2804,21 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
                                  # the raw `query` (route_fn's <=80-char coreference gate). Flag off -> both None
                                  # -> this call is byte-identical to today.
                                  numbers_query=(_nq if _fam_on else None),
-                                 families=_families, **_rck, **_mk)
+                                 # D-XL: THE OMIT-WHEN-NONE IDIOM, at the call site as well as inside
+                                 # the seam (review minor 3). The same commit calls this idiom
+                                 # load-bearing for `plan_turn` -- "an injected fake written against the
+                                 # pre-D-XL signature must stay valid" -- and then passed this kwarg
+                                 # UNCONDITIONALLY here, so an injected `run_hybrid` fake broke even
+                                 # flag-off, where the g1x golden's prefix-only `signatures` section
+                                 # cannot see it.
+                                 families=_families, **_xlr, **_rck, **_mk)
         else:
             with _patience_ctx(_mode["honored"]), _census_ctx(_effective):  # D-MW-13/30 + EC-3, as above
                 res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                     planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
                                     silver_lookup=silver_lookup, on_stage=on_stage,
                                     focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request,
-                                    outlook=outlook_mode, **_rck, **_mk)
+                                    outlook=outlook_mode, **_xlr, **_rck, **_mk)   # omit-when-none
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         # The floor's CAUSE must be visible in logs: the 2026-07-19 incident spent hours attributing
         # an Anthropic-tier outage to a feature flag because the swallowed exception was never logged

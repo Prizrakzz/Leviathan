@@ -220,7 +220,12 @@ def test_sys_renders_cache_key_separates_the_flag():
     b1, b2 = dp.planner_sys(4, xc_open=True), dp.planner_sys(4, xc_open=True)
     assert a1 is a2 and b1 is b2 and a1 is not b1
     keys = [k for k in dp._SYS_RENDERS if k[0] == 4]
-    assert {k[3] for k in keys} == {False, True} and len(keys[0]) == 4
+    # D-XL RE-ANCHOR (2026-09-04), by exactly ONE and never loosened: the key gains a FIFTH
+    # component, `tuple(sorted((xl_boards or {}).items()))`, whose EMPTY value is `()` -- so the
+    # xc_open component keeps its position and every flag-off key is `(n, tail, cov, xc_open, ())`.
+    # The new component is asserted EMPTY on these renders, which is what makes the append safe.
+    assert {k[3] for k in keys} == {False, True} and len(keys[0]) == 5
+    assert {k[4] for k in keys} == {()}
 
 
 def test_planner_sys_default_constant_is_unmoved():
@@ -1070,7 +1075,11 @@ def test_xc_detect_is_a_decision_record_key():
     every reasoning/hybrid turn since RV2 W2 while eval.py hand-lifted ONLY `.tier` -- so everything
     else reached NO artifact, silently: the exact class this registry exists to kill."""
     assert ("xc_detect", "xc_detect_decision") in tk.DECISION_RECORD_KEYS
-    assert tk.DECISION_RECORD_KEYS[-1] == ("xc_detect", "xc_detect_decision")   # append-never-sort
+    # D-XL RE-ANCHOR (2026-09-04), by exactly ONE and never loosened: the locator appends its whole
+    # decision dict at the tail, so the xc_detect pin moves in by one and the new tail is NAMED here
+    # rather than left as "whatever is last" -- an unnamed tail pin cannot tell an append from a sort.
+    assert tk.DECISION_RECORD_KEYS[-2] == ("xc_detect", "xc_detect_decision")   # append-never-sort
+    assert tk.DECISION_RECORD_KEYS[-1] == ("extreme_locator", "extreme_locator_decision")
 
 
 def test_new_trace_keys_are_registered():

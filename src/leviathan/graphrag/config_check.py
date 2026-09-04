@@ -1454,6 +1454,17 @@ def _check_synthesized_price_legs() -> list[str]:
     for m in sorted({mm for (mm, _lbl) in (getattr(csc, "_CW_FX_CROSS", None) or {}).values()}
                     - fx_allowed):
         errs.append(f"R4c: V2-3 exchange-rate metric {m!r} is outside the ratified allow-list")
+    # D-XL (E37, 2026-09-04): the PRICE-EXTREME LOCATOR is the FOURTH synthesized price surface, and it
+    # is FOLDED INTO THE REACHABLE SET IN THE SAME CHANGE THAT MINTS IT -- this function's own law,
+    # never a door beside the fence. The register ENTRY already exists (silver_futures_eod: {'settle'}),
+    # which is why an entry check alone would have been silent here; what the fold adds is that the
+    # LEG'S OWN CONSTANTS now BIND to it, so a future metric or table change fails the lint.
+    xl_tbl = getattr(csc, "XL_TABLE", None)
+    xl_allowed = SYNTHESIZED_PRICE_LEG_ALLOW.get(xl_tbl or "", frozenset())
+    xl_metric = getattr(csc, "XL_SOURCE_METRIC", None)
+    if xl_metric is not None and xl_metric not in xl_allowed:
+        errs.append(f"R4c: the D-XL locator reads {xl_metric!r} on {xl_tbl} outside the ratified "
+                    f"allow-list -- a synthesized price leg is adjudicated, never assumed")
     tables = load_registry().tables
     for t, mets in SYNTHESIZED_PRICE_LEG_ALLOW.items():
         ts = tables.get(t)
@@ -1950,6 +1961,311 @@ def check_cascade_walk() -> list[str]:
           f"The {_prewalk} is a MEASUREMENT, not an enumeration: its xc-fork term is a calls-delta, "
           f"so no identity is asserted over it. Max shipped hop-1 out-degree {_max_deg} "
           f"({_max_root!r}) against CW_DEEP_MAX_CHILDREN {_cq.CW_DEEP_MAX_CHILDREN}.")
+    return errs
+
+
+def check_extreme_locator() -> list[str]:
+    """D-XL (E35) PRICE-EXTREME LOCATOR governance. PURE reads only -- the numbers registry card, the
+    shipped coverage map, cascade.py's / dispatch.py's / stats.py's own constants (S3-free, CI-safe).
+
+    INSERTED AFTER `check_cascade_walk` AND BEFORE `check_cascade_context`, deliberately: the walk's own
+    check is UNEDITED by this build, and a clause added inside its body would have made that claim false.
+    `_CW_BOARD_LABEL` and `check_cascade_walk` are NOT READ here -- deriving the locator's board universe
+    from the walk's curation would make a WALK CURATION CHANGE silently change which questions the
+    locator answers.
+
+    TEN BOUND FACTS:
+     (1) `_XL_ROW_RX` FULLMATCHES a rendered exemplar built by the ENGINE'S OWN formatter, for EVERY
+         roster slug x EVERY settle kind the citation layer declares -- so the template and the producer
+         cannot drift apart in either direction.
+     (2) `XL_ROW_LINE_RX` and `XL_HOP_LINE_RX` are the SAME OBJECTS the producer and
+         `answer._extreme_locator_block_on` / `_extreme_hop_block_on` read (identity, not equality), and
+         the hop marker REFUSES the bare-prefix decoy.
+     (3) `stats.EXTREME_TIE_RULE is query.EXTREME_TIE_RULE` (IDENTITY) and the import direction runs
+         stats -> query: `stats.py` must not import the query module, whose own import graph carries
+         pydantic + YAML into what its docstring calls a pure leaf.
+     (4) `stats.extreme_locator` is NOT in STAT_REGISTRY -- that registry is the AGENT TOOL ENUM -- and
+         its name is not banned by BANNED_PATTERN.
+     (5) every `XL_DECLINE_TEMPLATES` string is `register_leaks` / `exec_leaks` clean and
+         `sanitize()`-stable.
+     (6) `cascade._xl_fmt` is byte-equal to `citations._fmt` on a fixed probe set (the '11,722.0'
+         class: a hand format string on this surface renders a different number).
+     (7) THE ROSTER, BOTH WAYS. Every LITERAL entry has a PRICE_COVERAGE_START entry, a `unit_overrides`
+         entry, membership in `graph.contracts`, and a label EQUAL to `display._contract_label(slug)`;
+         NO label equals its own de-underscored slug (the one leak shape `register.internal_leaks` does
+         NOT catch); no entry is deny-listed or a CASH_INDEX slug; AND every PRICE_COVERAGE_START slug
+         that CLEARS the roster gate and is neither denied nor cash IS PRESENT in the literal -- the
+         direction a comprehension can never check. The WITH-TAPE-BUT-EXCLUDED set is ENUMERATED in the
+         output, so the boundary is visible rather than silent.
+     (8) THE PLANNER JOIN: `dispatch._plan_tool(..., xl_boards=XL_BOARD_LABEL, xl_kinds=XL_KINDS)`'s
+         `xl_board` enum equals `[None] + list(XL_BOARD_SLUGS)` and its `xl_kind` enum equals
+         `[None] + list(XL_KINDS)` -- one literal, three consumers.
+     (9) `_XL_SUPERLATIVE_RX` and `_XL_SPAN_CLAUSE_RX` pass their six-case oracle.
+     (10) THE FROZEN PROMPT: `dispatch._xl_block(XL_BOARD_LABEL)` hashes to the sha the measured probe
+         banked, so an edit to the measured prompt FAILS THE BUILD rather than silently invalidating the
+         measurement. This is the clause that makes the freeze real.
+
+    PLUS TWO added by the fix pass:
+     (11) THE DISPATCH ENUM IS BOUND TO ITS PRODUCER: the `suppressed_reason` string literals inside
+         `orchestrator._extreme_locator_decision` equal `XL_SUPPRESSED_REASONS` in SET and in
+         FIRST-BLOCKER ORDER, parsed from that function's own source.
+     (12) EVERY WINDOWED FALLBACK RENDERS EXACTLY ONE READER NOTE, its own template plus the scope
+         sentence, register-fence clean -- and a SERVED windowed row renders none.
+
+    PLUS one added by fix pass 2:
+     (13) THE READ-REFUSAL VOCABULARY IS BOUND TO ITS PRODUCER: the `_extreme_refusal("...")` literals
+         in `numbers/query.py` equal `cascade.XL_READ_ERROR_REASONS` as a SET, every one of those names
+         has a reader sentence, an UNMARKED exception classifies as `error`, and a marker outside the
+         closed set falls to `error` too.
+
+    PLUS one NOTE, printed and non-fatal, naming the flip-time kill it guards: XL_MIN_WINDOW_ROWS ships
+    PENDING its own $0 calibration, so `window_too_thin` is INERT until that number exists -- and the
+    windowed sub-flag now REFUSES to arm while it is None."""
+    import datetime as _dt
+    import hashlib
+    import inspect
+
+    from leviathan.graphrag import citations as cit
+    from leviathan.graphrag import dispatch as dsp
+    from leviathan.graphrag import display as dp
+    from leviathan.graphrag import graph as _G
+    from leviathan.graphrag import register as reg
+    from leviathan.graphrag.numbers import cascade as csc
+    from leviathan.graphrag.numbers import query as Q
+    from leviathan.graphrag.numbers import stats as ST
+    from leviathan.graphrag.numbers.registry import load_registry
+    from leviathan.silver import futures_eod_contracts as fec
+
+    errs: list[str] = []
+    roster = csc.XL_BOARD_LABEL
+
+    # (1) the template against the ENGINE'S OWN formatter, every slug x every settle kind
+    for slug in csc.XL_BOARD_SLUGS:
+        for kind_token in sorted(cit._SETTLE_KIND_WORDS):
+            row = {"value": 1234.5, "unit": "USD/metric ton", "knowledge_date": "2022-04-19",
+                   "contract_month": "2022-05", "settle_kind": kind_token, "currency": "USD",
+                   "_span_start": "2010-06-06", "_span_end": "2026-09-01", "_n": 1000}
+            for direction, since, tape in (("max", None, None), ("min", None, None),
+                                           ("max", "2020", ("2010-06-06", "2026-09-01"))):
+                ln = csc._xl_row_line(7, slug, row, direction=direction, since=since, tape_span=tape)
+                if not csc._XL_ROW_RX.fullmatch(ln):
+                    errs.append(f"extreme_locator: _XL_ROW_RX does not fullmatch the engine's own "
+                                f"rendered line for {slug}/{kind_token}/{direction}: {ln[:120]!r}")
+                if not csc.XL_ROW_LINE_RX.search(ln):
+                    errs.append(f"extreme_locator: XL_ROW_LINE_RX misses the engine's own line for "
+                                f"{slug}/{kind_token}")
+                if reg.internal_leaks(ln):
+                    errs.append(f"extreme_locator: the rendered line leaks an internal id for {slug}")
+
+    # (2) the seam markers are the SAME OBJECTS the gates read, and the hop decoy is refused
+    from leviathan.graphrag import answer as an
+    for name in ("XL_ROW_LINE_RX", "XL_HOP_LINE_RX"):
+        if getattr(csc, name, None) is None:
+            errs.append(f"extreme_locator: {name} is not minted in cascade.py")
+    _hop_ok = (csc.XL_HOP_PREFIX + csc.XL_HOP_TOKEN + " corn, 2012-05..2012-09: 4 report dates")
+    _hop_decoy = csc.XL_HOP_PREFIX + "corn, the 2012 drought was severe."
+    if not csc.XL_HOP_LINE_RX.search(_hop_ok):
+        errs.append("extreme_locator: XL_HOP_LINE_RX does not match a rendered hop line")
+    if csc.XL_HOP_LINE_RX.search(_hop_decoy):
+        errs.append("extreme_locator: XL_HOP_LINE_RX matches the BARE-PREFIX decoy -- the gate must be "
+                    "a row shape with the minted token, never a prefix")
+    # ...AND THE GATE ITSELF, ASSERTED AS TWO LEGS ON A REAL ROW LINE (review minor 4). The shipped
+    # clause was `not an._extreme_locator_block_on(_hop_ok) is False`, which CANNOT FAIL in either flag
+    # state: `_hop_ok` is a HOP line, so `XL_ROW_LINE_RX` never matches it and the gate returns False
+    # whether or not GRAPHRAG_EXTREME_LOCATOR is on -- a clause whose message named a fact it did not
+    # test. Both legs are now separated and both are exercised on the ENGINE'S OWN rendered row: OFF must
+    # be False, ON must be True, and a hop line must arm neither.
+    _row_probe = csc._xl_row_line(1, csc.XL_BOARD_SLUGS[0],
+                                  {"value": 1234.5, "unit": "USD/metric ton",
+                                   "knowledge_date": "2022-04-19", "contract_month": "2022-05",
+                                   "settle_kind": "settlement", "currency": "USD",
+                                   "_span_start": "2010-06-06", "_span_end": "2026-09-01", "_n": 1000},
+                                  direction="max")
+    _prev_flag = os.environ.get("GRAPHRAG_EXTREME_LOCATOR")
+    try:
+        os.environ["GRAPHRAG_EXTREME_LOCATOR"] = ""
+        if an._extreme_locator_block_on(_row_probe) is not False:
+            errs.append("extreme_locator: the locator gate armed on a real row line with the lane flag "
+                        "OFF -- the kill-switch leg is not being read")
+        os.environ["GRAPHRAG_EXTREME_LOCATOR"] = "on"
+        if an._extreme_locator_block_on(_row_probe) is not True:
+            errs.append("extreme_locator: the locator gate did NOT arm on the engine's own rendered row "
+                        "line with the lane flag ON -- the evidence leg and the producer have drifted")
+        if an._extreme_locator_block_on(_hop_ok) is not False:
+            errs.append("extreme_locator: the locator gate armed on a HOP line, which carries no row "
+                        "shape at all")
+    finally:
+        if _prev_flag is None:
+            os.environ.pop("GRAPHRAG_EXTREME_LOCATOR", None)
+        else:
+            os.environ["GRAPHRAG_EXTREME_LOCATOR"] = _prev_flag
+
+    # (3) the tie rule: ONE constant, ONE direction
+    if ST.EXTREME_TIE_RULE is not Q.EXTREME_TIE_RULE:
+        errs.append("extreme_locator: query.EXTREME_TIE_RULE is not stats.EXTREME_TIE_RULE (identity)")
+    _stats_src = inspect.getsource(ST)
+    if "numbers.query" in _stats_src or "numbers import query" in _stats_src:
+        errs.append("extreme_locator: stats.py imports the query module -- the import edge must run "
+                    "stats -> query, never the reverse (the pure-leaf claim)")
+
+    # (4) the calculator is an ENGINE calculator, not an agent tool
+    if "extreme_locator" in ST.STAT_NAMES:
+        errs.append("extreme_locator: stats.extreme_locator is in STAT_REGISTRY -- that registry is the "
+                    "AGENT TOOL ENUM and this is an engine calculator")
+    if ST.is_banned_name("extreme_locator"):
+        errs.append("extreme_locator: the calculator's name matches BANNED_PATTERN")
+
+    # (5) every decline string is register-clean and sanitize-stable
+    for reason, text in sorted(csc.XL_DECLINE_TEMPLATES.items()):
+        if reg.internal_leaks(text) or reg.exec_leaks(text):
+            errs.append(f"extreme_locator: decline template {reason!r} leaks")
+        if reg.sanitize(text) != text:
+            errs.append(f"extreme_locator: decline template {reason!r} is not sanitize()-stable")
+
+    # (6) ONE formatter
+    for v in (554.4, 11722.0, 6218.0, 155.95, 812, 0.5):
+        if csc._xl_fmt(v) != cit._fmt(v):
+            errs.append(f"extreme_locator: _xl_fmt({v!r}) != citations._fmt -- one formatter, never two")
+
+    # (7) THE ROSTER, BOTH WAYS
+    card = load_registry().get(csc.XL_TABLE)
+    ov = getattr(card.metrics.get(csc.XL_SOURCE_METRIC), "unit_overrides", None) or {}
+    try:
+        contracts = set(_G.CausalGraph.load().contracts)
+    except Exception:  # noqa: BLE001 -- a graph load problem is its own check's business
+        contracts = set()
+    for slug, label in sorted(roster.items()):
+        if slug not in fec.PRICE_COVERAGE_START:
+            errs.append(f"extreme_locator: roster slug {slug!r} has no PRICE_COVERAGE_START entry")
+        if slug not in ov:
+            errs.append(f"extreme_locator: roster slug {slug!r} has no unit_overrides entry on the card")
+        if contracts and slug not in contracts:
+            errs.append(f"extreme_locator: roster slug {slug!r} is not a member of graph.contracts")
+        if label != dp._contract_label(slug):
+            errs.append(f"extreme_locator: roster label {label!r} != display._contract_label({slug!r}) "
+                        f"= {dp._contract_label(slug)!r}")
+        if label == slug.replace("_", " "):
+            errs.append(f"extreme_locator: roster label for {slug!r} IS its de-underscored slug -- the "
+                        f"one leak shape register.internal_leaks does not catch")
+        if slug in csc.XL_DENY_SLUGS or slug in fec.CASH_INDEX_SLUGS:
+            errs.append(f"extreme_locator: roster slug {slug!r} is deny-listed or a cash reference")
+    excluded: list[str] = []
+    today = _dt.date.today()
+    for slug, floor in sorted(fec.PRICE_COVERAGE_START.items()):
+        if slug in fec.CASH_INDEX_SLUGS:
+            excluded.append(f"{slug}=cash_reference_no_expiry")
+            continue
+        if slug in csc.XL_DENY_SLUGS:
+            excluded.append(f"{slug}=deny_listed")
+            continue
+        span = (today - floor).days
+        if span < Q.XL_ROSTER_MIN_SPAN_DAYS:
+            excluded.append(f"{slug}=roster_span_short({span}d)")
+            continue
+        if slug not in roster:
+            errs.append(f"extreme_locator: {slug!r} clears the roster gate ({span}d) and is neither "
+                        f"denied nor cash, but is ABSENT from the literal -- the direction a "
+                        f"comprehension can never check")
+    print(f"NOTE extreme_locator: roster {len(roster)} admitted; {len(excluded)} excluded "
+          f"({', '.join(excluded)})")
+
+    # (8) THE PLANNER JOIN
+    try:
+        tool = dsp._plan_tool(sorted(contracts) or ["corn_cbot"], 2, roster, csc.XL_KINDS)
+        props = tool["input_schema"]["properties"]
+        if props.get("xl_board", {}).get("enum") != [None] + list(csc.XL_BOARD_SLUGS):
+            errs.append("extreme_locator: the planner's xl_board enum does not equal the roster")
+        if props.get("xl_kind", {}).get("enum") != [None] + list(csc.XL_KINDS):
+            errs.append("extreme_locator: the planner's xl_kind enum does not equal XL_KINDS")
+        if tool["input_schema"]["required"] != ["steps", "contracts"]:
+            errs.append("extreme_locator: a detection field became REQUIRED in the plan tool")
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"extreme_locator: the planner join could not be evaluated ({type(e).__name__})")
+
+    # (9) the counter's six-case oracle
+    _oracle = (("its all-time high", True), ("a record high", True), ("reached its record", True),
+               ("the highest settle in the record read from 2010-06-06 to 2026-09-01", False),
+               ("the widest range in the 2019-2026 window on record here", False),
+               ("nothing here was ever derived", False))
+    for text, want in _oracle:
+        got = bool(csc._XL_SUPERLATIVE_RX.search(text)) and not csc._XL_SPAN_CLAUSE_RX.search(text)
+        if bool(got) != want:
+            errs.append(f"extreme_locator: the superlative oracle disagrees on {text!r} "
+                        f"(convicted={bool(got)}, expected={want})")
+
+    # (10) THE FROZEN PROMPT -- the pin that makes the freeze real
+    _blk = dsp._xl_block(roster)
+    _sha = hashlib.sha256(_blk.encode("utf-8")).hexdigest()
+    if _sha != csc.XL_BLOCK_SHA256:
+        errs.append(f"extreme_locator: the rendered planner block hashes to {_sha} -- the MEASURED "
+                    f"prompt is {csc.XL_BLOCK_SHA256}. An edit to a frozen prompt VOIDS its measurement "
+                    f"and consumes its held-out set; re-freeze and re-author rather than re-hashing")
+    if "?" in _blk or not all(ord(c) < 128 for c in _blk):
+        errs.append("extreme_locator: the frozen block is not ASCII, or carries a question mark")
+    if dsp._xl_block(None) != "" or dsp._xl_block({}) != "":
+        errs.append("extreme_locator: _xl_block does not render '' on an empty roster -- the OFF render "
+                    "is no longer byte-identical")
+
+    # (11) THE DISPATCH DECISION'S ENUM, BOUND TO ITS OWN PRODUCER (refute minor 8). The nine reasons
+    # are inline literals in `_extreme_locator_decision`; nothing held them to the constant, so a tenth
+    # could appear with no lint noticing while eval lifts the whole dict into the artifact. Parsed from
+    # the module's own source, SET and FIRST-APPEARANCE ORDER both.
+    from leviathan.graphrag import orchestrator as _orc
+    _dec_src = inspect.getsource(_orc._extreme_locator_decision)
+    _spelled = re.findall(r'out\["suppressed_reason"\]\s*=\s*"([a-z_]+)"', _dec_src)
+    if list(dict.fromkeys(_spelled)) != list(_orc.XL_SUPPRESSED_REASONS):
+        errs.append(f"extreme_locator: the suppressed_reason literals in _extreme_locator_decision "
+                    f"{list(dict.fromkeys(_spelled))} do not equal XL_SUPPRESSED_REASONS "
+                    f"{list(_orc.XL_SUPPRESSED_REASONS)} in set and first-blocker ORDER")
+
+    # (12) THE FIVE RENDERED DECLINES ARE DECLINES, AND EVERY WINDOWED FALLBACK RENDERS ONE (refute
+    # major 4). Membership both ways plus the note producer's own totality: for each rendered reason the
+    # note is exactly one line, carries the reason's own template and the scope sentence, and clears the
+    # register fence the block is dropped on.
+    for _r in csc.XL_RENDERED_DECLINES:
+        if _r not in csc.XL_DECLINE_TEMPLATES:
+            errs.append(f"extreme_locator: rendered decline {_r!r} has no reader sentence")
+    _pay = {"label": roster[csc.XL_BOARD_SLUGS[0]], "kind_requested": "windowed_extreme",
+            "kind": "extreme"}
+    for _r in list(csc.XL_RENDERED_DECLINES) + ["error"]:
+        _n = csc._xl_notes(dict(_pay, declines=[{"reason": _r, "floor": "2018-12-24"}]))
+        if len(_n) != 1 or csc.XL_SCOPE_NOTE_TAIL not in _n[0]:
+            errs.append(f"extreme_locator: the windowed fallback on {_r!r} renders {len(_n)} notes -- "
+                        f"every fallback must tell the reader the scope moved, exactly once")
+        elif not csc._xl_register_fence(_n):
+            errs.append(f"extreme_locator: the rendered note for {_r!r} does not clear the register "
+                        f"fence, so it would drop the whole block")
+    if csc._xl_notes(dict(_pay, kind="windowed_extreme", declines=[])):
+        errs.append("extreme_locator: a SERVED windowed row renders a fallback note -- the note must "
+                    "ride the fallback alone")
+
+    # (13) THE READ-REFUSAL VOCABULARY IS BOUND TO ITS PRODUCER (re-review NEW 3). `_xl_read_reason`
+    # classified `build_sql`'s raises by SUBSTRING and filed the `year_month` refusal -- which says the
+    # card carries NO release stamp -- as `vintage_card`, whose reader sentence says it records one. The
+    # classifier now reads the name the raiser STAMPS, so the binding that has to hold is between the
+    # query layer's minted literals and cascade's closed set, and between that set and the reader
+    # sentences. Parsed from the query module's own source, both directions.
+    from leviathan.graphrag.numbers import query as _q
+    _mint = sorted(set(re.findall(r'_extreme_refusal\(\s*\n?\s*"([a-z_]+)"', inspect.getsource(_q))))
+    if _mint != sorted(csc.XL_READ_ERROR_REASONS):
+        errs.append(f"extreme_locator: the read-refusal names query.py mints {_mint} do not equal "
+                    f"cascade.XL_READ_ERROR_REASONS {sorted(csc.XL_READ_ERROR_REASONS)} -- a raise the "
+                    f"classifier does not know falls to `error`, and a name no raise mints is dead")
+    for _r in csc.XL_READ_ERROR_REASONS:
+        if _r not in csc.XL_DECLINE_TEMPLATES:
+            errs.append(f"extreme_locator: read-refusal {_r!r} has no reader sentence")
+    if csc._xl_read_reason(RuntimeError("athena throttled")) != "error":
+        errs.append("extreme_locator: an UNMARKED exception must classify as `error` -- an outage is "
+                    "never a coverage fact")
+    if csc._xl_read_reason(_q._extreme_refusal("not_a_reason", "x")) != "error":
+        errs.append("extreme_locator: a marker outside XL_READ_ERROR_REASONS must fall to `error` -- "
+                    "the decline census reads a CLOSED vocabulary")
+
+    if csc.XL_MIN_WINDOW_ROWS is None:
+        print("NOTE extreme_locator: XL_MIN_WINDOW_ROWS is PENDING its own $0 calibration, so "
+              "window_too_thin is INERT -- and `answer._xl_kinds_served` now RAISES "
+              "xl_window_floor_uncalibrated rather than arming the windowed sub-flag over an inert "
+              "gate. The kill is enforced, not remembered; this NOTE says why the lane cannot arm.")
     return errs
 
 
@@ -3218,7 +3534,8 @@ def main() -> int:
                         ("pace_collapse", check_pace_collapse()),
                         ("question_shapes", check_question_shapes()),
                         ("cascade_walk", check_cascade_walk()),
-                        ("cascade_context", check_cascade_context())):
+                        ("cascade_context", check_cascade_context()),
+                        ("extreme_locator", check_extreme_locator())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

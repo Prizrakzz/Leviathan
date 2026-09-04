@@ -555,8 +555,14 @@ def from_number(call: dict, i: int) -> Citation:
         # staleness affordance (RCA (c)): when the freshest knowable date trails the asof by more than
         # ~30 days, give the synthesizer a clean 'latest available X; as-of Y' to STATE instead of
         # conflating the two dates and reading as fabrication. Terse by design — one clause, no prose.
+        # D-XL (E28): ONE CONJUNCT, byte-inert on every existing row because no row carried this key
+        # before. A LOCATED EXTREME is not a stale read -- the leg deliberately located an OLD print,
+        # the row's own line states the span it searched, and the `[known ...]` footer still carries
+        # the located date. Left unsuppressed the clause reads "(latest available 2022-04-19; as-of
+        # 2026-09-02)" on a 2026 turn, which is FALSE about the tape and is exactly the fabrication
+        # affordance this clause exists to prevent in the other direction.
         _hd, _ad = _parse_date(kd), _parse_date(asof)
-        if _hd and _ad and (_ad - _hd).days > 30:
+        if _hd and _ad and (_ad - _hd).days > 30 and not rH.get("located_extreme"):
             label += f" (latest available {str(kd)[:10]}; as-of {asof})"
         # ══ PA-8(a) (2026-08-25): THE ABUNDANCE MARKER -- HOW MANY ROWS THIS CALL ACTUALLY SERVED ════════
         # This line headlines `max(rows, _row_order_key)` and says NOTHING about the other rows, so a
@@ -634,6 +640,19 @@ def from_number(call: dict, i: int) -> Citation:
     _srcm = str(rH.get("source_metric") or "").strip()
     if _srcm:
         locator["source_metric"] = _srcm
+    # D-XL (E29): the LOCATED EXTREME's own session date, on the SAME byte-inert rider idiom (read off
+    # the headline row, appended only when present -- and no row carried this key before this design).
+    # `asof` STAYS the READ's cutoff, so the count, the span, the locator and `eval._pit_clean` all
+    # agree by construction; a client that wants the tape AS IT STOOD at the located date re-runs with
+    # `asof = located_date` and `source_metric` from here. The measured span deliberately does NOT go
+    # into `query.period`: `_period_label` MY-PREFIXES any period that neither starts with 'MY' nor
+    # contains '..' (measured: '2010-06-06 to 2026-09-01' -> 'MY2010-06-06 to 2026-09-01'), and more
+    # decisively the field is the READ's SCOPE while the span is a property of the RETURNED ROW -- the
+    # tape-wide row carries no lower-bound filter at all, so a period there would assert a filter the
+    # query never issued.
+    _lx = str(rH.get("located_extreme") or "").strip()
+    if _lx:
+        locator["located_date"] = _lx
     return Citation(id=f"N{i}", kind="number", label=label, source=src, date=kd,
                     value=(str(value) if value is not None else None), unit=(unit or None),
                     locator=locator, payload={"query": q, "rows": rows[:3]})

@@ -228,7 +228,8 @@ def _dv_leg_series(fetch, qfn, slug: str, asof):
     return out, None
 
 
-def su_standing(fetch, qfn, slug_a: str, slug_b: str, asof, base: int):
+def su_standing(fetch, qfn, slug_a: str, slug_b: str, asof, base: int, *,
+                extrema_own_date: bool = False):
     """The lane-1 producer: raw levels WITH their components (the division shown), the mandatory
     numeral-free structural-basis caveat, each leg's OWN-history standing, and the engine-minted
     BALANCE-STANDING verdict (one negation site; margin-fenced; the exact KD2 token 'of its own
@@ -336,6 +337,19 @@ def su_standing(fetch, qfn, slug_a: str, slug_b: str, asof, base: int):
             # output, F1's rewritten pin).
             ex_st = st.extrema(hist)
             hi2, lo2 = round(float(ex_st["max"]), 1), round(float(ex_st["min"]), 1)
+            # THE EXTREMA CLOCK AT THIS SITE, AND WHY IT DECLINES RATHER THAN REPAIRS. The flag
+            # (GRAPHRAG_EXTREMA_OWN_DATE) reaches here as an argument like every other; the repair does
+            # not, and the reason is a property of the DATA rather than of the plumbing: `hist` is a
+            # MARKETING-YEAR history read off a VINTAGE card, whose rows carry a RELEASE STAMP and a
+            # PERIOD, not a per-observation date -- "the extreme's own date" is not defined on this
+            # value axis at all. `date=stamp` is therefore CORRECT here in a way it is not on a
+            # data_date series: the stamp is the release the whole history was read at, which is the
+            # only clock this card has. The site is counted as a DECLINE rather than silently repaired,
+            # so the per-site byte-change measurement can distinguish "unchanged because nothing moved"
+            # from "unchanged because nothing was attempted".
+            if extrema_own_date:
+                trace.setdefault("extrema_own_date_declines", []).append(
+                    {"site": "su_standing_ordinal_thin", "reason": "extrema_axis_unavailable"})
             for tag, v in (("highest", hi2), ("lowest", lo2)):
                 n += 1
                 c = _dv_shown(_dv_call("USDA WASDE", "su_extreme", f"{label} stocks-to-use", v,

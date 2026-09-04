@@ -1333,7 +1333,9 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              cot_outcomes: bool = False, futures_newest_first: bool | str = False,
              price_replay: bool = False, rv_reading: bool = False,
              rv_regional: bool = False, derived_arith: bool = False,
-             cascade_walk: dict | None = None) -> tuple:
+             cascade_walk: dict | None = None,
+             extreme_locator: dict | None = None,
+             extrema_own_date: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1371,6 +1373,15 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     a MEASURED omission, not an assumed one: test_futures_readpath_pins pins that every card those sites
     can reach carries no contract_month_col, so the day one grows a delivery-month axis the pin reds and
     this paragraph is what gets read.
+
+    `extreme_locator` (D-XL, E32) is the SAME omit-when-off idiom once more, and it is a REQUEST DICT
+    rather than a bool because the leg's whole input is the planner's resolved intent -- board,
+    direction, kind, scope, since -- resolved at the ORCHESTRATOR and threaded here as an ARGUMENT. This
+    module performs NO env read and NO classification of any kind; absent -> byte-identical, and an
+    injected quantify fake written against the older signature stays valid. It is appended LAST at BOTH
+    return sites for the walk's own stated reason (it runs after every other engine, so each existing
+    line keeps its byte position) and at BOTH because the leg owns NO groups -- its input is a request
+    dict, not a grounded node -- so it must not die on the early return.
     Never raises (R6 -- the seam also belts it)."""
     _set_headline(headline)
     groups = []
@@ -1461,6 +1472,12 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         if cascade_walk:
             e_lines = e_lines + _cascade_walk_leg_or_nothing(
                 sg, graph, cascade_walk, qfn, asof, extra_number_calls,
+                futures_newest_first=futures_newest_first)[0]
+        # D-XL: like J4 and the walk, the locator owns NO groups -- its input is the planner's resolved
+        # request dict -- so it must not die on this early return either. Kwarg absent -> byte-identical.
+        if extreme_locator:
+            e_lines = e_lines + _extreme_locator_leg_or_nothing(
+                sg, graph, extreme_locator, qfn, asof, extra_number_calls,
                 futures_newest_first=futures_newest_first)[0]
         if e_lines:
             return _BLOCK_HEADER + "\n".join(e_lines), [], []
@@ -1559,7 +1576,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         _xc_base = len(extra_number_calls)                        # A3: the fork's calls-delta baseline
         xc_lines, xc_trace = _run_xc(xc_request, sg, graph, groups, qfn, asof, near, extra_number_calls,
                                      comove=comove, reading=rv_reading, replay=price_replay,
-                                     rv_regional=rv_regional, derived_arith=derived_arith)
+                                     rv_regional=rv_regional, derived_arith=derived_arith,
+                                     extrema_own_date=extrema_own_date)
         if xc_trace:
             # A3 (walk charter): the fired fork's spend, measured as the calls-delta at fork exit --
             # the adjudicated proxy (the RV sub-legs count their own `fetches` beside it). This is
@@ -1654,6 +1672,12 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     if cascade_walk:
         block_lines = block_lines + _cascade_walk_leg_or_nothing(
             sg, graph, cascade_walk, qfn, asof, extra_number_calls,
+            futures_newest_first=futures_newest_first)[0]
+    # D-XL: the LOCATOR, appended LAST so every existing line keeps its byte position. Kwarg absent ->
+    # no read, no line, no trace key, byte-identical.
+    if extreme_locator:
+        block_lines = block_lines + _extreme_locator_leg_or_nothing(
+            sg, graph, extreme_locator, qfn, asof, extra_number_calls,
             futures_newest_first=futures_newest_first)[0]
     # OUTCOMES JOIN J6 -- the COT OUTCOME PAIRING, CONTEXT LANE ONLY (D-OJ-17/18). Gated on the threaded
     # `cot_outcomes` kwarg AND on `not outlook` AND on a positioning context leg having actually
@@ -3177,7 +3201,8 @@ def _load_pair_row(pair_id: str):
 
 def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list,
             *, comove: bool = False, reading: bool = False, replay: bool = False,
-            rv_regional: bool = False, derived_arith: bool = False) -> tuple:
+            rv_regional: bool = False, derived_arith: bool = False,
+            extrema_own_date: bool = False) -> tuple:
     """Resolve the curated pair + the focus window, then run the ratio-delta fork. Returns (block_lines,
     fired_trace) -- ([], None) on ANY decline/failure so v2 NEVER breaks the v1 answer (fail-closed). `comove`
     ([SKEPTIC F3], threaded from the answer.py seam, never an env read) rides into _reroute_xc: when True a
@@ -3259,7 +3284,8 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
                     d_trace: dict | None = None
                     if source in _dv._DV_WASDE_LEGS and target in _dv._DV_WASDE_LEGS:
                         d_lines, d_calls, d_trace = _dv.su_standing(
-                            fetch_window, qfn, source, target, asof, len(calls))
+                            fetch_window, qfn, source, target, asof, len(calls),
+                            extrema_own_date=extrema_own_date)
                     elif {source, target} <= _dv._DV_CRUSH_TRIO:
                         d_lines, d_calls, d_trace = _dv.crush_share(
                             fetch_window, qfn, asof, len(calls))
@@ -3284,7 +3310,8 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
                 else:
                     p_lines, p_trace = _rv_price_reading(pair_row, source, target, fired, qfn, asof,
                                                          calls, len(calls), windows,
-                                                         regional=_regional, derived=derived_arith)
+                                                         regional=_regional, derived=derived_arith,
+                                                         extrema_own_date=extrema_own_date)
                     if p_lines:
                         block = block + p_lines
                         fired["price_reading"] = p_trace
@@ -3910,7 +3937,8 @@ def _rv_one_sided_rung(source: str, target: str, fired: dict, qfn, asof, calls: 
 
 def _rv_price_reading(pair_row, source: str, target: str, fired: dict, qfn, asof,
                       calls: list, base: int, windows: list | None = None, *,
-                      regional: bool = False, derived: bool = False) -> tuple:
+                      regional: bool = False, derived: bool = False,
+                      extrema_own_date: bool = False) -> tuple:
     """The reading composer. Returns (lines, trace) on render; ([], {'decline': tag}) on any honest
     decline; ([], None) only on a shape so broken there is nothing to record. Synthetic rows are built
     LOCALLY and appended to `calls` only after the leg-local fence passes -- a fenced drop must leave no
@@ -4170,16 +4198,35 @@ def _rv_price_reading(pair_row, source: str, target: str, fired: dict, qfn, asof
             rung = "ordinal_thin"
             ex = st.extrema(series)
             hi2, lo2 = round(float(ex["max"]), 2), round(float(ex["min"]), 2)
+            # THE EXTREMA CLOCK, REPAIRED BEHIND ITS OWN FLAG (GRAPHRAG_EXTREMA_OWN_DATE, read at the
+            # answer seam and threaded DOWN as an argument -- this module reads no env). `stats.extrema`
+            # already computes `argmin`/`argmax` and NOTHING has ever read them, so both rows here have
+            # always been stamped with `dates[-1]`, the SERIES END: an extrema_max row for a 2022 peak
+            # asserts the peak was observed on a date it was not, which is a vintage-law defect on a
+            # LIVE serving surface. When the flag is ON the row carries THE EXTREME'S OWN date, taken
+            # from the SAME axis the value axis was built from and by the SAME drop rule -- `dates` is
+            # built beside `series` in one pass, so the indices are aligned by construction. When the
+            # axis is NOT aligned the site DECLINES and counts, rather than guessing. WHEN OFF:
+            # byte-identical to today, which is what keeps the locator's own arm from measuring this.
+            _ex_hi_d = _ex_lo_d = dates[-1]
+            if extrema_own_date:
+                _ai, _bi = ex.get("argmax"), ex.get("argmin")
+                if (isinstance(_ai, int) and isinstance(_bi, int) and len(dates) == len(series)
+                        and 0 <= _ai < len(dates) and 0 <= _bi < len(dates)):
+                    _ex_hi_d, _ex_lo_d = dates[_ai], dates[_bi]
+                else:
+                    fired.setdefault("extrema_own_date_declines", []).append(
+                        {"site": "rv_reading_ordinal_thin", "reason": "extrema_axis_unavailable"})
             n += 1
             h_hi = n
             local.append(_shown(_rv_call(f"{pair_word} extreme", expr_tag, hi2, span, asof, unit=sunit,
-                                         date=dates[-1]), hi2, n_join))
+                                         date=_ex_hi_d), hi2, n_join))
             lines.append(f"- [N{h_hi}] the highest {pair_word} across the {n_join}-month history held: "
                          f"{fmtv(hi2)}" + _series_tag(local[-1]["query"]))
             n += 1
             h_lo = n
             local.append(_shown(_rv_call(f"{pair_word} extreme", expr_tag, lo2, span, asof, unit=sunit,
-                                         date=dates[-1]), lo2, n_join))
+                                         date=_ex_lo_d), lo2, n_join))
             lines.append(f"- [N{h_lo}] the lowest {pair_word} across the {n_join}-month history held: "
                          f"{fmtv(lo2)}" + _series_tag(local[-1]["query"]))
             rank_bits.append(f"the held history for this pair is only a {n_join}-month span, below the "
@@ -8410,3 +8457,838 @@ def _cot_outcome_legs(records: list, kept: list, base: int, calls: list, *, qfn,
                          contract_month=cm, handle=f"N{n}")
             trace.append(entry)
     return lines, trace
+
+
+
+# ══ D-XL: THE PRICE-EXTREME LOCATOR (E31) ═══════════════════════════════════════════════════════════
+#
+# WHAT IT IS. "When was this board's own price highest (or lowest), and what was it then" -- a SELECTION
+# over ONE board's own tape that returns a DATED ROW WHOLE. Two kinds and one alias, one product:
+#
+#   extreme           -- the tape-wide superlative. ROW A over the whole PIT-guarded tape, plus ROW B
+#                        over the trailing XL_RECENT_DAYS window, suppressed when its located date
+#                        equals ROW A's (`recent_equals_alltime`) and NOT READ AT ALL when the plan's
+#                        scope is 'all_time' (`scope_all_time_no_row_b` -- a suppression BEFORE the
+#                        read, which is the whole cost saving and is why the branch sits above run()).
+#   windowed_extreme  -- the same superlative from a floor the ASK ITSELF names. ROW W is ROW A WITH A
+#                        LOWER BOUND (`period_start`) -- ZERO new SQL -- routed through the SHIPPED
+#                        `futures_eod_contracts.covers()` with PARSED dates; plus ROW A as the tape
+#                        anchor, suppressed when ROW A's located date falls INSIDE the window
+#                        (`window_contains_alltime`), on which suppression ROW W's line gains ONE
+#                        engine clause naming the tape's own span.
+#   the THRESHOLD ALIAS -- "has it ever been above X" IS that board's extreme, asked with a comparison
+#                        the reader will make. It is an ALIAS, not a kind: the stated level enters NO
+#                        field, NO row, NO payload and NO rendered line, because its product would be a
+#                        comparison against a magnitude the engine NEVER READ and NEVER VALIDATED FOR
+#                        UNITS. There is no field for it, on purpose.
+#
+# THE FOUR MEMBERSHIP CLAUSES, ALL OF THEM OR IT IS NOT IN THIS FAMILY: (i) it reads
+# silver_futures_eod.settle for EXACTLY ONE `leviathan_slug` (ten currencies share this table with NO FX
+# anywhere); (ii) it SELECTS rows rather than aggregating them, so the row returns WHOLE with its own
+# trade_date, contract_month, settle_kind and currency; (iii) its product is a DATE plus a LEVEL on that
+# date; (iv) every magnitude it renders is one the READ produced, or a QUERY PARAMETER the read used (a
+# floor the ask named). Nothing on a line is computed from two served figures.
+#
+# WHAT IT IS NOT, AND WHY THE LINE CARRIES NO COUNT. The rendered superlative is fenced by the row's own
+# MEASURED SPAN and nothing else: a population count on the line is charged `number_unbacked` by the
+# shipped verifier (measured, both kinds), so `_n` rides the trace payload and the eval column instead.
+# It is not a RANGE (two magnitudes as one product) and not a DISTANCE (arithmetic between two served
+# figures); both stay out of scope.
+#
+# THE WALK IS NOT READ AND NOT TOUCHED. `_CW_BOARD_LABEL`, `_cw_register_fence`, `CW_MARKER_PREFIX` and
+# `check_cascade_walk` are untouched: deriving this roster from the walk's would make a WALK CURATION
+# CHANGE silently change which questions the locator answers, and would leave boards with real tape
+# unreachable for no stated reason.
+
+XL_TABLE = "silver_futures_eod"
+XL_SOURCE_METRIC = "settle"          # the CARD metric, read by config_check's synthesized-price fold
+XL_METRIC = "located price extreme"  # the READER-WORD metric on the citation label -- a string NO card
+#                                      declares, and deliberately KIND-FREE: metric='settle' degrades to
+#                                      the bare machine token on a session-close row, because
+#                                      `citations._kind_conflict` correctly refuses the card's
+#                                      "settlement price" label there. A kind-free phrasing means
+#                                      `_kind_conflict` can never fire on the locator's metric at all.
+
+XL_CAP = 2                    # ROW A + ONE windowed row. Never three: the alias saves a read, it never
+#                               buys one, and no branch in this leg reads a third.
+# FIX-PASS (review major 1 / refute major 2, MEASURED): "no branch reads a third" was a CLAIM, and it was
+# FALSE. A windowed ask whose ROW W missed (or whose window was too thin) set `kind = "extreme"`, and
+# control then FELL INTO the ROW B branch and spent a THIRD read -- reproduced with a counting qfn at
+# reads == 3, outcome 'fired'. TWO FENCES CLOSE IT, and they close different halves:
+#   (a) `row_b_allowed`, LATCHED FROM THE KIND AT ENTRY, before the windowed block can mutate it. This is
+#       the PRODUCT half: a trailing-window row is a scope the windowed ask never named, so a fallback
+#       must ship the whole-record row ALONE (which is also what the rendered note now says, singular).
+#   (b) `pay["reads"] < XL_CAP` on the ROW B branch. This is the BUDGET half, and it is deliberately
+#       REDUNDANT with (a) -- the ceiling is stated in CODE at the one site that could ever breach it,
+#       instead of only in this comment. With (a) in place `reads` is always 1 here; the conjunct is the
+#       second fence, and `pay['reads'] <= XL_CAP` is pinned on every fixture in the leg's own suite.
+XL_RECENT_DAYS = 730          # the trailing window that defines "the most recent high" (G0b-calibrated)
+XL_MIN_HOP_DAYS = 45          # below this the second hop is DEGENERATE -- two clocks that are one clock
+XL_DRIVER_FAN = 3             # grounded driver slices the hop may take episodes on, before the root
+XL_EV_K = 5                   # the hop's ONE retrieval's k
+XL_MIN_WINDOW_DAYS = 180      # the SHORTEST window `windowed_extreme` will accept, in CALENDAR days: a
+#                               "since last month" window makes "highest" vacuous, and a FUTURE floor
+#                               fails this clause too (it is a single `since <= asof - N` compare).
+
+XL_MIN_WINDOW_ROWS = None
+"""D-XL windowed kind -- ROW W's OWN population floor, DENOMINATED IN THE UNIT IT IS CHARGED ON.
+
+`no_rows_in_window` fires only on ZERO prints and XL_MIN_WINDOW_DAYS is measured on the DECLARED
+CALENDAR window, not on the served data -- so a stalled board could yield "the highest corn settle since
+2026-01" over two prints, rendered as a fact. ROW W therefore carries its own gate, evaluated on ROW W's
+OWN measured `_n`.
+
+THE UNIT, STATED FIRST: `_n` is `COUNT(settle) OVER ()` computed AFTER the WHERE, so on ROW W it counts
+PRICED EXPIRY-ROWS inside the window -- a union-of-expiries count, NOT a session count. A floor derived
+from sessions and charged on rows is meaningless.
+
+THE COMPARATOR IS `<`, and a window whose `_n` EQUALS the floor SERVES. That is the fail-open direction
+on the boundary, chosen deliberately: a budget must never bind on a legitimate shape, and this floor's
+whole purpose is the degenerate case, which is strictly below it.
+
+THE RULE, WHICH IS A RULE AND NOT A NUMBER:
+    XL_MIN_WINDOW_ROWS := max(2, floor(XL_MIN_WINDOW_SESSIONS x D_min))
+      D_min = the MINIMUM over the roster of a board's measured PRICED EXPIRY-ROWS PER PRICED SESSION on
+              the served tape (G0b's second clause emits both numbers, so the ratio is a division of two
+              numbers it already has); XL_MIN_WINDOW_SESSIONS = 10, two trading weeks.
+IT SHIPS PENDING G0b AND CARRIES NO CANDIDATE DEFAULT -- there is no number here to mistake for a
+decision. `None` is the honest value until G0b runs, and `answer._xl_kinds_served()` REFUSES to arm the
+windowed sub-flag while it is None (the K32 kill, enforced rather than remembered). The shortest window
+this kind accepts is 180 calendar days, ~124 trading sessions, i.e. ~124 x D_min priced rows against a
+floor of ~10 x D_min -- a 12.4x margin in the SAME unit on the SAME board -- so it cannot bind on a
+legitimate window once it is set."""
+XL_MIN_WINDOW_SESSIONS = 10   # the rule's other half, named here so G0b sets ONE number, not two
+
+XL_BLOCK_SHA256 = "b8c32b17f63e26afb8eaec37ea72da3271a8bce5af88cf97a39e71cf57995f5b"
+"""THE MEASURED PLANNER BLOCK'S sha256, with THIS roster substituted -- the pin that makes the freeze
+real, asserted by `config_check.check_extreme_locator` clause (10) against `dispatch._xl_block`'s own
+render. It lives HERE, beside the roster it is a hash OF, because the roster is part of the measurement:
+a board joining the roster changes the enum the block renders, and therefore changes this sha.
+
+WHY A FREEZE AT ALL. One author cannot write both a prompt and its held-out set -- the gate then grades
+the prompt against its own answer key -- so the block is frozen, the held-out asks are authored BLIND to
+it, and the graded pass is a ONE-SHOT measurement of a frozen artefact. AN EDIT VOIDS THE FREEZE AND
+CONSUMES THE HELD-OUT SET: a new block needs a new held-out file authored blind to it, and a fresh
+billed run. Re-hashing this constant to make a lint pass is the exact move it exists to refuse."""
+
+XL_KINDS = ("extreme", "windowed_extreme")
+"""THE ONE LITERAL. The planner enum, the validator's `_K_SERVED`, the probe's own read and this engine's
+branches are all minted from it, so a CUT kind is ABSENT by construction rather than by a runtime check.
+There is no "threshold" member and no "level_analog" member: both cuts are STRUCTURAL."""
+
+XL_DENY_SLUGS = frozenset({
+    # CME settlement MARKS on a zero-volume board financially settled to the MONTHLY AVERAGE of the
+    # Bursa third-forward FCPO settlement: a date inside its own delivery month is a running average,
+    # not a traded price, so "when was it highest" has no traded answer (card note).
+    "malaysian_crude_palm_oil_cme",
+    # Acknowledged IFEU priced-leg contamination on the card's own note.
+    "robusta_coffee", "white_sugar",
+})
+# The two CEPEA CASH references are excluded STRUCTURALLY rather than by a second hand-kept list:
+# `contract_month` is NULL for exactly those two BY DESIGN, the card's three-part quote is mandatory, and
+# `futures_eod_contracts.CASH_INDEX_SLUGS` is the shipped set that names them -- so the roster derives
+# their absence from the PRODUCER'S OWN discriminator.
+
+XL_BOARD_LABEL = {
+    "arabica_coffee": "ICE arabica coffee",
+    "canola_ice": "ICE canola",
+    "cocoa": "ICE cocoa",
+    "corn_cbot": "CBOT corn",
+    "cotton": "ICE cotton",
+    "frozen_orange_juice": "ICE orange juice",
+    "hard_red_winter_wheat_kcbt": "KCBT hrw wheat",
+    "rapeseed_meal_zce": "ZCE rapeseed meal",
+    "rapeseed_oil_zce": "ZCE rapeseed oil",
+    "raw_sugar": "ICE raw sugar",
+    "rough_rice_cbot": "CBOT rice",
+    "soft_red_winter_wheat_cbot": "CBOT srw wheat",
+    "soybean_meal_cbot": "CBOT soybean meal",
+    "soybean_oil_cbot": "CBOT soybean oil",
+    "soybeans_cbot": "CBOT soybeans",
+}
+"""THE ROSTER, A LITERAL -- the `_CW_BOARD_LABEL` precedent, and a literal for a MEASURED reason.
+
+A dict BUILT from `display._contract_label` cannot be LINTED against it (the check is then a tautology),
+and `display._contract_label` falls back to `slug.replace("_", " ")` for a slug the image-side hierarchy
+does not map -- a DE-UNDERSCORED SLUG, which `register.internal_leaks` does NOT catch (measured: the raw
+slug IS caught, the de-underscored form is not). The reader LINE renders THIS label, so hierarchy drift
+in a gitignored config fails the LINT instead of reaching a reader, and `check_extreme_locator` binds the
+literal against the producer BOTH WAYS plus a de-underscored-slug refusal.
+
+ADMISSION: every slug in `futures_eod_contracts.PRICE_COVERAGE_START` that is (a) not in XL_DENY_SLUGS,
+(b) not in `futures_eod_contracts.CASH_INDEX_SLUGS`, and (c) clears the ROSTER GATE
+(`query.XL_ROSTER_MIN_SPAN_DAYS`). 26 mapped slugs -> 15 serve; the 11 exclusions are ENUMERATED by the
+lint so the boundary is visible rather than silent."""
+
+XL_BOARD_SLUGS = tuple(XL_BOARD_LABEL)
+
+# THE DECLINE VOCABULARY. Every string is `register_leaks` / `exec_leaks` clean and `sanitize()`-stable,
+# and `check_extreme_locator` clause (5) asserts it. Most are TRACE-ONLY (they name a counted outcome);
+# the two that RENDER are marked, and they render as their own words-only sentence beside the rows.
+XL_DECLINE_TEMPLATES = {
+    # -- dispatch / roster scope ---------------------------------------------------------------------
+    "board_unresolved": "no single exchange board was identified for this question",
+    "deny_listed": "this board's prints are not a traded price this leg will call a record",
+    "label_unresolved": "this board has no settled reader name, so no line is rendered for it",
+    # -- card / axis scope ---------------------------------------------------------------------------
+    # THESE THREE ARE THE READ LAYER'S OWN REFUSALS, SURFACED RATHER THAN SWALLOWED (refute minor 7), and
+    # each one is CLASSIFIED BY THE NAME ITS RAISER STAMPS rather than by a substring of its message
+    # (re-review NEW 3 -- see `XL_READ_ERROR_REASONS`). `_xl_read` used to catch every raise and report
+    # `no_rows`, which is absence credited as a coverage fact inside the counter that exists to make the
+    # boundary visible; the leg's suite now drives all four shipped raises through `_xl_read_reason` and
+    # reads each name back, so no name is credited by absence and none is credited to the wrong fact.
+    # `month_only_card` IS THE NAME THE SUBSTRING TABLE COULD NOT STATE: a `year_month` card carries no
+    # release stamp AND no per-observation date, so filing it as `vintage_card` told the reader the
+    # opposite of what the raise says. `extrema_axis_unavailable` has THREE producers and one reader
+    # sentence -- `_extreme_window`'s missing `date_col`, `build_sql`'s missing chronological column, and
+    # the extrema-clock rider at the derived lane's ordinal-when-thin rung.
+    "vintage_card": "this source records a release stamp rather than an observation date",
+    "month_only_card": "this source records whole months rather than dated observations",
+    "extrema_axis_unavailable": "this source carries no observation date to place an extreme on",
+    # -- tape scope ----------------------------------------------------------------------------------
+    "no_rows": "no priced print was returned for this board at this cutoff",
+    "tape_too_short": "this board's record is too short to carry a superlative",
+    "recent_window_straddle": ("the recent window reaches back past the start of the record this board "
+                               "is served from"),
+    # -- suppressions (counted on the same axis as declines) ------------------------------------------
+    "recent_equals_alltime": "the recent high and the whole-record high are the same print",
+    "scope_all_time_no_row_b": "the question asks across the whole record, so no recent window is read",
+    "window_contains_alltime": "the whole-record high falls inside the window the question named",
+    # -- windowed scope ------------------------------------------------------------------------------
+    # ALL FIVE OF THESE RENDER (refute major 4). Every one of them DROPS THE FLOOR THE ASK NAMED and
+    # substitutes the whole-record row, and until this fix only `window_straddles_coverage` told the
+    # reader so: on the other four the WHOLE-TAPE row shipped with `since=None`, the mandate's "echo the
+    # starting point the question gave" clause was vacuous, and a compliant writer answered "the highest
+    # since 2020" with the 2012 tape-wide high. They now render a PRICE EXTREME NOTE on the straddle's
+    # own pattern -- see `XL_RENDERED_DECLINES` and `_xl_notes`.
+    "since_unparseable": "the starting point named in the question is not a date this leg can read",
+    "window_too_short": "the window named is too short for a superlative to say anything",
+    "window_straddles_coverage": ("the record this board is served from begins later than the starting "
+                                  "point named"),
+    "no_rows_in_window": "no priced print falls inside the window named",
+    "window_too_thin": "too few priced prints fall inside the window named to call one of them a record",
+    # THE FALLBACK'S OWN SUPPRESSION, NAMED AND COUNTED (review major 1 / minor 2). On any windowed ->
+    # extreme fallback the trailing recency window is a scope the ask never named, so ROW B is not read;
+    # `scope_all_time_no_row_b` is the precedent -- a suppression counted on the decline axis.
+    "window_fallback_no_row_b": ("the question named a starting point, so no trailing recent window is "
+                                 "read beside the whole-record one"),
+    # ...and the ROW B MISS, which is a DIFFERENT FACT from `no_rows_in_window` above (review minor 1):
+    # that one says the ASK'S OWN named window was empty, this one says the ENGINE'S trailing recency
+    # window was. One name for two facts made the closed decline census unable to separate them.
+    "no_rows_in_recent_window": "no priced print falls inside the recent window this leg reads",
+    # -- hop scope -----------------------------------------------------------------------------------
+    "hop_degenerate": "the located date is too close to this question's cutoff to recount separately",
+    "timeline_off": "dated windows are not being read on this turn",
+    # -- belt ----------------------------------------------------------------------------------------
+    "fenced": "the rendered block did not clear its own reader fence",
+    "error": "this leg did not complete",
+}
+
+XL_RENDERED_DECLINES = ("window_straddles_coverage", "since_unparseable", "window_too_short",
+                        "no_rows_in_window", "window_too_thin")
+"""THE DECLINES THAT REACH THE READER, as their own words-only sentence beside the rows.
+
+EXACTLY THE FIVE WINDOWED FALLBACKS, and the membership rule is a rule rather than a taste: a decline
+RENDERS iff it changed the SCOPE of the figure the reader is about to be shown. All five drop the floor
+the ask named and substitute the whole-record row; every other name in the vocabulary either declines the
+leg outright (nothing renders) or suppresses a row the ask never asked for, and narrating those would
+tell a reader about a row that is not there.
+
+AT MOST ONE FIRES PER TURN by construction -- the windowed block is one if/elif chain and each branch
+exits it -- so the note is singular, and with the ROW B latch above the block it heads is singular too."""
+
+XL_SCOPE_NOTE_TAIL = "The figure below is the whole-record one."
+"""THE ONE SENTENCE THAT MAKES THE SCOPE SUBSTITUTION VISIBLE, appended to every fallback note.
+
+It is what makes the guarantee TOTAL rather than per-reason: a windowed ask that falls to the whole-record
+row ALWAYS renders a note, and when the reason is not one a reader can act on (a read that RAISED) this
+sentence ships ALONE -- the reader is told the scope moved without being handed an internal failure. It
+is SINGULAR because the ROW B latch guarantees exactly one row below it."""
+
+# THE VOCABULARIES ARE BUILT FROM THE SHIPPED SOURCES, NEVER HAND-SPELLED. The print-kind slot is an
+# alternation over `citations._SETTLE_KIND_WORDS.values()` (4 measured); the unit slot over the card's
+# own `unit_overrides.values()` (11 distinct, including 'BRL/60-kg bag'); the board slot over
+# XL_BOARD_LABEL's values (15). A NULL contract_month can never reach the template because the two
+# cash-index slugs are off-roster BY CONSTRUCTION.
+
+
+def _xl_kind_words() -> list:
+    from leviathan.graphrag import citations as _cit
+    return sorted(set(_cit._SETTLE_KIND_WORDS.values()))
+
+
+def _xl_unit_words() -> list:
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        ov = getattr(load_registry().get(XL_TABLE).metrics.get(XL_SOURCE_METRIC),
+                     "unit_overrides", None) or {}
+        return sorted({str(u) for u in ov.values() if str(u or "").strip()})
+    except Exception:  # noqa: BLE001 -- a registry problem must never take the module import down
+        return []
+
+
+def _xl_alt(words) -> str:
+    return "|".join(re.escape(w) for w in words) or r"(?!)"
+
+
+_XL_KIND_ALT = _xl_alt(_xl_kind_words())
+_XL_UNIT_ALT = _xl_alt(_xl_unit_words())
+_XL_LABEL_ALT = _xl_alt(sorted(XL_BOARD_LABEL.values(), key=len, reverse=True))
+_XL_SINCE_TOKEN = r"\d{4}(?:-\d{2}(?:-\d{2})?)?"
+
+XL_ROW_LINE_RX = re.compile(r"^- \[N\d+\] (?:" + _XL_LABEL_ALT + r") settle (?:high|low)\b", re.M)
+"""THE SEAM MARKER -- A ROW SHAPE, NEVER A BARE TOKEN, and that is mandatory rather than stylistic:
+retrieved evidence text is rendered RAW with its newlines into the volatile prompt, so a bare marker
+token is something a retrieved numbered heading can carry (the measured V2-1 refute M2). Minted ONCE
+here and read by the producer AND by `answer._extreme_locator_block_on`. The label alternation is built
+from the LITERAL roster, so the marker cannot drift with a hierarchy edit."""
+
+_XL_ROW_RX = re.compile(
+    r"^- \[N\d+\] (?:" + _XL_LABEL_ALT + r") settle (?:high|low)"
+    r"(?: since " + _XL_SINCE_TOKEN + r")?"
+    r" on \d{4}-\d{2}-\d{2}: [-+]?[\d,]+(?:\.\d+)? (?:" + _XL_UNIT_ALT + r")"
+    r", delivery \d{4}M\d{2}, (?:" + _XL_KIND_ALT + r")"
+    r"; (?:highest|lowest) across every delivery month listed"
+    r", read from \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}"
+    r"(?:; the whole-record span for this board runs from \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2})?"
+    r" \[series: [^\[\]]+\]\.$")
+"""THE FULL TEMPLATE, fullmatched per row. A POSITIONAL GRAMMAR, and it is a DECLARED DEVIATION from the
+walk's one-clock-per-line rule WITH ITS REASON: `_cw_register_fence` requires exactly ONE dated window
+token per row, which a located-extreme row cannot satisfy -- it must carry the SESSION date (its citation
+clock), the DELIVERY month (the card's mandatory three-part quote) and the READ SPAN (the superlative's
+own fence). Binding every date on the line to a NAMED ROLE BY ITS SLOT is strictly stronger than "there
+is exactly one of them"."""
+
+XL_HOP_PREFIX = "AT THAT TIME for "
+XL_HOP_TOKEN = "[XLHOP]"           # minted ONCE, here
+XL_HOP_LINE_RX = re.compile(r"^" + re.escape(XL_HOP_PREFIX) + re.escape(XL_HOP_TOKEN)
+                            + r" [^:\n]+, \d{4}-\d{2}\.\.\d{4}-\d{2}: ", re.M)
+"""THE HOP'S OWN ROW SHAPE -- the `CW_CONTEXT_LINE_RX` discipline verbatim: the prefix, a MINTED TOKEN in
+brackets, a node label from the resolver's own vocabulary, and a dated window token. A bare prefix would
+match a retrieved chunk that happens to open with those words ("AT THAT TIME for corn, the 2012 drought
+was severe."), which is the same class the walk's context gate hardened against."""
+
+# -- M5: THE SUPERLATIVE COUNTER'S VOCABULARY (read by answer.py's arm-constant counter) ---------------
+# A sentence is CONVICTED iff it matches the superlative pattern and NOT the span pattern. The counter
+# ships on BOTH arms and CHANGES NO BYTE; the whole-sentence REMOVAL is a LATER commit with its own flag
+# and its own arm (the extrema-clock precedent), because the class the removal reaches is provably NOT
+# empty on the control arm -- a treatment-gated strip would make the arm compare two different render
+# passes instead of two blocks.
+_XL_SUPERLATIVE_RX = re.compile(
+    r"all[- ]time|on record|its record|record (?:high|low)s?|the full (?:record|history)"
+    r"|(?:highest|lowest|widest|biggest) ever|ever (?:printed|traded|settled|reached|seen)", re.I)
+_XL_SPAN_CLAUSE_RX = re.compile(
+    r"\d{4}-\d{2}-\d{2}\s*(?:to|\.\.|-)\s*\d{4}-\d{2}-\d{2}"      # a date-to-date range
+    r"|\b\d{4}\s*(?:to|\.\.|-)\s*\d{4}\b"                          # a year-to-year range
+    r"|in\s[\d,]+\spriced prints"                                  # the population form
+    r"|\bsince\s\d{4}", re.I)                                      # an explicit floor
+
+# -- K27c: THE THRESHOLD ALIAS'S OWN COUNTERS' VOCABULARIES (read by eval.py, scoped to LOCATOR-CITED
+# sentences there exactly as the mandate's clauses are scoped to locator rows here) -------------------
+# THE ALIAS IS THE WHOLE REASON THESE EXIST. "Has corn ever been above 800" IS that board's extreme,
+# asked with a comparison the reader will make -- and the engine NEVER READ the 800, never validated its
+# units and has no field for it. Two failure shapes follow, and both are prose-only, so the mandate bans
+# them (K27b) and these count them (K27c):
+#   xl_threshold_echo    -- the stated level is ECHOED as a figure beside the located row's [N] handle,
+#                           where it reads as something the engine served. Counted in eval against the
+#                           SERVED row values at scale 1 (`verify._num_backed`), so a correctly
+#                           transcribed served figure is never charged and only an unserved magnitude is.
+#   xl_threshold_verdict -- the yes/no ANSWER TO THE COMPARISON is stated as the engine's own verdict.
+#                           The engine compared nothing; the reader makes the comparison.
+_XL_VERDICT_RX = re.compile(
+    r"^\s*(?:yes|no)\b"                                            # a bare verdict opening the sentence
+    r"|\bit (?:has|has not|hasn't|had|never has)\b"
+    r"|\b(?:has|have|had)\s(?:never|not|indeed)?\s*(?:been|traded|settled|printed|closed|gone|risen"
+    r"|fallen)\s(?:above|below|over|under|through|past|beyond)\b"
+    r"|\bnever (?:been|traded|settled|printed|closed|reached|exceeded)\b"
+    r"|\b(?:the answer is|so yes|so no)\b", re.I)
+# xl_window_duration_gloss -- the mandate's "echo that starting point exactly as the row writes it, and
+# never restate it as a length of time" clause, counted. A row that names a FLOOR ("since 2020") restated
+# as a SPAN ("over the past five years") is a different claim: the floor is the ask's own calendar point,
+# the span is arithmetic against today that this engine never did.
+_XL_DURATION_RX = re.compile(
+    r"\b(?:in|over|across|during|for|through|within)\s+the\s+(?:last|past|previous|preceding)\s+"
+    r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|few|several)\s+"
+    r"(?:day|week|month|quarter|year|decade)s?\b"
+    r"|\b(?:the\s+)?(?:last|past)\s+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven"
+    r"|twelve)[- ](?:day|week|month|quarter|year|decade)s?\b", re.I)
+
+
+def _xl_fmt(v) -> str:
+    """ONE FORMATTER, and it is `citations._fmt` ITSELF rather than a copy of it -- the drift class is
+    removed instead of linted. (A hand `f'{v:,.1f}'` in an early probe emitted '11,722.0' where the leg
+    emits '11,722'; the lint still pins the equality on a fixed probe set so a future divergence is a
+    build failure rather than a rendering surprise.)"""
+    from leviathan.graphrag import citations as _cit
+    return _cit._fmt(v)
+
+
+def _xl_span_days(row: dict) -> int | None:
+    a, b = str(row.get("_span_start") or "")[:10], str(row.get("_span_end") or "")[:10]
+    if len(a) != 10 or len(b) != 10:
+        return None
+    try:
+        return _iso_days(b) - _iso_days(a)
+    except (TypeError, ValueError):
+        return None
+
+
+def _xl_row_line(n: int, slug: str, row: dict, *, direction: str, since: str | None = None,
+                 tape_span: tuple | None = None) -> str:
+    """THE READER LINE. The BOARD LABEL comes from the LITERAL and rides its OWN tag dict, so
+    `_series_tag` renders 'series: CBOT soybean meal' while the CALL RECORD keeps the RAW SLUG in
+    `query.commodity` -- the `_cw_call` law verbatim: a display label in the query poisons the citations
+    LOCATOR, because the /v1/series chart params read `loc.commodity` unresolved.
+
+    NO POPULATION COUNT ON THE LINE. The SPAN alone carries the superlative's fence; a rendered count is
+    charged `number_unbacked` by the shipped verifier (measured on both kinds), so `_n` rides the trace
+    payload and the `xl_n_prints` eval column instead."""
+    from leviathan.graphrag import citations as _cit
+    label = XL_BOARD_LABEL[slug]
+    word = "high" if direction == "max" else "low"
+    sup = "highest" if direction == "max" else "lowest"
+    cm = _contract_seg(row.get("contract_month"))
+    q = {"commodity": label, "country": None, "contract_month": row.get("contract_month"),
+         "table": XL_TABLE}
+    since_clause = f" since {since}" if since else ""
+    tape_clause = ""
+    if tape_span:
+        tape_clause = (f"; the whole-record span for this board runs from {tape_span[0]} to "
+                       f"{tape_span[1]}")
+    return (f"- [N{n}] {label} settle {word}{since_clause} on {str(row.get('knowledge_date'))[:10]}: "
+            f"{_xl_fmt(row.get('value'))} {row.get('unit') or ''}, delivery {cm}, "
+            f"{_cit._print_kind(row)}; {sup} across every delivery month listed, read from "
+            f"{str(row.get('_span_start'))[:10]} to {str(row.get('_span_end'))[:10]}{tape_clause}"
+            + _series_tag(q) + ".")
+
+
+def _xl_call(slug: str, row: dict, asof) -> dict:
+    """The synthetic call-record the [N] handle indexes -- the `_episode_outcome_call` shape.
+
+    THE CLOCKS, ONE PER SURFACE, AND NEVER CONFLATED. `query.asof` is THE TURN'S AS-OF, full stop: it is
+    the cutoff the read actually used, so the span the line states, the locator and `eval._pit_clean` all
+    agree by construction and a drill-down reproduces the same row. The OBSERVATION's date rides twice --
+    as `knowledge_date` (so `citations._row_known_date` stamps `[known <D>]` with no render change) and
+    as `located_extreme` (which suppresses the false staleness clause and mints `locator.located_date`).
+
+    IT IS BUILT FROM THE POST-run() ROW, never from the compiled SELECT: `_apply_unit_overrides` stamps
+    `r['unit']` after the fetch, and a row without it renders '= 554.4 (exchange settlement, USD)' --
+    the unit gone and the currency promoted into the tag list."""
+    d = str(row.get("knowledge_date"))[:10]
+    r = {"value": row.get("value"), "unit": row.get("unit"),
+         "knowledge_date": d, "contract_month": row.get("contract_month"),
+         "settle_kind": row.get("settle_kind"), "currency": row.get("currency"),
+         "source_metric": XL_SOURCE_METRIC,   # the CARD metric, so a client can draw the level series
+         "located_extreme": d,                # the OBSERVATION's date (E28 suppression + E29 rider)
+         "_provenance": {"date": d}}
+    return {"query": {"table": XL_TABLE, "metric": XL_METRIC, "commodity": slug, "country": None,
+                      "period": None, "asof": asof, "contract_month": row.get("contract_month")},
+            "rows": [r], "status": "ok"}
+
+
+class _XlReadFailure:
+    """THE THIRD STATE OF A READ, and it exists because two of them were being reported as one.
+
+    `_xl_read` swallowed EVERY exception and returned None, and the caller then declined `no_rows`, whose
+    reader sentence is "no priced print was returned for this board at this cutoff" -- so a throttled
+    Athena, a dead pool or a card-axis refusal was COUNTED AND WORDED AS A COVERAGE FACT (refute major 6,
+    reproduced with a qfn raising RuntimeError('athena throttled'): declines == ['no_rows']). That
+    corrupts the decline census the "declines are named and counted" law exists to make trustworthy, and
+    it reads as a tape gap in every eval artifact.
+
+    An EMPTY result still returns None (no rows is a real, different fact). A RAISE returns THIS, carrying
+    the classified reason, and every call site branches on it BEFORE the emptiness test."""
+
+    __slots__ = ("reason",)
+
+    def __init__(self, reason: str):
+        self.reason = reason
+
+
+XL_READ_ERROR_REASONS = ("vintage_card", "month_only_card", "extrema_axis_unavailable")
+"""THE CLOSED SET OF NAMES A READ REFUSAL MAY CARRY -- the card-axis boundaries the SHIPPED query layer
+raises, each of which has its own reader sentence in `XL_DECLINE_TEMPLATES`. Anything else is `error`.
+
+WHY THIS IS A NAME LIST AND NO LONGER A SUBSTRING TABLE (re-review NEW FINDING 3, MEASURED). It shipped
+as `(("release stamp", "vintage_card"), ("extrema_axis_unavailable", "extrema_axis_unavailable"))` and
+classified by scanning the exception's MESSAGE. `build_sql`'s extreme branch raises FOUR distinct
+messages, not two, and the `year_month` one -- "...declares knowledge_semantics='year_month', which
+carries no release stamp and no per-observation date at all -- an extreme cannot be DATED on it" --
+CONTAINS the substring "release stamp" while SAYING the card has none. It was therefore filed as
+`vintage_card`, whose reader sentence is "this source records a release stamp rather than an observation
+date": the exact opposite of the raise. A prose message is written for a human and a reword silently
+demotes a named boundary -- which is the same "a named boundary credited by absence" shape refute minor 7
+was raised about. The query layer now STAMPS its own name on the exception (`query._extreme_refusal`,
+`query.XL_REFUSAL_ATTR`) and this classifier reads that attribute alone.
+
+FOUR RAISES, THREE NAMES. `year_month` -> `month_only_card` (minted here); the vintage refusal ->
+`vintage_card`; and BOTH axis refusals -- `_extreme_window`'s missing `date_col` and `build_sql`'s
+missing chronological column -- -> `extrema_axis_unavailable`, which is the same fact stated at two
+rungs and already the one-name-two-producers case its template documents."""
+
+
+def _xl_read_reason(exc) -> str:
+    """Classify a read failure into the decline vocabulary, on the EXPLICIT MARKER the raiser stamped.
+
+    Anything without a marker -- an Athena outage, a dead pool, a bug -- is `error`, an honest 'this leg
+    did not complete' and never a coverage claim. The marker is checked against the CLOSED set, so a
+    name the vocabulary does not carry cannot reach the decline census through a stray attribute."""
+    reason = getattr(exc, Q.XL_REFUSAL_ATTR, None)
+    return reason if reason in XL_READ_ERROR_REASONS else "error"
+
+
+def _xl_read(qfn, *, slug: str, asof, agg: str, period_start: str | None = None,
+             futures_newest_first: bool | str = False):
+    """ONE bounded extreme-row read -> the single row, None for NO ROWS, or `_XlReadFailure` for a RAISE.
+    NEVER raises.
+
+    ROW A is SLUG-PRUNED, ALL YEARS (the only partition terms are the slug equality and the as-of year
+    bound); ROW W / ROW B carry a floor-year bound as well and ARE year-pruned. `spec.limit` is ignored
+    by construction on this branch -- `LIMIT 1` cannot truncate."""
+    try:
+        spec = Q.NumberQuery(table=XL_TABLE, metric=XL_SOURCE_METRIC, asof=asof, commodity=str(slug),
+                             country=None, agg=agg, period_start=period_start)
+        rows = Q.run(spec, query_fn=qfn, futures_newest_first=futures_newest_first) or []
+    except Exception as e:  # noqa: BLE001 -- a bad or slow lookup must NEVER kill the reasoning turn (R6)
+        return _XlReadFailure(_xl_read_reason(e))
+    return rows[0] if rows else None
+
+
+def _xl_parse_since(s) -> object:
+    """A REAL PARSE, not a shape test. The validator's regex fullmatches '2026-13' and '2026-06-31' and
+    `date.fromisoformat` raises on both, so this wraps the parse and the caller COUNTS the failure rather
+    than trusting a regex to have validated a calendar. Measured: '2020' -> 2020-01-01, '2020-02' ->
+    2020-02-01, '2020-02-29' -> a real leap day; '2021-02-29', '2026-13', '2026-06-31' -> None."""
+    import datetime as _dt
+    t = str(s or "").strip()
+    if len(t) == 4:
+        t += "-01-01"
+    elif len(t) == 7:
+        t += "-01"
+    try:
+        return _dt.date.fromisoformat(t)
+    except (TypeError, ValueError):
+        return None
+
+
+def _xl_register_fence(lines: list) -> bool:
+    """HALF ONE of the fence -- WHOLE-BLOCK ATOMIC and NEVER RELAXABLE: every line must satisfy
+    `pace_register_ok` AND zero valuation words AND zero flow words AND an EMPTY `internal_leaks`. Any
+    failure drops the WHOLE block and the caller rolls `calls[base:] = []` (the W4 orphan-call class).
+
+    HALF TWO is PER-ROW and lives at the append site, because per-row dropping is only safe under
+    FENCE-BEFORE-MINT: candidates are built PURE, fenced individually, and survivors are numbered AT
+    APPEND TIME -- so no handle is ever orphaned or renumbered."""
+    from leviathan.graphrag import register as reg
+    for ln in lines or []:
+        if not (pace_register_ok(ln) and reg.count_valuation_words(ln) == 0
+                and reg.count_flow_words(ln) == 0 and not reg.internal_leaks(ln)):
+            return False
+    return True
+
+
+def _xl_locate(qfn, request: dict, asof, *, futures_newest_first: bool | str = False) -> tuple:
+    """THE SELECTION HALF: resolve the request into (candidates, payload). PURE of the ledger -- it mints
+    no [N] handle and appends to no call list; the caller fences and numbers.
+
+    Each candidate is `{"slug", "row", "direction", "since", "tape_span"}`. `payload` is the leg's ONE
+    registered trace key's body: `kind` rides INSIDE it, as `outcome` does, so `tracekeys` gains nothing
+    beyond the two appends this commit makes."""
+    from leviathan.silver import futures_eod_contracts as _fc
+
+    slug = str((request or {}).get("board") or "")
+    direction = str((request or {}).get("direction") or "")
+    kind = str((request or {}).get("kind") or "extreme")
+    scope = (request or {}).get("scope")
+    since = (request or {}).get("since")
+    # THE ALIAS SCOPE RULE, ON THE EXPECTATION SIDE AS WELL AS THE EMISSION SIDE (refute minor 3). The
+    # v4.1 fatal is closed in `dispatch._validate`, which FORCES `xl_scope` to None on `windowed_extreme`
+    # -- and this engine relied on that by COMMENT. Measured: calling `_xl_locate` directly with
+    # kind='windowed_extreme', scope='all_time' and an empty ROW W left the request's scope live, so
+    # `scope_all_time_no_row_b` fired after the fallback. The family amendment required the rule on BOTH
+    # sides; here it is, one line, at the top, before any branch can read it.
+    if kind == "windowed_extreme":
+        scope = None
+    # `kind` MUTATES on a windowed fallback (that is the design: the kind falls to extreme, never to
+    # nothing), so the ASK's own kind is preserved here for the artifact. `eval.xl_kind_exact` compares
+    # the PLANNER's kind against THIS, never against the mutated one -- otherwise a legitimate straddle
+    # scored a planner mismatch and an arm gating that column at 1.0 failed on every straddle turn
+    # (refute minor 2, measured).
+    pay: dict = {"outcome": "declined", "kind": kind, "kind_requested": kind, "board": slug,
+                 "direction": direction, "scope": scope, "since": since, "reads": 0,
+                 "rows_fenced": 0, "declines": []}
+
+    def _decl(reason: str, **kw):
+        pay["declines"].append({"reason": reason, **kw})
+        return [], pay
+
+    # THE DENY/CASH TEST RUNS FIRST, AND THE ORDER IS THE DIAGNOSTIC. A deny-listed or cash-reference
+    # slug is ALSO off-roster by construction, so a roster-membership test placed first would report
+    # every one of them as `board_unresolved` and the named reason would be structurally unreachable --
+    # absence credited as a pass, in the counter that exists to make the exclusion visible.
+    if slug in XL_DENY_SLUGS or slug in _fc.CASH_INDEX_SLUGS:
+        return _decl("deny_listed", board=slug)
+    if slug not in XL_BOARD_LABEL:
+        return _decl("board_unresolved", board=slug)
+    if direction not in ("max", "min"):
+        return _decl("board_unresolved", board=slug)
+    label = XL_BOARD_LABEL[slug]
+    if not label or label == slug.replace("_", " "):
+        # A DE-UNDERSCORED SLUG IS THE ONE LEAK SHAPE `register.internal_leaks` DOES NOT CATCH, which is
+        # why the roster is a literal and why this is a serve-time decline as well as a lint failure.
+        return _decl("label_unresolved", board=slug)
+    pay["label"] = label
+    agg = "max_row" if direction == "max" else "min_row"
+
+    # -- ROW A: the tape-wide read, ALWAYS, and the ONLY row the TAPE GATE is evaluated on -------------
+    row_a = _xl_read(qfn, slug=slug, asof=asof, agg=agg, futures_newest_first=futures_newest_first)
+    pay["reads"] += 1
+    if isinstance(row_a, _XlReadFailure):
+        # A RAISE IS NOT A TAPE GAP. The read is still CHARGED (it may have been billed) and the reason
+        # is the read layer's own, never `no_rows`.
+        return _decl(row_a.reason, board=slug, at="row_a")
+    if not row_a or row_a.get("value") is None or not row_a.get("knowledge_date"):
+        return _decl("no_rows", board=slug)
+    n_prints = int(row_a.get("_n") or 0)
+    span_days = _xl_span_days(row_a)
+    # THE TWO FLOORS, RECORDED SIDE BY SIDE AND NEVER CONFLATED. `span_start` is the MEASURED first
+    # priced print on the served tape -- the fact the row's own line states. `coverage_floor` is the
+    # shipped map's declared floor for the same board, carried here as a CROSS-CHECK ONLY: it is never
+    # rendered and never substituted, so a disagreement between the map and the tape is visible in the
+    # artifact instead of silently deciding what a reader is told.
+    try:
+        _cov_floor = str(_fc.coverage_start_for(slug))
+    except Exception:  # noqa: BLE001 -- an unmapped floor is a missing cross-check, never a raise
+        _cov_floor = None
+    pay.update({"n_prints": n_prints, "span_start": str(row_a.get("_span_start"))[:10],
+                "span_end": str(row_a.get("_span_end"))[:10], "coverage_floor": _cov_floor,
+                "located_date": str(row_a.get("knowledge_date"))[:10],
+                "value": row_a.get("value"), "unit": row_a.get("unit"),
+                "contract_month": row_a.get("contract_month"),
+                "settle_kind": row_a.get("settle_kind"), "currency": row_a.get("currency")})
+    # GATE 2, THE ROW GATE -- ROW A ONLY, and its verdict governs the WHOLE leg. Applied per row it
+    # would decline the trailing window on EVERY board by construction (that window IS XL_RECENT_DAYS,
+    # measured 728 days against a 1095-day floor). Both rows come off one tape; the tape is admitted
+    # once. Each windowed read gets its OWN named floor on its OWN measured population instead.
+    if n_prints < Q.XL_MIN_TAPE_ROWS or (span_days is not None
+                                         and span_days < Q.XL_MIN_TAPE_SPAN_DAYS):
+        return _decl("tape_too_short", board=slug, rows=n_prints, span_days=span_days)
+
+    cands = [{"slug": slug, "row": row_a, "direction": direction, "since": None, "tape_span": None}]
+
+    # THE ROW B LATCH, TAKEN BEFORE THE WINDOWED BLOCK CAN MOVE `kind` (review major 1 / refute major 2).
+    # `kind` falls to "extreme" on five windowed declines; without this latch that fall re-entered the
+    # ROW B branch below and spent a THIRD read past XL_CAP, and rendered a trailing-window row the ask
+    # never asked for under a note whose wording is singular. The ask's OWN kind decides, once.
+    row_b_allowed = (kind == "extreme")
+
+    if kind == "windowed_extreme":
+        # -- ROW W: ROW A WITH A LOWER BOUND. ZERO new SQL, ONE parsed call to the SHIPPED router. ----
+        since_d = _xl_parse_since(since)
+        if since_d is None:
+            pay["declines"].append({"reason": "since_unparseable", "since": since})
+            pay["kind"] = kind = "extreme"           # the kind FALLS to extreme, never to nothing
+        else:
+            import datetime as _dt
+            asof_d = _dt.date.fromisoformat(str(asof)[:10])
+            if (asof_d - since_d).days < XL_MIN_WINDOW_DAYS:
+                pay["declines"].append({"reason": "window_too_short", "since": str(since_d),
+                                        "min_days": XL_MIN_WINDOW_DAYS})
+                pay["kind"] = kind = "extreme"
+            elif _fc.covers(slug, since_d, asof_d) != "serve":
+                # THE ARGUMENTS ARE `datetime.date`, NOT ISO STRINGS: `covers` coerces a datetime and
+                # does NOTHING to a str, and both bounds meet a `datetime.date` floor -- an ISO string
+                # raises TypeError. A SINGLE `!= "serve"` decline, so `straddle` AND any future fourth
+                # verdict fail CLOSED to one counted name; the `legacy` verdict is unreachable from
+                # THIS caller because the roster gate guarantees floor <= asof - 1095 < asof.
+                pay["declines"].append({"reason": "window_straddles_coverage",
+                                        "floor": str(_fc.coverage_start_for(slug)),
+                                        "since": str(since_d)})
+                pay["kind"] = kind = "extreme"
+            else:
+                row_w = _xl_read(qfn, slug=slug, asof=asof, agg=agg,
+                                 period_start=since_d.isoformat(),
+                                 futures_newest_first=futures_newest_first)
+                pay["reads"] += 1
+                if isinstance(row_w, _XlReadFailure):
+                    # AGAIN: a raise is not an empty window. The kind still falls to extreme (the
+                    # whole-record row is already in hand and is the honest substitute), but the counted
+                    # name says the read failed rather than that the window was empty.
+                    pay["declines"].append({"reason": row_w.reason, "at": "row_w"})
+                    pay["kind"] = kind = "extreme"
+                elif not row_w or row_w.get("value") is None or not row_w.get("knowledge_date"):
+                    pay["declines"].append({"reason": "no_rows_in_window", "since": str(since_d)})
+                    pay["kind"] = kind = "extreme"
+                elif XL_MIN_WINDOW_ROWS is not None and int(row_w.get("_n") or 0) < XL_MIN_WINDOW_ROWS:
+                    # THE COMPARATOR IS `<`: a window whose `_n` EQUALS the floor SERVES.
+                    pay["declines"].append({"reason": "window_too_thin",
+                                            "n": int(row_w.get("_n") or 0),
+                                            "floor": XL_MIN_WINDOW_ROWS})
+                    pay["kind"] = kind = "extreme"
+                else:
+                    pay["window_n_prints"] = int(row_w.get("_n") or 0)
+                    pay["window_located_date"] = str(row_w.get("knowledge_date"))[:10]
+                    a_in = (str(row_a.get("knowledge_date"))[:10] >= since_d.isoformat())
+                    if a_in:
+                        # ROW A's located date falls INSIDE the window: the anchor would restate the
+                        # windowed row, so it is SUPPRESSED and ROW W's line names the tape's own span.
+                        pay["declines"].append({"reason": "window_contains_alltime"})
+                        cands = [{"slug": slug, "row": row_w, "direction": direction,
+                                  "since": str(since), "tape_span": (pay["span_start"],
+                                                                     pay["span_end"])}]
+                    else:
+                        cands.insert(0, {"slug": slug, "row": row_w, "direction": direction,
+                                         "since": str(since), "tape_span": None})
+    if kind == "extreme" and not row_b_allowed:
+        # THE LATCH FIRING: a windowed ask that FELL to extreme. The trailing recency window is a scope
+        # this ask never named, so it is not read and the suppression is COUNTED -- and the rendered note
+        # above it, which says "the figure below is the whole-record one", stays singular and true.
+        pay["declines"].append({"reason": "window_fallback_no_row_b"})
+    elif kind == "extreme" and pay["reads"] < XL_CAP:
+        # -- ROW B: the trailing window, and THE ALIAS'S ONE BRANCH ------------------------------------
+        # THE `pay["reads"] < XL_CAP` CONJUNCT IS THE BUDGET FENCE, and it is deliberately redundant with
+        # the latch: the ceiling is now stated in CODE at the one site that could ever breach it.
+        # THE SUPPRESSION IS BEFORE THE READ, NOT AFTER IT. That is the entire cost saving, and it is
+        # why the branch sits ABOVE the run() call rather than beside the render: a post-read suppression
+        # would pass an output-only assertion while still spending the read. It is SCOPED TO THE EXTREME
+        # KIND by construction -- `_validate` forces `xl_scope` to None on `windowed_extreme`, so a
+        # floor-named ask can never route here and be served the whole-tape row.
+        if scope == "all_time":
+            pay["declines"].append({"reason": "scope_all_time_no_row_b"})
+        else:
+            lo = _iso_shift(str(asof)[:10], -int(XL_RECENT_DAYS))
+            import datetime as _dt
+            try:
+                verdict = _fc.covers(slug, _dt.date.fromisoformat(lo),
+                                     _dt.date.fromisoformat(str(asof)[:10]))
+            except Exception:  # noqa: BLE001 -- an unmapped floor is a decline, never a raise
+                verdict = "straddle"
+            if verdict != "serve":
+                # STRUCTURALLY INERT ON TODAY'S ROSTER and it says so here rather than pretending to be
+                # exercised: the latest roster floor is 2018-12-24, so at XL_RECENT_DAYS=730 every board
+                # returns "serve"; the branch becomes reachable only above ~2,808 days. It is KEPT
+                # because G0b may move the window and a roster addition with a young tape would make it
+                # live.
+                pay["declines"].append({"reason": "recent_window_straddle", "window_start": lo})
+            else:
+                row_b = _xl_read(qfn, slug=slug, asof=asof, agg=agg, period_start=lo,
+                                 futures_newest_first=futures_newest_first)
+                pay["reads"] += 1
+                if isinstance(row_b, _XlReadFailure):
+                    pay["declines"].append({"reason": row_b.reason, "at": "row_b"})
+                elif not row_b or row_b.get("value") is None or not row_b.get("knowledge_date"):
+                    # ITS OWN NAME, never `no_rows_in_window`: THIS window is the engine's trailing
+                    # recency one, and the ask's named window is a different fact under a different name.
+                    pay["declines"].append({"reason": "no_rows_in_recent_window", "window_start": lo})
+                elif (str(row_b.get("knowledge_date"))[:10]
+                      == str(row_a.get("knowledge_date"))[:10]):
+                    pay["declines"].append({"reason": "recent_equals_alltime"})
+                else:
+                    pay["recent"] = {"located_date": str(row_b.get("knowledge_date"))[:10],
+                                     "value": row_b.get("value"),
+                                     "n_prints": int(row_b.get("_n") or 0),
+                                     "span_start": str(row_b.get("_span_start"))[:10],
+                                     "span_end": str(row_b.get("_span_end"))[:10]}
+                    cands.append({"slug": slug, "row": row_b, "direction": direction,
+                                  "since": None, "tape_span": None})
+    return cands, pay
+
+
+def _xl_notes(pay: dict) -> list:
+    """THE RENDERED PRICE EXTREME NOTE -- zero or one, never more (refute major 4).
+
+    IT RENDERS ON EVERY WINDOWED FALLBACK AND ON NOTHING ELSE, and the test is the PAYLOAD'S OWN pair of
+    kinds: the ask asked for `windowed_extreme` and the engine served `extreme`. That is exactly the state
+    in which the floor the ask named was dropped and the whole-record row substituted for it -- the state
+    that used to ship silently on four of its five reasons, leaving the mandate's "echo the starting point
+    the question gave" clause vacuous and a compliant writer answering "the highest since 2020" with a
+    2012 tape-wide high.
+
+    THE REASON CLAUSE IS THE DECLINE'S OWN TEMPLATE, words-only, and the ONLY magnitude any note carries
+    is the straddle's coverage floor -- a date the shipped map produced, on the same footing as the row's
+    own measured span. No count, no window length, no echo of the ask's own text: the `since` the planner
+    emitted is MODEL-AUTHORED and never re-enters a model-facing surface through this leg."""
+    if str(pay.get("kind_requested") or "") != "windowed_extreme" or pay.get("kind") != "extreme":
+        return []
+    label = pay.get("label") or ""
+    named = [d for d in (pay.get("declines") or []) if d.get("reason") in XL_RENDERED_DECLINES]
+    # A REASON WITH NO READER SENTENCE FALLS BACK TO THE SCOPE SENTENCE ALONE rather than raising: a
+    # KeyError here would be caught by the leg's belt and cost the reader the WHOLE block, rows included,
+    # over a vocabulary edit. The lint's clause (12) is what catches that edit; this is the fail-soft.
+    body = XL_DECLINE_TEMPLATES.get(named[0]["reason"]) if named else None
+    if not body:
+        return [f"PRICE EXTREME NOTE {label}: {XL_SCOPE_NOTE_TAIL}"]
+    d = named[0]
+    floor = (f" ({d.get('floor')})"
+             if d["reason"] == "window_straddles_coverage" and d.get("floor") else "")
+    return [f"PRICE EXTREME NOTE {label}: {body}{floor}. {XL_SCOPE_NOTE_TAIL}"]
+
+
+def _extreme_locator_legs(sg, graph, request: dict, qfn, asof, calls: list, base: int, *,
+                          futures_newest_first: bool | str = False) -> tuple:
+    """THE LEG. Returns `(lines, payload)`; the belt above it never lets it raise past the wrapper.
+
+    FENCE-BEFORE-MINT, in order: locate -> build every candidate line PURE against a PROVISIONAL handle
+    number -> run the WHOLE-BLOCK register half -> then, per row, fullmatch `_XL_ROW_RX` and append the
+    survivors IN ORDER, numbering AT APPEND TIME. A block whose every row drops ships NOTHING, marker
+    included (the walk's row-less-no-marker law), and the RENUMBERED shipped string is re-checked, not
+    merely the candidate."""
+    cands, pay = _xl_locate(qfn, request, asof, futures_newest_first=futures_newest_first)
+    if not cands:
+        return [], pay
+    notes = _xl_notes(pay)
+    # HALF ONE, WHOLE-BLOCK ATOMIC, on the PROVISIONAL render (numbering cannot change a register verdict
+    # -- the scans read words, not handles -- so a provisional pass is a real pass).
+    probe = notes + [_xl_row_line(base + 1 + i, c["slug"], c["row"], direction=c["direction"],
+                                  since=c["since"], tape_span=c["tape_span"])
+                     for i, c in enumerate(cands)]
+    if not _xl_register_fence(probe):
+        pay["outcome"] = "fenced"
+        pay["rows_fenced"] = len(cands)
+        return [], pay
+    lines = list(notes)
+    for c in cands:
+        n = len(calls) + 1
+        ln = _xl_row_line(n, c["slug"], c["row"], direction=c["direction"], since=c["since"],
+                          tape_span=c["tape_span"])
+        if not _XL_ROW_RX.fullmatch(ln):
+            pay["rows_fenced"] += 1
+            continue                                  # HALF TWO: THAT row alone drops; no handle moves
+        calls.append(_shown(_xl_call(c["slug"], c["row"], asof), c["row"].get("value")))
+        lines.append(ln)
+    if not any(ln.startswith("- [N") for ln in lines):
+        pay["outcome"] = "declined"
+        return [], pay                                # row-less -> NOTHING ships, the note included
+    pay["outcome"] = "fired"
+    pay["rendered"] = sum(1 for ln in lines if ln.startswith("- [N"))
+    return lines, pay
+
+
+def _extreme_locator_leg_or_nothing(sg, graph, request: dict, qfn, asof, calls: list, *,
+                                    futures_newest_first: bool | str = False) -> tuple:
+    """R6 belt at the ONE place both quantify return paths reach it (the `_episode_leg_or_nothing`
+    precedent). Writes the leg's ONE registered trace key whenever the leg RAN -- `outcome` carries
+    fired/declined/fenced, so an ABSENT key means "did not run", never "declined". A DISPATCH decline is
+    recorded on `decided['extreme_locator']` instead, and this module never writes it."""
+    _b = len(calls)
+    try:
+        lines, payload = _extreme_locator_legs(sg, graph, request, qfn, asof, calls, _b,
+                                               futures_newest_first=futures_newest_first)
+    except Exception:  # noqa: BLE001 -- fail-closed: the locator must never break the v1 answer
+        calls[_b:] = []                # the belt rolls the LEDGER back too -- an orphan call record
+        #                                would widen the verifier's acceptance pool (the W4 class)
+        lines = []
+        # THE ERROR PATH IS DELIBERATELY UNSTAMPED ON `reads`, and that is the `_cw_turn_spent` doctrine
+        # rather than an omission: this branch cannot know how many reads the raising call had already
+        # spent, and stamping 0 would let an UNKNOWN decline CREDIT the turn's ceiling. Absent is the
+        # honest value; a consumer that reads it as 0 is reading a fact that was never measured.
+        _k = str((request or {}).get("kind") or "extreme")
+        payload = {"outcome": "declined", "kind": _k, "kind_requested": _k,
+                   "board": (request or {}).get("board"), "rows_fenced": 0,
+                   "declines": [{"reason": "error"}]}
+    if payload is not None:
+        try:
+            sg.trace["quantify_extreme_locator"] = payload
+        except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+            pass
+    return lines, payload
