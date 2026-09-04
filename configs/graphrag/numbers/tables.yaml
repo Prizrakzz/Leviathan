@@ -24,7 +24,7 @@ tables:
     # 247,036 matched keys, 0 keys only on either side, and 0 of 247,036 differing
     # on all eight _mt value columns. The field below is NOT edited here; R7 writes
     # whatever the canonical object measures over all nine partitions.
-    row_count: 247036
+    row_count: 247294   # re-measured on the FIRST canonical object, 2026-09-04 (apply-then-refresh)
     cadence: annual
     shape: wide
     commodity_col: leviathan_slug
@@ -180,7 +180,7 @@ tables:
     # COVERAGE (PA-1, projection wave Lane 3; RE-MEASURED 2026-08-26 on the FIRST CANONICAL OBJECT,
     # the apply-then-refresh law). row_count is the SERVED subset -- the declared metrics roster
     # below, which is also exactly what the pg mirror admits: 1,079,487 rows on the canonical
-    # publish (3,397,958 physical rows / 0 grain dupes / 63 slugs / 56 labels / 810 releases,
+    # publish (3,401,565 physical rows / 0 grain dupes / 63 slugs / 56 labels / 439 releases (honest clock, 2026-09-04),
     # certified manifest silver_psd_attributes-1787727710260).
     # THE 810 RELEASES FIGURE IS A COUNT OF FABRICATED DATES AND IT MUST BE RECOUNTED (2026-09-04).
     # It was produced by the retired marketing-year rotation, which emitted 809 distinct dates on the
@@ -201,7 +201,7 @@ tables:
     # 8-13 of every month, so the front moves; first_obs is the table-wide floor and the
     # PER-ATTRIBUTE onsets differ (Industrial Dom. Cons. from MY1961, Fresh Dom. Consumption and
     # Cows In Milk from MY1964) -- see notes.
-    row_count: 1079487
+    row_count: 1080307   # re-measured on the FIRST canonical object, 2026-09-04: pg mirror admitted 1,080,307 served rows
     first_obs: "1960"
     cadence: annual
     shape: tall
