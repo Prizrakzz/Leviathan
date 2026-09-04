@@ -535,9 +535,17 @@ def steps(run_id: str) -> list[tuple[str, list[str]]]:
             "or the promote leg dies on a missing file -- check it against the D2 digest before "
             "the apply.",
             "terraform -chdir=infra/terraform/envs/dev plan "
-            "-target=module.scheduler",
+            "-target='module.eventbridge.aws_scheduler_schedule.family[\"pink_sheet_monthly\"]'",
+            "# MEASURED 2026-09-04: there is NO module.scheduler in this stack (the schedules are "
+            "module.eventbridge's aws_scheduler_schedule.family[<stem>]); a -target on a name that "
+            "resolves to nothing plans ZERO changes and reads as 'already armed' while the live "
+            "schedule still lacks the vintage tasks. Single-resource address, gated on its shape.",
             "terraform -chdir=infra/terraform/envs/dev apply "
-            "-target=module.scheduler",
+            "-target='module.eventbridge.aws_scheduler_schedule.family[\"pink_sheet_monthly\"]'",
+            "# MEASURED 2026-09-04: there is NO module.scheduler in this stack (the schedules are "
+            "module.eventbridge's aws_scheduler_schedule.family[<stem>]); a -target on a name that "
+            "resolves to nothing plans ZERO changes and reads as 'already armed' while the live "
+            "schedule still lacks the vintage tasks. Single-resource address, gated on its shape.",
             "# The next scheduled fire (cron(0 16 8 * ? *)) then carries the vintage build under "
             "the same gate. VERIFY the job EXISTS after fire time -- scheduler roles are "
             "RESOURCE-SCOPED per jobdef and a borrowed role is AccessDenied at fire.",
