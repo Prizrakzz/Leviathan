@@ -311,7 +311,10 @@ variable "pink_sheet_image_digest" {
   # the task change and this digest move ride the SAME change or an apply reverts the fix.
   # DRIFT ADOPTION 2026-08-22 (tf_drift_roster.md): adopt live jobdef rev 10's digest (the F063
   # build) -- the old default shared a literal with silver_gate's, the shared-literal trap.
-  default     = "sha256:65d8a125a5ebc34da218754374909d33000523c14fea2b52c20e47cbe571946d"
+  # PINK VINTAGES FLIP 2026-09-04: the worker build from 9f928623 (tag 20260904-pink-vintages) carrying
+  # jobs/batch/pink_sheet_vintages_task.py + pink_sheet_archive_task.py + backfill_pink_sheet_vintages.py,
+  # the pink parser fix (findall+max over two listed editions) and the F010 silver_pink_sheet_vintages contract.
+  default     = "sha256:46685dec8c26a00b64f837218bc1600afed08ce15baa2a836f82c1aeaec00731"
 
   validation {
     condition     = var.pink_sheet_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.pink_sheet_image_digest))
