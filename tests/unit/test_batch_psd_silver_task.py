@@ -22,7 +22,10 @@ import pytest
 from leviathan.silver.publisher import ManifestState
 from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import silver_psd_key
-from leviathan.transforms.bronze_to_silver.usda_psd import _SILVER_COLS
+from leviathan.transforms.bronze_to_silver.usda_psd import (
+    _PSD_COMMODITY_TO_SLUGS,
+    _SILVER_COLS,
+)
 
 from jobs.batch import psd_silver_task as task
 from jobs.utils import psd_dedup_proof as proof
@@ -345,3 +348,272 @@ class TestProofHarnessHash:
     def test_a_dropped_row_changes_the_hash(self) -> None:
         df = pd.concat([_silver_df(), _silver_df().assign(market_year=2025)], ignore_index=True)
         assert proof._frame_hash(df) != proof._frame_hash(df.head(1))
+
+
+# ---------------------------------------------------------------------------
+# P19 / T14 -- THE CALENDAR IS READ FROM PARTITIONS, AND THE COUNTERS ARE LOGGED
+# ---------------------------------------------------------------------------
+
+class _FakeGlue:
+    """A get_partitions paginator over a supplied release_date list."""
+
+    def __init__(self, values: list[str]) -> None:
+        self._values = values
+        self.calls: list[dict] = []
+
+    def get_paginator(self, name: str):
+        assert name == "get_partitions", "the calendar must come from get_partitions"
+        outer = self
+
+        class _P:
+            def paginate(self, **kwargs):
+                outer.calls.append(kwargs)
+                yield {"Partitions": [{"Values": [v]} for v in outer._values]}
+
+        return _P()
+
+
+class TestTheCalendarIsReadFromRegisteredPartitions:
+    """F5's fence: the clock's calendar is LIVE, never baked into the worker image.
+
+    silver_wasde's newest partition and the newest PSD stamp advance in LOCKSTEP
+    every month and psd_monthly fires cron(0 18 8-13 * ? *), so a calendar frozen
+    at image-build time would make the clock's fail-closed raise RED-STOP the DAG
+    every month until a new image, a terraform digest bump and a jobdef
+    re-register had landed. A one-time build step cannot be a monthly mechanism.
+    """
+
+    def test_it_reads_get_partitions_and_never_MSCK(self) -> None:
+        glue = _FakeGlue(["2026-06-11", "2026-07-10", "2026-08-12"])
+        cal = task.wasde_release_calendar("us-east-1", glue_client=glue)
+        assert cal == {"2026-06": 11, "2026-07": 10, "2026-08": 12}
+        assert glue.calls and glue.calls[0]["TableName"] == "silver_wasde"
+        assert glue.calls[0]["DatabaseName"] == \
+            load_registry().table("silver_wasde")["glue_database"]
+
+    def test_an_empty_catalog_answer_RAISES(self) -> None:
+        with pytest.raises(ValueError, match="NO registered partitions"):
+            task.wasde_release_calendar("us-east-1", glue_client=_FakeGlue([]))
+
+    def test_two_releases_in_one_month_take_the_LATER_day_and_say_so(self, caplog) -> None:
+        glue = _FakeGlue(["2008-10-10", "2008-10-28"])
+        with caplog.at_level("WARNING"):
+            cal = task.wasde_release_calendar("us-east-1", glue_client=glue)
+        assert cal == {"2008-10": 28}
+        assert "TWO releases" in caplog.text
+
+    def test_the_task_does_not_import_a_generated_calendar_module(self) -> None:
+        """The generated calendar is a TEST FIXTURE and nothing else."""
+        import inspect
+
+        src = inspect.getsource(task)
+        assert "gen_wasde_release_calendar" not in src
+        assert "get_partitions" in src
+
+    def test_every_declared_counter_reaches_the_structured_log(self, caplog) -> None:
+        """A counter that lives only in a prose log line is not a gate reading."""
+        import json as _json
+
+        from leviathan.transforms.bronze_to_silver.usda_psd import _CLOCK_COUNTER_KEYS
+
+        with caplog.at_level("INFO"):
+            task.log_clock_counters({k: 1 for k in _CLOCK_COUNTER_KEYS})
+        line = next(m for m in caplog.messages if m.startswith("PSD_CLOCK_COUNTERS "))
+        payload = _json.loads(line[len("PSD_CLOCK_COUNTERS "):])
+        assert set(payload) == set(_CLOCK_COUNTER_KEYS)
+
+    def test_a_missing_counter_is_reported_as_absent_never_as_zero(self, caplog) -> None:
+        """Absence is declared, not defaulted -- a 0 would read as a measurement."""
+        import json as _json
+
+        from leviathan.transforms.bronze_to_silver.usda_psd import _CLOCK_COUNTER_KEYS
+
+        with caplog.at_level("INFO"):
+            task.log_clock_counters({"n_clamped": 0})
+        line = next(m for m in caplog.messages if m.startswith("PSD_CLOCK_COUNTERS "))
+        payload = _json.loads(line[len("PSD_CLOCK_COUNTERS "):])
+        assert payload["n_clamped"] == 0
+        assert payload["n_reprints_under_shipped_key"] is None
+        assert set(payload) == set(_CLOCK_COUNTER_KEYS)
+
+
+# ---------------------------------------------------------------------------
+# THE SAME-CRON RACE WITH wasde_monthly, AND ITS BOUNDED WAIT
+#
+# psd_monthly and wasde_monthly BOTH fire cron(0 18 8-13 * ? *) with NO ordering
+# dependency, and the clock FAILS CLOSED on a stamp month newer than the newest
+# REGISTERED silver_wasde partition. The vendor's PSD object flips content ON the
+# WASDE day (this task's own ETag measurement: 08-08/09/10/11 share one ETag,
+# 08-12/13 the next, with 2026-08-12 the registered day), so once a month the new
+# PSD file can be in the bucket before the sibling chain has registered.
+#
+# The answer is a BOUNDED WAIT, not a weaker raise: 90 minutes, polled every 5,
+# then fail closed exactly as before. These pins drive it with a FAKE partitions
+# client and a FAKE sleep, so no wall-clock time and no AWS is involved.
+# ---------------------------------------------------------------------------
+
+class _GrowingGlue:
+    """A get_partitions paginator whose answer GROWS on a named poll.
+
+    The race, reproduced honestly: the first read misses today's partition, and a
+    later read (the sibling chain having finished) carries it.
+    """
+
+    def __init__(self, values: list[str], later: list[str], appears_on_call: int) -> None:
+        self._values, self._later = values, later
+        self._appears_on = appears_on_call
+        self.reads = 0
+
+    def get_paginator(self, name: str):
+        assert name == "get_partitions"
+        outer = self
+
+        class _P:
+            def paginate(self, **kwargs):
+                outer.reads += 1
+                vals = (outer._values + outer._later
+                        if outer.reads >= outer._appears_on else outer._values)
+                yield {"Partitions": [{"Values": [v]} for v in vals]}
+
+        return _P()
+
+
+def _stamped_bronze(commodity_code: int, calendar_year: int, month_code: int):
+    return pd.DataFrame([{
+        "commodity_code": commodity_code,
+        "calendar_year": calendar_year,
+        "month_code": month_code,
+        "market_year": 2026,
+        "release_date": "2026-08-13",
+    }])
+
+
+class TestTheWasdePartitionRaceIsWaitedOutThenFailsClosed:
+    def test_the_newest_in_scope_stamp_month_is_what_decides(self) -> None:
+        """In-scope and STAMPED only -- a wait must never be invented.
+
+        month_code 0 carries no publication month, and an out-of-scope code's rows
+        never reach the clock, so neither may drive the decision to wait.
+        """
+        corn, refused = 440000, 11000
+        assert refused not in _PSD_COMMODITY_TO_SLUGS
+        assert task._newest_psd_stamp_month(
+            [_stamped_bronze(corn, 2026, 8), _stamped_bronze(corn, 2026, 5)]) == "2026-08"
+        # an out-of-scope code stamped LATER does not move it
+        assert task._newest_psd_stamp_month(
+            [_stamped_bronze(corn, 2026, 5), _stamped_bronze(refused, 2026, 12)]) == "2026-05"
+        # month_code 0 is not a stamp
+        assert task._newest_psd_stamp_month([_stamped_bronze(corn, 2026, 0)]) is None
+
+    def test_a_covered_stamp_month_does_NOT_wait_and_makes_no_extra_glue_call(self) -> None:
+        """Every day of the month except the one this exists for."""
+        glue = _GrowingGlue(["2026-08-12"], [], appears_on_call=1)
+        slept: list[int] = []
+        cal = {"2026-07": 10, "2026-08": 12}
+        out = task.wait_for_wasde_calendar(
+            [_stamped_bronze(440000, 2026, 8)], cal, "us-east-1",
+            glue_client=glue, sleep=slept.append,
+        )
+        assert out is cal
+        assert slept == [] and glue.reads == 0
+
+    def test_the_race_RESOLVES_and_the_run_continues(self) -> None:
+        glue = _GrowingGlue(["2026-07-10"], ["2026-08-12"], appears_on_call=2)
+        slept: list[int] = []
+        out = task.wait_for_wasde_calendar(
+            [_stamped_bronze(440000, 2026, 8)], {"2026-07": 10}, "us-east-1",
+            glue_client=glue, sleep=slept.append,
+        )
+        assert out == {"2026-07": 10, "2026-08": 12}
+        assert slept == [task._WASDE_WAIT_POLL_SECONDS] * 2
+        assert glue.reads == 2
+
+    def test_the_wait_is_BOUNDED_and_then_fails_closed(self, caplog) -> None:
+        """Past the bound the sibling chain has genuinely failed, and psd_monthly SHOULD red.
+
+        The bound is 90 minutes polled every 5 -- at most 18 get-partitions reads,
+        no other call. The function returns the still-short calendar and the
+        transform's own fail-closed raise then stops the run: publishing PSD rows
+        dated by a convention nobody measured is the worse outcome.
+        """
+        glue = _GrowingGlue(["2026-07-10"], [], appears_on_call=99)
+        slept: list[int] = []
+        with caplog.at_level("ERROR"):
+            out = task.wait_for_wasde_calendar(
+                [_stamped_bronze(440000, 2026, 8)], {"2026-07": 10}, "us-east-1",
+                glue_client=glue, sleep=slept.append,
+            )
+        assert out == {"2026-07": 10}
+        expected_polls = task._WASDE_WAIT_MAX_SECONDS // task._WASDE_WAIT_POLL_SECONDS
+        assert expected_polls == 18
+        assert len(slept) == expected_polls and glue.reads == expected_polls
+        assert sum(slept) == task._WASDE_WAIT_MAX_SECONDS == 90 * 60
+        assert "Failing closed" in caplog.text
+
+    def test_a_SHORTER_re_read_never_shrinks_the_calendar(self) -> None:
+        """Post-fix re-review M2: wasde_release_calendar raises only on ZERO partitions, so a
+        short-but-nonempty Glue listing used to REPLACE the calendar -- the new month satisfied
+        `stamp <= max(calendar)` while every other month silently fell to month_end_fallback. A
+        re-read may only ADD months."""
+
+        class _OnlyNew:
+            def __init__(self) -> None:
+                self.reads = 0
+
+            def get_paginator(self, name: str):
+                outer = self
+
+                class _P:
+                    def paginate(self, **kwargs):
+                        outer.reads += 1
+                        yield {"Partitions": [{"Values": ["2026-08-12"]}]}     # 2026-07 is GONE
+
+                return _P()
+
+        glue = _OnlyNew()
+        slept: list[int] = []
+        out = task.wait_for_wasde_calendar(
+            [_stamped_bronze(440000, 2026, 8)], {"2026-07": 10, "2026-06": 11}, "us-east-1",
+            glue_client=glue, sleep=slept.append,
+        )
+        assert out == {"2026-06": 11, "2026-07": 10, "2026-08": 12}     # merged, nothing lost
+        assert glue.reads == 1 and slept == [task._WASDE_WAIT_POLL_SECONDS]
+
+    def test_a_failing_calendar_re_read_keeps_waiting_rather_than_crashing(self) -> None:
+        """A transient Glue error inside the wait must not become the outage."""
+
+        class _Flaky:
+            def __init__(self) -> None:
+                self.reads = 0
+
+            def get_paginator(self, name: str):
+                outer = self
+
+                class _P:
+                    def paginate(self, **kwargs):
+                        outer.reads += 1
+                        if outer.reads == 1:
+                            raise RuntimeError("throttled")
+                        yield {"Partitions": [{"Values": ["2026-07-10"]},
+                                              {"Values": ["2026-08-12"]}]}
+
+                return _P()
+
+        glue = _Flaky()
+        slept: list[int] = []
+        out = task.wait_for_wasde_calendar(
+            [_stamped_bronze(440000, 2026, 8)], {"2026-07": 10}, "us-east-1",
+            glue_client=glue, sleep=slept.append,
+        )
+        assert out == {"2026-07": 10, "2026-08": 12}
+        assert glue.reads == 2 and len(slept) == 2
+
+    def test_the_wait_is_WIRED_into_main_between_the_calendar_read_and_the_transform(self) -> None:
+        """A wait nothing calls is a comment."""
+        import inspect
+
+        src = inspect.getsource(task.main)
+        i_cal = src.index("calendar = wasde_release_calendar(aws_region)")
+        i_wait = src.index("wait_for_wasde_calendar(dfs, calendar, aws_region)")
+        i_transform = src.index("transform_psd_bronze_to_silver(dfs, calendar=calendar")
+        assert i_cal < i_wait < i_transform

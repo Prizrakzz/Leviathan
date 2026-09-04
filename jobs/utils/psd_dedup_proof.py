@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import glob
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -45,6 +46,7 @@ sys.path.insert(0, str(_REPO_ROOT / "src"))
 from jobs.batch.psd_silver_task import (  # noqa: E402
     _BRONZE_PREFIX,
     _distinct_release_dates,
+    wasde_release_calendar,
 )
 from leviathan.storage.paths import parse_hive_key  # noqa: E402
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys  # noqa: E402
@@ -92,22 +94,60 @@ def _download(bucket: str, region: str, cache_dir: str) -> list[str]:
     return paths
 
 
-def _run_arm(cache_dir: str, keep: set[str] | None) -> None:
+def _calendar_path(cache_dir: str) -> str:
+    # Deliberately NOT named after the unit suite's BANKED fixture under
+    # tests/fixtures/wasde/. tests/unit/test_psd_clock.py greps src/ and jobs/ for
+    # that fixture's filename to prove no runtime module reads a baked calendar.
+    # This file is a same-run snapshot of the LIVE catalog, which is a different
+    # thing, and the fence stays sharp only if the two names cannot be confused.
+    return os.path.join(cache_dir, "wasde_calendar_snapshot.json")
+
+
+def _bank_calendar(cache_dir: str, aws_region: str) -> str:
+    """Read the live WASDE calendar ONCE and bank it for both arms.
+
+    The clock's ``calendar`` argument is keyword-only with NO DEFAULT, so this
+    tool must supply one or it dies the first time anyone runs it after the
+    honest-clock change -- and nothing in the unit suite covers it, so it would go
+    SILENT, not red.  The parent reads the calendar; the arms load the banked
+    copy.  BOTH arms therefore date rows with the IDENTICAL calendar, which is a
+    precondition of the equivalence claim this harness exists to make: two arms
+    that read Glue independently could straddle a silver_wasde partition landing
+    and disagree for a reason that has nothing to do with the dedup rider.
+    """
+    os.makedirs(cache_dir, exist_ok=True)
+    calendar = wasde_release_calendar(aws_region)
+    path = _calendar_path(cache_dir)
+    with open(path, "w", encoding="ascii") as fh:
+        json.dump(calendar, fh, sort_keys=True)
+    print("WASDE calendar banked: months=%d span=%s..%s -> %s"
+          % (len(calendar), min(calendar), max(calendar), path))
+    return path
+
+
+def _load_calendar(path: str) -> dict[str, int]:
+    with open(path, encoding="ascii") as fh:
+        return {k: int(v) for k, v in json.load(fh).items()}
+
+
+def _run_arm(cache_dir: str, keep: set[str] | None, calendar_path: str) -> None:
     """One arm, in its own process: load the selected parquets, transform, print the hash."""
     paths = sorted(glob.glob(os.path.join(cache_dir, "*.parquet")))
     if keep is not None:
         paths = [p for p in paths
                  if os.path.basename(p)[: -len(".parquet")] in keep]
     dfs = [pd.read_parquet(p) for p in paths]
-    out = transform_psd_bronze_to_silver(dfs)
+    out = transform_psd_bronze_to_silver(dfs, calendar=_load_calendar(calendar_path))
     print("ARM_PARTITIONS=%d" % len(paths))
     print("ARM_ROWS=%d" % len(out))
     print("ARM_HASH=%s" % _frame_hash(out))
 
 
-def _spawn(label: str, cache_dir: str, keep: set[str] | None) -> tuple[int, str]:
+def _spawn(label: str, cache_dir: str, keep: set[str] | None,
+           calendar_path: str) -> tuple[int, str]:
     """Run one arm as a subprocess so its peak RSS is released before the next arm."""
-    cmd = [sys.executable, os.path.abspath(__file__), "--arm", "--cache-dir", cache_dir]
+    cmd = [sys.executable, os.path.abspath(__file__), "--arm", "--cache-dir", cache_dir,
+           "--calendar", calendar_path]
     if keep is not None:
         cmd += ["--keep", ",".join(sorted(keep))]
     print("\n[%s] %s" % (label, " ".join(cmd)))
@@ -139,13 +179,16 @@ def main() -> None:
                         help="INTERNAL: run one arm in this process and print its hash.")
     parser.add_argument("--keep", default="",
                         help="INTERNAL: comma-separated release_date labels for --arm.")
+    parser.add_argument("--calendar", default="", dest="calendar",
+                        help="INTERNAL: path to the banked WASDE release calendar JSON.")
     args = parser.parse_args()
     # The arms take minutes; line-buffer so a redirected log interleaves with their stderr
     # in the order things actually happened.
     sys.stdout.reconfigure(line_buffering=True)
 
     if args.arm:
-        _run_arm(args.cache_dir, set(args.keep.split(",")) if args.keep else None)
+        _run_arm(args.cache_dir, set(args.keep.split(",")) if args.keep else None,
+                 args.calendar or _calendar_path(args.cache_dir))
         return
 
     print("PSD ETag-dedup equivalence proof (D-SG G1-1b)")
@@ -166,8 +209,10 @@ def main() -> None:
     dropped = sorted(set(labels) - selected)
     print("partitions=%d kept=%d dropped=%s" % (len(labels), len(selected), dropped or "none"))
 
-    rows_all, hash_all = _spawn("FULL", args.cache_dir, None)
-    rows_dedup, hash_dedup = _spawn("DEDUP", args.cache_dir, selected)
+    calendar_path = _bank_calendar(args.cache_dir, args.aws_region)
+
+    rows_all, hash_all = _spawn("FULL", args.cache_dir, None, calendar_path)
+    rows_dedup, hash_dedup = _spawn("DEDUP", args.cache_dir, selected, calendar_path)
 
     print("\nFULL   partitions=%d rows=%d hash=%s" % (len(labels), rows_all, hash_all))
     print("DEDUP  partitions=%d rows=%d hash=%s" % (len(selected), rows_dedup, hash_dedup))

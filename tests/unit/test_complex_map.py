@@ -236,18 +236,37 @@ class TestPalmMarketingYear:
         from leviathan.transforms.bronze_to_silver.usda_psd import _PSD_COMMODITY_TO_MYS
         assert _PSD_COMMODITY_TO_MYS[4243000] == 10          # was 11 (Nov); GAIN prints "Begins Oct"
 
-    def test_palm_release_date_shifts_one_month_earlier(self) -> None:
-        # Palm (4243000), month_code=1, market_year=2024:
-        #   MYS=10 -> total = 10 + 1 - 2 = 9 -> cal_month = 9 % 12 + 1 = 10 (Oct), cal_year = 2024
-        # (the prior MYS=11 gave Nov -- one month LATE).
+    def test_palm_release_date_comes_from_the_stamp_not_the_marketing_year(self) -> None:
+        # P22 RE-ANCHOR (2026-09-04, lane E). This is the palm 2026-07-18
+        # correction's regression test and its ROSTER meaning is unchanged: the
+        # test above still pins _PSD_COMMODITY_TO_MYS[4243000] == 10.
+        #
+        # Its DATE half is re-derived on the honest axis. The comment that used to
+        # sit here spelled out the retired rotation's arithmetic
+        # ("MYS=10 -> total = 10 + 1 - 2 = 9 -> cal_month = 10 (Oct)") -- that is
+        # the DEFECT's own derivation, so it is DELETED rather than adjusted.
+        # release_date now comes from the row's own (Calendar_Year, Month) stamp
+        # and the registered WASDE day for that month; palm's marketing year does
+        # not enter it at all, which is precisely why the MYS value can no longer
+        # stamp a palm row late.
+        import json
+        from pathlib import Path
+
         from leviathan.transforms.bronze_to_silver.usda_psd import _compute_psd_release_dates
+
+        cal = {
+            k: int(v) for k, v in
+            json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "wasde"
+                        / "release_calendar.json").read_text(encoding="ascii"))["calendar"].items()
+        }
         bronze = pd.DataFrame({
             "commodity_code": [4243000],
             "month_code":     [1],
             "market_year":    [2024],
+            "calendar_year":  [2026],
         })
-        out = _compute_psd_release_dates(bronze)
-        assert out.iloc[0] == "2024-10-10"
+        out = _compute_psd_release_dates(bronze, calendar=cal)
+        assert out.iloc[0] == "2026-01-%02d" % cal["2026-01"]
 
 
 class TestB1bCrossRowForkUniqueness:

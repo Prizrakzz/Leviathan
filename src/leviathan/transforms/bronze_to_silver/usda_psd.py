@@ -31,20 +31,32 @@ Design notes
 
 * **su_ratio** — ending_stocks_mt / consumption_mt.  Zero consumption → NaN.
 
-* **su_ratio_yoy_delta** — within each (leviathan_slug, country, release_date),
-  year-over-year diff of su_ratio across market_year.  Available from the first
-  release because the PSD snapshot spans ~65 marketing years.
+* **su_ratio_yoy_delta** — within each (leviathan_slug, country,
+  wasde_release_month), the year-over-year diff of su_ratio across market_year,
+  taken over the LATEST-VINTAGE reduction of each marketing year (see step 13).
+  Available from the first release because the PSD snapshot spans ~65 marketing
+  years.
 
 * **revision columns** — month-on-month change within (leviathan_slug, country,
-  market_year), ordered by wasde_release_month ascending:
-  revision[M] = estimate[M] - estimate[M-1].  The earliest month in a marketing
-  year has no prior estimate, so its revision is NaN.
+  market_year), ordered by RELEASE DATE ascending:
+  revision[k] = estimate[release k] - estimate[release k-1].  The earliest
+  release in a marketing year has no prior estimate, so its revision is NaN.
+  Ordering on wasde_release_month (the shipped sort) was correct only while the
+  rotation made month order equal chronological order; under the honest clock a
+  marketing year's releases WRAP the calendar for any MYS != 1 commodity, so the
+  diff would be taken in the wrong direction for 38 of the 47 mapped codes.
 
 * **month_code = 0** — pre-WASDE-tracking historical estimates (MY ~1960–2004
   for older series).  Passed through as wasde_release_month = 0.
 
-* **calendar_year / country_code** — dropped.  calendar_year is a batch-import
-  artefact; country_code is 100% NULL in the PSD bulk CSV.
+* **calendar_year IS THE CLOCK** (2026-09-04, the E re-baseline).  It used to be
+  dropped here as "a batch-import artefact".  That sentence was false and it is
+  what let the marketing-year rotation survive a year: measured on three banked
+  bronze snapshots, ``Calendar_Year`` and ``Month`` together ARE the release
+  stamp, and the rotation they replaced was exact on 3,276 of 1,653,988 stamped
+  rows (0.20%).  ``calendar_year`` is now a REQUIRED bronze column and the input
+  to :mod:`leviathan.transforms.bronze_to_silver.psd_clock`.  ``country_code`` is
+  still dropped: it is 100% NULL in the PSD bulk CSV.
 
 * **The projection is DELIBERATE, and its residue is enumerated** — see
   :data:`_PSD_COMMODITY_TO_SLUGS` and :data:`_PSD_UNMAPPED_CODES` below.  Every
@@ -69,6 +81,13 @@ import numpy as np
 import pandas as pd
 
 from leviathan.common.logging import get_logger
+from leviathan.transforms.bronze_to_silver.psd_clock import (
+    DISPOSITION_CLAMPED_CROSS_MONTH_DECLINED,
+    DISPOSITION_CLAMPED_TO_INGEST,
+    DISPOSITION_CLAMPED_TO_WASDE_DAY,
+    DISPOSITION_MONTH_END_FALLBACK,
+    psd_release_dates,
+)
 
 logger = get_logger(__name__)
 
@@ -91,15 +110,25 @@ logger = get_logger(__name__)
 # THE THREE RULES THIS MAP OBEYS.  Each of them is a measured property of the
 # transform below, not a style preference; each is pinned by a test.
 #
-#  R1. EVERY MAPPED CODE MUST ALSO HAVE A _PSD_COMMODITY_TO_MYS ENTRY.  Step 4b
-#      does ``.map(_PSD_COMMODITY_TO_MYS).astype(int)``, so a code present here
-#      and absent there raises "cannot convert float NaN to integer" for the
-#      WHOLE frame, not for its own rows.  The two dicts have identical key sets
-#      and a test asserts it.
+#  R1. EVERY MAPPED CODE MUST ALSO HAVE A _PSD_COMMODITY_TO_MYS ENTRY.  The two
+#      dicts have identical key sets and a test asserts it.
+#      THE MECHANISM CHANGED ON 2026-09-04 AND THE RULE DID NOT.  Until the
+#      honest-clock re-baseline this rule enforced ITSELF by accident: step 4b did
+#      ``.map(_PSD_COMMODITY_TO_MYS).astype(int)`` to rotate month_code, so a code
+#      present here and absent there raised "cannot convert float NaN to integer"
+#      for the WHOLE frame.  Deleting the rotation deleted that read, and with it
+#      the blast radius -- the roster could have drifted in silence from the day
+#      the clock landed.  So the fence is now EXPLICIT and NAMED
+#      (``_assert_every_in_scope_code_has_a_marketing_year``, step 3b below): same
+#      rule, same fail-closed behaviour, stated on purpose instead of inherited
+#      from a cast.  An invariant that survives only as a side effect of code that
+#      is about to be deleted is an invariant about to be lost.
 #
 #  R2. NO SLUG MAY APPEAR UNDER TWO CODES.  The pivot index is
 #      (leviathan_slug, country, market_year, wasde_release_month, release_date)
-#      and step 10 drops duplicates on that key + attribute_desc, keeping FIRST.
+#      and step 10 drops duplicates on
+#      (leviathan_slug, country, market_year, release_date, attribute_desc),
+#      ordered by bronze_ingest_date and keeping LAST.
 #      Two codes sharing one slug therefore produce identical keys for the same
 #      country-year and one commodity's balance sheet is SILENTLY DISCARDED.
 #      This is the single sharpest edge in the widening and it is what decides
@@ -124,8 +153,13 @@ logger = get_logger(__name__)
 # here and this file never invents a variant spelling of one.
 
 # Marketing-year start month per PSD commodity code (1=Jan … 12=Dec).
-# Used to convert (market_year, month_code) → the actual WASDE calendar date,
-# replacing the ingest timestamp that bronze stores as release_date.
+# IT IS A ROSTER DECLARATION, NOT A CLOCK.  It USED to convert
+# (market_year, month_code) → a WASDE calendar date, replacing the ingest
+# timestamp bronze stores as release_date; that rotation was DELETED on
+# 2026-09-04 (see the E re-baseline paragraph below).  Nothing reads these
+# VALUES to compute a date any more.  What the dict still does is carry rule R1,
+# and the fence that enforces R1 is now the explicit, named assertion
+# _assert_every_in_scope_code_has_a_marketing_year at step 3b -- not a cast.
 #
 # WHERE THESE NUMBERS COME FROM, and what was MEASURED rather than assumed
 # (D-EC XC-1, probe of the 2026-08-13 raw ZIP):
@@ -133,6 +167,21 @@ logger = get_logger(__name__)
 #     month.  It equals ``Market_Year`` for essentially every row; the handful
 #     of offsets are noise.  (The module docstring already calls it a
 #     batch-import artefact; this is the measurement behind that sentence.)
+#     RE-MEASURED AND CORRECTED 2026-09-04 (the E re-baseline).  The claim above
+#     is quoted as it read, and it is the sentence that let the rotation live.
+#     Two things are wrong with it.  (a) It is a claim about the mc == 0 mass
+#     only, and even there the equality is not "essentially every row": over
+#     245,315 in-scope month_code-0 rows, Calendar_Year - Market_Year is 0 on
+#     179,807 (73.3%), -1 on 59,544 (24.3%) and +1 on 5,964 (2.4%), concentrated
+#     in dairy (fluid milk 17,496; cheese 12,609; butter 12,591; NFDM 12,240;
+#     WMP 4,608) and citrus (oranges 3,836; OJ 2,128).  That is why mc == 0 stays
+#     anchored to MARKET_YEAR-01-01: re-anchoring it on Calendar_Year would move
+#     59,544 rows EARLIER, the leakage direction.  (b) The paragraph was read as
+#     licence to ignore Calendar_Year for the STAMPED rows too, and there it is
+#     simply the release's calendar year.  ZERO of the 47 MAPPED codes agree with
+#     the source at 100% under the rotation -- the MYS = 1 families included,
+#     because the formula's year base is market_year while the true stamp year is
+#     Calendar_Year.
 #   * The bulk CSV's ``Month`` column IS the CALENDAR month of the release, not
 #     an MY-relative index.  Measured against USDA's own publication calendars
 #     on the newest market year in the file: dairy 2026 carries {7} (Dairy WM&T
@@ -151,6 +200,28 @@ logger = get_logger(__name__)
 #     marketing-year start month) so one table never carries two date
 #     conventions.  The finding is reported for a follow-up task; it is not
 #     smuggled in under a widening.
+#   * IT HAS NOW BEEN ACTED ON (2026-09-04, lane E).  The follow-up the paragraph
+#     above deferred is this change.  The rotation is DELETED:
+#     _compute_psd_release_dates now delegates to psd_clock.psd_release_dates,
+#     which dates a row from its OWN (Calendar_Year, Month) stamp.  The
+#     re-baseline the paragraph feared is what shipped, measured end to end on
+#     three banked bronze snapshots: 247,036 wide rows -> 247,294 (+258 older
+#     vintages the shipped step-11.5 key was deleting), 809 distinct release_date
+#     values -> 287 under a uniform WASDE day (439 with the eight World Markets
+#     and Trade sheets on month-end), and the eight pivoted value columns
+#     BYTE-IDENTICAL on all 247,036 joined keys.  E is a re-dating and a vintage
+#     recovery, not a value change.
+#   * SO _PSD_COMMODITY_TO_MYS IS NO LONGER A CLOCK.  It is a ROSTER FENCE and
+#     nothing else: rule R1 below still requires every mapped code to carry an
+#     entry, and the MECHANISM that enforces R1 changed with the rotation.  It
+#     used to be enforced BY ACCIDENT -- step 4b's .map(...).astype(int) raised
+#     "cannot convert float NaN to integer" for the WHOLE frame on a missing
+#     entry -- and that cast is DELETED.  The fence is now
+#     _assert_every_in_scope_code_has_a_marketing_year, called at step 3b right
+#     after the commodity filter, and tests/unit/test_psd_slug_map_widening.py
+#     holds it as the commodity-map completeness pin.  NOTHING reads its VALUES
+#     to compute a date any more.  Do not delete it; do not resurrect it as a
+#     date source.
 # Each new value below is labelled INHERITED (taken exactly from an already
 # pinned sibling in the same USDA sheet family), PUBLISHED (the USDA marketing
 # year for that commodity) or LATE (genuinely uncertain, resolved to the later
@@ -535,6 +606,14 @@ _REQUIRED_COLS: frozenset[str] = frozenset({
     "unit_desc",
     "value",
     "release_date",
+    # E1 (2026-09-04): calendar_year is the CLOCK, so it is REQUIRED and the build
+    # fails closed without it.  It already lands in bronze -- raw_to_bronze/
+    # usda_psd.py:37-53 renames eleven known headers and :91-95 snake-cases every
+    # remaining one; verified on all three banked bronze parquets (14 columns,
+    # calendar_year int64, 0 nulls).  NO re-fetch and NO raw-lane change was
+    # needed.  A missing stamp must stop the build, not silently fall back to a
+    # convention: that is exactly how the rotation stayed invisible.
+    "calendar_year",
 })
 
 # ---------------------------------------------------------------------------
@@ -563,41 +642,161 @@ _SILVER_COLS: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
+# The clock counters the GATE reads
+# ---------------------------------------------------------------------------
+# E12: every one of these is emitted as a machine-readable field by the batch
+# task's structured log, because a counter that lives only in a log SENTENCE is
+# not a gate reading.  The prefix keys are minted by prepare_psd_combined_frame
+# (shared with the long companion); the rest by the wide transform.
+_CLOCK_COUNTER_KEYS: tuple[str, ...] = (
+    "n_stamp_constancy_violations",      # expected 0, per INPUT snapshot
+    "n_month_end_fallback",              # BRONZE-grain rows on the month-end convention
+    "n_month_end_fallback_wide",         # ...and the SERVING-grain count, which is the
+                                         #    one both cards and the gate quote
+    "month_end_fallback_months",         # and WHICH stamp months they were
+    "day_dispositions",                  # the day conventions rows SHIPPED with, counted:
+                                         #    the clock's four, PLUS the three clamp names
+                                         #    if and only if the clamp fired
+    "n_clamped",                         # expected 0 under the honest clock
+    "n_clamped_to_wasde_day",            # ...and how the firings were disposed of
+    "n_clamped_to_ingest",
+    "n_clamped_cross_month_declined",    # ...including the substitution REFUSED to keep
+                                         #    release_date inside its own stamp month
+    "n_step10_collapsed",                # identical-vintage re-prints removed
+    "n_reprints_under_shipped_key",      # G1's identity: the rows the OLD key deleted
+    "n_step13_declined_absent_comparator",   # su_ratio rows with no prior marketing year
+    "n_distinct_release_dates",
+    "n_calendar_months",
+    "max_calendar_month",
+)
+
+
+# ---------------------------------------------------------------------------
 # Public transform
 # ---------------------------------------------------------------------------
 
 
-def _compute_psd_release_dates(df: pd.DataFrame) -> pd.Series:
-    """Replace bronze's ingest-timestamp release_date with the WASDE calendar date.
+_STAMP_CONSTANCY_KEY: list[str] = ["commodity_code", "country_name", "market_year"]
 
-    month_code (WASDE release number, 1–12 within the marketing year):
-      release_calendar_month = (MYS + month_code - 2) % 12 + 1
-      release_year           = market_year + (MYS + month_code - 2) // 12
 
-    month_code == 0 (pre-WASDE-tracking estimates, ~1960–2004): mapped to
-    Jan 1 of market_year — always visible to any historical crop-year cutoff.
+def _assert_every_in_scope_code_has_a_marketing_year(df: pd.DataFrame) -> None:
+    """Rule R1's fence, explicit since the rotation that used to enforce it went away.
+
+    _PSD_COMMODITY_TO_MYS is a ROSTER declaration now, not a clock: nothing reads
+    its VALUES to compute a date.  The rule that the two maps carry identical key
+    sets still stands -- a code with a slug and no declared marketing year is an
+    undeclared commodity -- and it fails the build rather than the reader.
     """
-    mys = df["commodity_code"].map(_PSD_COMMODITY_TO_MYS).astype(int)
-    mc  = pd.to_numeric(df["month_code"], errors="coerce").fillna(0).astype(int)
-    my  = pd.to_numeric(df["market_year"], errors="coerce").fillna(0).astype(int)
+    codes = set(pd.unique(df["commodity_code"]))
+    missing = sorted(int(c) for c in codes if int(c) not in _PSD_COMMODITY_TO_MYS)
+    if missing:
+        raise ValueError(
+            "PSD transform: in-scope commodity code(s) %s are mapped to slugs but carry no "
+            "_PSD_COMMODITY_TO_MYS entry. The two maps are ONE universe (rule R1); a code with "
+            "a home in one and not the other is an undeclared commodity." % missing
+        )
 
-    total     = mys + mc - 2
-    cal_month = (total % 12 + 1).astype(int)
-    cal_year  = (my + total // 12).astype(int)
 
-    dates = cal_year.astype(str) + "-" + cal_month.astype(str).str.zfill(2) + "-10"
+def _assert_stamp_constant_per_snapshot(df: pd.DataFrame, i: int) -> int:
+    """One bronze snapshot must carry ONE (Calendar_Year, Month) stamp per sheet-cell.
 
-    # Pre-tracking rows have no WASDE month; anchor them to Jan 1 so they are
-    # always visible to visible_slice("prior_marketing_year").
-    dates[mc == 0] = my[mc == 0].astype(str) + "-01-01"
+    THE PRECONDITION THE WIDE PIVOT RESTS ON.  A sheet-cell is
+    (commodity_code, country_name, market_year); USDA prints it once per release,
+    with one stamp.  If a single release ever published two stamps for one cell,
+    pivot_index would shatter and the table would silently GAIN rows.  That must
+    fail the build, not the reader.
 
+    IT IS ASSERTED PER INPUT FRAME AND NEVER ON THE CONCAT, and the difference is
+    the whole point.  MEASURED: 0 violations of 141,771 / 141,922 / 142,015
+    in-scope sheet-cells per banked snapshot, but 2,607 (1.84%) across two
+    concatenated snapshots and 3,290 of 142,015 (2.32%) across three -- because a
+    cell's stamp legitimately ADVANCES between monthly releases.  The monthly task
+    feeds every distinct-ETag partition from a bucket that holds nine, so an
+    assertion moved after ``pd.concat`` at step 2 is guaranteed to raise on its
+    first real fire.  It would kill the build, not the data.
+
+    IT IS ALSO SCOPED TO THE MAPPED CODES, INSIDE THIS HELPER.  The call site is
+    step 1, which runs BEFORE the step-3 commodity filter, so the raw frame it is
+    handed carries all 63 codes the bulk ZIP publishes -- 162,544 / 162,695 /
+    162,788 sheet-cells across the three banked snapshots, of which 20,773 belong
+    to the 16 codes this transform REFUSES (see _PSD_UNMAPPED_CODES).  Unfiltered,
+    a stamp anomaly in a code the table never serves would hard-abort psd_monthly
+    for a fact no reader can reach, and the figures above -- which are the
+    in-scope population -- would not be the ones the assertion measures.  The
+    filter therefore lives HERE rather than at the call site, because the
+    per-INPUT-SNAPSHOT placement is load-bearing and must not move to after the
+    concat to buy the scoping.  Its R1 sibling
+    (_assert_every_in_scope_code_has_a_marketing_year) is placed after the filter
+    for the same reason, stated the other way round.
+
+    Returns:
+        The number of violating sheet-cells (always 0 on a healthy snapshot).
+    """
+    cols = _STAMP_CONSTANCY_KEY + ["calendar_year", "month_code"]
+    if any(c not in df.columns for c in cols):
+        return 0
+    sub = df.loc[df["commodity_code"].isin(_PSD_COMMODITY_TO_SLUGS), cols]
+    if sub.empty:
+        return 0
+    n_stamps = sub.groupby(_STAMP_CONSTANCY_KEY, dropna=False, sort=False)[
+        ["calendar_year", "month_code"]
+    ].nunique()
+    bad = n_stamps[(n_stamps["calendar_year"] > 1) | (n_stamps["month_code"] > 1)]
+    n_bad = int(len(bad))
+    if n_bad:
+        raise ValueError(
+            "PSD bronze DataFrame[%d] carries %d IN-SCOPE sheet-cell(s) with MORE THAN ONE "
+            "(calendar_year, month_code) stamp inside ONE release. The wide pivot's index "
+            "assumes one stamp per (commodity_code, country_name, market_year) per release; "
+            "two would shatter it and silently add rows. First offenders: %s"
+            % (i, n_bad, [tuple(k) for k in bad.index[:5]])
+        )
+    return n_bad
+
+
+def _compute_psd_release_dates(
+    df: pd.DataFrame,
+    *,
+    calendar: dict[str, int],
+) -> pd.Series:
+    """Date every row from its OWN (Calendar_Year, Month) stamp.
+
+    The MARKETING-YEAR ROTATION IS GONE.  It used to read month_code as an
+    MY-relative index and rotate it by _PSD_COMMODITY_TO_MYS; measured on three
+    banked bronze snapshots it was exact on 0.20% of stamped rows, EARLY on 97.4%
+    and LATE on 2.4%, and ZERO of the 47 mapped codes agreed at 100%.
+
+    The rule now lives in ONE place --
+    :func:`leviathan.transforms.bronze_to_silver.psd_clock.psd_release_dates` --
+    which the long companion and (when it lands) the archive backfill call too.
+    A per-lane copy is a kill condition.
+
+    Args:
+        df: The post-explode combined frame.  Needs commodity_code, market_year,
+            calendar_year and month_code.
+        calendar: ``{'YYYY-MM': day}`` from the REGISTERED silver_wasde
+            partitions.  Keyword-only with NO DEFAULT -- a default is a silent
+            fallback to a stale or empty calendar, which is the defect this
+            change exists to close wearing a different hat.
+
+    Returns:
+        The release_date Series.  ``month_code == 0`` still maps to
+        ``market_year-01-01`` exactly as the shipped line did; that pin is what
+        keeps 30,715 wide rows byte-identical across E.
+    """
+    dates, _ = psd_release_dates(
+        df["commodity_code"], df["market_year"], df["calendar_year"], df["month_code"],
+        calendar=calendar,
+    )
     return dates
 
 
 def prepare_psd_combined_frame(
     dfs: list[pd.DataFrame],
     *,
+    calendar: dict[str, int],
     extra_required: frozenset[str] = frozenset(),
+    counters: dict | None = None,
 ) -> pd.DataFrame:
     """Run steps 1-5 of the PSD pipeline and return the frame at the BRANCH POINT.
 
@@ -621,6 +820,11 @@ def prepare_psd_combined_frame(
                                     that (attribute, attribute_id) stays 1:1 across
                                     the whole table; the wide pivot ignores it.
 
+    It also carries ``day_disposition`` -- the day convention each row SHIPPED
+    with, POST-CLAMP, as a categorical.  Neither table emits it; the wide producer
+    counts its serving-grain fallback rows off it (step 11.5) instead of guessing
+    the convention back from release_date's month.
+
     MEASURED (2026-08-13 bulk object): the three remaps are 1:1 RENAMES, not
     merges -- codes 612000 / 2631000 / 571120 publish NO attribute_id 125 of their
     own, so folding 126 / 142 / 135 onto "Domestic Consumption" can never collide
@@ -629,23 +833,34 @@ def prepare_psd_combined_frame(
 
     Args:
         dfs: List of bronze DataFrames.  Must be non-empty.
+        calendar: ``{'YYYY-MM': day}`` built from the REGISTERED silver_wasde
+            partitions, read at RUN TIME by the batch task and passed straight
+            through to the clock.  Keyword-only with NO DEFAULT.
         extra_required: Column names required IN ADDITION to :data:`_REQUIRED_COLS`
             (the long producer adds ``attribute_id``).
+        counters: Optional dict the transform fills with machine-readable run
+            counters (see :data:`_CLOCK_COUNTER_KEYS`).  The batch task passes one
+            and logs it, because a counter that lives only in a log SENTENCE is
+            not a gate reading.
 
     Returns:
         The combined frame at the branch point, or an EMPTY frame when no row
         survives the commodity filter.  Callers own their own empty schema.
 
     Raises:
-        ValueError: If *dfs* is empty or required columns are missing.
+        ValueError: If *dfs* is empty, required columns are missing, or one input
+            snapshot carries two stamps for one sheet-cell.
+        psd_clock.PsdClockError: If a stamp month is newer than the calendar's.
     """
     if not dfs:
         raise ValueError("dfs must contain at least one DataFrame")
+    counters = {} if counters is None else counters
 
     # -----------------------------------------------------------------------
-    # 1. Validate required columns
+    # 1. Validate required columns, and assert the stamp is CONSTANT per snapshot
     # -----------------------------------------------------------------------
     required = _REQUIRED_COLS | frozenset(extra_required)
+    n_constancy_violations = 0
     for i, df in enumerate(dfs):
         missing = required - set(df.columns)
         if missing:
@@ -653,6 +868,14 @@ def prepare_psd_combined_frame(
                 f"PSD bronze DataFrame[{i}] missing required columns: {missing}. "
                 f"Got: {list(df.columns)}"
             )
+        # PER FRAME, INSIDE THIS LOOP -- never after the concat at step 2.  See
+        # _assert_stamp_constant_per_snapshot for the 0-per-snapshot / 3,290-on-three
+        # measurement that makes the placement load-bearing.  The helper scopes
+        # ITSELF to the mapped codes, which is why this call can stay here, ahead
+        # of the step-3 filter: the two properties (per-snapshot, in-scope) are
+        # both required and neither may be bought with the other.
+        n_constancy_violations += _assert_stamp_constant_per_snapshot(df, i)
+    counters["n_stamp_constancy_violations"] = n_constancy_violations
 
     # -----------------------------------------------------------------------
     # 2. Concatenate all release snapshots
@@ -673,6 +896,15 @@ def prepare_psd_combined_frame(
         return combined
 
     # -----------------------------------------------------------------------
+    # 3b. Rule R1, made EXPLICIT (2026-09-04)
+    # -----------------------------------------------------------------------
+    # See the R1 paragraph in this module's header.  This assertion replaces the
+    # accidental enforcement the retired marketing-year rotation provided, and it
+    # is deliberately placed AFTER the commodity filter so it speaks only about
+    # codes this transform actually serves.
+    _assert_every_in_scope_code_has_a_marketing_year(combined)
+
+    # -----------------------------------------------------------------------
     # 4. Fan-out: explode each commodity row to one row per contract slug
     # -----------------------------------------------------------------------
     combined["leviathan_slug"] = combined["commodity_code"].map(_PSD_COMMODITY_TO_SLUGS)
@@ -685,20 +917,150 @@ def prepare_psd_combined_frame(
     # visible_slice("prior_marketing_year") filters release_date <= crop_year_start,
     # so all historical rows would fail that filter without this correction.
     #
-    # F2 clamp: the WASDE-calendar formula treats month_code as an MY-relative
-    # sequential index, which projects current-crop rows to FUTURE calendar dates
-    # (up to ~2027 for the 2026-05-20 snapshot).  A release_date can never
-    # post-date the snapshot that observed it, so clamp each computed date to an
-    # upper bound of that row's bronze ingest date: min(computed, ingest).  Only
-    # rows the formula pushed past ingest are affected; historical backdating is
-    # untouched.  Both series are ISO-8601 'YYYY-MM-DD' strings, which sort
-    # lexicographically == chronologically, so the element-wise min is exact and
-    # preserves release_date's existing object/string dtype.
+    # F2 clamp, RE-AUTHORED FOR THE HONEST CLOCK.  A release_date can never
+    # post-date the snapshot that observed it, so every computed date is bounded
+    # above by that row's bronze ingest date.  Under the retired rotation the
+    # clamp fired on 78,738 exploded rows, because the MY-relative formula
+    # projected current-crop rows into 2027.  Under the honest clock it is
+    # STRUCTURALLY INERT: 0 firings on all three banked snapshots, under BOTH day
+    # rules, with the eight-code month-end set.  An inert fence that fires is a
+    # clock-regression alarm, so it is KEPT and COUNTED rather than deleted.
+    #
+    # WHAT IT DOES WHEN IT FIRES, and why it never raises here.  The only way a
+    # date can exceed ingest on the monthly path is a World Markets and Trade
+    # sheet whose stamp month is the SNAPSHOT's own month: month-end then sits
+    # after a day-8-13 fetch.  Measured headroom for that case today is 13 days
+    # over 333,744 stamped WM&T rows -- real, currently unfired, and NOT a reason
+    # to hard-fail the monthly job in a month the three banked snapshots (May,
+    # July, August) cannot observe.  So the clamp DISPOSES of the row by name:
+    #
+    #   clamped_to_wasde_day  the WM&T row's stamp month HAS a registered WASDE
+    #                         day AND that day is itself on or before the ingest
+    #                         date, so take it -- a published date rather than a
+    #                         download date, and it precedes month-end by
+    #                         construction.
+    #   clamped_to_ingest     no registered day exists for that month, or the
+    #                         registered day is ALSO after the snapshot, so fall
+    #                         back to the ingest date -- the shipped behaviour and
+    #                         the only bound left. The second half of that
+    #                         condition matters: a circular stamped in the
+    #                         snapshot's own month can sit after a day-8 fetch on
+    #                         BOTH candidate days, and substituting a date that is
+    #                         still in the future would leave the per-row bound
+    #                         violated for the task's own fail-closed guard to
+    #                         find as a hard abort. Naming it here keeps it a
+    #                         counted disposition instead.
+    #                         THE INGEST DATE IS ONLY TAKEN INSIDE THE STAMP
+    #                         MONTH -- see the next disposition for why.
+    #   clamped_cross_month_declined
+    #                         the ingest date lies OUTSIDE the stamp month, so the
+    #                         substitution is DECLINED BY NAME rather than made.
+    #                         P21 -- release_date determines wasde_release_month --
+    #                         is what step 10's dedup key and the numbers card's
+    #                         refusal to declare a vintage_tiebreak both rest on,
+    #                         and a cross-month clamp breaks it: a row stamped
+    #                         2026-08 in a partition ingested 2026-07-30 would land
+    #                         release_date '2026-07-30' against
+    #                         wasde_release_month 8, and step 10 would then key two
+    #                         genuinely different vintages onto one date. So the
+    #                         row keeps a date INSIDE its own stamp month: the
+    #                         registered WASDE day if the month has one, else the
+    #                         month's FIRST day -- the earliest date the month can
+    #                         offer, which is the closest the stamp month can come
+    #                         to honouring the ingest bound without lying about
+    #                         which month published it. The row is COUNTED under
+    #                         its own name so a reader sees a declined clamp rather
+    #                         than an honoured one, and the task's fail-closed
+    #                         guard still sees the residual future date and aborts
+    #                         -- which is the correct outcome, because a stamp
+    #                         month that post-dates the whole snapshot means the
+    #                         clock and the source have diverged.
+    #
+    # All three are COUNTED and surfaced to the gate; all three are expected 0.
+    # THE CLAMP REWRITES `disposition` TOO, not just the date.  day_dispositions is
+    # a gate reading, and a clamped row whose disposition still reads
+    # 'month_end_wmt' tells the gate the pre-clamp convention while n_clamped_*
+    # tells it the post-clamp one -- two counters describing the same row and
+    # disagreeing.  After this block, day_dispositions reports POST-CLAMP.
+    #
+    # The RAISE is reserved for the case that genuinely means our clock is behind
+    # the source: a stamp month NEWER than the live calendar's newest month, which
+    # psd_clock raises on before any of this runs.
+    #
+    # Both series are ISO-8601 'YYYY-MM-DD' strings, which sort lexicographically
+    # == chronologically, so every comparison here is exact and release_date keeps
+    # its object/string dtype.
     ingest_date = pd.to_datetime(combined["release_date"]).dt.strftime("%Y-%m-%d")
-    computed_date = _compute_psd_release_dates(combined)
-    combined["release_date"] = computed_date.where(
-        computed_date <= ingest_date, ingest_date
+    computed_date, disposition = psd_release_dates(
+        combined["commodity_code"], combined["market_year"],
+        combined["calendar_year"], combined["month_code"],
+        calendar=calendar,
     )
+    too_late = computed_date > ingest_date
+    n_clamped = int(too_late.sum())
+    counters["n_clamped"] = n_clamped
+    counters["n_clamped_to_wasde_day"] = 0
+    counters["n_clamped_to_ingest"] = 0
+    counters["n_clamped_cross_month_declined"] = 0
+    if n_clamped:
+        stamp_month = computed_date.str.slice(0, 7)
+        registered = stamp_month.map(calendar)
+        wasde_day_date = (stamp_month + "-"
+                          + registered.fillna(0).astype(int).astype(str).str.zfill(2))
+        month_first_date = stamp_month + "-01"
+        # The ingest substitution is legal only INSIDE the stamp month; outside it
+        # the clamp would rewrite which month published the row (P21).
+        ingest_in_stamp_month = ingest_date.str.slice(0, 7) == stamp_month
+        to_wasde_day = too_late & registered.notna() & (wasde_day_date <= ingest_date)
+        remainder = too_late & ~to_wasde_day
+        to_ingest = remainder & ingest_in_stamp_month
+        cross_month = remainder & ~ingest_in_stamp_month
+        cross_month_to_wasde = cross_month & registered.notna()
+        cross_month_to_first = cross_month & registered.isna()
+        counters["n_clamped_to_wasde_day"] = int(to_wasde_day.sum())
+        counters["n_clamped_to_ingest"] = int(to_ingest.sum())
+        counters["n_clamped_cross_month_declined"] = int(cross_month.sum())
+        computed_date = computed_date.mask(to_wasde_day, wasde_day_date)
+        computed_date = computed_date.mask(to_ingest, ingest_date)
+        computed_date = computed_date.mask(cross_month_to_wasde, wasde_day_date)
+        computed_date = computed_date.mask(cross_month_to_first, month_first_date)
+        disposition = disposition.mask(to_wasde_day, DISPOSITION_CLAMPED_TO_WASDE_DAY)
+        disposition = disposition.mask(to_ingest, DISPOSITION_CLAMPED_TO_INGEST)
+        disposition = disposition.mask(
+            cross_month, DISPOSITION_CLAMPED_CROSS_MONTH_DECLINED
+        )
+        logger.warning(
+            "PSD transform: release-date clamp fired on %d row(s) -- %d took the registered "
+            "WASDE day of their stamp month, %d took the bronze ingest date, %d DECLINED the "
+            "substitution because the ingest date falls outside the stamp month and taking it "
+            "would break release_date -> wasde_release_month. The clamp is expected to be INERT "
+            "under the honest clock; a firing is a clock-regression alarm.",
+            n_clamped, counters["n_clamped_to_wasde_day"], counters["n_clamped_to_ingest"],
+            counters["n_clamped_cross_month_declined"],
+        )
+    # THE COUNTERS ARE MINTED AFTER THE CLAMP, so every one of them reports the
+    # convention the row actually SHIPS with.  n_month_end_fallback and
+    # month_end_fallback_months therefore exclude a fallback row the clamp moved,
+    # and day_dispositions carries the three clamp names when (and only when) the
+    # clamp fired.
+    counters["n_month_end_fallback"] = int(
+        (disposition == DISPOSITION_MONTH_END_FALLBACK).sum()
+    )
+    counters["month_end_fallback_months"] = sorted(
+        {d[:7] for d in computed_date[disposition == DISPOSITION_MONTH_END_FALLBACK]}
+    )
+    counters["day_dispositions"] = {
+        str(k): int(v) for k, v in disposition.value_counts().items()
+    }
+    combined["release_date"] = computed_date
+    # The day convention this row SHIPPED with, carried to the branch point so the
+    # wide producer can count its fallback rows at the SERVING grain BY DISPOSITION
+    # rather than by month membership.  The long companion ignores it (it selects
+    # _SILVER_PSD_ATTR_COLS at the end), and the wide pivot drops it: it is a
+    # measurement channel, not a silver column.  CATEGORICAL on purpose -- at most
+    # seven distinct values over an exploded frame that reaches ~30M rows on nine
+    # bronze partitions, and this task's peak RSS is a read the runbook takes.
+    combined["day_disposition"] = disposition.astype("category")
     # Keep the bronze ingest date the line above overwrites.  It is the ONLY
     # surviving witness to WHICH SNAPSHOT a row came from, and the computed WASDE
     # date is not a substitute: for any row the F2 clamp does not bind (i.e. every
@@ -738,6 +1100,9 @@ def prepare_psd_combined_frame(
 
 def transform_psd_bronze_to_silver(
     dfs: list[pd.DataFrame],
+    *,
+    calendar: dict[str, int],
+    counters: dict | None = None,
 ) -> pd.DataFrame:
     """Convert one or more bronze PSD DataFrames into a single silver DataFrame.
 
@@ -748,17 +1113,26 @@ def transform_psd_bronze_to_silver(
 
     Args:
         dfs: List of bronze DataFrames.  Must be non-empty.
+        calendar: ``{'YYYY-MM': day}`` from the REGISTERED silver_wasde
+            partitions.  Keyword-only, NO DEFAULT.
+        counters: Optional dict filled with the :data:`_CLOCK_COUNTER_KEYS` run
+            counters for the batch task's structured log and the gate.
 
     Returns:
         Wide-format silver DataFrame with :data:`_SILVER_COLS` columns.
 
     Raises:
-        ValueError: If *dfs* is empty, required columns are missing, or an
-                    unrecognised ``unit_desc`` appears for an in-scope row.
+        ValueError: If *dfs* is empty, required columns are missing, an
+                    unrecognised ``unit_desc`` appears for an in-scope row, one
+                    snapshot carries two stamps for one sheet-cell, or the
+                    post-pivot vintage key is not unique.
     """
+    counters = {} if counters is None else counters
     # Steps 1-5 are shared with the long companion producer; see
     # prepare_psd_combined_frame for why they live in one place.
-    combined = prepare_psd_combined_frame(dfs)
+    combined = prepare_psd_combined_frame(dfs, calendar=calendar, counters=counters)
+    counters["n_calendar_months"] = len(calendar)
+    counters["max_calendar_month"] = max(calendar) if calendar else None
     if combined.empty:
         return _empty_silver()
 
@@ -805,8 +1179,50 @@ def transform_psd_bronze_to_silver(
         "wasde_release_month",
         "release_date",
     ]
-    dedup_key = pivot_index + ["attribute_desc"]
+    # THE DEDUP KEY IS THE VINTAGE KEY, AND IT SHEDS wasde_release_month (E6).
+    # It used to read `dedup_key = pivot_index + ["attribute_desc"]`.  That
+    # identity is no longer true, and leaving it in place would leave a FALSE
+    # sentence in a load-bearing comment.  The new relation, stated explicitly:
+    #
+    #   dedup_key == pivot_index MINUS wasde_release_month PLUS attribute_desc
+    #
+    # and it discriminates IDENTICALLY, because under the honest clock
+    # release_date DETERMINES wasde_release_month -- release_date[5:7] IS the
+    # stamp month for every stamped row, and every mc == 0 row carries
+    # market_year-01-01, a value no real stamp can produce (real days are 8..14,
+    # the declared 2008-10-28 exception, or month-end).  That invariant is
+    # PINNED by a test rather than left implicit, because two other rulings lean
+    # on it silently: this key, and the numbers card's refusal to declare a
+    # vintage_tiebreak.
+    #
+    # THE UNSTATED PREMISE, NOW STATED: the mc == 0 anchor is distinguishable from
+    # a real stamp only because NO REGISTERED WASDE MONTH RESOLVES TO A DAY-1
+    # JANUARY.  Measured on the 472 registered partitions: exactly one month lands
+    # on day 1 at all -- 2000-04 -- and no January does, in any year, including the
+    # pre-2006 span where the days run 1..16 and the 8..14 fence does not apply.
+    # If a January-day-1 release were ever registered, a stamped January row would
+    # collide with that marketing year's mc == 0 anchor on this key and step 10
+    # would drop one of them by bronze_ingest_date, silently.  It is a property of
+    # the calendar we read, not of the clock, so it is pinned in
+    # tests/unit/test_psd_clock.py over the banked calendar rather than asserted
+    # here -- a producer-side raise would red a correct run for a real USDA
+    # scheduling change, and this key is not where that decision belongs.
+    #
+    # WHY IT MATTERS ANYWAY.  wasde_release_month is now a CALENDAR month, so two
+    # releases twelve months apart share it.  Keying anything that DELETES rows on
+    # it would delete the older vintage; this key names release_date instead, so
+    # only byte-identical RE-PRINTS of one release collapse (0 value disagreements
+    # among 1,848,919 same-stamp rows, measured across two snapshots 85 days
+    # apart).  Every distinct release survives.
+    dedup_key = [
+        "leviathan_slug",
+        "country",
+        "market_year",
+        "release_date",
+        "attribute_desc",
+    ]
     n_dupes = int(combined.duplicated(subset=dedup_key).sum())
+    counters["n_step10_collapsed"] = n_dupes
     if n_dupes:
         # VINTAGE DIRECTION FIX (owner word 2026-08-25; found by the Lane-3 grain test): for every
         # historical row the F2 clamp does not bind, so two bronze snapshots of the same vintage carry
@@ -843,26 +1259,73 @@ def transform_psd_bronze_to_silver(
             wide[col] = np.nan
 
     # -----------------------------------------------------------------------
-    # 11.5 Latest-only vintage dedup ACROSS source releases
-    # Semi-annual sheets (coffee 711100, sugar 612000) re-print the SAME
-    # (market_year, month_code) row in consecutive monthly bulk snapshots, so
-    # once bronze holds two overlapping releases the pivot emits TWO rows for
-    # one logical vintage slot (first observed 2026-07-18: the 2026-07-17
-    # snapshot re-printed the 2026-05-20 coffee/sugar rows -- 381 duplicate
-    # keys). The registry contract is vintage_retention: latest-only, and the
-    # step-13/14 groupby-diff comments assume (MY, month) -> ONE release_date;
-    # keep the newest release per key (it may carry revisions) BEFORE any
-    # derived metric is computed.
+    # 11.5 THE VINTAGE KEY BECOMES AN ASSERTION -- and it MINTS G1's counter FIRST
+    #
+    # It used to be a latest-only drop_duplicates on
+    # (slug, country, market_year, wasde_release_month), keeping the newest
+    # release_date.  Under the marketing-year rotation that key was safe, because
+    # release_date was a FUNCTION of (market_year, month_code) and one marketing
+    # year could not reach the same month twice.  Under the honest clock
+    # wasde_release_month is a CALENDAR month, so two genuinely different
+    # releases twelve months apart collide on it and the newest-wins reduction
+    # DELETES the older one.  MEASURED on three banked bronze snapshots: 258 rows.
+    # Under a 238-file archive backfill the same key would cap every sheet-cell at
+    # twelve vintages FOREVER.  Shipping the clock without this re-key is worse
+    # than not shipping the clock.
+    #
+    # THE COUNTER IS MINTED BEFORE THE ASSERTION AND IT IS NOT DECORATION.  Gate
+    # G1's whole identity is
+    #
+    #   row_count_after == row_count_before + n_reprints_under_shipped_key
+    #
+    # and a post-E run has NOWHERE ELSE to get that number: the rotation that
+    # produced the 247,036 baseline is deleted, and step 10's collapse count is
+    # three orders of magnitude away (3,291,515 against 258).  One duplicated()
+    # call is what makes G1 non-vacuous.
     # -----------------------------------------------------------------------
-    vintage_key = ["leviathan_slug", "country", "market_year", "wasde_release_month"]
-    n_reprints = int(wide.duplicated(subset=vintage_key).sum())
-    if n_reprints:
-        logger.warning(
-            "PSD transform: %d re-printed vintage rows across source releases; keeping latest release_date",
-            n_reprints,
+    shipped_vintage_key = ["leviathan_slug", "country", "market_year", "wasde_release_month"]
+    n_reprints_under_shipped_key = int(wide.duplicated(subset=shipped_vintage_key).sum())
+    counters["n_reprints_under_shipped_key"] = n_reprints_under_shipped_key
+    if n_reprints_under_shipped_key:
+        logger.info(
+            "PSD transform: %d row(s) share a (slug, country, market_year, calendar-month) key "
+            "under DIFFERENT release_dates -- older vintages the retired latest-only key would "
+            "have deleted. They are KEPT; this count is gate G1's row-delta identity.",
+            n_reprints_under_shipped_key,
         )
-        wide = (wide.sort_values(vintage_key + ["release_date"])
-                    .drop_duplicates(subset=vintage_key, keep="last"))
+
+    # THE SERVING-GRAIN FALLBACK COUNT, KEYED ON THE DISPOSITION THE ROW SHIPPED
+    # WITH.  It used to be computed at step 16 by testing release_date's MONTH
+    # against month_end_fallback_months, which is a different number wearing the
+    # same name: a World Markets and Trade sheet stamped inside one of those
+    # months takes month_end_wmt, not the fallback, and was counted anyway.
+    # MEASURED on the three banked snapshots: 39 wide rows, so the month-keyed
+    # figure read 51,454 where the disposition-keyed one reads 51,415.  Both cards
+    # and gate G6 quote this counter, so it has to measure the thing it is named
+    # after.  The join is on the pivot index because that IS the wide grain, and
+    # the disposition is constant within it (rule R2 gives each slug exactly one
+    # commodity code, and the clock's answer is a function of that code and the
+    # stamp).  It is computed HERE, before step 15's Int16/Int8 casts, so the key
+    # dtypes on both sides still match.
+    _fallback_wide = int(
+        wide.loc[:, pivot_index]
+            .merge(combined.loc[:, pivot_index + ["day_disposition"]]
+                           .drop_duplicates(subset=pivot_index),
+                   on=pivot_index, how="left")["day_disposition"]
+            .eq(DISPOSITION_MONTH_END_FALLBACK).sum()
+    )
+
+    vintage_key = ["leviathan_slug", "country", "market_year", "release_date"]
+    n_true_dupes = int(wide.duplicated(subset=vintage_key).sum())
+    if n_true_dupes:
+        offenders = (wide.loc[wide.duplicated(subset=vintage_key, keep=False), vintage_key]
+                         .drop_duplicates().head(5).to_dict("records"))
+        raise ValueError(
+            "PSD transform: %d post-pivot row(s) duplicate the vintage key %s. One release of "
+            "one sheet-cell must produce exactly ONE row; a duplicate here means step 10's "
+            "collapse did not hold or the pivot index shattered. First offenders: %s"
+            % (n_true_dupes, vintage_key, offenders)
+        )
 
     # -----------------------------------------------------------------------
     # 12. Compute su_ratio
@@ -872,30 +1335,88 @@ def transform_psd_bronze_to_silver(
     wide["su_ratio"] = wide["su_ratio"].replace([np.inf, -np.inf], np.nan)
 
     # -----------------------------------------------------------------------
-    # 13. Compute su_ratio_yoy_delta
-    # Within each (leviathan_slug, country, wasde_release_month), diff su_ratio
-    # by market_year ascending.  Each market_year × month_code pair maps to a
-    # unique release_date so grouping by release_date would produce singleton
-    # groups (all NaN).  Grouping by wasde_release_month instead captures "at
-    # the same point in the marketing calendar, how did the S/D balance shift
-    # year-over-year?" — the economically meaningful comparison.
+    # 13. Compute su_ratio_yoy_delta -- THE LATEST-VINTAGE REDUCTION
+    #
+    # Within each (leviathan_slug, country, wasde_release_month), diff su_ratio by
+    # market_year ascending: "at the same point in the release calendar, how did
+    # the S/D balance shift year-over-year?"
+    #
+    # WHAT CHANGED AND WHY.  The shipped code diffed the group's rows directly.
+    # That was safe only while (market_year, month_code) mapped to ONE
+    # release_date; step 11.5 now KEEPS the older vintage instead of deleting it,
+    # so a group can hold two rows for one marketing year and a bare .diff(1)
+    # would emit a WITHIN-marketing-year difference wearing a year-over-year
+    # label, and shift its neighbour's.  MEASURED on three banked snapshots: 258
+    # such groups, 514 of their 516 rows carrying a live su_ratio and 216 of them
+    # carrying DIFFERING su_ratios -- i.e. the false delta would be non-zero, not
+    # cosmetic.
+    #
+    # THE RULE: reduce each (slug, country, wasde_release_month, market_year) to
+    # its LATEST release_date, diff across adjacent marketing years there, and
+    # attach the result to that latest-vintage row.  A NON-LATEST vintage carries
+    # NULL by construction -- it is not the year's current estimate.  A marketing
+    # year with no predecessor in its group DECLINES BY NAME and is counted.
+    #
+    # MEASURED AGAINST THE LIVE CANONICAL: this rule reproduces today's column
+    # BYTE-IDENTICALLY -- 0 differing of 247,036 joined keys, non-null count
+    # unchanged at 211,890 -- so su_ratio_yoy_delta stays inside the flip's
+    # byte-identity pin and stays above its 0.6 min_nonnull_frac floor (85.7% of
+    # 247,294 rows), which is the floor jobs/audit/silver_rebuild_gate.py's
+    # value-census stage measures on every gate run.
+    #
+    # WHAT THIS IS NOT.  The card's phrase "the SAME release month of the estimate
+    # cycle" was true by CONSTRUCTION under the rotation, because MY(n) month m sat
+    # exactly one year after MY(n-1) month m.  Under the honest clock the two
+    # compared vintages can be several calendar years apart, and the card text is
+    # re-authored to say so.  The genuinely same-CYCLE comparator (MY(n) at
+    # calendar year cy against MY(n-1) at cy-1) is servable only where every
+    # release is its own partition: on this BULK-UNION table it finds a partner for
+    # 14.2% of live-su rows and would take the column's coverage from 211,890 to
+    # 33,583 non-null rows (-84.2%), below the contract floor.  It belongs to the
+    # per-release vintage table, not here.
     # -----------------------------------------------------------------------
-    wide = wide.sort_values(
-        ["leviathan_slug", "country", "wasde_release_month", "market_year"]
-    ).copy()
-    wide["su_ratio_yoy_delta"] = wide.groupby(
-        ["leviathan_slug", "country", "wasde_release_month"]
+    yoy_group_key = ["leviathan_slug", "country", "wasde_release_month"]
+    latest = (wide.sort_values(yoy_group_key + ["market_year", "release_date"],
+                               kind="stable")
+                  .drop_duplicates(subset=yoy_group_key + ["market_year"], keep="last")
+                  .sort_values(yoy_group_key + ["market_year"], kind="stable")
+                  .copy())
+    latest["su_ratio_yoy_delta"] = latest.groupby(
+        yoy_group_key, dropna=False
     )["su_ratio"].diff(1)
+    counters["n_step13_declined_absent_comparator"] = int(
+        (latest["su_ratio"].notna() & latest["su_ratio_yoy_delta"].isna()).sum()
+    )
+    wide = wide.merge(
+        latest[yoy_group_key + ["market_year", "release_date", "su_ratio_yoy_delta"]],
+        on=yoy_group_key + ["market_year", "release_date"],
+        how="left",
+    )
 
     # -----------------------------------------------------------------------
-    # 14. Compute revision columns
-    # Within each (leviathan_slug, country, market_year), diff across
-    # wasde_release_month ascending: revision[M] = estimate[M] - estimate[M-1].
-    # release_date is deterministic from (market_year, wasde_release_month) so
-    # grouping by release_date inside the group would produce singletons (all NaN).
+    # 14. Compute revision columns -- ORDERED BY RELEASE DATE
+    # Within each (leviathan_slug, country, market_year), diff across RELEASE
+    # DATE ascending: revision[k] = estimate[release k] - estimate[release k-1].
+    #
+    # THE SORT KEY MOVED, AND IT HAD TO.  The shipped sort was on
+    # wasde_release_month, which equalled chronological order only because the
+    # retired rotation made it so.  Under the honest clock a marketing year's
+    # releases WRAP the calendar for every MYS != 1 commodity -- corn MY2024 runs
+    # calendar months 5..12 of 2024 and then 1..4 of 2025 -- so a month-ordered
+    # sort puts January 2025 BEFORE May 2024 and every one of the three revision
+    # columns becomes a difference taken in the WRONG DIRECTION for 38 of the 47
+    # mapped codes.  It would not surface for a long time: these columns are ~2.5%
+    # non-null today (the contract's own min_nonnull_frac_overrides say 0.025), so
+    # the sign error only becomes visible once an archive backfill makes them
+    # dense.
+    #
+    # WHAT THE COLUMNS MEAN AFTER THE RE-BASELINE: still a diff WITHIN ONE BULK
+    # SNAPSHOT's set of surviving vintages, now correctly ordered.  A true
+    # cross-vintage revision series needs one partition per release and is a
+    # property of the per-release vintage table, not of this one.
     # -----------------------------------------------------------------------
     wide = wide.sort_values(
-        ["leviathan_slug", "country", "market_year", "wasde_release_month"]
+        ["leviathan_slug", "country", "market_year", "release_date"]
     ).copy()
     revision_group_key = ["leviathan_slug", "country", "market_year"]
     for col in ("production_mt", "ending_stocks_mt", "consumption_mt"):
@@ -911,6 +1432,19 @@ def transform_psd_bronze_to_silver(
     # 16. Final column order
     # -----------------------------------------------------------------------
     wide = wide[_SILVER_COLS]
+
+    counters["n_distinct_release_dates"] = int(wide["release_date"].nunique())
+    # The SERVING-grain fallback count, computed at step 11.5 -- see there for the
+    # disposition-keyed rule and why the month-keyed one it replaced was 39 rows
+    # high.  WHY BOTH GRAINS ARE COUNTED: the prefix counts month-end fallback rows
+    # at the exploded BRONZE grain, over EVERY attribute label rather than the
+    # eight the wide pivot keeps, and that number is ~45x larger -- 2,312,799
+    # against 51,415 on the three banked snapshots, inside full-frame
+    # day_dispositions of 5,541,672 registered_wasde_day / 2,312,799
+    # month_end_fallback / 1,278,861 mc_zero_anchor / 863,887 month_end_wmt.  It is
+    # not the number the cards or the gate quote; one row in five of the SERVED
+    # table is the sentence a reader has to be given, in figures.
+    counters["n_month_end_fallback_wide"] = _fallback_wide
 
     logger.info(
         "PSD silver transform complete: rows=%d slugs=%d releases=%d",

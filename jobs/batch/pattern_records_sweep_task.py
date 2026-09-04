@@ -173,12 +173,13 @@ VINTAGED_TABLES = frozenset({
 # Vintaged in SCHEMA, SYNTHESIZED in fact -- backfill_eligible REJECTS these outright, ahead of every
 # other test (COVERAGE_AND_CAPACITY_PLAN sec 1.4 / D2 / SV-L2-N1 / SV-L2-N2).
 #
-# silver_psd: bronze holds exactly TWO objects (release_date=2026-05-20 and release_date=2026-07-17),
-# yet silver carries 765 distinct release_date values -- because
-# src/leviathan/transforms/bronze_to_silver/usda_psd.py::_compute_psd_release_dates REPLACES bronze's
+# silver_psd, AS THE 37,752 RECORDED ROWS SAW IT: bronze held exactly TWO objects
+# (release_date=2026-05-20 and release_date=2026-07-17), yet silver carried 765 distinct
+# release_date values -- because
+# src/leviathan/transforms/bronze_to_silver/usda_psd.py::_compute_psd_release_dates REPLACED bronze's
 # real download stamp with a CLOSED-FORM label (cal_year + "-" + cal_month + "-10", clamped at
 # ingest_date). month_code is structurally confined to [0,12], so a revision made outside the
-# marketing year's 12-release cycle CANNOT be encoded and is silently BACKDATED into the window.
+# marketing year's 12-release cycle COULD NOT be encoded and was silently BACKDATED into the window.
 # Measured by diffing the two bronze snapshots (join on country_name -- country_code is 100% NULL in
 # bronze and silently collapses the diff to 69,589 of 968,699 keys):
 #   * 739 keys CHANGED VALUE while keeping the SAME computed release_date (24 of them MY <= 2020);
@@ -186,6 +187,17 @@ VINTAGED_TABLES = frozenset({
 #     release_date <= 2026-05-20 -- backdated as far as 2020-11-10.
 # The second channel is 12.6x larger and it is the one that matters here: a cascade verdict is an
 # EXISTENCE probe (n_rows >= 1), so ROW-EXISTENCE leakage maps exactly onto the recorded quantity.
+#
+# THAT CLOSED-FORM LABEL IS DELETED (2026-09-04, the honest-clock re-baseline): release_date is now
+# the row's own (Calendar_Year, Month) stamp resolved to a named, counted day, and the clamp is inert
+# (0 firings on three banked snapshots). silver_psd STAYS IN THIS SET ANYWAY, on two measurements
+# rather than on the retired formula. (a) The re-baselined table is a BULK UNION, not a per-release
+# archive -- 1.02 vintages per serving cell, so an asof replay reads at most one held vintage per cell
+# and cannot see what a later release restated. (b) The month_code-0 mass (30,715 wide rows) carries
+# TODAY's estimate under a market_year-01-01 anchor BY DESIGN, which is the 9,292-key existence
+# channel above, unchanged by the clock. This membership is what admitted the rows already on S3; it
+# is re-earned on its own terms, and the thing that would retire it is a per-release vintage table,
+# measured, not a producer comment.
 # This membership is what admitted the 37,752 backfill_grid cascade rows already on S3. Those rows are
 # LEFT IN PLACE as an audit record and fenced on the READ side in
 # src/leviathan/graphrag/numbers/pattern_records.py; this set is the WRITE-side half of the same fence,

@@ -436,3 +436,36 @@ class TestSubmitWrapper:
         source = (_SUBMIT_DIR / "submit_batch_psd_attributes_silver.py").read_text(encoding="utf-8")
         assert '{project}-{env}-queue-ondemand' in source
         assert 'default_queue = f"{project}-{env}-queue"' not in source
+
+
+# ---------------------------------------------------------------------------
+# P19 / T14 -- THE TWO PRODUCERS SHARE ONE CALENDAR READ
+# ---------------------------------------------------------------------------
+
+class TestTheLongTaskSharesTheWideTasksCalendarRead:
+    """Two copies of the calendar read are two producers that date the same rows
+    differently. The long task IMPORTS the wide task's reader and its counter log,
+    exactly as it already imports the bronze load and the F2 guard -- one-way, and
+    never re-implemented."""
+
+    def test_it_imports_the_reader_rather_than_re_implementing_it(self) -> None:
+        import inspect
+
+        from jobs.batch import psd_attributes_silver_task as long_task
+        from jobs.batch import psd_silver_task as wide_task
+
+        assert long_task.wasde_release_calendar is wide_task.wasde_release_calendar
+        assert long_task.log_clock_counters is wide_task.log_clock_counters
+        src = inspect.getsource(long_task)
+        assert "get_partitions" not in src, "the calendar read must live in ONE module"
+        assert "gen_wasde_release_calendar" not in src
+
+    def test_the_long_transform_refuses_to_run_without_a_calendar(self) -> None:
+        import pandas as pd
+        import pytest as _pytest
+        from leviathan.transforms.bronze_to_silver.usda_psd_attributes import (
+            transform_psd_attributes_bronze_to_silver,
+        )
+
+        with _pytest.raises(TypeError, match="calendar"):
+            transform_psd_attributes_bronze_to_silver([pd.DataFrame()])

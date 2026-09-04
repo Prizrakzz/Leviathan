@@ -18,6 +18,7 @@ Pure Python -- no S3, no AWS.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -32,10 +33,26 @@ from leviathan.transforms.bronze_to_silver.usda_psd import (
     _PSD_UNBINDABLE_CONTRACT_SLUGS,
     _PSD_UNMAPPED_CODES,
     _UNIT_FACTOR,
-    transform_psd_bronze_to_silver,
+)
+from leviathan.transforms.bronze_to_silver.usda_psd import (
+    transform_psd_bronze_to_silver as _transform_psd_bronze_to_silver,
 )
 
 _REPO = Path(__file__).resolve().parents[2]
+
+# The banked WASDE calendar, routed through one seam so all 35 roster assertions
+# keep reading the same clock. See tests/unit/test_psd_clock.py for the clock's own
+# pins; this file is a ROSTER fence and asserts nothing about dates.
+CAL: dict[str, int] = {
+    k: int(v) for k, v in
+    json.loads((_REPO / "tests" / "fixtures" / "wasde" / "release_calendar.json")
+               .read_text(encoding="ascii"))["calendar"].items()
+}
+
+
+def transform_psd_bronze_to_silver(dfs, **kwargs):
+    kwargs.setdefault("calendar", CAL)
+    return _transform_psd_bronze_to_silver(dfs, **kwargs)
 
 _MASS_ATTRS = {
     "Beginning Stocks":     100.0,
@@ -49,8 +66,16 @@ _MASS_ATTRS = {
 
 def _bronze(commodity_code: int, *, unit: str = "(1000 MT)",
             attrs: dict[str, float] | None = None, market_year: int = 2024,
-            month_code: int = 1, release_date: str = "2026-08-13") -> pd.DataFrame:
-    """One bronze row per attribute, all on the same unit."""
+            month_code: int = 1, calendar_year: int = 2026,
+            release_date: str = "2026-08-13") -> pd.DataFrame:
+    """One bronze row per attribute, all on the same unit.
+
+    P16 RE-ANCHOR (2026-09-04, lane E): the fixture GAINS calendar_year because the
+    honest clock made it a required bronze column.  THE 35 ROSTER ASSERTIONS IN
+    THIS FILE DO NOT MOVE -- if an assertion about _PSD_COMMODITY_TO_SLUGS or
+    _PSD_COMMODITY_TO_MYS membership ever moves, lane E has grown a scope it does
+    not have.
+    """
     attrs = _MASS_ATTRS if attrs is None else attrs
     return pd.DataFrame([
         {
@@ -58,6 +83,7 @@ def _bronze(commodity_code: int, *, unit: str = "(1000 MT)",
             "commodity_desc": f"code-{commodity_code}",
             "country_name":   "World",
             "market_year":    market_year,
+            "calendar_year":  calendar_year,
             "month_code":     month_code,
             "attribute_desc": attr,
             "unit_desc":      unit,
@@ -78,10 +104,10 @@ def _mapped_slugs() -> set[str]:
 class TestSlugMapInvariants:
 
     def test_r1_every_mapped_code_has_a_marketing_year(self) -> None:
-        # Step 4b does .map(_PSD_COMMODITY_TO_MYS).astype(int). A code present in
-        # SLUGS and absent from MYS raises "cannot convert float NaN to integer"
-        # for the WHOLE frame -- one missing entry takes the entire transform
-        # down, not merely its own rows. Identical key sets is the only safe state.
+        # A code present in SLUGS and absent from MYS is an undeclared commodity,
+        # and the transform stops on it. Identical key sets is the only safe state.
+        # THE MECHANISM MOVED 2026-09-04 (lane E) AND THE RULE DID NOT -- see the
+        # blast-radius test below for what changed and why it had to be re-armed.
         assert set(_PSD_COMMODITY_TO_SLUGS) == set(_PSD_COMMODITY_TO_MYS), (
             "SLUGS/MYS key drift: "
             f"slugs-only={sorted(set(_PSD_COMMODITY_TO_SLUGS) - set(_PSD_COMMODITY_TO_MYS))} "
@@ -90,13 +116,51 @@ class TestSlugMapInvariants:
 
     def test_r1_the_missing_entry_really_does_take_the_frame_down(self) -> None:
         # The rule above is worth pinning only if its failure is as bad as claimed.
+        #
+        # THE MECHANISM CHANGED ON 2026-09-04 AND THE RULE DID NOT. Until the
+        # honest-clock re-baseline this rule enforced ITSELF by accident: the
+        # retired marketing-year rotation did
+        # `.map(_PSD_COMMODITY_TO_MYS).astype(int)` to rotate month_code, so a
+        # missing entry raised "cannot convert float NaN to integer" for the whole
+        # frame. Deleting the rotation deleted that read -- and with it the blast
+        # radius this test measures. An invariant that survives only as a side
+        # effect of code about to be deleted is an invariant about to be lost, so
+        # the fence was RE-ARMED as an explicit named assertion in the shared
+        # prefix. Same rule, same fail-closed behaviour, stated on purpose.
         orig_m = U._PSD_COMMODITY_TO_MYS
         try:
             U._PSD_COMMODITY_TO_MYS = {k: v for k, v in orig_m.items() if k != 440000}
-            with pytest.raises((ValueError, TypeError, pd.errors.IntCastingNaNError)):
+            with pytest.raises(ValueError, match="no _PSD_COMMODITY_TO_MYS entry"):
                 transform_psd_bronze_to_silver([_bronze(440000)])
         finally:
             U._PSD_COMMODITY_TO_MYS = orig_m
+
+    def test_r1_the_fence_is_EXPLICIT_and_not_a_side_effect_of_a_cast(self) -> None:
+        # The clock no longer reads this map's VALUES at all, so nothing incidental
+        # can be relied on to enforce R1 ever again. Asserted by reading the
+        # producer: the fence must be a named call, and the rotation's cast must be
+        # gone from the module entirely.
+        import ast
+
+        path = (_REPO / "src" / "leviathan" / "transforms" / "bronze_to_silver"
+                / "usda_psd.py")
+        src = path.read_text(encoding="utf-8-sig")   # the file carries a BOM
+        assert "_assert_every_in_scope_code_has_a_marketing_year(combined)" in src
+
+        # CODE, not prose: the header comment quotes the retired mechanism on
+        # purpose, so the check is over the parse tree. The map may be read in
+        # exactly one function -- the fence -- and nowhere else.
+        tree = ast.parse(src)
+        readers: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for inner in ast.walk(node):
+                    if isinstance(inner, ast.Name) and inner.id == "_PSD_COMMODITY_TO_MYS":
+                        readers.add(node.name)
+        assert readers == {"_assert_every_in_scope_code_has_a_marketing_year"}, (
+            "the marketing-year map is a ROSTER fence; a second reader means "
+            "something started treating it as a clock again: %s" % sorted(readers)
+        )
 
     def test_r1_every_marketing_year_is_a_calendar_month(self) -> None:
         bad = {c: m for c, m in _PSD_COMMODITY_TO_MYS.items() if not 1 <= m <= 12}
@@ -387,14 +451,22 @@ class TestWidenedGateContract:
 # ---------------------------------------------------------------------------
 class TestWideningRefusals:
 
-    def test_the_release_date_convention_is_unchanged_for_every_code(self) -> None:
-        # The widening measured that the bulk CSV's `Month` is the CALENDAR month
-        # of the release, not the MY-relative index _compute_psd_release_dates
-        # assumes. That is a PRE-EXISTING property of the shipped 13 and re-dating
-        # it would move every row in silver_psd -- a re-baseline, not an enum
-        # widening. The new codes therefore ride the SAME convention so one table
-        # never carries two date conventions. This test pins the original 13 so a
-        # future convention change is a deliberate, visible act.
+    def test_the_marketing_year_map_is_a_ROSTER_fence_not_a_clock(self) -> None:
+        # RENAMED AND RE-AUTHORED 2026-09-04 (lane E). The old name --
+        # test_the_release_date_convention_is_unchanged_for_every_code -- and its
+        # body said the widening DEFERRED the re-dating: "re-dating it would move
+        # every row in silver_psd -- a re-baseline, not an enum widening. The new
+        # codes therefore ride the SAME convention". That deferral has been
+        # honoured and closed: the re-baseline happened, and THIS is it.
+        # _compute_psd_release_dates no longer rotates month_code by MYS; it reads
+        # the row's own (Calendar_Year, Month) stamp through psd_clock.
+        #
+        # So these values are now a ROSTER FENCE and nothing else. Rule R1 still
+        # requires every mapped code to carry an entry, because step 4b's
+        # .map(...).astype(int) raises for the WHOLE frame otherwise -- and that is
+        # the only reason the dict survives. NOTHING reads its VALUES to compute a
+        # date any more. The six pins below stay because a silent edit to them
+        # would still mean somebody thinks this map means something it does not.
         assert _PSD_COMMODITY_TO_MYS[410000] == 6      # wheat
         assert _PSD_COMMODITY_TO_MYS[440000] == 9      # corn
         assert _PSD_COMMODITY_TO_MYS[422110] == 8      # rice
@@ -402,10 +474,14 @@ class TestWideningRefusals:
         assert _PSD_COMMODITY_TO_MYS[4243000] == 10    # palm (the 2026-07-18 correction)
         assert _PSD_COMMODITY_TO_MYS[2631000] == 8     # cotton
 
-    def test_the_livestock_and_dairy_codes_ride_the_calendar_year(self) -> None:
-        # PSD publishes meat and dairy on a calendar year, so MYS=1 is both the
-        # published marketing year and the only value in this file for which the
-        # shipped formula and the measured semantics agree.
+    def test_the_livestock_and_dairy_codes_are_declared_on_a_calendar_year(self) -> None:
+        # RE-AUTHORED 2026-09-04. This block used to end "MYS=1 is ... the only
+        # value in this file for which the shipped formula and the measured
+        # semantics agree". MEASURED and REFUTED: ZERO of the 47 mapped codes agree
+        # at 100%, the MYS=1 families included, because the retired formula's year
+        # base was market_year while the true stamp year is Calendar_Year. What
+        # survives is the published fact -- PSD reports meat and dairy on a calendar
+        # marketing year -- which is a ROSTER statement, not a date rule.
         for code in (111000, 113000, 114200, 115000,
                      223000, 224200, 224400, 230000, 240000):
             assert _PSD_COMMODITY_TO_MYS[code] == 1

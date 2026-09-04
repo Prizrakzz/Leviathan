@@ -78,6 +78,11 @@ from jobs.batch.psd_silver_task import (
     _exists,
     _load_bronze,
     _snapshot_ingest_date,
+    # The clock's calendar read and its counter log are IMPORTED for the same
+    # one-way reason the bronze load and the F2 guard are: two copies of the
+    # calendar read are two producers that date the same rows differently.
+    log_clock_counters,
+    wasde_release_calendar,
 )
 
 logger = get_logger("psd_attributes_silver_task")
@@ -274,12 +279,23 @@ def main() -> None:
 
     dfs = _load_bronze(bucket, aws_region, s3_read)
 
-    logger.info("Running PSD attributes silver transform on %d bronze DataFrames", len(dfs))
     try:
-        silver_df = transform_psd_attributes_bronze_to_silver(dfs, on_uncovered=args.on_uncovered)
+        calendar = wasde_release_calendar(aws_region)
     except Exception as exc:  # noqa: BLE001
+        logger.error("PSD attributes silver: could not read the WASDE release calendar: %s", exc)
+        sys.exit(1)
+
+    logger.info("Running PSD attributes silver transform on %d bronze DataFrames", len(dfs))
+    counters: dict = {}
+    try:
+        silver_df = transform_psd_attributes_bronze_to_silver(
+            dfs, calendar=calendar, on_uncovered=args.on_uncovered, counters=counters,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log_clock_counters(counters)
         logger.error("PSD attributes silver transform failed: %s", exc)
         sys.exit(1)
+    log_clock_counters(counters)
 
     logger.info(
         "Silver attributes DataFrame: rows=%d cols=%d slugs=%d releases=%d attributes=%d",

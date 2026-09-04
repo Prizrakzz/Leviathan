@@ -36,10 +36,12 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import logging
 import os
 import sys
 
+import boto3
 import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
@@ -49,7 +51,11 @@ from leviathan.silver.publisher import ManifestState
 from leviathan.silver.registry import load_registry
 from leviathan.storage.paths import parse_hive_key, silver_psd_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
-from leviathan.transforms.bronze_to_silver.usda_psd import transform_psd_bronze_to_silver
+from leviathan.transforms.bronze_to_silver.usda_psd import (
+    _CLOCK_COUNTER_KEYS,
+    _PSD_COMMODITY_TO_SLUGS,
+    transform_psd_bronze_to_silver,
+)
 
 logger = get_logger("psd_silver_task")
 
@@ -57,6 +63,7 @@ _BRONZE_PREFIX = "bronze/production/source=usda_psd/"
 _RAW_BULK_PREFIX = "raw/production/source=usda_psd/release_type=bulk/"
 _TABLE = "silver_psd"
 _JOB = "psd_silver"
+_CALENDAR_TABLE = "silver_wasde"
 
 
 def _exists(s3_client, bucket: str, key: str) -> bool:
@@ -82,6 +89,235 @@ def _caller_identity(aws_region: str) -> tuple[str, str]:
     from leviathan.common.aws_identity import resolve_caller_identity
 
     return resolve_caller_identity(aws_region)
+
+
+# ---------------------------------------------------------------------------
+# THE WASDE RELEASE CALENDAR -- READ AT RUN TIME, NEVER BAKED INTO THE IMAGE
+# ---------------------------------------------------------------------------
+
+def _glue_client(aws_region: str):
+    """A Glue client.  This module held NONE before the honest-clock change.
+
+    Kept as its own module-level seam so tests can monkeypatch it and unit runs
+    stay AWS-free, exactly like ``_caller_identity`` above.
+    """
+    return boto3.client("glue", region_name=aws_region)
+
+
+def wasde_release_calendar(aws_region: str, glue_client=None) -> dict[str, int]:
+    """``{'YYYY-MM': day}`` from the REGISTERED silver_wasde partitions.
+
+    WHY IT IS READ HERE AND NOT GENERATED INTO THE IMAGE.  The PSD clock needs the
+    day of each month's WASDE release, and it FAILS CLOSED on a stamp month newer
+    than the newest month it is given.  silver_wasde's newest partition and the
+    newest PSD stamp advance in LOCKSTEP every month, and psd_monthly fires
+    ``cron(0 18 8-13 * ? *)``, so a calendar baked into the worker image would
+    RED-STOP this DAG every single month until a new image, a terraform digest
+    bump and a jobdef re-register had landed first.  A one-time build step cannot
+    be a monthly mechanism.  Read live, the fail-closed raise fires only when USDA
+    publishes a PSD file whose newest stamp is a month silver_wasde has not yet
+    ingested -- a real ordering problem worth stopping for.
+
+    GET-PARTITIONS, NEVER MSCK.  configs/silver/tables/silver_wasde.yaml declares
+    ``partition_mode: registered``, ``projection: forbidden`` and a
+    recovery_strategy of "get-partitions reconcile + explicit per-partition
+    locations ... never MSCK".  This function obeys that contract; it only ever
+    READS.
+
+    Raises:
+        ValueError: If the catalog returns no registered partitions.  An empty
+            calendar would date every row by convention with no measurement behind
+            it, so it must stop the run.
+    """
+    contract = load_registry().table(_CALENDAR_TABLE)
+    # Both the database AND the table name come from the F010 contract, never from
+    # a literal here: the contract is the single authority for where a silver table
+    # lives, and a second spelling of it is a rename waiting to go silent.
+    database, table = contract["glue_database"], contract["table_name"]
+    glue_client = glue_client or _glue_client(aws_region)
+    days: dict[str, int] = {}
+    n_partitions = 0
+    paginator = glue_client.get_paginator("get_partitions")
+    for page in paginator.paginate(DatabaseName=database, TableName=table,
+                                   PaginationConfig={"PageSize": 1000}):
+        for part in page.get("Partitions", []):
+            values = part.get("Values") or []
+            if not values:
+                continue
+            release_date = str(values[0])
+            if len(release_date) != 10:
+                logger.warning("silver_wasde partition %r is not a YYYY-MM-DD date; skipped",
+                               release_date)
+                continue
+            n_partitions += 1
+            month, day = release_date[:7], int(release_date[8:10])
+            prior = days.get(month)
+            if prior is not None and prior != day:
+                # One release per calendar month is what the live catalog shows
+                # (472 partitions, 1985-01..2026-08, no month with two). If that
+                # ever stops holding, take the LATEST day and SAY SO -- a
+                # correction that displaces a primary release is a real event, not
+                # a tie to break silently.
+                logger.warning(
+                    "silver_wasde carries TWO releases for %s (days %d and %d); taking the "
+                    "later one for the PSD clock", month, prior, day,
+                )
+                day = max(prior, day)
+            days[month] = day
+    if not days:
+        raise ValueError(
+            "PSD clock: silver_wasde returned NO registered partitions from Glue database "
+            "%r. The release calendar is required and must never be empty -- an empty "
+            "calendar would date every PSD row by a month-end convention with nothing "
+            "measured behind it." % database
+        )
+    logger.info(
+        "WASDE release calendar read from registered partitions: months=%d partitions=%d "
+        "span=%s..%s", len(days), n_partitions, min(days), max(days),
+    )
+    return days
+
+
+def log_clock_counters(counters: dict) -> None:
+    """Emit every clock counter as ONE machine-readable line the gate can read.
+
+    A counter that lives only in a prose log line is not a gate reading.
+    """
+    payload = {k: counters.get(k) for k in _CLOCK_COUNTER_KEYS}
+    logger.info("PSD_CLOCK_COUNTERS %s", json.dumps(payload, sort_keys=True, default=str))
+
+
+# ---------------------------------------------------------------------------
+# THE SIBLING-DAG RACE, AND THE BOUNDED WAIT THAT ABSORBS IT
+# ---------------------------------------------------------------------------
+# THE EXPOSURE, NAMED. psd_monthly and wasde_monthly BOTH fire cron(0 18 8-13 * ? *)
+# with NO ordering dependency between them, and the PSD clock FAILS CLOSED on a stamp
+# month strictly newer than the newest REGISTERED silver_wasde partition. Those two
+# facts collide on exactly one day a month: this task's own ETag measurement (see
+# _distinct_release_dates) shows the vendor's PSD object flipping content ON the WASDE
+# day -- 08-08/09/10/11 share one ETag and 08-12/13 share the next, with 2026-08-12 the
+# registered WASDE day -- and b_20260813 carries 31,610 in-scope rows stamped 2026-08.
+# So on the WASDE day the new PSD bulk file can be in the bucket BEFORE the concurrent
+# WASDE chain has fetched, transformed and REGISTERED its own partition, and the clock
+# would then raise on a condition that resolves itself within the hour.
+#
+# WHAT WE DO ABOUT IT, AND WHAT WE DELIBERATELY DO NOT. We do not sequence the two DAGs
+# (that is a scheduler change with its own blast radius and it is not this lane's), and
+# we do not weaken the raise -- a silent month-end fallback on TODAY's stamp month would
+# move today's citation by up to ~19 days with no counter, which is the whole defect
+# lane E exists to close. We WAIT, BOUNDED, and then fail closed exactly as before:
+#
+#   * up to _WASDE_WAIT_MAX_SECONDS (90 minutes) in total,
+#   * re-reading the REGISTERED partitions every _WASDE_WAIT_POLL_SECONDS (5 minutes),
+#   * i.e. at most 18 polls, each one a get-partitions read and nothing else.
+#
+# NINETY MINUTES is chosen against the sibling chain's own shape, not as a round number:
+# wasde_monthly's fetch -> bronze -> silver -> register path is minutes of work on a
+# schedule that starts in the SAME cron minute, so an hour and a half is generous cover
+# for a slow fire and still far inside the job's own timeout. Past the bound the run
+# exits 1 with the stamp month and the newest registered month NAMED -- a WASDE chain
+# that has genuinely failed must red psd_monthly, because publishing PSD rows dated by a
+# convention we never measured is the worse outcome.
+_WASDE_WAIT_MAX_SECONDS = 90 * 60
+_WASDE_WAIT_POLL_SECONDS = 5 * 60
+
+
+def _newest_psd_stamp_month(dfs: list[pd.DataFrame]) -> str | None:
+    """The newest ``YYYY-MM`` stamp among IN-SCOPE, STAMPED bronze rows, or None.
+
+    In-scope because the clock only ever dates rows the commodity filter keeps, and
+    stamped because ``month_code == 0`` carries no publication month at all. Rows the
+    transform would refuse (a coerced NA month_code, a non-positive calendar_year) are
+    skipped here and left to the clock to raise on: this function decides whether to
+    WAIT, and it must never invent a reason to.
+    """
+    newest: str | None = None
+    for df in dfs:
+        if not len(df) or "month_code" not in df.columns or "calendar_year" not in df.columns:
+            continue
+        if "commodity_code" in df.columns:
+            df = df[df["commodity_code"].isin(_PSD_COMMODITY_TO_SLUGS)]
+            if not len(df):
+                continue
+        mc = pd.to_numeric(df["month_code"], errors="coerce")
+        cy = pd.to_numeric(df["calendar_year"], errors="coerce")
+        ok = mc.notna() & (mc > 0) & cy.notna() & (cy > 0)
+        if not bool(ok.any()):
+            continue
+        stamps = (cy[ok].astype("int64").astype(str).str.zfill(4) + "-"
+                  + mc[ok].astype("int64").astype(str).str.zfill(2))
+        top = str(stamps.max())
+        if newest is None or top > newest:
+            newest = top
+    return newest
+
+
+def wait_for_wasde_calendar(
+    dfs: list[pd.DataFrame],
+    calendar: dict[str, int],
+    aws_region: str,
+    *,
+    glue_client=None,
+    sleep=None,
+    max_seconds: int = _WASDE_WAIT_MAX_SECONDS,
+    poll_seconds: int = _WASDE_WAIT_POLL_SECONDS,
+) -> dict[str, int]:
+    """Re-read the registered calendar until it covers the newest PSD stamp month.
+
+    Returns the calendar to use. Returns the one it was given, unchanged and without a
+    single extra Glue call, whenever the newest stamp month is already covered -- which
+    is every day of the month except the one this function exists for.
+
+    ``sleep`` and ``glue_client`` are injected seams so the wait path is testable
+    without AWS and without wall-clock time.
+    """
+    stamp = _newest_psd_stamp_month(dfs)
+    if stamp is None or not calendar or stamp <= max(calendar):
+        return calendar
+    if sleep is None:
+        import time as _time
+        sleep = _time.sleep
+    waited = 0
+    logger.warning(
+        "PSD clock: newest PSD stamp month %s is NEWER than the newest registered "
+        "silver_wasde month %s. psd_monthly and wasde_monthly share cron(0 18 8-13) with no "
+        "ordering dependency, so this is most likely the sibling chain still registering "
+        "today's partition. WAITING up to %d minute(s), re-reading get-partitions every %d "
+        "minute(s), then failing closed.",
+        stamp, max(calendar), max_seconds // 60, poll_seconds // 60,
+    )
+    while waited < max_seconds:
+        sleep(poll_seconds)
+        waited += poll_seconds
+        try:
+            fresh = wasde_release_calendar(aws_region, glue_client=glue_client)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("PSD clock: calendar re-read failed after %ds (%s); still waiting",
+                           waited, exc)
+            continue
+        # MERGE, NEVER REPLACE (post-fix re-review M2): wasde_release_calendar raises only on ZERO
+        # partitions, so a short-but-nonempty Glue listing would otherwise SHRINK the calendar,
+        # satisfy `stamp <= max(calendar)` on the one new month, and drop every other month to the
+        # month-end fallback with no raise. A re-read may only ADD months.
+        lost = sorted(set(calendar) - set(fresh))
+        if lost:
+            logger.warning("PSD clock: calendar re-read lacks %d previously registered month(s) "
+                           "(first: %s); keeping them -- a re-read may only add.", len(lost), lost[:3])
+        calendar = {**calendar, **fresh}
+        if calendar and stamp <= max(calendar):
+            logger.info(
+                "PSD clock: silver_wasde now carries %s after waiting %ds; the race resolved "
+                "itself and the run continues.", max(calendar), waited,
+            )
+            return calendar
+    logger.error(
+        "PSD clock: waited %ds and silver_wasde still stops at %s while the PSD file is "
+        "stamped %s. This is no longer a same-cron race -- the WASDE chain has not "
+        "registered its partition. Failing closed: dating today's rows by a convention with "
+        "nothing measured behind it would move the freshest citation silently.",
+        waited, max(calendar) if calendar else "(empty)", stamp,
+    )
+    return calendar
 
 
 # ---------------------------------------------------------------------------
@@ -144,12 +380,19 @@ def _distinct_release_dates(s3_client, bucket: str) -> tuple[set[str] | None, se
     prefix: 08-08/09/10/11 all carry ETag d085f3d1a6048cedcbc9b5df94e07b21 and 08-12/13
     both carry bd5be5458e069a6f8ccc260acfff4b4f -- 8 bronze partitions, 4 distinct vendor
     releases, and 8,238,412 of the 16,735,546 concatenated rows are exact duplicates the
-    transform pays 8.5 GiB to load and then discards at usda_psd.py:400.
+    transform pays 8.5 GiB to load and then discards at usda_psd.py:1224 (step 10's
+    ``combined.duplicated(subset=dedup_key)``).
 
-    Keeping the NEWEST label per ETag is content-preserving by construction: step 11.5 of
-    the transform already resolves a re-printed vintage by keeping the latest
-    release_date, so dropping an OLDER byte-identical copy can change nothing it would
-    have kept.
+    Keeping the NEWEST label per ETag is content-preserving by construction, and the
+    property it rests on is STEP 10, not step 11.5. Step 10 (usda_psd.py, "Dedup before
+    pivot") sorts every duplicate of one (slug, country, market_year, release_date,
+    attribute_desc) by ``bronze_ingest_date`` and keeps LAST, so of two byte-identical
+    copies of one vendor release the newer-labelled one already wins and the older one is
+    discarded there. Dropping the older copy up here can therefore change nothing the
+    transform would have kept. (Step 11.5 used to be the latest-only vintage reduction
+    this sentence named; under the honest clock it is an ASSERTION that deletes nothing --
+    it counts the re-prints the retired key would have deleted and raises on a duplicate
+    vintage key. It is no longer a load-bearing premise for this rider.)
 
     Returns ``(keep, seen_raw)``: ``keep`` is the newest-label-per-ETag set (None = keep
     everything, if the raw prefix cannot be read -- a listing failure degrades to today's
@@ -302,12 +545,32 @@ def main() -> None:
 
     dfs = _load_bronze(bucket, aws_region, s3_read)
 
-    logger.info("Running PSD silver transform on %d bronze DataFrames", len(dfs))
+    # The clock's calendar, read LIVE from the registered silver_wasde partitions
+    # (never baked, never MSCK) and passed into the pure transform as a plain dict
+    # so the transform keeps the "No S3 or AWS dependencies" property its own
+    # docstring claims.
     try:
-        silver_df = transform_psd_bronze_to_silver(dfs)
+        calendar = wasde_release_calendar(aws_region)
     except Exception as exc:  # noqa: BLE001
+        logger.error("PSD silver: could not read the WASDE release calendar: %s", exc)
+        sys.exit(1)
+
+    # THE SAME-CRON RACE. On the WASDE day the new PSD bulk file can land before the
+    # sibling wasde_monthly chain has registered its partition; the clock would then
+    # raise on a condition that resolves itself within the hour. Wait, bounded, then
+    # let the transform fail closed exactly as it would have. See the block above
+    # wait_for_wasde_calendar for the exposure and why the bound is 90 minutes.
+    calendar = wait_for_wasde_calendar(dfs, calendar, aws_region)
+
+    logger.info("Running PSD silver transform on %d bronze DataFrames", len(dfs))
+    counters: dict = {}
+    try:
+        silver_df = transform_psd_bronze_to_silver(dfs, calendar=calendar, counters=counters)
+    except Exception as exc:  # noqa: BLE001
+        log_clock_counters(counters)
         logger.error("PSD silver transform failed: %s", exc)
         sys.exit(1)
+    log_clock_counters(counters)
 
     logger.info(
         "Silver DataFrame: rows=%d cols=%d slugs=%d releases=%d",

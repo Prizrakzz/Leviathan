@@ -14,6 +14,16 @@ tables:
     grain: "one row per commodity x country x market_year x release_date"
     # COVERAGE (PA-1, hoisted from this card's own measured text): 247,036 rows / 63 slugs, measured at the
     # XC-1/XC-7 re-run (comment above)
+    #
+    # PENDING RE-MEASURE ON THE FIRST POST-CLOCK CANONICAL OBJECT (runbook R7, the
+    # apply-then-refresh law -- the card moves WITH the table and never ahead of it).
+    # The honest-clock producer was reproduced locally over three of the nine live
+    # bronze partitions and reproduced this figure EXACTLY at 247,036 on the
+    # retired clock, then measured 247,294 on the honest one: +258 older vintages
+    # the retired vintage key was deleting. Nothing else about the row set moves --
+    # 247,036 matched keys, 0 keys only on either side, and 0 of 247,036 differing
+    # on all eight _mt value columns. The field below is NOT edited here; R7 writes
+    # whatever the canonical object measures over all nine partitions.
     row_count: 247036
     cadence: annual
     shape: wide
@@ -61,17 +71,42 @@ tables:
       su_ratio:              {label: "stocks-to-use ratio", unit: "ratio", desc: "stocks-to-use ratio"}
       # W0-2 (projection wave, 2026-08-25): four columns the producer has ALWAYS written, never advertised.
       # Coverage measured on the live object before authoring (the PA-1 law) -- see notes for the spans.
+      # RE-AUTHORED 2026-09-04 (the honest-clock re-baseline). The line these four
+      # replace claimed the YoY change was "compared at the SAME release month of the
+      # estimate cycle (apples-to-apples vintages)". That was true only BY
+      # CONSTRUCTION under the retired clock, which derived release_date from
+      # (market_year, month_code) so that one marketing year sat exactly one year
+      # after the previous one on the publication axis. Under the honest clock
+      # wasde_release_month is a CALENDAR month, so the two compared prints can be
+      # several calendar years apart. The descs now say what the producer does.
       su_ratio_yoy_delta:        {label: "stocks-to-use ratio change (YoY)", unit: "ratio",
-                                  desc: "year-over-year change in the stocks-to-use ratio, compared at the SAME release month of the estimate cycle (apples-to-apples vintages)"}
+                                  desc: "change in the stocks-to-use ratio against the PREVIOUS MARKETING YEAR, comparing each year's CURRENT estimate as printed in the same calendar month of the release cycle; a superseded vintage carries no change, and a marketing year with no prior year in that month's series is not computed"}
       production_mt_revision:    {label: "production revision", unit: "MT",
-                                  desc: "month-over-month revision of the production estimate between consecutive WASDE releases for the same marketing year"}
+                                  desc: "change in the production estimate from the PREVIOUS RELEASE of the same marketing year, taken in release-date order within one bulk snapshot; the first release of a marketing year has no prior estimate"}
       ending_stocks_mt_revision: {label: "ending stocks revision", unit: "MT",
-                                  desc: "month-over-month revision of the ending-stocks estimate between consecutive WASDE releases for the same marketing year"}
+                                  desc: "change in the ending-stocks estimate from the PREVIOUS RELEASE of the same marketing year, taken in release-date order within one bulk snapshot; the first release of a marketing year has no prior estimate"}
       consumption_mt_revision:   {label: "consumption revision", unit: "MT",
-                                  desc: "month-over-month revision of the consumption estimate between consecutive WASDE releases for the same marketing year"}
+                                  desc: "change in the consumption estimate from the PREVIOUS RELEASE of the same marketing year, taken in release-date order within one bulk snapshot; the first release of a marketing year has no prior estimate"}
     notes: >
       Values in `_mt` columns are RAW metric tonnes (verified: Argentina corn MY2023 ending stocks = 2,462,000
       = 2.46 MMT). period = the marketing year as an integer (e.g. 2023). Latest vintage <= asof = as-known.
+      THE MONTH IS THE SOURCE'S OWN STAMP AND THE DAY IS A CONVENTION (2026-09-04). USDA prints a
+      release MONTH, not a release day, in this file, and release_date is that month's stamp resolved
+      to a day by ONE named rule: the WASDE release day registered for that calendar month; the LAST
+      day of the month for the eight World Markets and Trade circular sheets (cattle and beef,
+      broiler meat, fluid milk, cheese, oranges, orange juice, sugar, green coffee), which ship with
+      their own circulars and do not ride the WASDE day; and the LAST day of the month again for a
+      stamp month our own WASDE table does not carry. Quote the month with confidence; treat the day
+      as the convention it is. ONE ROW IN FIVE CARRIES A CONVENTION DAY TODAY: exactly two stamp
+      months are uncovered -- July 2006 and October 2008, both published by USDA and both absent from
+      our WASDE ingest -- and they cover 51,415 of 247,294 rows, 20.79% (51,259 and 156), of which
+      99.70% is July 2006. That share goes to ZERO if those two WASDE partitions are backfilled.
+      The count is keyed on the day rule each row SHIPPED with, not on its release month: 39 further
+      rows in those same two months are World Markets and Trade sheets, which take month-end anyway.
+      PRE-WASDE-TRACKING ESTIMATES CARRY NO RELEASE MONTH. Marketing years around 1960-2004 print
+      with no month code; they are anchored to 1 January of their MARKETING year so they stay visible
+      to any crop-year cutoff, and their calendar-year label is an observation year, not a
+      publication stamp -- measured, the two differ on 26.7% of those rows.
       SIXTY-THREE SLUGS, NOT THIRTEEN CONTRACTS (2026-08-20). This card is the whole USDA balance-sheet book,
       not just the tradeable grains: each crush complex on its OWN sheets (cottonseed, peanut, coconut,
       palm_kernel and every family's meal and oil), the minor cereals (barley, sorghum, rye, oats, millet,
@@ -93,7 +128,14 @@ tables:
       the pre-WASDE mass (MY 1960-2004, one pass-through print per year) has no prior estimate to revise
       against, so a "not published" there is structural, not a gap. su_ratio_yoy_delta DOES span the full
       book (MY 1961-2026, 61 slugs): a YoY comparison needs only last year's same-month print. A revision
-      of 0 is a real "unchanged estimate"; an absent revision means no consecutive-month pair exists.
+      of 0 is a real "unchanged estimate"; an absent revision means no consecutive-release pair exists.
+      THE REVISIONS ARE ORDERED BY RELEASE DATE, NOT BY MONTH NUMBER (2026-09-04). A marketing year's
+      releases WRAP the calendar for every commodity whose marketing year does not start in January --
+      corn's 2024 crop is printed in calendar months 5 to 12 of 2024 and then 1 to 4 of 2025 -- so
+      ordering on the month number would put January 2025 BEFORE May 2024 and reverse the sign of the
+      revision. It does not. And a revision here is still a change BETWEEN TWO PRINTS THAT SURVIVE IN
+      ONE BULK SNAPSHOT, never a full cross-vintage revision series: the bulk file keeps roughly one
+      print per cell, which is why these three columns are sparse.
       THESE EIGHT COLUMNS ARE NOT THE WHOLE SHEET -- silver_psd_attributes is the LONG companion and it
       is where the rest of the book lives. CRUSH, the DEMAND DECOMPOSITION (feed, FSI, feed+waste, food
       use, industrial use), the TRADE-YEAR trio (TY exports, TY imports, TY imports from the U.S.), the
@@ -105,22 +147,30 @@ tables:
   silver_psd_attributes:
     description: >
       USDA PSD -- the LONG companion to silver_psd. One row per leviathan_slug x country x
-      market_year x wasde_release_month x attribute, with the value in USDA's OWN unit. silver_psd
+      market_year x wasde_release_month x release_date x attribute, with the value in USDA's OWN
+      unit. Two releases twelve months apart share a calendar month, so the release DATE is part of
+      the physical grain and not merely a stamp on it (2026-09-04). silver_psd
       pivots EIGHT balance-sheet attributes into MT-denominated columns and discards the rest; this
       table carries all FIFTY-SIX attributes the bulk file publishes for in-scope commodities --
       Crush, the whole demand decomposition, the TY trade trio, the coffee and sugar variety splits,
       and the rate attributes no unit factor exists for. Estimates are revised across releases, so
       as-of a date means the latest release on or before it.
-    grain: "one row per leviathan_slug x country x market_year x wasde_release_month x attribute"
+    grain: "one row per leviathan_slug x country x market_year x wasde_release_month x release_date x attribute"
     # THE SERVING GRAIN IS NOT THE PHYSICAL GRAIN, AND THE DIFFERENCE IS THE AS-OF MACHINERY. The
-    # PHYSICAL grain above carries wasde_release_month: the F010 natural_key keeps it, the producer
-    # dedups on it, and the table retains all ~13 WASDE vintages of every marketing year (389,283
-    # rows carry month_code 0, the pre-WASDE-tracking mass, MY 1960-2004). grain_cols is
+    # PHYSICAL grain above carries wasde_release_month AND release_date: the F010 natural_key keeps
+    # both and the producer dedups on both.
+    # THE VINTAGE AXIS IS NEARLY EMPTY, AND THE CARD USED TO SAY THE OPPOSITE (re-authored
+    # 2026-09-04). This block claimed the table "retains all ~13 WASDE vintages of every marketing
+    # year". MEASURED: 145,304 rows over 142,014 sheet-cells is 1.02 vintages per cell. The bulk file
+    # is a SNAPSHOT -- it prints the current estimate and the release that last touched it, not the
+    # history -- so a deep vintage fan is a property of a per-release archive, not of this object.
+    # What IS true is that 389,283 rows carry month_code 0, the pre-WASDE-tracking mass, MY
+    # 1960-2004. grain_cols is
     # deliberately ABSENT: build_sql's latest-vintage ROW_NUMBER partitions by the tall fallback
     # (leviathan_slug, country, market_year, attribute) and orders by release_date DESC, which is
     # exactly what collapses those vintages to "the latest release on or before asof". Declaring
     # the physical grain here would make that collapse a structural no-op -- one row per partition,
-    # _rn = 1 filters nothing -- and every ask would fan ~13 vintages per marketing year.
+    # _rn = 1 filters nothing -- and every ask would fan every surviving vintage of a marketing year.
     # silver_psd omits release_date from its serving grain for the same reason. silver_wasde's
     # regression was the OPPOSITE error: it dropped SUBJECT dimensions (table_type, region), never
     # the vintage axis. The vintage axis belongs to the ROW_NUMBER; the subject axes belong to the
@@ -131,7 +181,16 @@ tables:
     # the apply-then-refresh law). row_count is the SERVED subset -- the declared metrics roster
     # below, which is also exactly what the pg mirror admits: 1,079,487 rows on the canonical
     # publish (3,397,958 physical rows / 0 grain dupes / 63 slugs / 56 labels / 810 releases,
-    # certified manifest silver_psd_attributes-1787727710260). TWO PROVENANCES, BOTH REAL: the L2-0
+    # certified manifest silver_psd_attributes-1787727710260).
+    # THE 810 RELEASES FIGURE IS A COUNT OF FABRICATED DATES AND IT MUST BE RECOUNTED (2026-09-04).
+    # It was produced by the retired marketing-year rotation, which emitted 809 distinct dates on the
+    # wide table of which 708 are dates USDA never published. Under the honest clock the wide table
+    # measures 439 distinct release dates over the same three banked bronze snapshots. Both this
+    # figure and row_count are PENDING a re-measure on the first post-clock canonical object (runbook
+    # R7, the apply-then-refresh law); the locally measured EXPECTATION is 1,079,487 -> 1,080,307
+    # served rows (+820, +0.076%) and 3,397,958 -> 3,401,565 physical rows (+3,607, +0.106%), with
+    # zero grain duplicates on the widened key. Growth is strictly upward by construction: a key
+    # gaining a column cannot merge rows. TWO PROVENANCES, BOTH REAL: the L2-0
     # census (data/dec_p0/psd_attribute_census.json, single 2026-08-13 bulk object) measured the
     # same roster at 1,033,407 with T1 = 742,057 (the D-6 admission figure); the canonical object
     # runs ~4.3% higher because the producer consumed every DISTINCT vendor snapshot in bronze
@@ -207,6 +266,18 @@ tables:
       # -- THE HEAD COUNT, carried honestly because the unit column retires the hazard --------------
       "Cows In Milk":           {label: "cows in milk", unit: "1000 HEAD", desc: "milking herd size, a HEAD COUNT and not a tonnage -- 1,917 rows on milk_fluid, MY1964-2026. NEVER added to, differenced against or ratioed with any (1000 MT) row on this card"}
     notes: >
+      THE MONTH IS THE SOURCE'S OWN STAMP AND THE DAY IS A CONVENTION (2026-09-04), on exactly the
+      same rule as silver_psd -- one clock function serves both tables. USDA prints a release MONTH,
+      not a release day, and release_date is that month's stamp resolved to a day: the registered
+      WASDE release day for that calendar month; the LAST day of the month for the eight World
+      Markets and Trade circular sheets (cattle and beef, broiler meat, fluid milk, cheese, oranges,
+      orange juice, sugar, green coffee); and the LAST day of the month again for a stamp month our
+      own WASDE table does not carry, which today is exactly two -- July 2006 and October 2008.
+      Quote the month with confidence; treat the day as the convention it is.
+      PRE-WASDE-TRACKING ESTIMATES CARRY NO RELEASE MONTH. Marketing years around 1960-2004 print
+      with no month code (389,283 rows here); they are anchored to 1 January of their MARKETING year
+      so they stay visible to any crop-year cutoff, and their calendar-year label is an observation
+      year, not a publication stamp.
       VALUES ARE IN USDA'S NATIVE UNIT AND THE `unit` COLUMN IS AUTHORITATIVE -- this table converts
       nothing. Six units are live across the card ((1000 MT), (1000 MT CWE), (MT), (1000 60 KG BAGS),
       1000 480 lb. Bales, (1000 HEAD)), so never sum or difference two rows without checking that

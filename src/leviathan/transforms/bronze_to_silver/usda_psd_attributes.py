@@ -303,11 +303,22 @@ _SILVER_PSD_ATTR_COLS: list[str] = [
 # regions, undetectable for months (see the silver_wasde card's 2026-07-05 note).
 # The identical exposure exists here: without wasde_release_month, one arbitrary
 # WASDE vintage per (slug, country, market_year, attribute) would win.
+#
+# release_date JOINED THE GRAIN 2026-09-04 (lane E, the honest-clock re-baseline).
+# wasde_release_month is now the CALENDAR month of the release, not an
+# MY-relative index, so two releases twelve months apart SHARE it: without
+# release_date the declared key is not a key, and the dedup below would delete a
+# real vintage rather than a re-print.  The cost is stated rather than assumed --
+# strictly more vintages survive, so the served and physical row counts both move
+# UP and the pg mirror grows with them on an instance with storage autoscaling
+# OFF.  The measurement rides gate G2 with a declared ceiling; it is never a
+# projection.
 _GRAIN_COLS: list[str] = [
     "leviathan_slug",
     "country",
     "market_year",
     "wasde_release_month",
+    "release_date",
     "attribute",
 ]
 
@@ -320,7 +331,9 @@ _GRAIN_COLS: list[str] = [
 def transform_psd_attributes_bronze_to_silver(
     dfs: list[pd.DataFrame],
     *,
+    calendar: dict[str, int],
     on_uncovered: Literal["drop", "raise"] = "drop",
+    counters: dict | None = None,
 ) -> pd.DataFrame:
     """Convert bronze PSD DataFrames into the LONG attribute companion table.
 
@@ -328,10 +341,17 @@ def transform_psd_attributes_bronze_to_silver(
         dfs: List of bronze DataFrames (one per release_date partition).  Must be
             non-empty.  Requires ``attribute_id`` in addition to the wide
             producer's required columns.
+        calendar: ``{'YYYY-MM': day}`` from the REGISTERED silver_wasde
+            partitions, threaded straight through to the shared prefix and the
+            one clock.  Keyword-only with NO DEFAULT -- this is the FOURTH of the
+            four signature edits the honest clock needs, and naming it separately
+            is what stops the long producer drifting away from the wide one.
         on_uncovered: What to do with a (heterogeneous multi-slug code, attribute)
             pair the R4 registry does not cover.  ``"drop"`` (default) declines
             the rows with a WARNING naming the exact pair; ``"raise"`` stops the
             transform.  Neither option ever fans an unadjudicated attribute.
+        counters: Optional dict the shared prefix fills with the clock run
+            counters, for the batch task's structured log.
 
     Returns:
         Long DataFrame with :data:`_SILVER_PSD_ATTR_COLS` columns, unique on
@@ -345,7 +365,12 @@ def transform_psd_attributes_bronze_to_silver(
     """
     _assert_r4_registers_cover_every_multi_slug_code()
 
-    combined = prepare_psd_combined_frame(dfs, extra_required=frozenset({"attribute_id"}))
+    combined = prepare_psd_combined_frame(
+        dfs,
+        extra_required=frozenset({"attribute_id"}),
+        calendar=calendar,
+        counters=counters,
+    )
     if combined.empty:
         return _empty_psd_attributes()
 
@@ -436,8 +461,15 @@ def transform_psd_attributes_bronze_to_silver(
     # One dedup ordered by (release_date, bronze_ingest_date) is latest-wins on both
     # axes and is independent of the caller's argument order.
     # -----------------------------------------------------------------------
+    # release_date JOINED THIS KEY 2026-09-04 with _GRAIN_COLS, for the same
+    # reason: wasde_release_month is a CALENDAR month under the honest clock, so
+    # keeping "the latest release per (slug, country, MY, month, attribute_id)"
+    # would delete a vintage twelve months older rather than a re-print of one
+    # release.  With release_date in the key the sort below is latest-wins on a
+    # REAL axis and only byte-identical re-prints of ONE release collapse.
     vintage_key = [
-        "leviathan_slug", "country", "market_year", "wasde_release_month", "attribute_id",
+        "leviathan_slug", "country", "market_year", "wasde_release_month",
+        "release_date", "attribute_id",
     ]
     n_reprints = int(out.duplicated(subset=vintage_key).sum())
     if n_reprints:
@@ -455,6 +487,15 @@ def transform_psd_attributes_bronze_to_silver(
     # 2026-08-13).  Enforce the declared grain anyway so the table's contract holds
     # even if a future source re-uses a label across two ids -- loudly, because that
     # would be a real source-side event, not noise.
+    #
+    # THIS FENCE'S KEY WIDENED WITH _GRAIN_COLS (2026-09-04) AND ITS PURPOSE DID
+    # NOT.  It reads _GRAIN_COLS by reference, so adding release_date there added
+    # release_date here automatically.  That is correct and it must stay correct:
+    # the fence exists to catch attribute_id -> attribute going many-to-one INSIDE
+    # ONE RELEASE, and it must never become a second vintage collapse.  Had it kept
+    # the pre-E key while _GRAIN_COLS widened, keep='first' here would have
+    # silently deleted exactly the older vintages the re-key exists to recover --
+    # the same defect one layer down.
     n_label_dupes = int(out.duplicated(subset=_GRAIN_COLS).sum())
     if n_label_dupes:
         logger.warning(

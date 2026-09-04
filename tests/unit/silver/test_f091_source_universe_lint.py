@@ -101,11 +101,22 @@ _LINT = _REPO / "scripts" / "silver" / "f091_source_universe_lint.py"
 #
 # THESE ARE THE POST-COMMIT VALUES, and the pin's own rule above is why: the census is re-derived
 # over the COMMITTED producer files, and a new producer "enters this pin in the commit that adds
-# it". Until BOTH lanes commit, five assertions here read short -- raw literal / universe literal /
-# file-list / docket-and-coverage / refusal-registry -- because the new producers are on disk and
-# NOT yet in `git ls-files`. That gap is the pin working as designed, not a loosened fence, and it
-# closes the moment each lane commits. TestGatePosture's docket assertion counts the UNFILTERED
-# report and therefore already reads the post-commit docket.
+# it". That gap is the pin working as designed, not a loosened fence, and it closes the moment each
+# lane commits. TestGatePosture's docket assertion counts the UNFILTERED report and therefore
+# already reads the post-commit docket.
+#
+# STATE OF THE GAP, RE-MEASURED 2026-09-04 after the PSD lane's fix pass. The PINK lane has landed,
+# so its share of every pin is now real and its refusal-registry assertion passes. The PSD lane has
+# not: src/leviathan/transforms/bronze_to_silver/psd_clock.py is on disk and NOT in `git ls-files`,
+# so exactly FOUR assertions read one short -- raw literal, universe literal, file-list and
+# docket-and-coverage. MEASURED by running the lint over two populations off one scan:
+#   `git ls-files` alone                     -> 344 / 128 / 170 / 94 / 13 / 81 / 140
+#   `git ls-files` PLUS psd_clock.py         -> 345 / 129 / 171 / 95 / 13 / 82 / 141
+# The second row is these pins, exactly. THE PINS DO NOT MOVE: the fix pass added no module-level
+# collection literal to any scanned root (its new names in jobs/batch/psd_silver_task.py are two
+# integer scalars, and psd_clock.py's are strings), which is why the same seven numbers still land.
+# This is a COMMIT-ORDER dependency and it belongs on the flip checklist; scripts/ops/psd_clock_runbook.py
+# step R1 names it as a delivery condition.
 PIN_RAW_LITERALS = 345          # 339 base + 3 lane E + 3 pink
 PIN_RAW_FILES = 129             # 126 base + 1 lane E + 2 pink
 PIN_UNIVERSE_LITERALS = 171     # 169 base + 1 lane E + 1 pink

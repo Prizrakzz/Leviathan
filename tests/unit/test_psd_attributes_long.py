@@ -30,7 +30,9 @@ import leviathan.transforms.bronze_to_silver.usda_psd_attributes as U4
 from leviathan.transforms.bronze_to_silver.usda_psd import (
     _PSD_COMMODITY_TO_SLUGS,
     _TARGET_ATTRS,
-    transform_psd_bronze_to_silver,
+)
+from leviathan.transforms.bronze_to_silver.usda_psd import (
+    transform_psd_bronze_to_silver as _transform_psd_bronze_to_silver,
 )
 from leviathan.transforms.bronze_to_silver.usda_psd_attributes import (
     _COFFEE_ARABICA_SLUGS,
@@ -43,10 +45,43 @@ from leviathan.transforms.bronze_to_silver.usda_psd_attributes import (
     _SILVER_PSD_ATTR_COLS,
     _SUGAR_RAW_SLUGS,
     _SUGAR_WHITE_SLUGS,
-    transform_psd_attributes_bronze_to_silver,
+)
+from leviathan.transforms.bronze_to_silver.usda_psd_attributes import (
+    transform_psd_attributes_bronze_to_silver as _transform_psd_attributes_bronze_to_silver,
 )
 
 _REPO = Path(__file__).resolve().parents[2]
+
+# ---------------------------------------------------------------------------
+# THE CLOCK RE-ANCHOR (2026-09-04, lane E)
+# ---------------------------------------------------------------------------
+# release_date now comes from the row's OWN (calendar_year, month_code) stamp plus
+# the registered WASDE day for that month, so the fixture SUPPLIES calendar_year
+# and every call routes the BANKED calendar in through one seam. `calendar` is
+# keyword-only with NO DEFAULT on both real producers -- a default is a silent
+# fallback to a stale one -- and TestTheCalendarIsRequired below pins that against
+# the REAL functions so this seam cannot hide it.
+CAL: dict[str, int] = {
+    k: int(v) for k, v in
+    json.loads((_REPO / "tests" / "fixtures" / "wasde" / "release_calendar.json")
+               .read_text(encoding="ascii"))["calendar"].items()
+}
+
+
+def transform_psd_attributes_bronze_to_silver(dfs, **kwargs):
+    kwargs.setdefault("calendar", CAL)
+    return _transform_psd_attributes_bronze_to_silver(dfs, **kwargs)
+
+
+def transform_psd_bronze_to_silver(dfs, **kwargs):
+    kwargs.setdefault("calendar", CAL)
+    return _transform_psd_bronze_to_silver(dfs, **kwargs)
+
+
+def _expected(calendar_year: int, month_code: int) -> str:
+    """The date the BANKED calendar says a stamp resolves to -- derived, never typed."""
+    return "%04d-%02d-%02d" % (calendar_year, month_code,
+                               CAL["%04d-%02d" % (calendar_year, month_code)])
 
 # (attribute_desc, attribute_id, unit_desc, value) -- byte-exact spellings from the
 # 2026-08-13 census; ids are USDA's own.
@@ -109,6 +144,7 @@ def _bronze(commodity_code: int,
             country: str = "World",
             market_year: int = 2024,
             month_code: int = 1,
+            calendar_year: int = 2024,
             release_date: str = "2026-08-13") -> pd.DataFrame:
     """One bronze row per (attribute_desc, attribute_id, unit_desc, value) tuple."""
     rows = _MASS_ROWS if rows is None else rows
@@ -118,6 +154,7 @@ def _bronze(commodity_code: int,
             "commodity_desc": f"code-{commodity_code}",
             "country_name":   country,
             "market_year":    market_year,
+            "calendar_year":  calendar_year,
             "month_code":     month_code,
             "attribute_id":   attr_id,
             "attribute_desc": attr,
@@ -146,16 +183,60 @@ class TestGrain:
             "release_date", "attribute", "attribute_id", "value", "unit",
         ]
 
-    def test_wasde_release_month_is_IN_the_grain(self) -> None:
+    def test_wasde_release_month_AND_release_date_are_IN_the_grain(self) -> None:
         # silver_wasde shipped without its full grain and the latest-vintage
         # ROW_NUMBER collapsed ACROSS regions, undetectable for months. The
         # identical exposure exists here: drop wasde_release_month and one
         # arbitrary WASDE vintage per (slug, country, market_year, attribute)
         # wins. The grain declaration is the fix and it is asserted, not assumed.
+        #
+        # T13/P20 RE-ANCHOR: release_date JOINED the grain with the honest clock.
+        # wasde_release_month is now the CALENDAR month of the release, so two
+        # releases twelve months apart SHARE it and the declared key would not be a
+        # key. The COST is measured, not assumed -- over the three banked bronze
+        # snapshots the physical row count moves 3,397,958 -> 3,401,565 (+3,607,
+        # +0.106%) and the served subset 1,079,487 -> 1,080,307 (+820, +0.076%).
         assert "wasde_release_month" in _GRAIN_COLS
+        assert "release_date" in _GRAIN_COLS
         assert _GRAIN_COLS == [
-            "leviathan_slug", "country", "market_year", "wasde_release_month", "attribute",
+            "leviathan_slug", "country", "market_year", "wasde_release_month",
+            "release_date", "attribute",
         ]
+
+    def test_the_label_dupe_fence_reads_the_grain_BY_REFERENCE(self) -> None:
+        # The fence at the end of the transform drops duplicates on _GRAIN_COLS
+        # keeping FIRST. It exists to catch attribute_id -> attribute going
+        # many-to-one INSIDE ONE RELEASE, and its key must widen WITH the grain --
+        # had it kept the pre-E key while _GRAIN_COLS widened, keep='first' would
+        # have silently deleted exactly the older vintages the re-key recovers.
+        # Read by reference, so the two can never diverge.
+        src = (_REPO / "src" / "leviathan" / "transforms" / "bronze_to_silver"
+               / "usda_psd_attributes.py").read_text(encoding="utf-8")
+        assert "out.duplicated(subset=_GRAIN_COLS)" in src
+        assert "out.drop_duplicates(subset=_GRAIN_COLS, keep=\"first\")" in src
+
+    def test_two_vintages_of_ONE_calendar_month_both_survive(self) -> None:
+        """The long companion's half of the 258-row recovery.
+
+        MY2024 coffee printed in month 12 of 2023 and again in month 12 of 2025 is
+        TWO releases, not a re-print. The retired key
+        (slug, country, market_year, wasde_release_month, attribute_id) collapsed
+        them and threw the older away.
+        """
+        old = _bronze(711100, _COFFEE_ROWS, month_code=12, calendar_year=2023,
+                      release_date="2026-05-20")
+        new = _bronze(711100, _COFFEE_ROWS, month_code=12, calendar_year=2025,
+                      release_date="2026-08-13")
+        new.loc[new.attribute_id == 28, "value"] = 999.0
+        long = transform_psd_attributes_bronze_to_silver([old, new])
+        prod = long[(long.attribute == "Production")
+                    & (long.leviathan_slug == "robusta_coffee")].sort_values("release_date")
+        assert len(prod) == 2, "the older vintage of the same calendar month was deleted"
+        # 711100 is a World Markets and Trade sheet -> month-END on both dates.
+        assert list(prod.release_date) == ["2023-12-31", "2025-12-31"]
+        assert list(prod.value) == [900.0, 999.0]
+        assert set(prod.wasde_release_month) == {12}
+        assert int(long.duplicated(subset=_GRAIN_COLS).sum()) == 0
 
     def test_grain_is_unique_across_a_multi_code_multi_month_frame(self) -> None:
         dfs = []
@@ -259,8 +340,9 @@ class TestNativeUnits:
         # guard refuses. (It only survives today because step 6 filters them out
         # first -- so feed it a frame where they are all that is left.)
         with pytest.raises(ValueError, match="unrecognised unit_desc"):
-            U.transform_psd_bronze_to_silver([
-                _bronze(2631000, [("Production", 28, "(PERCENT)", 0.71)])])
+            U.transform_psd_bronze_to_silver(
+                [_bronze(2631000, [("Production", 28, "(PERCENT)", 0.71)])],
+                calendar=CAL)
 
     def test_a_head_count_on_a_MAPPED_code_is_representable_here(self) -> None:
         # Cows In Milk (id 6, 1,917 rows) rides Dairy, Milk, Fluid (223000), which
@@ -539,8 +621,12 @@ class TestBranchPoint:
         # prefix drift apart silently.
         long = transform_psd_attributes_bronze_to_silver([_bronze(440000)])
         assert set(long.leviathan_slug) == set(_PSD_COMMODITY_TO_SLUGS[440000])
-        # corn MYS=9, month_code=1 -> (9+1-2)%12+1 = 9 -> 2024-09-10, not the ingest date
-        assert set(long.release_date) == {"2024-09-10"}
+        # The stamp is (calendar_year 2024, month 1) -> the JANUARY 2024 WASDE day,
+        # not the ingest date and not corn's marketing year. The retired rotation
+        # rotated month_code 1 by corn's MYS=9 and landed on 2024-09-10, a date USDA
+        # never published for this row; the branch point is where BOTH producers
+        # pick that correction up, which is the property this test exists for.
+        assert set(long.release_date) == {_expected(2024, 1)}
 
     def test_the_shared_prefix_leaves_the_wide_transform_byte_identical(self) -> None:
         # The extraction of steps 1-5 into prepare_psd_combined_frame must be a

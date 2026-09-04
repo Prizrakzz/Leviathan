@@ -234,16 +234,29 @@ PR_VINTAGE_STATE_COLUMNS = ("window_change",)
 
 # ── READ-SIDE LEAKAGE FENCE (coverage-plan W4) ─────────────────────────────────────────────────────
 # cascade x backfill_grid is REFUSED at the read seam. Not a coverage judgement -- a LEAKAGE one:
-#   * the backfill grid replays cascade verdicts against `silver_psd`, whose as-of axis is SYNTHESIZED.
-#     `_compute_psd_release_dates` (transforms/bronze_to_silver/usda_psd.py) discards bronze's real
-#     download stamp and writes a closed-form label (always the 10th of a marketing-year-relative month)
-#     computed from `month_code in [0,12]`, which structurally cannot encode an off-cycle revision. The
-#     whole 765-value `release_date` axis is manufactured from exactly TWO real bronze observations.
-#   * measured consequence: 739 keys CHANGED VALUE under an unchanged computed release_date, and a
-#     further 9,292 keys exist in the July bronze but not the May bronze while carrying a computed
-#     release_date backdated as far as 2020-11-10. A cascade verdict is an EXISTENCE probe (n_rows >= 1;
-#     cascade_census.pg_probe is "a whole-history existence probe: agg=latest, no period window"), so
-#     that second, 12.6x larger channel maps EXACTLY onto the quantity these rows record.
+#   * the 37,752 rows this fence refuses were WRITTEN against a `silver_psd` whose as-of axis was
+#     SYNTHESIZED. `_compute_psd_release_dates` (transforms/bronze_to_silver/usda_psd.py) discarded
+#     bronze's real download stamp and wrote a closed-form label (the 10th of a marketing-year-relative
+#     month) computed from `month_code in [0,12]`, which structurally cannot encode an off-cycle
+#     revision. The whole 765-value `release_date` axis those rows were replayed against is
+#     manufactured from exactly TWO real bronze observations.
+#   * measured consequence AT THE TIME THEY WERE WRITTEN: 739 keys CHANGED VALUE under an unchanged
+#     computed release_date, and a further 9,292 keys exist in the July bronze but not the May bronze
+#     while carrying a computed release_date backdated as far as 2020-11-10. A cascade verdict is an
+#     EXISTENCE probe (n_rows >= 1; cascade_census.pg_probe is "a whole-history existence probe:
+#     agg=latest, no period window"), so that second, 12.6x larger channel maps EXACTLY onto the
+#     quantity these rows record.
+#   * THE ROTATION IS DELETED (2026-09-04, the honest-clock re-baseline): `release_date` is now the
+#     row's own (Calendar_Year, Month) stamp resolved to a named, counted day. THE FENCE STAYS, and
+#     both halves of why are measured rather than argued. (a) The rows on S3 were written under the
+#     OLD axis and are not re-derivable from the new one; nothing about a producer change makes an
+#     already-recorded verdict honest. (b) The re-baselined table is still a BULK UNION, not a
+#     per-release archive: the numbers card's own measurement is 1.02 vintages per serving cell, so a
+#     historical asof reads at most one held vintage per cell and cannot see what a later release
+#     restated -- and the month_code-0 mass (30,715 wide rows, ~12.4% of the table) carries TODAY's
+#     estimate under a `market_year-01-01` label by design, which is the same existence-leak channel
+#     the 9,292-key measurement named. When a per-release vintage table lands, THAT is what re-opens
+#     this fence, and it re-opens on its own measurement, not on this comment.
 # The 37,752 such rows stay on S3 untouched -- they are an audit record of what the engine did, and
 # deleting them would destroy evidence. They are simply not CITABLE HISTORY. Serving has no cascade path
 # today, so the observable effect of this fence is ZERO: it is a RATCHET against a later, well-meaning

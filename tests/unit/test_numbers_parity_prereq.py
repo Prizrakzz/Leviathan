@@ -109,12 +109,40 @@ def test_psd_attributes_cell_metric_is_declared_single_unit_and_not_the_multi_un
     )
 
 
-def test_psd_attributes_vintage_cells_span_the_fan_by_the_producer_s_own_formula():
+def test_psd_attributes_vintage_cells_span_the_fan_by_the_producer_s_own_clock():
+    """P23 RE-ANCHOR (2026-09-04, lane E): the '13 distinct dates, no tie' premise
+    is RE-DERIVED on the honest axis from the test's own banked calendar, never
+    assumed from a formula.
+
+    What the premise WAS: release_date was a FUNCTION of (market_year, month_code)
+    -- the retired rotation emitted '<cal_year>-<cal_month>-10', injective in
+    month_code at a fixed market year, so thirteen month codes gave thirteen dates
+    by construction and the latest-vintage ROW_NUMBER had nothing to break.
+
+    What it IS now: a marketing year's vintages are the releases that TOUCHED it,
+    each dated from its own (Calendar_Year, Month) stamp. Twelve calendar months of
+    one year still resolve to twelve distinct registered WASDE days, and
+    month_code 0 still anchors to 1 January of the MARKETING year -- so the
+    thirteen-distinct property survives, but it is now a property of the CALENDAR
+    and it has to be measured against one rather than derived from arithmetic.
+    That is the whole point of re-anchoring rather than deleting: this is the
+    premise the psd_attributes card's 'no vintage_tiebreak' ruling rests on.
+    """
+    import json
+    from pathlib import Path
+
     import pandas as pd
     from leviathan.transforms.bronze_to_silver.usda_psd import (
         _PSD_COMMODITY_TO_SLUGS,
         _compute_psd_release_dates,
     )
+
+    cal = {
+        k: int(v) for k, v in
+        json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "wasde"
+                    / "release_calendar.json").read_text(encoding="ascii"))["calendar"].items()
+    }
+
     cells = parity.PSD_ATTR_VINTAGE_CELLS
     assert 2 <= len(cells) <= 3
     years = {my for my, _ in cells}
@@ -129,13 +157,29 @@ def test_psd_attributes_vintage_cells_span_the_fan_by_the_producer_s_own_formula
     code = next(c for c, slugs in _PSD_COMMODITY_TO_SLUGS.items()
                 if parity.PSD_ATTR_CELL_COMMODITY in slugs)
     my = int(modern[0][0])
-    frame = pd.DataFrame({"commodity_code": [code] * 13, "month_code": list(range(13)),
-                          "market_year": [my] * 13})
-    dates = sorted(_compute_psd_release_dates(frame))
-    # NO TIE for the latest-vintage ROW_NUMBER to break -- this card declares no vintage_tiebreak, and
-    # release_date is injective in month_code at a fixed market year (day-10 for 1-12, Jan-01 for 0).
-    assert len(set(dates)) == 13
     mid, settled = sorted(asof for _, asof in modern)
+    # The fan a mid-fan as-of has to sit INSIDE: the twelve monthly releases of the
+    # calendar year the as-ofs straddle, plus the month_code-0 anchor. The calendar
+    # year is READ FROM THE AS-OFS, not assumed to equal the marketing year -- that
+    # assumption is exactly what the retired rotation baked in.
+    fan_year = int(mid[:4])
+    assert all("%04d-%02d" % (fan_year, m) in cal for m in range(1, 13)), (
+        "the banked calendar must cover every month of %d for this premise to be measurable"
+        % fan_year
+    )
+    frame = pd.DataFrame({
+        "commodity_code": [code] * 13,
+        "month_code":     list(range(13)),
+        "market_year":    [my] * 13,
+        "calendar_year":  [fan_year] * 13,
+    })
+    dates = sorted(_compute_psd_release_dates(frame, calendar=cal))
+    # NO TIE for the latest-vintage ROW_NUMBER to break -- this card declares no
+    # vintage_tiebreak. Twelve registered WASDE days of one calendar year are
+    # distinct from each other, and market_year-01-01 is a day no real stamp can
+    # produce (registered days over 2006+ are 8..14).
+    assert len(set(dates)) == 13
+    assert dates.count("%04d-01-01" % my) == 1
     assert any(d <= mid for d in dates) and any(d > mid for d in dates), (
         f"the mid-fan as-of {mid} must sit STRICTLY inside MY{my}'s vintage span {dates[0]}..{dates[-1]}"
     )

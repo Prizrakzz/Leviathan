@@ -145,12 +145,28 @@ AGGS = ["latest", "series"]
 # PROJECTION WAVE Lane 3 / D-8: the silver_psd_attributes VINTAGE-FAN cell, as (market_year, asof) pairs.
 # Module-level so the shape is pinnable offline (tests/unit/test_numbers_parity_prereq.py); the leg itself
 # and the full argument for the cell live in main().
+#
+# THESE AS-OFS MUST BE RE-DERIVED AGAINST THE POST-CLOCK OBJECT BEFORE THE PROMOTE
+# (lane E, 2026-09-04 -- runbook step R7b, and it is BLOCKING). The three pairs below were chosen
+# from the RETIRED marketing-year rotation's arithmetic, which is gone: MY2010's vintages are no
+# longer "2010-09-10 .. 2011-08-10 by construction", they are whatever releases actually touched
+# that cell. MEASURED on the WIDE table over three banked bronze snapshots -- a DIRECTION with a
+# named limit, not this leg's verdict, because the leg reads the LONG table -- the honest stamp for
+# soybeans_cbot / United States / MY2010 is 2014-11-10, so the mid-fan as-of 2011-01-15 would have
+# nothing to select. AN EMPTY LEG IS A MATCH ON BOTH BACKENDS: it PASSES while proving nothing, and
+# the table-wide EMPTY-PANEL guard does not see it because these legs share the grid's tid. The
+# NON-VACUITY PRECONDITION note in main() names the only real check -- the report's per-leg lines,
+# read once. R7b runs the three legs against the SHADOW object, reads those lines, and re-derives
+# these pairs so that (a) every leg returns rows and (b) the two modern legs still select DIFFERENT
+# vintages; if no such pair of as-ofs exists on the honest axis for this cell, the CELL is re-chosen
+# and the reason recorded, because "the vintage fan collapsed" is a finding about the table, not
+# about the test.
 PSD_ATTR_CELL_COMMODITY = "soybeans_cbot"
 PSD_ATTR_CELL_COUNTRY = "United States"
 PSD_ATTR_CELL_METRIC = "Crush"                       # byte-exact USDA label (L2-0 census); single unit
 PSD_ATTR_VINTAGE_CELLS = [("1998", "2001-06-30"),    # the month_code-0 era, read contemporaneously
-                          ("2010", "2011-01-15"),    # INSIDE MY2010's WASDE fan -> the 5th vintage wins
-                          ("2010", "2026-07-01")]    # the settled end of the SAME year -> the 12th wins
+                          ("2010", "2011-01-15"),    # INSIDE MY2010's fan -> an EARLIER vintage wins
+                          ("2010", "2026-07-01")]    # the settled end of the SAME year -> the LATEST
 
 
 def _norm_value(v) -> str:
@@ -322,10 +338,18 @@ def main() -> int:
     #     metric, knowledge_date, unit, value` is already unique on its first term and the LIMIT keeps a
     #     deterministic row on Athena and on pg alike.
     #   * NO TIE INSIDE THE ROW_NUMBER either -- the failure that needed a vintage_tiebreak on
-    #     silver_wasde, and this card declares none. release_date is a FUNCTION of (market_year,
-    #     wasde_release_month): usda_psd._compute_psd_release_dates emits '<cal_year>-<cal_month>-10' for
-    #     month_code 1-12 and '<market_year>-01-01' for month_code 0, which is injective in month_code at
-    #     a fixed market year -- 13 DISTINCT dates per cell, so DESC has nothing to break.
+    #     silver_wasde, and this card declares none. RE-AUTHORED 2026-09-04 (lane E): this bullet used
+    #     to say release_date is a FUNCTION of (market_year, wasde_release_month) because
+    #     usda_psd._compute_psd_release_dates emitted '<cal_year>-<cal_month>-10', injective in
+    #     month_code at a fixed market year. That formula is DELETED. release_date is now the row's own
+    #     (Calendar_Year, Month) stamp resolved to the registered WASDE day of that calendar month
+    #     (month-END for the eight World Markets and Trade sheets, or for a month silver_wasde does not
+    #     carry), and '<market_year>-01-01' for month_code 0. The no-tie property SURVIVES and its
+    #     reason changed: the twelve monthly releases of one calendar year land on twelve DISTINCT
+    #     registered days, and the month_code-0 anchor is 1 January, a day no real stamp can produce
+    #     (registered days over 2006+ are 8..14). It is now a property of the CALENDAR, measured
+    #     against the banked one in tests/unit/test_numbers_parity_prereq.py, not an identity derived
+    #     from arithmetic.
     #   * DEEP SPAN. Crush runs MY1960-2026 (census), so the pre-2005 as-of is a real read.
     #
     # WHY THE PAIRS, and why the grid cannot do this: the grid's ORDER BY is ASC on period, so the five
@@ -334,11 +358,19 @@ def main() -> int:
     # fan INSIDE the compare:
     #   (MY1998, 2001-06-30) -- the month_code-0 era. The card measures 389,283 rows at month_code 0,
     #       MY1960-2004, one pass-through print per marketing year at release_date = Jan 1 of that year.
-    #   (MY2010, 2011-01-15) -- INSIDE MY2010's fan. Soybean MYS = 9, so the monthly vintages run
-    #       2010-09-10 (month_code 1) .. 2011-08-10 (month_code 12); this as-of must select 2011-01-10.
-    #   (MY2010, 2026-07-01) -- the SETTLED end of the same marketing year: 2011-08-10. SAME cell,
-    #       DIFFERENT vintage, so a backend that collapsed the fan differently cannot pass both legs, and
-    #       an as-of machinery that had quietly stopped moving cannot pass either.
+    #       This leg is UNAFFECTED by the clock change: month_code 0 still anchors to 1 January of the
+    #       MARKETING year, which is what keeps 30,715 wide rows byte-identical across the re-baseline.
+    #   (MY2010, <mid-fan as-of>) -- INSIDE MY2010's fan, so an EARLIER vintage wins.
+    #   (MY2010, <settled as-of>)  -- the SETTLED end of the same marketing year, so the LATEST wins.
+    #       SAME cell, DIFFERENT vintage, so a backend that collapsed the fan differently cannot pass
+    #       both legs, and an as-of machinery that had quietly stopped moving cannot pass either.
+    #       THE TWO AS-OFS ARE NO LONGER DERIVABLE FROM A FORMULA (lane E, 2026-09-04). They used to
+    #       be: "Soybean MYS = 9, so the monthly vintages run 2010-09-10 (month_code 1) .. 2011-08-10
+    #       (month_code 12); this as-of must select 2011-01-10" -- every one of those sentences was the
+    #       retired rotation's arithmetic and every one of them is false now. MY2010's vintages are
+    #       whichever releases actually touched that cell, so the pair is RE-DERIVED from the shadow
+    #       object before the promote (R7b) and the per-leg lines are READ. See the block beside
+    #       PSD_ATTR_VINTAGE_CELLS above.
     # Both aggs run although they compile the BYTE-IDENTICAL string today -- this card has no date_col, so
     # `agg=latest` falls past the vintage branch's `and order` into the same series arm. Keeping the pair
     # is the regression detector: the day a date_col is declared here the two arms diverge and the gate
