@@ -53,9 +53,21 @@ class TestChangesDeprecated:
             assert col.get("deprecated") is True, name
             assert col["nullable"] is True, name
 
-    def test_changes_still_a_registry_value_column(self, reg):
-        # deprecated != removed: it stays a declared value column (nullable, never synthesized).
-        assert "changes_1000mt" in reg.value_columns("silver_esr")
+    def test_changes_is_a_schema_row_but_not_a_governed_value_column(self, reg):
+        # deprecated != removed: the column stays DECLARED (a physical row, nullable, never
+        # synthesized) but it is NOT a governed value column any more. The value census's all-NaN
+        # rule is floor-independent by design (an all-null regression on a live column hard-fails
+        # even under a 0.0 override), and the FAS API stopped publishing 'changes' in August 2026
+        # (the schema-drift WARN names the five net-commitment fields that replaced it): with the
+        # column still governed, every usda_esr gate went red on 2026-08-27 and 2026-09-03
+        # ("'changes_1000mt' is 100% NaN/null across 225 sampled rows") and canonical promote was
+        # skipped for the whole family. Governance belongs to the columns the source still writes;
+        # an override may only name a value column, so the 0.0 override is gone with it.
+        for name in ("silver_esr", "silver_esr_compact"):
+            assert "changes_1000mt" not in reg.value_columns(name), name
+            overrides = reg.table(name).get("min_nonnull_frac_overrides") or {}
+            assert "changes_1000mt" not in overrides, name
+            assert any(c["name"] == "changes_1000mt" for c in reg.table(name)["physical_columns"]), name
 
 
 class TestPublicationLagReconciled:

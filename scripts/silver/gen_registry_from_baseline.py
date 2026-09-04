@@ -681,6 +681,15 @@ def build_contract(name: str, ctx: dict) -> dict:
             if g in _NUMERIC_GLUE and rc not in dates and rc not in nk:
                 value_columns.append(rc)
     value_columns = [v for v in value_columns if v in all_cols]
+    # A DEPRECATED column is declared nullable by its own ADR (silver_esr changes_1000mt, SILVER-F030:
+    # 'an absent source revision stays NULL'), and the value census's all-NaN rule is floor-INDEPENDENT
+    # by design (an all-null regression on a live column must hard-fail even under a 0.0 override).
+    # Both are right, and together they red every ESR gate once the source stops publishing the
+    # field -- measured 2026-08-27 and 2026-09-03 ('changes_1000mt is 100% NaN/null across 225 sampled
+    # rows'), the FAS API having moved to the five net-commitment fields the schema-drift WARN names.
+    # So a deprecated column keeps its schema row (flagged deprecated above) and leaves the GOVERNED
+    # value set: governance belongs to the columns the source still writes.
+    value_columns = [v for v in value_columns if v not in deprecated_cols]
     min_nonnull = 0.5 if value_columns else None
 
     # PIT / numbers back-pointers ---------------------------------------------------------------
@@ -1307,8 +1316,10 @@ CURATION_OVERRIDES: dict = {
     # V001 kind hard: KIND_ALL_NAN still refuses, the per-column floors still refuse. PIT adequacy
     # for ESR is served by silver_esr_compact, which carries the real per-week vintages and is
     # what tables.yaml:311 `athena_table` and this contract's `serving_table` both name.
+    # 2026-09-04: the changes_1000mt 0.0 override is GONE with the column's exit from value_columns
+    # (DEPRECATED_COLUMNS above): an override may only name a value column, and the all-NaN rule
+    # never read the override anyway -- the gate red on 2026-08-27 and 2026-09-03 despite it.
     "silver_esr": {
-        "min_nonnull_frac_overrides": {"changes_1000mt": 0.0},
         "vintage_waiver": {
             "reason": ("The FULL per-partition silver_esr surface at "
                        "silver/production/source=usda_esr was superseded by silver_esr_compact at "
@@ -1319,7 +1330,6 @@ CURATION_OVERRIDES: dict = {
             "approved": "2026-08-16 D-SG G1-6 (user gate)",
         },
     },
-    "silver_esr_compact": {"min_nonnull_frac_overrides": {"changes_1000mt": 0.0}},
     # ── Wave-3 conab canary forensics (2026-07-17): the production_revision_thousand_bags min_nonnull
     # override is RETIRED by WIRING WAVE-1 (2026-07-23). Wiring silver_conab_coffee into the numbers
     # registry makes value_columns the NUMBERS-METRIC set (production_thousand_bags / area_in_production_ha

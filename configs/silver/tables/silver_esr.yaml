@@ -141,7 +141,6 @@ value_columns:
 - weekly_exports_1000mt
 - outstanding_sales_1000mt
 - gross_new_sales_1000mt
-- changes_1000mt
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: one row per commodity x destination x week_ending_date, per weekly as_of_date report
@@ -192,5 +191,3 @@ vintage_waiver:
     the 20260524 re-baseline and a second vintage cannot arise. Per-week PIT vintages live on silver_esr_compact
     (the numbers athena_table and this contract's serving_table); this surface is read by nothing.
   approved: 2026-08-16 D-SG G1-6 (user gate)
-min_nonnull_frac_overrides:
-  changes_1000mt: 0.0

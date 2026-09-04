@@ -162,7 +162,6 @@ value_columns:
 - weekly_exports_1000mt
 - outstanding_sales_1000mt
 - gross_new_sales_1000mt
-- changes_1000mt
 min_nonnull_frac: 0.5
 min_nonnull_frac_status: provisional
 coverage_axis: commodity(slug partition) x commodity_code x market_year x country_code x week_ending_date
@@ -204,5 +203,3 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   (BF-W2 step-1 serving PR): the SILVER-F031 option-b path adds an as_of_date REGISTERED partition dimension
   for per-week vintages (canonical data/catalog migration is the gated BF-W2 window -- never re-projection).
   See reports/silver_readiness/R2_esr/F031_option_b_path.json and the parity proof under the same prefix.'
-min_nonnull_frac_overrides:
-  changes_1000mt: 0.0
