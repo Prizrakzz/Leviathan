@@ -255,6 +255,45 @@ def _cascade_stats(out: dict) -> dict:
                 or (out.get("trace") or {}).get("quantify_comove") or {})
     # CASCADE EPISODE WALK: the leg's ONE registered key (absent == did not run, the J4 precedent).
     _cw = (out.get("trace") or {}).get("quantify_cascade_walk") or {}
+    # V2-5 DEEPER/WIDER: the deep ledger rides INSIDE that same key under payload['deep'], ABSENT
+    # whenever GRAPHRAG_CASCADE_DEEP is off -- no new trace key, so no TRACE_RECORD_KEYS re-anchor.
+    # Every value below is read straight off the payload with .get; nothing is re-derived here.
+    _cw_deep = _cw.get("deep") or {}
+    _cw_hops = _cw_deep.get("hops") or {}
+    # THE PER-LEVEL RECTANGLE AS A RECORDED BOOLEAN: for each of child/grand/great,
+    # declared == priced + named + free (`absent` counts RENDERED cells and is deliberately NOT a
+    # rectangle term -- one free leg can render two absences on the two-firing shape). PLUS the
+    # mirror: the hop-1 row equals the shipped top-level ledger, so the new structure cannot silently
+    # disagree with it. True on walk-less and flag-off rows (nothing to violate), so a deck pin reads
+    # all-True and never None-noise.
+    _cw_deep_ok = all(int(r.get("declared") or 0) == int(r.get("priced") or 0)
+                      + int(r.get("named") or 0) + int(r.get("free") or 0)
+                      for r in _cw_hops.values())
+    if _cw_hops.get("child"):
+        _cw_deep_ok = _cw_deep_ok and (
+            int(_cw_hops["child"].get("declared") or 0) == int(_cw.get("children_declared") or 0)
+            and int(_cw_hops["child"].get("priced") or 0) == int(_cw.get("children_priced") or 0)
+            and int(_cw_hops["child"].get("named") or 0) == int(_cw.get("children_named") or 0))
+    if _cw_deep and not _cw_deep.get("hops"):
+        # THE WRAPPER BELT (build-refute major-2, MEASURED): a leg that RAISES mid-flight seeds
+        # payload['deep'] = {'error': True} with NO 'hops' key, and `all()` over an empty dict is
+        # VACUOUSLY TRUE -- so the one state this boolean exists to catch projected as clean.
+        # UNKNOWN IS NOT TRUE: the rectangle is unmeasurable here, so it projects None and the arm
+        # reads cw_deep_error instead. (A flag-off row leaves _cw_deep falsy and keeps True.)
+        _cw_deep_ok = None
+    _cw_plan_reads = (None if _cw_deep.get("cells_planned") is None
+                      else int(_cw_deep["cells_planned"]) * int(_cw_deep.get("reads_per_cell") or 0))
+    # THE HOP-3 VERDICT IS A HOP-3 VERDICT (build-review + build-refute major-1, MEASURED): the old
+    # "last non-root, non-context cell" was ungated by order, so a deep BREADTH row, a DEPTH-IN-TIME
+    # row and a FLAG-OFF CONTROL row all projected some child's verdict as the arm's headline hop-3
+    # metric. It is now gated on the deep ledger's OWN order_n == 3 -- which the engine already
+    # zeroes to None on a fenced block -- and keyed off the GREAT cell's slug, the tail of the
+    # rendered path, never a positional guess. Anything else projects None.
+    _cw_great_slug = ((_cw.get("path") or [None])[-1]
+                      if int(_cw_deep.get("order_n") or 0) == 3 else None)
+    _cw_deepest = (next((c for c in reversed(_cw.get("cells") or [])
+                         if c.get("kind") != "context" and c.get("slug") == _cw_great_slug), None)
+                   if _cw_great_slug else None)
     # SHAPE TOLERANCE (2026-09-01): the engine writes the FIRED DICT at sg.trace[key] (the C11/F3
     # site) while the W4.5 pins' fixtures carry the older LIST-of-pairs shape -- both are legal on
     # this read seam. A list host resolves to the entry carrying the reading/regional stamps (they
@@ -363,10 +402,15 @@ def _cascade_stats(out: dict) -> dict:
             # K2's rectangle as a RECORDED boolean: every declared child is priced or named,
             # exactly. True on walk-less rows (no key, nothing to violate) so the deck pin reads
             # all-True, never None-noise.
+            # V2-5: the rectangle gains its FREE term -- a free child is rendered-not-priced and is
+            # counted `free`, never `named`. With the deep flag off 'deep' is absent, the term is 0,
+            # and this boolean is byte-identical on every banked artifact.
             "cw_child_identity_ok": (_cw.get("outcome") is None
                                      or int(_cw.get("children_declared") or 0)
                                      == int(_cw.get("children_priced") or 0)
-                                     + int(_cw.get("children_named") or 0)),
+                                     + int(_cw.get("children_named") or 0)
+                                     + int(((((_cw.get("deep") or {}).get("hops") or {})
+                                             .get("child") or {}).get("free")) or 0)),
             "cw_verdicts": {v: sum(1 for x in _cw.get("cells") or [] if x.get("verdict") == v)
                             for v in ("aligned", "at_odds", "undetermined")},
             "cw_declines": [d.get("reason") for d in _cw.get("declines") or []],
@@ -393,6 +437,56 @@ def _cascade_stats(out: dict) -> dict:
             "cw_context_slices": (_cw.get("context") or {}).get("slices") or [],
             "cw_context_cells_measured": sum(1 for c in _cw.get("cells") or []
                                              if c.get("kind") == "context" and c.get("status") == "closed"),
+            # V2-5 DEEPER/WIDER: appended at the TAIL of the cw_* block, never sorted in (the
+            # rv_regional precedent). Same plain statement as the rider's: every eval ARTIFACT row
+            # gains these keys on every run, flag off included -- the row SHAPE changes, serving
+            # bytes do not, and a diff against a banked artifact on these keys is not drift.
+            "cw_deep_on": "deep" in _cw,                          # True on the exception path too
+            "cw_order_n": _cw_deep.get("order_n"),
+            "cw_cap_applied": _cw_deep.get("cap"),
+            "cw_ceiling_applied": _cw_deep.get("ceiling"),
+            "cw_max_children_applied": _cw_deep.get("max_children"),
+            "cw_max_order_applied": _cw_deep.get("max_order"),
+            "cw_cells_planned": _cw_deep.get("cells_planned"),
+            "cw_paid_cells": _cw_deep.get("paid_cells"),
+            # G8'S BAR, STATED ON QUANTITIES THAT CAN FAIL (build-refute major-4). `cw_plan_reads
+            # <= CW_DEEP_CAP` is NOT one of them: cascade declines 'cap' whenever
+            # `cells_planned * CW_READS_PER_CELL > cw_cap`, BEFORE any read, so on every row an arm
+            # can produce the inequality holds BY CONSTRUCTION -- a theorem, not a measurement. The
+            # arm's bar is therefore:
+            #   (a) the CAP-DECLINE CENSUS: count of rows whose cw_declines carry 'cap' == 0, and
+            #       count of rows carrying 'turn_budget_spent' == 0 -- both fail-closed states that
+            #       a mis-sized constant WOULD produce; and
+            #   (b) `cw_board_reads <= cw_plan_reads` on every FIRED row -- the realized board spend
+            #       against the plan the belts approved. This one can fail: the plan is computed
+            #       before the render loop, and a leg that priced a cell the plan called free
+            #       (the _cw_free divergence class) breaks it.
+            # cw_plan_reads stays PROJECTED -- it is the quantity the belt tests and the denominator
+            # of (b) -- it just is not the bar by itself. cw_board_reads is the honest BOARD spend:
+            # cw_reads is payload['net_reads'], which INCLUDES the V2-1 rider's context reads, so a
+            # bar on cw_reads is not a bar on the board plan.
+            "cw_plan_reads": _cw_plan_reads,
+            "cw_board_reads": (int(_cw.get("net_reads") or 0)
+                               - int((_cw.get("context") or {}).get("reads") or 0)),
+            "cw_children_free": (_cw_hops.get("child") or {}).get("free"),
+            "cw_hops": _cw_deep.get("hops"),                       # the whole per-level rectangle
+            # {level, reason} PAIRS, never a bare reason: an arm reading the artifact must be able to
+            # tell a hop-2 rejection from a hop-3 one, which is the discrimination the nine-name
+            # vocabulary exists to give (build-refute minor).
+            "cw_hop_candidates": [{"level": c.get("level"), "reason": c.get("reason")}
+                                  for c in _cw_deep.get("hop_candidates") or []],
+            "cw_hop2_declines": [d.get("reason") for d in _cw.get("declines") or []
+                                 if d.get("scope") == "grand"],
+            "cw_hop3_declines": [d.get("reason") for d in _cw.get("declines") or []
+                                 if d.get("scope") == "great"],
+            "cw_hop3_verdict": (_cw_deepest or {}).get("verdict"),
+            # THE ONE NONDETERMINISTIC FIELD ON THIS ROW: a wall clock. POP cw_walk_elapsed_ms
+            # before ANY byte diff of a flag-on artifact -- two runs of the same turn never agree on
+            # it, and it is the single reason a whole-run golden sha is unstable under the flag.
+            "cw_walk_elapsed_ms": _cw_deep.get("elapsed_ms"),
+            "cw_deep_identity_ok": _cw_deep_ok,
+            # ...and its companion: the belt state the rectangle cannot see. Bar it at zero rows.
+            "cw_deep_error": bool(_cw_deep.get("error")),
             # T2a (CONVERGENCE_TIER1): quantify_pace is ENGINE-written, non-empty IFF >=1 deterministic
             # streak/window_change pace row was emitted this turn. BOOLEAN (mirror comove_fired/
             # price_leg_fired [F7]) -- an honest decline (<2 points / annual grain / flag off) leaves the
@@ -1665,6 +1759,27 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "cw_context_declines": cs.get("cw_context_declines"),
             "cw_context_slices": cs.get("cw_context_slices"),
             "cw_context_cells_measured": cs.get("cw_context_cells_measured"),
+            # V2-5 DEEPER/WIDER: the same hard-whitelist projection (the Z7 lesson, 7th application)
+            # -- without these lines the arm's own deep verdicts reach NO artifact.
+            "cw_deep_on": cs.get("cw_deep_on"),
+            "cw_order_n": cs.get("cw_order_n"),
+            "cw_cap_applied": cs.get("cw_cap_applied"),
+            "cw_ceiling_applied": cs.get("cw_ceiling_applied"),
+            "cw_max_children_applied": cs.get("cw_max_children_applied"),
+            "cw_max_order_applied": cs.get("cw_max_order_applied"),
+            "cw_cells_planned": cs.get("cw_cells_planned"),
+            "cw_paid_cells": cs.get("cw_paid_cells"),
+            "cw_plan_reads": cs.get("cw_plan_reads"),
+            "cw_board_reads": cs.get("cw_board_reads"),
+            "cw_children_free": cs.get("cw_children_free"),
+            "cw_hops": cs.get("cw_hops"),
+            "cw_hop_candidates": cs.get("cw_hop_candidates"),
+            "cw_hop2_declines": cs.get("cw_hop2_declines"),
+            "cw_hop3_declines": cs.get("cw_hop3_declines"),
+            "cw_hop3_verdict": cs.get("cw_hop3_verdict"),
+            "cw_walk_elapsed_ms": cs.get("cw_walk_elapsed_ms"),   # POP before any byte diff
+            "cw_deep_identity_ok": cs.get("cw_deep_identity_ok"),
+            "cw_deep_error": cs.get("cw_deep_error"),
             "comove_fired": cs["comove_fired"],                # SEAM A boolean (F7): per-tier soak attribution
             "price_leg_fired": cs["price_leg_fired"],          # SEAM B boolean: settled farm-price pair rendered
             "pace_fired": cs["pace_fired"],                    # T2a boolean: deterministic pace row rendered

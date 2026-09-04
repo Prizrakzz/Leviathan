@@ -1546,6 +1546,12 @@ def check_price_register() -> list[str]:
     return errs
 
 
+# V2-5 clause (x): the MEASURED maximum hop-1 out-degree on the shipped graph, banked at module scope
+# so a pin can read it by attribute (post-fix re-review minor 6). A curation edit that moves it is a
+# WARN in the lint, never silent.
+CW_MEASURED_MAX_OUT_DEGREE = (4, "corn_cbot")
+
+
 def check_cascade_walk() -> list[str]:
     """CASCADE EPISODE WALK governance (charter v4 STEP 9, A6-adjudicated). PURE reads only --
     graph YAMLs, the contract map, cascade.py's own constants, the driver-slice config (refute M2:
@@ -1742,6 +1748,60 @@ def check_cascade_walk() -> list[str]:
     if n_census != 19:
         print(f"WARN cascade_walk: censused shipping hop count moved (19 -> {n_census}) -- "
               f"re-run the reach census and re-bank before citing pool numbers")
+    # (ix) V2-5 THE HOP-1 OUT-DEGREE CENSUS, SPELLED AGAINST THE ENGINE'S OWN LADDER (ERROR).
+    # It calls `cascade._cw_admissible_children` -- the SHIPPED ladder, lifted out of the leg for
+    # exactly this purpose -- so lint-ladder == engine-ladder BY CONSTRUCTION and lifts the day the
+    # engine lifts. It deliberately does NOT reuse clause (vii) (which walks tree DRIVERS and builds
+    # no ladder) and does NOT reuse the (viii) census's `cov < 2024-01-01` gate: that floor is the
+    # CENSUS's episode-history gate, and applying it here would compute corn_cbot = 3, never see
+    # hard_red_spring_wheat_mgex (covered 2025-09-09) and so never justify the constant at all.
+    # THE TWO BASES, STATED SEPARATELY AND NEITHER CORROBORATING THE OTHER: this ladder, with NO
+    # coverage floor, gives corn_cbot 4 and 13 roots with children; data/consequence_leg/
+    # reach_census_v2.py's FLOORED basis gives corn_cbot 3 and 19 fully-admissible first-order hops.
+    # AND IT IS THE V2-3 TRIPWIRE: because it calls the shipped ladder, the day V2-3 stops declining
+    # cross-currency children this recomputes corn_cbot at 6 (measured, v25_v4_remeasure_20260903:
+    # +french_wheat_matif +south_african_white_maize_jse) -- which is why CW_DEEP_MAX_CHILDREN is 6.
+    # A SEVENTH child is an owner decision with a named root and named boards in front of it.
+    _max_deg, _max_root = 0, None
+    for r in sorted({r["seed"] for r in rows_all}):
+        if r not in cov or r not in _cq._CW_BOARD_LABEL:
+            continue
+        _adm, _dec, _rd = _cq._cw_admissible_children(g, cov, node, r)
+        if _rd is None and len(_adm) > _max_deg:
+            _max_deg, _max_root = len(_adm), r
+    if _max_deg > _cq.CW_DEEP_MAX_CHILDREN:
+        errs.append(f"walk: the width cap no longer covers the shipped ladder -- root {_max_root!r} "
+                    f"declares {_max_deg} admissible children and the selection would silently drop "
+                    f"the last {_max_deg - _cq.CW_DEEP_MAX_CHILDREN}")
+    # (x) V2-5 THE CEILING NOTE -- A **WARN**, NEVER A RED LINT, AND IT RECOMPUTES ITS OWN TERMS.
+    # Three of the six terms behind the banked 65 are config-driven (CASCADE_CAP, CHAIN_CAP,
+    # TRANSMISSION_CAP), so a serving-config change would falsify a pinned literal without moving a
+    # single line of code. Nothing is appended to `errs`; the banked number is bumped only WITH a
+    # re-measurement -- the (viii) tripwire's discipline.
+    # AND THE MEASURED MAXIMUM IS BANKED HERE, not merely printed (build-review minor): clause (ix)
+    # ERRORs only ABOVE 6, so a curation edit taking corn_cbot from 4 to 6 would land with no red,
+    # no WARN and no re-measure, silently consuming the entire headroom CW_DEEP_MAX_CHILDREN was
+    # sized on. The banked pair is the (viii) tripwire's discipline: bumped only WITH a re-measure.
+    if (_max_deg, _max_root) != CW_MEASURED_MAX_OUT_DEGREE:
+        print(f"WARN cascade_walk: measured max hop-1 out-degree moved "
+              f"({CW_MEASURED_MAX_OUT_DEGREE[0]} on {CW_MEASURED_MAX_OUT_DEGREE[1]!r} -> "
+              f"{_max_deg} on {_max_root!r}) -- CW_DEEP_MAX_CHILDREN "
+              f"{_cq.CW_DEEP_MAX_CHILDREN} was sized on the banked pair; re-measure "
+              f"(data/consequence_leg/v25_v4_remeasure.py) before treating the headroom as real")
+    _prewalk = int(_cq.CASCADE_CAP) + int(_cq.CHAIN_CAP) + int(_cq.TRANSMISSION_CAP) + 2 + 9 + 12
+    if _prewalk != int(_cq.CW_PREWALK_MEASURED_WORST):
+        print(f"WARN cascade_walk: pre-walk worst recomputed {_prewalk} vs banked "
+              f"CW_PREWALK_MEASURED_WORST {_cq.CW_PREWALK_MEASURED_WORST} (three terms are "
+              f"config-driven: CASCADE_CAP/CHAIN_CAP/TRANSMISSION_CAP) -- re-measure before bumping")
+    print(f"NOTE cascade_walk: CW_TURN_CEILING {_cq.CW_TURN_CEILING}; the walk's own plan never "
+          f"exceeded 37 of 60 measured (5 reached turns, spent-before-walk 13/14/19/25/25). "
+          f"CW_DEEP_TURN_CEILING {_cq.CW_DEEP_TURN_CEILING} = 44 pre-walk allowance + CW_DEEP_CAP "
+          f"{_cq.CW_DEEP_CAP} + CW_CONTEXT_CAP {_cq.CW_CONTEXT_CAP} + 7 FX allowance; it BINDS only "
+          f"if all six pre-walk terms spend their caps at once ({_prewalk}+{_cq.CW_DEEP_CAP}+"
+          f"{_cq.CW_CONTEXT_CAP} > {_cq.CW_DEEP_TURN_CEILING}), which no measured turn approached. "
+          f"The {_prewalk} is a MEASUREMENT, not an enumeration: its xc-fork term is a calls-delta, "
+          f"so no identity is asserted over it. Max shipped hop-1 out-degree {_max_deg} "
+          f"({_max_root!r}) against CW_DEEP_MAX_CHILDREN {_cq.CW_DEEP_MAX_CHILDREN}.")
     return errs
 
 
@@ -1882,6 +1942,36 @@ def check_numbers_schema_pins() -> list[str]:
     return errs
 
 
+def check_vintage_grain() -> list[str]:
+    """QUERY-FIX-2 -- every VINTAGE card declares an identity group, so the as-known dedup can never
+    collapse a whole series to ONE row (AWS-free; the check_numbers_schema_pins pattern).
+
+    THE CLASS, REPRODUCED 2026-09-03: ``build_sql``'s vintage branch emits
+    ``PARTITION BY {', '.join(ts.group_cols()) or '1'}`` (query.py:874). ``group_cols()`` returns
+    ``grain_cols`` when declared, else the non-empty subset of commodity/country/period(+metric)
+    (registry.py:365-373). A WIDE card whose metric IS the series -- no commodity_col, no country_col,
+    no period_col -- therefore returns [] and the emitted window becomes ``PARTITION BY 1``: one
+    partition over the whole table, ``_rn = 1`` keeps exactly ONE row, and a 60-month series read comes
+    back with a single value. No exception, no truncation sentinel, no other lint. Silent, total data
+    loss on the one shape the vintage branch exists to serve.
+
+    Measured at HEAD: all ELEVEN shipped vintage cards pass (every one has non-empty group_cols), so
+    this lint lands byte-identical on the estate as it stands and closes the CLASS ahead of the first
+    grain-less card rather than after it."""
+    from leviathan.graphrag.numbers.registry import load_registry
+    errs: list[str] = []
+    for tid, ts in sorted(load_registry().tables.items()):
+        if ts.knowledge_semantics != "vintage":
+            continue
+        if not ts.group_cols():
+            errs.append(
+                f"vintage_grain {tid}: vintage card {tid} declares no grain_cols and no "
+                f"commodity/country/period col, so build_sql emits PARTITION BY 1 "
+                f"(query.py:874) and a whole-series read collapses to ONE row -- a silent, "
+                f"total data loss no other lint catches")
+    return errs
+
+
 def check_esr_destinations() -> list[str]:
     """ESR_DESTINATION_PLAN W0/§5.1: the FAS destination code<->name reference lints clean -- strict
     (extra='forbid') schema parse, global alias uniqueness, pseudo<->kind consistency, and EVERY display
@@ -1937,36 +2027,6 @@ def check_prompt_quarantine() -> list[str]:
     idiom on the same card)."""
     import json as _json
     from leviathan.graphrag.numbers import agent as na
-def check_vintage_grain() -> list[str]:
-    """QUERY-FIX-2 -- every VINTAGE card declares an identity group, so the as-known dedup can never
-    collapse a whole series to ONE row (AWS-free; the check_numbers_schema_pins pattern).
-
-    THE CLASS, REPRODUCED 2026-09-03: ``build_sql``'s vintage branch emits
-    ``PARTITION BY {', '.join(ts.group_cols()) or '1'}`` (query.py:874). ``group_cols()`` returns
-    ``grain_cols`` when declared, else the non-empty subset of commodity/country/period(+metric)
-    (registry.py:365-373). A WIDE card whose metric IS the series -- no commodity_col, no country_col,
-    no period_col -- therefore returns [] and the emitted window becomes ``PARTITION BY 1``: one
-    partition over the whole table, ``_rn = 1`` keeps exactly ONE row, and a 60-month series read comes
-    back with a single value. No exception, no truncation sentinel, no other lint. Silent, total data
-    loss on the one shape the vintage branch exists to serve.
-
-    Measured at HEAD: all ELEVEN shipped vintage cards pass (every one has non-empty group_cols), so
-    this lint lands byte-identical on the estate as it stands and closes the CLASS ahead of the first
-    grain-less card rather than after it."""
-    from leviathan.graphrag.numbers.registry import load_registry
-    errs: list[str] = []
-    for tid, ts in sorted(load_registry().tables.items()):
-        if ts.knowledge_semantics != "vintage":
-            continue
-        if not ts.group_cols():
-            errs.append(
-                f"vintage_grain {tid}: vintage card {tid} declares no grain_cols and no "
-                f"commodity/country/period col, so build_sql emits PARTITION BY 1 "
-                f"(query.py:874) and a whole-series read collapses to ONE row -- a silent, "
-                f"total data loss no other lint catches")
-    return errs
-
-
     from leviathan.graphrag.numbers.registry import load_registry
     reg = load_registry()
     quarantined = sorted(tid for tid, ts in reg.tables.items() if getattr(ts, "quarantined", False))
@@ -2997,6 +3057,7 @@ def main() -> int:
                         ("quarantine", check_quarantine()),
                         ("prompt_quarantine", check_prompt_quarantine()),
                         ("numbers_schema_pins", check_numbers_schema_pins()),
+                        ("vintage_grain", check_vintage_grain()),
                         ("esr_destinations", check_esr_destinations()),
                         ("faostat_areas", check_faostat_areas()),
                         ("cot_register", check_cot_register()),
@@ -3052,7 +3113,6 @@ def main() -> int:
     # bundle, never in a lint.
     from leviathan.graphrag.evidence import (never_written_slice_warnings, read_dark_slice_warnings,
                                              term_collision_warnings)
-                        ("vintage_grain", check_vintage_grain()),
     cross = term_collision_warnings()
     if cross:
         print(f"WARN term_cross_fire ({len(cross)} word-boundary term collisions across slices -- "

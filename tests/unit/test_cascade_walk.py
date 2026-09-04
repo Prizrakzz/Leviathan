@@ -654,8 +654,18 @@ def test_row3_carries_the_injected_lines_own_token():
 def test_ceiling_never_binds_on_the_measured_legitimate_shape():
     # Owner doctrine (quality beats latency; a budget never binds on a legitimate shape): the arm
     # measured pre-walk spend of 25 on live cross-commodity turns, where v3's ceiling of 30 made
-    # the walk yield. The ceiling is a runaway tripwire above the measured worst (~44) + CW_CAP.
-    assert cq.CW_TURN_CEILING >= 44 + cq.CW_CAP
+    # the walk yield. The ceiling is a runaway tripwire above the measured worst spend.
+    #
+    # V2-5 RE-ANCHOR, AND IT IS THE SET THAT IS TIGHTER, NOT THE INEQUALITY. The old single line
+    # `CW_TURN_CEILING >= 44 + CW_CAP` (60 >= 56) was an inequality against a literal that
+    # DOUBLE-COUNTED the walk -- the round-3 refute's ~44 already contained CW_CAP. These four pin
+    # every literal exactly, including the deep ceiling's own four-term derivation, and the last one
+    # states the deep budget against the MEASURED worst pre-walk turn (25) rather than mixing the
+    # off-regime ceiling with the deep cap.
+    assert cq.CW_TURN_CEILING == 60 and cq.CW_CAP == 12
+    assert cq.CW_PREWALK_MEASURED_WORST == 65
+    assert cq.CW_DEEP_TURN_CEILING == 80 == 44 + cq.CW_DEEP_CAP + cq.CW_CONTEXT_CAP + 7
+    assert cq.CW_DEEP_TURN_CEILING >= 25 + cq.CW_DEEP_CAP + cq.CW_CONTEXT_CAP     # 80 >= 54
     sg = _w_sg(trace_extra={"quantify_wave_reads": 25})
     _l, payload, _c, _q, _s = _w_run(sg=sg)
     assert payload["outcome"] == "fired"
@@ -1242,12 +1252,28 @@ def test_context_mandate_and_gate_ride_the_row_shape_and_both_flags(monkeypatch)
     assert 'if _cascade_context_on():' in a_src and '_cw_req["context"] = True' in a_src
     assert '_cw_req["replay"] = True' in a_src and '_cw_kw = {"cascade_walk": _cw_req}' in a_src
     assert a_src.count("cascade_context=_cascade_context_block_on(vp),") == 2   # both serving bodies
+    # V2-5's own seam, the same three-part discipline: the flag reader, the request key at
+    # `if _cw_focus:` scope (NOT inside the context branch -- see the behavioural pin below), and the
+    # mandate gate in BOTH serving bodies. The seam NEVER writes V2-3's `xccy`, so the engine's
+    # union is MEASURABLY inert in this build.
+    assert 'if _cascade_deep_on():' in a_src and '_cw_req["deep"] = True' in a_src
+    assert a_src.count("cascade_deep=_cascade_deep_block_on(vp),") == 2
+    assert '"xccy"' not in a_src
+    # the mandate gate reads the marker BY ATTRIBUTE, never as a copied string (the tl.LINE_PREFIX
+    # discipline: producer and gate build from ONE literal and cannot drift)
+    assert '_cq.CW_THIRD_ORDER_MARKER in (volatile_prompt or "")' in a_src
 
 
 def test_context_constants_and_map_pins():
     from leviathan.graphrag import answer as ans
     from leviathan.graphrag import tracekeys as tk
     assert cq.CW_CONTEXT_CAP == cq.CW_MAX_FIRINGS == 2
+    # V2-5 pins IN CODE that it does NOT move the depth-in-time bound, and therefore does not drag
+    # the V2-1 rider's cap through the lockstep lint at config_check.py's clause (f).
+    assert not hasattr(cq, "CW_DEEP_MAX_FIRINGS")
+    # ...and that there is NO trim ladder: CW_DEEP_CAP equals the maximal legitimate shape exactly,
+    # so the cap cannot bind and a future edit that re-adds a trim must re-open the cap arithmetic.
+    assert not hasattr(cq, "CW_DEEP_TRIM_ORDER") and "trims" not in cq._CW_DEEP_DECLINES
     assert cq.CW_SPAN_MAX_DAYS < 365 and cq.CW_CONTEXT_MIN_OBS == 3
     assert cq.CW_CONTEXT_READS_PER_CELL == 1
     assert not hasattr(cq, "CW_CONTEXT_MIN_SPAN_DAYS")          # refute m2: the COUNT is the one floor
@@ -1263,12 +1289,14 @@ def test_context_constants_and_map_pins():
     assert tk.TRACE_RECORD_KEYS[-1] == "quantify_wave_reads"
     assert tk.TRACE_RECORD_KEYS[-2] == "quantify_cascade_walk"
     assert not any("context" in k for k in tk.TRACE_RECORD_KEYS)   # NO new trace key: the ledger rides inside
+    assert not any("deep" in k for k in tk.TRACE_RECORD_KEYS)      # V2-5: same law, same ledger
     src = open(cq.__file__, encoding="utf-8").read()
     assert src.count(cq.CW_CONTEXT_TOKEN) == 1 and "os.environ" not in src   # one producer, no env
     assert cq.CW_CONTEXT_TOKEN not in open(ans.__file__, encoding="utf-8").read()
-    # the board ceiling test keeps its bytes (admission is SUBORDINATE)
-    assert "if spent + cells_planned * CW_READS_PER_CELL > CW_TURN_CEILING:" in src
-    assert "if cells_planned * CW_READS_PER_CELL > CW_CAP:" in src
+    # the two board-budget tests now read the SELECTED LOCALS (V2-5); the V2-1 rider's subordinate
+    # admission keeps reading CW_TURN_CEILING in BOTH regimes, so its pin survives byte-verbatim.
+    assert "if spent + cells_planned * CW_READS_PER_CELL > cw_ceiling:" in src
+    assert "if cells_planned * CW_READS_PER_CELL > cw_cap:" in src
     assert "spent + board_reads + ctx_admitted + 1 > CW_TURN_CEILING" in src
 
 
@@ -1513,3 +1541,1138 @@ def test_the_episode_candidate_window_SHIFTS_rather_than_narrows():
             [m for m in months if m >= str(end)[:7]][:cq.EPISODE_OUTCOME_CANDIDATES]
     wrap = [{"contract_month": m} for m in ("2021-12", "2022-01", "2022-02", "2022-03")]
     assert cq._episode_candidates(wrap, "2021-12-20", floor_months=2) == ["2022-02", "2022-03"]
+
+
+# ══ V2-5 PHASE 1 -- THE TWO PATHS THE F1 GOLDEN BANK WAS BLIND TO (refute-v4 fatal-1) ═══════════════
+#
+# The golden bank (data/consequence_leg/v25_golden_bank.py) records every call this suite makes to the
+# walk and G1 asserts the post-build FLAG-OFF path reproduces it byte for byte. Re-run at HEAD it
+# recorded 89 calls with `raised` None on ALL of them: the R6 belt at cascade.py:7055-7062 -- the ONE
+# function V2-5's deep stamp and timer actually edit -- never executed, so it had no baseline. The same
+# blindness covered `no_declared_children`, the only root-scope decline reached before child
+# enumeration: test_walk_declines_root_scope_on_the_live_graph asserts it ABSENT, nothing asserted it
+# present. These two fixtures put both paths into the banked population, and they are pins in their own
+# right: the belt's contract (payload shape, ledger rollback to the CALLER'S base, the one trace key)
+# and the pre-read named decline.
+def test_walk_belt_declines_and_rolls_back_when_the_leg_raises(monkeypatch):
+    """The R6 belt, on the one path the golden could not see. `_cw_marker` is reached AFTER both
+    board cells priced and both call records were minted (cascade.py:7035), so the raise proves the
+    rollback is real -- and proves it rolls back to the CALLER'S base, never to zero."""
+    def boom(*_a, **_k):
+        raise RuntimeError("marker exploded")
+
+    monkeypatch.setattr(cq, "_cw_marker", boom)
+    pre = {"query": {"table": "silver_cot"}, "rows": [], "status": "ok"}
+    calls = [pre]                                          # a NON-EMPTY ledger: base is 1, not 0
+    sg, qfn = _w_sg(), _WTape({ROOT: _w_tape_rows(), CHILD: _w_tape_rows()})
+    lines, payload = cq._cascade_walk_leg_or_nothing(sg, _w_graph([_w_edge()]),
+                                                     {"focus_contract": ROOT}, qfn, ASOF_W, calls)
+    assert lines == []
+    assert payload == {"outcome": "declined",
+                       "declines": [{"scope": "root", "reason": "error"}]}
+    assert calls == [pre]                                  # review D2: the LEDGER rolls back too
+    assert sg.trace["quantify_cascade_walk"] is payload     # the ONE registered key still written
+    assert len(qfn.sql) == 4                               # the reads WERE paid before the raise
+
+
+def test_no_declared_children_declines_by_name_at_zero_reads():
+    """A covered, LABELLED root whose node declares no cross-links at all: a named decline before
+    any read, with the K2 rectangle trivially true at zero on every term."""
+    qfn = _WTape({ROOT: _w_tape_rows()})
+    lines, payload, calls, _q, _s = _w_run(graph=_w_graph([]), qfn=qfn)
+    assert lines == [] and payload["outcome"] == "declined"
+    assert payload["declines"] == [{"scope": "root", "reason": "no_declared_children"}]
+    assert payload["root"] == ROOT and payload["path"] == [] and payload["cells"] == []
+    assert (payload["children_declared"] == payload["children_priced"]
+            == payload["children_named"] == 0)
+    assert payload["net_reads"] == 0 and qfn.sql == [] and calls == []
+
+
+# ══ V2-5 -- THE DEEPER/WIDER REGIME (GRAPHRAG_CASCADE_DEEP, built dark 2026-09-04) ══════════════════
+#
+# THE FIRST LAW IS FLAG-OFF BYTE-IDENTITY, and it is NOT held by these pins: it is held by the banked
+# HEAD golden (data/consequence_leg/v25_golden_bank.py -> scratchpad/v25_golden_head_v2.json, 91 calls
+# over the whole of this suite, taken BEFORE any engine edit) and asserted by G1, which re-runs that
+# producer with the flag off and joins key by key. What follows holds the ENGINE under the regime.
+#
+# THE FIXTURE VOCABULARY. Real slugs on distinct nodes, all covered and all USD, so the gates are the
+# real registers exactly as the sitting-2 fixtures use them:
+#   ROOT corn_cbot (2010-06-06) -> CHILD soft_red_winter_wheat_cbot (2010-06-06)
+#                               -> GRAND soybean_meal_cbot (2010-06-06)
+#                               -> GREAT soybean_oil_cbot (2010-06-06)   [PAID]
+#   FREE_LEG hard_red_spring_wheat_mgex (2025-09-09) -- covered only AFTER the firing window, so on
+#            this suite's 2021 firing it is the engine's own `pre_coverage` cell: rendered, declared,
+#            ZERO reads. That is the real shape rv_beans_oil measures on palm.
+GREAT = "soybean_oil_cbot"
+FREE_LEG = "hard_red_spring_wheat_mgex"
+KCBT = "hard_red_winter_wheat_kcbt"
+PALM_FREE = "malaysian_crude_palm_oil_cme"
+_D_NODES = {ROOT: "corn", CHILD: "srw_wheat", GRAND: "soymeal", GREAT: "soybean_oil",
+            FREE_LEG: "hrs_wheat", KCBT: "hrw_wheat", PALM_FREE: "palm_oil",
+            "canola_ice": "canola", "campinas_corn_reference_bmf": "corn"}
+
+
+def _d_node(c):
+    return _D_NODES.get(c, c)
+
+
+def _d_graph(edges_by_seed, drivers=("heat",)):
+    """A chain/breadth-shaped stub over the real slugs: {seed_slug: [edge, ...]}, filed by NODE the
+    way graph.py files rev rows, so `rev_cross_links` answers for any slug of that node."""
+    by_node: dict = {}
+    for seed, edges in edges_by_seed.items():
+        by_node.setdefault(_d_node(seed), []).extend(edges)
+    return SimpleNamespace(
+        contracts={ROOT: SimpleNamespace(drivers=[SimpleNamespace(id=d) for d in drivers])},
+        rev_cross_links=lambda c, _b=by_node: [dict(r) for r in _b.get(_d_node(c), [])],
+        contract_node=_d_node)
+
+
+def _d_chain(great=GREAT):
+    """ROOT -> CHILD -> GRAND -> `great`, every hop declared with the same clean '+' 0-lag edge."""
+    return _d_graph({ROOT: [_w_edge()],
+                     CHILD: [_w_edge(seed=CHILD, contract=GRAND, relation="crushed_into")],
+                     GRAND: [_w_edge(seed=GRAND, contract=great, relation="crushed_into")]})
+
+
+def _d_tape(*slugs):
+    return _WTape({s: _w_tape_rows() for s in slugs})
+
+
+def _d_run(graph, qfn=None, sg=None, request=None, calls=None):
+    """The `_w_run` shape with the DEEP key set -- the request the answer.py seam builds when
+    GRAPHRAG_CASCADE_DEEP is on and GRAPHRAG_CASCADE_CONTEXT is off (its prod state)."""
+    req = request if request is not None else {"focus_contract": ROOT, "deep": True}
+    calls = [] if calls is None else calls
+    qfn = qfn if qfn is not None else _d_tape(ROOT, CHILD, GRAND, GREAT)
+    sg = sg if sg is not None else _w_sg(kept=(GRAND, GREAT))
+    lines, payload = cq._cascade_walk_leg_or_nothing(sg, graph, req, qfn, ASOF_W, calls)
+    return lines, payload, calls, qfn, sg
+
+
+def _rect_ok(payload):
+    """G2's per-level rectangle, read off the payload the way eval.py projects it."""
+    return all(r["declared"] == r["priced"] + r["named"] + r["free"]
+               for r in payload["deep"]["hops"].values())
+
+
+# ── the constants, and the arithmetic identities behind every one of them ───────────────────────────
+def test_deep_constants_are_pinned_with_their_own_arithmetic():
+    assert cq.CW_DEEP_MAX_CHILDREN == 6 and cq.CW_DEEP_MAX_ORDER == 3
+    assert cq.CW_FREE_ALLOWANCE == 2
+    # the cap IS the maximal legitimate shape, which is why there is no trim ladder anywhere
+    assert cq.CW_DEEP_CAP == 27 == (1 + cq.CW_DEEP_MAX_CHILDREN + 1 + 1) * cq.CW_READS_PER_CELL
+    assert cq.CW_DEEP_TURN_CEILING == 80 == 44 + cq.CW_DEEP_CAP + cq.CW_CONTEXT_CAP + 7
+    assert cq.CW_DEEP_TURN_CEILING >= 25 + cq.CW_DEEP_CAP + cq.CW_CONTEXT_CAP
+    # NOT ONE SHIPPED VALUE MOVES -- the deep regime is a SECOND set of constants
+    assert (cq.CW_READS_PER_CELL, cq.CW_MAX_FIRINGS, cq.CW_MAX_CHILDREN, cq.CW_CAP,
+            cq.CW_TURN_CEILING) == (3, 2, 3, 12, 60)
+    assert cq._CW_ORDER_WORDS == {1: "first", 2: "second", 3: "third"}
+    # the CI lint's own census, on the SHIPPED ladder: 6 is the value V2-3's cross-currency lift
+    # measures on corn_cbot (v25_v4_remeasure_20260903.json); the ladder as shipped reaches 4.
+    from leviathan.graphrag import config_check as cc
+    assert cc.check_cascade_walk() == []
+
+
+def test_the_two_decline_vocabularies_are_separate_and_disjoint():
+    # v3 put `not_kept_subgraph` in the DECLINES tuple while forbidding it from payload['declines'] --
+    # two vocabularies wearing one name. They are separate tuples and the pin says so.
+    assert set(cq._CW_DEEP_DECLINES) == {"no_next_hop"}
+    assert set(cq._CW_HOP_CANDIDATE_REASONS) == {
+        "child_uncovered", "node_cycle", "cross_currency", "sign_undeclared", "sign_not_unanimous",
+        "lag_gate", "relation_unmapped", "blurb_not_unanimous", "not_kept_subgraph"}
+    assert not (set(cq._CW_DEEP_DECLINES) & set(cq._CW_HOP_CANDIDATE_REASONS))
+    # `composer_narrated_pair` is in NEITHER, and still reaches payload['declines'] at scope 'child'
+    # (the shipped quirk, pinned AS a quirk); so are the two other child-scope budget reasons.
+    for r in ("composer_narrated_pair", "child_not_priced_budget", "width_belt"):
+        assert r not in cq._CW_DEEP_DECLINES and r not in cq._CW_HOP_CANDIDATE_REASONS
+    # THE TRANSITIVE RULE IS NOT BUILT (refute-v4 major-1: on the shipped graph the coverage floors
+    # are non-decreasing down the only chain, so a free ancestor implies every descendant free and
+    # the rule would have saved zero reads while deleting declared absence rows).
+    assert "ancestor_pre_coverage" not in cq._CW_DEEP_DECLINES
+    # the READER-FACING absence vocabulary is untouched: the free rule keeps `pre_coverage` on the
+    # page and mints no new absence word at all.
+    assert "ancestor_pre_coverage" not in cq._CW_ABSENCE_WHY
+    assert "pre_coverage" in cq._CW_ABSENCE_WHY
+    assert not hasattr(cq, "_cw_free_path") and not hasattr(cq, "_cw_free_any")
+
+
+def test_the_marker_is_minted_once_from_the_prefix_and_never_copied():
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert cq.CW_THIRD_ORDER_MARKER == cq.CW_MARKER_PREFIX + "third order)"
+    # the CONSTRUCTION EXPRESSION, not the assembled literal: _cw_marker builds its head from an
+    # f-string, so "CASCADE EPISODE WALK (third order)" appears ZERO times in the module.
+    assert src.count('CW_MARKER_PREFIX + "third order)"') == 1
+    assert src.count(cq.CW_THIRD_ORDER_MARKER) == 0
+
+
+def test_the_third_order_marker_clause_clears_the_serve_fence_both_ways():
+    from leviathan.graphrag import register as reg
+    plain, ctx = cq._cw_marker("third"), cq._cw_marker("third", context=True)
+    assert plain.startswith(cq.CW_THIRD_ORDER_MARKER)
+    for m in (plain, ctx):
+        assert "coincidence test between two boards" in m and "the reader's inference" in m
+        assert cq.pace_register_ok(m) and reg.count_valuation_words(m) == 0
+        assert reg.count_flow_words(m) == 0 and not any(ch.isdigit() for ch in m)
+    assert cq._cw_register_fence([plain]) and cq._cw_register_fence([ctx])
+    # the first/second and context literals stay byte-for-byte what they were: the clause is keyed
+    # on the word 'third' alone.
+    for order in ("first", "second"):
+        assert "coincidence test" not in cq._cw_marker(order)
+        assert "coincidence test" not in cq._cw_marker(order, context=True)
+
+
+# ── the three shapes under the regime (the flag-OFF twins at :490-518 keep every byte) ──────────────
+def test_deep_breadth_prices_four_children_where_the_shipped_path_drops_one():
+    """THE WIDTH HALF, on the head shape it exists for. Four admissible children: off, CW_MAX_CHILDREN
+    is 3 and the alphabetical truncation drops the last by name; on, all four are paid and rendered."""
+    kids = [_w_edge(contract=c) for c in (CHILD, GRAND, GREAT, KCBT)]
+    g = _d_graph({ROOT: kids})
+    l_off, p_off, c_off, _q, _s = _d_run(g, qfn=_d_tape(ROOT, CHILD, GRAND, GREAT, KCBT),
+                                         request={"focus_contract": ROOT})
+    assert p_off["children_declared"] == 4 and p_off["children_priced"] == 3
+    assert any(d["reason"] == "child_not_priced_budget" for d in p_off["declines"])
+    assert len(c_off) == 4                                    # root + THREE children
+    l_on, p_on, c_on, _q2, _s2 = _d_run(g, qfn=_d_tape(ROOT, CHILD, GRAND, GREAT, KCBT))
+    assert p_on["children_declared"] == 4 == p_on["children_priced"]
+    assert not any(d["reason"] == "child_not_priced_budget" for d in p_on["declines"])
+    assert len(c_on) == 5                                     # root + FOUR children
+    assert p_on["deep"]["cells_planned"] == p_on["deep"]["paid_cells"] == 5
+    assert p_on["net_reads"] == 10 and p_on["deep"]["cap"] == 27   # 5 cells, 2.00 reads each measured
+    assert p_on["order"] == "first" and p_on["deep"]["order_n"] == 1   # every edge is off the ROOT
+    assert _rect_ok(p_on) and p_on["deep"]["hops"]["child"]["declared"] == 4
+
+
+def test_deep_depth_runs_a_third_hop_and_labels_it_third_order():
+    lines, payload, calls, _q, _s = _d_run(_d_chain())
+    assert payload["outcome"] == "fired" and payload["order"] == "third"
+    assert payload["deep"]["order_n"] == 3
+    assert payload["path"] == [ROOT, CHILD, GRAND, GREAT]
+    assert len(calls) == 4 and payload["net_reads"] == 8      # 4 cells, 2 reads each
+    assert payload["deep"]["cells_planned"] == payload["deep"]["paid_cells"] == 4
+    assert lines[-1].startswith(cq.CW_THIRD_ORDER_MARKER)
+    assert cq._cw_register_fence(lines)                       # K5 on REAL rendered lines
+    # the hop-3 cell is priced and VERDICTED under the SAME fences as hop 2
+    great_cell = next(c for c in payload["cells"] if c["slug"] == GREAT)
+    assert great_cell["status"] == "closed" and great_cell["verdict"] in ("aligned", "at_odds")
+    assert great_cell["interval_ok"] is True and great_cell["tenor_ok"] is True
+    assert any(ln.startswith("CONSEQUENCE HOP CBOT soybean meal and CBOT soybean oil")
+               for ln in lines)
+    # the rectangle at every level
+    assert _rect_ok(payload)
+    assert payload["deep"]["hops"]["grand"] == {"declared": 1, "priced": 1, "named": 0,
+                                                "free": 0, "absent": 0}
+    assert payload["deep"]["hops"]["great"] == {"declared": 1, "priced": 1, "named": 0,
+                                                "free": 0, "absent": 0}
+    # ...and the SAME graph with the flag OFF stops at the second hop, byte-for-byte as today
+    _l2, p2, c2, _q2, _s2 = _d_run(_d_chain(), request={"focus_contract": ROOT})
+    assert p2["order"] == "second" and p2["path"] == [ROOT, CHILD, GRAND] and len(c2) == 3
+    assert "deep" not in p2
+
+
+def test_deep_depth_in_time_is_unchanged_in_shape():
+    win2 = [{"start": W_START, "end": W_END, "span": W_SPAN, "n": 7},
+            {"start": "2021-04-01", "end": "2021-06-20", "span": "2021-04..2021-06", "n": 5}]
+    _l, payload, calls, _q, _s = _d_run(_d_graph({ROOT: [_w_edge()]}),
+                                        qfn=_d_tape(ROOT, CHILD), sg=_w_sg(windows=win2))
+    assert payload["outcome"] == "fired" and len(payload["firings"]) == 2
+    assert len(calls) == 4                                    # (root + child) x two firings
+    assert payload["deep"]["cells_planned"] == 4 and _rect_ok(payload)
+
+
+def test_the_no_next_hop_decline_is_named_and_the_rectangle_holds_at_zero():
+    _l, payload, _c, _q, _s = _d_run(_d_graph(
+        {ROOT: [_w_edge()], CHILD: [_w_edge(seed=CHILD, contract=GRAND, relation="crushed_into")]}),
+        qfn=_d_tape(ROOT, CHILD, GRAND), sg=_w_sg(kept=(GRAND,)))
+    assert payload["order"] == "second" and payload["deep"]["order_n"] == 2
+    assert {"scope": "great", "reason": "no_next_hop"} in payload["declines"]
+    assert payload["deep"]["hops"]["great"] == {"declared": 0, "priced": 0, "named": 0,
+                                                "free": 0, "absent": 0}
+    assert _rect_ok(payload)                                  # 0 == 0 + 0 + 0, and G2 says so
+
+
+# ── the free cell: rendered, declared, ZERO reads, and it books no paid slot ────────────────────────
+def test_a_free_child_rides_outside_the_paid_budget_and_still_renders_its_absence():
+    """The pre_coverage child renders its hop header AND its absence line, is excluded from
+    cells_planned, and consumes NO paid slot -- so a FOURTH board that can print gets one."""
+    kids = [_w_edge(contract=c) for c in (CHILD, GRAND, GREAT, FREE_LEG)]
+    tape = _d_tape(ROOT, CHILD, GRAND, GREAT)                 # FREE_LEG is never asked for
+    lines, payload, calls, qfn, _s = _d_run(_d_graph({ROOT: kids}), qfn=tape)
+    assert payload["children_declared"] == 4 and payload["children_priced"] == 3
+    assert payload["deep"]["hops"]["child"]["free"] == 1      # FREE_LEG rides, books nothing
+    assert payload["children_named"] == 0                     # a free child is FREE, never NAMED
+    assert _rect_ok(payload)                                  # 4 == 3 + 0 + 1
+    assert payload["deep"]["cells_planned"] == payload["deep"]["paid_cells"] == 4   # not 5
+    assert payload["net_reads"] == 8 and len(calls) == 4      # the free cell paid NOTHING
+    free_cell = next(c for c in payload["cells"] if c["slug"] == FREE_LEG)
+    assert free_cell["status"] == "declined" and free_cell["reason"] == "pre_coverage"
+    assert free_cell["reads"] == 0
+    assert payload["deep"]["hops"]["child"]["absent"] == 1
+    assert any(ln.startswith("CONSEQUENCE HOP CBOT corn and MGEX hrs wheat") for ln in lines)
+    assert any(cq._CW_ABSENCE_WHY["pre_coverage"] in ln for ln in lines)
+    assert not any(FREE_LEG in s for s in qfn.sql)            # never read, not merely discounted
+
+
+def test_a_free_great_leg_renders_an_absence_and_the_order_label_stops_at_the_paid_hop():
+    """THE ALL-LEGS RULE, on the shape rv_beans_oil measures: the third hop is free, so the block
+    renders FOUR cells for THREE paid.
+
+    AND THE ORDER LABEL STOPS AT HOP 2 (build-refute B4, adjudicated): the free hop-3 cell prints an
+    ABSENCE, not a read, so a 'third order' marker -- and the deep mandate it gates, which tells the
+    writer to state each hop 'with its own handle and its own read as printed' -- would be describing
+    a row that does not exist. The rendered PATH still carries all four boards: the page really did
+    show that absence."""
+    lines, payload, calls, _q, _s = _d_run(_d_chain(great=FREE_LEG),
+                                           qfn=_d_tape(ROOT, CHILD, GRAND),
+                                           sg=_w_sg(kept=(GRAND, FREE_LEG)))
+    assert payload["order"] == "second" and payload["deep"]["order_n"] == 2
+    assert payload["path"] == [ROOT, CHILD, GRAND, FREE_LEG]  # RENDERED, absences included
+    assert not lines[-1].startswith(cq.CW_THIRD_ORDER_MARKER)
+    assert lines[-1] == cq._cw_marker("second")
+    assert len(payload["cells"]) == 4 and len(calls) == 3     # 4 rendered, 3 paid
+    assert payload["deep"]["paid_cells"] == 3 and payload["net_reads"] == 6
+    assert payload["deep"]["hops"]["great"] == {"declared": 1, "priced": 0, "named": 0,
+                                                "free": 1, "absent": 1}
+    assert _rect_ok(payload)                                  # 1 == 0 + 0 + 1, the state v3 could
+    assert cq._cw_register_fence(lines)                       #   not express
+    # ...and the mandate's OWN GATE KEY is absent from the block, so _cascade_deep_block_on can
+    # never fire on it however the flags are set (the gate is `CW_THIRD_ORDER_MARKER in prompt`)
+    assert cq.CW_THIRD_ORDER_MARKER not in "\n".join(lines)
+
+
+def test_the_free_aggregation_is_over_every_selected_firing():
+    """THE DIRECTION THAT COSTS: a child free on ONE of two firings is NOT free -- it books a paid
+    cell on BOTH, renders an absence on the one where it is free, and is counted `named` (it never
+    priced), never `free`. Over-reservation is safe; under-reservation would not be."""
+    from leviathan.silver import futures_eod_contracts as FC
+    f_early = {"start": "2013-03-05", "end": "2013-06-25", "span": "2013-03..2013-06", "n": 7}
+    f_late = {"start": W_START, "end": W_END, "span": W_SPAN, "n": 5}
+    # KCBT's coverage floor (2014-01-02) sits BETWEEN the two firing starts -- read off the ONE
+    # predicate directly, so the aggregation is pinned on the rule and not on a tape shape
+    assert cq._cw_free(FC.PRICE_COVERAGE_START, KCBT, f_early) is True
+    assert cq._cw_free(FC.PRICE_COVERAGE_START, KCBT, f_late) is False
+    _l, payload, _c, _q, _s = _d_run(_d_graph({ROOT: [_w_edge(contract=KCBT)]}),
+                                     qfn=_d_tape(ROOT, KCBT),
+                                     sg=_w_sg(windows=[f_early, f_late]))
+    assert len(payload["firings"]) == 2
+    assert payload["deep"]["hops"]["child"]["free"] == 0      # free on ONE firing is not free
+    assert payload["deep"]["cells_planned"] == 4              # 2 firings x (root + the child)
+    assert payload["deep"]["hops"]["child"]["named"] == 0     # it PRICED on the firing it covers
+    assert payload["deep"]["hops"]["child"]["priced"] == 1
+    assert _rect_ok(payload)
+    # ...and the ALL-firings direction is the one that costs: had the aggregation been per-firing,
+    # this child would have booked no cell on the early window and the plan would read 3, not 4.
+    assert payload["deep"]["paid_cells"] == 4
+
+
+# ── the runtime width belt: the tripwire the CI lint cannot be ─────────────────────────────────────
+def test_the_width_belt_declines_the_excess_by_name_and_counts_it(monkeypatch):
+    """refute-v4 major-3. Free children ride OUTSIDE the paid budget, so rendered width has no
+    fail-closed bound of its own -- and configs/graphrag is gitignored and rides the image tar, so a
+    curation edit can mint extra children on a serving image the lint never ran against. UNREACHABLE
+    on the shipped graph (max out-degree 4 against 6 + 2), so it is forced here by the knob."""
+    monkeypatch.setattr(cq, "CW_DEEP_MAX_CHILDREN", 1)
+    monkeypatch.setattr(cq, "CW_FREE_ALLOWANCE", 0)
+    kids = [_w_edge(contract=c) for c in (CHILD, GRAND, GREAT)]
+    _l, payload, _c, _q, _s = _d_run(_d_graph({ROOT: kids}),
+                                     qfn=_d_tape(ROOT, CHILD, GRAND, GREAT))
+    reasons = [d["reason"] for d in payload["declines"]]
+    assert reasons.count("child_not_priced_budget") == 2      # the paid budget takes them first
+    assert (payload["children_declared"] == 3
+            == payload["children_priced"] + payload["children_named"])
+    assert _rect_ok(payload)
+    # ...and with every child FREE the paid budget cannot bite at all, so the BELT is the ONLY
+    # bound left -- which is the whole reason it exists. Only one shipped USD board has a coverage
+    # floor after this suite's 2021 firing, so the second free child is made by moving palm's floor.
+    from leviathan.silver import futures_eod_contracts as FC
+    monkeypatch.setitem(FC.PRICE_COVERAGE_START, PALM_FREE, "2025-01-01")
+    monkeypatch.setattr(cq, "CW_DEEP_MAX_CHILDREN", 0)
+    free_kids = [_w_edge(contract=c) for c in (FREE_LEG, PALM_FREE)]
+    _l2, p2, _c2, q2, _s2 = _d_run(_d_graph({ROOT: free_kids}), qfn=_d_tape(ROOT))
+    belted = [d for d in p2["declines"] if d["reason"] == "width_belt"]
+    assert len(belted) == 2 and {d["child"] for d in belted} == {FREE_LEG, PALM_FREE}
+    assert p2["children_named"] == 2 and p2["deep"]["hops"]["child"]["free"] == 0
+    assert not any(FREE_LEG in s or PALM_FREE in s for s in q2.sql)   # belted, never read
+    assert _rect_ok(p2)
+
+
+# ── L2: the rectangle is closed at EVERY early return, not only on the render path ──────────────────
+@pytest.mark.parametrize("belt, sg_kw, patch", [
+    ("no_firing_window", {"windows": []}, None),
+    ("turn_spend_unknown", {"drop_wave": True}, None),
+    ("cap", {}, ("CW_DEEP_CAP", 0)),
+    ("turn_budget_spent", {"trace_extra": {"quantify_wave_reads": 79}}, None),
+])
+def test_the_rectangle_is_closed_on_every_root_scope_decline(monkeypatch, belt, sg_kw, patch):
+    """refute-v4 FATAL 2: with the stamp only at the end of the render loop, a decline with k free
+    children read {declared 0, priced 0, named 0, free k} and the invariant was FALSE (0 == k) on
+    exactly the states the counters exist to describe. Every belt now carries a closed rectangle AND
+    the mirror onto the shipped ledger."""
+    if patch:
+        monkeypatch.setattr(cq, patch[0], patch[1])
+    drop = sg_kw.pop("drop_wave", False)
+    sg = _w_sg(**sg_kw)
+    if drop:
+        del sg.trace["quantify_wave_reads"]                   # absent is never zero -> unknown
+    kids = [_w_edge(contract=c) for c in (CHILD, GRAND, FREE_LEG)]
+    _l, payload, _c, qfn, _s = _d_run(_d_graph({ROOT: kids}), qfn=_d_tape(ROOT, CHILD, GRAND), sg=sg)
+    assert any(d["reason"] == belt for d in payload["declines"]), payload["declines"]
+    assert qfn.sql == []                                      # every one of these is PRE-read
+    hops = payload["deep"]["hops"]
+    assert _rect_ok(payload)
+    # THE MIRROR: the hop-1 row can never silently disagree with the shipped ledger
+    assert hops["child"]["declared"] == payload["children_declared"] == 3
+    assert hops["child"]["priced"] == payload["children_priced"]
+    assert hops["child"]["named"] == payload["children_named"]
+    # `absent` counts RENDERED cells, so it is 0 on a pre-render decline -- which is why
+    # declared == priced + named + free + absent also holds on every root-scope decline.
+    for row in hops.values():
+        assert row["absent"] == 0
+        assert row["declared"] == row["priced"] + row["named"] + row["free"] + row["absent"]
+
+
+def test_the_no_firing_window_belt_names_the_same_children_in_both_regimes():
+    kids = [_w_edge(contract=c) for c in (CHILD, GRAND, GREAT, KCBT)]
+    g = _d_graph({ROOT: kids})
+    _l, off, _c, _q, _s = _d_run(g, sg=_w_sg(windows=[]), request={"focus_contract": ROOT})
+    _l2, on, _c2, _q2, _s2 = _d_run(g, sg=_w_sg(windows=[]))
+    assert off["children_declared"] == off["children_named"] == 4
+    assert on["children_declared"] == on["children_named"] == 4     # the SAME children, SAME total
+    assert on["deep"]["hops"]["child"]["free"] == 0                 # no firing to classify against
+    assert _rect_ok(on)
+
+
+# ── the two extractions: same ladder, one implementation ────────────────────────────────────────────
+def test_cw_admissible_children_returns_three_arms_and_the_lint_calls_it():
+    from leviathan.graphrag import config_check as cc
+    cov = {ROOT: "2010-06-06", CHILD: "2010-06-06"}
+    g = _w_graph([_w_edge()])
+    adm, dec, rd = cq._cw_admissible_children(g, cov, g.contract_node, ROOT)
+    assert rd is None and dec == [] and [a["child"] for a in adm] == [CHILD]
+    # arm 2: a covered non-canonical focus -- every row filed under ANOTHER seed
+    g2 = _w_graph([_w_edge(seed="campinas_corn_reference_bmf")])
+    assert cq._cw_admissible_children(g2, cov, g2.contract_node, ROOT)[2] == "focus_not_node_seed"
+    # arm 3: no declared cross-links at all
+    g3 = _w_graph([])
+    assert cq._cw_admissible_children(g3, cov, g3.contract_node, ROOT)[2] == "no_declared_children"
+    # ...and the child-scope declines come back in the shipped ORDER and the shipped SHAPE
+    g4 = _w_graph([_w_edge(contract="canola_ice"), _w_edge(sign="0")])
+    _a, d4, _r = cq._cw_admissible_children(g4, dict(cov, canola_ice="2010-01-01"),
+                                            g4.contract_node, ROOT)
+    assert d4 == [{"scope": "child", "reason": "cross_currency", "child": "canola_ice"},
+                  {"scope": "child", "reason": "sign_undeclared", "child": CHILD}]
+    # THE SHARED-LADDER PIN: clause (ix) calls the ENGINE's ladder and re-implements no child gate
+    c_src = open(cc.__file__, encoding="utf-8").read()
+    ix = c_src[c_src.index("# (ix) V2-5"):c_src.index("# (x) V2-5")]
+    assert "_cw_admissible_children" in ix
+    for gate in ("cross_currency", "sign_undeclared", "blurb_not_unanimous", "lag_gate"):
+        assert gate not in ix
+
+
+def test_cw_next_hop_names_each_of_the_nine_candidate_rejections():
+    """The extraction's one behavioural risk is the decomposed `and` chain, and this is its bound: a
+    candidate failing each test in turn returns None with the matching NAME, and none of the nine
+    ever reaches payload['declines']."""
+    cov = {ROOT: "2010-06-06", CHILD: "2010-06-06", GRAND: "2010-06-06",
+           "canola_ice": "2010-01-01"}
+    path = {_d_node(ROOT), _d_node(CHILD)}
+    cases = [
+        ("not_kept_subgraph", [_w_edge(seed=CHILD, contract=GRAND)], set(), cov),
+        ("child_uncovered", [_w_edge(seed=CHILD, contract=GRAND)], {GRAND},
+         {ROOT: "2010-06-06", CHILD: "2010-06-06"}),
+        ("sign_undeclared", [_w_edge(seed=CHILD, contract=GRAND, sign="0")], {GRAND}, cov),
+        ("sign_not_unanimous", [_w_edge(seed=CHILD, contract=GRAND, sign="+"),
+                                _w_edge(seed=CHILD, contract=GRAND, sign="-",
+                                        relation="correlates_with")], {GRAND}, cov),
+        ("lag_gate", [_w_edge(seed=CHILD, contract=GRAND, lag="2-4 quarters")], {GRAND}, cov),
+        ("relation_unmapped", [_w_edge(seed=CHILD, contract=GRAND, relation="refined_into")],
+         {GRAND}, cov),
+        ("blurb_not_unanimous", [_w_edge(seed=CHILD, contract=GRAND, blurb="a"),
+                                 _w_edge(seed=CHILD, contract=GRAND, blurb="b",
+                                         relation="correlates_with")], {GRAND}, cov),
+        ("cross_currency", [_w_edge(seed=CHILD, contract="canola_ice")], {"canola_ice"}, cov),
+        ("node_cycle", [_w_edge(seed=CHILD, contract=ROOT)], {ROOT}, cov),
+    ]
+    for reason, edges, keep, c in cases:
+        p = {"declines": [], "deep": {"hop_candidates": []}}
+        out = cq._cw_next_hop(_d_graph({CHILD: edges}), c, _d_node, keep, set(), CHILD,
+                              path, p, level="grand", verbose=True)
+        assert out is None, reason
+        assert [x["reason"] for x in p["deep"]["hop_candidates"]] == [reason], reason
+        assert [x["level"] for x in p["deep"]["hop_candidates"]] == ["grand"]
+        assert p["declines"] == []                            # NEVER the decline census
+    assert {c[0] for c in cases} == set(cq._CW_HOP_CANDIDATE_REASONS)
+
+
+def test_cw_next_hop_emits_the_composer_decline_verbatim_and_off_path_is_silent():
+    cov = {ROOT: "2010-06-06", CHILD: "2010-06-06", GRAND: "2010-06-06"}
+    g = _d_graph({CHILD: [_w_edge(seed=CHILD, contract=GRAND, relation="crushed_into")]})
+    p = {"declines": []}                                      # NO 'deep' key: the off-path shape
+    out = cq._cw_next_hop(g, cov, _d_node, {GRAND}, {frozenset((CHILD, GRAND))}, CHILD,
+                          {_d_node(ROOT), _d_node(CHILD)}, p, level="grand", verbose=False)
+    assert out is None
+    # scope 'child' VERBATIM -- the shipped quirk, preserved rather than tidied, because tidying it
+    # would move bytes on the off path
+    assert p["declines"] == [{"scope": "child", "reason": "composer_narrated_pair", "child": GRAND}]
+    # the generalised node-distinctness test agrees with the shipped three-node form
+    assert cq._cw_next_hop(g, cov, _d_node, {GRAND}, set(), CHILD,
+                           {_d_node(ROOT), _d_node(CHILD)}, {"declines": []},
+                           level="grand", verbose=False)["child"] == GRAND
+    assert cq._cw_next_hop(g, cov, _d_node, {GRAND}, set(), CHILD,
+                           {_d_node(ROOT), _d_node(CHILD), _d_node(GRAND)}, {"declines": []},
+                           level="grand", verbose=False) is None
+
+
+def test_keep_is_not_hoisted_out_of_the_single_child_branch(monkeypatch):
+    """The shipped behaviour: on a turn with more than one admissible child `_cw_kept_contracts` is
+    never called at all. The extraction must not have hoisted it."""
+    seen: list = []
+
+    def _spy(sg):
+        seen.append(1)
+        return set()
+
+    monkeypatch.setattr(cq, "_cw_kept_contracts", _spy)
+    kids = [_w_edge(contract=c) for c in (CHILD, GRAND)]
+    _d_run(_d_graph({ROOT: kids}), qfn=_d_tape(ROOT, CHILD, GRAND))
+    assert seen == []
+
+
+# ── the shared regime, the same-currency switch and the seam ────────────────────────────────────────
+def test_the_regime_is_the_union_with_v23s_key_and_the_union_is_inert_here():
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert 'bool((walk_request or {}).get("deep") or (walk_request or {}).get("xccy"))' in src
+    # a request carrying ONLY V2-3's key selects the SAME regime -- that is what makes the seam a
+    # contract rather than a comment. Nothing writes `xccy` in this build (pinned on answer.py).
+    _l, payload, _c, _q, _s = _d_run(_d_chain(), request={"focus_contract": ROOT, "xccy": True})
+    assert payload["deep"]["max_children"] == cq.CW_DEEP_MAX_CHILDREN
+    assert payload["order"] == "third"
+
+
+def test_the_shape_switch_reads_the_same_currency_count_not_the_list_length():
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert ('same_ccy_n = sum(1 for a in admissible '
+            'if _cw_currency(a["child"]) == _cw_currency(root))') in src
+    assert "if same_ccy_n == 1:" in src and "if same_ccy_n > 1 or grand is not None:" in src
+    # the depth child is the UNIQUE same-currency member, never admissible[0] (refute-v4 major-2):
+    # today they are the same element; the day V2-3 admits an FX sibling they are not.
+    assert 'child = next(a["child"] for a in admissible' in src
+    assert "admissible[0]" not in src
+
+
+def test_the_deep_locals_are_read_nowhere_a_shipped_constant_should_be():
+    """The pin that stops a future edit reading a shipped global in one belt and a deep local in
+    another. Over the leg's own source, the three shipped knobs appear ONLY in their selection lines
+    -- with CW_TURN_CEILING additionally, and only, in the V2-1 rider's subordinate admission test,
+    which is regime-independent by design."""
+    import inspect
+    src = inspect.getsource(cq._cascade_walk_legs)
+    body = src[src.index('payload: dict = {'):]               # past the docstring
+    code = [ln.strip() for ln in body.splitlines()
+            if ln.strip() and not ln.strip().startswith("#")]
+
+    def _lines_with(tok):
+        return [ln for ln in code if tok in ln]
+
+    # every CODE line mentioning a shipped knob, enumerated: the four selection lines and the
+    # off-path truncation, plus the V2-1 rider's own admission test, which is regime-independent by
+    # design and therefore keeps reading CW_TURN_CEILING in BOTH regimes. Nothing else.
+    assert _lines_with("CW_MAX_CHILDREN") == [
+        "cw_children = CW_DEEP_MAX_CHILDREN if deep_on else CW_MAX_CHILDREN",
+        "named_budget = admissible[CW_MAX_CHILDREN:]",
+        "admissible = admissible[:CW_MAX_CHILDREN]"]
+    assert _lines_with("CW_CAP") == ["cw_cap = CW_DEEP_CAP if deep_on else CW_CAP"]
+    assert _lines_with("CW_TURN_CEILING") == [
+        "cw_ceiling = CW_DEEP_TURN_CEILING if deep_on else CW_TURN_CEILING",
+        "elif spent + board_reads + ctx_admitted + 1 > CW_TURN_CEILING:"]
+    assert "cw_order_max = CW_DEEP_MAX_ORDER if deep_on else 2" in src
+    # ...and the two board belts read the LOCALS, never the globals
+    assert "if cells_planned * CW_READS_PER_CELL > cw_cap:" in src
+    assert "if spent + cells_planned * CW_READS_PER_CELL > cw_ceiling:" in src
+    # the off-path truncation stayed in its shipped position, under its own guard
+    assert "if not deep_on:" in src
+
+
+def test_the_seam_places_deep_outside_the_context_branch(monkeypatch):
+    """BEHAVIOURAL, not textual, and it is the pin that would have caught a silently inert arm: the
+    v2 draft's placement ('beside _cw_req["context"] = True') would make GRAPHRAG_CASCADE_DEEP do
+    NOTHING whenever GRAPHRAG_CASCADE_CONTEXT is off -- which is its prod state."""
+    from leviathan.graphrag import answer as ans
+    monkeypatch.delenv("GRAPHRAG_CASCADE_CONTEXT", raising=False)
+    monkeypatch.setenv("GRAPHRAG_CASCADE_DEEP", "on")
+    assert ans._cascade_deep_on() is True and ans._cascade_context_on() is False
+    req = {"focus_contract": ROOT}
+    if ans._cascade_context_on():                             # the seam's own two branches, in order
+        req["context"] = True
+    if ans._cascade_deep_on():
+        req["deep"] = True
+    assert req == {"focus_contract": ROOT, "deep": True}
+    _l, payload, _c, _q, _s = _d_run(_d_chain(), request=req)
+    assert payload["order"] == "third" and "deep" in payload and "context" not in payload
+    monkeypatch.delenv("GRAPHRAG_CASCADE_DEEP", raising=False)
+    assert ans._cascade_deep_on() is False                    # read PER CALL -> the flip is live
+
+
+def test_the_deep_mandate_rides_the_flag_the_block_and_the_third_order_marker(monkeypatch):
+    from leviathan.graphrag import answer as ans
+    from leviathan.graphrag import register as reg
+    monkeypatch.setenv("GRAPHRAG_CASCADE_WALK", "on")
+    monkeypatch.setenv("GRAPHRAG_CASCADE_DEEP", "on")
+    assert ans._cascade_deep_block_on("") is False                        # no block
+    assert ans._cascade_deep_block_on("... " + cq._cw_marker("second") + " ...") is False
+    vp = "... " + cq._cw_marker("third") + " ..."
+    assert ans._cascade_deep_block_on(vp) is True
+    monkeypatch.delenv("GRAPHRAG_CASCADE_DEEP", raising=False)
+    assert ans._cascade_deep_block_on(vp) is False                        # flag off -> no mandate
+    monkeypatch.setenv("GRAPHRAG_CASCADE_DEEP", "on")
+    on = ans._system(cascade_walk=True, cascade_deep=True)
+    assert ans._SYSTEM_CASCADE_DEEP in on and "third order" in on
+    assert ans._SYSTEM_CASCADE_DEEP not in ans._system(cascade_walk=True)   # DEFAULT FALSE
+    # PHRASED POSITIVELY (the J6 addendum doctrine): it says what to write and names no prohibition
+    m = ans._SYSTEM_CASCADE_DEEP
+    assert reg.count_flow_words(m) == 0 == reg.count_valuation_words(m)
+    assert reg.internal_leaks(m) == [] and cq.pace_register_ok(m)
+    for prohibition in ("never write", "do not claim", "must not", "never derive"):
+        assert prohibition not in m
+
+
+# ── the timer, and no regime mixing on the error path ───────────────────────────────────────────────
+def test_the_walk_timer_stamps_every_path_under_the_regime_and_none_with_the_flag_off(monkeypatch):
+    _l, p_fired, _c, _q, _s = _d_run(_d_chain())
+    assert p_fired["outcome"] == "fired" and isinstance(p_fired["deep"]["elapsed_ms"], int)
+    _l, p_dec, _c, _q, _s = _d_run(_d_chain(), sg=_w_sg(windows=[]))
+    assert p_dec["outcome"] == "declined" and isinstance(p_dec["deep"]["elapsed_ms"], int)
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("marker exploded")
+
+    # the EXCEPTION belt carries the regime -- otherwise a treatment error row projects as a control
+    monkeypatch.setattr(cq, "_cw_marker", _boom)
+    _l, p_err, calls, _q, _s = _d_run(_d_chain())
+    assert p_err["outcome"] == "declined" and p_err["deep"]["error"] is True
+    assert isinstance(p_err["deep"]["elapsed_ms"], int) and calls == []
+    assert p_err["declines"] == [{"scope": "root", "reason": "error"}]
+    # ...and with the flag OFF that same path carries NO 'deep' key at all
+    _l, off_err, _c, _q, _s = _d_run(_d_chain(), request={"focus_contract": ROOT})
+    assert off_err == {"outcome": "declined", "declines": [{"scope": "root", "reason": "error"}]}
+
+
+def test_the_eval_projections_read_the_deep_ledger_without_re_deriving_it():
+    from leviathan.graphrag import eval as EV
+    _l, p, _c, _q, _s = _d_run(_d_chain())
+    rec = {"citations": [], "trace": {"quantify_cascade_walk": p}, "structured": None, "answer": ""}
+    st = EV._cascade_stats(rec)
+    assert st["cw_deep_on"] is True and st["cw_order_n"] == 3
+    assert st["cw_cap_applied"] == 27 and st["cw_ceiling_applied"] == 80
+    assert st["cw_max_children_applied"] == 6 and st["cw_max_order_applied"] == 3
+    assert st["cw_cells_planned"] == st["cw_paid_cells"] == 4
+    assert st["cw_plan_reads"] == 12 == 4 * cq.CW_READS_PER_CELL   # THE PLAN -- the barred quantity
+    assert st["cw_board_reads"] == st["cw_reads"] == 8             # the rider is off: they agree
+    assert st["cw_plan_reads"] <= cq.CW_DEEP_CAP
+    assert st["cw_deep_identity_ok"] is True and st["cw_child_identity_ok"] is True
+    assert st["cw_hops"]["great"]["priced"] == 1 and st["cw_children_free"] == 0
+    assert st["cw_hop3_verdict"] in ("aligned", "at_odds")
+    assert st["cw_hop2_declines"] == [] and st["cw_hop3_declines"] == []
+    assert isinstance(st["cw_walk_elapsed_ms"], int)
+    # a hop-3 decline lands in its OWN scope column, never in hop 2's
+    _l2, p_nn, _c2, _q2, _s2 = _d_run(_d_graph(
+        {ROOT: [_w_edge()], CHILD: [_w_edge(seed=CHILD, contract=GRAND, relation="crushed_into")]}),
+        qfn=_d_tape(ROOT, CHILD, GRAND), sg=_w_sg(kept=(GRAND,)))
+    nn = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p_nn},
+                            "structured": None, "answer": ""})
+    assert nn["cw_hop3_declines"] == ["no_next_hop"] and nn["cw_hop2_declines"] == []
+    # walk-less and flag-off rows read True / None, never None-noise or KeyError
+    empty = EV._cascade_stats({"citations": [], "trace": {}, "structured": None, "answer": ""})
+    assert empty["cw_deep_on"] is False and empty["cw_deep_identity_ok"] is True
+    assert empty["cw_plan_reads"] is None and empty["cw_children_free"] is None
+    _l3, p_off, _c3, _q3, _s3 = _d_run(_d_chain(), request={"focus_contract": ROOT})
+    off = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p_off},
+                             "structured": None, "answer": ""})
+    assert off["cw_deep_on"] is False and off["cw_deep_identity_ok"] is True
+    assert off["cw_child_identity_ok"] is True and off["cw_plan_reads"] is None
+    # _CASCADE_EXPECT is NOT edited: every new key is an ARTIFACT projection, never a deck word
+    assert EV._CASCADE_EXPECT[-1] == "cw_context_rendered"
+    assert not any("deep" in k for k in EV._CASCADE_EXPECT)
+
+
+# ── the order label: the equivalence and its DISCRIMINATING population ──────────────────────────────
+def test_the_order_expression_agrees_with_the_shipped_one_on_every_rendered_shape():
+    """The marquee case is the one a NODE-COUNT formula gets wrong: two edges BOTH from the root is
+    'first' by hop count and 'second' by node count, and it is a shape the deck actually renders
+    (rv_soyoil_palm_stress). The pin asserts the equivalence AND that the discriminating population
+    is non-empty, so it can never pass vacuously.
+
+    THE DEEP SIDE IS THE SHIPPED EXPRESSION ITSELF (build-review minor): `cq._cw_order_n` is the
+    function the engine calls -- the earlier version of this pin re-implemented BOTH formulas
+    locally, so an edit to the engine's depth loop passed it untouched. Only the OFF-path expression
+    is re-typed here, and it is pinned to the engine's source line below."""
+    import inspect
+
+    def _shipped(root, pairs):
+        return "second" if any(p != root for (p, _c) in pairs) else "first"
+
+    # the off-path line, verbatim from the leg -- so `_shipped` cannot drift from it either
+    assert ('payload["order"] = "second" if any(p != root for (p, _c) in rendered_pairs) '
+            'else "first"') in inspect.getsource(cq._cascade_walk_legs)
+    assert "order_n = _cw_order_n(root, rendered_pairs, _closed)" in \
+        inspect.getsource(cq._cascade_walk_legs)
+
+    def _deep(root, pairs):
+        # every rendered board CLOSED -- the equivalence population is the hole-free one; the
+        # holed shapes are pinned in test_the_order_label_walks_the_closed_chain_...
+        closed = {root} | {c for (_p, c) in pairs}
+        return cq._CW_ORDER_WORDS.get(cq._cw_order_n(root, pairs, closed), "third")
+
+    shapes = [[],                                                    # nothing rendered -> 'first'
+              [(ROOT, CHILD)],                                       # one hop -> 'first'
+              [(ROOT, CHILD), (ROOT, GRAND)],                        # BREADTH -> 'first', not
+              [(ROOT, CHILD), (ROOT, GRAND), (ROOT, GREAT)],         #   'second'
+              [(ROOT, CHILD), (CHILD, GRAND)]]                       # depth -> 'second'
+    n_rendered = 0
+    for pairs in shapes:
+        assert _deep(ROOT, pairs) == _shipped(ROOT, pairs), pairs
+        n_rendered += bool(pairs)
+    assert n_rendered == 4                                           # a real discriminating set
+    # ...and the ONE place they differ is the third hop, which the shipped expression cannot express
+    deep3 = [(ROOT, CHILD), (CHILD, GRAND), (GRAND, GREAT)]
+    assert _deep(ROOT, deep3) == "third" and _shipped(ROOT, deep3) == "second"
+
+
+def test_a_great_cell_whose_parent_declined_renders_undetermined_never_a_direction():
+    """K3/K4 at hop 3: a great cell whose grand parent did not close can never carry a verdict --
+    and the ORDER LABEL now stops at the last CLOSED hop, so a chain with a hole at hop 2 reads
+    'first', not 'third' (build-refute B4). The rendered PATH is unchanged: the page showed the rows.
+    """
+    tape = _WTape({ROOT: _w_tape_rows(), CHILD: _w_tape_rows(), GREAT: _w_tape_rows()})
+    lines, payload, _c, _q, _s = _d_run(_d_chain(), qfn=tape)     # GRAND is served NO rows
+    cells = {c["slug"]: c for c in payload["cells"]}
+    assert cells[GRAND]["status"] != "closed"
+    assert cells[GREAT].get("verdict") in (None, "undetermined")
+    assert payload["order"] == "first" and payload["deep"]["order_n"] == 1
+    assert payload["path"] == [ROOT, CHILD, GRAND, GREAT]         # RENDERED, holes included
+    assert cq.CW_THIRD_ORDER_MARKER not in "\n".join(lines)
+    assert not any("moved with the declared relation" in ln and "soybean oil" in ln for ln in lines)
+    assert _rect_ok(payload)
+
+
+def test_the_order_label_walks_the_closed_chain_and_a_hole_at_hop_1_caps_it(monkeypatch):
+    """THE REFUTER'S B4 SHAPE, reproduced on the engine: root closed, the CHILD cell declines
+    `no_tape_rows`, and BOTH the grand and the great price and close. The old label derived from the
+    rendered hop HEADERS, so it read 'third order', shipped CW_THIRD_ORDER_MARKER, and so shipped the
+    deep mandate -- which instructs the writer to state each hop with 'its own handle and its own read
+    as printed' when hop 1 printed an absence and nothing else. The chain of CLOSED cells breaks at
+    hop 1, so the label is 'first' and the third-order marker never mints."""
+    tape = _WTape({ROOT: _w_tape_rows(), GRAND: _w_tape_rows(), GREAT: _w_tape_rows()})
+    lines, payload, _c, _q, _s = _d_run(_d_chain(), qfn=tape)     # CHILD is served NO rows
+    cells = {c["slug"]: c for c in payload["cells"]}
+    assert cells[ROOT]["status"] == "closed" and cells[CHILD]["status"] != "closed"
+    assert cells[GRAND]["status"] == "closed" and cells[GREAT]["status"] == "closed"
+    assert payload["deep"]["hops"]["grand"]["priced"] == 1        # they really did price
+    assert payload["deep"]["hops"]["great"]["priced"] == 1
+    assert payload["order"] == "first" and payload["deep"]["order_n"] == 1
+    assert cq.CW_THIRD_ORDER_MARKER not in "\n".join(lines)
+    assert lines[-1] == cq._cw_marker("first")
+    assert _rect_ok(payload)
+    # ...and the helper says the same thing directly, on the same three pairs
+    pairs = [(ROOT, CHILD), (CHILD, GRAND), (GRAND, GREAT)]
+    assert cq._cw_order_n(ROOT, pairs, {ROOT, GRAND, GREAT}) == 1      # hole at hop 1
+    assert cq._cw_order_n(ROOT, pairs, {ROOT, CHILD, GREAT}) == 1      # hole at hop 2
+    assert cq._cw_order_n(ROOT, pairs, {ROOT, CHILD, GRAND}) == 2      # hole at hop 3
+    assert cq._cw_order_n(ROOT, pairs, {ROOT, CHILD, GRAND, GREAT}) == 3   # hole-free
+
+
+# == V2-5 STEP-12 ADJUDICATED FIXES -- the review's and the refuter's findings, each with its pin ====
+#
+# Every pin below reproduces the state its finding NAMED before it asserts the remedy. Where a finding
+# was "this column is structurally always empty / vacuously true", the pin drives the ENGINE into the
+# state and reads the projection, never the source.
+
+
+def test_the_free_predicate_has_exactly_one_implementation_in_the_leg():
+    """build-review major: the render loop spelled `str(cov[child]) > t1` inline while `_cw_free`'s
+    docstring claimed 'there is no second predicate anywhere in this leg'. They agreed only because
+    t1 IS f["start"] -- and a divergence would leave a child in free_set (0 paid cells) and then
+    PRICE it, i.e. realized reads above the plan the cap belt approved. One implementation now."""
+    import inspect
+    body = inspect.getsource(cq._cascade_walk_legs)
+    code = "\n".join(ln for ln in body.splitlines() if not ln.strip().startswith("#"))
+    assert code.count("if _cw_free(cov, child, f):") == 1
+    assert "str(cov[child]) > t1" not in code          # the finding's own string, in CODE
+    # the free SET and the render loop call the SAME function -- one call site each, no third copy
+    assert code.count("_cw_free(") == 2
+    assert 'return str(cov[slug]) > str(firing["start"])' in inspect.getsource(cq._cw_free)
+
+
+def test_cw_deep_max_order_binds_the_number_of_next_hop_calls(monkeypatch):
+    """build-review minor: cw_order_max used to be read ONLY to stamp payload['deep']['max_order'];
+    the real depth bound was 'there are two hand-written calls'. It is the LOOP bound now."""
+    assert cq.CW_DEEP_MAX_ORDER - 1 == len(cq._CW_HOP_LEVELS) == 2
+    assert cq._CW_HOP_LEVELS == ("grand", "great")
+    seen: list = []
+    _orig = cq._cw_next_hop
+
+    def _spy(*a, **kw):
+        seen.append(kw.get("level"))
+        return _orig(*a, **kw)
+
+    monkeypatch.setattr(cq, "_cw_next_hop", _spy)
+    _l, p, _c, _q, _s = _d_run(_d_chain())
+    assert seen == ["grand", "great"] and p["deep"]["order_n"] == 3      # 3 - 1 = TWO calls
+    # ...turn the knob down and the SECOND call is not made at all -- the bound is the loop
+    seen.clear()
+    monkeypatch.setattr(cq, "CW_DEEP_MAX_ORDER", 2)
+    _l2, p2, _c2, _q2, _s2 = _d_run(_d_chain())
+    assert seen == ["grand"] and p2["deep"]["max_order"] == 2 and p2["order"] == "second"
+    # ...and OFF it is one call at level 'grand', which is the shipped shape byte for byte
+    seen.clear()
+    monkeypatch.setattr(cq, "CW_DEEP_MAX_ORDER", 3)
+    _l3, p3, _c3, _q3, _s3 = _d_run(_d_chain(), request={"focus_contract": ROOT})
+    assert seen == ["grand"] and "deep" not in p3 and p3["order"] == "second"
+    # the ledger's levels ARE the vocabulary, never a re-spelling
+    _l4, p4, _c4, _q4, _s4 = _d_run(_d_chain())
+    assert tuple(p4["deep"]["hops"]) == ("child",) + cq._CW_HOP_LEVELS
+
+
+def test_the_hop2_miss_is_named_and_counted_like_the_hop3_miss():
+    """build-refute major-3, MEASURED: deep on, ONE admissible child, no declared grandchild -- the
+    most common deep shape -- recorded ZERO evidence that hop 2 was attempted, while the symmetric
+    hop-3 miss WAS named. eval's cw_hop2_declines was structurally always [] and so unfalsifiable."""
+    from leviathan.graphrag import eval as EV
+    _l, p, _c, qfn, _s = _d_run(_d_graph({ROOT: [_w_edge()]}), qfn=_d_tape(ROOT, CHILD))
+    assert {"scope": "grand", "reason": "no_next_hop"} in p["declines"]
+    assert not any(d["scope"] == "great" for d in p["declines"])     # the walk STOPPED at the miss
+    assert p["deep"]["hops"]["grand"] == {"declared": 0, "priced": 0, "named": 0,
+                                          "free": 0, "absent": 0}
+    assert _rect_ok(p) and p["order"] == "first"
+    st_ = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p},
+                             "structured": None, "answer": ""})
+    assert st_["cw_hop2_declines"] == ["no_next_hop"] and st_["cw_hop3_declines"] == []
+    # ZERO READS: the whole hop-2 ladder is graph reads, and the decline costs nothing
+    assert len(qfn.sql) == 4                                        # root + child, 2 reads each
+    # ...and with the flag OFF the same shape appends NOTHING (byte-identity, held by G1 too)
+    _l2, off, _c2, _q2, _s2 = _d_run(_d_graph({ROOT: [_w_edge()]}), qfn=_d_tape(ROOT, CHILD),
+                                     request={"focus_contract": ROOT})
+    assert not any(d["reason"] == "no_next_hop" for d in off["declines"])
+
+
+def test_the_hop3_composer_decline_carries_its_own_scope():
+    """build-refute minor: the shipped quirk files `composer_narrated_pair` at scope 'child'. On the
+    HOP-3 call that named a GREAT candidate under child scope, so payload['declines'] at scope
+    'child' could name a slug that was never in children_declared. The scope is the LEVEL now --
+    and the hop-2 call (the only one the off path makes) keeps the quirk verbatim."""
+    cov = {ROOT: "2010-06-06", CHILD: "2010-06-06", GRAND: "2010-06-06", GREAT: "2010-06-06"}
+    g = _d_graph({GRAND: [_w_edge(seed=GRAND, contract=GREAT, relation="crushed_into")]})
+    p = {"declines": [], "deep": {"hop_candidates": []}}
+    out = cq._cw_next_hop(g, cov, _d_node, {GREAT}, {frozenset((GRAND, GREAT))}, GRAND,
+                          {_d_node(ROOT), _d_node(CHILD), _d_node(GRAND)}, p,
+                          level="great", verbose=True)
+    assert out is None
+    assert p["declines"] == [{"scope": "great", "reason": "composer_narrated_pair",
+                              "child": GREAT}]
+    # ...and the hop-2 call keeps the shipped quirk's word, which is what the off path emits
+    p2 = {"declines": [], "deep": {"hop_candidates": []}}
+    g2 = _d_graph({CHILD: [_w_edge(seed=CHILD, contract=GRAND, relation="crushed_into")]})
+    assert cq._cw_next_hop(g2, cov, _d_node, {GRAND}, {frozenset((CHILD, GRAND))}, CHILD,
+                           {_d_node(ROOT), _d_node(CHILD)}, p2,
+                           level="grand", verbose=True) is None
+    assert p2["declines"] == [{"scope": "child", "reason": "composer_narrated_pair",
+                              "child": GRAND}]
+
+
+def test_cw_hop_candidates_projects_the_level_beside_the_reason():
+    """build-refute minor: the artifact projected a bare reason, so an arm could not tell a hop-2
+    rejection from a hop-3 one -- exactly the discrimination the nine-name vocabulary exists for."""
+    from leviathan.graphrag import eval as EV
+    g = _d_graph({ROOT: [_w_edge()],
+                  CHILD: [_w_edge(seed=CHILD, contract=GRAND, relation="crushed_into")],
+                  GRAND: [_w_edge(seed=GRAND, contract=GREAT, relation="crushed_into")]})
+    _l, p, _c, _q, _s = _d_run(g, sg=_w_sg(kept=(GRAND,)))       # GREAT is NOT kept
+    assert p["deep"]["hop_candidates"] == [{"level": "great", "child": GREAT,
+                                            "reason": "not_kept_subgraph"}]
+    st_ = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p},
+                             "structured": None, "answer": ""})
+    assert st_["cw_hop_candidates"] == [{"level": "great", "reason": "not_kept_subgraph"}]
+
+
+def test_the_width_belt_reads_a_regime_local_like_every_other_budget():
+    """build-refute minor: the width belt was the ONE budget reading a module GLOBAL where every
+    other reads a local selected once at `deep_on` -- against the build's own stated law."""
+    import inspect
+    src = inspect.getsource(cq._cascade_walk_legs)
+    code = [ln.strip() for ln in src.splitlines()
+            if ln.strip() and not ln.strip().startswith("#")]
+    assert [ln for ln in code if "CW_FREE_ALLOWANCE" in ln][0].startswith(
+        "cw_free_allow = CW_FREE_ALLOWANCE")
+    assert len([ln for ln in code if "CW_FREE_ALLOWANCE" in ln]) == 1
+    assert "_over = len(kept) - (cw_children + cw_free_allow)" in src
+    _l, p, _c, _q, _s = _d_run(_d_chain())
+    assert p["deep"]["free_allowance"] == cq.CW_FREE_ALLOWANCE == 2
+
+
+def test_a_fenced_deep_block_projects_no_plan_no_order_and_no_hop3_verdict(monkeypatch):
+    """build-refute minor B5, MEASURED: a fenced third-order block rolled every call back and shipped
+    ZERO lines, yet still projected cw_order_n 3, cw_paid_cells 4, cw_plan_reads 12 and a hop-3
+    verdict -- so an analyst filtering on cw_hop3_verdict without also filtering cw_outcome counted a
+    block nobody read. The context rider already zeroed its own `rendered` here."""
+    from leviathan.graphrag import eval as EV
+    _l0, ok, _c0, _q0, _s0 = _d_run(_d_chain())
+    assert ok["outcome"] == "fired" and ok["deep"]["order_n"] == 3       # the state before the fence
+    monkeypatch.setattr(cq, "_cw_register_fence", lambda _lines: False)
+    lines, p, calls, _q, _s = _d_run(_d_chain())
+    assert p["outcome"] == "fenced" and lines == [] and calls == []
+    assert p["deep"]["order_n"] is None and p["deep"]["cells_planned"] is None
+    assert p["deep"]["paid_cells"] is None
+    assert all(r["priced"] == 0 == r["absent"] for r in p["deep"]["hops"].values())
+    assert _rect_ok(p)                                       # named took the priced terms
+    # the TOP-LEVEL ledger folded the same way, so eval's hop-1 mirror cannot contradict the row
+    assert p["children_priced"] == 0 == p["deep"]["hops"]["child"]["priced"]
+    assert p["children_named"] == p["deep"]["hops"]["child"]["named"]
+    st_ = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p},
+                             "structured": None, "answer": ""})
+    assert st_["cw_outcome"] == "fenced"
+    assert st_["cw_order_n"] is None and st_["cw_plan_reads"] is None
+    assert st_["cw_paid_cells"] is None and st_["cw_hop3_verdict"] is None
+    # the config echoes STAY -- they were never claims about a shipped block
+    assert st_["cw_cap_applied"] == 27 and st_["cw_max_order_applied"] == 3
+
+
+def test_cw_hop3_verdict_is_none_on_every_row_without_a_third_hop():
+    """build-review + build-refute major-1, MEASURED: `_cw_deepest` took the LAST non-root,
+    non-context cell UNGATED BY ORDER, so a deep BREADTH row, a DEPTH-IN-TIME row and a FLAG-OFF
+    CONTROL row all projected some child's verdict as the arm's headline hop-3 metric."""
+    from leviathan.graphrag import eval as EV
+
+    def _st(payload):
+        return EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": payload},
+                                  "structured": None, "answer": ""})
+
+    # (a) FLAG OFF -- the control arm. The old code projected the last child's verdict here.
+    _l, off, _c, _q, _s = _d_run(_d_chain(), request={"focus_contract": ROOT})
+    assert off["order"] == "second" and off["cells"][-1].get("verdict") in ("aligned", "at_odds")
+    assert _st(off)["cw_deep_on"] is False and _st(off)["cw_hop3_verdict"] is None
+    # (b) DEEP BREADTH -- order 1, three children, every one verdicted
+    kids = [_w_edge(contract=c) for c in (CHILD, GRAND, GREAT)]
+    _l2, br, _c2, _q2, _s2 = _d_run(_d_graph({ROOT: kids}), qfn=_d_tape(ROOT, CHILD, GRAND, GREAT))
+    assert br["deep"]["order_n"] == 1 and br["cells"][-1].get("verdict") in ("aligned", "at_odds")
+    assert _st(br)["cw_hop3_verdict"] is None
+    # (c) DEPTH IN TIME -- order 1, two firings, the last cell is a CHILD cell
+    win2 = [{"start": W_START, "end": W_END, "span": W_SPAN, "n": 7},
+            {"start": "2021-04-01", "end": "2021-06-20", "span": "2021-04..2021-06", "n": 5}]
+    _l3, dt, _c3, _q3, _s3 = _d_run(_d_graph({ROOT: [_w_edge()]}), qfn=_d_tape(ROOT, CHILD),
+                                    sg=_w_sg(windows=win2))
+    assert dt["deep"]["order_n"] == 1 and _st(dt)["cw_hop3_verdict"] is None
+    # (d) THE ONE ROW THAT SHOULD CARRY IT: a hole-free third-order chain, keyed off the GREAT slug
+    _l4, d3, _c4, _q4, _s4 = _d_run(_d_chain())
+    great_cell = next(c for c in d3["cells"] if c["slug"] == GREAT)
+    assert _st(d3)["cw_order_n"] == 3
+    assert _st(d3)["cw_hop3_verdict"] == great_cell["verdict"]
+    assert great_cell["verdict"] in ("aligned", "at_odds")
+    # (e) a HOLED chain is order 1 and carries no hop-3 verdict either, though a great cell closed
+    tape = _WTape({ROOT: _w_tape_rows(), GRAND: _w_tape_rows(), GREAT: _w_tape_rows()})
+    _l5, holed, _c5, _q5, _s5 = _d_run(_d_chain(), qfn=tape)
+    assert _st(holed)["cw_order_n"] == 1 and _st(holed)["cw_hop3_verdict"] is None
+
+
+def test_cw_deep_identity_ok_is_unknown_never_true_on_the_wrapper_belt(monkeypatch):
+    """build-refute major-2, MEASURED: the belt seeds payload['deep'] = {'error': True} with NO
+    'hops' key, and `all()` over an empty dict is VACUOUSLY TRUE -- so the one state the boolean
+    exists to catch projected as clean. Unknown is not True."""
+    from leviathan.graphrag import eval as EV
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("marker exploded")
+
+    monkeypatch.setattr(cq, "_cw_marker", _boom)
+    _l, p, calls, _q, _s = _d_run(_d_chain())
+    assert set(p["deep"]) == {"error", "elapsed_ms"} and p["deep"]["error"] is True
+    assert "hops" not in p["deep"] and calls == []
+    st_ = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p},
+                             "structured": None, "answer": ""})
+    assert st_["cw_deep_on"] is True                          # the belt carries the REGIME
+    assert st_["cw_deep_identity_ok"] is None                 # ...and NOT True
+    assert st_["cw_deep_error"] is True                       # the arm bars THIS at zero rows
+    assert st_["cw_order_n"] is None and st_["cw_plan_reads"] is None
+    # a clean deep row and a walk-less row both keep the boolean, so the column is not None-noise
+    monkeypatch.undo()                                        # the marker works again
+    _l2, clean, _c2, _q2, _s2 = _d_run(_d_chain())
+    assert clean["outcome"] == "fired"
+    assert EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": clean},
+                              "structured": None, "answer": ""})["cw_deep_identity_ok"] is True
+    empty = EV._cascade_stats({"citations": [], "trace": {}, "structured": None, "answer": ""})
+    assert empty["cw_deep_identity_ok"] is True and empty["cw_deep_error"] is False
+
+
+def test_g8s_bar_is_stated_on_quantities_that_can_fail(monkeypatch):
+    """build-refute major-4: `cw_plan_reads <= CW_DEEP_CAP` is a THEOREM -- cascade declines 'cap'
+    whenever the plan exceeds the cap BEFORE any read, so no row an arm can produce falsifies it.
+    The bar is (a) the cap / turn_budget_spent decline census at zero rows and (b) cw_board_reads <=
+    cw_plan_reads on every fired row, which CAN fail (the plan is computed before the render loop)."""
+    from leviathan.graphrag import eval as EV
+
+    def _st(payload):
+        return EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": payload},
+                                  "structured": None, "answer": ""})
+
+    fired = [_d_run(_d_chain())[1],
+             _d_run(_d_graph({ROOT: [_w_edge(contract=c) for c in (CHILD, GRAND, GREAT)]}),
+                    qfn=_d_tape(ROOT, CHILD, GRAND, GREAT))[1],
+             _d_run(_d_chain(great=FREE_LEG), qfn=_d_tape(ROOT, CHILD, GRAND),
+                    sg=_w_sg(kept=(GRAND, FREE_LEG)))[1]]
+    for payload in fired:
+        s = _st(payload)
+        assert s["cw_outcome"] == "fired"
+        assert s["cw_board_reads"] <= s["cw_plan_reads"]       # THE MEASUREMENT, not the theorem
+        assert "cap" not in s["cw_declines"]                   # (a), row by row
+        assert "turn_budget_spent" not in s["cw_declines"]
+    # ...and the two states (a) counts really are reachable and really do show up in cw_declines
+    monkeypatch.setattr(cq, "CW_DEEP_CAP", 0)
+    cap = _st(_d_run(_d_chain())[1])
+    assert "cap" in cap["cw_declines"] and cap["cw_outcome"] == "declined"
+    monkeypatch.undo()
+    spent = _st(_d_run(_d_chain(), sg=_w_sg(kept=(GRAND, GREAT),
+                                            trace_extra={"quantify_wave_reads": 79}))[1])
+    assert "turn_budget_spent" in spent["cw_declines"]
+    # the theorem is still TRUE -- it is simply not the bar
+    assert _st(_d_run(_d_chain())[1])["cw_plan_reads"] <= cq.CW_DEEP_CAP
+
+
+def test_deep_and_context_ride_together_and_neither_counts_the_other():
+    """build-refute minor: no engine call in this suite carried BOTH keys -- the seam pin asserts the
+    REQUEST DICT only. The rectangles close, the context cell is NOT a hop at any level, and the
+    board plan the rider measures its slack against is the DEEP plan."""
+    from leviathan.graphrag import eval as EV
+    g = _d_graph({ROOT: [_w_edge()],
+                  CHILD: [_w_edge(seed=CHILD, contract=GRAND, relation="crushed_into")],
+                  GRAND: [_w_edge(seed=GRAND, contract=GREAT, relation="crushed_into")]},
+                 drivers=("poultry_expansion",))
+    tape = _WTape({ROOT: _c_tape_rows(), CHILD: _c_tape_rows(), GRAND: _c_tape_rows(),
+                   GREAT: _c_tape_rows(), "chicken_usd_t": _c_pink()})
+    sg = _w_sg(windows=[{"start": C_START, "end": C_END, "span": C_SPAN, "n": 20}],
+               node="poultry_expansion", kept=(GRAND, GREAT))
+    calls: list = []
+    lines, p = cq._cascade_walk_leg_or_nothing(
+        sg, g, {"focus_contract": ROOT, "deep": True, "context": True}, tape, ASOF_C, calls)
+    assert p["outcome"] == "fired" and p["order"] == "third" and p["deep"]["order_n"] == 3
+    assert _rect_ok(p)
+    # the rider measures its slack against the DEEP board plan, and says so in its own ledger
+    assert p["deep"]["cells_planned"] == 4
+    assert p["context"]["board_reads_planned"] == 12 == 4 * cq.CW_READS_PER_CELL
+    assert p["context"]["rendered"] == 1 and p["context"]["reads"] == 1
+    # A CONTEXT CELL IS NOT A HOP: it is in `cells` with kind 'context', in NO hops row, and out of
+    # the closed chain the order label walks
+    ctx = next(c for c in p["cells"] if c.get("kind") == "context")
+    assert ctx["status"] == "closed"
+    assert sum(r["declared"] for r in p["deep"]["hops"].values()) == 3     # child + grand + great
+    assert all(r["declared"] == r["priced"] for r in p["deep"]["hops"].values())
+    assert p["path"] == [ROOT, CHILD, GRAND, GREAT]                       # the context slug is not
+    assert ctx.get("slice") not in p["path"]                              #   a path member
+    # net_reads carries the rider's read; the BOARD spend does not
+    st_ = EV._cascade_stats({"citations": [], "trace": {"quantify_cascade_walk": p},
+                             "structured": None, "answer": ""})
+    assert st_["cw_reads"] == p["net_reads"] == 9 and st_["cw_board_reads"] == 8
+    assert st_["cw_board_reads"] <= st_["cw_plan_reads"] == 12
+    assert st_["cw_context_rendered"] == 1
+
+
+def test_config_check_banks_the_measured_max_out_degree_and_prints_it(capsys):
+    """build-review minor: clause (ix) ERRORs only ABOVE CW_DEEP_MAX_CHILDREN 6 and clause (x) merely
+    PRINTED the measured maximum, so a curation edit taking corn_cbot from 4 to 6 would land with no
+    red, no WARN and no re-measure -- silently consuming the whole headroom the constant was sized
+    on. The banked pair is (4, 'corn_cbot')."""
+    from leviathan.graphrag import config_check as cc
+    assert cc.check_cascade_walk() == []
+    out = capsys.readouterr().out
+    assert "Max shipped hop-1 out-degree 4 ('corn_cbot')" in out
+    assert "measured max hop-1 out-degree moved" not in out          # the tripwire is silent
+    src = open(cc.__file__, encoding="utf-8").read()
+    from leviathan.graphrag import config_check as _cc
+    assert _cc.CW_MEASURED_MAX_OUT_DEGREE == (4, "corn_cbot")   # by attribute, module scope
+
+
+def test_the_walk_timer_is_the_one_nondeterministic_field_and_is_documented_as_such():
+    """build-review minor: elapsed_ms is a wall clock, so no flag-ON artifact is byte-comparable
+    across runs. The sentence belongs where the next artifact comparison will read it."""
+    from leviathan.graphrag import eval as EV
+    _l, a, _c, _q, _s = _d_run(_d_chain())
+    _l2, b, _c2, _q2, _s2 = _d_run(_d_chain())
+    assert a["deep"].pop("elapsed_ms") is not None
+    assert b["deep"].pop("elapsed_ms") is not None
+    assert a == b                                    # equal on EVERY other byte, once popped
+    ev_src = open(EV.__file__, encoding="utf-8").read()
+    i = ev_src.index('"cw_walk_elapsed_ms": _cw_deep.get("elapsed_ms")')
+    assert "POP cw_walk_elapsed_ms" in ev_src[i - 500:i]
+    assert "NONDETERMINISTIC" in open(cq.__file__, encoding="utf-8").read()
+    # the OFF regime never stamps it, which is why the flag-off golden is byte-stable at all
+    _l3, off, _c3, _q3, _s3 = _d_run(_d_chain(), request={"focus_contract": ROOT})
+    assert "deep" not in off
+
+
+# -- G1 AS A SUITE PIN: the flag-off byte-identity gate, re-run against the banked HEAD golden -------
+def test_g1_the_flag_off_population_reproduces_the_banked_head_golden():
+    """THE FIRST LAW OF THIS BUILD, HELD IN THE SUITE (build-review major L1: G1 was a scratchpad
+    script, so the flag-off byte-identity gate on a leg SERVING AT REV 126 did not stand for the next
+    builder, for CI, or for the arm).
+
+    It runs data/consequence_leg/v25_golden_bank.py -- which wraps the OUTER
+    `_cascade_walk_leg_or_nothing` over every call this whole suite makes -- with
+    GRAPHRAG_CASCADE_DEEP unset, and joins the result against
+    data/consequence_leg/v25_golden_head_v2.json, banked at HEAD c6868034 BEFORE any engine byte
+    moved.
+
+    THE JOIN IS bank_sha256 PLUS PER-KEY CONTENT, RESTRICTED TO THE BANKED (flag-off) KEYS. Never the
+    FILE digest: the bank doc embeds pytest's wall-clock tail, so two identical runs give different
+    file digests. Never elapsed_ms either -- an off payload has no 'deep' key at all, which this pin
+    ASSERTS rather than assumes. The post-build run has MORE keys than the bank (the V2-5 flag-ON
+    fixtures); that is expected and is not a failure.
+
+    RECURSION IS CLOSED BY A SENTINEL: the producer exports V25_GOLDEN_INNER=1 into the pytest
+    subprocess it spawns, and this pin skips under it."""
+    import hashlib
+    import json
+    import os
+    import subprocess
+    import sys
+    import tempfile
+
+    if os.environ.get("V25_GOLDEN_INNER") == "1":
+        pytest.skip("inner golden-bank run -- the producer's own subprocess, never re-entered")
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    bank_path = os.path.join(repo, "data", "consequence_leg", "v25_golden_head_v2.json")
+    producer = os.path.join(repo, "data", "consequence_leg", "v25_golden_bank.py")
+    assert os.path.exists(bank_path) and os.path.exists(producer)
+    out = os.path.join(tempfile.mkdtemp(prefix="v25g1_"), "post.json")
+    env = dict(os.environ, V25_GOLDEN_OUT=out)
+    env.pop("GRAPHRAG_CASCADE_DEEP", None)                 # THE FLAG IS OFF -- that is the gate
+    proc = subprocess.run([sys.executable, producer], cwd=repo, env=env,
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, (proc.stdout or "")[-2000:] + (proc.stderr or "")[-2000:]
+    old = json.load(open(bank_path, encoding="utf-8"))
+    new = json.load(open(out, encoding="utf-8"))
+    ob, nb = old["bank"], new["bank"]
+    _exit_note = (new.get("pytest_exitstatus"), (new.get("pytest_tail") or "")[-800:])   # diagnostic, asserted LAST
+    assert len(ob) == 91
+    missing = [k for k in ob if k not in nb]
+    assert missing == [], missing
+    # PER-KEY CONTENT, field by field, so a failure NAMES the drifted field
+    diffs = [(k, f) for k in ob for f in ("lines", "payload", "calls_delta", "raised",
+                                          "traced_is_payload", "request", "asof")
+             if ob[k].get(f) != nb[k].get(f)]
+    assert diffs == [], diffs[:5]
+    # NO OFF-REGIME PAYLOAD CARRIES A 'deep' KEY -- on any path, the exception belt included. That
+    # is also why "never elapsed_ms" is true here by construction.
+    leaks = [k for k, n in nb.items()
+             if isinstance(n.get("payload"), dict) and "deep" in n["payload"]
+             and not ((n.get("request") or {}).get("deep") or (n.get("request") or {}).get("xccy"))]
+    assert leaks == [], leaks
+    assert not any("elapsed_ms" in json.dumps(ob[k]) for k in ob)
+    # THE SHARPEST FORM: hash the post-build run RESTRICTED to the banked keys with the producer's
+    # OWN serialization and compare to the banked whole-bank sha. Equal => byte-identical, not
+    # merely field-equal.
+    sub = {k: nb[k] for k in ob}
+    sub_sha = hashlib.sha256(json.dumps(sub, ensure_ascii=False, sort_keys=True,
+                                        separators=(",", ":")).encode("utf-8")).hexdigest()
+    assert sub_sha == old["bank_sha256"]
+    assert sub_sha == "e0dc1e5dcc2354baa542d1e4e3b96cd4486c7bedec38cc81873ef0c07630f3a6"
+    # the nested run's own status is context, not the gate: an unrelated red elsewhere in the walk
+    # suite must not fail a test named for the BANK join (post-fix re-review minor 3)
+    assert _exit_note[0] == 0, _exit_note[1]

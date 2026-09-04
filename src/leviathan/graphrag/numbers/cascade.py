@@ -5641,7 +5641,10 @@ _TAPE_TABLE = "silver_futures_eod"
 _TAPE_METRIC = "settle"
 
 # THE PER-TURN BUDGET, and every number in it is a bound rather than a preference.
-EPISODE_OUTCOME_MAX_WINDOWS = 3      # priced windows ATTEMPTED per turn (2 reads each, so <= 6 reads).
+EPISODE_OUTCOME_MAX_WINDOWS = 3      # priced windows ATTEMPTED per turn (2 reads each, plus the lazy
+#                                      tape-edge re-ask below that sets reads=3 on a PENDING span -- so
+#                                      <= 9 reads, not 6; the old "<= 6" was the source of the
+#                                      walk-ceiling double count (V2-5, 2026-09-04).
 #                                      timeline.MAX_PER_NODE is 4 and a walk grounds several nodes, so
 #                                      an unbudgeted leg would fan tens of reads onto the serve path.
 EPISODE_OUTCOME_CANDIDATES = 3       # delivery months carried into the deep read. Chosen as the nearest
@@ -6003,12 +6006,17 @@ CW_CAP = 12                 # 1 root + 3 children at ONE firing = 4 cells x 3 re
 #                             deep-vs-wide rule is deterministic and outcome-independent (below).
 CW_TURN_CEILING = 60        # against the MEASURED turn spend (_cw_turn_spent) -- the bound is
 #                             a RUNAWAY TRIPWIRE, never a ration (owner doctrine: quality beats
-#                             latency, a budget must never bind on a legitimate shape). SIZED
-#                             ABOVE the measured worst legitimate pre-walk turn (~44 reads per
-#                             the round-3 refute; the sitting-3 arm measured 25 on two live
-#                             turns where v3's 30 BOUND and the walk yielded -- corrected
-#                             here, 2026-09-02) plus the walk's own CW_CAP=12: 44 + 12 = 56 < 60.
-#                             exactly as good as the landed counters, which is why an unmeasured
+#                             latency, a budget must never bind on a legitimate shape).
+#                             ARITHMETIC, CORRECTED (V2-5, 2026-09-04): the round-3 refute's "~44"
+#                             ALREADY CONTAINED the walk's own CW_CAP=12, so "44 + 12 = 56 < 60"
+#                             double-counted the walk. The ENUMERATED pre-walk worst is
+#                             CW_PREWALK_MEASURED_WORST = 65 (its six terms are listed there); the
+#                             MEASURED worst is 25, over the five reached turns of the 2026-09-02
+#                             arm (13 / 14 / 19 / 25 / 25), so 25 + CW_CAP 12 = 37 of 60. THREE of
+#                             the six terms are config-driven, so NO identity is pinned over 65 --
+#                             config_check clause (x) recomputes it at call time and WARNs.
+#                             THE COUNTER DOCTRINE this ceiling rides on: a producer's read count is
+#                             only exactly as good as the landed counters, which is why an unmeasured
 #                             fired producer declines the leg (never read as zero). SCOPE (review
 #                             D3): the ceiling binds the PRE-WALK producers; J6 runs AFTER the
 #                             walk and spends up to COT_OUTCOME_MAX_ROWS closed reads plus one
@@ -6020,6 +6028,91 @@ CW_SPAN_MIN_DAYS = 45       # r2-calibrated (cw_probe_fence_r2_20260901): exclud
 CW_SPAN_MAX_DAYS = 270      # r2-CERTIFIED: every 242-267d selected window closed cleanly; the
 #                             measured failures start at 563d. The single-contract basis's real
 #                             reach -- NOT J4's 1460d contract-life bound; each keeps its own name.
+
+# -- V2-5 DEEP REGIME: a SECOND set of constants, none of it read unless walk_request carries `deep`
+#    (V2-5's own key) or `xccy` (V2-3's, which lifts children on the SAME seam). The regime is
+#    selected ONCE at `deep_on` inside the leg; every belt then reads a LOCAL, never a global, so a
+#    flag-off turn evaluates the same comparisons on the same numbers it does today.
+CW_DEEP_MAX_CHILDREN = 6      # the ENGINE ladder's measured max out-degree today is 4 (corn_cbot);
+#                               6 is the max the ladder reaches with V2-3's cross-currency gate at
+#                               _cw_admissible_children lifted -- corn_cbot gains french_wheat_matif
+#                               and south_african_white_maize_jse (v25_v4_remeasure_20260903.json).
+#                               config_check clause (ix) calls the SHIPPED ladder, so it tracks the
+#                               engine and ERRORS above this number.
+CW_DEEP_CAP = 27              # = (1 root + 6 children + 1 grand + 1 great) x CW_READS_PER_CELL.
+#                               Sized on the UNION of both branches even though the shipped switch
+#                               makes breadth and depth mutually exclusive, PRECISELY so the cap can
+#                               never bind on a legitimate shape -- hence NO trim ladder anywhere in
+#                               this design. Worst shape the shipped graph reaches: 15 reads
+#                               (corn_cbot, five cells, every child paid), 12 under the cap.
+CW_DEEP_MAX_ORDER = 3         # the shipped graph's TERMINAL depth, MEASURED: palm has no
+#                               node-distinct fourth hop (v25_ladder_20260903_palm.json). IT BINDS
+#                               (build-review minor): the leg makes `cw_order_max - 1` next-hop
+#                               calls in a LOOP over _CW_HOP_LEVELS -- one off (order max 2), two
+#                               under deep -- so this is the depth bound itself, never a stamped
+#                               literal beside two hand-written calls. Raising it past
+#                               1 + len(_CW_HOP_LEVELS) needs a fourth ledger level and is pinned.
+CW_FREE_ALLOWANCE = 2         # THE BELT'S TRUE TEST, stated as the belt spells it: the runtime width
+#                               belt bounds TOTAL rendered width at `cw_children + this` (8 on the
+#                               shipped constants) and declines the excess by name -- it does NOT
+#                               count the free riders separately, so three ZERO-READ (pre_coverage)
+#                               children can ride against an allowance of 2 whenever the paid budget
+#                               is under-spent (build-refute minor C1, MEASURED: 5 priced + 3 free =
+#                               8 rendered, belt silent). The allowance is HEADROOM ON THE TOTAL.
+#                               The belt is a tripwire against UNLINTED curation: configs/graphrag is
+#                               gitignored and rides the image tar, so a sixth child can reach a
+#                               serving image the lint never ran against.
+CW_PREWALK_MEASURED_WORST = 65  # the six pre-walk terms ENUMERATED: CASCADE_CAP 12 + CHAIN_CAP 12 +
+#                               TRANSMISSION_CAP 18 + the price leg's 2 + J4's 9
+#                               (EPISODE_OUTCOME_MAX_WINDOWS 3 x the 3-read lazy tape-edge re-ask) +
+#                               the standalone xc fork's 12, which is a CALLS DELTA (the
+#                               `xc_trace["net_reads"]` assignment) and not a fetch cap. THREE terms
+#                               are config-driven, so NO identity is pinned over this number;
+#                               config_check clause (x) recomputes and WARNs. MEASURED worst: 25.
+CW_DEEP_TURN_CEILING = 80     # = 44 (the pre-walk allowance the shipped test pin already carries)
+#                               + CW_DEEP_CAP 27 + CW_CONTEXT_CAP 2 + a 7-read FX allowance for
+#                               V2-3 (one FX read per non-root cell on the 8-cell union shape leaves
+#                               7 covering the 7 non-root cells exactly). A LITERAL WITH A MEASURED
+#                               NOTE, never a derivation -- and it BINDS if the enumerated 65 ever
+#                               materialises (65 + 27 + 2 = 94 > 80): fail-closed, counted as
+#                               turn_budget_spent, never silent. It bounds the WALK'S OWN BOARD PLAN
+#                               only -- the V2-1 rider's subordinate slack test keeps reading
+#                               CW_TURN_CEILING in BOTH regimes.
+_CW_ORDER_WORDS = {1: "first", 2: "second", 3: "third"}    # read via .get(order_n, "third"): a
+#                               KeyError here would be swallowed by the wrapper belt into a silent
+#                               whole-block 'declined', the worst possible failure mode for a label.
+_CW_HOP_LEVELS = ("grand", "great")       # THE NEXT-HOP VOCABULARY, and the loop bound: the leg makes
+#                               `min(cw_order_max - 1, len(this))` calls to _cw_next_hop, and the
+#                               per-level ledger is ("child",) + this. CW_DEEP_MAX_ORDER and this
+#                               tuple move together (pinned: CW_DEEP_MAX_ORDER - 1 == len(this)).
+#                               THE REACHABLE SPLIT, stated ONCE and here (build-review minor L9):
+#                               the WIDTH half touches ONE of the three corn_cbot-rooted deck rows --
+#                               the other two are composer-narrated or render at zero extra reads --
+#                               and the DEPTH half is the palm chain. That sentence is the arm's
+#                               expectation; nothing else in this estate restates it.
+_CW_DEEP_DECLINES = ("no_next_hop",)      # what the engine emits into payload['declines'] at scope
+#                               grand/great. ONE reason, not six: `order_cap` is dead (cw_order_max
+#                               is CW_DEEP_MAX_ORDER whenever deep_on), the two `*_not_priced_budget`
+#                               reasons died with the trim ladder, and `ancestor_pre_coverage` died
+#                               with the transitive-free rule (refute-v4 major-1: on the shipped
+#                               graph the coverage floors are non-decreasing down the only chain, so
+#                               a free ancestor implies every descendant free and the rule saved
+#                               ZERO reads while deleting declared absence rows).
+_CW_HOP_CANDIDATE_REASONS = ("child_uncovered", "node_cycle", "cross_currency", "sign_undeclared",
+                             "sign_not_unanimous", "lag_gate", "relation_unmapped",
+                             "blurb_not_unanimous", "not_kept_subgraph")
+#                               THE NINE SILENT per-candidate rejections of the hop-2/hop-3 ladder,
+#                               recorded ONLY in payload['deep']['hop_candidates']. A SEPARATE
+#                               vocabulary from _CW_DEEP_DECLINES so the decline census stays a
+#                               decline census. `composer_narrated_pair` is in NEITHER tuple: it is
+#                               the one candidate outcome that ALSO reaches payload['declines'], at
+#                               scope 'child' ON THE HOP-2 CALL, byte-verbatim (the shipped quirk,
+#                               pinned AS a quirk). On the HOP-3 call -- new code, unreachable with
+#                               the flag off -- it carries scope 'great', so the child-scope census
+#                               can never name a slug that was never in children_declared
+#                               (build-refute minor: the scope is the LEVEL, not the quirk).
+#                               Two more child-scope reasons live outside both tuples by the same
+#                               rule: `child_not_priced_budget` (shipped) and `width_belt` (V2-5).
 
 # -- V2-1 CONTEXT CELL: a RIDER on the walk (GRAPHRAG_CASCADE_CONTEXT threads INSIDE walk_request as
 #    `context`/`replay`, built at the answer.py seam beside focus_contract; this module reads no env).
@@ -6572,6 +6665,11 @@ def _cw_board_row_closed(cells: list) -> bool:
 # ship only when the assembled volatile prompt actually carries a walk block (W4-D3's +10-
 # hallucination lesson), and producer and gate cannot drift apart if they build from one string.
 CW_MARKER_PREFIX = "CASCADE EPISODE WALK ("
+# V2-5: minted ONCE from the prefix, so the producer's marker and answer.py's deep-mandate row gate
+# build from ONE string and cannot drift. NOT a copied literal: the marker head is assembled by an
+# f-string below, so the ASSEMBLED value appears nowhere in this file -- which is why its source pin
+# is on the construction expression on the next line and never on the assembled string.
+CW_THIRD_ORDER_MARKER = CW_MARKER_PREFIX + "third order)"
 
 
 def _cw_marker(order: str, context: bool = False) -> str:
@@ -6592,12 +6690,21 @@ def _cw_marker(order: str, context: bool = False) -> str:
     tail = (" Rows marked CONTEXT are monthly cash averages for a market the firing names, not board "
             "settle changes -- transcribe each with its own handle and read it against nothing."
             if context else "")
+    # V2-5: ONE clause keyed on the THIRD-order label only, assembled after the main body and BEFORE
+    # the context tail, so the first/second and context strings stay byte-for-byte the pinned
+    # literals. It states the honest thing about a deeper ladder: the A6 interlock selected the
+    # window for a THIRD market's episode, so each hop is a pairwise coincidence test on an exogenous
+    # window -- a virtue (no cherry-picking) and NOT evidence of transmission along the chain.
+    third = (" Each row above is a coincidence test between two boards over a window an unrelated "
+             "market's episode defined; the chain across them is the reader's inference, never the "
+             "engine's." if order == "third" else "")
     return (f"{CW_MARKER_PREFIX}{order} order): {head}; each hop's read is stated beside "
             f"it, in-sample on the named window only. Cite the [N] rows verbatim; never derive a "
             f"ratio, a spread, a lag or any magnitude the rows do not print; direction beyond the "
             f"stated read is the analyst's, never the engine's. Do not mint a new episodes-section "
             f"bullet from a consequence row -- the enumeration stays the episodes mandate's, and "
-            f"the firing window named here is the same dated window that section enumerates." + tail)
+            f"the firing window named here is the same dated window that section enumerates."
+            + third + tail)
 
 
 _CW_SPAN_TOKEN_RX = re.compile(r"\d{4}-\d{2}\.\.\d{4}-\d{2}")
@@ -6621,6 +6728,184 @@ def _cw_register_fence(lines: list) -> bool:
     return True
 
 
+def _cw_free(cov, slug: str, firing: dict) -> bool:
+    """V2-5, THE ONE FREE TEST -- there is no second predicate anywhere in this leg. A leg whose
+    board history starts AFTER the firing start is declined `pre_coverage` inside the render loop for
+    ZERO reads; this is that same string comparison, hoisted so the PLAN can know it before any read.
+    Outcome-independent and knowable before any read (MAJOR-5 clean)."""
+    return str(cov[slug]) > str(firing["start"])
+
+
+def _cw_admissible_children(graph, cov, node, root: str) -> tuple:
+    """The HOP-1 ladder, lifted VERBATIM out of `_cascade_walk_legs` so config_check clause (ix) can
+    census the engine's OWN out-degree instead of a second implementation that can drift.
+
+    Returns `(admissible, declines, root_decline)`, where `root_decline` is None,
+    'focus_not_node_seed' or 'no_declared_children' -- the THIRD return arm carries the two root-scope
+    returns that live inside the lifted range. `node` is `graph.contract_node`, BOUND AT THE CALL SITE
+    (refute-v4 major-0: it used to be assigned inside this range and is still needed after it).
+    `declines` is the child-scope decline list in the SAME order the shipped loop appended it."""
+    declines: list = []
+
+    def _dec(reason, child):
+        declines.append({"scope": "child", "reason": reason, "child": child})
+
+    rows = [r for r in (graph.rev_cross_links(root) if graph is not None else [])]
+    if rows and any(str(r.get("seed")) != root for r in rows):
+        # graph.py files every row of a node under ONE canonical seed, so this is all-or-nothing:
+        # a covered non-canonical focus must DECLINE, never silently walk another contract's edges.
+        return [], declines, "focus_not_node_seed"
+    if not rows:
+        return [], declines, "no_declared_children"
+    # ── children: A1 union (the graph's declaration IS the admission), gated BEFORE any read ──
+    by_child: dict = {}
+    for r in rows:
+        by_child.setdefault(str(r.get("contract")), []).append(r)
+    admissible: list = []
+    for child in sorted(by_child):
+        crows = by_child[child]
+        if child not in cov:
+            _dec("child_uncovered", child)
+            continue
+        if node(child) == node(root):
+            _dec("node_cycle", child)
+            continue
+        if _cw_currency(child) != _cw_currency(root):
+            _dec("cross_currency", child)
+            continue
+        signs = {str(r.get("sign")) for r in crows}
+        if signs - {"+", "-"}:
+            _dec(("sign_undeclared" if signs <= {"0", "None", ""} else
+                  "sign_not_unanimous"), child)
+            continue
+        if len(signs) != 1:
+            _dec("sign_not_unanimous", child)
+            continue
+        if any(_cw_min_lag_quarters(r.get("lag")) != 0 for r in crows):
+            _dec("lag_gate", child)
+            continue
+        rels = sorted({str(r.get("relation")) for r in crows})
+        if any(rel not in _CW_RELATION_WORDS for rel in rels):
+            _dec("relation_unmapped", child)
+            continue
+        blurbs = sorted({str(r.get("blurb") or "").strip() for r in crows} - {""})
+        if len(blurbs) > 1:
+            _dec("blurb_not_unanimous", child)
+            continue
+        if child not in _CW_BOARD_LABEL:
+            _dec("child_uncovered", child)
+            continue
+        admissible.append({"child": child, "sign": signs.pop(), "relations": rels,
+                           "blurb": (blurbs[0] if blurbs else "")})
+    return admissible, declines, None
+
+
+def _cw_next_hop(graph, cov, node, keep, narrated, parent: str, path_nodes: set, payload: dict, *,
+                 level: str = "grand", verbose: bool = False):
+    """The NEXT-HOP ladder, lifted VERBATIM out of `_cascade_walk_legs` and generalised over the path
+    so ONE implementation serves hop 2 and hop 3. Returns the qualifying hop dict
+    {child, sign, relations, blurb, parent} or None.
+
+    IT TAKES `payload` AS THE DECLINE SINK so the off-path byte-identity claim is achievable rather
+    than argued: ON THE HOP-2 CALL (`level` 'grand' -- the only call the off path makes) it appends
+    EXACTLY the dict the shipped loop appends, {"scope": "child", "reason":
+    "composer_narrated_pair", "child": g2}, scope 'child' VERBATIM (the shipped quirk, preserved not
+    tidied), in the same iteration order and nothing else. ON THE HOP-3 CALL -- new code, reachable
+    only under deep -- the same decline carries scope 'great', because a GREAT candidate was never a
+    child and the child-scope census must stay a child-scope census (build-refute minor).
+    Under `verbose` (deep only) it ALSO records the per-candidate rejections
+    in payload['deep']['hop_candidates'] as {level, child, reason} over _CW_HOP_CANDIDATE_REASONS --
+    NEVER in payload['declines'], so the decline census stays comparable across regimes.
+
+    The node-distinctness test generalises from `len({node(root), node(child), node(g2)}) == 3` to
+    `len(path_nodes | {node(g2)}) == len(path_nodes) + 1`: the same test with the same result on the
+    three-node call, and the right test on the four-node one."""
+    def _cand(child, reason):
+        if verbose:
+            payload["deep"]["hop_candidates"].append({"level": level, "child": child,
+                                                      "reason": reason})
+
+    g_rows: dict = {}
+    for r2 in (graph.rev_cross_links(parent) if graph is not None else []):
+        if str(r2.get("seed")) == parent:
+            g_rows.setdefault(str(r2.get("contract")), []).append(r2)
+    for g2 in sorted(g_rows):                         # ascending id, first QUALIFYING group wins
+        rows2 = g_rows[g2]
+        # the SAME per-pair unanimity ladder hop 1 runs (review minor: a first-row-wins read
+        # here could mint a verdict off a declaration hop 1 would refuse as non-unanimous)
+        signs2 = {str(r.get("sign")) for r in rows2}
+        rels2 = sorted({str(r.get("relation")) for r in rows2})
+        blurbs2 = sorted({str(r.get("blurb") or "").strip() for r in rows2} - {""})
+        if frozenset((parent, g2)) in narrated:
+            # review D8: the grandchild hop was the ONE pair-narrating surface the K3 check
+            # missed -- and the sole live second-order shape IS the fork's own crush pair.
+            # THE SCOPE IS THE LEVEL, and 'grand' keeps the shipped quirk's word 'child': the
+            # hop-2 call is the only one the off path makes, so this expression is byte-identical
+            # off, while the hop-3 call stops filing GREAT candidates under child scope.
+            payload["declines"].append({"scope": ("child" if level == "grand" else level),
+                                        "reason": "composer_narrated_pair", "child": g2})
+            continue
+        # THE SAME `and` chain, decomposed into named tests in the SAME ORDER with the SAME
+        # disjunction, so the RETURN value is unchanged and the nine names become recordable.
+        if g2 not in keep:
+            _cand(g2, "not_kept_subgraph")
+            continue
+        if g2 not in cov or g2 not in _CW_BOARD_LABEL:
+            _cand(g2, "child_uncovered")
+            continue
+        if not (signs2 <= {"+", "-"}):
+            _cand(g2, ("sign_undeclared" if signs2 <= {"0", "None", ""} else "sign_not_unanimous"))
+            continue
+        if len(signs2) != 1:
+            _cand(g2, "sign_not_unanimous")
+            continue
+        if not all(_cw_min_lag_quarters(r.get("lag")) == 0 for r in rows2):
+            _cand(g2, "lag_gate")
+            continue
+        if not all(rel in _CW_RELATION_WORDS for rel in rels2):
+            _cand(g2, "relation_unmapped")
+            continue
+        if len(blurbs2) > 1:
+            _cand(g2, "blurb_not_unanimous")
+            continue
+        if _cw_currency(g2) != _cw_currency(parent):
+            _cand(g2, "cross_currency")
+            continue
+        if len(path_nodes | {node(g2)}) != len(path_nodes) + 1:
+            _cand(g2, "node_cycle")
+            continue
+        return {"child": g2, "sign": sorted(signs2)[0], "relations": rels2,
+                "blurb": (blurbs2[0] if blurbs2 else ""), "parent": parent}
+    return None
+
+
+def _cw_order_n(root: str, rendered_pairs, closed) -> int:
+    """V2-5 THE ORDER NUMBER -- the ONE expression, lifted so the engine and its pin read the SAME
+    lines (build-review minor: a test that re-implements both formulas proves them equal to each
+    other and to nothing in the engine).
+
+    DEPTH IN EDGES, NEVER IN NODES: a breadth turn with two children rendered FROM THE ROOT is depth
+    2 by node count and FIRST order by hop count.
+
+    AND IT WALKS THE CHAIN OF **CLOSED** CELLS, NOT THE RENDERED HEADERS (build-refute major B4,
+    MEASURED: a chain whose CHILD cell declined `no_tape_rows` under a priced grand and great still
+    read 'third order', shipped the third-order marker, and so shipped the deep mandate -- which
+    instructs the writer to state each hop 'with its own handle and its own read as printed' when
+    hop 1 printed an absence line and nothing else. That is precisely the class-(a) gloss surface
+    the mandate exists to close, made louder by depth.) A HOLE anywhere in the chain -- a declined
+    cell, a free pre_coverage absence -- caps the label at the last CLOSED hop, because a hop with
+    no printed read is a hop the reader cannot check. `closed` is the set of slugs whose cell closed
+    (context cells are never in it: a context row is not a hop).
+
+    The root seeds `depth` at 1 whether or not it closed on a given firing -- no pair can render
+    under a declined root anyway, so the seed is a floor, not a claim."""
+    depth = {root: 1}
+    for (p, c) in rendered_pairs:
+        if p in depth and c in closed:
+            depth[c] = max(depth.get(c, 0), depth[p] + 1)
+    return max(1, max(depth.values()) - 1)
+
+
 def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, base: int, *,
                        futures_newest_first: bool | str = False) -> tuple:
     """The leg proper. Returns `(lines, payload)` -- payload ALWAYS a dict once the leg ran (the
@@ -6639,13 +6924,86 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
 
     def _decline(scope, reason, **kw):
         payload["declines"].append(dict({"scope": scope, "reason": reason}, **kw))
-        return [], payload
+        if scope == "root":
+            _deep_stamp_hops()                        # V2-5 (refute-v4 fatal 2): EVERY root-scope
+        return [], payload                            # decline carries a closed rectangle
 
     root = str((walk_request or {}).get("focus_contract") or "")
     # V2-1 rider: the flag is read at the answer.py seam and threaded INSIDE the request dict (never
     # here); `replay` is the SAME already-resolved historical-asof bool the seam built as _pr_kw.
     context_on = bool((walk_request or {}).get("context"))
     replay_on = bool((walk_request or {}).get("replay"))
+    # -- V2-5 DEEP REGIME, selected ONCE and read as LOCALS everywhere below. The union with V2-3's
+    #    `xccy` is minted NOW so V2-3 lands one seam key instead of re-cutting four selection lines;
+    #    nothing sets `xccy` in this build (pinned at the answer.py seam), so the union is measurably
+    #    inert and the flag-off path is the shipped path on the shipped globals.
+    deep_on = bool((walk_request or {}).get("deep") or (walk_request or {}).get("xccy"))
+    cw_children = CW_DEEP_MAX_CHILDREN if deep_on else CW_MAX_CHILDREN
+    cw_cap = CW_DEEP_CAP if deep_on else CW_CAP
+    cw_ceiling = CW_DEEP_TURN_CEILING if deep_on else CW_TURN_CEILING
+    cw_order_max = CW_DEEP_MAX_ORDER if deep_on else 2
+    cw_free_allow = CW_FREE_ALLOWANCE     # build-refute minor: the width belt is the ONE budget that
+    #                                       read a MODULE GLOBAL where every other reads a regime
+    #                                       LOCAL selected here. Not regime-split today (the belt is
+    #                                       deep-only), but the pattern is the law, so it is a local.
+    # every name the stamp closure reads must exist before the FIRST root-scope decline below
+    grand = None
+    great = None
+    free_set: set = set()
+    admissible: list = []
+    if deep_on:                                       # omit-when-off (the payload['context']
+        payload["deep"] = {"cap": cw_cap, "ceiling": cw_ceiling,   # precedent): NO new key ever
+                           "max_children": cw_children,            # appears in an off-run payload
+                           "max_order": cw_order_max,
+                           "free_allowance": cw_free_allow,
+                           "reads_per_cell": CW_READS_PER_CELL,   # so the arm's PLAN bar
+                           #                   (cells_planned x this) needs no second copy of the
+                           #                   constant in eval.py -- L3 / refute-v4 fatal 3
+                           "cells_planned": None, "paid_cells": None,   # every PRE-enumeration plan
+                           "order_n": None,             # field is None, never 0. elapsed_ms is the
+                           "elapsed_ms": None,          # ONE NONDETERMINISTIC FIELD in this payload
+                           #                   (a wall clock, stamped by the wrapper): EXCLUDE IT
+                           #                   from every byte comparison of a flag-ON artifact --
+                           #                   no two runs of the same turn agree on it.
+                           "hops": {L: {"declared": 0, "priced": 0, "named": 0, "free": 0,
+                                        "absent": 0}
+                                    for L in ("child",) + _CW_HOP_LEVELS},
+                           "hop_candidates": []}
+
+    def _deep_stamp_hops(priced=()):
+        """L2 / refute-v4 fatal 2: the per-level rectangle is stamped at EVERY early return, not only
+        at the end of the render loop -- otherwise a root-scope decline with k free children reads
+        {declared 0, priced 0, named 0, free k} and the invariant `declared == priced + named + free`
+        is FALSE (0 == k) on exactly the states the counters exist to describe. The hop-1 row mirrors
+        the shipped ledger by construction; grand/great are NAMED when they were declared and never
+        rendered (declared - free, priced 0). `absent` counts RENDERED cells only, so it is 0 on every
+        pre-render return -- which is why `declared == priced + named + free + absent` also holds
+        there."""
+        if not deep_on:
+            return
+        hops = payload["deep"]["hops"]
+        kids = {a["child"] for a in admissible}
+        hops["child"].update(declared=payload["children_declared"],
+                             priced=payload["children_priced"],
+                             named=payload["children_named"],
+                             free=len(free_set & kids))
+        for lvl, leg in zip(_CW_HOP_LEVELS, (grand, great)):   # the vocabulary, never a re-spelling
+            row = hops[lvl]
+            dec = 1 if leg is not None else 0
+            fre = 1 if (leg is not None and leg["child"] in free_set) else 0
+            pri = 1 if (leg is not None and leg["child"] in priced) else 0
+            # a FREE leg can never be priced (it declines pre_coverage on every selected firing),
+            # so `dec - fre - pri` is never negative and the rectangle is exact, never clamped.
+            row.update(declared=dec, priced=pri, named=dec - fre - pri, free=fre)
+
+    def _name_unpriced_children():
+        """K2 (review D5) under both regimes: a root-scope decline AFTER enumeration NAMES the
+        children, never loses them -- and under the deep regime a FREE child is rendered-not-priced,
+        so it is counted `free`, never `named`. free_set is EMPTY with the flag off, so this is
+        `payload["children_named"] += len(admissible)` arithmetic for arithmetic."""
+        payload["children_named"] += len(admissible) - len(free_set
+                                                           & {a["child"] for a in admissible})
+
     if context_on:                                    # omit-when-off: stamped ONLY under the rider,
         payload["context"] = {"planned": None, "admitted": 0, "rendered": 0, "reads": 0,  # and EARLY,
                               "cap": CW_CONTEXT_CAP, "board_reads_planned": None,         # so a root-
@@ -6683,57 +7041,19 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         # review D1 (reproduced KeyError on hard_red_spring_wheat_mgex before its label landed):
         # an unlabeled root DECLINES with a name, zero reads -- never an error payload.
         return _decline("root", "root_unlabeled")
-    rows = [r for r in (graph.rev_cross_links(root) if graph is not None else [])]
-    if rows and any(str(r.get("seed")) != root for r in rows):
-        # graph.py files every row of a node under ONE canonical seed, so this is all-or-nothing:
-        # a covered non-canonical focus must DECLINE, never silently walk another contract's edges.
-        return _decline("root", "focus_not_node_seed")
-    if not rows:
-        return _decline("root", "no_declared_children")
     # ── children: A1 union (the graph's declaration IS the admission), gated BEFORE any read ──
-    node = graph.contract_node
-    by_child: dict = {}
-    for r in rows:
-        by_child.setdefault(str(r.get("contract")), []).append(r)
-    admissible: list = []
-    for child in sorted(by_child):
-        crows = by_child[child]
-        if child not in cov:
-            _decline("child", "child_uncovered", child=child)
-            continue
-        if node(child) == node(root):
-            _decline("child", "node_cycle", child=child)
-            continue
-        if _cw_currency(child) != _cw_currency(root):
-            _decline("child", "cross_currency", child=child)
-            continue
-        signs = {str(r.get("sign")) for r in crows}
-        if signs - {"+", "-"}:
-            _decline("child", ("sign_undeclared" if signs <= {"0", "None", ""} else
-                               "sign_not_unanimous"), child=child)
-            continue
-        if len(signs) != 1:
-            _decline("child", "sign_not_unanimous", child=child)
-            continue
-        if any(_cw_min_lag_quarters(r.get("lag")) != 0 for r in crows):
-            _decline("child", "lag_gate", child=child)
-            continue
-        rels = sorted({str(r.get("relation")) for r in crows})
-        if any(rel not in _CW_RELATION_WORDS for rel in rels):
-            _decline("child", "relation_unmapped", child=child)
-            continue
-        blurbs = sorted({str(r.get("blurb") or "").strip() for r in crows} - {""})
-        if len(blurbs) > 1:
-            _decline("child", "blurb_not_unanimous", child=child)
-            continue
-        if child not in _CW_BOARD_LABEL:
-            _decline("child", "child_uncovered", child=child)
-            continue
-        admissible.append({"child": child, "sign": signs.pop(), "relations": rels,
-                           "blurb": (blurbs[0] if blurbs else "")})
+    # `node` is bound HERE, at the call site, because the ladder needs it and so does every hop below
+    # (refute-v4 major-0). `graph is None` is reachable -- it declines `no_declared_children` inside
+    # the helper on empty rows -- so the binding is guarded rather than assumed.
+    node = graph.contract_node if graph is not None else None
+    admissible, _adm_decl, _root_decl = _cw_admissible_children(graph, cov, node, root)
+    if _root_decl is not None:
+        return _decline("root", _root_decl)
+    payload["declines"].extend(_adm_decl)
     payload["children_declared"] = len(admissible)
     if not admissible:
         payload["outcome"] = "declined"
+        _deep_stamp_hops()
         return [], payload
     narrated = _cw_narrated_pairs(sg)
     kept_admissible = []
@@ -6746,57 +7066,126 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     admissible = kept_admissible
     if not admissible:
         payload["outcome"] = "declined"
+        _deep_stamp_hops()
         return [], payload
-    named_budget = admissible[CW_MAX_CHILDREN:]
-    admissible = admissible[:CW_MAX_CHILDREN]
-    for a in named_budget:
-        _decline("child", "child_not_priced_budget", child=a["child"])
-        payload["children_named"] += 1
+    if not deep_on:
+        # THE SHIPPED WIDTH TRUNCATION, byte-verbatim and in its shipped POSITION (above the firing
+        # enumeration), so payload['declines'] keeps its exact order off. Under deep the selection
+        # moves below the shape switch, where `firings` is final and the free set can be built.
+        named_budget = admissible[CW_MAX_CHILDREN:]
+        admissible = admissible[:CW_MAX_CHILDREN]
+        for a in named_budget:
+            _decline("child", "child_not_priced_budget", child=a["child"])
+            payload["children_named"] += 1
     # ── firings (A6) ──
     firings, grounded = _cw_firings(sg, graph, root, str(cov[root]))
     payload["grounded_tree_slices"] = grounded
     if not firings:
-        payload["children_named"] += len(admissible)   # K2 (review D5): a root-scope decline after
-        return _decline("root", "no_firing_window")    # enumeration NAMES the children, never loses them
+        # THE ONE BELT THAT PRECEDES THE DEEP SELECTION: under deep it names the UNTRUNCATED set and
+        # off the truncated-plus-already-named set -- the SAME children and the SAME total -- and
+        # free is 0 here because no firing exists to classify a leg against.
+        _name_unpriced_children()
+        return _decline("root", "no_firing_window")
     # ── the deep-vs-wide shape (deterministic; see the docstring) ──
-    grand = None
-    if len(admissible) == 1:
-        child = admissible[0]["child"]
+    # THE SWITCH READS THE SAME-CURRENCY ADMISSIBLE COUNT, NOT len(admissible) -- V2-3's law, minted
+    # here so V2-3 inherits it rather than re-deciding it. Byte-identical TODAY in both regimes: the
+    # hop-1 ladder declines every cross-currency child before `admissible.append`, so
+    # same_ccy_n == len(admissible) by construction. When V2-3 starts admitting FX children, this
+    # keeps the switch's MEANING (an FX rider must not silently flip a breadth turn into a depth one).
+    same_ccy_n = sum(1 for a in admissible if _cw_currency(a["child"]) == _cw_currency(root))
+    if same_ccy_n == 1:
+        # THE DEPTH CHILD IS THE UNIQUE SAME-CURRENCY MEMBER, never the list's first element
+        # (refute-v4 major-2): today they are the same element, and this is the seam V2-3 inherits --
+        # with FX children admitted, the first member could be an FX board while the chain must run
+        # off the same-currency one. SHAPE 2's paid_cells is stated over len(admissible) for exactly
+        # the same reason: the render loop prices every admissible child plus grand plus great.
+        child = next(a["child"] for a in admissible
+                     if _cw_currency(a["child"]) == _cw_currency(root))
         keep = _cw_kept_contracts(sg)
-        g_rows: dict = {}
-        for r2 in (graph.rev_cross_links(child) if graph is not None else []):
-            if str(r2.get("seed")) == child:
-                g_rows.setdefault(str(r2.get("contract")), []).append(r2)
-        for g2 in sorted(g_rows):                     # ascending id, first QUALIFYING group wins
-            rows2 = g_rows[g2]
-            # the SAME per-pair unanimity ladder hop 1 runs (review minor: a first-row-wins read
-            # here could mint a verdict off a declaration hop 1 would refuse as non-unanimous)
-            signs2 = {str(r.get("sign")) for r in rows2}
-            rels2 = sorted({str(r.get("relation")) for r in rows2})
-            blurbs2 = sorted({str(r.get("blurb") or "").strip() for r in rows2} - {""})
-            if frozenset((child, g2)) in narrated:
-                # review D8: the grandchild hop was the ONE pair-narrating surface the K3 check
-                # missed -- and the sole live second-order shape IS the fork's own crush pair.
-                payload["declines"].append({"scope": "child", "reason": "composer_narrated_pair",
-                                            "child": g2})
-                continue
-            if (g2 in keep and g2 in cov and g2 in _CW_BOARD_LABEL
-                    and signs2 <= {"+", "-"} and len(signs2) == 1
-                    and all(_cw_min_lag_quarters(r.get("lag")) == 0 for r in rows2)
-                    and all(rel in _CW_RELATION_WORDS for rel in rels2)
-                    and len(blurbs2) <= 1
-                    and _cw_currency(g2) == _cw_currency(child)
-                    and len({node(root), node(child), node(g2)}) == 3):
-                grand = {"child": g2, "sign": sorted(signs2)[0], "relations": rels2,
-                         "blurb": (blurbs2[0] if blurbs2 else ""), "parent": child}
-                break
-    if len(admissible) > 1 or grand is not None:
+        # THE DEPTH BOUND IS THIS LOOP (build-review minor: cw_order_max used to be read only to
+        # stamp payload['deep']['max_order'] while the real bound was "there are two hand-written
+        # calls"). `cw_order_max - 1` next-hop calls -- ONE off (order max 2: the shipped single
+        # 'grand' call at verbose=deep_on, byte for byte) and TWO under deep -- capped at the
+        # _CW_HOP_LEVELS vocabulary, which is the set of ledger levels that exist. Each miss is
+        # NAMED AND COUNTED at its own level and the walk stops there: the hop-2 miss used to record
+        # NOTHING while the symmetric hop-3 miss was named, which made eval's cw_hop2_declines
+        # structurally always [] -- an unfalsifiable arm column (build-refute major-3). Zero reads:
+        # every test in the ladder is a graph read.
+        _hop_parent, _hop_path = child, {node(root), node(child)}
+        for _hop_i in range(min(max(0, cw_order_max - 1), len(_CW_HOP_LEVELS))):
+            _lvl = _CW_HOP_LEVELS[_hop_i]
+            _hop = _cw_next_hop(graph, cov, node, keep, narrated, _hop_parent, _hop_path, payload,
+                                level=_lvl, verbose=deep_on)
+            if _lvl == "grand":
+                grand = _hop
+            else:
+                great = _hop
+            if _hop is None:
+                if deep_on:
+                    _decline(_lvl, "no_next_hop")     # append side-effect only (the :6772 idiom)
+                break                                 # off: no decline, no second call -- as shipped
+            # the SAME ladder once more, seeded at the hop just found, under exactly the same gates
+            # -- including node-distinctness across the WHOLE path (four distinct nodes at hop 3).
+            _hop_parent = _hop["child"]
+            _hop_path = _hop_path | {node(_hop_parent)}
+    if same_ccy_n > 1 or grand is not None:
         firings = firings[:1]
     else:
         firings = firings[:CW_MAX_FIRINGS]
     payload["firings"] = [{"span": f["span"], "slice": f["slice"], "start": f["start"],
                            "end": f["end"], "span_days": f["span_days"],
                            "node_token": f.get("node_token")} for f in firings]
+    if deep_on:
+        # ── V2-5: THE FREE SET, THEN THE PAID-CELL SELECTION ────────────────────────────────────
+        # ONE predicate (_cw_free), ONE aggregation, over ALL legs at EVERY level -- children, grand
+        # and great together -- which is what makes a free hop-3 cell expressible at all. A leg is
+        # FREE FOR THE WALK iff `_cw_free` holds on EVERY selected firing. THE DIRECTION THAT COSTS:
+        # a child free on ONE of two firings is NOT free, so it books a paid cell on both even though
+        # the render loop spends nothing on the firing where it is free. That OVER-reserves at most
+        # CW_READS_PER_CELL on the depth-in-time shape and can never over-spend; paid_cells is a
+        # PLAN, payload['net_reads'] stays the honest spend. THE ROOT IS NEVER FREE by construction
+        # (firings are enumerated against the root's own coverage), so no predicate is needed for it.
+        # THERE IS NO TRANSITIVE RULE: on the shipped graph the coverage floors are non-decreasing
+        # down the only chain, so a free ancestor implies every descendant free (refute-v4 major-1)
+        # and the rule would only have deleted declared absence rows.
+        _legs_all = ([{"child": a["child"], "parent": root} for a in admissible]
+                     + ([grand] if grand is not None else [])
+                     + ([great] if great is not None else []))
+        free_set = {L["child"] for L in _legs_all
+                    if all(_cw_free(cov, L["child"], f) for f in firings)}
+        # THE PAID-CELL SELECTION, in the existing ascending-slug order, one pass. A FREE child rides
+        # without booking a cell -- the whole point of the rule is that paid slots stop being spent
+        # on absences. A dropped child is POPPED from `admissible` (`admissible = kept`), so
+        # cells_planned really falls and the belts cannot double-count it.
+        kept, dropped, paid_n = [], [], 0
+        for a in admissible:
+            if a["child"] in free_set:
+                kept.append(a)
+            elif paid_n < cw_children:
+                kept.append(a)
+                paid_n += 1
+            else:
+                dropped.append(a)
+        for a in dropped:
+            _decline("child", "child_not_priced_budget", child=a["child"])
+            payload["children_named"] += 1
+        # THE ONE RUNTIME WIDTH BELT (refute-v4 major-3). Free children ride OUTSIDE the paid budget,
+        # so rendered width = |free kept| + |paid kept| has no fail-closed bound of its own; clause
+        # (ix) is a CI lint and configs/graphrag is gitignored and rides the image tar, so a curation
+        # edit can mint an extra child on a serving image the lint never ran against. The excess --
+        # lowest-ranked, i.e. last in ascending-slug order -- is declined BY NAME and counted.
+        # Unreachable on the shipped graph (measured max out-degree 4 << 6 + 2). IT BOUNDS THE TOTAL
+        # RENDERED WIDTH at `cw_children + cw_free_allow`, and does NOT count the free riders
+        # separately -- so the allowance is headroom on the total, exactly as CW_FREE_ALLOWANCE now
+        # says. BOTH terms are regime LOCALS (build-refute minor: this was the one belt reading a
+        # module global).
+        _over = len(kept) - (cw_children + cw_free_allow)
+        if _over > 0:
+            belted, kept = kept[-_over:], kept[:-_over]
+            for a in belted:
+                _decline("child", "width_belt", child=a["child"])
+                payload["children_named"] += 1
+        admissible = kept
     if context_on:
         # V2-1 (review F2): the context PLAN is stamped from the enumeration the moment it exists --
         # BEFORE the ceiling tests -- so a root-scope decline below can never report "zero were
@@ -6815,18 +7204,33 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     spent = _cw_turn_spent(sg)
     payload["turn_spent_before"] = spent
     if spent is None:
-        payload["children_named"] += len(admissible)
+        _name_unpriced_children()
         _ctx_root_declined()
         return _decline("root", "turn_spend_unknown")
-    cells_planned = sum(1 + len(admissible) + (1 if grand is not None else 0) for _ in firings)
-    if cells_planned * CW_READS_PER_CELL > CW_CAP:
-        # the review's belt: the shape rules above keep every plan at or under CW_CAP today, so
+    if deep_on:
+        # THE PAID PLAN, WRITTEN OUT: one root cell per firing, plus every KEPT child that is not
+        # free, plus the grand and the great when they exist and are not free. grand/great exist only
+        # on the one-firing shape, so the per-firing sum is exact on all three shapes. Stated over
+        # len(admissible) -- SHAPE 2 prices 1 + |admissible| + grand + great, which is 4 today and
+        # stays correct the day V2-3 admits an FX sibling beside the depth child.
+        paid_cells = sum((1
+                          + sum(1 for a in admissible if a["child"] not in free_set)
+                          + (1 if grand is not None and grand["child"] not in free_set else 0)
+                          + (1 if great is not None and great["child"] not in free_set else 0))
+                         for _ in firings)
+        cells_planned = paid_cells
+        payload["deep"]["cells_planned"] = cells_planned
+        payload["deep"]["paid_cells"] = paid_cells
+    else:
+        cells_planned = sum(1 + len(admissible) + (1 if grand is not None else 0) for _ in firings)
+    if cells_planned * CW_READS_PER_CELL > cw_cap:
+        # the review's belt: the shape rules above keep every plan at or under the cap today, so
         # this is unreachable -- until a future knob change; then it DECLINES, never over-spends.
-        payload["children_named"] += len(admissible)
+        _name_unpriced_children()
         _ctx_root_declined()
         return _decline("root", "cap")
-    if spent + cells_planned * CW_READS_PER_CELL > CW_TURN_CEILING:
-        payload["children_named"] += len(admissible)
+    if spent + cells_planned * CW_READS_PER_CELL > cw_ceiling:
+        _name_unpriced_children()
         _ctx_root_declined()
         return _decline("root", "turn_budget_spent")
     # V2-1 SUBORDINATE ADMISSION (F2 as adjudicated): the board test above keeps its bytes; a context
@@ -6834,6 +7238,11 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     # CW_TURN_CEILING, else the CELL declines budget_cap and the block ships. board_reads is the PLAN
     # (outcome-independent, known before any read -- MAJOR-5 clean) and is stamped (refute m6) so a
     # budget_cap decline is auditable from the artifact without re-deriving the shape.
+    # THE 60-vs-80 ASYMMETRY, STATED (build-refute minor): the rider's slack test reads
+    # CW_TURN_CEILING (60) in BOTH regimes -- by design, the rider is regime-independent -- while the
+    # deep walk was itself admitted against CW_DEEP_TURN_CEILING (80). So a WIDE deep plan can starve
+    # every context cell as budget_cap. That is the intended precedence (the board block outranks the
+    # rider), it is COUNTED as budget_cap and never silent, and it is why the rider's own cap is 2.
     board_reads = cells_planned * CW_READS_PER_CELL
     ctx_admitted = 0
     ctx_rendered = 0
@@ -6895,7 +7304,13 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 payload["context"]["declines"].append({"slice": f["slice"], "span": span_tok,
                                                        "reason": "root_declined"})
             continue
-        legs = list(admissible) + ([grand] if grand is not None else [])
+        # V2-5: the great leg joins on the SAME terms as the grand. Nothing else in the render loop
+        # changes -- `parent = a.get("parent") or root` already resolves it, the parent_rec scan finds
+        # the grand cell (appended below before the great leg is processed), `_cw_fences` applies the
+        # SAME interval and tenor tests, a fence failure forces 'undetermined' (K4) and the row still
+        # ships, and the whole-block register fence stays atomic with caller rollback.
+        legs = (list(admissible) + ([grand] if grand is not None else [])
+                + ([great] if great is not None else []))
         for a in legs:
             child = a["child"]
             parent = a.get("parent") or root
@@ -6904,10 +7319,16 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 parent_rec = next((c for c in payload["cells"]
                                    if c.get("slug") == parent and c.get("span") == span_tok
                                    and c.get("status") == "closed"), None)
-            if str(cov[child]) > t1:
+            if _cw_free(cov, child, f):
                 # review minor: a firing that predates the CHILD's own board history declines
                 # arithmetically -- A6.2's zero-read discipline; span_outcome would only say the
                 # same thing after two paid reads.
+                # THE ONE PREDICATE (build-review major): this used to spell `str(cov[child]) > t1`
+                # inline while _cw_free's docstring claimed "there is no second predicate anywhere in
+                # this leg". They agreed only because t1 IS f["start"]; if either side were ever
+                # tightened a child would stay in free_set, contribute 0 to paid_cells and then be
+                # PRICED -- realized reads above the plan the cap belt approved, the one thing
+                # CW_DEEP_CAP exists to prevent. Byte-identical today, off regime included.
                 crec, cr = {"slug": child, "span": span_tok, "status": "declined",
                             "reason": "pre_coverage", "reads": 0}, 0
             else:
@@ -6942,6 +7363,12 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 lines.append(_cw_absence(_CW_BOARD_LABEL[child],
                                          str(crec.get("reason") or "no_move")))
             payload["cells"].append({k: v for k, v in crec.items() if k != "_res"})
+            if deep_on and crec["status"] == "declined" and crec.get("reason") == "pre_coverage":
+                # `absent` counts RENDERED pre_coverage CELLS, and is deliberately NOT a rectangle
+                # term: on the two-firing shape one free LEG renders TWO absences, so absent can
+                # exceed free. It is the diagnostic that makes the over-reservation visible.
+                payload["deep"]["hops"]["great" if a is great else
+                                        "grand" if a is grand else "child"]["absent"] += 1
         if context_on:
             # -- V2-1 CONTEXT CELL: one non-verdicted pair per admitted firing, AFTER the firing's
             # child rows (reached only when the root cell closed). THE WHOLE EMISSION IS BELTED
@@ -7005,8 +7432,16 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 payload["context"]["reads"] += xr
                 payload["cells"].append(dict(xrec))
     payload["children_priced"] = len(priced_children & {a["child"] for a in admissible})
-    payload["children_named"] += sum(1 for a in admissible
-                                     if a["child"] not in priced_children)
+    if deep_on:
+        # a FREE child is rendered-not-priced: it is counted `free`, never `named`, so the rectangle
+        # reads declared == priced + named + free instead of declared == priced + named.
+        payload["children_named"] += sum(1 for a in admissible
+                                         if a["child"] not in priced_children
+                                         and a["child"] not in free_set)
+    else:
+        payload["children_named"] += sum(1 for a in admissible
+                                         if a["child"] not in priced_children)
+    _deep_stamp_hops(priced_children)                 # the per-level rectangle, on the render path
     payload["net_reads"] = reads_spent
     # K3 ORDER HONESTY (review D7, confirmed): order and path derive from what was RENDERED --
     # the hop headers actually emitted -- never from admission or pricing, so the marker, the
@@ -7016,7 +7451,21 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         if c not in seen_m:
             seen_m.append(c)
     payload["path"] = seen_m
-    payload["order"] = "second" if any(p != root for (p, _c) in rendered_pairs) else "first"
+    if deep_on:
+        # THE ORDER LABEL IS `_cw_order_n`, THE ONE LIFTED EXPRESSION -- edges not nodes, and over
+        # the chain of CLOSED cells so a HOLE (a declined hop, a free pre_coverage absence) caps the
+        # label at the last hop that actually printed a read. See that helper for the measured B4
+        # shape this closes. `.get(order_n, "third")` rather than `[order_n]` -- a KeyError here
+        # would be swallowed by the wrapper belt into a silent whole-block 'declined', the worst
+        # possible failure mode for a label. `payload["path"]` above is UNCHANGED: it is the
+        # RENDERED chain, absences included, because the page really did show those rows.
+        _closed = {c.get("slug") for c in payload["cells"]
+                   if c.get("kind") != "context" and c.get("status") == "closed"}
+        order_n = _cw_order_n(root, rendered_pairs, _closed)
+        payload["deep"]["order_n"] = order_n
+        payload["order"] = _CW_ORDER_WORDS.get(order_n, "third")
+    else:
+        payload["order"] = "second" if any(p != root for (p, _c) in rendered_pairs) else "first"
     if not _cw_board_row_closed(payload["cells"]):
         # review minor: a block with zero [N] rows must not ship a marker claiming rows -- the
         # dormant-clause discipline. The absences stay in the trace; the block stays unshipped.
@@ -7040,6 +7489,26 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         payload["cells"] = [dict(c, handle=None) for c in payload["cells"]]
         if context_on:
             payload["context"]["rendered"] = 0
+        if deep_on:
+            # THE DEEP LEDGER ZEROES WITH THE BLOCK (build-refute minor B5, MEASURED: a fenced
+            # third-order block still projected order_n 3, paid_cells 4, plan_reads 12 and a hop-3
+            # verdict, so an analyst filtering on cw_hop3_verdict counted a block nobody read). The
+            # context rider already zeroes its own `rendered` here; this is the same sentence for
+            # the board ledger. The PLAN fields go None (absent is never zero -- there is no plan
+            # for a block that did not ship) and the priced/absent terms go to zero with `named`
+            # taking them, so the per-level rectangle still closes. cap/ceiling/max_* stay: they
+            # are config echoes, not claims about a shipped block.
+            payload["deep"]["order_n"] = None
+            payload["deep"]["cells_planned"] = None
+            payload["deep"]["paid_cells"] = None
+            for _row in payload["deep"]["hops"].values():
+                _row.update(priced=0, absent=0,
+                            named=_row["declared"] - _row["free"])
+            # ... and the TOP-LEVEL ledger folds the same way, or eval's hop-1 mirror
+            # (children_priced == hops.child.priced) contradicts itself on exactly this row
+            # (post-fix re-review M1, measured). K2 still holds: declared is untouched.
+            payload["children_named"] = int(payload.get("children_named") or 0) + int(payload.get("children_priced") or 0)
+            payload["children_priced"] = 0
         return [], payload
     payload["outcome"] = "fired"
     return lines, payload
@@ -7051,6 +7520,13 @@ def _cascade_walk_leg_or_nothing(sg, graph, walk_request: dict, qfn, asof, calls
     precedent). Writes the ONE registered trace key whenever the leg RAN -- `outcome` carries
     fired/declined/fenced, so an absent key means 'did not run', never 'declined'."""
     _b = len(calls)
+    _t0 = time.perf_counter()                         # V2-5: the WALK-SCOPED clock (the probe_ms
+    #                                                   idiom). timing_ms.quantify is the whole
+    #                                                   quantify measure -- 251 / 3,066 / 13,675 ms
+    #                                                   on three identically shaped 6-read walks, a
+    #                                                   54x spread no larger n can separate -- so
+    #                                                   G10 needs its own. This wrapper is the ONE
+    #                                                   place every return path reaches.
     try:
         lines, payload = _cascade_walk_legs(sg, graph, walk_request, qfn, asof, calls, _b,
                                             futures_newest_first=futures_newest_first)
@@ -7061,6 +7537,19 @@ def _cascade_walk_leg_or_nothing(sg, graph, walk_request: dict, qfn, asof, calls
         #                                               class) and stretch the [N] index range
         lines, payload = [], {"outcome": "declined",
                               "declines": [{"scope": "root", "reason": "error"}]}
+        if bool((walk_request or {}).get("deep") or (walk_request or {}).get("xccy")):
+            # THE BELT MUST CARRY THE REGIME, or a treatment error row projects cw_deep_on False and
+            # is read as a control row. The REQUEST is the only thing it can trust after an
+            # exception. Flag off -> no 'deep' key -> this dict is byte-identical to today's.
+            # IT CARRIES NO 'hops' KEY, deliberately: eval projects cw_deep_identity_ok as None here
+            # rather than the vacuous True that `all()` over an empty dict returns, and reads the
+            # state off cw_deep_error instead (build-refute major-2).
+            payload["deep"] = {"error": True}
+    if isinstance(payload, dict) and "deep" in payload:
+        # THE ONE NONDETERMINISTIC FIELD IN THE WHOLE PAYLOAD. Two runs of the same turn agree on
+        # every other byte and never on this one, so EXCLUDE elapsed_ms from every byte comparison
+        # of a flag-ON artifact (the flag-OFF golden never sees it: there is no 'deep' key off).
+        payload["deep"]["elapsed_ms"] = int((time.perf_counter() - _t0) * 1000)
     if payload is not None:
         try:
             sg.trace["quantify_cascade_walk"] = payload

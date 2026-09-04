@@ -1,0 +1,1472 @@
+{
+ "probe": "v25_v4_remeasure",
+ "graph_version": "fc9760ed68c0",
+ "basis": "HEAD c6868034; working tree modifies answer.py + config_check.py ONLY",
+ "regime_v4": {
+  "CW_DEEP_MAX_CHILDREN": 5,
+  "CW_DEEP_CAP": 24,
+  "CW_DEEP_MAX_ORDER": 3,
+  "CW_DEEP_TURN_CEILING": 80,
+  "CW_READS_PER_CELL": 3,
+  "CW_MAX_FIRINGS": 2
+ },
+ "v23_width_headroom": {
+  "per_root": {
+   "arabica_coffee": {
+    "same_currency_children": [
+     "robusta_coffee"
+    ],
+    "n_same": 1,
+    "xccy_children_if_v23_lifts": [],
+    "n_if_v23_lifts": 1,
+    "cross_currency_declines_today": 0
+   },
+   "canola_ice": {
+    "same_currency_children": [],
+    "n_same": 0,
+    "xccy_children_if_v23_lifts": [
+     "french_rapeseed_matif",
+     "rapeseed_meal_zce"
+    ],
+    "n_if_v23_lifts": 2,
+    "cross_currency_declines_today": 3
+   },
+   "corn_cbot": {
+    "same_currency_children": [
+     "hard_red_spring_wheat_mgex",
+     "hard_red_winter_wheat_kcbt",
+     "soft_red_winter_wheat_cbot",
+     "soybean_meal_cbot"
+    ],
+    "n_same": 4,
+    "xccy_children_if_v23_lifts": [
+     "french_wheat_matif",
+     "south_african_white_maize_jse"
+    ],
+    "n_if_v23_lifts": 6,
+    "cross_currency_declines_today": 5
+   },
+   "french_rapeseed_matif": {
+    "same_currency_children": [],
+    "n_same": 0,
+    "xccy_children_if_v23_lifts": [
+     "canola_ice"
+    ],
+    "n_if_v23_lifts": 1,
+    "cross_currency_declines_today": 1
+   },
+   "french_wheat_matif": {
+    "same_currency_children": [],
+    "n_same": 0,
+    "xccy_children_if_v23_lifts": [
+     "hard_red_spring_wheat_mgex",
+     "hard_red_winter_wheat_kcbt",
+     "soft_red_winter_wheat_cbot"
+    ],
+    "n_if_v23_lifts": 3,
+    "cross_currency_declines_today": 3
+   },
+   "hard_red_spring_wheat_mgex": {
+    "same_currency_children": [
+     "hard_red_winter_wheat_kcbt",
+     "soft_red_winter_wheat_cbot"
+    ],
+    "n_same": 2,
+    "xccy_children_if_v23_lifts": [
+     "french_wheat_matif"
+    ],
+    "n_if_v23_lifts": 3,
+    "cross_currency_declines_today": 1
+   },
+   "hard_red_winter_wheat_kcbt": {
+    "same_currency_children": [
+     "hard_red_spring_wheat_mgex",
+     "soft_red_winter_wheat_cbot"
+    ],
+    "n_same": 2,
+    "xccy_children_if_v23_lifts": [
+     "french_wheat_matif"
+    ],
+    "n_if_v23_lifts": 3,
+    "cross_currency_declines_today": 1
+   },
+   "malaysian_crude_palm_oil_cme": {
+    "same_currency_children": [
+     "soybean_oil_cbot",
+     "soybeans_cbot"
+    ],
+    "n_same": 2,
+    "xccy_children_if_v23_lifts": [
+     "canola_ice",
+     "french_rapeseed_matif",
+     "rapeseed_oil_zce"
+    ],
+    "n_if_v23_lifts": 5,
+    "cross_currency_declines_today": 3
+   },
+   "rapeseed_meal_zce": {
+    "same_currency_children": [],
+    "n_same": 0,
+    "xccy_children_if_v23_lifts": [
+     "soybean_meal_cbot",
+     "soybeans_cbot"
+    ],
+    "n_if_v23_lifts": 2,
+    "cross_currency_declines_today": 3
+   },
+   "rapeseed_oil_zce": {
+    "same_currency_children": [
+     "rapeseed_meal_zce"
+    ],
+    "n_same": 1,
+    "xccy_children_if_v23_lifts": [
+     "soybean_oil_cbot",
+     "soybeans_cbot"
+    ],
+    "n_if_v23_lifts": 3,
+    "cross_currency_declines_today": 3
+   },
+   "raw_sugar": {
+    "same_currency_children": [
+     "white_sugar"
+    ],
+    "n_same": 1,
+    "xccy_children_if_v23_lifts": [],
+    "n_if_v23_lifts": 1,
+    "cross_currency_declines_today": 0
+   },
+   "robusta_coffee": {
+    "same_currency_children": [
+     "arabica_coffee"
+    ],
+    "n_same": 1,
+    "xccy_children_if_v23_lifts": [],
+    "n_if_v23_lifts": 1,
+    "cross_currency_declines_today": 1
+   },
+   "soft_red_winter_wheat_cbot": {
+    "same_currency_children": [
+     "hard_red_spring_wheat_mgex",
+     "hard_red_winter_wheat_kcbt"
+    ],
+    "n_same": 2,
+    "xccy_children_if_v23_lifts": [
+     "french_wheat_matif"
+    ],
+    "n_if_v23_lifts": 3,
+    "cross_currency_declines_today": 1
+   },
+   "soybean_meal_cbot": {
+    "same_currency_children": [
+     "soybean_oil_cbot",
+     "soybeans_cbot"
+    ],
+    "n_same": 2,
+    "xccy_children_if_v23_lifts": [
+     "rapeseed_meal_zce"
+    ],
+    "n_if_v23_lifts": 3,
+    "cross_currency_declines_today": 1
+   },
+   "soybean_oil_cbot": {
+    "same_currency_children": [
+     "malaysian_crude_palm_oil_cme",
+     "soybean_meal_cbot",
+     "soybeans_cbot"
+    ],
+    "n_same": 3,
+    "xccy_children_if_v23_lifts": [
+     "canola_ice",
+     "french_rapeseed_matif"
+    ],
+    "n_if_v23_lifts": 5,
+    "cross_currency_declines_today": 3
+   },
+   "soybeans_cbot": {
+    "same_currency_children": [
+     "soybean_meal_cbot"
+    ],
+    "n_same": 1,
+    "xccy_children_if_v23_lifts": [
+     "french_rapeseed_matif",
+     "rapeseed_meal_zce",
+     "rapeseed_oil_zce"
+    ],
+    "n_if_v23_lifts": 4,
+    "cross_currency_declines_today": 7
+   },
+   "white_sugar": {
+    "same_currency_children": [
+     "raw_sugar"
+    ],
+    "n_same": 1,
+    "xccy_children_if_v23_lifts": [],
+    "n_if_v23_lifts": 1,
+    "cross_currency_declines_today": 0
+   }
+  },
+  "max_same_currency_out_degree": 4,
+  "max_out_degree_if_v23_lifts_currency": 6,
+  "roots_over_cw_deep_max_children": [
+   "corn_cbot"
+  ],
+  "cw_deep_max_children": 5
+ },
+ "free_set_all_legs": {
+  "rule": "a leg is FREE iff str(cov[slug]) > str(firing['start']) on EVERY selected firing; ONE set over children+grand+great",
+  "shapes": [
+   {
+    "root": "arabica_coffee",
+    "shape": "depth_in_time",
+    "legs": [
+     "robusta_coffee"
+    ],
+    "chain": null,
+    "n_children": 1,
+    "firings": 2,
+    "coverage_floors": {
+     "robusta_coffee": "2018-12-24"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "robusta_coffee"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "robusta_coffee"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2018-12-24",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "corn_cbot",
+    "shape": "breadth",
+    "legs": [
+     "hard_red_spring_wheat_mgex",
+     "hard_red_winter_wheat_kcbt",
+     "soft_red_winter_wheat_cbot",
+     "soybean_meal_cbot"
+    ],
+    "chain": null,
+    "n_children": 4,
+    "firings": 1,
+    "coverage_floors": {
+     "hard_red_spring_wheat_mgex": "2025-09-09",
+     "hard_red_winter_wheat_kcbt": "2014-01-02",
+     "soft_red_winter_wheat_cbot": "2010-06-06",
+     "soybean_meal_cbot": "2010-06-06"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "hard_red_spring_wheat_mgex",
+       "hard_red_winter_wheat_kcbt",
+       "soft_red_winter_wheat_cbot",
+       "soybean_meal_cbot"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 5,
+      "paid_cells": 1,
+      "paid_reads": 3,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2010-06-06",
+      "free": [
+       "hard_red_spring_wheat_mgex",
+       "hard_red_winter_wheat_kcbt"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 5,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2014-01-02",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 5,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 5,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 5,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 5,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2025-09-09",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 5,
+      "paid_cells": 5,
+      "paid_reads": 15,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 5,
+      "paid_cells": 5,
+      "paid_reads": 15,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "hard_red_spring_wheat_mgex",
+    "shape": "breadth",
+    "legs": [
+     "hard_red_winter_wheat_kcbt",
+     "soft_red_winter_wheat_cbot"
+    ],
+    "chain": null,
+    "n_children": 2,
+    "firings": 1,
+    "coverage_floors": {
+     "hard_red_winter_wheat_kcbt": "2014-01-02",
+     "soft_red_winter_wheat_cbot": "2010-06-06"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "hard_red_winter_wheat_kcbt",
+       "soft_red_winter_wheat_cbot"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 1,
+      "paid_reads": 3,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2010-06-06",
+      "free": [
+       "hard_red_winter_wheat_kcbt"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2014-01-02",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "hard_red_winter_wheat_kcbt",
+    "shape": "breadth",
+    "legs": [
+     "hard_red_spring_wheat_mgex",
+     "soft_red_winter_wheat_cbot"
+    ],
+    "chain": null,
+    "n_children": 2,
+    "firings": 1,
+    "coverage_floors": {
+     "hard_red_spring_wheat_mgex": "2025-09-09",
+     "soft_red_winter_wheat_cbot": "2010-06-06"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "hard_red_spring_wheat_mgex",
+       "soft_red_winter_wheat_cbot"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 1,
+      "paid_reads": 3,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2010-06-06",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2025-09-09",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "malaysian_crude_palm_oil_cme",
+    "shape": "breadth",
+    "legs": [
+     "soybean_oil_cbot",
+     "soybeans_cbot"
+    ],
+    "chain": null,
+    "n_children": 2,
+    "firings": 1,
+    "coverage_floors": {
+     "soybean_oil_cbot": "2010-06-06",
+     "soybeans_cbot": "2010-06-06"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "soybean_oil_cbot",
+       "soybeans_cbot"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 1,
+      "paid_reads": 3,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2010-06-06",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "rapeseed_oil_zce",
+    "shape": "depth_in_time",
+    "legs": [
+     "rapeseed_meal_zce"
+    ],
+    "chain": null,
+    "n_children": 1,
+    "firings": 2,
+    "coverage_floors": {
+     "rapeseed_meal_zce": "2015-10-08"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "rapeseed_meal_zce"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "rapeseed_meal_zce"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-10-08",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "raw_sugar",
+    "shape": "depth_in_time",
+    "legs": [
+     "white_sugar"
+    ],
+    "chain": null,
+    "n_children": 1,
+    "firings": 2,
+    "coverage_floors": {
+     "white_sugar": "2018-12-24"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "white_sugar"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "white_sugar"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2018-12-24",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "robusta_coffee",
+    "shape": "depth_in_time",
+    "legs": [
+     "arabica_coffee"
+    ],
+    "chain": null,
+    "n_children": 1,
+    "firings": 2,
+    "coverage_floors": {
+     "arabica_coffee": "2018-12-24"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "arabica_coffee"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "arabica_coffee"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2018-12-24",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "soft_red_winter_wheat_cbot",
+    "shape": "breadth",
+    "legs": [
+     "hard_red_spring_wheat_mgex",
+     "hard_red_winter_wheat_kcbt"
+    ],
+    "chain": null,
+    "n_children": 2,
+    "firings": 1,
+    "coverage_floors": {
+     "hard_red_spring_wheat_mgex": "2025-09-09",
+     "hard_red_winter_wheat_kcbt": "2014-01-02"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "hard_red_spring_wheat_mgex",
+       "hard_red_winter_wheat_kcbt"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 1,
+      "paid_reads": 3,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2014-01-02",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [
+       "hard_red_spring_wheat_mgex"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2025-09-09",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "soybean_meal_cbot",
+    "shape": "breadth",
+    "legs": [
+     "soybean_oil_cbot",
+     "soybeans_cbot"
+    ],
+    "chain": null,
+    "n_children": 2,
+    "firings": 1,
+    "coverage_floors": {
+     "soybean_oil_cbot": "2010-06-06",
+     "soybeans_cbot": "2010-06-06"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "soybean_oil_cbot",
+       "soybeans_cbot"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 1,
+      "paid_reads": 3,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2010-06-06",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 3,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "soybean_oil_cbot",
+    "shape": "breadth",
+    "legs": [
+     "malaysian_crude_palm_oil_cme",
+     "soybean_meal_cbot",
+     "soybeans_cbot"
+    ],
+    "chain": null,
+    "n_children": 3,
+    "firings": 1,
+    "coverage_floors": {
+     "malaysian_crude_palm_oil_cme": "2016-08-01",
+     "soybean_meal_cbot": "2010-06-06",
+     "soybeans_cbot": "2010-06-06"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "malaysian_crude_palm_oil_cme",
+       "soybean_meal_cbot",
+       "soybeans_cbot"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 1,
+      "paid_reads": 3,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2010-06-06",
+      "free": [
+       "malaysian_crude_palm_oil_cme"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "malaysian_crude_palm_oil_cme"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2016-08-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "soybeans_cbot",
+    "shape": "depth_in_graph",
+    "legs": [
+     "soybean_meal_cbot",
+     "soybean_oil_cbot",
+     "malaysian_crude_palm_oil_cme"
+    ],
+    "chain": [
+     "soybean_meal_cbot",
+     "soybean_oil_cbot",
+     "malaysian_crude_palm_oil_cme"
+    ],
+    "n_children": 1,
+    "firings": 1,
+    "coverage_floors": {
+     "soybean_meal_cbot": "2010-06-06",
+     "soybean_oil_cbot": "2010-06-06",
+     "malaysian_crude_palm_oil_cme": "2016-08-01"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "malaysian_crude_palm_oil_cme",
+       "soybean_meal_cbot",
+       "soybean_oil_cbot"
+      ],
+      "transitively_dropped": [
+       "malaysian_crude_palm_oil_cme",
+       "soybean_oil_cbot"
+      ],
+      "rendered_cells": 2,
+      "paid_cells": 1,
+      "paid_reads": 3,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2010-06-06",
+      "free": [
+       "malaysian_crude_palm_oil_cme"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "malaysian_crude_palm_oil_cme"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 3,
+      "paid_reads": 9,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2016-08-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     }
+    ]
+   },
+   {
+    "root": "white_sugar",
+    "shape": "depth_in_time",
+    "legs": [
+     "raw_sugar"
+    ],
+    "chain": null,
+    "n_children": 1,
+    "firings": 2,
+    "coverage_floors": {
+     "raw_sugar": "2018-12-24"
+    },
+    "sweep": [
+     {
+      "firing_start": "2010-01-01",
+      "free": [
+       "raw_sugar"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2015-06-01",
+      "free": [
+       "raw_sugar"
+      ],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 2,
+      "paid_reads": 6,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2018-12-24",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2019-12-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2023-10-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     },
+     {
+      "firing_start": "2026-01-01",
+      "free": [],
+      "transitively_dropped": [],
+      "rendered_cells": 4,
+      "paid_cells": 4,
+      "paid_reads": 12,
+      "fits_deep_cap": true
+     }
+    ]
+   }
+  ],
+  "worst_paid_reads": 15,
+  "every_swept_shape_fits_cw_deep_cap": true,
+  "maximal_legitimate_shape": {
+   "root": 1,
+   "children": 5,
+   "grand": 1,
+   "great": 1,
+   "cells": 8,
+   "reads": 24,
+   "equals_cw_deep_cap": true
+  }
+ },
+ "ceiling": {
+  "terms": {
+   "CASCADE_CAP": 12,
+   "CHAIN_CAP": 12,
+   "TRANSMISSION_CAP": 18,
+   "price_leg": 2,
+   "j4": 9,
+   "xc_fork_calls_delta": 12
+  },
+  "prewalk_enumerated_worst": 65,
+  "prewalk_measured_turns": [
+   13,
+   14,
+   19,
+   25,
+   25
+  ],
+  "prewalk_measured_worst": 25,
+  "cw_deep_cap": 24,
+  "cw_context_cap": 2,
+  "round3_prewalk_allowance": 44,
+  "fx_allowance": 10,
+  "derivation": "80 = 44 (round-3 pre-walk allowance) + 24 (CW_DEEP_CAP) + 2 (CW_CONTEXT_CAP) + 10 (V2-3 FX allowance)",
+  "headroom_over_measured_worst": 29,
+  "binds_under_enumerated_worst": true,
+  "enumerated_worst_total": 91,
+  "max_non_root_cells_on_maximal_shape": 7
+ },
+ "order_label": {
+  "banked_all_agree": true,
+  "n_rows": 14,
+  "n_rendered_shapes": 3,
+  "rendered_rows": [
+   {
+    "i": 4,
+    "root": "soybeans_cbot",
+    "children_declared": 1,
+    "order_n_edges": 2,
+    "banked_order": "second",
+    "shipped_expr": "second",
+    "depth_minus_one": "second"
+   },
+   {
+    "i": 6,
+    "root": "soybeans_cbot",
+    "children_declared": 1,
+    "order_n_edges": 2,
+    "banked_order": "second",
+    "shipped_expr": "second",
+    "depth_minus_one": "second"
+   },
+   {
+    "i": 12,
+    "root": "soybean_oil_cbot",
+    "children_declared": 2,
+    "order_n_edges": 1,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   }
+  ],
+  "n_empty_rendered_pairs": 11,
+  "empty_rows": [
+   {
+    "i": 0,
+    "root": "malaysian_crude_palm_oil_cme",
+    "children_declared": 0,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 1,
+    "root": "french_rapeseed_matif",
+    "children_declared": 0,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 2,
+    "root": "malaysian_crude_palm_oil_cme",
+    "children_declared": 0,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 3,
+    "root": "corn_cbot",
+    "children_declared": 4,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 5,
+    "root": "soybeans_cbot",
+    "children_declared": 1,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 7,
+    "root": "corn",
+    "children_declared": 0,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 8,
+    "root": "canola_ice",
+    "children_declared": 0,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 9,
+    "root": "canola_ice",
+    "children_declared": 0,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 10,
+    "root": "french_rapeseed_matif",
+    "children_declared": 0,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 11,
+    "root": "sunflower_oil",
+    "children_declared": 0,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   },
+   {
+    "i": 13,
+    "root": "corn",
+    "children_declared": 0,
+    "order_n_edges": 0,
+    "banked_order": "first",
+    "shipped_expr": "first",
+    "depth_minus_one": "first"
+   }
+  ],
+  "note": "an empty rendered_pairs makes BOTH expressions return 'first' trivially -- those rows carry no discriminating power"
+ }
+}

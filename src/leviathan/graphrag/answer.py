@@ -392,6 +392,19 @@ _SYSTEM_CASCADE_CONTEXT = (
     "CONSEQUENCE READ line. ")
 
 
+# V2-5: the DEEP mandate, appended only when the block actually carries a THIRD-ORDER walk (the row
+# gate is `_cascade_deep_block_on`, keyed on cascade.CW_THIRD_ORDER_MARKER). PHRASED POSITIVELY (the
+# J6 addendum doctrine / V2-1 refute M3): it says what to write and names no forbidden phrase. It is
+# the direct remedy for the K8 panel's class-(a) gloss conviction, whose surface GROWS with depth --
+# a three-hop ladder invites a chain claim no row prints.
+_SYSTEM_CASCADE_DEEP = (
+    "\nTHE BLOCK RUNS TO A THIRD HOP (its marker says third order): under '## The record', state each "
+    "hop as its own dated coincidence between the two boards that hop names, on the one firing window "
+    "the block states, each with its own handle and its own read as printed. The window was defined by "
+    "an unrelated market's episode, so each hop is a pairwise reading on that window; leave any chain "
+    "across hops to the reader, and let each hop's read stay with its own CONSEQUENCE READ line. ")
+
+
 # P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
 # the [N] rows, so (unlike Phase A) a [N]-cited dated lag is backed and will NOT be stripped.
 _SYSTEM_CASCADE = (
@@ -798,6 +811,20 @@ def _cascade_context_on() -> bool:
     episodes_injected -> no firing -> no cell). Read PER CALL so the env-flip rollback is live -> no
     redeploy."""
     return os.environ.get("GRAPHRAG_CASCADE_CONTEXT", "").strip().lower() in ("on", "1", "true")
+
+
+def _cascade_deep_on() -> bool:
+    """V2-5 DEEPER/WIDER kill-switch (GRAPHRAG_CASCADE_DEEP), read at the answer.py quantify SEAM and
+    threaded INSIDE the walk request dict as `deep` -- the _rv_reading_on idiom, fourth application
+    on this leg: NEVER an os.environ read inside cascade.py, and the ENGINE is gated by the ARGUMENT,
+    so a mis-plumbed enable cannot fire on an unasked turn. DEFAULT-OFF, fail-closed; when off the
+    request dict is byte-identical to today's.
+    DECLARED DEPENDENCIES: a RIDER on GRAPHRAG_CASCADE_WALK (the request exists only under it) and
+    transitively on GRAPHRAG_TIMELINE (no episodes_injected -> no firing -> no hop). INDEPENDENT of
+    GRAPHRAG_CASCADE_CONTEXT -- the `deep` key is set at `if _cw_focus:` scope AFTER the context
+    block, never inside it, and a behavioural pin holds that independence.
+    Read PER CALL so the env-flip rollback is live -> no redeploy."""
+    return os.environ.get("GRAPHRAG_CASCADE_DEEP", "").strip().lower() in ("on", "1", "true")
 
 
 def _intensity_on() -> bool:
@@ -1506,6 +1533,17 @@ def _cascade_context_block_on(volatile_prompt: str | None) -> bool:
             and _cq.CW_CONTEXT_LINE_RX.search(volatile_prompt or "") is not None)
 
 
+def _cascade_deep_block_on(volatile_prompt: str | None) -> bool:
+    """V2-5's SEAM GATE -- the V2-1 row-shape-gate idiom, fifth application, keyed on the marker's
+    OWN MINTED LITERAL (`cascade.CW_THIRD_ORDER_MARKER`, built from CW_MARKER_PREFIX in the producer's
+    own module) rather than a bare token, so a walk-less or first/second-order turn never sees a
+    demand it cannot fill and the gate's string cannot drift from the producer's. The deep mandate
+    ships iff the deep flag, the WALK BLOCK GATE and a THIRD-ORDER block all hold."""
+    from leviathan.graphrag.numbers import cascade as _cq
+    return (_cascade_deep_on() and _cascade_walk_block_on(volatile_prompt)
+            and _cq.CW_THIRD_ORDER_MARKER in (volatile_prompt or ""))
+
+
 # W5-D5: the '## Outlook' RESERVED HEADING -- injected-only, exactly the '## Cross-commodity' /
 # '## Complex-wide move' / '## Recorded history' shape. Appended to the persona ONLY on a turn where all
 # three outlook legs held, so with the flag off _system() is BYTE-IDENTICAL to pre-W5.
@@ -2004,7 +2042,8 @@ _SYSTEM_HANDLES = (
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
             response_contract: str | None = None, budget: str | None = None,
             census: dict | None = None, provenance: bool = False, handles: bool = False,
-            cascade_walk: bool = False, cascade_context: bool = False) -> str:
+            cascade_walk: bool = False, cascade_context: bool = False,
+            cascade_deep: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -2063,6 +2102,9 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
                 base = base + _SYSTEM_CASCADE_WALK_MANDATE         #   the seam (the _episodes_on shape)
             if cascade_context and _cascade_context_on():          # V2-1: the CONTEXT mandate, row-
                 base = base + _SYSTEM_CASCADE_CONTEXT              #   gated at the seam, its own flag,
+            if cascade_deep and _cascade_deep_on():                # V2-5: the DEEP mandate, marker-
+                base = base + _SYSTEM_CASCADE_DEEP                 #   gated the same way. DEFAULT
+            #                                                          FALSE -> byte-identical.
             #                                                        pure append
             #                                                        DECLARED DEVIATION from charter
             #                                                        STEP 8's marker-presence gate:
@@ -2894,6 +2936,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # (evals, backtests, PIT repros) resolves True on every re-run -- deterministic by
             # construction; a live turn's asof is today and resolves False. Same omit-when-off idiom.
             from datetime import datetime as _dtn, timezone as _tzu
+            # A MISSING asof is NOT a historical one: `"" < today` is True, so an unguarded compare armed the
+            # replay belt on every asof-less direct call (eval's non-orchestrator path, tests). The
+            # orchestrator defaults asof to today before it reaches here; this seam now needs a REAL date
+            # (pink v3 refute, 2026-09-03). Same omit-when-off idiom.
             _pr_kw = ({"price_replay": True}
                       if asof and str(asof)[:10] < _dtn.now(_tzu.utc).date().isoformat() else {})
             # R9 CONTEXT LANE (D1): the already-resolved outlook bool goes DOWN as an argument. Omitted on
@@ -2936,10 +2982,6 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                 if _cw_focus:
                     _cw_req = {"focus_contract": _cw_focus}
                     if _cascade_context_on():
-            # A MISSING asof is NOT a historical one: `"" < today` is True, so an unguarded compare armed the
-            # replay belt on every asof-less direct call (eval's non-orchestrator path, tests). The
-            # orchestrator defaults asof to today before it reaches here; this seam now needs a REAL date
-            # (pink v3 refute, 2026-09-03). Same omit-when-off idiom.
                         # V2-1 CONTEXT CELL (rider): two keys, present ONLY under its own flag -- the
                         # walk request is byte-identical with the flag off. `replay` is the SAME
                         # already-resolved historical-asof bool (_pr_kw, above); the ENGINE counts the
@@ -2947,6 +2989,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                         _cw_req["context"] = True
                         if _pr_kw:
                             _cw_req["replay"] = True
+                    # V2-5 DEEPER/WIDER (rider): ONE key, present only under its OWN flag, set at
+                    # `if _cw_focus:` scope and NOT inside the context branch above -- deep must fire
+                    # with GRAPHRAG_CASCADE_CONTEXT off, which is its prod state. This seam never
+                    # writes V2-3's `xccy` (pinned), so the engine's union regime is inert here.
+                    if _cascade_deep_on():
+                        _cw_req["deep"] = True
                     _cw_kw = {"cascade_walk": _cw_req}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
@@ -3066,6 +3114,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               cascade_walk=_cascade_walk_block_on(vp),
                               cascade_context=_cascade_context_block_on(vp),
+                              cascade_deep=_cascade_deep_block_on(vp),
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               census=_census,                     # D-CC-1: None on every dark turn
                               provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
@@ -9286,6 +9335,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               cascade_walk=_cascade_walk_block_on(vp),
                               cascade_context=_cascade_context_block_on(vp),
+                              cascade_deep=_cascade_deep_block_on(vp),
                               response_contract=_rc_active,
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
                               census=_census,                                 # D-CC-1, both bodies

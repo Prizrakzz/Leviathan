@@ -1,0 +1,463 @@
+{
+ "probe": "v25_width_head",
+ "asof": "2026-09-03T19:24:26Z",
+ "head_commit_expected": "c6868034",
+ "bases": {
+  "a_graph_and_code_at_head": "exact; re-derived here",
+  "b_banked_arm": "data/batch_runs/walk_baseline_eval_queries_rv_reading_v1_anthropic_20260902T150522Z.json, git_commit 880ee822+walk-sitting2-reviewed -- read ONLY for the composer-narrated pair set per row",
+  "c_declared_unknown": "the two re-rooted rows' firing sets at HEAD"
+ },
+ "constants_shipped": {
+  "CW_MAX_CHILDREN": 3,
+  "CW_CAP": 12,
+  "CW_TURN_CEILING": 60,
+  "CW_READS_PER_CELL": 3,
+  "CW_MAX_FIRINGS": 2
+ },
+ "constants_proposed": {
+  "CW_DEEP_MAX_CHILDREN": 4
+ },
+ "re_root_predicate": {
+  "corn": {
+   "in_cov": false,
+   "contract_node": "corn",
+   "seeds": [
+    "corn_cbot"
+   ],
+   "re_roots_to": "corn_cbot",
+   "predicate_fires": true
+  }
+ },
+ "corn_cbot_children": [
+  "hard_red_spring_wheat_mgex",
+  "hard_red_winter_wheat_kcbt",
+  "soft_red_winter_wheat_cbot",
+  "soybean_meal_cbot"
+ ],
+ "corn_cbot_child_coverage": {
+  "hard_red_spring_wheat_mgex": "2025-09-09",
+  "hard_red_winter_wheat_kcbt": "2014-01-02",
+  "soft_red_winter_wheat_cbot": "2010-06-06",
+  "soybean_meal_cbot": "2010-06-06"
+ },
+ "free_interval": {
+  "hard_red_spring_wheat_mgex": {
+   "free_when_firing_starts_before": "2025-09-09"
+  },
+  "hard_red_winter_wheat_kcbt": {
+   "free_when_firing_starts_before": "2014-01-02"
+  },
+  "soft_red_winter_wheat_cbot": {
+   "free_when_firing_starts_before": "2010-06-06"
+  },
+  "soybean_meal_cbot": {
+   "free_when_firing_starts_before": "2010-06-06"
+  }
+ },
+ "corn_wheat_feed_pair": [
+  "corn_cbot",
+  "soft_red_winter_wheat_cbot"
+ ],
+ "per_row": [
+  {
+   "row": "rv_corn_wheat",
+   "root_at_arm": "corn_cbot",
+   "root_at_head": "corn_cbot",
+   "re_rooted_at_head": false,
+   "admissible_children_at_head": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soft_red_winter_wheat_cbot",
+    "soybean_meal_cbot"
+   ],
+   "narrated_basis": "banked_decline_record",
+   "narrated_filtered_out": [
+    "soft_red_winter_wheat_cbot"
+   ],
+   "survivors_after_composer_filter": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soybean_meal_cbot"
+   ],
+   "n_survivors": 3,
+   "shipped_rendered_children": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soybean_meal_cbot"
+   ],
+   "deep_rendered_children": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soybean_meal_cbot"
+   ],
+   "width_delta_rendered_children": 0,
+   "firing_window_at_head": {
+    "span": "2022-10..2023-01",
+    "slice": "cattle_cycle_herd_size",
+    "start": "2022-10-21",
+    "end": "2023-01-26",
+    "span_days": 97,
+    "node_token": "cattle_cycle_herd_size"
+   },
+   "firing_basis": "banked (the row reached enumeration)",
+   "free_children_on_that_firing": [
+    "hard_red_spring_wheat_mgex"
+   ],
+   "paid_cells_deep": 3,
+   "reads_shipped_reserved": 12,
+   "reads_deep_reserved": 9
+  },
+  {
+   "row": "rv_corn_sorghum",
+   "root_at_arm": "corn",
+   "root_at_head": "corn_cbot",
+   "re_rooted_at_head": true,
+   "admissible_children_at_head": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soft_red_winter_wheat_cbot",
+    "soybean_meal_cbot"
+   ],
+   "narrated_basis": "measured_empty_narrated_set",
+   "narrated_filtered_out": [],
+   "survivors_after_composer_filter": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soft_red_winter_wheat_cbot",
+    "soybean_meal_cbot"
+   ],
+   "n_survivors": 4,
+   "shipped_rendered_children": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soft_red_winter_wheat_cbot"
+   ],
+   "deep_rendered_children": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soft_red_winter_wheat_cbot",
+    "soybean_meal_cbot"
+   ],
+   "width_delta_rendered_children": 1,
+   "firing_window_at_head": null,
+   "firing_basis": "UNMEASURED at $0 -- the row declined root_uncovered BEFORE enumeration at the pre-re-root root; no artifact holds its windows",
+   "free_children_on_that_firing": null,
+   "paid_cells_deep": null,
+   "reads_shipped_reserved": null,
+   "reads_deep_reserved": null
+  },
+  {
+   "row": "rv_corn_wheat_stress",
+   "root_at_arm": "corn",
+   "root_at_head": "corn_cbot",
+   "re_rooted_at_head": true,
+   "admissible_children_at_head": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soft_red_winter_wheat_cbot",
+    "soybean_meal_cbot"
+   ],
+   "narrated_basis": "inferred_from_config_pair_identity(corn_wheat_feed)",
+   "narrated_filtered_out": [
+    "soft_red_winter_wheat_cbot"
+   ],
+   "survivors_after_composer_filter": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soybean_meal_cbot"
+   ],
+   "n_survivors": 3,
+   "shipped_rendered_children": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soybean_meal_cbot"
+   ],
+   "deep_rendered_children": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soybean_meal_cbot"
+   ],
+   "width_delta_rendered_children": 0,
+   "firing_window_at_head": null,
+   "firing_basis": "UNMEASURED at $0 -- the row declined root_uncovered BEFORE enumeration at the pre-re-root root; no artifact holds its windows",
+   "free_children_on_that_firing": null,
+   "paid_cells_deep": null,
+   "reads_shipped_reserved": null,
+   "reads_deep_reserved": null
+  }
+ ],
+ "third_order_reachability": [
+  {
+   "row": "rv_beans_meal",
+   "banked_outcome": "fired",
+   "banked_order": "second",
+   "banked_path": [
+    "soybeans_cbot",
+    "soybean_meal_cbot",
+    "soybean_oil_cbot"
+   ],
+   "hop1": "soybean_meal_cbot",
+   "hop2": "soybean_oil_cbot",
+   "hop3_candidate": "malaysian_crude_palm_oil_cme",
+   "hop3_in_kept_subgraph": true,
+   "hop2_in_kept_subgraph": true,
+   "narrated_set_empty": true,
+   "firing": {
+    "span": "2019-12..2020-04",
+    "slice": "argentina_export_policy",
+    "start": "2019-12-01",
+    "end": "2020-04-21",
+    "span_days": 142,
+    "node_token": "soy_dollar"
+   },
+   "hop3_free_on_that_firing": false
+  },
+  {
+   "row": "rv_beans_oil",
+   "banked_outcome": "declined",
+   "banked_order": "first",
+   "banked_path": [],
+   "hop1": "soybean_meal_cbot",
+   "hop2": "soybean_oil_cbot",
+   "hop3_candidate": "malaysian_crude_palm_oil_cme",
+   "hop3_in_kept_subgraph": true,
+   "hop2_in_kept_subgraph": true,
+   "narrated_set_empty": false,
+   "firing": {
+    "span": "2015-06..2015-10",
+    "slice": "wasde_stocks_to_use",
+    "start": "2015-06-01",
+    "end": "2015-10-01",
+    "span_days": 122,
+    "node_token": "psd_ending_stock_su_ratio"
+   },
+   "hop3_free_on_that_firing": true
+  },
+  {
+   "row": "rv_meal_oil",
+   "banked_outcome": "fired",
+   "banked_order": "second",
+   "banked_path": [
+    "soybeans_cbot",
+    "soybean_meal_cbot",
+    "soybean_oil_cbot"
+   ],
+   "hop1": "soybean_meal_cbot",
+   "hop2": "soybean_oil_cbot",
+   "hop3_candidate": "malaysian_crude_palm_oil_cme",
+   "hop3_in_kept_subgraph": true,
+   "hop2_in_kept_subgraph": true,
+   "narrated_set_empty": true,
+   "firing": {
+    "span": "2023-10..2024-04",
+    "slice": "renewable_diesel_capacity",
+    "start": "2023-10-10",
+    "end": "2024-04-08",
+    "span_days": 181,
+    "node_token": "renewable_diesel_capacity"
+   },
+   "hop3_free_on_that_firing": false
+  }
+ ],
+ "width_yield": {
+  "corn_rooted_rows_at_head": 3,
+  "rows_where_all_four_survive": [
+   "rv_corn_sorghum"
+  ],
+  "n_rows_width_binds": 1,
+  "n_rows_width_inert": 2,
+  "rows_with_a_banked_firing": [
+   "rv_corn_wheat"
+  ],
+  "width_delta_on_rows_with_a_banked_firing": [
+   0
+  ],
+  "reads_cost_of_the_width_delta": "0 -- 4 rendered children at 3 paid cells + 1 free prices 12 reserved reads, the same 12 the shipped 3-child plan reserves",
+  "falsifier": "if rv_corn_wheat_stress's single RV2 pair were NOT corn_wheat_feed, its survivors would be 4 and the yield would be 2 of 3 rows, never 0 of 3"
+ },
+ "deck_roots_at_head": [
+  {
+   "row": "rv_soyoil_palm",
+   "root_at_arm": "malaysian_crude_palm_oil_cme",
+   "root_at_head": "malaysian_crude_palm_oil_cme",
+   "out_degree_at_head": 2,
+   "children": [
+    "soybean_oil_cbot",
+    "soybeans_cbot"
+   ],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "none"
+  },
+  {
+   "row": "rv_soyoil_rapeoil",
+   "root_at_arm": "french_rapeseed_matif",
+   "root_at_head": "french_rapeseed_matif",
+   "out_degree_at_head": 0,
+   "children": [],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "none"
+  },
+  {
+   "row": "rv_palm_rapeoil",
+   "root_at_arm": "malaysian_crude_palm_oil_cme",
+   "root_at_head": "malaysian_crude_palm_oil_cme",
+   "out_degree_at_head": 2,
+   "children": [
+    "soybean_oil_cbot",
+    "soybeans_cbot"
+   ],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "none"
+  },
+  {
+   "row": "rv_corn_wheat",
+   "root_at_arm": "corn_cbot",
+   "root_at_head": "corn_cbot",
+   "out_degree_at_head": 4,
+   "children": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soft_red_winter_wheat_cbot",
+    "soybean_meal_cbot"
+   ],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "width"
+  },
+  {
+   "row": "rv_beans_meal",
+   "root_at_arm": "soybeans_cbot",
+   "root_at_head": "soybeans_cbot",
+   "out_degree_at_head": 1,
+   "children": [
+    "soybean_meal_cbot"
+   ],
+   "hop2_from_only_child": [
+    "soybean_oil_cbot"
+   ],
+   "hop3_from_that": [
+    "malaysian_crude_palm_oil_cme"
+   ],
+   "flag_half": "depth"
+  },
+  {
+   "row": "rv_beans_oil",
+   "root_at_arm": "soybeans_cbot",
+   "root_at_head": "soybeans_cbot",
+   "out_degree_at_head": 1,
+   "children": [
+    "soybean_meal_cbot"
+   ],
+   "hop2_from_only_child": [
+    "soybean_oil_cbot"
+   ],
+   "hop3_from_that": [
+    "malaysian_crude_palm_oil_cme"
+   ],
+   "flag_half": "depth"
+  },
+  {
+   "row": "rv_meal_oil",
+   "root_at_arm": "soybeans_cbot",
+   "root_at_head": "soybeans_cbot",
+   "out_degree_at_head": 1,
+   "children": [
+    "soybean_meal_cbot"
+   ],
+   "hop2_from_only_child": [
+    "soybean_oil_cbot"
+   ],
+   "hop3_from_that": [
+    "malaysian_crude_palm_oil_cme"
+   ],
+   "flag_half": "depth"
+  },
+  {
+   "row": "rv_corn_sorghum",
+   "root_at_arm": "corn",
+   "root_at_head": "corn_cbot",
+   "out_degree_at_head": 4,
+   "children": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soft_red_winter_wheat_cbot",
+    "soybean_meal_cbot"
+   ],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "width"
+  },
+  {
+   "row": "rv_canola_rapemeal",
+   "root_at_arm": "canola_ice",
+   "root_at_head": "canola_ice",
+   "out_degree_at_head": 0,
+   "children": [],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "none"
+  },
+  {
+   "row": "rv_canola_rapeoil",
+   "root_at_arm": "canola_ice",
+   "root_at_head": "canola_ice",
+   "out_degree_at_head": 0,
+   "children": [],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "none"
+  },
+  {
+   "row": "rv_rapemeal_rapeoil",
+   "root_at_arm": "french_rapeseed_matif",
+   "root_at_head": "french_rapeseed_matif",
+   "out_degree_at_head": 0,
+   "children": [],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "none"
+  },
+  {
+   "row": "rv_palm_sunoil",
+   "root_at_arm": "sunflower_oil",
+   "root_at_head": "sunflower_oil",
+   "out_degree_at_head": 0,
+   "children": [],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "none"
+  },
+  {
+   "row": "rv_soyoil_palm_stress",
+   "root_at_arm": "soybean_oil_cbot",
+   "root_at_head": "soybean_oil_cbot",
+   "out_degree_at_head": 3,
+   "children": [
+    "malaysian_crude_palm_oil_cme",
+    "soybean_meal_cbot",
+    "soybeans_cbot"
+   ],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "none"
+  },
+  {
+   "row": "rv_corn_wheat_stress",
+   "root_at_arm": "corn",
+   "root_at_head": "corn_cbot",
+   "out_degree_at_head": 4,
+   "children": [
+    "hard_red_spring_wheat_mgex",
+    "hard_red_winter_wheat_kcbt",
+    "soft_red_winter_wheat_cbot",
+    "soybean_meal_cbot"
+   ],
+   "hop2_from_only_child": [],
+   "hop3_from_that": [],
+   "flag_half": "width"
+  }
+ ]
+}
