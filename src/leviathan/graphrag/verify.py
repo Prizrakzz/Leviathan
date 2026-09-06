@@ -1016,6 +1016,233 @@ def bare_digit_verdict(sent: str) -> str | None:
     return "bare_digit"
 
 
+# == D-DA UNIT-VOCABULARY GATE (2026-09-06) -- RULE (g)'s STATED RESIDUAL, CAUGHT AT THE CHARGE SITE ====
+# THE DOCKETED FOLLOW-UP THE RULE-(g) NOTE PROMISED, BUILT. That note closes with the residual it refused
+# to hide: rule (g) is STRUCTURAL ("this numeral is a label's scale"), so a MIS-TRANSCRIBED scale is
+# exempted exactly as a correct one is. The measured example is the one the residual pin has held in the
+# open since the rule shipped -- `test_verify_unit_scale.py::test_major2_...`, written to go RED the day
+# this gate landed, and rewritten as `..._is_caught_at_the_charge_site` on that day, which is today:
+# the served row prints `(1000 MT)`, the model writes
+#     "US corn feed use is 154,947 (9999 MT) [N1]"
+# and 9999 was charged by NOTHING -- the extractor exempts it exactly as it exempts 1000, `quote_mismatch`
+# (`_unbacked_quote`) inspects QUOTED spans only, and the footer lane reads the engine's own unit column,
+# never the model's prose. The same hole covers a bare second figure standing before a unit word
+# ("5900 9999 MT"), which no reading of the SENTENCE ALONE can tell from the legitimate "-83.476 1000 MT".
+#
+# THE CATCHER IS THE ONE THAT NOTE NAMED, AND IT LIVES WHERE THE SENTENCE MEETS ITS ROWS. The extractor
+# cannot take this decision: it is a PURE function of the sentence (and its signature is frozen by the
+# cycle-8 termination branch), while the fact that separates 9999 from 1000 is not in the sentence at all
+# -- it is in the UNIT STRINGS the sentence's own served rows print. So the gate is a POST-FILTER at the
+# charge site and the extractor does not move: `_claim_number_spans` still exempts the token, and
+# `_check_number_handle` RE-ADMITS it as a claim when no served row of that sentence prints it. The
+# vocabulary is read off the rows the estate actually serves -- `citations.from_number` renders
+# `= {value} {unit}` from `row["unit"]` -- so "(1000 MT)", "1000 60 KG BAGS", "60-kg bags",
+# "COP per 125-kg carga" and "MMT (cotton: million 480-lb bales)" contribute {1000}, {1000, 60}, {60},
+# {125} and {480} respectively.
+#
+# IT MAY ONLY EVER *ADD* A CHARGE, AND THAT ONE-SIDEDNESS IS ENFORCED BY WHERE THE VALUE IS FED IN. A
+# re-admitted token joins `guard_nums` -- the `number_unbacked` all-rows guard -- and NEVER the
+# `number_mismatch` pool. `_num_matches` is an ANY-of predicate, so handing it one more numeral could only
+# ever RESCUE a mismatched sentence (a mis-transcribed 9999 that happened to coincide with some row value
+# would count as the sentence's one match), which is the opposite of what a catcher is for. Feeding the
+# guard alone also keeps the remedy PROPORTIONATE, which is what the rule-(g) note demanded of any
+# catcher: `number_unbacked` strips the mis-citing HANDLE and leaves the sentence standing, where the
+# fail-closed `number_mismatch` would delete it whole.
+#
+# THE FENCE IS "WHAT THE ROWS THEMSELVES DECLARE", AND IT FAILS OPEN ON EVERY GAP IN THAT RECORD.
+# The gate charges only where the served rows state a scale vocabulary and the prose writes one outside it;
+# everywhere the record is silent or partial it stands down, and the stand-down is ROW-GRANULAR:
+#   * a cited call ANY of whose served rows carries no `unit` makes the sentence's vocabulary UNKNOWN and
+#     the gate STANDS DOWN for that whole sentence (the verdict stays the structural one). Row-granular,
+#     not call-granular, because `citations.from_number` prints `r['unit'] or _metric_unit(...)`: a row
+#     that recorded no unit was still shown to the reader wearing the REGISTRY's label, so a vocabulary
+#     built from its unit-bearing neighbours alone would charge the model for copying what the citation
+#     printed. MEASURED: 83 of 4074 served calls in the banked corpus are mixed this way (2.0%; 1212
+#     empty, 2197 all-unit, 582 no-unit) and 1 of the 46 label-bearing sentences already cites one.
+#   * a served row whose unit string carries NO NUMERAL ('MMT', '%', '$/bu') states no SCALE, and that is
+#     not the same fact as 'this metric's label has no scale': the registry itself declares
+#     "MMT (cotton: million 480-lb bales)" for the very metrics whose rows print the bare "MMT", so a
+#     model writing the full label would be charged for the 480 the short row never had room for. Such a
+#     row makes the vocabulary UNKNOWN exactly as an unrecorded unit does. THE PRICE IS MEASURED AND
+#     STATED: numeral-free units are 2,281 of 2,515 unit-bearing row prints in the banked corpus (90.7%,
+#     28 of 30 distinct strings), and standing them down narrows the gate's reach on the control arm from
+#     7 of 17 exempted tokens to 4 -- with 0 verdicts moved anywhere in the corpus. One word reverts it
+#     to the fail-closed reading (`_UL_VOCAB_NUM.search(u)` -> `u`), and both readings are pinned.
+#   * an empty or errored call (`rows: []`) served nothing and states nothing: skipped, never a stand-down.
+#   * a sentence citing no in-range [N] handle has no served rows at all -- nothing to check, no charge.
+#   * GRAPHRAG_VERIFY_UNIT_VOCAB=off is the documented rollback to the pre-gate charge, byte for byte, the
+#     shape `GRAPHRAG_VERIFY_NUM_POOL` / `GRAPHRAG_VERIFY_NUM_MODE` / `GRAPHRAG_CASCADE_QUANT` already
+#     have -- and GRAPHRAG_CASCADE_QUANT=off takes the gate with it, at the gate itself rather than at
+#     the charge site alone, because the `strip_audit` call below sits OUTSIDE the quant branch and under
+#     quant-off would otherwise have listed a magnitude no charge could have used.
+#
+# MEASURED on the arm rule (g) itself was measured on (`data/batch_runs/
+# da_baseline_control_20260904T141206Z.json`, 7 answers, 329 served calls in 25-60 per answer, 266
+# sentences by this module's own `_SENT_SPLIT` -- i.e. `claim_count`, the strip-rate denominator --
+# replayed end to end through `verify_citations`): 17 rule-(g) scale tokens exempted across 10
+# sentences -- 4 of them printed by a served row of their own sentence (vocabulary {1000}), 13
+# standing the gate down (the cited call recorded no `unit`, or recorded one with no numeral in it),
+# and 0 re-admitted. by_rule is byte-identical to the shipped rule: number_unbacked 3,
+# number_mismatch 6, undeclared_unsupported 41, 50 strips -- and so is every one of the nine banked
+# prose artifacts together (124 / 28 / 713, 865 strips).
+# The gate does not re-open the 33-of-35 false-positive class, and the 13 stand-downs are the honest price
+# of refusing to reach for the registry: the gate's reach is exactly as wide as the rows' own recorded
+# SCALES, and no wider.
+#
+# WHAT IT COSTS TO RUN, because a verifier runs on every answer. The gate re-reads the sentence once per
+# HANDLE inside `_check_number_handle` and again per audit row, so the honest unit of cost is EXTRACTOR
+# RUNS, which is deterministic and reproducible on any box (wall clock on this shared one is not: the
+# same file measured -3.4%, +3.8% and +26.2% across three unpaired runs, and +10.7% median with a
+# -2.4%..+25.7% p10-p90 across 25 paired rounds). Per control arm, `_claim_number_spans` runs 406 times
+# at HEAD. Written naively the gate took that to 603 (+48.5%). Two shape-preserving moves bring it to
+# 411 (+1.2%): the CHEAP vocabulary question is asked before the expensive label scan (so 197 walks buy
+# 5 scans instead of 197), and the scan itself returns before touching the extractor on a sentence that
+# holds no digit-then-unit-word shape at all (`_UL_ANY`). Both are identities, not approximations --
+# 13,284 sentence readings across every banked artifact and every pinned shape, 0 divergences.
+#
+# NOT COVERED, DELIBERATELY:
+#   * THE REGISTRY FALLBACK. `citations.from_number` falls back to `_metric_unit(table, metric, commodity)`
+#     when a row carries no `unit`; this gate does not. Reading it would make the verifier import the
+#     numbers registry in order to take a STRIP decision, and the honest cheap answer is the stand-down
+#     above: a call whose rows declare no unit takes its whole sentence out of the gate's reach.
+#   * THE SCALE'S ARITHMETIC. The gate asks whether the label's scale is one the sentence's rows PRINT,
+#     never whether the figure was rescaled correctly -- "154,947 (1000 MT)" against a row that means
+#     154.947 MMT is a conversion question, and this estate has no conversion layer (the price audit's
+#     finding), so no verifier rule may pretend to answer it.
+#   * A LABEL ON A SENTENCE THAT CITES NO [N]. The bare-digit lint (`bare_digit_verdict`) owns the
+#     no-handle sentence and is untouched here: rule (g) can never empty a sentence of claims, so that
+#     verdict is exactly what it was.
+#
+# The numerals a unit string declares. Digit runs, THOUSANDS COMMA INCLUDED -- "1000 480 lb. Bales"
+# declares 1000 and 480 (the "lb"/"Bales" words are the label's, not the vocabulary's), and "1,000 MT"
+# declares 1000, not {0, 1}. Rule (g) fences the comma on the PROSE side (MAJOR-1: an exempted scale is a
+# BARE digit run) and it must NOT be fenced here as well, or a row printing its label in comma form would
+# charge the prose that copied the same label bare. Measured: 0 of the 30 distinct unit strings in the
+# banked corpus carries a comma, so this is a fence against a shape the estate has not printed yet.
+_UL_VOCAB_NUM = re.compile(r"\d[\d,]*")
+# THE SCAN'S COST FENCE, and an identity by construction: rule (g) can only exempt a scale that `_UL_TAIL`
+# matches, and `_UL_TAIL` is anchored at the end of a BARE digit run -- so a sentence in which this
+# un-anchored form (the same pattern with its leading digit) never matches cannot hold a label, and the
+# scan below can return before it pays for `_claim_number_spans`. Measured identity over 13,284 sentence
+# readings; measured worth: with the reorder below it holds the gate's extractor runs on the control
+# arm to 411 per answer set against HEAD's 406, where the naive reading cost 603.
+_UL_ANY = re.compile(r"\d" + _UL_GLUE + r"+(?:\d{1,3}" + _UL_GLUE + r"+)?" + _UL_UNIT + r"\b", re.I)
+
+
+def _unit_label_scale_values(s: str) -> list[float]:
+    """The scale tokens rule (g) EXEMPTED in `s`, in order: '154,947 (1000 MT)' -> [1000.0], and
+    'arabica 42,300 (1000 60 KG BAGS)' -> [1000.0, 60.0].
+
+    It reads rule (g)'s OWN regexes (`_UL_BARE` / `_UL_TAIL` / `_UL_LEAD`) and takes its anchors from
+    `_claim_number_spans`' ACCEPTED spans, so the two readings cannot drift into disagreeing about what a
+    label is: an accepted figure anchors the next lead exactly as it does there, every other exemption
+    clears the anchor, and a label consumed whole yields BOTH its scale tokens -- the sub-unit weight of
+    "1000 60 KG BAGS" is part of the label, so the vocabulary has to see it.
+    VALUES, never spans: the charge site asks a membership question and this gate takes no drop decision
+    of its own.
+    THE ONE PLACE THE RECONSTRUCTION IS NOT AN IDENTITY, and it points the safe way: a token `_CLAIM_NUM`
+    matched but `float()` could not parse leaves the extractor's anchor STANDING and clears this one, so
+    this scan can only ever report FEWER labels than rule (g) exempted, never more. A miss leaves the
+    structural verdict in place -- the fail-open direction, and the same direction every fence below
+    takes."""
+    s = s or ""
+    if not _UL_ANY.search(s):                     # no digit-then-unit-word anywhere: no label, and the
+        return []                                 # extractor is never paid for (see `_UL_ANY`)
+    accepted = {a for a, _b, _v in _claim_number_spans(s)}
+    out: list[float] = []
+    anchor: int | None = None
+    skip_until = -1
+    for m in _CLAIM_NUM.finditer(s):
+        core = m.group().rstrip(".,")
+        end = m.start() + len(core)
+        if m.start() < skip_until:                    # inside a label consumed whole: its second scale
+            if _UL_BARE.fullmatch(core):              # `_UL_TAIL`'s region admits only bare digits, so
+                out.append(float(core))               # this parse cannot fail and needs no handler
+            continue
+        if m.start() in accepted:
+            anchor = end                              # an ACCEPTED figure -- the only lead a label grows from
+            continue
+        if anchor is not None and _UL_BARE.fullmatch(core):
+            tail = _UL_TAIL.match(s[end:])
+            if tail and _UL_LEAD.match(s[anchor:m.start()]):
+                skip_until = end + tail.end()
+                anchor = None
+                out.append(float(core))
+                continue
+        anchor = None                                 # every other exemption clears the anchor
+    return out
+
+
+def _served_unit_vocab(sent: str, number_calls: list[dict]) -> set[int] | None:
+    """The scale numerals the sentence's OWN served rows print in their unit strings, or None when that
+    vocabulary is UNKNOWN and the gate must stand down.
+
+    The rows are those of every [N] handle WRITTEN IN THE SENTENCE, grouped members included -- the
+    cycle-9 amendment-3a reading, and admissible here for the same reason: a grouped citation's row was
+    served to the reader exactly like a solitary one, and a wider vocabulary can only ever REMOVE a
+    charge. A call that served no row (`rows: []`, an errored lookup) states no unit and is skipped; a
+    call ANY of whose served rows fails to declare a SCALE returns None -- both the row that recorded no
+    `unit` at all and the row whose unit string carries no numeral in it (see the block note: the registry
+    declares "MMT (cotton: million 480-lb bales)" for metrics whose rows print the bare "MMT", so the short
+    string is evidence about the ROW's rendering, never about the metric's scale vocabulary). Reverting to
+    the fail-closed reading is one word (`_UL_VOCAB_NUM.search(u)` -> `u`) and both readings are pinned.
+
+    THE STAND-DOWN IS ROW-GRANULAR, NOT CALL-GRANULAR, AND THE RENDERER IS WHY. `citations.from_number`
+    prints `unit = r.get("unit") or _metric_unit(table, metric, commodity)`, so a row that recorded no
+    unit was STILL shown to the reader wearing a label -- the REGISTRY's. A per-call `any(units)` test
+    would build a vocabulary out of the unit-bearing rows alone and then charge the model for copying the
+    label the citation printed for the row beside them: measured, a call serving
+    [{8.85, "Million Bushels"}, {154947, no unit}] with `_metric_unit('silver_psd_attributes',
+    'Feed Dom. Consumption', 'corn') == '1000 MT'` turned "US corn feed use is 154947 (1000 MT) [N1]"
+    into number_unbacked 1 and took the handle. `all` is the fence the block note prices: an unrecorded
+    unit anywhere in the call makes the whole sentence's vocabulary UNKNOWN. 83 of 4074 served calls in
+    the banked corpus are mixed this way (2.0%; 1212 empty, 2197 all-unit, 582 no-unit) and 1 of the 46
+    label-bearing sentences already cites one, so this is a live shape, not a hypothetical."""
+    calls = number_calls or []
+    vocab: set[int] = set()
+    served = False
+    for m in _HANDLE.finditer(sent or ""):
+        for kind, j in _handle_members(m.group(0)):
+            if kind != "N" or not (1 <= j <= len(calls)):
+                continue
+            rows = ((calls[j - 1] or {}).get("rows") or [])
+            if not rows:
+                continue
+            units = [str((r or {}).get("unit") or "").strip() for r in rows]
+            if not all(_UL_VOCAB_NUM.search(u) for u in units):
+                return None                           # no unit, or no SCALE in it: vocabulary UNKNOWN
+            served = True
+            for u in units:
+                # every match starts with a digit, so stripping the commas can never empty the token
+                vocab.update(int(t.replace(",", "")) for t in _UL_VOCAB_NUM.findall(u))
+    return vocab if served else None
+
+
+def _unit_vocab_claims(sent: str, number_calls: list[dict]) -> list[float]:
+    """The scale tokens rule (g) exempted that NO served row of this sentence prints -- re-admitted as
+    CLAIM magnitudes by the charge site. Empty on every sentence with no label, with no served unit, or
+    with a label its own rows declare, which is every sentence of the measured 33-of-35 class.
+    The sentence is read handle-stripped, exactly as `_check_number_handle` reads it, so a handle's own
+    digits can never be mistaken for a label's scale.
+    BOTH ROLLBACKS ARE READ HERE, not at the charge site alone: `_check_number_handle` already sits inside
+    the GRAPHRAG_CASCADE_QUANT branch, but the `strip_audit` call does NOT, so under quant-off the audit
+    would have listed a re-admitted scale that no charge could have used. The flag's promise is that the
+    whole quant guard reverts, and the gate feeds that guard.
+    THE CHEAP QUESTION IS ASKED FIRST: the vocabulary walk reads dicts, the label scan runs the extractor,
+    and most sentences stand the gate down -- see the block note's CPU line."""
+    if os.environ.get("GRAPHRAG_VERIFY_UNIT_VOCAB", "on") == "off":
+        return []
+    if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") == "off":
+        return []
+    vocab = _served_unit_vocab(sent, number_calls)
+    if vocab is None:
+        return []
+    scales = _unit_label_scale_values(_HANDLE.sub("", sent or ""))
+    if not scales:
+        return []
+    return [v for v in scales if int(v) not in vocab]
+
+
 def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str | None:
     if not (1 <= idx <= len(number_calls)):
         return "index_out_of_range"
@@ -1036,6 +1263,12 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str |
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         allv = _all_row_vals(number_calls)
         guard_nums, guard_decs = _claim_numbers_with_decimals(_HANDLE.sub("", sent))  # exemptions: extractor
+        # D-DA UNIT-VOCABULARY GATE (2026-09-06): rule (g)'s exemption is STRUCTURAL, so a label scale no
+        # served row of this sentence prints comes back here as a CLAIM. The GUARD list only, never the
+        # mismatch pool above -- see the block note: an ANY-of predicate can only be RESCUED by one more
+        # numeral. A re-admitted token is a bare digit run, so its written precision is 0 by construction.
+        _uv = _unit_vocab_claims(sent, number_calls)
+        guard_nums, guard_decs = guard_nums + _uv, guard_decs + [0] * len(_uv)
         # backed = scale-1 match vs ANY row (pre-scaled cascade rows), OR the legacy scale-bridge vs the
         # sentence's OWN cited row (a '31.4 million MT' narration of its own raw-MT hybrid row is legitimate;
         # CROSS-row multi-scale backfill stays forbidden -- that is the R4 mis-attribution hole).
@@ -1253,10 +1486,14 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # exempted time/name tokens removed -- the SAME extractor the number guard uses), so the
             # audit list agrees with the strip decision and an RCA dump keys stripped text by rule
             # without re-parsing prose.
+            # D-DA UNIT-VOCABULARY GATE: a scale token the gate RE-ADMITS is one of this sentence's
+            # claim magnitudes, so it rides the audit list too and the promise above holds. Empty on
+            # every sentence the gate does not fire on, so no existing audit row moves.
             if _audit_on:
                 report["strip_audit"].append(
                     {"rule": rule, "field": field, "text": sent.strip(),
-                     "numbers": _claim_numbers_in(_HANDLE.sub("", sent))})
+                     "numbers": (_claim_numbers_in(_HANDLE.sub("", sent))
+                                 + _unit_vocab_claims(sent, number_calls))})
 
         def _verify_field(text: str, field: str = "") -> str:
             # PASS 1 -- every verdict is read against the ORIGINAL text (positions must all stay comparable);

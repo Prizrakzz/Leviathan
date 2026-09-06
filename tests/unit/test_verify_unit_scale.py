@@ -15,8 +15,11 @@ The pins are in three bands, and all three are load-bearing together:
     duration modifier) returns exactly what it returned before this amendment;
   * THE REVIEW'S FENCES (2026-09-04 FIX_THEN_SHIP -> shipped tightened): the exempted numeral is a BARE
     digit run, a label is consumed whole and never anchors, the vocabulary is the rendered corpus and
-    nothing wider, the frozen flag's off-view did not move -- and the two residuals the review named
-    (a mis-transcribed scale; strip -> harder strip) are pinned in the open rather than described away.
+    nothing wider, the frozen flag's off-view did not move -- and of the two residuals the review named,
+    the strip -> harder strip transition is pinned as shipped, while the MIS-TRANSCRIBED SCALE is CLOSED
+    (2026-09-06) by the unit-vocabulary gate at the charge site. The pin that held that residual in the
+    open went red the day the gate landed, exactly as it was written to; it is rewritten below, and the
+    gate's own suite is tests/unit/test_verify_unit_vocab.py.
 """
 from __future__ import annotations
 
@@ -231,16 +234,23 @@ def test_minor3_the_vocabulary_is_the_rendered_corpus_and_nothing_wider():
         assert vf._claim_numbers_in(prose) == want, prose
 
 
-def test_major2_the_mis_transcribed_scale_residual_is_stated_not_hidden():
-    """A wrong SCALE in a label is caught by NOTHING in this module today -- 9999 is exempted exactly as
-    1000 is, and `quote_mismatch` reads QUOTED spans only. This pin holds the residual in the open: it
-    goes red the day the unit-vocabulary gate at the charge site lands, and that day it is rewritten."""
+def test_major2_the_mis_transcribed_scale_is_caught_at_the_charge_site():
+    """THE RESIDUAL, CLOSED (2026-09-06) -- this is the rewrite the old pin promised. It said a wrong
+    SCALE in a label was caught by NOTHING and would go red the day the unit-vocabulary gate landed;
+    that day came, it went red, and here is what changed. THE EXTRACTOR DID NOT MOVE: rule (g) is
+    structural, so 9999 is still exempted exactly as 1000 is (first assertion, byte-identical to the old
+    pin's). The catch happens one layer up, at the CHARGE SITE, where the sentence meets its rows: the
+    served row prints "(1000 MT)", 9999 is a scale no row of this sentence declares, so
+    `verify._unit_vocab_claims` re-admits it as a claim, it matches no served value, and the sentence
+    takes the proportionate `number_unbacked` strip -- the mis-citing handle goes, the prose stands.
+    The gate's own fences and limits are pinned in tests/unit/test_verify_unit_vocab.py."""
     assert vf._claim_numbers_in("US corn feed use is 154,947 (9999 MT)") == [154947.0]
     calls = [{"query": {"table": "silver_psd_attributes", "metric": "Feed Dom. Consumption"},
               "rows": [{"value": "154947", "unit": "(1000 MT)"}]}]
     s = _structured("US corn feed use is 154,947 (9999 MT) [N1].")
     rep = vf.verify_citations(s, [], calls)
-    assert rep["stripped"] == 0 and "[N1]" in s["tldr"]
+    assert rep["by_rule"].get("number_unbacked", 0) == 1 and rep["stripped"] == 1
+    assert "[N1]" not in s["tldr"] and "154,947 (9999 MT)" in s["tldr"]
 
 
 def test_minor4_strip_becomes_harder_strip_when_the_label_was_the_only_match():
