@@ -17,6 +17,12 @@ kept as EVIDENCE for the L10 re-anchor that build measured (build-review minor: 
 in a session scratchpad). Its shape is the older single-`bank` one, so it is not a `bank_native` /
 `bank_forced` document and this script does not read it; `json.load(...)["bank_sha256"]` is the
 number the build report's `banked_before.forced` names.
+
+data/consequence_leg/v23_golden_deep_on_premandate.json is the PRE-CHANGE bank for the D-MF mandate
+follow-ups (2026-09-04): native d43c7435 / forced 16a040f0 over 49 / 143 keys, the state this gate
+asserted before the window-age note began rendering into the deep regime's ROW-1 scopes. It IS a
+`bank_native` / `bank_forced` document, so pointing BANK at it re-derives that re-anchor's own
+measurement.
 """
 import json
 import os

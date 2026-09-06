@@ -2746,15 +2746,16 @@ def test_g1d_the_deep_on_xccy_off_population_reproduces_the_banked_deep_golden()
 
     IT JOINS TWO BANKED POPULATIONS, from data/consequence_leg/v23_golden_deep_bank.py:
 
-      bank_native (46 keys) -- the calls the fixtures themselves make with `deep` set, from a GREEN
+      bank_native (54 keys) -- the calls the fixtures themselves make with `deep` set, from a GREEN
       run: breadth on four children, the third-order chain, the free cell, the width belt, the hop-3
       verdict rows, the closed rectangle on every root-scope decline.
 
-      bank_forced (140 keys, 100 of them forced) -- every non-xccy call re-asked with deep=True,
+      bank_forced (155 keys, 108 of them forced) -- every non-xccy call re-asked with deep=True,
       which IS the regime prod takes when GRAPHRAG_CASCADE_DEEP=on: under that flag every served
       turn is a deep turn, the odd shapes included (root declines, the palm free leg, the fenced
       block, the price-replay belt, the exception belt, the context rider). Forcing reds this
-      suite's flag-off assertions (15 at HEAD 1085f03d), and a red test stops making calls, so that
+      suite's flag-off assertions (15 at HEAD 1085f03d; 20 on the D-MF re-bank, two of them the new
+      group's own flag-off arms), and a red test stops making calls, so that
       pass is a SUBSET by construction -- which is why the native pass exists to cover the five deep
       calls it truncates away (hop-3 verdict rows, breadth-4).
 
@@ -2810,12 +2811,38 @@ def test_g1d_the_deep_on_xccy_off_population_reproduces_the_banked_deep_golden()
     #                declares, not a lost shape (native keeps all three, un-forced and green).
     #   excluded_xccy_keys 1 -> 40: the pre-fix bank predated the V2-3 fixture group, so it recorded
     #                the V2-5 union call alone. The exclusion is measured, never assumed.
-    # The producer was run TWICE before re-banking; both runs produced identical section shas.
+    #
+    # RE-ANCHORED AGAIN BY THE D-MF MANDATE FOLLOW-UPS (2026-09-04), on ONE named cause, and the
+    # PRE-CHANGE BANK IS KEPT AS EVIDENCE at data/consequence_leg/v23_golden_deep_on_premandate.json
+    # (native d43c7435 / forced 16a040f0, 49 / 143 keys -- the two shas this pin asserted before).
+    #   THE CAUSE, and it is the ONLY one: follow-up (2) renders `cascade._cw_window_age_note` into
+    #   the ROW-1 scope of every board row whose firing window ended more than
+    #   cascade.CW_WINDOW_AGE_MONTHS whole months before the as-of -- and the fixture window here
+    #   ends 2021-06-25 against a 2026-07-31 as-of. The note is GATED ON THE DEEP REGIME, which is
+    #   exactly the regime this bank IS, so it moves here and cannot move G1 (that pin is green,
+    #   unchanged, on the same run).
+    #   MEASURED, by data/consequence_leg/v23_golden_diff.py plus a splice-shaped re-derivation of
+    #   every moved leaf:
+    #     bank_native  49 -> 54 keys. 36 of the 49 carried keys moved, 125 lines in total, and
+    #                  EVERY moved line is its banked line with one clause spliced into its scope
+    #                  ('...; window ended <t2>, <n>-<year|month> span to this as-of)') -- 121 on
+    #                  the 2021-06-25 window, 4 on the 2021-06-20 one. ZERO leaves moved outside
+    #                  `lines`; zero keys went missing; zero diffs went unexplained.
+    #     bank_forced 143 -> 155 keys. 66 of the 143 carried keys moved, 191 lines, the same splice
+    #                  (185 / 4 / 2 across three windows), same three zeroes.
+    #     THE NEW KEYS ARE A SUPERSET, never a diff on this join, and they are named: the D-MF pin
+    #                  group's own deep calls, PLUS the three from
+    #                  test_the_context_rider_budgets_against_the_REGIME_ceiling_under_deep, which
+    #                  the previous bank simply predated.
+    #     excluded_xccy_keys 40 -> native 42 / forced 41; see the re-anchored block below.
+    # The producer was run TWICE (concurrently) before re-banking; both runs produced identical
+    # section shas AND byte-identical banks -- the only difference between the two documents was
+    # `pytest_tail`, which is a wall clock.
     for section, n_keys, banked_sha in (
-            ("bank_native", 49,
-             "d43c743557a64d361340d579ed32cde0bd153fc001923fd1f4d6255e0b1e2065"),
-            ("bank_forced", 143,
-             "16a040f0371b84eac88ee15e0d2c07de8c5a7b05618f6c99154dd936d4673beb")):
+            ("bank_native", 54,
+             "7c54cac72cb6ec3e0865d20b0fb53a0a8103fba59f1d696e88036f65ad911fed"),
+            ("bank_forced", 155,
+             "57b06b5802e42960644807b53a2c952f84d802f5a461dd06ff87f0ec9b9125fd")):
         ob, nb = old[section], new[section]
         assert len(ob) == n_keys, (section, len(ob))
         missing = [k for k in ob if k not in nb]
@@ -2843,14 +2870,29 @@ def test_g1d_the_deep_on_xccy_off_population_reproduces_the_banked_deep_golden()
     # MEASUREMENT, not an accident: the cross-currency path is the one path V2-3 is allowed to
     # change, and a golden that banked it would be a golden that had to be re-banked. The pre-fix
     # bank named ONE key (it predated the V2-3 fixture group); the fix pass re-measured it at 40.
+    #
+    # D-MF RE-ANCHOR (2026-09-04): 40 -> native 42 / forced 41, and the two are NO LONGER EQUAL.
+    # The D-MF group adds two xccy calls (the palm->ZCE label pin and the deep leg's xccy arm), so
+    # the native pass excludes 42. Under FORCING the deep-leg pin reds on its FIRST assertion -- it
+    # asserts the flag-off leg carries NO window-age note, and forcing makes that leg a deep one --
+    # so a red test stops making calls and its xccy call is never reached. The forced exclusion is
+    # therefore a STRICT SUBSET of the native one, which is the same subset-by-construction property
+    # this bank's own docstring declares for the forced pass at large, measured here rather than
+    # assumed. Equality is re-anchored to containment plus the ONE named key.
     _excl = old["native"]["excluded_xccy_keys"]
-    assert _excl == old["forced"]["excluded_xccy_keys"] and len(_excl) == 40
+    _excl_forced = old["forced"]["excluded_xccy_keys"]
+    assert len(_excl) == 42 and len(_excl_forced) == 41
+    assert set(_excl_forced) < set(_excl)
+    assert sorted(set(_excl) - set(_excl_forced)) == [
+        "tests/unit/test_cascade_walk.py::"
+        "test_mf2_the_deep_leg_dates_every_board_row_and_the_flag_off_leg_dates_none#2"]
     assert all(k.startswith("tests/unit/test_cascade_walk.py::") for k in _excl)
     assert ("tests/unit/test_cascade_walk.py::"
             "test_the_regime_is_the_union_with_v23s_key_and_the_union_is_inert_here#0") in _excl
     # ...and the FRESH run excludes the same population, so a fixture that silently stopped asking
     # for the rider would move this number rather than quietly shrinking the measured lane
     assert new["native"]["excluded_xccy_keys"] == _excl
+    assert new["forced"]["excluded_xccy_keys"] == _excl_forced
     # the forced pass is RED BY CONSTRUCTION (it forces the regime onto flag-off fixtures), so its
     # status is context, never the gate; the NATIVE pass is the one that must be green
     assert new["forced"]["pytest_exitstatus"] != 0
@@ -2972,15 +3014,31 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # that safe, so the pin names the two it accepts rather than accepting any string.
     assert nb["seam_block"]["end_anchor"] in (ob["seam_block"]["end_anchor"], "**_eod_kw)")
 
-    # flags_off: the banked map, plus EXACTLY the D-XL helpers, every one False. A pre-existing flag
+    # flags_off: the banked map, plus EXACTLY the helpers the named builds mint. A pre-existing flag
     # whose OFF value moved is the flag leaking, which is what this whole bank is for.
     for k, v in ob["flags_off"].items():
         assert nb["flags_off"][k] == v, (k, v, nb["flags_off"].get(k))
     _newflags = sorted(set(nb["flags_off"]) - set(ob["flags_off"]))
-    assert _newflags in ([], ["_extrema_own_date_on", "_extreme_locator_on", "_xl_kind_extreme_on",
-                              "_xl_kind_windowed_on", "_xl_lane_promote_on",
-                              "_xl_superlative_strip_on"]), _newflags
-    assert all(nb["flags_off"][k] is False for k in _newflags), _newflags
+    # RE-ANCHORED 2026-09-04 BY THE D-CL CACHE LANE, on its own named cause and WITHOUT re-banking a
+    # byte: the producer censuses every zero-arg `_*_on` callable on the `answer` module, so any new
+    # kill-switch appears here by construction. D-CL(2) mints exactly one -- `_synth_plain_evidence_on`,
+    # which drops the cache breakpoint from the writer's evidence block. By the OWNER'S WORD (2026-09-06,
+    # on the review's re-costing: same-session repeats READ the marked block) it is an OPT-IN, DEFAULT-OFF
+    # (unset = HEAD's request byte-for-byte; GRAPHRAG_SYNTH_PLAIN_EVIDENCE=on ships the block plain), so a
+    # stripped env resolves it False exactly like every dark D-XL helper. The values are still named one
+    # by one rather than averaged, so a default that flips in EITHER direction reds this pin.
+    # THE JOIN IS NOT LOOSENED -- the accepted set list gains ONE named state and nothing else, and the
+    # value check gains a per-name expectation where it had a blanket one.
+    # WHY NO OTHER SECTION MOVED, and it is measured above rather than promised: D-CL edits
+    # `_call_opus`'s transport blocks (a cache_control key) and the numbers agent's tool loop. Neither
+    # is visible to `_system`, the planner constitution, the seam block or the kwarg key set -- all four
+    # of which assert byte-identity earlier in this pin and did.
+    _XL_SIX = ["_extrema_own_date_on", "_extreme_locator_on", "_xl_kind_extreme_on",
+               "_xl_kind_windowed_on", "_xl_lane_promote_on", "_xl_superlative_strip_on"]
+    _DCL_ONE = ["_synth_plain_evidence_on"]
+    assert _newflags in ([], _XL_SIX, sorted(_XL_SIX + _DCL_ONE)), _newflags
+    for k in _newflags:                       # D-XL six -> dark (False); the D-CL opt-in -> off (False)
+        assert nb["flags_off"][k] is False, (k, nb["flags_off"][k])
 
     # ...and the specific facts inside them, so the bank cannot be re-anchored into vacuity
     assert len(ob["planner_sys"]["renders"]) == 12
@@ -4177,3 +4235,295 @@ def test_the_context_rider_budgets_against_the_REGIME_ceiling_under_deep():
     _l3, p3, _c3, _q3, _s3 = _c_run(request=req, sg=old)
     assert p3["context"]["rendered"] == 1 and p3["context"]["declines"] == []
 
+
+# ================================================================================================
+# == D-MF -- THE THREE DEEP-MANDATE FOLLOW-UPS (the two K8 panels' own dockets, 2026-09-04) ======
+#
+# Each is a MEASURED trigger from a BLIND panel, and each pin below names its own:
+#   (1) EDGE TYPE VERBATIM      V2-5 panel, two seats convicting on one hop: the writer called a
+#                               `correlates_with` edge a "substitution relation" -- a word no row on
+#                               the page printed. The remedy is a MANDATE-ONLY clause that points at
+#                               the hop line's own phrase; the engine already prints exactly one
+#                               phrase per relation and declines an unmapped one.
+#   (2) WINDOW-AGE DATING       V2-5 panel: firing windows of 2015 / 2019-20 / 2023-24 read against
+#                               a 2026 as-of as the present state of the market. The READ line fences
+#                               them in-sample; nothing DATED them. Both halves land here -- a
+#                               rendered note on the ROW-1 scope and a mandate clause over it.
+#   (3) FX LABEL PRINT DATES    V2-3 K8 panel, the ONE arm-attributable stop class (2 quotes, S1+S2,
+#                               on rv_soyoil_palm): the writer wrote "over 2025-12-31 to 2026-04-30"
+#                               about a rate row whose `## Sources` label carried months only
+#                               ("2025-12..2026-05 ... latest available 2026-04-30"). The dates were
+#                               TRUE -- they are the walk's own window bounds -- but the cited row
+#                               did not carry them, so both seats scored it a stop claim.
+#
+# WHAT MOVED, AND WHERE: (1) is answer.py only. (2) and (3) are cascade.py renders; (2) is gated on
+# the DEEP regime (the flag-off golden must not move, and does not -- test_g1_... above), (3) rides
+# the xccy path only, which BOTH goldens exclude by construction.
+# ================================================================================================
+
+
+def test_mf1_the_mandate_takes_the_relation_from_the_hop_lines_own_words():
+    """(1) THE MANDATE HALF. It points the writer at the CONSEQUENCE HOP line's own phrase and
+    names no relation itself -- so it cannot drift from the engine's vocabulary, and there is no
+    second spelling on the page for a seat to prefer."""
+    from leviathan.graphrag import answer as ans
+    needle = ("Name the declared relation in that hop's own words, copied from its CONSEQUENCE HOP "
+              "line exactly as that line spells it -- the line's own phrase is the relation's whole "
+              "name on this page. ")
+    m = ans._SYSTEM_CASCADE_WALK_MANDATE
+    assert needle in m
+    # POSITIVE-ONLY, the J6 addendum doctrine: the clause says what to write and forbids nothing.
+    for banned in ("never", "not ", "avoid", "do not", "don't", "must"):
+        assert banned not in needle.lower(), banned
+    # ...and it quotes NO phrase and reaches for NO synonym, the panel's own word included.
+    for phrase in cq._CW_RELATION_WORDS.values():
+        assert phrase not in needle, phrase
+    for synonym in ("substitution", "substitute", "correlation", "complement", "pass-through"):
+        assert synonym not in needle.lower(), synonym
+    # IT SITS IN THE MARKER-GATED MANDATE, not in the DEEP literal: the relation is printed on EVERY
+    # hop of EVERY walk block, so a deep-only clause would leave the rollback regime (rev 126, deep
+    # off) unfenced against exactly what the panel convicted.
+    assert needle not in ans._SYSTEM_CASCADE_DEEP and needle not in ans._SYSTEM_CASCADE_XCCY
+    assert needle not in ans._SYSTEM_CASCADE_WALK                     # the LICENSE stays flag-only
+
+
+def test_mf1_the_printed_relation_vocabulary_is_five_phrases_with_one_producer():
+    """(1) THE ENUMERATION the mandate points at, written out so a sixth phrase cannot arrive
+    unnoticed. `_CW_RELATION_WORDS` is the ONLY place a declared relation becomes reader words, and
+    `_cw_hop_header` is its ONLY read."""
+    assert cq._CW_RELATION_WORDS == {
+        "competes_with": "compete for the same demand",
+        "substitutes_for": "stand in for one another in the same use",
+        "crushed_into": "are joined by the same crush",
+        "correlates_with": "move together in the record",
+        "leads_lags": "the record places a lead-lag between them"}
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert src.count("_CW_RELATION_WORDS[") == 1           # ONE render read, in _cascade_walk_legs
+    # the five are pairwise distinct, so no two relations share a spelling on the page
+    assert len(set(cq._CW_RELATION_WORDS.values())) == 5
+    # ...and NO phrase is a substring of another, which is what lets a pin (or a reader) attribute a
+    # printed phrase back to exactly one declared relation
+    vals = list(cq._CW_RELATION_WORDS.values())
+    assert not any(a != b and a in b for a in vals for b in vals)
+
+
+def test_mf1_every_declared_relation_reaches_the_reader_as_its_own_printed_phrase():
+    """(1) THE RENDER, relation by relation, on the shipped leg -- the surface the mandate quotes."""
+    for rel, phrase in cq._CW_RELATION_WORDS.items():
+        lines, p, _c, _q, _s = _w_run(graph=_w_graph([_w_edge(relation=rel)]))
+        assert p["outcome"] == "fired", rel
+        hop = next(ln for ln in lines if ln.startswith("CONSEQUENCE HOP"))
+        assert f"the graph records these markets {phrase}" in hop, rel
+        # THE PANEL'S OWN CASE: on the correlation hop nothing anywhere in the block prints a
+        # substitution word for a writer to copy -- the mislabel had no source on the page.
+        if rel == "correlates_with":
+            assert not any("substitut" in ln.lower() for ln in lines), lines
+
+
+def test_mf1_an_unmapped_relation_declines_instead_of_printing_a_raw_slug():
+    """(1) THE OTHER HALF of 'the hop line is the relation's whole name': a relation with no phrase
+    never reaches the reader at all, so the mandate can never point at a slug."""
+    _l, p, _c, _q, _s = _w_run(graph=_w_graph([_w_edge(relation="teleports_into")]))
+    assert "relation_unmapped" in [d.get("reason") for d in p["declines"]]
+    assert p["outcome"] != "fired"
+
+
+# -- (2) WINDOW-AGE DATING -------------------------------------------------------------------------
+def test_mf2_the_mandate_reads_a_dated_row_as_dated_history():
+    """(2) THE MANDATE HALF, and the reason it is CONDITIONAL. Its gate (a walk block is present) is
+    strictly WIDER than the render's (the DEEP regime), and wider is the safe direction: the clause
+    can never demand a note that is not on the page, and every rendered note is covered by it."""
+    from leviathan.graphrag import answer as ans
+    needle = ("When a row's scope carries a window-age clause saying its window ended a stated span "
+              "before this as-of, that row is dated history: write its sentence in the past tense, "
+              "anchored on the window's own end date exactly as the row prints it, and keep the "
+              "as-of as the date the record was read. ")
+    m = ans._SYSTEM_CASCADE_WALK_MANDATE
+    assert needle in m
+    assert needle.startswith("When a row's scope carries")            # DORMANT when it does not
+    for banned in ("never", "not ", "avoid", "do not", "don't"):
+        assert banned not in needle.lower(), banned
+    # THE ENGINE OWNS THE THRESHOLD, so the prompt carries no number to drift from it
+    assert not any(ch.isdigit() for ch in needle)
+    assert str(cq.CW_WINDOW_AGE_MONTHS) not in needle
+    # ...and the RENDER really is the narrower gate: the note is computed only under the deep regime
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert "age_note = _cw_window_age_note(t2, asof) if deep_on else None" in src
+
+
+def test_mf2_the_window_age_note_dates_an_old_window_and_stays_silent_on_a_fresh_one():
+    """THE THRESHOLD IS A NAMED CONSTANT, minted once and read once. TWELVE months: one full crop
+    year is the shortest gap after which every board on this page has rolled its delivery month at
+    least once, so a reader taking such a row as current is wrong about a DIFFERENT CONTRACT."""
+    assert cq.CW_WINDOW_AGE_MONTHS == 12
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert src.count("CW_WINDOW_AGE_MONTHS") == 2                    # the mint + the ONE read
+    N = cq._cw_window_age_note
+    # THE PANEL'S OWN CASE: a 2015 window against a 2026 as-of, read as current on the arm.
+    assert N("2015-06-30", ASOF_W) == "window ended 2015-06-30, 11-year span to this as-of"
+    # the walk fixture's own window, and the years/months split at 24
+    assert N(W_END, ASOF_W) == "window ended 2021-06-25, 5-year span to this as-of"
+    assert N("2024-07-31", ASOF_W) == "window ended 2024-07-31, 2-year span to this as-of"
+    assert N("2025-06-10", "2026-07-15") == "window ended 2025-06-10, 13-month span to this as-of"
+    # THE UNIT SWITCHES AT TWO YEARS AND THE YEAR COUNT IS FLOORED: 23 whole months still reads in
+    # months (the first year past the threshold is not rounded away), 35 reads as 2 years -- an
+    # UNDERSTATEMENT of under one year, never an overstatement
+    assert N("2024-08-31", ASOF_W) == "window ended 2024-08-31, 23-month span to this as-of"
+    assert N("2023-08-31", ASOF_W) == "window ended 2023-08-31, 2-year span to this as-of"
+    # THE COMPARATOR IS `<=` ON THE THRESHOLD -- a window exactly twelve whole months old SERVES
+    # undated, which is the fail-open direction on the boundary
+    assert N("2025-07-31", ASOF_W) is None and N("2025-07-30", ASOF_W) is None
+    # ...and a PARTIAL month is not a whole one, on both sides of that same boundary
+    assert N("2025-07-20", "2026-07-15") is None                     # 12 calendar, 11 whole
+    assert N("2025-06-20", "2026-07-15") is None                     # 13 calendar, 12 whole
+    # a fresh window, a window AHEAD of the as-of, and two unreadable dates all DECLINE
+    for end in ("2026-04-30", "2026-12-01", "junk", "", None):
+        assert N(end, ASOF_W) is None, end
+    assert N(W_END, None) is None and N(W_END, "not-a-date") is None
+
+
+def test_mf2_the_note_is_spelled_so_a_writer_can_copy_it_into_a_handled_sentence():
+    """THE ORTHOGRAPHY IS A MEASUREMENT, not a preference, and this is the measurement.
+
+    A bare 'N years before this as-of' copied into prose extracts as a CLAIM MAGNITUDE under the
+    verifier's own reader: 'before' is a `_DUR_STOP`, so the space spelling earns no duration
+    exemption and the all-numbers guard would strip the writer's dating sentence as number_unbacked
+    -- the exact class the verifier's note already records. The hyphen compound on a `_STAT_HEAD`
+    noun ('5-year span') clears both cycle-8 spellings. THIS PIN READS verify.py AND WRITES NOTHING
+    IN IT: it is a consumer pin on two shipped module-level names."""
+    from leviathan.graphrag import verify as vf
+    note = cq._cw_window_age_note(W_END, ASOF_W)
+    assert note == "window ended 2021-06-25, 5-year span to this as-of"
+    assert " before " not in note and " ago" not in note and " old" not in note
+    good = ("CBOT corn settle change ran 4.4618 % across a window that ended 2021-06-25, a 5-year "
+            "span to this as-of [N2].")
+    assert vf._claim_numbers_in(vf._HANDLE.sub("", good)) == [4.4618]
+    # ...and the REJECTED spelling, which is why the shipped one is a hyphen compound
+    bad = good.replace("a 5-year span to this as-of", "5 years before this as-of")
+    assert 5.0 in vf._claim_numbers_in(vf._HANDLE.sub("", bad))
+
+
+def test_mf2_row1_is_byte_identical_without_a_note_and_splices_one_in_with_it():
+    """THE FLAG-OFF LAW, at the template. `age_note` defaults to None and a None note renders the
+    shipped bytes exactly -- which is what makes test_g1_... hold across this change."""
+    rec = {"slug": ROOT, "span": W_SPAN, "status": "closed", "move_pct": 4.4618,
+           "contract_month": "2021-07"}
+    plain = cq._cw_cell_line(2, ROOT, rec, ASOF_W)
+    assert plain == ("- [N2] CBOT corn settle change across the episode window 2021-03..2021-06 "
+                     "(one delivery month held at both ends, as-of 2026-07-31): +4.4618 % "
+                     "[series: CBOT corn; contract: 2021M07; table: FUTURES EOD]")
+    assert cq._cw_cell_line(2, ROOT, rec, ASOF_W, age_note=None) == plain
+    note = cq._cw_window_age_note(W_END, ASOF_W)
+    aged = cq._cw_cell_line(2, ROOT, rec, ASOF_W, age_note=note)
+    assert aged == plain.replace("as-of 2026-07-31)", "as-of 2026-07-31; " + note + ")")
+    # THE NOTE RIDES THE SCOPE, inside the same parenthesis as the as-of and BEFORE the figure --
+    # a reader meets the dating before the number it dates
+    assert aged.index(note) < aged.index("+4.4618 %")
+    # ...and the whole-block register fence still holds: ONE window token on the row (the added date
+    # is not a second clock), no valuation words, no flow words
+    from leviathan.graphrag import register as reg
+    assert cq._cw_register_fence([aged])
+    assert len(cq._CW_SPAN_TOKEN_RX.findall(aged)) == 1
+    assert reg.count_valuation_words(aged) == 0 and reg.count_flow_words(aged) == 0
+
+
+def test_mf2_the_deep_leg_dates_every_board_row_and_the_flag_off_leg_dates_none():
+    """THE LEG. The note is computed ONCE per firing (both boards of a hop share the window) and
+    gated on the DEEP regime -- the gate is a DECLARED LIMIT, not a preference: the walk's first law
+    is flag-off byte-identity, and the rollback regime (rev 126) keeps today's bytes exactly. Under
+    the SHIPPED serving state (deep on since rev 127) every served walk row carries it."""
+    note = cq._cw_window_age_note(W_END, ASOF_W)
+    off_lines, off_p, _c, _q, _s = _w_run()
+    assert off_p["outcome"] == "fired"
+    assert not any("span to this as-of" in ln for ln in off_lines)
+    on_lines, on_p, _c2, _q2, _s2 = _d_run(_d_chain())
+    assert on_p["outcome"] == "fired" and on_p["path"] == [ROOT, CHILD, GRAND, GREAT]
+    rows = [ln for ln in on_lines if ln.startswith("- [N")]
+    assert len(rows) == 4 and all(note in ln for ln in rows)         # root + three hops
+    # ONE clause per firing, on every row, and the block still passes its own fence
+    assert len({ln.split("as-of 2026-07-31; ")[1].split(")")[0] for ln in rows}) == 1
+    assert cq._cw_register_fence(on_lines)
+    # the DEEP flag alone arms it -- the xccy key selects the same regime and dates the same way
+    x_lines, x_p, _c3, _q3, _s3 = _w_run(request={"focus_contract": ROOT, "xccy": True})
+    assert x_p["outcome"] == "fired"
+    assert all(note in ln for ln in x_lines if ln.startswith("- [N"))
+
+
+# The V2-5 panel's OWN window, on a real leg: a 2015 firing read against the 2026 as-of.
+_MF15_START, _MF15_END, _MF15_SPAN = "2015-01-05", "2015-06-30", "2015-01..2015-06"
+_MF15_LIFE = {"2015-07": ("2014-11-03", "2015-07-14"),      # nearest expiry surviving t2+5
+              "2015-09": ("2014-11-03", "2015-08-31")}
+
+
+def _mf15_rows(px0=500.0, px1=575.0):
+    d, end = _dt.date.fromisoformat("2014-11-03"), _dt.date.fromisoformat("2015-08-31")
+    out = []
+    while d <= end:
+        iso = d.isoformat()
+        for cm, (first, last) in _MF15_LIFE.items():
+            if not (first <= iso <= last):
+                continue
+            settle = (px0 if iso <= _MF15_START else px1) if cm == "2015-07" else 400.0
+            out.append({"value": settle, "knowledge_date": iso, "contract_month": cm,
+                        "unit": "US cents/bushel", "currency": "USD",
+                        "settle_kind": "settlement"})
+        d += _dt.timedelta(days=1)
+    return out
+
+
+def test_mf2_the_panels_own_2015_window_reaches_the_reader_dated():
+    """THE MEASURED TRIGGER, END TO END. On the arm a 2015 firing window rendered with nothing on
+    the row to say how far behind the as-of it sat, and the panel read it as the present state of
+    the market. The same window, same as-of, through the same leg."""
+    sg = _w_sg(windows=[{"start": _MF15_START, "end": _MF15_END, "span": _MF15_SPAN, "n": 7}])
+    qfn = _WTape({ROOT: _mf15_rows(), CHILD: _mf15_rows()})
+    calls: list = []
+    lines, p = cq._cascade_walk_leg_or_nothing(
+        sg, _w_graph([_w_edge()]), {"focus_contract": ROOT, "deep": True}, qfn, ASOF_W, calls)
+    assert p["outcome"] == "fired"
+    rows = [ln for ln in lines if ln.startswith("- [N")]
+    assert rows and all("window ended 2015-06-30, 11-year span to this as-of" in ln for ln in rows)
+    assert all(_MF15_SPAN in ln for ln in rows)          # the scope token is unchanged beside it
+    assert cq._cw_register_fence(lines)
+    # ...and with the flag off the SAME 2015 window renders exactly today's undated bytes
+    off_calls: list = []
+    off_lines, off_p = cq._cascade_walk_leg_or_nothing(
+        sg, _w_graph([_w_edge()]), {"focus_contract": ROOT},
+        _WTape({ROOT: _mf15_rows(), CHILD: _mf15_rows()}), ASOF_W, off_calls)
+    assert off_p["outcome"] == "fired"
+    assert not any("span to this as-of" in ln for ln in off_lines)
+
+
+# -- (3) THE FX CELL'S LABEL CARRIES ITS FIRST AND LAST PRINT DATES --------------------------------
+def test_mf3_the_fx_label_carries_its_first_and_last_print_dates_on_the_real_palm_case():
+    """THE V2-3 K8 DOCKET, on the suite's REAL calibration fixture (CME palm oil -> ZCE rapeseed
+    oil, the arm's own pair). The panel's stop class was a label that carried months while the
+    writer -- correctly -- wrote the window's dates. Both dates already rode the ROW-1X line; this
+    puts them on the LABEL, where a reader checking the citation meets them."""
+    from leviathan.graphrag import citations as ct
+    lines, p, calls, _q = _xc_run(1.062475)
+    rec = _x_fx_cell(p)
+    assert rec["first_date"] == "2022-01-01" and rec["last_date"] == "2022-08-01"
+    period = "2022-01-01..2022-08-01"
+    fx_call = next(c for c in calls if c["query"]["table"] == cq._CW_FX_TABLE)
+    cit = ct.from_number(fx_call, 3)
+    # THE LABEL, and the LOCATOR the reader can re-run -- both at DAY grain, both the row's own
+    # first and last print, and the ONE producer is the record's own two fields
+    assert period in cit.label and cit.locator["period"] == period
+    assert period == rec["first_date"] + ".." + rec["last_date"]
+    assert rec["span"] not in cit.label                  # the months-only token is GONE from it
+    # the label still names the source and still declares its own latest print and as-of
+    assert cit.label.startswith("ECB reference rates exchange rate change ")
+    assert "(latest available 2022-08-01; as-of 2026-07-31)" in cit.label
+    # THE ROW AND THE LABEL AGREE, which is the whole complaint: the two dates a writer can read off
+    # the block are the two dates the citation carries
+    row = next(ln for ln in lines if cq.CW_FX_TOKEN in ln)
+    assert "from 2022-01-01 through 2022-08-01" in row and rec["span"] in row
+    # ...and the BOARD rows keep their month token, deliberately: their own line shows the model a
+    # month span, and a citation must carry what its row shows
+    board = next(c for c in calls if c["query"]["table"] != cq._CW_FX_TABLE)
+    assert ct.from_number(board, 1).locator["period"] == _XC_SPAN
+    # the FX row needs no window-age note: it prints its own first and last date already, while the
+    # board rows carry the span token alone
+    assert "span to this as-of" not in row
+    assert cq._cw_register_fence(lines)

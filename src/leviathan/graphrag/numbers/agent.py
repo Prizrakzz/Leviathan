@@ -35,6 +35,77 @@ def _stats_tool_on() -> bool:
     value other than an explicit off/0/false leaves it on (fail-safe-on: the belt is descriptive-only + fenced)."""
     return os.environ.get("GRAPHRAG_STATS_TOOL", "on").strip().lower() not in ("off", "0", "false", "no")
 
+
+# ── D-CL(1): THE LOOP'S MOVING CACHE CHECKPOINT ──────────────────────────────────────────────────────
+# THE MEASURED DEFECT (cost_census_from_logs.json, 3 deep turns 2026-09-04, claude-sonnet-5 priced from
+# providers.SERVING_PRICES at $3/$15 per MTok). The system block below already carries cache_control and
+# the census proves it works: cache_read = 98,174 tokens on EVERY round after the first. What carried no
+# breakpoint at all was the CONVERSATION this loop grows -- the assistant tool_use turns and the
+# tool_result payloads answering them -- so each round re-sent the whole thing at FULL input price. The
+# `i` (uncached input) column climbs 137 -> 5,518 -> 7,292 -> 10,646 -> 12,350 -> 13,771 across the six
+# rounds of rv_corn_wheat: 49,714 uncached input tokens, $0.149, against that turn's $0.422 numbers leg
+# -- 35% of the leg spent re-sending bytes the API had already read. rv_soyoil_palm 76,677 /
+# rv_beans_meal 52,061; a per-turn mean of 59,484 tokens re-sent because nothing marked the growing tail.
+#
+# WHAT THE MOVING PAIR IS WORTH, ARITHMETICALLY (same census, same prices). With the checkpoint the
+# whole conversation sits INSIDE the cached prefix, so per round the uncached input goes to ~0, the read
+# is the conversation as it stood one round ago, and the write is only the delta the round just added
+# (writes telescope to the final conversation size). rv_corn_wheat: 49,714 full-price tokens become
+# 13,771 written at 1.25x + 35,806 read at 0.1x = 20,794 effective, a $0.087 saving on a $0.422 leg
+# (21%). rv_soyoil_palm $0.145, rv_beans_meal $0.088 -- a mean of $0.107 per turn. The gross full-price
+# input eliminated is $0.178/turn; the 1.25x write premium and the 0.1x reads give back $0.071 of it.
+#
+# THE FIX MOVES A MARKER, IT DOES NOT MOVE A PROMPT. Marking the LAST block of the LAST user turn makes
+# everything before it a cacheable prefix; the next round READS that prefix at 0.1x instead of paying
+# 1.0x for bytes the API already holds. `cache_control` is transport metadata and never reaches the
+# model as content, and no token of the conversation is added, removed or reordered -- so the model
+# receives the SAME tokens either way and quality is identical BY CONSTRUCTION, not by measurement.
+#
+# HOW MANY MARKERS, AND WHY TWO. The API allows at most 4 cache_control breakpoints per request; this
+# loop spends 1 on the system block and AT MOST 2 here, leaving one slot free. Two, not one, because a
+# READ can only land where an earlier request WROTE a breakpoint, and a marker walks back at most 20
+# content positions looking for one: keeping the PREVIOUS round's marker pins a guaranteed read point at
+# the exact position last round wrote, whatever a single round appended in between (a long sequential
+# tool_use run is the documented way a lone moving marker silently misses and re-writes the whole
+# conversation). The retained marker costs nothing extra -- that position was written last round, so it
+# reads rather than re-writes. Markers older than the two most recent are DROPPED as the pair moves, so
+# the count is bounded no matter how long the loop runs.
+#
+# NOT MARKED: turn 1's user message, whose content is a plain string (the as-of + families + question).
+# It is ~141 tokens by the census -- far under claude-sonnet-5's 1,024-token minimum cacheable prefix --
+# so a marker there would cache nothing and spend a slot. The mover simply skips any non-list content.
+CACHE_CHECKPOINTS = 2                  # moving markers kept per request; + the system block = 3 of 4
+
+
+def _incremental_cache_on() -> bool:
+    """Kill-switch GRAPHRAG_NUMBERS_INCREMENTAL_CACHE (default ON), the `_stats_tool_on` idiom verbatim.
+    OFF sends the conversation with NO moving breakpoint -- byte-identical to the pre-D-CL request, the
+    system block still cached -- so the rollback is one env var and no deploy. Any value other than an
+    explicit off/0/false leaves it on (fail-safe-on: the marker cannot change what the model reads)."""
+    return (os.environ.get("GRAPHRAG_NUMBERS_INCREMENTAL_CACHE", "on").strip().lower()
+            not in ("off", "0", "false", "no"))
+
+
+def _move_cache_checkpoint(convo: list[dict]) -> None:
+    """Put a cache breakpoint on the LAST content block of the two most recent BLOCK-LIST user turns and
+    clear it from every older one. In place, and additive-only: the sole difference between a marked and
+    an unmarked conversation is the presence of the `cache_control` key on those blocks. Assistant turns
+    are never touched (their content is the provider SDK's own block objects, which this loop appends
+    wholesale so thinking blocks survive); string-content user turns are skipped, not converted."""
+    kept = 0
+    for msg in reversed(convo):
+        if msg.get("role") != "user":
+            continue
+        blocks = msg.get("content")
+        if not isinstance(blocks, list) or not blocks or not isinstance(blocks[-1], dict):
+            continue                   # turn 1's plain string: nothing to mark and nothing to clear
+        if kept < CACHE_CHECKPOINTS:
+            blocks[-1]["cache_control"] = {"type": "ephemeral"}
+            kept += 1
+        else:
+            blocks[-1].pop("cache_control", None)
+
+
 # ── ESR destination-scope honesty guard ──────────────────────────────────────────────────────────────
 # silver_esr carries per-DESTINATION rows, but the registered query shape has NO destination filter (the
 # country column is a raw unmapped FAS code — tables.yaml: "destination filtering is deferred"). A
@@ -2581,6 +2652,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     tools = [tool_schema(reg)] + ([stats_tool_schema()] if stats_on else [])   # kill-switch removes the tool
     system = [{"type": "text", "text": system_prompt(reg, stats_tool=stats_on),
                "cache_control": {"type": "ephemeral"}}]                        # cached; prompt matches the schema
+    # BREAKPOINT 1 OF AT MOST 3. This one is static (measured cache_read 98,174 tokens every round after
+    # the first); the other two are the moving pair `_move_cache_checkpoint` keeps on the conversation.
     # B1: the hint rides the USER turn, never the system block -- `system` carries cache_control ephemeral and
     # is byte-stable per (registry, flags), so a per-turn families line there would invalidate the prompt cache
     # on every turn. QUESTION stays last (the recency slot it has always held); absent families -> the string
@@ -3070,6 +3143,12 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 except Exception:  # noqa: BLE001 — progress reporting can never fail a lookup
                     pass
         convo.append({"role": "user", "content": results})
+        if _incremental_cache_on():
+            # D-CL(1): move the checkpoint onto the tool results this round just produced, so the NEXT
+            # round reads the conversation instead of re-paying for it. Marked here rather than at the
+            # top of the loop because THIS is where the user turn is minted -- one producer, and the
+            # marker is in place before the very next create() renders `convo`.
+            _move_cache_checkpoint(convo)
     # D-LD Sitting-A: the budget-exhausted return is a REAL turn with real lookups behind it, so the usage
     # census rides it too -- otherwise the BUSIEST turns are precisely the ones missing from the read.
     return {"answer": "(stopped: max tool calls reached)", "calls": calls,

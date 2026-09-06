@@ -6659,14 +6659,73 @@ def _cw_fences(rec_a: dict, rec_b: dict, span_days: int) -> tuple:
     return ri, (ma is not None and mb is not None and abs(ma - mb) <= 1)
 
 
-def _cw_cell_line(n: int, slug: str, rec: dict, asof) -> str:
+# -- WINDOW-AGE DATING (the V2-5 K8 panel follow-up, 2026-09-04) -------------------------------------
+CW_WINDOW_AGE_MONTHS = 12
+#   ^ THE THRESHOLD, minted ONCE and read by the renderer below and by nothing else. A firing window
+#     whose END trails the as-of by MORE than this many WHOLE months is DATED on its own row instead
+#     of being left to read as a current observation. MEASURED TRIGGER: the V2-5 panel read a 2015
+#     firing window as the present state of the market -- the window token on the row ('2015-01..
+#     2015-06') is a scope, and nothing on the line said how far behind the as-of that scope sat.
+#     TWELVE, and the reason is stated rather than assumed: one full crop year is the shortest gap
+#     after which every board on this page has rolled its delivery month at least once, so a reader
+#     who takes such a row as current is wrong about a DIFFERENT CONTRACT, not merely about a staler
+#     print of the same one. The mandate half lives in `answer._SYSTEM_CASCADE_WALK_MANDATE`.
+#     REACH, stated as a limit (review MIN-2, 2026-09-04): the note renders on BOARD rows only (ROW-1,
+#     root and child -- the two `_cw_cell_line` call sites). The FX row (ROW-1X, `_cw_fx_line`) and the
+#     context row (ROW-1C, `_cw_context_line`) already print their own first and last dates, so on a
+#     deep + xccy block the reader meets one row class dated by this clause and two dated by their own
+#     printed endpoints; the mandate's conditional wording covers exactly the rows that carry it.
+
+
+def _cw_window_age_note(t_end, asof) -> str | None:
+    """The ROW-1 window-age clause, or None when the window is fresh enough or either date is
+    unreadable. Pure string/int arithmetic on two ISO dates (the `_cw_first_of_months` idiom -- this
+    module reads no clock, so a fixture and a serving turn date the same window identically).
+
+    THE ORTHOGRAPHY IS LOAD-BEARING, and it is `_cw_min_lag_quarters`' hazard read the other way. A
+    bare 'N years before this as-of' copied into prose extracts as a CLAIM MAGNITUDE under
+    `verify._claim_number_spans`: 'before' is a `_DUR_STOP`, so the space spelling earns no duration
+    exemption, and the all-numbers guard would then strip the writer's own dating sentence as
+    number_unbacked -- the exact class the verifier's own note records ('10 days before the as-of
+    date' is a charged claim by design). The hyphen compound with a `_STAT_HEAD` noun ('5-year span')
+    clears BOTH cycle-8 spellings, so this clause can be copied verbatim into a handled sentence and
+    survive. The noun is 'span' and NOT 'gap' for a second reason: the walk mandate forbids the
+    writer to derive a gap between two rows, and a row that printed the word would be teaching the
+    idiom it fences.
+
+    THE UNIT SWITCHES AT TWO YEARS AND THE YEAR COUNT IS FLOORED, both stated rather than assumed.
+    Below 24 whole months the span reads in months, so the first year past the threshold is not
+    rounded away to a bare '1-year'; at or above it the span reads in floored years, which can only
+    UNDERSTATE the age by less than one year and never overstate it -- the safe direction for a
+    clause a writer will copy as a fact."""
+    e, a = str(t_end or "")[:10], str(asof or "")[:10]
+    try:
+        ey, em, ed = int(e[0:4]), int(e[5:7]), int(e[8:10])
+        ay, am, ad = int(a[0:4]), int(a[5:7]), int(a[8:10])
+    except (TypeError, ValueError):
+        return None                                   # an unreadable date DECLINES, never guesses
+    months = (ay * 12 + am) - (ey * 12 + em)
+    if ad < ed:
+        months -= 1                                   # a partial month is not a whole one
+    if months <= CW_WINDOW_AGE_MONTHS:
+        return None                                   # inside the threshold, or the window is ahead
+    n, unit = (months // 12, "year") if months >= 24 else (months, "month")
+    return f"window ended {e}, {n}-{unit} span to this as-of"
+
+
+def _cw_cell_line(n: int, slug: str, rec: dict, asof, *, age_note: str | None = None) -> str:
     """ROW 1 -- the J4 cell template VERBATIM with the curated board label in the query (v3 minor:
-    the call record is the producer; tag and ledger read the same string the model sees)."""
+    the call record is the producer; tag and ledger read the same string the model sees).
+
+    `age_note` is `_cw_window_age_note`'s clause, threaded from the render loop and None everywhere
+    it does not apply -- so a row without one is BYTE-IDENTICAL to the shipped template, which is
+    what makes the flag-off golden hold across this change."""
     label = _CW_BOARD_LABEL[slug]
     q = {"commodity": label, "country": None, "contract_month": rec.get("contract_month"),
          "table": _TAPE_TABLE}
+    aged = f"; {age_note}" if age_note else ""
     return (f"- [N{n}] {label} settle change across the episode window {rec['span']} "
-            f"(one delivery month held at both ends, as-of {asof}): {rec['move_pct']:+g} %"
+            f"(one delivery month held at both ends, as-of {asof}{aged}): {rec['move_pct']:+g} %"
             + _series_tag(q))
 
 
@@ -6939,8 +6998,22 @@ def _cw_fx_call(rec: dict, asof) -> dict:
     citation label and falls back to the CARD's unit when the row carries none, so an unset or
     card-shaped unit puts a raw provenance string in front of the reader. `_rv_call` hard-codes the
     pink-sheet table, so the table and the machine metric are overridden here -- the metric rides
-    the ROW as `source_metric`, which citations.from_number copies onto the LOCATOR."""
-    call = _rv_call("exchange rate change", rec["label"], rec["move_pct"], rec["span"], asof,
+    the ROW as `source_metric`, which citations.from_number copies onto the LOCATOR.
+
+    THE PERIOD IS THE READ'S OWN FIRST..LAST PRINT DATES, not the firing window's month token, and
+    that is the V2-3 K8 panel's own docket (engine label, one-liner). MEASURED on the arm: the writer
+    wrote 'over 2025-12-31 to 2026-04-30' about this row while the row's `## Sources` label read
+    '2025-12..2026-05 ... (latest available 2026-04-30; as-of 2026-07-31)' -- precision that was TRUE
+    (they are the walk's own window bounds) but that the cited label did not carry, so it scored as
+    an arm-attributable stop claim on both seats. Both dates already ride the ROW-1X line; this puts
+    them on the LABEL, where a reader checking the citation meets them. The shape is the estate's own
+    default -- `cascade._period_label` renders every ordinary windowed call as `t1..t2` at day grain
+    -- so `citations._period_label` passes it through untouched (it carries '..') and the locator
+    re-runs a span the reader can see. It is deliberately NOT the board rows' month token: those
+    carry the month span BECAUSE that is what their own line shows the model, and this line shows
+    the print dates."""
+    call = _rv_call("exchange rate change", rec["label"], rec["move_pct"],
+                    f"{rec['first_date']}..{rec['last_date']}", asof,
                     unit=_CW_FX_UNIT_FMT.format(unit=rec["label"]), date=rec["last_date"])
     call["query"]["table"] = _CW_FX_TABLE
     call["rows"][0]["source_metric"] = rec["metric"]
@@ -7686,6 +7759,14 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         tok = str(f.get("node_token") or "")
         firing_lab = tok if (tok and not any(ch.isdigit() for ch in tok)) \
             else _cw_slice_label(f["slice"])
+        # WINDOW-AGE DATING, computed ONCE per firing (both boards on a hop share the window) and
+        # GATED ON THE REGIME. The gate is a DECLARED LIMIT, not a preference: this is a V2-5-lane
+        # remedy for a defect the DEEP panel measured, and the walk's first law is flag-off
+        # byte-identity -- an ungated note would move every board row of every flag-off turn, which
+        # is precisely what G1 exists to refuse, on a leg whose rollback (rev 126) is the off regime.
+        # Under the SHIPPED serving state (GRAPHRAG_CASCADE_DEEP=on since rev 127) every served walk
+        # row carries it, so no reader loses the dating; the rollback keeps today's bytes exactly.
+        age_note = _cw_window_age_note(t2, asof) if deep_on else None
         j4_hit = j4.get((root, span_tok))
         if j4_hit is not None and str(j4_hit.get("status")) == "closed":
             # review D6 (confirmed): verdicting off a magnitude the BLOCK does not carry handed
@@ -7709,7 +7790,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
             n += 1
             calls.append(_shown(_cw_call(root, root_rec, asof), root_rec["move_pct"]))
             root_rec["handle"] = f"N{n}"
-            lines.append(_cw_cell_line(n, root, root_rec, asof))
+            lines.append(_cw_cell_line(n, root, root_rec, asof, age_note=age_note))
         payload["cells"].append({k: v for k, v in root_rec.items() if k != "_res"})
         if root_rec["status"] != "closed":
             lines.append(_cw_absence(_CW_BOARD_LABEL[root],
@@ -7763,7 +7844,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 n += 1
                 calls.append(_shown(_cw_call(child, crec, asof), crec["move_pct"]))
                 crec["handle"] = f"N{n}"
-                lines.append(_cw_cell_line(n, child, crec, asof))
+                lines.append(_cw_cell_line(n, child, crec, asof, age_note=age_note))
                 priced_children.add(child)
                 # -- V2-3 BELT A: THE FX ADMISSION LADDER, SEVEN RUNGS IN ONE ORDER, READ ONLY --
                 # It appends NO line, mints no handle and needs no rollback; the whole rung set is

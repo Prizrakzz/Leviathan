@@ -376,7 +376,38 @@ _SYSTEM_CASCADE_WALK_MANDATE = (
     "inconvenient to the thesis -- an 'at odds' read is the finding. State the read in the block's "
     "own words and add NO mechanism story of your own to it (no 'because', no 'rather than', no "
     "substitution or pass-through gloss -- the K8 panel convicted exactly that clause). A "
-    "CONSEQUENCE ABSENCE line is repeated as a stated limit. This section is not optional on this "
+    "CONSEQUENCE ABSENCE line is repeated as a stated limit. "
+    # (review MIN-1, 2026-09-04) The 'no substitution or pass-through gloss' parenthetical ABOVE and the
+    # verbatim-relation clause BELOW attach to DIFFERENT objects and do not collide: the prohibition
+    # binds the CONSEQUENCE READ ('of your own' -- a mechanism story the writer invents), the clause
+    # binds the declared relation the CONSEQUENCE HOP line PRINTED. 'stand in for one another in the
+    # same use' is the page's own phrase for substitutes_for (five rows of the deep golden carry it),
+    # so copying it is the clause's demand met, not the prohibition broken. Comment only: the literal
+    # is unchanged, so no new prompt bytes and no re-bank.
+    # -- THE TWO K8 FOLLOW-UP CLAUSES (2026-09-04), both DECLARED LIVE PROMPT CHANGES on the L6
+    # precedent above and both CONDITIONAL in wording, so each is dormant rather than a demand on a
+    # block that does not carry its shape. They sit HERE, in the STEP-8 marker-gated mandate, rather
+    # than in the DEEP literal, for one reason each:
+    #   EDGE TYPE VERBATIM -- the declared relation is printed by `cascade._cw_hop_header` on EVERY
+    #     hop of EVERY walk block, deep or not, so a deep-only clause would leave the rollback regime
+    #     (rev 126, deep off) unfenced against the very thing the panel convicted: the V2-5 panel
+    #     named one hop's `correlates_with` relation a substitution, a word no row on the page
+    #     printed. The engine's OWN vocabulary is five orientation-free phrases
+    #     (cascade._CW_RELATION_WORDS: 'compete for the same demand' / 'stand in for one another in
+    #     the same use' / 'are joined by the same crush' / 'move together in the record' / 'the
+    #     record places a lead-lag between them'); an unmapped relation DECLINES rather than
+    #     rendering, so the hop line is always the complete and only name a relation has here.
+    #   WINDOW-AGE DATING -- its RENDER (`cascade._cw_window_age_note`, threshold
+    #     cascade.CW_WINDOW_AGE_MONTHS) is gated on the DEEP regime, and this gate (a walk block is
+    #     present) is strictly WIDER. Wider is the safe direction for a conditional clause: the
+    #     mandate can never demand a note that is not there, and every rendered note is covered.
+    "Name the declared relation in that hop's own words, copied from its CONSEQUENCE HOP line "
+    "exactly as that line spells it -- the line's own phrase is the relation's whole name on this "
+    "page. When a row's scope carries a window-age clause saying its window ended a stated span "
+    "before this as-of, that row is dated history: write its sentence in the past tense, anchored "
+    "on the window's own end date exactly as the row prints it, and keep the as-of as the date the "
+    "record was read. "
+    "This section is not optional on this "
     "turn. ")
 
 
@@ -9627,25 +9658,65 @@ def _pop_usage(structured) -> dict | None:
     return structured.pop("_usage", None) if isinstance(structured, dict) else None
 
 
+def _synth_plain_evidence_on() -> bool:
+    """D-CL(2) opt-IN GRAPHRAG_SYNTH_PLAIN_EVIDENCE (default OFF = HEAD's request byte-for-byte: the
+    writer's graph/evidence block keeps its ephemeral cache marker, in the same key order). ON ships that
+    block PLAIN, no breakpoint. The default is the OWNER'S WORD (2026-09-06) on the review's re-costing:
+    the census's second arm shows same-session repeats READING the marked block (2 of 3 turns, 124,640
+    tokens), so the marker is 14 percent cheaper over the six writer calls and 'plain' wins only on a
+    question never asked twice inside the TTL -- the note inside `_call_opus` carries the arithmetic.
+    Unset or an explicit off/0/false/no keeps the marker; any other explicit value drops it. The marker
+    is transport metadata, so neither position can change a token the model reads."""
+    return (os.environ.get("GRAPHRAG_SYNTH_PLAIN_EVIDENCE", "off").strip().lower()
+            not in ("off", "0", "false", "no"))
+
+
 def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temperature=None,
                max_tokens: int | None = None, effort: str | None = None) -> dict:
     """The real serving call — provider-routed (Anthropic API or Bedrock via providers.py) with the
     production fallback chain (backoff retry -> Sonnet->Haiku degradation, tagged). PROMPT CACHING: the
-    system prompt is always a cached block, and when `user` arrives as a (stable_prefix, volatile_tail)
-    tuple the stable part — the per-contract graph context, byte-identical across a session's turns —
-    gets its own cache breakpoint (manual blocks work identically on both providers). Turn 2+ of a
-    conversation reads the shared prefix at ~0.1x input price. Injected test fakes keep the plain-string
-    `user` API; only this real path structures blocks. When `on_token` is set (SSE turns) the note STREAMS
-    token-by-token via serving_call_stream (buffered otherwise — byte-identical for eval/POST).
-    `temperature` (D18) is forwarded only when provided — the dispatch planner pins 0; synthesis callers
-    never pass it, and the streaming (synthesis-only) path never carries it."""
+    system prompt is always a cached block. When `user` arrives as a (stable_prefix, volatile_tail) tuple
+    the two halves still ship as two content blocks -- the graph context first, the per-turn tail last --
+    and both the SYSTEM block and the graph block carry a breakpoint (HEAD's shape, kept by the owner's
+    word; GRAPHRAG_SYNTH_PLAIN_EVIDENCE=on drops the graph block's -- D-CL(2), the measured note below). Injected test
+    fakes keep the plain-string `user` API; only this real path structures blocks. When `on_token` is set
+    (SSE turns) the note STREAMS token-by-token via serving_call_stream (buffered otherwise —
+    byte-identical for eval/POST). `temperature` (D18) is forwarded only when provided — the dispatch
+    planner pins 0; synthesis callers never pass it, and the streaming (synthesis-only) path never
+    carries it."""
     from leviathan.graphrag import providers as pv
     client = pv.make_client()
     sys_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
     if isinstance(user, tuple):
         stable, volatile = user
-        user = [{"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
-                {"type": "text", "text": volatile}]
+        # D-CL(2) THE WRITER'S EVIDENCE BLOCK: CACHED BY DEFAULT, PLAIN ON REQUEST. `_prompt_parts` named
+        # this half "stable"; it is the CAUSAL GRAPH block for THIS turn's routed contract set (a
+        # different question routes a different set, `_l2_blocks` renders a different node walk, and the
+        # bytes change), so on a COLD process it is written to cache every turn at the 1.25x premium and
+        # read back by nothing on that turn. MEASURED (cost_census_from_logs.json, claude-opus-5,
+        # 2026-09-04, the SAME three deep questions run as two arms minutes apart): arm 1 cache_creation
+        # 54,744 / 47,577 / 39,066 tokens against cache_read 0 / 0 / 10,398 -- the cold case the first
+        # build report costed at ~$0.050/turn saved by going plain. Arm 2, the follow-up turns:
+        # cache_read 54,744 / 49,464 / 10,034 -- TWO of the three re-read the ENTIRE marked block the
+        # first arm wrote (124,640 tokens of reads over the census). Re-costed over all six writer calls
+        # at write 1.25x / read 0.1x: marked $1.213, plain $1.384 -- the marker is $0.171 CHEAPER
+        # (14 percent). Break-even is N = 0.25/0.9 = 0.28 reads per write (1.25 + 0.1N marked vs
+        # 1.0(1 + N) plain); the census puts a same-session repeat at 2 of 3, so 'plain' wins only on a
+        # question never asked twice inside the 5-minute TTL -- and the eval lane's paired baselines and
+        # a desk re-asking are exactly the repeat pattern. THE OWNER'S WORD (2026-09-06, on the review's
+        # re-costing): keep the block CACHED by default; the opt-in GRAPHRAG_SYNTH_PLAIN_EVIDENCE=on
+        # ships it plain for a never-repeat deployment. The repair path (providers.serving_call's backoff
+        # re-attempt, or serving_call_stream's fall-back; 0 of 34 on 2026-09-04) works in both positions
+        # and under 'on' pays plain input twice. Caches are keyed per model, so the Haiku/Sonnet
+        # degradation reads neither. THE SYSTEM BREAKPOINT STAYS in both positions: that block IS
+        # byte-stable per (flags, mode). NOT REORDERED, NOT MERGED: the two blocks and their order are
+        # untouched, so the model reads the identical prompt in the identical order either way -- the
+        # switch moves one transport key and nothing the model reads. Post-image read: cache_read_input_
+        # tokens on real deep turns settles the production repeat rate; the default follows that number.
+        _stable_blk = {"type": "text", "text": stable}
+        if not _synth_plain_evidence_on():         # default: HEAD's marker; =on drops it (plain)
+            _stable_blk["cache_control"] = {"type": "ephemeral"}
+        user = [_stable_blk, {"type": "text", "text": volatile}]
     _sink: list = []                               # D-AM-4: the served attempt's Usage lands here
     # max_tokens: TURN default 12000, EVERY MODE INCLUDING DEEP (D-HP G1 AMENDMENT A1, owner-ratified
     # 2026-08-14: "raise the ceiling to every mode, and raise the ceiling for deep"). It was 6000 (citv2
