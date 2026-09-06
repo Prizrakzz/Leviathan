@@ -423,6 +423,110 @@ _PCTILE_WORD = r"(?:percentile|pctile|pctl|quantile|quartile|decile)"
 _ORDINAL_AFTER = re.compile(
     r"\A(?:st|nd|rd|th)\b(?!\s*" + _DUR_HYPH + r"?\s*" + _PCTILE_WORD + r")", re.I)
 
+# -- D-DA UNIT-SCALE (2026-09-04) -- THE THIRD SANCTIONED AMENDMENT TO CLAIM EXTRACTION --------------
+# SCOPE, AS RATIFIED: FALSE-POSITIVE REDUCTION IN CLAIM EXTRACTION ONLY, exactly the cycle-8 scope. ONE
+# shape stops being a claim magnitude -- the SCALE PART of a UNIT LABEL that the sentence writes
+# immediately after a figure -- and nothing else in this module's rules moves. Cycle-6's reader-precision
+# arm and cycle-8's ordinal/duration arm are frozen exactly as shipped.
+#
+# THE MEASURED DEFECT (arm da-arm-CONTROL, 7 answers, 2026-09-04,
+# `data/batch_runs/da_baseline_control_20260904T141206Z.json`, field `strip_audit`). 33 of the 35
+# `number_unbacked` charges are sentences that TRANSCRIBE A SERVED ROW'S OWN UNIT LABEL. The served PSD
+# ATTRIBUTES row prints `= 154,947 (1000 MT)`; the model quotes it verbatim and this extractor returned
+#     [154947.0, 1000.0, 161297.0, 1000.0]
+# -- the label's thousand-scale read as a fourth MAGNITUDE. No served row is ever equal to 1000 (it is the
+# UNIT, not a quantity), so `number_unbacked` fired on a sentence in which every figure was right, and it
+# fired on the correct transcription of the honest-clock PSD rows serving rev 128 in production. The class
+# is not PSD-specific: it is every label whose scale word is spelled as a NUMERAL rather than as
+# "Thousand"/"Million" -- the WASDE spelling "Thousand Short Tons" carries no digit and was never charged,
+# while the identical quantity in the PSD spelling "(1000 MT)" was charged every time.
+#
+# THE SHAPES ARE ENUMERATED FROM WHAT THE ESTATE RENDERS, NEVER GUESSED. A citation line is built in
+# `citations.render` / `citations._agg_citation` as `f"{src} {mdisp} {scope} = {_fmt(value)} {unit}"`,
+# where `unit` is the ROW's own `unit` column when it has one and otherwise `citations._metric_unit`'s
+# registry lookup. The labels that carry a numeral, read off both producers:
+#     registry (configs/graphrag/numbers/tables.yaml)   "1000 MT"  "1000 ha"  "1000 HEAD"  "1000 boxes"
+#                                                       "1000 60 KG BAGS"  "1000 60-kg bags"
+#                                                       "1000 480 lb. Bales"
+#                                                       "60-kg bags"  "COP per 125-kg carga"
+#                                                       "MMT (cotton: million 480-lb bales)"
+#                                                       "MMT change (cotton: million 480-lb-bale change)"
+#     PSD unit_desc, carried VERBATIM by the long        "(1000 MT)"  "(1000 MT CWE)"  "(1000 HA)"
+#     attributes table (usda_psd_attributes: "value in   "(1000 HEAD)"  "(1000 60 KG BAGS)"
+#     its NATIVE unit plus unit_desc")                   "1000 480 lb. Bales"
+# Every one of them is the SAME grammar: one or more SCALE tokens, then a UNIT WORD, optionally wrapped in
+# the source's own parentheses and optionally introduced by the label words those strings themselves use
+# ("per", "million", "cotton", "change", the COP currency code). `_UL_UNIT` is the set of unit words that
+# stand DIRECTLY after a scale token in those labels and `_UL_QUAL` the words the labels put between the
+# figure and its scale -- both read off the census above and nothing wider (review MINOR-3, 2026-09-04:
+# the first cut carried KT / TONNES / CWT / BUSHELS / ACRES and thirteen currency codes no label prints,
+# each one a bridge for MAJOR-1 below, and missed "1000 boxes"). Neither is a general-purpose unit list
+# and neither may grow past the labels the estate renders.
+#
+# THE RULE HAS A LEFT CONTEXT, AND THAT IS THE WHOLE FENCE. A scale numeral is exempt ONLY when it stands
+# immediately after a numeral this extractor has ALREADY ACCEPTED as a claim -- the figure the label scales
+# -- separated by nothing but blanks, one opening bracket and those label words. So:
+#     "feed use at 154,947 (1000 MT)"     -> 1000 is the label's scale     EXEMPT
+#     "about 1000 tonnes"                 -> no figure in front of it      STILL A CLAIM, still charged
+#     "corn 62,196 (1000 MT), soy 66,546" -> the comma breaks the lead     66,546 STILL A CLAIM
+# and the fabricated-figure case is untouched by construction: the figure itself is never what this rule
+# exempts, so "feed use at 199,999 (1000 MT)" still charges 199,999 and still strips.
+# THE EXEMPTED NUMERAL MUST BE A BARE DIGIT RUN (review MAJOR-1, 2026-09-04): no thousands comma, no decimal
+# point. Every scale in the corpus is written 1000 / 480 / 125 / 60 and every real magnitude this estate
+# writes is 154,947 / 42.5 / -83.476 / 49,401,000, so the lead -- which has to admit the label words
+# between a figure and its scale -- can no longer bridge two FORMATTED figures: "Exports 154,947 MT
+# 161,297 MT" charges both, "Exports were 42.5 (999,999 MT)" charges 999,999, "freight was 45 USD per
+# 1,250 MT" charges 1,250. Measured at zero cost by the review: the same 135 value-1000 removals over the
+# 431 banked artifacts and the control replay byte-identical (number_unbacked 3 / mismatch 6 / undeclared 41).
+# THE LABEL IS CONSUMED WHOLE AND AN EXEMPTED TOKEN NEVER ANCHORS (review MINOR-5): a rendered label carries
+# at most TWO scale tokens ("1000 60 KG BAGS", "1000 480 lb. Bales"), so `_UL_TAIL` admits ONE further bare
+# token of at most three digits before the unit word, the whole label is skipped in one read, and the
+# exempted token is never the figure a following label may grow from. One accepted figure therefore
+# shields the label grammar's own reach and nothing beyond it: "154,947 1000 777777 888888 MT" charges
+# 1000 and 777777 (only the bare run directly before the unit word reads as a scale).
+# THE LEAD DELIBERATELY REFUSES A DASH. `_RANGE_TAIL`'s note records the measured hazard it closes --
+# "ranged 5900-9999 MT let a fabricated 9999 ride uncited" -- and a dash in this lead would re-open exactly
+# that: 5900 is an accepted claim and "MT" follows 9999, so a dash separator would exempt the upper bound
+# of every hyphenated range. Blanks, one "(" or "[" and the ":" the cotton label prints -- only; no "/".
+# NOT COVERED, DELIBERATELY: "32nds of an inch" (the scale wears an ORDINAL suffix and is glued to a
+# denominator, which is cycle-8 rule (e)'s class, not this one) and "0/1" (a flag label with NO unit word
+# at all -- exempting it would be exempting a bare numeral pair, the very thing the bare-'1000' pin says
+# must keep stripping). Both stay charged, and that is stated rather than quietly left out.
+# THE THIRD TRANSITION, strip -> HARDER strip (review MINOR-4): `_num_matches` is an ANY-of predicate, so
+# against a served row whose VALUE is 1000 the label's scale used to count as the sentence's one match and
+# a fabricated figure beside it ("The pace was 42.5 (1000 MT)") was charged number_unbacked -- handle
+# removed, sentence kept. The rule reads no match there and the sentence dies as number_mismatch. That is
+# the honest verdict (the 'match' was a scale coinciding with a row value; the sentence's only real
+# figure is fabricated), it is pinned, and it did not occur on the control arm (mismatch 6 -> 6).
+# NO VALUE GATE, DELIBERATELY, AND THE RESIDUAL THAT LEAVES IS STATED (review MAJOR-2): the rule is
+# STRUCTURAL ("this numeral is a label's scale"), not a whitelist of {1000, 480, 125, 60}. The price is
+# that a MIS-TRANSCRIBED scale is caught by NOTHING in this module today: "feed use at 154,947 (9999 MT)"
+# exempts 9999 exactly as it exempts 1000; `quote_mismatch` (`_unbacked_quote`) inspects QUOTED spans only,
+# and the footer lane reads the engine's own unit column, never the model's prose. The same shape covers a
+# bare second figure before a unit word ("5900 9999 MT"), which no structural reading can tell from
+# "-83.476 1000 MT". Charging either as an unbacked MAGNITUDE and killing the sentence would be the
+# disproportionate instrument this amendment exists to remove; the proportionate catcher is a
+# UNIT-VOCABULARY gate at the charge site (the exempted token must be a scale the sentence's own served
+# rows print in their unit strings), and that is the DOCKETED follow-up, pinned in the open, not a
+# catcher this note pretends already fires.
+_UL_UNIT = r"(?:MT|HA|HEAD|KG|LB|BOXES)"
+# The words the enumerated labels put BETWEEN the figure and its scale, and nothing else: "MMT (cotton:
+# million 480-lb bales)", "MMT change (cotton: million 480-lb-bale change)", "COP per 125-kg carga".
+_UL_QUAL = r"(?:MMT|PER|MILLION|COTTON|CHANGE|COP)"
+# The separator a lead may carry between those words: blanks plus ONE of "(" / "[" / ":". No comma (a
+# comma is a LIST, and a list's second figure is a claim); no dash (see the range hazard above); no "/"
+# (no rendered label carries one, and every admitted separator is one more bridge for MAJOR-1).
+_UL_SEP = r"[ \t]*(?:[(\[:][ \t]*)?"
+_UL_LEAD = re.compile(r"\A" + _UL_SEP + r"(?:" + _UL_QUAL + r"\b" + _UL_SEP + r")*\Z", re.I)
+# THE EXEMPTED NUMERAL ITSELF: a BARE digit run -- no thousands comma, no decimal point (MAJOR-1).
+_UL_BARE = re.compile(r"\d+")
+# What must FOLLOW a scale token for it to be one: blank-or-hyphen glue, then AT MOST ONE further bare
+# scale token of at most three digits (the sub-unit weight of "1000 60 KG BAGS" / "1000 480 lb. Bales";
+# no label carries a third -- MINOR-5), then a unit word. The exotic hyphens are chr()-built so this
+# source stays ASCII, the discipline `_RANGE_TAIL` and `_DUR_HYPH` both state.
+_UL_GLUE = "[ \t" + chr(0x2010) + chr(0x2011) + "-]"
+_UL_TAIL = re.compile(r"\A" + _UL_GLUE + r"+(?:\d{1,3}" + _UL_GLUE + r"+)?" + _UL_UNIT + r"\b", re.I)
+
 
 def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, float]]:
     """(start, end, value) per claim magnitude, positions into `s`. EXEMPT (never a claim): (a) a bare
@@ -437,19 +541,34 @@ def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, 
     '12-week moving average'). Both are POSITION/WINDOW slots, never magnitudes. See the block note above
     for the measured corruption they close and for the deliberate limit: the duration noun in HEAD position
     ('the last 5 months [N11]') is still a claim, and a percent numeral ('2 percent below the average',
-    'grew 5 percent') is untouched by every rule here. A fabricated magnitude ('23.5 MMT' with no such row)
-    is untouched by all six rules and still strips.
+    'grew 5 percent') is untouched by every rule here.
+    D-DA UNIT-SCALE (2026-09-04), the THIRD SANCTIONED AMENDMENT -- (g) the SCALE PART of a UNIT LABEL
+    written immediately after an already-accepted figure ('154,947 (1000 MT)', '-83.476 1000 MT',
+    '12,345 60-kg bags'). The scale is the label, never a magnitude; see the block note above for the
+    measured 33-of-35 false-positive class and for the left-context fence that keeps a bare 'about 1000
+    tonnes' a claim. A fabricated magnitude ('23.5 MMT' with no such row) is untouched by all seven rules
+    and still strips.
     The span ENDS at the token core, so the sentence punctuation _CLAIM_NUM sweeps up is never part of it.
 
-    `cycle8=False` returns the PRE-AMENDMENT view -- rules (a)-(d) only, exactly as HEAD extracted. Its one
-    caller was `_num_repair`'s ambiguity gate (CYCLE-8 REVIEW MAJOR 4), which CYCLE-10 deleted along with
-    the rest of the rewrite path, so the flag now has NO caller in this module. It is KEPT, deliberately:
-    this function is the cycle-8 charge-side amendment, which the termination branch freezes EXACTLY as
-    shipped, and dropping a parameter of a frozen extractor would be a change to that amendment's surface
-    for no behavioural gain. The default (`True`) is the shipped view and is what every caller gets."""
+    `cycle8=False` returns the PRE-AMENDMENT view -- rules (a)-(d) only, exactly as HEAD extracted before
+    cycle 8 -- and rule (g) rides under the SAME flag so that view stays what it was (review MINOR-7,
+    2026-09-04: a frozen extractor's off-view must not move either). Its one caller was `_num_repair`'s
+    ambiguity gate (CYCLE-8 REVIEW MAJOR 4), which CYCLE-10 deleted along with the rest of the rewrite
+    path, so the flag has NO caller in this module and none outside it. It is KEPT, deliberately: this
+    function is the cycle-8 charge-side amendment, which the termination branch freezes EXACTLY as
+    shipped, and dropping a parameter of a frozen extractor would be a change to that amendment's
+    surface for no behavioural gain. The default (`True`) is the shipped view and is what every caller
+    gets."""
     s = s or ""
     out = []
+    # D-DA (g): the end of the figure that a unit label may grow from. None everywhere else, so a label
+    # can only ever follow a numeral this extractor ACCEPTED: an exempted year, ordinal, duration,
+    # date-day or scale token clears it and never anchors a label.
+    anchor: int | None = None
+    skip_until = -1                # (g) the end of a label consumed whole -- its second scale token
     for m in _CLAIM_NUM.finditer(s):
+        if m.start() < skip_until:
+            continue                                            # (g) inside a consumed label
         tok = m.group()
         try:
             v = float(tok.replace(",", ""))
@@ -465,22 +584,39 @@ def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, 
         # CYCLE-8 (2026-08-08): what FOLLOWS the token CORE -- the two new exemptions read the glue, and
         # reading it from `m.end()` would see the stripped '.'/',' instead of the shape it is glued to.
         after_core = s[m.start() + len(core):]
+        # D-DA (g) -- decided FIRST, and it is the only rule here with a LEFT context. The order is not
+        # a preference: (g) reads a shape none of (a)-(f) can see. The label is consumed WHOLE, so its
+        # SECOND scale token ('1000 60 KG BAGS') is skipped, never anchored (MINOR-5); the exempted
+        # numeral must be a BARE digit run (MAJOR-1); and it rides under `cycle8` so the frozen flag's
+        # off-view stays HEAD's (MINOR-7).
+        if cycle8 and anchor is not None and _UL_BARE.fullmatch(core):
+            _tail = _UL_TAIL.match(after_core)
+            if _tail and _UL_LEAD.match(s[anchor:m.start()]):
+                skip_until = m.start() + len(core) + _tail.end()  # (g) a UNIT LABEL's scale: '(1000 MT)'
+                anchor = None                                    # consumed whole; never an anchor
+                continue
         if cycle8:
             if _ORDINAL_AFTER.match(after_core):
+                anchor = None
                 continue                                        # (e) an ORDINAL slot: '85th percentile'
             if _DURATION_MOD.match(after_core):
+                anchor = None
                 continue                                        # (f) a DURATION MODIFIER: '5-year mean'
         if (re.fullmatch(r"\d{4}", core) and 1900 <= v <= 2099
                 and not _UNIT_AFTER.match(s[m.end():])):        # (a) year -- unless unit-suffixed
+            anchor = None
             continue
         if re.fullmatch(r"\d{1,2}", core):
             before, after = s[:m.start()], s[m.end():]
             if _RANGE_TAIL.search(before):
+                anchor = None
                 continue                                        # (b) year-range SHORT tail only
             if (_DATE_DAY_TAIL.search(before) or _MONTH_BEFORE.search(before)
                     or (_MONTH_AFTER.match(after) and not _UNIT_AFTER.match(after))):
+                anchor = None
                 continue                                        # (d) the DAY of a date
         out.append((m.start(), m.start() + len(core), v))
+        anchor = m.start() + len(core)
     return out
 
 
