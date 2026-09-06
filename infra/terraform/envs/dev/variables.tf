@@ -272,8 +272,9 @@ variable "futures_eod_silver_image_digest" {
   description = "sha256 digest override for the futures_eod SILVER jobdef only. Empty = share futures_eod_image_digest with the two fetch jobdefs."
   # 2026-09-03 (r2): repinned to tag 20260903-worker-cpo2-7f465765 (commit 7f465765): CPO root + the D3 lane fix (unit-window fence, zero marks)
   # settlement-spine bronze + statistics-only buy; the palm slug re-pointed to the CME USD tape (V2-4).
-  default     = "sha256:a4946d83f891ce61a0a9104ae74119bed124b92822223d5aedbe8c135551e1df"
-
+  # lanes-ee7d (r3): repinned to tag 20260906-lanes-ee7dafce (commit ee7dafce): lanes B/C + verifier unit-token fix + D-MF/D-CL on the answer seam; lane A's
+  # venue calendar + SESSION_FLOOR facts ride this image for the first time (withhold stays disabled).
+  default     = "sha256:a91214fec7c6140da5b13c57d5fa74df7752c3994c812706a3b893ff42cc28a7"
   validation {
     condition     = var.futures_eod_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_silver_image_digest))
     error_message = "futures_eod_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
