@@ -184,6 +184,63 @@ def test_generated_matches_live_glue_for_every_table(reg, report_mod):
     assert drift == {}, f"registry diverges from live Glue: {drift}"
 
 
+# ---------------------------------------------------------------------------
+# SILVER-F030 BF-W2: the five ESR net-commitment columns, before and after the gated ALTER.
+# ---------------------------------------------------------------------------
+_ESR_FIVE = [
+    "accumulated_exports_1000mt",
+    "current_my_net_sales_1000mt",
+    "current_my_total_commitment_1000mt",
+    "next_my_outstanding_sales_1000mt",
+    "next_my_net_sales_1000mt",
+]
+
+
+def test_esr_compact_ddl_does_not_yet_render_the_five(reg):
+    """THE REGISTRY NEVER LEADS LIVE GLUE (2026-09-04).
+
+    Both ESR transforms now emit the five net-commitment columns, but live
+    ``leviathan_dev.silver_esr_compact`` still carries 12 columns until the gated
+    ``ALTER TABLE ... ADD COLUMNS`` is applied. They are therefore staged as physical-only
+    (``glue_type: null``), which ``ddl.catalog_columns`` excludes from the DDL by construction.
+    Declaring them as catalog columns first is not a harmless head start: measured, it reds
+    ``test_generated_matches_live_glue_for_every_table`` above with
+    ``columns extra: [the five]`` on silver_esr_compact, which is that test doing its job."""
+    contract = reg.table("silver_esr_compact")
+    assert D.physical_only_columns(contract) == _ESR_FIVE
+    sql = D.render_ddl(contract)
+    for name in _ESR_FIVE:
+        assert name not in sql, name
+
+
+def test_esr_compact_ddl_renders_the_five_last_once_registered(reg):
+    """THE FLIP, pinned in advance so a mid-list regression cannot ride in with it.
+
+    Promoting the five (rename ``additive_columns_hidden`` -> ``additive_columns`` +
+    ``additive_columns_registered: True`` in gen_registry_from_baseline.CURATION_OVERRIDES, in the
+    same commit as the live ALTER and the R0 snapshot refresh) must render them as the LAST five
+    non-partition columns, ``double``. Order is load-bearing: catalog.is_schema_widen admits only a
+    pure TRAILING append, and that narrow self-heal is what repairs the already-registered
+    partition StorageDescriptors on the first post-ALTER canonical promote. The generic
+    byte-identity test would happily bless a mid-list render; this one would not.
+
+    Simulated on a COPY of the contract -- no repo file is touched."""
+    import copy
+    contract = copy.deepcopy(reg.table("silver_esr_compact"))
+    for col in contract["physical_columns"]:
+        if col["name"] in _ESR_FIVE:
+            col["glue_type"] = "double"
+            col["arrow_type"] = "float64"
+    catalog = D.catalog_columns(contract)
+    assert [n for n, _ in catalog][-5:] == _ESR_FIVE
+    assert {t for n, t in catalog if n in _ESR_FIVE} == {"double"}
+    assert [n for n, _ in catalog][-6] == "source"
+    # ...and the RENDERED text round-trips to the same tail, so the pin covers the SQL a human
+    # applies and not only the in-memory contract.
+    parsed = D.parse_ddl(D.render_ddl(contract))
+    assert list(parsed.columns[-6:]) == [("source", "string")] + [(n, "double") for n in _ESR_FIVE]
+
+
 def test_model_predictions_snapshot_columns_at_catalog_positions(reg):
     """The fixed table: snapshot_stage/snapshot_policy sit at columns 2-3 (catalog order)."""
     cols = [n for n, _ in D.catalog_columns(reg.table("silver_model_predictions"))]

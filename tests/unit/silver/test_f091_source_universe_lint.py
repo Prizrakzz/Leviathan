@@ -117,7 +117,54 @@ _LINT = _REPO / "scripts" / "silver" / "f091_source_universe_lint.py"
 # integer scalars, and psd_clock.py's are strings), which is why the same seven numbers still land.
 # This is a COMMIT-ORDER dependency and it belongs on the flip checklist; scripts/ops/psd_clock_runbook.py
 # step R1 names it as a delivery condition.
-PIN_RAW_LITERALS = 345          # 339 base + 3 lane E + 3 pink
+#
+# RE-MEASURED 2026-09-04 by LANE C (the SILVER-F030 BF-W2 ESR net-commitment promotion). Both files
+# it touches are already tracked, so unlike a NEW producer their literals enter `literal_counts_by
+# _file` the moment they are edited -- there is no commit-order gap here and the pin moves in the
+# same change. Measured per file with lint.scan_source over `git show HEAD:<path>` versus the
+# working tree, so the delta is this lane's alone:
+#   +2 raw literals in src/leviathan/transforms/raw_to_bronze/usda_esr.py (3 -> 5):
+#     `_FLOAT64_COLS`, the five net-commitment columns born at the INV-2 target width because the
+#     ADR declares their silver counterparts `double` (a parquet FLOAT under a Glue double is the
+#     silver_food_cpi HIVE_BAD_DATA class), and `_NULLABLE_MEASURE_COLS`, the six columns INV-4
+#     governs -- one list so the "absent stays NULL, never 0.0" law has ONE implementation
+#     (_ensure_nullable) rather than six copies.
+#   +1 raw literal in src/leviathan/transforms/bronze_to_silver/usda_esr.py (4 -> 5):
+#     `_ADDITIVE_QUANTITY_COLS`, kept deliberately SEPARATE from `_QUANTITY_COLS` because the two
+#     share a derivation (/1000) but not an ORDER (these five land at the TAIL, after `source`, so
+#     catalog.is_schema_widen can self-heal the registered partition descriptors) and not a width.
+#   NO raw FILE moves (both files already declared literals), and NO universe literal or file
+#     moves: none of the three names matches the universe-shaped pattern, and none is a claim about
+#     a source's member set -- they are a width list, a nullability list and a derivation list.
+#     COVERED and the DOCKET do not move either; this lane adds no refusal registry.
+#   jobs/batch/esr_task.py and jobs/batch/bronze_to_silver_esr_task.py declare NO new module-level
+#     collection literal (the --as-of-min filter is a function, and _ESR_MEASURE_COLS was already
+#     counted; widening a tuple's CONTENTS is not a new literal), so neither contributes.
+# CONCURRENT-LANE NOTE -- RESOLVED BY THE LAND ORDER, 2026-09-04. The futures lane held an
+# uncommitted +1 in jobs/batch/futures_eod_task.py (measured 5 -> 6) while lane C's pin read 348,
+# so a shared tree carrying both read 349 against 348. That lane LANDED FIRST, as commit 5e531d24
+# ("LANE A -- venue calendars + per-unit withhold ..."), WITHOUT moving this pin: its +1 is now
+# part of HEAD, so the recorded rule applies -- whichever lane commits SECOND re-measures rather
+# than assuming a number. Lane C is second, so it re-measured the WHOLE census rather than doing
+# arithmetic on a remembered total:
+#   scan_source over every one of the 275 tracked .py files under SCAN_ROOTS, `git show HEAD:
+#   <path>` versus the working tree:  HEAD = 346, TREE = 349, delta = +3, and the only two files
+#   that differ are lane C's own -- raw_to_bronze/usda_esr.py 3 -> 5 and bronze_to_silver/
+#   usda_esr.py 4 -> 5. So 346 already carries the futures +1 (that lane's own declaration, now
+#   the repository's baseline) and lane C's contribution is still exactly +3.
+# RE-MEASURED AFTER LANE C's FIX PASS AND ITS FIX PASS 2 (2026-09-04, same method, per file):
+#   raw_to_bronze/usda_esr.py 3 -> 5, bronze_to_silver/usda_esr.py 4 -> 5, jobs/batch/esr_task.py
+#   0 -> 0, jobs/batch/bronze_to_silver_esr_task.py 1 -> 1, and -- new in fix pass 2, both inside
+#   SCAN_ROOTS -- jobs/glue/raw_to_bronze_usda_esr.py 6 -> 6 and jobs/ingest/backfill_silver
+#   _usda_esr.py 0 -> 0. Fix pass 2 gave those two writers the vintage law (a REFUSAL string and a
+#   resolver function); a string constant, a compiled regex and a function are not module-level
+#   COLLECTION literals, so neither moves this census. The lane's new files
+#   (jobs/utils/esr_netcommitment_raw_census.py, scripts/ops/repin_jobdef_digest.py,
+#   scripts/ops/esr_netcommitment_runbook.py) sit outside SCAN_ROOTS -- which is
+#   ("src/leviathan/transforms", "jobs/ingest", "jobs/batch", "jobs/glue") -- so none of them
+#   enters this census at all.
+PIN_RAW_LITERALS = 349          # 339 base + 3 lane E + 3 pink + 1 lane A (futures venue calendars,
+                                # landed 5e531d24) + 3 lane C (ESR net-commitment five)
 PIN_RAW_FILES = 129             # 126 base + 1 lane E + 2 pink
 PIN_UNIVERSE_LITERALS = 171     # 169 base + 1 lane E + 1 pink
 PIN_UNIVERSE_FILES = 95         # 93 base + 1 lane E + 1 pink

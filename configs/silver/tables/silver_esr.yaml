@@ -182,9 +182,19 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   (numbers period_offset:+1). The ESR partition set carries USDA GROUPINGS (all_wheat=107, grain_sorghum=701,
   white_wheat=104) that are NOT contract slugs -> the esr_exports cascade leg fires only for the 7 slug
   commodities (corn_cbot, soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot, hard_red_winter_wheat_kcbt,
-  soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex). Target additive net-commitment columns (accumulated_exports_1000mt,
+  soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex). The five additive net-commitment columns (accumulated_exports_1000mt,
   current_my_net_sales_1000mt, current_my_total_commitment_1000mt, next_my_outstanding_sales_1000mt, next_my_net_sales_1000mt)
-  are specified for BF-W2 (see reports/silver_readiness/R2_esr/).'
+  stay SPECIFIED-NOT-APPLIED on THIS surface (2026-09-04) while silver_esr_compact takes them: this surface
+  has no writer on any schedule (see the vintage_waiver), so the columns would be all-NULL here forever
+  -- measured on the census as nonnull_fraction=0.000 all_nan=True, the floor-INDEPENDENT rule that cost
+  this family its 2026-08-27 and 2026-09-03 promotes on changes_1000mt -- and an ALTER here would strand
+  370 registered partition StorageDescriptors with no producer to self-heal them. Aligning it later means:
+  run jobs/ingest/backfill_silver_usda_esr.py on the new image ONCE PER BRONZE VINTAGE, ALWAYS WITH AN
+  EXPLICIT --as-of-date (that one argument is BOTH the bronze partition read and the silver partition
+  written; it REFUSES without one since 2026-09-04, because its old default stamped the RUN''s date onto
+  every partition it wrote -- THE VINTAGE LAW, measured: 8,474 of 8,920 ESR bronze objects were minted
+  that way), THEN apply the silver_esr half of sql/athena/migrations/silver/silver_esr_f030_additive.sql,
+  THEN refresh this table''s R0 snapshot. See reports/silver_readiness/R2_esr/.'
 vintage_waiver:
   reason: The FULL per-partition silver_esr surface at silver/production/source=usda_esr was superseded
     by silver_esr_compact at Phase D and has no writer on any schedule, so its as_of_date is frozen at

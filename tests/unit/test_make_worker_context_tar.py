@@ -8,6 +8,8 @@ carries has a passing case and a refusing case:
     .dockerignore'd evidence/eval/pilot subtrees and cache noise;
   * a modified tracked file in the COPY set REFUSES the build (it would not ride);
   * an untracked file in the COPY set refuses unless the operator acknowledges it;
+  * a ZERO overlay REFUSES unless --allow-empty-overlay is passed -- the bare-worktree shape,
+    which bakes an image with no gitignored configs at all (lane C verify-2 V2-NEW-2);
   * the tracked-file refusal keys on CONTENT vs HEAD (``git diff``), never on ``git status``:
     an autocrlf phantom-'M' after a commit must not refuse the runbook's first tar (STEP-12 F12).
 """
@@ -16,6 +18,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -177,6 +180,80 @@ class TestContentNotPorcelain:
     def test_a_clean_tree_reports_zero_phantoms(self, repo, tmp_path):
         summary = M.build(repo, tmp_path / "ctx.tar.gz", dry_run=True)
         assert summary["phantom_dirty_ignored"] == 0
+
+
+class TestZeroOverlayRefuses:
+    """V2-NEW-2. Before this, the overlay count was a printed number with NO floor and NO branch:
+    ``build()`` returned 0 whatever it read, the only assertion anywhere was a POSITIVE one
+    (``overlay_files == 1``, above), and the estate's last line of defence was a runbook sentence
+    plus a grep that the sentence exists. A zero overlay is not a corner case -- it is exactly
+    what ``git worktree add`` produces, because a checkout materialises TRACKED files only, and
+    the image it builds goes onto a gate 26 rendered families share where the in-VPC smoke's
+    only content fence (the configs/silver/tables fingerprint) cannot see a missing
+    configs/graphrag.
+
+    The fixture reaches zero the way a bare worktree does: the one gitignored overlay file is
+    gone while the .dockerignore'd evidence blob and the __pycache__ noise remain, so the count
+    is 0 because the KEPT set is empty, not because the subtree is.
+    """
+
+    @staticmethod
+    def _empty_the_overlay(repo: Path) -> None:
+        (repo / "configs" / "graphrag" / "causal" / "corn.yaml").unlink()
+
+    def test_a_repo_with_no_gitignored_overlay_refuses_and_writes_nothing(self, repo, tmp_path):
+        self._empty_the_overlay(repo)
+        assert M.overlay_files(repo) == [], "the fixture is the bare-worktree shape"
+        out = tmp_path / "ctx.tar.gz"
+        with pytest.raises(SystemExit, match="overlay_files: 0") as exc:
+            M.build(repo, out)
+        message = str(exc.value)
+        assert "--allow-empty-overlay" in message, (
+            "a refusal must name the flag that admits it, or it is only an obstacle")
+        assert "worktree" in message, "and it must name the mechanism that produced the 0"
+        assert not out.exists()
+
+    def test_a_DRY_RUN_refuses_too(self, repo, tmp_path):
+        """The dry run is where an operator LOOKS at the count, so it is the last place a 0 may
+        pass silently."""
+        self._empty_the_overlay(repo)
+        with pytest.raises(SystemExit, match="overlay_files: 0"):
+            M.build(repo, tmp_path / "ctx.tar.gz", dry_run=True)
+
+    def test_the_flag_admits_a_zero_overlay_and_the_tar_is_still_built(self, repo, tmp_path):
+        self._empty_the_overlay(repo)
+        out = tmp_path / "ctx.tar.gz"
+        summary = M.build(repo, out, allow_empty_overlay=True)
+        assert summary["overlay_files"] == 0 and out.exists()
+        assert "configs/graphrag/numbers/tables.yaml" in _members(out), (
+            "the TRACKED half still rides: the flag admits an empty overlay, nothing else")
+
+    def test_a_NON_zero_overlay_never_needs_the_flag(self, repo, tmp_path):
+        """The 141-file path the 2026-09-04 pink flip ran must be byte-identical to before: the
+        refusal is reached only at 0."""
+        out = tmp_path / "ctx.tar.gz"
+        summary = M.build(repo, out)
+        assert summary["overlay_files"] == 1 and out.exists()
+        assert "configs/graphrag/causal/corn.yaml" in _members(out)
+
+    def test_the_CLI_exits_NON_ZERO_on_a_zero_overlay_and_ZERO_with_the_flag(self, repo,
+                                                                            tmp_path):
+        """Driven as the operator drives it -- a real process, a real exit status. An in-process
+        SystemExit proves the raise; only this proves the STATUS a runbook step would read."""
+        self._empty_the_overlay(repo)
+        script = str(_REPO / "scripts" / "ops" / "make_worker_context_tar.py")
+        out = tmp_path / "cli.tar.gz"
+        refused = subprocess.run(
+            [sys.executable, script, "--repo", str(repo), "--out", str(out)],
+            capture_output=True)
+        assert refused.returncode != 0, refused.stdout.decode("utf-8", "replace")
+        assert b"overlay_files: 0" in refused.stderr
+        assert not out.exists()
+        allowed = subprocess.run(
+            [sys.executable, script, "--repo", str(repo), "--out", str(out),
+             "--allow-empty-overlay"], capture_output=True)
+        assert allowed.returncode == 0, allowed.stderr.decode("utf-8", "replace")
+        assert out.exists()
 
 
 def test_the_copy_set_matches_the_worker_dockerfile():

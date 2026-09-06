@@ -29,6 +29,31 @@ location is never silently accepted; a registration failure fails the run (no fa
 and an identical rerun is an idempotent no-op. Bronze->silver ordering is asserted before any write
 so the ``esr_weekly_ingest`` sibling-task race cannot silver-write ahead of bronze.
 
+Memory envelope (SILVER-F030 BF-W2 widen, measured 2026-09-04)
+--------------------------------------------------------------
+``--vintage-mode all`` holds every per-file frame AND the ``pd.concat`` copy, then a parquet body
+per staged object. This jobdef OOM-killed at 4 GB on the 2026-09-03 fire and was bumped to
+12,288 MiB (``leviathan-dev-esr-bronze-to-silver`` rev 8, ``leviathan-dev-silver-publisher-runner``
+rev 36 -- BOTH 2 vCPU / 12,288 MiB, verified live). Adding the five float64 columns makes the frame
+13 -> 18 columns and **306.35 -> 346.35 bytes/row deep (+40.00 B/row, +13.1%)**, measured on 80
+real bronze objects through both the HEAD and the widened transform. Over the whole bronze layer
+(143,332,722 parquet bytes at 0.09711 rows/byte, ~13.92M rows) that is one copy 3.97 -> 4.49 GiB
+and a two-copy concat peak 7.94 -> 8.98 GiB against a 12.0 GiB envelope: 66.2% -> 74.8%. It fits at
+12,288 MiB and OOMs immediately at 4,096, so ANY re-registration of these two jobdefs must PRESERVE
+the envelope -- copy the live revision with ``scripts/ops/repin_jobdef_digest.py``, never rebuild a
+descriptor from constants (``jobs/submit/submit_batch_b2s_esr.py`` hardcodes ``MEMORY: "4096"``).
+Read the shadow run's peak before the canonical promote; the shadow does the identical concat.
+
+Reading ``partition_actions``
+-----------------------------
+The terminal line reports the OUTCOME SET, not a count against a denominator, and
+``PartitionPublisher`` only walks the partitions THIS RUN STAGES (specs are built from ``objects``,
+which come from bronze). A registered partition with no surviving bronze source is never repaired
+and keeps its old StorageDescriptor, so after a widening ALTER Athena will not expose the new
+columns there. Compare repaired+created against ``aws glue get-partitions --database-name
+leviathan_dev --table-name silver_esr_compact --query 'length(Partitions)'``; any shortfall is an
+orphan partition to reconcile deliberately, named one by one.
+
 Usage (all gated):
     python jobs/batch/bronze_to_silver_esr_task.py                      # dry-run, latest
     python jobs/batch/bronze_to_silver_esr_task.py --vintage-mode all   # dry-run, per-week plan
@@ -78,10 +103,33 @@ VINTAGE_ALL = "all"
 # Non-deprecated ESR measures reported into the run manifest as V001-style null metrics (observability;
 # the real per-commodity floor is the SILVER-V001 census). changes_1000mt is DEPRECATED (SILVER-F030)
 # and intentionally excluded from the producer's reported floor.
+#
+# The five BF-W2 net-commitment columns (2026-09-04) ARE listed -- this tuple is the ONLY per-
+# (commodity, as_of) instrument that proves the promotion landed. _null_metrics reports
+# notna().mean() per column per staged object and the publisher records it as
+# row_key_null_metrics[<canonical key>] in the run manifest, so a shadow run answers "which slugs
+# and which vintages actually carry the new fields" without a single Athena query.
+#
+# HOW TO READ IT, restated 2026-09-04 after the raw census (C-M3). The earlier reading -- "as_of >=
+# 20260813 is non-zero and every earlier vintage is 0.0" -- could not fail: the 0.0 was guaranteed
+# by the re-bronze SCOPE, not by the source. MEASURED over all 446 dated raw objects, every one of
+# the 12 as_of vintages (20260712..20260904) carries all five keys, so there is no pre-publication
+# vintage at all. The honest reading is therefore: every (commodity, as_of) object whose BRONZE was
+# re-written reads NON-ZERO on all five, and a 0.0 is a PIPELINE finding (a bronze object the
+# re-bronze did not reach -- e.g. one of the 8,474 backfill-derived bronze objects stamped with a
+# run date before the vintage law landed), NEVER a statement about the source. Write any exception
+# down PER COMMODITY; frequency floors deny the tail. Being in this tuple does NOT govern the five:
+# ValidationHooks(min_nonnull_frac=0.0) below means an all-null new column can never block the
+# publish, so the measurement cannot fail closed on itself.
 _ESR_MEASURE_COLS = (
     "weekly_exports_1000mt",
     "outstanding_sales_1000mt",
     "gross_new_sales_1000mt",
+    "accumulated_exports_1000mt",
+    "current_my_net_sales_1000mt",
+    "current_my_total_commitment_1000mt",
+    "next_my_outstanding_sales_1000mt",
+    "next_my_net_sales_1000mt",
 )
 
 
@@ -236,7 +284,21 @@ def publish_esr_compact(
 ):
     """Publish the compact objects through the F015 shadow publisher + F013 registered-partition
     publisher. Returns the run manifest (persisted; FAILED runs included). No canonical mutation
-    unless ``auth.may_mutate_canonical`` -- otherwise every partition action is PLANNED."""
+    unless ``auth.may_mutate_canonical`` -- otherwise every partition action is PLANNED.
+
+    ``reconcile_schema_widen=True`` (2026-09-04, the SILVER-F030 BF-W2 additive widen) is not
+    cosmetic: it is what keeps the WHOLE family's promote alive across the Glue ``ADD COLUMNS``.
+    PartitionPublisher.publish_one builds every partition's desired StorageDescriptor by copying
+    the TABLE SD, so the moment the table widens from 12 to 17 columns EVERY already-registered
+    partition diffs; with no RepairAuthorization and this flag False, publish_one calls _fail,
+    ShadowPublisher._catalog raises PublisherError, and the canonical run exits 1 -- for the entire
+    table, not just the new columns. The self-heal it enables is deliberately narrow:
+    catalog.is_schema_widen admits ONLY a pure TRAILING-column append at an identical
+    location/format/SerDe (measured: five columns at the tail -> True, the same five inserted at
+    position 9 -> False), so F013's wrong-location protection is untouched. This flag must be LIVE
+    on the image that runs the promote BEFORE the ALTER is applied; expect partition_actions
+    'repaired' on every pre-existing partition on the first post-ALTER promote and 'existing' on
+    the second."""
     publisher = ShadowPublisher(
         job="bronze_to_silver_esr",
         table=_TABLE,
@@ -252,6 +314,7 @@ def publish_esr_compact(
         code_sha=code_sha,
         registry_schema_version=1,
         run_id=run_id or f"{_TABLE}-{vintage_mode}",
+        reconcile_schema_widen=True,
     )
     return publisher.run(objects)
 

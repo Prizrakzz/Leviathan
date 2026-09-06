@@ -31,6 +31,35 @@ SILVER-F030 semantic ADR (frozen)
 * ``changes_1000mt`` is a DEPRECATED, nullable column. A null bronze ``changes``
   (revision absent in a historical FAS record) propagates to a null
   ``changes_1000mt`` — it is NEVER synthesized as 0.0 (INV-4).
+* **The five BF-W2 net-commitment columns are EMITTED** (2026-09-04):
+  ``accumulated_exports_1000mt``, ``current_my_net_sales_1000mt``,
+  ``current_my_total_commitment_1000mt``, ``next_my_outstanding_sales_1000mt``,
+  ``next_my_net_sales_1000mt`` -- the ADR's frozen ``target_additive_schema_bf_w2``
+  names, ``double``, nullable, FAS value / 1000. Three properties are load-bearing:
+
+  1. They are emitted UNCONDITIONALLY. A bronze frame written before the promotion
+     has none of the five; the transform creates them as NaN rather than omitting
+     them, so EVERY returned frame carries the same 18 columns. Omitting them
+     would make the parquet schema depend on the vintage, and the value census
+     IGNORES files where a column is absent (``value_census.py`` keeps only
+     ``s is not None``) -- a column missing from old files measures 1.000 non-null
+     over the sample, i.e. a gate that passes because it is looking at nothing.
+  2. They sit at the very END of the column list, AFTER ``source`` -- not grouped
+     with the other ``*_1000mt`` columns. ``catalog.is_schema_widen`` admits ONLY a
+     pure TRAILING append (measured: tail -> True, inserted at position 9 -> False),
+     and that self-heal is what lets the compact producer repair
+     already-registered partition StorageDescriptors after the Glue
+     ``ADD COLUMNS``. Mid-list, every partition fails closed instead.
+  3. They are float64, matching the Glue ``double`` the ADR declares. A parquet
+     FLOAT under a ``double`` catalog is the ``silver_food_cpi`` HIVE_BAD_DATA
+     class. The incumbent four stay float32 (the SILVER-F031 widen is separate).
+
+  They are NULL for every vintage whose bronze predates the promotion, and they
+  stay UNGOVERNED (out of ``value_columns``) until two measured vintages exist:
+  at the 0.5 floor, one populated file of three sampled reads 0.333
+  (``nonnull_below_floor``) and none populated reads ``all_nan``, which is the
+  floor-INDEPENDENT rule that cost this family its 2026-08-27 and 2026-09-03
+  promotes on ``changes_1000mt``.
 * **Ending-year convention** — ``market_year`` is the FAS *start* year (e.g. 2024
   = the 2024/25 season). It is stored verbatim; the ending-year label used by the
   numbers layer is ``market_year + 1`` (``tables.yaml`` ``period_offset: +1``). A
@@ -200,6 +229,19 @@ _QUANTITY_COLS: list[str] = [
     "changes",
 ]
 
+# SILVER-F030 BF-W2 additive set (2026-09-04). SEPARATE from _QUANTITY_COLS on
+# purpose: the same /1000 derivation, but a different ORDER (these five land at
+# the TAIL of the silver column list, after `source`) and a different width
+# (float64 -- the ADR's Glue `double`). See the module docstring for why both
+# facts are load-bearing rather than stylistic. Order is the ADR's own.
+_ADDITIVE_QUANTITY_COLS: list[str] = [
+    "accumulated_exports",
+    "current_my_net_sales",
+    "current_my_total_commitment",
+    "next_my_outstanding_sales",
+    "next_my_net_sales",
+]
+
 # Columns that must be present in the bronze DataFrame.
 _REQUIRED_COLS: frozenset[str] = frozenset({
     "commodity_code",
@@ -315,6 +357,17 @@ def transform_esr_bronze_to_silver(
             df[f"{col}_1000mt"] = (df[col] * factor_series).astype("float32")
             df = df.drop(columns=[col])
 
+    # The BF-W2 five, UNCONDITIONALLY (docstring point 1): a bronze frame written
+    # before the promotion carries none of them, and an ABSENT column is invisible
+    # to the value census, so the column is materialised as NaN first and then
+    # converted. NaN * 0.001 = NaN, so a null bronze value propagates to a null
+    # silver value with no special case -- the same mechanism `changes` uses.
+    for col in _ADDITIVE_QUANTITY_COLS:
+        if col not in df.columns:
+            df[col] = float("nan")
+        df[f"{col}_1000mt"] = (df[col] * factor_series).astype("float64")
+        df = df.drop(columns=[col])
+
     # --- Rename unit_id to source_unit_id for audit clarity ---
     df = df.rename(columns={"unit_id": "source_unit_id"})
 
@@ -328,8 +381,13 @@ def transform_esr_bronze_to_silver(
     ]
     quantity_cols = [f"{c}_1000mt" for c in _QUANTITY_COLS if f"{c}_1000mt" in df.columns]
     meta_cols = ["source_unit_id", "as_of_date", "ingest_date", "source"]
+    # TAIL placement (docstring point 2): the five come after `source`, never
+    # inside the quantity block. is_schema_widen admits only a trailing append,
+    # and a fixed emitted list also makes the producer's pd.concat union
+    # order-stable regardless of which S3 read finishes first.
+    additive_cols = [f"{c}_1000mt" for c in _ADDITIVE_QUANTITY_COLS]
 
-    ordered = base_cols + quantity_cols + meta_cols
+    ordered = base_cols + quantity_cols + meta_cols + additive_cols
     df = df[[c for c in ordered if c in df.columns]]
 
     logger.info(

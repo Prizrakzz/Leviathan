@@ -20,6 +20,37 @@ or null -- it is NEVER synthesized as 0.0 (INV-4: an absent source measure
 stays null; a real zero revision is otherwise indistinguishable from "not
 reported").  ``changes`` / ``changes_1000mt`` is a DEPRECATED, nullable column.
 
+The five NET-COMMITMENT fields (SILVER-F030 BF-W2 additive set)
+--------------------------------------------------------------
+``accumulatedExports`` / ``currentMYNetSales`` / ``currentMYTotalCommitment`` /
+``nextMYOutstandingSales`` / ``nextMYNetSales`` arrive on the SAME
+``allCountries`` payload this adapter already fetches, which is why the
+schema-drift WARN below has been naming exactly these five on every partition.
+They are promoted into ``_FIELD_MAP`` here, which is what stops the WARN naming
+them -- the contract for any FUTURE unknown field is untouched.
+
+WHEN did they start arriving?  MEASURED, not inferred (2026-09-04,
+``jobs/utils/esr_netcommitment_raw_census.py`` over ALL 446 dated raw objects
+in ``s3://leviathan-dev-shahem-001``): every one of the 12 as_of vintages held
+in raw -- 20260712 through 20260904 -- carries all five keys, 446/446, with no
+per-commodity tail; a sample of the undated backfill payloads carries them too.
+So raw holds NO pre-publication vintage, and the earlier reading ("the API
+started publishing them in August 2026", evidenced by bronze as_of
+20260813..20260903 carrying 0 non-null ``changes``) was circular: that window
+establishes when ``changes`` went dead, not when the five appeared.  A bound
+derived from it would have excluded six vintages whose raw does carry the
+fields.  The bronze columns are null for a vintage only when that vintage's
+BRONZE predates this promotion -- never because the source withheld them.
+
+They obey the SAME INV-4 law as ``changes`` (absent -> the column EXISTS and is
+all-NULL, never 0.0), and they are cast to **float64**, not the incumbent
+float32: the frozen ADR declares their silver counterparts ``double``, and a
+parquet FLOAT under a Glue ``double`` is the ``HIVE_BAD_DATA: Malformed Parquet
+file ... type DOUBLE ... incompatible with type real`` class the estate already
+ate on ``silver_food_cpi``.  The incumbent four stay float32; widening THEM is
+the separate SILVER-F031 data rewrite already recorded in both contracts'
+``drift_summary``.
+
 Unknown API fields (SILVER-F030 schema-drift reporting, INV-1)
 --------------------------------------------------------------
 Raw JSON is immutable in S3, so every field the FAS API returns is already
@@ -52,6 +83,14 @@ _FIELD_MAP: dict[str, str] = {
     "cancelations":     "cancelations",
     "changes":          "changes",
     "unitId":           "unit_id",
+    # --- SILVER-F030 BF-W2 additive set (2026-09-04): the five net-commitment
+    # fields, appended at the TAIL so the map diff is a pure append. See the
+    # module docstring for why they are float64 and not float32.
+    "accumulatedExports":       "accumulated_exports",
+    "currentMYNetSales":        "current_my_net_sales",
+    "currentMYTotalCommitment": "current_my_total_commitment",
+    "nextMYOutstandingSales":   "next_my_outstanding_sales",
+    "nextMYNetSales":           "next_my_net_sales",
 }
 
 _FLOAT_COLS = frozenset({
@@ -59,7 +98,50 @@ _FLOAT_COLS = frozenset({
     "gross_new_sales", "cancelations", "changes",
 })
 
+# The BF-W2 additive five are born at the INV-2 TARGET width (float64 == Glue
+# `double`), kept SEPARATE from _FLOAT_COLS so the incumbent float32 columns are
+# not silently re-typed by this lane.
+_FLOAT64_COLS = frozenset({
+    "accumulated_exports", "current_my_net_sales", "current_my_total_commitment",
+    "next_my_outstanding_sales", "next_my_net_sales",
+})
+
+# Every nullable measure INV-4 governs: absent -> created as NaN, never 0.0.
+_NULLABLE_MEASURE_COLS: tuple[str, ...] = (
+    "changes",
+    "accumulated_exports",
+    "current_my_net_sales",
+    "current_my_total_commitment",
+    "next_my_outstanding_sales",
+    "next_my_net_sales",
+)
+
 _INT16_COLS = frozenset({"commodity_code", "country_code", "market_year", "unit_id"})
+
+
+def _ensure_nullable(
+    df: pd.DataFrame, col: str, commodity_code: int, market_year: int
+) -> None:
+    """INV-4 for one measure column, in place.
+
+    An ABSENT column is created all-NaN; a PRESENT column's nulls are counted and
+    left NULL.  Neither branch ever writes 0.0 -- a synthesized zero is
+    indistinguishable from a real zero revision / a real zero commitment.  One
+    implementation, six call sites, so the law cannot drift between them.
+    """
+    if col not in df.columns:
+        logger.debug(
+            "commodity_code=%d market_year=%d: %r column absent -- left NULL (INV-4)",
+            commodity_code, market_year, col,
+        )
+        df[col] = float("nan")
+        return
+    null_count = int(df[col].isna().sum())
+    if null_count:
+        logger.debug(
+            "commodity_code=%d market_year=%d: %d null %r value(s) -- left NULL (INV-4)",
+            commodity_code, market_year, null_count, col,
+        )
 
 
 def transform_esr_json_to_bronze(
@@ -119,23 +201,18 @@ def transform_esr_json_to_bronze(
     expected = list(_FIELD_MAP.values())
     df = df[[col for col in expected if col in df.columns]]
 
-    # --- "changes" (revisions) may be absent in historical records or null in individual rows. ---
+    # --- Nullable measures may be absent in historical records or null in individual rows. ---
     # INV-4: an absent source measure stays NULL -- it is NEVER synthesized as 0.0 (a real zero
     # revision would be indistinguishable from "not reported" if we filled). ``changes`` is a
-    # DEPRECATED nullable column (SILVER-F030 ADR); NaN stays NaN.
-    if "changes" not in df.columns:
-        logger.debug(
-            "commodity_code=%d market_year=%d: 'changes' column absent — left NULL (INV-4)",
-            commodity_code, market_year,
-        )
-        df["changes"] = float("nan")
-    else:
-        null_count = int(df["changes"].isna().sum())
-        if null_count:
-            logger.debug(
-                "commodity_code=%d market_year=%d: %d null 'changes' value(s) — left NULL (INV-4)",
-                commodity_code, market_year, null_count,
-            )
+    # DEPRECATED nullable column (SILVER-F030 ADR); the five BF-W2 net-commitment fields are
+    # absent only from a payload the source had not yet extended -- and MEASURED 2026-09-04, raw
+    # holds no such vintage: 446 of 446 dated objects across 20260712..20260904 carry all five,
+    # and sampled UNDATED backfill payloads (down to market_year 1993) carry them too. So in
+    # practice they are absent only from a frame whose BRONZE predates this promotion, never
+    # because the source withheld them. Both cases: NaN stays NaN, and the column EXISTS
+    # either way so the silver schema does not depend on which vintage produced the frame.
+    for _col in _NULLABLE_MEASURE_COLS:
+        _ensure_nullable(df, _col, commodity_code, market_year)
 
     # --- Type casts ---
     df["week_ending_date"] = pd.to_datetime(
@@ -145,6 +222,10 @@ def transform_esr_json_to_bronze(
     for col in _FLOAT_COLS:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").astype("float32")
+
+    for col in _FLOAT64_COLS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
 
     for col in _INT16_COLS:
         if col in df.columns:

@@ -95,11 +95,31 @@ class TestHappyPath:
         assert "unit_id" not in silver.columns
         assert "source_unit_id" in silver.columns
 
-    def test_1000mt_columns_are_float32(self) -> None:
+    def test_1000mt_columns_have_their_declared_widths(self) -> None:
+        """RE-ANCHORED 2026-09-04 (SILVER-F030 BF-W2). MEASURED FIRST: this test was GREEN at HEAD
+        (`git archive HEAD` into a scratch tree -> 76 passed for this file, 17 for the bronze
+        sibling), so the net-commitment lane is what turned it red and the re-anchor is deliberate,
+        not an inherited failure.
+
+        "every *_1000mt column is float32" stopped being true when the five net-commitment columns
+        landed. The frozen ADR (reports/silver_readiness/R2_esr/F030_esr_adr.json,
+        target_additive_schema_bf_w2) declares them Glue `double`, and a parquet FLOAT under a
+        `double` catalog is the `HIVE_BAD_DATA: Malformed Parquet file ... type DOUBLE ...
+        incompatible with type real` class the estate already ate on silver_food_cpi -- so they are
+        float64 end to end. The incumbent four stay float32: widening THEM is the separate
+        SILVER-F031 data rewrite already sitting in both contracts' drift_summary, deliberately not
+        in this lane. The pin is kept as a per-column WIDTH assertion rather than deleted, and it
+        is now stronger than the blanket version: it names which width each column owes."""
         silver = transform_esr_bronze_to_silver(_make_bronze_df(), MARKET_YEAR)
+        for col in ("outstanding_sales_1000mt", "weekly_exports_1000mt",
+                    "gross_new_sales_1000mt", "changes_1000mt"):
+            assert silver[col].dtype == "float32", f"{col} should be float32"
+        for col in T._ADDITIVE_QUANTITY_COLS:
+            assert silver[f"{col}_1000mt"].dtype == "float64", f"{col}_1000mt should be float64"
+        # and no *_1000mt column escapes the two declared widths.
         for col in silver.columns:
             if col.endswith("_1000mt"):
-                assert silver[col].dtype == "float32", f"{col} should be float32"
+                assert silver[col].dtype in ("float32", "float64"), col
 
     def test_output_column_order(self) -> None:
         silver = transform_esr_bronze_to_silver(_make_bronze_df(), MARKET_YEAR)
@@ -390,7 +410,11 @@ class TestNonMassCodesAreSkippedInWriting:
     def test_a_skipped_only_frame_returns_an_empty_but_well_formed_silver(self) -> None:
         """Files are partitioned by code, so a skipped code's file yields ZERO rows. The batch
         producer skips empty results (`not result.empty`), so this must not raise and must not
-        return a shapeless frame."""
+        return a shapeless frame.
+
+        RE-ANCHORED 2026-09-04 (SILVER-F030 BF-W2), measured green at HEAD before the re-anchor.
+        The exact-list assertion is the lane's INV-2 additive pin AND the is_schema_widen
+        precondition, so it is extended rather than loosened."""
         silver = transform_esr_bronze_to_silver(_rows_for(1601, unit_id=3), MARKET_YEAR)
         assert silver.empty
         assert list(silver.columns) == [
@@ -398,6 +422,16 @@ class TestNonMassCodesAreSkippedInWriting:
             "week_ending_date", "outstanding_sales_1000mt", "weekly_exports_1000mt",
             "gross_new_sales_1000mt", "changes_1000mt", "source_unit_id",
             "as_of_date", "ingest_date", "source",
+            # SILVER-F030 BF-W2 (2026-09-04): the five net-commitment columns, emitted
+            # UNCONDITIONALLY and strictly at the TAIL. Both facts are load-bearing --
+            # unconditional because the value census IGNORES files where a column is absent (an
+            # absent column measures 1.000 non-null over nothing), and TAIL because
+            # catalog.is_schema_widen admits ONLY a trailing append, which is what lets the
+            # compact producer self-heal the registered partition descriptors after the Glue
+            # ADD COLUMNS. Mid-list, every partition fails closed on the next canonical promote.
+            "accumulated_exports_1000mt", "current_my_net_sales_1000mt",
+            "current_my_total_commitment_1000mt", "next_my_outstanding_sales_1000mt",
+            "next_my_net_sales_1000mt",
         ]
 
     def test_mass_rows_survive_a_mixed_frame(self) -> None:

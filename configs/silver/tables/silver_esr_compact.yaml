@@ -96,6 +96,36 @@ physical_columns:
   parquet_physical_type: BYTE_ARRAY
   target_arrow_type: string
   nullable: true
+- name: accumulated_exports_1000mt
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: current_my_net_sales_1000mt
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: current_my_total_commitment_1000mt
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: next_my_outstanding_sales_1000mt
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
+- name: next_my_net_sales_1000mt
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: float64
+  nullable: true
 writer_schema_pinned: false
 drift_summary:
 - column: commodity_code
@@ -202,4 +232,15 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   SILVER-F030/F031 ESR ADR (frozen): changes_1000mt DEPRECATED + nullable (INV-4, never 0.0). vintage_retention=per-week
   (BF-W2 step-1 serving PR): the SILVER-F031 option-b path adds an as_of_date REGISTERED partition dimension
   for per-week vintages (canonical data/catalog migration is the gated BF-W2 window -- never re-projection).
-  See reports/silver_readiness/R2_esr/F031_option_b_path.json and the parity proof under the same prefix.'
+  See reports/silver_readiness/R2_esr/F031_option_b_path.json and the parity proof under the same prefix.
+  SILVER-F030 BF-W2 additive five (2026-09-04): both ESR transforms now EMIT accumulated_exports_1000mt,
+  current_my_net_sales_1000mt, current_my_total_commitment_1000mt, next_my_outstanding_sales_1000mt and
+  next_my_net_sales_1000mt (FAS value / 1000, float64, nullable, unconditionally, at the TAIL after `source`
+  so catalog.is_schema_widen can self-heal the registered partition descriptors). They are NULL for every
+  vintage whose BRONZE predates the promotion (bronze is incremental -- only a targeted re-bronze or a
+  new weekly fire populates one), and a NULL is therefore always a BRONZE-vintage fact, never a source
+  fact: measured 2026-09-04 over all 446 dated raw objects, every one of the 12 as_of vintages held in
+  raw (20260712..20260904) carries all five API keys. They are staged as PHYSICAL-ONLY here until the
+  gated ALTER TABLE ADD COLUMNS lands: the registry never leads live Glue. They stay OUT of value_columns
+  until the numbers card declares them, which is the same decision -- do not govern a column the source
+  has not been writing long enough to measure.'

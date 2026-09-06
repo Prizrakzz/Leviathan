@@ -21,9 +21,13 @@ Design notes
   ESR publishes new-crop forward sales before the marketing year opens.
   The new-crop outstanding_sales values are the esr_new_crop_sales_z signal.
 
-- Prior-year backfill is handled by the CLI script
-  jobs/ingest/fetch_usda_esr.py --mode backfill
-  and the Glue job jobs/glue/raw_to_bronze_usda_esr.py --mode backfill.
+- Prior-year RAW backfill is handled by the CLI script
+  jobs/ingest/fetch_usda_esr.py --mode backfill.
+  The BRONZE half is jobs/batch/esr_task.py --include-backfill, NOT the Glue job:
+  jobs/glue/raw_to_bronze_usda_esr.py --mode backfill now REFUSES (THE VINTAGE LAW,
+  2026-09-04 -- it stamped --ingest_date, the run's own date, onto every undated raw
+  key, and a bronze partition's as_of must come from the raw key or the raw_meta
+  sidecar).  esr_task.py resolves that as_of and refuses a key it cannot date.
 """
 from __future__ import annotations
 

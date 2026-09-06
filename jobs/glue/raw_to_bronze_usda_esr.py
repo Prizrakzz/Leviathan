@@ -5,12 +5,28 @@ This is deliberately a single-invocation design — running one Glue job per
 pair would incur 360 cold-start billing charges (~$15) for the full backfill
 versus ~$0.44 for one job.  See plan for cost analysis.
 
+THE VINTAGE LAW (lane C re-review NEW-2, 2026-09-04)
+----------------------------------------------------
+A bronze partition's ``as_of`` comes from the RAW KEY, or from the raw object's
+``raw_meta`` sidecar -- NEVER from today's date.  This job used to break that law
+in ``backfill`` mode: it paired every UNDATED raw backfill key with
+``--ingest_date`` (the run's own date) and wrote
+``bronze_esr_key(code, year, <that date>)`` into the SAME bronze prefix
+``jobs/batch/esr_task.py`` writes.  MEASURED 2026-09-04: 8,474 of the 8,920 ESR
+bronze objects (95.0%) are fabricated vintages minted exactly that way.  A Glue
+Python Shell job has no route to a ``raw_meta`` sidecar here, so backfill mode
+now REFUSES by name and points at the writer that can date the key.
+``--ingest_date`` stays what its name says: the INGEST date, never a vintage.
+
 Modes
 -----
 backfill
-    Iterates commodity_codes × range(start_year, end_year+1).  Reads each
-    raw backfill key from S3, transforms to Parquet, uploads to bronze.
-    Skips pairs whose raw key does not exist (year not yet ingested).
+    REFUSED -- see THE VINTAGE LAW above.  Use
+    ``jobs/batch/esr_task.py --include-backfill [--backfill-as-of YYYYMMDD]``
+    instead: it resolves each undated key's as_of from an explicit operator date
+    or the sidecar's ``download_timestamp``, and refuses a key it cannot date.
+    This is still the DEFAULT mode on purpose: a no-flag fire must REFUSE, not
+    silently do the wrong thing.
 
 weekly
     Iterates commodity_codes × [current_year, current_year+1].  Reads each
@@ -20,10 +36,11 @@ weekly
 Required args:
   --bucket        S3 bucket name
   --aws_region    e.g. us-east-1
-  --ingest_date   YYYY-MM-DD (used as the as_of value for backfill bronze keys)
+  --ingest_date   YYYY-MM-DD (the INGEST date ONLY -- it is NEVER a bronze as_of
+                  vintage; see THE VINTAGE LAW above)
 
 Optional args:
-  --mode            backfill|weekly  (default: backfill)
+  --mode            backfill|weekly  (default: backfill, which now REFUSES)
   --commodity_codes comma-separated ESR codes  (default: all 44 measured source codes)
   --start_year      first marketing year for backfill  (default: 1990)
   --end_year        last marketing year for backfill   (default: current year)
@@ -44,7 +61,7 @@ import boto3
 from botocore.config import Config
 
 from leviathan.common.logging import get_logger
-from leviathan.storage.paths import bronze_esr_key, raw_esr_backfill_key, raw_esr_weekly_key
+from leviathan.storage.paths import bronze_esr_key, raw_esr_weekly_key
 from leviathan.storage.s3 import upload_bytes_to_s3
 from leviathan.transforms.raw_to_bronze.usda_esr import transform_esr_json_to_bronze
 
@@ -68,6 +85,22 @@ _DEFAULT_COMMODITY_CODES = [
     1701, 1702,
 ]
 _TMP = Path("/tmp/esr_bronze")
+
+# THE VINTAGE LAW's refusal, named so a Glue log line says WHICH law stopped the run and
+# WHICH writer to use instead.  Deliberately a STRING and not a collection: this file sits
+# inside the F091 lint's SCAN_ROOTS and a module-level collection would move the raw-literal
+# census (PIN_RAW_LITERALS) in a shared tree.
+_BACKFILL_REFUSAL = (
+    "REFUSING (ESR VINTAGE LAW): this Glue writer cannot re-bronze the UNDATED backfill "
+    "keys. It has no route to a raw_meta sidecar, so it used to stamp every undated "
+    "payload with --ingest_date -- the run's own date -- minting a point-in-time vintage "
+    "that never existed. MEASURED 2026-09-04: 8,474 of 8,920 ESR bronze objects (95.0%) "
+    "were minted that way. Use the law-abiding writer instead: jobs/batch/esr_task.py "
+    "--include-backfill [--backfill-as-of YYYYMMDD], which resolves as_of from the key's "
+    "own as_of= segment, an explicit operator date, or the sidecar's download_timestamp, "
+    "and REFUSES a key it cannot date. This job's WEEKLY mode is unaffected: there the "
+    "as_of is the raw key's own segment."
+)
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -200,23 +233,25 @@ def _process_pair(
 
 
 def main() -> None:
+    if MODE == "backfill":
+        # THE VINTAGE LAW, refused BEFORE anything is opened: no client, no LIST, no GET.
+        # START_YEAR / END_YEAR still parse, so the refusal reads the same for every
+        # invocation shape; there is deliberately no path past this line.
+        raise RuntimeError(_BACKFILL_REFUSAL)
+
     s3 = boto3.client("s3", region_name=AWS_REGION, config=_RETRY_CFG)
 
-    if MODE == "backfill":
-        pairs: list[tuple[int, int, str, str]] = []
-        for code in COMMODITY_CODES:
-            for year in range(START_YEAR, END_YEAR + 1):
-                raw_key = raw_esr_backfill_key(code, year)
-                pairs.append((code, year, raw_key, INGEST_DATE.replace("-", "")))
-
-    else:  # weekly
-        reference = datetime.date(int(AS_OF[:4]), int(AS_OF[4:6]), int(AS_OF[6:8]))
-        pairs = []
-        for code in COMMODITY_CODES:
-            cur = _current_marketing_year(code, reference)
-            for year in [cur, cur + 1]:
-                raw_key = raw_esr_weekly_key(code, year, AS_OF)
-                pairs.append((code, year, raw_key, AS_OF))
+    # WEEKLY: the as_of is READ OFF THE RAW KEY this run opens -- raw_esr_weekly_key embeds it,
+    # and the same value is what bronze_esr_key writes -- so the bronze partition's vintage is
+    # the raw key's own vintage (provenance ``raw_key`` in jobs/batch/esr_task.py's terms).
+    # A missing key is skipped by _process_pair, never invented.
+    reference = datetime.date(int(AS_OF[:4]), int(AS_OF[4:6]), int(AS_OF[6:8]))
+    pairs: list[tuple[int, int, str, str]] = []
+    for code in COMMODITY_CODES:
+        cur = _current_marketing_year(code, reference)
+        for year in [cur, cur + 1]:
+            raw_key = raw_esr_weekly_key(code, year, AS_OF)
+            pairs.append((code, year, raw_key, AS_OF))
 
     logger.info(
         "raw→bronze ESR: mode=%s  pairs=%d  commodity_codes=%s",

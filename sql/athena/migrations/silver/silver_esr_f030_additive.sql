@@ -1,29 +1,179 @@
 -- SILVER-F030 additive-compatibility migration for the ESR contracts (silver_esr + silver_esr_compact).
 --
--- STATUS: SPECIFIED, NOT APPLIED. This is the frozen target for BF-W2 (a producer extension + a
--- re-fetch of the FAS commodity-totals / new-crop endpoints). R2 declares the additive schema; it
--- does NOT emit these columns, does NOT mutate the live Glue catalog, and does NOT publish data.
--- Applying it is gated behind a signed approval (publish_guard / INV-7) at BF-W2.
+-- STATUS IS PER TABLE (split 2026-09-04 -- the two halves no longer share a fate):
+--
+--   silver_esr_compact : SPECIFIED, NOT APPLIED -- but READY. Both transforms now EMIT the five
+--       columns (raw_to_bronze/usda_esr.py _FIELD_MAP + _FLOAT64_COLS; bronze_to_silver/usda_esr.py
+--       _ADDITIVE_QUANTITY_COLS), the contract stages them as physical-only, and the producer
+--       carries reconcile_schema_widen=True. Applying the ALTER below is the last step. See the
+--       PRECONDITION block.
+--
+--   silver_esr         : SPECIFIED, NOT APPLIED, and DELIBERATELY NOT SCHEDULED (2026-09-04).
+--       This is a REFUSAL with a reason, not a backlog item. The full per-partition surface at
+--       silver/production/source=usda_esr was superseded by silver_esr_compact at Phase D and has
+--       no writer on any schedule (its vintage_waiver, approved 2026-08-16 D-SG G1-6, says the
+--       surface "is read by nothing"; its only writer, jobs/ingest/backfill_silver_usda_esr.py, is
+--       a manual backfill absent from every DAG). Three measured consequences:
+--         (a) the five would be all-NULL here forever -- the census reads nonnull_fraction=0.000
+--             all_nan=True, and the all-NaN rule is floor-INDEPENDENT by design, so no 0.0
+--             override can rescue it. That is the same mechanism that cost this family its
+--             2026-08-27 and 2026-09-03 canonical promotes on changes_1000mt.
+--         (b) the ALTER would strand 370 registered partition StorageDescriptors at the old
+--             12-column shape with NO producer run to self-heal them (the compact producer's
+--             reconcile only walks the compact table's partitions).
+--         (c) "stage it hidden instead" arms a live landmine: CatalogMigrator._glue_columns does
+--             NOT drop glue_type-null columns the way ddl.py does, so an additive apply from a
+--             null-typed registry sends Type: null to Glue update_table -> fail-closed reject
+--             (the F024 "Deviation 9" class).
+--       Aligning it later, in this order: run backfill_silver_usda_esr.py on the new image ONCE
+--       PER BRONZE VINTAGE, ALWAYS WITH AN EXPLICIT --as-of-date (that one argument is BOTH the
+--       bronze partition it reads and the silver partition it writes; it now REFUSES without one
+--       -- see THE VINTAGE LAW below -- because its old default stamped the RUN's date onto every
+--       partition it wrote, which is exactly the fabricated point-in-time the bronze law refuses)
+--       -> apply the silver_esr ALTER below
+--       -> refresh reports/silver_readiness/20260712_p65impl/tables/silver_esr.json.
 --
 -- Doctrine:
 --   * ADDITIVE + NULLABLE only (INV-2 schema-evolution default: additive nullable columns are the
 --     only compatible evolution; type narrowing, column removal/re-labeling/re-ordering, and
 --     partition-key changes are prohibited here -- those are breaking changes needing an ADR).
---   * These are source-aligned net-commitment fields the current allCountries adapter does not yet
---     emit (SILVER-F030 ADR target_additive_schema_bf_w2). ``changes_1000mt`` is retained as a
---     DEPRECATED nullable column -- it is NOT dropped here (breaking) and NOT repurposed.
---   * Registered-partition tables: an additive column is applied via ALTER TABLE ... ADD COLUMNS on
---     the table AND every registered partition's StorageDescriptor must be audited/updated in the
---     same governed migration (SILVER-F012/F013 reconciler), or old partitions read the new column
---     as NULL only after their SD is refreshed. Do NOT MSCK (the ESR as_of=/as_of_date directory vs
---     column mapping breaks it).
+--   * The five are source-aligned net-commitment fields (SILVER-F030 ADR
+--     target_additive_schema_bf_w2). They arrive on the SAME allCountries payload the current
+--     adapter already fetches -- the ADR's "needs the commodity-totals / new-crop endpoint" note
+--     is STALE, which is why the bronze schema-drift WARN has been naming all five on every
+--     partition since the EARLIEST BRONZE VINTAGE, 20260717 (not "since 2026-08": the raw census
+--     reads 446/446 dated objects carrying all five from 20260712 on, so the WARN is as old as
+--     the bronze layer itself). No re-fetch and no fetcher change is part of this migration.
+--   * ``changes_1000mt`` is retained as a DEPRECATED nullable column -- NOT dropped here
+--     (breaking) and NOT repurposed. It left value_columns on 2026-09-04 (deprecated != removed).
+--   * Registered-partition tables: ADD COLUMNS updates only the TABLE descriptor. Every registered
+--     partition's StorageDescriptor must also be refreshed or Athena still reads the old column
+--     count for that partition -- so even the NEW, populated objects would read NULL.
 --
--- Apply order at BF-W2: extend the producer to emit the columns -> shadow rebuild -> validate value
--- census (SILVER-V001) -> ALTER TABLE (below) under lease -> audit partition SDs -> partition-filtered
--- Athena smoke -> silver_rebuild_gate Branch A.
+-- PRECONDITION FOR THE silver_esr_compact HALF -- read this before applying, it can take the
+-- whole family's weekly promote down:
+--   PartitionPublisher.publish_one builds each partition's DESIRED StorageDescriptor by copying
+--   the TABLE SD. The instant this ALTER widens the table from 12 to 17 columns, EVERY already-
+--   registered partition diffs. With no RepairAuthorization and reconcile_schema_widen=False,
+--   publish_one calls _fail, ShadowPublisher._catalog raises PublisherError, and the canonical
+--   run exits 1 -- for the entire table, not just the new columns.
+--   So: the image carrying reconcile_schema_widen=True (jobs/batch/bronze_to_silver_esr_task.py
+--   publish_esr_compact) MUST already be live on BOTH leviathan-dev-esr-bronze-to-silver AND
+--   leviathan-dev-silver-publisher-runner BEFORE this ALTER is applied. The self-heal it enables
+--   is narrow by construction: catalog.is_schema_widen admits ONLY a pure TRAILING-column append
+--   at an identical location/format/SerDe (measured: the five at the tail -> True; the same five
+--   inserted at position 9 -> False), so F013's wrong-location protection is untouched. That is
+--   also why the five must be the LAST five columns, never grouped with the other *_1000mt ones.
+--   Rollback follows the same asymmetry: roll the image back only BEFORE this ALTER; after it,
+--   the old image lacks reconcile_schema_widen against a widened table SD and re-introduces the
+--   failure -- roll FORWARD instead.
+--
+-- THE IMAGE AND THE JOBDEFS -- two rules, each with the incident behind it (added 2026-09-04):
+--   (1) THE IMAGE IS NEVER BUILT FROM THE SHARED WORKING TREE. scripts/build_push_worker.ps1 tars
+--       $RepoRoot -- the working tree, not an archive of any commit -- while stamping
+--       BUILD_GIT_COMMIT from `git rev-parse HEAD`, and it has no dirty-tree guard. On a tree
+--       carrying other lanes' uncommitted work inside the Dockerfile COPY set (src/, jobs/,
+--       configs/, sql/) that produces an image whose own IMAGE_MANIFEST asserts a commit it does
+--       not contain -- and this rollout puts that image on leviathan-dev-silver-gate, which 26
+--       rendered families share, and leviathan-dev-silver-publisher-runner, which 16 share.
+--       BUILD FROM A CLEAN GIT WORKTREE AT THE COMMIT, **PLUS THE GITIGNORED OVERLAY** -- both
+--       halves, in this order (the estate's measured image recipe; the 2026-09-04 pink-vintages
+--       flip built its image exactly this way, 141 overlay files):
+--         git worktree add --detach <path> <the lane commit>
+--         # IN THE MAIN TREE, list the gitignored configs/graphrag files (minus the .dockerignore'd
+--         # evidence/, eval/, pilot/ subtrees and __pycache__/.pyc/.log/.tmp noise) and COPY each
+--         # one into <path> at the SAME relative path. THIS STEP IS MANDATORY:
+--         git ls-files --others --ignored --exclude-standard -- configs/graphrag
+--         python scripts/ops/make_worker_context_tar.py --repo <path> --ref HEAD --out <tar>
+--       That script REFUSES a dirty COPY set and tars `git archive`, so the bytes in the image are
+--       the bytes of the commit -- which is all the dirty-tree rule ever required. It ALSO overlays
+--       the gitignored configs/graphrag subtree, BUT IT READS THAT OVERLAY FROM THE --repo WORKING
+--       TREE, and `git worktree add` checks out TRACKED files only. So a bare worktree bakes ZERO
+--       gitignored configs: overlay_files reads 0, and the resulting image goes onto the gate whose
+--       jobs/audit/silver_rebuild_gate.py imports leviathan.graphrag.config_check and the numbers
+--       modules that read that subtree at runtime. MEASURED in the main tree 2026-09-04: 141 files,
+--       4,751,532 bytes, 69 causal DAGs.
+--       THE GATE: the tar summary must print overlay_files > 0 (141 on 2026-09-04) and an
+--       overlay_sha256. overlay_files: 0 IS A REFUSAL -- do not upload that tar, do not build it,
+--       do not deploy it. (The F010 contracts under configs/silver are TRACKED and do ride the
+--       archive; they were never the exposure here.)
+--       scripts/ops/esr_netcommitment_runbook.py S1 prints the whole recipe in PowerShell 5.1, and
+--       `--step CHECK` greps S1 for every clause of it.
+--   (2) A JOBDEF IS RE-REGISTERED ONLY BY COPYING ITS LIVE REVISION VERBATIM.
+--         python scripts/ops/repin_jobdef_digest.py --job-definition <name> --image-digest <sha> \
+--             --expect-vcpu <v> --expect-memory <m>          (then again with --apply)
+--       MEASURED LIVE 2026-09-04: leviathan-dev-esr-bronze-to-silver rev 8 and
+--       leviathan-dev-silver-publisher-runner rev 36 are BOTH 2 vCPU / 12,288 MiB;
+--       leviathan-dev-usda-esr-bronze rev 20 is 2 vCPU / 4,096 MiB and leviathan-dev-silver-gate
+--       rev 34 is 2 vCPU / 8,192 MiB. ANY RE-REGISTRATION MUST PRESERVE THOSE NUMBERS. The 12,288
+--       MiB is the 2026-09-03 post-OOM bump, and this migration makes the frame WIDER: measured on
+--       80 real bronze objects through both transforms, the silver frame goes 306.35 -> 346.35
+--       bytes/row deep (+40.00 B/row, exactly five float64, +13.1%) at 13 -> 18 columns, so the
+--       ~13.92M-row --vintage-mode all concat peaks at ~8.98 GiB against 12.0 GiB (7.94 GiB
+--       before). It fits at 12,288 MiB and OOMs immediately at 4,096.
+--       DO NOT re-register through jobs/submit/submit_batch_b2s_esr.py: it HARDCODES
+--       MEMORY "4096" for leviathan-dev-esr-bronze-to-silver and pins a stale image digest whose
+--       own reuse test fails once this repin lands -- it would register a 4 GB revision on the
+--       PRE-LANE image, which after this ALTER is exactly the whole-family promote failure the
+--       PRECONDITION block above exists to prevent.
+--
+-- THE VINTAGE LAW, AND WHICH WRITER THIS MIGRATION MAY RECOMMEND (added 2026-09-04):
+--   A bronze partition's as_of comes from the RAW KEY, or from the raw object's raw_meta sidecar
+--   -- NEVER from today's date. Measured: 8,474 of the 8,920 ESR bronze objects (95.0%) are
+--   fabricated vintages minted by stamping an undated backfill payload with a run date. The estate
+--   has FOUR ESR writers and the law now holds in all four, so only law-abiding writers appear
+--   anywhere in this file. THE COUNT IS A GREP, NOT A MEMORY: it read THREE until 2026-09-04,
+--   when an independent verification found the fourth (a local twin of the Glue backfill) still
+--   stamping today onto undated keys with no flags required.
+--     jobs/batch/esr_task.py                  -- resolves as_of (raw key -> an explicit
+--        --backfill-as-of -> the raw_meta sidecar's download_timestamp -> REFUSE). This is the
+--        writer the re-bronze step uses.
+--     jobs/glue/raw_to_bronze_usda_esr.py     -- its BACKFILL mode now REFUSES by name (it has no
+--        route to a sidecar and used to pair every undated key with --ingest_date). DO NOT use it
+--        for the re-bronze: it is also manual-only and ships a stale bootstrapped wheel. Its
+--        WEEKLY mode was always law-abiding -- there the as_of is the raw key's own segment.
+--     jobs/ingest/backfill_bronze_usda_esr.py -- the LOCAL TWIN of that Glue backfill mode, and
+--        the path an operator reaches for first. Its --ingest-date DEFAULTED TO TODAY and every
+--        raw key it read was UNDATED, so `python jobs/ingest/backfill_bronze_usda_esr.py` with no
+--        arguments minted a whole vintage. It now REFUSES by name and carries no clock default
+--        anywhere. DO NOT use it for the re-bronze either.
+--     jobs/ingest/backfill_silver_usda_esr.py -- the silver_esr writer named in the refusal above;
+--        --as-of-date is now REQUIRED (the today's-date default is deleted). It writes SILVER, so
+--        it can never add one of the 8,474 bronze objects.
+--   THE LAW-ABIDING FIFTH: dags/airflow/esr_weekly_ingest_dag.py writes bronze INLINE and its
+--   as_of is the uploaded raw key's OWN as_of segment (today's date reaches ingest_date only), so
+--   it needed no change. Measured by AST over jobs/, dags/, src/leviathan/ and scripts/, those are
+--   every caller of bronze_esr_key / silver_esr_key in the estate; jobs/ingest/fetch_usda_esr.py
+--   names the raw keys and writes RAW only.
+--
+-- THE RE-BRONZE BOUND IS MEASURED, NOT ASSERTED (2026-09-04, jobs/utils/esr_netcommitment_raw
+-- _census.py over ALL 446 dated raw objects): every one of the 12 as_of vintages present in raw,
+-- 20260712 through 20260904, carries all five API keys -- 446/446, no per-commodity tail. There is
+-- NO pre-publication vintage in raw, so the bound is 20260712, an earlier plan's 20260813 would
+-- have skipped six vintages whose raw does carry the fields, and the verdict sentence is restated
+-- so it can fail: every (commodity, as_of) object whose bronze was re-written must read NON-ZERO
+-- on all five; a zero is a PIPELINE finding, never a source finding.
+--
+-- Apply order for the compact half: land the transforms + reconcile_schema_widen -> measure the
+-- raw bound (S0) -> build the image from a CLEAN WORKTREE at the commit (rule 1) -> move the four
+-- jobdefs through the digest helper (rule 2) -> targeted re-bronze
+-- (esr_task.py --force-overwrite --as-of-min 20260712; undated backfill keys are excluded by the
+-- vintage law) -> shadow rebuild and read the run manifest's row_key_null_metrics against the raw
+-- census -> validate the value census (SILVER-V001) -> the ALTER below under lease -> refresh the
+-- R0 snapshot + promote the contract's five columns from physical-only to registered in
+-- gen_registry_from_baseline.CURATION_OVERRIDES and regenerate, all in ONE commit -> canonical
+-- promote (read the partition_actions COUNT against `aws glue get-partitions` -- the publisher
+-- only walks partitions the run STAGES, so an orphan partition keeps its 12-column descriptor) ->
+-- partition-filtered Athena smoke -> silver_rebuild_gate Branch A -> RELOAD the pg mirror AFTER
+-- the promote (the gate's own reload runs before the canonical objects exist, so the five read
+-- all-NULL there and that is expected, not a finding).
+-- The whole order is printed, step by step and in PowerShell 5.1, by
+-- scripts/ops/esr_netcommitment_runbook.py.
 
 -- silver_esr (canonical, s3://.../silver/production/source=usda_esr, partitioned by
 -- commodity_code, market_year, as_of_date):
+-- NOT APPLIED and not scheduled -- see the refusal above. Kept here so the target stays written
+-- down and a later alignment does not have to re-derive it.
 ALTER TABLE leviathan_dev.silver_esr ADD COLUMNS (
     accumulated_exports_1000mt        double,
     current_my_net_sales_1000mt       double,
@@ -32,7 +182,8 @@ ALTER TABLE leviathan_dev.silver_esr ADD COLUMNS (
     next_my_net_sales_1000mt          double
 );
 
--- silver_esr_compact (serving, s3://.../silver/esr, partitioned by commodity):
+-- silver_esr_compact (serving, s3://.../silver/esr, partitioned by commodity, as_of_date):
+-- THE ONE TO APPLY. Column ORDER here is the contract's tail order and must not be rearranged.
 ALTER TABLE leviathan_dev.silver_esr_compact ADD COLUMNS (
     accumulated_exports_1000mt        double,
     current_my_net_sales_1000mt       double,
@@ -41,6 +192,11 @@ ALTER TABLE leviathan_dev.silver_esr_compact ADD COLUMNS (
     next_my_net_sales_1000mt          double
 );
 
--- NOTE: after ADD COLUMNS on a registered-partition table, run the SILVER-F013 partition reconciler
--- to refresh each partition's StorageDescriptor columns; a plain ADD COLUMNS updates only the table
--- descriptor, so historical partitions would otherwise not expose the new (all-NULL) columns.
+-- NOTE: after ADD COLUMNS on a registered-partition table the partition StorageDescriptors must be
+-- refreshed. In THIS estate that is NOT a separate reconciler run: the compact producer's own next
+-- `--vintage-mode all --publish-mode canonical` promote walks every partition through
+-- PartitionPublisher._repair under reconcile_schema_widen=True, because that mode re-stages EVERY
+-- (slug, as_of). Read partition_actions in the task's terminal line and manifest.partition_actions.
+-- jobs/utils/deproject_glue_table.py --register is NOT the tool: it registers MISSING partitions,
+-- it does not repair descriptors. Do NOT MSCK (the ESR as_of=/as_of_date directory-vs-column
+-- mapping breaks it).

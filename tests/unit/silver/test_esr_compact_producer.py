@@ -62,11 +62,12 @@ def _silver_rows(slug_code_pairs, as_ofs, market_year=2024):
     return pd.DataFrame(rows)
 
 
-def _table_input():
+def _table_input(columns=None):
     return {
         "Name": "silver_esr_compact",
         "StorageDescriptor": {
-            "Columns": [{"Name": "commodity_code", "Type": "smallint"}],
+            "Columns": columns if columns is not None
+            else [{"Name": "commodity_code", "Type": "smallint"}],
             "Location": CANON_ROOT,
             "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
             "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
@@ -74,6 +75,40 @@ def _table_input():
             "Parameters": {},
         },
     }
+
+
+# --- SILVER-F030 BF-W2 additive widen (2026-09-04) -------------------------------------------
+# The live 12-column compact catalog schema and the five columns the gated ALTER appends.
+_LIVE_12_COLUMNS = [
+    {"Name": "commodity_code", "Type": "smallint"},
+    {"Name": "commodity_name", "Type": "string"},
+    {"Name": "market_year", "Type": "smallint"},
+    {"Name": "country_code", "Type": "smallint"},
+    {"Name": "week_ending_date", "Type": "date"},
+    {"Name": "outstanding_sales_1000mt", "Type": "float"},
+    {"Name": "weekly_exports_1000mt", "Type": "float"},
+    {"Name": "gross_new_sales_1000mt", "Type": "float"},
+    {"Name": "changes_1000mt", "Type": "float"},
+    {"Name": "source_unit_id", "Type": "smallint"},
+    {"Name": "ingest_date", "Type": "string"},
+    {"Name": "source", "Type": "string"},
+]
+_ADDITIVE_5_COLUMNS = [
+    {"Name": "accumulated_exports_1000mt", "Type": "double"},
+    {"Name": "current_my_net_sales_1000mt", "Type": "double"},
+    {"Name": "current_my_total_commitment_1000mt", "Type": "double"},
+    {"Name": "next_my_outstanding_sales_1000mt", "Type": "double"},
+    {"Name": "next_my_net_sales_1000mt", "Type": "double"},
+]
+
+
+def _preexisting_partition(glue, slug, columns):
+    """Register one partition at the CORRECT location carrying *columns* -- i.e. the pre-ALTER
+    descriptor a partition registered before the widen actually holds."""
+    sd = dict(_table_input()["StorageDescriptor"])
+    sd["Columns"] = list(columns)
+    sd["Location"] = f"{CANON_ROOT}/commodity={slug}/"
+    glue.partitions[("silver_esr_compact", (slug,))] = {"Values": [slug], "StorageDescriptor": sd}
 
 
 def _publish(prod, objects, glue, s3, auth, vintage_mode, shadow_prefix=None, run_id="t"):
@@ -282,6 +317,149 @@ class TestPartitionReconcileReadOnly:
         assert m.state == ManifestState.CERTIFIED
         assert {a["outcome"] for a in m.partition_actions} == {"existing"}
         assert fake_glue.partitions == before  # byte-for-byte unchanged
+
+
+# ===========================================================================
+# SILVER-F030 BF-W2 -- the additive widen survives the promote (the blocking finding)
+# ===========================================================================
+class TestAdditiveSchemaWidenReconcile:
+    """THE REGRESSION PIN FOR THE ONE THING IN THIS CHANGE THAT CAN TAKE THE FAMILY DOWN.
+
+    ``PartitionPublisher.publish_one`` builds each partition's DESIRED StorageDescriptor by
+    copying the TABLE's SD. The instant ``ALTER TABLE silver_esr_compact ADD COLUMNS`` widens the
+    table from 12 to 17 columns, EVERY already-registered partition diffs against it. With no
+    RepairAuthorization and ``reconcile_schema_widen=False`` (the dataclass default), publish_one
+    calls ``_fail``, ``ShadowPublisher._catalog`` raises ``PublisherError``, and the canonical run
+    exits 1 -- for the WHOLE table, not just the new columns. The compact producer therefore
+    passes ``reconcile_schema_widen=True``, and these tests are what stop that keyword being
+    "cleaned up" later.
+    """
+
+    def _objs(self, prod):
+        frame = _silver_rows([("corn_cbot", 401)], ["20260903"])
+        return prod.build_staged_objects(frame, prod.VINTAGE_LATEST)
+
+    def test_publish_esr_compact_requests_the_reconcile(self, prod, fake_glue, fake_s3,
+                                                        monkeypatch):
+        """The wiring itself, asserted at the call site rather than inferred from behaviour."""
+        seen = {}
+        real = prod.ShadowPublisher
+
+        def _capture(**kw):
+            seen.update(kw)
+            return real(**kw)
+
+        monkeypatch.setattr(prod, "ShadowPublisher", _capture)
+        _publish(prod, self._objs(prod), fake_glue, fake_s3, dryrun_authorization(), "latest")
+        assert seen.get("reconcile_schema_widen") is True
+
+    def test_publisher_reconciles_a_pure_trailing_widen(self, prod, fake_glue, fake_s3):
+        """A partition still carrying the pre-ALTER 12-column descriptor, against a 17-column
+        table SD, is REPAIRED -- not failed. This is the post-ALTER steady state on the first
+        canonical promote: `partition_actions={'repaired': 1}` on every pre-existing partition.
+        Without reconcile_schema_widen=True this raises PublisherError instead."""
+        fake_glue.tables["silver_esr_compact"] = _table_input(
+            _LIVE_12_COLUMNS + _ADDITIVE_5_COLUMNS)
+        _preexisting_partition(fake_glue, "corn_cbot", _LIVE_12_COLUMNS)
+        m = _publish(prod, self._objs(prod), fake_glue, fake_s3, canonical_authorization(), "latest")
+        assert m.state == ManifestState.CERTIFIED
+        assert {a["outcome"] for a in m.partition_actions} == {"repaired"}
+        # the repair re-points the descriptor to the FULL 17-column table schema.
+        got = fake_glue.partitions[("silver_esr_compact", ("corn_cbot",))]
+        assert [c["Name"] for c in got["StorageDescriptor"]["Columns"]] == [
+            c["Name"] for c in _LIVE_12_COLUMNS + _ADDITIVE_5_COLUMNS]
+
+    def test_the_second_promote_after_the_widen_is_a_pure_no_op(self, prod, fake_glue, fake_s3):
+        """`repaired` on the first post-ALTER promote, `existing` on the second. A partition that
+        keeps reporting `repaired` means the widen is not settling and must be investigated."""
+        fake_glue.tables["silver_esr_compact"] = _table_input(
+            _LIVE_12_COLUMNS + _ADDITIVE_5_COLUMNS)
+        _preexisting_partition(fake_glue, "corn_cbot", _LIVE_12_COLUMNS)
+        _publish(prod, self._objs(prod), fake_glue, fake_s3, canonical_authorization(),
+                 "latest", run_id="r1")
+        m2 = _publish(prod, self._objs(prod), fake_glue, fake_s3, canonical_authorization(),
+                      "latest", run_id="r2")
+        assert {a["outcome"] for a in m2.partition_actions} == {"existing"}
+
+    def test_a_mid_list_insert_is_not_a_widen_and_still_fails_closed(self, prod, fake_glue, fake_s3):
+        """THE COUNTER-PIN, and the measured reason the five columns sit at the TAIL of the silver
+        frame rather than beside the other *_1000mt columns.
+
+        catalog.is_schema_widen admits ONLY a pure TRAILING append. Inserted mid-list, the same
+        five columns are NOT a widen (measured: tail -> True, position 9 -> False), the narrow
+        self-heal declines, and every partition fails closed -- which is correct behaviour, and is
+        exactly what would happen to the live family if the column order ever drifted. F013's
+        wrong-location protection is preserved by the same narrowness."""
+        mid = _LIVE_12_COLUMNS[:9] + _ADDITIVE_5_COLUMNS + _LIVE_12_COLUMNS[9:]
+        fake_glue.tables["silver_esr_compact"] = _table_input(mid)
+        _preexisting_partition(fake_glue, "corn_cbot", _LIVE_12_COLUMNS)
+        with pytest.raises(PublisherError):
+            _publish(prod, self._objs(prod), fake_glue, fake_s3, canonical_authorization(), "latest")
+        # and the partition descriptor is NOT half-updated.
+        got = fake_glue.partitions[("silver_esr_compact", ("corn_cbot",))]
+        assert [c["Name"] for c in got["StorageDescriptor"]["Columns"]] == [
+            c["Name"] for c in _LIVE_12_COLUMNS]
+
+    def test_a_wrong_location_is_still_refused_under_the_reconcile(self, prod, fake_glue, fake_s3):
+        """The self-heal must not have widened F013's blast radius: a partition registered at the
+        WRONG location fails closed even with reconcile_schema_widen=True, because is_schema_widen
+        requires an IDENTICAL normalized location."""
+        fake_glue.tables["silver_esr_compact"] = _table_input(
+            _LIVE_12_COLUMNS + _ADDITIVE_5_COLUMNS)
+        sd = dict(_table_input()["StorageDescriptor"])
+        sd["Columns"] = list(_LIVE_12_COLUMNS)
+        sd["Location"] = f"{CANON_ROOT}/commodity=corn_cbot/WRONG/"
+        fake_glue.partitions[("silver_esr_compact", ("corn_cbot",))] = {
+            "Values": ["corn_cbot"], "StorageDescriptor": sd,
+        }
+        with pytest.raises(PublisherError):
+            _publish(prod, self._objs(prod), fake_glue, fake_s3, canonical_authorization(), "latest")
+        assert fake_glue.partitions[("silver_esr_compact", ("corn_cbot",))][
+            "StorageDescriptor"]["Location"] == f"{CANON_ROOT}/commodity=corn_cbot/WRONG/"
+
+
+class TestMeasurementInstrument:
+    def test_esr_measure_cols_include_the_five(self, prod):
+        """_ESR_MEASURE_COLS is the ONLY per-(commodity, as_of) instrument that proves the
+        promotion landed: _null_metrics reports notna().mean() per column per staged object and
+        the publisher records it as row_key_null_metrics[<canonical key>] in the run manifest, so
+        a SHADOW run answers "which slugs and which vintages carry the new fields" with no Athena
+        query and no canonical write. Pinned so it cannot be silently trimmed back to three."""
+        assert set(prod._ESR_MEASURE_COLS) >= {
+            "accumulated_exports_1000mt", "current_my_net_sales_1000mt",
+            "current_my_total_commitment_1000mt", "next_my_outstanding_sales_1000mt",
+            "next_my_net_sales_1000mt",
+        }
+        assert set(prod._ESR_MEASURE_COLS) >= {
+            "weekly_exports_1000mt", "outstanding_sales_1000mt", "gross_new_sales_1000mt"}
+
+    def test_the_deprecated_column_stays_out_of_the_instrument(self, prod):
+        """changes_1000mt is DEPRECATED and 100% null by the source's own retirement; reporting it
+        as a producer floor metric is what this exclusion prevents."""
+        assert "changes_1000mt" not in prod._ESR_MEASURE_COLS
+
+    def test_null_metrics_separates_a_populated_vintage_from_an_empty_one(self, prod):
+        """The verdict sentence of the shadow run, measured on the producer's own instrument: an
+        as_of whose bronze predates the promotion reads 0.0 for all five, and a populated as_of
+        reads non-zero -- per (commodity, as_of) object, never averaged across the family. A slug
+        reading 0.0 on a POST-promotion vintage is a real finding about that commodity code and is
+        written down, not smoothed away."""
+        five = ["accumulated_exports_1000mt", "current_my_net_sales_1000mt",
+                "current_my_total_commitment_1000mt", "next_my_outstanding_sales_1000mt",
+                "next_my_net_sales_1000mt"]
+        frame = _silver_rows([("corn_cbot", 401)], ["20260806", "20260903"])
+        for col in five:
+            frame[col] = [float("nan")] * 2 + [1250.0] * 2  # old vintage NULL, new vintage populated
+        objs = prod.build_staged_objects(frame, prod.VINTAGE_ALL)
+        by_key = {o.canonical_key: o.null_metrics for o in objs}
+        old = by_key["silver/esr/commodity=corn_cbot/as_of=20260806/part-000.parquet"]
+        new = by_key["silver/esr/commodity=corn_cbot/as_of=20260903/part-000.parquet"]
+        for col in five:
+            assert old[col] == 0.0, col
+            assert new[col] == 1.0, col
+        # the no-regression check: an incumbent measure is untouched by the widen.
+        assert old["weekly_exports_1000mt"] == 1.0
+        assert new["weekly_exports_1000mt"] == 1.0
 
 
 # ===========================================================================

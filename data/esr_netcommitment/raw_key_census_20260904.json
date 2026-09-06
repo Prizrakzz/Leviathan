@@ -1,0 +1,620 @@
+{
+  "bucket": "leviathan-dev-shahem-001",
+  "fields": [
+    "accumulatedExports",
+    "currentMYNetSales",
+    "currentMYTotalCommitment",
+    "nextMYOutstandingSales",
+    "nextMYNetSales"
+  ],
+  "first_as_of_per_field": {
+    "accumulatedExports": "20260712",
+    "currentMYNetSales": "20260712",
+    "currentMYTotalCommitment": "20260712",
+    "nextMYNetSales": "20260712",
+    "nextMYOutstandingSales": "20260712"
+  },
+  "first_as_of_with_all_five": "20260712",
+  "first_as_of_with_any_field": "20260712",
+  "head_bytes": 16384,
+  "per_commodity_first_as_of": {
+    "1001": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "101": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "102": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "103": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "104": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "105": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "106": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "107": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1101": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1110": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1201": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1202": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1301": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1401": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1402": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1403": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1404": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1498": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1499": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1501": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1502": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1503": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1504": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1505": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1601": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1602": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1603": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1605": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1606": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1607": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1608": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1701": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "1702": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "201": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "301": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "401": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "601": {
+      "first_as_of_with_any": "20260820",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "701": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "801": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "901": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    },
+    "902": {
+      "first_as_of_with_any": "20260712",
+      "keys": [
+        "accumulatedExports",
+        "currentMYNetSales",
+        "currentMYTotalCommitment",
+        "nextMYOutstandingSales",
+        "nextMYNetSales"
+      ]
+    }
+  },
+  "per_vintage": {
+    "20260712": {
+      "objects_probed": 20,
+      "objects_readable": 20,
+      "objects_with_all_five": 20,
+      "objects_with_any": 20,
+      "per_key_present_count": {
+        "accumulatedExports": 20,
+        "currentMYNetSales": 20,
+        "currentMYTotalCommitment": 20,
+        "nextMYNetSales": 20,
+        "nextMYOutstandingSales": 20
+      },
+      "unreadable_notes": []
+    },
+    "20260717": {
+      "objects_probed": 20,
+      "objects_readable": 20,
+      "objects_with_all_five": 20,
+      "objects_with_any": 20,
+      "per_key_present_count": {
+        "accumulatedExports": 20,
+        "currentMYNetSales": 20,
+        "currentMYTotalCommitment": 20,
+        "nextMYNetSales": 20,
+        "nextMYOutstandingSales": 20
+      },
+      "unreadable_notes": []
+    },
+    "20260723": {
+      "objects_probed": 20,
+      "objects_readable": 20,
+      "objects_with_all_five": 20,
+      "objects_with_any": 20,
+      "per_key_present_count": {
+        "accumulatedExports": 20,
+        "currentMYNetSales": 20,
+        "currentMYTotalCommitment": 20,
+        "nextMYNetSales": 20,
+        "nextMYOutstandingSales": 20
+      },
+      "unreadable_notes": []
+    },
+    "20260724": {
+      "objects_probed": 20,
+      "objects_readable": 20,
+      "objects_with_all_five": 20,
+      "objects_with_any": 20,
+      "per_key_present_count": {
+        "accumulatedExports": 20,
+        "currentMYNetSales": 20,
+        "currentMYTotalCommitment": 20,
+        "nextMYNetSales": 20,
+        "nextMYOutstandingSales": 20
+      },
+      "unreadable_notes": []
+    },
+    "20260730": {
+      "objects_probed": 20,
+      "objects_readable": 20,
+      "objects_with_all_five": 20,
+      "objects_with_any": 20,
+      "per_key_present_count": {
+        "accumulatedExports": 20,
+        "currentMYNetSales": 20,
+        "currentMYTotalCommitment": 20,
+        "nextMYNetSales": 20,
+        "nextMYOutstandingSales": 20
+      },
+      "unreadable_notes": []
+    },
+    "20260806": {
+      "objects_probed": 20,
+      "objects_readable": 20,
+      "objects_with_all_five": 20,
+      "objects_with_any": 20,
+      "per_key_present_count": {
+        "accumulatedExports": 20,
+        "currentMYNetSales": 20,
+        "currentMYTotalCommitment": 20,
+        "nextMYNetSales": 20,
+        "nextMYOutstandingSales": 20
+      },
+      "unreadable_notes": []
+    },
+    "20260813": {
+      "objects_probed": 20,
+      "objects_readable": 20,
+      "objects_with_all_five": 20,
+      "objects_with_any": 20,
+      "per_key_present_count": {
+        "accumulatedExports": 20,
+        "currentMYNetSales": 20,
+        "currentMYTotalCommitment": 20,
+        "nextMYNetSales": 20,
+        "nextMYOutstandingSales": 20
+      },
+      "unreadable_notes": []
+    },
+    "20260816": {
+      "objects_probed": 20,
+      "objects_readable": 20,
+      "objects_with_all_five": 20,
+      "objects_with_any": 20,
+      "per_key_present_count": {
+        "accumulatedExports": 20,
+        "currentMYNetSales": 20,
+        "currentMYTotalCommitment": 20,
+        "nextMYNetSales": 20,
+        "nextMYOutstandingSales": 20
+      },
+      "unreadable_notes": []
+    },
+    "20260820": {
+      "objects_probed": 79,
+      "objects_readable": 79,
+      "objects_with_all_five": 79,
+      "objects_with_any": 79,
+      "per_key_present_count": {
+        "accumulatedExports": 79,
+        "currentMYNetSales": 79,
+        "currentMYTotalCommitment": 79,
+        "nextMYNetSales": 79,
+        "nextMYOutstandingSales": 79
+      },
+      "unreadable_notes": []
+    },
+    "20260827": {
+      "objects_probed": 79,
+      "objects_readable": 79,
+      "objects_with_all_five": 79,
+      "objects_with_any": 79,
+      "per_key_present_count": {
+        "accumulatedExports": 79,
+        "currentMYNetSales": 79,
+        "currentMYTotalCommitment": 79,
+        "nextMYNetSales": 79,
+        "nextMYOutstandingSales": 79
+      },
+      "unreadable_notes": []
+    },
+    "20260903": {
+      "objects_probed": 64,
+      "objects_readable": 64,
+      "objects_with_all_five": 64,
+      "objects_with_any": 64,
+      "per_key_present_count": {
+        "accumulatedExports": 64,
+        "currentMYNetSales": 64,
+        "currentMYTotalCommitment": 64,
+        "nextMYNetSales": 64,
+        "nextMYOutstandingSales": 64
+      },
+      "unreadable_notes": []
+    },
+    "20260904": {
+      "objects_probed": 64,
+      "objects_readable": 64,
+      "objects_with_all_five": 64,
+      "objects_with_any": 64,
+      "per_key_present_count": {
+        "accumulatedExports": 64,
+        "currentMYNetSales": 64,
+        "currentMYTotalCommitment": 64,
+        "nextMYNetSales": 64,
+        "nextMYOutstandingSales": 64
+      },
+      "unreadable_notes": []
+    }
+  },
+  "raw_objects_dated": 446,
+  "raw_objects_total": 1901,
+  "raw_objects_undated": 1455,
+  "raw_prefix": "raw/production/source=usda_esr/",
+  "vintages": [
+    "20260712",
+    "20260717",
+    "20260723",
+    "20260724",
+    "20260730",
+    "20260806",
+    "20260813",
+    "20260816",
+    "20260820",
+    "20260827",
+    "20260903",
+    "20260904"
+  ]
+}

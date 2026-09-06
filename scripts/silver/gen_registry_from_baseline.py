@@ -406,10 +406,22 @@ EXTRA_NOTES = {
         "USDA GROUPINGS (all_wheat=107, grain_sorghum=701, white_wheat=104) that are NOT contract "
         "slugs -> the esr_exports cascade leg fires only for the 7 slug commodities (corn_cbot, "
         "soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot, hard_red_winter_wheat_kcbt, "
-        "soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex). Target additive net-commitment "
+        "soft_red_winter_wheat_cbot, hard_red_spring_wheat_mgex). The five additive net-commitment "
         "columns (accumulated_exports_1000mt, current_my_net_sales_1000mt, "
         "current_my_total_commitment_1000mt, next_my_outstanding_sales_1000mt, "
-        "next_my_net_sales_1000mt) are specified for BF-W2 (see reports/silver_readiness/R2_esr/)."
+        "next_my_net_sales_1000mt) stay SPECIFIED-NOT-APPLIED on THIS surface (2026-09-04) while "
+        "silver_esr_compact takes them: this surface has no writer on any schedule (see the "
+        "vintage_waiver), so the columns would be all-NULL here forever -- measured on the census "
+        "as nonnull_fraction=0.000 all_nan=True, the floor-INDEPENDENT rule that cost this family "
+        "its 2026-08-27 and 2026-09-03 promotes on changes_1000mt -- and an ALTER here would strand "
+        "370 registered partition StorageDescriptors with no producer to self-heal them. Aligning "
+        "it later means: run jobs/ingest/backfill_silver_usda_esr.py on the new image ONCE PER "
+        "BRONZE VINTAGE, ALWAYS WITH AN EXPLICIT --as-of-date (that one argument is BOTH the bronze "
+        "partition read and the silver partition written; it REFUSES without one since 2026-09-04, "
+        "because its old default stamped the RUN's date onto every partition it wrote -- THE "
+        "VINTAGE LAW, measured: 8,474 of 8,920 ESR bronze objects were minted that way), THEN apply "
+        "the silver_esr half of sql/athena/migrations/silver/silver_esr_f030_additive.sql, THEN "
+        "refresh this table's R0 snapshot. See reports/silver_readiness/R2_esr/."
     ),
     "silver_esr_compact": (
         " SILVER-F030/F031 ESR ADR (frozen): changes_1000mt DEPRECATED + nullable (INV-4, never 0.0). "
@@ -417,7 +429,20 @@ EXTRA_NOTES = {
         "as_of_date REGISTERED partition dimension for per-week vintages (canonical data/catalog "
         "migration is the gated BF-W2 window -- never re-projection). See "
         "reports/silver_readiness/R2_esr/F031_option_b_path.json and the parity proof under the same "
-        "prefix."
+        "prefix. SILVER-F030 BF-W2 additive five (2026-09-04): both ESR transforms now EMIT "
+        "accumulated_exports_1000mt, current_my_net_sales_1000mt, "
+        "current_my_total_commitment_1000mt, next_my_outstanding_sales_1000mt and "
+        "next_my_net_sales_1000mt (FAS value / 1000, float64, nullable, unconditionally, at the "
+        "TAIL after `source` so catalog.is_schema_widen can self-heal the registered partition "
+        "descriptors). They are NULL for every vintage whose BRONZE predates the promotion (bronze "
+        "is incremental -- only a targeted re-bronze or a new weekly fire populates one), and a "
+        "NULL is therefore always a BRONZE-vintage fact, never a source fact: measured 2026-09-04 "
+        "over all 446 dated raw objects, every one of the 12 as_of vintages held in raw "
+        "(20260712..20260904) carries all five API keys. They "
+        "are staged as PHYSICAL-ONLY here until the gated ALTER TABLE ADD COLUMNS lands: the "
+        "registry never leads live Glue. They stay OUT of value_columns until the numbers card "
+        "declares them, which is the same decision -- do not govern a column the source has not "
+        "been writing long enough to measure."
     ),
     "silver_mpoc_stock_comparison": (
         " SILVER-F055: producer restored on the shared F052 adapter. The source-as-of provenance is "
@@ -1329,6 +1354,59 @@ CURATION_OVERRIDES: dict = {
                        "contract's serving_table); this surface is read by nothing."),
             "approved": "2026-08-16 D-SG G1-6 (user gate)",
         },
+    },
+    # -- SILVER-F030 BF-W2 ADDITIVE FIVE (2026-09-04). The FAS allCountries payload replaced the
+    # dead `changes` field with five net-commitment fields (accumulatedExports, currentMYNetSales,
+    # currentMYTotalCommitment, nextMYOutstandingSales, nextMYNetSales) -- the exact set the bronze
+    # schema-drift WARN has been naming on every partition. Both transforms now emit them (/1000,
+    # float64, nullable, TAIL of the column list); this entry is how they enter the contract,
+    # because the YAMLs are generated and hand-editing one is undone by the next run.
+    #
+    # WHEN THE SOURCE STARTED PUBLISHING THEM IS MEASURED, NOT ASSUMED (2026-09-04,
+    # jobs/utils/esr_netcommitment_raw_census.py over ALL 446 dated raw objects): all 12 as_of
+    # vintages raw holds, 20260712 through 20260904, carry all five keys -- 446/446, no
+    # per-commodity tail. There is NO pre-publication vintage in raw, so the re-bronze bound is
+    # 20260712 and a NULL in silver is always a bronze-vintage fact. The earlier "started in
+    # August 2026" reading came from the window in which `changes` went dead and would have
+    # excluded six vintages whose raw does carry the five.
+    #
+    # STAGED HIDDEN, NOT REGISTERED -- and that is a statement about the LIVE CATALOG, not a
+    # hedge. additive_columns_registered means "the Glue ADD COLUMNS has been applied"; it resolves
+    # float64 -> double, puts the five in the rendered DDL, and makes catalog_columns 17. Live
+    # leviathan_dev.silver_esr_compact still has 12. Declaring 17 before the ALTER would put the
+    # registry AHEAD of live Glue, which is precisely what
+    # test_ddl_generation.test_generated_matches_live_glue_for_every_table refuses (measured: the
+    # registered variant reds that test with a 5-column add-only drift row on silver_esr_compact).
+    # Hidden is the estate's own name for this state -- "producer-emitted columns NOT yet in the
+    # live catalog" -- with two precedents in this file: the WASDE value_low/value_high pair
+    # standing hidden right now, and SILVER-F059's week_ending_date, which was staged hidden and
+    # then promoted in the SAME change as its gated ALTER + R0 snapshot refresh.
+    #
+    # THE FLIP (rollout step 5, one commit): apply the silver_esr_compact half of
+    # sql/athena/migrations/silver/silver_esr_f030_additive.sql under lease, refresh
+    # reports/silver_readiness/20260712_p65impl/tables/silver_esr_compact.json from the post-ALTER
+    # live table, rename `additive_columns_hidden` to `additive_columns` below, add
+    # "additive_columns_registered": True, and regenerate. Order matters twice over: the ALTER must
+    # come AFTER the producer image carrying reconcile_schema_widen=True is live on
+    # esr-bronze-to-silver AND silver-publisher-runner, or the next canonical promote fails closed
+    # for the whole family on the 12-vs-17 partition-SD diff.
+    #
+    # value_columns are deliberately NOT overridden. build_contract derives them from the numbers
+    # CARD's metric keys, so while configs/graphrag/numbers/tables.yaml#silver_esr omits the five
+    # they are ungoverned automatically -- no suppression list, nothing to remember to undo. That
+    # is load-bearing: at the 0.5 floor one populated vintage of three sampled reads 0.333
+    # (nonnull_below_floor) and none reads all_nan, the floor-INDEPENDENT rule that cost this
+    # family its 2026-08-27 and 2026-09-03 promotes. Adding a metric to the card AUTOMATICALLY
+    # widens value_columns, so the card flip IS the governance promotion and must wait for the
+    # census to read >= 0.5 per commodity (measured 0.667 with two of three sampled populated).
+    "silver_esr_compact": {
+        "additive_columns_hidden": [
+            ("accumulated_exports_1000mt", "float64"),
+            ("current_my_net_sales_1000mt", "float64"),
+            ("current_my_total_commitment_1000mt", "float64"),
+            ("next_my_outstanding_sales_1000mt", "float64"),
+            ("next_my_net_sales_1000mt", "float64"),
+        ],
     },
     # ── Wave-3 conab canary forensics (2026-07-17): the production_revision_thousand_bags min_nonnull
     # override is RETIRED by WIRING WAVE-1 (2026-07-23). Wiring silver_conab_coffee into the numbers

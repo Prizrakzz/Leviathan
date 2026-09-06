@@ -6,11 +6,22 @@ writes Parquet to the silver S3 key.  Idempotent via --skip-existing.
 One-to-one mapping: each bronze (commodity_code, market_year, as_of_date)
 partition produces exactly one silver partition at the same coordinates.
 
+THE VINTAGE LAW (lane C re-review NEW-2, 2026-09-04)
+----------------------------------------------------
+``--as-of-date`` is REQUIRED and has NO default.  It is the same argument twice:
+the bronze partition this job READS and the silver partition it WRITES.  Until
+2026-09-04 it defaulted to ``datetime.date.today()``, so an unflagged run stamped
+every partition it wrote with the RUN's date -- the fabricated point-in-time that
+``jobs/batch/esr_task.py`` was fixed to refuse (MEASURED: 8,474 of 8,920 ESR
+bronze objects were minted that way).  Run it once per bronze vintage, naming the
+vintage; ``jobs/utils/esr_netcommitment_raw_census.py`` lists which vintages
+exist.  ``--end-year``'s clock default is a YEAR RANGE, never a vintage.
+
 Usage:
-    python jobs/ingest/backfill_silver_usda_esr.py
-    python jobs/ingest/backfill_silver_usda_esr.py --skip-existing
-    python jobs/ingest/backfill_silver_usda_esr.py --commodity-codes 401 --start-year 2024 --end-year 2024
-    python jobs/ingest/backfill_silver_usda_esr.py --dry-run
+    python jobs/ingest/backfill_silver_usda_esr.py --as-of-date 20260712
+    python jobs/ingest/backfill_silver_usda_esr.py --as-of-date 20260712 --skip-existing
+    python jobs/ingest/backfill_silver_usda_esr.py --as-of-date 20260712 --commodity-codes 401 --start-year 2024 --end-year 2024
+    python jobs/ingest/backfill_silver_usda_esr.py --as-of-date 20260712 --dry-run
 """
 from __future__ import annotations
 
@@ -59,8 +70,9 @@ def parse_args() -> argparse.Namespace:
         "--as-of-date",
         default=None,
         help=(
-            "Snapshot date of the bronze files to read (YYYYMMDD). "
-            "Defaults to today (matches the backfill_bronze default)."
+            "REQUIRED. Snapshot date (YYYYMMDD) of the bronze partition to read AND of the "
+            "silver partition written from it. There is no default: see THE VINTAGE LAW in "
+            "the module docstring."
         ),
     )
     p.add_argument(
@@ -70,6 +82,35 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--dry-run", action="store_true")
     return p.parse_args()
+
+
+def resolve_as_of_date(as_of_date: str | None) -> str:
+    """THE VINTAGE LAW at this writer's only clock seam. Raises ``ValueError`` on a refusal.
+
+    This job reads ``bronze_esr_key(code, year, as_of)`` and writes
+    ``silver_esr_key(code, year, as_of)`` at the SAME coordinates, so whatever this
+    returns IS the silver partition's declared point-in-time.  A ``today`` default
+    therefore does not merely label a run -- it mints a vintage that never existed,
+    and downstream it is indistinguishable from a real one.  So there is no
+    default: four resolution branches in ``jobs/batch/esr_task.py`` and exactly one
+    here, the operator's own declaration.
+    """
+    if as_of_date is None or not str(as_of_date).strip():
+        raise ValueError(
+            "--as-of-date is REQUIRED and has no default. It is BOTH the bronze partition this "
+            "run reads and the silver partition it writes, so a defaulted 'today' would stamp a "
+            "point-in-time that never existed (THE VINTAGE LAW; measured 2026-09-04, 8,474 of "
+            "8,920 ESR bronze objects were minted that way). Name the bronze vintage, one per "
+            "run -- e.g. --as-of-date 20260712. Which vintages exist is listed by "
+            "jobs/utils/esr_netcommitment_raw_census.py."
+        )
+    value = str(as_of_date).strip()
+    if not (len(value) == 8 and value.isdigit()):
+        raise ValueError(
+            f"--as-of-date must be YYYYMMDD (8 digits), got {as_of_date!r}. Refusing to run: an "
+            "unparseable vintage reads no bronze and looks exactly like a clean no-op."
+        )
+    return value
 
 
 def _s3_key_exists(s3, bucket: str, key: str) -> bool:
@@ -90,7 +131,11 @@ def main() -> None:
     args = parse_args()
     s3 = boto3.client("s3", region_name=AWS_REGION)
 
-    as_of_date = args.as_of_date or datetime.date.today().strftime("%Y%m%d")
+    try:
+        as_of_date = resolve_as_of_date(args.as_of_date)
+    except ValueError as exc:
+        logger.error("REFUSING: %s", exc)
+        sys.exit(2)
 
     pairs = [
         (code, year)

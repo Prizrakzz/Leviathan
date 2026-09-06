@@ -3,6 +3,7 @@
 
     python scripts/ops/make_worker_context_tar.py --out <path>.tar.gz [--ref HEAD]
                                                    [--allow-untracked] [--dry-run]
+                                                   [--allow-empty-overlay]
 
 WHY THIS EXISTS. The scratchpad ``make_context_tar.py`` that built the 2026-09-01/02 embedder
 contexts tarred the WORKING TREE as-is, and the kaniko build then stamped the image with
@@ -32,6 +33,14 @@ it. So this script:
      configs/graphrag (numbers/tables.yaml, entity_vocabulary.yaml, ...) come from the archive.
      The overlay is listed and fingerprinted (sha256 over sorted relpath+bytes) in the run's
      summary so a build can be attributed to a config vintage.
+  4. REFUSES a ZERO overlay (2026-09-04, lane C verify-2 V2-NEW-2). ``git worktree add``
+     checks out TRACKED files only, so a BARE worktree resolves this subtree to 0 files and
+     the image bakes ZERO gitignored configs -- the estate's recorded 'worktree builds bake
+     ZERO gitignored configs' incident, onto a gate 26 rendered families share, and the only
+     content fence the in-VPC smoke carries is the configs/silver/tables fingerprint, which
+     cannot see a missing configs/graphrag. Until this refusal the count was a printed number
+     with no floor and no branch. ``--allow-empty-overlay`` admits it deliberately (a repo
+     that genuinely has no gitignored graphrag subtree); nothing else does.
 
 The tar's member layout is what ``docker/leviathan_worker/Dockerfile`` expects at the context
 root: ``pyproject.toml``, ``src/``, ``jobs/``, ``configs/``, ``sql/``, ``docker/`` (+ ``scripts/``).
@@ -133,9 +142,9 @@ def archive_members(repo: Path, ref: str) -> tuple[bytes, list[str]]:
 
 
 def build(repo: Path, out: Path, *, ref: str = "HEAD", allow_untracked: bool = False,
-          dry_run: bool = False) -> dict:
-    """The whole recipe. Returns the summary dict (also printed). Raises SystemExit(2) on a dirty
-    COPY set."""
+          dry_run: bool = False, allow_empty_overlay: bool = False) -> dict:
+    """The whole recipe. Returns the summary dict (also printed). Raises SystemExit on a dirty
+    COPY set, and on a ZERO overlay unless ``allow_empty_overlay``."""
     tracked = content_changes(repo)
     porcelain_tracked, untracked = split_dirty(porcelain(repo))
     if tracked:
@@ -160,6 +169,18 @@ def build(repo: Path, out: Path, *, ref: str = "HEAD", allow_untracked: bool = F
     blob, tracked_members = archive_members(repo, ref)
     tracked_set = set(tracked_members)
     overlay = overlay_files(repo)
+    if not overlay and not allow_empty_overlay:
+        raise SystemExit(
+            "REFUSING: overlay_files: 0 -- the gitignored configs/graphrag overlay resolved to "
+            f"0 files under --repo {repo}. "
+            "`git ls-files --others --ignored --exclude-standard -- configs/graphrag` is EMPTY "
+            "there, which is exactly what a BARE `git worktree add` looks like: a checkout "
+            "materialises TRACKED files only. Building from it bakes ZERO gitignored configs "
+            "(141 files / 4,751,532 bytes in the main tree on 2026-09-04, 69 of them causal "
+            "DAGs) into an image that goes onto a gate 26 rendered families share, and the "
+            "in-VPC smoke's configs/silver/tables fingerprint cannot see the absence. COPY the "
+            "gitignored subtree from the MAIN tree into --repo first, then re-run. If a zero "
+            "overlay is genuinely intended, say so with --allow-empty-overlay.")
     clash = sorted(set(overlay) & tracked_set)
     if clash:
         raise SystemExit("REFUSING: overlay files collide with tracked archive members: "
@@ -222,11 +243,15 @@ def main(argv=None) -> int:
     ap.add_argument("--allow-untracked", action="store_true",
                     help="admit UNTRACKED files in the COPY set (they never ride; the flag only "
                          "records that the operator read the list)")
+    ap.add_argument("--allow-empty-overlay", action="store_true",
+                    help="admit a ZERO configs/graphrag overlay. Without it a 0 REFUSES: that "
+                         "is the bare-worktree shape, and the image would bake no gitignored "
+                         "configs at all")
     ap.add_argument("--dry-run", action="store_true", help="print the summary, write nothing")
     args = ap.parse_args(argv)
     repo = Path(args.repo).resolve() if args.repo else Path(__file__).resolve().parents[2]
     build(repo, Path(args.out), ref=args.ref, allow_untracked=args.allow_untracked,
-          dry_run=args.dry_run)
+          dry_run=args.dry_run, allow_empty_overlay=args.allow_empty_overlay)
     return 0
 
 

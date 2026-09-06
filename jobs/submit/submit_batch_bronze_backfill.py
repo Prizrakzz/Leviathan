@@ -92,7 +92,15 @@ JOBS: list[dict] = [
         "job_name":       "bronze-backfill-usda-esr",
         "job_def_suffix": "usda-esr-bronze",
         "script":         "esr_task.py",
-        "extra_args":     [],
+        # --include-backfill is REQUIRED here from 2026-09-04 (C-F1, the ESR vintage law): an
+        # undated raw key (raw/.../market_year=Y/all_countries.json, no as_of= segment) is out of
+        # scope for every run unless the operator admits it, and its bronze as_of is then taken
+        # from the raw_meta sidecar's download_timestamp -- the day the bytes were actually
+        # fetched -- never from the run date. Without this flag a BACKFILL submission would
+        # correctly select nothing. NOTE: --force-overwrite now also requires --as-of-min, so a
+        # forced ESR backfill must add "--as-of-min <YYYYMMDD> --backfill-as-of <YYYYMMDD>"
+        # explicitly; the refusal is the point.
+        "extra_args":     ["--include-backfill"],
     },
 ]
 
