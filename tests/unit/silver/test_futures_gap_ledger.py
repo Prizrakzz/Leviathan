@@ -132,3 +132,74 @@ class TestTheLedgerFailsClosed:
 
     def test_an_empty_ledger_is_legal(self, tmp_path):
         assert TASK.load_declared_gaps(self._write(tmp_path, "# nothing declared\n")) == {}
+
+
+# ==================================================================================================
+# OI-GAP L3 (2026-09-07) -- THE SECOND LEDGER, and why it is a second FILE.
+#
+# `futures_gaps.yaml` excuses a missing SESSION against the per-day row floor ("the venue published
+# nothing that day"). `futures_oi_gaps.yaml` excuses a missing COLUMN inside a session that IS
+# present, against the OI-coverage count ("the venue published the session and the roll metric never
+# arrived"). Two fences, two ledgers: one file excusing both is how a ledger becomes a place to hide
+# a broken leg, which is the rule futures_gaps.yaml's own header states about itself.
+#
+# What is pinned here is that the two files share ONE parser (so their five required fields and
+# their fail-closed reading can never drift apart) and NOTHING else -- neither can excuse the
+# other's fence.
+# ==================================================================================================
+_OI_GOOD = ("- slug: corn_cbot\n"
+            "  day: \"2025-12-31\"\n"
+            "  first_observed: \"2026-09-07\"\n"
+            "  evidence: fence_statistics_to_unit_window drops the next-day OI into the 2026 unit\n"
+            "  declared_by: OI-GAP L3\n")
+
+
+def _write_oi(tmp_path: Path, body: str) -> Path:
+    p = tmp_path / "futures_oi_gaps.yaml"
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+class TestTheOIGapLedgerFailsClosedTheSameWay:
+    def test_a_well_formed_row_loads(self, tmp_path):
+        assert TASK.load_declared_oi_gaps(_write_oi(tmp_path, _OI_GOOD)) == {
+            "2025-12-31": frozenset({"corn_cbot"})}
+
+    def test_an_absent_file_means_nothing_declared(self, tmp_path):
+        assert TASK.load_declared_oi_gaps(tmp_path / "nope.yaml") == {}
+
+    def test_an_empty_ledger_is_legal_and_is_what_ships(self, tmp_path):
+        assert TASK.load_declared_oi_gaps(_write_oi(tmp_path, "[]\n")) == {}
+        # EMPTY BY DESIGN AT LANDING: a declaration is written after the instrument reports a
+        # session, never before it. The committed file must therefore still be empty.
+        assert TASK.load_declared_oi_gaps() == {}
+
+    @pytest.mark.parametrize("body, why", [
+        (_OI_GOOD.replace("  declared_by: OI-GAP L3\n", ""), "missing field"),
+        (_OI_GOOD.replace("  evidence: fence_statistics_to_unit_window drops the next-day OI "
+                          "into the 2026 unit\n", "  evidence: ''\n"), "no evidence"),
+        (_OI_GOOD.replace("corn_cbot", "not_a_slug"), "unknown slug"),
+        (_OI_GOOD.replace('day: "2025-12-31"', 'day: "new year"'), "unparseable date"),
+        (_OI_GOOD + _OI_GOOD, "the same gap declared twice"),
+        ("slug: corn_cbot\n", "not a list"),
+    ])
+    def test_a_malformed_ledger_is_a_hard_error(self, tmp_path, body, why):
+        with pytest.raises(ValueError):
+            TASK.load_declared_oi_gaps(_write_oi(tmp_path, body))
+
+    def test_the_two_ledgers_share_one_parser_and_nothing_else(self):
+        """ONE contract, two files. A second copy of the five-field reading would let one file's
+        rules drift from the other's silently -- the F-L class the estate names everywhere else."""
+        import inspect
+        assert "_load_gap_ledger" in inspect.getsource(TASK.load_declared_gaps)
+        assert "_load_gap_ledger" in inspect.getsource(TASK.load_declared_oi_gaps)
+        assert TASK.FUTURES_OI_GAPS_PATH != TASK.FUTURES_GAPS_PATH
+        assert TASK.FUTURES_OI_GAPS_PATH.name == "futures_oi_gaps.yaml"
+
+    def test_an_oi_gap_row_never_excuses_the_ROW_FLOOR(self, tmp_path):
+        """The separation, pinned in the direction that matters: a session declared OI-gapped is
+        still a session the row floor judges. The OI ledger speaks only to the coverage count."""
+        df = _euronext_frame({_GAP_DAY: _WITHOUT_MAIZE})
+        oi = TASK.load_declared_oi_gaps(_write_oi(tmp_path, _OI_GOOD))
+        bad = TASK.assert_row_floor(df, EURONEXT, mode="incremental", declared_gaps=oi)
+        assert len(bad) == 1 and bad[0].startswith(_GAP_DAY)

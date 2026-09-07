@@ -354,3 +354,319 @@ class TestToolSchema:
         assert "contract_month" in Q.FRONT_EXPIRY_DECLINE
         src = inspect.getsource(A.answer_numbers)
         assert "FRONT_EXPIRY_DECLINE" in src and "FRONT_EXPIRY_AGG" in src
+
+
+# ==================================================================================================
+# OI-GAP REMEDIES (2026-09-07) -- R0 / R1 / R2, each behind its own flag, all DEFAULT OFF.
+#
+# THE DEFECT, IN ONE PARAGRAPH. `front_month_inputs_present` refuses a session whose roll metric is
+# missing on ANY candidate row. On the GLBX tape that refusal fires in two distinct shapes and each
+# arm below is one remedy for one shape:
+#   PARTIAL   -- the expiring month carries no open interest on its LAST trading day (a market fact,
+#                measured on all five partial-OI sessions since 2025, every one an expiry Friday),
+#                and palm's 61-month listing strip carries open interest on only its nearest ~14
+#                months. The metric is absent on SOME rows; the rule can still be decided by a real
+#                print, because the -1 fill sorts BELOW every real one.
+#   ALL-BLANK -- the whole session's open interest has not arrived yet (CME publishes stat_type 9 the
+#                morning AFTER the session, so the newest session of every payload lands with settle
+#                and NULL open interest and heals on the next fire). No row carries the primary
+#                metric at all, and the fallback metric is the only remedy.
+# The owner's live turn (as-of 2026-09-07, soybeans, "the record carries no front-month soybean
+# settlement for this as-of at all") is the ALL-BLANK shape on the 2026-09-04 session.
+# ==================================================================================================
+def _sess(dt: str, shape):
+    """The real session shapes, as build_sql's aliases render them."""
+    return [_row(cm, v, dt=dt, oi=oi, vol=vol) for cm, v, oi, vol in shape]
+
+
+# The REAL 2026-09-04 corn session's SHAPE, on 12 of its 13 expiries: measured 13 rows, 13 settles,
+# open_interest NULL on all 13, volume present on all 13. The 13th expiry is omitted because it
+# changes nothing this pin asserts -- the defect is that the primary metric is absent on the WHOLE
+# session and the fallback metric is present on the whole session, and both hold at 12 as at 13.
+# Below it, the REAL clean 2026-09-03 session (12 rows, 12 settles, neither metric missing).
+CORN_0904 = [("2026-09", "512.00", None, "75"), ("2026-12", "536.75", None, "161637"),
+             ("2027-03", "552.25", None, "35213"), ("2027-05", "559.75", None, "17072"),
+             ("2027-07", "562.00", None, "12751"), ("2027-09", "534.75", None, "2744"),
+             ("2027-12", "536.25", None, "5737"), ("2028-03", "546.75", None, "466"),
+             ("2028-05", "552.00", None, "144"), ("2028-07", "554.00", None, "56"),
+             ("2028-09", "515.50", None, "5"), ("2028-12", "514.25", None, "120")]
+CORN_0903 = [("2026-09", "515.25", "1461", "186"), ("2026-12", "540.75", "992940", "289479"),
+             ("2027-03", "556.00", "369270", "53427"), ("2027-05", "563.25", "137028", "20325"),
+             ("2027-07", "566.00", "132489", "17424"), ("2027-09", "537.25", "54032", "4293"),
+             ("2027-12", "538.75", "94135", "9940"), ("2028-03", "548.50", "5278", "305"),
+             ("2028-05", "553.50", "1177", "163"), ("2028-07", "555.50", "1781", "46"),
+             ("2028-09", "515.75", "412", "3"), ("2028-12", "514.25", "2338", "57")]
+# the REAL partial shape (2026-03-13 corn): the expiring March contract carries NO open interest on
+# its last trading day, every other expiry does.
+CORN_0313 = [("2026-03", "452.50", None, "85"), ("2026-05", "462.00", "410000", "51000"),
+             ("2026-07", "470.25", "180000", "22000"), ("2026-12", "489.00", "260000", "31000")]
+
+
+@pytest.fixture()
+def flags(monkeypatch):
+    def _set(**kw):
+        for name, var in (("partial", Q._FE_PARTIAL_FLAG), ("fallback", Q._FE_FALLBACK_FLAG),
+                          ("walkback", Q._FE_WALKBACK_FLAG), ("metrics", Q._FE_METRICS_FLAG)):
+            monkeypatch.setenv(var, "on" if kw.get(name) else "off")
+    return _set
+
+
+class TestOIGapRed:
+    def test_red1_the_owners_turn_the_all_blank_session(self, flags):
+        """RED-1. as-of 2026-09-07, the real 2026-09-04 session. Dark at HEAD; served under R1, on
+        the NEWEST session, naming the fallback that ran."""
+        rows = _sess("2026-09-04", CORN_0904)
+        sp = _spec(asof="2026-09-07")
+        flags()
+        assert Q.select_front_expiry(rows, sp, _ts()) == []          # HEAD: dark
+        flags(fallback=True)
+        out = Q.select_front_expiry(rows, sp, _ts())
+        assert len(out) == 1
+        r = out[0]
+        assert r["front_expiry_session"] == "2026-09-04"
+        assert r["sessions_withheld"] == 0
+        assert r["roll_method"] == FR.METHOD_VOLUME
+        assert r["roll_method_fallback"] == "open_interest->volume"
+        assert r["roll_rule_version"] == FR.ROLL_RULE_VERSION
+        assert r["contract_month"] == "2026-12"      # the volume leader among eligible expiries
+        assert r["value"] == "536.75"
+        assert "roll_inputs_partial" not in r        # an ALL-blank frame is not a partial one
+
+    def test_red1_soybeans_the_owner_named_that_board(self, flags):
+        flags(fallback=True)
+        out = Q.select_front_expiry(_sess("2026-09-04", CORN_0904),
+                                    _spec(asof="2026-09-07", commodity="soybeans_cbot"), _ts())
+        assert len(out) == 1 and out[0]["roll_method_fallback"] == "open_interest->volume"
+
+    def test_red2_the_partial_frame_is_decided_by_a_real_print_not_by_a_fallback(self, flags):
+        """RED-2, CORRECTED BY MEASUREMENT. The first cut of this design walked BACK a session here.
+        It does not need to: the row missing open interest is the EXPIRING month on its last trading
+        day, and -1 sorts below every real print, so that row cannot win. R0 serves the SAME session
+        under the PRIMARY metric, at zero staleness, and STAMPS the partial condition on the row."""
+        rows = _sess("2026-03-13", CORN_0313)
+        sp = _spec(asof="2026-03-16")
+        flags()
+        assert Q.select_front_expiry(rows, sp, _ts()) == []          # HEAD: dark
+        flags(fallback=True)
+        assert Q.select_front_expiry(rows, sp, _ts()) == []          # R1 alone still refuses it
+        flags(partial=True)
+        out = Q.select_front_expiry(rows, sp, _ts())
+        assert len(out) == 1
+        r = out[0]
+        assert r["roll_method"] == FR.METHOD_OPEN_INTEREST           # the PRIMARY decided it
+        assert "roll_method_fallback" not in r                       # never a fallback when decided
+        assert r["roll_inputs_partial"] == "1 of 4 eligible candidates carried no open_interest"
+        assert r["sessions_withheld"] == 0 and r["front_expiry_session"] == "2026-03-13"
+        assert r["contract_month"] == "2026-05"      # the OI leader, not the nearest month
+
+    def test_the_selection_collapsing_to_the_tie_break_is_still_refused(self, flags):
+        """The failure `front_month_inputs_present` exists to catch is UNTOUCHED: when NO eligible
+        candidate carries either metric, the -1 fill would let the nearest-month tie-break decide --
+        `legacy_lane_front` wearing `front_month_v2`'s name -- and every arm refuses it."""
+        rows = _sess("2026-09-04", [(cm, v, None, None) for cm, v, _, _ in CORN_0904])
+        sp = _spec(asof="2026-09-07")
+        for kw in ({}, {"partial": True}, {"fallback": True},
+                   {"partial": True, "fallback": True, "walkback": True}):
+            flags(**kw)
+            assert Q.select_front_expiry(rows, sp, _ts()) == [], kw
+
+
+class TestOIGapWalkBack:
+    def test_r2_steps_back_one_session_and_stamps_what_it_withheld(self, flags):
+        """The only shape R0 and R1 both refuse: a session carrying NEITHER metric. Measured
+        population = palm, 5 as-ofs since 2025-01-01, always depth 1."""
+        rows = (_sess("2026-09-04", [(cm, v, None, None) for cm, v, _, _ in CORN_0904])
+                + _sess("2026-09-03", CORN_0903))
+        sp = _spec(asof="2026-09-07")
+        flags(partial=True, fallback=True)
+        assert Q.select_front_expiry(rows, sp, _ts()) == []          # no walk: the newest is dead
+        flags(partial=True, fallback=True, walkback=True)
+        out = Q.select_front_expiry(rows, sp, _ts())
+        assert len(out) == 1
+        r = out[0]
+        assert r["front_expiry_session"] == "2026-09-03"
+        assert r["sessions_withheld"] == 1
+        assert r["session_age_days"] == 3            # cutoff 2026-09-06 minus the session read
+        assert r["value"] == "540.75" and r["contract_month"] == "2026-12"
+        assert r["roll_method"] == FR.METHOD_OPEN_INTEREST
+
+    def test_the_row_served_is_the_row_of_the_session_the_rule_actually_ran_on(self, flags):
+        """THE LOOKUP IS KEYED ON (SESSION, MONTH), NEVER ON THE MONTH ALONE. The fetch's ORDER BY is
+        ASCENDING on the session date, so a month-keyed lookup over a widened rank window holds the
+        OLDEST fetched session's row -- and would serve its settle under the NEWEST session's stamp,
+        three disagreeing facts on every clean read. The older sessions here carry DIFFERENT settles
+        for the same delivery month, so a month-keyed lookup reds this test."""
+        old = [(cm, "1.25", oi, vol) for cm, _, oi, vol in CORN_0903]
+        rows = (_sess("2026-09-01", old) + _sess("2026-09-02", old) + _sess("2026-09-03", CORN_0903))
+        flags(partial=True, fallback=True, walkback=True)
+        out = Q.select_front_expiry(rows, _spec(asof="2026-09-04"), _ts())
+        assert len(out) == 1
+        assert out[0]["front_expiry_session"] == "2026-09-03"
+        assert out[0]["sessions_withheld"] == 0
+        assert out[0]["value"] == "540.75"           # the NEWEST session's settle, never "1.25"
+
+    def test_the_fence_is_three_sessions_and_past_it_the_answer_is_the_decline(self, flags):
+        dead = [(cm, v, None, None) for cm, v, _, _ in CORN_0903]
+        rows = (_sess("2026-09-04", dead) + _sess("2026-09-03", dead) + _sess("2026-09-02", dead)
+                + _sess("2026-09-01", CORN_0903))    # depth 3 -- one session past the fence
+        flags(partial=True, fallback=True, walkback=True)
+        assert Q.FRONT_EXPIRY_FENCE == 3
+        assert Q.select_front_expiry(rows, _spec(asof="2026-09-07"), _ts()) == []
+
+    def test_a_stale_level_past_the_calendar_bound_is_refused_rather_than_served(self, flags):
+        """`sessions_withheld` is structurally blind to a session that NEVER ARRIVED -- a hole in the
+        tape costs 0 withheld sessions and N age days. `session_age_days` is the number that can see
+        it, and it is bounded for MECHANISM-served rows only."""
+        rows = _sess("2026-08-20", [(cm, v, None, vol) for cm, v, _, vol in CORN_0903])
+        flags(partial=True, fallback=True, walkback=True)
+        assert Q.FRONT_EXPIRY_MAX_SESSION_AGE_DAYS == 7
+        assert Q.select_front_expiry(rows, _spec(asof="2026-09-07"), _ts()) == []
+        out = Q.select_front_expiry(rows, _spec(asof="2026-08-27"), _ts())     # age 6, inside it
+        assert len(out) == 1 and out[0]["session_age_days"] == 6
+
+    def test_a_clean_depth_zero_read_is_never_age_bounded(self, flags):
+        """The bound governs the rows the mechanisms CREATE, never the rows that ship today: HEAD
+        already serves a 6-day-old session on `canola_ice` after a holiday Monday (measured)."""
+        rows = _sess("2026-08-20", CORN_0903)        # metric complete: the shipped path
+        flags(partial=True, fallback=True, walkback=True)
+        out = Q.select_front_expiry(rows, _spec(asof="2026-09-07"), _ts())
+        assert len(out) == 1 and out[0]["session_age_days"] == 17
+        assert out[0]["sessions_withheld"] == 0 and "roll_method_fallback" not in out[0]
+
+
+class TestOIGapGreen:
+    def test_a_clean_session_is_unchanged_under_every_flag_combination(self, flags):
+        """GREEN. The row dict is EQUAL with all flags off and with all three on, except for the
+        three keys the stamps always add. Same contract_month, value, unit, currency, settle_kind."""
+        rows = _sess("2026-09-03", CORN_0903)
+        sp = _spec(asof="2026-09-04")
+        flags()
+        base = Q.select_front_expiry(rows, sp, _ts())
+        assert len(base) == 1
+        flags(partial=True, fallback=True, walkback=True)
+        got = Q.select_front_expiry(rows, sp, _ts())
+        assert len(got) == 1
+        stamps = {"front_expiry_session", "sessions_withheld", "session_age_days"}
+        assert set(got[0]) - set(base[0]) == stamps
+        assert {k: v for k, v in got[0].items() if k not in stamps} == base[0]
+        assert got[0]["sessions_withheld"] == 0
+        assert "roll_method_fallback" not in got[0] and "roll_inputs_partial" not in got[0]
+
+    def test_a_clean_session_is_unchanged_on_every_one_of_the_nine_boards(self, flags):
+        stamps = {"front_expiry_session", "sessions_withheld", "session_age_days"}
+        for slug in ("corn_cbot", "soybeans_cbot", "soft_red_winter_wheat_cbot",
+                     "hard_red_winter_wheat_kcbt", "soybean_meal_cbot", "soybean_oil_cbot",
+                     "canola_ice", "french_wheat_matif", "malaysian_crude_palm_oil_cme"):
+            rows = _sess("2026-09-03", CORN_0903)
+            sp = _spec(asof="2026-09-04", commodity=slug)
+            flags()
+            base = Q.select_front_expiry(rows, sp, _ts())
+            flags(partial=True, fallback=True, walkback=True)
+            got = Q.select_front_expiry(rows, sp, _ts())
+            assert bool(base) == bool(got), slug
+            if not base:
+                continue                 # the matif cycle / palm floor may decline both arms alike
+            assert {k: v for k, v in got[0].items() if k not in stamps} == base[0], slug
+
+
+class TestOIGapPIT:
+    def test_the_compiled_sql_keeps_the_lagged_asof_guard_under_every_flag(self, flags):
+        for kw in ({}, {"partial": True}, {"fallback": True}, {"walkback": True},
+                   {"partial": True, "fallback": True, "walkback": True}):
+            flags(**kw)
+            sql = Q.build_sql(_spec(asof="2026-09-07"))
+            assert "<= '2026-09-06'" in sql, kw      # publication_lag_days = 1
+            # AND THE GUARD SITS INSIDE THE RANKED SUBQUERY, which is the whole PIT argument: the
+            # ranking only ever sees sessions the as-of already admitted, so no walk-back depth can
+            # reach a post-cutoff session. Pinned on POSITION, not on presence.
+            assert sql.index("<= '2026-09-06'") < sql.index(") AS _v"), kw
+
+    def test_a_session_after_the_as_of_is_never_chosen_at_any_depth(self, flags):
+        """Belt AND braces: the selector filters on the cutoff ITSELF rather than trusting the caller,
+        because the walk is the first code in this branch that can reach a row it did not intend to."""
+        rows = (_sess("2026-09-08", CORN_0903) + _sess("2026-09-07", CORN_0903)
+                + _sess("2026-09-03", CORN_0903))
+        sp = _spec(asof="2026-09-07")                # cutoff 2026-09-06
+        for kw in ({}, {"partial": True, "fallback": True, "walkback": True}):
+            flags(**kw)
+            out = Q.select_front_expiry(rows, sp, _ts())
+            assert len(out) == 1, kw
+            assert out[0]["knowledge_date"] == "2026-09-03", kw
+            if kw:
+                assert out[0]["front_expiry_session"] == "2026-09-03"
+
+
+class TestOIGapPalm:
+    """PALM, MEASURED. 428 of 428 sessions dark at HEAD, 100% of as-ofs -- because open interest is
+    published on only the nearest ~14 of its 61 listed months (a vendor property) and volume is NULL
+    on 100% of its rows BY CONSTRUCTION (`CPO` is the sole SETTLEMENT_TAPE_ROOT: the V2-4 probe
+    priced ohlcv-1d at $0.0000, so `build_settlement_bronze` writes volume NULL). The all-rows
+    precondition declines although THE ELIGIBLE FRONT MONTH HAS OPEN INTEREST -- 6,267 lots on the
+    real 2026-09-03 session."""
+
+    PALM = [("2026-08", "1170.0", "0"), ("2026-09", "1178.0", "6716"),
+            ("2026-10", "1181.0", "5030"), ("2026-11", "1184.0", "3567"),
+            ("2026-12", "1188.0", "6267"), ("2027-01", "1190.0", "3667"),
+            ("2027-06", "1201.0", "2385"), ("2027-10", "1205.0", None),
+            ("2028-06", "1210.0", None), ("2031-08", "1220.0", None)]
+
+    def _rows(self, dt="2026-09-03"):
+        return [_row(cm, v, dt=dt, oi=oi, vol=None, unit="USD/t") for cm, v, oi in self.PALM]
+
+    def _sp(self, asof="2026-09-04"):
+        return _spec(asof=asof, commodity="malaysian_crude_palm_oil_cme")
+
+    def test_head_declines_this_board_on_every_session(self, flags):
+        flags()
+        assert Q.select_front_expiry(self._rows(), self._sp(), _ts()) == []
+
+    def test_r0_serves_it_on_the_primary_metric_with_no_rule_table_change(self, flags):
+        """THE PALM RE-ROUTE IS NOT NEEDED AND IS NOT SHIPPED. R0 takes this board from 100.0% dark
+        to 5.0% over the last 60 days and 0.8% since 2025-01-01, on the metric its own tape actually
+        publishes (measured) -- where an all-twelve `DELIVERY_CYCLES` row plus `FORWARD_MONTH_FLOOR`
+        1 would reduce the rule to "the nearest listed month one month forward", which IS the
+        nearest-listed-expiry tie-break `CURVE_ROW_CAP`'s docstring refuses by name."""
+        flags(partial=True)
+        out = Q.select_front_expiry(self._rows(), self._sp(), _ts())
+        assert len(out) == 1
+        r = out[0]
+        assert r["roll_method"] == FR.METHOD_OPEN_INTEREST
+        assert "roll_method_fallback" not in r
+        assert r["contract_month"] == "2026-12"      # the OI leader among ELIGIBLE months
+        assert r["roll_inputs_partial"].endswith("carried no open_interest")
+
+    def test_the_rule_table_still_routes_this_board_by_open_interest(self):
+        """The un-flagged rule-table change the first cut of this design proposed is NOT here: no
+        `ROLL_METHOD_BY_SLUG`, no restored twelve-month cycle, and the lint is green as shipped."""
+        assert FR.roll_method_for("malaysian_crude_palm_oil_cme") == FR.METHOD_OPEN_INTEREST
+        assert "malaysian_crude_palm_oil_cme" not in FR.DELIVERY_CYCLES
+        assert not hasattr(FR, "ROLL_METHOD_BY_SLUG")
+        assert FR.lint_roll_rule() == []
+
+    def test_the_forward_month_floor_still_governs_the_selection(self, flags):
+        """`FORWARD_MONTH_FLOOR['malaysian_crude_palm_oil_cme'] == 1` exists because this contract's
+        settle is the CUMULATIVE AVERAGE of its own delivery month. 2026-09 carries the LARGEST open
+        interest on this session (6,716) and must still be ineligible on a 2026-09-03 read."""
+        assert FR.forward_month_floor("malaysian_crude_palm_oil_cme") == 1
+        flags(partial=True)
+        out = Q.select_front_expiry(self._rows(), self._sp(), _ts())
+        assert out[0]["contract_month"] >= "2026-10"
+
+    def test_no_metric_fallback_is_ever_offered_for_this_board(self, flags):
+        """Volume is NULL on 100% of palm's candidate rows, so a fallback moves it from never to
+        never -- and it must never be STAMPED as one either."""
+        flags(partial=True, fallback=True, walkback=True)
+        out = Q.select_front_expiry(self._rows(), self._sp(), _ts())
+        assert len(out) == 1 and "roll_method_fallback" not in out[0]
+
+    def test_the_all_blank_palm_session_walks_back_one(self, flags):
+        """The real 2026-09-04 palm session: 60 rows, open interest blank on every one, volume blank
+        on every one. Neither metric exists, so R0 and R1 both refuse it and R2 is the only remedy."""
+        rows = ([_row(cm, v, dt="2026-09-04", oi=None, vol=None, unit="USD/t")
+                 for cm, v, _ in self.PALM] + self._rows("2026-09-03"))
+        flags(partial=True, fallback=True)
+        assert Q.select_front_expiry(rows, self._sp(asof="2026-09-07"), _ts()) == []
+        flags(partial=True, fallback=True, walkback=True)
+        out = Q.select_front_expiry(rows, self._sp(asof="2026-09-07"), _ts())
+        assert len(out) == 1
+        assert out[0]["front_expiry_session"] == "2026-09-03" and out[0]["sessions_withheld"] == 1

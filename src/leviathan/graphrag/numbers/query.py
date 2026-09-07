@@ -1028,6 +1028,26 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
         # session or it is not running the rule at all: this ORDER BY is ASC on contract_month, so a
         # model-emitted `limit=1` kept the NEAREST listed expiry and `select_front_expiry` then stamped it
         # front_month_v2 -- the legacy_lane_front substitution the guards above refuse by name.
+        # OI-GAP R2: with GRAPHRAG_FRONT_EXPIRY_WALKBACK on, the rank window widens from the newest
+        # session to the newest FRONT_EXPIRY_FENCE sessions, so `select_front_expiry` can step back
+        # when the newest one cannot run the rule. THE SCAN IS UNCHANGED -- the WHERE clause (the
+        # partition filters plus `_guard`) is not touched, so Athena reads the same partitions and
+        # the same bytes; only the rows RETURNED grow, and the cap bounds them (pinned).
+        # PIT IS FREE AND STRUCTURAL: `_guard` sits INSIDE the ranked subquery, so every rank the
+        # walk can reach is a session the as-of guard already admitted and walking back only ever
+        # moves EARLIER. A session after the as-of is unreachable at any depth.
+        # AND THE RANK LEADS THE ORDER WHEN THE WINDOW IS WIDE. `_total_order` is ASCENDING on the
+        # session date and the LIMIT is applied last, so under `_dr <= fence` a cap truncation would
+        # discard the NEWEST session WHOLE -- strictly worse than the shipped single-session shape.
+        # `_dr` ascending puts the newest session first, so a truncation can only ever cost the
+        # OLDEST session, which is the one the walk needs least. Not live (the widest measured curve
+        # is palm at 61 rows/session, so fence 3 is 183 against a 5000 cap) and pinned anyway.
+        if _front_expiry_fence() > 1:
+            aliases = [a for _, a in extras]
+            chrono = next((a for a in _SESSION_ALIASES if a in aliases), None)
+            lead = f"{chrono} DESC, " if chrono else ""
+            return (f"SELECT {outcols} FROM ({inner}) AS _v WHERE _dr <= {_front_expiry_fence()}"
+                    f" ORDER BY {lead}{_total_order(extras, inc_country)} LIMIT {CURVE_ROW_CAP}")
         return (f"SELECT {outcols} FROM ({inner}) AS _v WHERE _dr = 1"
                 f" ORDER BY {_total_order(extras, inc_country)} LIMIT {CURVE_ROW_CAP}")
     if ts.knowledge_semantics == "vintage":
@@ -1386,6 +1406,110 @@ def _front_expiry_input_cols(ts: TableSpec) -> list[str]:
     return need
 
 
+# -- THE OI-GAP REMEDIES (2026-09-07). Three mechanisms, three flags, every one DEFAULT OFF and
+# every one scoped to THIS read. They have no relation to lane A's `LEVIATHAN_UNIT_WITHHOLD`: that
+# scopes a PRODUCER's truncation verdict, these scope a READ, and they never see each other.
+#
+# THE DEFECT, MEASURED. `front_month_inputs_present` refuses a session whose roll metric is missing
+# on ANY candidate row. On the GLBX tape that refusal fires in three distinct shapes, and the arms
+# below are one remedy per shape. Replay over the banked session census (qid 3a66b224, already
+# paid), publication_lag_days = 1, as-of window ending 2026-09-07, the calendar-age bound below
+# APPLIED -- % of as-ofs on which the front settle is DARK, last 60 days / since 2025-01-01:
+#
+#   board                          as-ofs        HEAD          +R0          +R1          +R2
+#   corn_cbot                      60 / 613  11.7% / 3.4%  11.7% / 1.5%  0.0% / 0.0%  0.0% / 0.0%
+#   soybeans_cbot                  60 / 613  11.7% / 2.4%  11.7% / 1.5%  0.0% / 0.0%  0.0% / 0.0%
+#   soft_red_winter_wheat_cbot     60 / 613  11.7% / 2.0%  11.7% / 1.5%  0.0% / 0.0%  0.0% / 0.0%
+#   hard_red_winter_wheat_kcbt     60 / 613  11.7% / 2.0%  11.7% / 1.5%  0.0% / 0.0%  0.0% / 0.0%
+#   soybean_meal_cbot              60 / 613  11.7% / 2.0%  11.7% / 1.5%  0.0% / 0.0%  0.0% / 0.0%
+#   soybean_oil_cbot               60 / 613  11.7% / 1.5%  11.7% / 1.5%  0.0% / 0.0%  0.0% / 0.0%
+#   malaysian_crude_palm_oil_cme   60 / 613 100.0% /100.0%  5.0% / 3.6%  5.0% / 3.6%  0.0% / 0.0%
+#   canola_ice                     60 / 613   0.0% / 0.0%   0.0% / 0.0%  0.0% / 0.0%  0.0% / 0.0%
+#   french_wheat_matif             32 /  32   0.0% / 0.0%   0.0% / 0.0%  0.0% / 0.0%  0.0% / 0.0%
+#
+# (french_wheat_matif's denominator is its own: the euronext leg's first session in this tape is
+# 2026-08-06, so it has 32 as-ofs, not 613. A percentage on a borrowed denominator is a lie.)
+#
+# R0 (PARTIAL) is the palm board's whole 100%-dark defect -- open interest is published on only the
+# nearest ~14 of its 61 listed months -- plus the four expiry-Friday partials on the grain boards,
+# at ZERO staleness: same session, same rule, same metric. R1 (FALLBACK) is the three all-blank-OI
+# sessions (2025-12-31, 2026-08-03, 2026-09-04) on the six bar-driven boards, and it is the arm
+# that closes the owner's live turn. R2 (WALKBACK) is the residual, and the residual is NOT what
+# the first cut of this design assumed: 7 of palm's 9 remaining sessions are US HOLIDAYS on which
+# the tape carries 60 rows and ZERO settles (2025-04-18, 2025-06-19, 2025-07-04, 2025-09-01,
+# 2026-04-03, 2026-06-19, 2026-07-03 -- `configs/silver/venue_holidays.yaml` declares no GLBX years,
+# so nothing upstream calls them closures), the other 2 being the all-blank-OI sessions that carry
+# neither metric on this board. Measured maximum walk depth = 1 session, on palm alone; the six
+# grain boards never step at all once R0 and R1 are on.
+_FE_PARTIAL_FLAG = "GRAPHRAG_FRONT_EXPIRY_PARTIAL"      # R0 -- the decided-by-a-print precondition
+_FE_FALLBACK_FLAG = "GRAPHRAG_FRONT_EXPIRY_FALLBACK"    # R1 -- the declared metric fallback
+_FE_WALKBACK_FLAG = "GRAPHRAG_FRONT_EXPIRY_WALKBACK"    # R2 -- the per-session walk-back
+_FE_METRICS_FLAG = "GRAPHRAG_FRONT_EXPIRY_METRICS"      # the counter (armed first and alone)
+
+FRONT_EXPIRY_FENCE = 3
+"""Sessions the walk-back may step through, newest first. MEASURED maximum depth ever required = 1,
+over 613 as-ofs x 9 boards since 2025-01-01, and only on `malaysian_crude_palm_oil_cme`; the six
+bar-driven boards never step at all once R0 and R1 are on. 3 is one week of headroom, and past it
+the honest answer is the existing `FRONT_EXPIRY_DECLINE`: a settle four sessions stale is not "the
+latest session", and a level that quietly ages is worse than silence. A module constant with its
+measurement, never an env-tunable number."""
+
+FRONT_EXPIRY_MAX_SESSION_AGE_DAYS = 7
+"""The oldest a session may be, in CALENDAR days behind the as-of cutoff, for a MECHANISM-SERVED row.
+
+WHY A CALENDAR BOUND EXISTS AT ALL, AND WHY IT IS NOT `sessions_withheld`. `sessions_withheld` counts
+ADMITTED sessions the walk stepped over -- it is structurally blind to a session that never arrived,
+because a missing session is not in the fetched rows. That blindness is real and measured: under R1,
+as-ofs 2026-08-05/06/07 serve the 2026-08-03 settle on all six grain boards, 2 to 4 calendar days
+old, because 2026-08-04/05/06 carry no rows at all on those boards (a chain outage, not a closure --
+`configs/silver/venue_holidays.yaml` declares no GLBX closures, so the read path cannot tell a hole
+from a holiday). `session_age_days` is the number that CAN see it, so it rides the row.
+
+WHY IT GOVERNS ONLY MECHANISM-SERVED ROWS. A depth-0, metric-complete read is the shipped path and
+must stay byte-identical -- and it ALREADY serves ages this bound would refuse: `canola_ice` at HEAD
+serves a 6-day-old session behind 4 empty weekdays on a normal Tuesday-after-a-holiday read. So the
+bound governs the rows the mechanisms CREATE (a fallback, a partial frame, a withheld session) and
+never the rows that ship today. Measured worst case under all three arms: 3 calendar days."""
+
+
+def _fe_on(flag: str) -> bool:
+    """The estate's flag idiom (answer.py:1040). Absent / anything else = OFF."""
+    import os
+    return os.environ.get(flag, "").strip().lower() in ("on", "1", "true")
+
+
+def _front_expiry_fence() -> int:
+    """Sessions the front-expiry read fetches. 1 -- the shipped, byte-identical value -- unless the
+    walk-back is armed."""
+    return FRONT_EXPIRY_FENCE if _fe_on(_FE_WALKBACK_FLAG) else 1
+
+
+def _fe_emit(method: str | None, *, served: int, withheld: int, fallback: int) -> None:
+    """One EMF line per front-expiry read, behind `GRAPHRAG_FRONT_EXPIRY_METRICS`. Fail-open and
+    source-labelled by `emf.emit` itself, so a pytest run never reaches CloudWatch.
+
+    THE DIMENSION IS THE ROLL METHOD, NOT THE SLUG, AND THAT IS THE WHOLE CARDINALITY DECISION.
+    `front_expiry` sits in the agent's own tool-schema enum, so the slug reaching this function is
+    model-emittable across all 31 mapped boards -- dimensioning on it would bill three custom metrics
+    x 31 slugs x a reason vocabulary, which is the recurring cost R14 already refused once
+    (`emf.emit_quality`'s docstring). `roll_method_for` RAISES on an unmapped slug and returns one of
+    the four values `ROLL_METHODS` declares, so the closure is enforced HERE, at the emission site,
+    by a fail-closed lookup rather than asserted in a document. Twelve combinations, bounded by lint.
+    The per-board cut comes from Logs Insights over the same log group, where it is free."""
+    if not _fe_on(_FE_METRICS_FLAG):
+        return
+    try:
+        from leviathan.graphrag import emf
+        from leviathan.silver import futures_roll as FR
+        dims = {"rule": str(method)} if method in FR.ROLL_METHODS else None
+        vals = {"FrontExpiryServed": served, "FrontExpiryFallbackUsed": fallback}
+        if served:
+            vals["FrontExpirySessionsWithheld"] = withheld
+        emf.emit(vals, dimensions=dims, units={k: "Count" for k in vals})
+    except Exception:  # noqa: BLE001 -- an instrument must never break a read
+        pass
+
+
 def select_front_expiry(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
     """The newest session's curve -> the ONE front-expiry row, chosen by ``futures_roll.front_month``.
 
@@ -1401,18 +1525,64 @@ def select_front_expiry(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> l
     The returned row is the FETCHED row for the selected expiry, unmodified except that the roll-input
     columns are STRIPPED (they are not served metrics) and two provenance keys are added: ``roll_method``
     and ``roll_rule_version``. Value, unit, currency, settle_kind, contract_month and the trade date all
-    ride the row exactly as the table stored them -- nothing is converted, nothing is recomputed."""
+    ride the row exactly as the table stored them -- nothing is converted, nothing is recomputed.
+
+    THE OI-GAP MECHANISMS (all three flags OFF = the paragraphs above, byte for byte). With any of them
+    armed the read walks the fetched sessions NEWEST FIRST and asks
+    ``futures_roll.resolve_front_month_methods`` -- never a relaxed predicate restated here -- which
+    session can run the rule, and the returned row gains provenance keys naming what actually happened:
+
+    * ``front_expiry_session`` -- the session the settle was read from, ``YYYY-MM-DD``. Emitted on
+      every mechanism-served row including a depth-0 one, because a key that appears only sometimes is
+      a key nobody renders.
+    * ``sessions_withheld`` -- ADMITTED sessions the walk stepped over (0 on the newest).
+    * ``session_age_days`` -- CALENDAR days from the served session to the as-of cutoff. This is the
+      number ``sessions_withheld`` cannot see: a session that never arrived is not in the fetched rows,
+      so a three-weekday hole in the tape costs 0 withheld sessions and 3 age days.
+    * ``roll_method_fallback`` -- ``"open_interest->volume"``, ABSENT when no fallback ran, because
+      ``roll_method`` alone would just say ``volume`` and the reader could not tell which rule ran.
+    * ``roll_inputs_partial`` -- ``"<k> of <n> eligible candidates carried no <metric>"``, absent on a
+      complete frame. R0's declared residual rides the row rather than being swallowed.
+
+    PIT IS ENFORCED HERE TOO, NOT ONLY IN THE SQL. The selector recomputes the as-of cutoff from
+    ``spec.asof`` and the card's ``publication_lag_days`` and drops every session past it before it
+    walks -- so a caller that hands this function post-cutoff rows (a test, a mirror backend, a future
+    branch) cannot make the walk reach one at any depth. Belt and braces: the walk is the first code in
+    this branch that can reach a row it did not intend to."""
     slug = str(getattr(spec, "commodity", None) or "").strip()
-    if not rows or not slug:
+    if not slug:
+        return []                                  # a malformed call, not a board's decline
+    if not rows:
+        # A BOARD READ THAT FETCHED NOTHING IS A DECLINE AND THE COUNTER MUST SEE IT. The counter is
+        # armed FIRST and ALONE to establish the production decline rate, and a denominator that
+        # silently omits the empty-fetch case reports a served rate that is too high by exactly the
+        # number of reads nobody counted. No dimension: the roll method of a read with no rows is not
+        # a fact about the roll rule.
+        _fe_emit(None, served=0, withheld=0, fallback=0)
         return []
+    partial_on = _fe_on(_FE_PARTIAL_FLAG)
+    fallback_on = _fe_on(_FE_FALLBACK_FLAG)
+    walkback_on = _fe_on(_FE_WALKBACK_FLAG)
+    stamped = partial_on or fallback_on or walkback_on
     roll_cols = _front_expiry_input_cols(ts)
-    recs: list[dict] = []
-    by_month: dict[str, dict] = {}
+    cutoff = _pub_lagged_asof(str(spec.asof), int(getattr(ts, "publication_lag_days", 0) or 0))
+    by_session: dict[str, list[dict]] = {}
+    by_key: dict[tuple, dict] = {}
+    poisoned: set[str] = set()
     for r in rows:
         cm = str((r or {}).get("contract_month") or "")[:7]
         dt = next((str(r.get(a))[:10] for a in _SESSION_ALIASES if (r or {}).get(a) not in (None, "")), None)
         if not cm or not dt:
-            return []                              # an unlabelled / undated curve row is unattributable
+            # An unlabelled / undated curve row is unattributable. With the walk armed the refusal is
+            # scoped to the SESSION it sits in -- one bad row in a session the walk would never have
+            # needed must not kill a read the newest session could serve. With the walk off there is
+            # only one session, so this IS the shipped whole-read refusal.
+            if not walkback_on or not dt:
+                return []
+            poisoned.add(dt)
+            continue
+        if dt > cutoff:
+            continue                               # PIT: never trust the caller's row set
         try:
             v = float(str(r.get("value")).replace(",", ""))
         except (TypeError, ValueError):
@@ -1422,33 +1592,81 @@ def select_front_expiry(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> l
         rec = {"leviathan_slug": slug, "trade_date": dt, "contract_month": cm, "settle": v}
         for c in roll_cols:
             rec[c] = r.get(c)
-        recs.append(rec)
-        by_month.setdefault(cm, r)
-    if not recs:
+        by_session.setdefault(dt, []).append(rec)
+        # KEYED ON (SESSION, MONTH), NEVER ON THE MONTH ALONE. The fetch's ORDER BY is ASCENDING on
+        # the session date, so under a widened rank window a month-keyed lookup would hold the OLDEST
+        # fetched session's row and serve its settle under the NEWEST session's stamp -- three
+        # disagreeing facts on every clean read, silently.
+        by_key.setdefault((dt, cm), r)
+    sessions = sorted((d for d in by_session if d not in poisoned), reverse=True)
+    if not sessions:
         return []
+    if not walkback_on and len(sessions) > 1:
+        # THE SHIPPED FAIL-CLOSED BELT, unchanged while the walk is unarmed: `_dr = 1` cannot produce
+        # a multi-session frame, so one that arrives anyway means a front month ROLLED inside it and
+        # "the front expiry" is ambiguous. With R2 armed a multi-session frame is what the SQL asks
+        # for BY CONSTRUCTION, and the per-session walk below is what disambiguates it.
+        return []
+    fence = FRONT_EXPIRY_FENCE if walkback_on else 1
+    method: str | None = None
     try:
         import pandas as pd
 
         from leviathan.silver import futures_roll as FR
         method = str(FR.roll_method_for(slug))     # the ONE rule module -- never re-derived here
         if method == FR.METHOD_NONE:
+            _fe_emit(method, served=0, withheld=0, fallback=0)
             return []                              # cash reference: no delivery-month axis at all
-        frame = pd.DataFrame(recs)
-        if not FR.front_month_inputs_present(frame):   # the rule's OWN input contract, asked of the rule
-            return []
-        out = FR.front_month(frame)
+        for offset, sess in enumerate(sessions[:fence]):
+            frame = pd.DataFrame(by_session[sess])
+            res = FR.resolve_front_month_methods(
+                frame, allow_partial=partial_on, allow_fallback=fallback_on)
+            if not res or slug not in res:
+                continue                           # this session cannot run the rule -- try the next
+            ran = res[slug]
+            # NO OVERRIDE WHEN NOTHING IS ARMED: with every flag off the resolver collapses to
+            # `front_month_inputs_present` and the override it would build is the derived method
+            # anyway, so passing None makes the flag-off contract literally true at the CALL SITE and
+            # not merely equal by coincidence.
+            override = ({s: r["method"] for s, r in res.items()}
+                        if (partial_on or fallback_on) else None)
+            out = FR.front_month(frame, method_override=override)
+            if out is None or len(out) != 1:       # nothing eligible, or (defensively) >1 session
+                continue
+            picked = str(out["contract_month"].tolist()[0])[:7]
+            row = by_key.get((sess, picked))
+            if row is None:
+                continue
+            age = (_date(cutoff) - _date(sess)).days
+            mechanism = bool(ran.get("fallback_from")) or offset > 0 or bool(ran.get("n_missing_metric"))
+            if mechanism and age > FRONT_EXPIRY_MAX_SESSION_AGE_DAYS:
+                break                              # a stale level is worse than the honest decline
+            kept = {k: v for k, v in row.items() if k not in roll_cols}
+            kept["roll_method"] = str(ran["method"])
+            kept["roll_rule_version"] = str(FR.ROLL_RULE_VERSION)
+            if stamped:
+                kept["front_expiry_session"] = sess
+                kept["sessions_withheld"] = offset
+                kept["session_age_days"] = age
+                if ran.get("fallback_from"):
+                    kept["roll_method_fallback"] = f"{ran['fallback_from']}->{ran['method']}"
+                if ran.get("n_missing_metric"):
+                    col = FR.METHOD_METRIC_COL.get(str(ran["method"])) or "activity metric"
+                    kept["roll_inputs_partial"] = (
+                        f"{int(ran['n_missing_metric'])} of {int(ran['n_eligible'])} eligible "
+                        f"candidates carried no {col}")
+            _fe_emit(str(ran["method"]), served=1, withheld=offset,
+                     fallback=1 if ran.get("fallback_from") else 0)
+            return [kept]
     except Exception:  # noqa: BLE001 -- a failed selection is an honest absence, never a raised lookup
         return []
-    if out is None or len(out) != 1:               # nothing eligible, or (defensively) >1 session
-        return []
-    picked = str(out["contract_month"].tolist()[0])[:7]
-    row = by_month.get(picked)
-    if row is None:
-        return []
-    kept = {k: v for k, v in row.items() if k not in roll_cols}
-    kept["roll_method"] = method
-    kept["roll_rule_version"] = str(FR.ROLL_RULE_VERSION)
-    return [kept]
+    _fe_emit(method, served=0, withheld=0, fallback=0)
+    return []
+
+
+def _date(s: str):
+    from datetime import date
+    return date(int(s[:4]), int(s[5:7]), int(s[8:10]))
 
 
 # -- S3 / S7 / S4: the shape of a series read, and the one shape no positional stat may be computed over --

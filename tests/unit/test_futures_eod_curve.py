@@ -786,3 +786,48 @@ class TestS1CanaryFlagSeam:
             p = inspect.signature(fn).parameters["futures_newest_first"]
             assert p.default is False
             assert p.kind is inspect.Parameter.KEYWORD_ONLY
+
+
+# ==================================================================================================
+# OI-GAP CAP (2026-09-07). With `GRAPHRAG_FRONT_EXPIRY_WALKBACK` armed the front-expiry rank window
+# widens from one session to `FRONT_EXPIRY_FENCE`, so the row set the cap bounds grows by that factor.
+# `CURVE_ROW_CAP` exists because a truncated curve is handed to `front_month` as if it were whole --
+# the `limit=1` defect FIX-1b exists for. These pins red the deck if either number moves, rather than
+# letting a session be silently truncated.
+# ==================================================================================================
+_OIG_MAX_OBSERVED_EXPIRIES = 61
+"""The widest curve on the served roster, MEASURED 2026-09-07 over the banked session census:
+`malaysian_crude_palm_oil_cme`, 61 listed expiries on its 2026-09-03 session (23,211 rows over 428
+sessions, 54.23 rows per session on average; the strip ran 26-27 in January 2025 and 60-61 from
+mid-2025, so the MAXIMUM is the number that belongs in a cap pin, never the mean)."""
+
+
+class TestOIGapWalkBackCap:
+    def test_the_widened_window_cannot_reach_the_cap(self):
+        assert Q.FRONT_EXPIRY_FENCE * _OIG_MAX_OBSERVED_EXPIRIES < Q.CURVE_ROW_CAP
+        assert Q.FRONT_EXPIRY_FENCE * _OIG_MAX_OBSERVED_EXPIRIES == 183
+        assert Q.CURVE_ROW_CAP == 5000
+
+    def test_the_cap_still_rides_the_widened_branch(self, monkeypatch):
+        monkeypatch.setenv("GRAPHRAG_FRONT_EXPIRY_WALKBACK", "on")
+        sql = Q.build_sql(_spec(agg=Q.FRONT_EXPIRY_AGG, commodity="corn_cbot"))
+        assert f"LIMIT {Q.CURVE_ROW_CAP}" in sql
+        assert "_dr <= 3" in sql
+        assert "LIMIT 1" not in sql
+
+    def test_a_truncation_would_cost_the_OLDEST_session_and_never_the_newest(self, monkeypatch):
+        """`_total_order` is ASCENDING on the session date and the LIMIT is applied last, so under a
+        widened rank window a binding cap would discard the NEWEST session WHOLE -- strictly worse
+        than the shipped single-session shape, because the walk's whole product is the freshest
+        session that can run the rule. The widened branch therefore leads its ORDER BY with the
+        chronological alias DESCENDING, so truncation can only ever cost the oldest session."""
+        monkeypatch.setenv("GRAPHRAG_FRONT_EXPIRY_WALKBACK", "on")
+        sql = Q.build_sql(_spec(agg=Q.FRONT_EXPIRY_AGG, commodity="corn_cbot"))
+        order = sql.split(" ORDER BY ")[-1]
+        assert order.startswith("knowledge_date DESC,")
+
+    def test_the_unarmed_branch_orders_exactly_as_it_ships(self, monkeypatch):
+        monkeypatch.delenv("GRAPHRAG_FRONT_EXPIRY_WALKBACK", raising=False)
+        sql = Q.build_sql(_spec(agg=Q.FRONT_EXPIRY_AGG, commodity="corn_cbot"))
+        assert " ORDER BY year, knowledge_date, contract_month, value LIMIT 5000" in sql
+        assert "DESC," not in sql.split(" ORDER BY ")[-1]

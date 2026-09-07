@@ -421,3 +421,166 @@ class TestFLFence:
         assert "FR.legacy_lane_front(" in text
         for tok in cc._ROLL_RULE_FORBIDDEN_TOKENS:
             assert tok not in text
+
+
+# ==================================================================================================
+# OI-GAP (2026-09-07): the DECLARED METRIC FALLBACK, the eligibility accessor, and the resolver.
+# Everything here is default-inert -- `resolve_front_month_methods` with both flags False is
+# `front_month_inputs_present` under another name, and `front_month` with no override is the shipped
+# rule byte for byte. The five shipped callers are therefore untouched.
+# ==================================================================================================
+class TestMetricFallbackTable:
+    def test_the_table_declares_open_interest_falling_back_to_volume_and_nothing_else(self):
+        assert FR.METRIC_FALLBACK == {FR.METHOD_OPEN_INTEREST: FR.METHOD_VOLUME}
+
+    def test_the_lint_binds_it_both_ways_to_the_method_tables(self):
+        assert FR.lint_roll_rule() == []
+
+    def test_a_fallback_naming_an_undeclared_method_is_a_lint_error(self, monkeypatch):
+        monkeypatch.setattr(FR, "METRIC_FALLBACK", {FR.METHOD_OPEN_INTEREST: "vwap"})
+        errs = FR.lint_roll_rule()
+        assert any("not a declared roll method" in e for e in errs)
+
+    def test_a_fallback_onto_a_metric_less_method_is_a_lint_error(self, monkeypatch):
+        # a delivery-cycle "fallback" would silently swap a MEASURED rule for a curated calendar
+        monkeypatch.setattr(FR, "METRIC_FALLBACK",
+                            {FR.METHOD_OPEN_INTEREST: FR.METHOD_DELIVERY_CYCLE})
+        assert any("reads NO activity metric" in e for e in FR.lint_roll_rule())
+
+    def test_a_method_that_is_its_own_fallback_is_a_lint_error(self, monkeypatch):
+        monkeypatch.setattr(FR, "METRIC_FALLBACK", {FR.METHOD_VOLUME: FR.METHOD_VOLUME})
+        assert any("its own fallback" in e for e in FR.lint_roll_rule())
+
+
+def _frame(rows, slug="corn_cbot", dt="2026-09-03"):
+    import pandas as pd
+    return pd.DataFrame([{"leviathan_slug": slug, "trade_date": dt, "contract_month": cm,
+                          "settle": v, "open_interest": oi, "volume": vol}
+                         for cm, v, oi, vol in rows])
+
+
+CLEAN = [("2026-09", 515.25, 1461, 186), ("2026-12", 540.75, 992940, 289479),
+         ("2027-03", 556.00, 369270, 53427)]
+PARTIAL = [("2026-09", 515.25, None, 186), ("2026-12", 540.75, 992940, 289479),
+           ("2027-03", 556.00, 369270, 53427)]
+BLANK_OI = [(cm, v, None, vol) for cm, v, _, vol in CLEAN]
+DEAD = [(cm, v, None, None) for cm, v, _, _ in CLEAN]
+
+
+class TestResolveFrontMonthMethodsIsInertByDefault:
+    @pytest.mark.parametrize("rows", [CLEAN, PARTIAL, BLANK_OI, DEAD])
+    def test_it_agrees_with_the_shipped_predicate_in_both_directions(self, rows):
+        f = _frame(rows)
+        assert (FR.resolve_front_month_methods(f) is not None) == FR.front_month_inputs_present(f)
+
+    def test_and_it_returns_the_derived_method_when_it_resolves(self):
+        got = FR.resolve_front_month_methods(_frame(CLEAN))
+        assert got == {"corn_cbot": {"method": FR.METHOD_OPEN_INTEREST, "fallback_from": None,
+                                     "n_eligible": None, "n_missing_metric": None}}
+
+    def test_an_empty_or_shapeless_frame_resolves_to_none(self):
+        import pandas as pd
+        assert FR.resolve_front_month_methods(pd.DataFrame()) is None
+        assert FR.resolve_front_month_methods(pd.DataFrame(), allow_partial=True) is None
+        assert FR.resolve_front_month_methods(None, allow_partial=True) is None
+
+
+class TestR0DecidedByAPrint:
+    def test_a_partial_frame_resolves_on_the_primary_and_reports_what_was_missing(self):
+        got = FR.resolve_front_month_methods(_frame(PARTIAL), allow_partial=True)["corn_cbot"]
+        assert got["method"] == FR.METHOD_OPEN_INTEREST and got["fallback_from"] is None
+        assert (got["n_eligible"], got["n_missing_metric"]) == (3, 1)
+
+    def test_a_frame_with_no_eligible_print_at_all_still_refuses(self):
+        """When NO eligible candidate carries the metric the -1 fill decides, and that is the
+        nearest-month tie-break -- `legacy_lane_front` under this rule's name."""
+        assert FR.resolve_front_month_methods(_frame(BLANK_OI), allow_partial=True) is None
+        assert FR.resolve_front_month_methods(_frame(DEAD), allow_partial=True) is None
+
+    def test_the_row_missing_its_metric_can_never_win_the_selection(self):
+        """The arithmetic R0 rests on, pinned rather than argued: -1 sorts below every real
+        non-negative print, so a missing-metric row only wins when nothing else carries one."""
+        rows = [("2026-09", 515.25, None, 1), ("2026-12", 540.75, 0, 2)]
+        out = FR.front_month(_frame(rows))
+        assert out["contract_month"].tolist() == ["2026-12"]   # OI 0 beats an absent print
+
+    def test_the_precondition_itself_is_not_weakened_by_one_character(self):
+        """R0 is a NEW predicate at ONE call site; `front_month_inputs_present` is untouched and its
+        every existing caller keeps it."""
+        assert FR.front_month_inputs_present(_frame(PARTIAL)) is False
+        assert FR.front_month_inputs_present(_frame(CLEAN)) is True
+
+
+class TestR1DeclaredMetricFallback:
+    def test_an_all_blank_primary_with_a_complete_fallback_runs_under_the_fallback(self):
+        got = FR.resolve_front_month_methods(_frame(BLANK_OI), allow_fallback=True)["corn_cbot"]
+        assert got["method"] == FR.METHOD_VOLUME
+        assert got["fallback_from"] == FR.METHOD_OPEN_INTEREST
+
+    def test_a_decided_primary_is_never_offered_a_fallback(self):
+        for rows in (CLEAN, PARTIAL):
+            got = FR.resolve_front_month_methods(_frame(rows), allow_partial=True,
+                                                 allow_fallback=True)["corn_cbot"]
+            assert got["fallback_from"] is None
+            assert got["method"] == FR.METHOD_OPEN_INTEREST
+
+    def test_neither_metric_present_resolves_to_none_at_every_flag_setting(self):
+        for kw in ({}, {"allow_partial": True}, {"allow_fallback": True},
+                   {"allow_partial": True, "allow_fallback": True}):
+            assert FR.resolve_front_month_methods(_frame(DEAD), **kw) is None, kw
+
+    def test_a_volume_ruled_board_is_offered_no_fallback_because_none_is_declared(self):
+        """`METRIC_FALLBACK` is keyed by METHOD: volume has no declared partner, so an ICE board with
+        no volume declines rather than quietly rolling by open interest it does not publish."""
+        f = _frame(DEAD, slug="canola_ice")
+        assert FR.roll_method_for("canola_ice") == FR.METHOD_VOLUME
+        assert FR.resolve_front_month_methods(f, allow_partial=True, allow_fallback=True) is None
+
+
+class TestFrontMonthOverride:
+    def test_no_override_is_the_shipped_rule(self):
+        a = FR.front_month(_frame(CLEAN))
+        b = FR.front_month(_frame(CLEAN), method_override=None)
+        assert a.equals(b)
+        assert a["roll_method"].tolist() == [FR.METHOD_OPEN_INTEREST]
+
+    def test_the_override_names_the_method_that_actually_ran_on_the_emitted_row(self):
+        out = FR.front_month(_frame(BLANK_OI), method_override={"corn_cbot": FR.METHOD_VOLUME})
+        assert out["roll_method"].tolist() == [FR.METHOD_VOLUME]
+        assert out["contract_month"].tolist() == ["2026-12"]      # the volume leader
+        assert list(out.columns) == FR.FRONT_MONTH_COLUMNS        # the shape does not move
+
+    def test_an_undeclared_override_method_raises_rather_than_running(self):
+        with pytest.raises(ValueError, match="not a declared roll method"):
+            FR.front_month(_frame(CLEAN), method_override={"corn_cbot": "vwap"})
+
+    def test_an_override_for_a_slug_not_in_the_frame_is_inert(self):
+        a = FR.front_month(_frame(CLEAN))
+        b = FR.front_month(_frame(CLEAN), method_override={"soybeans_cbot": FR.METHOD_VOLUME})
+        assert a.equals(b)
+
+
+class TestFrontMonthEligible:
+    def test_it_is_the_set_the_rule_picks_from_and_not_a_second_copy_of_the_expression(self):
+        """The extraction pin: `front_month`'s selection must be a member of `front_month_eligible`'s
+        rows on every fixture, because they are the SAME expression by construction."""
+        for rows in (CLEAN, PARTIAL, BLANK_OI):
+            f = _frame(rows)
+            elig = set(FR.front_month_eligible(f)["contract_month"].tolist())
+            picked = FR.front_month(f)["contract_month"].tolist()
+            assert not picked or picked[0] in elig, rows
+
+    def test_it_drops_the_month_already_in_delivery_when_a_floor_is_declared(self):
+        f = _frame([("2026-09", 1178.0, 6716, None), ("2026-12", 1188.0, 6267, None)],
+                   slug="malaysian_crude_palm_oil_cme")
+        assert FR.front_month_eligible(f)["contract_month"].tolist() == ["2026-12"]
+
+    def test_it_drops_cash_references_outright(self):
+        cash = sorted(FC.CASH_INDEX_SLUGS)[0]
+        f = _frame(CLEAN, slug=cash)
+        assert len(FR.front_month_eligible(f)) == 0
+
+    def test_it_raises_on_a_frame_missing_the_required_columns(self):
+        import pandas as pd
+        with pytest.raises(ValueError, match="missing"):
+            FR.front_month_eligible(pd.DataFrame({"leviathan_slug": ["corn_cbot"]}))

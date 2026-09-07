@@ -634,3 +634,144 @@ class TestFixPassSessionFloor:
                                           dataset=TASK.IFEU)
         assert clean.get("contradicted") == [] and clean["present"] > clean["expected"], \
             "present > expected is the ROUTINE ICE shape and must not be charged as a defect"
+
+
+# ==================================================================================================
+# OI-GAP L2 (2026-09-07) -- THE OI-COVERAGE FACT, beside lane A's session floor and never inside it.
+#
+# THE TWO INSTRUMENTS SEE DIFFERENT FAILURES AND NEITHER CAN SEE THE OTHER'S. Lane A's floor counts
+# sessions that did not ARRIVE: 2026-09-04 arrived with all 13 corn rows and all 13 settles, so
+# SESSION_FLOOR is satisfied and silent on it BY CONSTRUCTION. This fact counts a session that DID
+# arrive whose ROLL METRIC did not -- the shape that took the owner's front-month soybean settle
+# dark, and the one nothing in the estate looked at (`glbx_settle_coverage`'s own docstring: "This
+# is the number nothing else looks at").
+#
+# AND IT IS NOT A RAW NON-NULL FRACTION, which is the whole design decision. `canola_ice` carries
+# open interest NULL on 100% of its rows (the ICE statistics schema was never bought -- which is
+# exactly why ROLL_METHOD_BY_SOURCE gives it METHOD_VOLUME) and `malaysian_crude_palm_oil_cme`
+# carries it on only the nearest ~14 of its 61 listed months. A fraction would report 0.00 on every
+# ICE unit and ~0.22 on every CPO unit, forever, and bury the three CBOT sessions the fact exists to
+# surface. So it asks the SLUG'S OWN ROLL METHOD whether the selection is DECIDABLE.
+# ==================================================================================================
+def _oi_frame(rows, slug="corn_cbot"):
+    """rows = [(trade_date, contract_month, settle, open_interest, volume), ...]"""
+    return pd.DataFrame([{"leviathan_slug": slug, "trade_date": pd.Timestamp(d),
+                          "contract_month": cm, "settle": s, "open_interest": oi, "volume": v}
+                         for d, cm, s, oi, v in rows])
+
+
+# the real corn shapes: a clean session, the 2026-09-04 all-blank-OI session, and the 2026-03-13
+# partial (the EXPIRING month carries no open interest on its last trading day -- a market fact)
+_CLEAN = [("2026-09-03", "2026-12", 540.75, 992940, 289479),
+          ("2026-09-03", "2027-03", 556.00, 369270, 53427)]
+_BLANK = [("2026-09-04", "2026-12", 536.75, None, 161637),
+          ("2026-09-04", "2027-03", 552.25, None, 35213)]
+_PARTIAL = [("2026-03-13", "2026-03", 452.50, None, 85),
+            ("2026-03-13", "2026-05", 462.00, 410000, 51000)]
+
+
+class TestOICoverageFact:
+    def _one(self, frame, **kw):
+        got = TASK._roll_coverage_facts(frame, **kw)
+        assert len(got) == 1
+        return got[0]
+
+    def test_a_clean_unit_reports_no_finding_at_all(self):
+        f = self._one(_oi_frame(_CLEAN))
+        assert (f["slug"], f["roll_method"]) == ("corn_cbot", "open_interest")
+        assert (f["sessions"], f["sessions_undecidable"], f["sessions_partial"]) == (1, 0, 0)
+
+    def test_the_all_blank_session_is_the_finding_and_it_is_named(self):
+        f = self._one(_oi_frame(_CLEAN + _BLANK))
+        assert f["sessions"] == 2 and f["sessions_undecidable"] == 1
+        assert f["undecidable_days"] == ["2026-09-04"]
+
+    def test_a_partial_session_is_counted_but_is_not_a_finding(self):
+        """The number that says coverage is FALLING before it falls all the way. The read path still
+        serves this session under R0, so calling it undecidable would be a false alarm."""
+        f = self._one(_oi_frame(_CLEAN + _PARTIAL))
+        assert f["sessions_undecidable"] == 0 and f["sessions_partial"] == 1
+
+    def test_a_declared_day_subtracts_from_the_count_and_does_nothing_else(self):
+        declared = {"2026-09-04": frozenset({"corn_cbot"})}
+        f = self._one(_oi_frame(_CLEAN + _BLANK), declared=declared)
+        assert f["sessions_undecidable"] == 0 and f["undecidable_days"] == []
+        assert f["sessions"] == 2 and f["rows"] == 4      # the session is still COUNTED
+        # ...and a declaration for another slug's day never speaks for this one
+        other = {"2026-09-04": frozenset({"soybeans_cbot"})}
+        assert self._one(_oi_frame(_CLEAN + _BLANK), declared=other)["sessions_undecidable"] == 1
+
+    def test_an_undeclared_blank_session_is_still_counted(self):
+        assert self._one(_oi_frame(_CLEAN + _BLANK), declared={})["sessions_undecidable"] == 1
+
+    def test_the_structurally_metric_less_venues_do_not_drown_the_fact(self):
+        """canola_ice publishes NO open interest at all and palm publishes NO volume at all. Judged
+        against a raw non-null fraction both would report a permanent finding on every fire; judged
+        against their OWN roll method neither reports anything."""
+        ice = self._one(_oi_frame([(d, cm, s, None, v) for d, cm, s, _, v in _CLEAN],
+                                  slug="canola_ice"))
+        assert ice["roll_method"] == "volume" and ice["sessions_undecidable"] == 0
+        palm = self._one(_oi_frame([("2026-09-03", "2026-12", 1188.0, 6267, None),
+                                    ("2026-09-03", "2027-10", 1205.0, None, None)],
+                                   slug="malaysian_crude_palm_oil_cme"))
+        assert palm["roll_method"] == "open_interest"
+        assert palm["sessions_undecidable"] == 0 and palm["sessions_partial"] == 1
+
+    def test_a_cash_reference_is_never_judged_by_this_fact(self):
+        """A CEPEA index has no delivery-month axis, so whether the front month can be decided is not
+        a question that can be asked of it. Without the skip it would report every session
+        undecidable, forever -- the exact drowning this fact is shaped to avoid."""
+        from leviathan.silver import futures_eod_contracts as FC
+        cash = sorted(FC.CASH_INDEX_SLUGS)[0]
+        assert TASK._roll_coverage_facts(_oi_frame(_CLEAN, slug=cash)) == []
+
+    def test_an_unmapped_slug_and_a_shapeless_frame_are_not_this_facts_business(self):
+        assert TASK._roll_coverage_facts(_oi_frame(_CLEAN, slug="not_a_slug")) == []
+        assert TASK._roll_coverage_facts(None) == []
+        assert TASK._roll_coverage_facts(pd.DataFrame()) == []
+        assert TASK._roll_coverage_facts(
+            pd.DataFrame({"trade_date": [pd.Timestamp("2026-01-01")]})) == []
+
+    def test_one_arithmetic_two_readers(self):
+        """A session this fact calls UNDECIDABLE is EXACTLY a session the front-expiry read declines
+        under the same arm, because both ask `resolve_front_month_methods` and neither restates it.
+        The `_truncation_error` / `_session_floor_facts` discipline applied again: the two cannot
+        drift without this pin going red."""
+        import os
+
+        from leviathan.graphrag import config_check as cc
+        from leviathan.graphrag.numbers import query as Q
+        from leviathan.graphrag.numbers import registry as R
+        # the LIVE card out of the raw tables.yaml, so the pin reads the same declaration serving does
+        card = R.TableSpec(id="silver_futures_eod",
+                           **dict(cc._load("numbers/tables.yaml")["tables"]["silver_futures_eod"]))
+        prev = os.environ.get("GRAPHRAG_FRONT_EXPIRY_PARTIAL")
+        os.environ["GRAPHRAG_FRONT_EXPIRY_PARTIAL"] = "on"
+        try:
+            for name, rows, asof in (("clean", _CLEAN, "2026-09-04"),
+                                     ("blank", _BLANK, "2026-09-06"),
+                                     ("partial", _PARTIAL, "2026-03-16")):
+                fact = self._one(_oi_frame(rows))
+                served = Q.select_front_expiry(
+                    [{"value": str(s), "knowledge_date": d, "year": d[:4], "contract_month": cm,
+                      "settle_kind": "settlement", "currency": "USD", "unit": "US cents/bushel",
+                      "open_interest": oi, "volume": v} for d, cm, s, oi, v in rows],
+                    Q.NumberQuery(table="silver_futures_eod", metric="settle", asof=asof,
+                                  commodity="corn_cbot", agg="front_expiry"), card)
+                assert bool(served) == (fact["sessions_undecidable"] == 0), name
+        finally:
+            if prev is None:
+                os.environ.pop("GRAPHRAG_FRONT_EXPIRY_PARTIAL", None)
+            else:
+                os.environ["GRAPHRAG_FRONT_EXPIRY_PARTIAL"] = prev
+
+    def test_the_fact_is_emitted_beside_the_session_floor_and_can_never_fail_a_fire(self):
+        """A NUMBER FIRST, A FENCE LATER. Lane A's own `_withhold_on` docstring is the argument:
+        turning a new failure into exit 1 before its alarm exists is how an alarm goes unread."""
+        import inspect
+        src = inspect.getsource(TASK.main)
+        assert "OI_COVERAGE" in src and "_roll_coverage_facts(bronze)" in src
+        i = src.index("_roll_coverage_facts(bronze)")
+        window = src[i:i + 400]
+        assert "except Exception" in window
+        assert "sys.exit" not in window and "raise" not in window

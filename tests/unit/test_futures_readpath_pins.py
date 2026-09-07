@@ -1036,3 +1036,179 @@ class TestU3TraceKeyReachesTheWhitelists:
     def test_the_key_is_the_one_the_agent_actually_stamps(self):
         # A whitelist naming a key the engine never writes measures nothing at all.
         assert NA.UNIT_MISMATCH_TRACE_KEY == "unit_mismatch_guard"
+
+
+# ==================================================================================================
+# OI-GAP FLAG-OFF BYTE-IDENTITY (2026-09-07). Three read-path mechanisms landed behind three flags,
+# every one default OFF. The acceptance surface for "default off" is not a claim in a document; it is
+# these four assertions, taken against `git show HEAD:...` rather than against a remembered shape.
+#
+#   (a) build_sql for agg='front_expiry' is the SAME STRING as HEAD's on all nine boards;
+#   (b) select_front_expiry returns rows == HEAD's on a clean, a blank-metric and a partial session;
+#   (c) futures_roll.front_month(df) with no method_override is FRAME-EQUAL to HEAD's;
+#   (d) resolve_front_month_methods(allow_partial=False, allow_fallback=False) agrees with
+#       front_month_inputs_present on every fixture, in BOTH directions.
+#
+# The one deliberate exception, stated so it is never mistaken for drift: the selector now drops rows
+# whose session is past the as-of cutoff UNCONDITIONALLY, flags or no flags. In production that set is
+# always empty (`_guard` already excludes them inside the ranked subquery), so no served row moves; a
+# leakage guard that only runs under a flag is not a guard, which is why it is not flag-scoped.
+# ==================================================================================================
+_OIG_BOARDS = ("corn_cbot", "soybeans_cbot", "soft_red_winter_wheat_cbot",
+               "hard_red_winter_wheat_kcbt", "soybean_meal_cbot", "soybean_oil_cbot",
+               "canola_ice", "french_wheat_matif", "malaysian_crude_palm_oil_cme")
+
+
+def _oig_head_module(name: str, relpath: str):
+    """The module as it stands at HEAD, loaded from `git show` -- never from a remembered copy."""
+    import importlib.util
+    import subprocess
+    import sys
+    import tempfile
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[2]
+    src = subprocess.run(["git", "show", f"HEAD:{relpath}"], cwd=root, capture_output=True,
+                         text=True, check=True).stdout
+    tmp = pathlib.Path(tempfile.mkdtemp()) / f"{name}.py"
+    tmp.write_text(src, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(name, tmp)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.fixture(scope="module")
+def oig_head_query():
+    return _oig_head_module("oig_query_head", "src/leviathan/graphrag/numbers/query.py")
+
+
+@pytest.fixture(scope="module")
+def oig_head_roll():
+    return _oig_head_module("oig_roll_head", "src/leviathan/silver/futures_roll.py")
+
+
+@pytest.fixture(autouse=True)
+def _oig_flags_off(monkeypatch):
+    for var in ("GRAPHRAG_FRONT_EXPIRY_PARTIAL", "GRAPHRAG_FRONT_EXPIRY_FALLBACK",
+                "GRAPHRAG_FRONT_EXPIRY_WALKBACK", "GRAPHRAG_FRONT_EXPIRY_METRICS"):
+        monkeypatch.delenv(var, raising=False)
+
+
+def _oig_row(cm, val, dt="2026-09-03", oi=None, vol=None):
+    return {"value": val, "knowledge_date": dt, "year": "2026", "contract_month": cm,
+            "settle_kind": "settlement", "currency": "USD", "unit": "US cents/bushel",
+            "open_interest": oi, "volume": vol}
+
+
+_OIG_CLEAN = [_oig_row("2026-09", "515.25", oi="1461", vol="186"),
+              _oig_row("2026-12", "540.75", oi="992940", vol="289479"),
+              _oig_row("2027-03", "556.00", oi="369270", vol="53427")]
+_OIG_BLANK = [_oig_row(r["contract_month"], r["value"], oi=None, vol=r["volume"]) for r in _OIG_CLEAN]
+_OIG_PARTIAL = [_oig_row("2026-09", "515.25", oi=None, vol="186")] + _OIG_CLEAN[1:]
+
+
+class TestOIGapFlagOffByteIdentity:
+    def test_a_the_compiled_sql_is_the_same_string_as_head_on_all_nine_boards(self, oig_head_query):
+        for slug in _OIG_BOARDS:
+            kw = dict(table="silver_futures_eod", metric="settle", asof="2026-09-07",
+                      commodity=slug, agg="front_expiry")
+            got = Q.build_sql(Q.NumberQuery(**kw))
+            head = oig_head_query.build_sql(oig_head_query.NumberQuery(**kw))
+            assert got == head, slug
+            assert "WHERE _dr = 1" in got and "LIMIT 5000" in got and "_dr <=" not in got, slug
+
+    def test_a_twin_the_walkback_flag_is_the_only_thing_that_widens_the_rank(self, monkeypatch):
+        """ANTI-VACUITY: the assertion above must be able to FAIL."""
+        monkeypatch.setenv("GRAPHRAG_FRONT_EXPIRY_WALKBACK", "on")
+        sql = Q.build_sql(Q.NumberQuery(table="silver_futures_eod", metric="settle",
+                                        asof="2026-09-07", commodity="corn_cbot",
+                                        agg="front_expiry"))
+        assert f"WHERE _dr <= {Q.FRONT_EXPIRY_FENCE}" in sql and "WHERE _dr = 1" not in sql
+
+    def test_b_the_returned_rows_are_equal_to_heads_on_all_three_session_shapes(self, oig_head_query):
+        for name, rows in (("clean", _OIG_CLEAN), ("blank", _OIG_BLANK), ("partial", _OIG_PARTIAL)):
+            kw = dict(table="silver_futures_eod", metric="settle", asof="2026-09-07",
+                      commodity="corn_cbot", agg="front_expiry")
+            got = Q.select_front_expiry(rows, Q.NumberQuery(**kw), _ts("silver_futures_eod"))
+            head = oig_head_query.select_front_expiry(
+                rows, oig_head_query.NumberQuery(**kw), _ts("silver_futures_eod"))
+            assert got == head, name
+            assert all("front_expiry_session" not in r for r in got), name
+
+    def test_c_front_month_with_no_override_is_frame_equal_to_head(self, oig_head_roll):
+        import pandas as pd
+        for name, rows in (("clean", _OIG_CLEAN), ("blank", _OIG_BLANK), ("partial", _OIG_PARTIAL)):
+            f = pd.DataFrame([{"leviathan_slug": "corn_cbot", "trade_date": r["knowledge_date"],
+                               "contract_month": r["contract_month"], "settle": float(r["value"]),
+                               "open_interest": r["open_interest"], "volume": r["volume"]}
+                              for r in rows])
+            from leviathan.silver import futures_roll as FR
+            assert FR.front_month(f).equals(oig_head_roll.front_month(f)), name
+            assert FR.FRONT_MONTH_COLUMNS == oig_head_roll.FRONT_MONTH_COLUMNS
+
+    def test_d_the_resolver_agrees_with_the_shipped_predicate_in_both_directions(self):
+        import pandas as pd
+        from leviathan.silver import futures_roll as FR
+        for name, rows in (("clean", _OIG_CLEAN), ("blank", _OIG_BLANK), ("partial", _OIG_PARTIAL)):
+            f = pd.DataFrame([{"leviathan_slug": "corn_cbot", "trade_date": r["knowledge_date"],
+                               "contract_month": r["contract_month"], "settle": float(r["value"]),
+                               "open_interest": r["open_interest"], "volume": r["volume"]}
+                              for r in rows])
+            assert ((FR.resolve_front_month_methods(f) is not None)
+                    == FR.front_month_inputs_present(f)), name
+
+    def test_no_emf_line_is_printed_with_the_counter_unarmed(self, capsys):
+        Q.select_front_expiry(_OIG_CLEAN,
+                              Q.NumberQuery(table="silver_futures_eod", metric="settle",
+                                            asof="2026-09-07", commodity="corn_cbot",
+                                            agg="front_expiry"), _ts("silver_futures_eod"))
+        assert capsys.readouterr().out == ""
+
+    def test_the_counter_dimension_is_the_roll_method_and_never_the_slug(self, monkeypatch, capsys):
+        """`front_expiry` sits in the AGENT'S OWN tool-schema enum, so the slug reaching the selector
+        is model-emittable across all 31 mapped boards. Dimensioning on it would bill custom metrics
+        per slug per reason -- the recurring cost `emf.emit_quality` already refused once. The
+        dimension is the ROLL METHOD, a closed four-value set enforced at the emission site by a
+        fail-closed lookup, not asserted in a document."""
+        import json
+        from leviathan.silver import futures_roll as FR
+        monkeypatch.setenv("GRAPHRAG_FRONT_EXPIRY_METRICS", "on")
+        Q.select_front_expiry(_OIG_CLEAN,
+                              Q.NumberQuery(table="silver_futures_eod", metric="settle",
+                                            asof="2026-09-07", commodity="corn_cbot",
+                                            agg="front_expiry"), _ts("silver_futures_eod"))
+        line = capsys.readouterr().out.strip().splitlines()[-1]
+        doc = json.loads(line)
+        assert doc["FrontExpiryServed"] == 1 and doc["FrontExpirySessionsWithheld"] == 0
+        assert doc["rule"] in FR.ROLL_METHODS
+        assert "corn_cbot" not in line and "commodity" not in doc and "slug" not in doc
+        dims = doc["_aws"]["CloudWatchMetrics"][0]["Dimensions"]
+        assert ["rule"] in dims and [] in dims
+        assert all(set(d) <= {"rule", "source", "rerank_backend"} for d in dims)
+
+
+    def test_a_board_read_that_fetched_nothing_is_counted_as_a_decline(self, monkeypatch, capsys):
+        """THE DENOMINATOR. The counter is armed FIRST and ALONE to establish the production decline
+        rate per board, so a denominator that silently omits the empty-fetch case reports a served
+        rate too high by exactly the number of reads nobody counted. No dimension is stamped: the
+        roll method of a read with no rows is not a fact about the roll rule."""
+        import json
+        monkeypatch.setenv("GRAPHRAG_FRONT_EXPIRY_METRICS", "on")
+        assert Q.select_front_expiry(
+            [], Q.NumberQuery(table="silver_futures_eod", metric="settle", asof="2026-09-07",
+                              commodity="corn_cbot", agg="front_expiry"),
+            _ts("silver_futures_eod")) == []
+        doc = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert doc["FrontExpiryServed"] == 0 and doc["FrontExpiryFallbackUsed"] == 0
+        assert "rule" not in doc and "FrontExpirySessionsWithheld" not in doc
+
+    def test_a_malformed_call_with_no_commodity_is_not_counted_at_all(self, monkeypatch, capsys):
+        """...and the other direction, so the denominator stays a count of BOARD READS: a spec with
+        no commodity is a malformed call, not a board declining, and it must not enter the rate."""
+        monkeypatch.setenv("GRAPHRAG_FRONT_EXPIRY_METRICS", "on")
+        assert Q.select_front_expiry(
+            _OIG_CLEAN, Q.NumberQuery(table="silver_futures_eod", metric="settle",
+                                      asof="2026-09-07", commodity="", agg="front_expiry"),
+            _ts("silver_futures_eod")) == []
+        assert capsys.readouterr().out == ""

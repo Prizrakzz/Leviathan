@@ -696,7 +696,14 @@ def load_declared_gaps(path: Optional[Path] = None) -> dict[str, frozenset[str]]
     is the whole difference between "this gap was declared" and "this gap was mistyped". An absent
     file is legal and means "nothing declared"; a present-but-broken file is a hard error.
     """
-    src = path or FUTURES_GAPS_PATH
+    return _load_gap_ledger(path or FUTURES_GAPS_PATH)
+
+
+def _load_gap_ledger(src: Path) -> dict[str, frozenset[str]]:
+    """The ONE parser both gap ledgers use (OI-GAP L3). Factored out rather than copied: the five
+    required fields, the fail-closed reading and the duplicate check ARE the ledger contract, and a
+    second copy of it would let one file's rules drift from the other's silently -- which is the
+    F-L class the estate names everywhere else."""
     if not src.exists():
         return {}
     doc = yaml.safe_load(src.read_text(encoding="utf-8"))
@@ -729,6 +736,90 @@ def load_declared_gaps(path: Optional[Path] = None) -> dict[str, frozenset[str]]
         seen.add((slug, day))
         out.setdefault(day, set()).add(slug)
     return {day: frozenset(slugs) for day, slugs in out.items()}
+
+
+FUTURES_OI_GAPS_PATH = CONFIGS_SILVER_DIR / "futures_oi_gaps.yaml"
+
+
+@lru_cache(maxsize=None)
+def load_declared_oi_gaps(path: Optional[Path] = None) -> dict[str, frozenset[str]]:
+    """``{day: {slug, ...}}`` from the committed OI-gap ledger (OI-GAP L3). FAIL CLOSED, exactly as
+    :func:`load_declared_gaps` does and for the identical reason: a row here EXCUSES a count, so a
+    row that cannot be read must never be silently dropped.
+
+    A SEPARATE FILE FROM ``futures_gaps.yaml``, DELIBERATELY. That ledger excuses a missing SESSION
+    against the per-day row floor; this one excuses a missing COLUMN inside a session that is
+    present, against the coverage count. Two fences, two ledgers -- one file excusing both is how a
+    ledger becomes a place to hide a broken leg."""
+    return _load_gap_ledger(path or FUTURES_OI_GAPS_PATH)
+
+
+def _roll_coverage_facts(frame, *, declared: Optional[dict[str, frozenset[str]]] = None) -> list[dict]:
+    """OI-GAP L2 -- THE MISSING INSTRUMENT. Per slug in one unit's frame: can the front-month rule
+    be DECIDED on each session it holds?
+
+    ``glbx_settle_coverage`` already computes ``open_interest_nonnull_frac`` and its own docstring
+    says *"This is the number nothing else looks at"*. This is that number's reader -- but NOT that
+    number, and the difference is the whole design of this fact.
+
+    WHY NOT A RAW NON-NULL FRACTION. It would drown on day one. ``canola_ice`` carries open interest
+    NULL on 100% of its 2,668 candidate rows (the ICE statistics schema was never bought -- which is
+    exactly why ``ROLL_METHOD_BY_SOURCE`` gives it ``METHOD_VOLUME``), and
+    ``malaysian_crude_palm_oil_cme`` carries open interest on only the nearest ~14 of its 61 listed
+    months, so 419 of its 428 sessions are "partial" forever. A fact that reports 0.00 coverage on
+    every ICE unit and 78% blank on every CPO unit, permanently, buries the three CBOT sessions it
+    exists to surface -- and no per-day ledger can excuse a per-venue absence.
+
+    WHAT IT ASKS INSTEAD: the SLUG'S OWN roll method, and whether at least one ELIGIBLE candidate
+    carries that method's metric -- i.e. ``resolve_front_month_methods(allow_partial=True)``, THE
+    SAME PREDICATE THE READ PATH USES. One arithmetic, two readers, which is the
+    ``_truncation_error`` / ``_session_floor_facts`` discipline applied again: a session this fact
+    calls UNDECIDABLE is exactly a session the front-expiry read declines, and neither can drift
+    from the other without the pins going red.
+
+    Returns one record per slug: sessions, sessions_undecidable (after the ledger's subtraction),
+    sessions_partial (decidable, but some eligible candidate carried no metric -- the number that
+    tells you coverage is FALLING before it falls all the way), rows, and the roll method judged.
+    A NUMBER FIRST, A FENCE LATER: this never raises, never changes a verdict and never touches an
+    exit code. Lane A's ``_withhold_on`` docstring is the argument -- turning a new failure into
+    exit 1 before its alarm exists is how an alarm goes unread."""
+    out: list[dict] = []
+    if frame is None or not len(frame):
+        return out
+    cols = set(getattr(frame, "columns", []))
+    if not {"leviathan_slug", "trade_date", "contract_month"} <= cols:
+        return out
+    from leviathan.silver import futures_roll as FR
+    declared = load_declared_oi_gaps() if declared is None else declared
+    work = frame.copy()
+    work["_d"] = pd.to_datetime(work["trade_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    for slug in sorted({str(s) for s in work["leviathan_slug"].dropna().unique()}):
+        try:
+            method = FR.roll_method_for(slug)
+        except ValueError:
+            continue                               # an unmapped slug is not this fact's business
+        if method == FR.METHOD_NONE:
+            # A cash reference has no delivery-month axis, so "can the front month be decided?" is
+            # not a question that can be asked of it. Without this the two CEPEA slugs would report
+            # 100% undecidable on every fire, forever -- the exact drowning this fact is shaped to
+            # avoid, one line from the end.
+            continue
+        sub = work[work["leviathan_slug"].astype("string") == slug]
+        days = sorted({d for d in sub["_d"].dropna().tolist()})
+        undecidable, partial = [], 0
+        for day in days:
+            res = FR.resolve_front_month_methods(sub[sub["_d"] == day], allow_partial=True)
+            if not res or slug not in res:
+                if slug not in declared.get(day, frozenset()):
+                    undecidable.append(day)
+                continue
+            if res[slug].get("n_missing_metric"):
+                partial += 1
+        out.append({"slug": slug, "roll_method": method, "rows": int(len(sub)),
+                    "sessions": len(days), "sessions_undecidable": len(undecidable),
+                    "sessions_partial": partial,
+                    "undecidable_days": undecidable[:10]})
+    return out
 
 
 def assert_row_floor(df: pd.DataFrame, spec: SourceSpec,
@@ -1877,6 +1968,20 @@ def main(argv: Optional[list[str]] = None) -> int:
                 logger.info("SESSION_FLOOR %s", json.dumps(
                     dict(facts, unit=label, verdict=("truncated" if trunc else "ok")),
                     sort_keys=True))
+            # OI-GAP L2 -- THE MISSING INSTRUMENT, beside lane A's floor and never inside it.
+            # The two see DIFFERENT failures and neither can see the other's: lane A counts
+            # sessions that did not ARRIVE (2026-09-04 arrived with all 13 corn rows and all 13
+            # settles, so SESSION_FLOOR is silent on it BY CONSTRUCTION), and this counts a session
+            # that arrived whose ROLL METRIC did not. A NUMBER FIRST, A FENCE LATER: it never
+            # raises, never changes a verdict and never touches an exit code -- lane A's own
+            # `_withhold_on` docstring is the argument, and an instrument that can break a producer
+            # is not an instrument.
+            try:
+                for fact in _roll_coverage_facts(bronze):
+                    logger.info("OI_COVERAGE %s", json.dumps(dict(fact, unit=label),
+                                                             sort_keys=True))
+            except Exception:  # noqa: BLE001 -- see above: a fact never fails a fire
+                logger.warning("OI_COVERAGE %s: not computed", label, exc_info=True)
             if facts.get("contradicted"):
                 # A-R11. Never changes a verdict; it names an entry the tape contradicts.
                 contradicted_units.append(label)

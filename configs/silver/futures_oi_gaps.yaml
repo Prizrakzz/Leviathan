@@ -1,0 +1,46 @@
+# silver_futures_eod -- THE DECLARED OI-GAP LEDGER (OI-GAP L3, 2026-09-07)
+#
+# WHAT THIS IS. A per-(slug, day) record of a session that ARRIVED but whose ROLL METRIC did not,
+# and whose metric is known to be UNRECOVERABLE. The per-unit OI_COVERAGE fact
+# (jobs/batch/futures_eod_task._roll_coverage_facts) subtracts a day listed here from its
+# undecidable-session count and does NOTHING else with it. Nothing else reads this file.
+#
+# WHY IT IS A SECOND FILE AND NOT A SECTION OF futures_gaps.yaml. A missing SESSION and a missing
+# COLUMN inside a session that is present excuse DIFFERENT fences. futures_gaps.yaml excuses the
+# per-day ROW FLOOR ("the venue published nothing that day"); this one excuses a COVERAGE COUNT
+# ("the venue published the session and the roll metric never arrived"). One file excusing both is
+# how a ledger becomes a place to hide a broken leg, which is the rule futures_gaps.yaml's own
+# header states about itself.
+#
+# WHY IT IS NOT WHERE A STRUCTURAL ABSENCE GOES. Some boards publish no activity metric at all --
+# `canola_ice` carries open_interest NULL on 100% of its rows because the ICE statistics schema was
+# never bought, and `malaysian_crude_palm_oil_cme` carries volume NULL on 100% of its rows because
+# the V2-4 probe found no Globex trade bars. Those are PER-VENUE facts about what was purchased and
+# a per-day ledger cannot express them: it would take 416 rows per board per year and every row
+# would be a lie about what was checked. The instrument handles them instead -- it asks the SLUG'S
+# OWN roll method whether the selection is DECIDABLE, so a board is never judged against a metric
+# its feed does not carry.
+#
+# THE RULES, identical to futures_gaps.yaml's and for the same reason:
+#   * one entry = one slug on one day. Never a range, never a wildcard, never a slug on its own.
+#   * `evidence` says what was CHECKED at the vendor, not what was assumed.
+#   * the exclusion only applies when the declared slug's session is genuinely UNDECIDABLE on that
+#     day. A declared day whose roll metric DID arrive is counted like any other day.
+#   * nothing here is auto-written. A human adds the row after reading the vendor payload.
+#
+# FIELDS (all five are required; a malformed entry is a hard load error, never a skipped row):
+#   slug           the leviathan_slug, exactly as CONTRACT_MAP spells it
+#   day            the trade date whose roll metric is missing, ISO YYYY-MM-DD
+#   first_observed the date the coverage fact first reported it, ISO YYYY-MM-DD
+#   evidence       what was verified at the vendor
+#   declared_by    the decision that put the row here
+#
+# ------------------------------------------------------------------------------------------------
+# EMPTY BY DESIGN AT LANDING, and the reason is the whole point of "a number first, a fence later":
+# the OI_COVERAGE fact has never run in production, so no session has yet been OBSERVED by the
+# instrument this ledger excuses. The one class already known to be permanent -- the year boundary,
+# where `fence_statistics_to_unit_window` drops the next-day open interest that arrives in the
+# FOLLOWING unit (its own docstring prices it: 2016-12-30, open_interest present on 9 keys in the
+# 2017 unit and NULL in the 2016 unit) -- reproduces on 2025-12-31 for all seven GLBX boards and is
+# NOT declared here yet, because a declaration is written after the fact reports it, not before.
+[]

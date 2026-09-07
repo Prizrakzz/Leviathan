@@ -89,6 +89,20 @@ METHOD_METRIC_COL: dict[str, str | None] = {
     METHOD_NONE: None,
 }
 
+# THE DECLARED METRIC FALLBACK (OI-GAP R1, 2026-09-07). One metric method may stand in for another
+# when the primary metric is absent on EVERY eligible candidate of a session. Keyed by METHOD, never
+# by slug or source, because "OI missing, volume present" is a property of the METRIC PAIR, not of a
+# board. delivery_cycle / none read no metric (METHOD_METRIC_COL is None) and have no fallback by
+# construction. Bound to ROLL_METHODS + METHOD_METRIC_COL by lint_roll_rule, both ways.
+#
+# IT IS A FALLBACK AND NOT A PREFERENCE, and the tree has MEASURED the difference: legacy_lane_front's
+# docstring below records that front-by-volume x settle reproduced the yfinance lane exactly on corn
+# while front-by-OI sat ~2.1% away, and that volume left soyoil/soymeal/cotton at 0.57%/0.66%/2.09%
+# medians. Volume and open interest are DIFFERENT notions of "the active contract". That is why this
+# fires only when the primary is absent on the whole eligible set, and why the method that actually
+# ran is STAMPED on the row rather than silently substituted.
+METRIC_FALLBACK: dict[str, str] = {METHOD_OPEN_INTEREST: METHOD_VOLUME}
+
 # Per PUBLICATION SOURCE, not per slug: the method is a property of what the feed CARRIES.
 # check_futures_roll asserts this covers exactly futures_eod_contracts.SOURCES.
 ROLL_METHOD_BY_SOURCE: dict[str, str] = {
@@ -278,7 +292,163 @@ def front_month_inputs_present(df: pd.DataFrame) -> bool:
     return True
 
 
-def front_month(df: pd.DataFrame, *, rule_version: str = ROLL_RULE_VERSION) -> pd.DataFrame:
+def _method_map(df: pd.DataFrame, method_override: dict[str, str] | None) -> dict[str, str]:
+    """{slug: the method to RUN}. ``method_override`` REPLACES the derived method for the slugs it
+    names and is built by :func:`resolve_front_month_methods` and by nothing else; ``None`` (the
+    default everywhere) is :func:`roll_method_for` for every slug, i.e. the shipped rule."""
+    out = {s: roll_method_for(s) for s in sorted(set(df["leviathan_slug"]))}
+    for slug, method in (method_override or {}).items():
+        key = str(slug)
+        if key in out:
+            if method not in ROLL_METHODS:
+                raise ValueError(f"method_override[{key!r}] = {method!r} is not a declared roll method "
+                                 f"(legal: {list(ROLL_METHODS)})")
+            out[key] = str(method)
+    return out
+
+
+def _eligible(df: pd.DataFrame, method_override: dict[str, str] | None) -> pd.DataFrame:
+    """THE ELIGIBILITY EXPRESSION, extracted from :func:`front_month` so a caller can ask about the
+    SAME candidate set the rule picks from without growing a second copy of it (skeptic F-L: the
+    inline copy is the failure mode, and an eligibility copy is worse than an implementation copy
+    because it decides which rows a precondition is even asked about).
+
+    Drops, in the rule's own order: undated rows, unparseable delivery months, cash references
+    (``METHOD_NONE`` -- naming a front month for a CEPEA index is a category error), months already
+    in delivery (plus the slug's ``FORWARD_MONTH_FLOOR``), and off-cycle months on the
+    delivery-cycle slugs. Carries ``roll_method`` / ``_month`` / ``_trade_month`` so the caller need
+    not recompute them."""
+    work = df.copy()
+    for opt in ("settle", "close", "volume", "open_interest", "raw_symbol",
+                "unit", "currency", "settle_kind", "source"):
+        if opt not in work.columns:
+            work[opt] = pd.NA
+    work["trade_date"] = pd.to_datetime(work["trade_date"], errors="coerce")
+    work = work[work["trade_date"].notna()]
+    work["_month"] = _month_start(work["contract_month"])
+    work = work[work["_month"].notna()]
+    work["roll_method"] = work["leviathan_slug"].map(_method_map(work, method_override))
+    work = work[work["roll_method"] != METHOD_NONE]
+    if work.empty:
+        return work
+    work["_trade_month"] = work["trade_date"].values.astype("datetime64[M]")
+    work = work[work["_month"] >= _floored_month_bound(
+        work["_trade_month"], _floor_months(work["leviathan_slug"]))]
+    cyc = work["roll_method"] == METHOD_DELIVERY_CYCLE
+    if cyc.any():
+        keep = pd.Series(True, index=work.index)
+        for slug in sorted(set(work.loc[cyc, "leviathan_slug"])):
+            sel = cyc & (work["leviathan_slug"] == slug)
+            keep.loc[sel[sel].index] = _cycle_eligible(slug, work.loc[sel, "_month"])
+        work = work[keep]
+    return work
+
+
+def front_month_eligible(df: pd.DataFrame, *,
+                         method_override: dict[str, str] | None = None) -> pd.DataFrame:
+    """The rows :func:`front_month` can actually CHOOSE from, in the rule's own terms. Public so a
+    precondition can be asked about the SELECTION's candidate set rather than about every row that
+    happened to be fetched. Raises on a frame missing the three required columns, exactly as
+    :func:`front_month` does."""
+    cols = ["leviathan_slug", "trade_date", "contract_month"]
+    if df is None or len(df) == 0:
+        return pd.DataFrame(columns=list(getattr(df, "columns", cols)))
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"front_month_eligible: frame is missing {missing}")
+    return _eligible(df, method_override)
+
+
+def _metric_census(elig: pd.DataFrame, slug: str, method: str) -> tuple[int, int]:
+    """``(n_eligible_rows, n_of_them_carrying_the_method's_metric)`` for one slug. A method that
+    reads no metric reports its eligible count on both sides (vacuously satisfied)."""
+    sel = elig["leviathan_slug"].astype("string") == str(slug)
+    n = int(sel.sum())
+    col = METHOD_METRIC_COL[method]                 # KeyError on an unknown method: fail closed
+    if col is None:
+        return (n, n)
+    if col not in elig.columns:
+        return (n, 0)
+    vals = pd.to_numeric(elig.loc[sel, col], errors="coerce")
+    return (n, int(vals.notna().sum()))
+
+
+def resolve_front_month_methods(df: pd.DataFrame, *, allow_partial: bool = False,
+                                allow_fallback: bool = False) -> dict[str, dict] | None:
+    """Per-slug: WHICH METHOD CAN ACTUALLY RUN on this frame, with the evidence that decided it --
+    or ``None`` when the rule cannot be run on the frame at all (the caller then declines, exactly
+    as it does today).
+
+    Returns ``{slug: {"method", "fallback_from", "n_eligible", "n_missing_metric"}}``.
+
+    **Both flags False (the default) is byte-identical to asking**
+    :func:`front_month_inputs_present` **directly**, which is what every shipped caller does: the
+    derived method for every slug when the predicate is True, ``None`` when it is False. Nothing in
+    that path consults eligibility, the fallback table, or the census.
+
+    ``allow_partial=True`` -- **R0, THE DECIDED-BY-A-PRINT PRECONDITION.**
+    :func:`front_month_inputs_present` requires the metric on EVERY row and its stated fear is that
+    the -1 fill lets "whichever expiry happened to carry a print win by default", i.e. the
+    nearest-month tie-break substituting for the rule. But -1 sorts BELOW every real non-negative
+    print, so a row missing the metric can only WIN when NO eligible row carries one. The decidable
+    question is therefore not "is the metric everywhere?" but "**did the selection turn on a real
+    print?**" -- and that is exactly ``n_missing_metric < n_eligible``. When at least one eligible
+    candidate carries the metric, the missing rows lost on merit and the selection IS
+    ``front_month_v2``; when none does, the selection collapses to the nearest-month tie-break, which
+    is ``legacy_lane_front`` wearing this rule's name, and it is refused here as it is today.
+
+    THE RESIDUAL, DECLARED: a genuinely active month that lost its own print while a less active
+    month kept one would be mis-selected, and this predicate cannot see that. It is not claimed to be
+    impossible -- it is claimed not to have happened in the measured population, where every
+    missing-metric row is either the EXPIRING month on its last trading day (open interest legitimately
+    absent; volume 1-85 on the five measured sessions) or the far tail of palm's 61-month listing
+    strip (2027-10..2031-08, no open interest at any time). ``n_missing_metric`` rides back to the
+    caller so the condition is STAMPED on the row rather than swallowed.
+
+    ``allow_fallback=True`` -- **R1, THE DECLARED METRIC FALLBACK.** When NO eligible candidate
+    carries the primary metric and at least one carries the metric of :data:`METRIC_FALLBACK`'s
+    declared partner, the slug resolves to the FALLBACK method and ``fallback_from`` names the
+    primary. Same law as R0 applied to the second metric, never a preference: a session where the
+    primary decides is never offered a fallback.
+
+    FAIL CLOSED throughout: an unmapped slug raises (as :func:`roll_method_for` does), a frame with
+    no ``leviathan_slug`` column or no eligible row for a slug is ``None``, and a slug whose method
+    reads no metric (delivery cycle) is vacuously satisfied."""
+    if not allow_partial and not allow_fallback:
+        # The shipped path, byte-for-byte: one predicate, one answer, no eligibility, no census.
+        if not front_month_inputs_present(df):
+            return None
+        return {str(s): {"method": roll_method_for(str(s)), "fallback_from": None,
+                         "n_eligible": None, "n_missing_metric": None}
+                for s in sorted({str(x) for x in df["leviathan_slug"].dropna().tolist()})}
+    if df is None or len(df) == 0 or "leviathan_slug" not in list(getattr(df, "columns", [])):
+        return None
+    elig = front_month_eligible(df)
+    out: dict[str, dict] = {}
+    for slug in sorted({str(s) for s in df["leviathan_slug"].dropna().tolist()}):
+        method = roll_method_for(slug)
+        if method == METHOD_NONE:
+            continue                                # a cash reference has no front month to resolve
+        n, have = _metric_census(elig, slug, method)
+        if n == 0:
+            return None                             # nothing eligible: the rule has nothing to pick
+        if have > 0 and (allow_partial or have == n):
+            out[slug] = {"method": method, "fallback_from": None,
+                         "n_eligible": n, "n_missing_metric": n - have}
+            continue
+        fb = METRIC_FALLBACK.get(method) if allow_fallback else None
+        if fb is not None and have == 0:
+            _, fb_have = _metric_census(elig, slug, fb)
+            if fb_have > 0 and (allow_partial or fb_have == n):
+                out[slug] = {"method": fb, "fallback_from": method,
+                             "n_eligible": n, "n_missing_metric": n - fb_have}
+                continue
+        return None                                 # this frame cannot run the rule for this slug
+    return out or None
+
+
+def front_month(df: pd.DataFrame, *, rule_version: str = ROLL_RULE_VERSION,
+                method_override: dict[str, str] | None = None) -> pd.DataFrame:
     """Pick THE front contract per ``(leviathan_slug, trade_date)`` from ``silver_futures_eod`` rows.
 
     ``df`` carries the silver columns (``leviathan_slug``, ``trade_date``, ``contract_month``,
@@ -293,7 +463,13 @@ def front_month(df: pd.DataFrame, *, rule_version: str = ROLL_RULE_VERSION) -> p
     forever on a stale OI print.
 
     Returns one row per ``(slug, trade_date)`` with :data:`FRONT_MONTH_COLUMNS`, carrying the
-    ``roll_method`` actually used and this module's ``roll_rule_version``."""
+    ``roll_method`` actually used and this module's ``roll_rule_version``.
+
+    ``method_override``, when given, REPLACES the per-slug method this function would derive from
+    :func:`roll_method_for` -- so the emitted ``roll_method`` column already names the method that
+    ACTUALLY RAN. It is built by :func:`resolve_front_month_methods` and by nothing else. ``None``
+    (the default) is the shipped rule byte-for-byte, and :data:`FRONT_MONTH_COLUMNS` does not
+    change under it: a shape change would reach all five callers."""
     if rule_version != ROLL_RULE_VERSION:
         raise ValueError(
             f"requested roll_rule_version {rule_version!r} != this module's {ROLL_RULE_VERSION!r} "
@@ -307,34 +483,11 @@ def front_month(df: pd.DataFrame, *, rule_version: str = ROLL_RULE_VERSION) -> p
     if missing:
         raise ValueError(f"front_month: frame is missing {missing}")
 
-    work = df.copy()
-    for opt in ("settle", "close", "volume", "open_interest", "raw_symbol",
-                "unit", "currency", "settle_kind", "source"):
-        if opt not in work.columns:
-            work[opt] = pd.NA
-    work["trade_date"] = pd.to_datetime(work["trade_date"], errors="coerce")
-    work = work[work["trade_date"].notna()]
-    work["_month"] = _month_start(work["contract_month"])
-    work = work[work["_month"].notna()]
-    work["roll_method"] = work["leviathan_slug"].map(
-        {s: roll_method_for(s) for s in sorted(set(work["leviathan_slug"]))})
-    work = work[work["roll_method"] != METHOD_NONE]
-    if work.empty:
-        return pd.DataFrame(columns=FRONT_MONTH_COLUMNS)
-
-    # Eligibility: not yet in delivery (plus the slug's FORWARD_MONTH_FLOOR, 0 for all but the
-    # averaging boards -- so a CPO "front" is never the month whose average is still accruing), and
-    # (delivery-cycle slugs only) a LISTED month.
-    work["_trade_month"] = work["trade_date"].values.astype("datetime64[M]")
-    work = work[work["_month"] >= _floored_month_bound(
-        work["_trade_month"], _floor_months(work["leviathan_slug"]))]
-    cyc = work["roll_method"] == METHOD_DELIVERY_CYCLE
-    if cyc.any():
-        keep = pd.Series(True, index=work.index)
-        for slug in sorted(set(work.loc[cyc, "leviathan_slug"])):
-            sel = cyc & (work["leviathan_slug"] == slug)
-            keep.loc[sel[sel].index] = _cycle_eligible(slug, work.loc[sel, "_month"])
-        work = work[keep]
+    # Eligibility (cash references dropped; not yet in delivery, plus the slug's FORWARD_MONTH_FLOOR,
+    # 0 for all but the averaging boards -- so a CPO "front" is never the month whose average is still
+    # accruing; and, for the delivery-cycle slugs only, a LISTED month). ONE expression, in `_eligible`,
+    # so `front_month_eligible` asks about the same candidate set this selection picks from.
+    work = _eligible(df, method_override)
     if work.empty:
         return pd.DataFrame(columns=FRONT_MONTH_COLUMNS)
 
@@ -626,6 +779,24 @@ def lint_roll_rule() -> list[str]:
     if set(METHOD_METRIC_COL) != set(ROLL_METHODS):
         errs.append(f"METHOD_METRIC_COL keys {sorted(METHOD_METRIC_COL)} != the declared methods "
                     f"{sorted(ROLL_METHODS)} -- every method must name the column it READS (or None)")
+
+    # OI-GAP R1 -- the DECLARED FALLBACK table, bound both ways to the two tables above. A fallback
+    # naming an undeclared method would be resolved into a front_month `method_override` and raise at
+    # selection time; a fallback onto (or from) a method that reads NO metric is meaningless -- a
+    # delivery-cycle "fallback" would silently swap a measured rule for a curated calendar; and a
+    # method that is its own fallback is a no-op row that reads as a curated decision.
+    for prim, fb in sorted(METRIC_FALLBACK.items()):
+        for m, side in ((prim, "primary"), (fb, "fallback")):
+            if m not in ROLL_METHODS:
+                errs.append(f"METRIC_FALLBACK {side} {m!r} is not a declared roll method "
+                            f"(legal: {list(ROLL_METHODS)})")
+            elif METHOD_METRIC_COL.get(m) is None:
+                errs.append(f"METRIC_FALLBACK names {m!r} as a {side}, but it reads NO activity "
+                            f"metric (METHOD_METRIC_COL is None) -- only metric methods may stand "
+                            f"in for one another")
+        if prim == fb:
+            errs.append(f"METRIC_FALLBACK[{prim!r}] is its own fallback -- a no-op row that reads "
+                        f"as a curated decision")
 
     # The TABLE itself must agree with the cash-index short-circuit in roll_method_for. Without
     # this the 'cepea' entry could drift to 'volume' and nothing would notice, because
