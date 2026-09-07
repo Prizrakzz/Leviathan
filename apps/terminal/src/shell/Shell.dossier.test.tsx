@@ -258,7 +258,13 @@ describe('Shell: Deep Research submits a DOSSIER, not a turn (D-DR-3)', () => {
     mount();
     const b = await screen.findByTestId('deep-research-button');
     expect(b.getAttribute('aria-disabled')).toBe('true');
-    expect(b.getAttribute('title')).toBe('Deep Research will be available in Leviathan V1.2');
+    // The sentence is the accessible name (no native title -- it would double the house tooltip) and it
+    // opens as the house tooltip on hover (2026-09-07 redesign: the first cut was invisible at 40% opacity).
+    expect(b.getAttribute('aria-label')).toContain('Deep Research will be available in Leviathan V1.2');
+    expect(b.hasAttribute('title')).toBe(false);
+    // The tooltip OPENING is pinned at the component (DepthControl.test.tsx: hover + keyboard focus); through
+    // the whole Shell the pointer path is shadowed by the mock's mounting surfaces, so this deck pins the
+    // name and the inertness only.
     await user.click(b);
     expect(hoisted.posted).toHaveLength(0);
     expect(hoisted.sent).toHaveLength(0);

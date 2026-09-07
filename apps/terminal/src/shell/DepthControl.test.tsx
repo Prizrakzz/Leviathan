@@ -347,17 +347,43 @@ describe('DepthControl — the served-roster gate (Cascade ships DARK)', () => {
 });
 
 describe('DepthControl — Deep Research is a standalone control, lights off until V1.2', () => {
-  it('renders at the right of the ask bar, disabled-but-focusable, carrying the V1.2 sentence on hover', () => {
+  it('renders at the right of the ask bar, disabled-but-focusable, visibly OFF, carrying the V1.2 sentence', () => {
     mount(<DepthControl />);
     const b = screen.getByTestId('deep-research-button');
     expect(b.textContent).toContain('Deep Research');
+    expect(b.textContent?.toLowerCase()).toContain('v1.2'); // the tag on the pill, readable without hovering
     // NOT the `disabled` attribute: a disabled button takes no focus, and a tooltip nobody can reach by
     // keyboard is not a tooltip. `aria-disabled` + no handler is what makes it inert without hiding it.
     expect(b.getAttribute('aria-disabled')).toBe('true');
     expect(b.hasAttribute('disabled')).toBe(false);
     expect(b.getAttribute('tabindex')).toBe('0');
-    expect(b.getAttribute('title')).toBe(DEEP_RESEARCH_DARK_TITLE);
-    expect(b.getAttribute('title')).toBe('Deep Research will be available in Leviathan V1.2');
+    // The accessible name carries the sentence verbatim for readers that never hover.
+    expect(b.getAttribute('aria-label')).toContain(DEEP_RESEARCH_DARK_TITLE);
+    expect(b.getAttribute('aria-label')).toContain('Deep Research will be available in Leviathan V1.2');
+    // LIGHTS OFF, LEGIBLY (owner's word 2026-09-07 after the first cut was invisible at 40% opacity):
+    // no opacity fade, a dashed border, an unlit lamp dot. The pin is on the CLASSES because the look
+    // is the contract this time.
+    expect(b.className).not.toMatch(/opacity-/);
+    expect(b.className).toContain('border-dashed');
+    expect(b.className).toContain('text-text-dim');
+    expect(screen.getByTestId('deep-research-lamp')).toBeTruthy();
+    // No native title: the sentence would otherwise show twice (browser tooltip + ours).
+    expect(b.hasAttribute('title')).toBe(false);
+  });
+
+  it('the V1.2 sentence opens as the house tooltip on hover and on keyboard focus', async () => {
+    const user = userEvent.setup();
+    mount(<DepthControl />);
+    const b = screen.getByTestId('deep-research-button');
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    await user.hover(b);
+    const tip = await screen.findByRole('tooltip');
+    expect(tip.textContent).toContain(DEEP_RESEARCH_DARK_TITLE);
+    expect(tip.textContent).toContain('lights off');
+    await user.unhover(b);
+    // Keyboard: focus alone opens it (a disabled button could never receive this focus).
+    b.focus();
+    expect((await screen.findByRole('tooltip')).textContent).toContain(DEEP_RESEARCH_DARK_TITLE);
   });
 
   it('clicking it does nothing at all — it is not a notch and it never submits', async () => {

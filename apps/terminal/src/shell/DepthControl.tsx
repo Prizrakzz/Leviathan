@@ -1,3 +1,4 @@
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { useCredits } from '@/api/useCredits';
 import { utcDay } from '@/lib/time';
 import {
@@ -240,22 +241,57 @@ export function DepthControl({ disabled = false }: { disabled?: boolean }) {
 
         <CreditsBadge />
 
-        {/* DEEP RESEARCH — standalone, at the right, LIGHTS OFF until V1.2. Not `disabled`: a disabled
-            button is unfocusable, and the only thing this control has to give is the sentence in its
-            title. `aria-disabled` + no handler is what makes it inert without making it invisible. */}
-        <button
-          type="button"
-          data-testid="deep-research-button"
-          aria-disabled="true"
-          tabIndex={0}
-          title={DEEP_RESEARCH_DARK_TITLE}
-          aria-label={`${CHOICE_COPY[DOSSIER_CHOICE].label} — ${DEEP_RESEARCH_DARK_TITLE}`}
-          onClick={(e) => e.preventDefault()}
-          className="ml-auto flex cursor-not-allowed items-center gap-1 rounded-chip border border-line px-1.5 py-0.5 font-mono text-11 text-text-faint opacity-40 focus:border-cyan focus:outline-none"
-        >
-          <span aria-hidden="true">{GLYPH[DOSSIER_CHOICE]}</span>
-          {CHOICE_COPY[DOSSIER_CHOICE].label}
-        </button>
+        {/* DEEP RESEARCH -- standalone, at the right, LIGHTS OFF until V1.2 (owner's word 2026-09-07:
+            "very dim that I couldn't see it the first time, design it well"). The first cut was the
+            faint text colour at 40% opacity with a native `title` tooltip: invisible against the ground,
+            and a title tooltip is a second-late whisper nobody waits for. THIS cut is legible and
+            unmistakably OFF: full-contrast dim text, a DASHED border (a placeholder, not a control),
+            an UNLIT LAMP (the empty dot) and a V1.2 tag on the pill; the sentence lives in the house
+            Radix tooltip (the citation chips' shape), which opens on hover within 100 ms AND on
+            keyboard focus. Not `disabled`: a disabled button takes no focus and fires no pointer
+            events, which would take the tooltip down with the click. `aria-disabled` + a no-op handler
+            is what makes it inert without making it invisible; the accessible name carries the
+            sentence for readers that never hover. */}
+        <Tooltip.Provider delayDuration={100}>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type="button"
+                data-testid="deep-research-button"
+                aria-disabled="true"
+                tabIndex={0}
+                aria-label={`${CHOICE_COPY[DOSSIER_CHOICE].label} — ${DEEP_RESEARCH_DARK_TITLE}`}
+                onClick={(e) => e.preventDefault()}
+                className="ml-auto inline-flex cursor-not-allowed items-center gap-1.5 rounded-chip border border-dashed border-line px-2 py-0.5 font-mono text-11 text-text-dim hover:border-text-dim focus:outline-none focus-visible:border-cyan"
+              >
+                <span
+                  aria-hidden="true"
+                  data-testid="deep-research-lamp"
+                  className="inline-block h-1.5 w-1.5 rounded-full border border-text-faint"
+                />
+                <span aria-hidden="true">{GLYPH[DOSSIER_CHOICE]}</span>
+                {CHOICE_COPY[DOSSIER_CHOICE].label}
+                <span className="rounded-chip border border-line px-1 text-11 uppercase tracking-wider text-text-faint">
+                  v1.2
+                </span>
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                side="top"
+                sideOffset={6}
+                className="z-50 max-w-xs rounded-panel border border-line bg-bg-1 p-2 font-sans text-12 text-text shadow-lg"
+              >
+                <div className="font-mono text-11 text-text-dim">
+                  {GLYPH[DOSSIER_CHOICE]} {CHOICE_COPY[DOSSIER_CHOICE].label} · lights off
+                </div>
+                <div className="mt-1">{DEEP_RESEARCH_DARK_TITLE}</div>
+                <div className="mt-1 text-text-dim">{CHOICE_COPY[DOSSIER_CHOICE].detail}</div>
+                <Tooltip.Arrow className="fill-line" />
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+        </Tooltip.Provider>
       </div>
 
       <p data-testid="depth-hint" className="mt-0.5 font-sans text-11 leading-snug text-text-faint">
