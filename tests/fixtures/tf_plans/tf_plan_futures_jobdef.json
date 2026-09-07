@@ -1,0 +1,169 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.15.2",
+  "timestamp": "2026-09-06T19:16:15Z",
+  "resource_changes": [
+    {
+      "address": "module.batch.aws_batch_job_definition.futures_eod_silver[0]",
+      "module_address": "module.batch",
+      "mode": "managed",
+      "type": "aws_batch_job_definition",
+      "name": "futures_eod_silver",
+      "index": 0,
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "update"
+        ],
+        "before": {
+          "arn": "arn:aws:batch:us-east-1:668891723125:job-definition/leviathan-dev-futures-eod-silver:6",
+          "arn_prefix": "arn:aws:batch:us-east-1:668891723125:job-definition/leviathan-dev-futures-eod-silver",
+          "container_properties": "{\"command\":[\"jobs/batch/futures_eod_task.py\",\"--mode\",\"incremental\",\"--lookback-days\",\"5\",\"--publish-mode\",\"shadow\"],\"environment\":[{\"name\":\"AWS_REGION\",\"value\":\"us-east-1\"},{\"name\":\"LEVIATHAN_APPROVAL_MODE\",\"value\":\"kms\"},{\"name\":\"LEVIATHAN_BUCKET\",\"value\":\"leviathan-dev-shahem-001\"},{\"name\":\"LEVIATHAN_ENV\",\"value\":\"dev\"},{\"name\":\"LEVIATHAN_KMS_KEY_ID\",\"value\":\"alias/leviathan-dev-publish-signer\"}],\"executionRoleArn\":\"arn:aws:iam::668891723125:role/leviathan-dev-batch-execution-role\",\"fargatePlatformConfiguration\":{\"platformVersion\":\"LATEST\"},\"image\":\"668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-worker@sha256:a4946d83f891ce61a0a9104ae74119bed124b92822223d5aedbe8c135551e1df\",\"jobRoleArn\":\"arn:aws:iam::668891723125:role/leviathan-dev-silver-publisher\",\"logConfiguration\":{\"logDriver\":\"awslogs\",\"options\":{\"awslogs-group\":\"/aws/batch/leviathan-dev\",\"awslogs-region\":\"us-east-1\",\"awslogs-stream-prefix\":\"futures-eod-silver\"},\"secretOptions\":[]},\"mountPoints\":[],\"networkConfiguration\":{\"assignPublicIp\":\"ENABLED\"},\"resourceRequirements\":[{\"type\":\"VCPU\",\"value\":\"1\"},{\"type\":\"MEMORY\",\"value\":\"4096\"}],\"secrets\":[],\"ulimits\":[],\"volumes\":[]}",
+          "deregister_on_new_revision": true,
+          "ecs_properties": "",
+          "eks_properties": [],
+          "id": "arn:aws:batch:us-east-1:668891723125:job-definition/leviathan-dev-futures-eod-silver:6",
+          "name": "leviathan-dev-futures-eod-silver",
+          "node_properties": "",
+          "parameters": {},
+          "platform_capabilities": [
+            "FARGATE"
+          ],
+          "propagate_tags": false,
+          "retry_strategy": [],
+          "revision": 6,
+          "scheduling_priority": 0,
+          "tags": {
+            "Environment": "dev",
+            "ManagedBy": "terraform",
+            "Project": "leviathan"
+          },
+          "tags_all": {
+            "Environment": "dev",
+            "ManagedBy": "terraform",
+            "Project": "leviathan"
+          },
+          "timeout": [
+            {
+              "attempt_duration_seconds": 7200
+            }
+          ],
+          "type": "container"
+        },
+        "after": {
+          "arn_prefix": "arn:aws:batch:us-east-1:668891723125:job-definition/leviathan-dev-futures-eod-silver",
+          "container_properties": "{\"command\":[\"jobs/batch/futures_eod_task.py\",\"--mode\",\"incremental\",\"--lookback-days\",\"5\",\"--publish-mode\",\"shadow\"],\"environment\":[{\"name\":\"LEVIATHAN_BUCKET\",\"value\":\"leviathan-dev-shahem-001\"},{\"name\":\"AWS_REGION\",\"value\":\"us-east-1\"},{\"name\":\"LEVIATHAN_ENV\",\"value\":\"dev\"},{\"name\":\"LEVIATHAN_APPROVAL_MODE\",\"value\":\"kms\"},{\"name\":\"LEVIATHAN_KMS_KEY_ID\",\"value\":\"alias/leviathan-dev-publish-signer\"}],\"executionRoleArn\":\"arn:aws:iam::668891723125:role/leviathan-dev-batch-execution-role\",\"image\":\"668891723125.dkr.ecr.us-east-1.amazonaws.com/leviathan-dev-leviathan-worker@sha256:a91214fec7c6140da5b13c57d5fa74df7752c3994c812706a3b893ff42cc28a7\",\"jobRoleArn\":\"arn:aws:iam::668891723125:role/leviathan-dev-silver-publisher\",\"logConfiguration\":{\"logDriver\":\"awslogs\",\"options\":{\"awslogs-group\":\"/aws/batch/leviathan-dev\",\"awslogs-region\":\"us-east-1\",\"awslogs-stream-prefix\":\"futures-eod-silver\"}},\"networkConfiguration\":{\"assignPublicIp\":\"ENABLED\"},\"resourceRequirements\":[{\"type\":\"VCPU\",\"value\":\"1\"},{\"type\":\"MEMORY\",\"value\":\"4096\"}]}",
+          "deregister_on_new_revision": true,
+          "ecs_properties": "",
+          "eks_properties": [],
+          "id": "arn:aws:batch:us-east-1:668891723125:job-definition/leviathan-dev-futures-eod-silver:6",
+          "name": "leviathan-dev-futures-eod-silver",
+          "node_properties": "",
+          "parameters": {},
+          "platform_capabilities": [
+            "FARGATE"
+          ],
+          "propagate_tags": false,
+          "retry_strategy": [],
+          "scheduling_priority": 0,
+          "tags": {
+            "Environment": "dev",
+            "ManagedBy": "terraform",
+            "Project": "leviathan"
+          },
+          "tags_all": {
+            "Environment": "dev",
+            "ManagedBy": "terraform",
+            "Project": "leviathan"
+          },
+          "timeout": [
+            {
+              "attempt_duration_seconds": 7200
+            }
+          ],
+          "type": "container"
+        },
+        "after_unknown": {
+          "arn": true,
+          "eks_properties": [],
+          "parameters": {},
+          "platform_capabilities": [
+            false
+          ],
+          "retry_strategy": [],
+          "revision": true,
+          "tags": {},
+          "tags_all": {},
+          "timeout": [
+            {}
+          ]
+        },
+        "before_sensitive": {
+          "eks_properties": [],
+          "parameters": {},
+          "platform_capabilities": [
+            false
+          ],
+          "retry_strategy": [],
+          "tags": {},
+          "tags_all": {},
+          "timeout": [
+            {}
+          ]
+        },
+        "after_sensitive": {
+          "eks_properties": [],
+          "parameters": {},
+          "platform_capabilities": [
+            false
+          ],
+          "retry_strategy": [],
+          "tags": {},
+          "tags_all": {},
+          "timeout": [
+            {}
+          ]
+        }
+      }
+    },
+    {
+      "address": "module.ecr.aws_ecr_repository.this",
+      "module_address": "module.ecr",
+      "mode": "managed",
+      "type": "aws_ecr_repository",
+      "name": "this",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "no-op"
+        ]
+      }
+    },
+    {
+      "address": "module.iam.aws_iam_role.batch_execution_role",
+      "module_address": "module.iam",
+      "mode": "managed",
+      "type": "aws_iam_role",
+      "name": "batch_execution_role",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "no-op"
+        ]
+      }
+    },
+    {
+      "address": "module.iam.aws_iam_role.silver_publisher",
+      "module_address": "module.iam",
+      "mode": "managed",
+      "type": "aws_iam_role",
+      "name": "silver_publisher",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "no-op"
+        ]
+      }
+    }
+  ]
+}

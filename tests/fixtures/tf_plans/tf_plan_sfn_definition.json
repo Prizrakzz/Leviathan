@@ -1,0 +1,178 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.15.2",
+  "timestamp": "2026-09-06T18:51:33Z",
+  "resource_changes": [
+    {
+      "address": "module.alerting.aws_sns_topic.alerts",
+      "module_address": "module.alerting",
+      "mode": "managed",
+      "type": "aws_sns_topic",
+      "name": "alerts",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "no-op"
+        ]
+      }
+    },
+    {
+      "address": "module.step_functions.aws_cloudwatch_log_group.sfn",
+      "module_address": "module.step_functions",
+      "mode": "managed",
+      "type": "aws_cloudwatch_log_group",
+      "name": "sfn",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "no-op"
+        ]
+      }
+    },
+    {
+      "address": "module.step_functions.aws_iam_role.sfn_exec",
+      "module_address": "module.step_functions",
+      "mode": "managed",
+      "type": "aws_iam_role",
+      "name": "sfn_exec",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "no-op"
+        ]
+      }
+    },
+    {
+      "address": "module.step_functions.aws_sfn_state_machine.silver_thin_contract",
+      "module_address": "module.step_functions",
+      "mode": "managed",
+      "type": "aws_sfn_state_machine",
+      "name": "silver_thin_contract",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "update"
+        ],
+        "before": {
+          "arn": "arn:aws:states:us-east-1:668891723125:stateMachine:leviathan-dev-silver-thin-contract",
+          "creation_date": "2026-07-16T12:07:22Z",
+          "definition": "{\"Comment\":\"Leviathan silver thin contract: fetch-\\u003ebronze-\\u003esilver-shadow-\\u003egate-\\u003e{promote|fail-notify}-\\u003ereconcile. ONE machine, per-family input.\",\"StartAt\":\"Fetch\",\"States\":{\"Bronze\":{\"ItemProcessor\":{\"ProcessorConfig\":{\"Mode\":\"INLINE\"},\"StartAt\":\"RouteIntegrationBronze\",\"States\":{\"BatchSyncBronze\":{\"End\":true,\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.task.command\",\"Environment.$\":\"$.task.env\"},\"JobDefinition.$\":\"$.task.jobdef\",\"JobName.$\":\"States.Format('{}-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.task.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Batch.ServerException\",\"Batch.TooManyRequestsException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"GlueSyncBronze\":{\"End\":true,\"Parameters\":{\"Arguments.$\":\"$.task.arguments\",\"JobName.$\":\"$.task.glue_job\"},\"Resource\":\"arn:aws:states:::glue:startJobRun.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Glue.ConcurrentRunsExceededException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"RouteIntegrationBronze\":{\"Choices\":[{\"Next\":\"GlueSyncBronze\",\"StringEquals\":\"glue\",\"Variable\":\"$.task.integration\"}],\"Default\":\"BatchSyncBronze\",\"Type\":\"Choice\"}}},\"ItemSelector\":{\"family.$\":\"$.family\",\"task.$\":\"$$.Map.Item.Value\"},\"ItemsPath\":\"$.phases.bronze.tasks\",\"MaxConcurrency\":1,\"Next\":\"Silver\",\"ResultPath\":\"$.bronzeResults\",\"Type\":\"Map\"},\"ClassifyGateFailure\":{\"Choices\":[{\"And\":[{\"IsPresent\":true,\"Variable\":\"$.error.Cause\"},{\"Or\":[{\"StringMatches\":\"*\\\"ExitCode\\\":1,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":1}*\",\"Variable\":\"$.error.Cause\"}]}],\"Next\":\"FailNotify\"},{\"And\":[{\"IsPresent\":true,\"Variable\":\"$.error.Cause\"},{\"Or\":[{\"StringMatches\":\"*\\\"ExitCode\\\":64,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":64}*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":70,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":70}*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":71,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":71}*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":72,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":72}*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*CannotPullContainer*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*ResourceInitializationError*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*OutOfMemory*\",\"Variable\":\"$.error.Cause\"}]}],\"Next\":\"InfraFailNotify\"}],\"Default\":\"FailNotify\",\"Type\":\"Choice\"},\"FailNotify\":{\"Next\":\"PipelineFailed\",\"Parameters\":{\"Message.$\":\"States.Format('Family {} failed the silver_rebuild_gate (or an upstream task). Execution {}. Canonical left untouched (INV-6).', $.family, $$.Execution.Name)\",\"Subject.$\":\"States.Format('[leviathan-dev] silver pipeline FAILED: {}', $.family)\",\"TopicArn\":\"arn:aws:sns:us-east-1:668891723125:leviathan-dev-alerts\"},\"Resource\":\"arn:aws:states:::sns:publish\",\"ResultPath\":\"$.notifyResult\",\"Type\":\"Task\"},\"Fetch\":{\"ItemProcessor\":{\"ProcessorConfig\":{\"Mode\":\"INLINE\"},\"StartAt\":\"RouteIntegrationFetch\",\"States\":{\"BatchSyncFetch\":{\"End\":true,\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.task.command\",\"Environment.$\":\"$.task.env\"},\"JobDefinition.$\":\"$.task.jobdef\",\"JobName.$\":\"States.Format('{}-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.task.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Batch.ServerException\",\"Batch.TooManyRequestsException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"GlueSyncFetch\":{\"End\":true,\"Parameters\":{\"Arguments.$\":\"$.task.arguments\",\"JobName.$\":\"$.task.glue_job\"},\"Resource\":\"arn:aws:states:::glue:startJobRun.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Glue.ConcurrentRunsExceededException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"RouteIntegrationFetch\":{\"Choices\":[{\"Next\":\"GlueSyncFetch\",\"StringEquals\":\"glue\",\"Variable\":\"$.task.integration\"}],\"Default\":\"BatchSyncFetch\",\"Type\":\"Choice\"}}},\"ItemSelector\":{\"family.$\":\"$.family\",\"task.$\":\"$$.Map.Item.Value\"},\"ItemsPath\":\"$.phases.fetch.tasks\",\"MaxConcurrency\":1,\"Next\":\"Bronze\",\"ResultPath\":\"$.fetchResults\",\"Type\":\"Map\"},\"Gate\":{\"Catch\":[{\"ErrorEquals\":[\"Batch.ServerException\",\"Batch.TooManyRequestsException\",\"States.Timeout\",\"Batch.AWSBatchException\"],\"Next\":\"InfraFailNotify\",\"ResultPath\":\"$.error\"},{\"ErrorEquals\":[\"States.TaskFailed\"],\"Next\":\"ClassifyGateFailure\",\"ResultPath\":\"$.error\"},{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailNotify\",\"ResultPath\":\"$.error\"}],\"Next\":\"Promote\",\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.gate.command\",\"Environment\":[{\"Name\":\"GRAPHRAG_NUMBERS_BACKEND\",\"Value\":\"pg\"}]},\"JobDefinition.$\":\"$.gate.jobdef\",\"JobName.$\":\"States.Format('{}-gate-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.gate.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"ResultPath\":\"$.gateResult\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"Batch.ServerException\",\"Batch.TooManyRequestsException\",\"States.Timeout\"],\"IntervalSeconds\":30,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"InfraFailNotify\":{\"Next\":\"PipelineInfraFailed\",\"Parameters\":{\"Message.$\":\"States.Format('Family {} produced NO GATE VERDICT. The gate job did not run to a decision ({}). Execution {}. This is an INFRASTRUCTURE fault, NOT a refusal: no table was judged, [Promote] was never entered and canonical was never touched (INV-6). Do not hunt a data problem -- read the failed Batch attempt (exit code + StatusReason) in the execution history and the /aws/batch log stream, fix the infra fault, then re-run the family. Gate exit codes: 64 usage, 70 internal crash, 71 image/config fence, 72 baseline fetch (D-PR-8).', $.family, $.error.Error, $$.Execution.Name)\",\"Subject.$\":\"States.Format('[leviathan-dev] silver pipeline INFRA FAILURE, no gate verdict: {}', $.family)\",\"TopicArn\":\"arn:aws:sns:us-east-1:668891723125:leviathan-dev-alerts\"},\"Resource\":\"arn:aws:states:::sns:publish\",\"ResultPath\":\"$.notifyResult\",\"Type\":\"Task\"},\"PipelineFailed\":{\"Cause\":\"The silver_rebuild_gate returned FAIL (or an upstream fetch/bronze/silver task failed); canonical promote was skipped.\",\"Error\":\"SilverPipelineGateFailed\",\"Type\":\"Fail\"},\"PipelineInfraFailed\":{\"Cause\":\"The silver_rebuild_gate produced NO VERDICT (infrastructure fault: the job never ran, never finished, or exited on a non-verdict code). Canonical promote was skipped and canonical was never touched.\",\"Error\":\"SilverPipelineInfraFailed\",\"Type\":\"Fail\"},\"Promote\":{\"ItemProcessor\":{\"ProcessorConfig\":{\"Mode\":\"INLINE\"},\"StartAt\":\"RouteIntegrationPromote\",\"States\":{\"BatchSyncPromote\":{\"End\":true,\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.task.command\",\"Environment.$\":\"$.task.env\"},\"JobDefinition.$\":\"$.task.jobdef\",\"JobName.$\":\"States.Format('{}-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.task.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Batch.ServerException\",\"Batch.TooManyRequestsException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"GlueSyncPromote\":{\"End\":true,\"Parameters\":{\"Arguments.$\":\"$.task.arguments\",\"JobName.$\":\"$.task.glue_job\"},\"Resource\":\"arn:aws:states:::glue:startJobRun.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Glue.ConcurrentRunsExceededException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"RouteIntegrationPromote\":{\"Choices\":[{\"Next\":\"GlueSyncPromote\",\"StringEquals\":\"glue\",\"Variable\":\"$.task.integration\"}],\"Default\":\"BatchSyncPromote\",\"Type\":\"Choice\"}}},\"ItemSelector\":{\"family.$\":\"$.family\",\"task.$\":\"$$.Map.Item.Value\"},\"ItemsPath\":\"$.promote.tasks\",\"MaxConcurrency\":1,\"Next\":\"Reconcile\",\"ResultPath\":\"$.promoteResults\",\"Type\":\"Map\"},\"Reconcile\":{\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailNotify\",\"ResultPath\":\"$.error\"}],\"Next\":\"Succeeded\",\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"States.Array('-m', 'jobs.audit.advance_rolling_census', '--asof', States.Format('{}', $.asof), '--dest-uri', $.gate_baseline_uri)\",\"Environment\":[{\"Name\":\"GRAPHRAG_NUMBERS_BACKEND\",\"Value\":\"pg\"}]},\"JobDefinition.$\":\"$.gate.jobdef\",\"JobName.$\":\"States.Format('{}-reconcile-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.gate.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"ResultPath\":\"$.reconcileResult\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"Batch.ServerException\",\"Batch.TooManyRequestsException\",\"States.Timeout\"],\"IntervalSeconds\":30,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"Silver\":{\"ItemProcessor\":{\"ProcessorConfig\":{\"Mode\":\"INLINE\"},\"StartAt\":\"RouteIntegrationSilver\",\"States\":{\"BatchSyncSilver\":{\"End\":true,\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.task.command\",\"Environment.$\":\"$.task.env\"},\"JobDefinition.$\":\"$.task.jobdef\",\"JobName.$\":\"States.Format('{}-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.task.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Batch.ServerException\",\"Batch.TooManyRequestsException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"GlueSyncSilver\":{\"End\":true,\"Parameters\":{\"Arguments.$\":\"$.task.arguments\",\"JobName.$\":\"$.task.glue_job\"},\"Resource\":\"arn:aws:states:::glue:startJobRun.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Glue.ConcurrentRunsExceededException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"RouteIntegrationSilver\":{\"Choices\":[{\"Next\":\"GlueSyncSilver\",\"StringEquals\":\"glue\",\"Variable\":\"$.task.integration\"}],\"Default\":\"BatchSyncSilver\",\"Type\":\"Choice\"}}},\"ItemSelector\":{\"family.$\":\"$.family\",\"task.$\":\"$$.Map.Item.Value\"},\"ItemsPath\":\"$.phases.silver.tasks\",\"MaxConcurrency\":1,\"Next\":\"Gate\",\"ResultPath\":\"$.silverResults\",\"Type\":\"Map\"},\"Succeeded\":{\"Type\":\"Succeed\"}}}",
+          "description": "",
+          "encryption_configuration": [
+            {
+              "kms_data_key_reuse_period_seconds": 0,
+              "kms_key_id": "",
+              "type": "AWS_OWNED_KEY"
+            }
+          ],
+          "id": "arn:aws:states:us-east-1:668891723125:stateMachine:leviathan-dev-silver-thin-contract",
+          "logging_configuration": [
+            {
+              "include_execution_data": true,
+              "level": "ALL",
+              "log_destination": "arn:aws:logs:us-east-1:668891723125:log-group:/aws/vendedlogs/states/leviathan-dev-silver-thin-contract:*"
+            }
+          ],
+          "name": "leviathan-dev-silver-thin-contract",
+          "name_prefix": "",
+          "publish": false,
+          "revision_id": "ae539d93-afc3-49d1-94a9-c76448c2b2e2",
+          "role_arn": "arn:aws:iam::668891723125:role/leviathan-dev-sfn-exec",
+          "state_machine_version_arn": "",
+          "status": "ACTIVE",
+          "tags": {
+            "Environment": "dev",
+            "ManagedBy": "terraform",
+            "Project": "leviathan"
+          },
+          "tags_all": {
+            "Environment": "dev",
+            "ManagedBy": "terraform",
+            "Project": "leviathan"
+          },
+          "timeouts": null,
+          "tracing_configuration": [
+            {
+              "enabled": false
+            }
+          ],
+          "type": "STANDARD",
+          "version_description": null
+        },
+        "after": {
+          "arn": "arn:aws:states:us-east-1:668891723125:stateMachine:leviathan-dev-silver-thin-contract",
+          "creation_date": "2026-07-16T12:07:22Z",
+          "definition": "{\"Comment\":\"Leviathan silver thin contract: fetch-\\u003ebronze-\\u003esilver-shadow-\\u003egate-\\u003e{promote|fail-notify}-\\u003ereconcile. ONE machine, per-family input.\",\"StartAt\":\"Fetch\",\"States\":{\"AnyFetchLegFailed\":{\"Choices\":[{\"And\":[{\"IsPresent\":true,\"Variable\":\"$.fetchScan.all\"},{\"StringMatches\":\"*\\\"class\\\":\\\"infra\\\"*\",\"Variable\":\"$.fetchScan.all\"}],\"Next\":\"FetchInfraFailNotify\"},{\"And\":[{\"IsPresent\":true,\"Variable\":\"$.fetchScan.all\"},{\"StringMatches\":\"*\\\"status\\\":\\\"failed\\\"*\",\"Variable\":\"$.fetchScan.all\"},{\"Not\":{\"StringMatches\":\"*\\\"status\\\":\\\"ok\\\"*\",\"Variable\":\"$.fetchScan.all\"}}],\"Next\":\"FailNotify\"},{\"And\":[{\"IsPresent\":true,\"Variable\":\"$.fetchScan.all\"},{\"StringMatches\":\"*\\\"status\\\":\\\"failed\\\"*\",\"Variable\":\"$.fetchScan.all\"}],\"Next\":\"DegradedNotify\"}],\"Default\":\"Bronze\",\"Type\":\"Choice\"},\"Bronze\":{\"ItemProcessor\":{\"ProcessorConfig\":{\"Mode\":\"INLINE\"},\"StartAt\":\"RouteIntegrationBronze\",\"States\":{\"BatchSyncBronze\":{\"End\":true,\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.task.command\",\"Environment.$\":\"$.task.env\"},\"JobDefinition.$\":\"$.task.jobdef\",\"JobName.$\":\"States.Format('{}-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.task.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Batch.ServerException\",\"Batch.TooManyRequestsException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"GlueSyncBronze\":{\"End\":true,\"Parameters\":{\"Arguments.$\":\"$.task.arguments\",\"JobName.$\":\"$.task.glue_job\"},\"Resource\":\"arn:aws:states:::glue:startJobRun.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Glue.ConcurrentRunsExceededException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"RouteIntegrationBronze\":{\"Choices\":[{\"Next\":\"GlueSyncBronze\",\"StringEquals\":\"glue\",\"Variable\":\"$.task.integration\"}],\"Default\":\"BatchSyncBronze\",\"Type\":\"Choice\"}}},\"ItemSelector\":{\"family.$\":\"$.family\",\"task.$\":\"$$.Map.Item.Value\"},\"ItemsPath\":\"$.phases.bronze.tasks\",\"MaxConcurrency\":1,\"Next\":\"Silver\",\"ResultPath\":\"$.bronzeResults\",\"Type\":\"Map\"},\"ClassifyGateFailure\":{\"Choices\":[{\"And\":[{\"IsPresent\":true,\"Variable\":\"$.error.Cause\"},{\"Or\":[{\"StringMatches\":\"*\\\"ExitCode\\\":1,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":1}*\",\"Variable\":\"$.error.Cause\"}]}],\"Next\":\"FailNotify\"},{\"And\":[{\"IsPresent\":true,\"Variable\":\"$.error.Cause\"},{\"Or\":[{\"StringMatches\":\"*\\\"ExitCode\\\":64,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":64}*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":70,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":70}*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":71,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":71}*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":72,*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":72}*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*CannotPullContainer*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*ResourceInitializationError*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*OutOfMemory*\",\"Variable\":\"$.error.Cause\"}]}],\"Next\":\"InfraFailNotify\"}],\"Default\":\"FailNotify\",\"Type\":\"Choice\"},\"DegradedNotify\":{\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"Bronze\",\"ResultPath\":\"$.degradedNotifyError\"}],\"Next\":\"Bronze\",\"Parameters\":{\"Message.$\":\"States.Format('Family {} ran DEGRADED. At least one FETCH leg was BLOCKED AT THE SOURCE (the job RAN and exited non-zero) AND at least one other fetch leg SUCCEEDED, so the pipeline CONTINUED to bronze/silver/gate/promote with the sources that did land. Execution {}. Per-leg results follow; a failed leg carries status failed, class source, its task (jobdef + command) and the whole caught error object: {}. NOT COVERED BY THIS TOLERANCE: a leg whose container never started is classed infra and does NOT arrive here -- that run FAILS. Neither does a run where every fetch leg failed. Bronze, Silver and Promote stay FAIL-FAST, so a failed derivation or publication leg still stops this run before canonical (INV-6) -- with ONE measured exception, weather_daily task chirps_to_bronze, a bronze WRITER that sits in the fetch phase of its descriptor and is therefore best-effort until that descriptor moves (accepted 2026-09-04, docketed). If the SAME leg degrades on consecutive fires, treat the SOURCE as blocked and open a docket -- do not rotate a user agent.', $.family, $$.Execution.Name, $.fetchScan.all)\",\"Subject.$\":\"States.Format('[leviathan-dev] silver pipeline DEGRADED, fetch leg blocked: {}', $.family)\",\"TopicArn\":\"arn:aws:sns:us-east-1:668891723125:leviathan-dev-alerts\"},\"Resource\":\"arn:aws:states:::sns:publish\",\"ResultPath\":\"$.degradedNotifyResult\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.ALL\"],\"IntervalSeconds\":5,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"FailNotify\":{\"Next\":\"PipelineFailed\",\"Parameters\":{\"Message.$\":\"States.Format('Family {} failed the silver_rebuild_gate (or an upstream task). Execution {}. Canonical left untouched (INV-6).', $.family, $$.Execution.Name)\",\"Subject.$\":\"States.Format('[leviathan-dev] silver pipeline FAILED: {}', $.family)\",\"TopicArn\":\"arn:aws:sns:us-east-1:668891723125:leviathan-dev-alerts\"},\"Resource\":\"arn:aws:states:::sns:publish\",\"ResultPath\":\"$.notifyResult\",\"Type\":\"Task\"},\"Fetch\":{\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailNotify\",\"ResultPath\":\"$.error\"}],\"ItemProcessor\":{\"ProcessorConfig\":{\"Mode\":\"INLINE\"},\"StartAt\":\"RouteIntegrationFetch\",\"States\":{\"BatchSyncFetch\":{\"Catch\":[{\"ErrorEquals\":[\"Batch.ServerException\",\"Batch.TooManyRequestsException\",\"States.Timeout\",\"Batch.AWSBatchException\"],\"Next\":\"RecordInfraFailureFetch\",\"ResultPath\":\"$.error\"},{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"ClassifyFailureFetch\",\"ResultPath\":\"$.error\"}],\"End\":true,\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.task.command\",\"Environment.$\":\"$.task.env\"},\"JobDefinition.$\":\"$.task.jobdef\",\"JobName.$\":\"States.Format('{}-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.task.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"ResultSelector\":{\"status\":\"ok\"},\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Batch.ServerException\",\"Batch.TooManyRequestsException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"ClassifyFailureFetch\":{\"Choices\":[{\"And\":[{\"IsPresent\":true,\"Variable\":\"$.error.Cause\"},{\"Or\":[{\"StringMatches\":\"*CannotPullContainer*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*ResourceInitializationError*\",\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*OutOfMemory*\",\"Variable\":\"$.error.Cause\"}]}],\"Next\":\"RecordInfraFailureFetch\"},{\"And\":[{\"IsPresent\":true,\"Variable\":\"$.error.Cause\"},{\"StringMatches\":\"*\\\"ExitCode\\\":*\",\"Variable\":\"$.error.Cause\"}],\"Next\":\"RecordSourceFailureFetch\"}],\"Default\":\"RecordInfraFailureFetch\",\"Type\":\"Choice\"},\"GlueSyncFetch\":{\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"RecordInfraFailureFetch\",\"ResultPath\":\"$.error\"}],\"End\":true,\"Parameters\":{\"Arguments.$\":\"$.task.arguments\",\"JobName.$\":\"$.task.glue_job\"},\"Resource\":\"arn:aws:states:::glue:startJobRun.sync\",\"ResultSelector\":{\"status\":\"ok\"},\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Glue.ConcurrentRunsExceededException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"RecordInfraFailureFetch\":{\"End\":true,\"Parameters\":{\"cause.$\":\"States.JsonToString($.error)\",\"class\":\"infra\",\"error.$\":\"$.error.Error\",\"status\":\"failed\",\"task.$\":\"$.task\"},\"Type\":\"Pass\"},\"RecordSourceFailureFetch\":{\"End\":true,\"Parameters\":{\"cause.$\":\"States.JsonToString($.error)\",\"class\":\"source\",\"error.$\":\"$.error.Error\",\"status\":\"failed\",\"task.$\":\"$.task\"},\"Type\":\"Pass\"},\"RouteIntegrationFetch\":{\"Choices\":[{\"Next\":\"GlueSyncFetch\",\"StringEquals\":\"glue\",\"Variable\":\"$.task.integration\"}],\"Default\":\"BatchSyncFetch\",\"Type\":\"Choice\"}}},\"ItemSelector\":{\"family.$\":\"$.family\",\"task.$\":\"$$.Map.Item.Value\"},\"ItemsPath\":\"$.phases.fetch.tasks\",\"MaxConcurrency\":1,\"Next\":\"ScanFetchResults\",\"ResultPath\":\"$.fetchResults\",\"Type\":\"Map\"},\"FetchInfraFailNotify\":{\"Next\":\"PipelineInfraFailed\",\"Parameters\":{\"Message.$\":\"States.Format('Family {} produced NO SOURCE VERDICT in the FETCH phase. At least one fetch leg failed INFRA-side: the container never became the job (CannotPullContainer, ResourceInitializationError, OutOfMemory in StatusReason), or a Batch service fault or a .sync timeout ended it, or the failure could not be classified at all. That is NOT a blocked source, so it was NOT tolerated: bronze, silver, gate and promote were never entered and canonical was never touched (INV-6). Execution {}. Per-leg results follow; an infra leg carries class infra plus its task (jobdef + command) and the whole caught error object: {}. Do not hunt a data problem -- read the failed Batch attempt (exit code + StatusReason) in the execution history and the /aws/batch log stream, fix the infra fault, then re-run the family.', $.family, $$.Execution.Name, $.fetchScan.all)\",\"Subject.$\":\"States.Format('[leviathan-dev] silver pipeline INFRA FAILURE in FETCH: {}', $.family)\",\"TopicArn\":\"arn:aws:sns:us-east-1:668891723125:leviathan-dev-alerts\"},\"Resource\":\"arn:aws:states:::sns:publish\",\"ResultPath\":\"$.notifyResult\",\"Type\":\"Task\"},\"Gate\":{\"Catch\":[{\"ErrorEquals\":[\"Batch.ServerException\",\"Batch.TooManyRequestsException\",\"States.Timeout\",\"Batch.AWSBatchException\"],\"Next\":\"InfraFailNotify\",\"ResultPath\":\"$.error\"},{\"ErrorEquals\":[\"States.TaskFailed\"],\"Next\":\"ClassifyGateFailure\",\"ResultPath\":\"$.error\"},{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailNotify\",\"ResultPath\":\"$.error\"}],\"Next\":\"Promote\",\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.gate.command\",\"Environment\":[{\"Name\":\"GRAPHRAG_NUMBERS_BACKEND\",\"Value\":\"pg\"}]},\"JobDefinition.$\":\"$.gate.jobdef\",\"JobName.$\":\"States.Format('{}-gate-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.gate.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"ResultPath\":\"$.gateResult\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"Batch.ServerException\",\"Batch.TooManyRequestsException\",\"States.Timeout\"],\"IntervalSeconds\":30,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"InfraFailNotify\":{\"Next\":\"PipelineInfraFailed\",\"Parameters\":{\"Message.$\":\"States.Format('Family {} produced NO GATE VERDICT. The gate job did not run to a decision ({}). Execution {}. This is an INFRASTRUCTURE fault, NOT a refusal: no table was judged, [Promote] was never entered and canonical was never touched (INV-6). Do not hunt a data problem -- read the failed Batch attempt (exit code + StatusReason) in the execution history and the /aws/batch log stream, fix the infra fault, then re-run the family. Gate exit codes: 64 usage, 70 internal crash, 71 image/config fence, 72 baseline fetch (D-PR-8).', $.family, $.error.Error, $$.Execution.Name)\",\"Subject.$\":\"States.Format('[leviathan-dev] silver pipeline INFRA FAILURE, no gate verdict: {}', $.family)\",\"TopicArn\":\"arn:aws:sns:us-east-1:668891723125:leviathan-dev-alerts\"},\"Resource\":\"arn:aws:states:::sns:publish\",\"ResultPath\":\"$.notifyResult\",\"Type\":\"Task\"},\"PipelineFailed\":{\"Cause\":\"The silver_rebuild_gate returned FAIL (or an upstream fetch/bronze/silver task failed); canonical promote was skipped.\",\"Error\":\"SilverPipelineGateFailed\",\"Type\":\"Fail\"},\"PipelineInfraFailed\":{\"Cause\":\"The silver_rebuild_gate produced NO VERDICT, or a FETCH leg failed infra-side before the gate was reached (infrastructure fault: the job never ran, never finished, or exited on a non-verdict code). Canonical promote was skipped and canonical was never touched.\",\"Error\":\"SilverPipelineInfraFailed\",\"Type\":\"Fail\"},\"Promote\":{\"ItemProcessor\":{\"ProcessorConfig\":{\"Mode\":\"INLINE\"},\"StartAt\":\"RouteIntegrationPromote\",\"States\":{\"BatchSyncPromote\":{\"End\":true,\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.task.command\",\"Environment.$\":\"$.task.env\"},\"JobDefinition.$\":\"$.task.jobdef\",\"JobName.$\":\"States.Format('{}-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.task.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Batch.ServerException\",\"Batch.TooManyRequestsException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"GlueSyncPromote\":{\"End\":true,\"Parameters\":{\"Arguments.$\":\"$.task.arguments\",\"JobName.$\":\"$.task.glue_job\"},\"Resource\":\"arn:aws:states:::glue:startJobRun.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Glue.ConcurrentRunsExceededException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"RouteIntegrationPromote\":{\"Choices\":[{\"Next\":\"GlueSyncPromote\",\"StringEquals\":\"glue\",\"Variable\":\"$.task.integration\"}],\"Default\":\"BatchSyncPromote\",\"Type\":\"Choice\"}}},\"ItemSelector\":{\"family.$\":\"$.family\",\"task.$\":\"$$.Map.Item.Value\"},\"ItemsPath\":\"$.promote.tasks\",\"MaxConcurrency\":1,\"Next\":\"Reconcile\",\"ResultPath\":\"$.promoteResults\",\"Type\":\"Map\"},\"Reconcile\":{\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"FailNotify\",\"ResultPath\":\"$.error\"}],\"Next\":\"Succeeded\",\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"States.Array('-m', 'jobs.audit.advance_rolling_census', '--asof', States.Format('{}', $.asof), '--dest-uri', $.gate_baseline_uri)\",\"Environment\":[{\"Name\":\"GRAPHRAG_NUMBERS_BACKEND\",\"Value\":\"pg\"}]},\"JobDefinition.$\":\"$.gate.jobdef\",\"JobName.$\":\"States.Format('{}-reconcile-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.gate.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"ResultPath\":\"$.reconcileResult\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"Batch.ServerException\",\"Batch.TooManyRequestsException\",\"States.Timeout\"],\"IntervalSeconds\":30,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"ScanFetchResults\":{\"Next\":\"AnyFetchLegFailed\",\"Parameters\":{\"all.$\":\"States.JsonToString($.fetchResults)\"},\"ResultPath\":\"$.fetchScan\",\"Type\":\"Pass\"},\"Silver\":{\"ItemProcessor\":{\"ProcessorConfig\":{\"Mode\":\"INLINE\"},\"StartAt\":\"RouteIntegrationSilver\",\"States\":{\"BatchSyncSilver\":{\"End\":true,\"Parameters\":{\"ContainerOverrides\":{\"Command.$\":\"$.task.command\",\"Environment.$\":\"$.task.env\"},\"JobDefinition.$\":\"$.task.jobdef\",\"JobName.$\":\"States.Format('{}-{}', $.family, States.UUID())\",\"JobQueue.$\":\"$.task.queue\"},\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Batch.ServerException\",\"Batch.TooManyRequestsException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"GlueSyncSilver\":{\"End\":true,\"Parameters\":{\"Arguments.$\":\"$.task.arguments\",\"JobName.$\":\"$.task.glue_job\"},\"Resource\":\"arn:aws:states:::glue:startJobRun.sync\",\"Retry\":[{\"BackoffRate\":2,\"ErrorEquals\":[\"States.Timeout\",\"Glue.ConcurrentRunsExceededException\"],\"IntervalSeconds\":60,\"MaxAttempts\":2}],\"Type\":\"Task\"},\"RouteIntegrationSilver\":{\"Choices\":[{\"Next\":\"GlueSyncSilver\",\"StringEquals\":\"glue\",\"Variable\":\"$.task.integration\"}],\"Default\":\"BatchSyncSilver\",\"Type\":\"Choice\"}}},\"ItemSelector\":{\"family.$\":\"$.family\",\"task.$\":\"$$.Map.Item.Value\"},\"ItemsPath\":\"$.phases.silver.tasks\",\"MaxConcurrency\":1,\"Next\":\"Gate\",\"ResultPath\":\"$.silverResults\",\"Type\":\"Map\"},\"Succeeded\":{\"Type\":\"Succeed\"}}}",
+          "description": "",
+          "encryption_configuration": [
+            {
+              "kms_data_key_reuse_period_seconds": 0,
+              "kms_key_id": "",
+              "type": "AWS_OWNED_KEY"
+            }
+          ],
+          "id": "arn:aws:states:us-east-1:668891723125:stateMachine:leviathan-dev-silver-thin-contract",
+          "logging_configuration": [
+            {
+              "include_execution_data": true,
+              "level": "ALL",
+              "log_destination": "arn:aws:logs:us-east-1:668891723125:log-group:/aws/vendedlogs/states/leviathan-dev-silver-thin-contract:*"
+            }
+          ],
+          "name": "leviathan-dev-silver-thin-contract",
+          "name_prefix": "",
+          "publish": false,
+          "revision_id": "ae539d93-afc3-49d1-94a9-c76448c2b2e2",
+          "role_arn": "arn:aws:iam::668891723125:role/leviathan-dev-sfn-exec",
+          "state_machine_version_arn": "",
+          "status": "ACTIVE",
+          "tags": {
+            "Environment": "dev",
+            "ManagedBy": "terraform",
+            "Project": "leviathan"
+          },
+          "tags_all": {
+            "Environment": "dev",
+            "ManagedBy": "terraform",
+            "Project": "leviathan"
+          },
+          "timeouts": null,
+          "tracing_configuration": [
+            {
+              "enabled": false
+            }
+          ],
+          "type": "STANDARD",
+          "version_description": null
+        },
+        "after_unknown": {},
+        "before_sensitive": {
+          "encryption_configuration": [
+            {}
+          ],
+          "logging_configuration": [
+            {}
+          ],
+          "tags": {},
+          "tags_all": {},
+          "tracing_configuration": [
+            {}
+          ]
+        },
+        "after_sensitive": {
+          "encryption_configuration": [
+            {}
+          ],
+          "logging_configuration": [
+            {}
+          ],
+          "tags": {},
+          "tags_all": {},
+          "tracing_configuration": [
+            {}
+          ]
+        }
+      }
+    }
+  ]
+}

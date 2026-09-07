@@ -285,9 +285,55 @@ def steps(run_id: str) -> list[tuple[str, list[str]]]:
             "\"sha256:<the digest above>\"   (a TAG is refused by the variable's own validation)",
             "python scripts/ops/check_ecr_pinned_digests.py",
             "terraform -chdir=infra/terraform/envs/dev plan "
-            "-target=module.batch.aws_batch_job_definition.world_bank_pink_sheet_bronze",
-            "terraform -chdir=infra/terraform/envs/dev apply "
-            "-target=module.batch.aws_batch_job_definition.world_bank_pink_sheet_bronze",
+            "-target=module.batch.aws_batch_job_definition.world_bank_pink_sheet_bronze "
+            "-out=pink_bronze.tfplan",
+            "terraform -chdir=infra/terraform/envs/dev show -json pink_bronze.tfplan "
+            "| Out-File -Encoding utf8 infra/terraform/envs/dev/tfplan_pink_bronze.json",
+            "# THE JSON PATH IS PART OF THE STEP, NOT A DETAIL. A rendered plan carries the "
+            "account id, every ARN it touches and the INLINE IAM POLICY DOCUMENTS of every role "
+            "in the plan -- .gitignore:71 already calls saved plans sensitive -- and this repo is "
+            "PUBLIC with co-tenant agents racing the git index. `infra/terraform/**/tfplan*` "
+            "(.gitignore:72) covers a file named tfplan_*.json in the env directory; a "
+            "pink_bronze_plan.json in the repo root is NOT ignored. MEASURED with "
+            "`git check-ignore -v` on both spellings. THE BINARY HALF IS THE SAME PAYLOAD -- the "
+            "JSON is rendered FROM it -- and -out drops pink_bronze.tfplan inside the env dir, "
+            "where `infra/terraform/**/*.tfplan` (.gitignore:73) covers it. Both names together "
+            "are the ONE shape the tool's own docstring and the esr runbook also print; "
+            "tests/unit/test_tf_single_resource_gate.py reads all three and reddens on any "
+            "divergence.",
+            "# -chdir does NOT apply to the redirect: terraform resolves -out and its show "
+            "argument inside the env dir, while Out-File writes relative to YOUR cwd (the repo "
+            "root), so the JSON path is spelled in full and the .tfplan is not.",
+            "# Out-File -Encoding utf8, not a bare `>`: Out-File NAMES its encoding where a "
+            "redirect inherits the host's. MEASURED 2026-09-06 on PS 5.1.26100.9168: both wrote "
+            "UTF-8 with a BOM, and the gate reads utf-8-sig, so either feeds it here.",
+            "# ---- THE GATE BETWEEN PLAN AND APPLY. Exit 0 or DO NOT APPLY. -----------------",
+            "python scripts/ops/tf_single_resource_gate.py "
+            "--plan-json infra/terraform/envs/dev/tfplan_pink_bronze.json "
+            "--address module.batch.aws_batch_job_definition.world_bank_pink_sheet_bronze "
+            "--expect-changed container_properties.image --expect-unchanged-envelope",
+            "# It refuses anything but: ONE resource moving, action update, THIS address (with or "
+            "without a count index), and container_properties.image as the only key that moved "
+            "once the provider's normalisations are undone -- plus an unchanged "
+            "resourceRequirements envelope. MEASURED 2026-09-06 on the futures_eod_silver repin, "
+            "whose plan has exactly this shape: a hand-written gate refused a CORRECT plan three "
+            "times -- the live address carried [0], arn and revision are computed after apply, "
+            "and eight container keys read as moved raw (mountPoints/secrets/ulimits/volumes [] "
+            "vs absent, fargatePlatformConfiguration LATEST vs null, logConfiguration."
+            "secretOptions [] vs absent, environment in the provider's order) while ONLY image "
+            "had really moved.",
+            "# WHAT IT DOES NOT DO: it never checks WHICH digest the image moved to. That is the "
+            "verify below -- a new REVISION NUMBER read back off AWS.",
+            "terraform -chdir=infra/terraform/envs/dev apply pink_bronze.tfplan",
+            "# APPLY THE SAVED PLAN FILE, never a re-plan: a second plan is a second shape and it "
+            "is not the one the gate read.",
+            "# AND KNOW WHAT THAT COSTS. A saved-plan apply DOES NOT PAUSE. MEASURED 2026-09-07 "
+            "with terraform v1.15.2, a real create pending and stdin closed: `apply <savedplan>` "
+            "ran to completion at exit 0 with no prompt, while a bare `apply` printed \"Only "
+            "'yes' will be accepted to approve.\" and exited 1. Terraform's own 'yes' no longer "
+            "sits between the plan and production -- the gate line above is what replaced it, and "
+            "NOTHING mechanical reads the gate's exit code: 'Exit 0 or DO NOT APPLY' is prose. "
+            "READ the gate's last line before you paste the apply.",
             _verify_jobdef(JD_BRONZE),
             "# VERIFY THE REVISION MOVED and the image is the digest you just built. A push "
             "without a re-register is a NO-OP -- that is the measured 2026-08-27 rev-110 vacuous "
@@ -535,17 +581,44 @@ def steps(run_id: str) -> list[tuple[str, list[str]]]:
             "or the promote leg dies on a missing file -- check it against the D2 digest before "
             "the apply.",
             "terraform -chdir=infra/terraform/envs/dev plan "
-            "-target='module.eventbridge.aws_scheduler_schedule.family[\"pink_sheet_monthly\"]'",
+            "-target='module.eventbridge.aws_scheduler_schedule.family[\"pink_sheet_monthly\"]' "
+            "-out=pink_schedule.tfplan",
             "# MEASURED 2026-09-04: there is NO module.scheduler in this stack (the schedules are "
             "module.eventbridge's aws_scheduler_schedule.family[<stem>]); a -target on a name that "
             "resolves to nothing plans ZERO changes and reads as 'already armed' while the live "
             "schedule still lacks the vintage tasks. Single-resource address, gated on its shape.",
-            "terraform -chdir=infra/terraform/envs/dev apply "
-            "-target='module.eventbridge.aws_scheduler_schedule.family[\"pink_sheet_monthly\"]'",
-            "# MEASURED 2026-09-04: there is NO module.scheduler in this stack (the schedules are "
-            "module.eventbridge's aws_scheduler_schedule.family[<stem>]); a -target on a name that "
-            "resolves to nothing plans ZERO changes and reads as 'already armed' while the live "
-            "schedule still lacks the vintage tasks. Single-resource address, gated on its shape.",
+            "terraform -chdir=infra/terraform/envs/dev show -json pink_schedule.tfplan "
+            "| Out-File -Encoding utf8 infra/terraform/envs/dev/tfplan_pink_schedule.json",
+            "# Same path rule as D2, and for the same measured reason: tfplan_*.json inside the "
+            "env directory is covered by .gitignore:72, a *_plan.json in the repo root is not, "
+            "and a rendered plan carries the account id, the ARNs and the inline IAM policy "
+            "documents in a PUBLIC repo. The redirect is resolved from YOUR cwd, not -chdir's, "
+            "while -out drops pink_schedule.tfplan inside the env dir where .gitignore:73 "
+            "(infra/terraform/**/*.tfplan) covers the binary half.",
+            "# ---- THE GATE BETWEEN PLAN AND APPLY. Exit 0 or DO NOT APPLY. -----------------",
+            "python scripts/ops/tf_single_resource_gate.py "
+            "--plan-json infra/terraform/envs/dev/tfplan_pink_schedule.json "
+            "--address 'module.eventbridge.aws_scheduler_schedule.family"
+            "[\"pink_sheet_monthly\"]' --expect-changed target",
+            "# THE ADDRESS IS PASSED WITH ITS for_each KEY AND IS MATCHED EXACTLY -- that is this "
+            "step's own finding turned into a check: a plan carrying family[\"psd_monthly\"] "
+            "(the stem still drifting above) is a LIVE SCHEDULE BELONGING TO ANOTHER LANE and the "
+            "gate refuses it. A zero-change plan -- the module.scheduler trap -- also refuses, so "
+            "'already armed' has to be earned rather than read.",
+            "# WHAT IT DOES NOT DO HERE: `target` is a BLOCK LIST, not a JSON-string attribute, "
+            "so the gate proves that target and nothing else moved -- it does not diff the two "
+            "rendered task entries inside it. Those are enumerated above; read them against the "
+            "plan's own target block before applying.",
+            "terraform -chdir=infra/terraform/envs/dev apply pink_schedule.tfplan",
+            "# APPLY THE SAVED PLAN FILE, never a re-plan: a second plan is a second shape and it "
+            "is not the one the gate read.",
+            "# AND KNOW WHAT THAT COSTS. A saved-plan apply DOES NOT PAUSE. MEASURED 2026-09-07 "
+            "with terraform v1.15.2, a real create pending and stdin closed: `apply <savedplan>` "
+            "ran to completion at exit 0 with no prompt, while a bare `apply` printed \"Only "
+            "'yes' will be accepted to approve.\" and exited 1. Terraform's own 'yes' no longer "
+            "sits between the plan and production -- the gate line above is what replaced it, and "
+            "NOTHING mechanical reads the gate's exit code: 'Exit 0 or DO NOT APPLY' is prose. "
+            "READ the gate's last line before you paste the apply.",
             "# The next scheduled fire (cron(0 16 8 * ? *)) then carries the vintage build under "
             "the same gate. VERIFY the job EXISTS after fire time -- scheduler roles are "
             "RESOURCE-SCOPED per jobdef and a borrowed role is AccessDenied at fire.",
@@ -815,7 +888,24 @@ def rollback() -> int:
     print("    IF THE DAG ENTRY ALREADY SHIPPED: remove the vintages task and the gate_tables "
           "entry from configs/silver/dags/pink_sheet_monthly.json, re-render")
     print("    infra/terraform/envs/dev/dag_schedules.auto.tfvars.json and re-apply. There is NO "
-          "census entry to delete, because none was ever created.\n")
+          "census entry to delete, because none was ever created.")
+    print("    THE ROLLBACK APPLY IS GATED EXACTLY LIKE D11's: a rollback plan is a "
+          "single-resource plan too, and it is the one an operator runs in a hurry.")
+    print("    IT USES ITS OWN TWO FILENAMES, not D11's. An operator who pastes the gate line "
+          "without the `show -json` line above it would otherwise")
+    print("    gate this rollback against D11's LEFTOVER JSON -- a stale plan reads as a clean "
+          "one, and only the gate's printed plan stamp would show it.")
+    print("    terraform -chdir=infra/terraform/envs/dev plan "
+          "-target='module.eventbridge.aws_scheduler_schedule.family[\"pink_sheet_monthly\"]' "
+          "-out=pink_rollback.tfplan")
+    print("    terraform -chdir=infra/terraform/envs/dev show -json pink_rollback.tfplan "
+          "| Out-File -Encoding utf8 infra/terraform/envs/dev/tfplan_pink_rollback.json")
+    print("    python scripts/ops/tf_single_resource_gate.py --plan-json "
+          "infra/terraform/envs/dev/tfplan_pink_rollback.json --address "
+          "'module.eventbridge.aws_scheduler_schedule.family[\"pink_sheet_monthly\"]' "
+          "--expect-changed target")
+    print("    terraform -chdir=infra/terraform/envs/dev apply pink_rollback.tfplan"
+          "   # ONLY on exit 0\n")
 
     print("    DO NOT re-run jobs/batch/pink_sheet_silver_task.py as part of any rollback: the "
           "served table was never touched, and running it out of band is exactly what the F1 law "
