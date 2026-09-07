@@ -97,12 +97,14 @@ def test_the_preset_table_and_nothing_else():
     # NAME, dark to the wildcard. SIXTH application: fourteen presets, three servable.
     # Q-0a (2026-08-28): `max_cc2` appends the same way -- the slot-WIDTH arm, resolvable BY NAME,
     # dark to the wildcard. SEVENTH application: fifteen presets, three servable.
+    # LANE S (2026-09-06): `quick_n3` appends the same way -- the Scan-tier numbers-budget arm,
+    # resolvable BY NAME, dark to the wildcard. EIGHTH application: sixteen presets, three servable.
     assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2", "max", "max_c0",
                                           "esc", "esc_r", "max_cc1", "max_cc2", "deep_cc1",
-                                          "quick_hp", "deep_hp", "esc_hp", "esc_r_hp"})
+                                          "quick_hp", "deep_hp", "esc_hp", "esc_r_hp", "quick_n3"})
     assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2, rm.MAX, rm.MAX_C0,
                              rm.ESC, rm.ESC_R, rm.MAX_CC1, rm.MAX_CC2, rm.DEEP_CC1,
-                             rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP}
+                             rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP, rm.QUICK_N3}
     # Every preset's `name` field agrees with its table key -- the `replace(...)`-constructed twins would
     # otherwise be able to carry their BASE's name and stamp the wrong arm on every artifact.
     assert all(m.name == k for k, m in rm.MODES.items())
@@ -127,9 +129,14 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
     # T2-2: `deep_cc1` joins DARK_NAMES in the SAME edit that mints it, and it is the sharpest case of the
     # fence yet -- every earlier dark preset was built on a dark base or an unflipped treatment, while this
     # one is the SHIPPED serving tier plus a paid foreign-contract slot the T2-3 gate has not adjudicated.
+    # LANE S (2026-09-06): `quick_n3` joins DARK_NAMES in the SAME edit that mints it -- the F8 leak
+    # fence, SEVENTH application, and the `deep_cc1` case one tier lower: `quick` is the SHIPPED FREE
+    # serving tier, so a forgotten entry would narrow the observed-number leg of the estate's DEFAULT
+    # notch on every `GRAPHRAG_MODES=on` turn, on the strength of a cost census and no read gate.
     assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0, rm.ESC, rm.ESC_R, rm.MAX_CC1,
                                        rm.MAX_CC2, rm.DEEP_CC1,
-                                       rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP})
+                                       rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP,
+                                       rm.QUICK_N3})
     assert rm.serving_names() == frozenset({"quick", "standard", "deep"})
     assert rm.DEEP_V2 in rm.valid_names()                              # still RESOLVABLE (stamped)
     for on in ("on", "1", "true"):
@@ -139,6 +146,7 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
         assert rm.ESC not in orch._modes_enabled() and rm.ESC_R not in orch._modes_enabled()
         assert rm.MAX_CC1 not in orch._modes_enabled()
         assert rm.DEEP_CC1 not in orch._modes_enabled()
+        assert rm.QUICK_N3 not in orch._modes_enabled()               # LANE S: the free tier's arm
         assert not (set(rm.HANDLE_PROSE_PRESETS.values()) & orch._modes_enabled())
     assert rm.resolve("deep_v2", orch._modes_enabled())["honored"] == "standard"
     monkeypatch.setenv("GRAPHRAG_MODES", "deep_v2")                    # named EXPLICITLY -> honored
@@ -173,13 +181,17 @@ def test_the_two_new_policy_fields_default_to_none_on_every_pre_ddv_preset():
     # time and every slice below shifts left by one. Same law, same reason.
     # Q-0 re-pin (2026-08-29): `synth_effort` appends AFTER handle_prose -- the tail moves a SIXTH
     # time and every slice below shifts left by one. Same law, same reason.
-    assert rm.KNOB_FIELDS[-1] == "synth_effort"
-    assert rm.KNOB_FIELDS[-2] == "handle_prose"
-    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-4:-2]
-    assert rm.KNOB_FIELDS[-5] == "synth_model"
-    assert rm.KNOB_FIELDS[-9:-5] == ("per_seed_budget", "per_seed_evidence_cap",
-                                     "per_seed_probe_cap", "per_seed_reserve")
-    assert rm.KNOB_FIELDS[-11:-9] == ("cap_policy", "order_policy")     # appended, never sorted in
+    # LANE S re-pin (2026-09-06): `numbers_calls` appends AFTER synth_effort -- the appended-last law,
+    # SEVENTH application. The tail moves a seventh time and every slice below shifts left by one.
+    # Same law, same reason: KNOB_FIELDS order IS the trace-stamp column order -- append, never insert.
+    assert rm.KNOB_FIELDS[-1] == "numbers_calls"
+    assert rm.KNOB_FIELDS[-2] == "synth_effort"
+    assert rm.KNOB_FIELDS[-3] == "handle_prose"
+    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-5:-3]
+    assert rm.KNOB_FIELDS[-6] == "synth_model"
+    assert rm.KNOB_FIELDS[-10:-6] == ("per_seed_budget", "per_seed_evidence_cap",
+                                      "per_seed_probe_cap", "per_seed_reserve")
+    assert rm.KNOB_FIELDS[-12:-10] == ("cap_policy", "order_policy")    # appended, never sorted in
     for name in (rm.QUICK, rm.STANDARD, rm.DEEP):
         m = rm.MODES[name]
         assert m.cap_policy is None and m.order_policy is None, name

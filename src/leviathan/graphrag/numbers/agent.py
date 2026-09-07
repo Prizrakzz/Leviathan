@@ -1548,6 +1548,66 @@ def _families_line(reg: NumbersRegistry, families) -> str:
             "satisfy the hint.")
 
 
+# LANE S (SCAN TIER, 2026-09-06): the signature default of `answer_numbers(max_calls=)`, mirrored here
+# as the ONE producer of "is this turn actually narrowed". `config_check.check_scan_tier` clause (vi)
+# pins the signature default at 6 and `test_scan_tier` pins THIS constant equal to it, so the two
+# cannot drift into a state where the line renders on an un-narrowed turn.
+_DEFAULT_MAX_CALLS = 6
+
+
+def _budget_line(max_calls: int | None) -> str:
+    """LANE S: the agent-visible LOOKUP-ROUND budget, as ONE line of the FIRST user turn, or "" when
+    this turn is not narrowed (no budget threaded, or one at/above the `answer_numbers` signature
+    default). "" is the whole flag-off guarantee here -- `_budget_line(None) == _budget_line(6) == ""`,
+    so the first user turn is byte-identical on every tier that carries no `numbers_calls` knob.
+
+    A DECLARED LIVE PROMPT CHANGE, and POSITIVE in wording: it states what the turn HAS and asks for
+    batching, forbids no phrase, and names no idiom (the J6 doctrine -- writing a forbidden idiom into
+    a prompt teaches it).
+
+    TRUE AT THE BOUNDARY, which is why the last round is described the way it is: the loop executes
+    round N's tool calls and then falls out to the budget-exhausted return, so the model never sees
+    round N's results. Telling it it will read N-1 rounds is the literal mechanism, not a hedge.
+
+    WHY THE USER TURN AND NOT `system_prompt`. The system block carries `cache_control: ephemeral` and
+    its cache WRITE is a measured 98,174 tokens = $0.3682 per extra prompt variant at claude-sonnet-5 --
+    more than the median $0.157 the three-round cut saves per turn -- so a per-turn line there would
+    spend more than the mechanism earns. That is the same rule `_families_line`'s own docstring states.
+    It mints no SECOND cached prefix either: turn 1's user message is a plain string the moving-marker
+    mover deliberately skips (see this module's CACHE_CHECKPOINTS note, ~141 tokens, far under
+    claude-sonnet-5's 1,024-token minimum cacheable prefix), so nothing here is cached at all.
+
+    DELIBERATELY NOT COVERED: the paid tiers and the `numbers_only` lane never thread a budget, so this
+    line never renders for them -- by absence of an argument, not by a branch in here."""
+    n = int(max_calls or 0)
+    if n <= 0 or n >= _DEFAULT_MAX_CALLS:
+        return ""
+    return ("\nLOOKUP ROUNDS: this turn has %d rounds of tool calls. A round is one turn of yours and "
+            "may carry SEVERAL lookups at once, so put every lookup you already know you need into the "
+            "first round, together. You will read the results of the first %d rounds; whatever the last "
+            "round returns goes into the record as it stands, so spend that round on reads you are "
+            "content to have quoted without seeing them. Read the card that most directly answers the "
+            "question first." % (n, n - 1))
+
+
+def _budget_stamp(max_calls: int, rounds_used: int, calls: list, *, capped: bool) -> dict:
+    """LANE S: the ONE producer of the `numbers_budget` record, so the dict SHAPE is written once and
+    the three turn-ending returns below cannot describe the same turn in three different shapes.
+
+    UNCONDITIONAL -- this module reads no flag for it and never has to. The record is a fact about what
+    the loop did (`max_calls` it was given, rounds it entered, lookups it accumulated, whether it left
+    by exhausting the budget); WHO CONSUMES IT is decided one level up, at the orchestrator's two gates
+    (`_numbers_mode_budget_on` / `_numbers_budget_note_on` plus `bool(_nc)`). That split is the reason a
+    flag-off hybrid turn grows no trace column: nothing here is gated, and nothing there is copied.
+
+    `lookups` is `len(calls)` AT THE MOMENT OF THE STAMP, which is why the callers re-take it at each
+    return rather than trusting the one taken when `result` was built: the ESR-destination-generic path
+    APPENDS aggregate legs to `calls` and then leaves immediately (the note at that return records the
+    same class, and it is why `tables_queried` needed its own line there)."""
+    return {"max_calls": int(max_calls), "rounds_used": int(rounds_used),
+            "lookups": len(calls or []), "capped": bool(capped)}
+
+
 def tool_schema(reg: NumbersRegistry) -> dict:
     """The single tool. `table` is an enum over the registry; asof is DELIBERATELY absent (the harness forces it)."""
     return {
@@ -2658,7 +2718,11 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # is byte-stable per (registry, flags), so a per-turn families line there would invalidate the prompt cache
     # on every turn. QUESTION stays last (the recency slot it has always held); absent families -> the string
     # is byte-identical to pre-B1.
+    # LANE S: the LOOKUP-ROUND budget line rides the SAME user turn, for the SAME cache reason B1
+    # states directly above, and sits between the as-of line and the routing hint so QUESTION keeps the
+    # recency slot it has always held. "" on every un-narrowed turn -> byte-identical to pre-LANE-S.
     convo: list[dict] = [{"role": "user", "content": f"As-of date (fixed): {asof}"
+                                                     + _budget_line(max_calls)
                                                      + _families_line(reg, families)
                                                      + f"\n\nQuestion: {question}"}]
     calls: list[dict] = []
@@ -2700,7 +2764,13 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # everywhere below. It dispatches nothing -- the verdict is taken against the finished call list.
     shape = question_shape_scope(question)
 
+    # LANE S: rounds ACTUALLY ENTERED this turn. Incremented at the top of the body (not derived from
+    # `max_calls`) so the stamp reports what the loop did rather than what it was allowed to do -- a
+    # turn that answers in one round records 1, whatever budget it was handed.
+    _rounds = 0
     for _ in range(max_calls):
+        _rounds += 1
+
         def _one():
             kw = dict(model=model, max_tokens=max_tokens, system=system,
                       tools=tools, messages=convo)
@@ -2732,6 +2802,11 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
         if not uses:
             text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text").strip()
             result: dict = {"answer": text, "calls": calls}
+            # LANE S: stamped AT CONSTRUCTION so no return between here and the bottom of this branch
+            # can ship without the key, and RE-TAKEN at each of the two returns below because `calls`
+            # can still grow (the ESR aggregate legs, the pattern-records leg). `capped=False`: this
+            # branch is reached because the model produced TEXT, i.e. it stopped on its own.
+            result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False)
             if unit_guard_fires:
                 # U3: the unit guard's refusal is MODEL-FACING ONLY -- it never enters `calls`, so it
                 # reaches no citation and no reader directly. This key is therefore the only way to see
@@ -2805,6 +2880,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                         # D-LD Sitting-A: taken AFTER the aggregate legs were appended -- this early
                         # return is the one path that grows `calls` and then leaves immediately.
                         result["tables_queried"] = tables_queried(calls)
+                        # LANE S: re-taken here for the reason stated one line up -- this return is the
+                        # one path that GROWS `calls` and then leaves, so a stamp taken at construction
+                        # would under-report `lookups` by exactly the injected aggregate legs.
+                        result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False)
                         return result
                     # generic breakdown with no available aggregate: the plain national-total decline stands.
                     preface += _esr_destination_preface(dest)
@@ -2898,6 +2977,9 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             # result dict's construction would under-report exactly the deterministic legs the engine
             # injected on the turns where the model's own lookups were not enough.
             result["tables_queried"] = tables_queried(calls)
+            # LANE S: re-taken at the LAST possible moment, beside the usage census and for its reason --
+            # the ESR and pattern-records branches above append to `calls`, so `lookups` is only true here.
+            result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False)
             return result
         convo.append({"role": "assistant", "content": resp.content})
 
@@ -3151,8 +3233,12 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             _move_cache_checkpoint(convo)
     # D-LD Sitting-A: the budget-exhausted return is a REAL turn with real lookups behind it, so the usage
     # census rides it too -- otherwise the BUSIEST turns are precisely the ones missing from the read.
+    # LANE S: the THIRD turn-ending return, and the ONLY one that records `capped=True` -- the loop
+    # ran out of rounds rather than the model stopping. This is the return the whole tier lever is
+    # about, so the record has to be able to say so from the artifact alone.
     return {"answer": "(stopped: max tool calls reached)", "calls": calls,
-            "tables_queried": tables_queried(calls)}
+            "tables_queried": tables_queried(calls),
+            "numbers_budget": _budget_stamp(max_calls, _rounds, calls, capped=True)}
 
 
 # --- J3: DATED ROW RENDERING (OUTCOMES_JOIN_PLAN items 54-60a, 91) ----------------------------------

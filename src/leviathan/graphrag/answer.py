@@ -2560,12 +2560,70 @@ _SYSTEM_HANDLES = (
     "evidence you are writing the answer twice. Then write the answer with handles in the slots.")
 
 
+# LANE S (SCAN TIER, 2026-09-06) -- THE NUMBERS-LOOKUP-BUDGET NARRATION, both halves ------------------
+# THE MARKER, and this module is its ONE PRODUCER. `orchestrator._numbers_block` opens its SCOPE NOTE
+# clause with `an.NUMBERS_BUDGET_MARK` and the gate below keys on the same constant, so the block
+# producer and the persona mandate cannot drift apart (the `cascade.CW_MARKER_PREFIX` law, applied
+# across a module boundary). PUBLIC on purpose: orchestrator imports answer as `an` and answer imports
+# nothing from orchestrator, so the constant travels in the one direction that has no cycle, and the
+# string is never retyped at the consumer.
+NUMBERS_BUDGET_MARK = "NUMBERS LOOKUP BUDGET:"
+
+# THE MANDATE. Shape modelled on _SYSTEM_CASCADE_WALK_MANDATE: appended ONLY when the seam's gate holds
+# (the flag AND the marker actually present in the assembled volatile prompt), so a turn whose numbers
+# block carries no budget clause never sees a demand for a sentence it cannot ground -- the
+# +10-hallucination class W4-D3 named. POSITIVE THROUGHOUT and forbidding nothing: it asks for a plain
+# statement and for the figures to be framed as a partial read, and it names no idiom (the J6 doctrine
+# -- writing a forbidden phrase into a prompt teaches it).
+# THE STANDING DOCKET THIS CLOSES: numbers-leg ABSENCE NARRATION -- a turn whose numbers leg returned
+# nothing, or was budget-capped, has to say so in the writer's own words rather than presenting a thin
+# read as a complete one. THE TWO KINDS OF "RETURNED NOTHING" ARE NAMED SEPARATELY, and that
+# separation is the whole of the 2026-09-07 fix: the agent's own EMPTY return asked the record and got
+# nothing back, while a lane that RAISED or timed out never got to ask -- it mints no stamp of its own
+# and is carried by `run_hybrid`'s outage record instead. `orchestrator._numbers_block` renders exactly
+# ONE clause per state and THIS ENUMERATION MIRRORS ITS THREE, in the same order, because a mandate
+# offering two alternatives on a turn whose note states a third hands the writer the wrong sentence to
+# repeat -- the same falsity the block fix removed, re-minted one seam later. EVERY WORD HERE IS A
+# PLAIN POSITIVE INSTRUCTION and none of it asserts anything to the model that is not true of the turn
+# (the J6 doctrine, and the review's own reading of the closing clause, which used to claim the reader
+# had asked about the lookup budget).
+_SYSTEM_NUMBERS_BUDGET_MANDATE = (
+    "\nTHE NUMBERS BLOCK CARRIES A SCOPE NOTE ABOUT ITS OWN LOOKUP BUDGET, AND STATING IT IS "
+    "MANDATORY: say in your own words, in the body of the answer, what that note says -- that the "
+    "observed-data lookup for this turn could not be completed at all, that it stopped at the round "
+    "limit set for this tier, or that it ran and came back with no figure, whichever it is. Present "
+    "the figures you do have as a PARTIAL READ of the record: keep each claim inside what the block "
+    "actually shows, name the part of the question the lookup reached, and name in plain words the "
+    "part it did not. Write it as prose beside the "
+    "figures, where a reader meets it with the numbers, and give the stated limit the same standing "
+    "as the figures themselves -- it is part of what this turn found.")
+
+
+def _numbers_budget_note_on(volatile_prompt: str | None) -> bool:
+    """LANE S's SEAM GATE -- `_cascade_walk_block_on` verbatim in shape, and for its reason.
+
+      leg 1  the FLAG      -- GRAPHRAG_NUMBERS_BUDGET_NOTE, the same default-off fail-closed grammar
+                              `orchestrator._numbers_budget_note_on` reads (one env, two seams, so the
+                              block PRODUCER and this MANDATE can never ship apart).
+      leg 2  the EVIDENCE  -- the assembled VOLATILE prompt really carries the budget clause, detected
+                              by the ONE marker constant above rather than by re-deriving the state.
+
+    LEG 2 IS ALSO THE TIER FENCE, and it costs nothing: the marker exists only when the orchestrator's
+    own two gates passed (the knob flag AND a mode that carries `numbers_calls`), so a `quick`,
+    `standard`, `deep` or `max` turn cannot reach this mandate even with both flags on -- their writer
+    prompt is byte-identical. It reads the VOLATILE prompt, never the mode knobs, because the volatile
+    prompt is what the model is actually sent."""
+    return (os.environ.get("GRAPHRAG_NUMBERS_BUDGET_NOTE", "off").lower() == "on"
+            and NUMBERS_BUDGET_MARK in (volatile_prompt or ""))
+
+
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
             response_contract: str | None = None, budget: str | None = None,
             census: dict | None = None, provenance: bool = False, handles: bool = False,
             cascade_walk: bool = False, cascade_context: bool = False,
             cascade_deep: bool = False, cascade_xccy: bool = False,
-            extreme_locator: bool = False, extreme_hop: bool = False) -> str:
+            extreme_locator: bool = False, extreme_hop: bool = False,
+            numbers_budget: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -2605,6 +2663,14 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     gains a conditional LICENSE; the two MANDATES are gated on their OWN rendered row shapes, and they
     are SPLIT because the hop declines independently of the locator -- shipping a two-clock mandate over
     an absent block is the +10-hallucination class.
+    `numbers_budget` (LANE S, 2026-09-06) appends the NUMBERS-LOOKUP-BUDGET mandate -- the writer says
+    in its own words that the observed-data leg could not be completed, hit its round limit or came
+    back empty -- whichever of the block's three clauses it carries -- and frames the figures it does
+    have as a partial read. DEFAULT FALSE so every existing caller is byte-identical,
+    and BOTH serving bodies thread it as `_numbers_budget_note_on(vp)`: a knob that shapes every L2 turn
+    but vanishes on the `GRAPHRAG_PLANNER=onehop` rollback lane is the null-arm class, on exactly the
+    path a rollback puts every turn on. This function reads no environment for it.
+
     Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
@@ -2681,6 +2747,15 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         base = base + _SYSTEM_RECENCY                              #   by the caller's seam, threaded DOWN)
     if provenance:                                                 # D-MW-30 (esc_r): the structural-admission
         base = base + _SYSTEM_PROVENANCE                           #   INVITATION, threaded from the mode knob
+    if numbers_budget:                                             # LANE S: the numbers-leg ABSENCE /
+        base = base + _SYSTEM_NUMBERS_BUDGET_MANDATE               #   CAP narration, marker-gated at the
+        #                                                              seam. It sits ABOVE `handles` so
+        #                                                              that leg keeps the last word it is
+        #                                                              documented to need, and it demands
+        #                                                              a statement rather than narrowing
+        #                                                              any number rule, so the order
+        #                                                              between them carries no meaning
+        #                                                              beyond that.
     if handles:                                                    # D-HP-7/8: LAST of the legs, because it
         base = base + _SYSTEM_HANDLES                              #   NARROWS every number rule above it
     base = base + _rc.directive(response_contract, census=census)  # D-RC Phase B: emphasis LAST ('' for
@@ -3760,6 +3835,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                               cascade_xccy=_cascade_xccy_block_on(vp),
                               extreme_locator=_extreme_locator_block_on(vp),   # D-XL: row-gated
                               extreme_hop=_extreme_hop_block_on(vp),           # D-XL: separately gated
+                              numbers_budget=_numbers_budget_note_on(vp),      # LANE S: marker-gated
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               census=_census,                     # D-CC-1: None on every dark turn
                               provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
@@ -10033,6 +10109,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                               cascade_xccy=_cascade_xccy_block_on(vp),
                               extreme_locator=_extreme_locator_block_on(vp),   # D-XL, both bodies
                               extreme_hop=_extreme_hop_block_on(vp),           # D-XL, both bodies
+                              numbers_budget=_numbers_budget_note_on(vp),      # LANE S, both bodies
                               response_contract=_rc_active,
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
                               census=_census,                                 # D-CC-1, both bodies

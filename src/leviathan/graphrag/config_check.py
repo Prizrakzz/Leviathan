@@ -3504,6 +3504,109 @@ def check_question_shapes() -> list[str]:
     return errs
 
 
+def check_scan_tier() -> list[str]:
+    """LANE S (SCAN TIER, 2026-09-06): the mode-aware NUMBERS-ROUND budget, governed. PURE READS ONLY --
+    the reasoning_modes preset table and the numbers agent's own signature. No S3, no pg, no LLM, no
+    AWS, so it runs in CI beside every other check here.
+
+    WHY A LINT AND NOT ONLY UNIT PINS: `quick` is the SHIPPED FREE tier, and the whole mechanism is one
+    integer on a dark twin. The two failure modes that would ship silently are (a) the twin drifting
+    into a TWO-VARIABLE arm the day another wave amends `quick`, and (b) the dark name leaking into the
+    wildcard-honored set. Both are structural, both are cheap to read, and neither is visible in a diff
+    that touches only the base preset.
+
+    (i)    THE LEAK FENCE: `quick_n3` is in DARK_NAMES and `serving_names()` is still exactly
+           {quick, standard, deep} -- `GRAPHRAG_MODES=on` must never sweep in a budget no gate has
+           adjudicated (the F8 fence, seventh application).
+    (ii)   THE ONE-VARIABLE LAW: `quick_n3` differs from `quick` in EXACTLY {name, numbers_calls}. The
+           twin is built by `dataclasses.replace`, so this asserts the property rather than re-listing
+           the values -- a hand-copied field table is the COMPAT-9 drift class.
+    (iii)  THE BYTE-IDENTITY FENCE: `numbers_calls` is None on every OTHER preset, so `knobs()`'s
+           `is not None` filter cannot mint the key into any existing knob dict, trace stamp or eval
+           `mode_knobs` column.
+    (iv)   THE APPENDED-LAST LAW: `numbers_calls` is the LAST entry of KNOB_FIELDS, whose order IS the
+           trace-stamp column order -- append, never insert.
+    (v)    THE SANITY BAND: a set `numbers_calls` is an int in [1, 12]. DELIBERATELY NOT a ceiling at
+           the `answer_numbers` signature default of 6 -- a budget ABOVE 6 is a legitimate value for
+           the ONE preset that may carry the field (the arm's own fallback ladder runs upward), and a
+           `<= 6` clause would forbid it. It is a typo fence and nothing more.
+           IT LICENSES NO SECOND PRESET, and the first sitting's rationale here was wrong to imply one:
+           clause (iii) directly above FAILS on any other preset that sets the field at all (measured:
+           `replace(MODES[DEEP], numbers_calls=8)` returns exactly one error, from (iii)). Giving a
+           PAID tier its own budget is therefore an edit to THIS LINT -- (iii) and this clause moved
+           together, in the same commit as the preset -- not a value change that slips past it.
+    (vi)   THE SEAM STILL EXISTS: `max_calls` is a KEYWORD-ONLY parameter of
+           `numbers.agent.answer_numbers` with default 6, and the module constant `_DEFAULT_MAX_CALLS`
+           that decides whether a turn is "narrowed" still equals it. Class-1 threading rests on both.
+    (vii)  THIS WAVE'S RATIFIED RUNG: `MODES[quick_n3].numbers_calls == 3`. The pre-declared fallback is
+           this integer becoming 4 -- FILE 1b and this clause move in the SAME edit, so the ratified
+           rung and its lint cannot drift apart, and the arm re-runs under the same name.
+
+    AT FLIP TIME THIS LINT IS BLOCKING, and that belongs on the flip checklist rather than arriving as
+    a surprise in CI. The ratified flip DELETES `quick_n3` (`numbers_calls=3` moves onto `Mode(QUICK)`
+    itself), and the guard at the top of this function then returns "the arm preset 'quick_n3' is not
+    in the mode table", so `config_check.main()` goes red. MEASURED by applying that exact shape
+    in-process. THE FLIP COMMIT THEREFORE REWRITES THIS CHECK: clauses (i), (ii) and (vii) are about
+    the twin and go away with it; (iii) inverts to "exactly one preset carries the field and it is
+    `quick`"; (iv), (v) and (vi) survive unchanged. `reasoning_modes`' own flip note names this too.
+
+    DELIBERATELY NOT COVERED: the two env flags. They are runtime state, not configuration of record --
+    a lint that asserted them would go red on every developer laptop and green on nothing that matters.
+    Their off-state is pinned by unit tests that capture kwargs from injected fakes instead."""
+    import inspect as _inspect
+
+    from leviathan.graphrag import reasoning_modes as _rm
+    errs: list[str] = []
+    name = getattr(_rm, "QUICK_N3", None)
+    if not name or name not in _rm.MODES:
+        return [f"scan_tier: the arm preset {name!r} is not in the mode table"]
+    # (i) the leak fence
+    if name not in _rm.DARK_NAMES:
+        errs.append(f"scan_tier: {name} is NOT in DARK_NAMES -- GRAPHRAG_MODES=on would honor an "
+                    f"un-adjudicated numbers budget on the estate's FREE default tier")
+    if _rm.serving_names() != frozenset({"quick", "standard", "deep"}):
+        errs.append(f"scan_tier: serving_names() moved to {sorted(_rm.serving_names())!r} -- the "
+                    f"wildcard-honored set is a wire contract and this wave does not widen it")
+    # (ii) the one-variable law
+    base, arm = _rm.MODES[_rm.QUICK], _rm.MODES[name]
+    differ = {f for f in ("name",) + tuple(_rm.KNOB_FIELDS) if getattr(base, f) != getattr(arm, f)}
+    if differ != {"name", "numbers_calls"}:
+        errs.append(f"scan_tier: {name} vs quick differ in {sorted(differ)!r} -- the read gate needs "
+                    f"EXACTLY {{name, numbers_calls}} or it measures two variables at once")
+    # (iii) byte-identity everywhere else, and (v) the sanity band on every preset that sets it
+    for mname, m in sorted(_rm.MODES.items()):
+        v = getattr(m, "numbers_calls", None)
+        if v is None:
+            continue
+        if mname != name:
+            errs.append(f"scan_tier: preset {mname!r} carries numbers_calls={v!r} -- every preset but "
+                        f"{name} must leave it None so knobs() cannot mint the key")
+        if not isinstance(v, int) or isinstance(v, bool) or not (1 <= v <= 12):
+            errs.append(f"scan_tier: {mname}.numbers_calls={v!r} is outside the sanity band [1, 12]")
+    # (iv) the appended-last law
+    if _rm.KNOB_FIELDS[-1] != "numbers_calls":
+        errs.append(f"scan_tier: KNOB_FIELDS[-1] is {_rm.KNOB_FIELDS[-1]!r}, not 'numbers_calls' -- "
+                    f"that order IS the trace-stamp column order; append, never insert")
+    # (vi) the Class-1 seam
+    try:
+        from leviathan.graphrag.numbers import agent as _na
+        p = _inspect.signature(_na.answer_numbers).parameters.get("max_calls")
+        if p is None or p.default != 6 or p.kind is not _inspect.Parameter.KEYWORD_ONLY:
+            errs.append(f"scan_tier: answer_numbers(max_calls=) is no longer a keyword-only parameter "
+                        f"defaulting to 6 ({p!r}) -- the knob threads a VALUE into that seam")
+        if getattr(_na, "_DEFAULT_MAX_CALLS", None) != 6:
+            errs.append(f"scan_tier: agent._DEFAULT_MAX_CALLS is "
+                        f"{getattr(_na, '_DEFAULT_MAX_CALLS', None)!r}, not the signature default 6 -- "
+                        f"the budget line would render on an un-narrowed turn")
+    except Exception as e:  # noqa: BLE001 -- an agent import must never break the lint
+        errs.append(f"scan_tier: could not read numbers.agent.answer_numbers ({e!r})")
+    # (vii) this wave's ratified rung
+    if arm.numbers_calls != 3:
+        errs.append(f"scan_tier: {name}.numbers_calls is {arm.numbers_calls!r}, not the ratified 3 "
+                    f"(the pre-declared fallback rung is 4, and it moves this clause with it)")
+    return errs
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -3535,7 +3638,8 @@ def main() -> int:
                         ("question_shapes", check_question_shapes()),
                         ("cascade_walk", check_cascade_walk()),
                         ("cascade_context", check_cascade_context()),
-                        ("extreme_locator", check_extreme_locator())):
+                        ("extreme_locator", check_extreme_locator()),
+                        ("scan_tier", check_scan_tier())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

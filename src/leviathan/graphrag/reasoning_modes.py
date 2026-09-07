@@ -115,6 +115,7 @@ ESC_R = "esc_r"                               # ...plus the reserve bundle (rese
 MAX_CC1 = "max_cc1"                           # D-MW-28 (P6): max + ONE cross-market cascade contract slot
 MAX_CC2 = "max_cc2"                           # Q-0a (2026-08-28): max + TWO slots -- the slot-WIDTH arm
 DEEP_CC1 = "deep_cc1"                         # T2-2: deep + the SAME one slot -- the T2-3 gate's ON arm
+QUICK_N3 = "quick_n3"                         # LANE S (2026-09-06): quick + a THREE-round numbers budget
 # D-HP-8 (H1, R9): THE MATCHED DARK PRESET SET -- the handle-prose treatment's ONE enabling lever. Four
 # names, minted in ONE commit, all four in DARK_NAMES. `standard` is NOT in the set and cannot be (its
 # all-None dict IS the fail-open guarantee), and `max`/`max_c0`/`max_cc1` are out of the ladder entirely.
@@ -226,6 +227,28 @@ class Mode:
     # non-max preset (the byte-identity law: `knobs()` filters `is not None`). Value grammar =
     # providers._EFFORT_WORDS; a table pin asserts membership so an invalid tier can never ship.
     synth_effort: str | None = None
+    # LANE S (SCAN TIER, 2026-09-06): the numbers agent's LOOKUP-ROUND budget for this turn, appended
+    # LAST -- the appended-last law, SEVENTH application (KNOB_FIELDS order IS the trace-stamp column
+    # order; append, never insert). Class-1 by this module's own rule: `max_calls` is already an accepted
+    # keyword of `numbers.agent.answer_numbers`, so this wave THREADS a value, it redesigns no seam.
+    # THE MEASURED TRIGGER (rev-130 cost census 2026-09-04/06; docs/private/SCAN_TIER_DESIGN.md S2 G):
+    # EVERY turn, free notch and paid alike, makes 8 Anthropic calls -- 1 planner + 6 numbers rounds +
+    # 1 writer -- and 5 of 6 census turns EXHAUSTED the six-round budget. Rounds 4-6 alone cost a median
+    # $0.157 / 2,284 output tokens / 27.9 s per turn. With D-CL's moving cache checkpoint in place the
+    # per-round INPUT side is already cheap (~98k cached prefix read at 0.1x + ~2 uncached tokens), so
+    # FEWER ROUNDS is the only remaining big lever on the FREE Scan notch. Seat parity is untouched: the
+    # lever is fewer calls at the same seats, never a cheaper model.
+    # THE FENCE: None on every shipped preset, so `knobs()`'s `is not None` filter cannot mint the key --
+    # every existing preset's knob dict, trace stamp and eval `mode_knobs` column stay byte-identical, and
+    # the orchestrator OMITS the kwarg when the key is absent, leaving `max_calls` at its signature 6.
+    # DELIBERATELY NOT COVERED, both by decision rather than omission:
+    #   (1) the `numbers_only` lane, where the agent's PROSE *is* the answer -- a budget-exhausted turn
+    #       there serves the "(stopped: max tool calls reached)" sentinel plus a `## Sources` footer to a
+    #       READER, so that lane takes no budget parameter at all (orchestrator.run_numbers_only, and the
+    #       standing pin test_dam_modes::test_exempt_lanes_never_grow_the_kwarg keeps it that way);
+    #   (2) the PAID tiers `deep` (Analysis) and `max` (Cascade), which keep six rounds because the ladder
+    #       prices them for the wider read -- not because nobody thought to cut them.
+    numbers_calls: int | None = None
 
 
 MODES: dict[str, Mode] = {m.name: m for m in (
@@ -430,6 +453,28 @@ MODES.update({hp: replace(MODES[base], name=hp, handle_prose=True)
 # same reasoning that put max_cc1 IN beside max.
 MODES[DEEP_CC1] = replace(MODES[DEEP], name=DEEP_CC1, cascade_contract_slots=1)
 
+# -- LANE S: THE SCAN-TIER NUMBERS-BUDGET ARM (2026-09-06) -----------------------------------------------
+# `quick_n3` = `quick` + a THREE-round numbers-agent lookup budget. The two-preset ONE-VARIABLE arm
+# pattern, FIFTH application (max/max_c0, esc/esc_r, max/max_cc1, deep/deep_cc1, quick/quick_n3): the read
+# gate runs `--mode quick` against `--mode quick_n3`, so the pair must differ by EXACTLY ONE field, and
+# neither arm may be built by mixing a preset with a kwarg (the kwarg beats the preset outright).
+# BUILT BY `replace`, NEVER HAND-COPIED. `quick` is the SHIPPED FREE tier and other waves amend it, so a
+# copied field table would make the arm silently TWO-VARIABLE the day anyone touches it -- the COMPAT-9
+# duplicate-and-drift class this whole module exists to prevent. `config_check.check_scan_tier` asserts
+# the field-for-field equality except {name, numbers_calls} rather than re-listing the values.
+# THE FLIP DELETES THIS TWIN rather than un-darkening it -- the `deep_cc1` / mode.ts precedent. At flip
+# time `numbers_calls=3` moves onto `Mode(QUICK)` itself and `quick_n3` goes away, which is exactly why
+# the Scan notch's WIRE NAME stays `quick` for the FE picker and the credit ledger through the whole arc.
+# THE PRE-DECLARED 4 RUNG IS THIS INTEGER AND NOTHING ELSE: if the arm's read bars M2/M3 fail at 3, the
+# `3` below becomes `4`, `check_scan_tier` clause (vii) moves with it in the same edit, and the arm
+# re-runs -- no new preset name, no new DARK_NAMES entry, and no second variable.
+# THE FLIP ITSELF IS NOT A ONE-CHARACTER EDIT, AND THE LINT IS BLOCKING (2026-09-07 review): deleting
+# this twin makes `config_check.check_scan_tier` return "the arm preset 'quick_n3' is not in the mode
+# table" and `config_check.main()` go red in CI -- measured by applying the flip shape in-process. That
+# check is REWRITTEN in the same commit as the deletion (its docstring carries the clause-by-clause
+# list), and `DARK_NAMES` below drops the name in that same commit.
+MODES[QUICK_N3] = replace(MODES[QUICK], name=QUICK_N3, numbers_calls=3)
+
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
 # by NAME (GRAPHRAG_MODES=deep_v2 for the eval arm), which is what keeps the flip a one-env-var decision.
 # D-MW-30 (F8): esc / esc_r join the dark set IN THE SAME COMMIT that mints them. A forgotten entry here
@@ -450,8 +495,14 @@ MODES[DEEP_CC1] = replace(MODES[DEEP], name=DEEP_CC1, cascade_contract_slots=1)
 # treatment; `deep_cc1` is the SHIPPED serving tier plus a paid slot, so a forgotten entry would hand every
 # `GRAPHRAG_MODES=on` turn a foreign contract block the T2-3 gate has not yet adjudicated. serving_names()
 # is UNCHANGED by this, and the pin on that fact (test_dam_modes:125) is the leak fence.
+# LANE S (2026-09-06): `quick_n3` joins in the SAME edit that mints it -- the F8 leak fence, SEVENTH
+# application, and it is the `deep_cc1` case one tier lower. `quick` is the SHIPPED FREE serving tier, so a
+# forgotten entry here would hand EVERY `GRAPHRAG_MODES=on` turn a three-round numbers budget that no gate
+# has adjudicated -- i.e. it would silently narrow the observed-number leg of the estate's default notch on
+# the strength of a cost census alone. serving_names() is UNCHANGED by this ({quick, standard, deep}), and
+# the pin on that fact is the leak fence.
 DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1, MAX_CC2, DEEP_CC1,
-                                   QUICK_HP, DEEP_HP, ESC_HP, ESC_R_HP})
+                                   QUICK_HP, DEEP_HP, ESC_HP, ESC_R_HP, QUICK_N3})
 
 # ── EC-3: THE METERED PREDICATE (the leaf half of a two-module fact) ────────────────────────────────
 # `server._CREDIT_PRICES` is the SIBLING AUTHORITY and stays the frozen wire contract -- it answers

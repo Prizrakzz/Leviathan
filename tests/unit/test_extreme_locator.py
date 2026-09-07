@@ -1015,7 +1015,29 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     assert an._system(extreme_locator=True, extreme_hop=True) == base   # the FLAG gates the append
     params = inspect.signature(an._system).parameters
     assert params["extreme_locator"].default is False and params["extreme_hop"].default is False
-    assert list(params)[-2:] == ["extreme_locator", "extreme_hop"]
+    # RE-ANCHORED 2026-09-07 BY LANE S (the Scan-tier numbers budget), on its ONE named cause and
+    # WITHOUT loosening the join -- the D-CL re-anchor of test_cascade_walk's g1x `flags_off` census,
+    # applied to this one. `_system`'s KEYWORD TAIL IS A CENSUS of the persona's optional appends, so
+    # any new default-off append lands here by construction; Lane S mints exactly one, `numbers_budget`,
+    # which appends `_SYSTEM_NUMBERS_BUDGET_MANDATE` and is gated on the flag AND the budget marker
+    # actually present in the assembled volatile prompt.
+    # MEASURED, HEAD MIRROR vs THIS TREE, every GRAPHRAG_* stripped in both child processes: `_system`'s
+    # RENDERED BYTES are identical on all 15 deck cells -- all_off, outlook, episodes true/false,
+    # recency, provenance, handles, cascade_walk/context/deep/xccy, response_contract, budget,
+    # prod_rev127 and locator+hop ON -- with the all-off render at sha 5bcc70e7214c5c8e...; the
+    # parameter list is a PREFIX-PRESERVING TAIL APPEND of that one KEYWORD_ONLY name, default False.
+    # So this is the census growing by a dark surface, not a byte moving in a flag-off request: the
+    # accepted-set list gains ONE named state and nothing else, and the value check below asserts the
+    # new key resolves to its default-off value where it had only a position.
+    _tail = list(params)
+    assert _tail[-2:] in (["extreme_locator", "extreme_hop"],
+                          ["extreme_hop", "numbers_budget"]), _tail[-2:]
+    if _tail[-1] == "numbers_budget":                     # LANE S's ONE named append
+        assert _tail[-3:-1] == ["extreme_locator", "extreme_hop"], _tail   # ...and it moved nothing
+        assert params["numbers_budget"].default is False
+        assert params["numbers_budget"].kind is inspect.Parameter.KEYWORD_ONLY
+        assert an._system(numbers_budget=False) == base   # the default-off VALUE, not just the default
+        assert an._SYSTEM_NUMBERS_BUDGET_MANDATE not in base
     qs = inspect.signature(cq.quantify).parameters
     assert qs["extreme_locator"].default is None
     # the locator kwarg and the extrema rider are the LAST TWO, in the order they were added -- so

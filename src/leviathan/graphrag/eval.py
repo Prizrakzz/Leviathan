@@ -2053,6 +2053,14 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
         intent_ok = (r.get("rubric") or {}).get("intent_ok")
     j = r.get("judge") or {}
     cs = _cascade_stats(out)                                     # P9-AB: post-run-readable cascade record
+    # LANE S (2026-09-06): this turn's numbers-round record, computed HERE because the projection below
+    # is a dict LITERAL of ALWAYS-PRESENT keys -- a plain entry would emit `numbers_budget: null` on
+    # every row of every artifact with the flags off (measured: `question_shape` and
+    # `shape_decline_guard` are present-with-None on row 0 of
+    # data/batch_runs/da_baseline_control_20260904T141206Z.json). The splat below is what gives an
+    # explicit column the same ABSENT-WHEN-OFF shape that `**{k: ... for k in tk.TRACE_RECORD_KEYS}`
+    # gives a registered key for free.
+    _nbud = (out.get("trace") or {}).get("numbers_budget")
     return {"id": rid,
             "strips": v.get("stripped", 0),
             "claim_count": v.get("claim_count", 0),
@@ -2121,6 +2129,13 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # (providers.serving_cost_usd) off the synth_usage stamp. None wherever the stamp is
             # absent (non-orchestrator rows) -- never zero; the CostUsd 0-semantics idiom.
             "turn_cost_usd": _turn_cost_usd((out.get("trace") or {}).get("synth_usage")),
+            # LANE S (2026-09-06): {max_calls, rounds_used, lookups, capped} for the turn's numbers leg
+            # -- the artifact half of the Scan-tier budget, and the only place an arm can read whether a
+            # narrowed turn actually hit its limit. An EXPLICIT column rather than a tracekeys entry
+            # because tracekeys.py is outside this lane's allowlist; OWED AT FLIP TIME: register
+            # `numbers_budget` in `tracekeys.TRACE_RECORD_KEYS` and delete this splat, which then becomes
+            # a duplicate of what the registry emits.
+            **({"numbers_budget": _nbud} if _nbud is not None else {}),
             **{col: (out.get("intent_decision") or {}).get(dk) for dk, col in tk.DECISION_RECORD_KEYS},
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
@@ -3388,6 +3403,12 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             # Stamping the env alone would name an arm that did not run (--mode max with the env unset
             # stamped null while every writer ran effort=max) -- the artifact-lies class.
             "synth_effort": _synth_effort_arm(mode),
+            # LANE S (2026-09-06): the NUMBERS-ROUND budget this arm's turns asked for. The header
+            # otherwise reads process env only, and this knob is REQUEST-level, so a `--mode quick_n3`
+            # run and a `--mode quick` run would have been identical in every reproducibility key except
+            # ts -- the D-AM-11 blindness, one knob later. None on every pre-knob mode and on every
+            # older deck (the additive-only law), which is exactly what a run that threaded no budget did.
+            "numbers_calls": _numbers_calls_arm(mode),
             "numbers_effort": _os.environ.get("GRAPHRAG_NUMBERS_EFFORT"),
             "synth_seat": _os.environ.get("GRAPHRAG_SYNTH_MODEL"),
             "numbers_seat": _os.environ.get("GRAPHRAG_NUMBERS_MODEL"),
@@ -3651,6 +3672,24 @@ def _synth_effort_arm(mode: str | None) -> str | None:
         return _rm.knobs(mode).get("synth_effort") or _os.environ.get("GRAPHRAG_SYNTH_EFFORT")
     except Exception:  # noqa: BLE001 -- an arm stamp is never worth a run
         return _os.environ.get("GRAPHRAG_SYNTH_EFFORT")
+
+
+def _numbers_calls_arm(mode: str | None):
+    """LANE S's arm stamp: the numbers-agent LOOKUP-ROUND budget the arm's turns asked for -- the
+    requested preset's knob, or None when the preset carries none (which is every shipped tier today,
+    and is the truth: those turns ran at the `answer_numbers` signature default of 6).
+
+    NEVER RAISES (the `_synth_effort_arm` / `_handle_prose_arm` law: an arm stamp is never worth a
+    billed run), and an unknown or PRE-KNOB mode reads {} so an older deck's header parses exactly as
+    before -- the additive-only law. No env fallback, deliberately: there is no process-wide spelling of
+    this budget, only the preset knob and the orchestrator's own kill-switch, so an env read here would
+    invent an arm identity that no seam can produce. Requested-mode resolution, the same approximation
+    its two siblings accept: the per-row `mode_decision` column remains the honored-truth column."""
+    try:
+        from leviathan.graphrag import reasoning_modes as _rm
+        return _rm.knobs(mode).get("numbers_calls")
+    except Exception:  # noqa: BLE001 -- an arm stamp is never worth a run
+        return None
 
 
 def _handle_prose_arm(mode: str | None) -> str | None:

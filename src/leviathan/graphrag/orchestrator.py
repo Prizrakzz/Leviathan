@@ -32,7 +32,19 @@ def _today() -> str:
     return _dt.date.today().isoformat()
 
 
-def _numbers_block(calls: list) -> str:
+def _numbers_block(calls: list, *, budget: dict | None = None) -> str:
+    """The numbers evidence block for the hybrid synthesis prompt.
+
+    `budget` (LANE S, 2026-09-06) is THIS turn's numbers-round record -- `agent.answer_numbers`' own
+    `numbers_budget` stamp, or, when the lane never returned at all, `run_hybrid`'s own OUTAGE record
+    (2026-09-07; a different shape, keyed `returned: False`, because rounds and capping are unknowable
+    from the consumer's side) -- and it is DEFAULT NONE so every existing caller is byte-identical (the
+    seven sibling decks that call this function directly, two of which assert `"SCOPE NOTE" not in
+    _numbers_block([plain])`, stay green untouched). The caller resolves BOTH gates (the note flag AND
+    a mode that actually carries a numbers budget) and threads the record down or None; this function
+    reads no environment. It is the FACT half of the two-part narration: the SCOPE NOTE clause below
+    tells the writer what happened, and `answer._SYSTEM_NUMBERS_BUDGET_MANDATE` -- gated on the marker
+    this clause opens with -- tells it to say so in its own words."""
     body = cit.render(cit.unify(None, calls)) or "(none retrieved)"
     block = "SILVER NUMBERS (observed values, as-known at asof):\n" + body
     # ESR destination-scope honesty: the numbers agent stamps `scope_note` on export-sales lookups that
@@ -88,6 +100,57 @@ def _numbers_block(calls: list) -> str:
                          "receipt for the gap: a handle with no value behind it is removed before the "
                          "reader sees it, taking its clause with it. Name the gap in words; a stated "
                          "absence needs no citation."]
+    # LANE S (2026-09-06), THE FACT HALF. THREE mutually exclusive clauses, at most ONE appended, all
+    # three opening with `an.NUMBERS_BUDGET_MARK` -- the ONE producer of the marker string, which
+    # answer.py's own gate keys on, so producer and gate cannot drift (the `_cascade_walk_block_on` law).
+    # THE EMPTY-LEG CLAUSE IS DECIDED FROM THIS FUNCTION'S OWN `calls` ARGUMENT, never from the stamp:
+    # `calls` is the same list rendered into `body` three lines up, so the note and the rendered block
+    # can never disagree about whether anything was actually retrieved. It takes precedence over the
+    # capped clause because "nothing came back at all" is the stronger and more useful statement.
+    # THE OUTAGE CLAUSE IS ITS OWN SENTENCE (verify major, 2026-09-07), AND IT IS FIRST. The two
+    # absences are NOT the same fact and cannot share a string: an EMPTY leg asked the record and the
+    # record answered with nothing, so "the record produced no number for this question" is true of it;
+    # an OUTAGE never got to ask, so that same sentence would have the writer tell a reader the record
+    # is empty when the truth is that the lookup could not be completed -- the artifact-lies class,
+    # moved out of the trace and into the answer, and NEWLY REACHABLE the moment `_resolve` began
+    # synthesising an outage record (before that an outage rendered no clause at all).
+    # `returned` IS THE DISCRIMINATOR, and it is the one field only this seam can mint: `_budget_stamp`
+    # returns exactly {max_calls, rounds_used, lookups, capped} on all four of its turn-ending returns,
+    # so an agent record reads `.get("returned") is None` and falls through to the empty clause it has
+    # always taken. The outage record's own three fences live at the mint site in `run_hybrid._resolve`;
+    # this branch adds no fourth, it only decides WHICH TRUE SENTENCE the writer is handed.
+    # AND IT IS CONJOINED WITH `_none_back`, BY THE LAW THREE PARAGRAPHS UP. This clause asserts that
+    # nothing came back, so the "nothing came back" half has to be read off `calls` -- the same list
+    # `body` renders -- exactly as the empty clause reads it; `returned` then chooses only WHICH
+    # absence sentence, which is the whole of its job. A record claiming an outage over a block that
+    # renders rows cannot be minted (`_resolve` fences on `not calls`) and, if one were passed in by
+    # hand, it takes the capped test like any other record and adds nothing -- HEAD's behaviour.
+    # SAYS NOTHING ABOUT WHAT THE RECORD CARRIES -- that is the whole point. It states what this side
+    # knows (the leg was unavailable, nothing came back) and hands the reader the honest consequence
+    # (what the record holds here is unknown from this answer), which is the one thing the shared
+    # wording got backwards. Like the other two it needs NEITHER `rounds_used` NOR `capped`, which is
+    # what lets `run_hybrid` narrate a lane that never returned without inventing a round count: the
+    # record states only what the consumer's side can know, and this function reads only those fields.
+    # POSITIVE WORDING THROUGHOUT, NO NAMED IDIOM (the J6 doctrine: writing a forbidden phrase into a
+    # prompt teaches it). Absent budget -- every turn today, and every turn on quick/standard/deep/max
+    # even with both flags on -- adds nothing and the block is byte-identical.
+    if budget is not None:
+        _none_back = not (calls or [])            # THE FACT, from `calls`; `returned` picks the SENTENCE
+        if _none_back and budget.get("returned") is False:
+            notes = notes + [an.NUMBERS_BUDGET_MARK + " this turn's observed-data lookup leg was "
+                             "unavailable, so it came back with nothing to show here. Say plainly that "
+                             "the lookup could not be completed for this turn and that what the record "
+                             "holds on this question is therefore unknown here, then answer from the "
+                             "dated evidence alone, naming the gap in words."]
+        elif _none_back:
+            notes = notes + [an.NUMBERS_BUDGET_MARK + " this turn's observed-data lookup leg returned no "
+                             "figures at all. Say plainly that the record produced no number for this "
+                             "question and answer from the dated evidence alone, naming the gap in words."]
+        elif budget.get("capped"):
+            notes = notes + [an.NUMBERS_BUDGET_MARK + " this turn's observed-data lookup leg reached the "
+                             "round limit set for this tier, so the figures above are a PARTIAL read of "
+                             "the record. Say so in your own words and present what is here as what the "
+                             "lookup reached within that limit."]
     if notes:
         block += "\nSCOPE NOTE (state this limitation explicitly in the answer): " + " ".join(notes)
     return block
@@ -110,6 +173,14 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     _nf = an._newest_first_scope(an._futures_newest_first_on(), an._series_newest_first_on())
     _fnf = {"futures_newest_first": _nf} if _nf else {}
     # B1: `families` is the planner's data_families, already kill-switch-gated by the caller (None when off).
+    # LANE S (2026-09-06): THIS LANE TAKES NO BUDGET, and that is a decision rather than an omission. On
+    # numbers_only the agent's PROSE IS THE ANSWER, so a budget-exhausted turn serves the sentinel string
+    # "(stopped: max tool calls reached)" plus a `## Sources` footer to a READER; cutting this lane's
+    # rounds would turn a rare sentinel-as-answer defect into a frequent one. `run_numbers_only` therefore
+    # gains no `mode_knobs` parameter and no `max_calls` kwarg -- the standing pin
+    # test_dam_modes::test_exempt_lanes_never_grow_the_kwarg is the fence, and it stays green untouched.
+    # NOTE ALSO: this lane builds its own explicit `_trace` dict below, so agent.py's UNCONDITIONAL
+    # `numbers_budget` stamp cannot reach a trace from here either -- the whole lane is byte-identical.
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn, families=families,
                             **_fnf)
     _ms_numbers = int((_time.perf_counter() - _tn) * 1000)
@@ -618,6 +689,19 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     # on the CALLING thread so the numbers lane and the walk lane cannot disagree within one turn.
     _nf = an._newest_first_scope(an._futures_newest_first_on(), an._series_newest_first_on())
     _fnf = {"futures_newest_first": _nf} if _nf else {}
+    # LANE S (2026-09-06): this turn's NUMBERS-ROUND BUDGET, read HERE, on the CALLING thread, beside
+    # `_nf` and for the reason already written three comments up -- deliberately NOT inside `_numbers()`,
+    # whose body runs on a pool thread: a per-thread env read lets the numbers lane and the walk lane
+    # disagree within one turn and makes the rollback racy against an in-flight turn.
+    # OMIT-WHEN-ABSENT (the `_xc`/`_ol`/`_rck`/`_mk`/`_xl` idiom): with the flag off, or on any preset
+    # carrying no `numbers_calls` -- quick, standard, deep and max, i.e. every serving tier today -- the
+    # dict is EMPTY, the submit below is byte-identical, `max_calls` stays 6 by signature default, and an
+    # injected `answer_numbers` fake with the older signature stays valid.
+    # `_nc` IS THIS TURN'S ONE BUDGET PREDICATE. Everything downstream that needs to know "did this turn
+    # run under a threaded budget" reads `bool(_nc)` -- never the environment again, and never
+    # `mode_knobs` again -- so the KWARG half and the FACT half cannot disagree about what the turn did.
+    _nc = ({"max_calls": int(mode_knobs["numbers_calls"])}
+           if (_numbers_mode_budget_on() and (mode_knobs or {}).get("numbers_calls")) else {})
 
     def _numbers() -> dict:
         # Per-lookup progress ticks (5.6 W5): {calls, running, table} while the agent works, then the
@@ -628,7 +712,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         _tn = _time.perf_counter()                                # W6.1-0: numbers-agent duration (MsNumbers)
         try:
             nums = na.answer_numbers(numbers_query or query, asof, client=client, model=numbers_model,
-                                     query_fn=query_fn, on_call=on_call, families=families, **_fnf)
+                                     query_fn=query_fn, on_call=on_call, families=families, **_fnf,
+                                     **_nc)          # LANE S: absent unless the mode carries a budget
         except Exception as e:  # noqa: BLE001 — numbers must never take the note down with it
             nums = {"calls": [], "error": str(e)[:200]}
         nums["_ms_numbers"] = int((_time.perf_counter() - _tn) * 1000)
@@ -706,7 +791,52 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
             # numbers_only, and the lane error remains its own signal.
             holder["tables_queried"] = []
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
-        return "\n\n".join(x for x in (extra_context, _numbers_block(calls)) if x), calls
+        # LANE S (2026-09-06). TWO GATES, both required: the NOTE flag, and `bool(_nc)` -- i.e. this turn
+        # actually ran under a threaded budget. `agent.answer_numbers` stamps `numbers_budget` on EVERY
+        # turn-ending return UNCONDITIONALLY (no flag there; consumption is decided here), so without the
+        # second gate a deep or quick turn would grow both a SCOPE NOTE clause and a trace column.
+        # THIS KEY DELIBERATELY DOES NOT RIDE EITHER `_sk` COPY TUPLE. The one above is a BARE, UNGUARDED
+        # `holder[_sk] = nums.get(_sk)` over a fixed tuple: adding the key there would copy the raw
+        # unconditional stamp into `holder` on EVERY hybrid turn, overwrite the gated write below, and
+        # -- through the guarded tuple in the caller -- stamp `trace.numbers_budget` on every hybrid turn
+        # with BOTH flags off. There is exactly ONE write of this key into `holder`, and it is the last
+        # line of this block.
+        # THE OUTAGE HALF (review fix, 2026-09-07). MEASURED DEFECT, on the exact tier the docket names:
+        # the standing docket says a turn whose numbers leg RETURNED NOTHING must say so in the writer's
+        # own words, and a SCOPE NOTE clause in `_numbers_block` is the sentence that does it -- but no
+        # clause is reachable at all until a budget RECORD arrives, and until this fix the only mint of
+        # that record was `answer_numbers`' own turn-ending return. So the two ways the leg most
+        # literally returns nothing arrived at the writer SILENTLY: the swallowed lane exception in
+        # `_numbers` above (`nums = {"calls": [], "error": ...}`) and this function's own 300 s join
+        # failure (`nums = {}`). Probed at mode=quick_n3 with BOTH flags on: the writer got the "(none
+        # retrieved)" block with no marker, no persona mandate and no trace stamp, i.e. an outage was
+        # presented as an ordinary thin read.
+        # `returned: False` IS ALSO WHAT PICKS THE SENTENCE (2026-09-07, second sitting). The first
+        # outage fix routed this record into the EMPTY clause, which tells the writer to say the record
+        # produced no number -- true of a leg that asked and got nothing, false of one that never got
+        # to ask. `_numbers_block` now branches on this field and serves an outage its own clause, so
+        # the record's discriminator and the reader's sentence agree about which absence this was.
+        # THE RECORD IS SYNTHESISED HERE, AND ITS SHAPE IS DELIBERATELY NOT `agent._budget_stamp`'s.
+        # `rounds_used` and `capped` are UNKNOWABLE from this side of a lane that never returned (the
+        # exception may have been raised in round 3; a timed-out thread may still be running), so this
+        # record states only what this side actually knows: the budget the turn was given, the zero
+        # lookups THIS lane received, that nothing came back, and why. Borrowing the agent's field
+        # names would invent facts at the consumer -- the class `_budget_stamp`'s one-producer note
+        # exists to prevent -- so the outage record is a DIFFERENT shape and says so with `returned`.
+        # FENCED THREE WAYS, so no serving turn moves: both gates still hold (`_bn`), the leg really
+        # produced no citable call (`not calls` -- the same list `_numbers_block` renders, so the note
+        # and the block cannot disagree, per the empty clause's own law), and the agent really minted
+        # no record of its own. A turn that returned figures, or returned a stamp, is untouched.
+        # DELIBERATELY NOT COVERED: a leg that came back with an `error` AND rows. `answer_numbers` has
+        # no such return -- all three of its turn-ending returns stamp -- and minting a third clause for
+        # a shape that cannot occur would narrate a partial read the block does not show.
+        _bn = _numbers_budget_note_on() and bool(_nc)   # ONE env read per turn, both branches below
+        _nb = nums.get("numbers_budget") if _bn else None
+        if _bn and _nb is None and not (calls or []):
+            _nb = {"max_calls": int(_nc["max_calls"]), "lookups": 0, "returned": False,
+                   "lane_error": nums.get("error") or "the numbers lane returned no result"}
+        holder["numbers_budget"] = _nb
+        return "\n\n".join(x for x in (extra_context, _numbers_block(calls, budget=_nb)) if x), calls
 
     _xc = {"xc_request": xc_request} if xc_request is not None else {}   # reroute v2: omit when None (byte-identical)
     _ol = {"outlook": True} if outlook else {}                           # W5-D4: same omit-when-off idiom
@@ -746,6 +876,15 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
             out.setdefault("trace", {})[_sk] = holder[_sk]
     if holder.get("ms_numbers") is not None:
         out.setdefault("trace", {})["ms_numbers"] = holder["ms_numbers"]   # W6.1-0: surface for the EMF block
+    # LANE S (2026-09-06): its OWN guarded stamp, modelled on the ms_numbers stamp directly above, for the
+    # reason spelled at the single write in `_resolve`: the `_sk` copy loop two blocks up is unguarded, so
+    # this key must never join it. `holder["numbers_budget"]` is None on every turn either gate declines,
+    # and an absent key is what the flag-off invariant promises -- never a null column.
+    # OWED AT FLIP TIME, and named here so it is not discovered later: register `numbers_budget` in
+    # `tracekeys.TRACE_RECORD_KEYS` (outside this lane's allowlist) and drop eval.py's explicit
+    # conditional column, which exists only because tracekeys.py could not be touched in this sitting.
+    if holder.get("numbers_budget") is not None:
+        out.setdefault("trace", {})["numbers_budget"] = holder["numbers_budget"]
     out["asof"] = asof
     return out
 
@@ -1359,6 +1498,40 @@ def _numbers_families_on() -> bool:
     all four measured arms and the promotion fired 118 times while the agent still declined. Steering moves a
     probability; it does not guarantee a row."""
     return os.environ.get("GRAPHRAG_NUMBERS_FAMILIES", "off").lower() == "on"
+
+
+def _numbers_mode_budget_on() -> bool:
+    """LANE S, THE KNOB (GRAPHRAG_NUMBERS_MODE_BUDGET). DEFAULT-OFF, case-insensitive, fail-closed --
+    copies the `_numbers_families_on` / `_family_facet_on` idiom exactly. ON means: a mode whose preset
+    carries `numbers_calls` threads that integer DOWN to `numbers.agent.answer_numbers` as `max_calls`.
+    OFF -- or ON with a preset that carries no `numbers_calls`, which is every shipped one -- omits the
+    kwarg entirely, so `max_calls` stays 6 by signature default and the submit is byte-identical.
+
+    THE VERDICT IS THREADED AS A VALUE, never re-fetched downstream: `run_hybrid` builds the
+    omit-when-absent kwarg dict ONCE, on the CALLING thread (the `resolve(allowed=...)` idiom this module
+    uses for every knob), and this module's "read ONCE so a turn cannot disagree with itself" law binds
+    THIS helper -- of which there is exactly one read per turn.
+
+    IT DOES NOT IMPLY THE NARRATION. `GRAPHRAG_NUMBERS_BUDGET_NOTE` below is a SEPARATE lever; neither
+    flag turns the other on, and both default off and fail closed. Rollback = drop the env var (single
+    flag, instant, no redeploy)."""
+    return os.environ.get("GRAPHRAG_NUMBERS_MODE_BUDGET", "off").lower() == "on"
+
+
+def _numbers_budget_note_on() -> bool:
+    """LANE S, THE NARRATION (GRAPHRAG_NUMBERS_BUDGET_NOTE). DEFAULT-OFF, fail-closed, the same grammar
+    as the knob above. It gates the WRITER-FACING half: `_numbers_block`'s SCOPE NOTE clause and the
+    `numbers_budget` trace stamp that records what the numbers leg actually spent.
+
+    `answer.py` reads THE SAME ENV at its own marker-presence gate (`answer._numbers_budget_note_on`) --
+    the `_cascade_walk_block_on` precedent, so the block PRODUCER and the persona MANDATE can never ship
+    apart, and the mandate additionally requires `answer.NUMBERS_BUDGET_MARK` to be present in the
+    assembled volatile prompt before it can demand a sentence about a block that is not there.
+
+    IT ALSO REQUIRES THE MODE TO CARRY A BUDGET: `_resolve` conjoins `bool(_nc)`, so a turn on quick,
+    standard, deep or max -- none of which carry `numbers_calls` -- is byte-identical in BOTH the numbers
+    leg AND the writer prompt with both flags ON. Only `quick_n3` moves. Rollback = drop the env var."""
+    return os.environ.get("GRAPHRAG_NUMBERS_BUDGET_NOTE", "off").lower() == "on"
 
 
 def _xc_llm_detect_on() -> bool:
