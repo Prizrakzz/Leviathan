@@ -779,8 +779,9 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
     pins: sorghum's urea_cost re-keyed onto urea_z after the sign three-edit, so urea_cost_z is now
     a DEAD ref name (retired-basket class); palm_olein's China_reserve_release re-keyed onto
     beginning_stock_region after its sign two-edit, so buffer_stock_release is now a dead ref name
-    too (the rice/soyoil nodes that share the NAME ride beginning_stock). asf_outbreak_flag remains
-    the one LIVE-ref standing refusal."""
+    too (the soyoil node that shares the NAME still rides beginning_stock; the RICE one moved to
+    beginning_stock_region in D-10 sitting 8, 2026-09-07 -- see the sitting's own test below).
+    asf_outbreak_flag remains the one LIVE-ref standing refusal."""
     for ref in ("herd_size_cattle", "fishmeal_supply", "fishmeal_price_z",
                 "brent_crude_z", "urea_z", "natural_gas_us_z", "natural_gas_eu_z",
                 "npk_fertilizer_z", "dap_z", "potash_z",
@@ -852,6 +853,116 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
         assert cq._scope_ex(
             _node(contract="soybean_meal_cbot", ref="fishmeal_price_z", region=region), price) == \
             ("soybean_meal_cbot", None, None)
+
+
+def test_d10_sitting8_rekeys_land_on_region_ruled_twins():
+    """D-10 SITTING 8 (2026-09-07) -- the wrong-geography re-keys, pinned at BOTH halves.
+
+    The class: a driver whose region token names one country, riding a PRIMARY-ruled map row, so the
+    leg fires with the CONTRACT's primary country instead (the primary path never consults the
+    token). The remedy is never a bare country_rule flip of the shared row -- measured, that costs
+    `stock` 5 firing legs, `consumption` 8, `area` 9, psd_ending_stock_su_ratio 15, psd_feed_use 4,
+    `production` 3, psd_crush 1 -- it is a region-ruled TWIN plus a per-leg re-key, which costs zero.
+
+    Pinned here: (a) the twins exist and the parents stay primary-ruled; (b) the shared (table,
+    metric) keys stay unanimous about (scale, narrate_unit), or citations.narrate_scale refuses the
+    key SILENTLY; (c) each re-keyed leg's _scope_ex verdict on the REAL region_map; (d) the DAG half
+    -- the driver->silver_ref bindings themselves, which live in the GITIGNORED causal YAMLs and
+    reach prod only through the image tar, so a lost overlay reds HERE rather than in an eval.
+
+    QUOTE THE DELTA, NEVER A CLASS COUNT (D-10 fix pass, 2026-09-07). The absolute size of the
+    "fires a country its driver does not name" class is NOT reproducible from prose: three
+    independent measurements of the same sentence returned 34, 33 and 103 because each agent wrote
+    its own predicate. What reproduces on EVERY predicate is the DELTA -- FOUR legs leave the class,
+    ZERO enter -- and the leaving set is pinned executably at the end of this test. Until someone
+    publishes the predicate as a helper, the delta is the only class figure this sitting states.
+
+    WHAT THE NEXT psd_monthly FIRE DOES: it goes GREEN. The rolling-baseline diff reds only on a NEW
+    DARK-WITH-REASON leg or a non-zero ATHENA_CALLS banner, so the rice leg's FIRES -> DECLINES move
+    is invisible to it (pinned in tests/unit/test_silver_rebuild_gate.py). The earlier claim that
+    the 2026-09-08 fire would red without a re-mint was FALSE; the re-mint is bookkeeping, and the
+    REAL exposure is the inverse one -- these reads were proved on Athena while the census probes
+    the pg mirror, and a mirror gap yields DARK-WITH-REASON, which IS what reds, estate-wide.
+
+    THE RICE LEG IS PINNED AS A DECLINE ON PURPOSE. rough_rice_cbot's buffer_stock_release names
+    India's FCI OMSS and Thailand's auctions and was FIRING with UNITED STATES rice carry-in. Its
+    'India/Thailand' compound cannot resolve to one country, so on the region-ruled twin it declines
+    honestly instead of narrating the wrong country. The per-origin split that would light it is
+    blocked by the SIGN-IDENTITY law (a '-' release flow on a carry-in LEVEL a release drains) and
+    the palm two-edit precedent does not extend: palm's node text was two-sided, rice's is not.
+    Both origins' PSD rows already exist (Athena 2026-09-04: India 67 MY 1960-2026, Thailand 67 MY),
+    so this pin guards a SIGN gate, never a data gate.
+
+    Skipped where the private causal configs are absent (the DAGs are gitignored IP)."""
+    from leviathan.graphrag.numbers import cascade_census as ccz
+    m = cq.load_map() or {}
+    # (a) the twins exist; the parents they twin stay PRIMARY-ruled (absent country_rule)
+    for twin, parent in (("beginning_stock_region", "beginning_stock"), ("psd_crush_region", "psd_crush")):
+        assert m[twin].get("country_rule") == "region", twin
+        assert m[parent].get("country_rule") is None, parent
+    assert m["stock"].get("country_rule") is None                 # the third parent, never flipped
+    # (b) cross-ref unanimity on the shared keys (the silent-refusal class config_check also guards)
+    for a, b in (("beginning_stock", "beginning_stock_region"), ("psd_crush", "psd_crush_region")):
+        assert (m[a]["table"], m[a]["metric"]) == (m[b]["table"], m[b]["metric"])
+        assert (float(m[a]["scale"]), m[a]["narrate_unit"]) == (float(m[b]["scale"]), m[b]["narrate_unit"])
+    # (c) the per-leg scope verdicts on the REAL region_map
+    res, crush = m["beginning_stock_region"], m["psd_crush_region"]
+    for contract, commodity in (("cotton", "cotton"), ("soybeans_cbot", "soybeans_cbot"),
+                                ("soybeans_no_1_dce", "soybeans_no_1_dce"),
+                                ("soybeans_no_2_dce", "soybeans_no_2_dce")):
+        assert cq._scope_ex(_node(contract=contract, ref="beginning_stock_region", region="China"),
+                            res) == (commodity, "China", None), contract
+    assert cq._scope_ex(_node(contract="soybean_meal_cbot", ref="psd_crush_region",
+                             region="Argentina"), crush) == ("soybean_meal_cbot", "Argentina", None)
+    # the rice compound: an honest DECLINE, not a country guess
+    assert cq._scope_ex(_node(contract="rough_rice_cbot", ref="beginning_stock_region",
+                             region="India/Thailand"), res) == \
+        ("rough_rice_cbot", cq.SKIP_NODE, "region-token-unresolved")
+    assert "India/Thailand" in set((cq.load_region_map() or {}).get("unresolved") or [])
+    # ...and the sibling crush legs the twin exists to protect stay on the PRIMARY-ruled parent,
+    # incl. the unresolvable token that a bare flip would have turned into a decline
+    assert cq._scope_ex(_node(contract="rapeseed_meal_zce", ref="psd_crush",
+                             region="China (Guangxi/coastal)"), m["psd_crush"]) == \
+        ("rapeseed_meal_zce", "China", None)
+    # (d) the DAG half -- the bindings in the gitignored causal YAMLs
+    idx = ccz._contract_index()
+    if not idx:
+        pytest.skip("no private causal DAGs in this tree")
+    want = {("cotton", "China_state_reserves"): "beginning_stock_region",
+            ("soybeans_cbot", "China_state_reserves"): "beginning_stock_region",
+            ("soybeans_no_1_dce", "China_state_reserves"): "beginning_stock_region",
+            ("soybeans_no_2_dce", "China_state_reserves"): "beginning_stock_region",
+            ("corn_cbot", "China_state_reserves"): "beginning_stock_region",
+            ("campinas_corn_reference_bmf", "China_state_reserves"): "beginning_stock_region",
+            ("corn", "China_state_reserves"): "beginning_stock_region",
+            ("rough_rice_cbot", "buffer_stock_release"): "beginning_stock_region",
+            ("soybean_meal_cbot", "Argentina_crush_capacity"): "psd_crush_region",
+            # NOT re-keyed, each for its own recorded reason: the kcbt reserve leg is an IMPORT-demand
+            # claim already citing China off the region-ruled `import` row, and soyoil's release flow
+            # keeps its undischarged SIGN gate on the primary-ruled parent.
+            ("hard_red_winter_wheat_kcbt", "China_state_reserves"): "import",
+            ("soybean_oil_dce", "buffer_stock_release"): "beginning_stock",
+            ("canola_ice", "domestic_crush_demand"): "psd_crush",
+            ("french_rapeseed_matif", "eu_crush_demand"): "psd_crush",
+            ("rapeseed_meal_zce", "rapeseed_crush_demand"): "psd_crush"}
+    for (contract, driver), ref in sorted(want.items()):
+        d = ccz._driver(contract, driver)
+        assert d is not None, f"{contract}/{driver} vanished from the DAG"
+        assert d.silver_ref == ref, f"{contract}/{driver}: {d.silver_ref!r} != {ref!r}"
+    # (e) THE CLASS DELTA (see the docstring): FOUR legs leave the wrong-geography class, ZERO
+    # enter. Each lands on a region-ruled row, which is what "left the class" MEANS operationally --
+    # the driver's own token now scopes the read instead of the contract primary.
+    left_the_class = {("rough_rice_cbot", "buffer_stock_release"),
+                      ("soybean_meal_cbot", "Argentina_crush_capacity"),
+                      ("soybeans_cbot", "China_state_reserves"),
+                      ("soybeans_no_2_dce", "China_state_reserves")}
+    for contract, driver in sorted(left_the_class):
+        assert m[want[(contract, driver)]].get("country_rule") == "region", f"{contract}/{driver}"
+    # the two COINCIDENCE legs are NOT part of the delta -- they already cited the country their
+    # driver names, by luck; they moved for the RULE, and their census delta is zero (their narrated
+    # FIGURE is a separate, docketed question: cotton's metric moves ending -> beginning stocks)
+    assert left_the_class.isdisjoint({("cotton", "China_state_reserves"),
+                                      ("soybeans_no_1_dce", "China_state_reserves")})
 
 
 def test_the_fx_wave_region_rows_carry_their_promised_currencies():

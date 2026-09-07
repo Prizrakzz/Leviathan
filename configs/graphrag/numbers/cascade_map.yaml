@@ -136,7 +136,16 @@ refs:
     scale: 0.000001
     coverage_start: 1960
     status: mapped
-    notes: "15 instances, 8 ids (China_port_stocks, China_state_reserves, meal_inventory, ...)."
+    notes: >
+      12 instances, 7 ids (China_port_stocks, meal_inventory, tenderable_collapse, china_rsm_stocks,
+      China_soyoil_stocks, certified_stocks_decline, stock) after the D-10 SITTING 8 re-key
+      (2026-09-07): China_state_reserves LEFT THIS ROW ENTIRELY -- cotton, soybeans_cbot and
+      soybeans_no_2_dce moved to the region-ruled carry-in twin `beginning_stock_region`, where the
+      driver's OWN China token scopes the read instead of the contract primary (soybeans_cbot was
+      citing UNITED STATES and soybeans_no_2_dce BRAZIL for a Chinese reserve driver). The move is a
+      METRIC decision as much as a geography one: a state reserve is a subset of national CARRY-IN,
+      so the reserve-policy proxy is beginning_stocks_mt, and ENDING stocks stay the metric here.
+      Counts MEASURED off the census roster 2026-09-07, never remembered.
   beginning_stock:
     table: silver_psd
     metric: beginning_stocks_mt
@@ -150,8 +159,17 @@ refs:
     coverage_start: 1960
     status: mapped
     notes: >
-      6 instances, 5 ids - state-reserve policy drivers (buffer_stock_release, state_reserve_buildup,
-      state_reserve_release, China_state_reserves). Carry-in level is the reserve-policy proxy.
+      3 instances, 3 ids after the D-10 SITTING 8 re-key (2026-09-07), MEASURED off the census
+      roster: rapeseed_oil_zce's state_reserve_release + state_reserve_buildup (token China on a
+      board whose primary IS China -- correct by COINCIDENCE, left here deliberately and said out
+      loud rather than moved silently), and soybean_oil_dce's buffer_stock_release, which STAYS on
+      this primary-ruled row because its SIGN gate is undischarged (a '-' release flow on a carry-in
+      LEVEL a release drains -- see beginning_stock_region's notes; fixing its geography alone would
+      ship a correctly-located inversion). soybeans_no_1_dce's China_state_reserves and
+      rough_rice_cbot's buffer_stock_release LEFT for `beginning_stock_region`. The line this
+      replaced claimed "6 instances, 5 ids" and was already stale at 5/4 when re-measured on
+      2026-09-07 -- counts here are the census roster's, never a memory of one. Carry-in level is
+      the reserve-policy proxy: never narrate this figure as a reserve VOLUME or a release VOLUME.
   psd_ending_stock_su_ratio:
     table: silver_psd
     metric: su_ratio
@@ -281,9 +299,14 @@ refs:
       with an export tonnage today. D-10 RECORD (flip census 2026-08-26): that leg FIRES with the
       contract PRIMARY's (US) crush while its subject is Argentina — the primary-ruled mis-scope
       class, a CONTINUATION (it was primary-scoped on `export` too; the metric improved, the scoping
-      did not). It joins the D-10 register rather than a rushed re-fence: country_rule: region here
-      would break the sibling crush legs ('China (Guangxi/coastal)' resolves nowhere), so the remedy
-      is D-10's own per-leg scope mechanism, at that sitting. The margin-named ids and oil_share STAY
+      did not). LANDED at that sitting (D-10 SITTING 8, 2026-09-07) exactly as this note wrote it:
+      country_rule: region HERE would break the sibling crush legs ('China (Guangxi/coastal)'
+      resolves nowhere -- re-measured 2026-09-07, still true), so the leg moved to the region-ruled
+      twin `psd_crush_region` below and this row stays PRIMARY-ruled with its three unchanged
+      carriers: domestic_crush_demand (canola_ice -> Canada), eu_crush_demand (french_rapeseed_matif
+      -> European Union), rapeseed_crush_demand (rapeseed_meal_zce -> China). 3 instances, 3 ids,
+      all three BYTE-IDENTICAL across the change (census diff: exactly one leg's country moves).
+      The margin-named ids and oil_share STAY
       on crush_margin_z and stay dark. USDA prints the crush line on a complex's oilseed AND meal AND
       oil sheets: never sum a complex's slugs. Whether the three carry identical values is UNMEASURED
       — probe before any leg reads two of them.
@@ -904,11 +927,43 @@ refs:
       conflict detector needing both '+' and '-') -- plus corn_cbot's China_state_reserves, the
       D-10 FIX-NOW move: that leg was FIRING on `beginning_stock` with the UNITED STATES carry-in
       under a China label, and re-keying it here flips the country to the one the driver names at
-      zero census-count delta. The rest of the measured D-10 roster (soybeans_cbot + soybeans_no_2
-      on `stock` = also a METRIC decision; the meal_inventory / China_soyoil_stocks /
-      China_port_stocks scope moves; the two signed buffer_stock_release legs that need the sign
-      adjudication FIRST; and cotton + soybeans_no_1_dce which are correct-by-COINCIDENCE, their
-      primary IS China today) is DOCKETED, not silently inherited.
+      zero census-count delta.
+      D-10 SITTING 8 (2026-09-07) LANDED THE WHOLE China_state_reserves CLASS ON THIS ROW -- NINE
+      carriers now, 3 driver ids. The METRIC decision the docket above deferred is MADE, and it is
+      CARRY-IN: a state reserve is a SUBSET of national carry-in, so every China_state_reserves leg
+      reads beginning_stocks_mt at the geography its own token names, whatever row it sat on before.
+      The four re-keyed legs, each value-proved against silver_psd at the 2026-09-04 vintage (Athena,
+      latest-release dedup per (slug, country, MY), ALL non-null): soybeans_cbot 63 MY 1964-2026 (was
+      `stock`, CITING UNITED STATES), soybeans_no_2_dce 63 MY 1964-2026 (was `stock`, CITING BRAZIL),
+      soybeans_no_1_dce 63 MY 1964-2026 (was `beginning_stock`, cited China by COINCIDENCE) and
+      cotton 67 MY 1960-2026 (was `stock`, cited China by COINCIDENCE). THE TWO COINCIDENCE LEGS
+      MOVED ON PURPOSE: their contract primary IS China today, so their CENSUS delta is ZERO and was
+      proved zero on (country, verdict) -- and that is a CENSUS claim, never a value one. SAY THE
+      VALUE HALF OUT LOUD (adversary D-10, 2026-09-07): cotton's metric moves ending_stocks_mt ->
+      beginning_stocks_mt, so the FIGURE it narrates on a live board CHANGES -- with `agg: latest`
+      on a marketing-year row, carry-in is in effect the prior marketing year's ending stocks, so
+      the cited number steps back one MY (the corn_cbot 2026-08-27 precedent, adopted knowingly).
+      soybeans_no_1_dce was ALREADY reading beginning_stocks_mt, so only its RULE moved
+      (primary-by-luck -> region-by-token) and it is field-for-field zero. The metric decision's
+      value effect is DOCKETED AND UNJUDGED, not measured away. A leg that is right by
+      accident goes wrong the day its board's primary moves, and the honest fix is the RULE, never
+      the luck. hard_red_winter_wheat_kcbt's China_state_reserves is NOT here and must not be: it
+      rides the region-ruled `import` row, already cites China, and its mechanism is an IMPORT-demand
+      claim, not a carry-in one.
+      ONE CARRIER RIDES THIS ROW TO DECLINE, BY DESIGN. rough_rice_cbot's buffer_stock_release names
+      India's FCI OMSS and Thailand's auctions and was FIRING with UNITED STATES rice carry-in. Its
+      token 'India/Thailand' is a COMPOUND region_map cannot resolve (now listed `unresolved`), so on
+      this region-ruled row it DECLINES-HONESTLY (region-token-unresolved) rather than narrating the
+      wrong country -- the single intended census count move of the sitting (542 -> 541 fires). The
+      per-origin split that would light it is BLOCKED, not forgotten: the node's sign is '-' on a
+      carry-in LEVEL a release DRAINS (the sign-identity law), and the palm two-edit precedent does
+      NOT extend -- palm's node text was two-sided ('reserve buying does the opposite'), while rice's
+      mechanism AND blurb are one-sided (releases add supply, prices fall), so no text on the node
+      licenses a '-' -> '0' edit and no owner has adjudicated one. The DATA half is already proved
+      and waiting (Athena 2026-09-04: rough_rice_cbot x India 67 MY 1960-2026, x Thailand 67 MY, all
+      non-null): the day the sign is adjudicated, the India / Thailand split lights two legs and the
+      declining one disappears. soybean_oil_dce's buffer_stock_release stays on primary-ruled
+      `beginning_stock` for the SAME undischarged gate.
   production_region:
     table: silver_psd
     metric: production_mt
@@ -943,6 +998,43 @@ refs:
       sunflower knob is for non-contract commodities; refused here with reasons in the review).
       The 1987 floors on the ex-USSR origins are the USSR aggregation boundary: a pre-1987 silence
       is a coverage floor, never a small crop.
+  # -- D-10 SITTING 8 (2026-09-07): the crush twin the `psd_crush` row's own notes docketed. THIRD
+  # instance of the twin idiom (beginning_stock_region, production_region, and now this) -- and the
+  # idiom exists because a bare country_rule flip of a shared row is refused BY MEASUREMENT: replaying
+  # _scope_ex with each row mutated in memory costs `stock` 5 legs, `consumption` 8, `area` 9,
+  # psd_ending_stock_su_ratio 15, psd_feed_use 4, `production` 3, psd_crush 1. A twin + a per-leg
+  # re-key costs ZERO.
+  psd_crush_region:
+    table: silver_psd_attributes
+    metric: Crush
+    agg: latest
+    period_type: marketing_year
+    window_granularity: marketing-year
+    country_rule: region           # THE POINT, same as the two twins above: `psd_crush` declares no
+    #                                country_rule and is PRIMARY-ruled, so soybean_meal_cbot's
+    #                                Argentina_crush_capacity answered an ARGENTINE capacity driver
+    #                                with the UNITED STATES crush -- the D-10 class, and the record's
+    #                                'not solved by design' item until this row.
+    keying: "commodity = contract slug; country = the CRUSHING region the driver names, via region_map"
+    native_unit: "1000 MT"
+    narrate_unit: MMT
+    scale: 0.001
+    coverage_start: 1960
+    status: mapped
+    notes: >
+      CRUSH VOLUME, REGION-SCOPED -- the region-ruled twin of `psd_crush` above, named for what the
+      series IS (the beginning_stock_region precedent). MINTED RATHER THAN FLIPPING THE PARENT because
+      the parent's other carrier rapeseed_meal_zce/rapeseed_crush_demand tokens 'China (Guangxi/
+      coastal)', which resolves nowhere: a region flip would have turned a firing sibling into a
+      decline to fix one leg. ONE CARRIER: soybean_meal_cbot's Argentina_crush_capacity, value-proved
+      on silver_psd_attributes at the 2026-09-04 vintage (Athena, latest-release dedup) --
+      soybean_meal_cbot x Argentina x 'Crush' = 51 marketing years 1976-2026, ALL non-null, unit
+      '(1000 MT)'. The 1976 floor is a coverage floor (Argentina's crush complex enters the sheet),
+      never a small crush. SAME (scale, narrate_unit) AS THE PARENT ON PURPOSE: both rows serve the
+      key (silver_psd_attributes, Crush), and citations.narrate_scale refuses a key whose rows
+      DISAGREE about (scale, narrate_unit) -- silently, which is why config_check's cross-ref
+      unanimity leg exists. Never a MARGIN (that is gold_board_crush in $/bu; crush_margin_z stays
+      dark by C19), and never a sum across a complex's oilseed AND meal AND oil sheets.
   sunflower_oil_supply:
     table: silver_psd
     metric: production_mt
@@ -1884,6 +1976,15 @@ region_map:
     - "Global;US"
     - "EU;Global"
     - "India / Pakistan"
+    # D-10 SITTING 8 (2026-09-07): rough_rice_cbot's buffer_stock_release was re-keyed off
+    # primary-ruled `beginning_stock` (it FIRED with UNITED STATES rice carry-in under an
+    # India/Thailand label) onto the region-ruled `beginning_stock_region`, so _check_region_map's
+    # census leg (c) now demands a verdict on its token. The token names TWO countries -- India's FCI
+    # OMSS and Thailand's auctions -- so by this block's own law it declines rather than picking one.
+    # THIS IS A SIGN GATE, NOT A DATA GATE: both origins' PSD rows exist (Athena 2026-09-04,
+    # rough_rice_cbot x India 67 MY 1960-2026, x Thailand 67 MY, all non-null). The per-origin split
+    # waits on an owner adjudication of a '-' sign on a carry-in LEVEL (see beginning_stock_region).
+    - "India/Thailand"
     - "India/Thailand/Vietnam"
     # -- D-W5 weather-flip region curation (2026-07-12): tokens spanning >1 country (or a
     #    multi-country belt/region) -- no single honest country, so the weather leg declines-honestly --

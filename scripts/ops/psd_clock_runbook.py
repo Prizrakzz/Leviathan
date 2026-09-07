@@ -137,6 +137,9 @@ WIDE_KEY = "silver/psd/part-000.parquet"
 LONG_KEY = "silver/psd_attributes/part-000.parquet"
 PSD_BASELINE = f"s3://{BUCKET}/cascade_census/rolling/psd_monthly/census.json"
 WASDE_BASELINE = f"s3://{BUCKET}/cascade_census/rolling/wasde_monthly/census.json"
+# READ-ONLY preflight destination (D-10 fix pass, 2026-09-07). NEVER under rolling/: the census CLI
+# writes wherever --json points, and a preflight that lands on the rolling key IS the re-mint.
+PSD_CENSUS_PREFLIGHT = f"s3://{BUCKET}/cascade_census/preflight/psd_monthly_<asof>.json"
 
 OLD_DIGEST = "sha256:5d25d886d7621cc1e6f199f656e75c8a7d10fc563a791394339a8bddce25df43"
 
@@ -444,15 +447,21 @@ def steps(run_id: str) -> list[tuple[str, list[str]]]:
             "#   (e) a get-partitions reconcile returns clean.",
             "python scripts/silver/reconcile_registered_partitions.py",
             "# (f) THE MIRROR. silver_wasde is P1_TABLES too, and wasde_monthly gates it on the SAME "
-            "cron window as psd_monthly against its OWN rolling baseline. Two partitions land -> the "
-            "next wasde_monthly fire would red on the row-count move against a stale baseline, and "
-            "the wasde card would serve a mirror that does not hold the backfilled months. So the "
-            "re-sync and the re-mint happen HERE, inside this step, not at R7:",
+            "cron window as psd_monthly against its OWN rolling baseline. The re-sync and the "
+            "re-mint happen HERE, inside this step, not at R7 -- and BE EXACT ABOUT WHY, because the "
+            "line this replaced was wrong (D-10 fix pass, 2026-09-07): a rolling baseline is read at "
+            "EXACTLY ONE site, jobs/audit/silver_rebuild_gate.py:649 (ctx.prior_census -> "
+            "_census_diff_attributed), and that predicate reds ONLY on a NEW DARK-WITH-REASON leg or "
+            "a non-zero ATHENA_CALLS banner. It does NOT red on a row-count move, a leg-count move, "
+            "or a FIRES -> DECLINES move. The reasons to act HERE are the SERVE path (the wasde card "
+            "would otherwise read a mirror that does not hold the backfilled months) and baseline "
+            "hygiene -- never a gate that would otherwise fire red:",
             _submit("wasde-pg-reload", JD_GATE,
                     ["-m", "jobs.utils.load_pg_numbers", "--tables", CALENDAR_TABLE]),
             _submit("wasde-census-advance", JD_GATE,
                     ["-m", "jobs.audit.advance_rolling_census", "--asof", "<asof>",
-                     "--dest-uri", WASDE_BASELINE]),
+                     "--dest-uri", WASDE_BASELINE],
+                    env=[{"name": "GRAPHRAG_NUMBERS_BACKEND", "value": "pg"}]),
             "psql \"$EVIDENCE_PG_DSN\" -c \"select count(*) from leviathan_dev.silver_wasde where "
             "release_date in ('2006-07-12','2008-10-28');\"   # EXPECT > 0",
             "# ROLLBACK for this step alone: de-register the two partitions, delete their objects, "
@@ -657,11 +666,104 @@ def steps(run_id: str) -> list[tuple[str, list[str]]]:
             "# load_table DROPs, CREATEs and COPYs inside ONE transaction (pg DDL is "
             "transactional), so readers keep the old rows until commit; ignore_prefixes=['_','.'] "
             "keeps the _shadow/ twin out of the count.",
+            _submit("psd-census-preflight", JD_GATE,
+                    ["-m", "leviathan.graphrag.numbers.cascade_census", "--asof", "<asof>",
+                     "--json", PSD_CENSUS_PREFLIGHT],
+                    env=[{"name": "GRAPHRAG_NUMBERS_BACKEND", "value": "pg"}]),
+            "# env GRAPHRAG_NUMBERS_BACKEND=pg ON EVERY HAND SUBMIT (D-10 verify, 2026-09-07): the STATE MACHINE injects it "
+            "for scheduled fires; a hand `submit-job` does not, the jobdef does not carry it, and cascade_census asserts "
+            "it BEFORE touching the mirror -- so a bare submit fails before the read it exists to make.",
+            "# PREFLIGHT FIRST, AND IT IS READ-ONLY (D-10 fix pass, 2026-09-07). The census CLI "
+            "writes wherever --json points, so this lands on cascade_census/preflight/, NEVER on the "
+            "rolling key. Read its banner against PREDICTION #12 below BEFORE running the advance. "
+            "Why a separate run at all: advance_rolling_census refuses to upload when the census "
+            "returns rc != 0 (an un-waived DARK leg), so a mirror gap turns the re-mint into a "
+            "NO-OP that leaves the stale baseline in place -- and that is a thing to learn from a "
+            "preflight you read, not from a reconcile task that failed after a promote.",
             _submit("psd-census-advance", JD_GATE,
                     ["-m", "jobs.audit.advance_rolling_census", "--asof", "<asof>",
-                     "--dest-uri", PSD_BASELINE]),
-            "# Re-mint the psd_monthly rolling baseline from the POST-E canonical object. Until it "
-            "is re-minted every monthly gate run reds on the row-count move.",
+                     "--dest-uri", PSD_BASELINE],
+                    env=[{"name": "GRAPHRAG_NUMBERS_BACKEND", "value": "pg"}]),
+            "# Re-mint the psd_monthly rolling baseline from the POST-E canonical object.",
+            "# CENSUS PREDICTION #12 (D-10 sitting 8, 2026-09-07) -- what this re-mint MUST read, or "
+            "stop and explain the difference before uploading: 790 legs, 541 FIRES / 249 DECLINES / "
+            "0 dark / 0 probe errors. It supersedes prediction #11 (790 = 542/248, minted "
+            "2026-09-04T05:08:54Z, 251,111 B). The count of LEGS does not move (every edit was a "
+            "re-key of an existing driver); exactly ONE leg moves FIRES -> DECLINES and the cause is "
+            "named: rough_rice_cbot/buffer_stock_release left primary-ruled `beginning_stock` (where "
+            "it fired with UNITED STATES rice carry-in under an India/Thailand label) for the "
+            "region-ruled `beginning_stock_region`, whose compound token cannot resolve -- so it "
+            "declines honestly (region-token-unresolved 189 -> 190). Five more legs stay FIRES with "
+            "only country/metric moving (soybeans_cbot + soybeans_no_2_dce China_state_reserves -> "
+            "China, soybean_meal_cbot Argentina_crush_capacity -> Argentina on the new "
+            "psd_crush_region twin, cotton + soybeans_no_1_dce zero-delta China -> China).",
+            "# THE PREDICTION IS AN ESTATE-WIDE CENSUS SHAPE, NOT A psd_monthly NUMBER. The census "
+            "takes NO table parameter (the stage note at silver_rebuild_gate.py:314 says so "
+            "outright): every family censuses the WHOLE cascade, and advance_rolling_census writes "
+            "that same whole-cascade artifact to its OWN per-schedule key, "
+            "cascade_census/rolling/<family>/census.json. 26 armed descriptors under "
+            "configs/silver/dags/ carry a gate_baseline_uri and 28 objects exist under that prefix "
+            "(measured 2026-09-07, boto3 list_objects_v2). FIFTEEN armed families hold the 790 = "
+            "542/248 shape today and will read 541/249 at their own next re-mint: cot, "
+            "enso_monthly, esr_weekly, fgis, futures_eod_databento, futures_eod_free, "
+            "futures_prices, fx_macro_daily, modis_biweekly, production_conab, production_faostat, "
+            "psd_monthly, sagis_weekly, unica, weather_daily (plus the _laneb_probe scratch key, "
+            "which is not a schedule). The rest are OLDER vintages, not wrong ones: 593 = 349/244 "
+            "on food_cpi, mpob, nass_crop_progress, pink_sheet_monthly, wasde_monthly; 566 = "
+            "349/217 on ams_cotton_quality, fnc_colombia, icco_cocoa, mpoc, wap; 514 = 314/200 on "
+            "nass_citrus. cascade_census/rolling/futures_eod/census.json is the SUPERSEDED "
+            "family-level key -- never mint, advance or diff against it. NO MANUAL RE-MINT IS OWED "
+            "FOR THE OTHER FOURTEEN: the state machine's Reconcile state follows Promote "
+            "unconditionally (step_functions/main.tf:1129 -> :1139; an empty promote.tasks Map "
+            "still succeeds into it), so each family rolls its own baseline forward on its next "
+            "green fire. Only psd_monthly (here) and wasde_monthly (R3(f)) are re-minted by hand, "
+            "and only because this lane moves their tables out of band.",
+            "# WHAT THE 09-08 18:00Z FIRE ACTUALLY DOES, MEASURED -- because the line this replaced "
+            "said the opposite, and a false deadline is worse than no deadline (D-10 fix pass, "
+            "adversary-refuted 2026-09-07): IT GOES GREEN. A rolling baseline is consumed at exactly "
+            "ONE site, silver_rebuild_gate.py:649 (ctx.prior_census -> _census_diff_attributed, "
+            ":606-628), and that predicate raises a problem for exactly two things: a non-zero "
+            "ATHENA_CALLS banner, and a leg whose verdict is DARK-WITH-REASON that was not dark in "
+            "the prior baseline. FIRES, DECLINES-HONESTLY and DARK-WITH-REASON are three DISTINCT "
+            "constants (cascade_census.py:57-59), so a FIRES -> DECLINES-HONESTLY move is invisible "
+            "to it; cascade_census.main returns `1 if dark else 0` (:748) and is equally blind. "
+            "PROVED, not read: _census_diff(prior = the LIVE 542/248 artifact, current = that same "
+            "artifact with the rice leg flipped to DECLINES-HONESTLY and the banner at 541/249) -> "
+            "[] -> stage GREEN; the same artifact with that leg DARK -> ['NEW dark leg "
+            "rough_rice_cbot/buffer_stock_release silver_psd.beginning_stocks_mt ...'] -> RED; "
+            "ATHENA_CALLS=3 -> RED. Production already proves it: the LIVE wasde_monthly (593 legs) "
+            "and nass_citrus (514 legs) baselines diff GREEN against a 790-leg census -- 197 and 276 "
+            "legs apart -- because leg counts are not what the predicate reads. SO: the re-mint is "
+            "CORRECTNESS BOOKKEEPING, not a deadline. Do it from an overlay-carrying image; never "
+            "let a manufactured clock push an out-of-band re-mint.",
+            "# THE REAL GATE EXPOSURE IS THE INVERSE ONE, AND IT IS ESTATE-WIDE. The six re-keyed "
+            "legs were value-proved on ATHENA (2026-09-04 vintage); the census probes the PG MIRROR. "
+            "If the mirror lacks a moved (table, metric, country) read -- silver_psd "
+            "beginning_stocks_mt x China for soybeans_cbot / soybeans_no_2_dce / cotton, or "
+            "silver_psd_attributes Crush x Argentina for soybean_meal_cbot -- that leg comes back "
+            "DARK-WITH-REASON, which IS the one verdict the diff reds on; prior_dark is EMPTY on "
+            "every family baseline, so the FIRST such leg reds EVERY family at once (the :606-628 "
+            "docstring says exactly that), and the same rc != 0 makes advance_rolling_census refuse "
+            "its upload. That is what the preflight above exists to catch, which is why it runs "
+            "AFTER the pg reload and BEFORE the advance.",
+            "# THE IMAGE MUST CARRY THE OVERLAY FIRST: configs/graphrag/causal/*.yaml is gitignored "
+            "and reaches prod only inside the context tar, so a re-mint from an image built before "
+            "the sitting would re-bank 542/248 and silently un-do the prediction. With the deadline "
+            "gone there is no reason to accept that trade: wait for the overlay image.",
+            "# THE CONTEXT TAR IS SHARED, AND THAT IS AN OWNER SEQUENCING CALL, NOT A BUILD DETAIL. "
+            "scripts/ops/make_worker_context_tar.py:64 COPY_PATHS = (pyproject.toml, src, jobs, "
+            "configs, sql, scripts, docker) and :146-158 REFUSES while any tracked file in that set "
+            "differs from HEAD by CONTENT. Measured 2026-09-07 by the tool's own content_changes(): "
+            "TEN files refuse, and only two are this lane's (configs/graphrag/numbers/"
+            "cascade_map.yaml, scripts/ops/psd_clock_runbook.py). The other eight belong to two "
+            "other lanes -- K9 serving: src/leviathan/graphrag/{answer,citations,config_check,"
+            "orchestrator}.py + numbers/cascade.py (citations.py alone +542 lines); ESR ingest: "
+            "jobs/batch/{esr_task,bronze_to_silver_esr_task}.py + jobs/ingest/fetch_usda_esr.py. "
+            "Plus 40 UNTRACKED paths in the COPY set (the eda/ subtree), which need "
+            "--allow-untracked. So the tar cannot be built until those lanes commit, and whichever "
+            "image is finally built BAKES THEIR CODE ALONGSIDE THIS OVERLAY. The tool fails closed "
+            "and prints the list, so nothing ships silently -- but the three lanes cannot reach prod "
+            "independently through one tar, and that ordering is the owner's to make.",
             "python scripts/silver/gen_registry_from_baseline.py       "
             "# regenerate both F010 contracts from a FRESH readiness baseline",
             "python scripts/silver/generate_ddls_from_registry.py",

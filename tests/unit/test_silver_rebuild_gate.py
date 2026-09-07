@@ -371,6 +371,65 @@ def test_census_diff_flags_nonzero_athena():
     assert any("ATHENA_CALLS" in p for p in problems)
 
 
+def test_a_FIRES_to_DECLINES_move_is_INVISIBLE_to_the_rolling_baseline_diff():
+    """D-10 FIX PASS (2026-09-07) -- the executable form of a claim two durable docs got BACKWARDS.
+
+    docs/private/CASCADE_WALK_V4_CHARTER.md and docs/private/ORIGIN_POLICY_WAVE_PLAN.md both said
+    the 2026-09-08 18:00Z psd_monthly fire would RED against the stale 542/248 rolling baseline
+    because ONE leg (rough_rice_cbot/buffer_stock_release) moved FIRES -> DECLINES-HONESTLY. IT
+    DOES NOT. The consequence of believing it was operational rather than academic: a manufactured
+    deadline pushes an operator toward an out-of-band re-mint from the overlay-LESS image currently
+    pinned on leviathan-dev-silver-gate -- the exact act the runbook's own R7 warning forbids.
+
+    THE MECHANISM, pinned here so the next sitting reads it instead of re-deriving it.
+    ``ctx.prior_census`` is consumed at EXACTLY ONE site in this module (``stage_cascade_census_diff``
+    -> ``_census_diff_attributed``), and that predicate raises a problem for exactly two things: a
+    non-zero ATHENA_CALLS banner, and a leg whose verdict is DARK-WITH-REASON that was not dark in
+    the prior baseline. ``cascade_census`` FIRES / DECLINES-HONESTLY / DARK-WITH-REASON are three
+    DISTINCT constants, so a fires->declines move is invisible; so is a leg-count move and a
+    row-count move (the estate proves the leg-count half in production: the live wasde_monthly
+    baseline carries 593 legs and nass_citrus 514 against a 790-leg census, 197 and 276 apart, and
+    neither reds). The drift is therefore SILENT and re-minting is correctness bookkeeping with no
+    deadline attached.
+
+    THE INVERSE EXPOSURE IS THE REAL ONE and it is pinned by the second half of this test: the six
+    re-keyed legs were value-proved on ATHENA while the census probes the PG MIRROR, so a mirror gap
+    returns DARK-WITH-REASON -- which IS the one verdict this diff reds on. ``prior_dark`` is empty
+    on every family baseline, so the first such leg reds EVERY family at once, and the same rc != 0
+    makes ``advance_rolling_census`` refuse its upload.
+
+    A future change that makes the diff sensitive to a verdict move REDS HERE -- which is the point:
+    the docs get corrected in the same sitting as the behaviour."""
+    def _leg(verdict, reason=None):
+        return {"contract": "rough_rice_cbot", "node_id": "buffer_stock_release",
+                "table": "silver_psd", "metric": "beginning_stocks_mt",
+                "country": "United States" if verdict == "FIRES" else None,
+                "verdict": verdict, "reason": reason}
+
+    # the stale 542/248 baseline the 09-08 fire would diff against: the rice leg FIRING
+    prior = {"banner": {"athena_calls": 0, "fires": 542, "declines": 248, "dark": 0},
+             "legs": [_leg("FIRES"), {"contract": "corn_cbot", "node_id": "export",
+                                      "verdict": "FIRES", "table": "silver_psd"}]}
+    # the post-sitting census: the SAME leg declining honestly on the region-ruled twin
+    current = {"banner": {"athena_calls": 0, "fires": 541, "declines": 249, "dark": 0},
+               "legs": [_leg("DECLINES-HONESTLY", "region-token-unresolved"),
+                        {"contract": "corn_cbot", "node_id": "export",
+                         "verdict": "FIRES", "table": "silver_psd"}]}
+    assert g._census_diff(prior, current) == [], "a FIRES -> DECLINES move must stay INVISIBLE here"
+
+    # ...and neither does a shrunken/older baseline (the live estate's 593- and 514-leg vintages)
+    assert g._census_diff({"banner": {"athena_calls": 0}, "legs": []}, current) == []
+
+    # THE ONE VERDICT THAT DOES RED -- the pg-mirror-gap shape, attributed to its table
+    gap = {"banner": {"athena_calls": 0, "fires": 540, "declines": 249, "dark": 1},
+           "legs": [_leg("DARK-WITH-REASON", "pg mirror returned zero rows")]}
+    problems = g._census_diff_attributed(prior, gap)
+    assert len(problems) == 1
+    text, tables = problems[0]
+    assert "NEW dark leg rough_rice_cbot/buffer_stock_release" in text
+    assert tables == frozenset({"silver_psd"})
+
+
 # ---------------------------------------------------------------------------
 # BRANCH-A RATIFICATION (2026-08-01): the SILVER-V001 populatedness floor rides Branch A too.
 # ---------------------------------------------------------------------------
