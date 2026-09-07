@@ -163,9 +163,19 @@ _LINT = _REPO / "scripts" / "silver" / "f091_source_universe_lint.py"
 #   scripts/ops/esr_netcommitment_runbook.py) sit outside SCAN_ROOTS -- which is
 #   ("src/leviathan/transforms", "jobs/ingest", "jobs/batch", "jobs/glue") -- so none of them
 #   enters this census at all.
-PIN_RAW_LITERALS = 349          # 339 base + 3 lane E + 3 pink + 1 lane A (futures venue calendars,
+# RE-MEASURED 2026-09-07 by the TEXT-INGESTION LANE (Phase G, sitting 1: corpus_coverage.py, the two
+# script-form wrappers corpus_ingest_task.py / corpus_fold_task.py, the G2 key-layout gate in
+# raw_to_text/writer.py). Measured TWO-TREE with the test's own _pinned_population over a `git archive
+# HEAD` export plus exactly this lane's six files (scratchpad f091_measure.py), because the shared working
+# tree also carries the ESR vintage-stream lane's uncommitted files, whose delta is THAT lane's to land:
+#   HEAD           -> 349 / 129 / 171 / 95 / 13 / 82 / 141
+#   HEAD+ingestion -> 351 / 131 / 171 / 95 / 13 / 82 / 141
+#   +2 raw literals in +2 raw FILES (writer._TRUTHY, a truthy-word set for the CORPUS_LANE_GATES flag, and
+#   one module-level static collection in the new jobs/batch wrapper); NOTHING enters the universe or the
+#   docket -- the wrappers name sources only inside help text and f-strings, never as a static collection.
+PIN_RAW_LITERALS = 351          # 339 base + 3 lane E + 3 pink + 1 lane A (futures venue calendars,
                                 # landed 5e531d24) + 3 lane C (ESR net-commitment five)
-PIN_RAW_FILES = 129             # 126 base + 1 lane E + 2 pink
+PIN_RAW_FILES = 131             # 126 base + 1 lane E + 2 pink
 PIN_UNIVERSE_LITERALS = 171     # 169 base + 1 lane E + 1 pink
 PIN_UNIVERSE_FILES = 95         # 93 base + 1 lane E + 1 pink
 PIN_COVERED_FILES = 13          # 12 base + 0 lane E + 1 pink (pink_sheet_breaks._REFUSED_SHEETS)
