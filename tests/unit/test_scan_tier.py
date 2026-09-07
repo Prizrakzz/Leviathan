@@ -21,6 +21,14 @@ With BOTH flags ON, only `quick_n3` moves: `quick`, `standard`, `deep` and `max`
 whole build exists to protect -- a `deep` turn whose agent honestly reports capped=True must still be
 byte-identical, because the consumption gate, not the stamp, is what decides.
 
+P14 (2026-09-07) is THE HEADROOM: the budget line asks for every known lookup in the FIRST round,
+so that round is the one that grows, and on the measured arm one row spent the whole 6,000-token
+ceiling and stopped on max_tokens with 4 of an intended plan's tool_use blocks -- the refusal fired
+and took the entire numbers leg with it (0 lookups, 0 tables read). The ceiling floor therefore
+rises to 12,000 for EXACTLY the turns the line renders on, and the refusal is kept: a partial
+selection is still never served. The OFF view of that floor lives in P5 beside the prompt's, not in
+a second byte-identity test.
+
 All offline: no pg, no S3, no LLM, no AWS. ASCII-only output (the Windows console is cp1252)."""
 from __future__ import annotations
 
@@ -232,11 +240,18 @@ def test_p5_the_budget_line_is_empty_unless_the_turn_is_actually_narrowed():
     assert "the first 2 rounds" in line                            # TRUE AT THE BOUNDARY: N-1 are read
 
 
-def test_p5_system_block_is_byte_identical_and_the_user_turn_carries_the_only_delta():
+def test_p5_system_block_is_byte_identical_and_only_the_user_turn_and_the_ceiling_move():
     """The system block is where the 98,174-token cache write lives, so the line may not go there --
     THE BANK IS THE CROSS-RUN COMPARISON, not a frozen literal: a banked string would go red the day
     the numbers registry legitimately grows a card, and would then be pinning the registry rather than
-    this lane. Both runs' system blocks are compared to each other AND to `system_prompt` directly."""
+    this lane. Both runs' system blocks are compared to each other AND to `system_prompt` directly.
+
+    EXTENDED 2026-09-07 (the headroom sitting) TO THE WHOLE create(), which is where the OFF view of
+    LANE S now has to be taken: the narrowed turn moves a SECOND field, `max_tokens`. This test is the
+    one off-view pin for both -- the un-narrowed create is HEAD's in every key (ceiling 1,500, no
+    thinking, no output_config), and P3/P4 above already prove no preset threads a budget with the
+    flags off, so this ONE call is every preset's call and no second byte-identity test is owed.
+    The narrowed run then differs in EXACTLY {messages, max_tokens} and nothing else."""
     def _run(**kw):
         c = _FakeClient([_resp([_text("done")], "end_turn")])
         na.answer_numbers("corn stocks?", asof=_ASOF, client=c, query_fn=lambda sql: [], **kw)
@@ -256,6 +271,13 @@ def test_p5_system_block_is_byte_identical_and_the_user_turn_carries_the_only_de
                                                   + na._budget_line(3)
                                                   + "\n\nQuestion: corn stocks?")
     assert narrowed["messages"][0]["content"].endswith("\n\nQuestion: corn stocks?")   # recency slot kept
+    # THE OFF VIEW, on the wire: HEAD's kwargs exactly -- no key invented, ceiling still 1,500.
+    assert set(plain) == {"model", "max_tokens", "system", "tools", "messages"}
+    assert plain["max_tokens"] == 1500
+    # ...and the narrowed turn moves the user turn and the CEILING, and nothing else at all.
+    assert set(narrowed) == set(plain)   # no key invented on the narrowed create either (mutation N5)
+    assert {k for k in plain if plain[k] != narrowed[k]} == {"messages", "max_tokens"}
+    assert narrowed["max_tokens"] == na._NARROWED_MAX_TOKENS
 
 
 # == P6 -- the numbers block: the FACT half ===========================================================
@@ -388,7 +410,8 @@ def test_p10_capped_true_on_the_budget_exhausted_return():
     out = na.answer_numbers("corn stocks?", asof=_ASOF, client=c, query_fn=lambda sql: list(_PSD_ROWS),
                             max_calls=3)
     assert out["answer"] == "(stopped: max tool calls reached)"
-    assert out["numbers_budget"] == {"max_calls": 3, "rounds_used": 3, "lookups": 3, "capped": True}
+    assert out["numbers_budget"] == {"max_calls": 3, "rounds_used": 3, "lookups": 3, "capped": True,
+                                     "max_tokens": 12000}
 
 
 def test_p10_capped_false_on_the_natural_text_return():
@@ -396,12 +419,14 @@ def test_p10_capped_false_on_the_natural_text_return():
                      _resp([_text("Corn ending stocks were 2,462,000 MT.")], "end_turn")])
     out = na.answer_numbers("corn stocks?", asof=_ASOF, client=c, query_fn=lambda sql: list(_PSD_ROWS),
                             max_calls=3)
-    assert out["numbers_budget"] == {"max_calls": 3, "rounds_used": 2, "lookups": 1, "capped": False}
+    assert out["numbers_budget"] == {"max_calls": 3, "rounds_used": 2, "lookups": 1, "capped": False,
+                                     "max_tokens": 12000}
     # a turn that answers in ONE round records 1, whatever budget it was handed -- the counter reports
     # what the loop DID, never what it was allowed to do.
     c2 = _FakeClient([_resp([_text("No lookup needed.")], "end_turn")])
     out2 = na.answer_numbers("corn stocks?", asof=_ASOF, client=c2, query_fn=lambda sql: [], max_calls=3)
-    assert out2["numbers_budget"] == {"max_calls": 3, "rounds_used": 1, "lookups": 0, "capped": False}
+    assert out2["numbers_budget"] == {"max_calls": 3, "rounds_used": 1, "lookups": 0, "capped": False,
+                                      "max_tokens": 12000}
 
 
 def test_p10_the_esr_aggregate_early_return_carries_the_POST_APPEND_lookups():
@@ -422,7 +447,8 @@ def test_p10_the_esr_aggregate_early_return_carries_the_POST_APPEND_lookups():
                                                 _resp([_text("I can't break this out.")], "end_turn")]),
                             query_fn=_qfn, max_calls=3)
     assert out["esr_aggregate_legs"] == 2 and len(out["calls"]) == 3
-    assert out["numbers_budget"] == {"max_calls": 3, "rounds_used": 2, "lookups": 3, "capped": False}
+    assert out["numbers_budget"] == {"max_calls": 3, "rounds_used": 2, "lookups": 3, "capped": False,
+                                     "max_tokens": 12000}
 
 
 # == P11 -- THE TRACE PIN =============================================================================
@@ -635,12 +661,14 @@ def test_p13_the_empty_and_capped_clauses_keep_their_meaning():
 
 
 def test_p13_returned_is_the_discriminator_and_only_this_seam_mints_it():
-    """`_budget_stamp` is the agent's ONE producer and its four turn-ending returns carry exactly four
-    keys -- so `budget.get("returned") is None` on every agent record and the empty branch is
-    unreachable-by-accident from the agent's side. A record that carried a TRUTHY `returned` (no such
-    producer exists; the pin says the branch is `is False`, not truthiness) takes the empty branch."""
-    stamp = na._budget_stamp(3, 2, [], capped=False)
-    assert set(stamp) == {"max_calls", "rounds_used", "lookups", "capped"}
+    """`_budget_stamp` is the agent's ONE producer and its four turn-ending returns carry exactly the
+    five keys below -- so `budget.get("returned") is None` on every agent record and the empty branch
+    is unreachable-by-accident from the agent's side. A record that carried a TRUTHY `returned` (no
+    such producer exists; the pin says the branch is `is False`, not truthiness) takes the empty
+    branch. `max_tokens` (P14, the headroom) joined the shape and changes NONE of that: it is a fact
+    about the ceiling, no clause reads it, and the two shapes still share only `max_calls`/`lookups`."""
+    stamp = na._budget_stamp(3, 2, [], capped=False, max_tokens=12000)
+    assert set(stamp) == {"max_calls", "rounds_used", "lookups", "capped", "max_tokens"}
     assert stamp.get("returned") is None
     assert orch._numbers_block([], budget=stamp) == orch._numbers_block([], budget=_EMPTY_STAMP)
     truthy = dict(_EMPTY_STAMP, returned=True)
@@ -717,3 +745,92 @@ def test_p13_every_budgetless_preset_is_byte_identical_with_BOTH_flags_on(monkey
     assert an._numbers_budget_note_on(seen["block"]) is False, name
     assert "numbers_budget" not in (seen["out"].get("trace") or {}), name
     assert rm.MODES[name].numbers_calls is None, name        # ...and WHY: the preset carries no budget
+
+
+# == P14 -- THE HEADROOM: the ceiling the narrowed PLANNING round gets (2026-09-07) ==================
+# THE DEFECT THIS SECTION EXISTS FOR, measured on the Scan rung-1 arm (treatment-N = mode quick_n3 +
+# GRAPHRAG_NUMBERS_BUDGET_NOTE=on, numbers seat claude-sonnet-5 with GRAPHRAG_NUMBERS_THINKING=adaptive,
+# 2026-09-07 07:00Z, capture scan_arm_treatment-N.json). The budget line asks for every known lookup in
+# the FIRST round, so round 1 is the round that grows: four rows' round 1 finished on tool_use at 2,295
+# / 3,030 / 3,659 / 4,660 output tokens carrying 10 / 9 / 16 / 10 tool_use blocks -- the largest already
+# 78% of the 6,000 ceiling -- and the fifth (rv_palm_rapeoil) spent the FULL 6,000, emitted 4 blocks and
+# stopped on max_tokens. The truncation refusal fired exactly as designed and took the whole numbers leg
+# with it: {max_calls: 3, lookups: 0, returned: False}, writer answered from evidence alone, 0 tables
+# read. The ceiling moves; the refusal does not.
+def test_p14_the_ceiling_ladder_has_two_floors_and_the_budget_LINE_is_what_buys_the_top_one():
+    """The ONE producer, unit-pinned. `_numbers_max_tokens` reads the LINE, never `max_calls` re-derived,
+    so the instruction that fills the round and the room it is given cannot drift apart."""
+    assert (na._THINKING_MAX_TOKENS, na._NARROWED_MAX_TOKENS) == (6000, 12000)
+    assert na._numbers_max_tokens(1500, thinking=False, budget_line="") == 1500     # HEAD, untouched
+    assert na._numbers_max_tokens(1500, thinking=True, budget_line="") == 6000      # the c/d seam floor
+    narrowed = na._budget_line(3)
+    assert narrowed
+    assert na._numbers_max_tokens(1500, thinking=False, budget_line=narrowed) == 12000
+    assert na._numbers_max_tokens(1500, thinking=True, budget_line=narrowed) == 12000
+    # the line's own EMPTINESS is the gate, so an un-narrowed budget can never buy the headroom
+    for n in (None, 0, na._DEFAULT_MAX_CALLS, 7):
+        assert na._numbers_max_tokens(1500, thinking=False, budget_line=na._budget_line(n)) == 1500, n
+        assert na._numbers_max_tokens(1500, thinking=True, budget_line=na._budget_line(n)) == 6000, n
+    # a caller ceiling ALREADY above a floor is never lowered -- max(), never assignment
+    assert na._numbers_max_tokens(20000, thinking=True, budget_line=narrowed) == 20000
+
+
+def test_p14_the_narrowed_create_carries_the_new_floor_on_EVERY_round():
+    """PIN (ii), captured off the wire rather than read off the source: the ceiling is decided ONCE
+    before the loop, so every round of a narrowed turn -- not only the planning round -- is sent at
+    12,000. Thinking is UNSET here on purpose: the floor follows the line, not the thought."""
+    c = _FakeClient([_resp([_tool_use(_PSD_USE, f"t{i}")], "tool_use") for i in range(3)])
+    na.answer_numbers("corn stocks?", asof=_ASOF, client=c, query_fn=lambda sql: list(_PSD_ROWS),
+                      max_calls=3)
+    assert len(c.sent) == 3
+    assert [k["max_tokens"] for k in c.sent] == [na._NARROWED_MAX_TOKENS] * 3
+    assert all("thinking" not in k for k in c.sent)
+
+
+def test_p14_a_round_that_still_stops_on_max_tokens_still_REFUSES(monkeypatch):
+    """PIN (iii). The headroom moves the wall; it does not remove it. A scripted armed-lane round that
+    comes back stop_reason=max_tokens raises exactly as it did at HEAD -- a partial selection is never
+    served as final (extract.py:557's doctrine) -- and the message names the ceiling the round actually
+    ran under, which is what makes the NEXT rung a measurement instead of a guess."""
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_THINKING", "adaptive")
+    monkeypatch.setenv("GRAPHRAG_NUMBERS_MODEL", "claude-sonnet-5")
+    monkeypatch.delenv("GRAPHRAG_PROVIDER", raising=False)
+    c = _FakeClient([_resp([_tool_use(_PSD_USE)], "max_tokens")])
+    with pytest.raises(RuntimeError, match="TRUNCATED") as exc:
+        na.answer_numbers("corn stocks?", asof=_ASOF, client=c, query_fn=lambda sql: [], max_calls=3)
+    assert "max_tokens=12000" in str(exc.value)
+    assert c.sent[0]["max_tokens"] == 12000 and c.sent[0]["thinking"] == {"type": "adaptive"}
+    # ...and the SAME scripted truncation on an UN-narrowed armed turn still refuses at the c/d floor.
+    c2 = _FakeClient([_resp([_tool_use(_PSD_USE)], "max_tokens")])
+    with pytest.raises(RuntimeError, match="TRUNCATED") as exc2:
+        na.answer_numbers("corn stocks?", asof=_ASOF, client=c2, query_fn=lambda sql: [])
+    assert "max_tokens=6000" in str(exc2.value)
+    assert c2.sent[0]["max_tokens"] == 6000
+
+
+def test_p14_the_stamp_records_the_CEILING_THE_ROUNDS_RAN_UNDER():
+    """PIN (iv), on the record itself. APPENDED LAST -- the additive-only law the trace column and
+    eval's per-answer projection both rest on -- and it reports what `_numbers_max_tokens` returned,
+    never the caller's argument, so a turn that never earned a floor says 1,500 and says it honestly."""
+    c = _FakeClient([_resp([_text("No lookup needed.")], "end_turn")])
+    plain = na.answer_numbers("corn stocks?", asof=_ASOF, client=c, query_fn=lambda sql: [])
+    assert plain["numbers_budget"] == {"max_calls": 6, "rounds_used": 1, "lookups": 0,
+                                       "capped": False, "max_tokens": 1500}
+    assert list(plain["numbers_budget"])[-1] == "max_tokens"          # appended, never inserted
+    c2 = _FakeClient([_resp([_text("No lookup needed.")], "end_turn")])
+    narrowed = na.answer_numbers("corn stocks?", asof=_ASOF, client=c2, query_fn=lambda sql: [],
+                                 max_calls=3)
+    assert narrowed["numbers_budget"]["max_tokens"] == 12000
+    assert c2.sent[0]["max_tokens"] == 12000                          # the stamp and the wire agree
+
+
+def test_p14_the_budget_line_asks_for_compact_planning_and_forbids_nothing():
+    """THE COMPLEMENT, and the half that still works when the ceiling half cannot: the ceiling cannot
+    help a thought that grows again, and this clause cannot promise that it will not. POSITIVE wording
+    (J6): it says what the round is FOR and names no idiom, so it teaches nothing by prohibition."""
+    line = na._budget_line(3)
+    assert "spend the round on the calls themselves" in line
+    assert "a brief plan followed by all the lookups in the same turn is the shape that fits" in line
+    for banned in ("do not", "don't", "never", "avoid", "must not"):
+        assert banned not in line.lower(), banned
+    assert na._budget_line(na._DEFAULT_MAX_CALLS) == ""               # still "" when not narrowed

@@ -2130,6 +2130,7 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # absent (non-orchestrator rows) -- never zero; the CostUsd 0-semantics idiom.
             "turn_cost_usd": _turn_cost_usd((out.get("trace") or {}).get("synth_usage")),
             # LANE S (2026-09-06): {max_calls, rounds_used, lookups, capped} for the turn's numbers leg
+            # (+ max_tokens appended last since the 09-07 headroom fix -- the ceiling the rounds ran under)
             # -- the artifact half of the Scan-tier budget, and the only place an arm can read whether a
             # narrowed turn actually hit its limit. An EXPLICIT column rather than a tracekeys entry
             # because tracekeys.py is outside this lane's allowlist; OWED AT FLIP TIME: register

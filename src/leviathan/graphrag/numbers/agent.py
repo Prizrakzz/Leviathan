@@ -1565,6 +1565,17 @@ def _budget_line(max_calls: int | None) -> str:
     batching, forbids no phrase, and names no idiom (the J6 doctrine -- writing a forbidden idiom into
     a prompt teaches it).
 
+    THE COMPACT-PLANNING CLAUSE (2026-09-07, the headroom sitting) is the second half of that same J6
+    sentence and obeys the same rule: it says what the round is FOR -- a brief plan and then the calls
+    -- and forbids nothing. MEASURED CAUSE: this line is what makes the FIRST round the fat one, since
+    it is the line that asks for every known lookup at once. On the arm capture tabulated under
+    `_numbers_max_tokens` below, four first rounds finished on tool_use at 2,295 / 3,030 / 3,659 /
+    4,660 output tokens (9-16 tool_use blocks each) and a fifth spent the whole 6,000-token ceiling on
+    thought and died 4 blocks into its plan, taking that turn's entire numbers leg with it.
+    `_numbers_max_tokens` raises the CEILING for exactly the turns this line renders on; this clause
+    lowers the DEMAND. BOTH, because the ceiling half cannot help a thought that grows again, and the
+    prompt half cannot promise that it will not.
+
     TRUE AT THE BOUNDARY, which is why the last round is described the way it is: the loop executes
     round N's tool calls and then falls out to the budget-exhausted return, so the model never sees
     round N's results. Telling it it will read N-1 rounds is the literal mechanism, not a hedge.
@@ -1587,10 +1598,76 @@ def _budget_line(max_calls: int | None) -> str:
             "first round, together. You will read the results of the first %d rounds; whatever the last "
             "round returns goes into the record as it stands, so spend that round on reads you are "
             "content to have quoted without seeing them. Read the card that most directly answers the "
-            "question first." % (n, n - 1))
+            "question first. Decide quickly and spend the round on the calls themselves -- a brief "
+            "plan followed by all the lookups in the same turn is the shape that fits." % (n, n - 1))
 
 
-def _budget_stamp(max_calls: int, rounds_used: int, calls: list, *, capped: bool) -> dict:
+# LANE S HEADROOM (2026-09-07). THE TWO FLOORS THIS LANE CAN SIT AT, named once so the ladder is
+# readable in one place: the armed-thinking floor the c/d seam minted and the NARROWED-PLANNING floor
+# this sitting adds. NEITHER IS A SPEND -- `max_tokens` is a CEILING and output is billed as emitted
+# ($15/Mtok on claude-sonnet-5, back-solved exactly from the arm capture: rv_corn_wheat round 1 =
+# 279 in x $3 + 2,295 out x $15 + 98,174 cache_read x $0.30 per Mtok = $0.0647142, the usd that run
+# recorded, to the cent).
+_THINKING_MAX_TOKENS = 6000
+_NARROWED_MAX_TOKENS = 12000
+
+
+def _numbers_max_tokens(max_tokens: int, *, thinking: bool, budget_line: str) -> int:
+    """LANE S: the ONE producer of this lane's output ceiling, so the two floors cannot be applied
+    in two places and disagree. Returns `max_tokens` UNCHANGED whenever neither floor applies, and
+    that is the whole flag-off guarantee here: an un-narrowed thought-free turn still sends HEAD's
+    1,500, and an explicit caller ceiling already above a floor is never lowered.
+
+    IT READS THE BUDGET LINE ITSELF, never `max_calls` re-derived here. The line is what tells the
+    model to "put every lookup you already know you need into the first round, together", so the line
+    IS the demand and must be the thing that buys the room. The caller passes the SAME string the
+    first user turn carries, so the instruction and its headroom cannot drift apart.
+
+    WHY 12,000, MEASURED (Scan rung-1 arm, treatment-N = mode quick_n3 + GRAPHRAG_NUMBERS_BUDGET_NOTE
+    =on, numbers seat claude-sonnet-5 with GRAPHRAG_NUMBERS_THINKING=adaptive, 2026-09-07 07:00Z, 5
+    rows; ROUND 1 of each row, i.e. the round this line makes fat):
+
+        row                round-1 out   tool_use blocks   stop
+        rv_corn_wheat          2,295            10         tool_use
+        rv_beans_meal          3,030             9         tool_use
+        rv_soyoil_palm         3,659            16         tool_use
+        rv_corn_sorghum        4,660            10         tool_use
+        rv_palm_rapeoil        6,000             4         max_tokens  <- REFUSED, leg returned none
+
+    The four rounds that FINISHED ran to 4,660 = 78% of the 6,000 ceiling, so even the successes sat
+    within 1,340 tokens of the wall. The row that died spent the FULL ceiling to emit 4 blocks:
+    pricing those blocks at the fattest rate any row shows (3,659/16 = 229 tok/block) puts 5,084 of
+    that 6,000 into non-tool output, and at the ~61 tok/block MARGINAL a least-squares fit over the
+    four survivors gives (out ~ 2,727 + 61n) it is 5,756 -- either way the adaptive thought, which
+    bills into this same ceiling, took nearly all of it and left under a thousand tokens for a plan
+    its siblings ran 9 to 16 blocks long. That turn's numbers leg returned {max_calls: 3, lookups: 0,
+    returned: False} and the writer answered from evidence alone: 0 tables read.
+
+    12,000 COVERS THE WORST COMBINATION ACTUALLY OBSERVED -- that same 5,756-token thought beside the
+    fattest observed plan (16 blocks) priced at the crude 229 tok/block upper bound the 16-block row
+    itself sets = 9,420 -- with 2,580 spare (27%). It is 2.0x the ceiling that truncated and 2.6x the
+    largest round that survived.
+
+    NOT 16,000, DELIBERATELY. Every round that survived finished under 4,660, so 12,000 already
+    carries 2.6x the measured worst; the adaptive thought bills into this ceiling, so a bigger number
+    is also a bigger thought budget available to fill; and the TRUNCATION REFUSAL is kept intact,
+    which means a ceiling that is still too small ANNOUNCES ITSELF rather than serving a partial
+    selection. The next rung is therefore a measured decision, exactly as this one was.
+
+    THE NARROWED FLOOR IS NOT CONDITIONED ON THINKING, on purpose. The line's batching instruction
+    costs the same tokens thought-free, and the UNARMED lane has no truncation sentinel at all (the
+    `if not uses` exit would simply execute the half of the plan that fit) -- so the turn that most
+    needs the room is precisely the one that cannot report running out of it."""
+    n = int(max_tokens)
+    if thinking:
+        n = max(n, _THINKING_MAX_TOKENS)
+    if budget_line:
+        n = max(n, _NARROWED_MAX_TOKENS)
+    return n
+
+
+def _budget_stamp(max_calls: int, rounds_used: int, calls: list, *, capped: bool,
+                  max_tokens: int) -> dict:
     """LANE S: the ONE producer of the `numbers_budget` record, so the dict SHAPE is written once and
     the three turn-ending returns below cannot describe the same turn in three different shapes.
 
@@ -1603,9 +1680,17 @@ def _budget_stamp(max_calls: int, rounds_used: int, calls: list, *, capped: bool
     `lookups` is `len(calls)` AT THE MOMENT OF THE STAMP, which is why the callers re-take it at each
     return rather than trusting the one taken when `result` was built: the ESR-destination-generic path
     APPENDS aggregate legs to `calls` and then leaves immediately (the note at that return records the
-    same class, and it is why `tables_queried` needed its own line there)."""
+    same class, and it is why `tables_queried` needed its own line there).
+
+    `max_tokens` (LANE S HEADROOM, 2026-09-07) is THE CEILING THE ROUNDS ACTUALLY RAN UNDER -- what
+    `_numbers_max_tokens` returned for this turn, not the caller's argument. APPENDED LAST, the
+    additive-only law the trace column and the eval projection both rest on. It rides the record for
+    the reason `rounds_used` does: the truncation that made the headroom sitting necessary was
+    invisible in every artifact except one stdout line, and a record stating which ceiling was in
+    force is what makes the NEXT rung a measurement instead of a guess."""
     return {"max_calls": int(max_calls), "rounds_used": int(rounds_used),
-            "lookups": len(calls or []), "capped": bool(capped)}
+            "lookups": len(calls or []), "capped": bool(capped),
+            "max_tokens": int(max_tokens)}
 
 
 def tool_schema(reg: NumbersRegistry) -> dict:
@@ -2691,8 +2776,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
         from leviathan.graphrag import providers as _pv_gate
         if _pv_gate.provider() == "anthropic" and _pv_gate.supports_adaptive(model):
             _thinking = {"type": "adaptive"}
-    if _thinking is not None:
-        max_tokens = max(max_tokens, 6000)
+    # LANE S HEADROOM (2026-09-07): the ceiling is decided ONCE, here, by `_numbers_max_tokens` --
+    # the armed-thinking floor the c/d note above describes, and the NARROWED-PLANNING floor this
+    # lane adds. `_bline` is the SAME STRING the first user turn carries below (never a second
+    # `_budget_line` call), so the instruction that fills the round and the room the round is given
+    # cannot drift apart. "" -- every un-narrowed turn, which is every preset but quick_n3 and every
+    # turn with the knob off -- leaves `max_tokens` exactly what HEAD sent, thinking arm included.
+    _bline = _budget_line(max_calls)
+    max_tokens = _numbers_max_tokens(max_tokens, thinking=_thinking is not None,
+                                     budget_line=_bline)
     # The EFFORT seam, numbers half (2026-08-27, dark plumbing -- same gates as thinking; the
     # ladder is low..max with the API default = high, so unset is byte-identical AT high).
     _ev = (os.environ.get("GRAPHRAG_NUMBERS_EFFORT") or "").strip().lower()
@@ -2722,7 +2814,7 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # states directly above, and sits between the as-of line and the routing hint so QUESTION keeps the
     # recency slot it has always held. "" on every un-narrowed turn -> byte-identical to pre-LANE-S.
     convo: list[dict] = [{"role": "user", "content": f"As-of date (fixed): {asof}"
-                                                     + _budget_line(max_calls)
+                                                     + _bline
                                                      + _families_line(reg, families)
                                                      + f"\n\nQuestion: {question}"}]
     calls: list[dict] = []
@@ -2806,7 +2898,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             # can ship without the key, and RE-TAKEN at each of the two returns below because `calls`
             # can still grow (the ESR aggregate legs, the pattern-records leg). `capped=False`: this
             # branch is reached because the model produced TEXT, i.e. it stopped on its own.
-            result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False)
+            result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False,
+                                                     max_tokens=max_tokens)
             if unit_guard_fires:
                 # U3: the unit guard's refusal is MODEL-FACING ONLY -- it never enters `calls`, so it
                 # reaches no citation and no reader directly. This key is therefore the only way to see
@@ -2883,7 +2976,9 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                         # LANE S: re-taken here for the reason stated one line up -- this return is the
                         # one path that GROWS `calls` and then leaves, so a stamp taken at construction
                         # would under-report `lookups` by exactly the injected aggregate legs.
-                        result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False)
+                        result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls,
+                                                                 capped=False,
+                                                                 max_tokens=max_tokens)
                         return result
                     # generic breakdown with no available aggregate: the plain national-total decline stands.
                     preface += _esr_destination_preface(dest)
@@ -2979,7 +3074,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             result["tables_queried"] = tables_queried(calls)
             # LANE S: re-taken at the LAST possible moment, beside the usage census and for its reason --
             # the ESR and pattern-records branches above append to `calls`, so `lookups` is only true here.
-            result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False)
+            result["numbers_budget"] = _budget_stamp(max_calls, _rounds, calls, capped=False,
+                                                     max_tokens=max_tokens)
             return result
         convo.append({"role": "assistant", "content": resp.content})
 
@@ -3238,7 +3334,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # about, so the record has to be able to say so from the artifact alone.
     return {"answer": "(stopped: max tool calls reached)", "calls": calls,
             "tables_queried": tables_queried(calls),
-            "numbers_budget": _budget_stamp(max_calls, _rounds, calls, capped=True)}
+            "numbers_budget": _budget_stamp(max_calls, _rounds, calls, capped=True,
+                                            max_tokens=max_tokens)}
 
 
 # --- J3: DATED ROW RENDERING (OUTCOMES_JOIN_PLAN items 54-60a, 91) ----------------------------------
