@@ -73,14 +73,17 @@ locals {
   #
   #  2. DISCRIMINATED, not swallowed. A leg that never RAN is not a blocked
   #     source. The per-leg Catch splits the Batch service faults out by ERROR
-  #     NAME; the remaining States.TaskFailed is classified on its Cause with the
-  #     D-PR-10 idiom. A container that never became the job
-  #     (CannotPullContainer / ResourceInitializationError / OutOfMemory, which
-  #     arrive in StatusReason) is INFRA and is NOT tolerated -- that run goes to
-  #     FetchInfraFailNotify and FAILS. Only a Cause carrying an ExitCode -- the
-  #     job ran and exited non-zero, i.e. a source block or a producer refusal --
-  #     is tolerated. Anything unrecognised DEFAULTS to infra, so the unknown
-  #     case keeps today's behaviour.
+  #     NAME; the remaining States.TaskFailed carries the DescribeJobs JobDetail
+  #     as its Cause, which is PARSED ONCE (States.StringToJson) and then
+  #     classified on NAMED FIELDS of the parsed object -- never on a substring of
+  #     the document, which is the defect probe P1 measured on 2026-09-06 and
+  #     which the ONE PARSER, TWO READERS banner below records in full. A
+  #     container that never became the job (no ExitCode at all, or a StatusReason
+  #     / container Reason on the closed infra roster) is INFRA and is NOT
+  #     tolerated -- that run goes to FetchInfraFailNotify and FAILS. Only a
+  #     container that RAN and chose a non-zero exit -- a source block or a
+  #     producer refusal -- is tolerated. Anything unrecognised DEFAULTS to infra,
+  #     so the unknown case keeps today's behaviour.
   #
   #  3. FETCH ONLY. Bronze, Silver and Promote render byte-identically to HEAD.
   #
@@ -134,11 +137,276 @@ locals {
     "status" = "ok"
   }
 
-  # A container that never became the job. These arrive inside the Batch Cause's
-  # StatusReason, NOT under their own SFN error name -- that is the D-PR-10
-  # measurement, and it is why a Cause classifier is needed at all. SHARED with
-  # gate_cause_no_verdict_patterns below so the two cannot drift.
-  container_never_started_patterns = ["*CannotPullContainer*", "*ResourceInitializationError*", "*OutOfMemory*"]
+  # =========================================================================
+  # ONE PARSER, TWO READERS -- A BATCH FAILURE IS CLASSIFIED FROM PARSED FIELDS,
+  # NEVER FROM A SUBSTRING OF THE WHOLE CAUSE.
+  #
+  # THE DEFECT THIS REPLACES, MEASURED ON THE LIVE MACHINE 2026-09-06 23:42Z.
+  # Probe execution `laneb-p1-20260906T234214Z` ran two fetch legs on jobdef
+  # leviathan-dev-b3-flat-silver rev 37: one `-c "raise SystemExit(1)"`, one
+  # `-c "raise SystemExit(0)"`. The exit-1 leg raised States.TaskFailed whose
+  # Cause is the DescribeJobs JobDetail (2,631 chars), and that document carries
+  # THE JOB'S OWN RETRY POLICY:
+  #
+  #   "RetryStrategy":{"Attempts":2,"EvaluateOnExit":[
+  #     {"Action":"retry","OnStatusReason":"CannotPullContainer*"},
+  #     {"Action":"retry","OnStatusReason":"ResourceInitializationError*"},
+  #     {"Action":"exit","OnReason":"*"}]}
+  #
+  # The classifier's first arm was Or[StringMatches "*CannotPullContainer*",
+  # "*ResourceInitializationError*", "*OutOfMemory*"] over the WHOLE Cause
+  # string. Every jobdef in this estate carries the D-SG retry matrix
+  # (infra/terraform/modules/batch/main.tf, `producer_retry_rules`), so EVERY
+  # Batch Cause in this estate contains those substrings, the infra arm ALWAYS
+  # won, and the source arm (`*"ExitCode":*`) was UNREACHABLE CODE. Measured
+  # outcome: history events 13-15 ClassifyFailureFetch -> RecordInfraFailureFetch,
+  # then FetchInfraFailNotify and terminal FAILED / SilverPipelineInfraFailed --
+  # on a plain exit-1 SOURCE failure, while the green leg's TaskSucceeded
+  # (event 25) showed the rest of the lane sound. The tolerance this lane exists
+  # to grant was granted to NOTHING. The same substring roster sat one arm later
+  # in the gate's classifier; see ClassifyGateFailure for what it cost there.
+  #
+  # WHY NO SUBSTRING ROSTER CAN BE PATCHED INTO CORRECTNESS. The Cause is the
+  # whole JobDetail: RetryStrategy, the RESOLVED ContainerOverrides Command, the
+  # resolved Environment, image URIs, role ARNs, tags. None of that text is
+  # written by this module and none of it is bounded by it -- a roster tuned
+  # against today's document is one jobdef edit away from the same failure. The
+  # discriminator has to be a FIELD, so the Cause is parsed ONCE with
+  # States.StringToJson and every arm below compares a NAMED path of the result.
+  # =========================================================================
+
+  # The scratch key both readers parse into. The gate parses at TOP level and a
+  # fetch leg parses inside the Map ITEM -- separate scopes -- so ONE name serves
+  # both and the guard objects below render byte-identically for the two readers,
+  # which is what "one parser, two readers" has to mean to be a drift fence.
+  # `.job` is a wrapper key, not decoration: a Pass `Parameters` must be a JSON
+  # OBJECT, so an intrinsic's result cannot sit at the payload root.
+  batch_cause_root = "$.batchCause.job"
+
+  # THE PARSE. `ResultPath` MERGES it in, preserving $.task and $.error for the
+  # record states and $.family for the notifiers; each reader adds its own `Next`.
+  #
+  # HONEST RESIDUAL, AND THE REASON FOR THE PRECONDITION BELOW. A Pass state
+  # CANNOT carry a Catch -- ASL allows Retry/Catch on Task, Parallel and Map only,
+  # which this file already states three times -- so States.StringToJson on a
+  # non-JSON Cause would fail the execution with NO notification, the exact trade
+  # D-PR-10 refused when it declined to parse at all. The Catch is therefore
+  # replaced by a PRECONDITION: this state is reachable only through a Choice arm
+  # that has already established the error NAME (States.TaskFailed is the only
+  # name whose Cause is a DescribeJobs document; a Batch.* service fault carries
+  # a plain sentence) and that the Cause is a JSON object literal. For the
+  # non-JSON class a precondition is strictly stronger than a Catch: that class
+  # never reaches the parse at all, instead of reaching it and being recovered.
+  # What remains uncovered is a Cause that is brace-wrapped and still malformed,
+  # which AWS does not produce for a batch:submitJob.sync States.TaskFailed.
+  batch_cause_parse_pass = {
+    Type       = "Pass"
+    Parameters = { "job.$" = "States.StringToJson($.error.Cause)" }
+    ResultPath = "$.batchCause"
+  }
+
+  # The precondition. `{*}` is a SHAPE test, not a content test: it says the Cause
+  # is a JSON object literal, and it is the last thing standing between a
+  # malformed Cause and an uncatchable intrinsic failure.
+  batch_cause_is_parseable = [
+    { Variable = "$.error.Cause", IsPresent = true },
+    { Variable = "$.error.Cause", StringMatches = "{*}" },
+  ]
+
+  # THE INFRA ROSTER -- CLOSED AND CITED -- matched as PREFIXES of two NAMED
+  # fields of the parsed JobDetail, never as substrings of the document.
+  #
+  #   CannotPullContainer*         infra/terraform/modules/batch/main.tf
+  #                                `producer_retry_rules` (D-SG G1-3):
+  #                                on_status_reason = "CannotPullContainer*".
+  #                                Estate history: five in-window events
+  #                                2026-08-02..08-13, plus the 2026-07-17 and
+  #                                2026-07-23 digest-eviction incidents that
+  #                                scripts/ops/check_ecr_pinned_digests.py exists
+  #                                for.
+  #   ResourceInitializationError* same file, Class B. The estate's one sample is
+  #                                modis-fetch 2026-07-17, "unable to retrieve
+  #                                secret from asm: invalid character E ...".
+  #   OutOfMemory*                 same file, Class J -- and note that rule keys
+  #                                on on_REASON, not on_status_reason, because the
+  #                                live sample (evidence-build rev 32, 2026-08-02,
+  #                                "OutOfMemoryError: container killed due to
+  #                                memory usage") arrives in the CONTAINER REASON.
+  #                                An OOM-killed container DID run and DID exit
+  #                                (137), so its StatusReason is the ordinary
+  #                                "Essential container in task exited". That is
+  #                                why the Reason arm must be tested BEFORE the
+  #                                ran-to-an-exit arm, and why a classifier that
+  #                                read StatusReason alone would silently
+  #                                reclassify every OOM as a blocked source.
+  #   Task failed to start*        the ECS stopped-reason Batch copies into
+  #   DockerTimeoutError*          statusReason when a task never reached RUNNING.
+  #                                NOT OBSERVED IN THIS ESTATE, and named as such.
+  #                                Both sit on the INFRA side only -- the
+  #                                NOT-tolerated side for the fetch reader, the
+  #                                no-verdict side for the gate -- so a wrong
+  #                                entry here can only make a classifier MORE
+  #                                conservative, never tolerate more.
+  #
+  # The roster is CLOSED: anything not on it falls to the reader's Default, and
+  # both Defaults are today's behaviour.
+  batch_cause_infra_reason_prefixes = [
+    "CannotPullContainer*",
+    "ResourceInitializationError*",
+    "OutOfMemory*",
+    "Task failed to start*",
+    "DockerTimeoutError*",
+  ]
+
+  # THE CONTAINER-REASON FIELD IS AN INFERENCE, AND THIS LANE NO LONGER RESTS ON IT.
+  # (Review finding 2026-09-07, MAJOR. Closed with code, not with a comment.)
+  #
+  # WHAT IS MEASURED: the P1 Cause's top-level `Container` has SIXTEEN keys --
+  # Command, Environment, ExecutionRoleArn, ExitCode, FargatePlatformConfiguration,
+  # Image, JobRoleArn, LogStreamName, MountPoints, NetworkConfiguration,
+  # NetworkInterfaces, ResourceRequirements, Secrets, TaskArn, Ulimits, Volumes --
+  # and `Reason` is NOT one of them, in either casing. `Attempts[0].Container` has
+  # four: ExitCode, LogStreamName, NetworkInterfaces, TaskArn. Neither carries a
+  # container reason, because that run had none (the container chose exit 1).
+  #
+  # WHAT IS INFERRED, TWICE OVER. That an OOM's reason text arrives (a) spelled
+  # `Reason` -- from the PascalCase convention the whole measured Cause obeys, while
+  # the DescribeJobs API itself returns lowerCamelCase `reason`, which is the
+  # spelling the DSG-TAIL F1 probe read when it recorded "container reason None" --
+  # and (b) at the TOP level rather than only inside `Attempts[-1]`, which a Choice
+  # `Variable` cannot address at all (not a single-node reference path). Two
+  # independent guesses, neither observable offline, and the OOM fixture was written
+  # to match the rule, so classifier and fixture would have moved together.
+  #
+  # THE COST OF GUESSING WRONG WAS A REGRESSION, not merely an unproven improvement.
+  # Measured against the rendered rules: re-key that fixture to `reason` and the
+  # fetch reader returns RecordSourceFailureFetch -- an OOM-killed leg TOLERATED,
+  # Bronze entered on an incomplete fetch, which is the one invariant this lane
+  # rests on. HEAD substring-matched "*OutOfMemory*" over the WHOLE Cause, so HEAD
+  # was robust to the key name and returned RecordInfraFailureFetch.
+  #
+  # THE FIX: the OOM class is now carried by a field that IS measured -- the exit
+  # code -- and the reason arms are kept only as a widening that cannot subtract.
+  #
+  #   1. NO EXIT CODE AT ALL. The top-level `Container` of a DescribeJobs
+  #      JobDetail is the LATEST attempt -- measured on the P1 Cause, where the
+  #      top-level Container.ExitCode (1) and StatusReason are byte-identical to
+  #      the single Attempts[0] entry's. No ExitCode there means no container ever
+  #      ran to an exit, i.e. the job never became a job. This arm is also why
+  #      "no attempt carries an ExitCode" needs no array indexing: a Choice
+  #      `Variable` must be a single-node reference path, and `Attempts[-1]` is
+  #      not one. IsPresent resolves the WHOLE path, so a job detail carrying no
+  #      `Container` node at all takes this arm too -- the same reading, not a
+  #      different one.
+  #   2. THE CONTAINER DID NOT CHOOSE ITS EXIT. 128+N is the signal convention and
+  #      137 = 128 + SIGKILL(9) is what an OOM-killed Fargate container reports:
+  #      the ECS agent stops the task and the process never returns a value of its
+  #      own. This arm reads `Container.ExitCode`, the ONE field this shape is
+  #      MEASURED to carry, so it holds whatever AWS calls -- or omits -- the
+  #      reason text. It cannot steal a producer's verdict: the estate's chosen
+  #      exit codes, measured over jobs/, src/leviathan/ and scripts/, are
+  #      {0,1,2,3,5,6,7} plus the gate's D-PR-8 vocabulary {64,70,71,72}. The
+  #      maximum is 72 and NOTHING reaches 128.
+  #   3/4/5. The roster, as a PREFIX of StatusReason and of the container reason
+  #      under BOTH spellings. StatusReason is measured present. The two reason
+  #      paths are the inference above, kept because a widening on the INFRA side
+  #      can only make a reader MORE conservative -- fetch's infra side is the
+  #      NOT-tolerated side, the gate's is the no-verdict side -- and now that arm
+  #      2 carries the OOM class, being wrong about both spellings costs nothing.
+  #      Every field here is optional (the DSG-TAIL F1 probe recorded a real
+  #      failure with container reason None), so each is IsPresent-guarded before
+  #      it is compared -- the house idiom; an unguarded compare against a missing
+  #      path is a States.Runtime failure that no Catch can reach.
+  #
+  # WHAT IS STILL NOT PROVEN, stated because this file does not launder guesses:
+  # arms 3-5 remain unexercised by any measured artifact, and the OOM fixtures are
+  # SYNTHETIC in all three spellings. The claim is only that the lane is now
+  # NO WORSE THAN HEAD on the infra needle whatever the spelling turns out to be,
+  # and tests/unit/test_thin_contract_fetch_degraded.py pins exactly that -- as a
+  # property of the raw Cause TEXT, so it cannot move with the rule the way the
+  # fixture did.
+  #
+  # 128 = the POSIX signal-exit floor (128 + N for signal N). Named so the pin that
+  # measures the estate's exit codes against it can read the same number this does.
+  batch_cause_signal_exit_floor = 128
+
+  # WHY EVERY NUMERIC COMPARISON BELOW IS `IsNumeric`-GUARDED AS WELL AS `IsPresent`-GUARDED.
+  # (Review finding 2026-09-07, MINOR. Closed with code.)
+  #
+  # Until 2026-09-06 this document contained ZERO numeric comparators -- measured on the
+  # rendered artifact, HEAD is { IsPresent 7, StringMatches 21, StringEquals 4 }. The parsed
+  # readers introduced eight, and all eight read ONE field, `Container.ExitCode`, which is not
+  # written by this module: it is whatever `States.StringToJson` put there, i.e. whatever AWS
+  # printed into the Cause string. The house idiom guards a compare with `IsPresent` because an
+  # unguarded compare against a MISSING path is a States.Runtime failure that no Catch can
+  # reach -- and a Choice state cannot carry a Catch at all, so such a failure kills the
+  # execution with no notification, which is the exact silent class this lane exists to narrow.
+  # `IsPresent` does not cover a present-but-WRONG-TYPE value, and ASL's behaviour when a
+  # Numeric* comparator meets a string is asserted nowhere in this repo.
+  #
+  # THE RISK IS SMALL AND THIS FILE SAYS SO: `exitCode` is modelled as an Integer by the Batch
+  # API, and it is an int in the one measured artifact (the P1 Cause) and in all eight fixtures.
+  # The guard is here because it is FREE and it is the same shape as the presence guard already
+  # in use -- `IsNumeric` is an ASL data-test expression like `IsPresent` -- not because a
+  # string ExitCode has ever been seen. With it, a non-numeric ExitCode simply fails to match
+  # the arm and falls through to the reader Default, which on both readers is today behaviour.
+  batch_cause_exit_code_is_numeric = {
+    Variable  = "${local.batch_cause_root}.Container.ExitCode"
+    IsNumeric = true
+  }
+
+  batch_cause_container_reason_paths = [
+    "${local.batch_cause_root}.Container.Reason",
+    "${local.batch_cause_root}.Container.reason",
+  ]
+
+  batch_cause_infra_guards = concat(
+    [
+      { Variable = "${local.batch_cause_root}.Container.ExitCode", IsPresent = false },
+      {
+        And = [
+          { Variable = "${local.batch_cause_root}.Container.ExitCode", IsPresent = true },
+          local.batch_cause_exit_code_is_numeric,
+          { Variable = "${local.batch_cause_root}.Container.ExitCode", NumericGreaterThanEquals = local.batch_cause_signal_exit_floor },
+        ]
+      },
+      {
+        And = [
+          { Variable = "${local.batch_cause_root}.StatusReason", IsPresent = true },
+          { Or = [for p in local.batch_cause_infra_reason_prefixes :
+          { Variable = "${local.batch_cause_root}.StatusReason", StringMatches = p }] },
+        ]
+      },
+    ],
+    [for path in local.batch_cause_container_reason_paths : {
+      And = [
+        { Variable = path, IsPresent = true },
+        { Or = [for p in local.batch_cause_infra_reason_prefixes :
+        { Variable = path, StringMatches = p }] },
+      ]
+    }],
+  )
+
+  # POSITIVE EVIDENCE THAT THE CONTAINER RAN AND CHOSE ITS OWN EXIT. Two measured
+  # samples, two different exit codes, ONE StatusReason:
+  #   exit 1 -- probe laneb-p1-20260906T234214Z, 2026-09-06, "Essential container
+  #             in task exited";
+  #   exit 2 -- job cb151695 on b3-flat-silver, the DSG-TAIL F1 probe recorded in
+  #             infra/terraform/modules/batch/main.tf: container reason None, the
+  #             SAME StatusReason, terminal after one attempt.
+  # Each reader adds its own exit-code test: the fetch lane tolerates ANY non-zero
+  # exit (a blocked source or a producer refusal), the gate lane reads the exact
+  # code out of the D-PR-8 vocabulary. Both of those are NUMERIC comparators, so the
+  # `IsNumeric` guard is carried HERE, in the shared prefix every one of them concats
+  # onto -- one place, three rendered arms (fetch source, gate refusal, gate
+  # no-verdict), and the And short-circuits in order so the guard always precedes the
+  # compare. See `batch_cause_exit_code_is_numeric` above for why.
+  batch_cause_ran_to_an_exit_guards = [
+    { Variable = "${local.batch_cause_root}.Container.ExitCode", IsPresent = true },
+    local.batch_cause_exit_code_is_numeric,
+    { Variable = "${local.batch_cause_root}.StatusReason", IsPresent = true },
+    { Variable = "${local.batch_cause_root}.StatusReason", StringMatches = "Essential container in task exited*" },
+  ]
 
   # The Batch faults that arrive under their OWN error name: SubmitJob never
   # produced a running job, or the .sync wait timed out. "Never ran / no verdict"
@@ -188,45 +456,63 @@ locals {
 
   fetch_only_extra_states = [{
     ClassifyFailureFetch     = local.fetch_failure_classifier
+    ParseBatchCauseFetch     = merge(local.batch_cause_parse_pass, { Next = "ClassifyBatchCauseFetch" })
+    ClassifyBatchCauseFetch  = local.fetch_parsed_cause_classifier
     RecordSourceFailureFetch = local.fetch_failure_record["source"]
     RecordInfraFailureFetch  = local.fetch_failure_record["infra"]
   }]
 
-  # ORDER IS LOAD-BEARING, and it is the REVERSE of the gate's classifier.
-  #   arm 1  INFRA FIRST. With jobdef attempts > 1 a Cause can carry BOTH a
-  #          CannotPull attempt and a later exit code; reading that as infra is
-  #          the conservative call, because infra is the NOT-tolerated side here.
-  #          (D-PR-10 tests refusal first for the mirror-image reason: there,
-  #          refusal is the side that carries a real verdict.)
-  #   arm 2  a Cause carrying "ExitCode" is POSITIVE evidence the container ran to
-  #          an exit, i.e. the producer decided something. Measured shape, from
-  #          execution fred-refire-cotfence-20260804T071403Z quoted in the D-PR-10
-  #          banner below: ...\"Container\":{\"ExitCode\":1,...
-  #   Default INFRA. An unrecognised or Cause-less failure is NOT tolerated, so
-  #          the unknown case keeps today's behaviour (the run fails, canonical
-  #          untouched) instead of continuing on a leg nobody classified.
-  # Every comparison is And-guarded with IsPresent, the D-PR-10 idiom: an
-  # unguarded compare against a missing path is a States.Runtime failure that no
-  # Catch can reach. A Choice adds no compute and cannot fail closed-mouthed.
+  # THE ERROR-NAME GATE. This is arm ZERO of the classification and it is a NAME
+  # test, not a content test: the per-leg Catch splits the four Batch service
+  # faults out already, but its second arm is States.ALL, so Batch.ClientException
+  # (probe P2's shape: a jobdef that does not exist), States.Permissions and any
+  # future name land here too, and NONE of those carries a DescribeJobs document.
+  # Only States.TaskFailed does. A leg that arrives under any other name never
+  # reaches the parse and takes the Default, which is NOT tolerated -- today's
+  # behaviour for exactly that class, unchanged.
   fetch_failure_classifier = {
     Type = "Choice"
     Choices = [
       {
-        And = [
-          { Variable = "$.error.Cause", IsPresent = true },
-          { Or = [for p in local.container_never_started_patterns :
-          { Variable = "$.error.Cause", StringMatches = p }] },
-        ]
-        Next = "RecordInfraFailureFetch"
-      },
-      {
-        And = [
-          { Variable = "$.error.Cause", IsPresent = true },
-          { Variable = "$.error.Cause", StringMatches = "*\"ExitCode\":*" },
-        ]
-        Next = "RecordSourceFailureFetch"
+        And = concat([
+          { Variable = "$.error.Error", IsPresent = true },
+          { Variable = "$.error.Error", StringEquals = "States.TaskFailed" },
+        ], local.batch_cause_is_parseable)
+        Next = "ParseBatchCauseFetch"
       },
     ]
+    Default = "RecordInfraFailureFetch"
+  }
+
+  # THE READER. ORDER IS LOAD-BEARING, and the gate's reader now uses the SAME one:
+  #   arms 1-5 THE SHARED INFRA ARMS, first, because infra is the NOT-tolerated
+  #          side here and because an OOM-killed container exits 137 under the
+  #          ordinary "Essential container in task exited" -- so every one of them
+  #          MUST precede the ran-to-an-exit arm or an OOM is tolerated as a
+  #          blocked source. Arm 2 (the signal floor) is the one that carries that
+  #          class on measured evidence; arms 4 and 5 are the reason-text widening.
+  #   arm 6  SOURCE: the container ran and chose a NON-ZERO exit BELOW the signal
+  #          floor. That is a blocked source or a producer refusal, and it is the
+  #          only thing this lane tolerates.
+  #   Default INFRA. An unrecognised shape is NOT tolerated, so the unknown case
+  #          keeps today's behaviour (the run fails, canonical untouched) instead
+  #          of continuing on a leg nobody classified. The pin
+  #          test_an_unrecognised_cause_reaches_the_default_behaviourally drives a
+  #          Cause through this state that matches no arm, so the Default is proven
+  #          by EVALUATION and not only by a string assertion over the HCL.
+  # A Choice adds no compute and cannot fail closed-mouthed.
+  fetch_parsed_cause_classifier = {
+    Type = "Choice"
+    Choices = concat(
+      [for guard in local.batch_cause_infra_guards :
+      merge(guard, { Next = "RecordInfraFailureFetch" })],
+      [{
+        And = concat(local.batch_cause_ran_to_an_exit_guards, [
+          { Variable = "${local.batch_cause_root}.Container.ExitCode", NumericGreaterThan = 0 },
+        ])
+        Next = "RecordSourceFailureFetch"
+      }],
+    )
     Default = "RecordInfraFailureFetch"
   }
 
@@ -244,13 +530,26 @@ locals {
   #
   # HONEST RESIDUAL, stated where it is created: a Pass state cannot carry a
   # Catch, so these two records and ScanFetchResults below are UNPROTECTED
-  # payload-template sites -- THREE of them, one top-level (traversed by all 25
-  # families on every fire) and two in the Fetch iterator (traversed only on a
-  # failed leg). Every path they dereference is present by construction ($.task
-  # from the ItemSelector, $.error and $.error.Error from the Catch that just
-  # wrote them, $.fetchResults from the Map ResultPath) and none uses a context
-  # object. That is a bounded argument, not a guarantee -- which is exactly why
-  # this lane does NOT claim "zero silences created" anywhere.
+  # payload-template sites -- FIVE of them since the 2026-09-07 parse landed, not
+  # three. The count is written out because it went UP and an earlier draft of this
+  # comment did not notice:
+  #   1. ScanFetchResults        top-level, traversed by all 25 families on EVERY
+  #                              fire (States.JsonToString($.fetchResults));
+  #   2. RecordSourceFailureFetch \ in the Fetch iterator, traversed only on a
+  #   3. RecordInfraFailureFetch  / failed leg;
+  #   4. ParseBatchCauseGate      TOP-LEVEL, added 2026-09-06, traversed only on a
+  #                              States.TaskFailed gate failure;
+  #   5. ParseBatchCauseFetch     in the Fetch iterator, added 2026-09-06,
+  #                              traversed only on a failed batch leg.
+  # 4 and 5 are the shared `batch_cause_parse_pass`; both dereference $.error.Cause
+  # through States.StringToJson, and BOTH are protected by a PRECONDITION instead of
+  # a Catch -- the error-NAME arm plus the `{*}` shape guard, which is strictly
+  # stronger than a Catch for the non-JSON class because that class never reaches
+  # the parse. 1-3 have no such precondition: every path they dereference is present
+  # by construction ($.task from the ItemSelector, $.error and $.error.Error from the
+  # Catch that just wrote them, $.fetchResults from the Map ResultPath) and none uses
+  # a context object. That is a bounded argument, not a guarantee -- which is exactly
+  # why this lane does NOT claim "zero silences created" anywhere.
   fetch_failure_record = {
     for cls in ["source", "infra"] : cls => {
       Type = "Pass"
@@ -422,37 +721,99 @@ locals {
   #             ...,\"Container\":{...,\"ExitCode\":1,\"FargatePlatformConfiguration\":{...}},
   #             \"StatusReason\":\"Essential container in task exited\",...}"
   #
-  # So the discriminator IS available -- as compact JSON inside the Cause string. The classifier
-  # below string-matches it. It is deliberately NOT `States.StringToJson` in a Pass state: a Pass
-  # state cannot carry a `Catch`, so a Cause that failed to parse would fail the execution with NO
-  # notification at all -- trading a mis-labelled email for a silent one.
+  # So the discriminator IS available -- as compact JSON inside the Cause string. Until 2026-09-06
+  # the classifier below STRING-MATCHED that string, on the argument that a Pass state cannot carry
+  # a `Catch` and so a Cause that failed to parse would fail the execution with no notification at
+  # all. The Pass-cannot-Catch half of that argument is still true. THE STRING-MATCHING HALF WAS
+  # WRONG, AND THE SAME DEFECT THAT MADE THE LANE B FETCH CLASSIFIER UNREACHABLE (see the ONE PARSER,
+  # TWO READERS banner above) SAT ONE ARM LATER HERE.
   #
-  # SAFETY PROPERTY OF THE CLASSIFIER: every arm is guarded by `IsPresent` (the documented idiom for
-  # an optional path; an unguarded comparison against a missing path is a States.Runtime failure that
-  # no Catch can reach), and the Default is FailNotify -- today's behaviour. An unrecognised cause
-  # therefore degrades to exactly what happens now. The classifier can only IMPROVE attribution; it
-  # cannot lose a notification.
+  # THE GATE'S CAUSE IS THE SAME SHAPE, SO IT CARRIED THE SAME DEFECT. The Gate is a
+  # batch:submitJob.sync task, its States.TaskFailed Cause is the same DescribeJobs JobDetail, and
+  # that document embeds the gate jobdef's own `RetryStrategy.EvaluateOnExit` -- which, like every
+  # jobdef in this estate, names "CannotPullContainer*" and "ResourceInitializationError*". So the
+  # no-verdict arm's `container_never_started_patterns` matched EVERY gate Cause. What saved the
+  # common case is only ORDER: the refusal arm (exit 1) is tested first, so a real refusal still
+  # routed to FailNotify. What it cost is the DEFAULT: any gate exit code outside the D-PR-8
+  # vocabulary -- exit 2 is a measured shape, DSG-TAIL F1 probe job cb151695 on b3-flat-silver,
+  # "container reason None, statusReason 'Essential container in task exited'" -- fell through the
+  # exit-code patterns into the container-never-started patterns and was mailed as "NO GATE VERDICT"
+  # although the container had run and chosen its exit. `Default = "FailNotify"`, the documented
+  # unknown case, was unreachable for every Cause the estate can actually produce.
   #
-  # REFUSAL IS TESTED FIRST, ON PURPOSE. With `attempts: 2` on the gate jobdef the Cause can carry
-  # TWO attempts (e.g. attempt 1 exit 72 -> retried -> attempt 2 exit 1). The LAST attempt is the
-  # outcome, and any Cause containing a refusal contains a real verdict, so the refusal arm wins.
+  # FIXED THE SAME WAY, WITH THE SAME PARSER: ClassifyGateFailure is now the error-name/shape gate,
+  # ParseBatchCauseGate is the shared `batch_cause_parse_pass`, and ClassifyBatchCauseGate reads the
+  # SAME guard objects the fetch reader reads (`batch_cause_infra_guards`,
+  # `batch_cause_ran_to_an_exit_guards`) with the gate's own exit-code vocabulary bolted on. One
+  # parser, two readers: the two cannot drift because they are the same rendered objects.
+  #
+  # SAFETY PROPERTY OF THE CLASSIFIER, UNCHANGED: every comparison is guarded by `IsPresent` (the
+  # documented idiom for an optional path; an unguarded comparison against a missing path is a
+  # States.Runtime failure that no Catch can reach), and the Default is FailNotify -- today's
+  # behaviour. An unrecognised cause therefore degrades to exactly what happens now. The classifier
+  # can only IMPROVE attribution; it cannot lose a notification.
+  #
+  # WHICH ATTEMPT IS BEING READ, settled. It used to be that with `attempts: 2` a Cause could carry
+  # TWO attempts (attempt 1 exit 72 -> retried -> attempt 2 exit 1) and a substring test could not
+  # tell which was last. Parsing settles that: the JobDetail's TOP-LEVEL `Container` IS the latest
+  # attempt (measured on the P1 Cause, where it is byte-identical to the single Attempts[0] entry).
+  #
+  # ORDER IS LOAD-BEARING IN BOTH READERS, AND BOTH NOW USE THE SAME ORDER. An earlier draft of
+  # this comment claimed that under parsed fields the arms are mutually exclusive, so the order was
+  # "a statement of intent rather than a safety property", and used that to justify testing refusal
+  # first here while the fetch reader tested infra first. THE CLAIM WAS FALSE, and the counterexample
+  # is one Cause: ExitCode 1 + StatusReason "Essential container in task exited" + a container reason
+  # of "DockerTimeoutError: Could not transition to created". Under the old asymmetry the fetch
+  # reader called that INFRA and the gate reader called it a REFUSAL -- the two readers disagreeing
+  # on one document, which is the exact drift "one parser, two readers" exists to prevent. The shared
+  # infra arms are therefore tested FIRST in BOTH readers, so a container whose reason says it never
+  # properly started is never credited with a verdict it cannot have produced. The two readers still
+  # differ where they are SUPPOSED to -- in what the non-infra side means (a tolerated blocked source
+  # vs a real gate refusal) and in their Defaults: the fetch reader's is NOT-TOLERATED, the gate's is
+  # FailNotify.
   #
   # The exit codes are the vocabulary in jobs/audit/silver_rebuild_gate.py (D-PR-8):
   #   1 REFUSAL (a decision about data)      | 64 usage | 70 internal crash
   #   71 image/config preflight fence        | 72 baseline fetch (the only retryable code)
-  # tests/unit/test_gate_exit_vocabulary.py pins these two lists against that module, so the pair
-  # cannot drift.
+  # tests/unit/test_gate_exit_vocabulary.py pins these two constants against that module, so the
+  # pair cannot drift.
   # =========================================================================
-  gate_cause_refusal_patterns = ["*\"ExitCode\":1,*", "*\"ExitCode\":1}*"]
+  gate_refusal_exit_code = 1
 
-  gate_cause_no_verdict_patterns = concat(
-    # the gate's own non-verdict exit codes
-    flatten([for c in [64, 70, 71, 72] : ["*\"ExitCode\":${c},*", "*\"ExitCode\":${c}}*"]]),
-    # container never became the gate at all -- these arrive in StatusReason.
-    # SHARED with the LANE B fetch classifier above so the two lists cannot drift;
-    # the rendered value is byte-identical to what this inline literal produced.
-    local.container_never_started_patterns,
-  )
+  gate_no_verdict_exit_codes = [64, 70, 71, 72]
+
+  # The gate's reader over the shared parse. SHARED INFRA ARMS FIRST -- the SAME
+  # order the fetch reader uses -- then the gate's own vocabulary: refusal, then the
+  # non-verdict codes. Default keeps today's route.
+  #
+  # THE ORDER USED TO BE THE OTHER WAY ROUND HERE, and the comment above justified
+  # the asymmetry by claiming the parsed arms are mutually exclusive so order cannot
+  # matter. THAT CLAIM WAS FALSE and is corrected in the banner above. This reader
+  # now agrees with the fetch reader on every Cause, which is what "one parser, two
+  # readers" is supposed to buy.
+  gate_parsed_cause_classifier = {
+    Type = "Choice"
+    Choices = concat(
+      [for guard in local.batch_cause_infra_guards :
+      merge(guard, { Next = "InfraFailNotify" })],
+      [
+        {
+          And = concat(local.batch_cause_ran_to_an_exit_guards, [
+            { Variable = "${local.batch_cause_root}.Container.ExitCode", NumericEquals = local.gate_refusal_exit_code },
+          ])
+          Next = "FailNotify"
+        },
+        {
+          And = concat(local.batch_cause_ran_to_an_exit_guards, [
+            { Or = [for c in local.gate_no_verdict_exit_codes :
+            { Variable = "${local.batch_cause_root}.Container.ExitCode", NumericEquals = c }] },
+          ])
+          Next = "InfraFailNotify"
+        },
+      ],
+    )
+    Default = "FailNotify" # unknown cause == today's behaviour, never a lost notification
+  }
 
   definition = {
     Comment = "Leviathan silver thin contract: fetch->bronze->silver-shadow->gate->{promote|fail-notify}->reconcile. ONE machine, per-family input."
@@ -645,7 +1006,7 @@ locals {
         Parameters = {
           TopicArn    = var.alerts_topic_arn
           "Subject.$" = "States.Format('[${local.name_prefix}] silver pipeline INFRA FAILURE in FETCH: {}', $.family)"
-          "Message.$" = "States.Format('Family {} produced NO SOURCE VERDICT in the FETCH phase. At least one fetch leg failed INFRA-side: the container never became the job (CannotPullContainer, ResourceInitializationError, OutOfMemory in StatusReason), or a Batch service fault or a .sync timeout ended it, or the failure could not be classified at all. That is NOT a blocked source, so it was NOT tolerated: bronze, silver, gate and promote were never entered and canonical was never touched (INV-6). Execution {}. Per-leg results follow; an infra leg carries class infra plus its task (jobdef + command) and the whole caught error object: {}. Do not hunt a data problem -- read the failed Batch attempt (exit code + StatusReason) in the execution history and the /aws/batch log stream, fix the infra fault, then re-run the family.', $.family, $$.Execution.Name, $.fetchScan.all)"
+          "Message.$" = "States.Format('Family {} produced NO SOURCE VERDICT in the FETCH phase. At least one fetch leg failed INFRA-side -- that is NOT a blocked source, so it was NOT tolerated. EVERY ROUTE THAT LANDS HERE, one sentence each, so this email can never deny the mechanism that actually fired. (a) NO EXIT CODE AT ALL in the Batch job detail: no container ever ran to an exit, so the job never became a job. (b) THE CONTAINER DID NOT CHOOSE ITS EXIT: an exit code at or above 128, the POSIX signal floor, where 137 = 128 + SIGKILL is what an OOM-killed Fargate container reports -- it DID run and it DID exit, so do not go hunting for a special StatusReason, read the exit code. (c) THE STATUSREASON BEGINS with CannotPullContainer, ResourceInitializationError, OutOfMemory, Task failed to start or DockerTimeoutError. (d) THE CONTAINER REASON BEGINS with one of those same five, in either spelling AWS may use (Reason or reason). (e) A BATCH SERVICE FAULT or a .sync timeout ended the leg under its own error name. (f) A GLUE fetch leg failed at all: a Glue cause carries no exit code, so this lane never tolerates one. (g) THE FAILURE COULD NOT BE CLASSIFIED -- an error name that carries no Batch job detail, a cause that is not a JSON object, or a job detail matching none of the above -- and the unrecognised case is NOT tolerated by design. Bronze, silver, gate and promote were never entered and canonical was never touched (INV-6). Execution {}. Per-leg results follow; an infra leg carries class infra plus its task (jobdef + command) and the whole caught error object: {}. Do not hunt a data problem -- read the failed Batch attempt (exit code + StatusReason + container reason) in the execution history and the /aws/batch log stream, fix the infra fault, then re-run the family.', $.family, $$.Execution.Name, $.fetchScan.all)"
         }
         ResultPath = "$.notifyResult"
         Next       = "PipelineInfraFailed"
@@ -721,29 +1082,41 @@ locals {
       }
 
       # --- D-PR-10 classifier: refusal (exit 1) -> FailNotify; every other cause -> InfraFailNotify. ---
-      # A Choice state, so it adds no compute and cannot itself fail closed-mouthed: unmatched -> Default.
+      # THE SHAPE GATE. Reached only from the Gate's States.TaskFailed Catch arm, so the error NAME is
+      # already established by construction here (the Batch service faults took the arm above it) --
+      # what is left to establish is that the Cause is a JSON object, because the parse that follows
+      # is a Pass and a Pass cannot carry a Catch. Unmatched -> Default -> FailNotify, i.e. today's
+      # route, which is why this state can only improve attribution and cannot lose a notification.
       ClassifyGateFailure = {
         Type = "Choice"
-        Choices = [
-          {
-            And = [
-              { Variable = "$.error.Cause", IsPresent = true },
-              { Or = [for p in local.gate_cause_refusal_patterns :
-              { Variable = "$.error.Cause", StringMatches = p }] },
-            ]
-            Next = "FailNotify"
-          },
-          {
-            And = [
-              { Variable = "$.error.Cause", IsPresent = true },
-              { Or = [for p in local.gate_cause_no_verdict_patterns :
-              { Variable = "$.error.Cause", StringMatches = p }] },
-            ]
-            Next = "InfraFailNotify"
-          },
-        ]
-        Default = "FailNotify" # unknown cause == today's behaviour, never a lost notification
+        Choices = [{
+          And  = local.batch_cause_is_parseable
+          Next = "ParseBatchCauseGate"
+        }]
+        Default = "FailNotify" # unparseable cause == today's behaviour, never a lost notification
       }
+
+      # THE SHARED PARSE, second reader. Byte-identical to ParseBatchCauseFetch except for `Next`.
+      ParseBatchCauseGate = merge(local.batch_cause_parse_pass, { Next = "ClassifyBatchCauseGate" })
+
+      # THE GATE'S READER over the parsed JobDetail. Exit 1 is a REFUSAL (a decision about data) and
+      # takes the same FailNotify the whole pipeline's failures take; 64/70/71/72 are the gate's own
+      # non-verdict codes; the shared infra arms catch a container that never became the gate.
+      #
+      # THE TWO DIRECTIONS THIS CHANGE MOVES, WRITTEN OUT BECAUSE A HANDOFF REPORT GOT THEM BACKWARDS
+      # ONCE (review finding 2026-09-07, MINOR) AND THE OWNER READS THE REPORT. Both measured by
+      # evaluating the rendered rules of HEAD and of this tree against the same Cause documents:
+      #   EXIT 2 (and every other code the gate CHOSE that is outside the D-PR-8 vocabulary) moves
+      #   TOWARDS THE ORDINARY FAILURE EMAIL. HEAD = InfraFailNotify, the NO GATE VERDICT mail, because
+      #   the code fell past the exit-code substrings into the container-never-started substrings,
+      #   which the jobdef RetryStrategy makes match every Cause. THIS TREE = FailNotify, the
+      #   documented Default, which HEAD could not reach. Fixture batch_exit2_unknown_code declares
+      #   exactly that, and the measured shape behind it is DSG-TAIL F1 probe job cb151695.
+      #   AN OOM-KILLED OR NEVER-STARTED GATE moves the OTHER WAY, towards no-verdict: exit >= 128, a
+      #   job detail with no ExitCode at all, or a roster prefix in StatusReason or the container
+      #   reason now reach InfraFailNotify where the 2026-09-06 draft sent them to FailNotify.
+      # The two halves of the sentence point in OPPOSITE directions; either one alone is a misreport.
+      ClassifyBatchCauseGate = local.gate_parsed_cause_classifier
 
       # --- promote: same-family silver jobdef --publish-mode canonical under silver-publisher (auth_mode=kms via task.env) ---
       Promote = {
@@ -824,7 +1197,7 @@ locals {
         Parameters = {
           TopicArn    = var.alerts_topic_arn
           "Subject.$" = "States.Format('[${local.name_prefix}] silver pipeline INFRA FAILURE, no gate verdict: {}', $.family)"
-          "Message.$" = "States.Format('Family {} produced NO GATE VERDICT. The gate job did not run to a decision ({}). Execution {}. This is an INFRASTRUCTURE fault, NOT a refusal: no table was judged, [Promote] was never entered and canonical was never touched (INV-6). Do not hunt a data problem -- read the failed Batch attempt (exit code + StatusReason) in the execution history and the /aws/batch log stream, fix the infra fault, then re-run the family. Gate exit codes: 64 usage, 70 internal crash, 71 image/config fence, 72 baseline fetch (D-PR-8).', $.family, $.error.Error, $$.Execution.Name)"
+          "Message.$" = "States.Format('Family {} produced NO GATE VERDICT. The gate job did not run to a decision ({}). Execution {}. This is an INFRASTRUCTURE fault, NOT a refusal: no table was judged, [Promote] was never entered and canonical was never touched (INV-6). Do not hunt a data problem -- read the failed Batch attempt (exit code + StatusReason) in the execution history and the /aws/batch log stream, fix the infra fault, then re-run the family. Gate exit codes: 64 usage, 70 internal crash, 71 image/config fence, 72 baseline fetch (D-PR-8). SINCE 2026-09-07 THIS EMAIL COVERS MORE THAN THAT VOCABULARY, one sentence per inbound class, so it never denies the mechanism that fired. (a) The job detail carries NO EXIT CODE AT ALL, so the gate container never ran to an exit. (b) The gate was KILLED rather than choosing its exit -- an exit code at or above 128, the POSIX signal floor, where 137 = 128 + SIGKILL is what an OOM-killed Fargate container reports. (c) The StatusReason begins with CannotPullContainer, ResourceInitializationError, OutOfMemory, Task failed to start or DockerTimeoutError. (d) The container reason begins with one of those same five, in either spelling AWS may use (Reason or reason). (e) A Batch service fault or a .sync timeout ended the job under its own error name. AN EXIT CODE THE GATE CHOSE THAT IS OUTSIDE THE D-PR-8 VOCABULARY IS NOT THIS EMAIL: exit 2 and every other unrecognised code now reach the ordinary silver pipeline FAILED notice, which is where the documented default always said they should go and which a jobdef RetryStrategy substring used to make unreachable.', $.family, $.error.Error, $$.Execution.Name)"
         }
         ResultPath = "$.notifyResult"
         Next       = "PipelineInfraFailed"
@@ -952,6 +1325,23 @@ resource "aws_iam_role_policy" "sfn_exec" {
 #      expect SUCCEEDED, fetchResults = [{status failed, class source, task,
 #      error, cause}, {status ok}], RecordSourceFailureFetch once,
 #      DegradedNotify once then TaskSucceeded, ONE degraded email.
+#      P1 WAS RUN AND IT FAILED -- execution laneb-p1-20260906T234214Z,
+#      2026-09-06 23:42Z, jobdef leviathan-dev-b3-flat-silver rev 37. Terminal
+#      FAILED / SilverPipelineInfraFailed; history events 13-15 show
+#      ClassifyFailureFetch -> RecordInfraFailureFetch on the exit-1 leg, then
+#      FetchInfraFailNotify. The green leg was sound (TaskSucceeded, event 25).
+#      ROOT CAUSE: the classifier string-matched the WHOLE Cause and the Cause
+#      embeds the jobdef's own RetryStrategy, which names CannotPullContainer*
+#      and ResourceInitializationError* -- so the infra arm matched every Batch
+#      failure in the estate and the source arm was unreachable. THE PROBE DID
+#      ITS JOB. The classifier now parses the Cause and reads named fields (see
+#      the ONE PARSER, TWO READERS banner), and ALL THREE PROBES MUST BE RE-RUN
+#      ON THE FIXED MACHINE -- P1 is no longer a first-fire test but a
+#      REGRESSION test, and it is the one that must go SUCCEEDED this time.
+#      Fixtures tests/fixtures/sfn_causes/ carry the real P1 Cause; the offline
+#      pins in tests/unit/test_thin_contract_fetch_degraded.py evaluate the
+#      rendered Choice rules against it, so an offline red now precedes a probe
+#      red.
 #   P2 TWO fetch legs, one infra-shaped (a jobdef that does not exist) and one
 #      GREEN: expect FetchInfraFailNotify once and DegradedNotify NEVER, even
 #      though the other leg SUCCEEDED -- infra WINS over "at least one leg

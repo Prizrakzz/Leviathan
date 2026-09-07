@@ -1,0 +1,11 @@
+{
+  "id": "batch_client_exception_not_json",
+  "provenance": "SYNTHETIC. Probe P2 (a fetch leg on jobdef leviathan-dev-laneb-probe-nonexistent-jobdef, input laneb_probe_p2_infra.json) has NOT been run, so no verbatim P2 Cause exists. The shape is the documented one for a Batch SubmitJob API rejection: a plain sentence, NOT a DescribeJobs document. Labelled SYNTHETIC because it is.",
+  "why_it_is_here": "THE PARSE MUST NOT THROW THE FAMILY DOWN. A Pass state cannot carry a Catch, so this class must never REACH States.StringToJson. It is stopped twice: by the error-NAME arm (only States.TaskFailed carries a DescribeJobs Cause) and by the '{*}' JSON-object shape guard. Batch.AWSBatchException is additionally split out by name one level earlier, in the leg's own Catch.",
+  "error": "Batch.ClientException",
+  "cause": "Job definition arn:aws:batch:us-east-1:668891723125:job-definition/leviathan-dev-laneb-probe-nonexistent-jobdef not found. (Service: AWSBatch; Status Code: 400; Error Code: ClientException; Request ID: 0f2b7e2a-6a2d-4a01-9f10-2f5b3a2c9d10; Proxy: null)",
+  "expect": {
+    "fetch": "RecordInfraFailureFetch",
+    "gate": "FailNotify"
+  }
+}

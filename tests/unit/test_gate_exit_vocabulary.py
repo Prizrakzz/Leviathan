@@ -271,30 +271,59 @@ def _sfn_text() -> str:
 
 
 def test_the_classifier_reads_the_same_numbers_the_gate_writes():
-    """THE DRIFT FENCE. The state machine cannot import Python, so it carries the exit codes as literals
-    inside Cause patterns. This test is the only thing that keeps the two in step: renumber a constant in
-    silver_rebuild_gate.py and the classifier starts routing the wrong email."""
+    """THE DRIFT FENCE. The state machine cannot import Python, so it carries the exit codes as literals.
+    This test is the only thing that keeps the two in step: renumber a constant in silver_rebuild_gate.py
+    and the classifier starts routing the wrong email.
+
+    THE LITERALS MOVED ON 2026-09-06 AND THE FENCE MOVED WITH THEM. They used to be substrings of the
+    whole Batch Cause (`*"ExitCode":72,*`); they are now NUMBERS compared against a parsed field of the
+    DescribeJobs document (`NumericEquals = 72` on $.batchCause.job.Container.ExitCode). The old form was
+    not merely uglier: the Cause embeds the jobdef's own RetryStrategy, so the no-verdict arm's
+    container-never-started substrings matched EVERY Cause and any exit code outside this vocabulary was
+    mailed as "no gate verdict" instead of reaching the documented Default. See the D-PR-10 banner in the
+    module for the measurement (probe laneb-p1-20260906T234214Z)."""
     text = _sfn_text()
 
-    refusal = re.search(r"gate_cause_refusal_patterns\s*=\s*\[(.*?)\]", text, re.S).group(1)
-    assert f'ExitCode\\":{g.EXIT_REFUSAL},' in refusal
-    for code in (g.EXIT_USAGE, g.EXIT_INTERNAL, g.EXIT_PREFLIGHT, g.EXIT_BASELINE_FETCH):
-        assert f'ExitCode\\":{code},' not in refusal, "a non-verdict code must never route to FailNotify"
+    refusal = re.search(r"gate_refusal_exit_code\s*=\s*(\d+)", text)
+    assert refusal and int(refusal.group(1)) == g.EXIT_REFUSAL, "the REFUSAL code drifted"
 
-    listed = re.search(r"for c in \[([0-9,\s]+)\]", text).group(1)
-    assert {int(x) for x in listed.split(",") if x.strip()} == {
-        g.EXIT_USAGE, g.EXIT_INTERNAL, g.EXIT_PREFLIGHT, g.EXIT_BASELINE_FETCH}
+    listed = re.search(r"gate_no_verdict_exit_codes\s*=\s*\[([0-9,\s]+)\]", text)
+    assert listed, "the no-verdict vocabulary is no longer a readable list"
+    codes = {int(x) for x in listed.group(1).split(",") if x.strip()}
+    assert codes == {g.EXIT_USAGE, g.EXIT_INTERNAL, g.EXIT_PREFLIGHT, g.EXIT_BASELINE_FETCH}
+    assert g.EXIT_REFUSAL not in codes, "a refusal must never route to InfraFailNotify"
+
+    # and both are read as NUMBERS off the parsed job detail, never as text in the raw Cause
+    reader = _block(text, "gate_parsed_cause_classifier = {")
+    assert "NumericEquals = local.gate_refusal_exit_code" in reader
+    assert "NumericEquals = c" in reader and "local.gate_no_verdict_exit_codes" in reader
+    assert "ExitCode\\\":" not in reader, "an ExitCode substring test came back"
 
 
 def test_the_classifier_defaults_to_todays_behaviour():
     """A Choice state cannot carry a Catch, so an unrecognised Cause must land somewhere by design. It
     lands on FailNotify -- exactly what happens today -- so the classifier can only improve attribution,
-    never lose a notification."""
-    block = _block(_sfn_text(), "ClassifyGateFailure = {")
-    assert re.search(r'Default\s*=\s*"FailNotify"', block)
-    # every comparison is guarded, because an unguarded compare against a missing path is a
-    # States.Runtime failure that no Catch can reach.
-    assert block.count("IsPresent = true") == block.count("Or = [")
+    never lose a notification. BOTH halves must default that way: the shape gate that decides whether the
+    Cause can be parsed at all, and the reader over the parsed job detail.
+
+    THE GUARDEDNESS CLAUSE IS NOT COUNTED HERE ANY MORE. It used to read
+    `block.count("IsPresent = true") == block.count("Or = [")`, which after this rewrite compares 0 to 0
+    -- green, and vacuous, which is the worst thing a pin can be. Guardedness is now asserted
+    structurally over the RENDERED rules, where an unguarded comparison is actually visible:
+    tests/unit/test_thin_contract_fetch_degraded.py::test_every_classifier_comparison_is_ispresent_and_isnumeric_guarded
+    -- which since 2026-09-07 also requires an `IsNumeric` conjunct ahead of every Numeric*
+    comparison, because IsPresent does not cover a present-but-wrong-type ExitCode."""
+    text = _sfn_text()
+    gate = _block(text, "ClassifyGateFailure = {")
+    assert re.search(r'Default\s*=\s*"FailNotify"', gate)
+    assert 'Next = "ParseBatchCauseGate"' in gate, "the shape gate must lead to the shared parse"
+    assert "local.batch_cause_is_parseable" in gate, "and must establish the Cause is JSON first"
+
+    reader = _block(text, "gate_parsed_cause_classifier = {")
+    assert re.search(r'Default\s*=\s*"FailNotify"', reader)
+    assert reader.count('Next = "InfraFailNotify"') == 2, (
+        "the gate's own no-verdict codes, and the shared infra arms (ONE comprehension)")
+    assert 'Next = "FailNotify"' in reader, "exit 1 is a REFUSAL and keeps the refusal email"
 
 
 def test_the_gate_catch_order_puts_infra_ahead_of_the_states_all_arm():
