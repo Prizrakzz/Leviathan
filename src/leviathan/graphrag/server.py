@@ -203,11 +203,12 @@ def _daily_turn_quota(ident: dict) -> None:
 
 
 # ══ D-MW-24: THE CREDIT SEAM ════════════════════════════════════════════════════════════════════════
-# The depth slider prices DEPTH, not turns. Two notches ship: Scan (`quick`, UNMETERED — the default
-# experience is never metered; usage anxiety suppresses engagement) and Analysis (`deep`, 1 credit/turn
-# against a monthly grant). `max`/`max_c0` stay DARK and are deliberately ABSENT from the price table:
-# an un-shipped tier has no price, and a tier with no price is unmetered — which is safe here only
-# because serving's GRAPHRAG_MODES allowlist is what decides whether it can be honored at all.
+# The depth slider prices DEPTH, not turns. THREE notches now: Scan (`quick`, UNMETERED — the default
+# experience is never metered; usage anxiety suppresses engagement), Analysis (`deep`, 1 credit/turn
+# against a monthly grant) and Cascade (`max`, 2 credits — see the F9 block below). `max_c0` stays DARK
+# and deliberately ABSENT from the price table: an un-shipped tier has no price, and a tier with no
+# price is unmetered — which is safe only because serving's GRAPHRAG_MODES allowlist is what decides
+# whether it can be honored at all.
 # THE ONE EXCEPTION, stated (D-MW-30 F6): the escalated presets ARE priced, at deep's price, even though
 # they are dark and no serving turn is ever honored as one. The asymmetry is deliberate and is spelled
 # out at the table below — for max, unpriced means "cannot be sold"; for esc, unpriced would mean
@@ -236,12 +237,113 @@ _CREDITS_DEFAULT_LIMIT = 100
 # must stay readable as one line of prices. `rm.base_mode(honored)` is the alternative and was refused
 # here for the reason the D-MW-30 comment gives: a price table that computes is a price table that can be
 # argued with at 3am. The names are pinned against the leaf's own join in test_dmw_credit_seam.
+# ── THE CASCADE NOTCH, F9 (2026-09-06, docs/private/SCAN_TIER_DESIGN.md section 3) ──────────────────
+# `max` IS PRICED AT 2, AND THAT PRICE SHIPS DARK. The ratified ladder's third place (Scan 0 / Analysis
+# 1 / Cascade 2) is the depth-2, seeds<=6, per-seed-63, synth_effort=max tier; without an entry HERE the
+# widest walk this estate can run would ship FREE, because `_credit_price` returns 0 for every name the
+# table does not carry and the reconcile at `_settle_credit` would then recompute the same 0 and quietly
+# agree. It is a LITERAL for the reason this table's own note gives: a price table that computes is a
+# price table that can be argued with at 3am.
+#
+# IT IS NOT ONE LINE. Two more files move in this same commit, and the design says so before it says
+# anything else: `reasoning_modes.METERED_BASES` gains `MAX` (a priced tier that read unmetered would
+# decline EC-3's fill patience on the dearest turn the product sells), and the hard equality at
+# `tests/unit/test_dmw_credit_seam.py` -- `rm.METERED_BASES == frozenset({rm.DEEP})` -- goes red the
+# moment it does, so it is amended here with the new set and its reason. The NEW pin that direction
+# needed and did not have: a priced name that CAN be honored reads metered (the escalation family is
+# the stated exception -- priced defensively, never honorable, floor-and-refund by design).
+#
+# `max` STAYS IN `reasoning_modes.DARK_NAMES` UNTIL THE FLIP. Pricing is not honoring: `serving_names()`
+# is unchanged, so `GRAPHRAG_MODES=on` cannot sweep Cascade in, and a Cascade request on today's serving
+# revision resolves to `standard` and is charged NOTHING (`_credit_gate` prices the HONORED tier, which
+# is the whole point of pricing what will actually run).
+#
+# THE FLIP RECIPE, exactly, AND IN THIS ORDER (the order is not advice -- see step 2):
+#   1. serving taskdef: `GRAPHRAG_MODES=quick,deep,max` (a NAMED dark preset IS honored --
+#      `orchestrator._modes_enabled`), on the SAME revision that sets `GRAPHRAG_DOSSIER=off`, so the
+#      FE's dark Deep Research button and this server agree about the route it will not take. VERIFY ON
+#      THAT SAME REVISION: `GRAPHRAG_CASCADE_DEEP=on` (SCAN_TIER_DESIGN.md:381 requires it be NAMED in
+#      the flip change -- "the notch's promise is delivered by the taskdef, not by the table"). It IS on
+#      in serving today (rev 127+), so nothing breaks at flip time; what the naming buys is that a
+#      serving rollback PAST rev 127 cannot quietly sell "the deepest walk -- every driver, every hop"
+#      at two credits without the deep-walk regime that sentence describes. (`GRAPHRAG_EXTREME_LOCATOR`
+#      is deliberately NOT here -- section 3 calls it "NOT a precondition".)
+#      READ THIS BEFORE YOU RUN STEP 1: `GRAPHRAG_DOSSIER` IS `on` ON THE SERVING TASKDEF TODAY
+#      (measured on leviathan-dev-serving:130, 2026-09-07). The word "agree" above is therefore doing
+#      more work than it looks like -- step 1 does not merely make the backend match a dark button, it
+#      TURNS OFF A LIVE 4-a-month FEATURE in the same revision. That is exactly what the owner's word
+#      below asks for, so it is authorised, not accidental; it is written here so a 3am reader does not
+#      take it for a no-op and then wonder where Deep Research went.
+#   2. the FE deploy carrying the Cascade notch (store/mode.ts + shell/DepthControl.tsx), built with
+#      `$env:VITE_MODES = "quick,deep,max"` set in the deploying shell (deploy.ps1 does not set it and
+#      `vite build` inherits it). THE ORDER IS FORCED: deploy.ps1 guard 6/6 parses `CHOICE_MODE` out of
+#      mode.ts and REFUSES to build while the DEPLOYED taskdef's GRAPHRAG_MODES lacks a wire name the
+#      bundle can send -- so an FE deploy before step 1 is rejected, by design.
+#      A build that FORGETS `VITE_MODES` still ships safely: the notch renders blocked ("Cascade is not
+#      yet enabled on this deployment") instead of selling a turn that would resolve to `standard`.
+#      THE PRICE OF THAT FORCED ORDER, MEASURED AND RECORDED (2026-09-07): guard 6/6 cannot see the FE's
+#      build-time gate, so it reads this bundle as able to ask for `max` whether or not VITE_MODES names
+#      it. Simulated against the live env (GRAPHRAG_MODES=quick,deep): parsed wires `deep,max,quick`,
+#      missing {max} -> REFUSING to build. FROM THIS COMMIT UNTIL STEP 1 LANDS, NO TERMINAL FE BUILD CAN
+#      BE PRODUCED BY THE VERIFIED PATH -- an unrelated hotfix included. `-SkipGate` is the only escape
+#      and drops typecheck, lint, unit AND e2e with it. That coupling is a consequence of shipping the
+#      notch dark, not a benefit of it, and the review carried it at MAJOR precisely so it could not land
+#      as somebody's silent assumption. IT NO LONGER IS ONE.
+#      ── THE OWNER'S WORD, 2026-09-07, VERBATIM (recorded here because this is the paragraph that asked
+#      for it): "the notch ships AVAILABLE -- the flip order is backend env (GRAPHRAG_MODES=quick,deep,max
+#      + GRAPHRAG_DOSSIER=off on one serving rev) THEN the FE deploy with VITE_MODES=quick,deep,max".
+#      So of the two exits the review named, (a) IS TAKEN: step 1 is a scheduled action, not an open
+#      question, and guard 6/6 is deliberately NOT taught the build-time gate --
+#      `apps/terminal/scripts/deploy.ps1` stays untouched and stays the thing that ENFORCES the order.
+#      The closed-FE-build window is therefore the interval between step 1 and step 2, by design: it is
+#      exactly the interval in which a bundle could ask for a tier the server would not honor.
+#      NO CODE MOVES ON THIS WORD, and that is the point of recording it rather than acting on it: the
+#      price, the meter, `DARK_NAMES` and the FE's `servedModes()` gate are all already correct for an
+#      AVAILABLE notch. What the word settles is WHEN and IN WHAT ORDER the two envs move, and both
+#      halves of that order are already stated above and enforced by guard 6/6.
+#   3. nothing else moves in CODE. ROLLBACK IS TWO STEPS, NOT ONE, and the earlier note here said one:
+#      dropping `max` from GRAPHRAG_MODES is instant server-side (every Cascade request resolves to
+#      `standard` again and is charged NOTHING -- `_credit_gate` prices the HONORED tier), but VITE_MODES
+#      IS BAKED INTO THE ALREADY-SERVED BUNDLE. Nothing in a browser can read the taskdef, so until an FE
+#      rebuild WITHOUT VITE_MODES is deployed, the notch stays fully selectable and every Cascade turn is
+#      downgraded silently -- the FE's own gate corrects a STORED selection (store/mode.servedChoice) but
+#      only against what its build was told. The window costs no money and no depth chip renders
+#      (views/answer/ModeChip.tsx draws nothing when honored == "standard"), so plan the rebuild WITH the
+#      rollback rather than after someone reports a shallow answer.
+# F10 (the ceiling): the 09-06 arm measured max-tier writer output at 2,400..6,819 tokens against a
+# 12,000 `max_tokens` ceiling and no turn stopped at it -- NOT BINDING; the ceiling is unchanged here.
 _CREDIT_PRICES: dict = {"deep": 1, "esc": 1, "esc_r": 1,   # wire names, frozen identifiers
-                        "deep_hp": 1, "esc_hp": 1, "esc_r_hp": 1}
+                        "deep_hp": 1, "esc_hp": 1, "esc_r_hp": 1,
+                        "max": 2}                   # rm.MAX -- THE CASCADE NOTCH (F9), dark until the
+                                                # flip recipe above runs; max_c0/max_cc1/max_cc2 are
+                                                # arm controls and stay unpriced
                                                 # (rm.DEEP / rm.ESC / rm.ESC_R + the D-HP twins);
                                                 # quick and quick_hp == free
 _CREDIT_KEY = "_credit"                         # private slot on the identity dict: the turn's charge
 _CREDITS_ERROR_CODE = "credits_exceeded"        # the 429's MACHINE slug; the sentence rides `detail` (F9)
+# ── THE TWO REFUSAL SENTENCES (2026-09-07 fix pass). Until Cascade there was ONE, because with every
+# price equal to 1 there was one way to be refused: the grant was spent. A two-credit tier invents a
+# SECOND state -- `store.debit`'s conditional is `used > cap - amount`, so 99 of 100 spent refuses a
+# Cascade turn while ONE credit is still there and an Analysis turn at that same balance still runs.
+# MEASURED before this fix, through the route at pre_spent=99/limit=100: `remaining: 1` beside
+# `detail: "monthly credit limit (100) reached"` -- a body that says the limit is reached AND that a
+# credit is left, one strip above a badge reading "1 of 100 this month". The sentence is not internal:
+# `api/errors.creditsRefusalFrom` puts `detail` straight onto `CreditsRefusal.message` and
+# `shell/CreditsToast.tsx` renders it verbatim.
+# THE EXHAUSTED SENTENCE IS UNCHANGED, BYTE FOR BYTE -- it is shipped copy and it was never wrong.
+_CREDITS_EXHAUSTED_DETAIL = "monthly credit limit ({limit}) reached; credits reset {day}"
+# AND THE NEW ONE AGREES WITH THE CONTROL, WORD FOR WORD, from the word "costs" onward. The depth
+# control's own affordability line (apps/terminal/src/shell/DepthControl.blockedReason) reads
+# "Cascade costs two credits and you have 1 left [em dash] the grant resets 2026-09-01 (UTC)"; this reads
+# "this tier costs two credits and you have 1 left; the grant resets 2026-09-01 (UTC)". The two differ
+# ONLY in how they name the tier -- the FE knows the LABEL ("Cascade"), the server knows the wire name
+# ("max") and must never put an internal identifier on screen -- and in the punctuation that joins the
+# clauses. Every WORD after "costs" is identical, on purpose: a user who is blocked by the control and
+# then refused by the server (a stale balance, a second tab, a direct API call) must not be told the
+# same fact in two different vocabularies. `config_check.check_cascade_notch` clause (vii) is the reader
+# that keeps them that way -- it renders THIS template and asserts its clauses appear in the control's.
+_CREDITS_INSUFFICIENT_DETAIL = ("this tier costs {price} and you have {remaining} left; "
+                                "the grant resets {day} (UTC)")
 # The GROUNDED-WALK STAMP (F2). `planner.grounded_subgraph` writes `trace.walk_shape` on EVERY walk, both
 # arms, and `answer._answer_l2` spreads sg.trace into the result — so its PRESENCE is the artifact that a
 # metered walk actually ran, and its ABSENCE is the one signal that says no depth was delivered. The
@@ -256,6 +358,41 @@ _CREDITS_ERROR_CODE = "credits_exceeded"        # the 429's MACHINE slug; the se
 _WALK_STAMP = "walk_shape"
 
 
+def _credit_word(n: int) -> str:
+    """A credit COUNT as product copy says it (the figures-and-words rule: the digit stays on the badge,
+    the price reads as words). MIRRORS `apps/terminal/src/shell/CreditsBadge.creditWord` exactly — same
+    three cases, same words — because the sentence this feeds is the same sentence the depth control
+    writes; see `_CREDITS_INSUFFICIENT_DETAIL`."""
+    n = int(n)
+    return {1: "one credit", 2: "two credits"}.get(n) or f"{n} credits"
+
+
+def _credits_refusal_detail(*, limit: int, remaining: int, needed: int, reset_at: str) -> str:
+    """WHICH REFUSAL THIS IS, IN WORDS. Three-way and explicitly so, because two of the branches read
+    the same to a machine (429, same five keys) and completely differently to a person:
+
+      remaining <= 0        -> EXHAUSTED. The shipped sentence, untouched: the grant is spent and no
+                               tier will run until it resets.
+      0 < remaining < needed -> CANNOT AFFORD *THIS* TIER. The state a 0/1 ladder could not produce and
+                               the one this pass exists to stop lying about: there IS credit left, a
+                               cheaper tier still runs, and only THIS one does not fit.
+      anything else          -> the exhausted sentence, as the conservative fallback. Reaching it means
+                               the post-debit read disagrees with the debit that just failed (a refund
+                               landing between the two, or `_credits_remaining`'s on_error=0 path
+                               inverted by a later success). We refuse to invent an affordability claim
+                               the numbers do not support, so we say the thing that is true of every
+                               refusal — the grant and its reset date — and nothing more.
+
+    `reset_at` is sliced, not parsed: the value comes from `store.credits_reset_at`, which is always the
+    first instant of a UTC month (`...T00:00:00Z`), so the slice IS the UTC calendar day the FE's
+    `lib/time.utcDay` computes from the same string."""
+    day = str(reset_at)[:10]
+    if 0 < int(remaining) < int(needed or 0):
+        return _CREDITS_INSUFFICIENT_DETAIL.format(price=_credit_word(needed), remaining=int(remaining),
+                                                   day=day)
+    return _CREDITS_EXHAUSTED_DETAIL.format(limit=int(limit), day=day)
+
+
 class CreditsExceeded(Exception):
     """Raised by the quota dependency when the monthly grant cannot cover the requested tier.
 
@@ -263,15 +400,23 @@ class CreditsExceeded(Exception):
     RAISING; `HTTPException` buries everything under `detail` so a top-level `reset_at` is impossible
     that way; and a `JSONResponse` RETURNED from a dependency does not short-circuit at all — the
     handler runs anyway. A bare exception + an app-level handler is the only construct that is both
-    dependency-raisable (i.e. fires before the stream opens) and top-level-shaped."""
+    dependency-raisable (i.e. fires before the stream opens) and top-level-shaped.
 
-    def __init__(self, *, limit: int, remaining: int, reset_at: str, detail: Optional[str] = None):
+    `needed` IS THE TIER'S PRICE AND IS NOT A BODY FIELD (2026-09-07). The 429 body is a LOCKED
+    five-key contract that the FE parser and the prod smoke both assert on; the price is what lets this
+    exception tell the two refusal states apart in `detail`, and adding a sixth key to say it would
+    break the contract to carry a fact the sentence already carries. Default 0 => the exhausted
+    sentence, i.e. every caller that predates the Cascade notch is byte-identical to its old self."""
+
+    def __init__(self, *, limit: int, remaining: int, reset_at: str, needed: int = 0,
+                 detail: Optional[str] = None):
         self.limit, self.remaining, self.reset_at = int(limit), int(remaining), str(reset_at)
+        self.needed = int(needed or 0)
         # A human `detail` string rides ALONGSIDE the structured fields on purpose: the FE transport
         # error extractor reads `detail` and renders anything else as a bare "HTTP 429" (the D-TW-6
         # class). The structured fields are what DepthControl reads for the reset day.
-        self.detail = detail or (f"monthly credit limit ({self.limit}) reached; "
-                                 f"credits reset {self.reset_at[:10]}")
+        self.detail = detail or _credits_refusal_detail(limit=self.limit, remaining=self.remaining,
+                                                        needed=self.needed, reset_at=self.reset_at)
         super().__init__(self.detail)
 
 
@@ -434,8 +579,11 @@ def _credit_gate(ident: dict, mode: Optional[str], turn_id: Optional[str] = None
         applied = _store().debit(sub, period, amount, limit, op_id=f"{op_id}#debit", ref=honored)
     except st.QuotaExceeded:
         _release_lease({"sub": sub, "lease": lease})
+        # `needed=amount` is what makes the refusal SAY WHICH REFUSAL IT IS: the debit's conditional
+        # (`used > cap - amount`) refuses a 2-credit turn with 1 credit left, and that state is not
+        # "exhausted" — the cheaper tier at the same balance still runs. See `_credits_refusal_detail`.
         raise CreditsExceeded(limit=limit, remaining=_credits_remaining(sub, period, limit, on_error=0),
-                              reset_at=_credits_reset_at())
+                              reset_at=_credits_reset_at(), needed=amount)
     except Exception:  # noqa: BLE001 — nothing was charged, so there is nothing to reconcile
         _release_lease({"sub": sub, "lease": lease})
         return None

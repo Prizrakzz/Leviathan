@@ -29,9 +29,10 @@ const deepTurn = () =>
   });
 
 describe('ModeChip — what actually ran (D-AM-14)', () => {
-  it('renders the honored mode name, collapsed', () => {
+  it('renders the honored tier by its LABEL, collapsed (the wire name never reaches the screen)', () => {
     render(<ModeChip result={deepTurn()} />);
-    expect(screen.getByTestId('mode-chip-toggle')).toHaveTextContent('ran deep');
+    expect(screen.getByTestId('mode-chip-toggle')).toHaveTextContent('ran Analysis');
+    expect(screen.getByTestId('mode-chip-toggle')).not.toHaveTextContent('ran deep');
     expect(screen.getByTestId('mode-chip-toggle').getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByTestId('mode-chip-knobs')).toBeNull();
   });
@@ -90,7 +91,7 @@ describe('ModeChip — what actually ran (D-AM-14)', () => {
         })}
       />,
     );
-    expect(screen.getByTestId('mode-chip-toggle')).toHaveTextContent('ran deep');
+    expect(screen.getByTestId('mode-chip-toggle')).toHaveTextContent('ran Analysis');
     await user.click(screen.getByTestId('mode-chip-toggle'));
 
     const knobs = screen.getByTestId('mode-chip-knobs');
@@ -103,7 +104,7 @@ describe('ModeChip — what actually ran (D-AM-14)', () => {
 
   it('the Q-0 effort knob never renders: writer property, not width', async () => {
     // Q-0 (2026-08-29, review find F4). synth_effort rides the max family's knob dict; the open-shape
-    // passthrough would have rendered "synth effort  max" under "ran max" -- the same
+    // passthrough would have rendered "synth effort  max" under the chip -- the same
     // writer-identity-by-side-effect class the deny list exists for.
     const user = userEvent.setup();
     render(
@@ -120,6 +121,9 @@ describe('ModeChip — what actually ran (D-AM-14)', () => {
         })}
       />,
     );
+    // THE CASCADE NOTCH (2026-09-07): an honored `max` turn reads by its label, never "ran max".
+    expect(screen.getByTestId('mode-chip-toggle')).toHaveTextContent('ran Cascade');
+    expect(screen.getByTestId('mode-chip-toggle')).not.toHaveTextContent('max');
     await user.click(screen.getByTestId('mode-chip-toggle'));
     const knobs = screen.getByTestId('mode-chip-knobs');
     expect(knobs).not.toHaveTextContent('synth effort');

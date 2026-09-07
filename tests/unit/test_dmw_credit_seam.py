@@ -210,23 +210,34 @@ def test_credits_absent_is_off(monkeypatch):
 
 # ══ 2. THE PRICE TABLE (the 2-notch ship) ════════════════════════════════════════════════════════════
 def test_only_deep_is_priced_and_the_dark_tiers_are_absent():
-    """Scan (quick) is UNMETERED; max/max_c0 are DARK and therefore carry no price at all.
+    """Scan (quick) is UNMETERED; Analysis (deep) is 1; Cascade (max) is 2 and DARK.
 
     D-MW-30 F6 RE-PIN: the two ESCALATED presets are priced, at deep's price, and that asymmetry with
-    max/max_c0 is the point. An unpriced `max` cannot be SOLD; an unpriced `esc` would be a delivered
-    max-width + Opus turn that the reconcile FULL-REFUNDS the moment anything stamps it as honored.
+    max_c0 is the point. An unpriced `esc` would be a delivered max-width + Opus turn that the reconcile
+    FULL-REFUNDS the moment anything stamps it as honored.
 
     D-HP H1 FIX Z5(d): the metered `_hp` TWINS are priced too, at their base's price. D-HP-26 step 0 flips
     the treatment on BY PRESET NAME, so an unpriced `deep_hp` would bill 0 while its `deep` control billed
     1 -- the treatment arm free, the refund path recomputing the same 0 and quietly agreeing. `quick_hp` is
-    absent for the same reason `quick` is: Scan is unmetered on both arms."""
+    absent for the same reason `quick` is: Scan is unmetered on both arms.
+
+    THE CASCADE NOTCH, F9 (2026-09-06): `max` is priced at 2 -- the ratified ladder's third place -- and
+    the price ships BEFORE the tier is honored anywhere. That order is deliberate and is the whole reason
+    the old sentence here ('an unpriced `max` cannot be SOLD') was a fence and not a plan: the flip is one
+    env value (`GRAPHRAG_MODES=quick,deep,max`), and if the price arrived in that same change the widest
+    walk this estate can run would ship free for however long the two commits were apart. The ARM
+    CONTROLS keep their zero: `max_c0` is the permanent OFF twin and `max_cc1`/`max_cc2` are un-adjudicated
+    composition arms -- a priced control arm is a control arm that costs money to run."""
     from leviathan.graphrag import orchestrator as orch
     from leviathan.graphrag import reasoning_modes as rm
     assert sv._CREDIT_PRICES == {rm.DEEP: 1, orch._ESC: 1, orch._ESC_R: 1,
-                                 rm.DEEP_HP: 1, rm.ESC_HP: 1, rm.ESC_R_HP: 1}
+                                 rm.DEEP_HP: 1, rm.ESC_HP: 1, rm.ESC_R_HP: 1,
+                                 rm.MAX: 2}
     assert sv._credit_price(orch._ESC) == 1 and sv._credit_price(orch._ESC_R) == 1
     assert sv._credit_price(rm.QUICK) == 0 and sv._credit_price(rm.STANDARD) == 0
-    assert sv._credit_price(rm.MAX) == 0 and sv._credit_price(rm.MAX_C0) == 0
+    assert sv._credit_price(rm.MAX) == 2                       # Cascade: the ladder's third place
+    assert sv._credit_price(rm.MAX_C0) == 0                    # the permanent OFF control
+    assert sv._credit_price(rm.MAX_CC1) == 0 and sv._credit_price(rm.MAX_CC2) == 0
     assert sv._credit_price(None) == 0 and sv._credit_price("nonsense") == 0
     # EVERY metered twin is priced EXACTLY as its base, derived from the leaf's own join table so a
     # rename cannot silently un-price an arm. `quick_hp` inherits quick's zero, which is the same rule.
@@ -260,11 +271,40 @@ def test_the_metered_predicate_and_the_price_table_cannot_drift(monkeypatch):
     assert rm.is_metered(rm.DEEP) is True and rm.is_metered(rm.DEEP_HP) is True
     assert rm.is_metered(rm.QUICK) is False and rm.is_metered(rm.STANDARD) is False
     assert rm.is_metered(None) is False and rm.is_metered("nonsense") is False
-    assert rm.METERED_BASES == frozenset({rm.DEEP})
+    # F9 (2026-09-06): MAX joins in the SAME change that prices `max` at 2. This equality is the pin the
+    # design named in advance as the one that goes red on the flip, and it is amended here rather than
+    # relaxed: the set is small, frozen, and the whole point is that adding to it is a DECISION.
+    assert rm.METERED_BASES == frozenset({rm.DEEP, rm.MAX})
     # The conservative direction, stated as a pin so a "fix" has to argue with it: an escalated name
     # would decline patience, floor, and refund -- it never overcharges.
     for name in (rm.ESC, rm.ESC_R, rm.ESC_HP, rm.ESC_R_HP):
         assert rm.is_metered(name) is False, name
+
+
+def test_a_priced_tier_that_can_be_honored_reads_metered():
+    """THE NEW PIN F9 OWED, and the direction the cross-pin above structurally cannot see.
+
+    That pin's clause (a) is keyed on `base_mode(name) == DEEP`, so it says NOTHING about a priced tier
+    whose base is its own name -- which is exactly what `max` is. A `max` priced at 2 and left out of
+    `METERED_BASES` would have passed every assertion in this file before today: billed two credits at
+    the gate, and then read as an UNPAID turn by EC-3's fill patience, i.e. the dearest tier the product
+    sells fast-failing its pool waits like the free one.
+
+    THE INVARIANT, stated so it holds for the next tier too: every priced wire name that CAN be honored
+    reads metered. The escalation family is the ONE exception and is enumerated, not pattern-matched --
+    `esc`/`esc_r`/`esc_hp`/`esc_r_hp` are priced purely as a fence (an unpriced escalation that ever
+    reached `honored` would FULL-REFUND a delivered max-width turn) and can never be honored, so their
+    conservative False costs latitude and never money. See `rm.is_metered`'s own docstring."""
+    from leviathan.graphrag import reasoning_modes as rm
+    escalated = {rm.ESC, rm.ESC_R, rm.ESC_HP, rm.ESC_R_HP}
+    for name in sorted(sv._CREDIT_PRICES):
+        assert rm.is_metered(name) is (name not in escalated), name
+    # And the reverse: an UNPRICED name is never metered, whether it is a serving tier or a dark control.
+    for name in sorted(rm.valid_names() - set(sv._CREDIT_PRICES)):
+        assert rm.is_metered(name) is False, name
+    # The three max-family CONTROLS are the sharpest case of that: same walk family, no price, no meter.
+    for name in (rm.MAX_C0, rm.MAX_CC1, rm.MAX_CC2):
+        assert name not in sv._CREDIT_PRICES and rm.is_metered(name) is False, name
 
 
 def test_a_quick_turn_is_unmetered_even_with_credits_on(monkeypatch):
@@ -338,6 +378,34 @@ def test_the_429_body_is_top_level_shaped(monkeypatch):
     assert body["limit"] == 2 and body["remaining"] == 0
     assert body["reset_at"].endswith("T00:00:00Z") and body["reset_at"][8:10] == "01"
     assert isinstance(body["detail"], str) and str(body["limit"]) in body["detail"]
+
+
+def test_the_429_sentence_says_WHICH_refusal_this_is(monkeypatch):
+    """THE BODY IS LOCKED; THE SENTENCE IN IT IS NOT ONE SENTENCE (2026-09-07). Pinned HERE, beside the
+    body contract, because a reader of this deck alone would otherwise take `detail` for a constant --
+    it was one for as long as every tier cost 1, and the whole class of defect it produced arrived with
+    the first tier that cost 2 (`store.debit`'s `used > cap - amount` refuses a 2-credit turn at 99 of
+    100 spent, a state no 0/1 ladder could reach).
+
+    THE EXHAUSTED SENTENCE IS UNCHANGED, BYTE FOR BYTE -- that is the point of asserting it here rather
+    than only in the tier's own deck: this pass added a branch, it did not touch the shipped copy. The
+    tier-priced branch is exercised end to end through the route in tests/unit/test_cascade_notch.py."""
+    day = sv._credits_reset_at()[:10]
+    # The shipped path: a spent grant. `needed` defaults to 0, so every pre-Cascade caller is identical.
+    assert sv.CreditsExceeded(limit=100, remaining=0, reset_at=sv._credits_reset_at()).detail == \
+        f"monthly credit limit (100) reached; credits reset {day}"
+    # The state the ladder invented: credit left, but not enough for THIS tier. A different fact, so a
+    # different sentence -- and never the word "reached", which would contradict `remaining` in the body.
+    afford = sv.CreditsExceeded(limit=100, remaining=1, reset_at=sv._credits_reset_at(), needed=2).detail
+    assert afford == f"this tier costs two credits and you have 1 left; the grant resets {day} (UTC)"
+    assert "reached" not in afford
+    # And the LOCKED FIVE KEYS are the same five in both states: the sentence branches, the contract
+    # does not. (A sixth key for the price was refused -- the sentence already carries it.)
+    for exc in (sv.CreditsExceeded(limit=100, remaining=0, reset_at=sv._credits_reset_at()),
+                sv.CreditsExceeded(limit=100, remaining=1, reset_at=sv._credits_reset_at(), needed=2)):
+        body = json.loads(bytes(sv._credits_exceeded_handler(None, exc).body))
+        assert set(body) == {"error", "limit", "remaining", "reset_at", "detail"}
+        assert body["error"] == sv._CREDITS_ERROR_CODE and body["detail"] == exc.detail
 
 
 def test_an_out_of_credits_429_does_not_burn_a_daily_turn(monkeypatch):
@@ -418,17 +486,30 @@ def test_max_requested_honored_standard_nets_the_ledger_to_zero(monkeypatch):
     assert s.kinds().count("debit") == 1 and s.kinds().count("credit") == 1
 
 
-def test_a_max_request_is_never_charged(monkeypatch):
-    """THE RATIFIED ADJUSTMENT to the plan's 'max-requested-honored-standard nets zero' pin: the 2-notch
-    ship gives max NO PRICE, so the property holds one step earlier -- a max request never enters the
-    ledger at all, whether the allowlist honors it (the dark eval arm) or downgrades it."""
+def test_a_max_request_is_charged_ONLY_where_the_allowlist_honors_it(monkeypatch):
+    """THE CASCADE NOTCH AMENDMENT (2026-09-06) to what used to be 'a max request is never charged'.
+
+    That pin rested on max having NO PRICE, which was true of the 2-notch ship and is not true of the
+    3-notch ladder: `max` is now Cascade and costs 2 (F9). The property that actually mattered survives
+    verbatim, one level down, because the gate prices THE TIER THAT WILL RUN and not the one requested:
+
+      * allowlist WITHOUT max -> the request resolves to `standard` -> price 0 -> the ledger is never
+        opened. This is today's serving revision, and it is why the notch can ship before the env flip.
+      * allowlist WITH max    -> honored `max` -> 2 credits, debited once, at the gate.
+
+    The tier-level ladder and its refusals live in tests/unit/test_cascade_notch.py; what is pinned HERE
+    is the seam's own rule -- requested is not charged, honored is."""
     s = _use(monkeypatch, _LedgerStore())
     monkeypatch.setenv("GRAPHRAG_CREDITS", "on")
-    for allowlist, honored in (("deep", "standard"), ("max", "max")):
-        monkeypatch.setenv("GRAPHRAG_MODES", allowlist)
-        c = _respond(monkeypatch, lambda q, **kw: _result(honored))
-        assert c.post("/v1/respond", json={"question": "q", "mode": "max"}).status_code == 200
+    monkeypatch.setenv("GRAPHRAG_MODES", "deep")                    # max NOT honored: the dark state
+    c = _respond(monkeypatch, lambda q, **kw: _result("standard"))
+    assert c.post("/v1/respond", json={"question": "q", "mode": "max"}).status_code == 200
     assert s.calls == [] and s.balance("local", 100) == 100
+
+    monkeypatch.setenv("GRAPHRAG_MODES", "quick,deep,max")          # the flip, in one env value
+    c = _respond(monkeypatch, lambda q, **kw: _result("max"))
+    assert c.post("/v1/respond", json={"question": "q", "mode": "max"}).status_code == 200
+    assert s.kinds().count("debit") == 1 and s.balance("local", 100) == 98
 
 
 def test_a_deterministic_floor_turn_on_the_metered_tier_nets_ZERO(monkeypatch):

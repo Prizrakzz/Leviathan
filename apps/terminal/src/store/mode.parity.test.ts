@@ -1,7 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MOCK_MODE_KNOBS, mockRespondStream } from '@/api/mock';
 import type { RespondResult } from '@/api/schema';
-import { CHOICE_MODE, CHOICES, DARK_TIERS, FE_ASK_MODES, isMode, MODES, modeParam } from './mode';
+import {
+  CASCADE_MODE,
+  CHOICE_MODE,
+  CHOICES,
+  DARK_TIERS,
+  DOSSIER_CHOICE,
+  FE_ASK_MODES,
+  isAskMode,
+  isChoiceServed,
+  isMode,
+  MODES,
+  modeParam,
+  NOTCHED_DARK_TIERS,
+} from './mode';
 
 /**
  * THE SILENT-DROP PIN (D-MW-21), BOTH DIRECTIONS.
@@ -16,9 +29,19 @@ import { CHOICE_MODE, CHOICES, DARK_TIERS, FE_ASK_MODES, isMode, MODES, modePara
  *   DIRECTION 2 (serving-side, and the one that actually bites in production): a tier the FE offers that
  *   serving's GRAPHRAG_MODES allowlist does not contain. The orchestrator intersects the request against
  *   the allowlist and resolves the miss to `standard` — same silent shallower turn, and no client change
- *   can detect it. So the FE roster is pinned against the allowlist this bundle SHIPS AGAINST, and the
- *   env flip that adds those names to GRAPHRAG_MODES is part of the same change (the flip law: an env
- *   flag and the code that reads it are ONE change).
+ *   can detect it.
+ *
+ * THE CASCADE NOTCH (2026-09-06) IS THE FIRST TIER TO SHIP WITH DIRECTION 2 OPEN, deliberately: `max` is
+ * a DARK backend preset (`reasoning_modes.DARK_NAMES`), honored only where GRAPHRAG_MODES NAMES it, and
+ * the notch ships before that env flip. So the answer is not "pin it into the allowlist contract" — it is
+ * a GATE: `isChoiceServed` blocks the notch in any build not told the deployment honors `max`, and the
+ * user sees the reason instead of a downgraded turn. Both halves are pinned below.
+ *
+ * A GATE ON THE GESTURE IS NOT A GATE (2026-09-07). The first version blocked `pick`/`step`/`jump` and left
+ * the STORED value alone, so a rehydrated `cascade` submitted `mode=max` under the very sentence saying the
+ * deployment does not run it — direction 2, reopened by the fix for direction 2. `servedChoice` is the
+ * coercion that closes it on all three seams (write, rehydrate, read); mode.test.ts holds its properties
+ * and Shell.dossier.test.tsx holds the wire pin.
  *
  * The mock lane is pinned with them, because `VITE_MOCK=1` is where this UI is developed: a mock that
  * silently honors `standard` for a tier the real backend honors would reproduce the exact defect inside
@@ -26,8 +49,8 @@ import { CHOICE_MODE, CHOICES, DARK_TIERS, FE_ASK_MODES, isMode, MODES, modePara
  */
 
 /**
- * The tier names serving's GRAPHRAG_MODES must contain for this bundle to be honest. `standard` is the
- * fail-open passthrough and is always resolvable; the rest is exactly what the notches ask for.
+ * The tier names serving's GRAPHRAG_MODES contains TODAY, and that this bundle may therefore ask for
+ * UNGATED. `standard` is the fail-open passthrough and is always resolvable.
  *
  * THIS CONSTANT IS A MANUAL CONTRACT, NOT AN OBSERVATION (P5 review F8). GRAPHRAG_MODES lives ONLY on the
  * live ECS task definition — nothing in this repo can read it from a test — so what follows can catch an
@@ -36,7 +59,19 @@ import { CHOICE_MODE, CHOICES, DARK_TIERS, FE_ASK_MODES, isMode, MODES, modePara
  * GRAPHRAG_MODES and REFUSES to build when any wire name in store/mode.CHOICE_MODE is missing from it.
  * That guard parses the FE roster out of mode.ts, so it cannot fall behind a new notch.
  *
- * IF YOU ADD A NOTCH: this list, the serving env, and the taskdef flip move together or the notch lies.
+ * IF YOU ADD A NOTCH: this list, the serving env, and the taskdef flip move together, or the notch is
+ * GATED on `servedModes()` until they do. Cascade is the second kind.
+ *
+ * AND THE SECOND KIND HAS A PRICE THE GUARD DOES NOT KNOW ABOUT, recorded 2026-09-07: guard 6/6 parses the
+ * wire names out of `CHOICE_MODE` and cannot see the FE's build-time `VITE_MODES` gate, so it treats this
+ * bundle as one that asks for `max` unconditionally. Against today's live `GRAPHRAG_MODES=quick,deep` it
+ * therefore REFUSES every terminal FE build — hotfixes included — until the taskdef flip lands. That is a
+ * blocking consequence of shipping this notch dark, not a benefit of it. SETTLED BY THE OWNER'S WORD
+ * (2026-09-07, 'available, not dark'): the flip is taken -- one serving revision carries
+ * GRAPHRAG_MODES=quick,deep,max + GRAPHRAG_DOSSIER=off, THEN the FE build runs with
+ * VITE_MODES=quick,deep,max (deploy.ps1 -Modes; guard 7 refuses a build that omits a notch). The guard
+ * is deliberately NOT taught the build-time gate: it stays the thing that enforces the order. Full
+ * record: server.py's flip comment beside `_CREDIT_PRICES`.
  */
 const SERVING_ALLOWLIST_CONTRACT: readonly string[] = ['quick', 'standard', 'deep'];
 
@@ -44,19 +79,18 @@ describe('roster parity — direction 1: every FE notch survives the transport',
   it('each ask notch has a wire name the transport recognises and forwards UNCHANGED', () => {
     expect(FE_ASK_MODES.length).toBeGreaterThan(0);
     for (const m of FE_ASK_MODES) {
-      expect(isMode(m)).toBe(true);
+      // `isAskMode`, not `isMode`: Cascade's wire name is a preset deliberately absent from the internal
+      // roster, and `modeParam` reads the wider union for exactly that reason.
+      expect(isAskMode(m)).toBe(true);
       // The omit branch is what a silent drop looks like from here: `undefined` means "send nothing",
       // and a mode-less turn runs standard.
       expect(modeParam(m)).toBe(m);
     }
   });
 
-  it('the notch -> wire table is total, and only the dossier notch maps to nothing', () => {
-    for (const c of CHOICES) {
-      const wire = CHOICE_MODE[c];
-      if (c === 'deep_research') expect(wire).toBeNull();
-      else expect(isMode(wire)).toBe(true);
-    }
+  it('the notch -> wire table is total, and only the dossier route maps to nothing', () => {
+    for (const c of CHOICES) expect(isAskMode(CHOICE_MODE[c])).toBe(true);
+    expect(CHOICE_MODE[DOSSIER_CHOICE]).toBeNull();
   });
 
   it('no notch maps to `standard` any more — the omit-when-default idiom is retired on the ask route', () => {
@@ -68,19 +102,39 @@ describe('roster parity — direction 1: every FE notch survives the transport',
 });
 
 describe('roster parity — direction 2: the serving allowlist', () => {
-  it('every tier this bundle can ask for is one serving is expected to honor', () => {
-    for (const m of FE_ASK_MODES) expect(SERVING_ALLOWLIST_CONTRACT).toContain(m);
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('every ungated tier this bundle asks for is one serving is expected to honor', () => {
+    for (const m of FE_ASK_MODES) {
+      if ((NOTCHED_DARK_TIERS as readonly string[]).includes(m)) continue; // gated, see the next case
+      expect(SERVING_ALLOWLIST_CONTRACT).toContain(m);
+    }
   });
 
-  it('the DARK tiers are in neither roster — a tier serving honors may still be one we do not offer', () => {
+  it('the GATED tier is exactly `max`, and it is unreachable unless the build was told otherwise', () => {
+    expect([...NOTCHED_DARK_TIERS]).toEqual([CASCADE_MODE]);
+    expect(SERVING_ALLOWLIST_CONTRACT).not.toContain(CASCADE_MODE); // still dark on today's serving rev
+    vi.stubEnv('VITE_MODES', '');
+    expect(isChoiceServed('cascade')).toBe(false); // -> the control renders it blocked, with the reason
+    vi.stubEnv('VITE_MODES', 'quick,deep,max'); // the flip: the taskdef NAMES the dark preset
+    expect(isChoiceServed('cascade')).toBe(true);
+  });
+
+  it('the DARK tiers this bundle does NOT notch are in neither roster', () => {
     // The permitted asymmetry, stated: a backend tier absent from the FE roster is fine ONLY when it is
-    // listed as deliberately dark. `max`/`max_c0` ship DARK in P5 and never enter the notch roster.
+    // listed as deliberately dark. The ONE exception is `max`, which has a gated notch and is pinned
+    // above; every other dark name is unreachable from this bundle by construction.
     for (const t of DARK_TIERS) {
+      if ((NOTCHED_DARK_TIERS as readonly string[]).includes(t)) continue;
       expect(CHOICES as readonly string[]).not.toContain(t);
       expect(MODES as readonly string[]).not.toContain(t);
       expect(SERVING_ALLOWLIST_CONTRACT).not.toContain(t);
       expect(modeParam(t)).toBeUndefined(); // and a corrupt blob carrying one cannot reach the wire
     }
+    // `max` differs in exactly one of those four: it CAN reach the wire, because a Cascade submit must.
+    expect(CHOICES as readonly string[]).not.toContain(CASCADE_MODE);
+    expect(MODES as readonly string[]).not.toContain(CASCADE_MODE);
+    expect(modeParam(CASCADE_MODE)).toBe(CASCADE_MODE);
   });
 });
 
@@ -89,8 +143,9 @@ describe('roster parity — the mock lane reads the same roster', () => {
     expect(Object.keys(MOCK_MODE_KNOBS).sort()).toEqual([...MODES].sort());
   });
 
-  it('a mock turn HONORS every FE notch instead of quietly resolving it to standard', async () => {
+  it('a mock turn HONORS every FE notch the mock lane has a fixture for', async () => {
     for (const m of FE_ASK_MODES) {
+      if (!isMode(m)) continue; // `max` has no mock fixture -- see the case below for why that is safe
       let out: RespondResult | undefined;
       await mockRespondStream(
         { question: 'why is corn tight?', asof: '2021-07-20', mode: m },
@@ -106,10 +161,16 @@ describe('roster parity — the mock lane reads the same roster', () => {
     }
   });
 
-  it('an unknown tier is still reported as invalid and honored as standard (the fail-open, unchanged)', async () => {
+  it('the mock lane has no Cascade fixture, and a mock build must not declare one', async () => {
+    // THE HONEST STATE OF THIS SEAM, written down rather than papered over. `MOCK_MODE_KNOBS` is keyed on
+    // `ModeName`, which `max` deliberately is not (see store/mode's header), so a mock turn asked at `max`
+    // reports invalid + honored `standard` -- the fail-open, unchanged. That is SAFE because the Cascade
+    // notch is gated on `servedModes()` and a mock build (VITE_MOCK=1, VITE_MODES unset) never declares
+    // `max`; setting VITE_MODES=...,max on a MOCK build is the one combination that would reproduce the
+    // silent-drop trap inside our own fixtures, and it is not a combination anything ships.
     let out: RespondResult | undefined;
     await mockRespondStream(
-      { question: 'why is corn tight?', asof: '2021-07-20', mode: 'max' },
+      { question: 'why is corn tight?', asof: '2021-07-20', mode: CASCADE_MODE },
       { onResult: (r) => (out = r) },
       { delay: 0 },
     );

@@ -8,7 +8,7 @@ import { useHotkeys } from '@/hotkeys/useHotkeys';
 import { useAsOf } from '@/store/asof';
 import { toContext } from '@/store/chips';
 import { useCompose } from '@/store/compose';
-import { askModeFor, isDossierChoice, useMode } from '@/store/mode';
+import { askModeFor, isDossierChoice, servedChoice, useMode } from '@/store/mode';
 import { useThread } from '@/store/thread';
 import { useUI } from '@/store/ui';
 import { noteToMarkdown } from '@/views/note/markdown';
@@ -113,11 +113,19 @@ export function Shell() {
     // `mode=quick` and Analysis sends `mode=deep`, both EXPLICITLY. The omit-when-default idiom is retired
     // on this route by the R7-ratified 2-notch ship: no notch maps to `standard` any more, and `standard`
     // survives only as the backend's fail-open for a mode-less (no-request/API) caller.
+    //
+    // `servedChoice` IS THE WIRE-LEVEL FLOOR under the served-roster gate (2026-09-07). The depth control
+    // blocks the gestures and the store coerces both of its write seams, so this should be a no-op -- and
+    // it is here precisely because "should be" was the whole defect: before it, a store holding `cascade`
+    // (a rehydrated blob, a direct setState) sent `mode=max` to a deployment that resolves it to `standard`
+    // silently, no matter what the control had rendered. One coercion at the one chokepoint every submit
+    // path already funnels through, so no future call site can reopen it. Down-only: it can never send a
+    // tier dearer than the one selected.
     turn.start(q, {
       asof: p.asofOverride ?? useAsOf.getState().asof,
       sessionId: thread.threadId,
       context: chips.length ? toContext(chips) : undefined,
-      mode: askModeFor(choice),
+      mode: askModeFor(servedChoice(choice)),
       turnId,
     });
     // A metered submit moves the balance at the gate, before a single byte streams: re-read it now so the

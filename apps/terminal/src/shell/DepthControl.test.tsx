@@ -2,41 +2,30 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CreditsBalance } from '@/api/credits';
-import type { DossierQuota } from '@/api/schema';
-import { DEFAULT_CHOICE, useMode } from '@/store/mode';
+import { DEEP_RESEARCH_DARK_TITLE, DEFAULT_CHOICE, useMode } from '@/store/mode';
 import { Composer } from './Composer';
+import { CHARGE_NOTE } from './CreditsBadge';
 import { DepthControl } from './DepthControl';
 
 /**
- * D-MW-21 / D-MW-25 — the depth control's contract.
+ * D-MW-21 / D-MW-25 / THE CASCADE NOTCH (2026-09-06) — the depth control's contract.
  *
- * Everything D-AM-14/D-DR-3 pinned about the old picker that is still TRUE of a slider is carried forward
- * verbatim (persistence, streaming-inertness, the labels-not-identifiers rule, the two separate meters,
- * full keyboard drive). What is new is the slider semantics, the credit notch, and the rule that a notch
- * you cannot choose still tells you WHY and WHEN, without needing focus.
+ * Everything the earlier waves pinned that is still TRUE of a slider is carried forward verbatim
+ * (persistence, streaming-inertness, the labels-not-identifiers rule, full keyboard drive, the credit
+ * meter). What is new is the THIRD notch, the SERVED-ROSTER GATE that keeps it honest while `max` is a
+ * dark backend preset, the AFFORDABILITY clause a two-credit tier needs and a 0/1 ladder never did, and
+ * Deep Research as a standalone lights-off control rather than a notch.
  *
- * Only the two fetchers are stubbed, and `null` is not an error for either of them: it is the DARK case
- * (GRAPHRAG_DOSSIER / GRAPHRAG_CREDITS absent -> 404). Dark credits means NOTHING is metered.
+ * ONE fetcher is stubbed and `null` is not an error: it is the DARK case (GRAPHRAG_CREDITS absent -> 404),
+ * and dark credits means NOTHING is metered. The DOSSIER quota fetcher is deliberately NOT stubbed any
+ * more — this component no longer reads it, and that absence is itself pinned below.
  */
 const hoisted = vi.hoisted(() => ({
-  quota: { remaining: 2, limit: 4, reset_at: '2026-09-01T00:00:00Z' } as DossierQuota | null,
   credits: { remaining: 97, limit: 100, reset_at: '2026-09-01T00:00:00Z' } as CreditsBalance | null,
-  quotaCalls: 0,
   creditCalls: 0,
 }));
-
-vi.mock('@/api/dossier', async (orig) => {
-  const actual = await orig<typeof import('@/api/dossier')>();
-  return {
-    ...actual,
-    getDossierQuota: () => {
-      hoisted.quotaCalls += 1;
-      return Promise.resolve(hoisted.quota);
-    },
-  };
-});
 
 vi.mock('@/api/credits', async (orig) => {
   const actual = await orig<typeof import('@/api/credits')>();
@@ -56,16 +45,20 @@ function mount(ui: ReactElement) {
 
 const slider = () => screen.getByTestId('depth-slider');
 
+/** A deployment whose GRAPHRAG_MODES NAMES the dark preset — i.e. one that has taken the Cascade flip. */
+const CASCADE_SERVED = 'quick,deep,max';
+
 beforeEach(() => {
   localStorage.clear();
   useMode.setState({ choice: DEFAULT_CHOICE });
-  hoisted.quota = { remaining: 2, limit: 4, reset_at: '2026-09-01T00:00:00Z' };
   hoisted.credits = { remaining: 97, limit: 100, reset_at: '2026-09-01T00:00:00Z' };
-  hoisted.quotaCalls = 0;
   hoisted.creditCalls = 0;
+  vi.stubEnv('VITE_MODES', CASCADE_SERVED);
 });
 
-describe('DepthControl — the notched depth slider (D-MW-21)', () => {
+afterEach(() => vi.unstubAllEnvs());
+
+describe('DepthControl — the notched depth slider (Scan / Analysis / Cascade)', () => {
   it('is a slider over exactly THREE notches, parked on Scan, and says so in its value text', () => {
     mount(<DepthControl />);
     const s = slider();
@@ -75,14 +68,16 @@ describe('DepthControl — the notched depth slider (D-MW-21)', () => {
     expect(s.getAttribute('aria-valuenow')).toBe('0');
     // The LABEL is what a screen reader reads out -- never the internal identifier.
     expect(s.getAttribute('aria-valuetext')).toBe('Scan');
-    expect(s.textContent).not.toMatch(/quick|standard|deep_research/);
+    expect(s.textContent).not.toMatch(/quick|standard|deep_research|max/);
 
     expect(screen.getByTestId('depth-notch-quick')).toBeTruthy();
     expect(screen.getByTestId('depth-notch-deep')).toBeTruthy();
-    expect(screen.getByTestId('depth-notch-deep_research')).toBeTruthy();
+    expect(screen.getByTestId('depth-notch-cascade')).toBeTruthy();
     // The retired roster: `standard` is not a notch, and no bundle-visible control can reach it.
     expect(screen.queryByTestId('depth-notch-standard')).toBeNull();
-    // Nor are the DARK tiers offered (the P5 2-notch ship).
+    // Deep Research left the RAMP (it is the standalone control below), and a notch is never named after
+    // a wire identifier: Cascade's preset is `max`, its notch is `cascade`.
+    expect(screen.queryByTestId('depth-notch-deep_research')).toBeNull();
     expect(screen.queryByTestId('depth-notch-max')).toBeNull();
     expect(screen.queryByTestId('depth-notch-max_c0')).toBeNull();
   });
@@ -98,25 +93,32 @@ describe('DepthControl — the notched depth slider (D-MW-21)', () => {
     expect(screen.getByTestId('depth-hint')).toHaveTextContent('one credit');
     expect(slider().getAttribute('aria-valuetext')).toBe('Analysis');
     expect(slider().getAttribute('aria-valuenow')).toBe('1');
+
+    await user.click(screen.getByTestId('depth-notch-cascade'));
+    expect(screen.getByTestId('depth-value')).toHaveTextContent('Cascade');
+    expect(screen.getByTestId('depth-hint')).toHaveTextContent('two credits');
+    expect(slider().getAttribute('aria-valuetext')).toBe('Cascade');
+    expect(slider().getAttribute('aria-valuenow')).toBe('2');
+    expect(useMode.getState().choice).toBe('cascade');
   });
 
   it('clicking a notch selects it and PERSISTS the choice', async () => {
     const user = userEvent.setup();
     mount(<DepthControl />);
-    await user.click(screen.getByTestId('depth-notch-deep'));
-    expect(useMode.getState().choice).toBe('deep');
+    await user.click(screen.getByTestId('depth-notch-cascade'));
+    expect(useMode.getState().choice).toBe('cascade');
     const blob = JSON.parse(localStorage.getItem('lv-mode') ?? '{}') as {
       state?: { choice?: string };
       version?: number;
     };
-    expect(blob.state?.choice).toBe('deep');
+    expect(blob.state?.choice).toBe('cascade');
     expect(blob.version).toBe(3);
   });
 
   it('a persisted choice is what the control boots showing', () => {
-    useMode.setState({ choice: 'deep_research' });
+    useMode.setState({ choice: 'cascade' });
     mount(<DepthControl />);
-    expect(screen.getByTestId('depth-value')).toHaveTextContent('Deep Research');
+    expect(screen.getByTestId('depth-value')).toHaveTextContent('Cascade');
     expect(slider().getAttribute('aria-valuenow')).toBe('2');
   });
 
@@ -128,9 +130,9 @@ describe('DepthControl — the notched depth slider (D-MW-21)', () => {
     await user.keyboard('{ArrowRight}');
     expect(useMode.getState().choice).toBe('deep');
     await user.keyboard('{ArrowRight}');
-    expect(useMode.getState().choice).toBe('deep_research');
+    expect(useMode.getState().choice).toBe('cascade');
     await user.keyboard('{ArrowRight}'); // the top notch is the top: no wrap onto Scan
-    expect(useMode.getState().choice).toBe('deep_research');
+    expect(useMode.getState().choice).toBe('cascade');
 
     await user.keyboard('{ArrowLeft}');
     expect(useMode.getState().choice).toBe('deep');
@@ -140,7 +142,7 @@ describe('DepthControl — the notched depth slider (D-MW-21)', () => {
     expect(useMode.getState().choice).toBe('quick');
 
     await user.keyboard('{End}');
-    expect(useMode.getState().choice).toBe('deep_research');
+    expect(useMode.getState().choice).toBe('cascade');
     await user.keyboard('{Home}');
     expect(useMode.getState().choice).toBe('quick');
   });
@@ -154,34 +156,33 @@ describe('DepthControl — the notched depth slider (D-MW-21)', () => {
     expect(useMode.getState().choice).toBe('quick');
   });
 
-  it('focusing the control re-reads BOTH balances — a page left open overnight must not promise a spent turn', async () => {
+  it('focusing the control re-reads the balance — a page left open overnight must not promise a spent turn', async () => {
     const user = userEvent.setup();
     mount(<DepthControl />);
-    await waitFor(() => expect(hoisted.quotaCalls).toBe(1));
     await waitFor(() => expect(hoisted.creditCalls).toBe(1));
     await user.click(slider());
-    await waitFor(() => expect(hoisted.quotaCalls).toBe(2));
     await waitFor(() => expect(hoisted.creditCalls).toBe(2));
   });
 });
 
-describe('DepthControl — the two meters (D-MW-25)', () => {
+describe('DepthControl — the credit meter (D-MW-25), now over a 0/1/2 ladder', () => {
   it('shows the credit balance from the server, and never invents one', async () => {
     mount(<DepthControl />);
     await waitFor(() => expect(screen.getByTestId('credits-badge')).toHaveTextContent('97 of 100 this month'));
   });
 
-  it('with metering dark (404 -> null) there is NO badge and the metered notch is free', async () => {
+  it('with metering dark (404 -> null) there is NO badge and every notch is free', async () => {
     hoisted.credits = null;
     const user = userEvent.setup();
     mount(<DepthControl />);
     await waitFor(() => expect(hoisted.creditCalls).toBe(1));
-    await user.click(screen.getByTestId('depth-notch-deep'));
-    expect(useMode.getState().choice).toBe('deep');
+    await user.click(screen.getByTestId('depth-notch-cascade'));
+    expect(useMode.getState().choice).toBe('cascade');
     expect(screen.queryByTestId('credits-badge')).toBeNull();
     // No meter, no charge trade to state.
     expect(screen.queryByTestId('credits-charge-note')).toBeNull();
     expect(screen.queryByTestId('depth-blocked-deep')).toBeNull();
+    expect(screen.queryByTestId('depth-blocked-cascade')).toBeNull();
   });
 
   it('states the disconnect-after-compute charge trade on screen while a metered notch is selected', async () => {
@@ -189,65 +190,190 @@ describe('DepthControl — the two meters (D-MW-25)', () => {
     mount(<DepthControl />);
     await waitFor(() => expect(screen.getByTestId('credits-badge')).toBeTruthy());
     expect(screen.queryByTestId('credits-charge-note')).toBeNull(); // Scan is free: nothing to warn about
-    await user.click(screen.getByTestId('depth-notch-deep'));
-    expect(screen.getByTestId('credits-charge-note')).toHaveTextContent('it still counts');
+    await user.click(screen.getByTestId('depth-notch-cascade'));
+    expect(screen.getByTestId('credits-charge-note')).toHaveTextContent('they still count');
   });
 
-  it('out of credits: the metered notch is un-choosable and the reason carries the RESET DATE in UTC', async () => {
+  it('the charge trade is stated at the PRICE THAT IS SELECTED — never "a credit" under a two-credit tier', async () => {
+    // The note was the singular constant under every metered notch, so a Cascade selection read "two
+    // credits" in the hint one line above and "a credit is spent" in the note one line below. Two prices
+    // for the same turn, on the same screen, is exactly what a credit surface exists to make impossible.
+    const user = userEvent.setup();
+    mount(<DepthControl />);
+    await waitFor(() => expect(screen.getByTestId('credits-badge')).toBeTruthy());
+
+    await user.click(screen.getByTestId('depth-notch-deep'));
+    expect(screen.getByTestId('credits-charge-note').textContent).toBe(CHARGE_NOTE);
+    expect(screen.getByTestId('depth-hint')).toHaveTextContent('one credit');
+
+    await user.click(screen.getByTestId('depth-notch-cascade'));
+    const note = screen.getByTestId('credits-charge-note').textContent ?? '';
+    expect(note).toContain('two credits are spent when the answer is produced');
+    expect(note).toContain('they still count');
+    expect(note).not.toContain('a credit is spent'); // the singular is the defect, not a synonym
+    expect(screen.getByTestId('depth-hint')).toHaveTextContent('two credits'); // and the two lines agree
+  });
+
+  it('out of credits: BOTH metered notches are un-choosable and each reason carries the RESET DATE in UTC', async () => {
     hoisted.credits = { remaining: 0, limit: 100, reset_at: '2026-09-01T00:00:00Z' };
     const user = userEvent.setup();
     mount(<DepthControl />);
     await waitFor(() => expect(screen.getByTestId('depth-blocked-deep')).toBeTruthy());
     expect(screen.getByTestId('depth-blocked-deep')).toHaveTextContent('2026-09-01');
+    expect(screen.getByTestId('depth-blocked-cascade')).toHaveTextContent('2026-09-01');
     expect(screen.getByTestId('credits-badge')).toHaveTextContent('0 of 100 this month');
 
     await user.click(screen.getByTestId('depth-notch-deep'));
+    await user.click(screen.getByTestId('depth-notch-cascade'));
     expect(useMode.getState().choice).toBe('quick'); // nothing moved
   });
 
-  it('a blocked notch is STEPPED OVER, not stalled on — Deep Research stays reachable with no credits left', async () => {
-    hoisted.credits = { remaining: 0, limit: 100, reset_at: '2026-09-01T00:00:00Z' };
+  it('a balance that cannot AFFORD the top notch blocks it and says the price — the clause a 0/1 ladder never needed', async () => {
+    // One credit left is not "exhausted", but a Cascade turn costs two and the server refuses that at the
+    // gate (429, before a byte streams). Analysis is still perfectly selectable at the same balance.
+    hoisted.credits = { remaining: 1, limit: 100, reset_at: '2026-09-01T00:00:00Z' };
+    const user = userEvent.setup();
+    mount(<DepthControl />);
+    await waitFor(() => expect(screen.getByTestId('depth-blocked-cascade')).toBeTruthy());
+    // THE WHOLE SENTENCE, not a substring of it — because it is HALF OF A PAIR. The server refuses the
+    // same turn with `leviathan.graphrag.server._CREDITS_INSUFFICIENT_DETAIL`, which renders
+    // "this tier costs two credits and you have 1 left; the grant resets 2026-09-01 (UTC)", and every
+    // word from "costs" onward is deliberately identical to this line: a user can meet this refusal here
+    // and then again as a toast (a balance up to 30s stale, a second tab, a direct API call), and two
+    // vocabularies for one fact reads as two systems disagreeing about their money. The permitted
+    // differences are the tier's NAME (this side has the label; the server's only name for it is the wire
+    // identifier `max`) and the clause join. `config_check.check_cascade_notch` clause (vii) is the reader
+    // that holds the pair together across the two languages; this pins this half of it verbatim.
+    expect(screen.getByTestId('depth-blocked-cascade').textContent).toBe(
+      'Cascade costs two credits and you have 1 left — the grant resets 2026-09-01 (UTC)',
+    );
+    expect(screen.queryByTestId('depth-blocked-deep')).toBeNull();
+
+    await user.click(screen.getByTestId('depth-notch-cascade'));
+    expect(useMode.getState().choice).toBe('quick'); // refused, and it says why
+    await user.click(screen.getByTestId('depth-notch-deep'));
+    expect(useMode.getState().choice).toBe('deep'); // one credit still buys one credit's worth
+  });
+
+  it('a blocked notch is STEPPED OVER, not stalled on — Cascade stays reachable past a blocked Analysis', async () => {
+    // A deployment that serves Scan and Cascade but not Analysis is the cleanest way to block exactly one
+    // middle notch; the property under test is the SKIP, not the reason for it.
+    vi.stubEnv('VITE_MODES', 'quick,max');
     const user = userEvent.setup();
     mount(<DepthControl />);
     await waitFor(() => expect(screen.getByTestId('depth-blocked-deep')).toBeTruthy());
     slider().focus();
     await user.keyboard('{ArrowRight}');
-    expect(useMode.getState().choice).toBe('deep_research');
+    expect(useMode.getState().choice).toBe('cascade');
   });
+});
 
-  it('the dossier allowance is its OWN meter: its badge shows on its own notch, and it blocks only itself', async () => {
-    hoisted.quota = { remaining: 0, limit: 4, reset_at: '2026-09-01T00:00:00Z' };
+describe('DepthControl — the served-roster gate (Cascade ships DARK)', () => {
+  it('a deployment that does not name `max` renders the notch blocked, with the reason as its own sentence', async () => {
+    // `max` is in reasoning_modes.DARK_NAMES: honored only where GRAPHRAG_MODES NAMES it, and never by the
+    // wildcard. A build told nothing must therefore refuse the notch rather than sell a two-credit turn
+    // the orchestrator would resolve to `standard`.
+    // AND THE LINE BELOW IS PERMANENT ON SUCH A BUILD -- adjudicated 2026-09-07, kept on purpose. Every
+    // other blocked reason is transient (a balance refills); this one is fixed for the life of the bundle,
+    // so it stands under the ask bar for every user of a build that was told nothing. It STAYS, verbatim:
+    // the notch is drawn (faint) whether or not it can be reached, and a visible stop with no sentence
+    // saying why is the silent-drop trap with better manners. See DepthControl.blockedReason's first clause.
+    vi.stubEnv('VITE_MODES', '');
     const user = userEvent.setup();
     mount(<DepthControl />);
-    await waitFor(() => expect(screen.getByTestId('depth-blocked-deep_research')).toBeTruthy());
-    expect(screen.getByTestId('depth-blocked-deep_research')).toHaveTextContent('2026-09-01');
-    // Credits are untouched by a spent dossier allowance -- two meters, never merged.
-    expect(screen.queryByTestId('depth-blocked-deep')).toBeNull();
-    await user.click(screen.getByTestId('depth-notch-deep'));
-    expect(useMode.getState().choice).toBe('deep');
-
-    await user.click(screen.getByTestId('depth-notch-deep_research'));
-    expect(useMode.getState().choice).toBe('deep'); // refused, and it says why above
-  });
-
-  it('with the dossier routes dark the top notch says so, and no allowance is invented', async () => {
-    hoisted.quota = null;
-    const user = userEvent.setup();
-    mount(<DepthControl />);
-    await waitFor(() =>
-      expect(screen.getByTestId('depth-blocked-deep_research')).toHaveTextContent('not enabled'),
+    // The label prefix is dropped when the reason opens with it: the line is a sentence, not a stutter.
+    expect(screen.getByTestId('depth-blocked-cascade').textContent).toBe(
+      'Cascade is not yet enabled on this deployment',
     );
-    expect(screen.queryByTestId('dossier-quota-badge')).toBeNull();
-    await user.click(screen.getByTestId('depth-notch-deep_research'));
+    expect(screen.queryByTestId('depth-blocked-quick')).toBeNull();
+    expect(screen.queryByTestId('depth-blocked-deep')).toBeNull();
+
+    await user.click(screen.getByTestId('depth-notch-cascade'));
     expect(useMode.getState().choice).toBe('quick');
   });
 
-  it('the dossier badge rides the Deep Research notch only', async () => {
-    useMode.setState({ choice: 'deep_research' });
+  it('the gate also stops the keyboard: End lands on Analysis, the deepest tier this deployment runs', async () => {
+    vi.stubEnv('VITE_MODES', '');
+    const user = userEvent.setup();
     mount(<DepthControl />);
-    await waitFor(() => expect(screen.getByTestId('dossier-quota-badge')).toHaveTextContent('2 of 4 this month'));
-    // Both meters are readable at once, and they are different numbers.
-    expect(screen.getByTestId('credits-badge')).toHaveTextContent('97 of 100');
+    slider().focus();
+    await user.keyboard('{End}');
+    expect(useMode.getState().choice).toBe('deep');
+    await user.keyboard('{ArrowRight}');
+    expect(useMode.getState().choice).toBe('deep'); // and it does not step onto the wall
+  });
+
+  it('the WILDCARD does not unlock it — `on` means serving_names(), which excludes every dark preset', async () => {
+    vi.stubEnv('VITE_MODES', 'on');
+    mount(<DepthControl />);
+    expect(screen.getByTestId('depth-blocked-cascade').textContent).toBe(
+      'Cascade is not yet enabled on this deployment',
+    );
+  });
+
+  it('a STORED Cascade selection is CORRECTED, not merely annotated — the gesture gate was never enough', async () => {
+    // THE 2026-09-07 FIX, at the seam where it was measured to fail. `blocked()` fences `pick`, `step` and
+    // `jump`; NONE of them runs for a value that is already in the store — a v3 blob written by a bundle
+    // that was told `max`, or a direct setState. Before the fix this exact mount rendered the blocked
+    // sentence AND kept aria-valuetext "Cascade" AND submitted mode=max (see Shell.dossier.test.tsx for the
+    // wire half). What must be true now: the screen shows the tier that will actually run.
+    vi.stubEnv('VITE_MODES', '');
+    useMode.setState({ choice: 'cascade' });
+    mount(<DepthControl />);
+
+    expect(slider().getAttribute('aria-valuetext')).toBe('Analysis');
+    expect(slider().getAttribute('aria-valuenow')).toBe('1');
+    expect(screen.getByTestId('depth-value')).toHaveTextContent('Analysis');
+    expect(screen.getByTestId('depth-hint')).toHaveTextContent('one credit');
+    expect(screen.getByTestId('depth-hint')).not.toHaveTextContent('two credits');
+    // The reason is still on screen: the correction explains itself rather than happening in silence.
+    expect(screen.getByTestId('depth-blocked-cascade').textContent).toBe(
+      'Cascade is not yet enabled on this deployment',
+    );
+    expect(screen.getByTestId('depth-notch-cascade').getAttribute('data-selected')).toBeNull();
+    expect(screen.getByTestId('depth-notch-deep').getAttribute('data-selected')).toBe('true');
+  });
+
+  it('the correction goes DOWN the ladder, all the way to the free tier when it has to', async () => {
+    vi.stubEnv('VITE_MODES', 'quick'); // a deployment running neither metered tier
+    useMode.setState({ choice: 'cascade' });
+    mount(<DepthControl />);
+    expect(slider().getAttribute('aria-valuetext')).toBe('Scan');
+    expect(screen.getByTestId('depth-blocked-deep')).toBeTruthy();
+    expect(screen.getByTestId('depth-blocked-cascade')).toBeTruthy();
+    // A corrected selection is never a metered one by accident: no charge note under a free tier.
+    expect(screen.queryByTestId('credits-charge-note')).toBeNull();
+  });
+});
+
+describe('DepthControl — Deep Research is a standalone control, lights off until V1.2', () => {
+  it('renders at the right of the ask bar, disabled-but-focusable, carrying the V1.2 sentence on hover', () => {
+    mount(<DepthControl />);
+    const b = screen.getByTestId('deep-research-button');
+    expect(b.textContent).toContain('Deep Research');
+    // NOT the `disabled` attribute: a disabled button takes no focus, and a tooltip nobody can reach by
+    // keyboard is not a tooltip. `aria-disabled` + no handler is what makes it inert without hiding it.
+    expect(b.getAttribute('aria-disabled')).toBe('true');
+    expect(b.hasAttribute('disabled')).toBe(false);
+    expect(b.getAttribute('tabindex')).toBe('0');
+    expect(b.getAttribute('title')).toBe(DEEP_RESEARCH_DARK_TITLE);
+    expect(b.getAttribute('title')).toBe('Deep Research will be available in Leviathan V1.2');
+  });
+
+  it('clicking it does nothing at all — it is not a notch and it never submits', async () => {
+    const user = userEvent.setup();
+    mount(<DepthControl />);
+    await user.click(screen.getByTestId('deep-research-button'));
+    expect(useMode.getState().choice).toBe('quick');
+    expect(slider().getAttribute('aria-valuetext')).toBe('Scan');
+  });
+
+  it('the dossier quota badge is GONE with it — no meter for a resource nobody can spend', async () => {
+    mount(<DepthControl />);
+    await waitFor(() => expect(screen.getByTestId('credits-badge')).toBeTruthy());
+    // It rode the old top notch. Dropped, not moved: see the component header. The seam it read
+    // (api/dossier.getDossierQuota + DOSSIER_QUOTA_KEY) is untouched and still used by the submit path.
+    expect(screen.queryByTestId('dossier-quota-badge')).toBeNull();
   });
 });
 
@@ -258,7 +384,7 @@ describe('Composer docks the depth control (both variants)', () => {
     mount(<Composer onSubmit={onSubmit} streaming={false} autoFocus={false} />);
     expect(screen.getByTestId('depth-control')).toBeTruthy();
 
-    await user.click(screen.getByTestId('depth-notch-deep'));
+    await user.click(screen.getByTestId('depth-notch-cascade'));
     const ta = screen.getByTestId('composer') as HTMLTextAreaElement;
     await user.type(ta, 'why is wheat tight?');
     await user.keyboard('{Enter}');
@@ -266,7 +392,7 @@ describe('Composer docks the depth control (both variants)', () => {
     // The composer stays a TEXT BOX: it submits the question and nothing else. The selection it made is
     // read back off the store by Shell at submit (Shell.tsx: `useMode.getState().choice`).
     expect(onSubmit).toHaveBeenCalledWith('why is wheat tight?');
-    expect(useMode.getState().choice).toBe('deep');
+    expect(useMode.getState().choice).toBe('cascade');
   });
 
   it('the hero (empty-state) composer carries it too', () => {

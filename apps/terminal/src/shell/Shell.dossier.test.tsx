@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RespondParams } from '@/api/client';
 import type { DossierEvent, DossierQuota, DossierState } from '@/api/schema';
 import { useCompose } from '@/store/compose';
@@ -12,9 +12,17 @@ import { useUI } from '@/store/ui';
 import { Shell } from './Shell';
 
 /**
- * D-DR-3 end-to-end, through the REAL Shell: choosing **Deep Research** turns the composer's submit into a
- * dossier JOB — a different route, a progress surface driven by the SSE events, and a landing as a frozen
- * ARTIFACT TAB rather than a chat bubble. The transports are the only things stubbed.
+ * D-DR-3 end-to-end, through the REAL Shell: with the store set to **Deep Research**, the composer's submit
+ * becomes a dossier JOB — a different route, a progress surface driven by the SSE events, and a landing as
+ * a frozen ARTIFACT TAB rather than a chat bubble. The transports are the only things stubbed.
+ *
+ * WHAT CHANGED ON 2026-09-06, and why this suite still runs: the owner took Deep Research OFF the depth
+ * slider ("a standalone button on the right, but it's turned off ... available in Leviathan V1.2"), so
+ * `deep_research` left `CHOICES` and no user gesture can select it any more. THE SUBMIT ROUTE ITSELF IS
+ * UNTOUCHED — it comes back in V1.2 by putting one name back in `CHOICES` — and these cases reach it the
+ * way the store's own guards allow: `useMode.setState` writes the raw value that `setChoice` would coerce.
+ * That is deliberate. Deleting this coverage because the button is dark would mean the route came back in
+ * V1.2 with no tests at all.
  */
 const hoisted = vi.hoisted(() => ({
   sent: [] as RespondParams[],
@@ -225,14 +233,35 @@ describe('Shell: Deep Research submits a DOSSIER, not a turn (D-DR-3)', () => {
     expect(useUI.getState().tabs).toHaveLength(0);
   });
 
-  it('the quota is re-read after a submission, so the badge never promises a run just spent', async () => {
+  it('the ask bar no longer READS the dossier meter — the badge went dark with the button', async () => {
+    // REPLACES 'the quota is re-read after a submission'. That case pinned a refetch driven by the depth
+    // control's own DOSSIER_QUOTA_KEY query, which existed to render the 4/month badge under the old top
+    // notch. The notch is gone (V1.2), the badge is dropped, and the query with it — so there is no
+    // observer for the invalidation and nothing to re-read. A live meter beside a control nobody can press
+    // is noise about a resource nobody can spend, and it cost a query on every mount.
+    //
+    // The SEAM is untouched: `api/dossier.getDossierQuota`, its key, and useDossier's invalidation all
+    // still exist and come back with the button. What is pinned here is that the ask bar does not call it.
     const user = userEvent.setup();
     hoisted.events = [PLAN, { type: 'done', artifact_id: 'art-1' }];
     mount();
-    await waitFor(() => expect(hoisted.quotaCalls).toBeGreaterThanOrEqual(1));
-    const before = hoisted.quotaCalls;
     await ask(user, 'how tight is the corn balance?');
-    await waitFor(() => expect(hoisted.quotaCalls).toBeGreaterThan(before));
+    await waitFor(() => expect(hoisted.posted).toHaveLength(1)); // the JOB still went, unchanged
+    expect(hoisted.quotaCalls).toBe(0);
+  });
+
+  it('the standalone Deep Research control is dark, says V1.2 on hover, and submits nothing', async () => {
+    // The user-facing half of the same amendment, through the real Shell: the control is rendered, inert,
+    // focusable for its tooltip, and pressing it starts neither a turn nor a job. (The dossier POSTs above
+    // are reached by setting the store directly, which no gesture in this UI can do.)
+    const user = userEvent.setup();
+    mount();
+    const b = await screen.findByTestId('deep-research-button');
+    expect(b.getAttribute('aria-disabled')).toBe('true');
+    expect(b.getAttribute('title')).toBe('Deep Research will be available in Leviathan V1.2');
+    await user.click(b);
+    expect(hoisted.posted).toHaveLength(0);
+    expect(hoisted.sent).toHaveLength(0);
   });
 });
 
@@ -287,5 +316,60 @@ describe('Shell: Standard is unaffected by any of this', () => {
     expect(hoisted.sent[0]?.mode).toBe('quick');
     expect(hoisted.posted).toHaveLength(0);
     expect(screen.queryByTestId('dossier-surface')).toBeNull();
+  });
+});
+
+/**
+ * THE SERVED-ROSTER GATE, AT THE WIRE (2026-09-07 fix pass). The gate's whole purpose is that no turn runs
+ * shallower than the tier it was sold as, and every earlier pin for it was a pin on the CONTROL: the
+ * blocked sentence, the un-steppable notch, the refused click. None of them observed the `mode` param.
+ *
+ * MEASURED BEFORE THE FIX, through this same real Shell with these same transport stubs: a store holding
+ * `cascade` on a build told nothing rendered "Cascade is not yet enabled on this deployment", kept the
+ * slider on Cascade, and still sent `mode=max` — which serving resolves to `standard`, bills nothing, and
+ * reports through no chip at all (views/answer/ModeChip.tsx renders nothing for `standard`). This suite is
+ * where that can never come back: it asserts the value that leaves the app, not the words on the screen.
+ */
+describe('Shell: the served-roster gate reaches THE WIRE, not just the control', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('a stored Cascade selection cannot send `max` to a deployment that does not honor it', async () => {
+    vi.stubEnv('VITE_MODES', ''); // told nothing -> the SHIPPED roster, which has no `max`
+    const user = userEvent.setup();
+    useMode.setState({ choice: 'cascade' }); // the rehydrated-blob / direct-setState state, exactly
+    mount();
+    await ask(user, 'why is corn tight?');
+
+    await waitFor(() => expect(hoisted.sent).toHaveLength(1));
+    expect(hoisted.sent[0]?.mode).toBe('deep'); // the deepest tier this deployment actually runs
+    expect(hoisted.sent[0]?.mode).not.toBe('max');
+    expect(hoisted.posted).toHaveLength(0); // and it certainly did not become a dossier
+  });
+
+  it('and where the taskdef DOES name it, the same selection asks at `max`', async () => {
+    // The gate must not be a permanent floor: the whole point of the flip is that this one env value turns
+    // the notch on. Same store, same gesture, different deployment, different wire name.
+    vi.stubEnv('VITE_MODES', 'quick,deep,max');
+    const user = userEvent.setup();
+    useMode.setState({ choice: 'cascade' });
+    mount();
+    await ask(user, 'why is corn tight?');
+
+    await waitFor(() => expect(hoisted.sent).toHaveLength(1));
+    expect(hoisted.sent[0]?.mode).toBe('max');
+  });
+
+  it('the dossier ROUTE still survives the coercion — it is a route, not a tier', async () => {
+    // `servedChoice` sits in the submit path, so the one thing it must never do is turn a Deep Research
+    // submit into a turn. `deep_research` maps to a null wire and is unserved on EVERY roster by design.
+    vi.stubEnv('VITE_MODES', '');
+    const user = userEvent.setup();
+    hoisted.events = [PLAN, { type: 'done', artifact_id: 'art-1' }];
+    useMode.setState({ choice: 'deep_research' });
+    mount();
+    await ask(user, 'how tight is the corn balance?');
+
+    await waitFor(() => expect(hoisted.posted).toHaveLength(1));
+    expect(hoisted.sent).toHaveLength(0);
   });
 });

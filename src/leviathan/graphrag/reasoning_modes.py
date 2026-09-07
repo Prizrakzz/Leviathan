@@ -515,7 +515,63 @@ DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1, MA
 # since D-HP H1 Z5(d), `deep_hp`) MUST read metered here, and no unpriced SERVING tier (`quick`,
 # `standard`) may. Adding a price for a new deep-based twin without adding it to the join `base_mode`
 # already owns is the failure the pin catches.
-METERED_BASES: frozenset = frozenset({DEEP})
+#
+# ── THE CASCADE NOTCH, F9 (2026-09-06, SCAN_TIER_DESIGN section 3) ──────────────────────────────────
+# `MAX` JOINS THIS SET IN THE SAME COMMIT THAT PRICES `max` AT 2 (`server._CREDIT_PRICES`). The design
+# names the reason and it is not symmetry for its own sake: `is_metered(honored)` is what EC-3's fill
+# patience spends on a BOUGHT turn, so a priced `max` that read UNMETERED would decline the extra
+# patience on the most expensive tier the product sells -- the widest walk, billed at two credits,
+# fast-failing its pool waits like the free tier. `base_mode("max") == "max"` (no `_hp` mapping), so
+# this entry meters `max` ALONE: `max_c0` (the permanent OFF control), `max_cc1` and `max_cc2` keep
+# base names of their own, stay unpriced, and stay unmetered -- which is what an arm control must be.
+#
+# `max` IS STILL IN `DARK_NAMES` ABOVE, AND STAYS THERE UNTIL THE FLIP. Pricing a name does not honor
+# it: `serving_names()` is unchanged ({quick, standard, deep}), so `GRAPHRAG_MODES=on` still cannot
+# sweep Cascade in. A dark preset is honored only when the allowlist NAMES it, which is exactly what
+# makes the flip one env value.
+#
+# THE FLIP RECIPE, in full, so it is not reconstructed at 3am:
+#   1. serving taskdef: `GRAPHRAG_MODES=quick,deep,max` (a NAMED dark preset is honored -- see
+#      `orchestrator._modes_enabled`), together with `GRAPHRAG_DOSSIER=off` on the same revision, so
+#      the FE's dark Deep Research button and the backend agree on the one route it cannot take. NAME
+#      `GRAPHRAG_CASCADE_DEEP=on` in that same change and verify it (SCAN_TIER_DESIGN.md:381 -- "the
+#      notch's promise is delivered by the taskdef, not by the table"). It is ON in serving today
+#      (numbers/cascade.py: "GRAPHRAG_CASCADE_DEEP=on since rev 127"), so the flip breaks nothing; the
+#      naming is what stops a serving rollback past rev 127 from selling "every driver, every hop" at
+#      two credits without the deep-walk regime. `GRAPHRAG_EXTREME_LOCATOR` is NOT a precondition.
+#   2. the FE deploy that ships the Cascade notch (`apps/terminal/src/store/mode.ts` +
+#      `shell/DepthControl.tsx`), built with `$env:VITE_MODES = "quick,deep,max"`; the notch is gated on
+#      that served roster. THE ORDER IS FORCED, not merely recommended: deploy.ps1 guard 6/6 reads the
+#      DEPLOYED taskdef's GRAPHRAG_MODES and refuses to build while it lacks `max`. AND THAT REFUSAL IS
+#      TOTAL until step 1 lands -- the guard cannot see VITE_MODES, so it blocks EVERY terminal FE build,
+#      hotfixes included (measured 2026-09-07: parsed `deep,max,quick` vs live `quick,deep` -> missing
+#      {max} -> REFUSING to build). See the same paragraph in `server.py` above `_CREDIT_PRICES`.
+#   3. nothing else. The price, the meter and the lint below ship DARK in this commit and are already
+#      correct the moment step 1 lands. ROLLBACK IS TWO STEPS: dropping `max` from GRAPHRAG_MODES makes
+#      every Cascade request resolve to `standard` again, unbilled, INSTANTLY -- but `VITE_MODES` is
+#      baked into the already-served bundle, so the notch keeps offering itself (and every turn at it is
+#      silently downgraded) until an FE rebuild without that env is deployed. Ship the rebuild WITH the
+#      rollback; the earlier version of this note said "no rebuild" and was wrong.
+#
+# F10 -- THE CEILING IS NOT BINDING, MEASURED. The writer's `max_tokens` is 12000 on every mode; the
+# 09-06 arm measured max-tier writer output at 2,400..6,819 tokens, i.e. 5,181 tokens of headroom under
+# the ceiling at the observed maximum, and no turn stopped at `max_tokens`. The ceiling stays 12000 and
+# is not raised by this commit.
+#
+# WHY THE DIFFERENTIATOR WORK CONTINUES BESIDE THIS NOTCH (measured, and recorded because it is the
+# reason the tier is priced but still dark): the 09-06 deep-vs-max panel, 12 judgements, PREFERRED DEEP
+# 7-5, while `max` cost +6% on the writer for a 30-120% wider evidence input. Cascade is the ladder's
+# third place by the owner's word and by the design's table; what it is not yet is a MEASURED win over
+# Analysis. That does not change this build -- a tier that reads wider must be priced for what it
+# spends -- it is what step 1 of the flip recipe is waiting on.
+#
+# AND THIS EDIT MOVES THE ARM IT IS WAITING ON, which a rerun must account for: `is_metered("max")` goes
+# False -> True on this line, and EC-3 installs its pg fill-patience deadline on a metered turn
+# (`orchestrator._patience_ctx`, whose first gate is this predicate). The 09-06 panel's max leg fast-
+# failed the pool waits the next one will WAIT OUT, so a rerun's max arm can differ in the EVIDENCE it
+# assembles and not merely in its latency. The 7-5 result above is the UNPATIENT max arm; do not compare
+# a post-flip rerun against it as though only the writer moved.
+METERED_BASES: frozenset = frozenset({DEEP, MAX})
 
 
 def is_metered(honored: str | None) -> bool:

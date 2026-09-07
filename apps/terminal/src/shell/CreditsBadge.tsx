@@ -19,6 +19,24 @@ import { utcDay } from '@/lib/time';
 export const CHARGE_NOTE =
   'a credit is spent when the answer is produced — if you close the tab after that, it still counts';
 
+/** Credit counts read as WORDS in product copy (the figures-and-words rule); the digit stays on the badge. */
+export function creditWord(n: number): string {
+  return n === 1 ? 'one credit' : n === 2 ? 'two credits' : `${n} credits`;
+}
+
+/**
+ * THE CHARGE TRADE FOR A PRICE THAT IS NOT ONE (2026-09-07). `CHARGE_NOTE` is singular in every word —
+ * "a credit ... it still counts" — and it was rendered verbatim under a CASCADE selection, one line below a
+ * hint that says "two credits". Two different prices for the same turn, on the same screen, is exactly the
+ * kind of thing a credit surface exists to make impossible. The badge's own title keeps the singular
+ * constant: it is about the GRANT, not about a selection.
+ */
+export function chargeNoteFor(cost: number): string {
+  return cost > 1
+    ? `${creditWord(cost)} are spent when the answer is produced — if you close the tab after that, they still count`
+    : CHARGE_NOTE;
+}
+
 export function CreditsBadge() {
   const { balance, exhausted } = useCredits();
   if (!balance) return null; // dark, in flight, or an unreadable balance -- never a guessed one

@@ -3607,6 +3607,282 @@ def check_scan_tier() -> list[str]:
     return errs
 
 
+def _server_module_const(name: str):
+    """A MODULE-LEVEL literal out of server.py, read by AST (no FastAPI import, no app construction) --
+    the same idiom `_suggest_catalog_metric_text` uses one screen up. None when the module, the constant
+    or a literal value is absent, which every caller reports as a SKIP rather than a silent pass."""
+    import ast
+    src = Path(__file__).with_name("server.py")
+    if not src.exists():
+        return None
+    try:
+        tree = ast.parse(src.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 -- an unparseable server.py is a skip here, not a crash
+        return None
+    for node in tree.body:
+        tgt = node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else (
+            node.target if isinstance(node, ast.AnnAssign) else None)
+        if isinstance(tgt, ast.Name) and tgt.id == name:
+            try:
+                return ast.literal_eval(node.value)
+            except Exception:  # noqa: BLE001
+                return None
+    return None
+
+
+def _server_credit_prices() -> "dict | None":
+    """`server._CREDIT_PRICES` -- the frozen wire contract, as a dict or None."""
+    v = _server_module_const("_CREDIT_PRICES")
+    return v if isinstance(v, dict) else None
+
+
+_FE_MODE_TS = Path("apps") / "terminal" / "src" / "store" / "mode.ts"
+_FE_DEPTH_CONTROL_TSX = Path("apps") / "terminal" / "src" / "shell" / "DepthControl.tsx"
+
+
+def _fe_mode_ts_text() -> "str | None":
+    """The terminal bundle's depth-notch roster, as TEXT. None when the FE tree is not checked out --
+    a serving image carries no `apps/`, and a lint that failed there would fail on the one machine that
+    can do nothing about it."""
+    p = _REPO / _FE_MODE_TS
+    try:
+        return p.read_text(encoding="utf-8") if p.exists() else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _fe_depth_control_text() -> "str | None":
+    """The depth control's own copy, as TEXT -- the source of the affordability line clause (vii) holds
+    against the server's 429 sentence. Same skip rule as `_fe_mode_ts_text`."""
+    p = _REPO / _FE_DEPTH_CONTROL_TSX
+    try:
+        return p.read_text(encoding="utf-8") if p.exists() else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _ts_templates_containing(text: str, needle: str) -> list[str]:
+    """Every backtick template literal in `text` that contains `needle`, as raw source (placeholders
+    still `${...}`). A TEXT read on purpose, for the same reason `_ts_object_body` is one: parsing
+    TypeScript to compare two sentences would be a second thing to keep true."""
+    return [m for m in re.findall(r"`([^`]*)`", text) if needle in m]
+
+
+def _render_ts_template(tpl: str, values: "dict") -> str:
+    """A `${name}` template rendered with the values a real refusal would carry. Unknown placeholders
+    survive as themselves, so a renamed variable shows up in the mismatch message rather than silently
+    vanishing into an empty string."""
+    return re.sub(r"\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}",
+                  lambda m: str(values.get(m.group(1), m.group(0))), tpl)
+
+
+def _ts_object_body(text: str, name: str) -> str:
+    """The `{...}` body of `export const <name> ... = { ... }`, or '' when absent. Deliberately a text
+    read: this lint's job is to catch a STALE FE census, and parsing TypeScript to do it would be a
+    second thing to keep true."""
+    m = re.search(r"\b" + re.escape(name) + r"\b[^=]*=\s*\{(.*?)\n\}", text, re.S)
+    return m.group(1) if m else ""
+
+
+_REFUSAL_PROBE_DAY = "2026-09-01"          # any UTC month boundary; both sides render the same one
+
+
+def _ascii(s: str) -> str:
+    """Message text safe for the owner's console (cp1252). The FE copy carries an em dash and this
+    lint's failures are read on Windows -- a lint that raised UnicodeEncodeError while REPORTING a
+    mismatch would be a worse bug than the mismatch."""
+    return str(s).encode("ascii", "replace").decode("ascii")
+
+
+def _cascade_refusal_copy_errors() -> list[str]:
+    """(vii) ONE SENTENCE, TWO LANGUAGES -- the depth control's affordability line and the server's 429
+    `detail` must agree WORD FOR WORD from the word "costs" onward.
+
+    THE FACT THEY BOTH NAME: a Cascade turn costs two credits, the balance is one, so this tier will not
+    run and the grant resets on a stated day. The user can meet that fact twice in ten seconds -- once
+    as an amber line under the slider, once as a red toast after a submit the control could not block (a
+    balance 30s stale, a second tab, a direct API call) -- and two vocabularies for one refusal is how a
+    person concludes the two systems disagree about their money.
+
+    THEY DIFFER IN EXACTLY TWO PLACES, both deliberate: the control names the tier by its LABEL
+    ("Cascade") and the server cannot (its name for it is the wire identifier `max`, and internal
+    identifiers never reach the screen), and the clause join is an em dash on screen versus "; " in a
+    sentence with no line to break. So the comparison starts at "costs" and is clause-wise, not a
+    string equality: everything a user could quote back at us has to match.
+
+    Both sides are READ, not restated: the server template comes out of server.py by AST and the FE
+    template out of DepthControl.tsx as text, each rendered with the same probe values."""
+    errs: list[str] = []
+    tpl = _server_module_const("_CREDITS_INSUFFICIENT_DETAIL")
+    if not isinstance(tpl, str) or not tpl:
+        return ["cascade_notch: server._CREDITS_INSUFFICIENT_DETAIL is missing or not a string -- the "
+                "429 that refuses a tier a balance cannot afford has no sentence to say why"]
+    try:
+        srv = tpl.format(price="two credits", remaining=1, day=_REFUSAL_PROBE_DAY)
+    except (KeyError, IndexError, ValueError) as e:
+        return [f"cascade_notch: server._CREDITS_INSUFFICIENT_DETAIL does not render "
+                f"({e!r}) -- it takes {{price}}, {{remaining}} and {{day}}"]
+    if "costs" not in srv:
+        return [f"cascade_notch: the server's insufficient-credits sentence ({_ascii(srv)!r}) no longer "
+                f"contains the word 'costs' -- clause (vii) compares the two sentences from that word "
+                f"onward, and the control's line still says it"]
+    clauses = [c.strip() for c in ("costs" + srv.partition("costs")[2]).split(";") if c.strip()]
+    fe = _fe_depth_control_text()
+    if fe is None:
+        print(f"NOTE cascade_notch: {_FE_DEPTH_CONTROL_TSX.as_posix()} is not checked out -- the "
+              f"refusal-copy clause was SKIPPED (a serving image carries no apps/ tree)")
+        return errs
+    tpls = _ts_templates_containing(fe, "costs ${price}")
+    if not tpls:
+        return [f"cascade_notch: {_FE_DEPTH_CONTROL_TSX.as_posix()} has no affordability line "
+                f"(no template containing 'costs ${{price}}') -- the server refuses a tier the balance "
+                f"cannot afford with {_ascii(srv)!r} and nothing on screen says it first"]
+    lines = [_render_ts_template(t, {"label": "Cascade", "price": "two credits", "have": "1 left",
+                                     "day": _REFUSAL_PROBE_DAY}) for t in tpls]
+    # The PRICE clause is the one every branch of the control's line must carry; the RESET clause is
+    # carried only by the branch that has a reset day to name (`utcDay` returns '' for an unreadable one).
+    price_clause, reset_clauses = clauses[0], clauses[1:]
+    for line in lines:
+        if price_clause not in line:
+            errs.append(f"cascade_notch: the control's affordability line {_ascii(line)!r} does not "
+                        f"contain the server's own words {_ascii(price_clause)!r} -- one refusal, two "
+                        f"vocabularies (server.py _CREDITS_INSUFFICIENT_DETAIL vs "
+                        f"{_FE_DEPTH_CONTROL_TSX.as_posix()} blockedReason)")
+    for clause in reset_clauses:
+        if not any(clause in line for line in lines):
+            errs.append(f"cascade_notch: no branch of the control's affordability line contains the "
+                        f"server's {_ascii(clause)!r} -- the two sentences name the same reset instant "
+                        f"and must name it in the same words")
+    return errs
+
+
+def check_cascade_notch() -> list[str]:
+    """THE CASCADE NOTCH (2026-09-06, docs/private/SCAN_TIER_DESIGN.md section 3, F9/F10), governed.
+    PURE READS ONLY -- the preset table, `server._CREDIT_PRICES` by AST, and the FE roster as text. No
+    S3, no pg, no LLM, no AWS, no FastAPI import.
+
+    WHAT THIS CHECK IS FOR. Cascade is the ladder's THIRD PLACE by the owner's word (2026-09-06: 'keep
+    Cascade just as we designed it to be the third place on the scaler') and the first tier this estate
+    prices above one credit. Its correctness is spread across THREE files that no single diff shows
+    together -- the price literal in `server.py`, the metered predicate's base set in
+    `reasoning_modes.py`, and the notch roster in `apps/terminal/src/store/mode.ts` -- and the failure
+    when they disagree is SILENT AND EXPENSIVE in both directions: a notch without a price sells the
+    widest walk for nothing, and a price without a meter bills two credits for a turn EC-3 then treats
+    as unpaid.
+
+    (i)   PRICED: `_CREDIT_PRICES['max'] == 2`. Without it `_credit_price` returns 0 and the reconcile
+          recomputes the same 0 and agrees -- Cascade ships free.
+    (ii)  METERED: `MAX` is in `METERED_BASES` and `is_metered('max')` is True. A priced tier that reads
+          unmetered declines EC-3's fill patience on the dearest turn the product sells.
+    (iii) STILL DARK: `max` is in `DARK_NAMES` and `serving_names()` is still {quick, standard, deep}.
+          THE PRICE SHIPS BEFORE THE TIER IS HONORED, deliberately: honoring is one env value on the
+          serving taskdef (`GRAPHRAG_MODES=quick,deep,max` -- a NAMED dark preset IS honored, see
+          `orchestrator._modes_enabled`), so if the price rode that same change the tier would be free
+          for however long the two were apart. THE FLIP DOES NOT MOVE THIS CLAUSE -- it is env-only.
+          A later change that un-darkens the name must edit this clause in the same commit, which is the
+          point of stating it here rather than leaving it to be noticed.
+
+          THIS CLAUSE DEVIATES FROM THE RATIFIED DESIGN, KNOWINGLY, AND PINS THE DEVIATION -- so the
+          deviation is stated here rather than discovered by whoever follows the doc. SCAN_TIER_DESIGN.md
+          section 3 (lines 403-407) lists `DARK_NAMES` losing `max` and `DARK_TIERS` (+ its literal copy
+          in mode.test.ts) dropping it AS PART OF THE FLIP CHANGE. This build keeps both, because keeping
+          them is strictly safer: while `max` stays dark, `GRAPHRAG_MODES=on` can never sweep Cascade in,
+          and the flip stays exactly one NAMED env value. THE DOC IS THEREFORE THE WRONG INSTRUCTION at
+          flip time -- a sitting that follows section 3 literally will trip this lint -- and it was not
+          corrected in this pass because docs/private/ is outside the allowlist it ran under. Either fix
+          the doc, or, if a later sitting decides to un-darken after all, edit this clause, the FE
+          `DARK_TIERS` census and mode.test.ts's literal in that same commit.
+    (iv)  THE CONTROLS KEEP THEIR ZERO: `max_c0` (the permanent OFF twin) and `max_cc1`/`max_cc2` (the
+          un-adjudicated composition arms) are unpriced and unmetered. A priced control arm is a control
+          arm that costs money to run.
+    (v)   THE LADDER IS MONOTONE AND SCAN IS ABSENT: quick carries no entry at all (0 by absence), deep
+          is 1, max is 2. A ladder that is not increasing is a ladder a user cannot reason about.
+    (vi)  FE ROSTER PARITY, and it is the clause with the measured history. `mode.test.ts` records that
+          its own DARK_TIERS census went stale ONE COMMIT after being repaired, and says in writing why
+          its assertion cannot catch it: 'the assertion compares the FE list against a LITERAL COPY OF
+          ITSELF'. Only a reader diffing that list against `reasoning_modes.DARK_NAMES` closes the loop.
+          This clause IS that reader. It asserts the FE census equals DARK_NAMES name-for-name, and that
+          the Cascade notch's wire name is `max` at cost 2 -- the price the server charges.
+          SKIPPED (a printed NOTE, never a failure) when `apps/` is not checked out: a serving image
+          carries no FE tree, and a lint that failed there would fail on the one machine that cannot fix
+          it.
+    (vii) ONE REFUSAL, ONE VOCABULARY. The Cascade price invented a SECOND refusal state -- "there is
+          credit left, but not enough for THIS tier" -- and it is stated twice: by the control, before
+          the submit, and by the server's 429 `detail`, when the control could not know (a stale
+          balance, a second tab, a direct API call). Both sentences are READ and compared clause by
+          clause from the word "costs"; see `_cascade_refusal_copy_errors` for the two places they are
+          allowed to differ and why."""
+    from leviathan.graphrag import reasoning_modes as _rm
+    errs: list[str] = []
+    max_name = getattr(_rm, "MAX", None)
+    if not max_name or max_name not in _rm.MODES:
+        return [f"cascade_notch: the tier preset {max_name!r} is not in the mode table"]
+    # (i) priced, plus (iv)/(v) which are readable off the same table
+    prices = _server_credit_prices()
+    if prices is None:
+        errs.append("cascade_notch: could not read server._CREDIT_PRICES -- the price table is the "
+                    "frozen wire contract and this check is worthless without it")
+    else:
+        if prices.get(max_name) != 2:
+            errs.append(f"cascade_notch: _CREDIT_PRICES[{max_name!r}] is {prices.get(max_name)!r}, not "
+                        f"the ratified 2 -- the widest walk in the estate would bill "
+                        f"{prices.get(max_name) or 0} credit(s) a turn")
+        for ctl in ("MAX_C0", "MAX_CC1", "MAX_CC2"):
+            nm = getattr(_rm, ctl, None)
+            if nm and nm in prices:
+                errs.append(f"cascade_notch: the arm control {nm!r} carries a price ({prices[nm]!r}) -- "
+                            f"a priced control arm is a control arm that costs money to run")
+        if _rm.QUICK in prices:
+            errs.append(f"cascade_notch: {_rm.QUICK!r} is in the price table -- Scan is UNMETERED by "
+                        f"ratified policy and an entry mints a price for a tier that has none")
+        if not 0 < int(prices.get(_rm.DEEP, 0)) < int(prices.get(max_name, 0)):
+            errs.append(f"cascade_notch: the ladder is not increasing -- quick 0, deep "
+                        f"{prices.get(_rm.DEEP)!r}, max {prices.get(max_name)!r}")
+    # (ii) metered
+    if max_name not in _rm.METERED_BASES or _rm.is_metered(max_name) is not True:
+        errs.append(f"cascade_notch: {max_name} is priced but NOT metered (METERED_BASES="
+                    f"{sorted(_rm.METERED_BASES)!r}) -- EC-3 would decline fill patience on the "
+                    f"dearest turn the product sells")
+    for ctl in ("MAX_C0", "MAX_CC1", "MAX_CC2"):
+        nm = getattr(_rm, ctl, None)
+        if nm and _rm.is_metered(nm):
+            errs.append(f"cascade_notch: the arm control {nm!r} reads METERED -- only the sold tier does")
+    # (iii) still dark, and honorable only when the allowlist NAMES it
+    if max_name not in _rm.DARK_NAMES:
+        errs.append(f"cascade_notch: {max_name} left DARK_NAMES -- the flip is ONE ENV VALUE "
+                    f"(GRAPHRAG_MODES=quick,deep,max) and does not move this; un-darkening the name "
+                    f"would let GRAPHRAG_MODES=on sweep Cascade in, and this clause moves with it")
+    if _rm.serving_names() != frozenset({"quick", "standard", "deep"}):
+        errs.append(f"cascade_notch: serving_names() moved to {sorted(_rm.serving_names())!r} -- the "
+                    f"wildcard-honored set is a wire contract and this wave does not widen it")
+    # (vi) FE roster parity -- skipped, with a note, when the FE tree is absent
+    text = _fe_mode_ts_text()
+    if text is None:
+        print(f"NOTE cascade_notch: {_FE_MODE_TS.as_posix()} is not checked out -- the FE roster-parity "
+              f"clause was SKIPPED (a serving image carries no apps/ tree)")
+        return errs
+    wire = re.search(r"cascade:\s*'([a-z0-9_]+)'", _ts_object_body(text, "CHOICE_MODE"))
+    if not wire or wire.group(1) != max_name:
+        errs.append(f"cascade_notch: {_FE_MODE_TS.as_posix()} CHOICE_MODE.cascade is "
+                    f"{(wire.group(1) if wire else None)!r}, not {max_name!r} -- the notch would ask at "
+                    f"a tier the server does not price")
+    cost = re.search(r"cascade:\s*(\d+)", _ts_object_body(text, "CHOICE_COST"))
+    if not cost or int(cost.group(1)) != 2:
+        errs.append(f"cascade_notch: {_FE_MODE_TS.as_posix()} CHOICE_COST.cascade is "
+                    f"{(cost.group(1) if cost else None)!r}, not 2 -- the price on screen must be the "
+                    f"price the server charges")
+    body = re.search(r"\bDARK_TIERS\b[^=]*=\s*\[(.*?)\]", text, re.S)
+    census = set(re.findall(r"'([a-z0-9_]+)'", body.group(1))) if body else set()
+    if census != set(_rm.DARK_NAMES):
+        errs.append(f"cascade_notch: the FE DARK_TIERS census ({len(census)} names) does not match "
+                    f"reasoning_modes.DARK_NAMES ({len(_rm.DARK_NAMES)} names) -- missing "
+                    f"{sorted(set(_rm.DARK_NAMES) - census)!r}, invented "
+                    f"{sorted(census - set(_rm.DARK_NAMES))!r}")
+    # (vii) the two halves of the SAME refusal sentence
+    errs += _cascade_refusal_copy_errors()
+    return errs
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -3639,7 +3915,8 @@ def main() -> int:
                         ("cascade_walk", check_cascade_walk()),
                         ("cascade_context", check_cascade_context()),
                         ("extreme_locator", check_extreme_locator()),
-                        ("scan_tier", check_scan_tier())):
+                        ("scan_tier", check_scan_tier()),
+                        ("cascade_notch", check_cascade_notch())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

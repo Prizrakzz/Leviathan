@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { RespondResult } from '@/api/schema';
+import { CHOICES, CHOICE_COPY, CHOICE_MODE } from '@/store/mode';
 
 /**
  * D-AM-14 — the "what ran" chip: a subtle, collapsed line on a finished turn saying which reasoning depth
@@ -51,6 +52,20 @@ const KNOB_ORDER = [
 // (`handle_prose` predates this and shares the hole; carried as a docketed sibling, not fixed here.)
 const KNOB_DENY = ['synth_model', 'provenance_prompt', 'synth_effort'] as const;
 
+/**
+ * The name the chip prints for what ran: the notch's LABEL (Scan / Analysis / Cascade), looked up
+ * through the one `CHOICE_MODE` table, never the wire identifier. Before the Cascade notch the chip
+ * printed `honored` raw ("ran deep"), which only worked because every honored name was one a reader
+ * could guess; the day serving honors `max` it would have printed "ran max" -- the first label/wire
+ * pair with no shared root, in the same product whose mode deck pins that internal identifiers never
+ * reach the screen (2026-09-07 fix pass 2, verify minor). A wire name no notch maps to (a dark eval
+ * preset honored on a dev deployment) still prints raw: naming what ran beats hiding it.
+ */
+function ranLabel(honored: string): string {
+  const choice = CHOICES.find((c) => CHOICE_MODE[c] === honored);
+  return choice ? CHOICE_COPY[choice].label : honored;
+}
+
 function fmt(v: unknown): string {
   if (Array.isArray(v)) return v.join('/'); // k_by_depth [7,5,3] -> 7/5/3
   if (typeof v === 'boolean') return v ? 'on' : 'off';
@@ -89,7 +104,7 @@ export function ModeChip({ result }: { result: RespondResult }) {
         >
           ▸
         </span>
-        <span>ran {honored}</span>
+        <span>ran {ranLabel(honored)}</span>
       </button>
       {open && keys.length > 0 && (
         <dl

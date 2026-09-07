@@ -31,6 +31,10 @@ param(
     [string]$ServingCluster   = "leviathan-dev-serving",
     [string]$ServingService   = "leviathan-dev-serving",
     [string]$ServingContainer = "serving",
+    # THE SERVED-ROSTER BUILD FLAG (Cascade notch, 2026-09-07): every wire name this deployment serves,
+    # baked into the bundle as VITE_MODES. Empty = read $env:VITE_MODES. Guard 7 refuses a build that
+    # names fewer notches than store/mode.ts offers (see 0-pre below).
+    [string]$Modes = "",
     # D-TW-20 emergency escape. Loudly logged; never the default path.
     [switch]$SkipGate
 )
@@ -43,6 +47,50 @@ if ([string]::IsNullOrWhiteSpace($TerraformDir)) {
     $TerraformDir = Join-Path $RepoRoot "infra\terraform\envs\dev"
 }
 Write-Host "[deploy] app dir: $AppDir"
+
+# ---------------------------------------------------------------------------------------------------
+# 0-pre) GUARD 7 (static half) - THE SERVED-ROSTER BUILD FLAG (Cascade notch, 2026-09-07). The FE gates
+#     every notch on the BUILD-TIME roster VITE_MODES (store/mode.ts servedModes()); a build that was told
+#     nothing blocks Cascade behind a permanent amber line. Guard 6/6 cannot see that flag: it passes the
+#     moment serving honors `max`, the build succeeds, and production renders 'Cascade is not yet enabled
+#     on this deployment' under every ask - the one way the owner's word ('available, not dark') silently
+#     does not land. So the roster is a PARAMETER of this script (-Modes; $env:VITE_MODES as the fallback),
+#     it must name EVERY wire name this bundle can ask for (parsed out of CHOICE_MODE, never restated), and
+#     the special values servedModes() folds to the shipped roster ('on'/'off'/'1'/'true') are refused as
+#     ambiguous. Runs BEFORE the gates so a wrong flag costs seconds, not the whole suite. The live half
+#     (every named mode honored by the DEPLOYED allowlist) runs inside guard 6/6; the bundle guard then
+#     proves the value was actually baked. -SkipGate does not skip this: it is static and free.
+# ---------------------------------------------------------------------------------------------------
+function Get-FeAskModes {
+    param([string]$Dir)
+    $modeFile = Join-Path $Dir "src\store\mode.ts"
+    if (-not (Test-Path $modeFile)) { throw "ALLOWLIST GUARD: cannot find $modeFile - refusing to guess the FE roster" }
+    $src = Get-Content -Raw -Path $modeFile
+    $blk = [regex]::Match($src, 'CHOICE_MODE\s*:\s*Record<[^>]*>\s*=\s*\{(?<body>[^}]*)\}')
+    if (-not $blk.Success) { throw "ALLOWLIST GUARD: could not parse CHOICE_MODE out of $modeFile (was the table reshaped? fix this parser rather than deleting the guard)" }
+    $wires = @()
+    foreach ($m in [regex]::Matches($blk.Groups['body'].Value, "(?m)^\s*\w+\s*:\s*'(?<wire>[^']+)'")) {
+        $wires += $m.Groups['wire'].Value
+    }
+    if ($wires.Count -eq 0) { throw "ALLOWLIST GUARD: CHOICE_MODE parsed to ZERO wire names - the parser is broken, not the roster" }
+    return ($wires | Sort-Object -Unique)
+}
+if ([string]::IsNullOrWhiteSpace($Modes)) { $Modes = [string]$env:VITE_MODES }
+$Modes = ([string]$Modes).Trim().ToLowerInvariant()
+if ([string]::IsNullOrWhiteSpace($Modes)) {
+    throw "ROSTER GUARD: no served roster given. Pass -Modes 'quick,deep,max' (or set VITE_MODES) naming every notch this deployment serves - a build told nothing renders Cascade permanently blocked. REFUSING to build."
+}
+if (@('on', 'off', '1', 'true') -contains $Modes) {
+    throw "ROSTER GUARD: -Modes '$Modes' is a special value servedModes() folds to the shipped roster - name the wire names explicitly (e.g. 'quick,deep,max'). REFUSING to build."
+}
+# PS 5.1: .Split(char[]) - the string overload is a CHARACTER SET (the d4e2d7cb trap).
+$BuildModes = @($Modes.Split([char]',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$FeAskModesStatic = Get-FeAskModes -Dir $AppDir
+$unnamed = @($FeAskModesStatic | Where-Object { $BuildModes -notcontains $_ })
+if ($unnamed.Count -gt 0) {
+    throw "ROSTER GUARD: -Modes '$Modes' does not name $($unnamed -join ', ') - this bundle would render those notches BLOCKED ('not yet enabled on this deployment') on a deployment that serves them. REFUSING to build. Name every wire name in store/mode.ts CHOICE_MODE."
+}
+Write-Host "[deploy] guard 7 (static) PASS: build roster '$Modes' names every FE notch ($($FeAskModesStatic -join ', '))"
 
 # ===================================================================================================
 # D-MW P5 DEPLOY-ORDER RECORD (review F3). READ BEFORE SHIPPING THE P5 SPA.
@@ -116,20 +164,6 @@ if ($SkipGate) {
 #     UNREADABLE == REFUSE. An allowlist that cannot be verified is exactly the silent-shallower-turn
 #     case; -SkipGate is the (loudly stamped) emergency path, same as the gate above.
 # ---------------------------------------------------------------------------------------------------
-function Get-FeAskModes {
-    param([string]$Dir)
-    $modeFile = Join-Path $Dir "src\store\mode.ts"
-    if (-not (Test-Path $modeFile)) { throw "ALLOWLIST GUARD: cannot find $modeFile - refusing to guess the FE roster" }
-    $src = Get-Content -Raw -Path $modeFile
-    $blk = [regex]::Match($src, 'CHOICE_MODE\s*:\s*Record<[^>]*>\s*=\s*\{(?<body>[^}]*)\}')
-    if (-not $blk.Success) { throw "ALLOWLIST GUARD: could not parse CHOICE_MODE out of $modeFile (was the table reshaped? fix this parser rather than deleting the guard)" }
-    $wires = @()
-    foreach ($m in [regex]::Matches($blk.Groups['body'].Value, "(?m)^\s*\w+\s*:\s*'(?<wire>[^']+)'")) {
-        $wires += $m.Groups['wire'].Value
-    }
-    if ($wires.Count -eq 0) { throw "ALLOWLIST GUARD: CHOICE_MODE parsed to ZERO wire names - the parser is broken, not the roster" }
-    return ($wires | Sort-Object -Unique)
-}
 
 if ($SkipGate) {
     Write-Host "[deploy] allowlist parity guard SKIPPED with the rest of the gate (-SkipGate)."
@@ -168,6 +202,14 @@ if ($SkipGate) {
         throw "ALLOWLIST GUARD: serving does NOT honor $($missing -join ', ') - this bundle offers those notches and every turn at them would silently run standard with no signal to the user. REFUSING to build. Fix by adding them to GRAPHRAG_MODES on the serving taskdef in the SAME change as this deploy."
     }
     Write-Host "[deploy] guard 6/6 PASS: every FE notch's wire name is honored by the deployed serving allowlist"
+    # GUARD 7 (live half): every name the BUILD roster carries must be honored by the deployed allowlist,
+    # or the bundle offers a notch serving would silently downgrade (a typo in -Modes is this case).
+    # `standard` needs no flag (store/mode.ts isModeServed), so it is never 'unhonored'.
+    $unhonored = @($BuildModes | Where-Object { ($_ -ne 'standard') -and ($liveModes -notcontains $_) })
+    if ($unhonored.Count -gt 0) {
+        throw "ROSTER GUARD: -Modes names $($unhonored -join ', ') but the deployed GRAPHRAG_MODES ($($liveModes -join ', ')) does not honor it - the bundle would offer a notch serving downgrades silently. REFUSING to build."
+    }
+    Write-Host "[deploy] guard 7 (live) PASS: every build-roster name is honored by the deployed allowlist"
 }
 
 # ---------------------------------------------------------------------------------------------------
@@ -298,6 +340,7 @@ $env:VITE_COGNITO_AUTHORITY = $CognitoAuthority
 $env:VITE_COGNITO_CLIENT_ID = $CognitoClientId
 $env:VITE_COGNITO_REDIRECT_URI = "https://$Alias/auth/callback"
 $env:VITE_COGNITO_DOMAIN = $CognitoDomain
+$env:VITE_MODES = $Modes   # guard 7: the served roster, verified above, baked below
 Push-Location $AppDir
 try {
     npm run build
@@ -319,7 +362,10 @@ $hasApi     = [bool](Select-String -Path (Join-Path $chunkDir "*.js") -Pattern (
 $hasCognito = [bool](Select-String -Path (Join-Path $chunkDir "*.js") -Pattern ([regex]::Escape($CognitoClientId)) -Quiet)
 if (-not $hasApi)     { throw "BUNDLE GUARD: built chunks do not contain the API host '$ApiHost' - VITE_API_BASE was not baked. REFUSING to deploy (the 2026-07-12 incident class)." }
 if (-not $hasCognito) { throw "BUNDLE GUARD: built chunks do not contain the Cognito client id - VITE_COGNITO_* were not baked (authEnabled would be false in prod). REFUSING to deploy." }
-Write-Host "[deploy] bundle guard PASS: API host + Cognito client id present in emitted chunks"
+# Vite inlines import.meta.env.VITE_MODES as a string literal, so the roster VALUE must be in a chunk.
+$hasModes   = [bool](Select-String -Path (Join-Path $chunkDir "*.js") -Pattern ([regex]::Escape($Modes)) -Quiet)
+if (-not $hasModes)   { throw "BUNDLE GUARD: built chunks do not contain the served roster '$Modes' - VITE_MODES was not baked (Cascade would render permanently blocked). REFUSING to deploy." }
+Write-Host "[deploy] bundle guard PASS: API host + Cognito client id + served roster '$Modes' present in emitted chunks"
 
 # 2) ATOMIC UPLOAD ORDER (S2.1): hashed assets FIRST, then verify every built asset is actually at the
 #    origin, and ONLY THEN flip index.html. The old order (index first, assets after) left a ~40-60s window
