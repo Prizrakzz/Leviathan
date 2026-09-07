@@ -885,7 +885,10 @@ resource "aws_cloudwatch_metric_alarm" "notifications_scheduler_dlq_depth" {
 
 resource "aws_scheduler_schedule" "notifications" {
   name  = "${var.project_name}-${var.environment}-morning-brief"
-  state = "ENABLED" # day-0 dry-run reviewed 2026-07-10 (pipeline clean, 0 shocks today); cron live 12:00 UTC
+  state = "DISABLED" # OWNER'S WORD 2026-09-07: the morning brief is REMOVED and the live news feed it wrote
+  # (graphrag_evidence/live_events/, a prefix nothing reads back) is FROZEN until the news layer is built on
+  # the state-engine board. Was ENABLED since the 2026-07-10 day-0 dry-run (cron 12:00 UTC). Re-enable = this
+  # one word + a gated apply; the jobdef, role and DLQ alarm stay so nothing else in the estate moves.
 
   flexible_time_window {
     mode = "OFF"
