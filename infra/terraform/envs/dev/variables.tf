@@ -283,7 +283,10 @@ variable "futures_eod_silver_image_digest" {
   # s0s1 (r5, 2026-09-08 22:17Z): repinned to tag 20260908-s0s1 (commit 37f5311b) -- the K9 subset + the OI-gap arms + the board S0/S1
   # + the Scan roster S1, all DARK; built with `git status --short configs/graphrag` EMPTY and the reviewed DAG overlay (the 09-08
   # landing law); lint smoke on b3-flat-silver:40 GREEN (config_check rc 0, state.lint rc 0). Applied as ONE resource.
-  default     = "sha256:418d1e4bceb564f663d5e40e799e5e648d3e66b9f338ee33e4baa8d9b7cc9db5"
+  # d10s9 (r6, 2026-09-08 23:31Z): repinned to tag 20260908-d10s9 (commit aa7fa7d7) = s0s1 + D-10 sitting 9 (the split: two DAGs
+  # in the overlay, waivers tracked; census prediction #14 = 792/544/248); lint smoke on b3-flat-silver:41 GREEN (config_check rc 0,
+  # state.lint rc 0, 1,270 DAG instances). Applied as ONE resource. The s0s1 pin never fired a scheduled chain except the 22:30Z/23:00Z witnesses.
+  default     = "sha256:1afb58d1d92ab09c8f705a6bc8b13d71eea2e2a0058588654272914175a51bdb"
   validation {
     condition     = var.futures_eod_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_silver_image_digest))
     error_message = "futures_eod_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
