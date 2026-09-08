@@ -685,6 +685,9 @@ def steps(run_id: str) -> list[tuple[str, list[str]]]:
                      "--dest-uri", PSD_BASELINE],
                     env=[{"name": "GRAPHRAG_NUMBERS_BACKEND", "value": "pg"}]),
             "# Re-mint the psd_monthly rolling baseline from the POST-E canonical object.",
+            "# PREDICTION #14 MEASURED 2026-09-08 23:38Z: the read-only preflight on silver-gate:39 (image d10s9, commit aa7fa7d7) read "
+            "792 / 544 / 248 / 0 / 0 -- the one predicted cell (soybean_oil_dce/China_state_reserves) FIRES; RE-MINTED at ~23:50Z on the "
+            "rolling psd_monthly key. Both D-10 sittings (8 + 9) are landed: tracked halves 9b2cfb56 / aa7fa7d7, overlay in the d10s9 image.",
             "# CENSUS PREDICTION #14 (D-10 SITTING 9 -- THE SPLIT, 2026-09-09; SUPERSEDES #13 below): "
             "792 legs, 544 FIRES / 248 DECLINES / 0 dark / 0 probe errors. THE LEG COUNT MOVES, and "
             "this is the first prediction in the series where it does -- every earlier sitting re-keyed "
