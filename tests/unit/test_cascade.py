@@ -779,8 +779,11 @@ def test_the_rekeyed_gn1_refs_resolve_and_the_sourceless_ones_stay_planned():
     pins: sorghum's urea_cost re-keyed onto urea_z after the sign three-edit, so urea_cost_z is now
     a DEAD ref name (retired-basket class); palm_olein's China_reserve_release re-keyed onto
     beginning_stock_region after its sign two-edit, so buffer_stock_release is now a dead ref name
-    too (the soyoil node that shares the NAME still rides beginning_stock; the RICE one moved to
-    beginning_stock_region in D-10 sitting 8, 2026-09-07 -- see the sitting's own test below).
+    too. D-10 SITTING 9 (2026-09-09) GAVE THAT DEAD NAME A SECOND LIFE WITHOUT GIVING IT A ROW:
+    the rice and soyoil release nodes that share the NAME now DECLARE it as their own silver_ref at
+    silver_status: planned -- the honest wishlist form for a release VOLUME no source serves -- which
+    is precisely why the negative-roster pin below is load-bearing rather than decorative. Two DAG
+    nodes now name this ref; a row minted for it would silently quantify a flow off a carry-in level.
     asf_outbreak_flag remains the one LIVE-ref standing refusal."""
     for ref in ("herd_size_cattle", "fishmeal_supply", "fishmeal_price_z",
                 "brent_crude_z", "urea_z", "natural_gas_us_z", "natural_gas_eu_z",
@@ -884,14 +887,17 @@ def test_d10_sitting8_rekeys_land_on_region_ruled_twins():
     REAL exposure is the inverse one -- these reads were proved on Athena while the census probes
     the pg mirror, and a mirror gap yields DARK-WITH-REASON, which IS what reds, estate-wide.
 
-    THE RICE LEG IS PINNED AS A DECLINE ON PURPOSE. rough_rice_cbot's buffer_stock_release names
-    India's FCI OMSS and Thailand's auctions and was FIRING with UNITED STATES rice carry-in. Its
-    'India/Thailand' compound cannot resolve to one country, so on the region-ruled twin it declines
-    honestly instead of narrating the wrong country. The per-origin split that would light it is
-    blocked by the SIGN-IDENTITY law (a '-' release flow on a carry-in LEVEL a release drains) and
-    the palm two-edit precedent does not extend: palm's node text was two-sided, rice's is not.
-    Both origins' PSD rows already exist (Athena 2026-09-04: India 67 MY 1960-2026, Thailand 67 MY),
-    so this pin guards a SIGN gate, never a data gate.
+    THE RICE LEG WAS PINNED AS A DECLINE ON PURPOSE, AND SITTING 9 DISCHARGED THE GATE THAT MADE IT
+    ONE. rough_rice_cbot's buffer_stock_release names India's FCI OMSS and Thailand's auctions and
+    was FIRING with UNITED STATES rice carry-in; its 'India/Thailand' compound cannot resolve to one
+    country, so on the region-ruled twin it declined honestly instead of narrating the wrong country.
+    The per-origin split was blocked NOT by a data gate -- both origins' PSD rows already existed
+    (Athena 2026-09-04: India 67 MY 1960-2026, Thailand 67 MY) -- but by the SIGN-IDENTITY law: a '-'
+    release FLOW cannot quantify a carry-in LEVEL a release drains. The owner ruled the split on
+    2026-09-07 and D-10 SITTING 9 built it: the release node keeps its sign and its text and detaches
+    to the planned `buffer_stock_release` ref, and the LEVEL becomes two sign-0 per-origin children.
+    The _scope_ex verdict below still holds and is still worth pinning -- the compound token remains
+    unresolvable, which is why the split had to mint new nodes rather than re-token this one.
 
     Skipped where the private causal configs are absent (the DAGs are gitignored IP)."""
     from leviathan.graphrag.numbers import cascade_census as ccz
@@ -935,13 +941,21 @@ def test_d10_sitting8_rekeys_land_on_region_ruled_twins():
             ("corn_cbot", "China_state_reserves"): "beginning_stock_region",
             ("campinas_corn_reference_bmf", "China_state_reserves"): "beginning_stock_region",
             ("corn", "China_state_reserves"): "beginning_stock_region",
-            ("rough_rice_cbot", "buffer_stock_release"): "beginning_stock_region",
+            # SUPERSEDED BY D-10 SITTING 9 (2026-09-09), and re-pointed rather than deleted so this
+            # test keeps guarding the overlay: the rice release node was DETACHED from the carry-in
+            # level (it kept sign '-', its mechanism and its evidence_query) and the LEVEL moved to
+            # two per-origin sign-0 children, India_state_reserves + Thailand_state_reserves, pinned
+            # in tests/unit/test_d10_sitting9_split.py.
+            ("rough_rice_cbot", "buffer_stock_release"): "buffer_stock_release",
             ("soybean_meal_cbot", "Argentina_crush_capacity"): "psd_crush_region",
-            # NOT re-keyed, each for its own recorded reason: the kcbt reserve leg is an IMPORT-demand
-            # claim already citing China off the region-ruled `import` row, and soyoil's release flow
-            # keeps its undischarged SIGN gate on the primary-ruled parent.
+            # NOT re-keyed BY THIS SITTING, each for its own recorded reason: the kcbt reserve leg is
+            # an IMPORT-demand claim already citing China off the region-ruled `import` row (still
+            # true), and soyoil's release flow kept its undischarged SIGN gate on the primary-ruled
+            # parent -- which SITTING 9 DISCHARGED by splitting it the same way as rice: the release
+            # node detached to the planned `buffer_stock_release` ref, the level moved to a new
+            # China_state_reserves node on this board. Both halves pinned in test_d10_sitting9_split.py.
             ("hard_red_winter_wheat_kcbt", "China_state_reserves"): "import",
-            ("soybean_oil_dce", "buffer_stock_release"): "beginning_stock",
+            ("soybean_oil_dce", "buffer_stock_release"): "buffer_stock_release",
             ("canola_ice", "domestic_crush_demand"): "psd_crush",
             ("french_rapeseed_matif", "eu_crush_demand"): "psd_crush",
             ("rapeseed_meal_zce", "rapeseed_crush_demand"): "psd_crush"}
@@ -949,14 +963,21 @@ def test_d10_sitting8_rekeys_land_on_region_ruled_twins():
         d = ccz._driver(contract, driver)
         assert d is not None, f"{contract}/{driver} vanished from the DAG"
         assert d.silver_ref == ref, f"{contract}/{driver}: {d.silver_ref!r} != {ref!r}"
-    # (e) THE CLASS DELTA (see the docstring): FOUR legs leave the wrong-geography class, ZERO
-    # enter. Each lands on a region-ruled row, which is what "left the class" MEANS operationally --
-    # the driver's own token now scopes the read instead of the contract primary.
+    # (e) THE CLASS DELTA (see the docstring): FOUR legs left the wrong-geography class, ZERO
+    # entered. Each landed on a region-ruled row, which is what "left the class" MEANS operationally
+    # -- the driver's own token scopes the read instead of the contract primary.
     left_the_class = {("rough_rice_cbot", "buffer_stock_release"),
                       ("soybean_meal_cbot", "Argentina_crush_capacity"),
                       ("soybeans_cbot", "China_state_reserves"),
                       ("soybeans_no_2_dce", "China_state_reserves")}
-    for contract, driver in sorted(left_the_class):
+    # D-10 SITTING 9 took the rice member OUT OF CENSUS SCOPE rather than out of the class: its ref
+    # is now the UNMAPPED planned `buffer_stock_release`, so there is no row to read a country_rule
+    # off. That is a STRONGER outcome than a region-ruled decline, not a regression -- an unmapped
+    # ref cannot narrate any country -- and the assertion says exactly that instead of pretending
+    # the leg still rides a row. The delta figure of sitting 8 is unchanged: it counted the move
+    # OFF the primary-ruled row, which happened and still holds.
+    assert cq.map_row(want[("rough_rice_cbot", "buffer_stock_release")]) is None
+    for contract, driver in sorted(left_the_class - {("rough_rice_cbot", "buffer_stock_release")}):
         assert m[want[(contract, driver)]].get("country_rule") == "region", f"{contract}/{driver}"
     # the two COINCIDENCE legs are NOT part of the delta -- they already cited the country their
     # driver names, by luck; they moved for the RULE, and their census delta is zero (their narrated

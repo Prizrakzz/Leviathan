@@ -2076,6 +2076,17 @@ waivers:
   IOD_negative: {category: silver_only, note: "Indian Ocean Dipole teleconnection index"}
   IOD_positive: {category: silver_only, note: "Indian Ocean Dipole teleconnection index"}
   India_ethanol_diversion: {category: deferred, note: "India E20 cane-to-ethanol policy"}
+  # D-10 SITTING 9 (2026-09-07 owner ruling, built 2026-09-09) -- THE SPLIT's two new rice
+  #   RESERVE-LEVEL ids, and they are silver_only in the strict sense of the category: each is a
+  #   sign-0 node on the region-ruled `beginning_stock_region` carry-in series, minted so the
+  #   rough_rice_cbot release event could STOP carrying a level it does not measure. The text half
+  #   of that split did NOT move and is not waived -- `buffer_stock_release` is still a real DAG id
+  #   on this very board, resolving BY IDENTITY to the slice of the same name (buffer stock / food
+  #   corporation of india / open market sale scheme), now at silver_status: planned. So the receipts
+  #   are read by the RELEASE node and the number by these two, on one subgraph. Aliasing these ids
+  #   onto that same slice was REFUSED for that reason: it would route one prop population onto two
+  #   nodes of the same board and hand the narrator the same receipt twice.
+  India_state_reserves: {category: silver_only, note: "India FCI rice reserve carry-in level (beginning_stock_region); the OMSS release TEXT stays on buffer_stock_release"}
   # MYR_USD: REMOVED 2026-08-08 (D-GD tranche 2) -- it now resolves to the `myr_fx` slice in
   #   dag_alias above, so the silver_only claim ("grounded by the observed silver leg, never text")
   #   is no longer true of it. Same shape as the D-CW-3a gasoil_palm_spread / refinery_energy_costs
@@ -2084,6 +2095,7 @@ waivers:
   PDO: {category: silver_only, note: "Pacific Decadal Oscillation teleconnection index"}
   SAM: {category: silver_only, note: "Southern Annular Mode teleconnection index"}
   Thailand_production: {category: deferred, note: "Thai sugar supply state"}
+  Thailand_state_reserves: {category: silver_only, note: "Thai public rice reserve carry-in level (beginning_stock_region); the auction release TEXT stays on buffer_stock_release"}
   Thailand_white_exports: {category: deferred, note: "Thai white-sugar export supply"}
   # US_export_pace: MERGED AWAY 2026-08-20 (D-EC XC-5 tail) into the `us_export_pace` row below. It was the
   #   SAME node under a different leading case -- `us_export_pace` on 4 DAGs (hard_red_spring_wheat_mgex,

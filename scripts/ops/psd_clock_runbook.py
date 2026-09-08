@@ -685,6 +685,54 @@ def steps(run_id: str) -> list[tuple[str, list[str]]]:
                      "--dest-uri", PSD_BASELINE],
                     env=[{"name": "GRAPHRAG_NUMBERS_BACKEND", "value": "pg"}]),
             "# Re-mint the psd_monthly rolling baseline from the POST-E canonical object.",
+            "# CENSUS PREDICTION #14 (D-10 SITTING 9 -- THE SPLIT, 2026-09-09; SUPERSEDES #13 below): "
+            "792 legs, 544 FIRES / 248 DECLINES / 0 dark / 0 probe errors. THE LEG COUNT MOVES, and "
+            "this is the first prediction in the series where it does -- every earlier sitting re-keyed "
+            "existing drivers. Derived offline through the PRODUCTION helpers (cascade.map_row + "
+            "cascade._scope_ex over cascade_census._contract_index, the S0 census-reproduction method), "
+            "which reproduces #13 EXACTLY on the pre-split overlay -- 1,267 driver instances / 403 "
+            "distinct ids / 791 mapped legs / 542 scope-resolved / 249 declines -- and reads 1,270 / 405 "
+            "/ 792 / 544 / 248 after it. FIVE legs move and each is named:",
+            "#   (1) rough_rice_cbot/buffer_stock_release LEAVES CENSUS SCOPE (-1 leg, -1 DECLINE). The "
+            "release event keeps its type, sign '-', mechanism and evidence_query and is detached from "
+            "the carry-in level: silver_ref `beginning_stock_region` -> `buffer_stock_release` (the "
+            "register's DEAD ref name -- no carrier, pinned in tests/unit/test_cascade.py's negative "
+            "roster) at silver_status: planned. An unmapped ref is not a leg, so it is out of scope "
+            "entirely rather than a decline -- region-token-unresolved 190 -> 189, exactly undoing the "
+            "one count sitting 8 moved.",
+            "#   (2) soybean_oil_dce/buffer_stock_release LEAVES CENSUS SCOPE (-1 leg, -1 FIRE). Same "
+            "detach, from the PRIMARY-ruled `beginning_stock`. It was FIRING with BRAZIL's soyoil "
+            "carry-in under a China label (measured 50 MY in the 2026-08-26 census artifact) -- the "
+            "D-10 wrong-geography class -- with a sign a release DRAINS off a level. Both halves die "
+            "with the detach.",
+            "#   (3) rough_rice_cbot/India_state_reserves is NEW (+1 leg, +1 FIRE): sign-0 reserve-LEVEL "
+            "node on the region-ruled `beginning_stock_region`, token India -> India. PSD rows PROVED "
+            "(Athena, 2026-09-04 vintage: rough_rice_cbot x India 67 MY 1960-2026, all non-null).",
+            "#   (4) rough_rice_cbot/Thailand_state_reserves is NEW (+1 leg, +1 FIRE): same shape, token "
+            "Thailand -> Thailand. PSD rows PROVED (Athena 2026-09-04: 67 MY).",
+            "#   (5) soybean_oil_dce/China_state_reserves is NEW (+1 leg, +1 FIRE PREDICTED, and this is "
+            "THE ONE UNMEASURED CELL OF THE SITTING -- said out loud, never assumed): sign-0 reserve-level "
+            "node on `beginning_stock_region`, token China -> China. silver_psd beginning_stocks_mt x "
+            "soybean_oil_dce x China was NOT probed from the build seat (no pg reachable there). The "
+            "sibling China proofs on this row are campinas 71 MY, corn_cbot 71 MY, palm_olein_dce 65 MY, "
+            "soybeans_cbot / soybeans_no_2_dce 63 MY. IF THE CELL IS EMPTY the leg returns "
+            "DARK-WITH-REASON, the banner reads 792 = 543/248/1, and DARK IS THE ONE VERDICT THE ROLLING "
+            "DIFF REDS ON -- estate-wide, because prior_dark is empty on every family baseline. That is "
+            "exactly what the READ-ONLY preflight above exists to catch: read its banner BEFORE running "
+            "the advance, and if that leg is dark, STOP -- the leg earns a _WAIVERS entry carrying its "
+            "own honest reason (the cocoa/FCOJ shape), never a silent revert of the split.",
+            "#   THE LEG COUNT IS NOT WHAT THE GATE READS, and the difference matters for sequencing. "
+            "silver_rebuild_gate._census_diff_attributed raises on exactly two things -- a non-zero "
+            "ATHENA_CALLS banner and a leg DARK now that was not dark in the prior baseline -- so 791 -> "
+            "792 is invisible to it, as is every FIRES <-> DECLINES move (pinned three ways in "
+            "tests/unit/test_silver_rebuild_gate.py; production proves it too, wasde_monthly's 593-leg "
+            "and nass_citrus's 514-leg baselines diff GREEN against a 791-leg census). The re-mint is "
+            "CORRECTNESS BOOKKEEPING; the real exposure is item (5).",
+            "#   THE OVERLAY MUST RIDE THE IMAGE FIRST. All three new nodes and both detaches live in "
+            "configs/graphrag/causal/{rough_rice_cbot,soybean_oil_dce}.yaml, which are gitignored and "
+            "reach prod only inside the context tar -- a re-mint from a pre-sitting image re-banks "
+            "791 = 542/249 and silently un-does the split. #13 stays below as the record of the "
+            "state-engine S0 leg it predicted.",
             "# CENSUS PREDICTION #13 (STATE-ENGINE S0, 2026-09-08; SUPERSEDES #12 below): 791 legs, 542 FIRES / "
             "249 DECLINES / 0 dark / 0 probe errors. The +1 LEG that FIRES is the curated Argentina_production "
             "driver on soybeans_cbot (ref production_region, live; decision 10 of the board design, f6150b9a). "

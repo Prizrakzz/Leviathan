@@ -430,6 +430,64 @@ def test_a_FIRES_to_DECLINES_move_is_INVISIBLE_to_the_rolling_baseline_diff():
     assert tables == frozenset({"silver_psd"})
 
 
+def test_the_sitting9_SPLIT_moves_the_leg_COUNT_and_the_diff_still_cannot_see_it():
+    """D-10 SITTING 9 (2026-09-09) -- the first prediction in the series whose LEG COUNT moves, and
+    the executable answer to the sequencing question that raises: does the psd_monthly gate red on
+    it? NO. Sitting 8's pin above proved a FIRES <-> DECLINES move invisible; this proves the two
+    shapes the split actually ships are invisible too --
+
+      (a) a leg that LEAVES the census entirely. Both boards' `buffer_stock_release` release nodes
+          were detached onto an UNMAPPED planned ref, and cascade_census only enumerates a leg when
+          `map_row(silver_ref)` returns a row -- so the leg is not declining, it is absent. The rice
+          one was a DECLINE and the soyoil one a FIRE (with BRAZIL's carry-in under a China label),
+          and neither disappearance is a problem the diff can raise.
+      (b) legs that ARRIVE firing. Three sign-0 reserve-level nodes joined on
+          `beginning_stock_region` (India + Thailand on rice, China on soyoil): 791 -> 792 legs,
+          542 -> 544 fires, 249 -> 248 declines.
+
+    So the re-mint that follows this sitting is CORRECTNESS BOOKKEEPING, exactly as it was for
+    sitting 8, and no manufactured deadline should push an out-of-band re-mint from an
+    overlay-LESS image (the runbook's R7 warning, and the class this pin's sibling above exists for).
+
+    THE REAL EXPOSURE MOVED WITH THE SITTING, and the second half pins it at its new address. Sitting
+    8's inverse risk was the six re-keyed legs; sitting 9's is ONE named cell -- silver_psd
+    beginning_stocks_mt x soybean_oil_dce x CHINA, the only new leg whose rows were NOT proved (the
+    rice pair's were, on Athena at the 2026-09-04 vintage; the soyoil cell was never probed because
+    the build seat has no pg mirror). If the mirror lacks it the leg returns DARK-WITH-REASON, which
+    is the one verdict this diff reds on, and `prior_dark` is empty on every family baseline -- so
+    that single cell reds EVERY family at once and makes advance_rolling_census refuse its upload.
+    The read-only preflight in scripts/ops/psd_clock_runbook.py runs BEFORE the advance for exactly
+    this."""
+    def _leg(contract, node_id, verdict, reason=None, table="silver_psd"):
+        return {"contract": contract, "node_id": node_id, "table": table,
+                "metric": "beginning_stocks_mt", "verdict": verdict, "reason": reason}
+
+    # PRIOR = the live 791 = 542/249 rolling baseline (prediction #13, minted 2026-09-08 22:27Z)
+    prior = {"banner": {"athena_calls": 0, "fires": 542, "declines": 249, "dark": 0},
+             "legs": [_leg("rough_rice_cbot", "buffer_stock_release", "DECLINES-HONESTLY",
+                           "region-token-unresolved"),
+                      _leg("soybean_oil_dce", "buffer_stock_release", "FIRES"),
+                      _leg("corn_cbot", "China_state_reserves", "FIRES")]}
+    # CURRENT = prediction #14: both release legs GONE from the artifact, three level legs ARRIVED
+    current = {"banner": {"athena_calls": 0, "fires": 544, "declines": 248, "dark": 0},
+               "legs": [_leg("corn_cbot", "China_state_reserves", "FIRES"),
+                        _leg("rough_rice_cbot", "India_state_reserves", "FIRES"),
+                        _leg("rough_rice_cbot", "Thailand_state_reserves", "FIRES"),
+                        _leg("soybean_oil_dce", "China_state_reserves", "FIRES")]}
+    assert g._census_diff(prior, current) == [],         "a leg-COUNT move (791 -> 792) must stay invisible to the rolling-baseline diff"
+
+    # ...and the ONE cell that would red, at its named address
+    unproved = {"banner": {"athena_calls": 0, "fires": 543, "declines": 248, "dark": 1},
+                "legs": current["legs"][:3] + [
+                    _leg("soybean_oil_dce", "China_state_reserves", "DARK-WITH-REASON",
+                         "metric-empty-for-country")]}
+    problems = g._census_diff_attributed(prior, unproved)
+    assert len(problems) == 1
+    text, tables = problems[0]
+    assert "NEW dark leg soybean_oil_dce/China_state_reserves" in text
+    assert tables == frozenset({"silver_psd"})
+
+
 # ---------------------------------------------------------------------------
 # BRANCH-A RATIFICATION (2026-08-01): the SILVER-V001 populatedness floor rides Branch A too.
 # ---------------------------------------------------------------------------

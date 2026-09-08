@@ -22,11 +22,11 @@
 manifest_version: 1
 generated_by: "python -m leviathan.graphrag.driver_slices_manifest --write"
 source: "configs/graphrag/driver_slices.yaml"
-file_sha256: "d076ecc24988562979190edd00bc74d97c9f9b7ec873e9d2a3ac0bc66c6d0c77"
+file_sha256: "0fa7671d7c4a1b1773c1b0faa18f2effc2fba81d4e716585cc01325e9c889419"
 counts:
   specs: 153
   dag_aliases: 111
-  waivers: 107
+  waivers: 109
   terms: 1012
   co_terms: 19
 slices:
