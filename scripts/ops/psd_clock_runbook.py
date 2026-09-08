@@ -685,6 +685,12 @@ def steps(run_id: str) -> list[tuple[str, list[str]]]:
                      "--dest-uri", PSD_BASELINE],
                     env=[{"name": "GRAPHRAG_NUMBERS_BACKEND", "value": "pg"}]),
             "# Re-mint the psd_monthly rolling baseline from the POST-E canonical object.",
+            "# CENSUS PREDICTION #13 (STATE-ENGINE S0, 2026-09-08; SUPERSEDES #12 below): 791 legs, 542 FIRES / "
+            "249 DECLINES / 0 dark / 0 probe errors. The +1 LEG that FIRES is the curated Argentina_production "
+            "driver on soybeans_cbot (ref production_region, live; decision 10 of the board design, f6150b9a). "
+            "MEASURED by two read-only preflights on the 09-08 gate images (as-of 17:00Z on the tainted k9sub "
+            "image, as-of 22:00Z on the clean s0s1 image, both 791/542/249) and RE-MINTED on silver-gate:38 at "
+            "2026-09-08 ~22:30Z. #12 stays below as the record of the D-10 sitting-8 re-keys it predicted.",
             "# CENSUS PREDICTION #12 (D-10 sitting 8, 2026-09-07) -- what this re-mint MUST read, or "
             "stop and explain the difference before uploading: 790 legs, 541 FIRES / 249 DECLINES / "
             "0 dark / 0 probe errors. It supersedes prediction #11 (790 = 542/248, minted "
