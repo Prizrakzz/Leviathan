@@ -411,6 +411,58 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # ev_reads, declines[]. IT IS NEVER APPENDED TO episodes_injected.
                                  # BOTH keys land in ONE commit per the 12f law, so the negative-index
                                  # tail pins across the test files re-anchor ONCE, by two.
+    "quantify_xc_fork",          # STATE ENGINE PHASE 0 (design sec 9.1 / 6.7): the CROSS-COMMODITY
+                                 # FORK's closed tag, stamped by `cascade.quantify` on EVERY quantifying
+                                 # turn -- `outcome` in {fired, declined, not_reached}, `reason` a member
+                                 # of `cascade.XC_FORK_REASONS`, plus `path` (composer | standalone),
+                                 # `pair_id`, and `legs: {reading|derived|regional: {outcome, reason,
+                                 # reads}}` whose words are `XC_FORK_REASONS` / the producing leg's own
+                                 # decline word / `cascade.XC_SUBLEG_ORCHESTRATOR_REASONS`.
+                                 #
+                                 # IT IS REGISTERED BECAUSE IT IS THE ONLY INSTRUMENT THAT CAN SEE THE
+                                 # TREATMENT. The S5 build left it unregistered on the
+                                 # `quantify_*_decline` sibling precedent, expecting phase 0's gate to be
+                                 # a tier-1 render replay over the 7 composer-fired banked turns; the S5
+                                 # review MEASURED that those artifacts carry per-answer COUNTERS ONLY
+                                 # (no `calls`, no answer body, `quantify_transmission` null on every
+                                 # row), so that replay does not exist at $0. And eval's four RV counters
+                                 # (`rv_reading_rendered` / `_form` / `_decline` / `_fetches`) all read
+                                 # `quantify_reroute_v2` or `quantify_comove`, NEITHER of which the
+                                 # composer path writes -- so armed, those 7 turns would bank rows
+                                 # identical to control while spending real reads and real prompt bytes.
+                                 # Registration is what gives arm A a boolean that says the flag fired.
+                                 # Absent on a non-quantifying turn, which lifts as None like every other
+                                 # registered key on a turn that does not stamp it.
+    "state_board",               # STATE ENGINE (design sec 6.7 / D10), REGISTERED AT S5 AND WRITTEN AT
+                                 # S6. THE ONE key for the whole board: `legs: {leg: {outcome, reason,
+                                 # reads}}` over EVERY leg the state walk orchestrates, `outcome` the
+                                 # closed three-state `fired | declined | not_reached` and `reason` a
+                                 # PER-LEG closed enum declared in the producing module (the
+                                 # `XL_SUPPRESSED_REASONS` shape). `not_reached` is stamped by the
+                                 # ORCHESTRATING walk for every leg it did not enter -- a leg cannot
+                                 # stamp its own absence, which is the hole the reading's 4.8 measures
+                                 # (`rv_reading_decline` None on 12 of 12 because the leg was never
+                                 # REACHED on 10; this sitting re-measured the composer half of that as
+                                 # 7 of 12).
+                                 #
+                                 # IT IS REGISTERED ONE SITTING BEFORE ITS FIRST WRITER, DELIBERATELY
+                                 # (doctrine M-8, design 6.7's closing paragraph). Appending here reds
+                                 # SEVEN test files' negative-index tail pins, MEASURED by running them
+                                 # -- test_cascade_walk.py at TWO sites, test_dhp_episode_select.py,
+                                 # test_dhp_binding_verifier.py, test_dmw_eval_instruments.py,
+                                 # test_extreme_locator.py, test_orchestrator_telemetry.py and
+                                 # test_dhp_handle_grammar.py (the seventh, which the design's own 9.4
+                                 # census missed because two of its ten pins are SLICES -- `keys[-22:-17]`
+                                 # and `keys[-10:-2]` -- that a grep for `KEYS[-n]` does not report).
+                                 # Those re-pins belong in ONE commit with the registration rather than
+                                 # spread across the sitting that finally writes the key. [S5 REVIEW]
+                                 # TWO keys land in this one commit -- `quantify_xc_fork` above and this
+                                 # one -- so those tail pins re-anchor ONCE, BY TWO, exactly as the XL
+                                 # pair's own note two entries up describes. Until S6
+                                 # writes it the column lifts as
+                                 # None on every row, which is the SAME absent-as-None shape every
+                                 # registered key has on a turn that does not stamp it; the offline
+                                 # harness stamps the key `unregistered`-safe in the meantime.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

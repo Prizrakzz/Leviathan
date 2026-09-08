@@ -303,7 +303,17 @@ def test_p50_p91_the_trace_keys_are_the_last_two_and_the_decision_is_the_last_on
     """P50 / P91: BOTH keys land at the tail, in order, in ONE commit -- so the negative-index tail pins
     across the suite re-anchor ONCE, by two. `kind` rides INSIDE the locator key, which is why two kinds
     cost ONE key."""
-    assert tk.TRACE_RECORD_KEYS[-2:] == ("quantify_extreme_locator", "extreme_second_hop")
+    # S5 RE-ANCHOR (2026-09-08): the state engine appends `state_board` at the tail (design 6.7), so
+    # THIS pair is no longer the last two -- it is the two before the last. The pair's ORDER and its
+    # ADJACENCY, which is what P50/P91 actually claim, are unchanged and still asserted. The DECISION
+    # tuple is untouched by that append and keeps its `[-1]`.
+    assert tk.TRACE_RECORD_KEYS[-4:-2] == ("quantify_extreme_locator", "extreme_second_hop")
+    assert tk.TRACE_RECORD_KEYS[-1] == "state_board"
+    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
+    #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
+    #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
+    #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
     assert tk.DECISION_RECORD_KEYS[-1] == ("extreme_locator", "extreme_locator_decision")
     assert not any("windowed" in k or "xl_kind" in k for k in tk.TRACE_RECORD_KEYS)
 
@@ -1058,7 +1068,13 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # exactly one measured state and the prefix rule is never loosened into "anything at the tail".
     _qtail = list(qs)
     _PRE_K9_6 = ["extreme_locator", "extrema_own_date"]            # the banked HEAD tail
-    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role") if n in _qtail]
+    # S5 RE-ANCHOR (2026-09-08), by exactly ONE more name and WITHOUT loosening the join: STATE-ENGINE
+    # PHASE 0 appends `xc_sublegs_on_composer` (GRAPHRAG_XC_SUBLEGS_ON_COMPOSER, default False) at the
+    # tail, the third dark append to ride this list. The construction is unchanged -- each name is
+    # OPTIONAL and ORDERED, so any one of the three staying reverted is still accepted and the banked
+    # HEAD tail is still asserted where it always was, one rung further in.
+    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer")
+                   if n in _qtail]
     assert _qtail[len(_qtail) - 2 - len(_K9_APPENDS):len(_qtail) - len(_K9_APPENDS)] == _PRE_K9_6, _qtail
     assert _qtail[len(_qtail) - len(_K9_APPENDS):] == _K9_APPENDS, _qtail   # appended, in order added
     for _name, _on in (("xc_leg_handles", "_xc_leg_handles_on"), ("vintage_role", "_vintage_role_on")):
@@ -1302,7 +1318,8 @@ def test_g11_the_extrema_clock_repair_is_reachable_flag_gated_and_byte_inert_whe
     # in the order they were added". PRE-BANK kept; the pin's own subject is unchanged.
     _PRE_K9_6_LAST = "extrema_own_date"                        # the banked HEAD tail name
     _tail = list(qs)
-    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role") if n in _tail]
+    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer")
+                   if n in _tail]          # S5 RE-ANCHOR: phase 0's dark append, same optional-and-ordered rule
     assert _tail[len(_tail) - 1 - len(_K9_APPENDS)] == _PRE_K9_6_LAST, _tail[-3:]
     assert _tail[len(_tail) - len(_K9_APPENDS):] == _K9_APPENDS, _tail[-3:]
     assert qs["extrema_own_date"].default is False

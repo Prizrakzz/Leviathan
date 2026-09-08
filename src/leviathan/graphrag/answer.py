@@ -1318,6 +1318,42 @@ def _xc_leg_handles_on() -> bool:
     return os.environ.get("GRAPHRAG_XC_LEG_HANDLES", "").strip().lower() in ("on", "1", "true")
 
 
+def _xc_sublegs_on() -> bool:
+    """STATE-ENGINE PHASE 0's kill-switch (GRAPHRAG_XC_SUBLEGS_ON_COMPOSER), BUILT DARK.
+    Design docs/private/STATE_ENGINE_DESIGN_2026-09-07.md sec 9.1 / 9.2 (phase 0) / D9.
+
+    THE MEASURED TRIGGER, taken this sitting on the 12 banked turns (cascade_baseline_control.json,
+    deep; cascade_baseline_treatment.json, max; git_commit ee7dafce): the transmission composer fires
+    on SEVEN of the twelve -- deep {rv_soyoil_palm, rv_palm_rapeoil, rv_canola_rapeoil} and max
+    {rv_soyoil_palm, rv_palm_rapeoil, rv_beans_meal, rv_canola_rapeoil} -- and on all seven
+    `rv_reading_rendered` is False, `rv_reading_fetches` 0 AND `rv_reading_decline` is **None**. The
+    composer's `_xmit_fired` guard skips `cascade._run_xc` WHOLE, so the RV price reading and the
+    derived z / percentile lane are not reached and the trace cannot say so. The two legs closest to a
+    state reading are dark on the majority of the deck, silently.
+
+    WHEN ON: the two sub-legs run over the composer's OWN link-1 fired dict (`cascade._xc_sublegs`,
+    the body of `_run_xc`'s `if fired:` lifted verbatim so the two call sites cannot drift), their
+    lines append AFTER the composer's block, and only the STANDALONE PAIR RENDER stays skipped -- so
+    the pair is still narrated exactly once and no [N] row is re-minted, which is the duplicate-handle
+    defect the guard exists to prevent. WHEN OFF: the kwarg is ABSENT at the quantify seam, the sink is
+    never passed to the composer, and every rendered byte and [N] row on all twelve turns is HEAD's.
+
+    THE TAG IS NOT GATED ON THIS FLAG. `cascade.quantify` stamps `sg.trace['quantify_xc_fork']` on
+    every quantifying turn either way (the closed `fired / declined:<reason> / not_reached` vocabulary
+    of design 6.7), because a census that exists only when the treatment is armed cannot report the
+    control. It renders NOTHING -- no prompt byte, no [N] row -- and it moves no EXISTING eval counter.
+    It IS registered in `tracekeys.TRACE_RECORD_KEYS` (S5 review), so it adds its OWN column to every
+    per-answer eval record and rides `res['trace']` with both flags off: without that column an armed
+    arm A would bank rows identical to control on all four RV counters (they read
+    `quantify_reroute_v2` / `quantify_comove`, which this path never writes) while the turn spent real
+    reads and real prompt bytes -- a treatment with no boolean that says it fired.
+
+    Read at THIS seam and threaded DOWN as an argument -- never an env read inside cascade.py, which
+    two live doctrine tests assert on that file's own source ([SKEPTIC F3]). Read PER CALL, never
+    memoized, so the env-flip rollback is live without a redeploy."""
+    return os.environ.get("GRAPHRAG_XC_SUBLEGS_ON_COMPOSER", "").strip().lower() in ("on", "1", "true")
+
+
 def _vintage_role_on() -> bool:
     """K9-4 VINTAGE ROLE's kill-switch (GRAPHRAG_VINTAGE_ROLE), BUILT DARK.
 
@@ -2012,6 +2048,37 @@ def _recency_stamp_on() -> bool:
     return os.environ.get("GRAPHRAG_RECENCY_STAMP", "").strip().lower() in ("on", "1", "true")
 
 
+def _recency_facts_on() -> bool:
+    """STATE-ENGINE PHASE 0s's kill-switch (GRAPHRAG_RECENCY_FACTS), BUILT DARK.
+    Design docs/private/STATE_ENGINE_DESIGN_2026-09-07.md sec 6.5 (2)(3), sec 9.2 row 0s.
+
+    THE MEASURED TRIGGER is the owner's 2026-09-07 soybean turn, which dated the WHOLE ANSWER by ONE
+    layer -- "the record here runs through March 2025" -- on a page whose number rows carried knowledge
+    dates months newer. HEAD's `_SYSTEM_RECENCY` clause takes "your central claim" as its subject and
+    hands the writer one edge to state for everything, and its ledger sentence names "this turn's
+    record edge" in the singular; a page with a dated document, a number row and a price tape has
+    THREE, and the oldest one wins the reader's impression of currency.
+
+    WHEN ON, both halves ship together (they are one statement in two places): the persona's middle
+    clause becomes `_SYSTEM_RECENCY_EDGE_FACTS` (a claim is dated by the layer it rests on; the ledger
+    states EVERY edge; each edge is a fact about the layer it names) and the GROUNDING LEDGER's own
+    sentence states the layers PER LAYER instead of as one record edge. Neither sentence has the answer
+    as its subject, so neither can be inflated into "not a current-state read". WHEN OFF: both are
+    HEAD's bytes -- `_SYSTEM_RECENCY` is pinned to HEAD's own sha256 and the suffix returns HEAD's
+    string character for character.
+
+    IT RIDES `GRAPHRAG_RECENCY_STAMP` (`_recency_stamp_on`, "on" in prod and in both banked arms) as
+    its OUTER gate, per 6.5 (3): with the stamp off there is no clause and no suffix to vary, and this
+    flag can only choose the WORDING of a leg that is already shipping. Read PER CALL, never memoized.
+
+    THE BOARD'S TWO LAYERS ARE NOT WIRED YET, and that is stated rather than faked: the per-row
+    knowledge-date bounds (kd_max / kd_min) and the tape edge arrive with the state board at phase 2
+    (S6). Until then the suffix names exactly the layers the turn can measure -- the number rows' read
+    as-of and the dated document edge -- and CLAIMS NOTHING about the ones it cannot. A sentence that
+    named an unmeasured layer would be the defect this item exists to close, one layer over."""
+    return os.environ.get("GRAPHRAG_RECENCY_FACTS", "").strip().lower() in ("on", "1", "true")
+
+
 def _record_through(evidence: list | None) -> str | None:
     """D-RC-13: the newest USABLE reported date across this turn's evidence -- the record's edge.
     Reported dates only, deliberately: observed number rows carry their own knowledge-date axis and
@@ -2034,15 +2101,61 @@ def _record_from(evidence: list | None) -> str | None:
     return min(dates) if dates else None
 
 
-def _recency_ledger_suffix(record_through: str | None) -> str:
+def _recency_ledger_suffix(record_through: str | None, *, asof: str | None = None,
+                           kd_max: str | None = None, kd_min: str | None = None,
+                           tape_edge: str | None = None, n_rows: int | None = None) -> str:
     """The per-turn VOLATILE record-edge sentence (flag-gated; '' when off or dateless -- the caller
     concatenates unconditionally so the seam stays one line). Rides the GROUNDING LEDGER, never the
-    cached stable prefix."""
+    cached stable prefix.
+
+    STATE-ENGINE PHASE 0s (design 6.5 (2)): behind `GRAPHRAG_RECENCY_FACTS` this becomes the PER-LAYER
+    statement -- one sentence per layer the turn can actually measure, closed by "Each of those is a
+    fact about the layer it names, and none dates the others". HEAD's sentence already carried the
+    three layers, but it carried them as ONE fact with two parentheticals hanging off it, which is what
+    lets a reader (and a writer) collapse them into a single verdict on the page.
+
+    THE FIVE KWARGS ARE OMIT-WHEN-ABSENT, and each names a layer that is stated ONLY when it is known:
+    `asof` (the read date of the number rows) is available at both seams today; `kd_max` / `kd_min`
+    (the newest and oldest knowledge date across the board's rows) and `tape_edge` (the board price
+    tape's last session) arrive with the state board at phase 2 (S6) and are None until then. An absent
+    layer is SILENT, never guessed -- naming an edge the turn did not measure is the same class of
+    defect as dating the whole page by one layer. Flag off, or with no kwarg passed at all, the return
+    value is HEAD's string character for character (pinned).
+
+    [S5 REVIEW] `n_rows` IS THE ROWS LAYER'S OWN EXISTENCE TEST, and it closes that same defect one
+    layer over. The build stated the number-rows sentence UNCONDITIONALLY at both serving seams, neither
+    of which checks that the turn served any number rows at all -- so a text-only turn named a layer
+    with no members. `_served_rows` is the producer that already answers this (it is called eight lines
+    above the v1 call site and stamped as `served_rows` at the L2 one), so it is threaded rather than
+    re-derived: 0 -> the rows sentence is OMITTED, a positive count -> it is stated, None (an
+    unmeasured caller) -> HEAD's own vacuous-safe general phrasing. AND THE CLOSING SENTENCE IS ITSELF
+    GATED ON HAVING TWO LAYERS TO CLOSE: "Each of those ... none dates the others" over a single stated
+    layer is a sentence with one antecedent, which is the small end of the same fault."""
     if not _recency_stamp_on() or not record_through:
         return ""
-    return (f" The dated evidence record for this question runs through {record_through} (reported "
-            f"dates; observed [N] number rows carry their own knowledge dates; the as-of date is this "
-            f"question's 'today').")
+    if not _recency_facts_on():
+        return (f" The dated evidence record for this question runs through {record_through} (reported "
+                f"dates; observed [N] number rows carry their own knowledge dates; the as-of date is this "
+                f"question's 'today').")
+    parts: list[str] = []
+    if n_rows is None or n_rows > 0:
+        rows = (f"The number rows on this page are read as of {asof}, and each row carries its own "
+                f"knowledge date" if asof else
+                "Each observed [N] number row on this page carries its own knowledge date")
+        if kd_max and kd_min:
+            rows += f"; the newest is {kd_max} and the oldest {kd_min}."
+        else:
+            rows += "."
+        parts.append(rows)
+    # HEAD's "(reported dates)" QUALIFIER IS KEPT (S5 review): `_record_through` is measured on REPORTED
+    # dates and not on publication dates -- its own docstring says so deliberately -- and dropping the
+    # qualifier left that precision stated nowhere on the page.
+    parts.append(f"The newest dated document behind this answer is {record_through} (reported dates).")
+    if tape_edge:
+        parts.append(f"The board price tape runs through {tape_edge}.")
+    if len(parts) > 1:
+        parts.append("Each of those is a fact about the layer it names, and none dates the others.")
+    return " " + " ".join(parts)
 
 
 def _episodes_on(volatile_prompt: str | None) -> bool:
@@ -2597,14 +2710,57 @@ _SYSTEM_EPISODES_SELECT = (
 # Arabic answers led with MY2020-22 facts in PRESENT tense, and Malaysia's MPOB read never said its
 # newest month was three months old). STATIC text -- the per-turn DATE rides the volatile GROUNDING
 # LEDGER sentence (_recency_ledger_suffix), never this cached persona suffix.
-_SYSTEM_RECENCY = (
+# STATE-ENGINE PHASE 0s SPLIT (design sec 6.5 (3), sec 9.2 row 0s). The literal is cut into three parts
+# ON SENTENCE BOUNDARIES so ONE clause can be substituted behind `GRAPHRAG_RECENCY_FACTS` -- the K9-4
+# `_SYSTEM_CASCADE` / `_SYSTEM_CASCADE_VR` idiom, one file over. `_SYSTEM_RECENCY` itself keeps HEAD's
+# EXACT value (the composition is an equality pinned in the deck, and HEAD's own sha256 is pinned beside
+# it), so every existing caller, every `_system` render and the g1x seam golden are byte-identical.
+_SYSTEM_RECENCY_A = (
     "\n\nRECENCY & DATING DISCIPLINE: the dated record has an EDGE, and the reader must always be able "
     "to see it. When you cite an item reported more than ~18 months before the as-of, DATE the claim in "
     "prose ('in MY 2021/22...', 'as of April 2026...') and keep it in the PAST tense -- present-tensing "
-    "a stale fact ('stocks are tight' on a years-old report) misleads a desk. When the newest support "
+    "a stale fact ('stocks are tight' on a years-old report) misleads a desk. ")
+_SYSTEM_RECENCY_EDGE = (
+    "When the newest support "
     "for your central claim sits well behind the as-of, say so plainly in the body: 'the record here "
     "runs through <month year>'. The GROUNDING LEDGER states this turn's record edge; the as-of is the "
-    "question's 'today'. Dating a claim is never optional where the reader could mistake it for current.")
+    "question's 'today'. ")
+_SYSTEM_RECENCY_B = (
+    "Dating a claim is never optional where the reader could mistake it for current.")
+_SYSTEM_RECENCY = _SYSTEM_RECENCY_A + _SYSTEM_RECENCY_EDGE + _SYSTEM_RECENCY_B
+
+
+# THE FLAG-ON VARIANT OF THE MIDDLE CLAUSE (`GRAPHRAG_RECENCY_FACTS`), substituted at the `_system`
+# assembly seam. Design sec 6.5 (3), the then/now design's (ii).
+#
+# THE MEASURED TRIGGER is the owner's 2026-09-07 soybean turn, whose answer dated ITSELF by ONE layer:
+# it read "the record here runs through March 2025" over a turn whose number rows carried knowledge
+# dates months newer, because HEAD's clause takes THE ANSWER'S CENTRAL CLAIM as its subject and hands
+# the writer one edge to state for the whole page. A single sentence about "your central claim" cannot
+# be true of a page that carries a dated document, a number row and a price tape at three different
+# edges -- so the writer picks one, and the oldest one wins the reader's impression of currency.
+#
+# THE CORRECTION IS A NARROWING OF THE SUBJECT, NOT A DELETION (doctrine: fences CORRECT or COMPUTE,
+# never delete). Every instruction HEAD gives survives -- date the claim, name the ledger, the as-of is
+# 'today' -- and what changes is WHAT EACH SENTENCE IS ABOUT: a claim is dated by the layer it rests on,
+# and the ledger states EVERY edge rather than "this turn's record edge" (singular). NEITHER sentence
+# has the answer as its subject, so neither can be inflated into a whole-page verdict such as "not a
+# current-state read".
+#
+# ONE ADDITION TO THE DESIGN'S OWN WORDING, NAMED HERE: the design's (ii) drops "the as-of is the
+# question's 'today'". That clause is a FACT ABOUT A THIRD LAYER and states the very thing this item
+# exists to preserve, so it is folded into the ledger sentence rather than deleted -- the deletion would
+# have removed a layer from a per-layer contract.
+#
+# REGISTER: the literal is linted at BUILD (`register.register_leaks` == [], `count_flow_words` == 0,
+# `count_valuation_words` == 0, `sanitize` is the identity) -- a serve-time trip on a persona constant
+# would be a build defect, not a turn's bad luck.
+_SYSTEM_RECENCY_EDGE_FACTS = (
+    "When a claim rests on a dated "
+    "document, date that claim by the document's own date; when it rests on a number row, date it by "
+    "that row's own knowledge date. The GROUNDING LEDGER states every edge, and the as-of is the "
+    "question's 'today'. State each edge as a fact about the layer it names. ")
+_SYSTEM_RECENCY_FACTS = _SYSTEM_RECENCY_A + _SYSTEM_RECENCY_EDGE_FACTS + _SYSTEM_RECENCY_B
 
 
 # K9-4 design FIX 3b, THE POSITIVELY-WORDED HALF (the J6 clause), APPENDED TO `_SYSTEM_RECENCY` RATHER
@@ -3014,7 +3170,13 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     if outlook:                                                    # W5-D5: the reserved '## Outlook' heading
         base = base + _SYSTEM_OUTLOOK
     if recency:                                                    # D-RC-13: dating discipline (flag resolved
-        base = base + _SYSTEM_RECENCY                              #   by the caller's seam, threaded DOWN)
+        #                                                          #   by the caller's seam, threaded DOWN.
+        # PHASE 0s: the middle clause branches on GRAPHRAG_RECENCY_FACTS -- the K9-4 substituted-paragraph
+        # idiom, one flag, one clause, no other byte of this persona moved. FLAG OFF -> `_SYSTEM_RECENCY`
+        # itself, HEAD's own value (sha-pinned in the deck). Read HERE rather than threaded, the
+        # `_vintage_role_on()` append idiom two lines down: it rides the leg it rewrites, so it can never
+        # ship on a turn whose dating discipline did not.
+        base = base + (_SYSTEM_RECENCY_FACTS if _recency_facts_on() else _SYSTEM_RECENCY)
         if _vintage_role_on():                                     # K9-4 3b: the receipt-MOOD clause, on
             base = base + _SYSTEM_RECENCY_MOOD                     #   the ONE literal measured shipping on
             #                                                          both banked arms. Read here rather
@@ -3952,6 +4114,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # lands beside `_xlh_kw` and BEFORE `**_eod_kw` for the reason written above -- the g1x seam
             # golden's second anchor is that spread, and an append landing on it takes the gate down.
             _vr_kw = {"vintage_role": True} if _vintage_role_on() else {}
+            # STATE-ENGINE PHASE 0, BUILT DARK: the same omit-when-off idiom once more, landing BESIDE
+            # `_vr_kw` and BEFORE `**_eod_kw` for the reason the block's own comment gives above. Flag
+            # off -> the kwarg is absent, `quantify` never passes a sink to the transmission composer,
+            # and the composer-fired turns render exactly the bytes they render today.
+            _xsc_kw = {"xc_sublegs_on_composer": True} if _xc_sublegs_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
@@ -3961,7 +4128,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                                 **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw,
                                                                 **_fnf_kw, **_pr_kw, **_rv_kw, **_rvr_kw,
                                                                 **_dv_kw, **_cw_kw, **_xl_kw,
-                                                                **_xlh_kw, **_vr_kw, **_eod_kw)
+                                                                **_xlh_kw, **_vr_kw, **_xsc_kw, **_eod_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:
@@ -4063,7 +4230,13 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # otherwise, so the ledger line is byte-identical flag-off).
     _rec_through = _record_through([h for n in sg.nodes for h in (getattr(n, "evidence", None) or [])])
     sg.trace["record_through"] = _rec_through
-    _ledger_line += _recency_ledger_suffix(_rec_through)
+    # PHASE 0s: `asof` names the layer the NUMBER ROWS were read at -- the one layer of 6.5 (2) this
+    # seam can measure today -- and `n_rows` says whether that layer HAS members on this turn (the S5
+    # review's fix: a text-only turn must not name a layer with none). Both are IGNORED with
+    # GRAPHRAG_RECENCY_FACTS off (the suffix returns HEAD's string), so the ledger line is
+    # byte-identical flag-off with the kwargs passed unconditionally. `n_srv` is the same
+    # `_served_rows` value the ledger line above already states -- one producer, not a second count.
+    _ledger_line += _recency_ledger_suffix(_rec_through, asof=str(asof) if asof else None, n_rows=n_srv)
     volatile_blocks = volatile_blocks + [_ledger_line]
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     # Stream the note when the caller wired an SSE progress channel (real serving call only; injected fakes
@@ -10486,7 +10659,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # so the record-edge sentence rides its own volatile block (same text, same flag, '' when off ->
     # byte-identical assembly).
     _rec_through = _record_through(evidence)
-    _rec_suffix = _recency_ledger_suffix(_rec_through)
+    _rec_suffix = _recency_ledger_suffix(_rec_through, asof=str(asof) if asof else None,  # PHASE 0s
+                                         n_rows=_served_rows(extra_number_calls))
     if _rec_suffix:
         volatile_blocks.append(_rec_suffix.strip())
     _emit(on_stage, "retrieving", props=len(evidence))

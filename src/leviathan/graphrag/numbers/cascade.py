@@ -1337,7 +1337,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              extreme_locator: dict | None = None,
              extrema_own_date: bool = False,
              xc_leg_handles: bool = False,
-             vintage_role: bool = False) -> tuple:
+             vintage_role: bool = False,
+             xc_sublegs_on_composer: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1571,8 +1572,26 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # its link-1 render IS this exact xc pair (the RV2 fence selects the curated row matching the ask), so the
     # standalone render below would narrate the same pair TWICE with duplicate [N] rows. Fired -> standalone
     # skipped; DECLINED or flag-off -> the standalone renders exactly as today (no lost fork).
+    # [S5 REVIEW, CORRECTION TO THE NOTE ABOVE -- it is stated as fact and it is not one.] The composer is
+    # selected on its HEAD SOURCE alone (`_xmit_focus` -> `_xmit_select`), never on the request's pair_id
+    # or target, and both shipped chains carry the SAME link-1 pair -- so "its link-1 render IS this exact
+    # xc pair" holds on 2 of the 7 composer-fired banked turns and fails on the other 5. What the guard
+    # below actually buys is therefore NARROWER than the note claims: the composer has already narrated a
+    # cross-commodity pair off this turn's focus contract, and a second standalone render would put two
+    # such blocks (and on the matching turns, duplicate [N] rows) in one answer. That is still a real
+    # reason to skip the standalone RENDER -- which is all this guard does -- and it is NOT a reason to
+    # let the two sub-legs price link 1 as though it were the ask. `_xmit_link_is_ask` draws that line.
     _xmit_fired = False
     _xmit_lines: list = []
+    # STATE-ENGINE PHASE 0 (design 9.1) -- THE SUB-LEGS THE COMPOSER SUPPRESSES, and the fork's tag.
+    # `_xc_sub_sink` is passed to the composer ONLY when GRAPHRAG_XC_SUBLEGS_ON_COMPOSER is on (the
+    # omit-when-off / positional-stub discipline of N12 and K9-6, one line down from both). `_xc_sub_lines`
+    # is [] unless the flag is on AND the composer fired AND link 1 fired, so flag-off every rendered byte
+    # and every [N] row on this path is HEAD's.
+    _xc_sub_sink: dict = {}
+    _xc_sub_lines: list = []
+    _xc_fork_legs: dict | None = None
+    _xc_fork_reason: dict = {}
     if transmission:
         try:
             _chain_already = bool((getattr(sg, "trace", None) or {}).get("quantify_chain"))
@@ -1581,7 +1600,9 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         _xmit_lines, x_trace, x_decline = _transmission_legs(sg, graph, groups, xc_request, qfn, asof, near,
                                                              extra_number_calls, comove=comove,
                                                              chain_fired=_chain_already,
-                                                             xc_leg_handles=xc_leg_handles)
+                                                             xc_leg_handles=xc_leg_handles,
+                                                             **({"sublegs_sink": _xc_sub_sink}
+                                                                if xc_sublegs_on_composer else {}))
         if x_trace:
             try:
                 sg.trace["quantify_transmission"] = x_trace
@@ -1593,6 +1614,46 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
                 sg.trace["quantify_transmission_decline"] = x_decline
             except Exception:  # noqa: BLE001
                 pass
+    if xc_request and _xmit_fired and xc_sublegs_on_composer and _xc_sub_sink.get("fired"):
+        # PHASE 0, THE CORRECTION (correct, never delete -- design 9.1 / doctrine "fences CORRECT or
+        # COMPUTE"). MEASURED TRIGGER: 7 of the 12 banked turns fire the composer, and on all seven the
+        # RV price reading and the derived z / percentile lane are `not_reached` with `rv_reading_decline`
+        # None -- see the census block above `XC_FORK_OUTCOMES`. The `_xmit_fired` guard below exists to
+        # stop a SECOND cross-commodity pair render landing in one answer (the [SKEPTIC F5] note directly
+        # above `_xmit_fired`, and its own S5 correction beneath it) -- a reason that binds THE PAIR
+        # RENDER ONLY, in the note's own words: "Fired -> standalone skipped". So the sub-legs run over
+        # the composer's OWN link-1 fired dict -- no second `_reroute_xc`, no re-minted pair rows, the
+        # composer's block untouched -- and only the standalone render stays skipped. AND ONLY WHEN LINK
+        # 1 IS THE ASK: this branch is reached only through `_xmit_link_is_ask`, because the chain is
+        # selected on its head SOURCE alone and on 5 of those 7 turns link 1 is a different pair (the
+        # fatal the S5 review measured). Their lines append AFTER the composer's block, below.
+        _sub_fired = _xc_sub_sink["fired"]
+        # READ ACCOUNTING (S5 review, MAJOR). Design 9.1 asserts the new reads are "inside the existing
+        # caps and counted by `_cw_turn_spent` through the fork's `net_reads`". That is true on the
+        # STANDALONE path -- `xc_trace["net_reads"] = len(extra_number_calls) - _xc_base` twenty lines
+        # below -- and it was FALSE here: `quantify_transmission["net_reads"]` is stamped by
+        # `_xmit_stamp_reads` at the composer's RETURN, before these legs run, and the composer path
+        # writes no fork trace at all, so none of the eight payloads `_cw_turn_spent` enumerates carried
+        # this spend. MEASURED on the hermetic composer fixture: flag ON spent 4 more pg round-trips
+        # while `_cw_turn_spent(sg)` returned the SAME number in both arms -- a real spend read as zero,
+        # which is the one direction that counter's own contract ("ABSENT IS NEVER ZERO") exists to
+        # prevent. The delta is the SAME calls-delta proxy the standalone path already banks, and the
+        # walk runs BELOW this seam, so it now prices its cells against the honest number.
+        _sub_base = len(extra_number_calls)
+        _xc_sub_lines = _xc_sublegs(_sub_fired, [], _xc_sub_sink.get("pair_row"),
+                                    _xc_sub_sink.get("source"), _xc_sub_sink.get("target"),
+                                    _xc_sub_sink.get("windows") or [], qfn, asof, extra_number_calls, sg,
+                                    derived_arith=derived_arith, reading=rv_reading,
+                                    replay=price_replay, regional=False,
+                                    extrema_own_date=extrema_own_date)
+        _xc_fork_legs = _xc_subleg_rows(_sub_fired, derived_arith=derived_arith, reading=rv_reading,
+                                        regional_lane=rv_regional, path="composer")
+        try:
+            if isinstance(x_trace.get("net_reads"), int):
+                x_trace["subleg_reads"] = len(extra_number_calls) - _sub_base
+                x_trace["net_reads"] = x_trace["net_reads"] + x_trace["subleg_reads"]
+        except Exception:  # noqa: BLE001 -- an un-countable payload must never break the v1 answer
+            pass
     if xc_request and not _xmit_fired:
         # RV-READING: `rv_reading` (answer.py-threaded, the [F3] idiom) and quantify's own price_replay
         # ride down as arguments -- both default False, so an rv_reading-less call is byte-identical.
@@ -1601,7 +1662,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
                                      comove=comove, reading=rv_reading, replay=price_replay,
                                      rv_regional=rv_regional, derived_arith=derived_arith,
                                      extrema_own_date=extrema_own_date,
-                                     xc_leg_handles=xc_leg_handles)
+                                     xc_leg_handles=xc_leg_handles,
+                                     fork_sink=_xc_fork_reason)
         if xc_trace:
             # A3 (walk charter): the fired fork's spend, measured as the calls-delta at fork exit --
             # the adjudicated proxy (the RV sub-legs count their own `fetches` beside it). This is
@@ -1617,6 +1679,45 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
                 pass
             block_lines = block_lines + xc_lines
+            _xc_fork_legs = _xc_subleg_rows(xc_trace, derived_arith=derived_arith, reading=rv_reading,
+                                            regional_lane=rv_regional, path="standalone")
+    # PHASE 0's TAG (design 9.1 / 6.7 / D10), stamped on EVERY quantifying turn. It is the ONE place
+    # that can say `not_reached`, because 6.7's law is that a leg cannot stamp its own absence -- and
+    # `rv_reading_decline` reading None on 7 of 12 banked turns is exactly that hole. The outcome is the
+    # closed three-state; the fork's own reason is a member of `XC_FORK_REASONS`; the three sub-leg rows
+    # carry the producing leg's OWN word where it has one and `XC_SUBLEG_ORCHESTRATOR_REASONS` where it
+    # does not. It RENDERS NOTHING -- no prompt byte, no [N] row -- and it moves no EXISTING eval
+    # counter (`reroute_v2_pairs` still reads `quantify_reroute_v2`, `rv_reading_*` still read the FIRED
+    # dict). It IS a registered key since the S5 review, so it adds its own column to every per-answer
+    # eval record and rides `res['trace']` on every quantifying turn: that is the point (see
+    # `_xc_fork_tag`), and it is named at commit rather than left for a reader to discover.
+    if not xc_request:
+        _xc_fork_tag(sg, "not_reached", "no_request")
+    elif _xmit_fired and not xc_sublegs_on_composer:
+        _xc_fork_tag(sg, "not_reached", "composer_fired")
+    elif _xmit_fired:
+        if _xc_sub_sink.get("fired"):
+            # `pair_id` RIDES THE TAG (S5 review): the composer's chain is selected on its HEAD SOURCE
+            # alone, so "the sub-legs fired" is not by itself enough for a trace reader to know WHICH
+            # pair was priced. The sink already carries it; the tag now says it.
+            _xc_fork_tag(sg, "fired", path="composer", legs=_xc_fork_legs,
+                         pair_id=_xc_sub_sink.get("pair_id"))
+        elif _xc_sub_sink.get("decline"):
+            # The composer fired on a chain whose LINK 1 is not the pair this turn asked about -- the
+            # measured majority case (see `_xmit_link_is_ask`). Named, never priced.
+            _xc_fork_tag(sg, "declined", _xc_sub_sink["decline"], path="composer",
+                         pair_id=_xc_sub_sink.get("link1_pair"),
+                         ask_pair=_xc_sub_sink.get("ask_pair"))
+        else:
+            # The flag is on and the composer fired, but its LINK 1 did not -- the composer rendered from
+            # a later link (or rolled back), so there is no requested-pair dict to run the sub-legs over.
+            _xc_fork_tag(sg, "declined", "sides_mismatch", path="composer")
+    elif _xc_fork_legs is not None:
+        _xc_fork_tag(sg, "fired", path="standalone", legs=_xc_fork_legs,
+                     pair_id=(xc_request or {}).get("pair_id"))
+    else:
+        _xc_fork_tag(sg, "declined", _xc_fork_reason.get("reason") or "error", path="standalone",
+                     pair_id=(xc_request or {}).get("pair_id"))
     # SEAM B (F2 price-response): the settled US farm-price consequence pair for the FOCUS contract, gated ONLY
     # by the answer.py-threaded price_request (GRAPHRAG_CASCADE_PRICE_LEG is read at that seam, never here --
     # [F3]/xc_request discipline). price_request None -> inert, everything above byte-identical. POST-CAP + POST-
@@ -1665,6 +1766,11 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # quantify_transmission above; attempted-and-declined wrote quantify_transmission_decline; no attempt ->
     # BOTH keys absent (zero-cost turns stay zero-trace).
     block_lines = block_lines + _xmit_lines
+    # PHASE 0: the composer-fired sub-legs' lines, appended AFTER the composer's block (design 9.1) so
+    # the reader meets the pair the composer narrated and THEN its price standing, which is the same
+    # order the standalone fork renders. `_xc_sub_lines` is [] on every flag-off turn and on every turn
+    # the composer did not fire, so each existing line keeps its byte position.
+    block_lines = block_lines + _xc_sub_lines
     if chain and not _xmit_fired:                                 # D11: at most ONE chain engine per turn
         c_lines, c_trace, c_decline = _chain_legs(sg, graph, kept, records, qfn, asof, near,
                                                   extra_number_calls,
@@ -3412,10 +3518,230 @@ def _load_pair_row(pair_id: str):
     return None
 
 
+# ── STATE-ENGINE PHASE 0: THE XC FORK'S DECLINE TAG (design 9.1 / 6.7 / D9 / D10) ───────────────────
+#
+# THE MEASURED TRIGGER, taken on the 12 banked turns this sitting (cascade_baseline_control.json, deep,
+# 6 rows; cascade_baseline_treatment.json, max, 6 rows; git_commit ee7dafce):
+#   * `transmission_fired` is True on SEVEN of the twelve -- deep {rv_soyoil_palm, rv_palm_rapeoil,
+#     rv_canola_rapeoil}, max {rv_soyoil_palm, rv_palm_rapeoil, rv_beans_meal, rv_canola_rapeoil}.
+#   * On all SEVEN: `rv_reading_rendered` False, `rv_reading_fetches` 0, `reroute_v2_pairs` 0 AND
+#     `rv_reading_decline` **None** -- the composer's `_xmit_fired` guard at the seam skips `_run_xc`
+#     WHOLE, so `_rv_price_reading` and the derived z / percentile lane are `not_reached` and the trace
+#     cannot say so. That silent None on 7 of 12 is this item's whole subject.
+#   * The other five are legible today and stay so: rv_corn_wheat (deep and max) fires the standalone
+#     fork and renders the reading (4 fetches); rv_beans_oil (deep and max) carries no cross-commodity
+#     ask at all (`xc_detect_decision.tier == 'none'`); rv_beans_meal (deep) declines the composer
+#     `root_not_grounded` and then declines the fork itself with no recorded word.
+#
+# THE VOCABULARY IS 6.7's THREE-STATE, and the FORK leg's reason enum is closed here, in ONE module
+# constant, pinned on SET AND FIRST-APPEARANCE ORDER the way `orchestrator.XL_SUPPRESSED_REASONS` is.
+XC_FORK_OUTCOMES = ("fired", "declined", "not_reached")
+XC_FORK_REASONS = (
+    "no_request",        # no cross-commodity ask on this turn (or a request naming no usable pair)
+    "composer_fired",    # the transmission composer subsumed the pair render and the sub-legs did not run
+    "link1_not_ask",     # the composer fired on a chain whose LINK 1 is NOT the pair the turn asked about,
+    #                      so there is no requested-pair fired dict to run the sub-legs over. NOT in the
+    #                      design's 9.1 list; ADDED at the S5 review after the shipped catalog was
+    #                      MEASURED (see `_xmit_link_is_ask`): `_xmit_select` matches the chain on its
+    #                      HEAD SOURCE alone, and both shipped chains carry the same link-1 pair, so on
+    #                      5 of the 7 composer-fired banked turns link 1 is a DIFFERENT pair from the ask.
+    #                      Without this word the seam would either price the wrong pair silently or
+    #                      report the honest decline under `sides_mismatch`, which means something else.
+    "no_pair_row",       # `_load_pair_row` found no curated row for the requested pair_id
+    "no_focus_windows",  # `_xc_focus_windows` returned no shared era window
+    "sides_mismatch",    # `_reroute_xc` / `_reroute_xc_regional` did not fire (sides, signs or deltas)
+    "error",             # the fork's own fail-closed swallow. NOT in the design's 9.1 list; ADDED here
+    #                      deliberately, because `_run_xc`'s `except` branch is a REACHABLE state and a
+    #                      closed vocabulary that cannot name it would force a lie (`sides_mismatch`) on
+    #                      the one turn shape where the reason matters most. Every sibling channel in
+    #                      this file already spells it `error` (`derived_arith_decline`, `_xmit` reason).
+)
+#
+# THE ORCHESTRATOR'S OWN WORDS -- the three the SEAM mints for a sub-leg it can see the absence of but
+# that has no producer to speak (6.7's law: a leg cannot stamp its own absence). Closed and pinned here
+# for the same reason `XC_FORK_REASONS` is: `lane_off` was an unpinned string literal at build review.
+XC_SUBLEG_ORCHESTRATOR_REASONS = (
+    "lane_off",          # the leg's own kwarg was off on this turn -- it was never dispatched
+    "composer_path",     # the REGIONAL dispatch lives inside `_run_xc` only, so a composer-fired turn
+    #                      never evaluates it; with GRAPHRAG_RV_REGIONAL armed its absence would
+    #                      otherwise be silent on exactly the 7-of-12 turns phase 0 exists to fix.
+    "not_regional",      # the standalone dispatch RAN and chose the world-pair branch (the pair is not
+    #                      a regional pair, or its regional sides did not check out), so the regional
+    #                      leg had nothing to do -- an absence with a cause, never a silent None.
+)
+#
+# THE TWO SUB-LEG ROWS CARRY THE PRODUCING LEG'S OWN DECLINE WORD, VERBATIM AND UNINTERPRETED --
+# `fired['price_reading_decline']` and `fired['derived_arith_decline']`, the channels those legs have
+# stamped since 2026-08-29 / 09-01. The design's 9.1 list names five of those words (replay, comove,
+# no_metric_map, su_no_roster, fenced); re-declaring them in a constant HERE would mint a SECOND
+# vocabulary over three modules (`_rv_price_reading` also spells no_absence_reason / empty_series /
+# a stats guard token / error, and `derived.py` spells ten crush_* and su_* words), and the two would
+# drift on the first edit to either producer. One producer per word is the same law K9-6 applied to
+# the leg line and 6.7 applies to the role word: the tag REPORTS, it does not re-encode.
+def _xc_fork_tag(sg, outcome: str, reason: str | None = None, **extra) -> None:
+    """Stamp `sg.trace['quantify_xc_fork']` -- the closed fork tag of design 9.1, on EVERY quantifying
+    turn. TRACE ONLY: it never reaches the prompt, never mints an [N] row and never moves an eval
+    boolean (`reroute_v2_pairs` still reads `quantify_reroute_v2`, `rv_reading_*` still read the FIRED
+    dict). It is stamped UNCONDITIONALLY rather than behind `GRAPHRAG_XC_SUBLEGS_ON_COMPOSER`, because
+    the tag is the instrument that MEASURES the flag: a census that only exists when the treatment is
+    armed cannot report the control. That is the `record_through` scoped-promise precedent stated at
+    `answer._recency_stamp_on` -- a flag's byte-identity promise covers the ANSWER BODY, and trace is
+    exempt; here no flag is even involved, and the 12 banked turns' served bytes are untouched either way.
+
+    REGISTERED in `tracekeys.TRACE_RECORD_KEYS` (S5 review). The build first left it unregistered on the
+    `quantify_transmission_decline` / `quantify_chain_decline` sibling precedent, on the stated ground
+    that phase 0's gate is the deterministic tier-1 replay which reads `sg.trace` directly. That ground
+    does not hold and the review MEASURED why: the banked arm artifacts carry per-answer COUNTERS ONLY
+    (no `calls`, no answer body, `quantify_transmission` null on every row), so the replay over the 7
+    real turns is not executable at $0 and the hermetic fixture is the only instrument that exists --
+    while eval's four RV counters all read `quantify_reroute_v2` / `quantify_comove`, neither of which
+    the composer path writes. Armed, the 7 turns would therefore bank rows IDENTICAL to control on
+    `rv_reading_rendered` / `rv_reading_fetches` / `reroute_v2_pairs` while spending real reads and
+    real prompt bytes: a treatment with no boolean that says it fired. Registration is the whole fix --
+    `eval.py` lifts every registered key by LOOPING the registry, so it needs no eval edit -- and its
+    only cost is the negative-index tail re-pins, which THIS SAME COMMIT is already re-anchoring for
+    `state_board` (doctrine M-8: they re-anchor once, by two). Never raises (a traceless sg is a no-op)."""
+    try:
+        rec: dict = {"outcome": outcome}
+        if reason is not None:
+            rec["reason"] = reason
+        # OMIT-WHEN-ABSENT, the estate's own trace idiom: a `None` extra is a layer this turn did not
+        # measure, and a key carrying None reads to a census as "measured, and it was nothing".
+        rec.update({k: v for k, v in extra.items() if v is not None})
+        sg.trace["quantify_xc_fork"] = rec
+    except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+        pass
+
+
+def _xc_sublegs(fired: dict, block: list, pair_row, source: str, target: str, windows: list,
+                qfn, asof, calls: list, sg, *, derived_arith: bool = False, reading: bool = False,
+                replay: bool = False, regional: bool = False,
+                extrema_own_date: bool = False) -> list:
+    """THE TWO SUB-LEGS OF A FIRED RV PAIR -- the derived balance-standing and the RV price reading --
+    LIFTED VERBATIM out of `_run_xc`'s `if fired:` body (design 9.1's `_xc_sublegs` lift, the
+    `_cw_admissible_children` precedent). Returns the (possibly extended) block; `fired` and `calls` are
+    mutated IN PLACE exactly as they were inside `_run_xc`, so the standalone path is byte-identical.
+
+    WHY IT IS A FUNCTION. Two call sites must run the SAME code and cannot be allowed to drift: the
+    standalone fork (`_run_xc`) and -- behind `GRAPHRAG_XC_SUBLEGS_ON_COMPOSER` -- the transmission
+    composer's own link-1 fired dict at the `quantify` seam, on the 7-of-12 turns measured above where
+    the composer fires and these two legs are `not_reached` today. Draft B's alternative ("drop the
+    conjunct, skip the render") is NOT taken: it would re-run `_reroute_xc` inside `_run_xc` and re-mint
+    the pair's [N] rows, which is the duplicate-handle defect the `_xmit_fired` guard exists to prevent.
+    Only the STANDALONE PAIR RENDER is skipped on a composer-fired turn; these two legs are not that
+    render and mint no pair row -- the composer narrates the pair exactly once, as it does today.
+
+    `regional` is `_run_xc`'s local `_regional` (the dispatch it already computed), threaded rather than
+    recomputed: the composer never takes the regional branch, so it passes False."""
+    # RV-READING: renders AFTER the pair fired, gated ONLY by the threaded kwargs (fail-closed
+    # inside). The fence trip is the one decline that also writes a top-level trace key -- the
+    # register discipline's own visibility rule (belt (a) of _RV_READING_BANNED_RX).
+    # D-DA LANE 1 (design v2, seam step): the balance-standing block renders BEFORE the price
+    # reading (balance sheets first, then price standing -- the reading's own render order),
+    # gated ONLY by the threaded kwarg and the roster; fail-closed inside su_standing.
+    if derived_arith:
+        try:
+            from leviathan.graphrag.numbers import derived as _dv
+            # DV_LANE_CAP = 1 IS ENFORCED HERE: exactly one derived producer per turn --
+            # the WASDE balance-standing when both slugs are rostered, ELSE the crush share
+            # on a soy-trio pair, else a counted roster decline. Never both (F5's pool law).
+            d_lines: list = []
+            d_calls: list = []
+            d_trace: dict | None = None
+            if source in _dv._DV_WASDE_LEGS and target in _dv._DV_WASDE_LEGS:
+                d_lines, d_calls, d_trace = _dv.su_standing(
+                    fetch_window, qfn, source, target, asof, len(calls),
+                    extrema_own_date=extrema_own_date)
+            elif {source, target} <= _dv._DV_CRUSH_TRIO:
+                d_lines, d_calls, d_trace = _dv.crush_share(
+                    fetch_window, qfn, asof, len(calls))
+            else:
+                d_trace = {"decline": "su_no_roster"}
+            if d_lines:
+                calls.extend(d_calls)
+                block = block + d_lines
+                fired["derived_arith"] = d_trace
+            elif d_trace:
+                fired["derived_arith_decline"] = d_trace.get("decline") or "error"
+                if str(d_trace.get("decline") or "").endswith("copy_surface"):
+                    try:
+                        sg.trace["quantify_derived_fenced"] = True
+                    except Exception:  # noqa: BLE001 -- traceless sg never breaks the answer
+                        pass
+        except Exception:  # noqa: BLE001 -- the lane must never break the fired fork
+            fired["derived_arith_decline"] = "error"
+    if reading:
+        if replay:
+            fired["price_reading_decline"] = "replay"
+        else:
+            p_lines, p_trace = _rv_price_reading(pair_row, source, target, fired, qfn, asof,
+                                                 calls, len(calls), windows,
+                                                 regional=regional, derived=derived_arith,
+                                                 extrema_own_date=extrema_own_date)
+            if p_lines:
+                block = block + p_lines
+                fired["price_reading"] = p_trace
+            elif p_trace:
+                fired["price_reading_decline"] = p_trace.get("decline") or "error"
+                if p_trace.get("decline") == "fenced":
+                    try:
+                        sg.trace["quantify_rv_reading_fenced"] = True
+                    except Exception:  # noqa: BLE001 -- a traceless sg must never break the answer
+                        pass
+    elif regional:
+        # F1.1 (refute-v1 D13): GRAPHRAG_RV_REGIONAL alone gives no price leg -- the verdict
+        # is OMITTED with a counted reason, never narrated as UNRESOLVED (which would tell
+        # the reader the data was inconclusive when the leg simply never ran).
+        fired["rv_regional_price_leg"] = "reading_flag_off"
+    return block
+
+
+def _xc_subleg_rows(fired: dict, *, derived_arith: bool, reading: bool,
+                    regional_lane: bool = False, path: str = "standalone") -> dict:
+    """The sub-leg rows of the fork tag, in 6.7's `{leg: {outcome, reason}}` shape, read back off the
+    `fired` dict the legs themselves stamped. `not_reached` is stamped by the ORCHESTRATING caller when
+    the leg's own kwarg was off -- a leg cannot stamp its own absence, which is the hole 6.7 names.
+
+    THE THIRD ROW (`regional`) IS THE SAME HOLE ONE LANE OVER, closed at the S5 review. The regional
+    dispatch (`_reroute_xc_regional` and its `rv_regional_price_leg` note) is reachable ONLY inside
+    `_run_xc`, which a composer-fired turn skips whole -- so with GRAPHRAG_RV_REGIONAL armed the
+    regional fork's absence was unstamped on exactly the 7-of-12 turns phase 0 exists to fix. The two
+    words the orchestrator mints for it are members of `XC_SUBLEG_ORCHESTRATOR_REASONS`; the one word
+    the LEG owns (`reading_flag_off`) is copied verbatim, never re-encoded (one producer per word)."""
+    rows: dict = {}
+    if not reading:
+        rows["reading"] = {"outcome": "not_reached", "reason": "lane_off"}
+    elif fired.get("price_reading"):
+        rows["reading"] = {"outcome": "fired",
+                           "reads": (fired.get("price_reading") or {}).get("fetches")}
+    else:
+        rows["reading"] = {"outcome": "declined",
+                           "reason": fired.get("price_reading_decline") or "error"}
+    if not derived_arith:
+        rows["derived"] = {"outcome": "not_reached", "reason": "lane_off"}
+    elif fired.get("derived_arith"):
+        rows["derived"] = {"outcome": "fired"}
+    else:
+        rows["derived"] = {"outcome": "declined",
+                           "reason": fired.get("derived_arith_decline") or "error"}
+    if not regional_lane:
+        rows["regional"] = {"outcome": "not_reached", "reason": "lane_off"}
+    elif path == "composer":
+        rows["regional"] = {"outcome": "not_reached", "reason": "composer_path"}
+    elif fired.get("rv_regional_price_leg"):
+        rows["regional"] = {"outcome": "declined", "reason": fired["rv_regional_price_leg"]}
+    elif fired.get("regional"):
+        rows["regional"] = {"outcome": "fired"}
+    else:
+        rows["regional"] = {"outcome": "not_reached", "reason": "not_regional"}
+    return rows
+
+
 def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list,
             *, comove: bool = False, reading: bool = False, replay: bool = False,
             rv_regional: bool = False, derived_arith: bool = False,
-            extrema_own_date: bool = False, xc_leg_handles: bool = False) -> tuple:
+            extrema_own_date: bool = False, xc_leg_handles: bool = False,
+            fork_sink: dict | None = None) -> tuple:
     """Resolve the curated pair + the focus window, then run the ratio-delta fork. Returns (block_lines,
     fired_trace) -- ([], None) on ANY decline/failure so v2 NEVER breaks the v1 answer (fail-closed). `comove`
     ([SKEPTIC F3], threaded from the answer.py seam, never an env read) rides into _reroute_xc: when True a
@@ -3428,18 +3754,30 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
     turn drops the leg whole (the pink sheet is latest-only with retroactive revisions -- C-2). Both
     default False -> flag-off is byte-identical. Declines stamp fired['price_reading_decline'] (the
     xc_open_decline shape: a counted decline beats a silent one -- eval's rv_reading counters read it);
-    a leg-local register-fence trip additionally stamps sg.trace['quantify_rv_reading_fenced']."""
+    a leg-local register-fence trip additionally stamps sg.trace['quantify_rv_reading_fenced'].
+
+    PHASE 0 (design 9.1): `fork_sink` is an OMIT-WHEN-OFF OUT-PARAMETER -- a caller-owned dict this
+    function writes `{'reason': <XC_FORK_REASONS member>}` into on each of its four honest declines and
+    on its fail-closed swallow, so `quantify` can stamp WHY the fork declined instead of stamping the
+    silent `([], None)` the seam sees today. Default None -> not written, and the RETURN SHAPE IS
+    UNCHANGED on every path (pinned: `test_reroute_v2_gate` asserts `_run_xc(...) == ([], None)`)."""
+    def _sink(reason: str) -> None:
+        if fork_sink is not None:
+            fork_sink["reason"] = reason
     try:
         pair_id = (xc_request or {}).get("pair_id")
         source = (xc_request or {}).get("source_slug")
         target = (xc_request or {}).get("target_slug")
         if not (pair_id and source and target) or source == target:
+            _sink("no_request")          # a request naming no usable pair IS the absence of an ask
             return [], None
         pair_row = _load_pair_row(pair_id)
         if pair_row is None:
+            _sink("no_pair_row")
             return [], None
         windows = _xc_focus_windows(sg, graph, groups, source, near, asof)
         if not windows:
+            _sink("no_focus_windows")
             return [], None
         # comove passed POSITIONALLY (not keyword): the gate-test stub replaces _reroute_xc with a lambda that
         # only accepts positional *a, so a keyword here would raise -> fail-closed swallow. Positional rides in.
@@ -3484,68 +3822,17 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
             # fired dict is byte-identical when the open lane never ran.
             if (xc_request or {}).get("trigger"):
                 fired["trigger"] = xc_request.get("trigger")
-            # RV-READING: renders AFTER the pair fired, gated ONLY by the threaded kwargs (fail-closed
-            # inside). The fence trip is the one decline that also writes a top-level trace key -- the
-            # register discipline's own visibility rule (belt (a) of _RV_READING_BANNED_RX).
-            # D-DA LANE 1 (design v2, seam step): the balance-standing block renders BEFORE the price
-            # reading (balance sheets first, then price standing -- the reading's own render order),
-            # gated ONLY by the threaded kwarg and the roster; fail-closed inside su_standing.
-            if derived_arith:
-                try:
-                    from leviathan.graphrag.numbers import derived as _dv
-                    # DV_LANE_CAP = 1 IS ENFORCED HERE: exactly one derived producer per turn --
-                    # the WASDE balance-standing when both slugs are rostered, ELSE the crush share
-                    # on a soy-trio pair, else a counted roster decline. Never both (F5's pool law).
-                    d_lines: list = []
-                    d_calls: list = []
-                    d_trace: dict | None = None
-                    if source in _dv._DV_WASDE_LEGS and target in _dv._DV_WASDE_LEGS:
-                        d_lines, d_calls, d_trace = _dv.su_standing(
-                            fetch_window, qfn, source, target, asof, len(calls),
-                            extrema_own_date=extrema_own_date)
-                    elif {source, target} <= _dv._DV_CRUSH_TRIO:
-                        d_lines, d_calls, d_trace = _dv.crush_share(
-                            fetch_window, qfn, asof, len(calls))
-                    else:
-                        d_trace = {"decline": "su_no_roster"}
-                    if d_lines:
-                        calls.extend(d_calls)
-                        block = block + d_lines
-                        fired["derived_arith"] = d_trace
-                    elif d_trace:
-                        fired["derived_arith_decline"] = d_trace.get("decline") or "error"
-                        if str(d_trace.get("decline") or "").endswith("copy_surface"):
-                            try:
-                                sg.trace["quantify_derived_fenced"] = True
-                            except Exception:  # noqa: BLE001 -- traceless sg never breaks the answer
-                                pass
-                except Exception:  # noqa: BLE001 -- the lane must never break the fired fork
-                    fired["derived_arith_decline"] = "error"
-            if reading:
-                if replay:
-                    fired["price_reading_decline"] = "replay"
-                else:
-                    p_lines, p_trace = _rv_price_reading(pair_row, source, target, fired, qfn, asof,
-                                                         calls, len(calls), windows,
-                                                         regional=_regional, derived=derived_arith,
-                                                         extrema_own_date=extrema_own_date)
-                    if p_lines:
-                        block = block + p_lines
-                        fired["price_reading"] = p_trace
-                    elif p_trace:
-                        fired["price_reading_decline"] = p_trace.get("decline") or "error"
-                        if p_trace.get("decline") == "fenced":
-                            try:
-                                sg.trace["quantify_rv_reading_fenced"] = True
-                            except Exception:  # noqa: BLE001 -- a traceless sg must never break the answer
-                                pass
-            elif _regional:
-                # F1.1 (refute-v1 D13): GRAPHRAG_RV_REGIONAL alone gives no price leg -- the verdict
-                # is OMITTED with a counted reason, never narrated as UNRESOLVED (which would tell
-                # the reader the data was inconclusive when the leg simply never ran).
-                fired["rv_regional_price_leg"] = "reading_flag_off"
+            # PHASE 0: the two sub-legs, LIFTED VERBATIM into `_xc_sublegs` so this call site and the
+            # composer's cannot drift. Every byte of the lift is the pre-lift body (the derived
+            # balance-standing, the reading, the regional reading-flag-off note, in that order).
+            block = _xc_sublegs(fired, block, pair_row, source, target, windows, qfn, asof, calls, sg,
+                                derived_arith=derived_arith, reading=reading, replay=replay,
+                                regional=_regional, extrema_own_date=extrema_own_date)
+        else:
+            _sink("sides_mismatch")      # the pair resolved but no era diverged / no side passed
         return block, fired
     except Exception:  # noqa: BLE001
+        _sink("error")
         return [], None
 
 
@@ -5862,6 +6149,36 @@ def _xmit_select(chains: list, focus: str) -> tuple:
     return None, None
 
 
+def _xmit_link_is_ask(lk: dict, xc_request: dict | None) -> bool:
+    """PHASE 0's PAIR-IDENTITY GATE (design 9.1; added at the S5 review). True iff this chain link IS the
+    pair the turn asked about -- by curated `pair_id`, else by both slugs in either orientation.
+
+    WHY IT EXISTS, MEASURED on the SHIPPED catalog and the SHIPPED rv deck rather than on a fixture:
+    `_xmit_select` above picks the FILE-ORDER-first chain whose `links[0].source` matches `_xmit_focus`,
+    which is the request's SOURCE SLUG alone. It consults neither `pair_id` nor `target_slug`, and both
+    shipped chains carry link-1 pair `soyoil_palm_vegoil` -- so for every palm-sourced ask the composer's
+    link 1 is palm/soyoil whatever the ask's other side is. On the composer's OWN render that is sound
+    (the chain narrates the pairs it names, and the marker says so); it stops being sound the moment a
+    SUB-LEG prices link 1 as though it were the question, which is exactly what phase 0 does. `rv_palm_
+    rapeoil`, `rv_beans_meal` and `rv_canola_rapeoil` -- 5 of the 7 composer-fired banked turns -- would
+    each have been priced against palm/soyoil. This returns False on all five and the seam names the
+    decline; it returns True on `rv_soyoil_palm`, the two turns where link 1 genuinely is the ask.
+
+    ORIENTATION IS ACCEPTED because `_xc_sides_ok` (which `_xmit_select` already ran over every link)
+    binds the pair ROW to the link's own source/target, and the RV2 request names the same two slugs;
+    an inverted naming of one unordered pair is the same ask, not a different one. Alias-folded through
+    `_slug_match`, the file's one slug-identity producer."""
+    lk, req = lk or {}, xc_request or {}
+    a, b = lk.get("pair_id"), req.get("pair_id")
+    if a and b and str(a) == str(b):
+        return True
+    src, tgt = req.get("source_slug"), req.get("target_slug")
+    if not (src and tgt):
+        return False                                          # an ask with no two sides cannot be matched
+    return ((_slug_match(lk.get("source"), src) and _slug_match(lk.get("target"), tgt))
+            or (_slug_match(lk.get("source"), tgt) and _slug_match(lk.get("target"), src)))
+
+
 def _xmit_degenerate(links: list) -> bool:
     """The degenerate guard (3.2, carried verbatim from the vertical enum): consecutive links resolving to the
     IDENTICAL (slug, metric, country=World, period) identity collapse to one -- every link here is the same
@@ -5879,7 +6196,7 @@ def _xmit_degenerate(links: list) -> bool:
 
 def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, asof, near, calls: list,
                        *, comove: bool = False, chain_fired: bool = False,
-                       xc_leg_handles: bool = False) -> tuple:
+                       xc_leg_handles: bool = False, sublegs_sink: dict | None = None) -> tuple:
     """The horizontal transmission composer (secs 2-5). Returns (lines, fired_trace, decline_trace):
       * (lines, {...}, None) -> quantify writes sg.trace['quantify_transmission'] (fired == bool(key));
       * ([], None, {...})    -> quantify writes sg.trace['quantify_transmission_decline'] (attempted-and-
@@ -5889,6 +6206,15 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
 
     The fired trace (3.1): {chain_id, focus, window, links: [{link, pair_id, source, target, nature (the map
     HINT), observed, rendered, dA?, dB?}], n_rows, stopped_at?, stop_reason?}.
+
+    PHASE 0 (design 9.1): `sublegs_sink` is an OMIT-WHEN-OFF OUT-PARAMETER, passed by the seam ONLY when
+    `GRAPHRAG_XC_SUBLEGS_ON_COMPOSER` is on. When the FIRST link fires, this function copies that link's
+    OWN `_reroute_xc` fired dict and the four values the sub-legs need beside it (pair row, source,
+    target, the forced anchor window) into the dict; the seam then runs `_xc_sublegs` over it. Nothing
+    else about the composer moves -- the sink is WRITTEN here and READ there, the composer's own render,
+    trace, cap and rollback are untouched, and the seam only ever reads the sink on a turn where this
+    function actually returned a fired trace (a register-fence rollback returns None, and the seam's
+    `_xmit_fired` stays False, so a rolled-back link can never feed a sub-leg).
 
     D11 MUTUAL EXCLUSION, both directions: `chain_fired` (the seam reads sg.trace['quantify_chain'] -- the
     literal record that the vertical engine fired THIS turn) makes the horizontal yield to the ratified,
@@ -5973,6 +6299,32 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
                                      **_oa, **_lh)
             entry = {"link": i, "pair_id": lk.get("pair_id"), "source": src, "target": tgt,
                      "nature": lk.get("nature")}                  # `nature` = the map HINT, next to the record
+            if fired and sublegs_sink is not None and i == 1 and not sublegs_sink:
+                # PHASE 0: LINK 1 ONLY, AND ONLY WHEN LINK 1 *IS* THE ASK (S5 review, FATAL closed).
+                # Design 9.1 names the composer's link-1 dict. The build's note here claimed "link 1 is
+                # the link whose pair IS the user's ask (the RV2 fence selects the chain by that pair)"
+                # -- THAT IS FALSE, and the review MEASURED it false on the SHIPPED catalog: `_xmit_
+                # select` matches a chain on `_slug_match(links[0]['source'], focus)` where `focus` is
+                # `_xmit_focus`'s HEAD SOURCE and nothing else, never the request's `pair_id` and never
+                # its `target_slug`; and both shipped transmission chains carry the SAME link-1 pair
+                # `soyoil_palm_vegoil`. Driving the real rv-deck row `rv_palm_rapeoil` (palm vs
+                # RAPESEED oil) through the shipped selector selects `xmit_palm_soyoil_meal` and would
+                # hand these sub-legs PALM vs SOYBEAN OIL -- a PRICE-RELATIVE figure whose subject is
+                # not the question's pair, with `{outcome: fired, path: composer}` and no sign of the
+                # substitution. Of the 7 composer-fired banked turns only `rv_soyoil_palm` (deep + max)
+                # asks link 1's pair; the other five do not, and no curated chain has any of THEIR
+                # pairs as a head link, so link 1 can never be their ask on any selection.
+                # SO THE SINK IS GATED ON PAIR IDENTITY and a mismatch is stamped by NAME rather than
+                # priced (fences CORRECT or COMPUTE, never delete -- the correction here is the stated
+                # absence: `link1_not_ask` on the fork tag, which still REPORTS the turn).
+                if _xmit_link_is_ask(lk, xc_request):
+                    sublegs_sink.update({"fired": fired, "pair_row": prow, "source": src,
+                                         "target": tgt, "windows": windows, "link": i,
+                                         "pair_id": lk.get("pair_id")})
+                else:
+                    sublegs_sink.update({"decline": "link1_not_ask", "link": i,
+                                         "link1_pair": lk.get("pair_id"),
+                                         "ask_pair": (xc_request or {}).get("pair_id")})
             if fired:
                 observed = "comove" if fired.get("comove") else "divergence"
                 entry.update({"observed": observed, "rendered": observed,
@@ -6479,6 +6831,18 @@ CW_PREWALK_MEASURED_WORST = 65  # the six pre-walk terms ENUMERATED: CASCADE_CAP
 #                               `xc_trace["net_reads"]` assignment) and not a fetch cap. THREE terms
 #                               are config-driven, so NO identity is pinned over this number;
 #                               config_check clause (x) recomputes and WARNs. MEASURED worst: 25.
+#                               [S5] A SEVENTH TERM EXISTS AND IS DELIBERATELY NOT IN THIS SUM: with
+#                               GRAPHRAG_XC_SUBLEGS_ON_COMPOSER armed, a composer-fired turn also
+#                               spends the two sub-legs (the RV reading, MEASURED at 4 pg round-trips
+#                               -- design 9.1 said 2 -- plus up to DV_FETCH_CAP 6), which phase 0 now
+#                               folds into `quantify_transmission["net_reads"]` so `_cw_turn_spent`
+#                               SEES it. It is excluded from the banked 65 because config_check clause
+#                               (x) recomputes exactly `CASCADE_CAP + CHAIN_CAP + TRANSMISSION_CAP + 2
+#                               + 9 + 12` and that recompute is not this sitting's file to edit; the
+#                               honest statement is that the enumerated worst is 65 with the flag OFF
+#                               and up to 75 with it ON. It does not bind today (measured worst 25 ->
+#                               35 against CW_TURN_CEILING 60 / CW_DEEP_TURN_CEILING 80), and the
+#                               ceiling re-derivation rides the flag's arming, not this build.
 CW_DEEP_TURN_CEILING = 80     # = 44 (the pre-walk allowance the shipped test pin already carries)
 #                               + CW_DEEP_CAP 27 + CW_CONTEXT_CAP 2 + a 7-read FX allowance for
 #                               V2-3 (one FX read per non-root cell on the 8-cell union shape leaves
@@ -6859,7 +7223,14 @@ def _cw_turn_spent(sg):
     that can never be read would make the claimed set a fiction; J6's own post-walk spend is
     bounded beside CW_TURN_CEILING's comment instead. Returns the summed reads, or None when ANY
     present payload in the set carries no counter -- ABSENT IS NEVER ZERO; the caller declines
-    `turn_spend_unknown` (the fail-closed direction the round-3 refute demanded)."""
+    `turn_spend_unknown` (the fail-closed direction the round-3 refute demanded).
+
+    [S5] PHASE 0's COMPOSER SUB-LEGS RIDE THE `quantify_transmission` TERM. They spend AFTER
+    `_xmit_stamp_reads` has stamped that payload and the composer path writes no fork trace at all, so
+    they would otherwise be spend this enumeration cannot see -- a real spend read as zero, the one
+    direction the sentence above exists to prevent. The seam therefore ADDS their calls-delta into
+    `quantify_transmission["net_reads"]` (and records it separately as `subleg_reads`) before the walk
+    runs. Flag off the delta does not exist and every payload is byte-identical."""
     tr = getattr(sg, "trace", None) or {}
     wave = tr.get("quantify_wave_reads")
     if not isinstance(wave, int):

@@ -1302,9 +1302,22 @@ def test_context_constants_and_map_pins():
     # `extreme_second_hop`, so every negative-index pin on this tuple moves in by two while its
     # VALUE is unchanged. The two new names are pinned here rather than left as "whatever is
     # last", because an unnamed tail pin cannot tell an append from a sort.
-    assert tk.TRACE_RECORD_KEYS[-2:] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert tk.TRACE_RECORD_KEYS[-3] == "quantify_wave_reads"
-    assert tk.TRACE_RECORD_KEYS[-4] == "quantify_cascade_walk"
+    # STATE-ENGINE PHASE 0 + 0s RE-ANCHOR (2026-09-08), by exactly TWO and never loosened -- the 14th
+    # application of the same law: `quantify_xc_fork` (design sec 9.1, phase 0's fork tag) and
+    # `state_board` (design sec 6.7 / D10, the board's ONE registered key, registered one sitting
+    # before its first writer) are APPENDED at the tail IN THAT PHASE ORDER, so the XL pair moves in
+    # by two and every value below it is unchanged. Both are NAMED here, not left as "whatever is
+    # last", for the reason the note above gives: an unnamed tail pin cannot tell an append from a
+    # sort. TWO appends in ONE commit is doctrine M-8: the tail pins re-anchor once, not twice.
+    assert tk.TRACE_RECORD_KEYS[-1] == "state_board"
+    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
+    #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
+    #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
+    #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
+    assert tk.TRACE_RECORD_KEYS[-4:-2] == ("quantify_extreme_locator", "extreme_second_hop")
+    assert tk.TRACE_RECORD_KEYS[-5] == "quantify_wave_reads"
+    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_cascade_walk"
     assert not any("context" in k for k in tk.TRACE_RECORD_KEYS)   # NO new trace key: the ledger rides inside
     assert not any("deep" in k for k in tk.TRACE_RECORD_KEYS)      # V2-5: same law, same ledger
     src = open(cq.__file__, encoding="utf-8").read()
@@ -2928,6 +2941,12 @@ _G1X_K96_CUT = ("# K9-6 THE FOUR-FIGURE LINE, BUILT DARK",
 # the producer already undoes. Cutting K9-4 FIRST restores `**_xlh_kw)` as the tail, which is the exact
 # text K9-6's own regex was written against -- reversing the two silently leaves K9-6's spread in place
 # and the pin fails with a sha rather than with a cause.
+# ...and STATE-ENGINE PHASE 0, the SAME shape one sitting later: one omit-when-off kwarg landing in this
+# block, after K9-4's and before the `**_eod_kw` spread. THE SAME CUT-ORDER LAW, one rung further out:
+# `**_xsc_kw` is now the last kwarg before `**_eod_kw`, so it must be cut FIRST to restore `**_vr_kw)` as
+# the tail K9-4's own regex was written against. The cuts undo the appends in REVERSE ORDER, always.
+_G1X_S5_CUT = ("# STATE-ENGINE PHASE 0, BUILT DARK",
+               '_xsc_kw = {"xc_sublegs_on_composer": True} if _xc_sublegs_on() else {}')
 _G1X_K94_CUT = ("# K9-4 VINTAGE ROLE, BUILT DARK",
                 '_vr_kw = {"vintage_role": True} if _vintage_role_on() else {}')
 
@@ -2967,8 +2986,11 @@ def _g1x_sans(producer_path: str) -> tuple:
     sans = re.sub(r",\s*\*\*_eod_kw\)", ")", sans)
     sans = sans.replace(", **_xl_kw", "")
     repro = hashlib.sha256(sans.encode("utf-8")).hexdigest()
+    if _G1X_S5_CUT[0] in sans and _G1X_S5_CUT[1] in sans:
+        sans = _cut(sans, *_G1X_S5_CUT)                     # FIRST of three: see the cut-order note above
+        sans = re.sub(r",\s*\*\*_xsc_kw\)", ")", sans)
     if _G1X_K94_CUT[0] in sans and _G1X_K94_CUT[1] in sans:
-        sans = _cut(sans, *_G1X_K94_CUT)                    # FIRST: see the cut-order note above
+        sans = _cut(sans, *_G1X_K94_CUT)                    # SECOND: see the cut-order note above
         sans = re.sub(r",\s*\*\*_vr_kw\)", ")", sans)
     if _G1X_K96_CUT[0] in sans and _G1X_K96_CUT[1] in sans:
         sans = _cut(sans, *_G1X_K96_CUT)
@@ -3162,11 +3184,36 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # runs FIRST, so with K9-6 absent `**_vr_kw)` is the tail its own regex was written against, and
     # with K9-4 absent `**_xlh_kw)` is. A COUPLING NAMED IS NOT A COUPLING PINNED, so it is pinned.
     _K94_ONE = ["_vintage_role_on"]
-    assert _newflags in ([], _XL_SIX, sorted(_XL_SIX + _DCL_ONE),
-                         sorted(_XL_SIX + _DCL_ONE + _K96_ONE),
-                         sorted(_XL_SIX + _DCL_ONE + _K94_ONE),
-                         sorted(_XL_SIX + _DCL_ONE + _K96_ONE + _K94_ONE)), _newflags
-    for k in _newflags:      # D-XL six -> dark (False); the D-CL opt-in and K9-6/K9-4 -> off (False)
+    # RE-ANCHORED 2026-09-08 BY STATE-ENGINE PHASE 0, same shape and same reason once more: the producer
+    # censuses every zero-arg `_*_on` callable on `answer`, so phase 0's kill-switch `_xc_sublegs_on`
+    # (GRAPHRAG_XC_SUBLEGS_ON_COMPOSER -- the two RV sub-legs on a composer-fired turn) appears here BY
+    # CONSTRUCTION. DARK: unset resolves False, which is the request the estate serves today. Phase 0's
+    # other surfaces are checked above and did NOT move: it appends `xc_sublegs_on_composer` at the TAIL
+    # of `cascade.quantify` (the signature prefix rule), it adds no key to the off-state kwarg set, and
+    # it touches no persona literal at all -- the 14 `_system` renders are byte-identical.
+    # ...and PHASE 0s mints the second of S5's two, `_recency_facts_on` (GRAPHRAG_RECENCY_FACTS -- the
+    # per-layer recency clause and its ledger sentence). Same census, same construction, same DARK
+    # default: unset resolves False, which is the request the estate serves today. Phase 0s's other
+    # surfaces are checked above and did NOT move: `_SYSTEM_RECENCY` keeps HEAD's own sha256 with the
+    # flag off, so the 14 `system_deck` renders are byte-identical in the producer's stripped env, and
+    # it adds no kwarg to `cq.quantify` and no key to the off-state kwarg set at all.
+    _S5_ONE = ["_xc_sublegs_on"]
+    _S5_TWO = ["_recency_facts_on"]
+    # THE ACCEPTED SET IS THE BASE PLUS ANY SUBSET OF THE THREE INDEPENDENTLY-REVERTABLE DARK ITEMS, and
+    # that is a WIDENING OF THE ENUMERATION, never a loosening of the pin: the previous six-state list
+    # was the same subset rule written out by hand for two items (MINOR-3's "each item is independently
+    # revertable at this pin"), and a third makes eight hand-written lines that the next item turns into
+    # sixteen. Everything the pin actually asserts is unchanged -- the base six are REQUIRED whenever any
+    # item ships, no unnamed helper may appear, and every value is still checked False one by one below,
+    # so a default flipping in either direction still reds. `[]` (the pre-D-XL state) stays accepted.
+    import itertools as _it
+    _optional = (_K96_ONE, _K94_ONE, _S5_ONE, _S5_TWO)
+    _accepted = [[], _XL_SIX] + [
+        sorted(_XL_SIX + _DCL_ONE + [n for grp in combo for n in grp])
+        for r in range(len(_optional) + 1) for combo in _it.combinations(_optional, r)]
+    assert _newflags in _accepted, _newflags
+    # D-XL six -> dark (False); the D-CL opt-in and K9-6 / K9-4 / phase 0 / phase 0s -> off (False)
+    for k in _newflags:
         assert nb["flags_off"][k] is False, (k, nb["flags_off"][k])
 
     # ...and the specific facts inside them, so the bank cannot be re-anchored into vacuity
@@ -3940,9 +3987,22 @@ def test_v23_registers_one_trace_key_and_the_ledger_rides_inside_it():
     # `extreme_second_hop`, so every negative-index pin on this tuple moves in by two while its
     # VALUE is unchanged. The two new names are pinned here rather than left as "whatever is
     # last", because an unnamed tail pin cannot tell an append from a sort.
-    assert tk.TRACE_RECORD_KEYS[-2:] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert tk.TRACE_RECORD_KEYS[-3] == "quantify_wave_reads"
-    assert tk.TRACE_RECORD_KEYS[-4] == "quantify_cascade_walk"
+    # STATE-ENGINE PHASE 0 + 0s RE-ANCHOR (2026-09-08), by exactly TWO and never loosened -- the 14th
+    # application of the same law: `quantify_xc_fork` (design sec 9.1, phase 0's fork tag) and
+    # `state_board` (design sec 6.7 / D10, the board's ONE registered key, registered one sitting
+    # before its first writer) are APPENDED at the tail IN THAT PHASE ORDER, so the XL pair moves in
+    # by two and every value below it is unchanged. Both are NAMED here, not left as "whatever is
+    # last", for the reason the note above gives: an unnamed tail pin cannot tell an append from a
+    # sort. TWO appends in ONE commit is doctrine M-8: the tail pins re-anchor once, not twice.
+    assert tk.TRACE_RECORD_KEYS[-1] == "state_board"
+    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
+    #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
+    #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
+    #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
+    assert tk.TRACE_RECORD_KEYS[-4:-2] == ("quantify_extreme_locator", "extreme_second_hop")
+    assert tk.TRACE_RECORD_KEYS[-5] == "quantify_wave_reads"
+    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_cascade_walk"
     assert not any("xccy" in k or "fx" in k or "deep" in k for k in tk.TRACE_RECORD_KEYS)
 
 
@@ -4660,3 +4720,494 @@ def test_mf3_the_fx_label_carries_its_first_and_last_print_dates_on_the_real_pal
     # board rows carry the span token alone
     assert "span to this as-of" not in row
     assert cq._cw_register_fence(lines)
+
+
+# ══ STATE ENGINE, SITTING 5 -- PHASE 0 (the `_run_xc` sub-legs fix) AND PHASE 0s ═════════════════════
+#
+# Design docs/private/STATE_ENGINE_DESIGN_2026-09-07.md sec 9.1 (phase 0), 9.2 (the phase table rows 0
+# and 0s), 6.5 (2)(3) (per-layer recency), 6.7 (the decline tag), sec 11 row S5, D9 / D10.
+#
+# THE MEASURED TRIGGER, taken this sitting on the 12 banked turns (cascade_baseline_control.json deep +
+# cascade_baseline_treatment.json max, git_commit ee7dafce): `transmission_fired` is True on SEVEN of
+# the twelve -- deep {rv_soyoil_palm, rv_palm_rapeoil, rv_canola_rapeoil}, max {rv_soyoil_palm,
+# rv_palm_rapeoil, rv_beans_meal, rv_canola_rapeoil} -- and on ALL SEVEN `rv_reading_rendered` is
+# False, `rv_reading_fetches` 0, `reroute_v2_pairs` 0 and `rv_reading_decline` is **None**. The
+# composer's `_xmit_fired` guard skips `_run_xc` whole, so the RV price reading and the derived lane
+# are `not_reached` and nothing records it. Of the five that remain: rv_corn_wheat (both arms) fires
+# the standalone fork and renders the reading at 4 fetches; rv_beans_oil (both arms) carries no
+# cross-commodity ask (`xc_detect_decision.tier == 'none'`); rv_beans_meal (deep) declines the composer
+# `root_not_grounded` and then declines the fork itself with no recorded word.
+#
+# THE FIXTURE IS THE ESTATE'S OWN COMPOSER-FIRED SHAPE, imported from tests/unit/test_transmission_
+# chain.py (the FLAGSHIP palm -> soyoil -> meal chain over an SQL-text-keyed PSD stub): hermetic, no pg,
+# no AWS, no LLM, $0. The banked arms carry per-answer COUNTERS ONLY -- no `calls` list, no answer body,
+# `quantify_transmission` null on every row -- so they prove WHICH turns are suppressed and the fixture
+# replays WHAT the suppression costs. That split is stated rather than papered over.
+def _s5_price_qfn(seen):
+    """The transmission deck's PSD stub PLUS the two pink-sheet monthly series `_rv_price_reading` asks
+    for (its own SQL, captured this sitting). Without the price half the reading leg is REACHED and
+    declines `empty_series` -- which proves the seam but not the RENDER; with it the leg renders, so
+    "the reading line is present" is measured rather than inferred."""
+    import re as _re
+    from tests.unit import test_transmission_chain as _tc
+    inner = _tc._qfn_factory(seen)
+    price = {"palm_oil_cpo_usd_t": (900.0, 4.0), "soybean_oil_usd_t": (1200.0, -2.0)}
+    months, y, m = [], 2021, 2
+    for _ in range(60):
+        months.append("%04d-%02d-15" % (y, m))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+
+    def qfn(sql):
+        if "silver_pink_sheet" in sql:
+            seen.append(sql)
+            col = _re.search(r"SELECT (\w+) AS value", sql)
+            if not col or col.group(1) not in price:
+                return []
+            base, slope = price[col.group(1)]
+            return [{"value": str(base + slope * i), "knowledge_date": d,
+                     "revision_stamp": d[:7].replace("-", "")} for i, d in enumerate(months)]
+        return inner(sql)
+    return qfn
+
+
+def _s5_composer_turn(monkeypatch, *, flag, qfn=None, seen=None, xc_request=None):
+    """Drive `quantify` over the composer-fired flagship with BOTH sub-leg lanes lit (the arm shape:
+    the dark legs are on in both arms, so what is measured is the SUPPRESSION and nothing else).
+
+    `xc_request` defaults to the FLAGSHIP's OWN link-1 pair -- the shape where link 1 IS the ask. Pass
+    a different pair to exercise the pair-identity gate (the case the shipped catalog makes the
+    MAJORITY: see `test_s5_phase0_the_sink_declines_when_link_1_is_not_the_pair_asked_about`)."""
+    from tests.unit import test_transmission_chain as _tc
+    _tc._wire(monkeypatch, [_tc.FLAGSHIP])
+    seen = [] if seen is None else seen
+    sg = _tc._sg(nodes=[_tc._walk_node(_tc.PALM)])
+    calls: list = []
+    kw = {"xc_sublegs_on_composer": True} if flag else {}
+    block, _q, _r = cq.quantify(
+        sg, SimpleNamespace(contracts={}), qfn=qfn or _s5_price_qfn(seen), asof=_tc.ASOF, near=None,
+        extra_number_calls=calls,
+        xc_request=xc_request or {"pair_id": "soyoil_palm_vegoil", "source_slug": _tc.PALM,
+                                  "target_slug": _tc.SBO},
+        comove=True, transmission=True, rv_reading=True, derived_arith=True, **kw)
+    return block, calls, sg, seen
+
+
+def _s5_markers(block, prefix):
+    return [ln for ln in block.split("\n") if ln.strip().startswith(prefix)]
+
+
+def test_s5_phase0_flag_off_is_byte_identical_on_a_composer_fired_turn(monkeypatch):
+    """GATE 1 of the tier-1 replay, as a suite pin. With GRAPHRAG_XC_SUBLEGS_ON_COMPOSER off the seam
+    passes NO kwarg, `quantify` passes NO sink to the composer, and the composer-fired turn renders the
+    bytes it renders today: the block, the [N] row list and the pg round-trip count are all unmoved,
+    and the ONLY trace difference is the fork tag, which is trace-only and deliberately unconditional
+    (a census that exists only when the treatment is armed cannot report the control)."""
+    monkeypatch.delenv("GRAPHRAG_XC_SUBLEGS_ON_COMPOSER", raising=False)
+    seen_a, seen_b = [], []
+    block_a, calls_a, sg_a, _ = _s5_composer_turn(monkeypatch, flag=False, seen=seen_a)
+    block_b, calls_b, sg_b, _ = _s5_composer_turn(monkeypatch, flag=False, seen=seen_b)
+    assert block_a == block_b and calls_a == calls_b and len(seen_a) == len(seen_b)
+    assert sg_a.trace["quantify_transmission"]["chain_id"] == "xmit_palm_soyoil_meal"
+    # the two sub-legs did NOT run: no extra rows, no price read, no reading trace
+    assert len(calls_a) == 12 and not any("silver_pink_sheet" in s for s in seen_a)
+    assert _s5_markers(block_a, "PRICE-RELATIVE") == []
+    # ...and the tag says exactly that, in 6.7's closed vocabulary
+    assert sg_a.trace["quantify_xc_fork"] == {"outcome": "not_reached", "reason": "composer_fired"}
+    assert set(sg_a.trace) - {"quantify_xc_fork"} == {"quantify_dark_refs", "quantify_transmission",
+                                                      "quantify_wave_reads"}
+
+
+def test_s5_phase0_the_composer_fired_turn_reaches_both_sublegs_with_the_flag_on(monkeypatch):
+    """GATE 2 + GATE 3. With the flag on, the two legs run over the composer's OWN link-1 fired dict:
+    the reading RENDERS (its lines appended AFTER the composer's block, its rows appended after the
+    composer's rows) and the derived lane declines by NAME instead of vanishing. The pair is still
+    rendered EXACTLY ONCE -- one CROSS-COMMODITY marker, one CO-MOVE marker, one TRANSMISSION CHAIN
+    marker, no duplicate [N] handle -- which is the duplicate-render defect the `_xmit_fired` guard
+    exists to prevent and the one thing this correction must not undo."""
+    monkeypatch.delenv("GRAPHRAG_XC_SUBLEGS_ON_COMPOSER", raising=False)
+    off_block, off_calls, _sg_off, off_seen = _s5_composer_turn(monkeypatch, flag=False)
+    on_block, on_calls, sg_on, on_seen = _s5_composer_turn(monkeypatch, flag=True)
+    # THE COMPOSER'S OWN OUTPUT IS UNTOUCHED: the off block is a strict PREFIX of the on block, and the
+    # first 12 [N] rows are the same 12 objects in the same order.
+    assert on_block.startswith(off_block) and len(on_block) > len(off_block)
+    assert on_calls[:len(off_calls)] == off_calls
+    # THE READING IS REACHED AND RENDERS
+    assert len(_s5_markers(on_block, "PRICE-RELATIVE")) == 1
+    assert len(on_calls) > len(off_calls) and any("silver_pink_sheet" in s for s in on_seen)
+    tag = sg_on.trace["quantify_xc_fork"]
+    assert tag["outcome"] == "fired" and tag["path"] == "composer"
+    assert tag["legs"]["reading"]["outcome"] == "fired"
+    # THE DERIVED LANE IS REACHED TOO, and says why it declined instead of leaving None
+    assert tag["legs"]["derived"] == {"outcome": "declined", "reason": "su_no_roster"}
+    # THE TAG NAMES THE PAIR IT PRICED (S5 review): the composer's chain is selected on its HEAD SOURCE
+    # alone, so "fired on the composer path" is not by itself enough to know WHICH pair was read.
+    assert tag["pair_id"] == "soyoil_palm_vegoil"
+    # THE REGIONAL LANE IS NAMED TOO -- lane off here, so the ORCHESTRATOR says so rather than leaving
+    # the third sub-lane silent on exactly the turns the composer subsumes.
+    assert tag["legs"]["regional"] == {"outcome": "not_reached", "reason": "lane_off"}
+    # READ ACCOUNTING (S5 review, MAJOR): the sub-legs' spend is FOLDED INTO the one payload
+    # `_cw_turn_spent` enumerates for this path, so the walk below prices its cells against the honest
+    # number instead of reading a real spend as zero.
+    xm_off, xm_on = _sg_off.trace["quantify_transmission"], sg_on.trace["quantify_transmission"]
+    assert "subleg_reads" not in xm_off and xm_on["subleg_reads"] == len(on_calls) - len(off_calls)
+    assert xm_on["net_reads"] == xm_off["net_reads"] + xm_on["subleg_reads"]
+    assert cq._cw_turn_spent(sg_on) == cq._cw_turn_spent(_sg_off) + xm_on["subleg_reads"]
+    # THE PAIR IS RENDERED ONCE IN BOTH ARMS
+    for b in (off_block, on_block):
+        assert len(_s5_markers(b, "CROSS-COMMODITY on ")) == 1
+        assert len(_s5_markers(b, "CO-MOVE on ")) == 1
+        assert len(_s5_markers(b, "TRANSMISSION CHAIN ")) == 1
+    import re as _re
+    rows = _re.findall(r"^- \[N(\d+)\]", on_block, _re.M)
+    assert len(rows) == len(set(rows))                       # no [N] handle minted twice
+    assert "quantify_reroute_v2" not in sg_on.trace          # the composer still owns the pair
+
+
+def test_s5_phase0_the_sink_declines_when_link_1_is_not_the_pair_asked_about(monkeypatch):
+    """THE FATAL THE S5 REVIEW FOUND, pinned as the fixture the build did not have.
+
+    `_xmit_select` picks the FILE-ORDER-first chain whose `links[0].source` matches `_xmit_focus`, and
+    `_xmit_focus` returns the request's SOURCE SLUG and nothing else -- never `pair_id`, never
+    `target_slug`. The shipped transmission map has exactly two chains and BOTH carry link-1 pair
+    `soyoil_palm_vegoil`, so for ANY palm-sourced ask the composer's link 1 is palm/soyoil. Of the 7
+    composer-fired banked turns only `rv_soyoil_palm` (deep + max) asks that pair; `rv_palm_rapeoil`
+    (x2), `rv_beans_meal` and `rv_canola_rapeoil` (x2) do not, and no curated chain has any of THEIR
+    pairs as a head link. Ungated, phase 0 would therefore have run `su_standing` and the RV price
+    reading for PALM vs SOYBEAN OIL on a PALM vs RAPESEED OIL question and reported `{outcome: fired,
+    path: composer}` with no sign of the substitution.
+
+    THE HERMETIC SHAPE IS THE REAL ONE: the FLAGSHIP chain (link 1 = palm -> soyoil) driven by an ask
+    for palm vs RAPESEED oil. The composer still fires -- selection never sees the ask's other side --
+    and the gate must stop the sub-legs and NAME the decline rather than price the wrong pair."""
+    from tests.unit import test_transmission_chain as _tc
+    monkeypatch.delenv("GRAPHRAG_XC_SUBLEGS_ON_COMPOSER", raising=False)
+    _ASK = {"pair_id": "palm_rapeoil_vegoil", "source_slug": _tc.PALM, "target_slug": _tc.RSO}
+    off_block, off_calls, sg_off, off_seen = _s5_composer_turn(monkeypatch, flag=False,
+                                                               xc_request=_ASK)
+    on_block, on_calls, sg_on, on_seen = _s5_composer_turn(monkeypatch, flag=True, xc_request=_ASK)
+    # the composer FIRES in both arms on the ask's SOURCE alone -- the mechanism, measured
+    assert sg_on.trace["quantify_transmission"]["chain_id"] == "xmit_palm_soyoil_meal"
+    assert sg_on.trace["quantify_transmission"]["links"][0]["pair_id"] == "soyoil_palm_vegoil"
+    # ...and NOTHING is priced: same bytes, same [N] rows, same reads, no PRICE-RELATIVE block
+    assert on_block == off_block and on_calls == off_calls
+    assert _s5_markers(on_block, "PRICE-RELATIVE") == []
+    assert not any("silver_pink_sheet" in s for s in on_seen + off_seen)
+    # THE DECLINE IS NAMED, and the tag carries BOTH pairs so a trace reader can see the substitution
+    # that did not happen (fences CORRECT or COMPUTE: the correction here is the stated absence).
+    assert sg_on.trace["quantify_xc_fork"] == {
+        "outcome": "declined", "reason": "link1_not_ask", "path": "composer",
+        "pair_id": "soyoil_palm_vegoil", "ask_pair": "palm_rapeoil_vegoil"}
+    # flag off the turn is still `not_reached: composer_fired`, exactly as it was
+    assert sg_off.trace["quantify_xc_fork"] == {"outcome": "not_reached", "reason": "composer_fired"}
+    # the gate itself, at the unit: pair_id equality OR both slugs in EITHER orientation, and nothing
+    # else. `_xmit_select`'s own match is on the head SOURCE, which is why the gate cannot rely on it.
+    L1 = _tc.FLAGSHIP["links"][0]
+    assert cq._xmit_link_is_ask(L1, {"pair_id": "soyoil_palm_vegoil"}) is True
+    assert cq._xmit_link_is_ask(L1, {"source_slug": _tc.PALM, "target_slug": _tc.SBO}) is True
+    assert cq._xmit_link_is_ask(L1, {"source_slug": _tc.SBO, "target_slug": _tc.PALM}) is True
+    assert cq._xmit_link_is_ask(L1, {"source_slug": _tc.PALM, "target_slug": _tc.RSO}) is False
+    assert cq._xmit_link_is_ask(L1, {"source_slug": _tc.PALM}) is False      # one side is not an ask
+    assert cq._xmit_link_is_ask(L1, None) is False and cq._xmit_link_is_ask({}, {}) is False
+    # and the note that justified the ungated sink is CORRECTED in the source rather than left standing
+    import inspect
+    xmit = inspect.getsource(cq._transmission_legs)
+    assert "_xmit_link_is_ask(lk, xc_request)" in xmit
+    assert "link 1 is the link whose pair IS the user's ask" not in xmit
+
+
+def test_s5_phase0_the_fork_tag_is_the_closed_three_state_on_every_quantifying_turn(monkeypatch):
+    """6.7 / D10: `fired | declined:<reason> | not_reached`, and `not_reached` is stamped by the
+    ORCHESTRATING seam because a leg cannot stamp its own absence -- which is the hole the reading's
+    `rv_reading_decline` (None on 12 of 12 banked rows) measures. Every branch of the seam is walked."""
+    from tests.unit import test_transmission_chain as _tc
+    monkeypatch.delenv("GRAPHRAG_XC_SUBLEGS_ON_COMPOSER", raising=False)
+
+    def _q(chains, **kw):
+        """`transmission=True` on every case, deliberately: `quantify`'s ALL-DARK EARLY RETURN (the
+        `if not groups and not chain and not transmission` guard) sits ABOVE the xc seam, so a turn
+        that returns there never reaches `_run_xc` either and is outside this tag's scope -- a boundary
+        NAMED here rather than left to be discovered. These fixture nodes carry no mapped ref (the
+        transmission deck's own `_walk_node`, which is what exercises the window FALLBACK), so the
+        transmission kwarg is what carries the turn to the seam; an EMPTY chain roster then lets the
+        standalone fork run exactly as it does on a turn the composer declines."""
+        _tc._wire(monkeypatch, chains)
+        sg = _tc._sg(nodes=[_tc._walk_node(_tc.PALM)])
+        cq.quantify(sg, SimpleNamespace(contracts={}), qfn=_tc._qfn_factory([]), asof=_tc.ASOF,
+                    near=None, extra_number_calls=[], transmission=True, **kw)
+        return sg.trace.get("quantify_xc_fork")
+
+    _PAIR = {"pair_id": "soyoil_palm_vegoil", "source_slug": _tc.PALM, "target_slug": _tc.SBO}
+    # (a) no ask at all -> not_reached: no_request
+    assert _q([]) == {"outcome": "not_reached", "reason": "no_request"}
+    # (b) an ask naming no usable pair -> the same word (the request carries no pair to run)
+    assert _q([], xc_request={"pair_id": "p"})["reason"] == "no_request"
+    # (c) an unknown pair id -> declined: no_pair_row, on the STANDALONE path, and the tag NAMES the
+    #     pair the turn asked about (S5 review: a decline with no pair is a decline no census can join)
+    t = _q([], xc_request={"pair_id": "nope", "source_slug": _tc.PALM, "target_slug": _tc.SBO})
+    assert t == {"outcome": "declined", "reason": "no_pair_row", "path": "standalone",
+                 "pair_id": "nope"}
+    # (d) the composer fires and the flag is off -> not_reached: composer_fired
+    t = _q([_tc.FLAGSHIP], xc_request=_PAIR, comove=True)
+    assert t == {"outcome": "not_reached", "reason": "composer_fired"}
+    # (e) no chain roster -> the composer declines and the STANDALONE fork fires, with a leg row for
+    #     each sub-lane. All three lanes are OFF here, so the ORCHESTRATOR stamps their absence rather
+    #     than the legs staying silent -- which is 6.7's whole point.
+    t = _q([], xc_request=_PAIR, comove=True)
+    assert t["outcome"] == "fired" and t["path"] == "standalone"
+    assert t["pair_id"] == "soyoil_palm_vegoil"
+    assert t["legs"] == {"reading": {"outcome": "not_reached", "reason": "lane_off"},
+                         "derived": {"outcome": "not_reached", "reason": "lane_off"},
+                         "regional": {"outcome": "not_reached", "reason": "lane_off"}}
+    # (f) the REGIONAL lane armed on the STANDALONE path: the dispatch RAN and chose the world-pair
+    #     branch, so the row says that by name rather than reading as a silent absence.
+    t = _q([], xc_request=_PAIR, comove=True, rv_regional=True)
+    assert t["legs"]["regional"] == {"outcome": "not_reached", "reason": "not_regional"}
+    # (g) ...and the same lane armed on a COMPOSER-fired turn: the regional dispatch lives inside
+    #     `_run_xc` only, which this path skips whole, so its absence has no producer but the seam.
+    t = _q([_tc.FLAGSHIP], xc_request=_PAIR, comove=True, rv_regional=True,
+           xc_sublegs_on_composer=True)
+    assert t["outcome"] == "fired" and t["path"] == "composer"
+    assert t["legs"]["regional"] == {"outcome": "not_reached", "reason": "composer_path"}
+    # ...and every orchestrator-minted word is a member of ITS closed constant (never an unpinned
+    # literal, which is what `lane_off` was at build review).
+    for _row in t["legs"].values():
+        if _row["outcome"] == "not_reached":
+            assert _row["reason"] in cq.XC_SUBLEG_ORCHESTRATOR_REASONS, _row
+
+
+def test_s5_phase0_the_reason_enum_is_closed_and_pinned_on_set_and_order():
+    """6.7: a PER-LEG closed enum in ONE module constant, pinned on SET and FIRST-APPEARANCE ORDER the
+    way `orchestrator.XL_SUPPRESSED_REASONS` is. Every word the seam can stamp for the FORK's own leg
+    is a member, and the source is asserted so a new `_sink(...)` cannot land outside the vocabulary."""
+    import re as _re
+    assert cq.XC_FORK_OUTCOMES == ("fired", "declined", "not_reached")
+    assert cq.XC_FORK_REASONS == ("no_request", "composer_fired", "link1_not_ask", "no_pair_row",
+                                  "no_focus_windows", "sides_mismatch", "error")
+    assert len(set(cq.XC_FORK_REASONS)) == len(cq.XC_FORK_REASONS)
+    # THE ORCHESTRATOR'S OWN THREE, closed in their own constant (S5 review): `lane_off` was an
+    # unpinned string literal minted inline by `_xc_subleg_rows`, in no constant and pinned nowhere.
+    assert cq.XC_SUBLEG_ORCHESTRATOR_REASONS == ("lane_off", "composer_path", "not_regional")
+    assert len(set(cq.XC_SUBLEG_ORCHESTRATOR_REASONS)) == 3
+    src = open(cq.__file__, encoding="utf-8").read()
+    for w in _re.findall(r'_sink\("([a-z_]+)"\)', src):
+        assert w in cq.XC_FORK_REASONS, w
+    for w in _re.findall(r'_xc_fork_tag\(sg, "[a-z_]+", "([a-z_]+)"', src):
+        assert w in cq.XC_FORK_REASONS, w
+    # the SINK's own decline word is a member too -- it is written in the composer and READ at the seam,
+    # so a grep for `_xc_fork_tag(sg, "declined", "<word>"` would never have seen it.
+    import inspect
+    xmit = inspect.getsource(cq._transmission_legs)
+    for w in _re.findall(r'"decline":\s*"([a-z_0-9]+)"', xmit):
+        assert w in cq.XC_FORK_REASONS, w
+    # every word `_xc_subleg_rows` MINTS ITSELF is in the orchestrator constant; every word it COPIES
+    # comes off the producing leg's own key (one producer per word -- the law K9-6 applied to the leg
+    # line). So no second vocabulary is declared here, and no third is minted inline.
+    sub = inspect.getsource(cq._xc_subleg_rows)
+    assert 'fired.get("price_reading_decline")' in sub and 'fired.get("derived_arith_decline")' in sub
+    assert 'fired["rv_regional_price_leg"]' in sub
+    for w in _re.findall(r'"reason":\s*"([a-z_]+)"', sub):
+        assert w in cq.XC_SUBLEG_ORCHESTRATOR_REASONS, w
+
+
+def test_s5_phase0_the_sublegs_are_one_producer_read_from_two_call_sites():
+    """D9's LIFT, pinned as a fact rather than a promise: `_xc_sublegs` is the whole `if fired:` body of
+    `_run_xc`, and BOTH call sites go through it, so the standalone fork and the composer path can never
+    drift. The two sub-leg producers have exactly ONE call site each in the FILE."""
+    import inspect
+    src = open(cq.__file__, encoding="utf-8").read()
+    assert src.count("def _xc_sublegs(") == 1
+    assert "_xc_sublegs(" in inspect.getsource(cq._run_xc)
+    assert "_xc_sublegs(" in inspect.getsource(cq.quantify)
+    assert src.count("= _rv_price_reading(") == 1              # the reading, ONE call site
+    assert src.count("def _rv_price_reading(") == 1           # ...and ONE definition
+    assert src.count("_dv.su_standing(") == 1 and src.count("_dv.crush_share(") == 1
+    # the composer is UNTOUCHED except for the omit-when-off sink, which is WRITTEN there and READ at
+    # the seam -- so a rolled-back link can never feed a sub-leg (the seam only reads it under a
+    # returned fired trace).
+    xmit = inspect.getsource(cq._transmission_legs)
+    assert "sublegs_sink" in xmit and "i == 1" in xmit
+    assert inspect.signature(cq._transmission_legs).parameters["sublegs_sink"].default is None
+    # ...and the flag is read at the ANSWER seam and threaded, never inside cascade.py ([SKEPTIC F3],
+    # the doctrine two live tests already assert on this file's source). The flag NAME appears in the
+    # block notes and in `_xc_fork_tag`'s docstring -- the estate's own idiom, exactly as
+    # GRAPHRAG_CASCADE_PRICE_LEG and GRAPHRAG_CASCADE_TRANSMISSION appear in theirs -- so what is
+    # pinned is the READ: no env accessor of any spelling exists in the module at all, and every line
+    # naming the flag is prose rather than a lookup.
+    assert "os.environ" not in src and "os.getenv" not in src
+    for ln in src.splitlines():
+        if "GRAPHRAG_XC_SUBLEGS_ON_COMPOSER" in ln:
+            assert "environ" not in ln and "getenv" not in ln and "=" not in ln, ln
+    from leviathan.graphrag import answer as _an
+    asrc = open(_an.__file__, encoding="utf-8").read()
+    assert '_xsc_kw = {"xc_sublegs_on_composer": True} if _xc_sublegs_on() else {}' in asrc
+    assert 'os.environ.get("GRAPHRAG_XC_SUBLEGS_ON_COMPOSER", "")' in asrc
+    p = inspect.signature(cq.quantify).parameters["xc_sublegs_on_composer"]
+    assert p.default is False and p.kind is inspect.Parameter.KEYWORD_ONLY
+
+
+def test_s5_phase0_the_run_xc_return_shape_is_unchanged_by_the_decline_sink(monkeypatch):
+    """`fork_sink` is an OUT-PARAMETER and nothing else: the honest declines and the fail-closed
+    swallow all still return `([], None)` exactly (the shape `test_reroute_v2_gate` asserts by
+    equality), and a caller that passes no sink gets HEAD's behaviour with no dict to write."""
+    import inspect
+    from tests.unit import test_transmission_chain as _tc
+    monkeypatch.setattr(cq, "_load_pair_row", _tc._pair_row)
+    assert inspect.signature(cq._run_xc).parameters["fork_sink"].default is None
+    assert cq._run_xc({"pair_id": "nope", "source_slug": _tc.PALM, "target_slug": _tc.SBO},
+                      None, None, [], None, _tc.ASOF, None, []) == ([], None)
+    sink: dict = {}
+    assert cq._run_xc({"pair_id": "nope", "source_slug": _tc.PALM, "target_slug": _tc.SBO},
+                      None, None, [], None, _tc.ASOF, None, [], fork_sink=sink) == ([], None)
+    assert sink == {"reason": "no_pair_row"}
+
+
+# -- PHASE 0s (design 6.5 (2)(3), 6.7; the 09-07 soybean turn's March-2025 line) ---------------------
+def test_s5_phase0s_system_recency_is_head_bytes_and_a_three_part_composition():
+    """The K9-4 idiom: the literal is SPLIT so one clause can be substituted, and HEAD's own value is
+    pinned to HEAD's own sha256 so the split cannot silently rewrite a persona nobody diffed. Eight
+    suites read `_SYSTEM_RECENCY` and the g1x seam golden renders `_system` 14 times; all of them must
+    be unmoved with the flag off."""
+    import hashlib
+    from leviathan.graphrag import answer as an
+    assert len(an._SYSTEM_RECENCY) == 684
+    assert hashlib.sha256(an._SYSTEM_RECENCY.encode("utf-8")).hexdigest() == (
+        "a20bf0286a7fa8b608c068aa56f6fb050d4b6d9f32309c17a3b0de5fc519c99a")
+    assert an._SYSTEM_RECENCY == (an._SYSTEM_RECENCY_A + an._SYSTEM_RECENCY_EDGE
+                                  + an._SYSTEM_RECENCY_B)
+    assert an._SYSTEM_RECENCY_FACTS == (an._SYSTEM_RECENCY_A + an._SYSTEM_RECENCY_EDGE_FACTS
+                                        + an._SYSTEM_RECENCY_B)
+    assert an._SYSTEM_RECENCY.count(an._SYSTEM_RECENCY_EDGE) == 1
+    assert an._SYSTEM_RECENCY.replace(an._SYSTEM_RECENCY_EDGE,
+                                      an._SYSTEM_RECENCY_EDGE_FACTS) == an._SYSTEM_RECENCY_FACTS
+
+
+def test_s5_phase0s_the_facts_clause_states_layers_not_a_verdict_and_is_register_clean(monkeypatch):
+    """6.5 (3). The measured trigger is the owner's 2026-09-07 soybean turn dating the WHOLE answer by
+    one layer ("the record here runs through March 2025") over rows whose knowledge dates were newer.
+    The replacement's SUBJECT is the claim and the layer, never the answer -- so it cannot be inflated
+    into a whole-page verdict -- and it is register-clean at BUILD, because a serve-time trip on a
+    persona constant is a build defect and not a turn's bad luck."""
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag import register as reg
+    e = an._SYSTEM_RECENCY_EDGE_FACTS
+    assert "central claim" not in e
+    assert "not a current-state read" not in an._SYSTEM_RECENCY_FACTS
+    assert "the document's own date" in e and "that row's own knowledge date" in e
+    assert "states every edge" in e and "a fact about the layer it names" in e
+    assert e.isascii() and an._SYSTEM_RECENCY_FACTS.isascii()
+    for t in (an._SYSTEM_RECENCY, an._SYSTEM_RECENCY_FACTS, e):
+        assert reg.register_leaks(t) == [] and reg.count_flow_words(t) == 0
+        assert reg.count_valuation_words(t) == 0 and reg.sanitize(t) == t
+    # THE SEAM: flag off -> HEAD's literal, flag on -> the variant, and nothing else in the persona
+    # moves either way.
+    monkeypatch.delenv("GRAPHRAG_RECENCY_FACTS", raising=False)
+    assert an._recency_facts_on() is False
+    off = an._system(recency=True)
+    assert an._SYSTEM_RECENCY in off and an._SYSTEM_RECENCY_EDGE_FACTS not in off
+    monkeypatch.setenv("GRAPHRAG_RECENCY_FACTS", "on")
+    on = an._system(recency=True)
+    assert an._SYSTEM_RECENCY_FACTS in on and an._SYSTEM_RECENCY_EDGE not in on
+    assert on == off.replace(an._SYSTEM_RECENCY, an._SYSTEM_RECENCY_FACTS)   # ONE clause, nothing else
+    assert an._system() == an._system()                       # the recency-less render is untouched
+
+
+def test_s5_phase0s_the_ledger_suffix_is_head_bytes_off_and_per_layer_on(monkeypatch):
+    """6.5 (2). Flag off the sentence is HEAD's character for character (with the new kwargs passed
+    unconditionally at both seams, which is what makes the callers' one-line thread safe). Flag on it
+    states one layer per sentence and NAMES ONLY THE LAYERS IT MEASURED: the board's two -- kd_max /
+    kd_min and the tape edge -- arrive at phase 2 (S6) and are silent until then, because naming an
+    edge the turn did not measure is the same defect one layer over."""
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag import register as reg
+    monkeypatch.setenv("GRAPHRAG_RECENCY_STAMP", "on")
+    monkeypatch.delenv("GRAPHRAG_RECENCY_FACTS", raising=False)
+    head = (" The dated evidence record for this question runs through 2026-03-14 (reported dates; "
+            "observed [N] number rows carry their own knowledge dates; the as-of date is this "
+            "question's 'today').")
+    assert an._recency_ledger_suffix("2026-03-14") == head
+    assert an._recency_ledger_suffix("2026-03-14", asof="2026-09-07") == head    # kwargs inert when off
+    assert an._recency_ledger_suffix(None, asof="2026-09-07") == ""
+    assert an._recency_ledger_suffix("2026-03-14", asof="2026-09-07", n_rows=0) == head   # inert too
+    monkeypatch.setenv("GRAPHRAG_RECENCY_FACTS", "on")
+    s = an._recency_ledger_suffix("2026-03-14", asof="2026-09-07", n_rows=9)
+    assert "read as of 2026-09-07" in s and "carries its own knowledge date" in s
+    assert "The newest dated document behind this answer is 2026-03-14 (reported dates)." in s
+    assert s.endswith("Each of those is a fact about the layer it names, and none dates the others.")
+    assert "board price tape" not in s and "the newest is" not in s      # UNMEASURED -> UNCLAIMED
+    full = an._recency_ledger_suffix("2026-03-14", asof="2026-09-07", kd_max="2026-09-05",
+                                     kd_min="2025-11-30", tape_edge="2026-09-05", n_rows=9)
+    assert "the newest is 2026-09-05 and the oldest 2025-11-30" in full
+    assert "The board price tape runs through 2026-09-05." in full
+    # A LAYER WITH NO MEMBERS IS NOT NAMED (S5 review). The build stated the number-rows sentence
+    # unconditionally at both seams, neither of which checks the turn served any rows -- so a text-only
+    # turn named a layer that was empty, which is the same defect this item exists to close, one layer
+    # over. With `n_rows` 0 the rows sentence is OMITTED, and the closing "each of those / none dates
+    # the others" goes with it, because one stated layer is not a set to close.
+    none_rows = an._recency_ledger_suffix("2026-03-14", asof="2026-09-07", n_rows=0)
+    assert none_rows == " The newest dated document behind this answer is 2026-03-14 (reported dates)."
+    assert "number row" not in none_rows and "Each of those" not in none_rows
+    # ...and with a tape edge beside it there ARE two layers again, so the closing sentence returns
+    two = an._recency_ledger_suffix("2026-03-14", n_rows=0, tape_edge="2026-09-05")
+    assert two.endswith("none dates the others.") and "number row" not in two
+    # HEAD's "(reported dates)" PRECISION QUALIFIER SURVIVES THE REWRITE: `_record_through` is measured
+    # on REPORTED dates and not on publication dates (its own docstring says so), and the build dropped
+    # the qualifier, leaving that stated nowhere on the page.
+    assert "(reported dates;" in head                          # HEAD's own spelling, unchanged
+    assert "(reported dates)" in s and "(reported dates)" in none_rows and "(reported dates)" in full
+    # an UNMEASURED caller (no n_rows at all) keeps HEAD's vacuous-safe general phrasing
+    assert "number row" in an._recency_ledger_suffix("2026-03-14")
+    # the stamp flag is still the OUTER gate for both wordings (6.5 (3))
+    monkeypatch.delenv("GRAPHRAG_RECENCY_STAMP", raising=False)
+    assert an._recency_ledger_suffix("2026-03-14", asof="2026-09-07") == ""
+    for t in (head, s, full, none_rows, two):
+        assert reg.register_leaks(t) == [] and reg.count_flow_words(t) == 0
+        assert reg.count_valuation_words(t) == 0 and t.isascii()
+        assert "not a current-state read" not in t
+    # BOTH serving bodies thread the as-of AND the served-row count, so neither can ship the per-layer
+    # clause with an unnamed read date, or name an empty rows layer, while the other does not.
+    asrc = open(an.__file__, encoding="utf-8").read()
+    assert asrc.count("_recency_ledger_suffix(_rec_through, asof=str(asof) if asof else None") == 2
+    assert asrc.count("asof=str(asof) if asof else None, n_rows=n_srv)") == 1
+    assert asrc.count("n_rows=_served_rows(extra_number_calls))") == 2   # the ledger line + the suffix
+    # ...and the count they thread is the SAME producer the ledger line already states -- one
+    # `_served_rows` per body, never a second count of the same rows.
+    assert asrc.count("def _served_rows(") == 1
+
+
+def test_s5_phase0s_state_board_is_registered_at_the_tail_before_its_writer():
+    """6.7 / D10 + doctrine M-8: ONE registered key for the whole board, appended at the TAIL one
+    sitting before its first writer so the six files' negative-index tail pins re-anchor in ONE commit.
+    Until S6 writes it the column lifts as None, which is the same absent-as-None shape every
+    registered key has on a turn that does not stamp it."""
+    from leviathan.graphrag import tracekeys as tk
+    assert tk.TRACE_RECORD_KEYS[-1] == "state_board"
+    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
+    #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
+    #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
+    #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
+    assert tk.TRACE_RECORD_KEYS.count("state_board") == 1
+    assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
+    # the DECISION tuple is untouched by the append
+    assert tk.DECISION_RECORD_KEYS[-1] == ("extreme_locator", "extreme_locator_decision")
+    # eval lifts it by LOOPING the registry, so the registration IS the lift and needs no eval edit
+    from leviathan.graphrag import eval as _ev
+    assert "for k in tk.TRACE_RECORD_KEYS}" in open(_ev.__file__, encoding="utf-8").read()
+    # the key's decline vocabulary is DECLARED where it is registered (6.7's closed three-state)
+    doc = open(tk.__file__, encoding="utf-8").read()
+    i = doc.index('"state_board"')
+    seg = doc[i:i + 2000]
+    for w in ("fired", "declined", "not_reached", "outcome", "reason"):
+        assert w in seg, w
+    # PHASE 0's OWN TAG IS REGISTERED IN THE SAME COMMIT (S5 review). The build left it out on the
+    # `quantify_*_decline` sibling precedent, expecting the tier-1 render replay over the 7 banked
+    # composer-fired turns to be the gate; that replay does not exist at $0 (those artifacts carry
+    # per-answer COUNTERS ONLY -- no `calls`, no answer body, `quantify_transmission` null on every
+    # row), and eval's four RV counters all read `quantify_reroute_v2` / `quantify_comove`, which the
+    # composer path never writes. Unregistered, an armed arm A would bank rows IDENTICAL to control on
+    # all four while the turn spent real reads and real prompt bytes. Registration IS the instrument.
+    assert tk.TRACE_RECORD_KEYS.count("quantify_xc_fork") == 1
+    j = doc.index('"quantify_xc_fork"')
+    xseg = doc[j:j + 1400]
+    for w in ("fired", "declined", "not_reached", "outcome", "reason", "path", "pair_id"):
+        assert w in xseg, w
