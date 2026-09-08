@@ -209,8 +209,10 @@ describe('internal mode identifiers (unchanged by the Cascade notch)', () => {
     // SINCE 2026-09-07 THE LOOP IS CLOSED FROM THE OTHER SIDE, and that is the fix rather than a third
     // repair of a list: `leviathan.graphrag.config_check.check_cascade_notch` clause (vi) reads THIS
     // literal out of store/mode.ts and asserts it equals `reasoning_modes.DARK_NAMES` name-for-name. The
-    // backend lint is now what fails when the census drifts -- 13 names there, 13 names here, as of
-    // 2026-09-07.
+    // backend lint is now what fails when the census drifts -- 15 names there, 15 names here, as of
+    // 2026-09-08. AND IT WORKED, first time it was tested from the backend side: SCAN RUNG 3 minted
+    // `quick_s` + `quick_r0` into DARK_NAMES, `check_cascade_notch` clause (vi) went red naming both
+    // missing names, and this literal and store/mode.ts moved in that same change.
     expect([...DARK_TIERS]).toEqual([
       'deep_v2',
       'max',
@@ -225,8 +227,10 @@ describe('internal mode identifiers (unchanged by the Cascade notch)', () => {
       'esc_hp',
       'esc_r_hp',
       'quick_n3',
+      'quick_s',
+      'quick_r0',
     ]);
-    expect(DARK_TIERS).toHaveLength(13);
+    expect(DARK_TIERS).toHaveLength(15);
     // `standard` can never be dark: its all-None knob dict IS the backend's fail-open guarantee.
     expect(DARK_TIERS).not.toContain('standard');
     for (const t of DARK_TIERS) {

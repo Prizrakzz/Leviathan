@@ -116,6 +116,8 @@ MAX_CC1 = "max_cc1"                           # D-MW-28 (P6): max + ONE cross-ma
 MAX_CC2 = "max_cc2"                           # Q-0a (2026-08-28): max + TWO slots -- the slot-WIDTH arm
 DEEP_CC1 = "deep_cc1"                         # T2-2: deep + the SAME one slot -- the T2-3 gate's ON arm
 QUICK_N3 = "quick_n3"                         # LANE S (2026-09-06): quick + a THREE-round numbers budget
+QUICK_S = "quick_s"                           # SCAN RUNG 3: the CONTROL twin -- quick + the Sonnet writer
+QUICK_R0 = "quick_r0"                         # ...and the TREATMENT -- quick_s + the deterministic roster
 # D-HP-8 (H1, R9): THE MATCHED DARK PRESET SET -- the handle-prose treatment's ONE enabling lever. Four
 # names, minted in ONE commit, all four in DARK_NAMES. `standard` is NOT in the set and cannot be (its
 # all-None dict IS the fail-open guarantee), and `max`/`max_c0`/`max_cc1` are out of the ladder entirely.
@@ -249,6 +251,26 @@ class Mode:
     #   (2) the PAID tiers `deep` (Analysis) and `max` (Cascade), which keep six rounds because the ladder
     #       prices them for the wider read -- not because nobody thought to cut them.
     numbers_calls: int | None = None
+    # SCAN RUNG 3 (THE HEADLINE ROSTER, 2026-09-08; docs/private/SCAN_RUNG3_ROSTER_DESIGN.md): does this
+    # turn's numbers leg run the DETERMINISTIC roster instead of the numbers agent? Appended LAST -- the
+    # appended-last law, EIGHTH application (KNOB_FIELDS order IS the trace-stamp column order; append,
+    # never insert).
+    # THE MEASURED TRIGGER (the 25-turn Scan census, `scan_arm_*.json`, design sections 0 and 1.1): the
+    # numbers leg is ~100% MODEL time -- `timing_ms.numbers` minus that turn's own summed API-call
+    # seconds is p50 0.07 s across 1 to 38 lookups, so `rv_corn_sorghum` spent 0.1 s EXECUTING 35
+    # lookups and 89.6 s PLANNING them -- and what all that planning rediscovers every turn is a set of
+    # THREE CARDS (`tables_queried` over 15 banked rows names eight tables, distinct-per-turn p50 3).
+    # Rung 1 (`numbers_calls`) cut rounds and the model COMPENSATED with tokens (out/round +242% vs a
+    # null arm's +94%), because the leg is TOKEN-bound and not round-bound. This knob removes the model.
+    # A NEW FIELD AND NOT `numbers_calls=0`, AND THAT IS NOT STYLE (design 1.6(1)): `run_hybrid`'s budget
+    # gate is `if (_numbers_mode_budget_on() and (mode_knobs or {}).get("numbers_calls"))` -- a
+    # TRUTHINESS test -- so a literal 0 is falsy, `_nc` comes back empty and the turn silently runs the
+    # FULL SIX-ROUND budget, i.e. the exact opposite of this design.
+    # THE FENCE, as for every field above it: None on every SHIPPED preset, so `knobs()`'s `is not None`
+    # filter cannot mint the key -- every existing preset's knob dict, trace stamp and eval `mode_knobs`
+    # column stay byte-identical, and `run_hybrid` reads its own env flag as the second half of the
+    # decision (a preset alone moves nothing).
+    numbers_roster: bool | None = None
 
 
 MODES: dict[str, Mode] = {m.name: m for m in (
@@ -475,6 +497,32 @@ MODES[DEEP_CC1] = replace(MODES[DEEP], name=DEEP_CC1, cascade_contract_slots=1)
 # list), and `DARK_NAMES` below drops the name in that same commit.
 MODES[QUICK_N3] = replace(MODES[QUICK], name=QUICK_N3, numbers_calls=3)
 
+# -- SCAN RUNG 3: THE HEADLINE-ROSTER ARM (2026-09-08) ---------------------------------------------------
+# TWO presets, ONE variable between them, minted in ONE edit and both dark from birth.
+#   `quick_s`  = quick + the SONNET writer. THE CONTROL, and it carries the writer swap on purpose: the
+#                tier ships with the Sonnet seat (owner's word), so the control carries it too or the arm
+#                measures the SEAT SWAP instead of the roster. That swap has ALREADY been measured on this
+#                deck and is not this rung's question -- 20.9 s / 1,974 out tokens at Sonnet against
+#                37.9 s / 3,284 at Opus, the same emission RATE with a 3.5 s smaller fixed head and far
+#                fewer tokens (design section 3). SEAT PARITY IS AN ARM LAW.
+#   `quick_r0` = quick_s + `numbers_roster=True`. THE TREATMENT.
+# BUILT BY `replace`, AND THE TREATMENT IS BUILT FROM THE CONTROL, NOT FROM `quick`. The design writes
+# `replace(MODES[QUICK], ..., numbers_roster=True, synth_model=...)`; building from `quick_s` instead
+# makes the one-variable law STRUCTURAL rather than asserted -- the pair cannot drift into a
+# two-variable arm the day another wave amends the writer seat, which is the COMPAT-9 duplicate-and-
+# drift class the whole module exists to prevent. `config_check.check_scan_roster` asserts the property
+# ({name, numbers_roster}) rather than re-listing the values.
+# NO `scan_contract` HERE, AND THAT IS SEQUENCING RATHER THAN OMISSION (design 1.6(2)): the field does
+# not exist at HEAD. It is SCAN_FAST's, it joins BOTH presets in the same edit that lands it, and the
+# read gate runs after that -- which is why the arm is the FOURTH sitting of this rung and not the first.
+# THE FLIP DELETES THESE TWINS rather than un-darkening them -- the `quick_n3` / `deep_cc1` precedent. At
+# flip time `numbers_roster=True` moves onto `Mode(QUICK)` itself, `check_scan_roster` is rewritten in
+# the SAME commit (its docstring carries the clause-by-clause list), and `DARK_NAMES` drops both names in
+# that same commit. The Scan notch's WIRE NAME stays `quick` for the FE picker and the credit ledger
+# through the whole arc.
+MODES[QUICK_S] = replace(MODES[QUICK], name=QUICK_S, synth_model="claude-sonnet-5")
+MODES[QUICK_R0] = replace(MODES[QUICK_S], name=QUICK_R0, numbers_roster=True)
+
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
 # by NAME (GRAPHRAG_MODES=deep_v2 for the eval arm), which is what keeps the flip a one-env-var decision.
 # D-MW-30 (F8): esc / esc_r join the dark set IN THE SAME COMMIT that mints them. A forgotten entry here
@@ -501,8 +549,17 @@ MODES[QUICK_N3] = replace(MODES[QUICK], name=QUICK_N3, numbers_calls=3)
 # has adjudicated -- i.e. it would silently narrow the observed-number leg of the estate's default notch on
 # the strength of a cost census alone. serving_names() is UNCHANGED by this ({quick, standard, deep}), and
 # the pin on that fact is the leak fence.
+# SCAN RUNG 3 (2026-09-08): `quick_s` AND `quick_r0` join in the SAME edit that mints them -- the F8 leak
+# fence, EIGHTH application, and BOTH halves of the pair need the entry. The treatment is obvious (a
+# forgotten entry would run a MODEL-FREE numbers leg on the estate's default free tier for anyone who
+# typed the name, before any read gate has judged what the roster refuses). The CONTROL is the one that
+# gets forgotten: `quick_s` differs from shipped `quick` only in the WRITER SEAT, so a leaked entry would
+# silently swap the synthesis model of every `GRAPHRAG_MODES=on` turn that named it -- a seat change with
+# no gate behind it, and the least visible kind. serving_names() is UNCHANGED by this ({quick, standard,
+# deep}), and the pin on that fact is the leak fence.
 DARK_NAMES: frozenset = frozenset({DEEP_V2, MAX, MAX_C0, ESC, ESC_R, MAX_CC1, MAX_CC2, DEEP_CC1,
-                                   QUICK_HP, DEEP_HP, ESC_HP, ESC_R_HP, QUICK_N3})
+                                   QUICK_HP, DEEP_HP, ESC_HP, ESC_R_HP, QUICK_N3,
+                                   QUICK_S, QUICK_R0})
 
 # ── EC-3: THE METERED PREDICATE (the leaf half of a two-module fact) ────────────────────────────────
 # `server._CREDIT_PRICES` is the SIBLING AUTHORITY and stays the frozen wire contract -- it answers

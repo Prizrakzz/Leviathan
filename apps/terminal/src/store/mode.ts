@@ -124,6 +124,9 @@ export function isAskMode(v: unknown): v is AskMode {
  *                                                  cascade slot; the T2-3 gate's ON arm
  *   `quick_hp`, `deep_hp`, `esc_hp`, `esc_r_hp`  — the D-HP-26 flip ladder (flag still dark)
  *   `quick_n3`                                   — LANE S, the Scan-tier 3-round numbers budget arm
+ *   `quick_s`, `quick_r0`                        — SCAN RUNG 3, the headline-roster arm: the control
+ *                                                  twin (Sonnet writer) and the treatment (the
+ *                                                  deterministic, model-free numbers leg)
  * `standard` is NOT and cannot be in it (its all-None dict IS the fail-open guarantee).
  *
  * THE CENSUS HAS GONE STALE TWICE AND THIS FILE'S OWN TEST CANNOT CATCH IT (mode.test.ts says so in
@@ -145,6 +148,8 @@ export const DARK_TIERS: readonly string[] = [
   'esc_hp',
   'esc_r_hp',
   'quick_n3',
+  'quick_s',
+  'quick_r0',
 ] as const;
 
 /**

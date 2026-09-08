@@ -200,7 +200,11 @@ def test_p2_quick_n3_is_dark_and_differs_from_quick_in_exactly_one_field():
     differ = {f for f in ("name",) + tuple(rm.KNOB_FIELDS)
               if getattr(rm.MODES[rm.QUICK], f) != getattr(rm.MODES[rm.QUICK_N3], f)}
     assert differ == {"name", "numbers_calls"}
-    assert rm.KNOB_FIELDS[-1] == "numbers_calls"                  # appended-last, SEVENTH application
+    # SCAN RUNG 3 (2026-09-08) moved the tail: `numbers_roster` appended AFTER this field, so lane S's
+    # own claim is now its ORDINAL -- appended, never inserted -- and the literal last slot belongs to
+    # whichever wave appended most recently. `check_scan_roster` clause (iv) owns that literal.
+    assert rm.KNOB_FIELDS[-2] == "numbers_calls"                  # appended-last, SEVENTH application
+    assert rm.KNOB_FIELDS.index("numbers_calls") > rm.KNOB_FIELDS.index("synth_effort")
     assert cc.check_scan_tier() == []                             # the governing lint agrees, in-process
 
 

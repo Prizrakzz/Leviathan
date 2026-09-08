@@ -3680,8 +3680,17 @@ def check_scan_tier() -> list[str]:
     (iii)  THE BYTE-IDENTITY FENCE: `numbers_calls` is None on every OTHER preset, so `knobs()`'s
            `is not None` filter cannot mint the key into any existing knob dict, trace stamp or eval
            `mode_knobs` column.
-    (iv)   THE APPENDED-LAST LAW: `numbers_calls` is the LAST entry of KNOB_FIELDS, whose order IS the
-           trace-stamp column order -- append, never insert.
+    (iv)   THE APPENDED-LAST LAW: `numbers_calls` sits AFTER every field that predates lane S, in
+           KNOB_FIELDS, whose order IS the trace-stamp column order -- append, never insert.
+           AMENDED 2026-09-08 (SCAN RUNG 3): this clause read `KNOB_FIELDS[-1] == "numbers_calls"`,
+           which is the same statement only while lane S is the LAST wave to append. `numbers_roster`
+           appended after it, so the literal-last form went red on a field this lint is not about.
+           The invariant lane S actually owns is that ITS field was appended rather than INSERTED --
+           i.e. nothing that predates it sits after it -- and `synth_effort` (Q-0, the append
+           immediately before) is the anchor that says so. A later wave's append does not move it;
+           an INSERT of `numbers_calls` ahead of an older field still fails. The literal tail order
+           is pinned by `check_scan_roster` clause (iv) and by test_dam_modes' tail slice, which are
+           the two places that are about the order itself.
     (v)    THE SANITY BAND: a set `numbers_calls` is an int in [1, 12]. DELIBERATELY NOT a ceiling at
            the `answer_numbers` signature default of 6 -- a budget ABOVE 6 is a legitimate value for
            the ONE preset that may carry the field (the arm's own fallback ladder runs upward), and a
@@ -3739,10 +3748,16 @@ def check_scan_tier() -> list[str]:
                         f"{name} must leave it None so knobs() cannot mint the key")
         if not isinstance(v, int) or isinstance(v, bool) or not (1 <= v <= 12):
             errs.append(f"scan_tier: {mname}.numbers_calls={v!r} is outside the sanity band [1, 12]")
-    # (iv) the appended-last law
-    if _rm.KNOB_FIELDS[-1] != "numbers_calls":
-        errs.append(f"scan_tier: KNOB_FIELDS[-1] is {_rm.KNOB_FIELDS[-1]!r}, not 'numbers_calls' -- "
-                    f"that order IS the trace-stamp column order; append, never insert")
+    # (iv) the appended-last law -- expressed as an ORDINAL against the append immediately before it
+    # (SCAN RUNG 3, 2026-09-08), so a LATER wave's own append cannot red this lint while an INSERT of
+    # this field ahead of an older one still does.
+    _kf = list(_rm.KNOB_FIELDS)
+    if "numbers_calls" not in _kf:
+        errs.append("scan_tier: 'numbers_calls' is absent from KNOB_FIELDS -- the knob cannot thread")
+    elif "synth_effort" not in _kf or _kf.index("numbers_calls") <= _kf.index("synth_effort"):
+        errs.append(f"scan_tier: KNOB_FIELDS order is {_kf[-4:]!r} -- 'numbers_calls' must sit AFTER "
+                    f"'synth_effort', the append before it; that order IS the trace-stamp column "
+                    f"order, so append, never insert")
     # (vi) the Class-1 seam
     try:
         from leviathan.graphrag.numbers import agent as _na
@@ -3760,6 +3775,174 @@ def check_scan_tier() -> list[str]:
     if arm.numbers_calls != 3:
         errs.append(f"scan_tier: {name}.numbers_calls is {arm.numbers_calls!r}, not the ratified 3 "
                     f"(the pre-declared fallback rung is 4, and it moves this clause with it)")
+    return errs
+
+
+def check_scan_roster() -> list[str]:
+    """SCAN RUNG 3 (THE HEADLINE ROSTER, 2026-09-08): the deterministic Scan numbers leg, governed.
+    PURE READS ONLY -- the mode table, the roster module's own constants and the numbers REGISTRY. No
+    S3, no pg, no Athena, no LLM, no AWS, so it runs in CI beside every other check here.
+
+    WHY A LINT AND NOT ONLY UNIT PINS, and it is a sharper case than `check_scan_tier`'s: that wave
+    threaded ONE INTEGER into an existing keyword, and its worst failure was a narrower read. This wave
+    replaces the whole numbers leg with a WRITTEN-DOWN TABLE of cards, so the roster's correctness is a
+    property of the REGISTRY -- a card that renames a metric, drops a unit or retires a column turns a
+    served row into a silent empty read, and nothing in the roster's own source would change. That is
+    exactly the failure a config lint exists to catch, and it is invisible in any diff of this lane.
+
+    (i)    THE LEAK FENCE: BOTH `quick_r0` and its control twin `quick_s` are in DARK_NAMES and
+           `serving_names()` is still exactly {quick, standard, deep}. The control needs the entry as
+           much as the treatment -- it differs from shipped `quick` only in the WRITER SEAT, which is
+           the least visible thing a leaked preset could change (the F8 fence, eighth application).
+    (ii)   THE ONE-VARIABLE LAW: `quick_r0` differs from `quick_s` in EXACTLY {name, numbers_roster},
+           and `quick_s` differs from `quick` in EXACTLY {name, synth_model}. Both twins are built by
+           `dataclasses.replace` off the preset one rung down, so this asserts the property rather than
+           re-listing values -- a hand-copied field table is the COMPAT-9 drift class.
+    (iii)  THE BYTE-IDENTITY FENCE: `numbers_roster` is None on every OTHER preset, so `knobs()`'s
+           `is not None` filter cannot mint the key into any existing knob dict, trace stamp or eval
+           `mode_knobs` column. And it is a BOOL where it is set -- never 0/1, never a string: the
+           run_hybrid gate is a truthiness read and a stray "off" string would read TRUE.
+    (iv)   THE APPENDED-LAST LAW: `numbers_roster` is the LAST entry of KNOB_FIELDS, whose order IS the
+           trace-stamp column order -- append, never insert. THIS is the clause that owns the literal
+           tail order; `check_scan_tier` (iv) owns only its own field's ordinal.
+    (v)    NO `numbers_calls` ON EITHER TWIN, and this is the design's own load-bearing line (1.6(1)):
+           `run_hybrid`'s budget gate is a TRUTHINESS test, so `numbers_calls=0` would be swallowed and
+           the turn would silently run the FULL SIX-ROUND budget -- the exact opposite of this rung.
+           The roster is a separate field precisely so that cannot be expressed.
+    (vi)   THE CARDS THE ROSTER READS EXIST, WITH THE UNITS IT ASSUMES. Every (table, metric) the
+           roster can issue is resolved against the live registry and must declare a non-empty unit:
+           silver_psd's balance metrics (su_ratio -- read TWICE, at the settled year and at MY-1, which
+           is where the year-on-year change comes from since the 2026-09-08 fix pass -- production_mt,
+           and both sides of the trade leg), silver_futures_eod's `settle` with a PER-SLUG unit override for
+           every one of `cascade._RV_EOD_FRESH`'s nine boards, and every pink-sheet series named by
+           `cascade._RV_PRICE_SERIES`. MEASURED and this is why the clause is about the CARD and not
+           the payload: over 90 primary + 9 world reads the silver_psd payload carried NO unit on ANY
+           metric, so the card's declaration is the whole of the roster's unit knowledge, and a row
+           whose unit it cannot name is refused rather than printed on a bare scale.
+    (vii)  THE IMPORTS ARE IMPORTS, NOT COPIES: the roster's scope, marketing-year, board and benchmark
+           tables are `cascade`'s own objects, read through `cascade`. A second hand-kept copy of
+           `_RV_EOD_FRESH` or `_RV_PRICE_SERIES` is the drift class this whole file exists to prevent,
+           so the identity is asserted rather than the contents.
+    (viii) THE TWO-SLUG CUT IS STILL TWO. MEASURED over all 14 deck rows: `orchestrator`'s `_mc`
+           filters on contract membership only and returns 4-11 slugs per relative-value question
+           (p50 8); at 5-8 reads per slug that is a 40-read wave and ~125 s sequential on the Athena
+           column -- WORSE than the 65 s agent leg this rung replaces. The cut is the whole reason the
+           roster is a latency win on the fallback column rather than a regression.
+
+    DELIBERATELY NOT COVERED: the env flag. It is runtime state, not configuration of record -- a lint
+    that asserted it would go red on every developer laptop and green on nothing that matters. Its
+    off-state is pinned by unit tests that capture kwargs from injected fakes instead.
+
+    AT FLIP TIME THIS LINT IS BLOCKING, exactly as `check_scan_tier` is, and that belongs on the flip
+    checklist rather than arriving as a surprise in CI: the ratified flip DELETES both twins
+    (`numbers_roster=True` moves onto `Mode(QUICK)` itself), the guard at the top then returns "the arm
+    preset 'quick_r0' is not in the mode table", and `main()` goes red. THE FLIP COMMIT REWRITES THIS
+    CHECK: (i), (ii) and (v) are about the twins and go away with them; (iii) inverts to "exactly one
+    preset carries the field and it is `quick`"; (iv), (vi), (vii) and (viii) survive unchanged."""
+    from leviathan.graphrag import reasoning_modes as _rm
+    from leviathan.graphrag.numbers import cascade as _cq
+    from leviathan.graphrag.numbers import roster as _ro
+
+    errs: list[str] = []
+    arm = getattr(_rm, "QUICK_R0", None)
+    ctl = getattr(_rm, "QUICK_S", None)
+    if not arm or arm not in _rm.MODES or not ctl or ctl not in _rm.MODES:
+        return [f"scan_roster: the arm preset {arm!r} or its control {ctl!r} is not in the mode table"]
+    # (i) the leak fence -- BOTH halves
+    for n in (arm, ctl):
+        if n not in _rm.DARK_NAMES:
+            errs.append(f"scan_roster: {n} is NOT in DARK_NAMES -- GRAPHRAG_MODES=on would honor an "
+                        f"un-adjudicated preset on the estate's FREE default tier")
+    if _rm.serving_names() != frozenset({"quick", "standard", "deep"}):
+        errs.append(f"scan_roster: serving_names() moved to {sorted(_rm.serving_names())!r} -- the "
+                    f"wildcard-honored set is a wire contract and this wave does not widen it")
+    # (ii) the one-variable law, twice, each against the preset one rung down
+    _all = ("name",) + tuple(_rm.KNOB_FIELDS)
+    for lo, hi, want in ((_rm.QUICK, ctl, {"name", "synth_model"}),
+                         (ctl, arm, {"name", "numbers_roster"})):
+        differ = {f for f in _all if getattr(_rm.MODES[lo], f) != getattr(_rm.MODES[hi], f)}
+        if differ != want:
+            errs.append(f"scan_roster: {hi} vs {lo} differ in {sorted(differ)!r}, not {sorted(want)!r} "
+                        f"-- the read gate needs EXACTLY one field or it measures two variables at once")
+    # (iii) byte-identity everywhere else + the bool grammar
+    for mname, m in sorted(_rm.MODES.items()):
+        v = getattr(m, "numbers_roster", None)
+        if v is None:
+            continue
+        if mname != arm:
+            errs.append(f"scan_roster: preset {mname!r} carries numbers_roster={v!r} -- every preset "
+                        f"but {arm} must leave it None so knobs() cannot mint the key")
+        if not isinstance(v, bool):
+            errs.append(f"scan_roster: {mname}.numbers_roster={v!r} is not a bool -- the run_hybrid "
+                        f"gate is a truthiness read, so a non-bool can enable the lane by accident")
+    # (iv) the appended-last law -- THIS clause owns the literal tail order
+    if _rm.KNOB_FIELDS[-1] != "numbers_roster":
+        errs.append(f"scan_roster: KNOB_FIELDS[-1] is {_rm.KNOB_FIELDS[-1]!r}, not 'numbers_roster' -- "
+                    f"that order IS the trace-stamp column order; append, never insert")
+    # (v) neither twin may carry a round budget (1.6(1): 0 is falsy and restores the full budget)
+    for n in (arm, ctl):
+        if getattr(_rm.MODES[n], "numbers_calls", None) is not None:
+            errs.append(f"scan_roster: {n} carries numbers_calls="
+                        f"{_rm.MODES[n].numbers_calls!r} -- the roster preset must carry NONE; the "
+                        f"budget gate is a truthiness test, so a 0 there runs the full six rounds")
+    # (vi) every card the roster can read exists and declares the unit the roster assumes
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        _reg = load_registry()
+    except Exception as e:  # noqa: BLE001 -- an unloadable registry is this check's own failure
+        return errs + [f"scan_roster: could not load the numbers registry ({e!r})"]
+    # NO `su_ratio_yoy_delta` HERE, and its absence is the governed half of the 2026-09-08 fix pass
+    # (review FATAL-2). The build reviewed served that COLUMN as R1's change row on the claim that it is
+    # "the publisher's own vintage-coherent delta ... cannot span two knowledge dates by construction".
+    # The card RETRACTS both halves in the comment block directly above the metric
+    # (configs/graphrag/numbers/tables.yaml:72-83): they are "four columns the PRODUCER has ALWAYS
+    # written" -- our own silver transform, not USDA -- and under the honest clock "THE TWO COMPARED
+    # PRINTS CAN BE SEVERAL CALENDAR YEARS APART". The roster went back to design 1.2's shape (two
+    # served levels, `stats.window_change` behind `stats.same_vintage`), so the column is no longer on
+    # the roster and this lint no longer governs it.
+    _psd_metrics = ("su_ratio", "production_mt", "exports_mt", "imports_mt")
+    for table, metrics in (("silver_psd", _psd_metrics),):
+        ts = _reg.get(table)
+        if ts is None:
+            errs.append(f"scan_roster: the roster reads {table} and the registry has no card for it")
+            continue
+        for metric in metrics:
+            m = (getattr(ts, "metrics", None) or {}).get(metric)
+            if m is None:
+                errs.append(f"scan_roster: {table}.{metric} is on the roster and absent from the card")
+            elif not str(getattr(m, "unit", "") or "").strip():
+                errs.append(f"scan_roster: {table}.{metric} declares NO unit -- the payload carries "
+                            f"none either, so the row could only print on a bare scale")
+    _eod = _reg.get(_cq._RV_EOD_TABLE)
+    _settle = (getattr(_eod, "metrics", None) or {}).get("settle") if _eod is not None else None
+    if _settle is None:
+        errs.append(f"scan_roster: {_cq._RV_EOD_TABLE}.settle is on the roster and absent from the card")
+    else:
+        for slug, (metric, _label) in sorted(_cq._RV_EOD_FRESH.items()):
+            if metric != "settle":
+                errs.append(f"scan_roster: _RV_EOD_FRESH[{slug!r}] names metric {metric!r}; the roster "
+                            f"reads the settle column and nothing else on this card")
+                continue
+            if not str((_settle.unit_overrides or {}).get(slug) or "").strip():
+                errs.append(f"scan_roster: {_cq._RV_EOD_TABLE}.settle declares no unit override for "
+                            f"{slug!r} -- that board's level would print on a bare scale")
+    _pink = _reg.get(_cq._RV_PRICE_TABLE)
+    for slug, (metric, _label) in sorted(_cq._RV_PRICE_SERIES.items()):
+        m = (getattr(_pink, "metrics", None) or {}).get(metric) if _pink is not None else None
+        if m is None:
+            errs.append(f"scan_roster: {_cq._RV_PRICE_TABLE}.{metric} (the benchmark for {slug!r}) is "
+                        f"absent from the card")
+        elif not str(getattr(m, "unit", "") or "").strip():
+            errs.append(f"scan_roster: {_cq._RV_PRICE_TABLE}.{metric} declares NO unit")
+    # (vii) the imports are imports
+    for name in ("_RV_EOD_FRESH", "_RV_PRICE_SERIES", "_RV_PRICE_ABSENCE"):
+        if getattr(_ro.cq, name, None) is not getattr(_cq, name, object()):
+            errs.append(f"scan_roster: roster's {name} is not cascade's own object -- a second copy is "
+                        f"the duplicate-and-drift class this file exists to prevent")
+    # (viii) the two-slug cut
+    if _ro.ROSTER_CONTRACT_CAP != 2:
+        errs.append(f"scan_roster: ROSTER_CONTRACT_CAP is {_ro.ROSTER_CONTRACT_CAP!r}, not the routed "
+                    f"PAIR -- _mc returns 4-11 slugs per RV question (p50 8), which is a 40-read wave")
     return errs
 
 
@@ -4072,6 +4255,7 @@ def main() -> int:
                         ("cascade_context", check_cascade_context()),
                         ("extreme_locator", check_extreme_locator()),
                         ("scan_tier", check_scan_tier()),
+                        ("scan_roster", check_scan_roster()),
                         ("cascade_notch", check_cascade_notch())):
         if errs:
             failures += len(errs)

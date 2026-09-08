@@ -99,12 +99,17 @@ def test_the_preset_table_and_nothing_else():
     # dark to the wildcard. SEVENTH application: fifteen presets, three servable.
     # LANE S (2026-09-06): `quick_n3` appends the same way -- the Scan-tier numbers-budget arm,
     # resolvable BY NAME, dark to the wildcard. EIGHTH application: sixteen presets, three servable.
+    # SCAN RUNG 3 (2026-09-08): `quick_s` + `quick_r0` append the same way -- the headline-roster arm's
+    # control twin and its treatment, both resolvable BY NAME and both dark to the wildcard. NINTH
+    # application: eighteen presets, three servable.
     assert rm.valid_names() == frozenset({"quick", "standard", "deep", "deep_v2", "max", "max_c0",
                                           "esc", "esc_r", "max_cc1", "max_cc2", "deep_cc1",
-                                          "quick_hp", "deep_hp", "esc_hp", "esc_r_hp", "quick_n3"})
+                                          "quick_hp", "deep_hp", "esc_hp", "esc_r_hp", "quick_n3",
+                                          "quick_s", "quick_r0"})
     assert set(rm.MODES) == {rm.QUICK, rm.STANDARD, rm.DEEP, rm.DEEP_V2, rm.MAX, rm.MAX_C0,
                              rm.ESC, rm.ESC_R, rm.MAX_CC1, rm.MAX_CC2, rm.DEEP_CC1,
-                             rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP, rm.QUICK_N3}
+                             rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP, rm.QUICK_N3,
+                             rm.QUICK_S, rm.QUICK_R0}
     # Every preset's `name` field agrees with its table key -- the `replace(...)`-constructed twins would
     # otherwise be able to carry their BASE's name and stamp the wrong arm on every artifact.
     assert all(m.name == k for k, m in rm.MODES.items())
@@ -133,10 +138,15 @@ def test_deep_v2_is_dark_and_the_wildcard_can_never_sweep_it_in(monkeypatch):
     # fence, SEVENTH application, and the `deep_cc1` case one tier lower: `quick` is the SHIPPED FREE
     # serving tier, so a forgotten entry would narrow the observed-number leg of the estate's DEFAULT
     # notch on every `GRAPHRAG_MODES=on` turn, on the strength of a cost census and no read gate.
+    # SCAN RUNG 3 (2026-09-08): `quick_s` AND `quick_r0` join in the SAME edit that mints them -- the
+    # F8 fence, EIGHTH application, and BOTH halves need the entry. The treatment would run a MODEL-FREE
+    # numbers leg on the estate's default free tier for anyone who typed the name; the CONTROL is the
+    # one that gets forgotten, because it differs from shipped `quick` only in the WRITER SEAT, which is
+    # the least visible thing a leaked preset could change.
     assert rm.DARK_NAMES == frozenset({rm.DEEP_V2, rm.MAX, rm.MAX_C0, rm.ESC, rm.ESC_R, rm.MAX_CC1,
                                        rm.MAX_CC2, rm.DEEP_CC1,
                                        rm.QUICK_HP, rm.DEEP_HP, rm.ESC_HP, rm.ESC_R_HP,
-                                       rm.QUICK_N3})
+                                       rm.QUICK_N3, rm.QUICK_S, rm.QUICK_R0})
     assert rm.serving_names() == frozenset({"quick", "standard", "deep"})
     assert rm.DEEP_V2 in rm.valid_names()                              # still RESOLVABLE (stamped)
     for on in ("on", "1", "true"):
@@ -184,14 +194,18 @@ def test_the_two_new_policy_fields_default_to_none_on_every_pre_ddv_preset():
     # LANE S re-pin (2026-09-06): `numbers_calls` appends AFTER synth_effort -- the appended-last law,
     # SEVENTH application. The tail moves a seventh time and every slice below shifts left by one.
     # Same law, same reason: KNOB_FIELDS order IS the trace-stamp column order -- append, never insert.
-    assert rm.KNOB_FIELDS[-1] == "numbers_calls"
-    assert rm.KNOB_FIELDS[-2] == "synth_effort"
-    assert rm.KNOB_FIELDS[-3] == "handle_prose"
-    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-5:-3]
-    assert rm.KNOB_FIELDS[-6] == "synth_model"
-    assert rm.KNOB_FIELDS[-10:-6] == ("per_seed_budget", "per_seed_evidence_cap",
+    # SCAN RUNG 3 re-pin (2026-09-08): `numbers_roster` appends AFTER numbers_calls -- the appended-last
+    # law, EIGHTH application. The tail moves an eighth time and every slice below shifts left by one.
+    # Same law, same reason: KNOB_FIELDS order IS the trace-stamp column order -- append, never insert.
+    assert rm.KNOB_FIELDS[-1] == "numbers_roster"
+    assert rm.KNOB_FIELDS[-2] == "numbers_calls"
+    assert rm.KNOB_FIELDS[-3] == "synth_effort"
+    assert rm.KNOB_FIELDS[-4] == "handle_prose"
+    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-6:-4]
+    assert rm.KNOB_FIELDS[-7] == "synth_model"
+    assert rm.KNOB_FIELDS[-11:-7] == ("per_seed_budget", "per_seed_evidence_cap",
                                       "per_seed_probe_cap", "per_seed_reserve")
-    assert rm.KNOB_FIELDS[-12:-10] == ("cap_policy", "order_policy")    # appended, never sorted in
+    assert rm.KNOB_FIELDS[-13:-11] == ("cap_policy", "order_policy")    # appended, never sorted in
     for name in (rm.QUICK, rm.STANDARD, rm.DEEP):
         m = rm.MODES[name]
         assert m.cap_policy is None and m.order_policy is None, name

@@ -732,6 +732,50 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     # `mode_knobs` again -- so the KWARG half and the FACT half cannot disagree about what the turn did.
     _nc = ({"max_calls": int(mode_knobs["numbers_calls"])}
            if (_numbers_mode_budget_on() and (mode_knobs or {}).get("numbers_calls")) else {})
+    # SCAN RUNG 3 (THE HEADLINE ROSTER, 2026-09-08; docs/private/SCAN_RUNG3_ROSTER_DESIGN.md 1.6(3)):
+    # this turn's ROSTER predicate, read HERE, on the CALLING thread, beside `_nf` and `_nc` and for the
+    # reason written three comments up -- `_numbers()` runs on a pool thread, and a per-thread env read
+    # lets the numbers lane and the walk lane disagree within one turn.
+    # ITS OWN FLAG, and BOTH halves required: the env AND a preset carrying `numbers_roster`. A preset
+    # alone moves nothing and the env alone moves nothing, so the rollback is one env value with no
+    # rebuild -- and `quick`/`standard`/`deep`/`max` carry the field as None, so every serving tier is
+    # byte-identical with the flag ON.
+    # `_nr` IS THIS TURN'S ONE ROSTER PREDICATE, exactly as `bool(_nc)` is its one budget predicate:
+    # everything downstream that needs to know "did this turn run the roster" reads `_nr` -- never the
+    # environment again, and never `mode_knobs` again.
+    _nr = bool(_numbers_roster_on() and (mode_knobs or {}).get("numbers_roster"))
+    # THE `_mc` HOIST (design 1.4), TAKEN INSIDE THIS FUNCTION AND GATED ON `_nr`. The design writes it
+    # as a hoist of `run()`'s numbers_only block above the `kind` branch; at HEAD that block is
+    # `route_fn(query, graph)` filtered on contract membership, with a `plan.contracts` fallback, and
+    # this seam ALREADY HOLDS BOTH INPUTS -- so the roster routes from `route_fn` here and no kwarg,
+    # no second routing and no signature change is needed.
+    # THE FALLBACK IS PROVABLY REDUNDANT ON THIS LANE, which is why it is not copied: `run()` REBINDS
+    # `route_fn` to `lambda q, g: pc` whenever `pc = [c for c in plan.contracts if c in graph.contracts]`
+    # is non-empty, so on a planned turn this call RETURNS the plan's contracts already; when `pc` is
+    # empty the fallback's own intersection is empty too. A planner-fallback turn (`plan is None`)
+    # therefore reaches the roster with an empty list and takes refusal 1.5(a), which NARRATES.
+    # AND THE COST IS BOOKED RATHER THAN WAVED THROUGH (fix pass 2026-09-08, review minor): the rebind
+    # above happens only under `if pc:`, so on an UNPLANNED turn this is a SECOND routing -- the session
+    # coreference router (`an.route` plus the carried contracts), which `an.answer` is then handed again
+    # at the call site below. Design 1.4 writes "No new computation, no second routing", and on a planned
+    # turn that holds exactly; on an unplanned one it does not, and the second call is real work on the
+    # lane whose whole point is latency. It is accepted for S1 because the alternative is a signature
+    # change through `run()` that the arm does not need, and it is named on the sitting's drift list.
+    # GATED, AND THE GATE IS THE BYTE-IDENTITY GUARANTEE, not a micro-optimisation: `route_fn` on a
+    # session turn is the lexical route plus `an.route_smart`, i.e. real work with its own failure
+    # modes ("a session route_fn may itself reach for the dead LLM tier"). Calling it unconditionally
+    # would move every hybrid turn with the flag OFF. Flag off -> this block does not run at all.
+    # A ROUTER THAT RAISED IS NOT A TURN THAT ROUTED NOTHING, so the CAUSE is threaded rather than
+    # collapsed: both land on an empty `_mc`, and `answer_roster` declines under `route_error` or
+    # `unrouted` accordingly -- the `_RV_PRICE_ABSENCE` law (never one shared reason for two causes),
+    # which the roster module cites three times and was breaking here.
+    _mc: list = []
+    _mc_err = False
+    if _nr:
+        try:
+            _mc = [c for c in (route_fn(query, graph) or []) if c in graph.contracts] if route_fn else []
+        except Exception:  # noqa: BLE001 -- routing must never break the note; an unrouted turn refuses
+            _mc, _mc_err = [], True
 
     def _numbers() -> dict:
         # Per-lookup progress ticks (5.6 W5): {calls, running, table} while the agent works, then the
@@ -741,9 +785,21 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         import time as _time
         _tn = _time.perf_counter()                                # W6.1-0: numbers-agent duration (MsNumbers)
         try:
-            nums = na.answer_numbers(numbers_query or query, asof, client=client, model=numbers_model,
-                                     query_fn=query_fn, on_call=on_call, families=families, **_fnf,
-                                     **_nc)          # LANE S: absent unless the mode carries a budget
+            if _nr:
+                # SCAN RUNG 3: the DETERMINISTIC leg. Zero model rounds, zero agent tokens (design
+                # section 2: one agent round alone is 29.1 s p50 and 3,659 out tokens, so a one-round
+                # fallback is not a fallback, it is the tier again). `answer_roster` returns the FULL
+                # shape `_resolve` reads and never raises; `client`, `model`, `on_call` and `families`
+                # have no consumer on this lane -- there is no model to steer, no round to tick and no
+                # family hint to spend -- so they are not threaded, and the roster's own census
+                # (`tables_queried`) replaces the agent's.
+                from leviathan.graphrag.numbers import roster as nr  # lazy: no import-time cycle
+                nums = nr.answer_roster(numbers_query or query, asof, contracts=_mc,
+                                        qfn=query_fn, reg=None, route_error=_mc_err)
+            else:
+                nums = na.answer_numbers(numbers_query or query, asof, client=client, model=numbers_model,
+                                         query_fn=query_fn, on_call=on_call, families=families, **_fnf,
+                                         **_nc)      # LANE S: absent unless the mode carries a budget
         except Exception as e:  # noqa: BLE001 — numbers must never take the note down with it
             nums = {"calls": [], "error": str(e)[:200]}
         nums["_ms_numbers"] = int((_time.perf_counter() - _tn) * 1000)
@@ -874,10 +930,37 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         # DELIBERATELY NOT COVERED: a leg that came back with an `error` AND rows. `answer_numbers` has
         # no such return -- all three of its turn-ending returns stamp -- and minting a third clause for
         # a shape that cannot occur would narrate a partial read the block does not show.
-        _bn = _numbers_budget_note_on() and bool(_nc)   # ONE env read per turn, both branches below
+        # SCAN RUNG 3 (design 1.6(3) and FATAL-1) -- THE ONE-PREDICATE WIDENING, AND IT IS THIS RUNG'S
+        # ONLY ORCHESTRATOR CHANGE OUTSIDE THE LANE BRANCH ABOVE. At HEAD the gate is `bool(_nc)`, i.e.
+        # "did this turn run under a threaded ROUND budget". A roster preset carries NO `numbers_calls`
+        # -- 1.6(1) forbids it, because `numbers_calls=0` is falsy and would silently restore the full
+        # six-round budget -- so `_bn` would read False, `_nb` would be None, `_numbers_block` would
+        # skip its `if budget is not None` branch entirely, no `NUMBERS_BUDGET_MARK` would reach the
+        # prompt, and `answer.py`'s marker gate and its persona mandate would never fire. A REFUSING
+        # roster turn would then ship "(none retrieved)" with no marker, no mandate and no trace stamp
+        # -- precisely the failure the 2026-09-07 outage fix was written to close, re-opened on a new
+        # lane. `or _nr` admits the lane; nothing else moves.
+        # WHAT DOES *NOT* MOVE, and why the widening is safe on every serving turn: with the roster flag
+        # off `_nr` is False and this line is `bool(_nc)`, byte for byte. On a roster turn that MINTED
+        # rows the stamp carries `returned: True` and no `capped`, so THIS gate's three clauses append
+        # nothing; only a roster turn with an EMPTY `calls` list takes the existing empty-leg clause --
+        # rung 1's clause, reused verbatim, NO NEW PROMPT. (A partial roster turn does reach the writer,
+        # but through the pre-existing `scope_note` channel `_numbers_block` already gathers, which the
+        # roster writes itself -- `roster._carry_absences`. Nothing on this line moves for it.)
+        _bn = _numbers_budget_note_on() and (bool(_nc) or _nr)   # ONE env read per turn, both branches
         _nb = nums.get("numbers_budget") if _bn else None
         if _bn and _nb is None and not (calls or []):
-            _nb = {"max_calls": int(_nc["max_calls"]), "lookups": 0, "returned": False,
+            # THE OUTAGE RECORD, and its first field is now conditional for a REACHABILITY reason, not
+            # a stylistic one: on the roster lane `_nc` is EMPTY, so `_nc["max_calls"]` would raise
+            # KeyError inside `extra_resolver` and take the turn down on exactly the path this branch
+            # exists to narrate. The roster stamps a record on every return, so it reaches here only
+            # through a genuine outage (the swallowed lane exception above, or this function's own join
+            # failure) -- where a round budget is not a fact this side holds, and inventing one would be
+            # the artifact-lies class the paragraph above refuses. `{"roster": True}` states what IS
+            # known. On the LANE-S path the dict is built in the same order with the same keys, so that
+            # record is byte-identical.
+            _nb = {**({"max_calls": int(_nc["max_calls"])} if _nc else {"roster": True}),
+                   "lookups": 0, "returned": False,
                    "lane_error": nums.get("error") or "the numbers lane returned no result"}
         holder["numbers_budget"] = _nb
         return "\n\n".join(x for x in (extra_context, _numbers_block(calls, budget=_nb)) if x), calls
@@ -1574,8 +1657,31 @@ def _numbers_budget_note_on() -> bool:
 
     IT ALSO REQUIRES THE MODE TO CARRY A BUDGET: `_resolve` conjoins `bool(_nc)`, so a turn on quick,
     standard, deep or max -- none of which carry `numbers_calls` -- is byte-identical in BOTH the numbers
-    leg AND the writer prompt with both flags ON. Only `quick_n3` moves. Rollback = drop the env var."""
+    leg AND the writer prompt with both flags ON. Only `quick_n3` moves. Rollback = drop the env var.
+
+    SCAN RUNG 3 WIDENS THE SECOND HALF, not this predicate: `_resolve` now conjoins
+    `(bool(_nc) or _nr)`, so a ROSTER turn -- which carries no round budget by construction -- can
+    reach the SCOPE NOTE clause it needs when it refuses. The env grammar here is untouched."""
     return os.environ.get("GRAPHRAG_NUMBERS_BUDGET_NOTE", "off").lower() == "on"
+
+
+def _numbers_roster_on() -> bool:
+    """SCAN RUNG 3, THE ROSTER (GRAPHRAG_NUMBERS_ROSTER). DEFAULT-OFF, case-insensitive, fail-closed --
+    the `_numbers_mode_budget_on` / `_numbers_families_on` idiom exactly. ON means: a mode whose preset
+    carries `numbers_roster` runs `numbers.roster.answer_roster` INSTEAD of `numbers.agent.answer_numbers`
+    on the hybrid lane -- a deterministic six-row lookup roster with no model in it at all.
+
+    ITS OWN FLAG, and it implies neither of the two above and is implied by neither. It is conjoined with
+    the PRESET at the one seam that reads it (`run_hybrid`, once, on the calling thread, carried as
+    `_nr`), so OFF -- or ON with any preset that carries no `numbers_roster`, which is every shipped one
+    -- takes today's `answer_numbers` branch byte for byte, including its kwargs and its injected-fake
+    signature. Rollback = drop the env var (single flag, instant, no redeploy).
+
+    THE MEASURED TRIGGER is the 25-turn Scan census in docs/private/SCAN_RUNG3_ROSTER_DESIGN.md sections
+    0 and 1.1: the numbers leg is ~100% model time (leg minus summed API seconds, p50 0.07 s across 1-38
+    lookups), one agent round alone costs 29.1 s p50, and what all that planning rediscovers each turn is
+    a set of THREE CARDS (eight tables over 15 banked rows; distinct-per-turn p50 3)."""
+    return os.environ.get("GRAPHRAG_NUMBERS_ROSTER", "off").lower() == "on"
 
 
 def _xc_llm_detect_on() -> bool:
