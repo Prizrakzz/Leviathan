@@ -274,7 +274,10 @@ variable "futures_eod_silver_image_digest" {
   # settlement-spine bronze + statistics-only buy; the palm slug re-pointed to the CME USD tape (V2-4).
   # lanes-ee7d (r3): repinned to tag 20260906-lanes-ee7dafce (commit ee7dafce): lanes B/C + verifier unit-token fix + D-MF/D-CL on the answer seam; lane A's
   # venue calendar + SESSION_FLOOR facts ride this image for the first time (withhold stays disabled).
-  default     = "sha256:a91214fec7c6140da5b13c57d5fa74df7752c3994c812706a3b893ff42cc28a7"
+  # k9sub (r4, 2026-09-08): repinned to tag 20260908-k9sub (commit 76462eee): the K9 stop-class subset (four fences, all DARK) +
+  # the OI-gap read-path arms (26268a21, DARK) + the D-10 sitting-8 cascade_map overlay; the loader heal for the OI ledger rides
+  # this image on the next 08:00Z databento fire. Applied as ONE resource (single-resource plan/apply, envelope unchanged).
+  default     = "sha256:d35f86390f871c5bb1f8ce5b8b463b92e821be365a7339d79b3776f43bb4950f"
   validation {
     condition     = var.futures_eod_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_silver_image_digest))
     error_message = "futures_eod_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
