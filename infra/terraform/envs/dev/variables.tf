@@ -280,7 +280,10 @@ variable "futures_eod_silver_image_digest" {
   # ROLLED BACK 2026-09-08 18:20Z (same day): the k9sub image carried the board S0 sitting's UNREVIEWED overlay (the context tar copies
   # the main tree's gitignored configs/graphrag at build time) and the 18:00Z psd_monthly gate went RED on it (config_check: driver_slices
   # dark id Argentina_production: no slice, no waiver). Back to the 09-06 image until the images are rebuilt from a REVIEWED overlay.
-  default     = "sha256:a91214fec7c6140da5b13c57d5fa74df7752c3994c812706a3b893ff42cc28a7"
+  # s0s1 (r5, 2026-09-08 22:17Z): repinned to tag 20260908-s0s1 (commit 37f5311b) -- the K9 subset + the OI-gap arms + the board S0/S1
+  # + the Scan roster S1, all DARK; built with `git status --short configs/graphrag` EMPTY and the reviewed DAG overlay (the 09-08
+  # landing law); lint smoke on b3-flat-silver:40 GREEN (config_check rc 0, state.lint rc 0). Applied as ONE resource.
+  default     = "sha256:418d1e4bceb564f663d5e40e799e5e648d3e66b9f338ee33e4baa8d9b7cc9db5"
   validation {
     condition     = var.futures_eod_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_silver_image_digest))
     error_message = "futures_eod_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
