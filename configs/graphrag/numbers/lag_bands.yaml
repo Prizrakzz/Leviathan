@@ -1,0 +1,61 @@
+# THE LAG BAND TABLE -- STATE ENGINE DESIGN sec 2.3 (ruling 2; D3), landed at sitting S0.
+#
+# ONE table, read by state/lagbands.py, over the ENTIRE lag vocabulary of the 36 curated causal DAGs.
+# Owned by the reasoning layer; the DAGs keep the prose, this file keeps the arithmetic.
+#
+# MEASURED 2026-09-08 over configs/graphrag/causal/*.yaml (36 files, schema 5): 1,267 driver instances
+# and 146 inter_commodity edges carry 1,413 lag declarations in 18 DISTINCT node strings and 8 edge
+# strings, and every edge string is one of the 18 -- so the vocabulary is 18 strings, plus the schema
+# default "" (schema.py:44, `lag: str = ""`) which ZERO declarations use today. 19 keys, fail-closed:
+# a string outside this table parses to kind `unspecified` with NO band and is COUNTED (`lag_unparsed`),
+# never silently zero.
+#
+# THE LAW THE TABLE ENCODES (sec 2.3, doctrine M-4). A driver's `lag` is its lag onto the CONTRACT's
+# target_metric -- the same convention `sign` carries (causal/schema.py:9-11) -- never a parent->child
+# lag. So an ancestor three hops upstream declares its OWN band onto the anchor price, and A PATH'S
+# BAND IS NEVER SUMMED. state/lint.py forbids a summed band and LagBand refuses `+` at runtime.
+#
+# THREE CONSUMERS, ONE TABLE: (a) the PROJECTION horizon `[t0 + 3*min_q, t0 + 3*max_q]` months;
+# (b) the ANALOG outcome window, read at BOTH ends from the analog date; (c) the WATCH window, opening
+# at `t0 + 3*min_q` and closing at `t0 + 3*max_q` (a `structural` window opens and does not close).
+# Every consumer states the BAND, never a point.
+#
+# TWO STRINGS THE WALK'S OWN REGEX CANNOT READ: `_CW_LAG_RX` (cascade.py `^(\d+)-(\d+)\s+quarters?$`)
+# fails "0 quarters" and "structural". MEASURED: both occur on DRIVER nodes only, never on an edge, so
+# the walk's child gate (`lag_gate`) has never met them -- the board's projection horizon does, and this
+# table is where they are declared rather than dropped.
+#
+# `counts` are the MEASURED declaration counts at this landing (nodes / edges), carried so a curation
+# event that changes the vocabulary is visible as a diff rather than discovered at answer time.
+
+version: 1
+schema_default: ""                 # causal/schema.py:44 -- an absent `lag` is this key, not a missing one
+
+bands:
+  "0 quarters":    {min_q: 0, max_q: 0,    kind: point,       counts: {nodes: 6,   edges: 0}}
+  "0-1 quarters":  {min_q: 0, max_q: 1,    kind: band,        counts: {nodes: 410, edges: 35}}
+  "0-2 quarters":  {min_q: 0, max_q: 2,    kind: band,        counts: {nodes: 484, edges: 76}}
+  "0-3 quarters":  {min_q: 0, max_q: 3,    kind: band,        counts: {nodes: 14,  edges: 3}}
+  "0-4 quarters":  {min_q: 0, max_q: 4,    kind: band,        counts: {nodes: 3,   edges: 1}}
+  "1-2 quarters":  {min_q: 1, max_q: 2,    kind: band,        counts: {nodes: 42,  edges: 4}}
+  # 149 nodes, not the 148 measured at HEAD df808f2c: this sitting curated ONE driver in the same
+  # commit -- soybeans_cbot.Argentina_production, the El_Nino child of owner decision 10.
+  "1-3 quarters":  {min_q: 1, max_q: 3,    kind: band,        counts: {nodes: 149, edges: 16}}
+  "1-4 quarters":  {min_q: 1, max_q: 4,    kind: band,        counts: {nodes: 97,  edges: 1}}
+  "2-4 quarters":  {min_q: 2, max_q: 4,    kind: band,        counts: {nodes: 24,  edges: 10}}
+  "2-6 quarters":  {min_q: 2, max_q: 6,    kind: band,        counts: {nodes: 12,  edges: 0}}
+  "2-8 quarters":  {min_q: 2, max_q: 8,    kind: band,        counts: {nodes: 6,   edges: 0}}
+  "4-6 quarters":  {min_q: 4, max_q: 6,    kind: band,        counts: {nodes: 1,   edges: 0}}
+  "4-8 quarters":  {min_q: 4, max_q: 8,    kind: band,        counts: {nodes: 6,   edges: 0}}
+  "4-12 quarters": {min_q: 4, max_q: 12,   kind: band,        counts: {nodes: 7,   edges: 0}}
+  "4-16 quarters": {min_q: 4, max_q: 16,   kind: band,        counts: {nodes: 2,   edges: 0}}
+  "8-16 quarters": {min_q: 8, max_q: 16,   kind: band,        counts: {nodes: 1,   edges: 0}}
+  "8-20 quarters": {min_q: 8, max_q: 20,   kind: band,        counts: {nodes: 1,   edges: 0}}
+  # OPEN-ENDED, NEVER A POINT: `structural` is the DAGs' word for "beyond two years and it does not
+  # close" (soybean_cyst_nematode, 2 instances). max_q null = the window opens at eight quarters and
+  # never closes; a consumer that needs a close says so in words.
+  "structural":    {min_q: 8, max_q: null, kind: structural,  counts: {nodes: 2,   edges: 0}}
+  # THE SCHEMA DEFAULT. Contemporaneous/unspecified by the schema's own comment. ZERO declarations
+  # carry it today (measured: every one of the 1,412 declarations names one of the 18 strings above),
+  # so this key is the fence for a FUTURE node authored without a lag, not a live path.
+  "":              {min_q: 0, max_q: 0,    kind: unspecified, counts: {nodes: 0,   edges: 0}}

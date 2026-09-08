@@ -883,6 +883,33 @@ tables:
     year_col: year
     month_col: month
     knowledge_semantics: year_month
+    ym_publication_lag_days: 36   # STATE ENGINE sec 1.4 (S0, CORRECTED at the S0 review). Days AFTER
+    #                               MONTH-END before a data month is PUBLIC. Read only through the threaded
+    #                               `ym_lag` kwarg (S1); nothing reads it today. NOT `publication_lag_days`:
+    #                               that key renders into the numbers agent's cached system block and shifts
+    #                               the non-year_month branch too.
+    #                               MEASURED, and the first landing's 15 was a DECLARATION. Two facts, both
+    #                               in the estate's own record, and 36 is their product rather than either
+    #                               one alone:
+    #                                 (1) THE PUBLISHER. CPC's v6 ONI page: the table "will continue to be
+    #                                     updated by the 5th of each month" (design APPENDIX B DELTA PASS 1
+    #                                     item B4.1, read 2026-09-08).
+    #                                 (2) THE ROW KEY. This table's `month` is the 3-month season's CENTER
+    #                                     month, never the season's end -- raw_to_bronze/noaa_oni.py
+    #                                     SEASON_TO_MONTH (JJA -> 7), "verified against the live silver
+    #                                     (season/month agree 1:1 across all 915 rows)".
+    #                               So the row for month M is published with the print that lands by the 5th
+    #                               of M+2, i.e. 33-36 days after M's own month-end (33 in a non-leap
+    #                               February, 36 in a 31-day M+1). 36 is the CONSERVATIVE end: a lag that is
+    #                               a few days long withholds, and a lag that is short LEAKS.
+    #                               THE FALSIFICATION, from the same read: on 2026-09-08 the newest published
+    #                               row was JJA 2026 = (2026, 7), and JAS = (2026, 8) was still blank. 36
+    #                               admits month 7 from 2026-09-05 and month 8 from 2026-10-06 -- exactly
+    #                               what the publisher had printed. A bare 5 (the delta pass's own headline,
+    #                               which is the PRINT lag and not this row's lag) would admit month 8 from
+    #                               2026-09-05, three days before the seat watched it NOT exist; the first
+    #                               landing's 15 would admit it from 2026-09-15. Both leak. Pinned in
+    #                               tests/unit/test_state_registry_ym_lag.py.
     metrics:
       oni_anom:     {label: "ONI anomaly", unit: "degC", desc: "ONI 3-month SST anomaly (>= +0.5 El Nino, <= -0.5 La Nina)"}
       oni_lag3:     {label: "ONI (3-month lag)", unit: "degC", desc: "ONI lagged 3 months"}
@@ -931,6 +958,20 @@ tables:
     year_col: year
     month_col: month
     knowledge_semantics: year_month
+    ym_publication_lag_days: 45   # STATE ENGINE sec 1.4 (S0). Days AFTER MONTH-END before a data month is
+    #                               PUBLIC. DERIVED FROM THIS CARD'S OWN WORDS: "a completed month is
+    #                               published about 30-45 days after month end", held to a 45-day freshness
+    #                               SLA (F082) -- the SLA's own number, taken as the conservative end so the
+    #                               guard never admits a month the publisher has not printed. UNVERIFIED
+    #                               against BoM/CPC's calendar; nothing reads it until the `ym_lag` kwarg (S1).
+    #                               CHECKED AT THE S0 REVIEW, so the next sitting need not re-derive it: the
+    #                               ONI sibling's CENTER-MONTH correction does NOT apply here. The DMI file
+    #                               is one value per CALENDAR month (raw_to_bronze/noaa_iod.py parses a year
+    #                               row of exactly 12 monthly cells), so a row's month is its own month and
+    #                               45 days after that month's end is the whole lag. BoM -- the publisher of
+    #                               the +/-0.4 degC convention, and a DIFFERENT product from this series --
+    #                               returned HTTP 403 on every path in the design's delta pass (item B4.2),
+    #                               so no publisher read stands behind this number yet.
     metrics:
       dmi_value:          {label: "IOD dipole index", unit: "degC", desc: "IOD Dipole Mode Index, monthly SST-gradient anomaly (positive = positive IOD)"}
       iod_dmi_3month_avg: {label: "IOD dipole index 3-month average", unit: "degC", desc: "DMI 3-month running mean (seasonal IOD signal)"}
@@ -980,6 +1021,15 @@ tables:
     year_col: year                       # year_month semantics: (year*100+month) is the window/guard axis
     month_col: month
     knowledge_semantics: year_month       # as-of guard = (year*100+month) <= asof_ym (no CAST, no partition)
+    ym_publication_lag_days: 7    # STATE ENGINE sec 1.4 (S0). Days AFTER MONTH-END before a data month is
+    #                               PUBLIC. DERIVED, NOT GUESSED, from this card's two own statements: the
+    #                               transform DROPS any month not covering every calendar day, so a month is
+    #                               emitted only once it is complete; and "the latest row can therefore lag up
+    #                               to ~5 weeks behind today", which a month landing about a week after its
+    #                               own month-end satisfies (~31 + 7 days measured from the data month's
+    #                               first day). UNVERIFIED against the producer's actual emit times -- the
+    #                               refutable claim is written down rather than left silent, and S4's census
+    #                               measures it. Nothing reads it until the `ym_lag` kwarg (S1).
     metric_col: metric                    # tall: the metric NAME lives here
     value_col: value                      # tall: the z-score / flag value lives here
     metrics:

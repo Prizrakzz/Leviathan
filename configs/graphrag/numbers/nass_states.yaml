@@ -1,0 +1,99 @@
+# NASS state-code reference -- STATE ENGINE DESIGN sec 2.6 item 3 / sec 2.1, landed at sitting S0.
+#
+# WHAT IT IS. `silver_nass_crop_progress` repurposes its `country_col` as a GEO axis holding a 2-letter
+# USPS code, with 'US' as the national roll-up (registry card: `country_col: state`). Every other geo
+# axis in the estate speaks country NAMES: `cascade._scope_ex` resolves a driver's region token through
+# `region_map` to a country name ('US_Midwest' -> 'United States'), and the numbers agent types a name.
+# A name against a USPS column matches ZERO rows -- the July name-vs-code lesson class, one layer over.
+# This file is the numbers-owned static reference that turns the name into the code, exactly as
+# `esr_destinations.yaml` (FAS codes) and `faostat_areas.yaml` (M49 display strings) do for their cards.
+#
+# HOW IT IS CONSUMED. Its loader is `query._COUNTRY_REF_LOADERS['numbers/nass_states.yaml']`, and the
+# card that names it carries `country_name_ref: numbers/nass_states.yaml`. build_sql then emits
+# `CAST(state AS varchar) IN ('IA')` for country='Iowa' and `IN ('US')` for country='United States';
+# an UNRESOLVED name fails CLOSED (an IN list matching zero rows), never a silent national total.
+#
+# NOT YET WIRED, ON PURPOSE (S0 finding). The loader entry and the card key MUST land in ONE commit:
+# `query._country_ref` RAISES on a `country_name_ref` no loader serves, so a card key landing ahead of
+# its loader turns today's honest zero-row NASS lookup into a hard error on every NASS read that names
+# a country. The design's phase table put the card key in phase 1a and the loader in 1b; that ORDER is
+# the same class as the `TableSpec` `extra="forbid"` note ("the field precedes the key in one commit"),
+# and it is corrected by holding BOTH for S1. This file is therefore INERT at S0: nothing loads it, no
+# card names it, and `state/lint.py` fails closed if any card ever declares a `country_name_ref` that
+# `query._COUNTRY_REF_LOADERS` does not serve.
+#
+# THE LOADER IS NOT esr_destinations' MODEL VERBATIM. Two differences the S1 loader must carry: the
+# codes are keyed by STRING (a USPS code), not by int; and `kind` is {state, national}, not the ESR
+# Kind enum. Every key below is QUOTED so no code is ever resolved as a YAML 1.1 boolean.
+#
+# COVERAGE IS DECLARED, NOT PROBED. This reference names all 50 states plus DC plus the national
+# roll-up. WHICH of them the card's data actually holds is a SEPARATE question that needs a live read
+# of the mirror, and this seat has no network: `audit.probed_table` is null and the S0 report parks the
+# probe (`country='US'` returns rows) as S1's gate. A code present here but absent from the data
+# resolves to a real IN filter that returns zero rows -- an honest empty read, never a wrong figure.
+
+version: 1
+source: "USPS state abbreviations; 'US' is USDA NASS's own national roll-up value"
+source_endpoint: null
+fetched: null
+reference_row_count: 52
+audit:
+  probed_table: null            # UNPROBED from this seat (no network); S1's live probe is the gate
+  probed_source: null
+  probed_vintage: null
+  distinct_codes_in_data: null
+  data_codes_all_covered: null
+  note: "the card serves six contracts only (corn, soybeans, rough rice, upland cotton, winter wheat, spring wheat); a state with no acreage in a contract simply has no rows, which is an empty read and not a gap in this reference"
+codes:
+  "US": {name: "United States", aliases: ["us", "u.s.", "usa", "united states", "united states of america", "national", "us national"], pseudo: true, kind: national}
+  "AL": {name: "Alabama", aliases: ["al", "alabama"], pseudo: false, kind: state}
+  "AK": {name: "Alaska", aliases: ["ak", "alaska"], pseudo: false, kind: state}
+  "AZ": {name: "Arizona", aliases: ["az", "arizona"], pseudo: false, kind: state}
+  "AR": {name: "Arkansas", aliases: ["ar", "arkansas"], pseudo: false, kind: state}
+  "CA": {name: "California", aliases: ["ca", "california"], pseudo: false, kind: state}
+  "CO": {name: "Colorado", aliases: ["co", "colorado"], pseudo: false, kind: state}
+  "CT": {name: "Connecticut", aliases: ["ct", "connecticut"], pseudo: false, kind: state}
+  "DE": {name: "Delaware", aliases: ["de", "delaware"], pseudo: false, kind: state}
+  "FL": {name: "Florida", aliases: ["fl", "florida"], pseudo: false, kind: state}
+  "GA": {name: "Georgia", aliases: ["ga", "georgia"], pseudo: false, kind: state}
+  "HI": {name: "Hawaii", aliases: ["hi", "hawaii"], pseudo: false, kind: state}
+  "ID": {name: "Idaho", aliases: ["id", "idaho"], pseudo: false, kind: state}
+  "IL": {name: "Illinois", aliases: ["il", "illinois"], pseudo: false, kind: state}
+  "IN": {name: "Indiana", aliases: ["in", "indiana"], pseudo: false, kind: state}
+  "IA": {name: "Iowa", aliases: ["ia", "iowa"], pseudo: false, kind: state}
+  "KS": {name: "Kansas", aliases: ["ks", "kansas"], pseudo: false, kind: state}
+  "KY": {name: "Kentucky", aliases: ["ky", "kentucky"], pseudo: false, kind: state}
+  "LA": {name: "Louisiana", aliases: ["la", "louisiana"], pseudo: false, kind: state}
+  "ME": {name: "Maine", aliases: ["me", "maine"], pseudo: false, kind: state}
+  "MD": {name: "Maryland", aliases: ["md", "maryland"], pseudo: false, kind: state}
+  "MA": {name: "Massachusetts", aliases: ["ma", "massachusetts"], pseudo: false, kind: state}
+  "MI": {name: "Michigan", aliases: ["mi", "michigan"], pseudo: false, kind: state}
+  "MN": {name: "Minnesota", aliases: ["mn", "minnesota"], pseudo: false, kind: state}
+  "MS": {name: "Mississippi", aliases: ["ms", "mississippi"], pseudo: false, kind: state}
+  "MO": {name: "Missouri", aliases: ["mo", "missouri"], pseudo: false, kind: state}
+  "MT": {name: "Montana", aliases: ["mt", "montana"], pseudo: false, kind: state}
+  "NE": {name: "Nebraska", aliases: ["ne", "nebraska"], pseudo: false, kind: state}
+  "NV": {name: "Nevada", aliases: ["nv", "nevada"], pseudo: false, kind: state}
+  "NH": {name: "New Hampshire", aliases: ["nh", "new hampshire"], pseudo: false, kind: state}
+  "NJ": {name: "New Jersey", aliases: ["nj", "new jersey"], pseudo: false, kind: state}
+  "NM": {name: "New Mexico", aliases: ["nm", "new mexico"], pseudo: false, kind: state}
+  "NY": {name: "New York", aliases: ["ny", "new york"], pseudo: false, kind: state}
+  "NC": {name: "North Carolina", aliases: ["nc", "north carolina"], pseudo: false, kind: state}
+  "ND": {name: "North Dakota", aliases: ["nd", "north dakota"], pseudo: false, kind: state}
+  "OH": {name: "Ohio", aliases: ["oh", "ohio"], pseudo: false, kind: state}
+  "OK": {name: "Oklahoma", aliases: ["ok", "oklahoma"], pseudo: false, kind: state}
+  "OR": {name: "Oregon", aliases: ["or", "oregon"], pseudo: false, kind: state}
+  "PA": {name: "Pennsylvania", aliases: ["pa", "pennsylvania"], pseudo: false, kind: state}
+  "RI": {name: "Rhode Island", aliases: ["ri", "rhode island"], pseudo: false, kind: state}
+  "SC": {name: "South Carolina", aliases: ["sc", "south carolina"], pseudo: false, kind: state}
+  "SD": {name: "South Dakota", aliases: ["sd", "south dakota"], pseudo: false, kind: state}
+  "TN": {name: "Tennessee", aliases: ["tn", "tennessee"], pseudo: false, kind: state}
+  "TX": {name: "Texas", aliases: ["tx", "texas"], pseudo: false, kind: state}
+  "UT": {name: "Utah", aliases: ["ut", "utah"], pseudo: false, kind: state}
+  "VT": {name: "Vermont", aliases: ["vt", "vermont"], pseudo: false, kind: state}
+  "VA": {name: "Virginia", aliases: ["va", "virginia"], pseudo: false, kind: state}
+  "WA": {name: "Washington", aliases: ["wa", "washington"], pseudo: false, kind: state}
+  "WV": {name: "West Virginia", aliases: ["wv", "west virginia"], pseudo: false, kind: state}
+  "WI": {name: "Wisconsin", aliases: ["wi", "wisconsin"], pseudo: false, kind: state}
+  "WY": {name: "Wyoming", aliases: ["wy", "wyoming"], pseudo: false, kind: state}
+  "DC": {name: "District of Columbia", aliases: ["dc", "district of columbia"], pseudo: false, kind: state}

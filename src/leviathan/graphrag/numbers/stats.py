@@ -133,6 +133,18 @@ MIN_SU_HISTORY_N = MIN_PERCENTILE_N  # D-DA (2026-09-01, design v2 ROW 3). ONE f
 MIN_SHARE_N = 1                     # D-DA ROW 9: a share is two parts of ONE observation (one session's
 #                                     two crush values); the floor that matters is the parts' own signs,
 #                                     policed inside share() itself, not a sample count.
+MIN_FLAG_N = MIN_EXTREMA_N          # STATE ENGINE sec 2.5 (S1). `flag_events` reads a 0/1 series for its
+#                                     LAST 1 and the count of 1s in a window -- a LOOKUP over the rows,
+#                                     not an estimate over them, so one row is a readable answer exactly
+#                                     as it is for `extrema`. INHERITED, never a second number. The
+#                                     honesty fence on a flag row is not a count floor at all: z and
+#                                     percentile DECLINE on a flag ref by name (a sigma over 0/1 is a
+#                                     rate wearing a sigma's clothes), and frequency floors deny the tail
+#                                     -- one dated event IS the event.
+MIN_ROLLING_Z_N = MIN_ZSCORE_N      # STATE ENGINE sec 2.5 (S1). `rolling_zscore` is `zscore` applied to
+#                                     every prefix, so its floor IS the z floor -- inherited, and applied
+#                                     PER PREFIX (a prefix shorter than the window yields None in the
+#                                     output series, never a number computed on fewer points).
 
 DIRECTIONS = ("up", "down")
 
@@ -938,6 +950,228 @@ def sign_agreement(parent_move, child_move, edge_sign) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------------
+# THE STATE BOARD'S FOUR LEAVES -- STATE ENGINE DESIGN sec 2.5 (D14), sitting S1 (2026-09-08).
+#
+# WHY THEY LIVE HERE AND NOT IN ``state/transforms.py``. The board's transform registry is a registry of
+# NAMES AND PARAMETERS over this module; it defines no stat function of its own. Four calculations the
+# board needs have no leaf here yet, and putting them next to the registry would have minted a SECOND
+# calculator for the estate -- the drift class the state design's own sec 1.6 refuses in the same breath
+# it refuses two z producers. So they land in the one calculator, under its floor family, its purity
+# claim, its decline contract and the import-time ``BANNED_PATTERN`` assertion at the foot of the file.
+#
+# ALL FOUR ARE DELIBERATELY ABSENT FROM ``STAT_REGISTRY`` -- the ``quantiles`` / ``sign_agreement`` /
+# ``extreme_locator`` ruling (AM-3), verbatim: that registry is the numbers AGENT's enum-locked tool
+# schema, and widening the enum is never a side effect of adding an ENGINE calculator. The board composes
+# these; no model does. (The agent's own half of the stepping stone is a decision with a measured trigger
+# -- design D29 -- not a gap: a second enum is a cached-prefix change on every hybrid turn.)
+#
+# MEASURED TRIGGERS, one per leaf, so each reads as a decision rather than as a convenience:
+#   * ``regime_flag``    -- the desk-convention registry landed at S0 declares four band SEMANTICS over
+#                           30 refs (configs/graphrag/numbers/state_conventions.yaml ``band_semantics``);
+#                           without a leaf, each of the four rules would be re-typed at its consumer.
+#   * ``flag_events``    -- 216 policy_event driver instances are declared, 128 of them served as DATED
+#                           FLAG series; a 0/1 series has no honest z or percentile, and its state IS the
+#                           last event, the count in the window and the periods since.
+#   * ``pace_vs_prior``  -- ``yoy_delta`` over the SHIPPED weekly collapse, so the estate keeps ONE pace
+#                           producer family (cascade._pace_series / _pace_legs) instead of a third.
+#   * ``rolling_zscore`` -- the analog selector (design sec 4.1) needs the state vector AS KNOWABLE AT
+#                           EACH t, which is ``zscore`` over every prefix -- one pass, never a re-read.
+# ---------------------------------------------------------------------------------------------------
+REGIME_KINDS = ("abs_bands", "z_bands", "percentile_bands", "pace_vs_prior_year")
+"""The closed band-semantics enum, MINTED HERE and mirrored by the config's own ``band_semantics`` block.
+
+A band list is meaningless without the rule that reads it: ``[10, 90]`` is a pair of TAIL CUTS on a
+percentile and a pair of SIGMA LADDER rungs on a z, and the two label opposite things. The kind is
+therefore a required argument with no default -- a caller that has not decided which rule it is asking
+for has not asked a question this function can answer."""
+
+
+def regime_flag(value, bands: Sequence, labels: Sequence, *, kind: str) -> dict:
+    """STATE ENGINE sec 2.4 / 2.5: ONE reading against DECLARED bands -> ONE ordering LABEL, or no label.
+
+    ORDERING ONLY, NEVER EXCLUSION (the owner's ruling 1). This function attaches a word; it never
+    decides whether a row is on the board, never fires a regime and never vetoes a driver. A reading
+    that matches no band is a real, honest outcome -- ``value: None`` with ``matched: False`` -- and the
+    row that carries it SAYS SO in words. That is why "no label" is not a decline: a decline means the
+    computation could not be performed, and "this reading sits inside the innermost cuts" is a
+    performed computation with a plain answer.
+
+    THE FOUR KINDS ARE THE CONFIG'S OWN, verbatim (state_conventions.yaml ``band_semantics``):
+      * ``abs_bands``          -- |raw value| >= bands[i] takes labels[i]; the HIGHEST matching band wins;
+                                  below bands[0] no label. (ONI: 0.5/1.0/1.5/2.0 degC of ANOMALY -- the
+                                  reading is a raw degC anomaly and NEVER a sigma, which is exactly why
+                                  this kind is separate from ``z_bands`` although the arithmetic agrees.)
+      * ``z_bands``            -- the same rule applied to a z the caller has already computed.
+      * ``percentile_bands``   -- TAIL CUTS on the row's own history: a cut BELOW 50 labels from below
+                                  (pct <= cut), a cut ABOVE 50 labels from above (pct >= cut), the most
+                                  extreme match wins, and between the innermost cuts there is no label.
+                                  A cut AT 50 is refused: it is not a tail, so it cannot label one.
+      * ``pace_vs_prior_year`` -- a SIGNED percent change: v <= bands[0] -> labels[0], v >= bands[-1] ->
+                                  labels[-1], between them no label. The sign is the whole content, so
+                                  no absolute value is taken here.
+
+    Bands and labels are PARALLEL and equal-length; bands must be ASCENDING (the config declares them so,
+    and an unordered list silently changes which rung wins). Every failure is a decline that names what
+    it got -- this is fed from a curated YAML, and a typo there must be loud rather than unlabelled."""
+    k = (kind or "").strip()
+    bs, ls = list(bands or []), [str(x) for x in (labels or [])]
+    if k not in REGIME_KINDS:
+        return _decline("regime_flag", 0, f"kind must be one of {REGIME_KINDS}, got {kind!r}", kind=k)
+    if not bs or len(bs) != len(ls):
+        return _decline("regime_flag", len(bs),
+                        f"bands and labels must be parallel and non-empty, got {len(bs)} bands and "
+                        f"{len(ls)} labels", kind=k)
+    try:
+        fb = [float(b) for b in bs]
+        x = float(value)
+    except (TypeError, ValueError):
+        return _decline("regime_flag", len(bs), f"non-numeric band list or value: {bands!r} / {value!r}",
+                        kind=k)
+    if any(math.isnan(b) or math.isinf(b) for b in fb) or math.isnan(x) or math.isinf(x):
+        return _decline("regime_flag", len(fb), "band list or value is not finite", kind=k)
+    if fb != sorted(fb):
+        return _decline("regime_flag", len(fb), f"bands must be ascending, got {fb}", kind=k)
+    out = {"stat": "regime_flag", "declined": False, "value": None, "n": len(fb), "matched": False,
+           "kind": k, "bands": fb, "labels": ls, "x": x, "band": None}
+
+    def _hit(label: str, band: float) -> dict:
+        out.update({"value": label, "matched": True, "band": band})
+        return out
+
+    if k in ("abs_bands", "z_bands"):
+        a = abs(x)
+        for b, lab in zip(reversed(fb), reversed(ls)):        # HIGHEST matching rung wins
+            if a >= b:
+                return _hit(lab, b)
+        return out
+    if k == "percentile_bands":
+        if any(b == 50.0 for b in fb):
+            return _decline("regime_flag", len(fb),
+                            "a percentile cut at 50 is not a tail and cannot label one", kind=k)
+        lows = [(b, lab) for b, lab in zip(fb, ls) if b < 50.0]          # ascending == most extreme first
+        highs = [(b, lab) for b, lab in zip(fb, ls) if b > 50.0][::-1]   # descending == most extreme first
+        for b, lab in lows:
+            if x <= b:
+                return _hit(lab, b)
+        for b, lab in highs:
+            if x >= b:
+                return _hit(lab, b)
+        return out
+    # pace_vs_prior_year -- SIGNED, both ends, nothing in between
+    if len(fb) < 2:
+        return _decline("regime_flag", len(fb),
+                        f"{k} needs a low and a high cut, got {len(fb)}", kind=k)
+    if x <= fb[0]:
+        return _hit(ls[0], fb[0])
+    if x >= fb[-1]:
+        return _hit(ls[-1], fb[-1])
+    return out
+
+
+def flag_events(series: Sequence, dates: Sequence, *, window_periods: int) -> dict:
+    """STATE ENGINE sec 1.2 / 2.5: the state of a ``*_flag`` ref -- last event, events in the window, and
+    how many periods have passed since. Series is oldest -> newest and parallel to ``dates``.
+
+    A FLAG SERIES HAS NO HONEST z AND NO HONEST PERCENTILE, and this leaf is what a board row carries
+    INSTEAD of them: a sigma over a 0/1 column is a base rate wearing a sigma's clothes, and the rank of
+    a 1 inside a column of 0s and 1s is the base rate again. The board's flag rows therefore decline
+    those two BY NAME and render this.
+
+    AN EVENT IS A NON-ZERO CELL, and nothing here interprets which KIND of event it was: the flag column
+    already made that call at ingest. ``dates`` stay STRINGS and are never parsed into dates or ordered
+    -- this module holds no calendar (the ``spread`` / ``pair_spread`` / ``extreme_locator`` rule), so
+    ``periods_since`` counts OBSERVATIONS, never days, and the caller renders it in the cadence's own
+    noun. ``window_periods`` is likewise a count of observations off the end of the series.
+
+    Returns ``value`` = events_in_window (the one magnitude a row would cite), plus the last event's own
+    date and label. Zero events is NOT a decline: "no event in this window, and the last one was in
+    2023-08" is the answer a policy-flag row exists to give, and an absence is a row that says so."""
+    vals = _floats(series)
+    ds = [str(d) for d in (dates or [])]
+    n = len(vals)
+    w = int(window_periods) if window_periods is not None else 0
+    if n < MIN_FLAG_N:
+        return _decline("flag_events", n, f"need >={MIN_FLAG_N} points, got {n}", window_periods=w)
+    if len(ds) != n:
+        return _decline("flag_events", n,
+                        f"dates axis has {len(ds)} entries for {n} observations -- the two must be "
+                        f"parallel or the event's own date is not knowable", window_periods=w)
+    if w < 1:
+        return _decline("flag_events", n, f"window_periods must be >=1, got {window_periods!r}",
+                        window_periods=w)
+    idxs = [i for i, v in enumerate(vals) if v != 0.0]
+    tail = vals[-w:] if w < n else vals
+    in_window = sum(1 for v in tail if v != 0.0)
+    last = idxs[-1] if idxs else None
+    return {"stat": "flag_events", "declined": False, "value": float(in_window), "n": n,
+            "events_in_window": in_window, "window_periods": w, "events_total": len(idxs),
+            "last_event_date": (ds[last] if last is not None else None),
+            "last_event_index": last,
+            "periods_since": (n - 1 - last) if last is not None else None,
+            "first_date": ds[0], "last_date": ds[-1]}
+
+
+def pace_vs_prior(series: Sequence, *, periods_per_year: int) -> dict:
+    """STATE ENGINE sec 2.5: the export/inspection PACE reading -- the latest value against the same
+    point of the PRIOR YEAR, over a series a caller has ALREADY collapsed to one value per period.
+
+    IT IS ``yoy_delta``, RE-NAMED FOR ITS PARAMETER AND NOTHING ELSE, and that is the point: the estate
+    has exactly two pace producers (``cascade._pace_legs`` renders them, ``cascade._pace_series``
+    collapses the cross-section) and a third one written here -- even an obviously-correct one -- would
+    be the two-calculator drift this module exists to refuse. So this delegates, and the returned dict
+    carries ``yoy_delta``'s own contract with the pace naming beside it.
+
+    ``periods_per_year`` is the cadence's OWN count (52 weekly, 26 biweekly, 12 monthly, 1 annual) and it
+    is REQUIRED: a pace reading whose "prior year" was guessed from the row count is the class of quiet
+    substitution the delivery-month guard refuses one layer down. THE COLLAPSE IS THE CALLER'S: an ESR
+    or FGIS read is per DESTINATION x week and a flat ``series`` over it would compare two destinations
+    inside one week (the measured direction-inversion behind ``_PACE_COLLAPSE``), so the caller passes the
+    per-period collapsed values or it passes nothing worth reading."""
+    p = int(periods_per_year) if periods_per_year is not None else 0
+    if p < 1:
+        return _decline("pace_vs_prior", len(list(series or [])),
+                        f"periods_per_year must be >=1, got {periods_per_year!r}", periods_per_year=p)
+    out = yoy_delta(series, periods=p)
+    out = {**out, "stat": "pace_vs_prior", "periods_per_year": p}
+    return out
+
+
+def rolling_zscore(series: Sequence, *, window: int) -> dict:
+    """STATE ENGINE sec 2.5 / 4.1: ``zscore`` applied to EVERY PREFIX of the series -- the state vector as
+    it would have been knowable at each observation, in one pass over rows already fetched.
+
+    THE ANALOG SELECTOR'S INPUT, and the reason it is a prefix walk rather than a whole-history z: a
+    likeness engine that scored a past date against a distribution containing that date's own FUTURE
+    would rank the past by information nobody held then. Each element i is the z of ``series[i]`` against
+    ``series[max(0, i-window+1) .. i]`` -- the value's own trailing window, the value INCLUDED, exactly
+    as ``zscore(value, history)`` is called at the series end today.
+
+    ``None`` at a position is an HONEST HOLE, never a zero: a prefix shorter than the window, or one with
+    zero variance, declines at that position under the module's own floors and the output says so with
+    ``n_computed`` beside the series. PIT is inherited exactly as everywhere else here -- the rows were
+    guarded at fetch; a prefix of a guarded array cannot reach past its arguments."""
+    vals = _floats(series)
+    n = len(vals)
+    w = int(window) if window is not None else 0
+    if w < MIN_ROLLING_Z_N:
+        return _decline("rolling_zscore", n, f"window must be >={MIN_ROLLING_Z_N}, got {window!r}",
+                        window=w)
+    if n < w:
+        return _decline("rolling_zscore", n, f"history has {n} points, window needs {w}", window=w)
+    out: list = []
+    for i in range(n):
+        lo = i - w + 1
+        if lo < 0:
+            out.append(None)                                  # the prefix cannot fill the window
+            continue
+        z = zscore(vals[i], vals[lo:i + 1], window=w)
+        out.append(None if z["declined"] else z["value"])
+    computed = sum(1 for v in out if v is not None)
+    return {"stat": "rolling_zscore", "declined": False, "value": out[-1], "n": n,
+            "window": w, "series": out, "n_computed": computed}
+
+
+# ---------------------------------------------------------------------------------------------------
 # ENUM-LOCKED registry -- the tool-schema source. Keys are the frozen public stat names.
 # ---------------------------------------------------------------------------------------------------
 STAT_REGISTRY: dict[str, Callable[..., dict]] = {
@@ -957,4 +1191,20 @@ STAT_NAMES = frozenset(STAT_REGISTRY)
 # to smuggle a projection tool through the descriptive-only surface.
 for _name in STAT_REGISTRY:
     assert not is_banned_name(_name), f"banned forward-looking stat name registered: {_name!r}"
+del _name
+
+#: The ENGINE calculators -- public, tested, composed by deterministic scored paths, and DELIBERATELY
+#: outside ``STAT_REGISTRY`` (the AM-3 ruling: that registry is the agent's tool enum). Declared as a
+#: tuple so the descriptive-only fence reaches them too: the assertion below is the same one the registry
+#: gets, and it exists because these names never pass through the registry loop that would otherwise
+#: catch a ``project_``/``forecast_`` leaf added here in a hurry. STATE ENGINE sec 2.5 pins the tuple.
+ENGINE_STAT_NAMES: tuple[str, ...] = (
+    "extreme_locator", "pair_spread", "rolling_corr", "quantiles", "sign_agreement",
+    "regime_flag", "flag_events", "pace_vs_prior", "rolling_zscore",       # the STATE BOARD's four
+)
+
+for _name in ENGINE_STAT_NAMES:
+    assert not is_banned_name(_name), f"banned forward-looking engine stat name: {_name!r}"
+    assert callable(globals().get(_name)), f"ENGINE_STAT_NAMES names {_name!r}, which is not defined here"
+    assert _name not in STAT_REGISTRY, f"{_name!r} is an ENGINE calculator and must stay out of STAT_REGISTRY"
 del _name

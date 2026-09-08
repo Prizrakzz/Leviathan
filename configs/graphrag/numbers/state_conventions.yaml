@@ -1,0 +1,171 @@
+# THE DESK-CONVENTION REGISTRY -- STATE ENGINE DESIGN sec 2.4 (ruling 1; D14), landed at sitting S0.
+#
+# WHAT A CONVENTION MAY DO: attach a LABEL WORD to a state row, enter the loudness rank as a TIE-BREAK
+# behind the three computed measures (sec 3.2), and feed a WATCH proximity row (sec 5.1 kind 2).
+# WHAT IT MAY NOT DO: exclude a row, gate a traversal, veto a driver, fire a regime, or LEAD the order.
+# Ordering only, never exclusion -- the owner's ruling 1. Loudness is COMPUTED (|z|, percentile
+# extremity, run length against the driver's OWN series); a convention only breaks a tie.
+#
+# WHY HERE AND NOT IN params.yaml. `serving.silver.thresholds` (params.yaml:151-156) is silverleg's
+# FIRING contract -- `_thr` reads it and `_verdict_z` turns it into observed / inconclusive / normal,
+# which `planner.ground` and `firing.fire_contract` consume. An ORDERING LABEL is a different kind of
+# thing from a firing threshold, so params.yaml stays byte-identical and this file is new. The board
+# row is NEVER vetoed: a `normal` reading is a row that says so.
+#
+# REGISTER SAFETY IS A LINT CLAUSE, NOT A HABIT. Every label below and every template literal returns
+# ZERO from register.count_flow_words, register.count_valuation_words, register.register_leaks and
+# register._LANE_B_ADJ -- pinned by state/lint.py and by tests/unit/test_state_lint.py. Revision 1 of
+# the design proposed "crowded short" / "crowded long" / "stretched"; those are the flow register's own
+# MUST-FLAG words (register.py:684 `_LANE_B_FLOW_RX`, pinned MUST_FLAG at
+# tests/unit/test_register_corpus.py:347-352) and they failed this file's own lint. The vocabulary here
+# is the walk's own `_z_word` register ("near normal" / "notably above normal", cascade.py:950).
+#
+# EVERY VALUE IS AN OWNER-CURATED DESK CONVENTION, and each row says whether it is VERIFIED against
+# something in the estate or DECLARED and awaiting the owner's word (`verified: null`).
+
+version: 1
+
+# -- per-cadence z / percentile windows (sec 2.1) -----------------------------------------------------
+# The window a state is measured over, in the cadence's OWN unit, so a rendered figure can name its
+# window in that unit and its n (the futures_z precedent, params.yaml:157-178). `daily: 250` is the
+# SAME number params.yaml `serving.silver.stats.futures_z.window_sessions` carries, and for the same
+# measured reason: 250 sessions is one trading year, and a calendar-day window over a per-session table
+# varies silently with holidays and venue closures.
+windows:
+  daily:    250     # sessions (one trading year)
+  weekly:   156     # weeks (three years) -- the COT / ESR / FGIS grain
+  biweekly: 78      # fortnights (three years) -- the UNICA grain
+  monthly:  120     # months (ten years) -- ONI / IOD / MPOB / pink sheet / weather z
+  annual:   10      # marketing years -- silverleg's own PSD `window_years: 10` (params.yaml:151)
+
+# -- how a value becomes a label, PER KIND (declared, never inferred by a consumer) -------------------
+band_semantics:
+  abs_bands:          "the RAW value's magnitude vs absolute bands in the series' own unit; |v| >= bands[i] takes labels[i] and the HIGHEST matching band wins; below bands[0] there is NO label and the row says so"
+  z_bands:            "the same rule on the row's z instead of its raw value; |z| >= bands[i] takes labels[i], highest match wins, below bands[0] no label"
+  percentile_bands:   "TAIL CUTS on the row's own history: a band under 50 labels from BELOW (pct <= band -> that label), a band over 50 labels from ABOVE (pct >= band -> that label), the most extreme match wins, and between the innermost cuts there is NO label"
+  pace_vs_prior_year: "a signed PERCENT change against the same point of the prior year; v <= bands[0] takes labels[0], v >= bands[-1] takes labels[-1], between them no label"
+
+conventions:
+
+  # -- climate ---------------------------------------------------------------------------------------
+  # ONE VOCABULARY, PINNED. These four bands and their four words ARE silverleg._ONI_INTENSITY_BANDS
+  # (silverleg.py:57), read here ascending where silverleg stores them descending. state/lint.py fails
+  # closed if the two ever drift: the board and the firing leg must never say "strong" at two different
+  # anomalies. ONI's `z` is the RAW anomaly in degC, never a sigma -- so this row is abs_bands.
+  oni_climate:
+    kind: abs_bands
+    bands:  [0.5, 1.0, 1.5, 2.0]
+    labels: [elevated, moderate, strong, extreme]
+    unit: degC
+    history_window_key: monthly
+    verified: "identical to silverleg._ONI_INTENSITY_BANDS (lint-pinned); NOAA's 'weak' renders as 'elevated' and 'very strong' as 'extreme' -- an observed driver is never 'weak'"
+
+  # The BoM +/-0.4 degC positive/negative IOD event convention. OWNER-APPROVED (sec 16 decision 5) and
+  # UNVERIFIED against the publisher: the card's own served basis is ERSSTv5 vs the FIXED 1991-2020
+  # climatology, and magnitudes on that basis are NOT comparable with pre-2026 HadISST figures.
+  # ONE ESTATE CORROBORATION, FOUND AT THE S0 REVIEW AND NOT PROMOTED TO A VERIFICATION: the DMI
+  # bronze transform's own header states the same number from a different authority --
+  # raw_to_bronze/noaa_iod.py, "Phase thresholds follow JMA convention (+/-0.4 C)". That is a second
+  # SECONDARY source, not the publisher: BoM returned HTTP 403 on every path and both host forms in
+  # the design's delta pass (item B4.2) and is renaming the product, so `verified` stays null until a
+  # browser read. Recorded here so the next sitting does not mistake the silence for an absence of
+  # evidence.
+  iod_climate:
+    kind: abs_bands
+    bands:  [0.4]
+    labels: [event]
+    unit: degC
+    history_window_key: monthly
+    verified: null     # UNVERIFIED -- owner-declared 0.4 degC; not read off the publisher
+
+  # silverleg's own FX z threshold (params.yaml:153, `z: 1.5`) and its t / 2t / 3t intensity ladder
+  # (silverleg._intensity): the same ladder, said once, as ordering words.
+  # THE WINDOW IS THE ONE THING THAT DOES **NOT** MATCH, and it is a finding rather than a slip. The
+  # SAME params.yaml line carries `window_days: 504` for this ref's FIRING contract, while the board's
+  # `history_window_key: daily` resolves to `windows.daily: 250` (sec 2.1, and the number silverleg's
+  # OWN sibling block fixes for futures_z, params.yaml:178). So the estate now holds TWO windows for
+  # one ref: 504 for whether the leg FIRES, 250 for where the board RANKS it. The design fixes
+  # windows.daily at 250 and this file is compliant with it; the divergence belongs to the D5 census
+  # finding that already tracks silverleg-vs-board window drift, and is written down here rather than
+  # left silent so the census counts it instead of re-discovering it.
+  fred_fx_macro:
+    kind: z_bands
+    bands:  [1.5, 3.0, 4.5]
+    labels: [moderate, strong, extreme]
+    history_window_key: daily
+    verified: "params.yaml serving.silver.thresholds.fred_fx_macro z=1.5 and silverleg._intensity's t/2t/3t ladder"
+
+  # -- balance sheet ---------------------------------------------------------------------------------
+  # OWN-HISTORY PERCENTILES ONLY. Owner decision 5: NO absolute stocks-to-use desk bands in V1 -- a
+  # per-slug-family absolute band is real desk knowledge nobody in this estate has measured, and an
+  # invented one would rank 63 commodities against a number curated for one of them. The tails of a
+  # slug's own ten marketing years are COMPUTED, not curated.
+  psd_ending_stock_su_ratio:
+    kind: percentile_bands
+    bands:  [10, 25, 75, 90]
+    labels: [very tight, tight, ample, very ample]
+    history_window_key: annual
+    history_window: 10        # marketing years -- silverleg's own window_years
+    verified: "own-history percentiles; the window equals silverleg's params.yaml window_years: 10"
+
+  # -- positioning -- READ, LABELLED, AND FENCED (sec 2.4, D18) ---------------------------------------
+  # `context_only: true` is the whole rule: the row renders as level + percentile + report date in the
+  # PAST TENSE with cascade.POSITIONING_CONTEXT_ADDENDUM riding the block, and it is NEVER a fan-out
+  # source, NEVER a convergence member, NEVER an analog dimension, NEVER a projection or watch anchor.
+  # ONE EXCEPTION, owner amendment sec 16: when the QUERY NAMES POSITIONING the row may rank the anchor
+  # set and serve as the analog dimension -- positioning explained is not positioning narrated as a
+  # cause. On an OUTLOOK turn the series half declines `outlook_lane` (R9's shipped drop, untouched).
+  cot_mm_positioning:
+    kind: percentile_bands
+    bands:  [10, 90]
+    labels: [bottom decile, top decile]
+    history_window_key: weekly
+    history_window: 156       # weeks
+    context_only: true
+    verified: "own-history percentiles over 156 weeks; the report is unrevised, so latest-only is PIT-clean"
+
+  # -- weather z (gold_weather_z serves these AS standardized anomalies) ------------------------------
+  # The basin-tail row's +2 sigma is the `severe` cut. The map ref is `stage_tmax_anomaly`
+  # (cascade_map.yaml:1237), never a bare `tmax_anomaly` -- the driver ref keeps its historical name
+  # while the gold column is `tmax_anomaly`.
+  drought_z:            {kind: z_bands, bands: [1.0, 2.0], labels: [notable, severe], history_window_key: monthly, verified: "gold_weather_z serves a z; the +2 sigma severe cut is the basin-tail convention"}
+  heat_stress_z:        {kind: z_bands, bands: [1.0, 2.0], labels: [notable, severe], history_window_key: monthly, verified: "gold_weather_z serves a z; the +2 sigma severe cut is the basin-tail convention"}
+  gdd_z:                {kind: z_bands, bands: [1.0, 2.0], labels: [notable, severe], history_window_key: monthly, verified: "gold_weather_z serves a z; the +2 sigma severe cut is the basin-tail convention"}
+  stage_tmax_anomaly:   {kind: z_bands, bands: [1.0, 2.0], labels: [notable, severe], history_window_key: monthly, verified: "gold_weather_z serves a z; the +2 sigma severe cut is the basin-tail convention"}
+
+  # -- the pink sheet's input-cost family: the SOURCE serves these as 5-year z columns ----------------
+  # ONE cut, one word. The 1.5 is silverleg's own z threshold for the retired `pink_sheet_input_costs`
+  # entry (params.yaml:155, `{kind: z, window_years: 5, z: 1.5}`), carried here as an ORDERING label
+  # rather than a firing threshold -- see `retired_from_params` at the foot of this file.
+  brent_crude_z:        {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  urea_z:               {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  natural_gas_us_z:     {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  natural_gas_eu_z:     {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  npk_fertilizer_z:     {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  dap_z:                {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  potash_z:             {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  fishmeal_price_z:     {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+
+  # -- export / inspection PACE: a signed percent against the prior year, +/-10 pct -------------------
+  # `pace_vs_prior_year` is stats.yoy_delta over the SHIPPED weekly collapse (cascade._PACE_COLLAPSE),
+  # never a third pace producer beside `_pace_legs` and `_pace_series`. The +/-10 pct cut is DECLARED,
+  # not measured -- the S4 census prints the distribution and the owner narrows it.
+  esr_exports:           {kind: pace_vs_prior_year, bands: [-10, 10], labels: [behind, ahead], history_window_key: weekly, verified: null}
+  fgis_inspections_pace: {kind: pace_vs_prior_year, bands: [-10, 10], labels: [behind, ahead], history_window_key: weekly, verified: null}
+
+  # -- levels and spreads with no desk band: their OWN history's deciles -----------------------------
+  # `low` / `high` and nothing stronger: these four have no published convention, so the words say only
+  # where the reading sits in its own record. A zero-crossing spread is never labelled by percent.
+  mpob_ending_stocks:      {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: monthly, verified: null}
+  cbot_board_crush_margin: {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: daily,   verified: null}
+  kc_chi_spread:           {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: daily,   verified: null}
+  white_yellow_spread:     {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: daily,   verified: null}
+
+# -- the two DEAD params.yaml entries, copied here with their note (sec 2.4) --------------------------
+# MEASURED: neither is a cascade_map ref and neither has a silverleg handler (`_HANDLERS` carries three:
+# psd_ending_stock_su_ratio, fred_fx_macro, oni_climate), so both are dead config in params.yaml today.
+# They are RECORDED here so the numbers survive the retirement; params.yaml stays byte-identical at S0
+# and the two entries are removed in their own later commit, never as a side effect of this file.
+retired_from_params:
+  pink_sheet_input_costs: {kind: z, window_years: 5,  z: 1.5, note: "no silverleg handler, no cascade_map ref; its 1.5 lives on above as the pink-sheet family's ordering cut"}
+  psd_sd_level:           {kind: z, window_years: 10, z: 1.0, note: "no silverleg handler, no cascade_map ref; the export/import/consumption/stock vintage levels are read by the board as their own percentile rows"}

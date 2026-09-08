@@ -270,6 +270,16 @@ def _commodity_code_filter(spec: NumberQuery, ts: TableSpec) -> list[str]:
 _COUNTRY_REF_LOADERS: dict[str, tuple[str, str]] = {
     "numbers/esr_destinations.yaml": ("leviathan.graphrag.numbers.esr_destinations", "load_esr_destinations"),
     "numbers/faostat_areas.yaml":    ("leviathan.graphrag.numbers.faostat_areas", "load_faostat_areas"),
+    # STATE ENGINE sec 2.1 / 2.6 item 3 (S1): silver_nass_crop_progress repurposes `country_col` as a GEO
+    # axis holding a 2-letter USPS code with 'US' as the national roll-up, so a country NAME matches zero
+    # rows -- the same name-vs-code class the two entries above close for FAS codes and M49 strings.
+    # LANDED AHEAD OF ITS CARD, DELIBERATELY AND IN THIS ORDER: `_country_ref` RAISES on a ref no loader
+    # serves, so a card key that arrived first would turn today's honest zero-row NASS lookup into a hard
+    # error on every lookup naming a country. A loader with no card is INERT (nothing dispatches to it);
+    # a card with no loader is an outage. The card half rides the commit that also carries the silver
+    # contract's `cascade_ref` back-pointer and the live `country='US'` probe (S0's four-things-in-one-
+    # change finding, cascade_map.yaml item 2) -- none of which is reachable from this lane.
+    "numbers/nass_states.yaml":      ("leviathan.graphrag.numbers.nass_states", "load_nass_states"),
 }
 
 
@@ -519,15 +529,65 @@ def _pub_lagged_asof(asof: str, lag_days: int) -> str:
     return (date(int(asof[:4]), int(asof[5:7]), int(asof[8:10])) - timedelta(days=lag_days)).isoformat()
 
 
-def _guard(spec: NumberQuery, ts: TableSpec) -> str:
-    """The as-of predicate that is ALWAYS present — the leakage guard."""
+def _month_end_day(year: int, month: int) -> int:
+    """The last calendar day of (year, month). Pure arithmetic — this module already owns a calendar
+    (``_pub_lagged_asof`` does date arithmetic); ``stats.py`` is the module that must never learn one."""
+    if month == 12:
+        return 31
+    from datetime import date, timedelta
+    return (date(year + (month // 12), (month % 12) + 1, 1) - timedelta(days=1)).day
+
+
+def _ym_lagged_asof_ym(asof: str, lag_days) -> int:
+    """STATE ENGINE DESIGN sec 1.4 (D21): the newest DATA MONTH knowable at ``asof`` on a ``year_month``
+    card, given the card's ``ym_publication_lag_days``.
+
+    THE DEFECT IT CLOSES. A ``year_month`` card has no date column, so ``_guard``'s year_month branch
+    admits a data MONTH from its FIRST DAY (``(year*100+month) <= asof_ym``) while ``_pub_lagged_asof``
+    shifts only the OTHER branch. ONI's September row is therefore citable on 1 September — three months
+    before CPC prints it. The board's own reads must not do that, so this is the arithmetic they use.
+
+    THE FIELD'S SEMANTICS ARE **DAYS AFTER MONTH-END**, and that is why this is not a bare
+    ``_asof_ym(_pub_lagged_asof(asof, lag))``: a data month M is public when ``month_end(M) + lag <=
+    asof``, i.e. when ``month_end(M) <= asof - lag``, and the month CONTAINING ``asof - lag`` has almost
+    never ended by then. MEASURED on the S0 declaration (ONI, 36 d, as-of 2026-09-08): ``asof - 36 d`` is
+    2026-08-03, whose month reads as 2026-08 -- but 2026-08 does not END until the 31st, so the newest
+    month actually printed is 2026-07. The naive shift would have admitted a month the publisher has not
+    released, which is the very leak this key exists to close. (The design's sec 1.4 sentence says
+    "apply ``_pub_lagged_asof`` to the ym literal"; the FIELD's own declared unit and the S0 pin's stated
+    expectation -- "2026-09 would drop out here, and 2026-08 with it" -- are the month-end reading, and
+    the code wins. Recorded as a drift in the S1 report rather than left as a silent divergence.)
+
+    ``lag_days`` falsy (the UNDECLARED default ``None``, and 0) -> IDENTITY: the byte-identical
+    pre-wave literal. Undeclared means NO SHIFT and a consumer that says so."""
+    if not lag_days:
+        return _asof_ym(asof)
+    from datetime import date, timedelta
+    d = date(int(asof[:4]), int(asof[5:7]), int(asof[8:10])) - timedelta(days=int(lag_days))
+    y, m = d.year, d.month
+    if d.day < _month_end_day(y, m):                         # this month has not ENDED by the shifted date
+        y, m = (y - 1, 12) if m == 1 else (y, m - 1)
+    return y * 100 + m
+
+
+def _guard(spec: NumberQuery, ts: TableSpec, *, ym_lag: bool = False) -> str:
+    """The as-of predicate that is ALWAYS present — the leakage guard.
+
+    ``ym_lag`` (STATE ENGINE sec 1.4 / D21, S1) arms the ``year_month`` branch's PUBLICATION LAG, and it
+    is THREADED from ``build_sql`` / ``run``, never read from the environment (this compiler reads no
+    ``os.environ`` — the ``futures_newest_first`` idiom). DEFAULT-OFF and byte-identical: with it absent,
+    and with it ON against a card that declares no ``ym_publication_lag_days``, the emitted string is the
+    one that shipped. It touches ONE branch: the non-year_month path keeps ``publication_lag_days``
+    exactly as it was."""
     if ts.knowledge_semantics == "year_month":
         if not (ts.year_col and ts.month_col):
             raise ValueError(f"table {ts.id} year_month semantics needs year_col + month_col")
         # the bare-column year bound is implied by the ym expression (any year > asof_year makes
         # year*100+month exceed asof_ym) — it exists purely so projection pruning can see the guard.
-        return (f"({ts.year_col} * 100 + {ts.month_col}) <= {_asof_ym(spec.asof)} "
-                f"AND {ts.year_col} <= {int(spec.asof[:4])}")
+        ym = (_ym_lagged_asof_ym(spec.asof, getattr(ts, "ym_publication_lag_days", None))
+              if ym_lag else _asof_ym(spec.asof))
+        return (f"({ts.year_col} * 100 + {ts.month_col}) <= {ym} "
+                f"AND {ts.year_col} <= {ym // 100}")
     col = ts.knowledge_col()
     if not col:
         raise ValueError(f"table {ts.id} has no knowledge/date column to anchor the as-of guard")
@@ -894,7 +954,7 @@ def _newest_first_applies(spec: NumberQuery, ts: Optional[TableSpec], newest_fir
 
 
 def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = ATHENA_DB,
-              futures_newest_first: bool | str = False) -> str:
+              futures_newest_first: bool | str = False, ym_lag: bool = False) -> str:
     """Compile a NumberQuery to leakage-safe Athena SQL. The as-of guard is injected unconditionally; for
     `vintage` tables it also collapses to the LATEST vintage published on/before asof (as-known-at-asof).
 
@@ -906,7 +966,14 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     wave, which is the rollback, from the idiom rather than from a promise. The parameter is the SCOPE TOKEN
     (``NEWEST_FIRST_ALL``): ``True`` moves ONLY the series branch of a card declaring ``contract_month_col``,
     ``"all"`` moves the series branch of EVERY card, and either way the move is the single flip
-    ``_newest_first_applies`` decides."""
+    ``_newest_first_applies`` decides.
+
+    ``ym_lag`` (STATE ENGINE sec 1.4 / D21, S1) is the SAME idiom for a different, one-branch correction:
+    a ``year_month`` card's data month is admitted from its FIRST DAY today, so it arms that branch's
+    ``ym_publication_lag_days`` shift (``_ym_lagged_asof_ym``). DEFAULT-OFF -> byte-identical SQL on every
+    card, which is the rollback; the STATE BOARD passes ``ym_lag=True`` on its OWN reads from day one
+    (its reads are its own and move nothing else), and the estate's other year_month consumers move later
+    under ``GRAPHRAG_YM_PUBLICATION_LAG`` with a flip table. No ``os.environ`` read exists here."""
     ts = ts or load_registry().get(spec.table)
     # SEAM-C LEVELS-ONLY GUARD: a roll-spliced continuous FRONT-MONTH settle series (silver_futures_prices)
     # has NO PIT-safe cross-date delta -- the splice between expiries contaminates any change/window/curve
@@ -968,7 +1035,7 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     inc_country = spec.country is not None            # ESR S1: country enters _total_order only when a
     #                                                   destination filter is active (national path stays stable)
     nf = _newest_first_applies(spec, ts, futures_newest_first)   # S1 canary; scope per the token (D-AM-18)
-    where = " AND ".join(_filters(spec, ts) + [_guard(spec, ts)])
+    where = " AND ".join(_filters(spec, ts) + [_guard(spec, ts, ym_lag=ym_lag)])
     sel = f"{val} AS value" + "".join(f", {e} AS {a}" for e, a in extras)
     order = _order_col(ts)
 
@@ -1125,12 +1192,20 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     return base + f" LIMIT {int(spec.limit)}"
 
 
-def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
+def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec, *,
+                     ym_lag: bool = False) -> list[dict]:
     """Pure-Python reference for the SAME point-in-time semantics build_sql encodes (test oracle + client
     fallback). Filters by identity/scope, drops anything not yet known at asof, and for `vintage` keeps only the
-    latest vintage per identity group."""
+    latest vintage per identity group.
+
+    ``ym_lag`` is ``build_sql``'s own kwarg and MUST be passed the same value: this function is the SQL's
+    oracle, and an oracle that verifies a different point-in-time rule than the compiler verifies nothing
+    (the R2 trap this docstring's own vintage-format note is about, one branch over). One PARITY test
+    compiles and filters the same specs under both settings -- STATE ENGINE sec 1.4 (D21), S1."""
     kcol = ts.knowledge_col()
-    ym = _asof_ym(spec.asof) if ts.knowledge_semantics == "year_month" else None
+    ym = ((_ym_lagged_asof_ym(spec.asof, getattr(ts, "ym_publication_lag_days", None)) if ym_lag
+           else _asof_ym(spec.asof))
+          if ts.knowledge_semantics == "year_month" else None)
     guard_asof = _pub_lagged_asof(spec.asof, ts.publication_lag_days)   # publication-lag shift; mirrors _guard
     if kcol and kcol == ts.vintage_partition_col:
         # the knowledge col carries the PARTITION's value format (ESR as_of_date = YYYYMMDD): compare the
@@ -1324,7 +1399,7 @@ def resort_rows_chronological(rows: list[dict], spec: NumberQuery, ts: TableSpec
 
 
 def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
-        futures_newest_first: bool | str = False) -> list[dict]:
+        futures_newest_first: bool | str = False, ym_lag: bool = False) -> list[dict]:
     """Execute on the active backend (or an injected query_fn(sql)->rows for tests/session-cache wrappers).
     Returns rows as list[dict]. The pg mirror's schema is NAMED like the Athena db, so the compiled SQL is
     backend-agnostic -- routing is purely a choice of executor. POST-FETCH: apply DP-1 unit_overrides so every
@@ -1334,6 +1409,10 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
     ``answer``'s seam pair and passed straight down to ``build_sql``; DEFAULT-OFF -> byte-identical rows AND
     byte-identical SQL. The re-sort below is gated by the SAME predicate the compiler used, so a widened
     scope can never flip the SQL without flipping the rows back.
+
+    ``ym_lag`` (STATE ENGINE sec 1.4 / D21) is threaded the same way and passed straight to ``build_sql``:
+    DEFAULT-OFF -> byte-identical SQL, and it changes WHICH MONTHS a ``year_month`` card admits, never the
+    row shape, so nothing after the executor moves. The state board passes it True on its own reads.
 
     THE RE-SORT RUNS BETWEEN THE EXECUTOR AND ``_apply_unit_overrides``, ON THE RAW ROWS, AND THE ORDER OF
     THESE THREE LINES IS LOAD-BEARING. ``unit`` is a real total-order term (priority 9) and
@@ -1347,7 +1426,14 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
     every consumer after it) sees exactly one settle row carrying only served aliases. It cannot collide
     with the re-sort: ``_is_series_branch`` excludes this agg, so the re-sort is a no-op on this path."""
     ts = load_registry().get(spec.table)
-    sql = build_sql(spec, ts, db=db, futures_newest_first=futures_newest_first)
+    # OMIT-WHEN-OFF AT THE CALL SITE, not merely default-off in the callee, and it is load-bearing: the
+    # estate wraps ``build_sql`` in spies and shims that RE-DECLARE its signature (the futures-readpath
+    # pins compile through one, deliberately sitting AT the compiler so a kwarg accepted and then dropped
+    # one frame lower is caught). Passing a new kwarg unconditionally would break every such wrapper the
+    # moment this lands, for turns that are not using the flag at all. With it omitted, the shipped call
+    # is byte-identical until the board actually arms it -- the same discipline the emitted SQL follows.
+    _lag = {"ym_lag": True} if ym_lag else {}
+    sql = build_sql(spec, ts, db=db, futures_newest_first=futures_newest_first, **_lag)
     rows = query_fn(sql) if query_fn is not None else default_query_fn(db=db)(sql)
     if _newest_first_applies(spec, ts, futures_newest_first):
         rows = resort_rows_chronological(rows, spec, ts)     # S1: DESC fetch -> ASC presentation (raw rows)

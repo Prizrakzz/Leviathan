@@ -1,0 +1,218 @@
+# THE FORWARD RELEASE CALENDAR -- STATE ENGINE DESIGN sec 5.2 (D7), landed at sitting S0 and CORRECTED
+# at the S0 REVIEW against the design's own APPENDIX B DELTA PASS 1 (2026-09-08), which read TEN of
+# these publishers directly and is the source of record where it and the design body disagree
+# (sec 16's first line: "Where the delta pass and the body disagree, the delta pass wins").
+#
+# RULES ONLY, AND A RULE PRINTS A WINDOW, NEVER A TIME (owner decision 4). `next_release(table, asof)`
+# is pure calendar arithmetic on the rule -- no clock, the `_cw_first_of_months` discipline -- and a
+# windowed rule returns a WINDOW ("the next WASDE is scheduled between 2026-10-09 and 2026-10-12 by
+# USDA's published 2026 list"), never a point it cannot know. A source with no rule yields None and the
+# watch row says "no release rule is declared for this series".
+#
+# SIX PUBLISHERS STATE A CLOCK TIME (WASDE 12:00 ET, ESR 08:30, COT 15:30 ET, NASS 16:00, MPOB 12:30,
+# CONAB's Progresso 19h): NONE of them is carried in a rule value, deliberately. Decision 4 is a rule
+# about what a watch row may PRINT, and the times are recorded only in this prose so that nobody
+# re-derives them later as though the estate had never read them.
+#
+# WHY THIS FILE EXISTS. Four calendars exist in the estate and NONE of them says when a SOURCE prints:
+# the 25 EventBridge schedules say when WE FETCH; `publication_lag_days` is an embargo scalar on the
+# registry card; the WASDE day map (jobs/batch/psd_silver_task.py) is backward-looking; and
+# `venue_holidays.yaml` is no-settlement dates. Three questions, three homes: Terraform keeps the FETCH
+# clock, configs/silver/ keeps embargo and venue holidays, and this file -- owned by the reasoning
+# layer, whose only consumer is the watch-list producer -- keeps the PUBLISHER's habit.
+#
+# A FETCH CRON IS NOT A PRINT DAY, AND THE FIRST LANDING OF THIS FILE TREATED IT AS ONE. Every rule
+# below now says which of three things it rests on, and they are NOT equal in weight:
+#   (a) PUBLISHER-READ -- the publisher's own page or its own report, quoted, with `verified_against`
+#       naming the URL and `verified_on` the date of the read. EIGHT of the twelve rows are here.
+#   (b) our own fetch cron, which brackets the publisher FROM ABOVE only (we do not fetch before a
+#       source prints, so a cron can bound a rule but can never establish one).
+#   (c) a registry card's own sentence about its source -- estate prose, not the publisher.
+# `verified_against: null` means the rule has NOT been read off the publisher: it prints window WORDS
+# only. THE FOUR CORRECTIONS THE DELTA PASS FORCED, each of which (b) or (c) had got wrong:
+#   1. NASS Crop Progress is NOT Monday -- "the first business day of each week" (the card's
+#      "following Monday afternoon" is the card's prose, not the publisher's rule).
+#   2. FGIS is NOT Thursday -- Thursday is the DATA week's end; the report itself prints on the first
+#      business day of the week (proved live: Labor Day moved the 2026-09-08 report off Monday).
+#   3. WASDE is the 9th-12th, not the 8th-13th our cron brackets.
+#   4. The World Bank publishes a DATE, not a rule; CONAB publishes a DATE LIST whose 2026 window is
+#      the 11th-15th; and CPC's ONI table is posted by the 5th, not on a second Thursday.
+#
+# PIT AND HONESTY. NO EXPLICIT FUTURE DATE RIDES IN V1, so no `announced_on` question arises and a
+# historical as-of cannot leak a hand-declared future list. V1.1 may add explicit per-source date lists
+# carrying `announced_on`, admitted only when `announced_on <= asof` -- and the World Bank row is the
+# one that NEEDS it, because `published_date` is precisely the kind that computes nothing.
+
+version: 1
+
+# The closed enum -- state/lint.py fails on any other value, and on any rule that carries a key its own
+# kind cannot mean. FIVE kinds, because three publishers do not fit a weekday or a day-of-month:
+#   monthly_window     day_min..day_max of each month (both inclusive, <= 28 so every month has the day)
+#   weekly_dow         a fixed weekday
+#   first_business_day the week's first business day -- Monday unless Monday is a public holiday, and
+#                      the estate holds no holiday calendar for these publishers, so a watch row names
+#                      the WEEK and says "on its first business day" rather than naming a date
+#   daily_sessions     the tape; "next session", never a date
+#   published_date     the publisher states its own next date in prose and follows NO rule: V1 computes
+#                      nothing and the watch row says the date is published, not derived (V1.1 scrapes)
+rule_kinds: [monthly_window, weekly_dow, first_business_day, daily_sessions, published_date]
+
+sources:
+
+  # USDA's monthly window. THE PUBLISHER'S OWN 2026 LIST, not our cron: Jan 12, Feb 10, Mar 10, Apr 9,
+  # May 12, Jun 11, Jul 10, Aug 12, Sep 11, Oct 9, Nov 10, Dec 10 -- min 9, max 12. Our own psd_monthly
+  # and wasde_monthly schedules are both cron(0 18 8-13 * ? *), which BRACKETS that window from above
+  # and is why the first landing declared 8-13; the bracket is not the habit. (The page also gives the
+  # clock as 12:00pm ET, which this file does not carry.)
+  usda_wasde_psd:
+    tables: [silver_wasde, silver_psd, silver_psd_attributes]
+    rule: {kind: monthly_window, day_min: 9, day_max: 12}
+    derived_from: "USDA's own published 2026 WASDE release list (12 dates, all between the 9th and the 12th); our cron(0 18 8-13 * ? *) brackets it from above and does not establish it"
+    verified_against: "usda.gov/about-usda/general-information/staff-offices/office-chief-economist/commodity-markets/wasde-report -- design APPENDIX B DELTA PASS 1 item B4.3, read 2026-09-08"
+    verified_on: "2026-09-08"
+
+  # FAS Export Sales, weekly. THE PUBLISHER SAYS THURSDAY IN SO MANY WORDS. The reporting WEEK is a
+  # separate question the factsheet does not answer and our Friday->Thursday assumption stays an
+  # inference (the fas.usda.gov host is 403 estate-wide); this rule is about the PRINT DAY only.
+  usda_esr:
+    tables: [silver_esr]
+    rule: {kind: weekly_dow, dow: THU}
+    derived_from: "the FAS Export Sales factsheet's own sentence that the report is published every Thursday; our esr_weekly cron(0 14 ? * THU *) agrees but does not establish it"
+    verified_against: "apps.fas.usda.gov/info/factsheets/expsls.html -- design APPENDIX B DELTA PASS 1 item B4.4, read 2026-09-08"
+    verified_on: "2026-09-08"
+
+  # CFTC's Commitments of Traders: Tuesday data, Friday release, BOTH halves confirmed on the CFTC's
+  # own page. Note its hedge word -- "generally" each Friday -- so a holiday week shifts and a watch
+  # row that names a Friday as certain is overclaiming. silver_cot's publication_lag_days: 6 covers
+  # exactly that slip.
+  cftc_cot:
+    tables: [silver_cot]
+    rule: {kind: weekly_dow, dow: FRI}
+    derived_from: "the CFTC's own COT page: published generally each Friday, data as of the close of business Tuesday; silver_cot's publication_lag_days: 6 covers the holiday slip"
+    verified_against: "cftc.gov/MarketReports/CommitmentsofTraders/index.htm -- design APPENDIX B DELTA PASS 1 item B4.5, read 2026-09-08"
+    verified_on: "2026-09-08"
+
+  # CPC's ONI TABLE -- and it is the TABLE's clock, not the ENSO Diagnostic Discussion's. CPC states the
+  # table "will continue to be updated by the 5th of each month"; the Diagnostic Discussion is a
+  # SEPARATE product on the second Thursday, and the first landing of this file gave the Discussion's
+  # window (8th-14th) to the table. Our own enso_monthly fetch is cron(0 12 5 * ? *), day 5, which now
+  # AGREES with the publisher instead of contradicting the declared window.
+  # TWO FURTHER READS THE PRODUCER OWES (S4, not this file): ONI_v5.php is now a redirect stub, and per
+  # NWS PIS 26-05 RONI -- not ONI -- is CPC's official ENSO monitoring index.
+  # WHAT THIS ROW IS *NOT*: it is not the row's own publication lag. A silver_noaa_oni row is stamped
+  # to its season's CENTER month, so the month a print carries is two months behind the print --
+  # see `ym_publication_lag_days` on the card, which is 36 days for exactly that reason.
+  cpc_oni:
+    tables: [silver_noaa_oni]
+    rule: {kind: monthly_window, day_min: 1, day_max: 5}
+    derived_from: "CPC's own v6 ONI page: the table is updated by the 5th of each month (the ENSO Diagnostic Discussion's second-Thursday habit belongs to a different product and is NOT this rule)"
+    verified_against: "cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/ -- design APPENDIX B DELTA PASS 1 item B4.1, read 2026-09-08 (newest row that day: JJA 2026)"
+    verified_on: "2026-09-08"
+
+  # MPOB's monthly palm statistics -- THE 10TH EXACTLY, from the publisher, not the 10th-12th our cron
+  # brackets. (bepi.mpob.gov.my also gives a 12.30 noon clock, unzoned, which this file does not carry.)
+  # The card's own "published ~10th of the FOLLOWING month" sentence agrees, and its
+  # publication_lag_days: 43 is the month-end-plus-lag form of the same fact.
+  mpob:
+    tables: [silver_mpob]
+    rule: {kind: monthly_window, day_min: 10, day_max: 10}
+    derived_from: "MPOB's own BEPI page stating release on the 10th of every month; our cron(0 6 10-12 * ? *) brackets it and silver_mpob's card sentence agrees"
+    verified_against: "bepi.mpob.gov.my -- design APPENDIX B DELTA PASS 1 item B4.8, read 2026-09-08"
+    verified_on: "2026-09-08"
+
+  # THE WORLD BANK PUBLISHES A DATE, NOT A RULE, and that is a finding rather than a gap: the commodity
+  # markets page prints "Next update: <date>" and states no day-of-month and no weekday habit anywhere.
+  # The observed 2026 prints -- Tue 08-04, Wed 09-02, Fri 10-02 -- share no weekday and no day number,
+  # so ANY window we computed (the first landing declared the 2nd-8th) would be a rule the publisher
+  # does not follow. `published_date` computes nothing: the watch row says the next date is published
+  # by the source and not derived here, and V1.1's scraper reads the string.
+  world_bank_pink_sheet:
+    tables: [silver_pink_sheet]
+    rule: {kind: published_date}
+    derived_from: "the World Bank's own commodity-markets page, which states a 'Next update' DATE and no rule; the three observed 2026 prints (Tue 08-04, Wed 09-02, Fri 10-02) share neither weekday nor day-of-month"
+    verified_against: "worldbank.org/en/research/commodity-markets -- design APPENDIX B DELTA PASS 1 item B4.9, read 2026-09-08"
+    verified_on: "2026-09-08"
+
+  # CONAB's Brazilian grain surveys -- FROM CONAB'S OWN 2026 CALENDAR PDF. GRAOS 2026: Jan 15, Feb 12,
+  # Mar 13, Apr 14, May 14, Jun 11, Jul 14, Aug 13, Sep 15, Oct 15, Nov 13, Dec 15 -- an 11th-to-15th
+  # window with NO fixed weekday. The first landing's 1st-15th was half a month wide because it was
+  # derived from our production_conab cron(0 6 1 * ? *), which fires on the window's OPEN and brackets
+  # nothing. THE UNDERLYING ARTIFACT IS A DATE LIST FOR ONE YEAR: the window is this file's honest
+  # V1 form of it, and V1.1's explicit list (with `announced_on`) is where the dates themselves land.
+  # Also read and NOT modelled here: "TODA SEGUNDA-FEIRA - AS 19H A CONAB DIVULGA O PROGRESSO DE SAFRA"
+  # -- Progresso de Safra is a weekly Monday product, and no card in this estate carries it.
+  conab:
+    tables: [silver_conab_coffee]
+    rule: {kind: monthly_window, day_min: 11, day_max: 15}
+    derived_from: "CONAB's own 2026 safras calendar PDF (12 GRAOS dates, all between the 11th and the 15th, no fixed weekday); our cron(0 6 1 * ? *) fires on the window's open and establishes nothing"
+    verified_against: "gov.br/conab/pt-br/atuacao/informacoes-agropecuarias/safras/ -> calendario-de-safras-e-prohort-2026-interativo-2026-novo.pdf -- design APPENDIX B DELTA PASS 1 item B4.10, read 2026-09-08"
+    verified_on: "2026-09-08"
+
+  # NASS CROP PROGRESS -- "THE FIRST BUSINESS DAY OF EACH WEEK", IN NASS'S OWN WORDS, AND NOT MONDAY.
+  # The first landing declared MON on the strength of the silver_nass_crop_progress card's sentence
+  # ("the week ending Sunday is published the following Monday afternoon"); that is the CARD's prose,
+  # and NASS's own survey guide overrides it. A hard-coded Monday is wrong several times a year -- the
+  # same first-business-day behaviour that moved this very week's FGIS report to a Tuesday.
+  # THE SEASON IS THE PUBLISHER'S TOO: Crop Progress runs April 1 - November 30, so a rule with no
+  # season would have a watch row promising a January release that no publisher will print.
+  # (The page also gives 4:00 PM, which this file does not carry.) Our fetch is TUESDAY
+  # (cron(0 9 ? * TUE *)) because of the card's publication_lag_days: 2 embargo, not because the source
+  # prints on a Tuesday.
+  nass_crop_progress:
+    tables: [silver_nass_crop_progress]
+    rule: {kind: first_business_day, season_from: "04-01", season_to: "11-30"}
+    derived_from: "NASS's own Crop Progress survey guide: released on the first business day of each week, April 1 - November 30; the card's 'following Monday afternoon' sentence is estate prose and the Tuesday cron is the embargo"
+    verified_against: "nass.usda.gov/Surveys/Guide_to_NASS_Surveys/Crop_Progress_and_Condition/index.php -- design APPENDIX B DELTA PASS 1 item B4.6, read 2026-09-08"
+    verified_on: "2026-09-08"
+
+  # USDA FGIS EXPORT INSPECTIONS -- THE FIRST LANDING WAS WRONG ON BOTH HALVES, and the report itself
+  # settles it. No AMS *page* states the schedule (both candidate pages are 403), but wa_gr101.txt of
+  # 2026-09-08 is datelined TUESDAY (Labor Day pushed it off Monday -- first business day, exactly as
+  # NASS) and says "REPORTED IN WEEK ENDING SEP 03, 2026", a THURSDAY.
+  # SO THE THURSDAY IS THE DATA WEEK'S END, NEVER THE PRINT DAY. The first landing read our own
+  # cron(0 12 ? * THU *) -- a FETCH day -- and the silver_fgis card's "FGIS's own report week runs
+  # Friday->Thursday" -- a DATA week -- as two statements of a print day, and they are neither. The
+  # card's own warning stands and is the reason this row carries no weekday at all: week_ending_date
+  # is a DERIVED 7-day bucket end, "never call it a Thursday or a release".
+  usda_fgis:
+    tables: [silver_fgis]
+    rule: {kind: first_business_day}
+    derived_from: "the FGIS report itself (wa_gr101.txt, 2026-09-08, datelined Tuesday after the Labor Day holiday and reporting the week ending Thursday Sep 03) -- our THU cron is a fetch day and the card's Friday->Thursday week is a DATA week; neither is a print day"
+    verified_against: "ams.usda.gov/mnreports/wa_gr101.txt -- design APPENDIX B DELTA PASS 1 item B4.7, read 2026-09-08"
+    verified_on: "2026-09-08"
+
+  # SAGIS's South African weekly grain figures. UNVERIFIED: our sagis_weekly fetch is
+  # cron(0 12 ? * FRI *) and the delta pass did not reach this publisher, so FRI is a bracket-from-above
+  # and nothing more. Treat it exactly as the FGIS Thursday should have been treated before it was read.
+  sagis:
+    tables: [silver_sagis_cec]
+    rule: {kind: weekly_dow, dow: FRI}
+    derived_from: "the sagis_weekly fetch cron cron(0 12 ? * FRI *), which brackets the publisher from above; SAGIS was NOT among the ten publishers the delta pass read"
+    verified_against: null
+    verified_on: null
+
+  # THE TAPE. A futures row says "next session" and never names the day: venue_holidays.yaml carries
+  # EMPTY GLBX years and is NOT read in V1, so naming a date would be a claim the estate cannot back.
+  tape_venues:
+    tables: [silver_futures_eod, gold_board_crush, gold_futures_spreads]
+    rule: {kind: daily_sessions}
+    derived_from: "exchange sessions; venue_holidays.yaml is NOT read in V1 (empty GLBX years), so a row says 'next session' and never a date"
+    verified_against: null
+    verified_on: null
+
+  # FX. Weekday sessions only; our fx_macro_daily fetch is cron(0 18 ? * MON-FRI *).
+  frankfurter_fx:
+    tables: [silver_fred_fx]
+    rule: {kind: daily_sessions, weekdays_only: true}
+    derived_from: "the fx_macro_daily fetch cron, cron(0 18 ? * MON-FRI *); the ECB reference-rate publisher was NOT read by the delta pass"
+    verified_against: null
+    verified_on: null
+
+# -- DECLARED ABSENCES: every remaining card behind a live cascade_map ref or a board_read row ---------
+# The absence is a ROW, not a silence. state/lint.py fails closed if a card behind a live map ref (or a
+# `board_read: true` row) appears in neither `sources` nor here, and fails if a card appears in both.
+# A watch row for one of these says "no release rule is declared for this series" and stops there.
+uncalendared:
+  gold_weather_z: "a DERIVED gold table (NASA POWER temperatures + CHIRPS precipitation, z-scored monthly), not a publisher print: its cadence is our own weather_daily sweep and the gold rebuild, and the upstream sources' own release habits are not measured in this estate"
+  silver_production_livestock: "FAOSTAT annual production (athena_table silver_production). FAOSTAT appears in NONE of the 25 EventBridge fetch schedules, so the estate holds no cadence evidence at all and an annual window would be invented"
+  silver_noaa_iod: "the DMI series we serve is a NOAA record updated monthly IN PLACE (the ADR_IOD_SOURCE_SWITCH basis, CPC ERSSTv5) whose day-of-month habit no publisher page in this estate states; the first landing filed it under CPC's ENSO window, which is the ONI TABLE's clock and not the DMI's. BoM -- the publisher of the +/-0.4 degC convention and of the fortnightly Climate Driver Update, a DIFFERENT product from this series -- returned HTTP 403 on every path and both host forms in the design's delta pass (item B4.2) and is being renamed, so no rule can be read there either. The card's own '~30-45 days after month end' is a LAG, not a day habit: it lives in ym_publication_lag_days: 45, not here"

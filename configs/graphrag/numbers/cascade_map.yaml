@@ -220,6 +220,10 @@ refs:
     period_type: year_month        # windows via (year*100+month) bounds
     window_granularity: monthly
     keying: "NO commodity column (global ENSO state); asof compares (year*100+month) <= asof YM"
+    global_state: true            # STATE ENGINE S0: the board reads ONE series for every board
+    #                                that names this ref (no commodity/country axis on the card).
+    #                                No reader consumes this key today; state/lint.py pins that it
+    #                                agrees with the `keying:` line beside it.
     native_unit: degC
     narrate_unit: degC
     scale: 1
@@ -248,6 +252,10 @@ refs:
     #                                country slice of the index -- there is only ONE DMI series to serve,
     #                                so a region rule could only ever mislabel it.
     keying: "NO commodity/country column (global IOD state); asof compares (year*100+month) <= asof YM"
+    global_state: true            # STATE ENGINE S0: the board reads ONE series for every board
+    #                                that names this ref (no commodity/country axis on the card).
+    #                                No reader consumes this key today; state/lint.py pins that it
+    #                                agrees with the `keying:` line beside it.
     native_unit: degC
     narrate_unit: degC
     scale: 1                       # an SST-anomaly gradient in degC; no ratio trap, no pre-scale
@@ -266,6 +274,119 @@ refs:
       month: cite the reading's OWN month, never call it current. NO pace leg: silver_noaa_iod is absent
       from cascade.PACE_TABLES (its ONI sibling is present), so this ref serves era + current rhyme legs
       only. That is a code file this wave does not own -- adding it there is a separate, deliberate change.
+
+  # == STATE ENGINE S0 (2026-09-08) -- THE BOARD-ONLY ROWS: `deferred: true` + `board_read: true` ====
+  # DESIGN: docs/private/STATE_ENGINE_DESIGN_2026-09-07.md sec 2.6 and D23; owner decision 1 (sec 16).
+  #
+  # WHAT THE PAIR OF KEYS MEANS. `deferred: true` is the ESTATE'S OWN INERT FORM: `cascade.load_map()`
+  # returns every `refs` row EXCEPT the deferred ones, so `map_row()` -> None and the hop stays
+  # qualitative -- the serving cascade cannot see these rows at all, `check_cascade_map` (which reads
+  # `load_map()`) never grades them, and the dark-ref drop site keeps counting them dark. `board_read:
+  # true` is a NEW key that ONLY the state board's own accessor honours (it reads the raw `refs` block,
+  # the `load_region_map` precedent). Every other reader in the estate ignores an unknown key.
+  #
+  # WHY NOT JUST LAND THEM LIVE. A present, non-deferred row turns EVERY grounded instance of its ref
+  # into a live cascade leg on the first image built from this tree -- measured at this landing:
+  # oni_lag_climate 4 instances, nass_crop_progress_ge_z 12 -- displacing legs under `cascade.cap: 12`
+  # by walk order, with no flag, no arm and no golden. That is the flip nobody asked for.
+  #
+  # THE UN-DEFER RULE. Dropping `deferred: true` from a `board_read` row is a CASCADE change and ships
+  # as its OWN commit under the estate's un-defer gate -- the candidate census diff plus config_check
+  # green, the `drought_z` precedent above -- at the D-10 lane's cadence, never inside a board commit.
+  # `state/lint.py` runs `check_cascade_map`'s own clauses over these rows, because the shipped check
+  # skips deferred rows by construction and would otherwise never grade them at all.
+
+  # (1) ENSO AT A DECLARED SIX-MONTH OFFSET. The palm boards' El_Nino / La_Nina nodes carry
+  # `silver_ref: oni_lag_climate` (4 instances: malaysian_crude_palm_oil_cme and palm_olein_dce), a ref
+  # nothing serves today -- so a palm board anchored on palm has NO numeric ENSO state at all. The
+  # column exists (`oni_lag6`, silver_noaa_oni.yaml:55; computed off the same ONI source by
+  # features/computations/macro_climate.py compute_oni_lag), and under the board's far-row rule this
+  # row RESOLVES TO THE SAME `(oni_climate, _global)` SERIES KEY at ONE memoised read: the palm row's
+  # own level, z and run are computed on the SAME array SHIFTED by `offset_months`, at zero extra
+  # reads. The palm author's "state now" is ONI six months ago; the projection counts from today's
+  # value; BOTH dates print. The band mismatch rides the row in WORDS and is never reconciled: the palm
+  # edge's `2-4 quarters` band comes from the EDGE, `oni_lag6` is the lagged column the card serves.
+  #
+  # `country_rule: none` HERE WHERE `oni_climate` DECLARES NONE AT ALL. oni_climate is a live row this
+  # sitting does not touch; its absent rule defaults to `primary`, which on a card with no country
+  # column is harmless but silent. A new row says what it means: the card is global, so the rule is
+  # `none`. (Same shape as the iod_climate row above, which declares it for the same reason.)
+  oni_lag_climate:
+    table: silver_noaa_oni
+    metric: oni_lag6
+    agg: latest
+    period_type: year_month        # windows via (year*100+month) bounds -- the ONI machinery wholesale
+    window_granularity: monthly
+    country_rule: none             # global ENSO state; the card has NO commodity/country column
+    global_state: true
+    same_series_as: oni_climate    # BOARD-ONLY: collapses to the oni_climate series key at one read
+    offset_months: 6               # the declared shift the served column already carries
+    deferred: true                 # INERT to the cascade (load_map drops it); un-defer is its own commit
+    board_read: true               # the board's accessor reads it
+    keying: "NO commodity/country column (global ENSO state read at a declared six-month offset); asof compares (year*100+month) <= asof YM"
+    native_unit: degC
+    narrate_unit: degC
+    scale: 1
+    coverage_start: 1950
+    status: mapped_supporting
+    notes: >
+      4 instances, both palm boards' El_Nino and La_Nina nodes. The SAME ENSO series as oni_climate,
+      read at the six-month offset the source column already carries -- never a second ENSO state and
+      never a second read. Narrate the offset out loud ("read at a declared six-month offset on the
+      same series") and print both the offset reading's own month and today's ONI month; a reader must
+      never be left to think the palm board's ENSO state is a different index from the soybean board's.
+      The projection horizon counts from TODAY's value, not from the lagged column.
+
+  # (2) `nass_crop_progress_ge_z` IS **HELD FOR S1**, AND THE REASON IS MEASURED (S0, 2026-09-08).
+  # The row itself is sound -- silver_nass_crop_progress.pct_good_excellent as a LEVEL (the z is a board
+  # transform), country_rule `region` so the geography fences itself -- and it was authored, landed and
+  # run before being pulled back out. FOUR THINGS MUST LAND IN ONE CHANGE and none of the other three
+  # is reachable from a lane-free sitting:
+  #   (i)   silver.reconcile.reconcile_cascade reads THIS FILE RAW (deferred rows included) and demands
+  #         a `cascade_ref` back-pointer on the referenced table's silver contract. Measured: adding the
+  #         row reds tests/unit/silver/test_silver_reconcile.py on `missing_cascade_ref`, and
+  #         configs/silver/tables/silver_nass_crop_progress.yaml -- which carries `cascade_ref: null`
+  #         waiting for exactly this -- is a GENERATED contract owned by
+  #         scripts/silver/gen_registry_from_baseline.py, so the value belongs in the generator's
+  #         context and the card is then re-rendered (hand-editing it reds the F011 idempotency gate:
+  #         measured, test_silver_registry_gen.py::test_checked_in_tree_matches_fresh_render).
+  #   (ii)  the registry card needs `country_name_ref: numbers/nass_states.yaml` (S0 landed the
+  #         reference data file, inert), because the card's geo axis is a USPS code and every caller
+  #         speaks country NAMES.
+  #   (iii) query._COUNTRY_REF_LOADERS needs its entry IN THE SAME COMMIT as (ii): `query._country_ref`
+  #         RAISES on a ref no loader serves, so the card key alone turns today's honest zero-row NASS
+  #         read into a hard error on every lookup that names a country.
+  #   (iv)  the live probe (`country='US'` returns rows) is the row's own gate and needs the pg mirror.
+  # MEASURED CARRIERS, so the S1 sitting starts from the number rather than re-deriving it: 12 driver
+  # instances across 9 boards. Under `country_rule: region` exactly 2 resolve to 'United States' (corn,
+  # corn_cbot; token US_Midwest) and are the only two the row is FOR; 3 resolve to a foreign country
+  # (soybeans.safrinha and soybeans_cbot.safrinha -> Brazil, soybeans_no_1_dce.pod_fill -> China) and
+  # fail CLOSED to zero rows against a USPS column; 7 tokens do not resolve at all ('global',
+  # 'US_Midwest/South_America', 'France;EU', 'Sao_Paulo_Brazil / Florida_US') and skip with
+  # `region-token-unresolved`. `country_rule: none` is NOT the alternative: the card HAS a country axis,
+  # so an unscoped read is mixed-state garbage -- the W0-7 class.
+
+  # (3) `crush_margin_z` IS **NOT** LANDED, AND THE REASON IS MEASURED (S0, 2026-09-08).
+  # The design's sec 2.6 item 3 says `crush_margin_z -> gold_board_crush.crush_margin_usd_bu` "passes
+  # as written". It passes the MECHANICAL clauses (the table exists, the metric exists, country_rule
+  # `none` is honest on a card with no country column) and fails the one that matters. MEASURED:
+  #   * gold_board_crush is "THE CBOT SOYBEAN BOARD CRUSH ... a single global CBOT spread -- no
+  #     commodity axis, no country axis", and its card's teaching set is the soy complex alone
+  #     (commodity_values: soybeans_cbot, soybean_meal_cbot, soybean_oil_cbot, soybeans, soy_complex).
+  #   * `crush_margin_z` is carried by 14 driver instances and NOT ONE of them sits on a CBOT board:
+  #     canola_ice.canola_crush_margin, french_rapeseed_matif.rapeseed_crush_margin,
+  #     rapeseed_meal_zce (x2), rapeseed_oil_zce.crush_margin, palm_olein_dce.China_soyoil_supply,
+  #     soybean_meal_dce (x3), soybean_oil_dce (x2), soybeans_no_1_dce, soybeans_no_2_dce (x2).
+  # With no commodity axis there is NO FENCE AVAILABLE: every one of the 14 would read the identical
+  # CBOT soybean spread, and a canola crush margin narrated from the CBOT board crush is a real, cited,
+  # unit-clean number about the WRONG THING -- the D4 class this file exists to refuse, and the C3 law
+  # ("prove, then bind, never same-shape") in one line. `deferred: true` would keep it out of the
+  # cascade but the BOARD would read it, which is the whole point of `board_read`, so deferring does
+  # not make it safe.
+  # THE DISCHARGE PATH, docketed rather than guessed: either (a) a per-board crush series (gold_board_
+  # crush gains a commodity axis, or a sibling gold table per crush complex), or (b) per-board refs in
+  # the `cbot_board_crush_margin` idiom -- one ref per board's own crush -- which is DAG work, not a
+  # map edit. Until one of them exists these 14 nodes stay honestly dark, as they are today.
 
   # ── PSD ATTRIBUTE AXIS (silver_psd_attributes, vintage, marketing-year) — Lane 3 L2-5, flipped
   # 2026-08-26 with the whitelist. THE LONG COMPANION, not a second silver_psd. Values are in USDA's

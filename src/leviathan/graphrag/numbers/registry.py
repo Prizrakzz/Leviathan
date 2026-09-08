@@ -238,6 +238,30 @@ class TableSpec(BaseModel):
     #                                                          many days later; the as-of guard shifts its cutoff
     #                                                          back by it (data_date + lag <= asof) so a not-yet-
     #                                                          published week is never citable. 0 = same-day default
+    ym_publication_lag_days: Optional[int] = None            # YEAR_MONTH PUBLICATION LAG (STATE ENGINE sec 1.4,
+    #                                                          D21/D23; landed S0). A `year_month` card has NO date
+    #                                                          column, so `_guard`'s year_month branch admits a data
+    #                                                          MONTH from its FIRST DAY ((year*100+month) <= asof_ym)
+    #                                                          while `_pub_lagged_asof` shifts only the OTHER branch
+    #                                                          -- so a month the publisher has not printed yet is
+    #                                                          citable for as long as its own publication lag. This
+    #                                                          field is the lag, in days AFTER MONTH-END, that the
+    #                                                          year_month branch of build_sql AND its oracle
+    #                                                          apply_pit_filter will shift by once the threaded
+    #                                                          `ym_lag` kwarg exists (S1).
+    #                                                          IT IS DELIBERATELY **NOT** `publication_lag_days`:
+    #                                                          a non-zero value there would render "publication lag:
+    #                                                          N days" into the numbers agent's CACHED system block
+    #                                                          and would shift the non-year_month branch too -- two
+    #                                                          serving changes riding a data edit.
+    #                                                          None (the default) = UNDECLARED, and undeclared means
+    #                                                          NO SHIFT and a consumer that says so. It is not 0:
+    #                                                          `0` would be a positive claim that the source prints
+    #                                                          on the last day of the data month, which no card in
+    #                                                          this estate has measured. NOTHING READS THIS FIELD
+    #                                                          UNTIL S1, so every compiled SQL string and every
+    #                                                          oracle verdict is byte-identical at this landing
+    #                                                          (pinned by tests/unit/test_state_registry_ym_lag.py).
     partition_cols: list[str] = []                           # injected-projection partitions: every query MUST carry
     #                                                          a static equality on EACH (silver_nasa_power:
     #                                                          commodity/country/region, mirroring the S3 layout)

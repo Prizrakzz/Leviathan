@@ -2010,6 +2010,14 @@ waivers:
   #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
   Algeria_tender_specs: {category: deferred, note: "Algeria OAIC wheat tender specs"}
   Argentina_crush_capacity: {category: deferred, note: "Argentine crush capacity fundamental"}
+  # STATE ENGINE S0 (2026-09-08), owner decision 10: the El_Nino -> Argentine crop -> CBOT price
+  #   leg the design needs as a NUMERIC child. Waived on the SAME ground as every other country-
+  #   production node here (Thailand_production, Canada_production, canadian_canola_supply,
+  #   China_domestic_crop, Florida_orange_production): a driver slice exists for props that
+  #   describe a driver WITHOUT naming one of our commodities, and "Argentine soybean production"
+  #   names soybeans -- so its text evidence is captured commodity-side and a driver slice would
+  #   double-harvest it. Its NUMBER comes from the observed silver leg (`production_region`, live).
+  Argentina_production: {category: deferred, note: "Argentine soybean production fundamental"}
   # CAD_FX: REMOVED 2026-08-19 (D-EC D15 Wave 1c) -- it now resolves to the `cad_fx` slice in dag_alias
   #   above, so the silver_only claim ("grounded by the observed silver leg, never text") is no longer
   #   true of it. Same shape as the MYR_USD / favorable_rainfall / gasoil_palm_spread removals.
