@@ -3123,8 +3123,16 @@ def test_k9_4_the_flag_is_read_at_the_two_permitted_seams_and_never_inside_the_e
     # the engine is gated by the ARGUMENT alone, on both of the seams that carry it
     for fn in (cq.quantify, cq._price_pair):
         assert inspect.signature(fn).parameters["vintage_role"].default is False
-    # ...and it is appended at the TAIL of quantify's signature, the g1x prefix rule
-    assert list(inspect.signature(cq.quantify).parameters)[-1] == "vintage_role"
+    # ...and it is appended at the TAIL of quantify's signature, the g1x prefix rule.
+    # S5 RE-ANCHOR (2026-09-08), by exactly ONE name and WITHOUT loosening the rule: STATE-ENGINE
+    # PHASE 0 appends `xc_sublegs_on_composer` after it (design 9.1 / D9, GRAPHRAG_XC_SUBLEGS_ON_
+    # COMPOSER, default False, dark). What K9-4 claims is that `vintage_role` LANDED AT THE TAIL and
+    # moved nothing before it -- so the pin now reads it as the last name BEFORE the appends that
+    # followed, each of which is OPTIONAL here, so reverting either item leaves this green.
+    _qt = list(inspect.signature(cq.quantify).parameters)
+    _after_k94 = [n for n in ("xc_sublegs_on_composer",) if n in _qt]
+    assert _qt[len(_qt) - 1 - len(_after_k94)] == "vintage_role", _qt[-3:]
+    assert _qt[len(_qt) - len(_after_k94):] == _after_k94, _qt[-3:]
     # THE DEPARTURE IS DECLARED IN SOURCE, NOT ONLY IN A REPORT. Design section 8 says K9-4 "rides
     # flags that are already on"; MEASURED, those are GRAPHRAG_CASCADE_PRICE_LEG and
     # GRAPHRAG_RECENCY_STAMP, BOTH `on` in cascade_control_overrides.json AND
@@ -3174,8 +3182,17 @@ def test_k9_4_the_answer_seam_is_omit_when_off_and_its_span_is_measured():
     assert stmts == [stop], stmts        # exactly one statement, and it is the cut's own stop anchor
     # K9-4's own lines land AFTER K9-6's stop anchor, so K9-6's measured span is untouched
     assert src.index(_walk._G1X_K96_CUT[1]) < src.index(start)
-    # the spread lands BEFORE `**_eod_kw`, which is the g1x producer's own end anchor
-    assert "**_xlh_kw, **_vr_kw, **_eod_kw)" in src
+    # the spread lands BEFORE `**_eod_kw`, which is the g1x producer's own end anchor.
+    # S5 RE-ANCHOR (2026-09-08): PHASE 0's `**_xsc_kw` lands between `**_vr_kw` and `**_eod_kw`, on the
+    # same law and for the same reason (an append ON the `**_eod_kw` spread leaves the producer without
+    # its end anchor and takes the whole gate down). K9-4's OWN claim -- its spread sits immediately
+    # after K9-6's and strictly before the producer's end anchor -- is unchanged and still asserted;
+    # what moved is only what sits between it and `**_eod_kw`, and that is named rather than globbed.
+    assert "**_xlh_kw, **_vr_kw, " in src
+    _i = src.index("**_xlh_kw, **_vr_kw, ")
+    _tail = src[_i:src.index(")", _i) + 1]
+    assert _tail in ("**_xlh_kw, **_vr_kw, **_eod_kw)",
+                     "**_xlh_kw, **_vr_kw, **_xsc_kw, **_eod_kw)"), _tail
     # and the recovery still reaches the banked HEAD block, cut order and all
     _repro, _head = _walk._g1x_sans(str(repo / "data" / "consequence_leg" / "xl_golden_seam_bank.py"))
     assert _head == "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074"

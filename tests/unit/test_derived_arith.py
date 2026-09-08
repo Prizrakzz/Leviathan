@@ -555,15 +555,29 @@ def test_seam_directive_is_register_clean_and_carries_the_license_tokens():
 
 def test_seam_lane_cap_is_one_producer_per_turn():
     """DV_LANE_CAP enforced at the call site: the fork's derived branch runs su_standing XOR
-    crush_share, never both -- pinned on the source (the F5 pool law)."""
+    crush_share, never both -- pinned on the source (the F5 pool law).
+
+    RE-ANCHORED at STATE-ENGINE PHASE 0 (design 9.1, D9), same law and a STRICTLY WIDER reach. The
+    branch did not move house: `_xc_sublegs` is the `if fired:` body of `_run_xc` lifted VERBATIM, so
+    that the transmission composer's link-1 dict can run the SAME two sub-legs behind
+    GRAPHRAG_XC_SUBLEGS_ON_COMPOSER instead of leaving them `not_reached` on the 7-of-12 banked turns
+    the composer fires. Pinning the LIFT rather than `_run_xc` is what keeps the cap honest at both
+    call sites: `_run_xc.count(...) == 1` would now read ZERO and pass vacuously if it were relaxed to
+    a `>= 0`, so the module-wide counts below assert there is exactly ONE producer of each in the whole
+    file, which is the fact `DV_LANE_CAP = 1` actually claims."""
     import inspect
+    from pathlib import Path
     from leviathan.graphrag.numbers import cascade as cq2
-    src = inspect.getsource(cq2._run_xc)
+    src = inspect.getsource(cq2._xc_sublegs)
     i_su = src.index("_dv.su_standing(")
     i_cr = src.index("_dv.crush_share(")
     seg = src[min(i_su, i_cr) - 600:max(i_su, i_cr)]
     assert "elif" in seg                                                 # the XOR branch shape
     assert src.count("_dv.su_standing(") == 1 and src.count("_dv.crush_share(") == 1
+    whole = Path(cq2.__file__).read_text(encoding="utf-8")               # ONE producer in the FILE
+    assert whole.count("_dv.su_standing(") == 1 and whole.count("_dv.crush_share(") == 1
+    assert "_xc_sublegs(" in inspect.getsource(cq2._run_xc)              # ...and both call sites use it
+    assert "_xc_sublegs(" in inspect.getsource(cq2.quantify)
 
 
 def test_su_standing_ancient_vintage_scatter_never_darks_the_lane():
