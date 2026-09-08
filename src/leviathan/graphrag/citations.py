@@ -9,6 +9,7 @@ recovery, fuzzy snippet-match fallback) — so numbers and page-level document c
 from __future__ import annotations
 
 import datetime as _dt
+import os
 import re
 from typing import Literal, Optional
 
@@ -441,6 +442,902 @@ def _period_label(period) -> Optional[str]:
     return per
 
 
+# ══ K9-2 (2026-09-07) UNSCOPED HEADLINE -- class (7b), THE INCOMMENSURABLE RANKING ═══════════════════
+#
+# THE MEASURED TRIGGER, the judged panel's STOP sentence quoted verbatim (cascade_panel.json,
+# `stops.treatment[23]`, id rv_canola_rapeoil -- TREATMENT = MAX; the sentence's own home is
+# cascade_pair_rv_canola_rapeoil.md:28, ANSWER A): "ICE canola stocks-to-use: 9 ratio [N9]; ZCE rapeseed
+# oil stocks-to-use: 18.75 ratio [N10]; Canadian canola stocks-to-use for the current year: 16.8472%
+# [N18] on 9.4 M ha harvested [N19]." THE JUDGE'S OWN REASON NAMES THIS WITHHOLD, same entry: "no scope
+# label -- world, Canada, China -- is attached to N9 or N10 to make the pair commensurate" (and, in the
+# same breath, "a stocks-to-use of 9 'ratio' is 900 percent if the unit label is taken literally").
+# What the engine handed him was
+#     [N9]  USDA PSD stocks-to-use ratio ICE canola = 9 ratio [1907 rows served, covering
+#           2006-06-09..2026-08-12; newest shown]
+#     [N10] USDA PSD stocks-to-use ratio ZCE rapeseed oil = 18.75 ratio [2216 rows served, same span]
+# -- a query naming NO country (`served_rows` #9 and #10 of the max rv_canola_rapeoil list carry
+# `country: None` at row_count 1907 / 2216, measured), a serve spanning many scopes on PSD's country axis
+# (31 and 33 distinct country values in the 40 banked rows apiece -- `rows` is truncated in the artifact,
+# so those are lower bounds), and a headline that is `max(rows, _row_order_key)`: ONE arbitrary row. The
+# geo fallback above is CORRECT to refuse a name (the `_dest_coded` unanimity fence), so the label names
+# no scope at all, and the abundance marker states how many ROWS and nothing about how many SCOPES. So
+# the writer was handed two figures with no scope on either and RANKED THEM against each other -- which
+# is the judge's complaint word for word, and it is the tightness verdict the whole answer stands on.
+# MEASURED across the 12 banked panels: 11 lines, 6 of 12 answers (deep 5, max 6).
+#
+# THE DEEP ARM CARRIES THE IDENTICAL ENGINE SHAPE AND THE PANEL DID NOT STOP IT. This is stated because
+# an earlier draft of this note LED with the deep line as the judged trigger, and the artifact contradicts
+# that (verify K9-2-2-MAJOR-2). Deep rv_canola_rapeoil renders
+#     [N25] USDA PSD production ICE canola = 22,500,000 MT [1931 rows served, covering
+#           2006-06-09..2026-08-12; newest shown]
+#     [N26] USDA PSD production ZCE rapeseed oil = 10,542,000 MT [2391 rows served, same span]
+# on the same predicate (query country None, 32 distinct PSD country values), and there the writer did
+# not rank the pair -- he SUPPLIED the missing scope himself, at
+# cascade_pair_rv_canola_rapeoil.md:404 (ANSWER B = control = DEEP): "World
+# production levels exist for each side -- canola 22,500,000 MT [N25] and rapeseed oil 10,542,000 MT
+# [N26] -- but these are tonnage levels of different commodities and are not comparable to each other"
+# (the banked bytes spell those two dashes U+2014; the ASCII spelling here is a transliteration, and the
+# TRAILING HALF IS QUOTED IN because an earlier draft of this note truncated it at the first dash and so
+# dropped the disclosure -- the half the judge approved).
+# MEASURED against the artifact that would have to record it: `cascade_panel.json` contains the string
+# "World production" ZERO times, and its control stop list holds exactly FOUR rv_canola_rapeoil entries,
+# none of them that sentence (the N34/N37 uncited-prior pair, the N33 pace-streak direction recorded
+# twice, and the "state reserve activity" driver). Where the panel DOES speak to the line it is the
+# `uncited` bucket and the verdict is the opposite of a stop: "B: [N25] 22,500,000 MT and [N26]
+# 10,542,000 MT are cited and then explicitly set aside as non-comparable -- cited but not used, though
+# the setting-aside is disclosed and correct." So the deep line is UNCITED-BUT-DISCLOSED, not judged
+# wrong: the unsourced word is "World", and the half after the em dash is the disclosure the judge
+# approved -- which is exactly why `answer._sentence_has_resolved_handle` protects that sentence from
+# deletion instead of letting the flag kill it.
+#
+# THE EXPECTED GAIN, PRICED BY THE PANEL AND NOT BY THE CENSUS SIZE. Cross-checked by [N] index against
+# `cascade_panel.json`'s two stop lists, exactly TWO of the 11 census-A lines are named inside a recorded
+# STOP: max rv_canola_rapeoil [N9] and [N10] -- ONE JUDGED PAIR. They print in TWO stopped sentences (the
+# TL;DR at pair-file :12, recorded twice as `stops.treatment[22]` and `[24]`, and the record bullet at
+# :28, `stops.treatment[23]`); a third entry, `stops.treatment[25]`, charges the derived line "Seed
+# carries the thinner cushion on the served rows; oil carries the thicker one." for the same premise, and
+# that one carries no handle at all.
+# THE OTHER 9 LINES ARE PREVENTION, NOT RECORDED STOPS -- the panel charged them nothing, and one of
+# them the panel records as never having reached the page: "A: silver_psd.su_ratio=0.0375@2024 (latest of
+# 30 rows) was looked up and appears in no Source row and in no sentence -- computed, never cited"
+# (that is max rv_canola_rapeoil #17, the third census-A line in that answer). So the TIER-2 re-panel
+# pays the anti-suppression cost below on all 11 lines against one judged pair scored today; the other 9
+# are a class the engine stops minting, and nothing in the panel prices them yet.
+#
+# SO THE LINE IS NOT A SCOPED FACT AND MUST NOT PRINT AS ONE. This is the `_zero_aggregate` precedent
+# directly above, on the GEOGRAPHY axis instead of the arithmetic one: `value` and `unit` are WITHHELD
+# (`answer._number_handle_value` reads `Citation.value`, so leaving the figure there lets a stand-in [N]
+# handle splice one scope's row into prose about the commodity), while `payload`/`locator` keep the real
+# row set so the drill-down still re-runs the read.
+#
+# THE FENCE IS TWO-SIDED, AND THE SECOND SIDE IS THE MEASUREMENT THAT SAVED IT. The withhold fires only
+# when the QUERY names no country AND the rows carry MORE THAN ONE country value. Measured: 4 multi-row
+# banked calls carry NO country value on any row (silver_fred_fx.inr_usd -- deep rv_palm_rapeoil N21/N22
+# and max N8/N9). An unguarded withhold would refuse all four -- an FX rate refused for having no geography,
+# under a label reading "spans 0 geographic scopes" -- which is NOT this class: a read whose rows name no
+# scope is not a read that names one of many.
+#
+# DELIBERATELY NOT COVERED, stated rather than papered over:
+#   * NO SCOPED REPLACEMENT IS SUPPLIED. This removes a figure and puts no World row in its place -- a
+#     DECLARED world aggregate is a `silver_production` FAO-3 question, outside this seam. What the reader
+#     keeps is the row set behind the handle and a label that is true; what the reader loses is a number
+#     that was never a figure for the commodity. TWO LOSSES, TWO INSTRUMENTS, AND THE FIX PASS SEPARATED
+#     THEM (verify MAJOR-1): the PROSPECTIVE loss -- a fresh writer shown no figure states one fewer -- is
+#     what the re-panel's anti-suppression floor (claim_count >= 280, handles_checked >= 224 against a
+#     295/236 baseline) prices, because `verify` computes claim_count on the writer's PRE-resolution prose.
+#     The POST-HOC residue -- a figure the writer stated anyway -- is invisible to that floor by
+#     construction, and is priced instead by post-resolution CITATION COVERAGE over the withheld class.
+#     THAT COVERAGE FIGURE IS RE-MEASURED IN PRODUCTION ORDER (verify K9-2-2-MAJOR-1) AND THE OLD ONE IS
+#     WITHDRAWN. It read "6 of 6 withheld handles kept, 0 `## Sources` rows lost", measured on a chain
+#     that ran `answer._resolve_number_handles` ALONE -- but the `handle_prose` lane runs
+#     `answer._drop_bare_digit_sentences` one seam EARLIER (answer.py:4216-4227, :10513-10517), and that
+#     stage deletes prose this one never sees. WITH IT, over the 12 banked answers, flag off -> flag on:
+#       bare-digit `{sentences_dropped 77, clauses_severed 90}` IDENTICAL at both settings (it was
+#         `77/90` -> `78/89` before the re-fix taught its sever-vs-kill discriminator to read a
+#         withheld-and-kept handle as a receipt -- `answer._sentence_has_resolved_handle`);
+#       `handles_dropped` 0, `sentences_dropped` 0, and 86 distinct `## Sources` rows lost, ALL THREE
+#         IDENTICAL at both settings -- the flag adds no deletion anywhere in the chain;
+#       COVERAGE ON THE CLASS: the model wrote 6 withheld-class handle instances and 2 reach the reader,
+#         at BOTH settings. The other 4 sit in sentences the bare-digit stage deletes at HEAD too, so
+#         they are a PRE-EXISTING loss this item neither mints nor repairs -- and they include the whole
+#         max rv_canola_rapeoil TL;DR clause the RED render pin below is drawn from.
+#     2 of 6, not 6 of 6, and the delta this item owns is zero. Pinned in
+#     tests/unit/test_k9_stop_census.py against the production stack, not against this pass alone.
+#   * THE ZERO-AGGREGATE CLASS KEEPS PRECEDENCE, and the two classes are DISJOINT BY CONSTRUCTION rather
+#     than by ordering: `agent._is_zero_esr_aggregate` requires `len(rows) == 1`, and more than one
+#     distinct country value needs at least two rows. The branch below is still ordered second, because a
+#     pinned label must not move on an argument about which predicate cannot fire.
+#   * ONE ARBITRARY ROW IS STILL THE HEADLINE for the `[known ...]` date and for `payload` -- the class is
+#     about what the LABEL asserts, not about which row the record carries.
+#   * THE FOOTER-1 EXTRAS PATH IS LEFT ALONE ON PURPOSE, and it is NOT the `_zero_aggregate` skip at
+#     `prose_completion_citations`. An extra names the ROW's own country (`geo` at the `_extra_citations`
+#     seam), so a row this call served can still reach the reader as a SCOPED line -- which is the honest
+#     shape, not the one this branch refuses. Skipping the class there would suppress scoped facts and pay
+#     the anti-suppression floor for nothing. FIX-PASS: that path is not merely left alone, it is REACHABLE
+#     again. `prose_completion_citations`' entry fence is `if i not in cited: continue`, and the first
+#     build's bare token drop de-cited the call and closed it -- so the one repair the estate already owns
+#     for a stated-but-unscoped figure was fenced off from the class it was written for. With the handle
+#     kept, a numeral the prose states can once more earn the SCOPED sibling row that answers it. STATED AS
+#     A REACHABILITY, NOT AS A MEASURED MINT: replayed on the banked max rv_canola_rapeoil call list this
+#     path mints 0 rows at both flag settings, because `served_rows` banks 40 of that call's 1,907 rows and
+#     the stated 9 / 18.75 are not among the 40. The fence reopened is exact; what it will mint in
+#     production is not measurable from these artifacts and is not claimed here.
+#   * THE POST-HOC HALF IS A KEPT RECEIPT, NOT A CUT CLAUSE -- FIX-PASS, verify MAJOR-1, AND THIS BULLET
+#     IS THE CORRECTION OF WHAT IT USED TO CLAIM. It claimed that a withheld call is an EMPTY-ROW ADDRESS
+#     to `answer._addresses_empty_row` (true -- it keys on `c.value is None`) and therefore that "a handle
+#     pointing at it is dropped and its clause cut after the writer has written it" (FALSE, and measured
+#     false on the banked prose: 6 handles dropped, 0 clauses cut, 0 sentences dropped, both arms, both
+#     `handle_prose` settings). The sever/kill rungs are reached only through `standin`, i.e. only when the
+#     handle sits in a VALUE SLOT; the census-A handles follow the model's OWN digit, so every one took the
+#     bare token drop -- which deleted the `## Sources` row (`answer._cited_sources_block` builds it from
+#     the indices the PROSE still carries) and left the figure standing. That reader state -- a stated
+#     figure with its receipt deleted -- is worse than HEAD and is not a state the D-PQ HANDLE-4 join
+#     covers. THE FENCE NOW CORRECTS INSTEAD: `answer._scope_withheld_token` keeps a withheld handle that
+#     is not standing in a value slot, so the reader holds the figure AND a `## Sources` row reading `= ONE
+#     SCOPE OF MANY (...)`. The value-slot leg still severs or kills, because that sentence promised a
+#     figure and can produce none. The full measurement and the sever variant that was tried and rejected
+#     are in that function's own block note.
+#   * `is_empty_read` STAYS FALSE FOR THIS CLASS, and the prompt-side instruction is now its own clause.
+#     `is_empty_read` is documented as THE ONE PRODUCER for "this read produced no value at all" (zero rows
+#     OR all-blank), and a call that served 4,759 valued rows is not that -- widening it would mis-describe
+#     the read to the two other consumers that share it, and would have the writer tell a reader the record
+#     is empty about a read that served thousands of rows. So the directive rides its own predicate,
+#     `scope_withheld` (below), consumed at `orchestrator._numbers_block` beside the empty-read directive
+#     it is modelled on. `_zero_aggregate` keeps the older shape (a refusing LABEL, no directive); this
+#     class does not, because the measurement showed a label alone does not stop the figure being written.
+#   * `verify` IS UNAFFECTED BY CONSTRUCTION: `_row_vals` parses the CALL's rows, which are untouched, so
+#     no correct sentence gains a `number_mismatch` and no new strip family appears. The change is what the
+#     writer is SHOWN, not what the verifier can back.
+#   * THE ROW-COUNT AXIS IS UNTOUCHED. `served_rows` truncates the banked row lists, so 11 is a LOWER bound
+#     on this class; the predicate runs on the LIVE `rows` and needs no census to fire.
+#   * THE WITHHELD LINE LOSES EXACTLY `value` AND `unit`, AND NOTHING ELSE -- FIX-PASS, review MAJOR-2.
+#     The first build put this branch BESIDE the value branch, which silently took the whole provenance
+#     suffix with it. MEASURED over the 11 census-A lines at HEAD: all 11 carry the PA-8(a) abundance
+#     marker, 5 of those carry its `, covering {span}` clause and 8 of 11 carry `(latest available ...;
+#     as-of ...)` -- every one of which the beside-branch dropped, none of which the design authorized
+#     removing. Worse on the capped axis: a truncated read would have lost the D-PQ RENDER-3 TRUNCATED
+#     annotation while `orchestrator._numbers_block` (:63) still emitted its directive, because that gate
+#     reads `agent.series_truncated` over the CALLS and not the labels -- the writer told to "state the
+#     span the marked line names" about a line carrying no marker, which is the self-inconsistent prompt
+#     RENDER-3's own note records the measured cost of (a 5000-row-capped corn read sold as "the
+#     full-history trading range on record"). The class is live on this one: the largest banked census-A
+#     serve is 4,759 rows (max rv_soyoil_palm). So the withhold now sits INSIDE the value branch and only
+#     the `= ...` head differs; the marker's last word becomes "newest withheld", which is the one word of
+#     that suffix the withhold makes false.
+#   * THE SCOPE COUNT RIDES THE WITHHELD LABEL AND NOWHERE ELSE -- FIX-PASS, review MAJOR-1. The design
+#     extended the abundance marker "ONLY WHEN `len(_geos) > 1` -- the same condition the withhold uses",
+#     i.e. onto THIS class; the first build put that clause on the value-bearing branch instead, where the
+#     withhold above makes it unreachable for this class (measured 0 of the 509 banked calls) and where the
+#     only shapes that CAN reach it are the estate's documented ONE-COUNTRY WIDENINGS. Reproduced on the
+#     real registry: configs/graphrag/numbers/tables.yaml:455-457 `cotton: {region: ['u_s_cotton',
+#     'united_states']}`, whose own note reads "the US cotton farm price lives under BOTH region codes
+#     across the 2011 break", is applied as a country_col widening at `numbers/query.py` and surfaced as
+#     the row's `country` alias, so a scoped US cotton farm-price series would have printed "across 2
+#     country scopes" -- ONE country under two region codes, a false geographic fact minted into the
+#     reader's `## Sources` line. That is the very class (a figure in a label the reader takes as a fact it
+#     is not) this item exists to kill. The count is therefore stated ONCE, on the label of the class that
+#     is genuinely one-of-many, and the value-bearing branch is byte-identical to HEAD at every setting of
+#     the flag -- so with the flag ON the entire observable change is the 11 census-A labels.
+#   * "GEOGRAPHIC SCOPES", NOT "COUNTRY SCOPES" (review MINOR-1, and the reason the design's own word does
+#     not survive): `_geos` counts distinct non-empty values of the row's `country` alias, which is the
+#     CARD's country_col and not a country list. MEASURED across the 11 census-A serves: 114 distinct
+#     values, including 'European Union', 'Belgium-Luxembourg', 'Former Yugoslavia', 'Former
+#     Czechoslovakia' and 'Union of Soviet Socialist Repu'; the silver_wasde card's own notes record that
+#     its region column holds 'world', 'major_exporters' and 'total_foreign'. "Geographic scopes" is true
+#     of every measured value; "country scopes" is not.
+#
+# FLAG `GRAPHRAG_SCOPE_WITHHOLD`, DEFAULT OFF, omit-when-off: with it off `_scope_withheld` is False, the
+# withhold below is never taken and nothing else in `from_number` reads the flag, so every label on both
+# arms is byte-identical to today (pinned in tests/unit/test_k9_stop_census.py).
+_SCOPE_WITHHOLD_MARK = "ONE SCOPE OF MANY ("
+_SCOPE_WITHHOLD_LABEL = (_SCOPE_WITHHOLD_MARK + "this read spans {k} geographic scopes and names none; the "
+                         "newest row is one of them, not a figure for the commodity)")
+
+
+def _scope_withhold_on() -> bool:
+    """K9-2 kill-switch (`GRAPHRAG_SCOPE_WITHHOLD`). Read PER CALL, never memoized: a serving process is
+    long-lived, so the env-flip rollback must take effect without a redeploy (the `_extreme_locator_on`
+    idiom at answer.py). DEFAULT-OFF, fail-closed -- an unset flag renders exactly today's label."""
+    return os.environ.get("GRAPHRAG_SCOPE_WITHHOLD", "").strip().lower() in ("on", "1", "true")
+
+
+def scope_withheld(call, idx: int = 1) -> bool:
+    """True when `from_number` WITHHELD this call's figure for the unscoped-multi-geo class -- THE ONE
+    PRODUCER of that question, for the two consumers that must act on the answer downstream of the label
+    (`orchestrator._numbers_block`'s prompt-side directive and `answer._resolve_number_handles`' handle
+    verdict). FIX-PASS, verify MAJOR-1.
+
+    READ OFF THE RENDERED LABEL, NOT RE-DERIVED FROM THE QUERY, and that is the whole point: the withhold
+    sits INSIDE `from_number`'s value branch, downstream of the blank-value routing and of the
+    zero-aggregate branch that is ordered ahead of it, so a predicate rebuilt out of `_unscoped_multi_geo`
+    alone would answer True on reads this renderer never withheld. `_addresses_empty_row` already asks its
+    own question this way (call the producer, read `Citation.value`); this adds the ONE discriminator that
+    tells the withheld class apart from the rest of the value-less population -- the mark of the label the
+    reader is actually shown. `_SCOPE_WITHHOLD_MARK` is the sole producer of that string.
+
+    FLAG OFF -> `_scope_withheld` is never True inside `from_number`, so this returns False for every call
+    and both consumers are byte-identical to HEAD. The flag is read FIRST so the off path costs nothing at
+    all: `orchestrator._numbers_block` asks this of every call on every turn, and `from_number` has already
+    run over that same list one line above it. Never raises: a malformed record reads False, the side that
+    leaves today's behaviour exactly as it is."""
+    if not _scope_withhold_on():
+        return False
+    try:
+        c = from_number(call, idx)
+    except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
+        return False
+    return c.value is None and _SCOPE_WITHHOLD_MARK in (c.label or "")
+
+
+# ── THE SHARED UNSCOPED-MULTI-GEO PREDICATE -- ONE PREDICATE, TWO ITEMS (K9-3 fix-pass, review MAJOR-1) ─
+#
+# `from_number` reads it to decide whether to WITHHOLD a headline (K9-2); `_harmonised_call` reads it to
+# decide whether to REFUSE a rescale (K9-3). They cannot drift, because there is one predicate.
+#
+# THE DESIGN MADE THAT PAIRING AN ORDER AND THE FIRST BUILD ENFORCED IT WITH SHIPPING HISTORY ALONE.
+# Section 9: "K9-2 SHIPS FIRST; the order in section 9 is load-bearing, not cosmetic ... rescaling an
+# unscoped headline 9 -> 900 % is the exact absurdity K9-2 exists to remove". But the two are INDEPENDENT
+# env flags, and `_scope_withhold_on`'s own docstring advertises the (K9-2 off, K9-3 on) cell as reachable
+# without a redeploy -- it IS K9-2's advertised rollback. MEASURED in that cell on the deck's census-A
+# fixtures before this predicate was shared:
+#     USDA PSD stocks-to-use ratio ICE canola       = 900 %   [1907 rows served, covering ...]
+#     USDA PSD stocks-to-use ratio ZCE rapeseed oil = 1,875 % [2216 rows served, covering ...]
+# against `= 9 ratio` / `= 18.75 ratio` at HEAD -- verbatim the absurdity the order exists to prevent, and
+# printed LOUDER than HEAD prints it.
+#
+# WHY A SHARED PREDICATE AND NOT A FLAG INTERLOCK. Gating K9-3 on K9-2's flag closes exactly one of the
+# four flag cells, leaves the class alive the day K9-2's flag retires into permanence, and makes one item's
+# rollback silently re-arm another's. Refusing the CLASS closes it at every setting of both flags, by
+# construction rather than by shipping order. (The BUILT reach is now smaller still: the table-axis fence
+# added by the verify pass refuses 7 more keys, and the measured reach is the 3 banked calls named in the
+# blast-radius block below.) DELIBERATELY NOT COVERED: a read that names ONE scope, and a read whose rows name NONE
+# (the 4 banked silver_fred_fx.inr_usd serves). Neither is this class and both keep today's rescale.
+def _geo_scopes(rows) -> set:
+    """The distinct non-empty values of the row's `country` alias -- the CARD's country_col and NOT a
+    country list (measured across the 11 census-A serves: 114 distinct values, including 'European Union',
+    'Belgium-Luxembourg', 'Former Yugoslavia' and 'Union of Soviet Socialist Repu'), which is why every
+    label built on this count says GEOGRAPHIC scopes."""
+    return {str(r.get("country")).strip() for r in (rows or ())
+            if isinstance(r, dict) and str(r.get("country") or "").strip()}
+
+
+def _unscoped_multi_geo(q, geos) -> int:
+    """How many geographic scopes an UNSCOPED read spans, or 0 when the read is not that class -- the
+    truthy return IS the count the withheld label states. The two conditions are stated in the QUERY's own
+    terms rather than through `geo`, because `geo is None` is ALSO true of the zero-scope reads this class
+    deliberately excludes."""
+    if (q or {}).get("country"):
+        return 0
+    return len(geos) if len(geos) > 1 else 0
+
+
+# ══ K9-3 (2026-09-07) DECLARED-SCALE DIVERGENCE -- class (2), UNIT-SCALE MIXING ══════════════════════
+#
+# THE MEASURED TRIGGER, the judged panel's STOP sentence quoted verbatim (cascade_panel.json, treatment
+# STOP #12, id rv_beans_meal; TREATMENT = max per cascade_mask_key.json):
+#   "US soybean stocks-to-use came in at 0.117499 ratio for MY2025 and fell year on year by -0.0178907
+#    ratio [N19][N21], while US soybean meal stocks-to-use sat at 1.03033 % [N30] and rose year on year
+#    by 0.00266861 ratio [N22]" -- STOP: the same metric is carried on two scales inside one comparative
+#   clause answering a tighter-than question -- 0.117499 as a ratio (11.75 percent) against 1.03033 as a
+#   percent (0.0103 ratio) -- so a reader ranking the two levels as printed gets the ranking backwards by
+#   a factor of about eleven; A never harmonises them.
+# The writer transcribed the panel faithfully. ONE panel, ONE table, ONE metric, ONE country, ONE
+# marketing year, TWO scales (cascade_pair_rv_beans_meal.md:387,396):
+#   [N19] USDA PSD stocks-to-use ratio CBOT soybeans     United States MY2025 = 0.117499 ratio
+#   [N30] USDA PSD stocks-to-use ratio CBOT soybean meal United States MY2025 = 1.03033 %
+# and the same split on the tonnage axis, inside ONE prose sentence of that answer: "production
+# 57,427,000 MT [N26] against domestic consumption 39.599 MMT [N32]".
+#
+# THE SOURCE OF THE SPLIT IS A DECLARED LAW ONE LANE DOES NOT OBEY. `configs/graphrag/numbers/
+# cascade_map.yaml` writes the law down twice: `scale: 100  # 0.36 ratio -> 36.0 % -- THE ratio trap;
+# pre-scale is MANDATORY`, and the file header ("injected [N] rows are emitted PRE-SCALED to
+# narrate_unit so the mentor's narrated figure value-checks at scale 1"). `config_check` lints it
+# (`scale != 1 requires narrate_unit`). The CASCADE obeys, through `_prescaled` (cascade.py) -- which is
+# where [N30]'s '%' and [N32]'s MMT come from. THE NUMBERS AGENT'S OWN LOOKUPS NEVER SEE THE MAP, so in
+# each pair above the FIRST handle ([N19], [N26]) is the agent's raw served row and the SECOND ([N30],
+# [N32]) is the estate's own pre-scaled mint -- in one panel, under one metric name.
+#
+# SO THE TRIGGER IS MAP-DECLARED, NOT LIST-DERIVED, and that is what makes the seam work. A predicate
+# that looked for a '%' row in the agent's own list could never fire: measured agent-lane lengths (each
+# answer's "numbers looked up:" ladder) are max beans_meal 29 and max canola_rapeoil 17, so [N30] and
+# [N18] -- the only '%' su_ratio rows in those panels -- are the FIRST CASCADE MINTS, one past the end
+# of the list this seam sees. The map is read instead, and the map needs no '%' row to declare a scale.
+#
+# THE BLAST RADIUS, MEASURED on the 12 banked answers (census D, reproduced from
+# cascade_baseline_{control,treatment}.json `per_answer[].served_rows`, truncated to each answer's
+# agent-lane length): 25 calls / 345 rows -- deep 5 / 101, max 20 / 244 -- against 16 (table, metric)
+# keys carrying scale != 1 across 23 map refs (RE-MEASURED this pass, verify minor: the build reported
+# 22 refs, exact against HEAD's map blob; a co-tenant's D-10 sitting landed `psd_crush_region` and
+# `beginning_stock_region` mid-session, so the tree now reads 23. The KEY count is unchanged and no
+# term of this producer moves with it).
+#
+# THE BUILT REACH IS SMALLER THAN THE CENSUS, AND IT IS MEASURED THROUGH THE PRODUCER ITSELF rather
+# than through a re-implementation of it. Replaying ALL 509 banked call records (both baselines, every
+# answer, every `served_rows` entry) through `harmonise_declared_scale`:
+#     flag OFF  0 calls / 0 rows rewritten, 509 of 509 back as the SAME OBJECT, and the 455 of them
+#               HEAD's `from_number` can render come back byte-identical to HEAD (label, value and
+#               unit) -- the flag-off non-regression bar, measured rather than argued.
+#     flag ON   3 calls / 3 rows, named individually because there are only three:
+#                 control  rv_soyoil_palm  [N2]  silver_mpob.closing_stocks_palm_oil_mt -> 2.62832 MMT
+#                 treatment rv_soyoil_palm [N8]  silver_mpob.closing_stocks_palm_oil_mt -> 2.62832 MMT
+#                 treatment rv_beans_meal  [N27] silver_psd.consumption_mt              -> 39.599 MMT
+# BEFORE THE TABLE-AXIS FENCE THE SAME REPLAY REWROTE 17 CALLS / 17 ROWS, and the difference is the
+# verify FATAL: su_ratio, production_mt, exports_mt, ending_stocks_mt and the three changes that ride
+# them are refused because sibling cards print their analyst names at their card units and the map is
+# silent about those cards. The rest of the gap to census D is the unscoped multi-geo refusal: 4 of the
+# 5 deep census-D calls and 6 of the 20 max ones headline one arbitrary scope's row (deep soyoil_palm
+# ending_stocks_mt x2, deep canola production_mt x2), and this seam refuses to restate those on a
+# louder scale AT EVERY SETTING OF BOTH FLAGS -- the "9 ratio -> 900 %" absurdity K9-2 exists to remove
+# cannot happen here even with K9-2 rolled back.
+# THE TWO ITEMS NEVER FIGHT, and not because of shipping order: they are DIFFERENT seams -- this one
+# rewrites ROWS before the list is published, K9-2 withholds a LABEL at render time, downstream of it
+# -- and they share ONE predicate for the class they both refuse (block note above `_geo_scopes`).
+#
+# WHY EVERY ROW AND NOT THE HEADLINE -- WITH ONE DESIGN CLAIM CORRECTED, NAMED RATHER THAN REPEATED. The
+# design's stated reason was that a label-only change "would charge `number_mismatch` on every CORRECT
+# sentence". MEASURED THIS SITTING, AND IT DOES NOT REPRODUCE: `verify._num_matches` walks the scale ladder
+# (1, 1e2, 1e3, 1e6, 1e9) in BOTH directions, which covers every scale this map declares (100, 0.001,
+# 1e-06), so a prose 11.7499 already backs against a row of 0.117499 and would go on backing. The reason
+# every row must move is the one the RENDERER makes plain instead:
+#   * `_mint_row_citations` -- the FOOTER-1 extras path below -- labels a SIBLING row of the SAME call with
+#     `r.get("unit") or _metric_unit(table, metric, ...)`, the identical rule `from_number` uses. A
+#     headline-only rescale therefore prints `[N19] ... = 11.7499 %` above `[N19b] ... = 0.106 ratio` for
+#     ONE metric inside ONE footer block: the split moved INSIDE the record instead of being removed.
+#   * `payload` is `{"query": q, "rows": rows[:3]}` -- the drill-down the reader opens. A scaled label over
+#     raw payload rows is a label its own record does not support.
+#   * `verify._mismatch_pool` falls back to `_row_vals` over the WHOLE list for any call with no `shown`
+#     binding, which is every agent-lane call, so the pool must speak the units the label speaks.
+# AND THE SAME MEASUREMENT IS HALF THE GREEN PIN: because that ladder is scale-insensitive at exactly these
+# powers, moving rows and labels TOGETHER mints no `number_mismatch` either, in either direction, on either
+# arm. Rows and labels move together or the fix is wrong. It is also why this cannot be a `from_number`
+# change: the renderer sees one call at a time and cannot rewrite what the verifier reads.
+#
+# THE FENCES, each with what it deliberately does not cover:
+#   * A ROW THAT CARRIES ITS OWN UNIT IS UNTOUCHED. This is the whole safety of the harmoniser, and it is
+#     measured: `silver_psd` declares no `unit_col`, so its rows arrive unit-less and the CARD's unit
+#     ('ratio', 'MT') is what `from_number` falls back to -- those are census D. `silver_psd_attributes`
+#     DOES declare one, so all 40 rows of the deep rv_corn_wheat Feed-Dom.-Consumption serve carry
+#     '(1000 MT)' of their own and sit outside the class, exactly as the census counts them. The same
+#     rule is what makes a cascade `_prescaled` mint inert here: its headline row already carries
+#     `narrate_unit`, from these identical constants.
+#   * A VALUE THAT DOES NOT PARSE IS UNTOUCHED. `Q.run` returns values as STRINGS ('8847000.0'); the
+#     cascade's own `_float_val` handles that with `float(str(v).replace(",", ""))` and this delegates to
+#     the identical cast. A blank or None value raises and the row is left exactly as it is -- which is
+#     what keeps `values_all_blank` / `is_empty_read` verdicts, and therefore the empty-read directive
+#     and the BLANK_VALUE_STATUS label, byte-identical on the blank-value shape.
+#   * THE HEADLINE ROW CANNOT MOVE. `_row_order_key`'s own note states it: "`unit` is not in this key at
+#     all". Stamping a unit changes no ordering term, so `max(rows, _row_order_key)` returns the same
+#     observation before and after and no label changes which row it speaks for.
+#   * A CALL CARRYING `shown` IS REFUSED OUTRIGHT. `shown` is the panel's own testimony about the
+#     magnitudes a LINE printed, and `verify._mismatch_pool` checks a cited figure against it IN
+#     PREFERENCE to the rows. Rescaling rows under a `shown` list would silently break that binding. It
+#     is minted only by `cascade._shown` / `numbers.derived` / `numbers.pattern_records` -- engine
+#     records, which do not reach this seam -- so the guard is fail-closed rather than load-bearing today.
+#   * A NON-UNANIMOUS (table, metric) IS REFUSED. The map is keyed by silver_ref, not by (table, metric),
+#     and MEASURED on the live map one key is served by two refs that DISAGREE about the unit:
+#     `gold_futures_spreads.spread_value` is 'US cents/bushel' under kc_chi_spread and 'ZAR/t' under
+#     white_yellow_spread. Both carry scale 1, so that key is out of this class today; the SHAPE is not,
+#     and a producer that took "the first ref that matches" would stamp one board's currency on the
+#     other's rows the day a scale is added. Disagreement -> None -> today's rendering. AND IT IS NOW
+#     LINTED rather than fail-silent (fix-pass, review MAJOR-2): `config_check._check_narrate_scale_family`
+#     fails the BUILD when such a key carries a real scale, which is the day the silent refusal starts
+#     costing a harmonisation. The scale-1 pair above stays green on purpose -- nothing is owed there.
+#   * THE HYBRID SEAM ONLY. `run_numbers_only` publishes its own list to `cit.unify`, and this harmoniser
+#     is deliberately NOT applied there: on that lane THE AGENT'S PROSE IS THE ANSWER, and it was written
+#     against the raw tool results. Rescaling the rows underneath it would put a harmonised `## Sources`
+#     footer under prose quoting the raw figure -- minting the very mismatch this item removes. On hybrid
+#     the agent's prose is discarded and the writer sees only these labels.
+#   * THE SSE `number` TICK IS NOT COVERED, and cannot be from here: `orchestrator._emit_numbers` fires
+#     inside the numbers WORKER THREAD the moment the agent returns, strictly before this seam runs on
+#     the calling thread. It already emits the ROW's own unit, which is None for every census-D row, so
+#     that tick is unit-less today and stays unit-less; it carries no scale claim to contradict.
+#   * AN UNSCOPED MULTI-GEO READ IS REFUSED OUTRIGHT, at every setting of BOTH flags -- fix-pass,
+#     review MAJOR-1. The class, the 900 %/1,875 % measurement and the reason this is a shared
+#     PREDICATE rather than a flag interlock are written above `_geo_scopes`, because the predicate
+#     belongs to K9-2 and K9-3 equally.
+#   * A METRIC'S OWN CHANGE MOVES WITH IT, OR NEITHER MOVES -- fix-pass, review FATAL. The delta-twin
+#     note above `_delta_unit` carries it: the card-declared co-unit sibling, the 4-of-67 registry
+#     census that fences it, and the estate's own word for a change of a narrated quantity.
+#   * WHAT THIS DOES NOT HARMONISE, said plainly: TWO DIFFERENT QUANTITIES, one of which the map
+#     declares nothing for. After the fix the deep rv_soyoil_palm panel prints `closing stocks ... =
+#     2.62832 MMT` beside `production crude palm oil ... = 1,792,979 MT`, because
+#     `silver_mpob.closing_stocks_palm_oil_mt` carries a map row and `production_cpo_mt` does not. Both
+#     labels state their own unit and both are true; this item removes ONE metric printed on TWO
+#     scales, not every pair of metrics printed on different ones. Widening past the estate's own
+#     declaration would be this seam inventing a scale, which is the failure the map exists to prevent.
+#     THE HONEST CASE IS THE ONLY ONE THIS FENCE COVERS, and the fix-pass narrowed it: a metric and its
+#     OWN change are not two quantities, and leaving those on two scales was the review's FATAL.
+#   * ONE PRINTED NAME ON TWO TABLES IS REFUSED OUTRIGHT -- verify FATAL, the table-axis twin of the
+#     delta rule. The block above `_display_family_index` carries the class, the 6-pair registry census
+#     and the reason the remedy is a REFUSAL rather than a widening.
+#
+# WHAT ELSE MOVES DOWNSTREAM WHEN THE FLAG IS ON, stated because the review asked for it and because
+# section 8's anti-suppression floor reads the instruments it moves:
+#   * THE CLONE DEDUP ARMS, AND THAT IS THE CONVERGENCE WORKING -- ON THE CONSUMPTION PAIR, NOT THE
+#     su_ratio ONE. `answer._number_row_clones` keys on exactly `c.label + '  [known ' + c.date + ']'`,
+#     so the moment the agent's read renders byte-identically to the cascade's own mint they become ONE
+#     row by that function's own definition ("two lines matching there are two renderings of one fact
+#     and a reader gains nothing from the second"). RE-MEASURED THROUGH THE REAL PRODUCERS after the
+#     table-axis fence, on the banked max rv_beans_meal pair the fence leaves moving -- the agent's
+#     [N27] beside the cascade's mint [N32], both `silver_psd.consumption_mt`: flag off -> clones={},
+#     0 handles re-pointed, labels `= 39,599,000 MT` beside `= 39.599 MMT`; flag on -> clones={2: 1},
+#     1 handle re-pointed, the prose `[N2]` rewritten to `[N1]`, and both labels `= 39.599 MMT`. So
+#     claim_count / handles_checked / CitedN move with the flag on -- by de-duplication, not by
+#     suppression -- and the replay in section 8 must read them knowing it. THE SURVIVOR IS THE LOWEST
+#     INDEX, i.e. the agent's read rather than the cascade's mint, so it carries no `shown` binding and
+#     `verify._mismatch_pool` falls back to `_row_vals`. MEASURED, and the fallback costs nothing here:
+#     after harmonisation the survivor's row pool is [39.599] and the mint's `shown` was [39.599] --
+#     the same one-element pool, because rows and labels moved together.
+#     THE su_ratio PAIR THE FIRST BUILD NAMED HERE ([N20] beside the [N30] mint) NO LONGER CONVERGES,
+#     and the note says so rather than keeping the old arithmetic: `silver_psd.su_ratio` is one of the
+#     four keys the display-name family fence refuses, so RE-MEASURED on that pair the flag buys
+#     nothing at all -- flag on -> clones={}, 0 handles re-pointed, survivor pool
+#     [0.010303290487133514], and the two labels stay `= 0.0103033 ratio` beside `= 1.03033 %`. That is
+#     the fence's cost showing up in this instrument, and section 8's floor must be read against the
+#     consumption pair, which is the only convergence the item still has on the banked panels.
+#   * NO CALL BECOMES PERCENT-TYPED AT ANY SETTING -- the fence took that with su_ratio, and the note
+#     records the loss instead of the old claim. `_percent_typed` reads the row's unit at the extras
+#     seam, so a percent-narrated call would mint a percent-signed prose figure as a LEVEL; but
+#     `silver_psd.su_ratio` (100.0, '%') was the ONLY percent-narrated key in the map, and it is
+#     refused. MEASURED over the whole live map: 16 keys carry a real scale, the fence leaves 12 of
+#     them moving, and every one narrates in MMT (10), 'million head' (1) or 'M ha' (1) -- no '%', so
+#     `_PCT_UNIT_RX` never matches a harmonised row. The delta half is the same story: the one co-unit
+#     sibling still narrated is `consumption_mt_revision` at 'MMT', and no 'pp' is stamped anywhere,
+#     because the parent that would have carried it is refused.
+#
+# FLAG `GRAPHRAG_NARRATE_SCALE`, DEFAULT OFF, omit-when-off: with it off `harmonise_declared_scale`
+# returns the caller's OWN list object unrewritten, so the published list, every label built from it and
+# every row the verifier reads are byte-identical to today (pinned in tests/unit/test_k9_stop_census.py).
+
+
+def _narrate_scale_on() -> bool:
+    """K9-3 kill-switch (`GRAPHRAG_NARRATE_SCALE`). Read PER TURN at the seam, never memoized -- the
+    `_scope_withhold_on` idiom above, for the reason written there: a serving process is long-lived and
+    the env-flip rollback must land without a redeploy. DEFAULT-OFF, fail-closed."""
+    return os.environ.get("GRAPHRAG_NARRATE_SCALE", "").strip().lower() in ("on", "1", "true")
+
+
+def _map_scale(table, metric) -> Optional[tuple]:
+    """The (scale, narrate_unit) `configs/graphrag/numbers/cascade_map.yaml` DECLARES for one
+    (table, metric) -- the PURE MAP READ, deriving nothing. `narrate_scale` is the public answer; this
+    is the half that only ever reports what is written down.
+
+    DELEGATED, NEVER COPIED (the `is_empty_read` / `_metric_display_name` discipline): the rows come
+    from `cascade.load_map()` itself -- the same lru_cache, the same `deferred: true` skip, the same
+    constants the quantify loop pre-scales with -- so a cascade mint and an agent-lane read of ONE
+    metric cannot disagree about its scale, because there is only one place the number lives.
+
+    None on every one of: an unmapped key; a mapped key at scale 1; a scale that does not parse; a
+    missing or blank `narrate_unit` (which `config_check` already errors on, but a producer must not
+    stamp a blank unit on a row whatever the lint says); two refs that DISAGREE about either term
+    (measured live: `gold_futures_spreads.spread_value` is 'US cents/bushel' under one ref and 'ZAR/t'
+    under another); and any failure to load the map at all. Never raises -- a map hiccup renders the
+    label exactly as it renders today."""
+    scale, unit, _n = _map_declaration(table, metric)
+    return None if (scale is None or scale == 1.0 or not unit) else (scale, unit)
+
+
+def _map_declaration(table, metric) -> tuple:
+    """(scale, narrate_unit, ref_count) as the map declares them for one (table, metric). The scale is
+    None when the refs disagree or a scale does not parse, and `ref_count` is how many refs matched at
+    all -- which is what tells a SILENT unmapped key apart from a key the map speaks about. The
+    cross-ref unanimity lint in `config_check.check_cascade_map` reads THIS function, so the build and
+    the producer cannot hold two opinions about which keys are unanimous."""
+    if not table or not metric:
+        return (None, "", 0)
+    try:
+        from leviathan.graphrag.numbers.cascade import load_map
+        rows = load_map() or {}
+    except Exception:  # noqa: BLE001 -- a map hiccup must fail SILENT (no rescale), never loud
+        return (None, "", 0)
+    declared, n = set(), 0
+    for row in rows.values():
+        if not isinstance(row, dict) or row.get("table") != table or row.get("metric") != metric:
+            continue
+        n += 1
+        try:
+            sc = float(row.get("scale", 1) or 1)
+        except (TypeError, ValueError):
+            return (None, "", n)             # an unparseable scale is a row disagreeing with itself
+        declared.add((sc, str(row.get("narrate_unit") or "").strip()))
+    if len(declared) != 1:
+        return (None, "", n)                 # unmapped (0 refs), or refs that disagree (>1 distinct)
+    scale, unit = declared.pop()
+    return (scale, unit, n)
+
+
+# ── THE TABLE TWIN: ONE PRINTED NAME CARRIES ONE SCALE, OR THE KEY IS REFUSED (verify FATAL) ───
+#
+# THE DELTA TWIN BELOW CLOSED THIS CLASS ON THE METRIC AXIS AND LEFT IT OPEN ONE SEAM OVER. A label
+# does not print a (table, metric); it prints the CARD'S ANALYST NAME for the metric
+# (`_metric_display_name`, line ~134), and the estate serves the SAME analyst name from sibling tables
+# the cascade map is silent about. Harmonising the key the map declares while its co-named, co-unit
+# sibling stays raw is the class this item exists to remove -- ONE PRINTED NAME, TWO SCALES -- with the
+# tables swapped for the metrics.
+#
+# THE CENSUS IS THE WHOLE LIVE REGISTRY (41 tables, 274 metrics), not a sample: 6 (moved, stayed) pairs
+# share BOTH the display name AND the card unit, so at HEAD they printed the SAME unit token and a
+# half-move puts them 100x or 1e6x apart:
+#     'stocks-to-use ratio'  card 'ratio'  silver_psd.su_ratio (100.0,'%')
+#                                          vs silver_mpob.su_ratio  and silver_icco_cocoa.su_ratio
+#     'production'           card 'MT'     silver_psd.production_mt (1e-06,'MMT')
+#                                          vs silver_nass_annual.production_mt
+#     'exports'              card 'MT'     silver_psd.exports_mt (1e-06,'MMT')
+#                                          vs silver_mpoc_trade_stats_monthly.exports_mt
+#                                          and silver_mpoc_exports_by_country.exports_mt
+#     'ending stocks'        card 'MT'     silver_psd.ending_stocks_mt (1e-06,'MMT')
+#                                          vs silver_mpoc_stock_comparison.ending_stocks_mt
+# RENDERED THROUGH THIS PRODUCER before the fence, flag off then on, one panel:
+#     OFF  NASS ANNUAL production CBOT corn United States MY2025 = 384,000,000 MT
+#          USDA PSD   production CBOT corn United States MY2025 = 384,000,000 MT
+#     ON   NASS ANNUAL production CBOT corn United States MY2025 = 384,000,000 MT
+#          USDA PSD   production CBOT corn United States MY2025 = 384 MMT
+# One commodity, one country, one marketing year, one printed name, the same underlying value, two
+# figures a million apart. REACH IS MEASURED: silver_psd serves 63 commodities and shares 8 with
+# silver_nass_annual (canola_ice, corn_cbot, cotton, cottonseed, hard_red_spring_wheat_mgex,
+# rough_rice_cbot, soft_red_winter_wheat_cbot, soybeans_cbot) and `malaysian_crude_palm_oil_cme` -- the
+# pin panel's OWN commodity -- with both silver_mpoc_ cards; silver_mpob and silver_icco_cocoa are
+# single-commodity cards (palm, cocoa) and silver_psd serves both those commodities.
+#
+# THE REMEDY IS A REFUSAL, NOT A WIDENING, AND THE REASON IS ARITHMETIC RATHER THAN TASTE. Carrying
+# silver_psd's declared (1e-06,'MMT') onto silver_nass_annual.production_mt would be sound only if the
+# map's `scale` were DECLARED to be a card-unit -> narrate-unit conversion. It is not: a map row
+# declares a narration for ONE (table, metric) and says nothing about any other key, and a producer
+# that read a scale as a law about the CARD UNIT would be inventing the declaration it is reading --
+# the same failure the map exists to prevent, one level up. AND THE DETECTOR IS A NAME: display names
+# come from a gitignored config, so a rename may only ever COST a harmonisation, never move a printed
+# magnitude by 1e6. A name may refuse; a name may not license.
+#
+# WHAT THE REFUSAL COSTS, STATED PLAINLY BECAUSE IT IS THIS ITEM'S OWN FLAGSHIP AND THE COST IS NOT
+# SMALL. Four keys are refused (su_ratio, production_mt, exports_mt, ending_stocks_mt on silver_psd)
+# and, through `_co_unit_sibling_scale`, so are their own changes (su_ratio_yoy_delta,
+# production_mt_revision, ending_stocks_mt_revision) -- a refused parent must refuse its change or the
+# delta twin reopens one axis over. MEASURED on the banked baselines' `served_rows`
+# (cascade_baseline_{control,treatment}.json, every answer, untruncated), and the two denominators are
+# kept apart because they answer different questions: the records whose (table, metric) this map WOULD
+# narrate fall from 87 to 21 on the control arm and from 113 to 24 on the treatment arm, while the
+# records that actually carry a rescalable row -- the BUILT reach, the blast-radius block below -- fall
+# from 17 to 3. THE ITEM'S JUDGED STOP GOES BACK TO HEAD WITH THEM: STOP #12's "0.117499 ratio ...
+# 1.03033 %" is a silver_psd
+# su_ratio line, so with this fence the panel keeps printing the agent's raw ratio beside the cascade's
+# own pre-scaled '%' mint. That is the honest state of the item, not a state to be hidden: the map's
+# narration is already what the CASCADE mints for these keys at every flag setting, so the split on the
+# same-table axis survives the fence, and only a cascade_map row for each silent sibling table lifts
+# the refusal. `config_check._check_narrate_scale_family` names those tables by address, and names them
+# as a hard error the moment GRAPHRAG_NARRATE_SCALE is on -- so the flip cannot ship a half-move.
+def _card_unit(reg, table, metric) -> str:
+    """The unit a card DECLARES for one metric, '' when it declares none. Never raises -- an unknown
+    table, an unregistered metric and a metric spec with no `unit` are all the same answer."""
+    try:
+        return str(getattr((getattr(reg.tables.get(table), "metrics", {}) or {}).get(metric),
+                           "unit", "") or "").strip()
+    except Exception:  # noqa: BLE001 -- an unreadable card declares no unit, it does not fail a turn
+        return ""
+
+
+def _display_family_index(reg=None) -> dict:
+    """(display name, card unit) -> sorted [(table, metric)] over a registry -- THE ONE PRODUCER of
+    "these keys print under the same name in the same declared units", read by this module's fence and
+    by `config_check._check_narrate_scale_family`'s build-time half so the producer and the build cannot
+    hold two opinions about which keys collide. `reg` lets the lint drive the index off the registry IT
+    is linting; the live one otherwise. A metric with no declared card unit is not in any family: the
+    card has said nothing about what it is measured in, so nothing declares it comparable."""
+    try:
+        if reg is None:
+            from leviathan.graphrag.numbers.registry import load_registry
+            reg = load_registry()
+        items = sorted(reg.tables.items())
+    except Exception:  # noqa: BLE001 -- no readable registry -> no families -> no refusals
+        return {}
+    out: dict = {}
+    for tid, spec in items:
+        for metric in sorted(getattr(spec, "metrics", {}) or {}):
+            unit = _card_unit(reg, tid, metric)
+            if not unit:
+                continue
+            out.setdefault((_metric_display_name(tid, metric), unit), []).append((tid, metric))
+    return out
+
+
+def _family_scale_conflict(table, metric, ns, reg=None) -> list:
+    """The co-named, co-unit siblings whose OWN map declaration is not `ns` -- i.e. the tables this seam
+    would leave on a different scale under one printed name. Empty when the family agrees, and empty
+    when there is no family at all, so a key nothing else is named like is untouched by this fence.
+
+    THE SIBLING'S SIDE IS READ FROM `_map_scale`, THE PURE MAP READ, never from `narrate_scale`: the
+    two sides of a collision must not recurse into each other, and what matters is what the ESTATE
+    declares for the sibling, not what this seam would then do with it."""
+    if ns is None:
+        return []
+    unit = _card_unit(_registry_or_none(reg), table, metric)
+    if not unit:
+        return []
+    family = _display_family_index(reg).get((_metric_display_name(table, metric), unit), [])
+    return [(t, m) for t, m in family
+            if (t, m) != (table, metric) and _map_scale(t, m) != ns]
+
+
+def _registry_or_none(reg=None):
+    """The registry a family question is asked against -- the caller's, else the live one, else a
+    stand-in that declares nothing. Never raises."""
+    if reg is not None:
+        return reg
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        return load_registry()
+    except Exception:  # noqa: BLE001
+        return type("_NoReg", (), {"tables": {}})()
+
+
+def _fenced_map_scale(table, metric) -> Optional[tuple]:
+    """`_map_scale` with the display-name family fence applied: the (scale, narrate_unit) this seam may
+    ACTUALLY narrate a key in. Used for the key itself AND for a co-unit parent, so a parent refused
+    here refuses its own change too rather than reopening the delta twin on the table axis."""
+    ms = _map_scale(table, metric)
+    return None if ms is None or _family_scale_conflict(table, metric, ms) else ms
+
+
+# ── THE DELTA TWIN: A METRIC'S OWN CHANGE MOVES WITH IT, OR NEITHER MOVES (fix-pass, FATAL) ────
+#
+# THE FIRST BUILD MINTED CLASS (2) INSIDE THIS ITEM'S OWN RED PIN. `silver_psd.su_ratio` moved to
+# (100, '%'); `silver_psd.su_ratio_yoy_delta` -- THE SAME METRIC'S OWN year-on-year change, a separate
+# metric key the map declares nothing for -- stayed at the raw 'ratio'. At HEAD the two AGREED ('ratio'
+# both). The judged answer cites them in ONE clause, and it is this item's own quoted STOP #12: "came
+# in at 0.117499 ratio for MY2025 and fell year on year by -0.0178907 ratio [N19][N21]". Moving only
+# the level leaves them 100x apart, so the pin panel keeps tripping the judge's own rubric ("the same
+# metric is carried on two scales inside one comparative clause") on a NEW axis. MEASURED over the 12
+# banked panels truncated to the agent-lane lengths: exactly 2 such lines, BOTH in max rv_beans_meal --
+# the pin panel -- and the silver_psd card declares FOUR such siblings in all (tables.yaml:82-90).
+#
+# THE RULE IS READ OFF THE ESTATE'S OWN DECLARATIONS AND NEVER INFERRED FROM A NAME. A metric is a
+# CO-UNIT SIBLING when ITS OWN CARD declares it as `<parent>_<suffix>` AND declares the IDENTICAL,
+# non-empty `unit` for both: the card itself is then saying the two are the same quantity's units,
+# which is what makes the parent's declared scale the child's too. THE UNIT-EQUALITY TERM IS WHAT DOES
+# THE WORK, and it is measured on the LIVE registry: 67 prefix-sibling metric pairs exist and exactly 4
+# pass -- su_ratio_yoy_delta, production_mt_revision, ending_stocks_mt_revision,
+# consumption_mt_revision, all four on silver_psd, all four ABSOLUTE changes in the parent's own units,
+# all four with a parent the MAP scales -- of which the table-axis fence below leaves exactly ONE
+# moving, so `consumption_mt_revision` is the only sibling narrated today (measured; the other three
+# parents -- su_ratio, production_mt, ending_stocks_mt -- are refused, and their changes with them).
+# The 63 refused are refused by unit inequality alone: 38
+# `_zscore_5yr` ('sigma vs 5-yr mean' against 'USD/mt'), 14 `_pct_change_90d` ('pct'), 5 `_cells`, 4
+# `_tail_share`, 2 `_z_3yr`. A z-score is NOT its parent rescaled, and the card says so in the one place
+# a producer may read.
+#
+# THE DELTA'S UNIT IS THE ESTATE'S OWN WORD FOR IT, DELEGATED RATHER THAN COPIED.
+# `cascade._XC_REGIONAL_METRICS` is where the estate declares what a change of a narrated quantity is
+# CALLED -- `_XcMetricSpec(key="su_ratio", unit="%", ..., delta_unit="pp")` and `(key="exports_mt",
+# unit="MMT", delta_unit="MMT")` -- and the cascade's regional block prints exactly that ("+1.25pp over
+# the window"), as does `_xc_leg_lines` at its `unit="pp"` delta row. A narrate_unit that tuple does not
+# name is REFUSED: the estate has not said what a change of an 'M ha' or a 'million head' is called and
+# this seam does not get to name it. Measured: the two units it does name cover 4 of the 4 live cases.
+#
+# WHAT THIS DELIBERATELY DOES NOT DO. It does not touch a metric the map speaks about AT ALL (any ref,
+# at any scale): the map's word wins, including its silence about scale, or a mapped scale-1 key could
+# be overridden by a sibling. It does not fire on a sibling with two co-unit parents that disagree about
+# scale (unanimity, fail-closed). And it is NOT conditioned on the sibling being on the same call list
+# -- the split is between the agent's raw row and the estate's pre-scaled mint, so a delta read alone in
+# a panel is the same defect one turn later.
+def _delta_unit(narrate_unit):
+    """What the estate CALLS a change of a quantity narrated in `narrate_unit`, delegated to
+    `cascade._XC_REGIONAL_METRICS` ('%' -> 'pp', 'MMT' -> 'MMT'). None for a unit the estate has not
+    named a change of -- the caller then refuses the sibling outright rather than inventing a word."""
+    try:
+        from leviathan.graphrag.numbers.cascade import _XC_REGIONAL_METRICS as _specs
+        return {str(s.unit): str(s.delta_unit) for s in _specs}.get(str(narrate_unit)) or None
+    except Exception:  # noqa: BLE001 -- no reachable declaration -> no delta narration
+        return None
+
+
+def _co_unit_sibling_scale(table, metric) -> Optional[tuple]:
+    """The (scale, delta_unit) a metric inherits from a CO-UNIT PARENT on its OWN card, or None. Every
+    term is a declaration: the card names the parent, the card declares both units and says they are the
+    same, the map declares the parent's scale, and the cascade declares what a change of that narration
+    is called. Fail-closed on all of: a metric the map speaks about at all, a metric or parent with no
+    declared unit, zero co-unit parents, two co-unit parents that disagree, a parent the map does not
+    scale, a parent REFUSED BY THE TABLE-AXIS FENCE (verify FATAL: a change may not move while the
+    quantity it is a change OF stays put, whichever fence stopped the parent), and a narrate_unit with
+    no declared delta word."""
+    if _map_declaration(table, metric)[2]:
+        return None                          # the map speaks about this key -- its word wins, silence
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        metrics = load_registry().get(table).metrics
+    except Exception:  # noqa: BLE001 -- registry missing/table unknown -> no derivation, never fatal
+        return None
+    mine = str(getattr(metrics.get(metric), "unit", "") or "").strip()
+    if not mine:
+        return None
+    declared = {_fenced_map_scale(table, p) for p, pm in metrics.items()
+                if p and p != metric and metric.startswith(p + "_")
+                and str(getattr(pm, "unit", "") or "").strip() == mine}
+    if len(declared) != 1:
+        return None                          # no co-unit parent, or parents that disagree about scale
+    parent = declared.pop()
+    if parent is None:
+        return None                          # the one co-unit parent is not itself harmonised
+    du = _delta_unit(parent[1])
+    return None if not du else (parent[0], du)
+
+
+def narrate_scale(table, metric) -> Optional[tuple]:
+    """The (scale, unit) THIS SEAM may narrate one (table, metric) in, or None to render exactly
+    today's label. Two sources, in order, and both are declarations rather than inferences: the cascade
+    map's own row for the key (`_map_scale`), else the CO-UNIT SIBLING derivation above
+    (`_co_unit_sibling_scale`) -- a metric's own change carried at its metric's scale, in the estate's
+    own word for a change of it. EITHER ANSWER IS THEN FENCED ON THE TABLE AXIS
+    (`_family_scale_conflict`): a key whose printed name and card unit are shared with a sibling table
+    the estate narrates differently is refused outright, because moving one side of a printed name is
+    the very class this item removes on the metric axis. Never raises."""
+    if not table or not metric:
+        return None
+    ms = _fenced_map_scale(table, metric)
+    if ms is not None:
+        return ms
+    cs = _co_unit_sibling_scale(table, metric)
+    return None if cs is None or _family_scale_conflict(table, metric, cs) else cs
+
+
+def _harmonised_call(call):
+    """One call record with every RAW row rescaled to its declared narrate_unit, or the SAME object when
+    nothing is owed. Copy-on-write: the record and the rows that change are shallow copies, so the
+    numbers agent's own return dict is never mutated under a caller that still holds it."""
+    if not isinstance(call, dict) or "shown" in call:
+        return call
+    q, rows = call.get("query"), call.get("rows")
+    if not isinstance(q, dict) or not isinstance(rows, (list, tuple)) or not rows:
+        return call
+    ns = narrate_scale(q.get("table"), q.get("metric"))
+    if ns is None:
+        return call
+    if _unscoped_multi_geo(q, _geo_scopes(rows)):
+        # FIX-PASS, review MAJOR-1 (the shared predicate block above `_geo_scopes` carries the class,
+        # the measurement and the reason it is a predicate and not a flag interlock): this line
+        # headlines ONE arbitrary scope's row under a label that scopes nothing, so restating it on a
+        # LOUDER scale is the exact absurdity K9-2 exists to remove -- `= 9 ratio` becoming `= 900 %`.
+        # Refused at every setting of both flags; with K9-2 on the label is withheld anyway.
+        return call
+    scale, unit = ns
+    out_rows, moved = [], False
+    for r in rows:
+        if not isinstance(r, dict) or str(r.get("unit") or "").strip():
+            out_rows.append(r)               # a row that declares its own unit is not this class
+            continue
+        try:
+            v = float(str(r.get("value")).replace(",", ""))
+        except (TypeError, ValueError):
+            out_rows.append(r)               # blank / None / unparseable: the absence shapes stay absent
+            continue
+        nr = dict(r)
+        nr["value"], nr["unit"] = v * scale, unit
+        out_rows.append(nr)
+        moved = True
+    if not moved:
+        return call
+    out = dict(call)
+    out["rows"] = out_rows
+    return out
+
+
+def harmonise_declared_scale(calls):
+    """K9-3's ONE PRODUCER, called once at the seam that publishes the hybrid call list (block note
+    above). Returns the caller's OWN list object when the flag is off or nothing is owed, so the
+    flag-off path -- and every unaffected turn with the flag ON -- is byte-identical by IDENTITY rather
+    than by comparison.
+
+    IDENTITY IS A SEAM PROPERTY, NOT AN END-TO-END ONE (review MINOR): answer.py rebinds the published
+    list to a copy one hop later (`extra_number_calls = list(extra_number_calls or [])`, its own
+    "rebind ONCE" comment). What the identity return buys is that THIS seam rewrote nothing, which is
+    exactly what the off-pin asserts and what a later reader must not over-read."""
+    if not _narrate_scale_on() or not isinstance(calls, (list, tuple)):
+        return calls
+    out, moved = [], False
+    for c in calls:
+        h = _harmonised_call(c)
+        moved = moved or (h is not c)
+        out.append(h)
+    return out if moved else calls
+
+
+# ══ K9-4 (2026-09-07) VINTAGE ROLE -- class (3), FORECAST AS SETTLED (the NUMBER half, 3a) ═══════════
+#
+# THE MEASURED TRIGGER, the judged panel's STOP sentence quoted verbatim (cascade_panel.json, TREATMENT
+# STOP #10, id rv_beans_meal; TREATMENT = max per cascade_mask_key.json):
+#   "The settled US soybean season-average farm price (a USDA survey actual, not a futures settle) rose
+#    from $10.00/bu [N41] in MY2024/25 to $10.40/bu [N42] in MY2025/26." -- STOP: the MY2025/26 figure is
+#    a WASDE forecast at a vintage known 2026-08-12, inside a marketing year that had not closed;
+#    labelling it a settled USDA survey actual is a retraction a desk head would have to make.
+# The panel flagged the SAME sentence twice (#14 as well), and #14 names this seam by address: "the cited
+# row says only 'USDA WASDE average farm price soybeans united_states MY2025/26 = 10.4 $/bu [known
+# 2026-08-12]' ... the parenthetical is an authority claim the row does not carry".
+#
+# THE ROW ALREADY KNOWS AND THE LABEL NEVER ASKED. `silver_wasde` declares `provenance_col:
+# estimate_role` (configs/graphrag/numbers/tables.yaml:389), which `numbers/query._extras` surfaces on
+# EVERY row under the alias `revision_stamp`, and the card's own `vintage_tiebreak` RANKS on it
+# ([actual, estimate, projection]). MEASURED over the two banked baselines' `served_rows`: 72 silver_wasde
+# rows, 10 `actual` (all period 2024/25), 22 `estimate` (all 2025/26), 32 `projection` (all 2026/27) and
+# 8 carrying no role at all -- every one of the 8 an `avg_farm_price` row MINTED by the cascade's price
+# leg, which copied the vintage DATE columns off its source row and not the role. `from_number` read
+# neither: the headline label said `MY2025/26 = 10.4 $/bu` and stopped.
+#
+# THE `_print_kind` LAW, ON THE VINTAGE AXIS: the row's OWN declared kind outranks the card's assumption.
+# `_print_kind` exists because a `settle` card also serves ICE `close` rows and the CARD's label would
+# mislabel them; `estimate_role` is the identical shape one axis over -- the card's metric label says
+# "average farm price" and the ROW says whether that price is settled, in-year or forecast.
+#
+# A CLOSED ROSTER, NOT AN OPEN ONE, AND THAT IS THE WHOLE SAFETY OF IT (the design's own FATAL-3 lesson,
+# applied before it could be re-learned). `revision_stamp` is NOT a role column -- it is DP-2's generic
+# provenance alias, and MEASURED on the live registry this sitting, 9 cards declare a `provenance_col`
+# of which EIGHT are not silver_wasde, routing six other columns through the same alias:
+# `latest_release_ym` ('2026M08', silver_pink_sheet), `release_date` ('2026-08-12', silver_food_cpi),
+# `vintage_status` ('prel.' / 'proj.', silver_wap_table01_revisions), `source_position_date` (the three
+# UNICA cards), `crush_rule_version`, `spread_rule_version`. A `_print_kind`-style fallback to
+# the raw token would print `... MY2025 2026M08 = ...` -- a release stamp standing in a role's place --
+# so the mapping below has NO fallback: a token outside the three-word `estimate_role` vocabulary renders
+# NOTHING and the label is byte-identical to HEAD. The roster is pinned in the lane deck against BOTH of
+# the estate's own sources of truth (`usda_wasde_silver.ESTIMATE_ROLES` and the silver_wasde card's
+# `vintage_tiebreak` role_order), so it cannot drift from either.
+#
+# DELIBERATELY NOT COVERED, stated rather than discovered later:
+#   * THE LETTER-SUFFIXED EXTRAS PATH IS UNTOUCHED. `_mint_row_citations` already appends the RAW
+#     `revision_stamp` as a parenthetical tag, and `extra_number_citations`' docstring states the reason
+#     it is rendered ONLY there ("putting it on the headline would rewrite every existing footer in the
+#     estate"). That reason is exactly why THIS change is dark behind a flag rather than unconditional --
+#     and the two renders are deliberately different words for deliberately different jobs: the extras tag
+#     is the raw column value beside `_print_kind`, this is the roster word inside the scope. With the
+#     flag ON a WASDE row cited both ways carries the role twice, once in each dialect; that is a
+#     duplication, not a contradiction, and it is pinned rather than papered over.
+#   * `vintage_status` ('prel.' / 'proj.') IS A ROLE IN EVERYTHING BUT ITS VOCABULARY, and it is left
+#     alone. Mapping 'proj.' onto "projection" would be this seam inventing a synonym for a card it does
+#     not own; when that card wants the treatment it declares the estate's own three words.
+#   * `value`/`unit`/`payload`/`locator` DO NOT MOVE. This adds a WORD to the scope; it removes no figure
+#     and re-runs no read, so `answer._number_handle_value`, `verify._row_vals` and every drill-down are
+#     byte-identical at both settings. The class this item closes is an ASSERTION the label made about a
+#     figure, never the figure.
+#
+# FLAG `GRAPHRAG_VINTAGE_ROLE`, DEFAULT OFF, omit-when-off: with it off `_role_display` is never called
+# and every label on both arms is byte-identical to today (pinned in tests/unit/test_k9_stop_census.py).
+# THE DESIGN NAMED NO FLAG FOR K9-4 -- section 8 says it "rides flags that are already on" -- and that is
+# the ONE place this build departs from the design, deliberately and under the lane's own law: the two
+# flags it would have ridden (GRAPHRAG_CASCADE_PRICE_LEG, GRAPHRAG_RECENCY_STAMP) are ON in both banked
+# override files, so riding them ships a reader-facing label change LIT on both serving tiers with no
+# rollback of its own. Dark behind its own default-off flag with a pinned byte-identical off-path is the
+# house law; a flag is cheap and an unrollbackable label change is not.
+_ROLE_WORDS = {
+    # The `estimate_role` vocabulary (usda_wasde_silver.ESTIMATE_ROLES), spoken in the reader's language.
+    # "USDA" leads each phrase because the design names these three literals and because the role is the
+    # PUBLISHER's finality judgement, not ours -- the same reason `_SETTLE_KIND_WORDS` says "exchange
+    # settlement" rather than "settlement".
+    "actual": "USDA actual",
+    "estimate": "USDA estimate",
+    "projection": "USDA projection",
+}
+
+
+def _role_display(row: dict) -> str:
+    """The row's declared revision role as a reader-facing phrase, or '' -- NO fallback to the raw token
+    (block note, and the figure is the block's: `revision_stamp` also carries release stamps and rule
+    versions on the EIGHT provenance cards that are not silver_wasde -- six distinct columns. "eleven"
+    stood here until the fix pass; it matched no measurement and the live registry says eight).
+    Case-folded because the roster is a silver vocabulary and this is a render, not a join."""
+    role = str((row or {}).get("revision_stamp") or "").strip().lower()
+    return _ROLE_WORDS.get(role, "")
+
+
+def _vintage_role_on() -> bool:
+    """K9-4 kill-switch (`GRAPHRAG_VINTAGE_ROLE`). Read PER CALL, never memoized -- the
+    `_scope_withhold_on` / `_narrate_scale_on` idiom above, for the reason written there: a serving
+    process is long-lived, so the env-flip rollback must take effect without a redeploy. DEFAULT-OFF,
+    fail-closed: an unset flag renders exactly today's scope.
+
+    THE SAME FLAG IS READ AT A SECOND SEAM, and the split is a module law rather than an oversight. The
+    cascade's price leg (`cascade._price_call` and its label) is the other half of K9-4 3a, and cascade.py
+    performs NO environment read of any kind -- two live doctrine tests substring-scan that file's source
+    for `os.environ` -- so its half is read at `answer._vintage_role_on()` and threaded down as the
+    `vintage_role` kwarg. One flag NAME, two readers, each at the seam its own module permits."""
+    return os.environ.get("GRAPHRAG_VINTAGE_ROLE", "").strip().lower() in ("on", "1", "true")
+
+
 def from_number(call: dict, i: int) -> Citation:
     """Build a Citation from a numbers-agent call record ({query, rows, status})."""
     q = call.get("query", {})
@@ -509,9 +1406,17 @@ def from_number(call: dict, i: int) -> Citation:
             return bool(spec is not None and spec.destination_coded())
         except Exception:  # noqa: BLE001 -- a registry hiccup must fail SILENT (no label), never loud
             return True
-    _geos = {str(r.get("country")).strip() for r in rows if str(r.get("country") or "").strip()}
+    _geos = _geo_scopes(rows)
     geo = q.get("country") or (None if _dest_coded(table)
                                else (next(iter(_geos)) if len(_geos) == 1 else None))
+    # K9-2 (block note above `from_number`): the query names no country and the rows carry more than one,
+    # so `geo` is None on BOTH arms of the expression above -- destination-coded or free-axis -- and this
+    # label is about to headline one arbitrary country's row under a name that scopes nothing. THE
+    # PREDICATE IS SHARED WITH K9-3's harmoniser and lives above `_narrate_scale_on` (fix-pass, review
+    # MAJOR-1): the count it returns is the count this label states, and the refusal it drives there is
+    # what keeps the (K9-2 off, K9-3 on) cell from restating an unscoped 9 as 900 %.
+    _scope_k = _unscoped_multi_geo(q, _geos)
+    _scope_withheld = bool(_scope_withhold_on() and _scope_k)
     # `cmonth` wins when a row carries one: it is the row's OWN declared expiry, and a row carrying both a
     # contract_month and a leg pair would be a producer defect this label must not paper over. A row with
     # neither renders exactly as it did before T1-4 -- the anti-vacuity property the spread pin asserts.
@@ -527,7 +1432,14 @@ def from_number(call: dict, i: int) -> Citation:
     _zw = str(rH.get("z_window") or "").strip()
     _zs = str(rH.get("z_series") or "").strip()
     _zspan = f"vs {_zw} points of {_zs}" if (_zw and _zs) else ""
-    scope = " ".join(x for x in (_contract_display(q.get("commodity")), geo, per, _delivery, _zspan) if x)
+    # K9-4 (block note above `from_number`): the headline row's DECLARED revision role, inside the scope
+    # and AFTER the period -- the role qualifies the figure the period names ("MY2025/26 USDA estimate"),
+    # and putting it ahead of the period would separate the marketing year from the commodity it belongs
+    # to. Off-flag and role-less rows contribute '' and drop out of the join exactly like `_delivery` and
+    # `_zspan` do, so this term is byte-inert on every row that does not declare one.
+    _role = _role_display(rH) if _vintage_role_on() else ""
+    scope = " ".join(x for x in (_contract_display(q.get("commodity")), geo, per, _role,
+                                 _delivery, _zspan) if x)
     # D-HP G1 REMEDIATION-2 R2-b: the blank-value read is routed to the ABSENCE branch BEFORE either
     # rows-bearing branch can claim it. `_blank` is false on every read that carries a value, so both
     # branches below are byte-identical on every such turn.
@@ -542,7 +1454,20 @@ def from_number(call: dict, i: int) -> Citation:
         label = f"{src} {mdisp} {scope} = {_ZERO_AGG_LABEL}".strip()
         value, unit = None, None
     elif rows and not _blank:
-        label = f"{src} {mdisp} {scope} = {_fmt(value)} {unit}".strip()
+        # K9-2: the UNSCOPED-HEADLINE withhold replaces the `= {value} {unit}` HEAD and nothing else --
+        # INSIDE this branch, not beside it, so every provenance clause below (the print-kind/currency
+        # tags, the staleness clause, the PA-8(a) abundance marker and its span, the D-PQ RENDER-3
+        # TRUNCATED annotation) still renders on a withheld line. The first build put it beside, and
+        # dropped all of that silently; see MAJOR-2 in the block note above. `value` and `unit` go for the
+        # `_zero_aggregate` reason exactly: a figure that is one scope's row must not be reachable as
+        # `Citation.value`, or a stand-in [N] handle splices it back into the prose this branch exists to
+        # keep it out of. Ordered after the zero-aggregate branch on purpose -- the two predicates cannot
+        # both fire (block note), and a pinned label must not depend on that argument being re-made.
+        if _scope_withheld:
+            label = f"{src} {mdisp} {scope} = {_SCOPE_WITHHOLD_LABEL.format(k=_scope_k)}".strip()
+            value, unit = None, None
+        else:
+            label = f"{src} {mdisp} {scope} = {_fmt(value)} {unit}".strip()
         # D-PQ RENDER-2, second half: WHAT KIND OF PRINT this is, plus the row's own currency. Both are
         # card-declared columns and neither was reaching the writer. The currency is appended only when it
         # is not already inside the unit string (US cents/bushel already says USD; CNY/t already says CNY),
@@ -589,9 +1514,15 @@ def from_number(call: dict, i: int) -> Citation:
             # of ONE WASDE vintage (the motivating serve below -- 35 marketing years, one release date)
             # would then read as a one-day series, the opposite of what the reader must take from it.
             _sspan = "" if _trunc else _covered_span(rows)
+            # K9-2: "newest shown" is the ONE word of this marker the withhold makes false -- there is no
+            # figure on the line for the newest row to be. Everything else the marker states (how many
+            # rows, what span they cover) is exactly as true of a withheld line as of a shown one, and is
+            # provenance the reader keeps: `citations.render` prints the label and the `[known ...]` stamp
+            # and nothing else, so a clause dropped here is a clause the reader never sees. The SCOPE count
+            # is not repeated here; it is stated once, on the withheld label (MAJOR-1 in the block note).
             label += (f" [{len(rows)} rows served"
                       + (f", covering {_sspan}" if ".." in _sspan else "")
-                      + "; newest shown]")
+                      + ("; newest withheld]" if _scope_withheld else "; newest shown]"))
         # D-PQ RENDER-3 -- THE TRUNCATION ANNOTATION, THREADED TO THE WRITER. `agent.series_truncated` has
         # existed since J3b and `format_provenance` / `eval._num_line` both render it; the SYNTHESIS PROMPT
         # never did, because it is built from these labels. Measured 2026-08-07 (dcw_probe_v1 row 11,

@@ -2899,6 +2899,85 @@ def test_g1d_the_deep_on_xccy_off_population_reproduces_the_banked_deep_golden()
     assert _native_exit[0] == 0, _native_exit[1]
 
 
+# THE G1x SEAM RE-ANCHOR, ADDED 2026-09-07 BY K9-6 THE FOUR-FIGURE LINE, and it exists so the pin can
+# say "K9-6 inserted a kwarg and moved nothing else" as a MEASUREMENT rather than a re-banked constant.
+#
+# WHY IT IS HERE AND NOT IN THE PRODUCER. `xl_golden_seam_bank.py` recovers the pre-build seam block by
+# cutting the TWO D-XL line sets it names (XL_INSERTS) and undoing the `**_eod_kw` spread; that recovery
+# is what `sans_xl_sha256` is. K9-6 appends a THIRD line set to the same block -- exactly the case the
+# producer's own comment says must survive into `sans` and RED the pin -- so the producer's number no
+# longer reaches the bank, and the honest repair is one more named cut, not a new constant. This lane
+# does not carry the producer on its allowlist, so the cut is made here, against the SAME source the
+# producer reads, with the producer's OWN anchors IMPORTED rather than re-typed: a producer re-anchor
+# that moved BLOCK_START / BLOCK_END / XL_INSERTS moves this helper with it instead of diverging from
+# it in silence.
+#
+# IT RETURNS TWO SHAS, AND BOTH ARE JOINED BY THE CALLER:
+#   [0] the D-XL-only recovery -- must equal the producer's own `sans_xl_sha256`, which is the proof
+#       that this in-process reproduction is FAITHFUL and not a second, looser measurement;
+#   [1] that same text with K9-6's line set cut and its spread undone -- must equal the BANKED HEAD sha.
+# With K9-6 absent the second cut is a no-op and the two shas are equal, which is the pre-K9-6 pin
+# exactly. The source is read STATICALLY, so this needs no clean-env subprocess: a GRAPHRAG_* name in
+# the runner's shell cannot change a byte of `inspect.getsource`.
+_G1X_K96_CUT = ("# K9-6 THE FOUR-FIGURE LINE, BUILT DARK",
+                '_xlh_kw = {"xc_leg_handles": True} if _xc_leg_handles_on() else {}')
+# ...and K9-4 VINTAGE ROLE, the SAME shape one item later in the same sitting: one omit-when-off kwarg
+# landing in this block, BEFORE the `**_eod_kw` spread for the reason the block's own comment gives.
+# CUT ORDER IS LOAD-BEARING AND NOT COSMETIC: the spread-undo regexes each require their kwarg to be
+# the LAST one on the call line, and K9-4's `**_vr_kw` now sits between `**_xlh_kw` and the `**_eod_kw`
+# the producer already undoes. Cutting K9-4 FIRST restores `**_xlh_kw)` as the tail, which is the exact
+# text K9-6's own regex was written against -- reversing the two silently leaves K9-6's spread in place
+# and the pin fails with a sha rather than with a cause.
+_G1X_K94_CUT = ("# K9-4 VINTAGE ROLE, BUILT DARK",
+                '_vr_kw = {"vintage_role": True} if _vintage_role_on() else {}')
+
+
+def _g1x_sans(producer_path: str) -> tuple:
+    import hashlib
+    import importlib.util
+    import inspect
+    import re
+    from leviathan.graphrag import answer as an
+
+    _spec = importlib.util.spec_from_file_location("_g1x_bank_anchors", producer_path)
+    _bank = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_bank)          # constants only; the producer runs under __main__ alone
+    src = inspect.getsource(an._answer_l2)
+    end = _bank.BLOCK_END if src.count(_bank.BLOCK_END) == 1 else _bank.BLOCK_END_POST
+    i, j = src.find(_bank.BLOCK_START), src.find(end)
+    assert i != -1 and j != -1 and i < j, "seam anchors not found -- re-anchor, never loosen"
+    assert src.count(_bank.BLOCK_START) == 1 and src.count(end) == 1, "an anchor is not unique"
+    block = src[i:j + len(end)]
+
+    def _cut(text, start, stop):
+        """The producer's own line-set cut, verbatim: from the START anchor's OWN LINE through the end
+        of the STOP anchor's line. Uniqueness and order are asserted, so a cut can never delete the
+        wrong bytes silently -- the discipline review MINOR 6 put into the producer."""
+        assert text.count(start) == 1, "cut start anchor is not unique: %r" % start
+        assert text.count(stop) == 1, "cut stop anchor is not unique: %r" % stop
+        assert text.index(start) < text.index(stop), "cut anchors are inverted: %r" % start
+        a = text.rfind("\n", 0, text.index(start)) + 1
+        b = text.find("\n", text.index(stop) + len(stop)) + 1
+        return text[:a] + text[b:]
+
+    sans = block
+    for _start, _end in _bank.XL_INSERTS:
+        if _start in sans and _end in sans:
+            sans = _cut(sans, _start, _end)
+    sans = re.sub(r",\s*\*\*_eod_kw\)", ")", sans)
+    sans = sans.replace(", **_xl_kw", "")
+    repro = hashlib.sha256(sans.encode("utf-8")).hexdigest()
+    if _G1X_K94_CUT[0] in sans and _G1X_K94_CUT[1] in sans:
+        sans = _cut(sans, *_G1X_K94_CUT)                    # FIRST: see the cut-order note above
+        sans = re.sub(r",\s*\*\*_vr_kw\)", ")", sans)
+    if _G1X_K96_CUT[0] in sans and _G1X_K96_CUT[1] in sans:
+        sans = _cut(sans, *_G1X_K96_CUT)
+        # the spread is undone the way the producer undoes `**_eod_kw`: a REGEX, because the separator
+        # before it is a comma, a newline and an indent on the call's wrapped last line, never ", ".
+        sans = re.sub(r",\s*\*\*_xlh_kw\)", ")", sans)
+    return repro, hashlib.sha256(sans.encode("utf-8")).hexdigest()
+
+
 # -- G1x AS A SUITE PIN: the D-XL LOCATOR flag-off SEAM gate, banked BEFORE the extreme-locator ----
 def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     """THE THIRD BYTE-IDENTITY LAW (D-XL phase 1), and the one neither sibling above can see.
@@ -3008,8 +3087,27 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
 
     # seam_block: byte-identical to the bank ONCE the D-XL kwarg block is cut out. This is the whole
     # of "E16 inserted a kwarg and moved nothing else", measured rather than promised.
-    assert nb["seam_block"]["sans_xl_sha256"] == ob["seam_block"]["sha256"], "the seam block moved by "\
-        "more than the D-XL insertion"
+    #
+    # RE-ANCHORED 2026-09-07 BY K9-6 THE FOUR-FIGURE LINE, on its own named cause and WITHOUT re-banking
+    # a byte. K9-6 appends ONE omit-when-off kwarg -- `_xlh_kw = {"xc_leg_handles": True} if
+    # _xc_leg_handles_on() else {}` -- INSIDE this block, and the producer's `sans_xl_sha256` cuts only
+    # the two D-XL line sets it knows, so the fresh `sans` still carries K9-6's comment, its assignment
+    # and its `**_xlh_kw` spread. THE PRODUCER IS NOT EDITED AND THE BANK IS NOT MOVED: the join is made
+    # HERE, by cutting K9-6's own line set with the producer's OWN discipline (one leading comment line
+    # through one final assignment, plus the spread undone on the call line), landing on the banked HEAD
+    # sha exactly. Two asserts, in this order, so a failure says WHICH half broke:
+    #   (a) the in-process reproduction reaches the producer's own `sans_xl_sha256` -- proof that this
+    #       recomputation is FAITHFUL to the subprocess and not a second, looser measurement;
+    #   (b) that same text, with K9-6's line set cut, is the banked HEAD block.
+    # THE PRE-BANK IS KEPT: with K9-6 absent the cut is a no-op and (b) is the assert this replaced,
+    # verbatim in effect. The anchors are IMPORTED from the producer rather than re-typed, so a producer
+    # re-anchor cannot silently diverge from this pin.
+    _sans_repro, _sans_head = _g1x_sans(producer)
+    assert _sans_repro == nb["seam_block"]["sans_xl_sha256"], (
+        "the in-process seam recomputation no longer reproduces the producer's own sans -- "
+        "re-anchor BOTH, never just this one")
+    assert _sans_head == ob["seam_block"]["sha256"], (
+        "the seam block moved by more than the D-XL insertion and K9-6's / K9-4's appended kwargs")
     # the end anchor moves with the LAST kwarg the seam expands; the recovery above is what makes
     # that safe, so the pin names the two it accepts rather than accepting any string.
     assert nb["seam_block"]["end_anchor"] in (ob["seam_block"]["end_anchor"], "**_eod_kw)")
@@ -3033,11 +3131,42 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # `_call_opus`'s transport blocks (a cache_control key) and the numbers agent's tool loop. Neither
     # is visible to `_system`, the planner constitution, the seam block or the kwarg key set -- all four
     # of which assert byte-identity earlier in this pin and did.
+    # RE-ANCHORED 2026-09-07 BY K9-6 THE FOUR-FIGURE LINE, on the SAME shape and for the same reason:
+    # the producer censuses every zero-arg `_*_on` callable on the `answer` module, so K9-6's
+    # kill-switch `_xc_leg_handles_on` (GRAPHRAG_XC_LEG_HANDLES -- the cross-commodity leg line's
+    # per-magnitude handles) appears here BY CONSTRUCTION. It is DARK: unset resolves False, which is
+    # the request the estate serves today. The accepted set list gains ONE named state and nothing
+    # else, and every value is still named one by one, so a default that flips in EITHER direction
+    # reds this pin. K9-6's other surfaces are checked above and did NOT move: it appends
+    # `xc_leg_handles` at the TAIL of `cascade.quantify` (the signature prefix rule), it adds no key
+    # to the off-state kwarg set, and it is invisible to `_system`, the planner constitution and
+    # `plan_fields`.
     _XL_SIX = ["_extrema_own_date_on", "_extreme_locator_on", "_xl_kind_extreme_on",
                "_xl_kind_windowed_on", "_xl_lane_promote_on", "_xl_superlative_strip_on"]
     _DCL_ONE = ["_synth_plain_evidence_on"]
-    assert _newflags in ([], _XL_SIX, sorted(_XL_SIX + _DCL_ONE)), _newflags
-    for k in _newflags:                       # D-XL six -> dark (False); the D-CL opt-in -> off (False)
+    _K96_ONE = ["_xc_leg_handles_on"]
+    # RE-ANCHORED 2026-09-07 BY K9-4 VINTAGE ROLE, same sitting, same shape and same reason: the
+    # producer censuses every zero-arg `_*_on` callable on `answer`, so K9-4's kill-switch
+    # `_vintage_role_on` (GRAPHRAG_VINTAGE_ROLE -- the price leg's revision-role label and the [N]
+    # scope's role word) appears here BY CONSTRUCTION. DARK: unset resolves False, which is the request
+    # the estate serves today. K9-4's other surfaces are checked above and did NOT move: it appends
+    # `vintage_role` at the TAIL of `cascade.quantify` (the signature prefix rule), it adds no key to
+    # the off-state kwarg set, and BOTH of its persona edits are gated on the same flag -- the
+    # `_SYSTEM_RECENCY` clause and (fix pass, review MAJOR-1) the SEAM-B paragraph substitution, whose
+    # off-path value is `_SYSTEM_CASCADE` itself, HEAD's own bytes -- so the 14 `_system` renders are
+    # byte-identical in the producer's stripped env.
+    # EACH ITEM IS INDEPENDENTLY REVERTABLE AT THIS PIN (fix pass, review MINOR-3). K9-4 and K9-6 ship
+    # in the SAME sitting but are separate items, so BOTH one-item states are accepted as well as the
+    # pair: without this line, reverting K9-6 alone reds a golden for no cause of its own. The cut
+    # helper already tolerates either order -- each cut is guarded by `if <anchor> in sans` and K9-4's
+    # runs FIRST, so with K9-6 absent `**_vr_kw)` is the tail its own regex was written against, and
+    # with K9-4 absent `**_xlh_kw)` is. A COUPLING NAMED IS NOT A COUPLING PINNED, so it is pinned.
+    _K94_ONE = ["_vintage_role_on"]
+    assert _newflags in ([], _XL_SIX, sorted(_XL_SIX + _DCL_ONE),
+                         sorted(_XL_SIX + _DCL_ONE + _K96_ONE),
+                         sorted(_XL_SIX + _DCL_ONE + _K94_ONE),
+                         sorted(_XL_SIX + _DCL_ONE + _K96_ONE + _K94_ONE)), _newflags
+    for k in _newflags:      # D-XL six -> dark (False); the D-CL opt-in and K9-6/K9-4 -> off (False)
         assert nb["flags_off"][k] is False, (k, nb["flags_off"][k])
 
     # ...and the specific facts inside them, so the bank cannot be re-anchored into vacuity
@@ -3053,9 +3182,13 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     assert ob["seam_block"]["sha256"] == (
         "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074")
     assert ob["seam_block"]["len"] == 8399 and ob["seam_block"]["n_lines"] == 98
-    # ...and the LITERAL the re-anchor above rests on: the fresh block, D-XL insertion removed, must
-    # hash to the banked HEAD block. Pinned to the constant so a future edit cannot re-bank into it.
-    assert nb["seam_block"]["sans_xl_sha256"] == (
+    # ...and the LITERAL the re-anchor above rests on: the fresh block, the D-XL insertion AND K9-6's
+    # one appended kwarg removed, must hash to the banked HEAD block. Pinned to the constant so a
+    # future edit cannot re-bank into it. (Before K9-6 this read the producer's own
+    # `sans_xl_sha256`; K9-6 lands after the producer's second cut, so the same constant is now
+    # joined through `_g1x_sans`, whose FIRST return value is checked against that producer field
+    # above. THE CONSTANT IS UNMOVED -- which is the whole point of naming the cause.)
+    assert _sans_head == (
         "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074")
     # the OFF-state kwarg key set: `futures_newest_first` alone (its `_series_newest_first_on`
     # half defaults ON estate-wide), and E16 must not add a key to it

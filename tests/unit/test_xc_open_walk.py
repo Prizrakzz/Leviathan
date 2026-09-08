@@ -1059,11 +1059,20 @@ def test_transmission_link_threads_open_ask_belt_and_braces():
     a5.4's precedence guard makes an open ask structurally unreachable there, so no behavioural fixture
     can exercise it (reaching the link call would require defeating the guard this wave just landed).
     Pinned on the landed source instead, beside the guard that makes it dead code -- both must move
-    together if a later wave relaxes the precedence decision."""
+    together if a later wave relaxes the precedence decision.
+
+    MOVED 2026-09-07, NAMED CAUSE: K9-6 THE FOUR-FIGURE LINE threads its OWN omit-when-off kwarg
+    (`**_lh`, GRAPHRAG_XC_LEG_HANDLES) at this same call, because `_xc_leg_lines` and the two marker
+    literals are ONE producer and the chain composer renders through them per link -- leaving this seam
+    unthreaded would print handles on an RV2 turn and not on a chain turn at one setting of one flag.
+    The PRE-BANK is kept verbatim below and the pin's own subject is unchanged: `**_oa` still rides this
+    call, still positioned after the positional `comove`, still exactly once."""
     src = Path(cq.__file__).read_text(encoding="utf-8")
     xmit = src[src.index("def _transmission_legs"):]
     assert xmit.count('_oa = {"open_ask": True} if (xc_request or {}).get("trigger") in _OPEN_TRIGGERS') == 1
-    assert "comove,\n                                     **_oa)" in xmit
+    _PRE_K9_6 = "comove,\n                                     **_oa)"            # the banked HEAD text
+    assert "comove,\n                                     **_oa, **_lh)" in xmit
+    assert _PRE_K9_6 not in xmit          # the move is EXACTLY the one named above, not a second edit
     assert cq._OPEN_TRIGGERS == ("open_walk_graph", "open_walk_idorder")
 
 

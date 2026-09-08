@@ -521,7 +521,14 @@ _SYSTEM_EXTREME_HOP_MANDATE = (
 
 # P9-B: appended to the mentor persona ONLY when GRAPHRAG_CASCADE_QUANT is on -- the quantify loop supplies
 # the [N] rows, so (unlike Phase A) a [N]-cited dated lag is backed and will NOT be stripped.
-_SYSTEM_CASCADE = (
+#
+# K9-4 FIX PASS SPLIT THIS LITERAL IN THREE AND MOVED NO BYTE OF IT. `_SYSTEM_CASCADE` is still ONE name
+# with ONE value -- `_SYSTEM_CASCADE_A + _SYSTEM_CASCADE_PRICE_RESPONSE + _SYSTEM_CASCADE_B`, composed at
+# the bottom of this block and pinned to HEAD's own sha256 -- because eight suites read that attribute and
+# three of them assert `_system() == _SYSTEM_MENTOR + _SYSTEM_CASCADE`. The split exists so the ONE
+# paragraph K9-4 must branch (SEAM B, PRICE-RESPONSE) is a NAME the flag-on variant can substitute,
+# instead of a `.replace()` on a 7,034-character persona or a second copy of the clause's bytes.
+_SYSTEM_CASCADE_A = (
     # PA-10(c) (2026-08-25): BOTH NUMBER PANELS ARE NAMED HERE. The [N] index space spans them -- the agent's
     # lookups arrive as `orchestrator._numbers_block` ("SILVER NUMBERS") and the quantify loop appends its
     # rows to the SAME `extra_number_calls` list, so [N7] may live in either block -- while this paragraph
@@ -568,9 +575,51 @@ _SYSTEM_CASCADE = (
     "country, never by era), on su_ratio PERCENTAGES only -- NEVER tonnage levels. Because this is a co-move and "
     "not a divergence, you have NO price-direction license here: state only that both world balance sheets moved "
     "the same way (both tightened, or both loosened). Render '## Complex-wide move' ONLY when a 'CO-MOVE' line is "
-    "present; never volunteer a complex-wide co-move from prose. "
-    # SEAM B (F2 price-response): the price-LEVEL blessing hoisted from the Cross-commodity paragraph to the
-    # main '## The record' section -- a settled farm-price pair renders here, not under any fork heading.
+    "present; never volunteer a complex-wide co-move from prose. ")
+
+
+# SEAM B (F2 price-response): the price-LEVEL blessing hoisted from the Cross-commodity paragraph to the
+# main '## The record' section -- a farm-price pair renders here, not under any fork heading.
+#
+# ══ K9-4 FIX PASS (review MAJOR-1) -- THE FOURTH PRODUCER OF THE ROLE ASSERTION, AND THE ONLY ONE THE
+# WRITER READS AS A STANDING RULE ═══════════════════════════════════════════════════════════════════
+#
+# THE BUILD'S OWN MECHANISM NOTE SAID "ONE PRODUCER AND THREE PRINT SITES" (cascade.py, citations.py and
+# `_vintage_role_on` above) AND, MEASURED, THERE WERE FOUR. This paragraph is the fourth. It is gated on
+# the same 'PRICE-RESPONSE' line the leg emits, `GRAPHRAG_CASCADE_QUANT` defaults 'on' (the seam below),
+# so it shipped on all 12 banked turns and ships on both serving tiers -- and at HEAD it asserted the
+# finality twice, in the writer's own instruction voice: "the settled US season-average FARM price" and
+# "This is a survey-based USDA season-average actual (revision_stamp)". Both words the judged STOP
+# sentence used -- "settled" and "actual" -- were therefore handed to the writer as a rule, by the
+# persona, on every price-leg turn.
+#
+# WITHOUT THIS FIX THE FLAG-ON PROMPT CONTRADICTED ITSELF, WHICH IS WORSE THAN HEAD AND IS THE DESIGN'S
+# OWN MAJOR-3 CLASS ONE SITE FURTHER OUT ("a fix naming only the last of them leaves the claim in the
+# prompt twice"). Reproduced on the design's own mixed pair (MY2024/25 `actual` beside MY2025/26
+# `estimate`) with GRAPHRAG_VINTAGE_ROLE=on: the block printed "an in-year USDA estimate at this as-of,
+# not a settled survey figure" on both level lines and "revision_stamp estimate" in the tail, while the
+# persona shipping on the SAME turn still said "settled" and "actual". Pinned in the lane deck
+# (test_k9_4_red_the_persona_paragraph_is_the_fourth_producer_and_stops_asserting_the_role).
+#
+# THE FIX DEFERS RATHER THAN RE-ASSERTS, WHICH IS WHY IT NEEDS NO ROLE THREADED TO THIS SEAM. The
+# persona is assembled before any row is read, so branching it on the pair's role would mean threading
+# the leg's measurement into `_system` -- a new coupling for a claim the block already states. Instead
+# the flag-on paragraph STOPS asserting finality and tells the writer to COPY the role the line and the
+# row declare, which is fail-closed on all three of `_price_role_terms`' branches (both `actual` ->
+# "settled ... actual"; either provisional -> "an in-year USDA <role>"; role-less -> "not published on
+# this read") and on the role-less rows the scope half leaves untouched. ONE PRODUCER, now honoured by
+# every reader of it.
+#
+# TWO CLAUSES ARE KEPT ON THE FLAG-ON PATH ON PURPOSE, because `_price_role_terms` keeps them on EVERY
+# branch and a persona that dropped them would contradict the block in the other direction: "survey-
+# based" (the noun the leg uses on all three branches) and "NOT a futures settle" (A3's clause, whose 7
+# measured row-runs cascade.py's own note names). What goes is the FINALITY: "the settled" and "season-
+# average actual" appear nowhere in the flag-on paragraph, pinned.
+#
+# DELIBERATELY NOT COVERED: the OTHER five injected paragraphs of this block (DIVERGENCE, REROUTE,
+# CROSS-COMMODITY, CO-MOVE, and the shared HANDLE DISCIPLINE tail) are untouched at both settings --
+# none of them asserts a revision role, and this item is the role assertion, not the price paragraph.
+_SYSTEM_CASCADE_PRICE_RESPONSE = (
     "If the block carries a line beginning 'PRICE-RESPONSE', the settled US season-average FARM price moved "
     "over the analogue marketing years: put BOTH price LEVELS under '## The record', each cited by its [N] "
     "handle EXACTLY as printed, and narrate the DIRECTION in prose (rose/fell) -- the level is the [N] row, the "
@@ -578,7 +627,85 @@ _SYSTEM_CASCADE = (
     "settle and NOT your forecast; a current- or future-MY value is a USDA PROJECTION and must be attributed as "
     "one. observed price LEVELS arrive as [N] rows -- cite them with their [N] handle like any observed number; "
     "NEVER mint an uncited price figure. Render this ONLY when a 'PRICE-RESPONSE' line is present; never "
-    "volunteer a price move from prose. "
+    "volunteer a price move from prose. ")
+
+
+# THE FLAG-ON VARIANT (`GRAPHRAG_VINTAGE_ROLE`), substituted for the paragraph above at the assembly
+# seam. J6 SHAPE, like this item's `_SYSTEM_RECENCY_MOOD` half: it says what to WRITE and names no
+# forbidden phrase, so it cannot be satisfied by omitting the price sentence altogether. Every
+# non-finality instruction is the paragraph above VERBATIM -- the '## The record' placement, the handle
+# rule, the direction-in-prose rule, the uncited-figure refusal and the render-only-on-the-marker fence
+# -- so a diff of the two literals shows the role assertion this item moves and nothing else.
+#
+# ══ SECOND FIX PASS (verify MAJOR, K9-4) -- ONE PARAGRAPH, ONE INSTRUCTION ON THE ROLE AXIS ══════════
+#
+# THE FIRST PASS DELETED THE FINALITY ASSERTION AND LEFT A ROLE-WORD DIRECTIVE STANDING ONE SENTENCE
+# LATER, so the flag-on paragraph shipped TWO instructions on this item's own axis where HEAD shipped
+# one. MEASURED this sitting on the design's own worked pair -- `_k94_pair("actual", "estimate",
+# vintage_role=True)`, the SAME fixture the pin below builds its block from -- with the paragraph split
+# on sentence boundaries:
+#   sentence [2] "HOW SETTLED IT IS, THE RECORD DECLARES AND YOU COPY: ... write the role in the words
+#     the line and the row use ..."
+#   sentence [3] "A current- or future-MY value is a USDA PROJECTION and must be attributed as one."
+# and the block those two instructions arrive beside prints, three times, "an in-year USDA estimate at
+# this as-of, not a settled survey figure" plus the tail "revision_stamp estimate". [3] names BOTH
+# current AND future MY, so it reaches MY2025/26 on either reading of which one that is, and it hands
+# the writer ONE word: a writer obeying [3] writes "projection" for a row the publisher stamped
+# `estimate` -- mis-stating the PUBLISHER's finality judgement, which is the class this item exists to
+# close and which `citations._role_display`'s own note names.
+#
+# THE CONFLICT WAS NEW TO THE FLAG-ON PATH, not inherited: HEAD's paragraph carries the PROJECTION
+# sentence with NO competing copy-the-record clause (measured: "write the role in the words" is absent
+# from `_SYSTEM_CASCADE_PRICE_RESPONSE`), so HEAD reads as one rule with a carve-out. The fix does not
+# delete the carve-out's substance -- deletion is the J6 failure mode this block already refuses -- it
+# SUBORDINATES it: "The same rule covers a current- or future-MY value: it is the USDA's own read of a
+# marketing year the record has not closed, never our forecast, and the word for it is the revision role
+# the record declares (actual / estimate / projection)." Three things survive verbatim in meaning -- the
+# current/future-MY scope, the not-our-forecast point, and the roster -- and the ROLE WORD now has one
+# producer in the prompt as it has one producer in the engine.
+#
+# THE MODIFIER IS "THE RECORD HAS NOT CLOSED" AND NOT "IN-YEAR", DELIBERATELY. The clause's scope spans
+# BOTH a current MY and a forward one, and "in-year" is false of the forward half -- 32 of the banked
+# rows read `projection` at 2026/27. That is the shape a sibling verify finding charges against
+# `cascade._price_role_terms`' provisional branch, which renders "an in-year USDA {weak}" for every
+# non-`actual` pair; this paragraph does not repeat it, and that branch is that finding's to fix.
+#
+# THE FORMULATION IS THE ESTATE'S OWN, NOT AN INVENTION. `numbers/agent.py:2397` says of this same column
+# "Current- and future-MY values are USDA PROJECTIONS: attribute them by revision_stamp (actual /
+# estimate / projection), never as our own forecast" -- the same two survivors, deferring the role word
+# to the record. This paragraph drops agent.py's leading noun as well, because unlike agent.py it sits
+# one sentence after an explicit copy-the-record rule and the noun would read as that rule's exception.
+#
+# WHY THE THREE ROLES ARE NAMED AND NOT ONE. Design section 4 (3a), measured across the 12 banked
+# answers: "10 rows `actual` (period 2024/25), 22 `estimate` (2025/26), 32 `projection` (2026/27), and 8
+# rows with role None -- all 8 of them `avg_farm_price` rows minted by the price leg" (frozen in the deck
+# as `_K94_BANKED_ROLE_CENSUS`). The two non-`actual` marketing years [3]'s "current- or future-MY" scope
+# reaches carry TWO DIFFERENT roles -- `estimate` on 22 rows at 2025/26, `projection` on 32 at 2026/27 --
+# so one word cannot serve both, and naming either one names the wrong role on the other's rows.
+# The role-less case keeps its single statement in sentence [2] ("where the line says the role is not
+# published on this read, write that rather than choosing one") -- the fail-closed branch
+# `_price_role_terms` renders for the 8 role-None mints, stated once and nowhere else.
+#
+# FLAG-OFF IS UNMOVED: `_SYSTEM_CASCADE_PRICE_RESPONSE` above is byte-identical to HEAD, still pinned to
+# HEAD's own sha256 through `_SYSTEM_CASCADE`.
+_SYSTEM_CASCADE_PRICE_RESPONSE_VR = (
+    "If the block carries a line beginning 'PRICE-RESPONSE', the US season-average FARM price moved "
+    "over the analogue marketing years: put BOTH price LEVELS under '## The record', each cited by its [N] "
+    "handle EXACTLY as printed, and narrate the DIRECTION in prose (rose/fell) -- the level is the [N] row, the "
+    "direction is prose. This is a survey-based USDA season-average figure, NOT a futures settle and NOT your "
+    "forecast. HOW SETTLED IT IS, THE RECORD DECLARES AND YOU COPY: the PRICE-RESPONSE line states the pair's "
+    "revision role and each price row states its own -- write the role in the words the line and the row use, "
+    "never upgrade an in-year or forecast figure to a settled one, and where the line says the role is not "
+    "published on this read, write that rather than choosing one. The same rule covers a current- or "
+    "future-MY value: it is the USDA's own read of a marketing year the record has not closed, never "
+    "our forecast, and "
+    "the word for it is the revision role the record declares (actual / estimate / projection). "
+    "observed price LEVELS arrive as [N] rows -- cite them with their [N] handle like any observed number; "
+    "NEVER mint an uncited price figure. Render this ONLY when a 'PRICE-RESPONSE' line is present; never "
+    "volunteer a price move from prose. ")
+
+
+_SYSTEM_CASCADE_B = (
     "If there is NO DIVERGENCE line, NO REROUTE line, NO CROSS-COMMODITY line, NO CO-MOVE line and NO "
     "PRICE-RESPONSE line, do NOT invent a fork -- "
     "and a record that contradicts the USER'S PREMISE is NOT a fork: correct that in the TL;DR, never under "
@@ -616,6 +743,17 @@ _SYSTEM_CASCADE = (
     "'2024-03' -- a bare year-month reads as a date window here and is scored as one. "
     "And in the record as everywhere else: never 'bullish' or 'bearish' -- direction is prose ('fell', "
     "'rose to fill the gap'), magnitude is the [N] row.\n")
+
+
+# THE TWO COMPOSITIONS, and the first of them is a byte-identity claim rather than a refactor.
+# `_SYSTEM_CASCADE` keeps HEAD's exact value -- 7,034 characters, sha256
+# ec29629a4c115f4b2254a0af516768f0a252f04766a228fe6df341ab60ecbdff -- so every reader of the attribute
+# is unmoved: eight suites read it, three of them assert `_system(...) == _SYSTEM_MENTOR +
+# _SYSTEM_CASCADE` and one SLICES it by marker offset. The sha is pinned in the lane deck against the
+# constant, so a later edit to any of the three parts reds there with a cause instead of silently
+# rewriting a persona nobody diffed. `_SYSTEM_CASCADE_VR` differs from it in EXACTLY one paragraph.
+_SYSTEM_CASCADE = _SYSTEM_CASCADE_A + _SYSTEM_CASCADE_PRICE_RESPONSE + _SYSTEM_CASCADE_B
+_SYSTEM_CASCADE_VR = _SYSTEM_CASCADE_A + _SYSTEM_CASCADE_PRICE_RESPONSE_VR + _SYSTEM_CASCADE_B
 
 # CHAIN (minideck RCA 2026-07-24): the only injected marker WITHOUT a system-prompt paragraph -- its lone
 # in-block instruction line lost to the five instructed markers above, and the flagship corn row alone put
@@ -1138,6 +1276,106 @@ def _extrema_own_date_on() -> bool:
     the locator's arm measure its own instrument. Read at the seams the existing flags are read at and
     threaded DOWN as an argument -- never an env read inside agent.py / cascade.py / derived.py."""
     return os.environ.get("GRAPHRAG_EXTREMA_OWN_DATE", "").strip().lower() in ("on", "1", "true")
+
+
+def _xc_leg_handles_on() -> bool:
+    """K9-6 THE FOUR-FIGURE LINE's kill-switch (GRAPHRAG_XC_LEG_HANDLES), BUILT DARK.
+
+    THE MEASURED TRIGGER is the judged panel's own STOP sentence (cascade_panel.json, deep entry #19, id
+    rv_canola_rapeoil; CONTROL = deep): "World soybean oil stocks-to-use MY2009: 10.1401%, versus MY2008
+    10.2351%, a change of -0.0950733pp over the window [N34]." ONE handle carried THREE magnitudes --
+    `cascade._xc_leg_lines` minted the baseline and the delta as their own citable rows and then named
+    neither on the line -- and the line printed the RAW float where the row carries `round(v, 4)`, so the
+    token the writer copied (-0.0950733) was a token no handle resolved to. The max arm shipped the
+    retraction outright ("... correction -- palm went 20.9588% to 22.4415% [N34]").
+
+    WHEN ON: every magnitude on a cross-commodity leg line carries its own [N] (the baseline at handle+1,
+    the delta at handle+2 -- rows the engine already mints), each is formatted off THE ROW, and both the
+    CROSS-COMMODITY and CO-MOVE marker lines name the handle of every figure they restate. WHEN OFF: the
+    kwarg is ABSENT at both engine seams and every line, both markers and the `fired` trace are
+    byte-identical to today.
+
+    WHAT THE FLAG DOES NOT REACH, named here rather than discovered later: the RV-REGIONAL fork
+    (`cascade._xc_regional_leg_lines`) carries the same one-handle-three-magnitudes shape and keeps HEAD's
+    render -- the design's SEAM names the World producer and its two marker lines and nothing else, and
+    the regional fork renders on none of the twelve banked turns. The mixed render that leaves is a
+    WITHIN-PANEL boundary, not merely a turn-to-turn one: `_run_xc` can take the regional branch on the
+    same turn the transmission composer renders World links through the threaded `_reroute_xc`.
+
+    DESIGN FIX (iv) IS UNBUILT AND K9-6 IS 3 OF 4. The retraction COUNTER `register.count_self_corrections`
+    -- the design names it by address, on `register.count_exec_words`' / `_SENT_ITER`' shape, and both
+    addresses are live -- is not built in this lane at all: register.py is not on this lane's allowlist,
+    and relocating a counter to a seam the design did not name would be a worse answer than reporting it.
+    The item stays OPEN on that count, and the scope state is MACHINE-CHECKED rather than asserted in
+    prose: tests/unit/test_k9_stop_census.py::test_k9_6_design_fix_iv_the_retraction_counter_is_unbuilt_
+    and_docketed reds if the counter appears while these declarations still call it unbuilt, AND reds if
+    a declaration is deleted while it is still absent. No K9-6 pin depends on it -- the item's own tier-1
+    settlement is three handles per leg line and the absence of the tokens 8.67531 and -0.0950733.
+
+    Read at THIS seam and threaded DOWN as an argument -- never an env read inside cascade.py, which two
+    live doctrine tests assert on the file's own source ([SKEPTIC F3]). Read PER CALL, never memoized, so
+    the env-flip rollback is live without a redeploy."""
+    return os.environ.get("GRAPHRAG_XC_LEG_HANDLES", "").strip().lower() in ("on", "1", "true")
+
+
+def _vintage_role_on() -> bool:
+    """K9-4 VINTAGE ROLE's kill-switch (GRAPHRAG_VINTAGE_ROLE), BUILT DARK.
+
+    THE MEASURED TRIGGER is the judged panel's own STOP sentence (cascade_panel.json, TREATMENT STOP #10,
+    id rv_beans_meal; TREATMENT = max): "The settled US soybean season-average farm price (a USDA survey
+    actual, not a futures settle) rose from $10.00/bu [N41] in MY2024/25 to $10.40/bu [N42] in
+    MY2025/26." -- STOP: "the MY2025/26 figure is a WASDE forecast at a vintage known 2026-08-12, inside
+    a marketing year that had not closed; labelling it a settled USDA survey actual is a retraction a
+    desk head would have to make." The panel flagged that one sentence twice; #14 names the seam: "it is
+    the one place A upgrades a projection to a print."
+
+    WHEN ON, THREE halves of the SAME flag -- and the third was found by the fix-pass review, not by
+    this build: (1) `cascade._price_call` copies the endpoint row's declared
+    `revision_stamp` onto its synthetic [N] row, and the ONE price-leg label -- printed on both level
+    lines and inside the PRICE-RESPONSE tail -- branches FAIL-CLOSED on the roles the rows carry
+    (both `actual` -> HEAD's wording verbatim, including "NOT a forecast"; either provisional -> the
+    least settled role named as in-year; a role-less row -> the label says the role is not published on
+    this read); (2) `citations.from_number` prints the headline row's role inside the scope from a CLOSED
+    three-word roster, so an agent-lane WASDE read says "MY2025/26 USDA estimate" instead of stopping at
+    the marketing year; (3) THE PERSONA'S OWN SEAM-B PARAGRAPH stops asserting the finality and tells the
+    writer to COPY the role the line and the row declare (`_SYSTEM_CASCADE_VR` substituted for
+    `_SYSTEM_CASCADE`, one paragraph). (3) is not decoration: at HEAD that paragraph told the writer "the
+    settled US season-average FARM price" and "a survey-based USDA season-average actual" as a STANDING
+    RULE on every price-leg turn, so a flag-on turn without it shipped a prompt that contradicted its own
+    block -- the design's MAJOR-3 class one site further out. WHEN OFF: the kwarg is ABSENT, the roster is
+    never consulted, `_SYSTEM_CASCADE` is HEAD's own value to the byte, and every label, both engine
+    literals and the `fired` trace are byte-identical to today.
+
+    THIS FLAG IS READ AT TWO SEAMS, WHICH IS A MODULE LAW AND NOT AN OVERSIGHT: cascade.py performs no
+    environment read of any kind ([SKEPTIC F3], asserted on that file's own source by two live doctrine
+    tests), so its half is threaded from HERE as the `vintage_role` kwarg, while citations.py reads the
+    env directly exactly as its two K9 siblings (`_scope_withhold_on`, `_narrate_scale_on`) do. One flag
+    NAME, two READING MODULES -- this one at three sites (the quantify kwarg, the `_SYSTEM_RECENCY_MOOD`
+    append and the SEAM-B paragraph substitution, all three inside `_system`/`_answer_l2` and all three
+    per-call) and citations.py at one -- each at the seam its own module permits.
+
+    THE DESIGN NAMED NO FLAG AND THIS BUILD MINTS ONE -- the single stated departure. Design section 8
+    says K9-4 "rides flags that are already on"; measured, those are GRAPHRAG_CASCADE_PRICE_LEG and
+    GRAPHRAG_RECENCY_STAMP, both ON in cascade_control_overrides.json AND cascade_treatment_overrides
+    .json, so riding them would ship a reader-facing label change LIT on both serving tiers with no
+    rollback of its own. Dark behind its own default-off flag with a pinned byte-identical off-path is
+    this lane's law.
+
+    DESIGN FIX 3b IS HALF-BUILT AND K9-4 IS 2 OF 3. The positively-worded clause DOES ship, on
+    `_SYSTEM_RECENCY` where the design's MAJOR-4 moved it (measured shipping on both banked arms). The
+    forecast-restatement COUNTER `register.count_forecast_restatements` -- the design names it by
+    address, on `register.count_exec_words`' / `_SENT_ITER`' shape, and both addresses are live -- is NOT
+    built in this lane at all: register.py is not on this lane's allowlist, and relocating a counter to a
+    seam the design did not name would be a worse answer than reporting it (the K9-6 fix-(iv) precedent,
+    same sitting, same reason). The item stays OPEN on that count, and the scope state is MACHINE-CHECKED
+    rather than asserted in prose: tests/unit/test_k9_stop_census.py::test_k9_4_design_fix_3b_the_
+    forecast_counter_is_unbuilt_and_docketed reds if the counter appears while these declarations still
+    call it unbuilt, AND reds if a declaration is deleted while it is still absent. No K9-4 pin depends
+    on it -- the item's tier-1 settlement is the three price-label print sites and the scope word.
+
+    Read at THIS seam and threaded DOWN as an argument. Read PER CALL, never memoized, so the env-flip
+    rollback is live without a redeploy."""
+    return os.environ.get("GRAPHRAG_VINTAGE_ROLE", "").strip().lower() in ("on", "1", "true")
 
 
 def _intensity_on() -> bool:
@@ -2369,6 +2607,34 @@ _SYSTEM_RECENCY = (
     "question's 'today'. Dating a claim is never optional where the reader could mistake it for current.")
 
 
+# K9-4 design FIX 3b, THE POSITIVELY-WORDED HALF (the J6 clause), APPENDED TO `_SYSTEM_RECENCY` RATHER
+# THAN MINTED AS ITS OWN LEG. The measured trigger is the judged panel's STOP sentence (cascade_panel
+# .json, TREATMENT STOP #4, id rv_soyoil_palm; TREATMENT = max): "the evidence records that Indonesian
+# palm exports rose in 2022/23 after slower shipments and export restrictions the prior year [E35]
+# (STOP: [35] is WASDE 2022-05-12 saying exports 'are expected to increase for Indonesia in 2022/23' --
+# a forecast restated as a realized outturn, and it is the load-bearing example for the convex/right-
+# tail case)". A receipt's MOOD was dropped on the way into the prose, which is the same class as 3a one
+# axis over: 3a is a ROW's declared finality, this is a RECEIPT's.
+#
+# IT LIVES HERE BECAUSE THE DESIGN'S OWN MAJOR-4 MEASURED THAT ITS FIRST HOME WAS INERT. v1 put it on
+# `_SYSTEM_PROVENANCE`, which is appended only under `if provenance:` and `provenance_prompt=True` is set
+# on exactly ONE preset (ESC_R, reasoning_modes.py) -- DEEP and MAX set neither, so the clause would have
+# shipped on none of the 12 banked turns and on neither serving tier; `_SYSTEM_PROVENANCE`'s own note
+# also declares it "INFORMATION + PERMISSION, never a rule", which a writing instruction contradicts.
+# `_SYSTEM_RECENCY` is the DATING AND TENSE discipline, is already a rule in the writer's own voice, and
+# is MEASURED shipping on both banked arms (GRAPHRAG_RECENCY_STAMP=on in both override files).
+#
+# J6 SHAPE, DELIBERATELY: it says what to WRITE and names no forbidden phrase, so it cannot be satisfied
+# by omission -- the failure mode of a prohibition, which buys a shorter answer and calls it a fix.
+# APPENDED WITH NO PARAGRAPH BREAK, so it reads as the next sentence of the discipline it extends rather
+# than as a fourth directive competing with it. Gated at the assembly seam by GRAPHRAG_VINTAGE_ROLE:
+# flag off -> the persona string is byte-identical to HEAD (pinned in the lane deck).
+_SYSTEM_RECENCY_MOOD = (
+    " When a receipt states an expectation, a forecast or an outlook, write your sentence in the mood "
+    "the receipt uses and name its report date; whether that forecast proved out is a separate fact "
+    "with its own row.")
+
+
 # D-MW-30 / 30c: THE INVITATION (esc_r only), the reserve's missing half. P3-A proved graph admission works
 # and citation does not follow -- and the reason is legible in hindsight: a reserved row rendered EXACTLY
 # like a cosine one, so the writer had no way to know it was reached structurally rather than because it
@@ -2681,7 +2947,11 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     # every standard/dark turn -> apply() uses the contract's own budget -> byte-identical).
     base = _rc.apply(_SYSTEM_MENTOR, response_contract, budget=budget, census=census)
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
-        base = base + _SYSTEM_CASCADE
+        # K9-4 FIX PASS: the SEAM-B price paragraph is the assertion's FOURTH producer (the block note
+        # above `_SYSTEM_CASCADE_PRICE_RESPONSE` measures why), so it branches on the SAME flag the
+        # label and the scope word branch on -- one flag, one substituted paragraph, no other byte of
+        # this 7,034-character persona moved. FLAG OFF -> `_SYSTEM_CASCADE` itself, HEAD's own value.
+        base = base + (_SYSTEM_CASCADE_VR if _vintage_role_on() else _SYSTEM_CASCADE)
         if _chain_on():                                            # chain paragraph rides the cascade block
             base = base + _SYSTEM_CHAIN
         if _transmission_on():                                     # ditto the HORIZONTAL chain's paragraph
@@ -2745,6 +3015,14 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         base = base + _SYSTEM_OUTLOOK
     if recency:                                                    # D-RC-13: dating discipline (flag resolved
         base = base + _SYSTEM_RECENCY                              #   by the caller's seam, threaded DOWN)
+        if _vintage_role_on():                                     # K9-4 3b: the receipt-MOOD clause, on
+            base = base + _SYSTEM_RECENCY_MOOD                     #   the ONE literal measured shipping on
+            #                                                          both banked arms. Read here rather
+            #                                                          than threaded, the
+            #                                                          `_pattern_records_on()` append idiom
+            #                                                          three lines up: it rides the leg it
+            #                                                          extends, so it can never ship on a
+            #                                                          turn whose dating discipline did not.
     if provenance:                                                 # D-MW-30 (esc_r): the structural-admission
         base = base + _SYSTEM_PROVENANCE                           #   INVITATION, threaded from the mode knob
     if numbers_budget:                                             # LANE S: the numbers-leg ABSENCE /
@@ -3656,6 +3934,24 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # locator does not depend on -- flipping it in this lane's arm would make that arm measure
             # its own instrument, which is the same reason the superlative strip is deferred.
             _eod_kw = {"extrema_own_date": True} if _extrema_own_date_on() else {}
+            # K9-6 THE FOUR-FIGURE LINE, BUILT DARK: the SAME omit-when-off idiom, so with the flag unset
+            # the kwarg is ABSENT, `quantify`'s default holds, and both cross-commodity render sites emit
+            # exactly the bytes they emit today. Its own flag because it changes LIVE rendered bytes on a
+            # surface no other lane depends on.
+            # ITS SPREAD LANDS BEFORE `**_eod_kw`, NOT AFTER IT, AND THAT IS LOAD-BEARING RATHER THAN
+            # STYLISTIC. The g1x seam golden locates this block by two anchor STRINGS and knows exactly
+            # two of them (data/consequence_leg/xl_golden_seam_bank.py:117 and :125); the second is the
+            # `**_eod_kw` spread D-XL left closing this call. An append landing ON that spread leaves the
+            # producer with NEITHER anchor, so it exits non-zero and takes the WHOLE gate down -- the
+            # producer's own comment says so in those words. Landing before it keeps the anchor where
+            # D-XL left it and the gate runnable. The block's BYTES still move (this comment and the line
+            # below are inside it); that move is MEASURED in test_cascade_walk.py's g1x pin, on this
+            # insertion's own line set, and the bank is not re-banked by a byte.
+            _xlh_kw = {"xc_leg_handles": True} if _xc_leg_handles_on() else {}
+            # K9-4 VINTAGE ROLE, BUILT DARK: the same omit-when-off idiom for the SEAM-B price leg. It
+            # lands beside `_xlh_kw` and BEFORE `**_eod_kw` for the reason written above -- the g1x seam
+            # golden's second anchor is that spread, and an append landing on it takes the gate down.
+            _vr_kw = {"vintage_role": True} if _vintage_role_on() else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
@@ -3665,7 +3961,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                                 **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw,
                                                                 **_fnf_kw, **_pr_kw, **_rv_kw, **_rvr_kw,
                                                                 **_dv_kw, **_cw_kw, **_xl_kw,
-                                                                **_eod_kw)
+                                                                **_xlh_kw, **_vr_kw, **_eod_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:
@@ -7244,6 +7540,104 @@ def _addresses_empty_row(call, idx: int, suffix: str = "") -> bool:
     return c.value is None or not str(c.value).strip()
 
 
+# ══ K9-2 FIX-PASS (2026-09-08), verify MAJOR-1 -- A WITHHELD FIGURE'S RECEIPT IS NEVER THE THING CUT ══
+#
+# THE MEASURED DEFECT, reproduced on the banked prose before a byte was written (both baselines, all 12
+# raw_drafts, both `handle_prose` settings, GRAPHRAG_SCOPE_WITHHOLD=on): census
+# `{handles_dropped: 6, sentences_dropped: 0}` and NOT ONE clause cut. The K9-2 block note in
+# `citations.py` declared a post-hoc fence -- "a handle pointing at it is dropped AND ITS CLAUSE CUT after
+# the writer has written it" -- that the code never performed. A withheld call IS an `_addresses_empty_row`
+# call (it keys on `c.value is None`), but the ladder's sever/kill rungs are reached only through
+# `standin`, i.e. only when the handle sits in a VALUE SLOT with no digit beside it. The census-A handles
+# are written AFTER the model's own digit ("reads 9 ratio [N9]"), so every one took the BARE TOKEN DROP --
+# and `_cited_sources_block` below builds `## Sources` from the indices the PROSE still carries, so the
+# figure stayed on the page and its row left it. MEASURED, max rv_canola_rapeoil's TL;DR:
+#   HEAD      "ICE canola stocks-to-use reads 9 ratio [N9] against 18.75 ratio for ZCE rapeseed oil [N10]"
+#   flag ON   "ICE canola stocks-to-use reads 9 ratio against 18.75 ratio for ZCE rapeseed oil"
+#             + `## Sources` rows LOST: [N9, N10]   (deep rv_canola_rapeoil: the same on [N25]/[N26])
+# A stated figure with its receipt deleted is a THIRD state the D-PQ HANDLE-4 join ("no dangling marker,
+# no orphan row") does not cover, and it is strictly worse than HEAD on the reader axis.
+#
+# THE SEVER RUNG WAS TRIED FIRST AND MEASURED, NOT ASSUMED AWAY. Forcing `standin = True` for this class
+# over the same 12 answers moves the census to `{handles_dropped: 2, sentences_dropped: 3}` (measured on
+# the control lane, handle_prose False; the rejected variant was not re-measured on treatment) and does NOT
+# repair the pinned line: `_handle_clause_start` takes the LAST connective and falls back to the value
+# cue, and in front of `[N9]` there is neither -- the segment ends "... reads 9 ratio ", so the clause
+# start degenerates to the handle itself and the "severance" IS the bare drop that caused the finding. It
+# does fire elsewhere, and what it deletes there is the argument against it: on deep rv_canola_rapeoil it
+# kills the whole sentence, including the half `cascade_panel.json` recorded as CORRECT ("cited but not
+# used, THOUGH THE SETTING-ASIDE IS DISCLOSED AND CORRECT" -- "but these are tonnage levels of different
+# commodities and are not comparable to each other"). Suppressing a judged-correct disclosure to remove a
+# marker is the suppress-not-correct shape, and on the max line it removes one side of a two-sided
+# comparison and leaves the other, which is worse prose than either end state.
+#
+# SO THE FENCE CORRECTS INSTEAD OF DELETING, which is the estate's own law and, on this class, also the
+# SMALLEST change: a withheld handle that is NOT standing in a value slot KEEPS ITS PLACE. The reader then
+# holds the figure AND a `## Sources` row that reads
+# `[N9] USDA PSD stocks-to-use ratio ICE canola = ONE SCOPE OF MANY (this read spans 32 geographic scopes
+# and names none; the newest row is one of them, not a figure for the commodity)` -- the correction
+# attached to the claim, at the one place the reader checks it. Flag ON is then better than HEAD on this
+# class rather than worse.
+#
+# THE MEASUREMENT THIS NOTE USED TO STATE WAS TAKEN ON THE WRONG CHAIN, AND THE RE-FIX PASS REPLACED IT
+# (verify K9-2-2-MAJOR-1). It read "`sentences_dropped` and `handles_dropped` both stay 0 on the replay",
+# which is true of THIS pass in isolation and was measured that way -- but on the `handle_prose` lane the
+# production stack (answer.py:4216-4227 and :10513-10517) runs `_drop_bare_digit_sentences` IMMEDIATELY
+# BEFORE this one, and THAT stage's sever-vs-kill discriminator reads the same `Citation.value` the
+# withhold empties. Measured over all 12 banked answers WITH the stage, flag off -> on, before the
+# re-fix: `{sentences_dropped 77, clauses_severed 90}` -> `{78, 89}` -- one sever converted to a whole-
+# sentence kill, and the sentence killed was the deep rv_canola_rapeoil disclosure this note's own
+# paragraph above says the rejected sever variant was not shipped in order to protect. The remedy is in
+# `_sentence_has_resolved_handle`: a withheld-and-kept token is a receipt the sentence keeps, the same
+# doctrine as here, at the seam that can actually reach it.
+# THE HONEST NUMBERS, PRODUCTION ORDER (bare-digit stage + this pass), 12 banked answers, handle_prose
+# True, flag off -> on:
+#   bare-digit `{sentences_dropped 77, clauses_severed 90, e_cited_kept 12}` -> IDENTICAL
+#   this pass  `handles_dropped 0, sentences_dropped 0` -> IDENTICAL (`empty_row_addressed` 0 -> 2)
+#   distinct `## Sources` rows lost across the 12 answers: 86 -> 86, IDENTICAL
+# So nothing is suppressed BY THE FLAG on either stage, and the anti-suppression floor is not spent here
+# -- which is what the old sentence meant and could not support.
+# THE RESIDUAL IS REAL, PRE-EXISTING AND UNREPAIRED BY THIS ITEM, and it is priced rather than implied.
+# The model wrote 6 withheld-class handle INSTANCES (deep [N25] x1, [N26] x1; max [N9] x2, [N10] x2). In
+# production order 2 survive to the reader AT BOTH FLAG SETTINGS; the other 4 sit in sentences the
+# bare-digit stage deletes at HEAD too -- including the whole max rv_canola_rapeoil TL;DR clause this
+# item's RED render pin is drawn from. Post-resolution citation coverage on this class is therefore
+# 2 of 6 instances, flag off AND flag on, NOT 6 of 6: the flag adds zero deletions and repairs none of
+# the four HEAD already makes. Deleting a bare-digit sentence for its own charge is a different item's
+# fence, and widening it here would be a remedy nobody measured.
+#
+# WHAT THIS DELIBERATELY DOES NOT CHANGE, each with the reason:
+#   * THE VALUE-SLOT LEG IS UNTOUCHED. A withheld handle standing where a figure belongs ("stocks-to-use
+#     stood at [N9]") still resolves to nothing and still takes sever/kill, because that sentence promised
+#     a figure it cannot produce -- the D-PQ HANDLE-1 defect, which is a different fact from this one.
+#     Measured over the banked prose: 6 withheld handle instances, 0 of them in a value slot (they follow
+#     the model's own digit, every one), so that leg is live code this replay does not exercise and only a
+#     pin holds it. IT IS ALSO WHAT KEEPS G1 CLAUSE (2b) TRUE: `eval._bare_handle_escapes` counts surviving
+#     tokens standing in a VALUE SLOT, on this module's own `_HANDLE_VALUE_SLOT_RX`, so a handle kept here
+#     can never be one that counter charges -- the guard and the instrument read the same cue.
+#   * THE ACCOUNTING DOES NOT MOVE, and no census key is added. `empty_row_addressed` (treatment) and
+#     `unresolvable` (control) are charged exactly as they are today, because both count what the MODEL
+#     ADDRESSED -- a menu row carrying no value -- and the model did address one. `handles_dropped` does
+#     not move because nothing was dropped, which is the whole of the change the reader sees.
+#   * IT FAILS CLOSED ON A MIXED OR SUFFIXED TOKEN. `all`, not `any`: a group pairing a withheld member
+#     with an out-of-range index or an invented sibling id would leave a marker for a receipt that does
+#     not exist, so those tokens take today's removal unchanged.
+#   * THE PROSPECTIVE HALF LIVES IN THE PROMPT, NOT HERE. `orchestrator._numbers_block` now carries the
+#     ONE-SCOPE-OF-MANY directive on the empty-read directive's own shape, so a fresh writer is told not
+#     to state a figure from a withheld line at all. This pass is the backstop for the residue, and the
+#     residue is now priced by an instrument that can see it (the deck's post-resolution citation
+#     coverage), not by `claim_count`, which `verify` computes on the PRE-resolution prose.
+def _scope_withheld_token(calls: list, pairs: list) -> bool:
+    """True when EVERY member of one `[N...]` token names a call whose figure K9-2 withheld.
+
+    Delegated to `cit.scope_withheld`, the ONE producer of that question (it reads the rendered label, so
+    it can never disagree with what the reader's `## Sources` row will say). Flag off -> False for every
+    call -> this whole class is byte-identical to HEAD."""
+    return bool(pairs) and all(
+        not sfx and cit.scope_withheld(calls[i - 1] if 1 <= i <= len(calls) else None, i)
+        for i, sfx in pairs)
+
+
 def _resolve_number_handles(structured: dict | None, number_calls: list | None, *,
                             handle_prose: bool = False) -> dict:
     """Substitute or remove every `[N]` handle in the reader prose so none can render literally.
@@ -7484,6 +7878,15 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
                 if dead_empty:                # 0 unless `handle_prose` -- the control census never grows
                     census["empty_row_addressed"] += dead_empty
                 census["unresolvable"] += len(pairs) - dead_empty
+            # ══ K9-2 FIX-PASS -- THE WITHHELD RECEIPT STAYS ON THE PAGE (block note above this function) ══
+            # Ordered AFTER the charge and BEFORE every removal rung: the counters record what the model
+            # ADDRESSED (unchanged), and the page records the marker whose `## Sources` row states the
+            # withhold in its own words. Only the leg that would have BARE-DROPPED the token is affected --
+            # a withheld handle standing in a value slot keeps sever/kill below, because that sentence
+            # promised a figure and can produce none. Flag off -> `_scope_withheld_token` is False for
+            # every token and this line is inert.
+            if not standin and _scope_withheld_token(calls, pairs):
+                continue
             if standin and (s0, s1) in backed:
                 # MIXED: sever the clause instead of the sentence. Falls back to the bare token drop when
                 # the clause would swallow the resolved handle that is the reason to keep the sentence.
@@ -7705,14 +8108,42 @@ def _sentence_has_resolved_handle(text: str, s0: int, s1: int, calls: list,
     the question is always "does anything OUTSIDE the cut survive to justify keeping the sentence".
     [E] resolution is an INDEX-RANGE question here on purpose: the evidence list this pass would join is
     not threaded into the [N] lane, and over-counting an [E] as resolved can only ever make this function
-    SEVER where it would otherwise KILL -- the smaller deletion, which is the safe direction."""
+    SEVER where it would otherwise KILL -- the smaller deletion, which is the safe direction.
+
+    A K9-2 WITHHELD-AND-KEPT TOKEN IS A RECEIPT THIS SENTENCE KEEPS (RE-FIX PASS, verify K9-2-2-MAJOR-1).
+    `_number_handle_value` reads `Citation.value`, which the withhold empties, so without this clause a
+    handle the downstream pass LEAVES ON THE PAGE reads here as nothing at all -- and this stage runs one
+    seam EARLIER than that pass (production order: answer.py's `_drop_bare_digit_sentences` immediately
+    before `_resolve_number_handles`, both bodies), so the flag converted a SEVER into a WHOLE-SENTENCE
+    KILL. MEASURED over all 12 banked answers in production order, flag off -> on, before this clause:
+    `{sentences_dropped 77, clauses_severed 90}` -> `{78, 89}`, and the one sentence converted was deep
+    rv_canola_rapeoil's "World production levels exist for each side -- canola 22,500,000 MT [N25] and
+    rapeseed oil 10,542,000 MT [N26] -- but these are tonnage levels of different commodities and are not
+    comparable to each other" -- i.e. verbatim the disclosure `cascade_panel.json` records as "cited but
+    not used, though the setting-aside is disclosed and correct", and verbatim the sentence
+    `_scope_withheld_token`'s own block note says the rejected sever variant was not shipped in order to
+    protect. Deleting it to remove a marker is the suppress-not-correct shape twice over.
+    ONE PRODUCER AND THE SAME FAIL-CLOSED RULE as the pass downstream: `_scope_withheld_token` (`all`, no
+    suffixes), so a MIXED or suffixed token -- which that pass removes -- is not counted a receipt here
+    either, and the two stages can never disagree about which marker the reader ends up holding.
+    IT IS NOT CONDITIONED ON `standin`, and the divergence is stated rather than papered over: the keep
+    leg downstream is `not standin and _scope_withheld_token(...)`, so a withheld handle standing in a
+    VALUE SLOT is counted resolved here and dropped there. That direction is the docstring's own safe one
+    -- this stage severs a clause instead of killing a sentence, and the value-slot leg then applies its
+    own remedy to the smaller span. MEASURED on the banked prose: 6 withheld handle instances, 0 of them
+    in a value slot, so the replay does not exercise the divergence and only a pin holds it.
+    FLAG OFF -> `cit.scope_withheld` is False for every call -> this clause never fires and the whole
+    stage is byte-identical to HEAD."""
     sent = text[s0:s1]
     for m in _N_HANDLE_RX.finditer(sent):
         if skip and s0 + m.start() >= skip[0] and s0 + m.end() <= skip[1]:
             continue
-        for i, sfx in _n_handle_pairs(m.group(0)):
+        pairs = _n_handle_pairs(m.group(0))
+        for i, sfx in pairs:
             if _number_handle_value(calls[i - 1] if 1 <= i <= len(calls) else None, i, sfx) is not None:
                 return True
+        if _scope_withheld_token(calls, pairs):
+            return True
     for m in _E_HANDLE_RX.finditer(sent):
         if skip and s0 + m.start() >= skip[0] and s0 + m.end() <= skip[1]:
             continue
@@ -9595,9 +10026,14 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None, *,
     [N] namespace: no dangling marker, no orphan row. Nothing here reads or moves the [E]/positional half.
 
     SAFE BY CONSTRUCTION AGAINST THE UNRESOLVABLE CLASS: `_resolve_number_handles` runs FIRST and under the
-    SAME `verifier.get("enabled")` gate, and it removes every handle that resolves to nothing -- so an index
-    reaching this scan has already been shown to have a value. `_n_row` still fails closed on a malformed or
-    out-of-range call, because a footer must never be the thing that breaks an answer.
+    SAME `verifier.get("enabled")` gate, and it removes every handle whose RECEIPT does not exist -- so an
+    index reaching this scan names a menu row that does. K9-2 FIX-PASS, and the one narrowing of that
+    sentence: an index can now reach this scan with a real row whose VALUE was withheld (the unscoped
+    multi-geo class -- `cit.scope_withheld`), which is deliberate. `_n_row` renders `c.label`, and the
+    withheld label states the withhold in the reader's own footer, so the join stays total in both
+    directions and the reader gets the correction attached to the claim instead of a deleted row. `_n_row`
+    still fails closed on a malformed or out-of-range call, because a footer must never be the thing that
+    breaks an answer.
 
     CYCLE-10 FIX 2: the document rows come from `_document_source_rows` (see its note for the register
     interaction that was deleting them) and `market_register` is the SAME value the assembled body will be

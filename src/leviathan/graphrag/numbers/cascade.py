@@ -1335,7 +1335,9 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              rv_regional: bool = False, derived_arith: bool = False,
              cascade_walk: dict | None = None,
              extreme_locator: dict | None = None,
-             extrema_own_date: bool = False) -> tuple:
+             extrema_own_date: bool = False,
+             xc_leg_handles: bool = False,
+             vintage_role: bool = False) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1373,6 +1375,26 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     a MEASURED omission, not an assumed one: test_futures_readpath_pins pins that every card those sites
     can reach carries no contract_month_col, so the day one grows a delivery-month axis the pin reds and
     this paragraph is what gets read.
+
+    `xc_leg_handles` (K9-6, GRAPHRAG_XC_LEG_HANDLES) is the SAME idiom once more: read at
+    `answer._xc_leg_handles_on()` and threaded to BOTH sites that render a cross-commodity leg line -- the
+    transmission composer and `_run_xc` -- because `_xc_leg_lines` and the two marker literals are ONE
+    producer and a half-threaded flag would print handles in one panel and not in the next. Default
+    False = byte-identical; this module still performs no environment read of any kind ([SKEPTIC F3]).
+    THAT REASON IS STATED AT ITS TRUE STRENGTH, not the weaker across-turns one (K9-6 review MINOR): the
+    mixed render is reachable WITHIN one panel, because `_run_xc` can take the REGIONAL branch -- which
+    this lane deliberately leaves unthreaded on HEAD's render -- on the same turn the transmission
+    composer renders World links through the threaded `_reroute_xc`. Threading both World seams removes
+    the mixed render for the World producer; the regional fork's share of it is a DECLARED residual,
+    pinned as a boundary, not a covered case.
+
+    `vintage_role` (K9-4, GRAPHRAG_VINTAGE_ROLE) is the SAME idiom for the SEAM-B price leg: read at
+    `answer._vintage_role_on()` and threaded to `_price_pair`, which copies the endpoint rows' declared
+    `revision_stamp` onto the two synthetic [N] rows and branches the ONE label -- printed on both level
+    lines and again inside the PRICE-RESPONSE tail -- on the roles those rows actually carry. Default
+    False = byte-identical: no row key, HEAD's literals, the same `fired` trace. The READER's half of
+    the same flag lives in `citations._vintage_role_on`, which this module does not and must not call
+    ([SKEPTIC F3]); one flag NAME, two readers, each at the seam its own module permits.
 
     `extreme_locator` (D-XL, E32) is the SAME omit-when-off idiom once more, and it is a REQUEST DICT
     rather than a bool because the leg's whole input is the planner's resolved intent -- board,
@@ -1558,7 +1580,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
             _chain_already = False
         _xmit_lines, x_trace, x_decline = _transmission_legs(sg, graph, groups, xc_request, qfn, asof, near,
                                                              extra_number_calls, comove=comove,
-                                                             chain_fired=_chain_already)
+                                                             chain_fired=_chain_already,
+                                                             xc_leg_handles=xc_leg_handles)
         if x_trace:
             try:
                 sg.trace["quantify_transmission"] = x_trace
@@ -1577,7 +1600,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         xc_lines, xc_trace = _run_xc(xc_request, sg, graph, groups, qfn, asof, near, extra_number_calls,
                                      comove=comove, reading=rv_reading, replay=price_replay,
                                      rv_regional=rv_regional, derived_arith=derived_arith,
-                                     extrema_own_date=extrema_own_date)
+                                     extrema_own_date=extrema_own_date,
+                                     xc_leg_handles=xc_leg_handles)
         if xc_trace:
             # A3 (walk charter): the fired fork's spend, measured as the calls-delta at fork exit --
             # the adjudicated proxy (the RV sub-legs count their own `fetches` beside it). This is
@@ -1601,7 +1625,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     if price_request:
         p_lines, p_trace = _price_pair(price_request, sg, graph, groups, qfn, asof, near,
                                        extra_number_calls, len(extra_number_calls),
-                                       futures_newest_first=futures_newest_first)
+                                       futures_newest_first=futures_newest_first,
+                                       vintage_role=vintage_role)
         if p_trace and p_trace.get("price_leg"):
             try:
                 sg.trace["quantify_price_leg"] = p_trace
@@ -1861,7 +1886,18 @@ def _shown(call: dict, *values) -> dict:
     pb_seasonality_aware were never charged. `shown` is the panel's own testimony about what it displayed.
     Values only, never strings; ONE physical line's magnitudes, including a rendered integer count.
     WHICH endpoint a windowed line prints is _headline_row's contract -- binding here is only honest while
-    the line, the injected row and the citation label all name that same observation."""
+    the line, the injected row and the citation label all name that same observation.
+
+    ONE DECLARED EXCEPTION, written here rather than left for a reader to discover the contract is not
+    satisfied where it says it is (K9-6 review MINOR): the cross-commodity leg line (`_xc_leg_lines`,
+    `handles=True`) prints the ROW's `round(v, 4)` mint while this binding still carries the RAW
+    magnitudes -- SAME observation, two precisions, not a second observation. It is recorded rather than
+    repaired for one measured reason: `verify._num_matches` is an ANY-of predicate whose arm is
+    `abs(a*scale - b) <= 0.01*b`, and the widest gap the round-4 mint opens on a banked leg is
+    -0.0950733 vs -0.0951 = 0.028% of the row -- inside the 1% arm by a factor of ~36, so no sentence
+    changes verdict either way. Moving the binding would move an instrument K9-6 was not asked to move;
+    the value it would move it TO is already what the line prints, so the repair is available and cheap
+    whenever a lane owns `verify`'s pins as well as this one."""
     vals = [float(v) for v in values if v is not None]
     if vals:
         call["shown"] = vals
@@ -3022,6 +3058,123 @@ def _xc_call(commodity: str, value: float, my: int, asof, *, unit: str = "%",
     return {"query": q, "rows": [{"value": round(float(value), 4), "unit": unit}], "status": "ok"}
 
 
+# ══ K9-6 (2026-09-07) THE FOUR-FIGURE LINE -- class (5) SELF-CORRECTION SHIPPED ══════════════════════
+#
+# THE MEASURED TRIGGER, the judged panel's STOP sentence quoted verbatim (cascade_panel.json, deep STOP
+# entry #19, id rv_canola_rapeoil; CONTROL = deep per cascade_mask_key.json, so this is ANSWER B):
+#   "World soybean oil stocks-to-use MY2009: 10.1401%, versus MY2008 10.2351%, a change of -0.0950733pp
+#    over the window [N34]."
+# and its MAX twin (cascade_pair_rv_soyoil_palm.md TL;DR): "loosened from 8.67531% ... correction --
+# palm went 20.9588% to 22.4415% [N34]" -- a retraction the writer shipped IN the answer.
+#
+# THE DEFECT IS A RENDER DEFECT AND NOT A WRITER WHIM, and it has two independent halves:
+#   (a) ONE HANDLE, THREE MAGNITUDES. `_xc_leg_lines` hands the writer `[N{h}]` and then prints the
+#       endpoint, the baseline AND the delta on that one handle's line. The baseline and delta rows ARE
+#       minted as their own citable calls (`_xc_call` twice, immediately after the endpoint) -- NO LINE
+#       NAMED THEM, so two of the three magnitudes reached the reader uncited. Measured on both arms:
+#       deep rv_canola_rapeoil mints N34..N39 and the answer cites [N34] and [N37] only.
+#   (b) THE PRECISION SPLIT. The line printed `{p_hi:g}` off the RAW float held in `A["a"]/A["b"]`
+#       while `_xc_call` mints `round(float(value), 4)` into the row the handle resolves to. Identical
+#       for |v| >= 10 (six significant digits of a number >= 10 is at most four decimals), DIVERGENT
+#       below it: 8.675310123 -> ':g' 8.67531 vs round-4 8.6753; -0.09507334 -> -0.0950733 vs -0.0951.
+#       Every figure the panel called unbacked is a sub-10 one, on BOTH arms. `verify` does not charge
+#       them -- `_num_matches`' one-percent arm passes, because they ARE the same number -- which is
+#       exactly why this is a render problem and not a verifier one.
+#
+# THE FORMATTER IS NOT THE FIX AND SAYING SO IS THE POINT (design MINOR-3). `_xl_fmt` DELEGATES to
+# `citations._fmt` (it imports and calls it rather than copying it -- its own docstring says so), and
+# `_fmt` is `f"{f:g}"` below 1000 -- the SAME `:g` the leg line already used, so "unify the formatter"
+# ships a no-op. THE VALUE SOURCE is what moves: the line now formats the value THE ROW CARRIES (the
+# round-4 mint inside the `_xc_call` record), never a second rendering of the raw float. `:g` is KEPT
+# rather than swapped for `_fmt` deliberately: `_fmt` switches to `f"{f:,.0f}"` at |v| >= 1000, which
+# would put a thousands separator and a lost decimal into a band the design's own GREEN pin holds fixed
+# (1234.5678 renders '1,235' against ':g' 1234.57). Below 1000 the two ARE the same function; at and
+# above it, only `:g` keeps the pin.
+#
+# EVERY FIGURE BELOW IS REPRODUCIBLE, NOT RECALLED: 200,012 draws of `uniform(-2000, 2000)` from a
+# `random.Random(20260907)`, re-derived by test_k9_6_the_precision_bands_reproduce_from_a_pinned_seed.
+#   `_fmt` vs ':g' on the same value -- 0 of 99,874 differ below 1000; 100,138 of 100,138 differ at and
+#                         above it. That is the whole reason the leg line keeps ':g'.
+#   THE VALUE SOURCE (round-4 row vs raw float), the change this item actually ships:
+#   |v| in [10, 100)   -- 0 of 9,067 tokens move. This is the band the LEVEL magnitudes of every banked
+#                         leg occupy that are >= 10 (deep 10.1401 / 10.2351 / 14.9002 / 14.9591; max
+#                         palm 22.4415 / 20.9588; divergence palm 12.6 / 11.0), and all eight are
+#                         byte-identical off and on.
+#   |v| in [100, 1000) -- 4,481 of 89,787 move (4.99%), and |v| >= 1000 -- 517 of 100,138 (0.52%): both
+#                         by DOUBLE ROUNDING, never by a value change. ':g' shows six significant
+#                         digits, i.e. three decimals in the first band, while round-4 has already
+#                         rounded the fourth (342.24745403 -> ':g' 342.247, round-4 342.2475 -> 342.248).
+#                         SO THE DESIGN'S GREEN PIN IS NARROWED, ON THIS MEASUREMENT, TO THE BAND IT
+#                         ACTUALLY HOLDS IN (K9-6 review MINOR): the design wrote "every |v| >= 10
+#                         magnitude on every leg line prints exactly the token it prints today", and the
+#                         shipped fix satisfies that on [10, 100) ONLY -- above 100 it is FALSE by ~5%
+#                         and ~0.5% of draws. Narrowed rather than defended: the wider claim is
+#                         unreachable on this surface (a World stocks-to-use percentage is a share of a
+#                         year's use; the twelve banked legs measure 8.1-22.4%, and a three-digit
+#                         su_ratio would be a stock exceeding four years of use), but an unreachable
+#                         claim is still a claim the code does not satisfy, and a silent byte move above
+#                         100 would be the same uncited-token class this item closes.
+#   |v| < 10           -- 922 of 1,020 move (90.39%): it IS the class (8.675310123 -> 8.6753,
+#                         -0.09507334 -> -0.0951). Every figure the panel called unbacked lives here.
+#
+# FLAG `GRAPHRAG_XC_LEG_HANDLES`, DEFAULT OFF, omit-when-off. [SKEPTIC F3] IS LAW IN THIS MODULE: the
+# flag is read at the answer.py quantify seam (`answer._xc_leg_handles_on`) and threaded down as an
+# ARGUMENT -- this module performs no environment read of any kind, and two live doctrine tests
+# (test_rv_regional / test_transmission_chain) SUBSTRING-SCAN this file's own source for the reader's
+# name, so that name must not appear here even inside a comment. With the kwarg absent every leg line,
+# both marker lines and the `fired` trace are byte-identical to HEAD (pinned in
+# tests/unit/test_k9_stop_census.py).
+#
+# A VERB AND A MAGNITUDE CAN DISAGREE AT THE ROUND-4 FLOOR, and the band is stated rather than left to
+# be met in a panel (K9-6 review MINOR). The co-move marker's verb reads the RAW delta's sign
+# (`_sign(A["d"])`, in the co-move render below) while the leg line now prints
+# `_xc_signed(round(d, 4))`, so any |d| < 5e-05 renders '+0pp'/'-0pp' beside 'loosened'/'tightened'.
+# THE SIGN NEVER DISAGREES -- '-0' is what `%+g` prints for -0.0 and the co-move fork only fires when
+# BOTH `_sign`s are non-zero -- so what the reader sees is a directional verb beside a magnitude that
+# rounds away, never a verb pointing the wrong way. It is left as it is on a measured comparison, not
+# on convenience: HEAD printed the RAW float there ('-1.2e-05pp'), a token NO handle resolved to --
+# the exact defect this item closes. The fix trades an unbacked token for a backed one that is small,
+# and it does not introduce the disagreement from a clean state. Both the sign agreement and the band
+# are pinned (test_k9_6_the_round_four_floor_can_print_a_zero_magnitude_beside_a_directional_verb).
+#
+# DELIBERATELY NOT COVERED, named rather than hidden:
+#   * `_xc_regional_leg_lines` (the RV-REGIONAL fork) carries the same one-handle-three-magnitudes
+#     shape. The design's SEAM names `_xc_leg_lines`, :3065-3067, :3125 and :3146 and nothing else, and
+#     the regional fork renders on no banked turn of the twelve -- so it keeps HEAD's render and its own
+#     lane. Extending this flag to it is a measurement, not a guess. THE EXPOSURE IS WITHIN A TURN, NOT
+#     ONLY ACROSS TURNS (K9-6 review MINOR, stated so the regional lane inherits it rather than
+#     rediscovers it): `_run_xc` may take the REGIONAL branch (`_reroute_xc_regional`, unthreaded,
+#     HEAD's render) on the SAME turn the transmission composer (`_transmission_legs`) renders World
+#     links through the threaded `_reroute_xc`, so ONE panel can carry a handled World line and an
+#     unhandled regional line. It renders on none of the twelve banked turns and is pinned as a
+#     boundary rather than fixed here.
+#   * `_shown` still binds the RAW magnitudes (`p_hi`, `p_lo`, `d`). It is the panel's testimony to the
+#     verifier, not a rendered byte, and `verify._num_matches`' one-percent arm already spans the
+#     round-4 gap the design measured (0.028% of the row on the widest banked leg, vs a 1% arm). Moving
+#     it would move an instrument this item was not asked to move; `_shown`'s own docstring now carries
+#     this exception rather than asserting a contract the flag-on line does not meet.
+#   * (iv) `register.count_self_corrections` -- the retraction COUNTER -- is NOT in this file and NOT in
+#     this lane's allowlist; it is reported unbuilt rather than relocated to a seam the design did not
+#     name. K9-6 IS THEREFORE 3 OF 4 AND THE ITEM STAYS OPEN: the scope state is machine-checked, not
+#     asserted in prose, by test_k9_6_design_fix_iv_the_retraction_counter_is_unbuilt_and_docketed --
+#     which reds BOTH ways (if the counter appears without these declarations being updated, and if
+#     these declarations disappear while it is still absent).
+def _xc_row_val(rec: dict) -> float:
+    """The value the [N] row actually carries -- `_xc_call`'s own `round(float(value), 4)` mint read back
+    off the record just appended, so the LINE and the ROW the handle resolves to cannot diverge by
+    construction rather than by two call sites agreeing to round the same way."""
+    return rec["rows"][0]["value"]
+
+
+def _xc_signed(v) -> str:
+    """`{v:+g}` for every value INCLUDING -0.0, which is why this is a function and not a format spec.
+    `_fmt`/`_xl_fmt` emit no sign at all, so the design directs the '+' to be rendered separately; a
+    naive `("+" if v >= 0 else "") + f"{v:g}"` prints '+-0' on -0.0 (`-0.0 >= 0` is True in Python while
+    `f"{-0.0:g}"` is '-0'). Reading the sign off the rendered token instead reproduces `:+g` exactly."""
+    t = f"{float(v):g}"
+    return t if t.startswith("-") else "+" + t
+
+
 def _xc_sides_ok(pair_row, source: str, target: str) -> bool:
     """Fail-closed guard: the pair is `material` AND both curated legs are su_ratio-World sides whose contracts
     are EXACTLY {source, target}. Any drift (wrong tier, a leg off the pair, a non-world country_rule) declines
@@ -3037,16 +3190,28 @@ def _xc_sides_ok(pair_row, source: str, target: str) -> bool:
         return False
 
 
-def _xc_leg_lines(la, source, A, lb, target, B, calls: list, base: int, asof) -> tuple:
+def _xc_leg_lines(la, source, A, lb, target, B, calls: list, base: int, asof, *,
+                  handles: bool = False) -> tuple:
     """The per-leg composite [N] line shape shared by the divergence (opposite-sign) and co-move (same-sign)
     renders. For each leg it emits one reader line and injects THREE citable rows -- endpoint + baseline +
     delta -- so every narrated magnitude value-checks against the all-numbers guard (the RV-W3.2 discipline).
-    Returns (lines, ((mya0,pa0,mya1,pa1),(myb0,pb0,myb1,pb1))) -- the caller builds its own marker line + trace
-    from the endpoints. BYTE-IDENTICAL to the historical inline loop: the divergence output must not shift."""
+    Returns (lines, ((mya0,pa0,mya1,pa1),(myb0,pb0,myb1,pb1)), legs) -- the caller builds its own marker line +
+    trace from the endpoints, and `legs` = ((handleA, hiA, loA, dA), (handleB, hiB, loB, dB)) carries the
+    HANDLE and the ROW-CARRIED value of each of the six minted rows so the marker lines can name the same
+    handles and print the same tokens. BYTE-IDENTICAL to the historical inline loop with `handles` off: the
+    divergence output must not shift.
+
+    K9-6 (`handles=True`, threaded from `GRAPHRAG_XC_LEG_HANDLES` at the answer.py seam): every magnitude on
+    the line carries its OWN handle -- the baseline at [N{handle+1}] and the delta at [N{handle+2}], the rows
+    this loop has already minted -- and every magnitude is formatted off THE ROW, so the token the writer
+    copies is the token the handle resolves to. Nothing is added to `calls` and nothing is dropped, so the
+    [N] stride stays 3 and every later handle keeps its position (verify.py's module note, lines 9-13: the
+    numbers block renders N1.. in call order)."""
     (mya0, pa0, _rda0), (mya1, pa1, _rda1) = A["a"], A["b"]
     (myb0, pb0, _rdb0), (myb1, pb1, _rdb1) = B["a"], B["b"]
     n = base
     lines: list = []
+    legs: list = []
     for (lbl, cmdty, my_lo, p_lo, my_hi, p_hi, d) in (
             (la, source, mya0, pa0, mya1, pa1, A["d"]),
             (lb, target, myb0, pb0, myb1, pb1, B["d"])):
@@ -3054,18 +3219,31 @@ def _xc_leg_lines(la, source, A, lb, target, B, calls: list, base: int, asof) ->
         handle = n
         # ONE line carries all three magnitudes, so the [N{handle}] endpoint call is `shown` all three; the
         # baseline/delta calls are single-row synthetics (no line of their own) and need no binding.
-        calls.append(_shown(_xc_call(cmdty, p_hi, my_hi, asof),   # the endpoint the [N{handle}] line cites
-                            p_hi, p_lo, d))
+        # K9-6: the three records are BOUND TO NAMES rather than appended anonymously, so the line can read
+        # each row's own minted value back. `_shown` still binds the RAW magnitudes -- deliberately: it is
+        # testimony to the verifier, not a rendered byte (see this item's block note).
+        _end = _shown(_xc_call(cmdty, p_hi, my_hi, asof),         # the endpoint the [N{handle}] line cites
+                      p_hi, p_lo, d)
+        calls.append(_end)
         n += 1
-        calls.append(_xc_call(cmdty, p_lo, my_lo, asof))        # the baseline (backs the '(vs MY.. ..%)' term)
+        _base = _xc_call(cmdty, p_lo, my_lo, asof)               # the baseline (backs the '(vs MY.. ..%)' term)
+        calls.append(_base)
         n += 1
-        calls.append(_xc_call(cmdty, d, my_hi, asof, unit="pp"))    # the delta (backs the '..pp' term)
+        _delta = _xc_call(cmdty, d, my_hi, asof, unit="pp")          # the delta (backs the '..pp' term)
+        calls.append(_delta)
+        v_hi, v_lo, v_d = _xc_row_val(_end), _xc_row_val(_base), _xc_row_val(_delta)
+        legs.append((handle, v_hi, v_lo, v_d))
         # World is SYNTHESIZED from per-country silver_psd rows (_world_su_ratio), so the scope tag states the
         # basis explicitly -- a World ratio narrated as one country is the exact mis-attribution class.
-        lines.append(f"- [N{handle}] {lbl} stocks-to-use MY{my_hi}: {p_hi:g}% "
-                     f"(vs MY{my_lo} {p_lo:g}%, {d:+g}pp over the window)"
-                     + _series_tag({"commodity": cmdty, "country": "World", "table": "silver_psd"}))
-    return lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1))
+        _tag = _series_tag({"commodity": cmdty, "country": "World", "table": "silver_psd"})
+        if handles:
+            lines.append(f"- [N{handle}] {lbl} stocks-to-use MY{my_hi}: {v_hi:g}% "
+                         f"(vs MY{my_lo} [N{handle + 1}] {v_lo:g}%, "
+                         f"[N{handle + 2}] {_xc_signed(v_d)}pp over the window)" + _tag)
+        else:
+            lines.append(f"- [N{handle}] {lbl} stocks-to-use MY{my_hi}: {p_hi:g}% "
+                         f"(vs MY{my_lo} {p_lo:g}%, {d:+g}pp over the window)" + _tag)
+    return lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1)), (legs[0], legs[1])
 
 
 def _xc_fork_scan(da_by: dict, db_by: dict) -> tuple:
@@ -3091,7 +3269,8 @@ def _xc_fork_scan(da_by: dict, db_by: dict) -> tuple:
 
 
 def _reroute_xc(pair_row, source: str, target: str, focus_windows: list, qfn, asof,
-                calls: list, base: int, sg, comove: bool = False, *, open_ask: bool = False) -> tuple:
+                calls: list, base: int, sg, comove: bool = False, *, open_ask: bool = False,
+                xc_leg_handles: bool = False) -> tuple:
     """The ratio-delta fork, labeled BY COMMODITY (RV-W2.3). BOTH legs are SYNTHESIZED World su_ratio legs over
     the SAME focus-window eras (Invariant 4 -- the shared window is FORCED, no second walk, no sibling
     retrieval), each on its OWN marketing year (C4).
@@ -3108,7 +3287,12 @@ def _reroute_xc(pair_row, source: str, target: str, focus_windows: list, qfn, as
     excludes that era from the intersection (never reaches this loop). On fire, inject both legs' endpoint +
     baseline + delta [N] rows (value-checkable) and return (block_lines, fired_trace); ([], None) otherwise. The
     co-move render uses its OWN CO-MOVE marker -> '## Complex-wide move' (never '## Cross-commodity', which
-    asserts a relative-value divergence and licenses price-direction -- both FALSE for a co-move). Never raises."""
+    asserts a relative-value divergence and licenses price-direction -- both FALSE for a co-move). Never raises.
+
+    K9-6: `xc_leg_handles` ([SKEPTIC F3] once more -- read at `answer._xc_leg_handles_on` and threaded, never
+    an env read here) rides into `_xc_leg_lines` AND into both marker lines, because a marker that restates a
+    leg figure without its handle is the same uncited-magnitude class one line lower. Default False ->
+    every line on both forks is byte-identical."""
     if not _xc_sides_ok(pair_row, source, target):
         return [], None
     da_by = _leg_world_deltas(qfn, source, focus_windows, asof)
@@ -3118,11 +3302,22 @@ def _reroute_xc(pair_row, source: str, target: str, focus_windows: list, qfn, as
     if div_idx is not None:
         A, B = da_by[div_idx], db_by[div_idx]
         # OPPOSITE-SIGN divergence -- the RV fork. First-fire priority: render + return here (byte-identical).
-        lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1)) = _xc_leg_lines(
-            la, source, A, lb, target, B, calls, base, asof)
+        lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1)), _legs = _xc_leg_lines(
+            la, source, A, lb, target, B, calls, base, asof, handles=xc_leg_handles)
         window = f"MY{mya0}-MY{mya1}"
+        # K9-6 (iii): the CROSS-COMMODITY marker restates FOUR magnitudes -- both endpoints and both deltas --
+        # and carried NO handle for any of them. Flag on it names the handle of every figure it restates and
+        # prints each figure off the row (the same tokens the leg lines above now print); flag off the two
+        # segments are the historical literal, so the assembled line is byte-identical.
+        if xc_leg_handles:
+            (_hA, _vA1, _vA0, _vAd), (_hB, _vB1, _vB0, _vBd) = _legs
+            _xa = f"[N{_hA}] {_vA1:g}% ([N{_hA + 2}] {_xc_signed(_vAd)}pp)"
+            _xb = f"[N{_hB}] {_vB1:g}% ([N{_hB + 2}] {_xc_signed(_vBd)}pp)"
+        else:
+            _xa = f"{pa1:g}% ({A['d']:+g}pp)"
+            _xb = f"{pb1:g}% ({B['d']:+g}pp)"
         lines.append(
-            f"CROSS-COMMODITY on su_ratio: {la} {pa1:g}% ({A['d']:+g}pp) vs {lb} {pb1:g}% ({B['d']:+g}pp) "
+            f"CROSS-COMMODITY on su_ratio: {la} {_xa} vs {lb} {_xb} "
             f"over {window} -- {_xc_frame(pair_row, sg, open_ask=open_ask)}; "
             f"each World balance sheet aggregates DIFFERING local "
             f"marketing years, so the comparison holds at the marketing-year grain, not a shared calendar; "
@@ -3136,15 +3331,33 @@ def _reroute_xc(pair_row, source: str, target: str, focus_windows: list, qfn, as
     # '## Complex-wide move' section via the CO-MOVE marker.
     if comove and comove_idx is not None:
         A, B = da_by[comove_idx], db_by[comove_idx]
-        lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1)) = _xc_leg_lines(
-            la, source, A, lb, target, B, calls, base, asof)
+        lines, ((mya0, pa0, mya1, pa1), (myb0, pb0, myb1, pb1)), _legs = _xc_leg_lines(
+            la, source, A, lb, target, B, calls, base, asof, handles=xc_leg_handles)
         window = f"MY{mya0}-MY{mya1}"
+        # THE VERB READS THE RAW DELTA'S SIGN, DELIBERATELY, and the residual that leaves is fenced in
+        # this item's block note (search "A VERB AND A MAGNITUDE CAN DISAGREE AT THE ROUND-4 FLOOR"):
+        # with handles on the line prints `round(d, 4)`, so |d| < 5e-05 shows '+0pp'/'-0pp' beside a
+        # directional verb. Reading `_sign` off the ROUNDED value instead would be WORSE -- it returns 0
+        # for -0.0 and would flip 'tightened' to 'loosened' on a leg that genuinely tightened, turning a
+        # vanished magnitude into an inverted verdict, the one class `_xc_fork_scan`'s note calls the
+        # cardinal one. Sign agreement and the band are pinned in tests/unit/test_k9_stop_census.py.
         verb = "tightened" if _sign(A["d"]) < 0 else "loosened"    # SAFE frame word (in no lexicon); same sign
         # SAFEST frame text (the plan's literal shape): su_ratio percentages + tightened/loosened only, NO
         # valuation adjectives, NO price-direction -- a complex-wide move, not a relative-value divergence.
+        # K9-6 (iii): the CO-MOVE marker restates FOUR magnitudes of TWO commodities in one sentence with no
+        # handle at all -- the design's own second half of this class. Flag on, each arrow endpoint carries
+        # the handle of the row it came from (baseline [N{h+1}] -> endpoint [N{h}]) and prints that row's
+        # value; flag off the two segments are the historical literal.
+        if xc_leg_handles:
+            (_hA, _vA1, _vA0, _vAd), (_hB, _vB1, _vB0, _vBd) = _legs
+            _ma = f"[N{_hA + 1}] {_vA0:g}%->[N{_hA}] {_vA1:g}%"
+            _mb = f"[N{_hB + 1}] {_vB0:g}%->[N{_hB}] {_vB1:g}%"
+        else:
+            _ma = f"{pa0:g}%->{pa1:g}%"
+            _mb = f"{pb0:g}%->{pb1:g}%"
         lines.append(
-            f"CO-MOVE on su_ratio: both {la} and {lb} {verb} (stocks-to-use {pa0:g}%->{pa1:g}% and "
-            f"{pb0:g}%->{pb1:g}%) -- a complex-wide move, not a relative-value divergence, over {window}; each "
+            f"CO-MOVE on su_ratio: both {la} and {lb} {verb} (stocks-to-use {_ma} and "
+            f"{_mb}) -- a complex-wide move, not a relative-value divergence, over {window}; each "
             f"World balance sheet aggregates DIFFERING local marketing years, so the comparison holds at the "
             f"marketing-year grain, not a shared calendar; render '## Complex-wide move', labeled BY COMMODITY "
             f"on su_ratio percentages only.")
@@ -3202,7 +3415,7 @@ def _load_pair_row(pair_id: str):
 def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list,
             *, comove: bool = False, reading: bool = False, replay: bool = False,
             rv_regional: bool = False, derived_arith: bool = False,
-            extrema_own_date: bool = False) -> tuple:
+            extrema_own_date: bool = False, xc_leg_handles: bool = False) -> tuple:
     """Resolve the curated pair + the focus window, then run the ratio-delta fork. Returns (block_lines,
     fired_trace) -- ([], None) on ANY decline/failure so v2 NEVER breaks the v1 answer (fail-closed). `comove`
     ([SKEPTIC F3], threaded from the answer.py seam, never an env read) rides into _reroute_xc: when True a
@@ -3234,6 +3447,10 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
         # TypeError through that same stub and an open-ask turn would decline INVISIBLY. Load-bearing, not
         # cosmetic (pinned through the stub itself).
         _oa = {"open_ask": True} if (xc_request or {}).get("trigger") in _OPEN_TRIGGERS else {}
+        # K9-6: the SAME omit-when-off idiom, for the SAME stated reason -- an unconditional keyword would
+        # raise TypeError through that positional-only stub and the fork would decline INVISIBLY. Flag off ->
+        # the kwarg is ABSENT -> `_xc_leg_lines`' `handles` default holds and every rendered byte is HEAD's.
+        _lh = {"xc_leg_handles": True} if xc_leg_handles else {}
         # RV-REGIONAL dispatch (fail-closed, contract-keyed). A regional pair with the flag OFF falls
         # to _reroute_xc, whose _xc_sides_ok requires country_rule == 'world' on both sides -> ([],
         # None) -- combined with the contextual tier, flag-off is inert twice over by construction.
@@ -3257,7 +3474,7 @@ def _run_xc(xc_request: dict, sg, graph, groups: list, qfn, asof, near, calls: l
                     pass
         else:
             block, fired = _reroute_xc(pair_row, source, target, windows, qfn, asof, calls,
-                                       len(calls), sg, comove, **_oa)
+                                       len(calls), sg, comove, **_oa, **_lh)
         if fired:
             # RV2 W2 tier telemetry (D7, S2-2): the fired trace records the DETECTING tier HERE, after the
             # call -- _reroute_xc has no xc_request in scope. A 3-key request (legacy/injected) reads None;
@@ -3543,8 +3760,125 @@ def _fmt_price(value: float, unit: str) -> str:
     return f"{s} {u}".strip()
 
 
+# ══ K9-4 (2026-09-07) VINTAGE ROLE -- class (3) FORECAST AS SETTLED, the PRICE-LEG half of fix 3a ════
+#
+# THE MEASURED TRIGGER, the judged panel's STOP sentence quoted verbatim (cascade_panel.json, TREATMENT
+# STOP #10, id rv_beans_meal; TREATMENT = max per cascade_mask_key.json):
+#   "The settled US soybean season-average farm price (a USDA survey actual, not a futures settle) rose
+#    from $10.00/bu [N41] in MY2024/25 to $10.40/bu [N42] in MY2025/26." -- STOP: the MY2025/26 figure is
+#    a WASDE forecast at a vintage known 2026-08-12, inside a marketing year that had not closed;
+#    labelling it a settled USDA survey actual is a retraction a desk head would have to make.
+# The panel flagged that one sentence TWICE (#10 and #14). #14 adds what makes this the leg's defect and
+# not the writer's: "it is the one place A upgrades a projection to a print."
+#
+# THE ASSERTION HAS ONE PRODUCER AND THREE PRINT SITES IN THIS BLOCK, and the design's MAJOR-3 is that a
+# fix naming only the last of them leaves the claim in the prompt twice. The producer is `label` below;
+# it is printed on the [N{h_a}] line, on the [N{h_b}] line, and again inside the PRICE-RESPONSE tail,
+# which ALSO asserts "the settled ... (survey-based, revision_stamp actual at the session as-of; NOT a
+# futures settle, NOT a forecast)". So ONE producer (`_price_role_terms`) answers for both literals.
+#
+# A FOURTH PRODUCER LIVES OUTSIDE THIS BLOCK AND THE FIX PASS CLOSED IT (review MAJOR-1). The PERSONA's
+# own SEAM-B paragraph (`answer._SYSTEM_CASCADE`) told the writer, as a standing rule on every price-leg
+# turn, "the settled US season-average FARM price" and "This is a survey-based USDA season-average actual
+# (revision_stamp)" -- both words the judged STOP sentence used. Branching the block alone would have
+# shipped a flag-on prompt that contradicted itself, so `answer._SYSTEM_CASCADE_VR` substitutes that ONE
+# paragraph on the SAME flag: it stops asserting finality and tells the writer to copy the role THIS
+# producer states. Fail-closed on all three branches below, because the persona now asserts none of them.
+#
+# NOTHING IN THIS LEG READ `estimate_role`. `_price_call` builds its synthetic row from
+# `_row_vintage(src_row)`, whose `_VINTAGE_COLS` are the four DATE columns; the role rides the SAME row
+# under `numbers/query._extras`' provenance alias `revision_stamp`, and the leg dropped it. MEASURED on
+# the two banked baselines: of 16 `avg_farm_price` rows in `served_rows`, the 8 minted by THIS leg carry
+# no role at all while the 8 read by the agent lane carry `projection`. The design says "copies
+# `estimate_role`"; the ALIAS is what lands on a fetched row, so `revision_stamp` is the key copied --
+# same column, the name it wears at this seam.
+#
+# FAIL-CLOSED IN THREE BRANCHES, WHICH IS WHAT MAKES THE FIX CORRECT WITHOUT A MEASUREMENT IT CANNOT
+# MAKE (design MINOR-6). The role of THIS leg's upstream `src_row` is in no artifact of the judged
+# sitting -- the banked rows are the leg's own output, already role-less -- so the design's v1 premise
+# ("the MY2025/26 grain is `estimate`") was an inference and is not relied on here. The line never
+# asserts a role it did not read: both endpoints `actual` -> HEAD's wording verbatim; either endpoint
+# `estimate`/`projection` -> the LEAST settled of the two is named as an in-year figure; a row carrying
+# no role -> the label says the role is not published on this read. WHICH BRANCH FIRES IS THE
+# MEASUREMENT the re-panel makes, not a prediction this build embeds.
+#
+# THE PARENTHETICAL IS A PAIR-LEVEL CLAIM, AS IT IS AT HEAD, AND IT IS ONE-SIDED BY CONSTRUCTION. One
+# `label` is printed on BOTH level lines and in the tail, so it cannot state two different roles; the
+# design's rule ("when EITHER endpoint reads estimate or projection") is therefore applied to the LEAST
+# settled of the two. On a mixed pair (measured shape: MY2024/25 `actual` beside MY2025/26 `estimate`)
+# the [N] line for the settled end carries the pair's provisional wording, which UNDER-claims that row's
+# finality and never over-claims it -- the estate's own "a missed warning, never a false one" direction,
+# and the direction the judged defect ran the other way down. THE PER-ROW TRUTH IS NOT LOST: the other
+# half of this same flag prints each row's own role inside its own citation scope, so [N41] reads
+# "MY2024/25 USDA actual" while [N42] reads "MY2025/26 USDA estimate". The pair sentence gets the pair's
+# caution; each handle gets its row's fact.
+#
+# ONE STATED DEPARTURE FROM THE DESIGN'S BRANCH TEXT, and it is a regression this build refuses to ship.
+# The design replaces the whole parenthetical, which would delete "not a futures settle" on every branch
+# but the first. That clause is A3's, not this item's: the comment above `label` records 7 measured
+# row-runs (ol_ctrl_mechanism_backward, pb_wheat_blacksea_shock) that read the pair as an UNDISCLOSED
+# substitute for the CBOT level the question asked about, and dropping it wherever the role is not
+# `actual` would re-open that class on the majority of turns while closing this one. So each branch
+# states the ROLE in the design's own words and KEEPS the futures-settle disclaimer. "NOT a forecast" is
+# the clause that does go: it is emitted only when both endpoints read `actual`, exactly as designed.
+#
+# FLAG `GRAPHRAG_VINTAGE_ROLE`, DEFAULT OFF, omit-when-off. [SKEPTIC F3] IS LAW IN THIS MODULE: the flag
+# is read at the answer.py quantify seam (`answer._vintage_role_on`) and threaded down as an ARGUMENT --
+# this module performs no environment read of any kind, and two live doctrine tests substring-scan this
+# file's own source for the reader's name. With the kwarg absent the synthetic rows carry no role key,
+# both level lines and the PRICE-RESPONSE tail are byte-identical to HEAD, and the `fired` trace is
+# unchanged (pinned in tests/unit/test_k9_stop_census.py).
+#
+# DELIBERATELY NOT COVERED, named rather than left to be found:
+#   * THE RECEIPT HALF (design 3b) IS NOT IN THIS FILE. `register.count_forecast_restatements` -- the
+#     forecast-restatement COUNTER, on `count_exec_words`' / `_SENT_ITER`' shape -- is NOT BUILT: it
+#     lands in register.py, which is not on this lane's allowlist, and relocating a counter to a seam
+#     the design did not name would be a worse answer than reporting it. K9-4 IS THEREFORE 2 OF 3 AND
+#     THE ITEM STAYS OPEN; the machine-checked docket is
+#     tests/unit/test_k9_stop_census.py::test_k9_4_design_fix_3b_the_forecast_counter_is_unbuilt_and_
+#     docketed, which reds in both directions. 3b's OTHER half (the positively-worded clause on
+#     `_SYSTEM_RECENCY`) IS built, in answer.py.
+#   * `_delta_call` and `_pace_synth` mint synthetic rows off the same `_row_vintage` and likewise carry
+#     no role. They are DERIVED values (a difference, a pace) rather than a published figure whose
+#     finality the publisher declares, so a role copied onto them would assert the publisher's judgement
+#     about a number the publisher never printed. The price pair is the one leg that re-prints a
+#     published level verbatim, which is why it is the one leg this item moves.
+#   * THE ROSTER LIVES IN `citations._ROLE_WORDS` AND IS NOT COPIED HERE. This file needs the three
+#     tokens to BRANCH on, not to render, so it reads them off that one roster rather than minting a
+#     second copy -- the `_xl_fmt` delegation discipline.
+_ROLE_ORDER = ("actual", "estimate", "projection")     # least -> most provisional (the card's own
+#                                                        vintage_tiebreak role_order, tables.yaml:383)
+
+
+def _row_role(src: dict | None) -> str:
+    """The revision role a FETCHED row declares, '' when it declares none or declares something outside
+    the estate's three-word vocabulary. Delegated to `citations._ROLE_WORDS` for the roster so this file
+    and the label renderer cannot disagree about what a role IS."""
+    from leviathan.graphrag import citations as _cit
+    role = str((src or {}).get("revision_stamp") or "").strip().lower()
+    return role if role in _cit._ROLE_WORDS else ""
+
+
+def _price_role_terms(role_a: str, role_b: str) -> tuple[str, str]:
+    """K9-4's ONE PRODUCER for the role assertion: (label parenthetical, PRICE-RESPONSE tail), so the
+    three print sites cannot drift. Fail-closed in the design's own three branches; the LEAST settled of
+    the two endpoints governs, because a pair is only as settled as its weaker end."""
+    if role_a == "actual" and role_b == "actual":
+        return ("survey actual; not a futures settle",
+                "the settled USDA season-average farm price (survey-based, revision_stamp actual at the "
+                "session as-of; NOT a futures settle, NOT a forecast)")
+    if not role_a or not role_b:
+        return ("the revision role is not published on this read; not a futures settle",
+                "the USDA season-average farm price as published at the session as-of (survey-based, "
+                "revision_stamp not published on this read; NOT a futures settle)")
+    weak = max((role_a, role_b), key=_ROLE_ORDER.index)
+    return (f"an in-year USDA {weak} at this as-of, not a settled survey figure; not a futures settle",
+            f"the USDA season-average farm price as published at the session as-of (survey-based, "
+            f"revision_stamp {weak}; NOT a futures settle)")
+
+
 def _price_call(commodity: str, region: str, value: float, my_label: str, asof, *, unit: str,
-                src_row: dict | None = None) -> dict:
+                src_row: dict | None = None, role: str = "") -> dict:
     """A synthetic silver_wasde call-record so a narrated farm-price LEVEL IS a citable, value-checkable [N]
     row (the _xc_call discipline). [SKEPTIC F6]: `unit` is an EXPLICIT param sourced from the FETCHED row's
     _apply_unit_overrides value (rows[0]['unit']), NEVER narrate_unit -- confining the unit fallback to the two
@@ -3555,15 +3889,22 @@ def _price_call(commodity: str, region: str, value: float, my_label: str, asof, 
     comes from), and its `release_date` -> `knowledge_date` alias is copied onto the synthetic row. WASDE
     is a vintage table -- the un-suffixed agent read of it stamps `[known 2026-07-10]` -- so a farm-price
     pair rendering the SAME table with no vintage at all was the sharpest form of the measured defect: the
-    reader could not tell whether the pair was as-known or as-revised. Omitted -> byte-identical."""
+    reader could not tell whether the pair was as-known or as-revised. Omitted -> byte-identical.
+
+    K9-4: `role` is the FETCHED row's own `revision_stamp`, copied beside the vintage columns under the
+    SAME alias `numbers/query._extras` gives it, so `citations.from_number` reads the synthetic row by
+    exactly the path it reads a fetched one. '' (the default, and the flag-off path) adds NO key at all
+    -- absent, not null -- so the row dict is byte-identical to HEAD and no downstream reader can tell
+    the parameter exists."""
     return {"query": {"table": "silver_wasde", "metric": "avg_farm_price", "commodity": commodity,
                       "country": region, "period": f"MY{my_label}", "asof": asof},
-            "rows": [{"value": round(float(value), 4), "unit": unit, **_row_vintage(src_row)}],
+            "rows": [{"value": round(float(value), 4), "unit": unit, **_row_vintage(src_row),
+                      **({"revision_stamp": role} if role else {})}],
             "status": "ok"}
 
 
 def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, calls: list, base: int,
-                *, futures_newest_first: bool | str = False) -> tuple:
+                *, futures_newest_first: bool | str = False, vintage_role: bool = False) -> tuple:
     """SEAM B synthesis. The settled US farm-price consequence pair for the FOCUS contract over its nearest
     analogue-era window's MY span. Returns (block_lines, fired) -- ([], None) on ANY honest decline: no map
     (market-price/non-US slug), no derived focus window, <2 MYs, or either endpoint not status=='ok' (PAIR-
@@ -3612,17 +3953,22 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         u_b = r_b.get("unit") or ""
         lab_a, lab_b = _my_slash(my_a), _my_slash(my_b)
         reg_a, reg_b = _farm_region(commodity, my_a), _farm_region(commodity, my_b)
+        # K9-4: the roles the two ENDPOINT rows declare, read once off the same `r_a`/`r_b` the unit and
+        # the vintage already come from -- so value, unit, vintage and role can never come off four rows.
+        # Flag off -> both '' -> no row key, HEAD's label, HEAD's tail.
+        role_a = _row_role(r_a) if vintage_role else ""
+        role_b = _row_role(r_b) if vintage_role else ""
         n = base
         n += 1
         h_a = n
         c_a = _shown(_price_call(commodity, reg_a, p_a, lab_a, asof, unit=u_a,    # [N{h_a}] baseline-MY level
-                                 src_row=r_a),
+                                 src_row=r_a, role=role_a),
                      p_a)                                  # the line prints _fmt_price(p_a) at 2 dp; the
         calls.append(c_a)                                  # verifier's 1pct tolerance covers the rounding
         n += 1
         h_b = n
         c_b = _shown(_price_call(commodity, reg_b, p_b, lab_b, asof, unit=u_b,    # [N{h_b}] event-MY level
-                                 src_row=r_b),
+                                 src_row=r_b, role=role_b),
                      p_b)
         calls.append(c_b)
         # A3: the discipline rides the READER-FACING handle, not only the model directive below. The
@@ -3632,16 +3978,23 @@ def _price_pair(price_request: dict, sg, graph, groups: list, qfn, asof, near, c
         # for the CBOT level the question asked about. Every line that prints the level now says what the
         # level IS. SUPPRESSION stays DEFERRED: hiding the pair on a front-month ask returns those rows to
         # silence, and it waits on a working futures anchor (P1).
+        # K9-4 (block note above `_price_call`): ONE producer for the role assertion, TWO literals that
+        # read it -- the `label` printed on both level lines and again inside PRICE-RESPONSE, and the
+        # PRICE-RESPONSE tail that restates it in the writer's own directive. Flag off -> `_price_role_
+        # terms('', '')` is never called and both literals are HEAD's, byte for byte.
+        _paren, _tail = (_price_role_terms(role_a, role_b) if vintage_role else
+                         ("survey actual; not a futures settle",
+                          "the settled USDA season-average farm price (survey-based, revision_stamp "
+                          "actual at the session as-of; NOT a futures settle, NOT a forecast)"))
         label = (f"US {commodity} USDA season-average farm price"
                  + (" (all classes)" if commodity == "wheat" else "")
-                 + ", marketing-year (survey actual; not a futures settle)")
+                 + f", marketing-year ({_paren})")
         verb = "rose from" if p_b >= p_a else "fell from"         # direction is prose; the level is the [N] row
         lines = [
             f"- [N{h_a}] {label} MY{lab_a}: {_fmt_price(p_a, u_a)}" + _series_tag(c_a["query"]),
             f"- [N{h_b}] {label} MY{lab_b}: {_fmt_price(p_b, u_b)}" + _series_tag(c_b["query"]),
             (f"PRICE-RESPONSE on avg_farm_price: {label} {verb} {_fmt_price(p_a, u_a)} [N{h_a}] (MY{lab_a}) "
-             f"to {_fmt_price(p_b, u_b)} [N{h_b}] (MY{lab_b}) -- the settled USDA season-average farm price "
-             f"(survey-based, revision_stamp actual at the session as-of; NOT a futures settle, NOT a forecast); "
+             f"to {_fmt_price(p_b, u_b)} [N{h_b}] (MY{lab_b}) -- {_tail}; "
              f"render under '## The record', the level is the [N] row and the direction is prose."),
         ]
         fired = {"price_leg": True, "focus": focus, "commodity": commodity, "unit": (u_a or u_b),
@@ -5525,7 +5878,8 @@ def _xmit_degenerate(links: list) -> bool:
 
 
 def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, asof, near, calls: list,
-                       *, comove: bool = False, chain_fired: bool = False) -> tuple:
+                       *, comove: bool = False, chain_fired: bool = False,
+                       xc_leg_handles: bool = False) -> tuple:
     """The horizontal transmission composer (secs 2-5). Returns (lines, fired_trace, decline_trace):
       * (lines, {...}, None) -> quantify writes sg.trace['quantify_transmission'] (fired == bool(key));
       * ([], None, {...})    -> quantify writes sg.trace['quantify_transmission_decline'] (attempted-and-
@@ -5607,8 +5961,16 @@ def _transmission_legs(sg, graph, groups: list, xc_request: dict | None, qfn, as
             # xmit_palm_soyoil_meal is soymeal_soyoil_crush (complex soy_crush) -- the frame guard is
             # threaded anyway (omit-when-off, N12's stub discipline).
             _oa = {"open_ask": True} if (xc_request or {}).get("trigger") in _OPEN_TRIGGERS else {}
+            # K9-6: THE FLAG'S REACH IS THE PRODUCER'S REACH. `_xc_leg_lines` and both marker literals are
+            # the ONE producer of this render, and the chain composer renders through them per link -- so
+            # leaving this seam unthreaded would make one PANEL print handles and another not, at the same
+            # setting of one flag. Not merely one turn and the next: `quantify` runs the chain composer and
+            # `_run_xc` in the SAME pass, so an unthreaded seam here mixes handled and unhandled leg lines
+            # inside one answer. Same omit-when-off idiom, same positional-stub discipline; flag off the
+            # kwarg is absent and every chain byte is HEAD's.
+            _lh = {"xc_leg_handles": True} if xc_leg_handles else {}
             blk, fired = _reroute_xc(prow, src, tgt, windows, mqfn, asof, calls, len(calls), sg, comove,
-                                     **_oa)
+                                     **_oa, **_lh)
             entry = {"link": i, "pair_id": lk.get("pair_id"), "source": src, "target": tgt,
                      "nature": lk.get("nature")}                  # `nature` = the map HINT, next to the record
             if fired:

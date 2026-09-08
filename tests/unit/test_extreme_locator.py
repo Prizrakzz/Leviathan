@@ -1042,7 +1042,30 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     assert qs["extreme_locator"].default is None
     # the locator kwarg and the extrema rider are the LAST TWO, in the order they were added -- so
     # the golden's "appended at the TAIL, nothing moved" prefix rule still holds for every caller.
-    assert list(qs)[-2:] == ["extreme_locator", "extrema_own_date"]
+    #
+    # RE-ANCHORED 2026-09-07 BY K9-6 (THE FOUR-FIGURE LINE), on its ONE named cause and WITHOUT
+    # loosening the join -- the same re-anchor this test already carries for LANE S's `numbers_budget`
+    # append two blocks up. K9-6 appends exactly one KEYWORD_ONLY name to `cq.quantify`,
+    # `xc_leg_handles` (GRAPHRAG_XC_LEG_HANDLES, default False), which threads the cross-commodity leg
+    # line's per-magnitude handles down to `_xc_leg_lines` and the two marker literals. THE PRE-BANK IS
+    # KEPT VERBATIM as the first accepted branch, and the append is PREFIX-PRESERVING: the locator pair
+    # is still adjacent and still in the order it was added, so the golden's own rule holds.
+    #
+    # RE-ANCHORED AGAIN 2026-09-07 BY K9-4 (VINTAGE ROLE), same sitting, same shape, same discipline:
+    # ONE more KEYWORD_ONLY name, `vintage_role` (GRAPHRAG_VINTAGE_ROLE, default False), which threads
+    # the price leg's revision-role label down to `_price_pair`. THE PRE-BANK IS STILL THE FIRST
+    # ACCEPTED BRANCH and each named append is checked on its own terms, so the accepted set grows by
+    # exactly one measured state and the prefix rule is never loosened into "anything at the tail".
+    _qtail = list(qs)
+    _PRE_K9_6 = ["extreme_locator", "extrema_own_date"]            # the banked HEAD tail
+    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role") if n in _qtail]
+    assert _qtail[len(_qtail) - 2 - len(_K9_APPENDS):len(_qtail) - len(_K9_APPENDS)] == _PRE_K9_6, _qtail
+    assert _qtail[len(_qtail) - len(_K9_APPENDS):] == _K9_APPENDS, _qtail   # appended, in order added
+    for _name, _on in (("xc_leg_handles", "_xc_leg_handles_on"), ("vintage_role", "_vintage_role_on")):
+        if _name in _qtail:                               # each K9 append, on its own terms
+            assert qs[_name].default is False
+            assert qs[_name].kind is inspect.Parameter.KEYWORD_ONLY
+            assert getattr(an, _on)() is False            # the default-off VALUE, not just the default
     for fn, name in ((an.answer, "xl_request"), (an._answer_l2, "xl_request"),
                      (orc.run_reasoning, "xl_request"), (orc.run_hybrid, "xl_request"),
                      (dp.plan_turn, "xl_kinds")):
@@ -1270,13 +1293,39 @@ def test_g11_the_extrema_clock_repair_is_reachable_flag_gated_and_byte_inert_whe
     SEAM and threaded DOWN as an argument; no module below it reads the environment for it."""
     assert an._extrema_own_date_on() is False                  # DEFAULT-OFF, fail-closed
     qs = inspect.signature(cq.quantify).parameters
-    assert list(qs)[-1] == "extrema_own_date" and qs["extrema_own_date"].default is False
+    # MOVED 2026-09-07, NAMED CAUSE: K9-6 (THE FOUR-FIGURE LINE) appends its own KEYWORD_ONLY
+    # `xc_leg_handles` after this one, so "extrema_own_date is LAST" became "extrema_own_date is last
+    # or second-to-last behind exactly that name". The PRE-BANK is kept verbatim and the pin's own
+    # subject is unchanged: this rider is still keyword-only and still defaults False.
+    # RE-ANCHORED AGAIN 2026-09-07, NAMED CAUSE: K9-4 (VINTAGE ROLE) appends `vintage_role` after
+    # K9-6's name, so the rule becomes "extrema_own_date, then exactly the K9 appends that are present,
+    # in the order they were added". PRE-BANK kept; the pin's own subject is unchanged.
+    _PRE_K9_6_LAST = "extrema_own_date"                        # the banked HEAD tail name
+    _tail = list(qs)
+    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role") if n in _tail]
+    assert _tail[len(_tail) - 1 - len(_K9_APPENDS)] == _PRE_K9_6_LAST, _tail[-3:]
+    assert _tail[len(_tail) - len(_K9_APPENDS):] == _K9_APPENDS, _tail[-3:]
+    assert qs["extrema_own_date"].default is False
     # the ENGINE reads no env for it -- an os.environ read, never a docstring naming the flag
     assert "os.environ" not in inspect.getsource(cq)
     assert 'os.environ.get("GRAPHRAG_EXTREMA_OWN_DATE"' in inspect.getsource(an)
     seam = inspect.getsource(an._answer_l2)
     assert '_eod_kw = {"extrema_own_date": True} if _extrema_own_date_on() else {}' in seam
+    # SAME NAMED CAUSE, RE-STATED 2026-09-07 ON THE SHIPPED ORDER: K9-6 threads `**_xlh_kw` on this
+    # same call and lands it BEFORE this rider, precisely so `**_eod_kw` stays the spread that closes
+    # the call -- it is the g1x seam golden's END ANCHOR, and an append landing on it takes that gate
+    # down. So this rider still closes the call, exactly as D-XL banked it, and the K9-6 append is
+    # accepted as the second form rather than replacing the first.
+    # RE-STATED AGAIN 2026-09-07 BY K9-4 (VINTAGE ROLE), same sitting: `**_vr_kw` now lands between
+    # K9-6's spread and this rider, so the pin asserts the INVARIANT it always meant -- `**_eod_kw`
+    # CLOSES the call, and every K9 append sits before it on that same line. Not loosened: the closing
+    # spread is still named, the line is still located exactly, and each append is still required to be
+    # on it rather than merely somewhere in the function.
     assert "**_eod_kw)" in seam
+    _kwline = seam[seam.rfind("\n", 0, seam.index("**_eod_kw)")) + 1:
+                   seam.index("**_eod_kw)") + len("**_eod_kw)")]
+    for _spread in ("**_xlh_kw", "**_vr_kw"):
+        assert _spread not in seam or _spread in _kwline, (_spread, _kwline)
     # SITE 2 (the RV reading's ordinal-when-thin rung) is REPAIRED: the extreme's own date, off the
     # SAME axis the value axis was built from, by the SAME drop rule.
     rung = inspect.getsource(cq._rv_price_reading)
@@ -1789,7 +1838,18 @@ def test_fix_review_minor_6_the_seam_re_anchor_cuts_named_line_sets():
 
     CLOSED: two named cuts, each from its own leading comment to its own final assignment, each anchor
     asserted unique and ordered. The two are contiguous in the shipped source, so `sans` is byte-identical
-    and the bank is UNMOVED -- a tightening, not a re-banking (verified: sans_xl_sha256 still 2b4407f4)."""
+    and the bank is UNMOVED -- a tightening, not a re-banking.
+
+    THE SHA THIS LINE USED TO NAME IS NOW A DIFFERENT ONE, corrected 2026-09-07 (K9-6 review MINOR: a
+    stale MEASURED claim is the same class the K9-6 item closes). When this test was written the
+    producer's `sans_xl_sha256` and the banked HEAD sha were the SAME value, 2b4407f4..., because the two
+    D-XL cuts recovered HEAD exactly. K9-6 then appended a THIRD line set to the same seam block, which
+    the producer does not know about, so the two parted: measured this sitting,
+      producer sans_xl_sha256 = e6f2b4f2414579681c55f71d2858b5891dea0f36e297b6caac7c629213be8578
+      banked HEAD sha256      = 2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074
+    and HEAD is reached only after `test_cascade_walk._g1x_sans` makes the second, K9-6-named cut. This
+    test's own asserts are unaffected -- it reads the producer's SOURCE, not its output -- which is
+    exactly why the line was correctable in place rather than by moving a pin."""
     import pathlib
     prod = (pathlib.Path(__file__).resolve().parents[2] / "data" / "consequence_leg"
             / "xl_golden_seam_bank.py").read_text(encoding="utf-8")

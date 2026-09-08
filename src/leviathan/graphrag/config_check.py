@@ -366,6 +366,162 @@ def check_cascade_map() -> list[str]:
                         f"{row.get('country_rule')!r} row is dead config (fence is primary-only)")
     errs += _check_region_map(reg)
     errs += _check_global_token_fence()
+    errs += _check_narrate_scale_family(reg)
+    return errs
+
+
+def _check_narrate_scale_family(reg) -> list[str]:
+    """K9-3's THREE CROSS-REF INVARIANTS -- the ones the per-ref loop above structurally cannot see,
+    because it visits one silver_ref at a time while `citations.narrate_scale` answers for a
+    (table, metric) KEY. Both were fail-silent before this checker existed: the harmonisation simply
+    switched off for the key and the panel went back to printing two scales, with no build error and no
+    telemetry (review MAJOR-2). Design section 9 names this file for K9-3 by address.
+
+    (i) CROSS-REF UNANIMITY AT A REAL SCALE. The map is keyed by silver_ref, so one (table, metric) may
+        be served by many rows; `narrate_scale` requires them to agree about (scale, narrate_unit) and
+        returns None otherwise. The live map ALREADY carries a disagreeing pair --
+        `gold_futures_spreads.spread_value` is 'US cents/bushel' under kc_chi_spread and 'ZAR/t' under
+        white_yellow_spread -- and that pair is DELIBERATELY not an error: both refs sit at scale 1, no
+        rescale is owed either way, and the two boards genuinely narrate in their own currencies. The
+        error fires the day such a key gains a scale, which is precisely when the silent refusal starts
+        costing a harmonisation. The per-ref check at line ~285 ('scale != 1 requires narrate_unit') is
+        the single-row half of the same law and cannot express this one.
+
+    (ii) THE DELTA-SIBLING NARRATION MUST BE DECLARED. `citations._co_unit_sibling_scale` carries a
+        metric's own change at its parent's declared scale, in the estate's own word for a change of
+        that narration (`cascade._XC_REGIONAL_METRICS`: '%' -> 'pp', 'MMT' -> 'MMT'). A co-unit sibling
+        whose parent IS harmonised but whose narrate_unit the estate has never named a change of is
+        refused silently -- correct at runtime (this seam does not invent words) and a defect at build
+        time, because the panel then prints the level and its own change on two scales, which is the
+        class the item exists to remove. Same for a sibling with two co-unit parents that disagree.
+
+    (iii) ONE PRINTED NAME CARRIES ONE SCALE (verify FATAL, the TABLE axis). A label prints the card's
+        ANALYST NAME for a metric, and the estate serves the same analyst name at the same card unit
+        from sibling tables -- 6 such (mapped, silent) pairs live today, listed in the block above
+        `citations._display_family_index`. Two halves, and they fire on different days on purpose:
+
+        (iii-a) TWO MAPPED MEMBERS THAT DISAGREE is an error at EVERY flag setting, because the cascade
+            pre-scales its OWN mints from these rows: a family the map narrates two ways prints one
+            name on two scales at HEAD, with no flag involved. None exists today (every live family has
+            at most one member the map scales), so this is fail-closed rather than load-bearing.
+
+        (iii-b) A MAPPED MEMBER BESIDE A SILENT ONE is an error only while GRAPHRAG_NARRATE_SCALE is
+            ON. THE FIRST BUILD GATED IT ON A REASON THAT IS FALSE, and the re-fix says so rather than
+            keeping it: "with the flag off nothing is harmonised and no half-move is possible, so the
+            divergence costs the reader nothing" is contradicted by the estate three lines up.
+            `cascade._prescaled` stamps `tgt['unit'] = row.get('narrate_unit')` and scales the value
+            from these SAME map rows with no flag involved, so the half-move is ALREADY LIVE AT HEAD,
+            at the default. RENDERED THROUGH THE REAL PRODUCERS (`cascade._prescaled` then
+            `citations.from_number`), GRAPHRAG_NARRATE_SCALE off, one panel, one commodity, one
+            country, one marketing year, the same underlying value:
+                'USDA PSD production CBOT corn United States MY2025 = 384 MMT'        (mint, ref
+                    `production`)
+                'NASS ANNUAL production CBOT corn United States MY2025 = 384,000,000 MT'  (the silent
+                    sibling, as the agent lane serves it)
+                'USDA PSD stocks-to-use ratio CME palm oil Malaysia MY2025 = 15.12 %'  (mint, ref
+                    `psd_ending_stock_su_ratio`)
+                'MPOB stocks-to-use ratio CME palm oil Malaysia MY2025 = 1.88792 ratio'
+            THE RESIDUAL IS PRICED HERE RATHER THAN LINTED, and priced in full: 4 families across 6
+            silent tables (silver_mpob.su_ratio, silver_icco_cocoa.su_ratio,
+            silver_nass_annual.production_mt, silver_mpoc_trade_stats_monthly.exports_mt,
+            silver_mpoc_exports_by_country.exports_mt, silver_mpoc_stock_comparison.ending_stocks_mt),
+            live at EVERY flag setting. It is not minted by this item -- with the flag on
+            `citations.narrate_scale` refuses all four families, so flag-on renders byte-identically to
+            flag-off on the whole colliding panel -- and it is not fixable from this seam: only a
+            cascade_map row for each silent sibling table removes it, which is the map lane's call.
+            WHAT THE GATE IS ACTUALLY ABOUT IS BLAST RADIUS: erroring at the default would fail every
+            co-tenant's build today for a HEAD defect this dark item neither caused nor can close
+            (tests/unit/test_cascade.py:563 asserts `check_cascade_map() == []` on the live estate).
+            WHAT IT BUYS is that the FLIP cannot ship a half-move: with the flag on the build names all
+            four families and every silent table by address, and the four keys the design counts on
+            (silver_psd su_ratio / production_mt / exports_mt / ending_stocks_mt) render at HEAD -- so
+            the estate must decide before the flag ships, instead of discovering it in a panel. And the
+            residual is PINNED rather than merely written down: the deck's
+            `test_k9_3_the_head_residual_under_one_printed_name_is_flag_independent` renders both lines
+            above through the real producers AT THE DEFAULT and asserts the flag moves neither.
+
+    MEASURED GREEN ON THE LIVE ESTATE at the fix-pass: 4 co-unit siblings exist across the whole
+    registry (silver_psd's su_ratio_yoy_delta and the three `_revision` columns), each with exactly one
+    co-unit parent, each parent mapped, and both parent narrate_units ('%', 'MMT') declared; and with
+    the flag off (the default, and the setting every deck and the rebuild gate run at) invariant (iii)
+    contributes nothing -- measured 0 errors on the live registry."""
+    from leviathan.graphrag import citations as cit
+    from leviathan.graphrag.numbers.cascade import load_map
+    errs: list[str] = []
+    keys: dict[tuple, list] = {}
+    for ref, row in (load_map() or {}).items():
+        if not isinstance(row, dict) or not row.get("table") or not row.get("metric"):
+            continue
+        try:
+            sc = float(row.get("scale", 1) or 1)
+        except (TypeError, ValueError):
+            continue                       # shape errors belong to the per-ref loop above, not here
+        keys.setdefault((row["table"], row["metric"]), []).append(
+            (ref, sc, str(row.get("narrate_unit") or "").strip()))
+    for (table, metric), refs in sorted(keys.items()):
+        terms = {(sc, unit) for _ref, sc, unit in refs}
+        if len(terms) > 1 and any(sc != 1 for _ref, sc, _u in refs):
+            errs.append(f"cascade_map narrate-scale: ({table}, {metric}) is served by "
+                        f"{len(refs)} refs that DISAGREE about (scale, narrate_unit) -- "
+                        + ", ".join(f"{r}={s!r}/{u!r}" for r, s, u in sorted(refs))
+                        + " -- and at least one carries a real scale, so citations.narrate_scale "
+                        "refuses the key SILENTLY and the agent lane goes back to printing the "
+                        "metric on two scales beside the cascade's own pre-scaled mint")
+    for tid, spec in sorted(reg.tables.items()):
+        for metric, mm in sorted(getattr(spec, "metrics", {}).items()):
+            mine = str(getattr(mm, "unit", "") or "").strip()
+            if not mine or cit._map_declaration(tid, metric)[2]:
+                continue                   # no declared unit, or the map speaks about the key itself
+            scales = {cit._map_scale(tid, p) for p, pm in spec.metrics.items()
+                      if p and p != metric and metric.startswith(p + "_")
+                      and str(getattr(pm, "unit", "") or "").strip() == mine}
+            if not any(s is not None for s in scales):
+                continue                   # no co-unit parent this fix moves -- nothing is owed
+            if len(scales) != 1:
+                errs.append(f"cascade_map narrate-scale: ({tid}, {metric}) has co-unit parents that "
+                            f"disagree about scale ({sorted(str(s) for s in scales)}) -- the delta "
+                            f"sibling is refused silently while its parent is rescaled, so the panel "
+                            f"prints a metric and its own change on two scales")
+                continue
+            unit = next(iter(scales))[1]
+            if cit._delta_unit(unit) is None:
+                errs.append(f"cascade_map narrate-scale: ({tid}, {metric}) is a co-unit sibling of a "
+                            f"parent narrated in {unit!r}, and cascade._XC_REGIONAL_METRICS declares "
+                            f"no delta_unit for {unit!r} -- name what a change of it is CALLED there "
+                            f"(the '%' -> 'pp' entry is the precedent), or the sibling stays on the "
+                            f"raw scale beside a rescaled parent")
+    errs += _check_display_name_families(reg)
+    return errs
+
+
+def _check_display_name_families(reg) -> list[str]:
+    """Invariant (iii) of the block above: one printed name carries one scale. Reads
+    `citations._display_family_index` -- the SAME index the producer's fence reads, driven off the
+    registry this lint was handed -- so the build and the seam cannot disagree about which keys
+    collide."""
+    from leviathan.graphrag import citations as cit
+    errs: list[str] = []
+    for (disp, unit), members in sorted(cit._display_family_index(reg).items()):
+        if len(members) < 2:
+            continue
+        decl = [(t, m, cit._map_scale(t, m), cit._map_declaration(t, m)[2]) for t, m in members]
+        scaled = [d for d in decl if d[2] is not None]
+        if not scaled:
+            continue                   # nothing in this family is harmonised -- nothing is owed
+        shape = ", ".join(
+            f"{t}.{m}=" + (f"{s[0]!r}/{s[1]!r}" if s else ("scale 1" if n else "UNMAPPED"))
+            for t, m, s, n in decl)
+        if len({d[2] for d in scaled}) > 1:
+            errs.append(f"cascade_map narrate-scale: the display name {disp!r} at card unit {unit!r} "
+                        f"is narrated TWO WAYS by the map -- {shape} -- so the cascade pre-scales its "
+                        f"own mints for these keys onto two scales under ONE printed name, at every "
+                        f"flag setting; declare one narration for the family")
+        elif len(scaled) != len(decl) and cit._narrate_scale_on():
+            errs.append(f"cascade_map narrate-scale: {disp!r} at card unit {unit!r} is harmonised on "
+                        f"some tables and not others -- {shape} -- and GRAPHRAG_NARRATE_SCALE is ON, "
+                        f"so citations.narrate_scale refuses the WHOLE family fail-closed and every "
+                        f"one of these keys renders at HEAD. Declare a cascade_map row for the silent "
+                        f"table(s) to lift the refusal, or turn the flag off -- never a half-move")
     return errs
 
 

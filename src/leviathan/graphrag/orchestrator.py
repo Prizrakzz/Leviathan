@@ -100,6 +100,36 @@ def _numbers_block(calls: list, *, budget: dict | None = None) -> str:
                          "receipt for the gap: a handle with no value behind it is removed before the "
                          "reader sees it, taking its clause with it. Name the gap in words; a stated "
                          "absence needs no citation."]
+    # ══ K9-2 FIX-PASS (2026-09-08), verify MAJOR-1 -- THE PROSPECTIVE HALF, ON THE DIRECTIVE ABOVE'S SHAPE
+    # The withhold above it in the stack is a LABEL change: `citations.from_number` replaces the `= value
+    # unit` head with ONE SCOPE OF MANY on a read that names no country and spans many. That is the FACT,
+    # and it is reader-safe (the same string renders into `## Sources`). NOTHING TOLD THE WRITER WHAT TO DO
+    # WITH IT -- the K9-2 block note said so and called the post-hoc handle pass the safety net; the fix
+    # pass MEASURED that net and it was not there (see `answer._scope_withheld_token`'s block note: 6
+    # handles dropped, 0 clauses cut, and the de-cited figure left on the page). The prompt is where the
+    # figure is stopped BEFORE it is written; the handle pass is the backstop for the residue.
+    # WHY A SEPARATE CLAUSE AND NOT A WIDENING OF THE EMPTY-READ DIRECTIVE: the two facts are not the same
+    # fact. An empty read produced NO value and the honest sentence is "the record carries no figure for
+    # that scope"; a withheld read produced valued rows -- up to 4,759 of them on the banked set -- across
+    # many geographic scopes, and the honest sentence is "the record serves no SINGLE scope for it here".
+    # Telling the writer the record is empty about a read that served thousands of rows is the
+    # artifact-lies class, one seam over -- which is exactly why
+    # `citations.is_empty_read` stays False for this class and is documented as the one producer of the
+    # other question. `cit.scope_withheld` is the one producer of this one, read off the rendered label so
+    # the directive and the marker can never disagree.
+    # FLAG OFF (`GRAPHRAG_SCOPE_WITHHOLD` unset or off) -> `scope_withheld` is False for every call and the
+    # block is byte-identical, on every turn and both arms.
+    if any(cit.scope_withheld(c) for c in (calls or []) if isinstance(c, dict)):
+        notes = notes + ["One or more reads above are marked ONE SCOPE OF MANY. These are NOT the empty "
+                         "reads: they served rows, and many of them, across many geographic scopes "
+                         "without naming one -- so the newest row is ONE scope's figure and not a figure "
+                         "for the commodity. State NO number from such a line: not as a level, not as a "
+                         "comparison, not as a ranking against another line -- and do NOT supply the "
+                         "missing scope yourself ('world', 'global', 'total', a country) to make one "
+                         "printable. Say which source and which commodity the read names, say that the "
+                         "record serves no single scope for it at this as-of, and DO cite that line's "
+                         "[N] handle for that statement: unlike an empty row's handle it stays on the "
+                         "page, and its `## Sources` row states the same limit in the same words."]
     # LANE S (2026-09-06), THE FACT HALF. THREE mutually exclusive clauses, at most ONE appended, all
     # three opening with `an.NUMBERS_BUDGET_MARK` -- the ONE producer of the marker string, which
     # answer.py's own gate keys on, so producer and gate cannot drift (the `_cascade_walk_block_on` law).
@@ -756,6 +786,20 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         if _cov:
             holder["coverage_route"] = _cov[0]
             holder["coverage_preface"] = na.futures_eod_coverage_preface(*_cov)
+        # K9-3 DECLARED-SCALE DIVERGENCE (2026-09-07), and THIS LINE IS THE SEAM. The list is fixed
+        # here and nowhere else: `_numbers_block` below renders the prompt panel from it, answer.py
+        # unifies the SAME list into the `## Sources` footer and hands it to `verify_citations`, and
+        # `out['number_calls']` publishes it to the trace and the census. One rewrite here reaches all
+        # four, and no consumer can see a different scale than another -- which is the whole defect
+        # (the judged panel printed `stocks-to-use ... = 0.117499 ratio` beside the cascade's own
+        # pre-scaled `= 1.03033 %` for the same metric in the same panel; cascade_panel.json treatment
+        # STOP #12). The producer, its measured trigger, its ten fences and what it deliberately does
+        # NOT cover are in the block note above `citations.narrate_scale`; this file only names WHEN.
+        # AFTER the futures/coverage guards on purpose: those read the served rows to decide whether a
+        # lookup is servable at all, a verdict about the READ that no rescale may participate in.
+        # OMIT-WHEN-OFF BY IDENTITY: flag off -> the same list object comes back, so this line is
+        # `holder['calls'] = calls` exactly as it is today.
+        calls = cit.harmonise_declared_scale(calls)
         holder["calls"], holder["resolved"] = calls, True
         # T2b D2 (pattern-records deck skeptic, 2026-07-25): run_numbers_only copies `pattern_records`
         # onto its trace (:77) but the hybrid join never did -- so a persistence question routed hybrid
