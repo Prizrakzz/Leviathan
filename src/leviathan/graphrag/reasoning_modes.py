@@ -271,6 +271,20 @@ class Mode:
     # column stay byte-identical, and `run_hybrid` reads its own env flag as the second half of the
     # decision (a preset alone moves nothing).
     numbers_roster: bool | None = None
+    # STATE ENGINE S6 (phase 2; docs/private/STATE_ENGINE_DESIGN_2026-09-07.md sec 7): the board's own
+    # per-mode constants, packed as ONE tuple field -- `k_by_depth`'s precedent (:147: "a TUPLE so the
+    # dataclass stays hashable and the table stays immutable"), unpacked by `state.board.BoardKnobs` so
+    # no consumer indexes by position. Appended LAST -- the appended-last law, NINTH application
+    # (KNOB_FIELDS order IS the trace-stamp column order; append, never insert), and this append is the
+    # one S2 declared it could not make: it moves `KNOB_FIELDS[-1]`, which `config_check
+    # .check_scan_roster` clause (iv) asserts BY NAME, so the field and that clause land in ONE commit.
+    # THE VALUES DO NOT LIVE HERE, and that is the fence rather than an omission. Every shipped preset
+    # leaves this None, so `knobs()`'s `is not None` filter cannot mint the key: no existing preset's
+    # knob dict, trace stamp or eval `mode_knobs` column moves by a byte, and `standard` stays the
+    # all-None passthrough. The DARK table below (`BOARD_PRESETS`) carries the numbers the walk reads
+    # today, and `board_preset()` prefers this field the moment a preset declares one -- which is how
+    # an ARM sets a board knob for one preset without editing a module table shared by every tier.
+    board: tuple | None = None
 
 
 MODES: dict[str, Mode] = {m.name: m for m in (
@@ -551,22 +565,61 @@ MODES[QUICK_R0] = replace(MODES[QUICK_S], name=QUICK_R0, numbers_roster=True)
 #   Cascade  40 + (16 far + 10 benchmark + 5 receipts + 27 leg-B cells) = 98, i.e. 71 with leg B dark
 # The caps are UPPER BOUNDS sized from the table, not a demand forecast: the newest census measures the
 # soybeans board at 12-13 distinct series keys (sec 7, desk_cost F16), so wave 1 does not bind there.
+# S6 APPENDS THE SEVEN RENDER CAPS to each row, at the values `state/render.RENDER_CAPS` and
+# `state/watch.WATCH_RENDER_K` already ship -- the design's own planned sizes (sec 7). The S2/S3
+# MEASURED sizes are recorded beside them in `state.board.BoardKnobs` and S7 decides which cap moves;
+# nothing is tightened here, because a cap change is a prompt-content change and arm A measures ONE
+# instrument. `render_absence` is 0 = UNCAPPED on every tier, which IS today's behaviour.
+#
+# THE S6 REVIEW APPENDS TWO MORE, and they are a different KIND of number from the seven: every render
+# cap above is per ROW CLASS, and both of these bound a dimension no per-class cap can see.
+#   `max_anchors`          4 / 6 / 8   -- the TOTAL anchor boards. Amendment 1 anchors EVERY contract
+#                                        carrying a `focus_driver` id (measured 24 for crude_oil, 35
+#                                        for El_Nino / heat_stress), which made the DECLARED read cap,
+#                                        the serial tape column, the [N] address space and the block's
+#                                        own length scale with an FE gesture: cap 59 / 85 / 106 against
+#                                        the design's 24 / 50 / 71, block 916 rows / ~37,450 tokens.
+#                                        The tier's ceiling is now a TIER fact. The sizes are the
+#                                        tier's own `max_seeds` ceiling (2 / 4 / 6) plus the two
+#                                        strongest non-planner sources an anchor set can carry (an
+#                                        attached event and a driver's own board), which is the widest
+#                                        set sec 3.1's precedence can produce without a fan-out.
+#   `render_absence_names` 16 / 24 / 32 -- NAMES printed inside ONE SB-X line; the remainder is stated
+#                                        as a count. One absence line measured 23,871 characters.
 BOARD_PRESETS: dict[str, tuple] = {
     #        loud_k fan_k analog_k analog_dims admit wave1 wave2 receipt_cap path_render_k
-    QUICK:  (8,     4,    0,       0,          4,    24,   0,    0,          2),
-    DEEP:   (16,    8,    1,       3,          8,    32,   18,   3,          4),
-    MAX:    (24,    16,   2,       5,          12,   40,   58,   5,          8),
+    #                                                     | spill conv analog outcomes rcpt watch absence
+    #                                                     |                          max_anchors abs_names
+    QUICK:  (8,     4,    0,       0,          4,    24,   0,    0,          2,
+             4,    2,   0,     0,        0,   3,    0,
+             4,    16),
+    DEEP:   (16,    8,    1,       3,          8,    32,   18,   3,          4,
+             8,    4,   1,     4,        3,   6,    0,
+             6,    24),
+    MAX:    (24,    16,   2,       5,          12,   40,   58,   5,          8,
+             16,   6,   2,     4,        5,   8,    0,
+             8,    32),
 }
 
 
 def board_preset(name: str | None) -> tuple | None:
-    """The nine board knobs for a mode, or None where the tier declares none (STATE ENGINE sec 7).
+    """The board knobs for a mode, or None where the tier declares none (STATE ENGINE sec 7).
 
     KEYED ON THE BASE PRESET (`base_mode`), for the same reason `is_metered` is: a `deep_hp` turn is an
     Analysis turn and must read the Analysis board, and a table keyed by literal name would hand every
     `_hp` twin, every escalation name and every arm control a None -- i.e. no board at all on exactly
     the turns an arm is measuring. `standard` and every unknown name return None, which is the
-    passthrough: no knobs, no board, and the seam stamps its own lane word."""
+    passthrough: no knobs, no board, and the seam stamps its own lane word.
+
+    S6: THE PRESET'S OWN `board` FIELD WINS, and it is read by LITERAL name before the base table is
+    consulted. That ordering is the whole reason the field exists: an arm that wants one tier's board
+    widened declares it on that preset (`replace(MODES[MAX], name=..., board=(...))`) and every other
+    tier keeps the shipped table -- a module-table edit could not express that without moving the
+    control arm too. No shipped preset declares one, so this branch is dead on every serving turn and
+    the returned tuple is byte-identical to the table below."""
+    m = MODES.get((name or "").strip().lower())
+    if m is not None and getattr(m, "board", None) is not None:
+        return tuple(m.board)
     return BOARD_PRESETS.get(base_mode(name))
 
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable

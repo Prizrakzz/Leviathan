@@ -665,7 +665,14 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
                   near: str | None = None, silver_lookup=None, on_stage=None,
                   focus_driver: str | None = None, qfn=None, xc_request: dict | None = None,
                   outlook: bool = False, response_contract: str | None = None,
-                  mode_knobs: dict | None = None, xl_request: dict | None = None) -> dict:
+                  mode_knobs: dict | None = None, xl_request: dict | None = None,
+                  # STATE ENGINE PHASE 2 (design sec 7): the HONORED mode's NAME, appended LAST under
+                  # the same omit-when-default idiom as `mode_knobs`. The board's per-tier constants are
+                  # keyed by BASE PRESET and the knob DICT cannot carry them -- every shipped preset
+                  # leaves `Mode.board` None precisely so no knob dict, trace stamp or eval column moves
+                  # -- so the seam needs the name. Absent -> the `an.answer` call is byte-identical and
+                  # an injected answer fake with the older signature stays valid.
+                  mode_name: str | None = None) -> dict:
     # reroute v2: xc_request rides down to the cascade quantify seam (lane C) ONLY when the gate produced one
     # (flag on + explicit ask). None -> the kwarg is omitted so the answer() call is byte-identical to today.
     _xc = {"xc_request": xc_request} if xc_request is not None else {}
@@ -674,6 +681,8 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
     _ol = {"outlook": True} if outlook else {}
     _rck = {"response_contract": response_contract} if response_contract else {}   # D-RC: same idiom
     _mk = {"mode_knobs": mode_knobs} if mode_knobs else {}                         # D-AM-10: same idiom
+    if mode_name:                        # STATE ENGINE: rides the SAME dict, omitted when absent
+        _mk["mode_name"] = mode_name
     # D-XL (E11): the SAME omit-when-None idiom as `_xc`. None -> the kwarg is ABSENT -> the
     # an.answer() call is byte-identical and an injected answer fake with the older signature is valid.
     _xl = {"xl_request": xl_request} if xl_request is not None else {}
@@ -694,7 +703,9 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                xc_request: dict | None = None, outlook: bool = False,
                numbers_query: str | None = None, families=None,
                response_contract: str | None = None, mode_knobs: dict | None = None,
-               xl_request: dict | None = None) -> dict:
+               xl_request: dict | None = None,
+               # STATE ENGINE PHASE 2: appended LAST, the `run_reasoning` note verbatim in reason.
+               mode_name: str | None = None) -> dict:
     """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
     only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
     answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
@@ -969,6 +980,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     _ol = {"outlook": True} if outlook else {}                           # W5-D4: same omit-when-off idiom
     _rck = {"response_contract": response_contract} if response_contract else {}   # D-RC: same idiom
     _mk = {"mode_knobs": mode_knobs} if mode_knobs else {}                         # D-AM-10: same idiom
+    if mode_name:                        # STATE ENGINE: rides the SAME dict, omitted when absent
+        _mk["mode_name"] = mode_name
     _xl = {"xl_request": xl_request} if xl_request is not None else {}             # D-XL: omit when None
     try:
         out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
@@ -2353,6 +2366,62 @@ def _cited_n_ordinals(ans: str, fallback: int) -> int:
         return int(fallback or 0)
 
 
+#: STATE ENGINE sec 7 / 6.7: the OFF-LANE turns that never enter `answer.py` at all, keyed by the word
+#: the turn's own `intent` reports. A LEG CANNOT STAMP ITS OWN ABSENCE and these lanes have no leg to
+#: stamp with -- `_respond` returns from `run_numbers_only`, from the trivial short-circuit or from the
+#: guardrail without ever calling `an.answer` -- so `respond()` stamps them from OUTSIDE, which is the
+#: same rule `answer._state_board_lane_stamp` keeps for the two lanes that DO enter that module.
+#:
+#: `live` IS IN THIS MAP AND SEC 7 PUTS IT IN THE ON SET, and the divergence is a DECISION recorded
+#: rather than a drift (S6 review, major 5). The live lane is the declared D-AM-10 mode-threading
+#: exemption: it carries no `mode_name`, so `_answer_l2` would resolve `standard`, `board_knobs_of`
+#: would return None and the walk would decline `lane_off:standard` -- a TIER word standing in for a
+#: LANE word, in a closed vocabulary, on a lane the design says is on. Threading the mode into
+#: `run_live` is the other remedy and it is NOT taken here: it would put the board's read budget on the
+#: news lane, which runs no grounded walk and whose knobs "have nowhere to land". So the lane is
+#: declared OFF with its own name, `state.seam.ON_LANES` drops it, and the exclusion is a residual for
+#: the sitting that decides which tier a live turn reads.
+_STATE_BOARD_OFF_INTENTS: dict = {"numbers_only": "numbers_only", "refused": "refused",
+                                  "social": "trivial", "live": "run_live"}
+
+
+def _state_board_off_lane_stamp(res: dict, tr: dict) -> None:
+    """Stamp `state_board` on an OFF-LANE turn's trace (design 6.7, D10). No-op with the flag off, on a
+    lane that already stamped, and on every lane that reaches `answer.py`.
+
+    THE HOLE THIS CLOSES is the exact one 6.7 exists to close: "a board that declined" and "a board
+    that never ran" are two facts, and a census that cannot separate them reads a structurally absent
+    key as a coverage failure. `reason_dimension` can now emit all six declared off lanes rather than
+    the two `answer.py` can see, and the S6 proof item -- every path leg stamps its closed tag -- is
+    met by construction rather than by assertion.
+
+    ONE PRODUCER FOR THE PAYLOAD: it calls `answer._state_board_lane_stamp`, which owns the flag read,
+    the closed-enum validation and the shape. A second dict literal here is how the two stamps would
+    drift into two shapes for one registered key.
+
+    THE TURN'S OWN TIER RIDES THE STAMP (S6 re-fix, the review's cheap minor). The EMF block below
+    dimensions the board's record by `state_board.mode`, and these four lanes carried no such key at
+    all -- so every `BoardDeclined` from an off lane published under `standard`, whatever tier the user
+    paid for, and the board's declined series could not be read per tier at all.
+
+    IT READS THE SAME PRODUCER THE TURN BLOCK READS -- `intent_decision.mode.honored`, the HONORED tier
+    (what `server._credit_price` charges and what the user is shown), never `_effective` and never a
+    re-resolve here. Two readings of one turn's tier is how one dashboard grows two mode columns. A
+    lane that resolved no mode at all (the guardrail and trivial early returns) yields `''`, the key is
+    OMITTED, and the emitter's own fallback reports `standard` -- which is TRUE by construction there,
+    in that block's own words: no knobs ran."""
+    try:
+        if not isinstance(tr, dict) or tr.get("state_board") is not None:
+            return                                    # a lane that stamped its own word keeps it
+        word = _STATE_BOARD_OFF_INTENTS.get(str(res.get("intent") or ""))
+        if not word:
+            return                                    # reasoning / hybrid: `answer.py` owns the stamp
+        _md = str((((res.get("intent_decision") or {}).get("mode") or {}).get("honored")) or "")
+        tr.update(an._state_board_lane_stamp(f"lane_off:{word}", _md))
+    except Exception:  # noqa: BLE001 -- a stamp is never worth an answer
+        pass
+
+
 def respond(*args, **kwargs) -> dict:
     """Per-turn TIMING wrapper (Stage 5.0/5.4 latency diagnostic): times `_respond`, stamps
     `trace.timing_ms` = {total, fill, rest}, and logs one INFO line so the warm-turn phase breakdown is
@@ -2363,6 +2432,10 @@ def respond(*args, **kwargs) -> dict:
     res = _respond(*args, **kwargs)
     try:
         tr = res.setdefault("trace", {})
+        # STATE ENGINE 6.7: the OFF LANES that never reach `answer.py` get their closed word HERE, and
+        # BEFORE the telemetry block below, so the EMF emitter reads one key on every lane in the
+        # estate. Flag off -> `_state_board_lane_stamp` returns {} -> `tr` is byte-identical.
+        _state_board_off_lane_stamp(res, tr)
         gm = tr.get("ground_ms") or {}
         total = int((time.perf_counter() - _t0) * 1000)
         # W6.1-0 stage attribution: mirror every per-stage timer the branches stamped into trace (a stage
@@ -2522,6 +2595,31 @@ def respond(*args, **kwargs) -> dict:
         # SEPARATE line for the FloorTurns reason INVERTED: these ship FLEET-DIMENSIONED ONLY (R14), so
         # folding them into the block above would inherit its (intent x model x mode) set and bill five
         # always-on counters against that cardinality every month. Silent on the numbers lane.
+        # STATE ENGINE 10.5: THE BOARD'S OWN COUNTERS, on their OWN EMF record and ABSENT-WHEN-
+        # INAPPLICABLE. A separate line for `FloorTurns`' reason INVERTED and for R14's: folding these
+        # into the turn block above would inherit its (intent x model x mode) dimension set and bill a
+        # dozen always-on counters against that cardinality every month, and -- the sharper reason --
+        # they have NO population on a turn the board did not run, so a 0-semantics counter there would
+        # dilute `BoardFired` with every numbers_only, trivial and refused turn in the estate. The
+        # values come from `state.seam.counters`, which reads the LEDGER rather than re-deriving, so
+        # the dashboard and the trace can never disagree. Silent on every flag-off turn (the key is
+        # absent -> nothing to emit), which is what makes this safe to land dark.
+        _sbt = tr.get("state_board")
+        if isinstance(_sbt, dict):
+            try:
+                from leviathan.graphrag.state import seam as _sbs
+                _sbc = dict(_sbt.get("counters") or {})
+                if not _sbc:
+                    _sbc = {"BoardFired": 1 if (((_sbt.get("legs") or {}).get("board") or {})
+                                                .get("outcome") == "fired") else 0}
+                _reason = ((_sbt.get("legs") or {}).get("board") or {}).get("reason")
+                emf.emit(_sbc,
+                         dimensions={"mode": _sbt.get("mode") or rm.STANDARD,
+                                     "reason": _sbs.reason_dimension(_reason)},
+                         units={k: ("Milliseconds" if k.startswith("Ms") else "Count")
+                                for k in _sbc})
+            except Exception:  # noqa: BLE001 -- instrumentation must never break an answer
+                pass
         emf.emit_quality(tr)
         # D-LD Sitting-A: PER-TABLE USAGE, emitted from this same seam and LAST on purpose. Its own record,
         # its own `[["table"]]` dimension set, and NOTHING added to the turn block above -- a table
@@ -2642,6 +2740,22 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
     _mode = rm.resolve(mode, _modes_enabled())
     _mode_knobs = rm.knobs(_mode["honored"])          # {} for standard/dark => every seam byte-identical
     _mk = {"mode_knobs": _mode_knobs} if _mode_knobs else {}   # the omit-when-default idiom, per seam
+    # STATE ENGINE PHASE 2 (design sec 7): THE HONORED MODE'S NAME, threaded to the answer seam beside
+    # its knob dict and under the SAME omit-when-default idiom. The board's nine constants are keyed by
+    # BASE PRESET (`reasoning_modes.board_preset`) and the knob DICT cannot carry them -- every shipped
+    # preset leaves `Mode.board` None precisely so no existing knob dict, trace stamp or eval column
+    # moves -- so the seam needs the NAME. It is inert with the flag off: `_answer_l2` stores it and
+    # reads it only inside the `_state_board_on()` branch, so a standard turn is byte-identical and a
+    # deep/max turn with the flag off carries one extra string that nothing reads.
+    #
+    # IT IS GATED ON THE BOARD'S OWN FLAG, exactly as `_nm` two hundred lines below is, and the first
+    # S6 build was not -- measured by the review as the ONE flag-off seam surface that moved. "Inert in
+    # behaviour" is not the house rule; OMIT-WHEN-OFF is, and this call site's own note promises that
+    # with the flag off "the `an.answer` call is byte-identical and an injected answer fake with the
+    # older signature stays valid", which is false the moment the caller supplies the kwarg
+    # unconditionally. One read of the ONE producer, here and at the escalation rebind.
+    if _mode["honored"] != rm.STANDARD and an._state_board_on():
+        _mk["mode_name"] = _mode["honored"]
     # D-MW-30 (F3): THE TURN CARRIES TWO MODE IDENTITIES from here on.
     #   `_mode["honored"]`  what the turn IS -- priced (server._credit_price), stamped (decided.mode),
     #                       shown to the user. A shape escalation NEVER moves it: the escalation is an
@@ -2757,9 +2871,25 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
             if _xlk:
                 from leviathan.graphrag.numbers import cascade as _cq  # lazy: no import-time cycle
                 _xl = {"xl_boards": _cq.XL_BOARD_LABEL, "xl_kinds": _xlk}
+        # STATE ENGINE Amendment 2 (the ANCHOR half): the markets the QUESTION named ride into the
+        # validator so its ceiling stops truncating them. OMIT-WHEN-OFF, gated on the board's OWN flag
+        # read at its ONE producer (`answer._state_board_on`) -- with the flag off the kwarg is absent
+        # and the planner's contract list is HEAD's, which is what the routing censuses compare against.
+        #
+        # `dedup` RIDES THE SAME GATE AND THE SAME READ (S6 re-fix, major 3). The de-dup was landed
+        # UNCONDITIONALLY inside `_validate`, so with the board off the ceiling was applied to a
+        # de-duplicated list where HEAD applied it to the raw one -- a flag-off behaviour change with no
+        # flag and no pin. It is threaded here, from this one boolean, rather than read from the
+        # environment in the leaf: `dispatch` is on the numbers bulkhead's own no-environment rule.
+        _nm = {}
+        if an._state_board_on():
+            _nm = {"dedup": True}
+            _named = dp.named_markets(query, graph)
+            if _named:
+                _nm["named"] = _named
         p = dp.plan_turn(query, graph=graph, state_block=sblock, today=_today(),
                          state_contracts=(state.contracts if state else None), call=call,
-                         **_pc, **_xo, **_xl)
+                         **_pc, **_xo, **_xl, **_nm)
         _ms_dispatch = int((_time.perf_counter() - _t_disp) * 1000)
         plan = None if p.fallback else p
     if plan is not None:
@@ -2922,6 +3052,13 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
         _effective = _esc_target(_mode["honored"])
         _mode_knobs = rm.knobs(_effective)     # the walk/ground knob dict swaps WHOLE -- never a merge:
         _mk = {"mode_knobs": _mode_knobs}      # a half-escalated bundle is not the bundle 12e measured.
+        # STATE ENGINE: the NAME rides the rebind too. The knob dict swaps whole by design; the
+        # mode's own name is not part of that bundle, so dropping it here would silently give an
+        # escalated turn no board while its control kept one -- an arm measuring its instrument.
+        # SAME FLAG GATE AS THE FIRST BIND (omit-when-off): the rebind may not re-introduce a kwarg the
+        # flag-off path does not carry.
+        if _mode["honored"] != rm.STANDARD and an._state_board_on():
+            _mk["mode_name"] = _mode["honored"]
         print(f"SHAPE_ESC_FIRED effective={_effective} planned_seeds={_esc['planned_seeds']}")  # ASCII soak
 
     # D-RC-14: profile facts join sblock at the SAME documented multiplex the attachment block uses

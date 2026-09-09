@@ -3129,8 +3129,13 @@ def test_k9_4_the_flag_is_read_at_the_two_permitted_seams_and_never_inside_the_e
     # COMPOSER, default False, dark). What K9-4 claims is that `vintage_role` LANDED AT THE TAIL and
     # moved nothing before it -- so the pin now reads it as the last name BEFORE the appends that
     # followed, each of which is OPTIONAL here, so reverting either item leaves this green.
+    # S6 RE-ANCHOR (2026-09-09), by exactly ONE more name and on the SAME rule: STATE ENGINE PHASE 2
+    # appends `board` (design 3.9 / D8, GRAPHRAG_STATE_BOARD, default None -- a PAYLOAD dict) after
+    # phase 0's name. What K9-4 claims -- that `vintage_role` LANDED AT THE TAIL and moved nothing
+    # before it -- is unchanged; each later append is OPTIONAL here, so reverting any of them leaves
+    # this green.
     _qt = list(inspect.signature(cq.quantify).parameters)
-    _after_k94 = [n for n in ("xc_sublegs_on_composer",) if n in _qt]
+    _after_k94 = [n for n in ("xc_sublegs_on_composer", "board") if n in _qt]
     assert _qt[len(_qt) - 1 - len(_after_k94)] == "vintage_role", _qt[-3:]
     assert _qt[len(_qt) - len(_after_k94):] == _after_k94, _qt[-3:]
     # THE DEPARTURE IS DECLARED IN SOURCE, NOT ONLY IN A REPORT. Design section 8 says K9-4 "rides
@@ -3190,9 +3195,16 @@ def test_k9_4_the_answer_seam_is_omit_when_off_and_its_span_is_measured():
     # what moved is only what sits between it and `**_eod_kw`, and that is named rather than globbed.
     assert "**_xlh_kw, **_vr_kw, " in src
     _i = src.index("**_xlh_kw, **_vr_kw, ")
+    # S6 RE-ANCHOR (2026-09-09): PHASE 2's `**_sb_kw` lands between `**_xsc_kw` and `**_eod_kw`, on
+    # the same law and for the same reason (an append ON the `**_eod_kw` spread leaves the g1x
+    # producer without its end anchor and takes the whole gate down). K9-4's OWN claim -- its spread
+    # sits immediately after K9-6's and strictly before the producer's end anchor -- is unchanged and
+    # still asserted; what moved is only what sits between it and `**_eod_kw`, named rather than
+    # globbed, so a fourth append still reds this line instead of sliding past it.
     _tail = src[_i:src.index(")", _i) + 1]
     assert _tail in ("**_xlh_kw, **_vr_kw, **_eod_kw)",
-                     "**_xlh_kw, **_vr_kw, **_xsc_kw, **_eod_kw)"), _tail
+                     "**_xlh_kw, **_vr_kw, **_xsc_kw, **_eod_kw)",
+                     "**_xlh_kw, **_vr_kw, **_xsc_kw, **_sb_kw, **_eod_kw)"), _tail
     # and the recovery still reaches the banked HEAD block, cut order and all
     _repro, _head = _walk._g1x_sans(str(repo / "data" / "consequence_leg" / "xl_golden_seam_bank.py"))
     assert _head == "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074"

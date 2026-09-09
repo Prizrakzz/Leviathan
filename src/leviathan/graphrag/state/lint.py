@@ -692,6 +692,10 @@ def _check_row_classes() -> list[str]:
                 "2026-09-04",
         "SB-X": "BOARD ABSENCE crude oil on CBOT soybeans: the read returned no rows for this scope at "
                 "this as-of.",
+        "SB-JOIN": "BOARD JOIN El Nino and La Nina on CBOT soybeans: these are read on ONE series and "
+                   "the rows above print the SAME reading under each name. The graph declares them "
+                   "opposite signs on this board, which is what two phases of one series means; they "
+                   "are not two readings that disagree.",
     }
     missing = sorted(set(R.ROW_CLASSES) - set(samples))
     if missing:

@@ -2099,11 +2099,16 @@ def check_cascade_walk() -> list[str]:
         errs.append("walk: CW_FX_LINE_RX matches a retrieved bracketed heading (too loose)")
     if _cq.CW_FX_LINE_RX.search("- [N7] EXCHANGE RATE euros per US dollar measured on") is None:
         errs.append("walk: CW_FX_LINE_RX does not match the producer's own rendered row")
-    if _cw_src.count("CW_DEEP_TURN_CEILING") != 3:
-        # its definition, the regime selection line, and the ONE design note beside `_cw_slack` are
-        # the only three occurrences IN cascade.py; a fourth means someone made a note live.
+    # RE-ANCHORED (S6 review): the literal said 3 while HEAD already carried 4, so the guard warned on
+    # every run and told a reader nothing. The occurrences are its DEFINITION, the regime selection
+    # line, the design note beside `_cw_slack`, the S6 note beside the board's ceiling term, and the
+    # `_board_declared_cap` docstring's restatement of the design formula. A SIXTH means someone made a
+    # note live, which is what this guard is for. Counted, not asserted: it stays a WARN.
+    _CW_DTC_OCCURRENCES = 5
+    if _cw_src.count("CW_DEEP_TURN_CEILING") != _CW_DTC_OCCURRENCES:
         print(f"WARN cascade_walk: CW_DEEP_TURN_CEILING now occurs "
-              f"{_cw_src.count('CW_DEEP_TURN_CEILING')} times in cascade.py (was 3)")
+              f"{_cw_src.count('CW_DEEP_TURN_CEILING')} times in cascade.py "
+              f"(was {_CW_DTC_OCCURRENCES})")
     print(f"NOTE cascade_walk: CW_TURN_CEILING {_cq.CW_TURN_CEILING}; the walk's own plan never "
           f"exceeded 37 of 60 measured (5 reached turns, spent-before-walk 13/14/19/25/25). "
           f"CW_DEEP_TURN_CEILING {_cq.CW_DEEP_TURN_CEILING} = 44 pre-walk allowance + CW_DEEP_CAP "
@@ -3875,10 +3880,20 @@ def check_scan_roster() -> list[str]:
         if not isinstance(v, bool):
             errs.append(f"scan_roster: {mname}.numbers_roster={v!r} is not a bool -- the run_hybrid "
                         f"gate is a truthiness read, so a non-bool can enable the lane by accident")
-    # (iv) the appended-last law -- THIS clause owns the literal tail order
-    if _rm.KNOB_FIELDS[-1] != "numbers_roster":
-        errs.append(f"scan_roster: KNOB_FIELDS[-1] is {_rm.KNOB_FIELDS[-1]!r}, not 'numbers_roster' -- "
-                    f"that order IS the trace-stamp column order; append, never insert")
+    # (iv) the appended-last law -- THIS clause owns the literal tail order.
+    #
+    # MOVED TO THE NEW TAIL 2026-09-09 (STATE ENGINE S6), on its ONE named cause and WITHOUT loosening
+    # the claim. The board's `board` field is the NINTH application of the appended-last law, and its
+    # own lane could not land it: `reasoning_modes.BOARD_PRESETS`' comment says in so many words that
+    # "the field cannot land green without editing `config_check.py`, which the state-engine arc holds
+    # for S6", so whoever lands last owns this literal -- and that is S6. What this clause ASSERTS is
+    # unchanged: `numbers_roster` is still pinned by NAME at a named position, so an INSERTION before
+    # it, a re-sort, or a second append that does not update this line all still red. The pin gained a
+    # rung; it did not become "somewhere near the end".
+    _KF_TAIL = ("numbers_roster", "board")
+    if tuple(_rm.KNOB_FIELDS[-2:]) != _KF_TAIL:
+        errs.append(f"scan_roster: KNOB_FIELDS[-2:] is {tuple(_rm.KNOB_FIELDS[-2:])!r}, not "
+                    f"{_KF_TAIL!r} -- that order IS the trace-stamp column order; append, never insert")
     # (v) neither twin may carry a round budget (1.6(1): 0 is falsy and restores the full budget)
     for n in (arm, ctl):
         if getattr(_rm.MODES[n], "numbers_calls", None) is not None:
@@ -4095,6 +4110,218 @@ def _cascade_refusal_copy_errors() -> list[str]:
     return errs
 
 
+def check_state_board() -> list[str]:
+    """STATE ENGINE (design 9.2 phase 2): `state/lint.py`'s whole clause set, ABSORBED here so the
+    board's configs are graded by the SAME build gate as every other config in this file.
+
+    IT DELEGATES AND MINTS NO SECOND COPY. `state.lint.check_state_board` is the one producer of those
+    eleven clauses (the lag table, the summed-band ban, the conventions, the calendar rules, the
+    `board_read` map rows, the year_month publication lag, the country-ref pairing, the NASS roster,
+    the absence vocabulary, the row-class regex disjointness, and the narration literals), it is what
+    `tests/unit/test_state_lint.py` has been running since S0, and a copy here would be a second
+    opinion about thirty-six YAML files. What THIS function adds is the wiring: `main()` now fails the
+    build on them, which is what "absorbed by config_check after K9" was owed.
+
+    FAIL-CLOSED ON AN UNIMPORTABLE PACKAGE. A `state/` that cannot be imported is a build failure and
+    not a skipped check -- the board's configs are force-added inside a gitignored tree and ride the
+    image tar, so a lint that quietly passes when its own module is missing is precisely the hole
+    `check_driver_slices` was widened to close."""
+    try:
+        from leviathan.graphrag.state import lint as _sl
+    except Exception as e:  # noqa: BLE001 -- an unimportable state package IS this check's failure
+        return [f"state_board: could not import leviathan.graphrag.state.lint ({e!r})"]
+    return list(_sl.check_state_board())
+
+
+def check_state_seam() -> list[str]:
+    """STATE ENGINE S6 (phase 2): THE SEAM's own grammar -- the properties that make the board dark,
+    reversible and register-safe, graded in CI rather than trusted.
+
+    PURE READS: the two modules' SOURCE, the mode table and the board's own closed vocabularies. No
+    S3, no pg, no Athena, no LLM, and no environment read -- the flag's default-off state is asserted
+    from the SOURCE TEXT, not from `os.environ`, so a CI runner with the flag set cannot green it.
+
+    (i)    THE FLAG GRAMMAR: `answer._state_board_on` reads GRAPHRAG_STATE_BOARD with the estate's
+           exact on/1/true spelling, and the ENGINE modules read no flag of their own: the environment
+           NAMES any `state/` module may read are an ALLOWLIST of exactly one -- S1's memo kill-switch
+           `GRAPHRAG_STATE_CACHE`, which governs a cache and never a served value. That is the
+           doctrine two live tests already assert on `cascade.py`'s own source, stated as a named
+           exception rather than a substring ban so that a NEW env read reds this clause by name.
+    (ii)   THE SEAM GATE IS TWO LEGS: `_state_board_block_on` names BOTH `_state_board_on` and
+           `SB_MARKER_PREFIX`. A flag-only gate would ship four movements of mandate about rows the
+           writer was never given, which is the failure the estate measured on the walk.
+    (iii)  THE MANDATE IS REGISTER-SAFE: `state.narration.check_literals()` is empty, so the mandate,
+           the ledger sentence and the persona clause all pass `pace_register_ok`, `register_leaks`,
+           `count_flow_words` and `count_valuation_words` AT BUILD -- a serve-time trip on a shipped
+           literal is a build defect and never a stripped answer.
+    (iv)   MARKER UNIQUENESS: `SB_MARKER_PREFIX` is not a substring of any OTHER seam marker the
+           volatile prompt can carry, and none of them is a substring of it. Two markers that
+           contained one another would make two seam gates fire on one block -- the
+           `_cascade_context_block_on` refute-M2 defect, one lane over.
+    (v)    THE KNOB TUPLE FITS ITS SHAPE: every `BOARD_PRESETS` row unpacks into `BoardKnobs` and
+           passes `check_knobs`' own arithmetic (the wave-2 columns sum to the declared total, the
+           residual far-cap is non-negative, darkening leg B moves exactly its own column).
+    (vi)   THE PRESETS ARE DARK: no shipped `Mode` carries a non-None `board`, so `knobs()` cannot mint
+           the key and no preset's knob dict, trace stamp or eval column moves.
+    (vii)  THE TRACE KEY IS REGISTERED, because the board's whole decline vocabulary rides it.
+    (viii) THE RECENCY COUPLING: the seam threads `answer._recency_facts_on()` into `fill_stage1` and
+           `recency_facts_off` is a declared board reason. Without it the board and S5's dark
+           `GRAPHRAG_RECENCY_FACTS` are independent flags, and the state prod is in TODAY (board on,
+           recency facts off) hands the writer BOTH `_SYSTEM_RECENCY_EDGE` -- which dates the whole
+           answer by one layer -- AND the mandate's "none of them dates the answer as a whole", plus
+           three candidate edges to pick the oldest of. The board would make the defect it was built
+           to close WORSE, so the pairing is graded rather than remembered.
+    (ix)   THE OFF LANES ARE ALL STAMPED: every word in `state.board.OFF_LANES` plus `run_live` is
+           reachable as a stamp from `answer._state_board_lane_stamp` or
+           `orchestrator._STATE_BOARD_OFF_INTENTS`. 6.7 exists to separate "declined" from "never
+           ran", and a lane nothing stamps is a lane the census cannot see.
+    (x)    OMIT-WHEN-OFF AT THE ORCHESTRATOR SEAM: every `_mk["mode_name"]` bind is gated on
+           `an._state_board_on()`. Flag off, `an.answer` must be called with the kwargs HEAD calls it
+           with -- the property every injected answer fake in the suite rests on.
+    (xi)   THE ANCHOR CEILING IS DECLARED ON EVERY TIER (`BoardKnobs.max_anchors`), because it is the
+           one bound that stops a user gesture scaling the read budget, the tape column, the [N]
+           address space and the block's length together."""
+    errs: list[str] = []
+    import inspect as _insp
+
+    from leviathan.graphrag import answer as _an
+    from leviathan.graphrag import reasoning_modes as _rm
+    from leviathan.graphrag import timeline as _tl
+    from leviathan.graphrag import tracekeys as _tk
+    from leviathan.graphrag.numbers import cascade as _cq
+    from leviathan.graphrag.state import board as _sb
+    from leviathan.graphrag.state import narration as _sn
+    from leviathan.graphrag.state import render as _sr
+    from leviathan.graphrag.state import seam as _ss
+
+    # (i) the flag grammar, read from SOURCE
+    _read = 'os.environ.get("GRAPHRAG_STATE_BOARD", "").strip().lower() in ("on", "1", "true")'
+    if _read not in _insp.getsource(_an._state_board_on):
+        errs.append("state_seam: answer._state_board_on does not carry the estate's exact flag read "
+                    f"-- expected {_read!r}")
+    # THE ENGINE READS NO FLAG OF ITS OWN. It is stated as an ALLOWLIST of environment NAMES rather
+    # than a ban on the string `os.environ`, for two measured reasons: `state/seam.py` QUOTES the
+    # cascade doctrine pin in its own docstring (a substring ban would red on prose), and
+    # `state/feeders.py` legitimately reads ONE name -- `GRAPHRAG_STATE_CACHE`, S1's memo kill-switch,
+    # which governs a CACHE and never a served value. Naming the exception is what keeps the rule
+    # falsifiable: a NEW env read in any of these modules, including a second one in `feeders`, reds
+    # this clause with the name it added.
+    _ENV_ALLOWED = {"GRAPHRAG_STATE_CACHE"}
+    import re as _re
+    for _mod in ("seam", "walk", "board", "render", "narration", "feeders", "analogs", "watch",
+                 "rows", "transforms", "calendar", "lagbands", "lint"):
+        try:
+            _m = __import__(f"leviathan.graphrag.state.{_mod}", fromlist=["x"])
+            _src = _insp.getsource(_m)
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"state_seam: could not read state/{_mod}.py ({e!r})")
+            continue
+        _names = set(_re.findall(r"os\.environ\.get\(\s*[\"']([A-Za-z0-9_]+)", _src))
+        _bad = sorted(_names - _ENV_ALLOWED)
+        if _bad:
+            errs.append(f"state_seam: state/{_mod}.py reads {_bad!r} from the environment -- the "
+                        f"board's flag is read ONCE at the answer seam and threaded down (the "
+                        f"GRAPHRAG_COMOVE idiom); the only declared exception is "
+                        f"{sorted(_ENV_ALLOWED)!r}")
+        if "os.environ[" in _src:
+            errs.append(f"state_seam: state/{_mod}.py subscripts os.environ -- same rule, and a "
+                        f"subscript raises on absence besides")
+    # (ii) the gate names both legs
+    _gate = _insp.getsource(_an._state_board_block_on)
+    for _leg in ("_state_board_on", "SB_MARKER_PREFIX"):
+        if _leg not in _gate:
+            errs.append(f"state_seam: _state_board_block_on does not name {_leg} -- the mandate must "
+                        f"ship iff BOTH the kill-switch AND the block's own marker hold")
+    # (iii) the literals
+    for _e in _sn.check_literals():
+        errs.append(f"state_seam: {_e}")
+    # (iv) marker uniqueness against every other seam marker a volatile prompt can carry -- INCLUDING
+    #      the five INJECTED-ONLY marker LINES the persona keys reserved headings on (answer.py's
+    #      CROSS-COMMODITY / CO-MOVE / CROSS-BOARD / DIVERGENCE / REROUTE). The board mints none of
+    #      them today, verified on all three acceptance fixtures, so this is a FENCE GAP the S6 review
+    #      closed rather than a live collision -- but a future board row beginning with one of those
+    #      words would silently license a reserved heading, which is the same class of defect one lane
+    #      over and is exactly what a marker-uniqueness clause is for.
+    _marker = _sr.SB_MARKER_PREFIX
+    _others = {"cascade.CW_MARKER_PREFIX": getattr(_cq, "CW_MARKER_PREFIX", ""),
+               "cascade._BLOCK_HEADER": getattr(_cq, "_BLOCK_HEADER", ""),
+               "timeline.LINE_PREFIX": getattr(_tl, "LINE_PREFIX", ""),
+               "persona.CROSS-COMMODITY": "CROSS-COMMODITY",
+               "persona.CO-MOVE": "CO-MOVE",
+               "persona.CROSS-BOARD": "CROSS-BOARD",
+               "persona.DIVERGENCE": "DIVERGENCE",
+               "persona.REROUTE": "REROUTE"}
+    for _name, _other in _others.items():
+        if not _other:
+            continue
+        if _marker in _other or _other in _marker:
+            errs.append(f"state_seam: SB_MARKER_PREFIX {_marker!r} overlaps {_name} {_other!r} -- two "
+                        f"seam gates would fire on one block")
+    # (v) the knob tuples
+    for _name, _t in sorted(_rm.BOARD_PRESETS.items()):
+        try:
+            _k = _sb.BoardKnobs(*_t)
+        except TypeError as e:
+            errs.append(f"state_seam: BOARD_PRESETS[{_name!r}] does not fit BoardKnobs ({e})")
+            continue
+        for _e in _sb.check_knobs(_k, legb_cells=_sb.legb_cells_of(_name)):
+            errs.append(f"state_seam: {_name}: {_e}")
+        if _sb.board_knobs_of(_name) != _k:
+            errs.append(f"state_seam: board_knobs_of({_name!r}) does not return the table's own row")
+    # (vi) every shipped preset leaves the field None
+    for _mname, _m in sorted(_rm.MODES.items()):
+        if getattr(_m, "board", None) is not None:
+            errs.append(f"state_seam: preset {_mname!r} carries board={_m.board!r} -- every shipped "
+                        f"preset must leave it None so knobs() cannot mint the key")
+    # (vii) the ONE registered key
+    if "state_board" not in _tk.TRACE_RECORD_KEYS:
+        errs.append("state_seam: 'state_board' is not in tracekeys.TRACE_RECORD_KEYS -- the board's "
+                    "whole decline vocabulary would reach no artifact")
+    # (viii) the recency coupling, read from SOURCE at both ends
+    _l2 = _insp.getsource(_an._answer_l2)
+    if "recency_facts=_recency_facts_on()" not in _l2:
+        errs.append("state_seam: the board seam does not thread recency_facts=_recency_facts_on() "
+                    "into fill_stage1 -- the board would ship its per-layer recency rows beside "
+                    "_SYSTEM_RECENCY_EDGE, which dates the whole answer by one layer")
+    if "recency_facts_off" not in _sb.BOARD_REASONS:
+        errs.append("state_seam: 'recency_facts_off' is not a declared board reason, so the coupling "
+                    "above could only decline as a word nobody registered")
+    # (ix) every off lane is stamped by one of the two producers
+    from leviathan.graphrag import orchestrator as _orc
+    _stamped = set(_orc._STATE_BOARD_OFF_INTENTS.values())
+    _stamped |= {"onehop"}                     # answer._state_board_lane_stamp's one-hop call site
+    for _lane in tuple(_sb.OFF_LANES) + ("run_live",):
+        if _lane not in _stamped:
+            errs.append(f"state_seam: off lane {_lane!r} is stamped by neither "
+                        f"answer._state_board_lane_stamp nor "
+                        f"orchestrator._STATE_BOARD_OFF_INTENTS -- 6.7 could not tell a board that "
+                        f"declined from a board that never ran on that lane")
+    if "run_live" in _ss.ON_LANES:
+        errs.append("state_seam: 'run_live' is in seam.ON_LANES but carries no mode_name, so the walk "
+                    "declines it lane_off:standard -- a TIER word for a LANE. Thread the mode or keep "
+                    "the lane declared off")
+    # (x) omit-when-off at the orchestrator seam: every bind is paired with its gate
+    _orcs = _insp.getsource(_orc)
+    _bind = '_mk["mode_name"] = _mode["honored"]'
+    _gate = 'if _mode["honored"] != rm.STANDARD and an._state_board_on():'
+    if _orcs.count(_bind) != _orcs.count(_gate):
+        errs.append("state_seam: the orchestrator has "
+                    f"{_orcs.count(_bind)} mode_name binds and {_orcs.count(_gate)} flag gates -- "
+                    "every bind must be guarded, or a flag-off deep turn calls an.answer with a "
+                    "kwarg HEAD does not carry")
+    # (xi) the anchor ceiling exists on every tier
+    for _name, _t in sorted(_rm.BOARD_PRESETS.items()):
+        try:
+            _k = _sb.BoardKnobs(*_t)
+        except TypeError:
+            continue                                # already reported by clause (v)
+        if int(getattr(_k, "max_anchors", 0) or 0) < 1:
+            errs.append(f"state_seam: {_name} declares no anchor ceiling -- one focus_driver gesture "
+                        f"anchors every contract carrying the id (measured 35) and scales the read "
+                        f"budget, the tape column and the block together")
+    return errs
+
+
 def check_cascade_notch() -> list[str]:
     """THE CASCADE NOTCH (2026-09-06, docs/private/SCAN_TIER_DESIGN.md section 3, F9/F10), governed.
     PURE READS ONLY -- the preset table, `server._CREDIT_PRICES` by AST, and the FE roster as text. No
@@ -4256,7 +4483,14 @@ def main() -> int:
                         ("extreme_locator", check_extreme_locator()),
                         ("scan_tier", check_scan_tier()),
                         ("scan_roster", check_scan_roster()),
-                        ("cascade_notch", check_cascade_notch())):
+                        ("cascade_notch", check_cascade_notch()),
+                        # STATE ENGINE S6: APPENDED AT THE TAIL (the append-never-insert law
+                        # this file keeps for its own roster too). `state_board` absorbs
+                        # `state/lint.py`'s eleven config clauses -- what "absorbed by
+                        # config_check after K9" owed -- and `state_seam` grades the phase-2
+                        # wiring's own grammar. Both are pure reads; neither needs a store.
+                        ("state_board", check_state_board()),
+                        ("state_seam", check_state_seam())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

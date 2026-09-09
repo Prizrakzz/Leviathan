@@ -45,16 +45,118 @@ from leviathan.graphrag.state.rows import StateRow
 # this NamedTuple is the shape, so no consumer indexes the tuple by position.
 # ---------------------------------------------------------------------------------------------------
 class BoardKnobs(NamedTuple):
-    """The nine per-mode board constants of sec 7, in the design's OWN declared order.
+    """The nine per-mode board constants of sec 7, in the design's OWN declared order, plus the SEVEN
+    RENDER CAPS S6 appended after them and the TWO BOUNDS its review appended after those.
 
     ``(loud_k, fan_k, analog_k, analog_dims, board_admit_k, wave1, wave2, receipt_cap, path_render_k)``
     -- the order is the design's and is not re-sorted here, because the same nine ride the ``Mode``
     table as ONE appended tuple field when S6 lands it (`k_by_depth`'s precedent, reasoning_modes.py:145
     "a TUPLE so the dataclass stays hashable and the table stays immutable").
 
+    THE SEVEN RENDER CAPS ARE APPENDED WITH DEFAULTS, and both halves of that sentence are load-bearing.
+    APPENDED, because sec 7 declares nine and a nine-tuple from any caller (the S2 fixtures, the census,
+    a hand-built preset) must keep working -- ``BoardKnobs(*t)`` over a nine-entry tuple still resolves.
+    WITH DEFAULTS DRAWN FROM THE SHIPPED TABLES, because the values already live in three places S3
+    wrote them into (``render.RENDER_CAPS``, ``watch.WATCH_RENDER_K``, and ``path_render_k`` here), so a
+    knob that defaulted to anything else would be a second opinion about a number the render already
+    holds. (Drawn from ANALYSIS's row -- see the closing note; a NamedTuple has one default per field
+    and the estate has three tiers.)
+
+    THE DEFAULTS ARE THE DESIGN'S PLANNED SIZES; THE MEASURED SIZES ARE RECORDED BESIDE THEM AND S7
+    DECIDES (design sec 7, the S2/S3 overrun). Sec 7 sizes the block at Scan ~17-20 lines / ~1,100
+    tokens, Analysis ~40 / ~2,400 and Cascade ~66-80 / ~3,900.
+
+    THE CENSUS, ALL THREE TIERS, measured through `state.seam` (`fill_stage1` + `fill_stage2`, as-of
+    2026-09-07, the offline `fixture_state_fn`, zero reads), RE-MEASURED AT THE S6 RE-FIX and now
+    carrying the MULTI-ANCHOR shapes beside the single-anchor one -- because every bound this class
+    declares is a per-tier number and the block's size is not: it is a per-ANCHOR number, and a table
+    that records only the one-anchor turn records the shape a real question least often asks for.
+
+    THE CENSUS NAMES ITS OWN INPUTS, so a row can be re-run rather than believed (S6 second verify,
+    minor (c)). It recorded a producer and an as-of but not the QUERY or the FOCUS DRIVER, and the
+    focus-driver row cannot be reproduced without both -- the shipped graph carries three widely-shared
+    drivers (`El_Nino` 35 boards, `heat_stress` 35, `crude_oil` 24) and they measure 127 / 109 / 142
+    rows at Scan, so "a widely-shared driver" names three different tables. Every row below is:
+
+        query          "El Nino is developing: what does it do to soybeans?"
+        focus driver   `El_Nino` (the focus-driver row only; the other two pass none)
+        seeds          `sg.seeds = ["soybeans_cbot"]`, except the four-market row, which seeds all four
+        named          the seeds themselves, except the FOCUS-DRIVER row, which passes `named=()`
+        anchors        `max_contracts=6` on the focus-driver row, the default 2 on the other two
+        as-of          2026-09-07, `state.__main__.fixture_state_fn`, `qfn=lambda *a, **k: []`
+
+    THE QUERY MOVES NOTHING TODAY and is named anyway. Measured: the one-market Scan block is
+    53 rows / 13,206 chars under that question, under `""`, under `"soybeans"` and under a fourth
+    phrasing -- byte-identical, because the seam threads the question to `walk(question=...)` and no
+    ROW reads it. Naming it is what makes that fact checkable instead of assumed, and what stops the
+    next re-measure from silently comparing two different turns.
+
+        shape (anchors)              tier       rows    chars   est tokens  vs plan (rows / tokens)
+        one named market (1)         Scan         53   13,206     ~3,302      x2.65 / x3.00
+                                     Analysis     77   19,746     ~4,937      x1.93 / x2.06
+                                     Cascade      98   25,354     ~6,339      x1.23 / x1.63
+        four named markets (4)       Scan         92   23,920     ~5,980      x4.60 / x5.44
+                                     Analysis    137   36,941     ~9,235      x3.42 / x3.85
+                                     Cascade     180   48,630    ~12,158      x2.25 / x3.12
+        `focus_driver` at the        Scan        127   31,538     ~7,885      x6.35 / x7.17
+        anchor ceiling (4 / 6 / 8)   Analysis    198   50,476    ~12,619      x4.95 / x5.26
+                                     Cascade     259   66,836    ~16,709      x3.24 / x4.28
+
+    RE-MEASURED AT THE S6 SECOND VERIFY on the tree that carries the assembled-row fences
+    (`render.sb_amplifier`, `render.sb_receipt`). EVERY ROW COUNT IS UNCHANGED and the character counts
+    moved by -50 to +90 -- the fences are byte-identity on all fifteen anchor shapes of the shipped
+    graph, so the drift is other S6 edits, not this one. What was re-measured is the three columns
+    above; the class-share sentence at the foot of this docstring is the earlier build's measurement and
+    was NOT re-run, which is said here rather than left for a reader to assume either way.
+
+    plus the mandate itself, 2,521 chars / ~630 tokens, on every fired turn (it was 2,029 / ~507 before
+    the S6 review rewrote it to state an ORDER OF IDEAS under the response contract's own headings --
+    see `narration.MANDATE_MOVEMENTS`). THE S6 BUILD RECORDED ONLY THE TWO PAID TIERS and called the
+    overrun "~24-88%"; the review measured SCAN at +200% and it is the FREE tier, priced by sec 7 at
+    "+~700 uncached input tokens ($0.0035)" against a measured ~3,932 (block + mandate), i.e. 5.6x, on
+    a tier with no credit to pay for it. Restated in money, because the arm's covenant is stated in
+    money: the block is VOLATILE (post-cache-breakpoint), so at $5/MTok the one-anchor turn is ~$0.020 /
+    $0.028 / $0.035 against sec 7's ~$0.0035 / $0.0075 / $0.015 -- and the anchor-ceiling turn is
+    ~$0.043 / $0.066 / $0.087, which is the number the anchor bound made FINITE rather than small.
+    THE ANCHOR CEILING IS WHAT S6 BOUNDS; THE PER-ANCHOR SIZE IS S7's (declared not-done).
+
+    NOTHING IN THE SEVEN PER-CLASS CAPS IS TIGHTENED HERE, and the reason is that tightening them could
+    not have helped: by CHARACTERS, the classes with no cap field at all (SB-1, SB-E, SB-J, SB-T, SB-L,
+    SB-H) plus SB-X are 79.5% of the Scan block, 71.5% of Analysis and 62.6% of Cascade, and SB-X alone
+    is 30.6 / 22.0 / 18.7% -- the single largest class on all three tiers. A cap change is a
+    prompt-content change and arm A must measure ONE instrument, so the seven keep today's values and
+    S7 decides which of them moves. WHAT S6'S REVIEW DOES CHANGE is the two bounds that are not per-class
+    at all and that no S7 knob could reach: ``max_anchors`` and ``render_absence_names``. Both were
+    measured UNBOUNDED and both are bounded by a USER GESTURE rather than by a tier --
+
+      * a `focus_driver` turn (an FE attachment or a weather advisory, `_resolve_attachments`) anchors
+        EVERY contract carrying the id by design, MEASURED at 24 anchors for `crude_oil` and 35 for
+        `El_Nino` / `heat_stress`. At 35 the declared cap becomes 59 / 85 / 106 against the design's
+        24 / 50 / 71 (the tape column is one seat per anchor), so `cw_ceiling` becomes 119 / 165 / 186
+        against 60 / 80 / 80 -- the walk's runaway tripwire more than doubled by a gesture. The block
+        measured 916 rows / 149,815 chars (~37,450 tokens) at max, and 171,852 chars / ~43,000 tokens
+        on the FREE tier;
+      * ONE `BOARD ABSENCE` line measured 23,871 characters on that turn, because the absence row names
+        every unread row and "the NAMES are never cut". Sec 3.6's "the fan index is free" is about the
+        FAN, and a free index is not a free ENUMERATION inside one line.
+
+    ``render_absence`` (GROUPS) stays 0 = UNCAPPED = today's behaviour, exactly as the design plans no
+    number for it; ``render_absence_names`` bounds the NAMES within a group and states the remainder as
+    a count, which keeps "every cut names what it cut" true while making the line's length a tier fact
+    rather than an estate fact.
+
     WHY A NamedTuple AND NOT A DICT: a dict of nine keys is nine chances to typo a knob name at a call
     site and get ``None`` back silently; an attribute access on a wrong name raises. The board's caps
     are the one thing in this design that must never fail open.
+
+    THE DEFAULTS BELOW ARE ANALYSIS'S ROW, not a fourth table, and that is a property of a NamedTuple
+    rather than a decision: there is ONE default per field and there are THREE shipped tiers. Every
+    SHIPPED path passes a full row (`board_knobs_of` reads `BOARD_PRESETS`, and `check_state_seam`
+    clause (v) pins every row against `check_knobs`), so the defaults are reachable only from a
+    hand-built tuple -- an S2 fixture, a census row, an arm's preset -- built with fewer fields than the
+    table declares. Such a tuple renders at ANALYSIS caps on quick and on max, silently. The docstring
+    used to say the defaults "equal the shipped tables", which is true of no single tier; it says what
+    it does now.
     """
 
     loud_k: int          # the rank cut per anchor board (Scan 8 / Analysis 16 / Cascade 24)
@@ -67,6 +169,26 @@ class BoardKnobs(NamedTuple):
     wave2: int           # the TOTAL wave-2 cap (0 / 18 / 58); its four columns derive -- `wave2_shape`
     receipt_cap: int     # analog receipts on the EVIDENCE pool, counted (0 / 3 / 5)
     path_render_k: int   # SB-P rows RENDERED (2 / 4 / 8). The closure is walked WHOLE on every tier.
+    # -- S6: THE RENDER CAPS, appended LAST, defaults = the shipped tables (the design's planned sizes).
+    render_spillover: int = 8          # SB-F + far SB-E lines  (4 / 8 / 16)   [measured: the SB-E class
+    #                                    is the third-largest on the Cascade board]
+    render_convergence: int = 4        # SB-C patterns          (2 / 4 / 6)
+    render_analog: int = 1             # LIKE STATE stanzas     (0 / 1 / 2)
+    render_analog_outcomes: int = 4    # SB-O rows per stanza   (0 / 4 / 4)
+    render_receipts: int = 3           # SB-R rows per loud row (0 / 3 / 5)
+    render_watch: int = 6              # SB-W + SB-V rows       (3 / 6 / 8) -- `watch.WATCH_RENDER_K`
+    render_absence: int = 0            # SB-X GROUPS; 0 = UNCAPPED, which is today's behaviour and the
+    #                                    design's own plan (it names no absence number). MEASURED the
+    #                                    LARGEST class on both tiers, which is why it gets a knob now.
+    # -- S6 REVIEW: THE TWO BOUNDS THE FIRST BUILD LEFT OPEN. Both are ANCHOR-side or NAME-side, i.e.
+    #    they bound the one dimension every per-CLASS cap above is blind to.
+    max_anchors: int = 6               # the TOTAL anchor boards a board may carry (4 / 6 / 8). See the
+    #                                    note below: this is the term that made the declared cap, the
+    #                                    tape column, the render and the pre-writer wall all scale with
+    #                                    a user gesture rather than with a tier.
+    render_absence_names: int = 24     # NAMES printed inside one SB-X line (16 / 24 / 32); the
+    #                                    remainder is stated as a COUNT, so the row still says what it
+    #                                    cut. 0 = uncapped.
 
 
 #: Reads per leg-B tape cell -- ``cascade.CW_READS_PER_CELL`` (:6411), restated rather than imported so
@@ -88,7 +210,8 @@ def legb_cells_of(mode: str) -> int:
     return int(LEGB_CELLS.get(rm.base_mode(mode), 0))
 
 
-def wave2_shape(k: BoardKnobs, *, legb_cells: int = 0, legb_on: bool = False) -> dict:
+def wave2_shape(k: BoardKnobs, *, legb_cells: int = 0, legb_on: bool = False,
+                analog_reads: bool = True) -> dict:
     """The FOUR wave-2 columns of sec 3.8's table, DERIVED from the nine knobs. Returns
     ``{far, analog_benchmark, analog_receipts, legb, total}``.
 
@@ -110,18 +233,33 @@ def wave2_shape(k: BoardKnobs, *, legb_cells: int = 0, legb_on: bool = False) ->
     Cascade priced 43 far keys against a design that says 16 -- a wave-2 budget 27 reads larger than the
     tier's own "71 with leg B dark" line, arrived at silently, by arithmetic. The declared cells set the
     RESIDUAL; the rider sets whether the column is SPENT. Dark leg B therefore lowers the wave-2 TOTAL
-    (58 -> 31 on Cascade) and moves no other column, which is what "with leg B dark" means."""
+    (58 -> 31 on Cascade) and moves no other column, which is what "with leg B dark" means.
+
+    **`analog_reads` IS THE SAME ARGUMENT SHAPE FOR THE ANALOG COLUMNS, AND IT IS THE S6 REVIEW'S OWN
+    DEFECT.** The two analog columns are read by producers the CALLER injects -- `benchmark_fn` and
+    `receipt_fn` -- and phase 2's seam wires neither, so `analogs._outcomes_for` and
+    `analogs._receipts_for` return at zero reads. Those 3-10 (Analysis) / 5-15 (Cascade) seats were
+    still reserved against the cap and therefore entered the WALK's own ceiling through
+    `cascade._board_declared_cap`: up to 15 reads a turn that no producer could ever spend, on a
+    tripwire whose whole job is to notice a runaway. This flag follows leg B's precedent exactly --
+    the DECLARED cells set the residual, the rider sets whether the column is SPENT -- so an unwired
+    analog leg lowers the TOTAL and moves no other column. The day the seam wires either producer the
+    caller passes True and the tier's declared table is back, unchanged."""
     bench = max(0, int(k.analog_dims) * int(k.analog_k))
     receipts = min(bench, max(0, int(k.receipt_cap)))
+    declared_bench, declared_receipts = bench, receipts
+    if not analog_reads:
+        bench = receipts = 0
     declared_legb = max(0, int(legb_cells)) * READS_PER_CELL
     # FLOORED AT ZERO so an over-committed knob table cannot mint a NEGATIVE slice at the pricer (which
     # Python would read as "all but the last thirty", i.e. a cap that silently becomes a different cap).
     # An over-commitment is a LINT ERROR (`check_knobs`), and the pricer's own trim order of sec 3.8 is
     # what handles it at runtime -- floored here, trimmed there, flagged in both places.
-    far = max(0, int(k.wave2) - bench - receipts - declared_legb)
+    far = max(0, int(k.wave2) - declared_bench - declared_receipts - declared_legb)
     legb = declared_legb if legb_on else 0
     return {"far": far, "analog_benchmark": bench, "analog_receipts": receipts, "legb": legb,
-            "legb_declared": declared_legb,
+            "legb_declared": declared_legb, "analog_benchmark_declared": declared_bench,
+            "analog_receipts_declared": declared_receipts,
             "total": min(int(k.wave2), far + bench + receipts + legb)}
 
 
@@ -152,6 +290,18 @@ def check_knobs(k: BoardKnobs, *, legb_cells: int = 0) -> list:
     if dark["total"] != int(k.wave2) - sh["legb_declared"]:
         errs.append("board knobs: darkening leg B must lower the wave-2 total by exactly its own "
                     "declared column and move no other column")
+    adark = wave2_shape(k, legb_cells=legb_cells, legb_on=True, analog_reads=False)
+    if adark["total"] != int(k.wave2) - sh["analog_benchmark"] - sh["analog_receipts"]:
+        errs.append("board knobs: an unwired analog leg must lower the wave-2 total by exactly its own "
+                    "two declared columns and move no other column -- the leg-B identity, one column "
+                    "pair over. Freeing those reads INTO the far residual is the measured defect this "
+                    "clause exists to catch")
+    if adark["far"] != sh["far"]:
+        errs.append(f"board knobs: the far residual moved with the analog rider ({sh['far']} -> "
+                    f"{adark['far']}); the DECLARED columns set the residual and the rider sets only "
+                    f"whether a column is spent")
+    if k.max_anchors < 1:
+        errs.append("board knobs: max_anchors must admit at least one anchor board")
     if k.receipt_cap > k.analog_dims * k.analog_k and k.analog_k:
         errs.append(f"board knobs: receipt_cap {k.receipt_cap} exceeds the {k.analog_dims * k.analog_k} "
                     f"analog candidates that could carry a receipt -- a cap above its own population "
@@ -192,7 +342,17 @@ WATCH_REASONS: tuple[str, ...] = (
     "no_calendar_rule", "rule_unverified", "no_convention", "no_open_window", "no_policy_date",
 )
 RENDER_REASONS: tuple[str, ...] = ("template_register_trip",)
-BOARD_REASONS: tuple[str, ...] = ("pg_not_live", "anchor_none", "turn_spend_unknown", "lane_off")
+#: ``recency_facts_off`` IS THE S6-REVIEW ADDITION, and it names a COUPLING rather than an outage. The
+#: board's SB-L rows and the mandate's closing sentence ("state each RECENCY row as a fact about the
+#: layer it names; none of them dates the answer as a whole") contradict `_SYSTEM_RECENCY_EDGE`, the
+#: shipped persona clause that dates the whole answer by one layer -- the literal whose own code note
+#: records that it made the owner's 2026-09-07 soybean answer date itself by one layer. S5 shipped the
+#: replacement behind `GRAPHRAG_RECENCY_FACTS`, dark. With the board on and that flag off the writer is
+#: handed BOTH sentences AND three candidate edges to choose the older of, so the board makes the
+#: defect worse rather than better. The seam therefore declines with this word rather than shipping the
+#: pair, and the census can see exactly how often that state was reached.
+BOARD_REASONS: tuple[str, ...] = ("pg_not_live", "anchor_none", "turn_spend_unknown", "lane_off",
+                                  "recency_facts_off")
 
 #: leg name -> its own closed enum. THE LEG NAME IS PART OF THE VOCABULARY: sec 6.7's `conv:` line reads
 #: "interaction: when_not_all_loud", i.e. the leg is `interaction` and the reason is the word after it.
@@ -278,6 +438,14 @@ class Anchor:
     rank: int = 0
     driver_id: str = ""          # set on a focus_driver anchor: the id that anchored it
     subject: bool = False        # this anchor's driver is the SUBJECT, so context_only yields
+    #: THE QUESTION NAMED THIS MARKET, kept BESIDE `source` rather than inside it (S6 review). The
+    #: two are not the same fact: `ANCHOR_SOURCES` is a PRECEDENCE and it ranks `focus_driver` ABOVE
+    #: `named` (Amendment 1's own order), so a contract that is both -- a market the user typed which
+    #: also happens to carry the driver they attached -- collapses to the STRONGER word and loses
+    #: every trace of having been typed. The anchor ceiling then cut it while keeping the driver's
+    #: twenty-ninth board: Amendment 2 defeated by the fence that bounds Amendment 1. This flag is
+    #: what an explicit-gesture reservation reads, and it is monotonic -- once named, always named.
+    named: bool = False
     note: str = ""
 
     def __post_init__(self):
@@ -428,7 +596,22 @@ class Ledger:
     """Both waves plus the counters sec 3.8 and 10.5 name by hand."""
 
     waves: dict = field(default_factory=lambda: {1: WaveLedger(1), 2: WaveLedger(2)})
-    evidence_borrows: int = 0           # `BoardEvidenceBorrows` -- the counted analog receipt reads
+    #: `BoardEvidenceBorrows` -- the analog receipt reads THE BOARD ACTUALLY MADE, counted by the ONE
+    #: producer that makes them (`analogs._receipts_for`, which returns [] at zero reads when no
+    #: `receipt_fn` is wired). IT USED TO BE THE RESERVED SEAT COUNT and the S6 review measured the
+    #: consequence: 3 on every fired Analysis board and 5 on every fired Cascade board while the
+    #: evidence pool was never touched, so arm A's evidence-pool pressure would have been read off a
+    #: number no read produced. THE SEATS ARE STILL RECORDED -- as `evidence_cap` below, which is what
+    #: a reserved seat is -- because a cap that vanished would be a budget term nobody could audit.
+    evidence_borrows: int = 0
+    evidence_cap: int = 0               # the analog-receipt SEATS wave 2 reserved (never a read)
+    #: The analog BENCHMARK reads. They are made by `analogs._outcomes_for` OUTSIDE both wave rectangles
+    #: (it calls `benchmark_fn` after wave 2 has closed), so without a field of their own a real spend
+    #: would be invisible to `_cw_turn_spent` -- the exact "a real spend read as zero" failure the
+    #: enumeration exists to prevent and the one S5 had to repair for the composer sub-legs. Counted
+    #: here, and `net_reads()` adds it, so the day the seam wires a `benchmark_fn` the walk sees it.
+    benchmark_reads: int = 0
+    benchmark_cap: int = 0              # the benchmark SEATS wave 2 reserved (never a read)
     replay_labelled: int = 0            # `BoardReplayLabelled` -- D17's label, never a decline
     pool_declined: int = 0              # `BoardPoolDeclined` -- arm A's bar is 0
     budget_capped: int = 0              # `BoardBudgetCapped` -- a live counter, never a silent bind
@@ -443,7 +626,11 @@ class Ledger:
 
     @property
     def reads_used(self) -> int:
-        return sum(w.reads_used for w in self.waves.values()) + self.tape_reads
+        # `benchmark_reads` IS OUTSIDE BOTH RECTANGLES BY CONSTRUCTION (see its field note), so it is
+        # summed here rather than inside a wave: a read the walk cannot see is a ceiling the walk
+        # cannot honour. It is 0 on every path that wires no `benchmark_fn`, which is every path today.
+        return (sum(w.reads_used for w in self.waves.values()) + self.tape_reads
+                + self.benchmark_reads)
 
     @property
     def reads_cap(self) -> int:
@@ -455,6 +642,9 @@ class Ledger:
     def to_dict(self) -> dict:
         return {"waves": {k: v.to_dict() for k, v in sorted(self.waves.items())},
                 "evidence_borrows": self.evidence_borrows,
+                "evidence_cap": self.evidence_cap,
+                "benchmark_reads": self.benchmark_reads,
+                "benchmark_cap": self.benchmark_cap,
                 "replay_labelled": self.replay_labelled,
                 "pool_declined": self.pool_declined,
                 "budget_capped": self.budget_capped,

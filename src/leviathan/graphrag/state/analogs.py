@@ -887,6 +887,16 @@ def _coverage_floor(seeds) -> str:
     return max(years) if years else "the record's own start"
 
 
+def _bench_read(bd) -> None:
+    """ONE analog BENCHMARK read, onto the ledger's own field. A call is counted whether or not the
+    producer returns a series, because a read that came back empty is still a read the mirror served --
+    the same rule `WaveLedger` keeps for a declined key."""
+    try:
+        bd.ledger.benchmark_reads += 1
+    except Exception:                                   # noqa: BLE001 -- a counter never costs a row
+        pass
+
+
 def _outcomes_for(bd, seed_row, t: str, *, benchmark_fn=None) -> list:
     """The consequence rows for ONE like date: the seed's own CHILDREN on the anchor board, the FAR
     boards that carry the same driver (each over ITS OWN declared band), and the anchor's MONTHLY
@@ -905,6 +915,13 @@ def _outcomes_for(bd, seed_row, t: str, *, benchmark_fn=None) -> list:
             metric=st.metric, commodity=st.key.commodity, country=st.key.country,
             key=st.key.label()))
     if benchmark_fn is not None:
+        # COUNTED (S6 review, major 7). The benchmark read happens OUTSIDE both wave rectangles -- this
+        # function runs after wave 2 has closed -- so without its own ledger field a real spend would be
+        # invisible to `cascade._cw_turn_spent`, which is the "a real spend read as zero" failure the
+        # enumeration exists to prevent and the one S5 had to repair for the composer sub-legs.
+        # `Ledger.benchmark_reads` rides `reads_used`, so the walk sees it the day the seam wires a
+        # producer. It is 0 on every path today, because no caller wires one.
+        _bench_read(bd)
         bm = benchmark_fn(seed_row.contract)
         if bm:
             out.append(outcome_over_band(
@@ -933,6 +950,8 @@ def _outcomes_for(bd, seed_row, t: str, *, benchmark_fn=None) -> list:
             if f["contract"] in seen_far:
                 continue
             seen_far.add(f["contract"])
+            if benchmark_fn is not None:
+                _bench_read(bd)
             bm = benchmark_fn(f["contract"]) if benchmark_fn is not None else None
             if bm:
                 out.append(outcome_over_band(
@@ -966,6 +985,14 @@ def _receipts_for(bd, seed_row, t: str, *, receipt_fn=None, cap: int = 0) -> lis
     enough, and frequency floors deny the tail."""
     if receipt_fn is None or cap <= 0:
         return []
+    # COUNTED (S6 review, major 6): `BoardEvidenceBorrows` is "analog receipt reads on the evidence
+    # pool", and it used to publish the RESERVED SEATS instead -- 3 on every fired Analysis board and 5
+    # on every fired Cascade board while this branch returned at zero reads, because no caller wires a
+    # `receipt_fn`. The borrow is counted HERE, at the one place a borrow happens.
+    try:
+        bd.ledger.evidence_borrows += 1
+    except Exception:                                   # noqa: BLE001 -- a counter never costs a row
+        pass
     got = receipt_fn(seed_row.contract, seed_row.driver_id, t) or []
     out: list = []
     for i, r in enumerate(got[:cap], start=1):

@@ -1180,9 +1180,106 @@ calendar. The `(?:19|20)` prefix carries the 1900 floor; a FUTURE floor is caugh
 minimum-declared-span clause, not here."""
 
 
+#: THE CEILING ON THE NAMED-ANCHOR EXEMPTION (S6 review, majors 3 and 4). It is the estate's widest
+#: tier ceiling (`max_seeds` on Cascade), so the exemption can widen a turn to the most any shipped
+#: tier already plans and no further.
+#:
+#: WHY A NUMBER AT ALL, WHEN AMENDMENT 2 SAYS "NAMED MARKETS ARE ALL ANCHORS": because the lexical
+#: router matches on the commodity TOKEN as well as on the id and the alias, so its output is not a
+#: count of what the user typed. MEASURED at SEVENTEEN contracts for the four-market question "How do
+#: wheat, corn, soybeans and palm oil compare right now?" -- "soybeans" alone matches soybeans_cbot,
+#: soybeans, soybeans_no_1_dce, soybeans_no_2_dce, soybean_oil_cbot and soybean_oil_dce. The board's
+#: own seam already refused that set and intersected it with the turn's ROUTE, with the measurement
+#: written into its comment; `_validate` had no such fence, so every planner-emitted contract merely
+#: sharing a commodity token was exempt from the ceiling. The two fences were asymmetric, and the
+#: asymmetry went live the moment the other two cap sites moved.
+#:
+#: THE BOUND IS APPLIED WHERE THE ORDER IS MEANINGFUL, AND THAT IS NOT HERE. `named_markets` returns
+#: the router's RAW ranking, which is hits-first and then alphabetical -- MEASURED (2026-09-09, the
+#: shipped 36-contract roster), a flat `[:6]` of that ranking is `malaysian_crude_palm_oil_cme`,
+#: `sunflower_oil`, `soybeans_no_2_dce`, `soybeans_no_1_dce`, `soybeans_cbot`, `soybeans`: it drops
+#: `corn_cbot` and `soft_red_winter_wheat_cbot`, i.e. two of the four markets the user actually typed,
+#: while keeping `sunflower_oil` and the two DCE soybean boards, which the user did not.
+#: So the raw set stays a MEMBERSHIP TEST, and the bound is taken in `_validate` over the PLANNER'S
+#: OWN ORDER, which is the one ranking in the turn that knows which market the question is about
+#: ("keep the {n} most CENTRAL to the ask" is the prompt's own rule).
+#:
+#: THE RESIDUAL IS NAMED RATHER THAN HIDDEN: past this cap a market the user typed is treated as an
+#: inferred seed and keeps the ordinary ceiling. That is a real limit on Amendment 2 for a question
+#: naming more than six markets, and it is a limit on a BOUNDED number rather than on an unbounded one.
+NAMED_ANCHOR_CAP = 6
+
+#: THE CEILING ON THE MEMBERSHIP SET ITSELF (S6 re-fix, the review's cheap minor on `named_markets`).
+#: The docstring below claimed the function was bounded by `NAMED_ANCHOR_CAP` and it returned the
+#: router's whole ranking, so an estate law -- the exposure is bounded BEFORE the work -- rested on a
+#: sentence rather than on a number.
+#:
+#: IT IS NOT `NAMED_ANCHOR_CAP`, AND THE REASON IS MEASURED RATHER THAN ARGUED. This set is a MEMBERSHIP
+#: test, and `answer.route`'s ranking is hits-then-alphabetical: for "How do wheat, corn, soybeans and
+#: palm oil compare right now?" it returns SEVENTEEN contracts led by `malaysian_crude_palm_oil_cme`
+#: (two hits) and then, alphabetically descending, `sunflower_oil`, `soybeans_no_2_dce`,
+#: `soybeans_no_1_dce`, `soybeans_cbot`, `soybeans` -- so a flat `[:6]` drops `corn_cbot` and
+#: `soft_red_winter_wheat_cbot`, two of the four markets the user actually TYPED, while keeping two the
+#: user did not. The ORDER-SENSITIVE bound belongs where the order is meaningful, which is `_validate`
+#: over the PLANNER's own centrality ranking; this one bounds the SET.
+#:
+#: THE NUMBER IS SIZED ON THE MATCHER, MEASURED ON THE SHIPPED ROSTER: thirty-six contracts, a widest
+#: single-token fan-out of six ("palm oil"), seventeen matches for the four-market question above and
+#: TWENTY-TWO for a six-market one (the widest question `NAMED_ANCHOR_CAP` itself admits). Twenty-four
+#: sits above that measured worst case and below the roster, so it binds on nothing a question can
+#: legitimately name and still bounds the return by a declared number rather than by however many
+#: boards a commodity token happens to match.
+#:
+#: THE RESIDUAL IS THE SAME ONE `NAMED_ANCHOR_CAP` DECLARES, and it is stated rather than hidden: past
+#: this cap a matched market falls out of the MEMBERSHIP test, so it is treated as an inferred seed and
+#: keeps the ordinary ceiling. It is not deleted from the turn -- the planner may still route it -- it
+#: is only no longer exempt.
+NAMED_ROUTE_CAP = 24
+
+
+def named_markets(query: str, graph) -> tuple:
+    """THE MARKETS THE QUESTION NAMED, in the lexical router's own ranking, bounded by
+    :data:`NAMED_ROUTE_CAP` (STATE ENGINE sec 16, Amendment 2). Never raises; `()` on any failure.
+
+    IT DELEGATES TO `answer.route` -- the projection of `answer.route_scored` that drops the counts,
+    one producer either way -- AND MINTS NO SECOND MATCHER, which is the whole point: that function is
+    the estate's ONE producer of "this contract's id, alias or commodity token appears in this
+    question" (accent- and case-folded, most-hits-first), and a private copy here would drift from the
+    router on the first alias edit -- the string-identity class this estate has measured three times.
+    The import is LAZY because `answer` imports this module back at the planner seam.
+
+    WHAT IT IS FOR: `MAX_CONTRACTS` exists to bound the PLANNER's own enumeration against the
+    composition ceiling (32 per seed, measured in D-MW). Under the board it keeps that job for the
+    seeds the planner INFERS and stops truncating what the user NAMED -- a question naming wheat,
+    corn, soybeans and palm anchors all four on every tier, which is now true END TO END (all three cap
+    sites read this set). The cost is bounded by the board's read budget, priced before the fetch
+    (design 3.8), and by the anchor ceiling (`BoardKnobs.max_anchors`), never by dropping a named
+    market inside the bound."""
+    try:
+        from leviathan.graphrag import answer as _an   # lazy: answer imports dispatch at its own seam
+        # THE BOUND IS THE FUNCTION'S OWN, in the ROUTER's order (see `NAMED_ROUTE_CAP`): the exposure
+        # of a membership set is its size, and it must be a declared number before the caller reads it.
+        return tuple(_an.route(str(query or ""), graph))[:NAMED_ROUTE_CAP]
+    except Exception:  # noqa: BLE001 -- a naming census must never break a turn
+        return ()
+
+
 def _validate(out: dict, contract_ids: set[str], max_contracts: int = MAX_CONTRACTS,
               xl_boards: dict[str, str] | None = None,
-              xl_kinds: tuple[str, ...] | None = None) -> Plan:
+              xl_kinds: tuple[str, ...] | None = None,
+              named: tuple | None = None, dedup: bool = False) -> Plan:
+    """`named` (STATE ENGINE Amendment 2, omit-when-off) is the set of contracts the QUESTION named.
+    Those are never truncated: the ceiling below bounds only the seeds the planner INFERRED.
+
+    `dedup` (S6 re-fix, major 3) collapses a slug the planner emitted TWICE. IT IS A SECOND FLAG-GATED
+    SWITCH AND NOT A FREE CORRECTION, because it MOVES FLAG-OFF BEHAVIOUR: HEAD applies the ceiling to
+    the RAW list, so a plan naming one contract twice is truncated to that contract plus one other,
+    while a de-duplicated list is truncated to that contract plus TWO others. The first S6 build ran the
+    de-dup unconditionally, outside the `if named:` branch, with a docstring one line above promising
+    the opposite -- a flag-off behaviour change with no flag and no pin.
+
+    WITH BOTH ABSENT -- i.e. on every turn the board's flag does not reach -- the two lines below are
+    HEAD's own list comprehension and HEAD's own slice, character for character."""
     steps, seen = [], set()
     known = {t.name for t in REGISTRY}
     for s in (out.get("steps") or []):
@@ -1191,8 +1288,64 @@ def _validate(out: dict, contract_ids: set[str], max_contracts: int = MAX_CONTRA
             seen.add(s)
     if not steps:
         return _FALLBACK
-    contracts = [c for c in (out.get("contracts") or [])                 # D-MW-13: cap site 3 of 3 (truncation)
-                 if c in contract_ids][:max(1, int(max_contracts))]
+    # THE ROUTED-SLUG DE-DUP (the roster lane's docket, brief item 5), UNDER THE BOARD'S OWN FLAG. The
+    # planner emits a LIST and nothing stopped it emitting one slug twice: a duplicate then spent one of
+    # the ceiling's seats on a market already carried, and downstream it reached `sg.seeds` -- so the
+    # board would anchor the same DAG twice, its tape column would price two seats for one read, and
+    # the render would name the board twice. First occurrence wins, so the planner's own centrality
+    # order is untouched.
+    #
+    # WHY THE BOARD'S FLAG AND NOT `GRAPHRAG_NUMBERS_ROSTER`, WHICH IS THE LANE THAT DOCKETED IT: every
+    # harm the paragraph above names is on the BOARD's path -- `sg.seeds` -> `resolve_anchors` -> the
+    # tape column -> the render -- and none of them exists on a turn the board does not run. Gating a
+    # board-path correction on an unrelated lane's flag would leave the board's own flag-off path
+    # non-HEAD whenever that other flag happened to be on, which is the exact property this fix exists
+    # to restore. It rides as an ARGUMENT rather than as an `os.environ` read for the same reason
+    # `named` does: the flag is read ONCE per turn at `answer._state_board_on()` and threaded, so
+    # `_validate` stays a pure function of its arguments and a deck can pin both settings with no
+    # environment at all. It is its OWN argument rather than a rider on `named`'s truthiness because a
+    # board turn that names NO market still anchors, still prices a tape column and still renders --
+    # `named` is empty on exactly those turns, and they are not turns where a duplicate is harmless.
+    if dedup:
+        _seen: set = set()
+        _picked = []
+        for _c in (out.get("contracts") or []):
+            if _c in contract_ids and _c not in _seen:
+                _seen.add(_c)
+                _picked.append(_c)
+    else:
+        _picked = [c for c in (out.get("contracts") or []) if c in contract_ids]   # HEAD's own list
+    if named:
+        # AMENDMENT 2 (owner 2026-09-08): NAMED MARKETS ARE ALL ANCHORS; THE CEILING BOUNDS ONLY
+        # INFERRED SEEDS. The truncation below is `MAX_CONTRACTS`' third cap site and it exists to
+        # bound the PLANNER's own enumeration; a market the user typed by name is not an enumeration.
+        # THE ORDER IS THE PLAN'S, NOT THE ROUTER'S: the named set is a MEMBERSHIP test here, so a
+        # named contract keeps the position the planner gave it and the seam that consumes this list
+        # (`sg.seeds`, focus-first) sees the same order it sees today. The inferred tail is what the
+        # ceiling then cuts, counted over the inferred members ALONE -- so four named markets on quick
+        # survive whole, and quick still infers at most two beyond them.
+        #
+        # THE EXEMPTION IS BOUNDED, in the PLAN's own order, at `NAMED_ANCHOR_CAP` (S6 review, major
+        # 4). Before it, the lexical router's SEVENTEEN matches for a four-market question were ALL
+        # exempt from the ceiling here, while the board's seam refused exactly that set and
+        # intersected it with the route -- two fences over one set, disagreeing by eleven boards, with
+        # the asymmetry going live the moment the other two cap sites moved. Bounding it HERE rather
+        # than in `named_markets` is deliberate: the router's own ranking is hits-then-alphabetical
+        # and a flat cut of it drops the markets the user typed (measured), while the planner's order
+        # is the one ranking in the turn that knows which market the question is ABOUT.
+        _named = {str(c) for c in named}
+        kept, inferred, exempt = [], 0, 0
+        for c in _picked:
+            if c in _named and exempt < NAMED_ANCHOR_CAP:
+                kept.append(c)
+                exempt += 1
+                continue
+            if inferred < max(1, int(max_contracts)):
+                kept.append(c)
+                inferred += 1
+        contracts = kept
+    else:
+        contracts = _picked[:max(1, int(max_contracts))]             # D-MW-13: cap site 3 of 3 (truncation)
     near = str(out.get("near")) if out.get("near") and _NEAR_RE.match(str(out.get("near"))) else None
     country = str(out.get("country")).strip()[:40] if out.get("country") else None
     xc = out.get("xc_explicit") is True                          # strict: schema-typed bool, re-verified in code
@@ -1251,7 +1404,8 @@ def plan_turn(query: str, *, graph, state_block: str | None = None, today: str |
               state_contracts: list[str] | None = None, call=None, model: str | None = None,
               max_contracts: int = MAX_CONTRACTS, xc_open: bool = False,
               xl_boards: dict[str, str] | None = None,
-              xl_kinds: tuple[str, ...] | None = None) -> Plan:
+              xl_kinds: tuple[str, ...] | None = None,
+              named: tuple | None = None, dedup: bool = False) -> Plan:
     """Plan one turn. Returns Plan(fallback=True) on ANY failure or when GRAPHRAG_DISPATCH=rules —
     the orchestrator then runs its legacy classifier path, so the planner can never break an answer.
 
@@ -1264,7 +1418,23 @@ def plan_turn(query: str, *, graph, state_block: str | None = None, today: str |
     `xl_boards` / `xl_kinds` (D-XL, E6) are threaded by the orchestrator from the leg's own constants and
     move the SAME three sites together, for the same reason: the PROMPT section, the SCHEMA ENUM and the
     VALIDATOR's re-verify. Omitted -- i.e. absent -- on every unflagged turn, so the planner call, its
-    render-cache key and its prompt-cache prefix are byte-identical."""
+    render-cache key and its prompt-cache prefix are byte-identical.
+
+    `named` (STATE ENGINE Amendment 2) is the contracts the QUESTION named, threaded by the
+    orchestrator from `named_markets` under the board's own flag. IT REACHES ALL THREE CAP SITES, and
+    that is the S6 review's correction: the first build reached only the validator's truncation, on the
+    stated ground that the prompt phrase and the schema `maxItems` "bound what the MODEL may
+    enumerate". True, and fatal to the amendment -- those two sites bound the model to the tier's own
+    ceiling, so the validator's named branch had nothing to preserve and "anchors all four on every
+    tier" was a sentence about a state the planner could not produce. All three now widen to the named
+    set and never below the tier's ceiling, bounded by `NAMED_ANCHOR_CAP`. Absent -> all three sites
+    are HEAD's, character for character.
+
+    `dedup` (S6 re-fix, major 3) is threaded from the SAME board flag and collapses a slug the planner
+    emitted twice, in `_validate` alone -- the prompt and the schema bound how MANY the model may
+    enumerate and neither can stop it repeating one. It is a separate kwarg rather than a rider on
+    `named` because a board turn that named no market still anchors, still prices a tape column and
+    still renders. Absent -> the validator's pick list is HEAD's, character for character."""
     if os.environ.get("GRAPHRAG_DISPATCH", "llm") == "rules":
         return _FALLBACK
     model = model or os.environ.get("GRAPHRAG_DISPATCH_MODEL") or SONNET
@@ -1280,6 +1450,19 @@ def plan_turn(query: str, *, graph, state_block: str | None = None, today: str |
         state_block or "(no prior conversation state)",
         f"QUESTION: {query}") if x)
     n_contracts = max(1, int(max_contracts or MAX_CONTRACTS))
+    # STATE ENGINE Amendment 2, THE HALF THE FIRST S6 BUILD LEFT OUT. `MAX_CONTRACTS` has THREE cap
+    # sites and the build moved only the third: `planner_sys` renders "(max {n})" and `_plan_tool` sets
+    # `maxItems: {n}`, so on every well-formed planner reply `len(out["contracts"]) <= n` BY
+    # CONSTRUCTION and `_validate`'s named branch could not fire -- a question naming four markets never
+    # put four in the list for the branch to preserve, and the file asserted "anchors all four on every
+    # tier" while its own closing note said the other two sites were deliberately untouched. The two
+    # sites now WIDEN TO THE NAMED SET (never below the tier's own ceiling), which is what "the ceiling
+    # bounds only inferred seeds" means at the point the enumeration is actually bounded. The named set
+    # is `named_markets`' own bounded output (see `NAMED_ANCHOR_CAP` there), so the widening is bounded
+    # by a declared number rather than by however many boards a commodity token happens to match.
+    # OMIT-WHEN-OFF: with no `named` this is `n_contracts` and all three sites are HEAD's.
+    n_named = min(len(set(named or ())), NAMED_ANCHOR_CAP)
+    n_slots = max(n_contracts, n_named)
     # ONE number, THREE consumers. PA-11: `planner_sys()` is now called on BOTH paths rather than the
     # default reading the import-time constant, because the prompt gained registry-derived halves and the
     # SCHEMA half (`_plan_tool` -> `family_names()`) is deliberately re-derived per turn. Reading a frozen
@@ -1292,14 +1475,23 @@ def plan_turn(query: str, *, graph, state_block: str | None = None, today: str |
     # which is exactly the property every planner fixture in the suite rests on. With no roster the
     # three calls below are byte-identical to their pre-D-XL selves, arguments included.
     _xlk = {"xl_boards": xl_boards, "xl_kinds": xl_kinds} if (xl_boards and xl_kinds) else {}
-    sys_block = planner_sys(n_contracts, xc_open=bool(xc_open),
+    sys_block = planner_sys(n_slots, xc_open=bool(xc_open),
                             **({"xl_boards": xl_boards} if _xlk else {}))
     try:
         out = call(sys_block, user, model=model,
-                   tool=(_plan_tool(ids, n_contracts, xl_boards, xl_kinds) if _xlk
-                         else _plan_tool(ids, n_contracts)),
+                   tool=(_plan_tool(ids, n_slots, xl_boards, xl_kinds) if _xlk
+                         else _plan_tool(ids, n_slots)),
                    **_temp_kw(call, model)) or {}
-        return (_validate(out, set(graph.contracts), n_contracts, xl_boards, xl_kinds) if _xlk
-                else _validate(out, set(graph.contracts), n_contracts))
+        # STATE ENGINE Amendment 2: `named` rides as the OMIT-WHEN-OFF kwarg the D-XL pair above
+        # already established -- absent it, both calls are byte-identical to their pre-S6 selves
+        # and an INJECTED `_validate` written against the older signature stays valid, which is
+        # the property every planner fixture in the suite rests on.
+        _nk = {"named": tuple(named)} if named else {}
+        # S6 RE-FIX (major 3): `dedup` rides the SAME omit-when-off idiom and is its OWN kwarg, because
+        # the two switches are two decisions -- a board turn that names no market still de-dups.
+        if dedup:
+            _nk["dedup"] = True
+        return (_validate(out, set(graph.contracts), n_contracts, xl_boards, xl_kinds, **_nk) if _xlk
+                else _validate(out, set(graph.contracts), n_contracts, **_nk))
     except Exception:  # noqa: BLE001 — routing must never break an answer
         return _FALLBACK

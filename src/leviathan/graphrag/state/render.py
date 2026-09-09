@@ -265,6 +265,8 @@ ABSENCE_WHY: dict = {
     "anchor_none": "the question named no market this estate tracks",
     "turn_spend_unknown": "this turn's own read count is not available to the board",
     "lane_off": "this turn does not run the board",
+    "recency_facts_off": "the per-layer recency grammar this board's rows are written for is not "
+                         "switched on for this turn",
 }
 
 #: The fallback. It is deliberately a SENTENCE and not the raw word: a reader must never be shown a
@@ -350,6 +352,17 @@ def pattern_label(name: str) -> str:
     return ascii_text(_display.regime_label(str(name or "")))
 
 
+def row_words(contract: str = "", driver_id: str = "") -> str:
+    """A ROW named in READER WORDS -- ``{driver} on {board}`` through the two display producers above.
+
+    It exists so a CORRECTION row can name the row it replaced without the caller reaching for the
+    internal label, which is what shipped raw regime ids into the writer prompt (see ``Block.add``).
+    One composer, so a new call site cannot invent a second spelling of "which row this was"."""
+    d = humanise(driver_id) if driver_id else ""
+    c = board_label(contract) if contract else ""
+    return f"{d} on {c}" if (d and c) else (d or c)
+
+
 # ---------------------------------------------------------------------------------------------------
 # THE CALL RECORD (sec 6.3) -- `_cw_call`'s shape, one handle per magnitude
 # ---------------------------------------------------------------------------------------------------
@@ -428,6 +441,14 @@ ROW_CLASSES: dict = {
     "SB-A": re.compile(r"^LIKE STATE "),
     "SB-L": re.compile(r"^RECENCY "),
     "SB-X": re.compile(r"^BOARD ABSENCE "),
+    # SB-JOIN IS BEYOND SEC 6.2's TABLE AND THE DIVERGENCE IS DECLARED (S6 review, major 17). Sec 6.2
+    # names sixteen classes and none of them can say "these two rows are one reading": every class
+    # there describes a row's own content, and this one describes a RELATION BETWEEN rows. It is
+    # letters-only (no member of FIGURE_CLASSES, no member of DATE_ONLY_CLASSES), it mints no handle
+    # and it asserts no magnitude, so it adds nothing to the [N] address space and nothing the verifier
+    # must bind. The alternative -- dropping one member of a phase pair -- is a fence that DELETES,
+    # which doctrine forbids: fences correct or compute.
+    "SB-JOIN": re.compile(r"^BOARD JOIN "),
 }
 
 #: The classes that may carry a charged digit. Every OTHER class is letters-plus-dates only, and
@@ -773,11 +794,100 @@ def sb_convergence(row: dict) -> str:
                f"{'carries' if row['n_with_band'] == 1 else 'carry'} a declared desk band"))
 
 
+#: THE CLOSED ORDERING VOCABULARY for an ``Interaction``'s ``effect`` (sec 3.5, D24). The shipped graph
+#: declares exactly two words -- MEASURED at 271 ``amplifies`` and 6 ``dampens`` over the thirty-six
+#: curated DAGs -- and the first S6 build spliced whichever string it found straight into the rendered
+#: line. That is the same class of defect as the note below it, one field over: a curation edit adding a
+#: third effect word, or a typo in an existing one, would have reached the writer as prose nobody
+#: graded. The map IS the vocabulary; anything outside it renders as the unknown clause and the line
+#: still says what it can, which is that the graph declares an interaction it has no word for here.
+AMPLIFIER_EFFECT_WORDS: dict = {"amplifies": "amplifies", "dampens": "dampens"}
+
+#: The word for an effect the vocabulary above does not declare. LETTERS ONLY and register-clean, and
+#: it CORRECTS rather than deletes: the pair, the loud claim and the read split all still render.
+AMPLIFIER_EFFECT_UNKNOWN = ("an interaction this board has no word for")
+
+#: What the row says in place of a curated note that did not pass this block's own register check
+#: (sec 6.6; the doctrine's "fences correct or compute, never delete"). THE NOTE IS NOT DROPPED
+#: SILENTLY -- the row states, in its own words, that the graph carries a note here and that the note is
+#: not in this block's register, so a reader is never shown a silence where prose used to be.
+AMPLIFIER_NOTE_REPLACED = (" -- the graph carries its own note on this interaction; it is not in this "
+                           "block's register and is replaced by this clause")
+
+
+def amplifier_effect(effect: str) -> str:
+    """An ``Interaction.effect`` as an ORDERING word from :data:`AMPLIFIER_EFFECT_WORDS`."""
+    return AMPLIFIER_EFFECT_WORDS.get(str(effect or "").strip(), AMPLIFIER_EFFECT_UNKNOWN)
+
+
+def governed_note(note: str) -> str:
+    """CURATED PROSE FROM THE GRAPH, PASSED THROUGH THIS BLOCK'S OWN REGISTER FENCE (sec 6.6).
+
+    THE DEFECT THIS CLOSES, MEASURED. ``Interaction.note`` is free text in a gitignored DAG config that
+    rides the image tar, and :func:`sb_amplifier` spliced it VERBATIM into the rendered line. TWENTY-ONE
+    of the shipped 277 notes trip a detector -- seventeen on ``_LANE_B_ADJ`` ("Cheap Black Sea supply
+    plus a strong dollar make US SRW uncompetitive on exports, stranding supply and building stocks",
+    soft_red_winter_wheat_cbot.yaml:949), three on ``count_flow_words`` + ``register_leaks``, one on
+    ``count_valuation_words`` + ``_LANE_B_ADJ`` -- so a four-market question put three tripped lines on
+    the board on deep AND max, and the fence's own correction then shipped the raw regime id.
+
+    THE FENCE IS APPLIED TO THE SPLICED FRAGMENT RATHER THAN TO THE ASSEMBLED LINE, which is the whole
+    point: ``Block.add`` grades the line and CORRECTS THE WHOLE ROW when it trips, so a dirty note took
+    the amplifier's ordering fact -- the pair, the loud claim, the read split, the effect word -- down
+    with it. Graded here, the governed half is replaced and every ungoverned half survives.
+
+    THIS GRADING IS THE FIRST OF TWO AND IT IS NOT SUFFICIENT ALONE (S6 second verify, the standing
+    major). A fragment can be clean BY ITSELF and still complete a class rule once it is spliced onto
+    the row's own words, because the register's class rules read a SENTENCE and the note lands inside a
+    sentence the row started. :func:`sb_amplifier` therefore grades the ASSEMBLED row as well and
+    replaces the clause -- never the row -- when the completion is the note's. Keeping this fragment
+    fence in front of it is deliberate rather than redundant: it is the STRICTER of the two (the
+    assembled sentence can carry an ``_EXCLUDED_NOUN`` that suppresses a Lane B hit the fragment
+    trips on), so dropping it would relax the measured behaviour above."""
+    txt = ascii_text(note or "").strip()
+    if not txt:
+        return ""
+    return f" -- {txt}" if not register_hits(txt) else AMPLIFIER_NOTE_REPLACED
+
+
 def sb_amplifier(contract: str, inter: dict) -> str:
     """The AMPLIFIER sub-line (sec 3.5, D24): the graph's only amplifier semantics, rendered as an
-    ordering fact under its pattern's row. Digit-free, and indented so its class is its own."""
+    ordering fact under its pattern's row. Digit-free, and indented so its class is its own.
+
+    EVERY INTERPOLATED FIELD IS GOVERNED (S6 re-fix). The ids go through ``display.node_label``, the
+    board through ``display.node_label(kind='contract')``, the EFFECT through
+    :data:`AMPLIFIER_EFFECT_WORDS` and the NOTE through :func:`governed_note`. Before this the effect
+    and the note were the two raw config strings on the board, and the note was measured putting three
+    fence trips on a four-named-market turn.
+
+    THE NOTE IS GRADED TWICE -- ALONE, AND AS THE ROW WILL BE READ (S6 second verify, the standing
+    major). :func:`governed_note` grades the FRAGMENT, and a fragment fence cannot see a class rule the
+    SPLICE completes: the register's class rules read a sentence, ``_SENT_ITER`` breaks only on
+    ``[.!?;]\\s+``, and this row's own last sentence is whatever follows its final semicolon -- the
+    effect word, or the read-split tail. REPRODUCED, offline and byte-exact, on an interaction whose
+    read split names a driver labelled with a spread noun:
+
+        note   "expected to narrow from here"           -- `register_hits` == [], clean ALONE
+        row    "  amplifier on CBOT soybeans: board crush spread, crude oil price all sit among this
+                board's loudest rows; the graph records the effect as amplifies; board crush spread
+                carries no series this board could read -- expected to narrow from here"
+        hits   ['count_valuation_words', 'register_leaks']   (`forward-convergence`: the tail's SPREAD
+               noun, the note's CONVERGE verb, the note's FUTURITY marker, one sentence)
+
+    and the trip reached :meth:`Block.add`, which replaced the WHOLE row with its SB-X absence: the
+    pair, the loud claim, the effect word and the read split all deleted to correct a curated clause.
+    THE ASSEMBLED ROW IS GRADED HERE and, on a trip, the CLAUSE is replaced and the row is re-rendered
+    whole -- which is the doctrine read the only way it can be read: correct the dirty clause, never
+    delete the facts around it.
+
+    THE ROW BUILT WITH THE REPLACEMENT CLAUSE IS NOT RE-GRADED, and that is an argument rather than an
+    omission. :data:`AMPLIFIER_NOTE_REPLACED` carries no spread noun, no convergence verb, no futurity
+    marker, no Lane A phrase, no Lane B adjective and no persistence word, so it can complete no class
+    rule and match no phrase: if the row without a note is clean, the row plus that clause is clean.
+    Should the row itself be dirty -- ids or effect word, none of them this function's to correct --
+    ``Block.add`` corrects it, which is the right owner for a trip the note did not cause."""
     ids = ", ".join(humanise(i) for i in inter["when"])
-    note = f" -- {ascii_text(inter['note'])}" if inter.get("note") else ""
+    note = governed_note(inter.get("note"))
     # THE SUB-LINE SAYS WHICH OF ITS OWN IDS WERE READ, for the same reason SB-C does: an Interaction
     # whose `when` ids are all LOUD may still name a driver with no series at all (`biodiesel_mandate`
     # is an open EVENT row and enters the loud set by construction), and "all sit among this board's
@@ -785,9 +895,12 @@ def sb_amplifier(contract: str, inter: dict) -> str:
     unread = [humanise(i) for i in (inter.get("unmeasured") or ())]
     tail = (f"; {', '.join(unread)} {'carries' if len(unread) == 1 else 'carry'} no series this "
             f"board could read") if unread else ""
-    return (f"  amplifier on {board_label(contract)}: {ids} all sit among this board's loudest rows; "
-            f"the graph "
-            f"records the effect as {inter['effect']}{tail}{note}")
+    row = (f"  amplifier on {board_label(contract)}: {ids} all sit among this board's loudest rows; "
+           f"the graph "
+           f"records the effect as {amplifier_effect(inter['effect'])}{tail}")
+    if note and note != AMPLIFIER_NOTE_REPLACED and register_hits(row + note):
+        note = AMPLIFIER_NOTE_REPLACED
+    return row + note
 
 
 def sb_tape(n: int, tape, *, asof: str) -> tuple:
@@ -826,6 +939,28 @@ def sb_tape(n: int, tape, *, asof: str) -> tuple:
     parts.append("the standings that name their own populations and realised volatility are not "
                  "served yet and are not claimed here")
     return "; ".join(parts), calls
+
+
+def price_tape(bd, *, cap: Optional[int] = None) -> tuple:
+    """DECLARE THE TAPE COLUMN'S SEATS **BEFORE** ITS FETCH, and return the anchor slugs the seats buy.
+
+    S6 REVIEW, MAJOR 10. :func:`attach_tape` set ``tape_cap`` from the tape it was HANDED, i.e. after
+    the reads had happened -- a post-hoc record of the spend wearing the word "cap". `WaveLedger`'s own
+    ``priced_before_fetch`` predicate and ``Board.rectangle`` cover the two WAVES only, so nothing
+    checked the third column, and design 3.8's law ("cut EACH wave at its cap BEFORE its fetch ... every
+    dropped key is NAMED") did not reach it. The seam calls this first, reads only what it returns, and
+    then calls :func:`attach_tape` with the measured spend.
+
+    THE CAP IS THE ANCHOR COUNT unless a caller states a smaller one; with the anchor ceiling in the
+    walk (``BoardKnobs.max_anchors``) that is a TIER number rather than an estate number, which is what
+    made 35 serial mirror reads on the calling thread reachable from one FE gesture."""
+    slugs = list(bd.anchor_slugs)
+    n = len(slugs) if cap is None else max(0, int(cap))
+    kept, dropped = slugs[:n], slugs[n:]
+    bd.ledger.tape_cap = max(int(bd.ledger.tape_cap), len(kept))
+    if dropped:
+        bd.notes.append({"kind": "tape_cap", "cap": n, "names": tuple(dropped)})
+    return tuple(kept)
 
 
 def attach_tape(bd, tape_by_slug: dict, *, reads_each: int = 1) -> None:
@@ -915,14 +1050,47 @@ def sb_analog_outcome(n: int, o: dict, *, asof: str) -> tuple:
     return re.sub(r"\s+", " ", line).replace(" ;", ";"), calls
 
 
+#: What a receipt row says in place of a QUOTED PASSAGE that did not pass this block's register check.
+#: The handle, the tier, the source, both dates and the driver all still render beside it -- a reader
+#: who wants the passage has the address of the document that carries it.
+RECEIPT_QUOTE_REPLACED = ("the passage this document carries here is not in this block's register and "
+                          "is replaced by this clause")
+
+#: ...and in place of a SOURCE NAME that is itself the half that trips. The handle still resolves, so
+#: the citation is not broken -- only the display name is withheld, and the row says so.
+RECEIPT_SOURCE_REPLACED = "a source this block's register does not print"
+
+
 def sb_receipt(e_handle: int, t_tier: int, r: dict, *, driver_id: str) -> str:
     """SB-R (sec 6.2): the D-HP-1 menu row in ``_ev_block``'s own shape (answer.py:3380) so
-    ``cit.unify`` numbers it and the persona's ``[T1]-[T4]`` trust contract is preserved."""
+    ``cit.unify`` numbers it and the persona's ``[T1]-[T4]`` trust contract is preserved.
+
+    THE QUOTE AND THE SOURCE NAME ARE CORPUS PROSE AND ARE FENCED THE WAY THE AMPLIFIER NOTE IS (S6
+    second verify, minor (a)). ``r["text"]`` and ``r["source"]`` were interpolated VERBATIM through an
+    ASCII fold, which is a fold and not a fence: retrieved prose is one seam over from
+    ``Interaction.note``, it is the same class of ungoverned string, and it lands in a sentence THIS row
+    started -- so it can complete a class rule the passage does not carry alone, exactly as the note
+    did. Three of these rows render per stanza on deep and five on max.
+
+    THE ROW IS GRADED AS THE DETECTOR WILL READ IT, and a trip replaces the CLAUSE rather than the row.
+    The quote goes first because it is the retrieved half and the likeliest dirty one; only if the
+    assembled row still trips is the SOURCE NAME replaced too, and even then the ``[E]`` handle, the
+    ``[T]`` tier, the reported date, the event date and the driver survive. Deleting the row would take
+    a citable document off the menu to correct a sentence inside it, and an ``[E]`` handle minted for a
+    row that never rendered is a handle pointing at nothing -- the failure ``Block.add`` refuses."""
     src = ascii_text(r.get("source") or "the record")
     ev = r.get("event_date")
     ev_part = f"; event {ev}" if ev else ""
-    return (f"- [E{e_handle}][T{t_tier}] ({src}, reported {r.get('date')}{ev_part}) "
-            f"{{driver: {humanise(driver_id)}}} {ascii_text(r.get('text') or '')}".rstrip())
+
+    def _row(source: str, quote: str) -> str:
+        return (f"- [E{e_handle}][T{t_tier}] ({source}, reported {r.get('date')}{ev_part}) "
+                f"{{driver: {humanise(driver_id)}}} {quote}".rstrip())
+
+    line = _row(src, ascii_text(r.get("text") or ""))
+    if not register_hits(line):
+        return line
+    line = _row(src, RECEIPT_QUOTE_REPLACED)
+    return line if not register_hits(line) else _row(RECEIPT_SOURCE_REPLACED, RECEIPT_QUOTE_REPLACED)
 
 
 def sb_watch(w: dict) -> str:
@@ -941,6 +1109,23 @@ def sb_recency(layer: str, text: str) -> str:
     """SB-L (sec 6.2, 6.5): one line per LAYER, each a fact about the layer it names. None of them
     dates another, and no rendered line contains "not a current-state read" (B12)."""
     return f"RECENCY {layer}: {text}"
+
+
+def sb_phase_pair(names, board: str, *, opposed: bool) -> str:
+    """SB-JOIN: TWO NAMES, ONE READING -- the row that stops a mutually-exclusive phase pair being
+    narrated as a two-sided balance (S6 review, major 17). See the class's own note in ROW_CLASSES for
+    why it is a class sec 6.2 does not declare.
+
+    LETTERS ONLY AND NO HANDLE: it asserts no magnitude, it corrects the READING of two rows that each
+    carry their own. That is the difference between this row and a fence that deletes -- both members
+    keep their figure, their handle and their declared sign, and the reader is told the relation."""
+    joined = " and ".join(names) if len(names) < 3 else (", ".join(names[:-1]) + " and " + names[-1])
+    tail = (" The graph declares them opposite signs on this board, which is what two phases of one "
+            "series means; they are not two readings that disagree."
+            if opposed else
+            " They are phases of one series and not separate readings.")
+    return (f"BOARD JOIN {joined} on {board}: these are read on ONE series and the rows above print "
+            f"the SAME reading under each name." + tail)
 
 
 def sb_absence(label: str, reason: str) -> str:
@@ -977,21 +1162,57 @@ def register_hits(text: str) -> list:
     return hits
 
 
+#: The reader-facing name a correction row falls back to when the caller offered none, or offered one
+#: that did not itself pass the fence. LETTERS ONLY, no id, no slug.
+CORRECTED_ROW_FALLBACK = "a composed line"
+
+
+def open_sentence(text: str) -> str:
+    """THE UNTERMINATED SENTENCE ``text`` ENDS IN, as the REGISTER SCANNER segments it.
+
+    IT READS THE ONE PRODUCER (``register._SENT_ITER``) rather than re-typing its rule, which is the
+    whole point: a private copy of a sentence splitter would agree with the detector until the first
+    edit, and the class rules are the detectors that read a SENTENCE rather than a token.
+
+    WHY THE BLOCK NEEDS THIS AT ALL -- THE THIRD BLIND SPOT OF THE S6 REVIEW, MEASURED. ``_SENT_ITER``
+    splits on ``[.!?;]\\s+`` and DELIBERATELY does not split on a bare newline (its own note: a
+    line-wrapped class-rule triple is ONE sentence and IS flagged). Board rows carry no terminal
+    punctuation, so every adjacent pair of rows WELDS into one sentence for the scanner -- and a fence
+    that grades each row alone cannot see a class rule the weld completes. MEASURED on a `focus_driver`
+    Cascade turn through the seam: ``register_leaks`` on the BLOCK returned one `forward-convergence`
+    hit while every one of its 259 lines was clean alone, the spread noun and the converge verb coming
+    from the convergence render-cap absence row and the futurity from the amplifier line above it."""
+    from leviathan.graphrag import register as reg
+    return reg._SENT_ITER.split(str(text or ""))[-1] if text else ""
+
+
 class Block:
     """The rendered block, its calls, and every trip the fence corrected.
 
     LINES AND CALLS ARE COMMITTED TOGETHER. :meth:`add` builds a candidate line with its candidate
     calls, runs the fence, and either commits BOTH or replaces the line with its SB-X absence and
     commits NEITHER -- because a handle whose call was dropped is a citation pointing at nothing, which
-    is a worse failure than the register trip it was trying to correct."""
+    is a worse failure than the register trip it was trying to correct.
+
+    THE FENCE GRADES A ROW THE WAY THE DETECTOR WILL READ IT, which is not the same as grading the row.
+    See :func:`open_sentence`: the scanner welds consecutive unterminated rows into one sentence, so the
+    block keeps the OPEN sentence its committed rows end in and grades each candidate against it. A weld
+    that trips is CORRECTED BY COMPUTATION rather than by deletion -- the previous row is closed as a
+    sentence (the terminator it never carried) so the two rows are two sentences again, which is what
+    they always were. Neither row loses a word, a handle or a call."""
 
     def __init__(self, *, start: int = 1, e_start: int = 1):
         self.lines: list = []
         self.calls: list = []
         self.trips: list = []
         self.classes: list = []
+        #: Every weld this block closed, as ``{"at": <index of the row that gained the terminator>,
+        #: "hits": (...)}``. Recorded rather than silent: a weld correction changes a committed row's
+        #: bytes, and a byte change nobody can count is a byte change nobody can review.
+        self.welds: list = []
         self._next = int(start)
         self._next_e = int(e_start)
+        self._open = ""                 # the unterminated sentence the committed rows end in
 
     def take_e(self) -> int:
         """The next ``[E]`` handle, MINTED ONCE FOR THE WHOLE BLOCK.
@@ -1015,21 +1236,63 @@ class Block:
         (sec 3.9 item 3)."""
         return self._next
 
-    def add(self, line: str, calls=(), *, label: str = "", allow_empty: bool = False):
-        """Commit ONE row. Returns the line actually committed (possibly the SB-X correction)."""
+    def add(self, line: str, calls=(), *, label: str = "", display: str = "",
+            allow_empty: bool = False):
+        """Commit ONE row. Returns the line actually committed (possibly the SB-X correction).
+
+        ``label`` IS INTERNAL AND ``display`` IS THE READER'S -- and separating them is the S6 re-fix's
+        major 1. The correction row used to interpolate ``label``, which every caller builds from the
+        row's own ids (``f"amplifier {c['name']}"``, ``f"phase pair {contract}"``), so THE REGISTER
+        FENCE'S OWN CORRECTION SHIPPED RAW INTERNAL IDS INTO THE WRITER PROMPT. MEASURED on the
+        four-named-market shape (soft_red_winter_wheat_cbot / corn_cbot / soybeans_cbot /
+        malaysian_crude_palm_oil_cme, as-of 2026-09-07, through ``state.seam``): deep and max each
+        shipped ``trips=3, register_leaks=3, internal_leaks=3``, the leaked tokens being the raw
+        convergence-regime ids ``bearish_glut`` and ``bearish_big_crop_glut``. ``label`` still rides
+        ``self.trips``, where it is telemetry and an id is exactly what a reader of a trip wants.
+
+        THE FALLBACK IS FAIL-CLOSED AND CLOSES THE CLASS, NOT THE INSTANCE. A caller that offers no
+        display name gets :data:`CORRECTED_ROW_FALLBACK`, and a display name that does not ITSELF pass
+        the fence is discarded for the same fallback -- so no future call site can reintroduce the leak
+        by handing this method a name built from an id. The assembled correction row is graded too: a
+        correction that trips is not a correction."""
         if not line and not allow_empty:
             return ""
         hits = register_hits(line)
         if hits:
             self.trips.append({"label": label or line[:40], "hits": tuple(hits), "line": line})
-            line = sb_absence(label or "a composed line", "template_register_trip")
+            line = self._correction(display)
             calls = ()
+        elif self._open and self._weld_hits(line):
+            # THE WELD (see `open_sentence`). The candidate is clean and the open sentence was clean
+            # when it was committed, so the hit belongs to NEITHER row -- it belongs to the join, and
+            # the join exists only because a board row carries no terminator. CLOSING the previous row
+            # as a sentence is the computation that removes it; deleting either row would delete a
+            # clean fact to fix a punctuation defect.
+            self.welds.append({"at": len(self.lines) - 1, "hits": tuple(self._weld_hits(line))})
+            if self.lines and not str(self.lines[-1]).rstrip().endswith((".", "!", "?", ";")):
+                self.lines[-1] = self.lines[-1].rstrip() + "."
+                self.classes[-1] = classify(self.lines[-1])
+            self._open = ""
         self.lines.append(line)
         self.classes.append(classify(line))
+        self._open = open_sentence((self._open + "\n" + line) if self._open else line)
         for c in calls:
             self.calls.append(c)
             self._next += 1
         return line
+
+    def _weld_hits(self, line: str) -> list:
+        """The detectors the OPEN sentence plus this candidate trip together. Empty == no weld."""
+        return register_hits(self._open + "\n" + line)
+
+    def _correction(self, display: str = "") -> str:
+        """The SB-X row that replaces a line the fence tripped, named in READER words or not at all."""
+        name = ascii_text(display or "").strip()
+        if name and register_hits(name):
+            name = ""                              # a name that trips is no name a reader may be shown
+        row = sb_absence(name or CORRECTED_ROW_FALLBACK, "template_register_trip")
+        return row if not register_hits(row) else sb_absence(CORRECTED_ROW_FALLBACK,
+                                                             "template_register_trip")
 
     def text(self) -> str:
         return "\n".join(self.lines)
@@ -1060,13 +1323,40 @@ RENDER_CAPS: dict = {
 }
 
 
-def render_caps(mode: str) -> dict:
+def render_caps(mode: str, knobs=None) -> dict:
+    """The tier's render caps. ``knobs`` (a :class:`state.board.BoardKnobs`) WINS when it carries the
+    S6 render fields, so the caps ride the mode table with every other per-mode constant instead of
+    being a second opinion in this module.
+
+    THE TABLE ABOVE STAYS THE DEFAULT rather than becoming a fallback nobody reaches: a board built
+    with a nine-field knob tuple (the S2 fixtures, the census, a hand-built preset) has no render
+    fields at all, and reading a missing attribute as zero would silently cut every class to nothing.
+    ``getattr(..., None)`` per field, table value when absent -- and the shipped presets carry exactly
+    the table's numbers, so this returns the same dict either way (pinned)."""
     from leviathan.graphrag import reasoning_modes as rm
-    return dict(RENDER_CAPS.get(rm.base_mode(mode), RENDER_CAPS["deep"]))
+    base = dict(RENDER_CAPS.get(rm.base_mode(mode), RENDER_CAPS["deep"]))
+    if knobs is None:
+        return base
+    for name, field in (("spillover", "render_spillover"), ("convergence", "render_convergence"),
+                        ("analog", "render_analog"), ("analog_outcomes", "render_analog_outcomes"),
+                        ("receipts", "render_receipts")):
+        v = getattr(knobs, field, None)
+        if v is not None:
+            base[name] = int(v)
+    # THE ABSENCE CAP IS A KNOB WITH NO TABLE ROW, because the design plans no number for it (sec 7
+    # sizes states, spillovers, patterns, stanzas and watch rows and stops). 0 = UNCAPPED = today.
+    base["absence"] = int(getattr(knobs, "render_absence", 0) or 0)
+    # THE NAMES INSIDE ONE ABSENCE LINE (S6 review, major 12). Every cap above bounds ROWS, and the
+    # class that overran hardest overran INSIDE a row: MEASURED at 23,871 characters in ONE `BOARD
+    # ABSENCE` line on a `focus_driver` Scan turn, because an absence group names every row it covers
+    # and "the NAMES are never cut". They are still never cut SILENTLY -- the line ends with the count
+    # it did not print, which is what "every cut names what it cut" asks for. 0 = uncapped.
+    base["absence_names"] = int(getattr(knobs, "render_absence_names", 0) or 0)
+    return base
 
 
 def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None, start: int = 1,
-                 anchor_label: str = "", loud_only: bool = True, age_clauses=None,
+                 e_start: int = 1, anchor_label: str = "", loud_only: bool = True, age_clauses=None,
                  caps: Optional[dict] = None) -> Block:
     """THE WHOLE BLOCK. Deterministic, ASCII, every figure bound to its own call, every cut NAMED.
 
@@ -1079,8 +1369,13 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     than board. Sec 0.3's own scenario-1 SB-X list is five lines, and grouping is how thirty-five named
     rows fit in five: the NAMES are never cut (the fan's law, applied here), only the sentences are
     shared."""
-    b = Block(start=start)
-    cap = dict(caps or render_caps(bd.mode))
+    # `start` AND `e_start` ARE BOTH THE TURN'S, NOT THE BLOCK'S (S6). The block used to mint `[E1]`
+    # unconditionally, which is correct offline and WRONG at the seam: the turn's own evidence menu is
+    # numbered from 1 by `cit.unify` over `uniq`, so a board event receipt would print a handle already
+    # pointing at somebody else's document -- the same collision `take_e` was written to remove one
+    # scope in. The seam passes `len(uniq) + 1`; the harness and every deck leave it at 1.
+    b = Block(start=start, e_start=e_start)
+    cap = dict(caps or render_caps(bd.mode, getattr(bd, "knobs", None)))
     ages = dict(age_clauses or {})
     b.add(sb_header(bd, anchor_label=anchor_label), label="header")
 
@@ -1100,9 +1395,11 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         h = b.next_handle
         line, calls = sb_state(h, row, asof=bd.asof, age_clause=ages.get(row.key, ""))
         if line:
-            b.add(line, calls, label=f"{row.contract}/{row.driver_id}")
+            b.add(line, calls, label=f"{row.contract}/{row.driver_id}",
+                  display=f"the state row for {row_words(row.contract, row.driver_id)}")
             handles_by_row[row.key] = h
-        b.add(sb_edge(row), label=f"edge {row.driver_id}")
+        b.add(sb_edge(row), label=f"edge {row.driver_id}",
+              display=f"the declared link for {row_words(row.contract, row.driver_id)}")
         win = bd.windows.get(row.key) or {}
         anchor_date = win.get("near") or st.level_date
         # D18's fourth clause: a `context_only` row is NEVER A PROJECTION ANCHOR. Its STATE row renders
@@ -1121,7 +1418,42 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                                 # already CLOSED from one the horizon can still sit inside.
                                 horizon_sits=horizon_sits(bd.horizon_months, w, bd.asof),
                                 asof=bd.asof),
-                  label=f"projection {row.driver_id}")
+                  label=f"projection {row.driver_id}",
+                  display=f"the projection for {row_words(row.contract, row.driver_id)}")
+
+    # -- PHASE PAIRS: TWO NAMES, ONE READING (S6 review, major 17) ------------------------------------
+    # THE DEFECT, MEASURED VERBATIM ON THE `el_nino_fanout` FIXTURE. The shipped graph puts `El_Nino`
+    # and `La_Nina` on ONE global ref (`oni_lag_climate`: silver_noaa_oni / oni_lag6, declared global,
+    # `country_rule` none, so no country or commodity narrowing exists) with OPPOSITE declared
+    # signs, and `IOD_positive` / `IOD_negative` likewise on `iod_climate`. Loudness ranks |z| of the
+    # UNSIGNED state and is phase-blind, so BOTH members land loud on the SAME reading -- and the block
+    # printed "[N1] El Nino ... +0.98 degC ... declared to move CBOT soybeans in the OPPOSITE direction"
+    # beside "[N4] La Nina ... +0.98 degC ... in the SAME direction": one number, two handle triples,
+    # two contradictory signs, and nothing saying they are two phases of one series. The mandate's own
+    # movement (1) then instructs the writer that "where the rows lean both ways, say so and name both
+    # sides", so the writer would have reported ENSO as pointing both ways off a single reading.
+    #
+    # SEC 1.5's INVARIANT (one unsigned state, the sign on the edge) ASSUMES EACH DRIVER'S EDGE IS
+    # APPLIED TO ITS OWN STATE. A mutually-exclusive phase pair breaks that assumption, and the fence
+    # is CORRECTION rather than deletion (doctrine): both rows stay, both keep their handle and their
+    # declared sign, and one letters-only row states the relation the reader cannot otherwise see.
+    _phase: dict = {}
+    for row in rendered:
+        st = row.state
+        if st is None or status_word(st.status) != "ok" or row.key not in handles_by_row:
+            continue
+        try:
+            _phase.setdefault((row.contract, st.key.label()), []).append(row)
+        except Exception:                               # noqa: BLE001 -- an unlabelled key groups alone
+            continue
+    for (_c, _k), _rows in sorted(_phase.items()):
+        if len(_rows) < 2:
+            continue
+        _names = sorted({humanise(r.driver_id) for r in _rows})
+        _signs = {str(r.sign or "") for r in _rows}
+        b.add(sb_phase_pair(_names, board_label(_c), opposed=len(_signs) > 1),
+              label=f"phase pair {_c}",
+              display=f"the phase-pair reading on {board_label(_c)}")
 
     # -- EVENTS ---------------------------------------------------------------------------------------
     for row in rendered:
@@ -1141,10 +1473,12 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         b.add(sb_event(row, receipt_handle=e, published=rc.get("date") or row.event_date,
                        board=board_label(row.contract),
                        window=projection_window(row.event_date, row.lag_band), asof=bd.asof),
-              label=f"event {row.driver_id}")
+              label=f"event {row.driver_id}",
+              display=f"the event row for {row_words(row.contract, row.driver_id)}")
         if rc.get("date"):
             b.add(sb_receipt(e, int(rc.get("tier") or 3), rc, driver_id=row.driver_id),
-                  label=f"event receipt {row.driver_id}")
+                  label=f"event receipt {row.driver_id}",
+                  display=f"the event document for {row_words(row.contract, row.driver_id)}")
 
     # -- PATHS (capped by the walk's own `path_render_k`, which stamped `rendered` per path) ----------
     for p in bd.paths:
@@ -1152,7 +1486,8 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             continue
         hs = [handles_by_row[(p["contract"], h)] for h in p["hops"]
               if (p["contract"], h) in handles_by_row]
-        b.add(sb_path(p, anchor=p["contract"], handles=hs), label=f"path {p['ancestor']}")
+        b.add(sb_path(p, anchor=p["contract"], handles=hs), label=f"path {p['ancestor']}",
+              display=f"the upstream path into {board_label(p['contract'])}")
 
     # -- FAN and its far edges, ONE combined section under sec 7's spillover count --------------------
     # THE ENTRIES ARE WALKED IN RANK ORDER AND EACH GETS ITS OWN SHARE. The first cut walked
@@ -1178,13 +1513,15 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         if spill >= int(cap["spillover"]):
             cut_boards.extend(f["contract"] for f in far_named)
             continue
-        b.add(sb_fan(e), label=f"fan {e['driver_id']}")
+        b.add(sb_fan(e), label=f"fan {e['driver_id']}",
+              display=f"the spillover index for {humanise(e['driver_id'])}")
         spill += 1
         for f in far_named[:far_per_entry]:
             if spill >= int(cap["spillover"]):
                 cut_boards.append(f["contract"])
                 continue
-            b.add(sb_edge(seed, far=f), label=f"far {f['contract']}/{f['driver_id']}")
+            b.add(sb_edge(seed, far=f), label=f"far {f['contract']}/{f['driver_id']}",
+                  display=f"the spillover link for {row_words(f['contract'], f['driver_id'])}")
             spill += 1
         cut_boards.extend(f["contract"] for f in far_named[far_per_entry:])
     if cut_boards:
@@ -1199,15 +1536,28 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # `(crude_oil_price, biodiesel_mandate) amplifies` line -- the scenario's whole convexity material,
     # and bar B16's fixture -- was the row that fell off. An amplifier is a SUB-LINE of a row already
     # admitted, digit-free, and bounded by the pattern count it hangs under.
-    conv = 0
+    conv, conv_cut = 0, []
     for c in bd.convergence:
         if conv >= int(cap["convergence"]):
-            break
-        b.add(sb_convergence(c), label=f"pattern {c['name']}")
+            conv_cut.append(c)
+            continue
+        b.add(sb_convergence(c), label=f"pattern {c['name']}",
+              display=f"the pattern row for {pattern_label(c['name'])} on "
+                      f"{board_label(c['contract'])}")
         conv += 1
         for it in c["interactions"]:
             if it.get("rendered"):
-                b.add(sb_amplifier(c["contract"], it), label=f"amplifier {c['name']}")
+                b.add(sb_amplifier(c["contract"], it), label=f"amplifier {c['name']}",
+                      display=f"the amplifier under {pattern_label(c['name'])} on "
+                              f"{board_label(c['contract'])}")
+    # THE THIRD SILENT CUT, SWEPT AT S6 with the two the sitting was sent for. It was a `break`, so a
+    # pattern past the cap left no row, no name and no word -- the same shape the analog-outcome cut
+    # had at the S3 re-fix. The names are the PATTERN LABELS, which is what a reader can look up.
+    if conv_cut:
+        b.add(sb_absence("the convergence patterns past this tier's pattern cut ("
+                         + ", ".join(sorted({pattern_label(str(c["name"])) for c in conv_cut}))
+                         + ")", "render_cap"),
+              label="convergence render cap")
 
     # -- TAPE -----------------------------------------------------------------------------------------
     for slug in bd.anchor_slugs:
@@ -1215,10 +1565,12 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         if tp is None:
             continue
         if status_word(tp.status) != "ok":
-            b.add(sb_absence(f"{board_label(slug)} price path", tp.status), label=f"tape {slug}")
+            b.add(sb_absence(f"{board_label(slug)} price path", tp.status), label=f"tape {slug}",
+                  display=f"the price path of {board_label(slug)}")
             continue
         line, calls = sb_tape(b.next_handle, tp, asof=bd.asof)
-        b.add(line, calls, label=f"tape {slug}")
+        b.add(line, calls, label=f"tape {slug}",
+              display=f"the price path of {board_label(slug)}")
 
     # -- ANALOGS: the most LIKE stanzas first, capped at sec 7's own stanza count ---------------------
     fired = [a for a in analogs if not a.get("declined")]
@@ -1231,7 +1583,8 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                               round(float(a.get("distance") or 0.0), 9), a["driver_id"]))
     shown_analogs = fired[: int(cap["analog"])]
     for a in shown_analogs:
-        b.add(sb_analog_header(a), label=f"analog {a['driver_id']}")
+        b.add(sb_analog_header(a), label=f"analog {a['driver_id']}",
+              display=f"the like state for {row_words(a['contract'], a['driver_id'])}")
         outs = [o for o in (a.get("outcomes") or ()) if not o.get("declined")]
         # THE ANCHOR BOARD'S OWN CONSEQUENCE LEADS. Sorting on the label alone put "the palm monthly
         # benchmark" above "the soybean monthly benchmark" -- alphabetically -- so the most prominent
@@ -1261,10 +1614,22 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         held = [o for o in (a.get("outcomes") or ()) if o.get("declined")]
         for word in sorted({str(o["declined"]) for o in held}):
             b.add(sb_absence("an outcome over that band", word), label="analog outcome absence")
-        for rc in (a.get("receipts") or ())[: int(cap["receipts"])]:
+        _arc = list(a.get("receipts") or ())
+        for rc in _arc[: int(cap["receipts"])]:
             b.add(sb_receipt(b.take_e(), rc.get("t", 3), rc, driver_id=a["driver_id"]),
                   label="analog receipt")
-        if not (a.get("receipts") or ()):
+        if len(_arc) > int(cap["receipts"]):
+            # THE FOURTH SILENT CUT IN THIS FUNCTION, swept by the S6 review after the first three.
+            # A stanza's receipts past the tier's cap were dropped with no row, while the branch
+            # immediately below names only the ZERO-receipt case -- so a reader met a stanza carrying
+            # three documents and could not tell whether the corpus held three or thirty. The names are
+            # the STANZA's, never the documents': a document title is retrieved text and this class is
+            # letters-only.
+            b.add(sb_absence(f"the further documents on this like state past this tier's receipt cut "
+                             f"({humanise(a['driver_id'])} on {board_label(a['contract'])})",
+                             "render_cap"),
+                  label="analog receipt render cap")
+        if not _arc:
             # THE CO-LOUD STANZA SPANS BOARDS, so its absence may not name ONE of them: the ordinary
             # line's "on {board}" would attribute the whole stanza to its leading anchor, and the rows
             # above it are several boards' own records.
@@ -1284,9 +1649,23 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         b.add(sb_absence("a like state on this board", word), label="analog absence")
 
     # -- RECEIPTS on the loud rows ---------------------------------------------------------------------
+    # EVERY CUT NAMES WHAT IT CUT (S6, the first of the two cuts this sitting swept). The receipts past
+    # the tier's cap were dropped with no row: a reader met a loud driver carrying two documents and
+    # could not tell whether the corpus held two or twenty, which is the absence-versus-silence
+    # confusion the whole block is built to prevent. The names are the ROWS the receipts hang under,
+    # never the documents themselves -- a document title is retrieved text and is not this block's to
+    # print in a letters-only class.
+    rcpt_cut = []
     for key, rs in sorted((receipts_by_row or {}).items()):
         for r in rs[: int(cap["receipts"])]:
-            b.add(sb_receipt(b.take_e(), r.get("tier", 3), r, driver_id=key[1]), label="receipt")
+            b.add(sb_receipt(b.take_e(), r.get("tier", 3), r, driver_id=key[1]), label="receipt",
+                  display=f"a document on {row_words(key[0], key[1])}")
+        if len(rs) > int(cap["receipts"]):
+            rcpt_cut.append(key)
+    if rcpt_cut:
+        b.add(sb_absence("the further documents on the rows past this tier's receipt cut ("
+                         + ", ".join(_named_rows(rcpt_cut)) + ")", "render_cap"),
+              label="receipt render cap")
 
     # -- WATCH -----------------------------------------------------------------------------------------
     #    EVERY KIND WEARS THE WATCH WORD; kind 2 alone carries a handle and a figure, under its own
@@ -1324,8 +1703,37 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                         "planned_text_only": "series_planned"}.get(row.coverage_tier, "series_none"))
         groups.setdefault(reason, []).append(f"{humanise(row.driver_id)} on "
                                              f"{board_label(row.contract)}")
-    for reason in sorted(groups):
-        b.add(sb_absence(", ".join(sorted(groups[reason])), reason), label=f"absence {reason}")
+    _abs_cap = int(cap.get("absence") or 0)
+    _nm_cap = int(cap.get("absence_names") or 0)
+    _reasons = sorted(groups)
+    _abs_shown = _reasons[:_abs_cap] if _abs_cap else _reasons
+    for reason in _abs_shown:
+        b.add(sb_absence(name_list(sorted(groups[reason]), _nm_cap), reason),
+              label=f"absence {reason}")
+    if len(_reasons) > len(_abs_shown):
+        # The absence GROUPS are themselves cappable at S6 (`render_absence`, 0 = uncapped = today's
+        # behaviour on every shipped preset), and a capped group list names the rows it did not print
+        # for the same reason every other cut does.
+        b.add(sb_absence("the further rows this board carries no reading for ("
+                         + name_list(sorted(n for r in _reasons[len(_abs_shown):]
+                                            for n in groups[r]), _nm_cap) + ")", "render_cap"),
+              label="absence render cap")
+    # -- THE SECOND OF THE TWO CUTS S6 SWEPT: A ROW THAT WAS READ AND DID NOT MAKE THE LOUD CUT --------
+    # It is the sharpest of the silent ones, because it is an absence of a FACT rather than of a gap:
+    # the group above names every row with NO reading, and `loud_only` then dropped every row that HAS
+    # one and ranked below `loud_k` -- so a reader met a board whose quiet rows were indistinguishable
+    # from rows that do not exist. The design's own words are "the loud set, the render caps and the
+    # budget decide what is SAID; nothing decides what EXISTS", and a cut that says nothing decides
+    # existence for the reader. `loud_only=False` renders them all and this line is then empty.
+    _shown_keys = {r.key for r in rendered}
+    _quiet = [r for r in bd.rows
+              if r.state is not None and status_word(r.state.status) == "ok"
+              and r.key not in _shown_keys]
+    if _quiet:
+        b.add(sb_absence("the rows this board read that sit below this tier's loudness cut ("
+                         + name_list(_named_rows(r.key for r in _quiet), _nm_cap) + ")",
+                         "render_cap"),
+              label="loudness render cap")
     # EVERY CUT NAMES WHAT IT CUT, and until this edit four of them said "named above" while naming
     # the rows NOWHERE -- against sec 3.8's own law ("the tail it cannot afford is NAMED") and B3's
     # "NAMED deferrals equal in count to declared - read". The fan render cap always did it right; these
@@ -1335,17 +1743,38 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         if note.get("kind") == "budget_cap":
             named = _named_rows(note.get("pairs") or ())
             b.add(sb_absence("the keys this turn's budget did not reach"
-                             + (" (" + ", ".join(named) + ")" if named else ""), "budget_cap"),
+                             + (" (" + name_list(named, _nm_cap) + ")" if named else ""),
+                             "budget_cap"),
                   label="budget cap")
         elif note.get("kind") == "path_render_cap":
             named = sorted({humanise(x) for x in (note.get("names") or ())})
             b.add(sb_absence("the upstream paths past this tier's render cut"
-                             + (" (" + ", ".join(named) + ")" if named else ""), "render_cap"),
+                             + (" (" + name_list(named, _nm_cap) + ")" if named else ""),
+                             "render_cap"),
                   label="path render cap")
+        elif note.get("kind") == "anchor_cap":
+            # THE ANCHOR CEILING (S6 review, major 1 / 9 / 12 / 13). Every other cut on this board is
+            # about a ROW; this one is about a BOARD, and it is the one the design left unbounded --
+            # `resolve_anchors` bounds inferred seeds alone, so a `focus_driver` gesture put 35 DAGs,
+            # their whole read budget, their serial tape column and 916 rendered rows on one turn. The
+            # cut takes the anchor PRECEDENCE's own order, so a named market outranks a driver's
+            # twenty-ninth board, and it names what it dropped like every other cut here.
+            named = sorted({board_label(x) for x in (note.get("names") or ())})
+            b.add(sb_absence("the further boards carrying this question's anchor, past this tier's "
+                             "anchor cut"
+                             + (" (" + name_list(named, _nm_cap) + ")" if named else ""),
+                             "render_cap"),
+                  label="anchor cap")
+        elif note.get("kind") == "tape_cap":
+            named = sorted({board_label(x) for x in (note.get("names") or ())})
+            b.add(sb_absence("the price paths of the anchor boards past this turn's tape seats"
+                             + (" (" + name_list(named, _nm_cap) + ")" if named else ""),
+                             "budget_cap"),
+                  label="tape cap")
         elif note.get("kind") == "fan_states_unread":
             named = _named_rows(note.get("names") or ())
             b.add(sb_absence("the far states of the rows past this tier's cut"
-                             + (" (" + ", ".join(named) + ")" if named else ""), "fan_cap"),
+                             + (" (" + name_list(named, _nm_cap) + ")" if named else ""), "fan_cap"),
                   label="fan states unread")
         elif note.get("kind") == "edge_hop_cap":
             b.add(sb_absence("the link direction this tier does not walk", "edge_hop_cap"),
@@ -1364,6 +1793,46 @@ def _named_rows(pairs) -> list:
             continue
         out.add(f"{humanise(d)} on {board_label(c)}")
     return sorted(out)
+
+
+#: The count words a capped name list closes with. LETTERS, never a digit: an absence row is a
+#: letters-only class, and a bare integer inside one would give `verify._claim_number_spans` a
+#: magnitude to bind on a line that backs no figure.
+_COUNT_WORDS: tuple = (
+    "no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+    "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+    "twenty",
+)
+
+
+def count_words(n: int) -> str:
+    """A small count in WORDS, or "many" past the table. The board's own count-word idiom, in one
+    place: the mandate tells the writer that base rates come from the block's count words, so a count
+    the block prints as a digit is a magnitude a writer may copy without a handle."""
+    n = max(0, int(n))
+    return _COUNT_WORDS[n] if n < len(_COUNT_WORDS) else "many"
+
+
+def name_list(names, cap: int = 0) -> str:
+    """A cut's name list, bounded by ``cap`` (0 = uncapped) and CLOSING WITH THE REMAINDER IN WORDS.
+
+    S6 REVIEW, MAJOR 12: every render cap in this module bounds ROWS, and the class that overran
+    hardest overran INSIDE one row. MEASURED on a `focus_driver` Scan turn through the seam: one `BOARD
+    ABSENCE` line of 23,871 characters, in a block of 171,852 -- against sec 7's ~1,100-token Scan
+    budget, on the free tier. The names were never cut because "the NAMES are never cut" (sec 3.6), but
+    that sentence is about the FAN INDEX, and a free index is not a free enumeration inside a line.
+
+    THE REMAINDER IS STATED, so the row still says what it cut -- the whole law this sitting swept four
+    other cuts to keep. It is stated in WORDS for the reason every count on this board is: the mandate
+    licenses the writer to take base rates from the block's count words, and a digit here would be a
+    magnitude with no handle behind it."""
+    names = list(names or ())
+    cap = max(0, int(cap or 0))
+    if not cap or len(names) <= cap:
+        return ", ".join(names)
+    rest = len(names) - cap
+    return (", ".join(names[:cap])
+            + f", and {count_words(rest)} further rows this line does not name")
 
 
 

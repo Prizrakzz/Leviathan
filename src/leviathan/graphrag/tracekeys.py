@@ -463,6 +463,63 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # None on every row, which is the SAME absent-as-None shape every
                                  # registered key has on a turn that does not stamp it; the offline
                                  # harness stamps the key `unregistered`-safe in the meantime.
+                                 #
+                                 # [S6] THE PAYLOAD IS NOW WRITTEN, and these are its fields --
+                                 # `state.board.Board.trace()` is the ONE producer of every one of them:
+                                 #   legs        {leg: {outcome, reason, reads}} over the eleven legs of
+                                 #               `state.walk.ALL_LEGS` plus `board` itself. `board`'s own
+                                 #               reason is the closed `pg_not_live | anchor_none |
+                                 #               turn_spend_unknown | recency_facts_off |
+                                 #               lane_off:<lane>` set, and the LANES that never reach
+                                 #               the walk stamp it from OUTSIDE. TWO PRODUCERS, both
+                                 #               calling ONE function:
+                                 #                 `answer._state_board_lane_stamp` -- `anchor_none` at
+                                 #                 the empty-route return and `lane_off:onehop` at the
+                                 #                 one-hop body, the two lanes that DO enter that
+                                 #                 module;
+                                 #                 `orchestrator._state_board_off_lane_stamp` -- called
+                                 #                 from `respond()`'s telemetry wrapper, the one seam
+                                 #                 holding both the resolved intent and the trace, for
+                                 #                 `numbers_only` / `trivial` / `refused` / `run_live`,
+                                 #                 which return from `_respond` without an `answer()`
+                                 #                 call at all.
+                                 #               THE FIRST S6 BUILD ASSERTED THE SECOND HALF AND WROTE
+                                 #               NONE OF IT -- this note and `answer.py`'s said the
+                                 #               three lanes were stamped in `respond()` while grep
+                                 #               found no such code -- so three of the four declared off
+                                 #               lanes were structurally unreachable and 6.7's whole
+                                 #               "declined versus never ran" split was open for them.
+                                 #               `config_check.check_state_seam` clause (ix) now grades
+                                 #               that every declared off lane is reachable from one of
+                                 #               the two producers.
+                                 #   anchors     the anchor slugs, and `anchor_source` the STRONGEST
+                                 #               source word of `state.board.ANCHOR_SOURCES` -- the census
+                                 #               column Amendment 2's four-named-markets pin and D26's
+                                 #               cold-start count are both read from.
+                                 #   net_reads   what the board SPENT, and `cap` what it DECLARED. BOTH
+                                 #               are load-bearing at S6 rather than merely reported:
+                                 #               `cascade._cw_turn_spent` adds `net_reads` as its SEVENTH
+                                 #               enumerated term and `cascade._board_declared_cap` adds
+                                 #               `cap` to the walk's own ceiling, so the two halves of D12
+                                 #               read ONE key and can never come from two boards. A board
+                                 #               that ran with no integer `net_reads` makes the walk
+                                 #               decline `turn_spend_unknown` -- ABSENT IS NEVER ZERO, in
+                                 #               its strong form.
+                                 #   ledger      both wave rectangles (declared / read / deferred /
+                                 #               declined / caps) and `rectangle`, the complaint list that
+                                 #               is EMPTY when B1 holds on both waves.
+                                 #   stage_ms    the two stamped stages separately, so arm A can name the
+                                 #               pole per turn beside `timing_ms.fill / rest / numbers`.
+                                 #   rank_rule   `d2` or `alternative` (P1), so no census row can be
+                                 #               attributed to the tuple that did not produce it.
+                                 #   counters    10.5's EMF block as MEASURED, carried here so `respond()`
+                                 #               emits what the turn measured rather than re-deriving it
+                                 #               from a board it no longer holds.
+                                 #   rows / series / horizon_months / mode / asof / notes.
+                                 # NO RENDERED LINE AND NO PROMPT BYTE RIDES THIS KEY. The prompt gets
+                                 # fired rows and NAMED absences only; the trace gets every candidate's
+                                 # tag -- the TRACE/PROMPT separation that answers `_reroute`'s standing
+                                 # objection (design 6.7's closing paragraph).
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

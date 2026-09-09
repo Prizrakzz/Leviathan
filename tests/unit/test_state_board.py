@@ -17,17 +17,59 @@ def test_the_nine_knobs_are_the_designs_own_nine_in_the_designs_own_order():
     """`(loud_k, fan_k, analog_k, analog_dims, board_admit_k, wave1, wave2, receipt_cap,
     path_render_k)` -- sec 7's declared order, which is also the order the `Mode` tuple takes at S6.
     A NamedTuple rather than a dict so a mistyped knob raises instead of returning None."""
-    assert B.BoardKnobs._fields == ("loud_k", "fan_k", "analog_k", "analog_dims", "board_admit_k",
-                                    "wave1", "wave2", "receipt_cap", "path_render_k")
+    # S6 RE-ANCHOR, on its ONE named cause and WITHOUT loosening the join: the sitting appended
+    # SEVEN RENDER CAPS after the design's nine, each with a default equal to the shipped render
+    # table, so `BoardKnobs(*t)` over a nine-entry tuple still resolves. What sec 7 claims -- THESE
+    # nine, in THIS order, FIRST -- is asserted exactly as before, one rung in.
+    _NINE = ("loud_k", "fan_k", "analog_k", "analog_dims", "board_admit_k",
+             "wave1", "wave2", "receipt_cap", "path_render_k")
+    _S6_RENDER = ("render_spillover", "render_convergence", "render_analog",
+                  "render_analog_outcomes", "render_receipts", "render_watch", "render_absence")
+    # THE TWO BOUNDS THE S6 REVIEW APPENDED AFTER THE SEVEN. They are a different KIND of knob and
+    # keep their own name here for that reason: every render cap above bounds a ROW CLASS, and both of
+    # these bound a dimension no per-class cap can see -- the ANCHOR COUNT (measured 35 from one
+    # `focus_driver` gesture, cap 106 against the design's 71) and the NAMES inside one absence line
+    # (measured 23,871 characters).
+    _S6R_BOUNDS = ("max_anchors", "render_absence_names")
+    assert B.BoardKnobs._fields[:9] == _NINE
+    assert B.BoardKnobs._fields in (_NINE, _NINE + _S6_RENDER, _NINE + _S6_RENDER + _S6R_BOUNDS)
+    # every appended field carries a DEFAULT, which is what keeps a nine-tuple caller valid
+    assert set(B.BoardKnobs._field_defaults) == set(B.BoardKnobs._fields[9:])
 
 
-@pytest.mark.parametrize("mode,expect", [
-    ("quick", (8, 4, 0, 0, 4, 24, 0, 0, 2)),
-    ("deep", (16, 8, 1, 3, 8, 32, 18, 3, 4)),
-    ("max", (24, 16, 2, 5, 12, 40, 58, 5, 8)),
+@pytest.mark.parametrize("mode,expect,render,bounds", [
+    ("quick", (8, 4, 0, 0, 4, 24, 0, 0, 2), (4, 2, 0, 0, 0, 3, 0), (4, 16)),
+    ("deep", (16, 8, 1, 3, 8, 32, 18, 3, 4), (8, 4, 1, 4, 3, 6, 0), (6, 24)),
+    ("max", (24, 16, 2, 5, 12, 40, 58, 5, 8), (16, 6, 2, 4, 5, 8, 0), (8, 32)),
 ])
-def test_every_shipped_tiers_knobs_are_the_values_sec_7_declares(mode, expect):
-    assert tuple(B.board_knobs_of(mode)) == expect
+def test_every_shipped_tiers_knobs_are_the_values_sec_7_declares(mode, expect, render, bounds):
+    """S6 RE-ANCHOR: the NINE are unchanged and are still asserted as a whole tuple; the SEVEN
+    render caps appended after them are asserted separately AND against the tables S3 shipped, so
+    the claim "the defaults are the design's planned sizes, not a new opinion" is MEASURED rather
+    than described. `render_absence` is 0 on every tier = UNCAPPED = today's behaviour."""
+    kn = B.board_knobs_of(mode)
+    assert tuple(kn)[:9] == expect
+    assert tuple(kn)[9:] in ((), render, render + bounds)
+    if len(tuple(kn)) > 16:
+        # THE ANCHOR CEILING IS A TIER NUMBER, and that is the whole point: without it the DECLARED
+        # read cap, the serial tape column, the [N] address space and the block's own length all
+        # scaled with a user gesture rather than with the tier the user bought.
+        assert (kn.max_anchors, kn.render_absence_names) == bounds
+        assert kn.max_anchors >= 1
+    if len(tuple(kn)) > 9:
+        from leviathan.graphrag.state import render as R
+        from leviathan.graphrag.state import watch as WA
+        shipped = R.RENDER_CAPS[mode]
+        assert (kn.render_spillover, kn.render_convergence, kn.render_analog,
+                kn.render_analog_outcomes, kn.render_receipts) == (
+            shipped["spillover"], shipped["convergence"], shipped["analog"],
+            shipped["analog_outcomes"], shipped["receipts"])
+        assert kn.render_watch == WA.WATCH_RENDER_K[mode]
+        assert kn.render_absence == 0            # the design plans no absence number; 0 = uncapped
+        # ...and the knob is what the RENDER actually reads, so the two tables cannot drift
+        assert R.render_caps(mode, kn) == dict(shipped, absence=0,
+                                               absence_names=kn.render_absence_names)
+        assert WA.render_k(mode, kn) == WA.WATCH_RENDER_K[mode]
 
 
 def test_the_wave_2_columns_DERIVE_from_the_nine_knobs_and_reproduce_sec_3_8s_table():
@@ -101,7 +143,7 @@ def test_the_board_knobs_move_NO_shipped_preset_and_NO_knob_dict():
     assert all(getattr(rm.MODES[rm.STANDARD], f) is None for f in rm.KNOB_FIELDS)
 
 
-def test_KNOB_FIELDS_is_UNCHANGED_by_this_sitting_and_the_S6_append_is_named():
+def test_KNOB_FIELDS_gained_the_boards_field_AT_THE_TAIL_and_clause_iv_moved_with_it():
     """THE APPENDED-LAST LAW, and this sitting's deliberate non-application of it.
 
     Sec 7 asks for ONE appended `Mode` field `board: tuple | None` after `numbers_roster`. Appending it
@@ -111,10 +153,17 @@ def test_KNOB_FIELDS_is_UNCHANGED_by_this_sitting_and_the_S6_append_is_named():
     So the knobs land as a module table now and the field appends at S6, in the same commit as clause
     (iv) and the two test tail pins -- whoever lands last owns the shift, and that is S6. THIS TEST IS
     THE MARKER: it fails the day the field lands without the clause moving with it."""
-    assert rm.KNOB_FIELDS[-1] == "numbers_roster"
-    assert "board" not in rm.KNOB_FIELDS
+    # S6 LANDED IT. The pin keeps its whole subject -- the field is APPENDED, `numbers_roster` is
+    # still named at a named position, and clause (iv) still owns the literal -- and it now asserts
+    # the state the sitting produced instead of the state that preceded it.
+    assert rm.KNOB_FIELDS[-1] == "board"
+    assert rm.KNOB_FIELDS[-2] == "numbers_roster"
     from leviathan.graphrag import config_check as cc
     assert cc.check_scan_roster() == [] and cc.check_scan_tier() == []
+    # ...and clause (iv) is the one that MOVED: it names the two-name tail by literal now, so a
+    # third append that forgets it still reds rather than passing on a looser rule.
+    import inspect
+    assert '_KF_TAIL = ("numbers_roster", "board")' in inspect.getsource(cc.check_scan_roster)
 
 
 # ── sec 6.7: the closed decline vocabulary ──────────────────────────────────────────────────────────

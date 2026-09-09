@@ -64,6 +64,23 @@ WHAT S3 ADDS (phase 1b, ANALOGS + WATCH + RENDER + NARRATION, sec 11 row S3):
     sec 0.3 rendered from fixture arrays on the REAL thirty-six DAGs, with the slot audit and the
     per-class row and token measurement, ASCII stdout, no read and no clock
 
+WHAT S6 ADDS (phase 2, THE SEAM, sec 11 row S6):
+  * :mod:`leviathan.graphrag.state.seam` -- the SERVING seam: :func:`fill_stage1` (after
+    ``pl.grounded_subgraph``, before ``pl.ground``), :func:`fill_stage2` (after ``ground``, before
+    ``cq.quantify`` -- the stage that can read receipts, because ``n.evidence`` does not exist before
+    it), the ``board=`` payload ``quantify`` is threaded, the ``state_board`` trace payload, and
+    :func:`counters` -- sec 10.5's EMF block, absent-when-inapplicable. IT NEVER RAISES and IT READS
+    NO ENVIRONMENT: the flag is read ONCE per turn at ``answer._state_board_on`` and threaded in, and
+    with it off nothing in this package is imported at all.
+
+and, in files this package does not own: ``answer.py``'s two stage seams, its ``_state_board_on`` and
+``_state_board_block_on`` gates and the mandate append in ``_system()``; ``cascade.quantify``'s
+``board=`` kwarg with its two consumers (``_select_nodes``' order, ``_derive_windows``' anchor window),
+the board's ``[N]`` rows minted before the base wave, and D12's budget term and ceiling re-derivation;
+``reasoning_modes.Mode.board`` appended last; ``dispatch``'s Amendment-2 truncation; and
+``config_check.check_state_board`` / ``check_state_seam``, which is where ``state/lint.py`` was
+absorbed.
+
 STILL TO COME (named so each absence is a decision, not a gap): ``conventions.py`` -- the accessor for
 ``state_conventions.yaml``, whose blocks S1's feeders take as ARGUMENTS and which ``watch.py`` and
 ``analogs.py`` reach through ``lint.load_conventions`` until it lands; ``board_census.py`` -- S4.
@@ -74,4 +91,4 @@ PRINTS is ``.encode('ascii')``-safe, while the files themselves stay UTF-8.
 from __future__ import annotations
 
 __all__ = ["lagbands", "lint", "rows", "transforms", "feeders", "board", "walk", "analogs",
-           "calendar", "watch", "render", "narration"]
+           "calendar", "watch", "render", "narration", "seam"]

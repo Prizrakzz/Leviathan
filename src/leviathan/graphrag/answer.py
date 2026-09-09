@@ -1354,6 +1354,38 @@ def _xc_sublegs_on() -> bool:
     return os.environ.get("GRAPHRAG_XC_SUBLEGS_ON_COMPOSER", "").strip().lower() in ("on", "1", "true")
 
 
+def _state_board_on() -> bool:
+    """THE STATE ENGINE's kill-switch (GRAPHRAG_STATE_BOARD), PHASE 2, BUILT DARK.
+    Design docs/private/STATE_ENGINE_DESIGN_2026-09-07.md sec 3.9 / 9.2 (phase 2) / D8 / D22.
+
+    THE MEASURED TRIGGER is the owner's 2026-09-07 soybean turn and the census behind it: the answer
+    named three defects a state board removes by construction -- a driver the graph declares was
+    narrated with no reading at all, a spillover was asserted with no sign from the far board's own
+    edge, and a figure was dated by the page rather than by its row's knowledge date -- and the
+    cascade census measured the composer firing on 7 of 12 banked turns with the state-reading legs
+    dark on all seven. The board answers all three the same way: every driver the graph declares for
+    the markets in play is READ on its own series at this as-of, ranked against its own history, and
+    every row carries its own knowledge date.
+
+    WHEN ON: the board fills in TWO STAMPED STAGES on the calling thread (stage 1 after
+    `pl.grounded_subgraph`, stage 2 after `pl.ground`), renders one VOLATILE block carrying
+    `state.render.SB_MARKER_PREFIX`, appends the mandate to the persona under `_state_board_block_on`,
+    and FEEDS `cascade.quantify` through the single `board=` kwarg (node order, anchor windows, its
+    own `[N]` rows, its budget). WHEN OFF: nothing in `state/` is imported at all, the kwarg is
+    ABSENT, no marker reaches the volatile prompt, no mandate ships, and every rendered byte is HEAD's
+    -- which is what `test_board_seam_off` and the deep golden assert on the twelve banked turns.
+
+    THE BLOCK AND THE MANDATE FLIP TOGETHER, never a week apart (design 9.2, doctrine M-7): the
+    estate's own measured reason is recorded at `_cascade_walk_block_on` -- under a conditional
+    LICENSE alone the writer transcribed the walk on 1 of 3 walk-fired rows -- so a block served
+    without its instruction is the flip the owner did not ask for.
+
+    Read at THIS seam and threaded DOWN -- `state/` reads no environment and neither does cascade.py,
+    which two live doctrine tests assert on that file's own source ([SKEPTIC F3]). Read PER CALL,
+    never memoized, so the env-flip rollback is live without a redeploy."""
+    return os.environ.get("GRAPHRAG_STATE_BOARD", "").strip().lower() in ("on", "1", "true")
+
+
 def _vintage_role_on() -> bool:
     """K9-4 VINTAGE ROLE's kill-switch (GRAPHRAG_VINTAGE_ROLE), BUILT DARK.
 
@@ -2158,6 +2190,84 @@ def _recency_ledger_suffix(record_through: str | None, *, asof: str | None = Non
     return " " + " ".join(parts)
 
 
+def _state_board_lane_stamp(reason: str, mode: str | None = None) -> dict:
+    """[S6] The `state_board` trace key for a turn the board could not run on, as a one-key dict the
+    caller splices into its own trace (design 6.7, D10).
+
+    A LEG CANNOT STAMP ITS OWN ABSENCE, so the lanes and returns that skip the board stamp it here:
+    `anchor_none` at `answer()`'s empty-route return (D26) and `lane_off:onehop` at the one-hop body,
+    which has no `grounded_subgraph` and therefore no anchors at all.
+
+    THE OTHER OFF LANES NEVER ENTER THIS MODULE AT ALL, so nothing here can thread them: a
+    `numbers_only`, `trivial` or `refused` turn returns from `orchestrator._respond` without an
+    `answer()` call. They are stamped by `orchestrator._state_board_off_lane_stamp`, called from
+    `respond()`'s telemetry wrapper -- the ONE seam that holds both the resolved intent and the turn's
+    trace -- and that function imports THIS one so both stamps have a single producer and a single
+    validation against the board's closed enum. The first S6 build asserted the stamp existed and
+    wrote none; the review measured it, which is why the caller is named here by symbol rather than by
+    description.
+
+    IT RETURNS `{}` WITH THE FLAG OFF, which is what keeps the dark item dark: no key, no eval column,
+    no byte. The word is validated against the board's own closed enum, so a typo fails here rather
+    than reaching a census as a slug nobody declared.
+
+    `mode` IS THE TURN'S OWN TIER AND IT RIDES THE PAYLOAD (S6 re-fix, the review's cheap minor on the
+    off-lane stamp). `respond()` dimensions the board's EMF record with `_sbt.get("mode") or STANDARD`,
+    and this payload carried NO `mode` key at all -- so every `BoardDeclined` stamped from outside
+    `state.seam` (the four off intents, `anchor_none`, `lane_off:onehop`) was published under
+    `mode=standard` whatever tier the turn was. `Board.trace()` carries the real one on every lane the
+    seam declines, so the two halves of one counter disagreed by construction on exactly the lanes the
+    counter exists to make countable. Absent -- the pre-S6 call shape -- the key is OMITTED rather than
+    guessed, and the emitter falls back as it does today."""
+    if not _state_board_on():
+        return {}
+    try:
+        from leviathan.graphrag.state import board as _sb
+        if _sb.check_reason("board", reason):
+            return {}
+        # THE COUNTERS RIDE THE STAMP, in `state.seam.counters`' own shape for a board that did not
+        # fire, so `respond()`'s EMF block emits the SAME two keys on a stamped-from-outside lane as
+        # on a lane the seam declined. Without them the emitter's fallback minted `BoardFired` alone
+        # and the `BoardDeclined` series would have had no population on four of the six off lanes.
+        _md = str(mode or "").strip()
+        return {"state_board": {"legs": {"board": {"outcome": "declined", "reason": reason,
+                                                   "reads": 0}},
+                                **({"mode": _md} if _md else {}),
+                                "net_reads": 0, "cap": 0, "rows": 0, "series": 0,
+                                "counters": {"BoardFired": 0, "BoardDeclined": 1}}}
+    except Exception:  # noqa: BLE001 -- a stamp is never worth an answer
+        return {}
+
+
+def _board_ledger_kwargs(board) -> dict:
+    """[S6] The three ledger layers only a board can measure (design 6.5 (2)), as OMIT-WHEN-ABSENT
+    kwargs for :func:`_recency_ledger_suffix`.
+
+    `kd_max` / `kd_min` are the newest and oldest KNOWLEDGE DATE across the board's own number rows --
+    derived per card class (1.4), never the read as-of and never the series end. `tape_edge` is the
+    last session on the anchor board's price tape. EACH IS OMITTED WHEN THE BOARD DID NOT MEASURE IT:
+    an absent layer is silent, and the ledger's closing sentence ("none dates the others") is itself
+    gated on there being two layers to close. No board -> `{}` -> the suffix is phase 0s's own string.
+
+    IT IS A HELPER AND NOT THREE INLINE EXPRESSIONS because BOTH serving bodies own a ledger call site
+    and a second derivation would be the drift class the ledger exists to remove."""
+    if board is None:
+        return {}
+    try:
+        series = list((getattr(board, "series", None) or {}).values())
+        kds = sorted({str(getattr(st, "knowledge_date", "") or "") for st in series} - {""})
+        out: dict = {}
+        if kds:
+            out["kd_max"], out["kd_min"] = kds[-1], kds[0]
+        edge = max((str(getattr(t, "level_date", "") or "")
+                    for t in (getattr(board, "tape", None) or {}).values()), default="")
+        if edge:
+            out["tape_edge"] = edge
+        return out
+    except Exception:  # noqa: BLE001 -- a ledger layer is never worth an answer
+        return {}
+
+
 def _episodes_on(volatile_prompt: str | None) -> bool:
     """THE W4-D3 SEAM GATE, one spelling, used by BOTH serving bodies (_answer_l2 and the one-hop legacy
     body). The '## Episodes' persona paragraph ships iff BOTH legs hold:
@@ -2190,6 +2300,36 @@ def _cascade_walk_block_on(volatile_prompt: str | None) -> bool:
     the episodes section real without the +10-hallucination mode on walk-less turns."""
     from leviathan.graphrag.numbers import cascade as _cq   # lazy: answer imports cascade at the seam
     return _cascade_walk_on() and _cq.CW_MARKER_PREFIX in (volatile_prompt or "")
+
+
+def _state_board_block_on(volatile_prompt: str | None) -> bool:
+    """THE BOARD'S SEAM GATE -- `_cascade_walk_block_on` VERBATIM IN SHAPE, and deliberately so
+    (design sec 6.4). The STATE OF THE WORLD mandate ships iff BOTH legs hold:
+
+      leg 1  the kill-switch -- `_state_board_on()`;
+      leg 2  the EVIDENCE    -- the assembled VOLATILE prompt actually carries the board's block, by
+             its own ROW-1 marker (`state.render.SB_MARKER_PREFIX`, the shared constant the producer
+             builds the header from, so producer and gate cannot drift apart).
+
+    LEG 2 IS NOT REDUNDANT, and the board is the case where it matters most: the flag can be exactly
+    "on" while the board declines for eleven different reasons the design names by word -- an off lane
+    (`lane_off:numbers_only`), an anchorless turn (`anchor_none`), a tier with no knobs, a mirror that
+    is not live (`pg_not_live`), an exhausted pool. In every one of those the block is EMPTY, and a
+    flag-only gate would hand the writer four movements of instruction about rows it was never given.
+    That is the failure the estate MEASURED one lane over and wrote `_cascade_walk_block_on` to stop.
+
+    It reads the VOLATILE PROMPT and not the board object, for `_episodes_on`'s own stated reason: the
+    volatile prompt is what the model is actually sent, so the gate stays correct if the seam changes
+    which blocks it emits, and it cannot be fooled by a board that filled but whose block was dropped.
+
+    THE KILL-SWITCH IS TESTED BEFORE THE IMPORT, which is one line of ordering and one real property:
+    with the flag off this function imports NOTHING, so `state/` is not on a flag-off turn's import
+    graph at all and "the board's cost with the flag off is one boolean read" is a fact rather than a
+    figure of speech."""
+    if not _state_board_on():
+        return False
+    from leviathan.graphrag.state import render as _sr      # lazy: the state package is phase-2 only
+    return _sr.SB_MARKER_PREFIX in (volatile_prompt or "")
 
 
 def _cascade_context_block_on(volatile_prompt: str | None) -> bool:
@@ -3045,7 +3185,7 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             cascade_walk: bool = False, cascade_context: bool = False,
             cascade_deep: bool = False, cascade_xccy: bool = False,
             extreme_locator: bool = False, extreme_hop: bool = False,
-            numbers_budget: bool = False) -> str:
+            numbers_budget: bool = False, state_board: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -3196,6 +3336,20 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         #                                                              any number rule, so the order
         #                                                              between them carries no meaning
         #                                                              beyond that.
+    if state_board:                                                # STATE ENGINE 6.4: the board's MANDATE,
+        #                                                          #   seam-gated on BOTH legs by
+        #                                                          #   `_state_board_block_on(vp)` -- the
+        #                                                          #   flag AND the block's own marker in
+        #                                                          #   the assembled volatile prompt.
+        # THE LITERAL LIVES IN `state/narration.py`, not here, and that is the register fence rather
+        # than tidiness: `state/lint.py` grades it at BUILD against `pace_register_ok`,
+        # `register.count_flow_words`, `count_valuation_words` and `register_leaks`, so a serve-time
+        # register trip on the mandate is a build failure and not a stripped answer. It is appended
+        # BELOW `numbers_budget` and ABOVE `_SYSTEM_HANDLES` for the reason `handles` keeps the last
+        # word: this mandate DEMANDS a narration order, it does not narrow a number rule, so it must
+        # not sit under the leg that supersedes four number spans.
+        from leviathan.graphrag.state import narration as _sn      # lazy: phase-2 only, gate-guarded
+        base = base + _sn.SYSTEM_STATE_BOARD_MANDATE
     if handles:                                                    # D-HP-7/8: LAST of the legs, because it
         base = base + _SYSTEM_HANDLES                              #   NARROWS every number rule above it
     base = base + _rc.directive(response_contract, census=census)  # D-RC Phase B: emphasis LAST ('' for
@@ -3813,7 +3967,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
                outlook: bool = False, response_contract: str | None = None,
                mode_knobs: dict | None = None,
-               xl_request: dict | None = None) -> dict:
+               xl_request: dict | None = None,
+               mode_name: str | None = None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -3869,6 +4024,64 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     if on_stage is not None:
         _emit(on_stage, "walk", nodes=len(sg.nodes),
               depth=max((int(getattr(n, "depth", 0) or 0) for n in sg.nodes), default=0))
+    # ══ STATE ENGINE PHASE 2 -- STAGE 1 (design 3.9 / D11), BUILT DARK ══════════════════════════════
+    # AFTER `pl.grounded_subgraph` (the anchors `sg.seeds` exist) and BEFORE `pl.ground`: the numeric
+    # state of every driver the graph declares for the markets in play, the loudness rank and wave 1.
+    # It runs HERE and not at the quantify seam because the anchors are the only thing it needs and
+    # `ground()` is the 8-20 s the board would otherwise sit behind -- the design's own p50 statement.
+    # THE FLAG IS READ ONCE PER TURN AND THE BOARD IS THREADED, never re-read: `state/` reads no
+    # environment and neither does `cascade.py`. Flag off -> `_board` is None, nothing in `state/` is
+    # imported, and the four consumers below are the branches HEAD takes.
+    _board = None
+    # ONE READ OF THE MIRROR PREDICATE PER TURN, hoisted (S6 review): it was called at this seam for the
+    # board's `pg_live` word and again at the quantify gate below. Two reads of one predicate is two
+    # chances to disagree -- and they CAN disagree, because the mirror can go down between them, which
+    # would ship a board block whose [N] handles quantify never mints. One local, both consumers.
+    _pg_live = _pgnumbers_live()
+    # THE FLAG IS ONE LOCAL READ, not two calls: two reads of one predicate are two chances to
+    # disagree, and here a disagreement between them would be an unbound name rather than a wrong
+    # branch. `state/`'s own law #1 is "IT NEVER RAISES" -- and the two lazy imports sat OUTSIDE that
+    # belt, so an unimportable `state/` package (its configs ride the image tar as force-added files)
+    # would have taken a flag-on turn down instead of declining it (S6 review).
+    _sb_on, _dsp, _sbs = _state_board_on(), None, None
+    if _sb_on:
+        try:
+            from leviathan.graphrag import dispatch as _dsp      # lazy: dispatch imports answer back
+            from leviathan.graphrag.state import seam as _sbs    # lazy: phase-2 only, flag-guarded
+        except Exception:  # noqa: BLE001 -- an unimportable package DECLINES the board, never the turn
+            _dsp = _sbs = None
+    if _sb_on and _sbs is not None:
+        _board = _sbs.fill_stage1(
+            graph=graph, sg=sg, asof=asof, mode=(mode_name or _rm.STANDARD), query=query,
+            lane="run_hybrid" if extra_resolver is not None else "run_reasoning",
+            turn_kind=("outlook" if (outlook and _outlook_on()) else ""),
+            focus_driver=str(focus_driver or ""),
+            # AMENDMENT 2: THE MARKETS THE QUESTION NAMED ARE ALL ANCHORS, and the ceiling below keeps
+            # its job for the seeds the planner INFERRED. `dispatch.named_markets` is the ONE producer
+            # of the named set (it IS the lexical router's own matcher, never a second one).
+            # IT IS INTERSECTED WITH THIS TURN'S ROUTE, and that is a fence rather than a convenience:
+            # the lexical router returns EVERY contract whose id, alias or commodity token appears --
+            # MEASURED at seventeen boards for a four-market question, because "soybeans" matches five
+            # of them -- so anchoring the raw set would put seventeen DAGs and their whole read budget
+            # on a Scan turn. The routed list is what the turn actually planned (and, since the
+            # `_validate` half of this amendment, it no longer drops a named market to make room), so
+            # the intersection is exactly "the markets the user named that this turn routed"; every
+            # other routed seed stays `planner_inferred` and keeps the ceiling.
+            named=tuple(c for c in (getattr(sg, "seeds", None) or [])
+                        if c in set(_dsp.named_markets(query, graph))),
+            # 6.7's `pg_not_live`, threaded from the ONE producer the quantify seam below already
+            # reads. A mirror outage is a READER fact and not a coverage fact, and a board that
+            # declined every row as `read_error` would report the second while meaning the first.
+            pg_live=_pg_live,
+            # THE COUPLING (S6 review): the board's SB-L rows and the mandate's closing recency
+            # sentence contradict `_SYSTEM_RECENCY_EDGE`, the shipped persona clause that dates the
+            # whole answer by one layer -- the literal whose own note two thousand lines up records
+            # that it made the 2026-09-07 soybean answer date ITSELF by one layer. S5 shipped the
+            # replacement dark. With the board on and THAT flag off the writer gets both sentences and
+            # three edges to choose the oldest of, so the board makes the defect worse. The seam
+            # declines `recency_facts_off` rather than shipping the pair; `check_state_seam` pins it.
+            recency_facts=_recency_facts_on(),
+            max_contracts=int((mode_knobs or {}).get("max_seeds") or 2))
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
     _emit(on_stage, "walking")                                    # early tick: the 8-20s ground starts NOW (5.6 W5)
     # D-MW-13: the ground caps are SEED-SCALED now, so they are produced from the REALIZED seed count --
@@ -3941,6 +4154,45 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         extra_context, extra_number_calls = extra_resolver()      # done — collect the numbers thread's output now
     if extra_context:                                             # hybrid numbers / conversation state (volatile)
         volatile_blocks = volatile_blocks + [extra_context]
+    # ══ STATE ENGINE PHASE 2 -- STAGE 2 AND THE BLOCK (design 3.9 / 6.1 / D11), BUILT DARK ══════════
+    # AFTER `ground` (which is what fills `n.evidence`, i.e. the receipts this stage reads) and BEFORE
+    # `cq.quantify`. It appends the STATE OF THE WORLD block as its OWN volatile block, AFTER
+    # `extra_context` and BEFORE the quantify block -- so the numbers the agent found sit above the
+    # board, the board sits above the cascade's own rows, and the ledger closes the tail.
+    #
+    # THE TWO HANDLE ORIGINS ARE THE TURN'S, NOT THE BLOCK'S. `n_start` continues the [N] count so the
+    # board's rows and the cascade's rows share ONE address space (design 6.3: every board magnitude is
+    # its own [N], and `quantify` appends `board['calls']` before the base wave so its own mints
+    # continue from there). `e_start` continues the [E] count past the turn's own deduped evidence
+    # menu, because `cit.unify` numbers that list positionally from 1 and a board receipt printing
+    # `[E1]` would point a reader at somebody else's document.
+    _board_req = None
+    # THE BOARD'S [N] ROWS ARE MINTED INSIDE `quantify` (cascade appends `board['calls']` before its
+    # base wave), so a turn that does not RUN quantify would ship a block full of handles that can
+    # never bind -- every board figure stripped by the verifier while the mandate still asks the writer
+    # to cite them (S6 review). The three legs of the quantify gate below are resolved HERE, ONCE, and
+    # read twice: `GRAPHRAG_CASCADE_QUANT=off` is a live rollback lever, and `_pg_live` is already
+    # hoisted so the mirror cannot flip between the board's read and the gate.
+    _quant_on = (numbers_lookup is not None
+                 and os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off" and _pg_live)
+    if _board is not None:
+        _sb = _sbs.fill_stage2(_board, graph=graph, sg=sg,
+                               record_through=_record_through(_evidence) or "",
+                               n_start=len(extra_number_calls or []) + 1,
+                               e_start=len(_uniq) + 1)
+        if _sb.get("block") and _quant_on:
+            volatile_blocks = volatile_blocks + [_sb["block"]]
+        if _sb.get("request") and _quant_on:
+            _board_req = _sb["request"]
+        # THE TRACE KEY IS STAMPED WHETHER THE BOARD FIRED OR DECLINED (design 6.7, D10): one
+        # registered `state_board` key carrying every leg's closed word, so a census can tell a board
+        # that declined from a board that never ran. `_cw_turn_spent` and the walk's ceiling BOTH read
+        # this key -- one producer for the spend and the cap, so they can never come from two boards.
+        if _sb.get("trace"):
+            try:
+                sg.trace["state_board"] = _sb["trace"]
+            except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
+                pass
     # W5-D3/D5: the outlook legs were resolved by the CALLER (plan.answer_mode_outlook AND
     # is_outlook_explicit); the kill-switch is ANDed HERE. Resolved BEFORE the cascade seam because the R9
     # context lane needs it: D1 admits the positioning leg under FENCED only ("do NOT proceed on the
@@ -3951,8 +4203,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # props, fetch the metric at the era window AND the session asof, inject citable [N] rows into the
     # VOLATILE tail (cache-safe). BREAKER: if the pg numbers backend is not live, SKIP the cascade rather
     # than fan 6-12 Athena windows onto the serve path -- pg-down => qualitative mentor answer.
-    if (numbers_lookup is not None and os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off"
-            and _pgnumbers_live()):
+    if _quant_on:
         from leviathan.graphrag.numbers import cascade as cq
         extra_number_calls = list(extra_number_calls or [])       # rebind ONCE: None -> [], hybrid list -> copy
         # SEAM B (F2 price leg): the flag is read HERE and the focus contract (the first seed, focus-first) is
@@ -4119,6 +4370,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # off -> the kwarg is absent, `quantify` never passes a sink to the transmission composer,
             # and the composer-fired turns render exactly the bytes they render today.
             _xsc_kw = {"xc_sublegs_on_composer": True} if _xc_sublegs_on() else {}
+            # STATE-ENGINE PHASE 2, BUILT DARK: the same omit-when-off idiom once more, landing BESIDE
+            # `_xsc_kw` and BEFORE `**_eod_kw` for the reason the block's own comment gives above (the
+            # g1x seam golden's end anchor is that spread, and an append landing ON it takes the whole
+            # gate down). It is a PAYLOAD and not a bool: the board is a state the two stages above
+            # already computed, and `quantify` reads four keys off it. Flag off, or a board that
+            # declined, -> `_board_req` is None -> the kwarg is ABSENT -> `_select_nodes`,
+            # `_derive_windows`, the [N] numbering and the walk's ceiling are all HEAD's.
+            _sb_kw = {"board": _board_req} if _board_req else {}
             _cblock, _quant_trace, _reroute_trace = cq.quantify(sg, graph, qfn=numbers_lookup, asof=asof,
                                                                 near=near,
                                                                 extra_number_calls=extra_number_calls,
@@ -4128,7 +4387,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                                 **_hl_kw, **_ol_kw, **_epo_kw, **_cto_kw,
                                                                 **_fnf_kw, **_pr_kw, **_rv_kw, **_rvr_kw,
                                                                 **_dv_kw, **_cw_kw, **_xl_kw,
-                                                                **_xlh_kw, **_vr_kw, **_xsc_kw, **_eod_kw)
+                                                                **_xlh_kw, **_vr_kw, **_xsc_kw, **_sb_kw, **_eod_kw)
             sg.trace["ms_quantify"] = int((time.perf_counter() - _t_quant) * 1000)
             _emit_chains(on_stage, sg)                            # F7 `chain`: the composer has just decided
             if _cblock:
@@ -4236,7 +4495,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # GRAPHRAG_RECENCY_FACTS off (the suffix returns HEAD's string), so the ledger line is
     # byte-identical flag-off with the kwargs passed unconditionally. `n_srv` is the same
     # `_served_rows` value the ledger line above already states -- one producer, not a second count.
-    _ledger_line += _recency_ledger_suffix(_rec_through, asof=str(asof) if asof else None, n_rows=n_srv)
+    # [S6] THE THIRD LAYER IS WIRED. Phase 0s left `kd_max` / `kd_min` / `tape_edge` as omit-when-absent
+    # kwargs and stated only the layers the turn could measure, because those three do not exist until
+    # the board does -- "naming an edge the turn did not measure is the same defect one layer over".
+    # They exist now: the board's own recency rows carry the newest and oldest KNOWLEDGE DATE across
+    # its number rows and the last session on its price tape. Flag off (or a declined board) -> the
+    # dict is empty -> the three kwargs are absent -> the suffix is byte-for-byte what phase 0s ships.
+    _ledger_line += _recency_ledger_suffix(_rec_through, asof=str(asof) if asof else None, n_rows=n_srv,
+                                           **_board_ledger_kwargs(_board))
     volatile_blocks = volatile_blocks + [_ledger_line]
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
     # Stream the note when the caller wired an SSE progress channel (real serving call only; injected fakes
@@ -4305,6 +4571,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                               extreme_locator=_extreme_locator_block_on(vp),   # D-XL: row-gated
                               extreme_hop=_extreme_hop_block_on(vp),           # D-XL: separately gated
                               numbers_budget=_numbers_budget_note_on(vp),      # LANE S: marker-gated
+                              state_board=_state_board_block_on(vp),           # STATE ENGINE 6.4:
+                              #                                                  the flag AND the block's
+                              #                                                  own marker in `vp`
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               census=_census,                     # D-CC-1: None on every dark turn
                               provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
@@ -10524,7 +10793,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
            silver_lookup=None, on_stage=None, numbers_lookup=None, xc_request: dict | None = None,
            outlook: bool = False, response_contract: str | None = None,
            mode_knobs: dict | None = None,
-           xl_request: dict | None = None) -> dict:
+           xl_request: dict | None = None,
+           mode_name: str | None = None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -10533,7 +10803,14 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     `outlook` (W5-D4) is the caller's TWO resolved legs -- plan.answer_mode_outlook AND
     is_outlook_explicit(query). It is ANDed with the _outlook_on() kill-switch INSIDE each body, so a
     caller that never heard of W5 (every test, the eval harness, the probe paths) gets the fenced register
-    by default and the flag alone can never relax anything."""
+    by default and the flag alone can never relax anything.
+
+    `mode_name` (STATE ENGINE phase 2, design sec 7) is the HONORED reasoning mode's NAME, threaded by
+    the orchestrator beside `mode_knobs` and appended LAST. The board's per-tier constants are keyed by
+    BASE PRESET (`reasoning_modes.board_preset`) and the knob DICT cannot carry them -- every shipped
+    preset leaves `Mode.board` None precisely so no knob dict, trace stamp or eval column moves -- so
+    the seam needs the name. It is INERT with GRAPHRAG_STATE_BOARD off: it is read only inside that
+    flag's own branch, so a caller that never heard of the board is byte-identical."""
     # D-AM-5: the synthesis-model seam, mirroring GRAPHRAG_DISPATCH_MODEL. env > params fill the
     # DEFAULT only -- an explicit caller arg (eval --model, a test, a mode override) always wins, so
     # the eval lever and the env lever can never fight. Serving passes no model, so this line is the
@@ -10581,15 +10858,26 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     routed = (route_smart(query, graph, k=int(_seed_k)) if (_seed_k and route_fn is route_smart)
               else route_fn(query, graph))
     if not routed:
+        # STATE ENGINE D26 / sec 3.1: COLD START IN V1 IS TODAY'S BEHAVIOUR. This return stands -- the
+        # board never runs anchorless -- and the seam STAMPS `anchor_none` so a zero-anchor turn is a
+        # measured state with its own word rather than a turn the board is silent about. `board_loudest`
+        # (the priced global-keyed + top-k-by-fan-out read set) is BUILT behind
+        # `walk.resolve_anchors(cold_start=True)` and reached by nothing here: the deferral is a
+        # decision, and this stamp is what makes its population countable before it is taken.
         return {"answer": "No tracked contract matched this question.", "structured": None, "contract": None,
-                "contracts": [], "evidence": [], "model": model, "trace": {"routed": []}}
+                "contracts": [], "evidence": [], "model": model,
+                "trace": {"routed": [],
+                          # THE TURN'S OWN TIER RIDES THE STAMP (S6 re-fix): `respond()` dimensions the
+                          # board's EMF record by it, and without it every stamp from outside the seam
+                          # published under `standard` whatever tier the turn was.
+                          **_state_board_lane_stamp("anchor_none", mode_name)}}
     if planner == "l2":                                            # L2: deterministic grounded-subgraph walk
         return _answer_l2(query, graph, model=model, asof=asof, near=near, call=call, retrieve=raw_retrieve,
                           routed=routed, extra_context=extra_context, extra_number_calls=extra_number_calls,
                           extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
                           silver_lookup=silver_lookup, on_stage=on_stage, numbers_lookup=numbers_lookup,
                           xc_request=xc_request, outlook=outlook, response_contract=response_contract,
-                          mode_knobs=mode_knobs, xl_request=xl_request)
+                          mode_knobs=mode_knobs, xl_request=xl_request, mode_name=mode_name)
     if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
         extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity
@@ -10862,7 +11150,12 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
             "evidence": evidence, "model": model,
             "number_calls_full": extra_number_calls,       # CYCLE-7 INSTRUMENT-1, see the note at the L2 body
 
-            "trace": {"routed": routed, "contracts": contracts, "banned_mood_words": _banned_mood,
+            # STATE ENGINE sec 7: THE ONE-HOP BODY IS AN OFF LANE and says so. `answer()` reaches it
+            # only under the `GRAPHRAG_PLANNER=onehop` rollback, and it has no `grounded_subgraph` at
+            # all -- so there are no anchors, no board and, without this stamp, no word either. A leg
+            # cannot stamp its own absence; the lane it did not run on stamps it.
+            "trace": {**_state_board_lane_stamp("lane_off:onehop", mode_name),
+                      "routed": routed, "contracts": contracts, "banned_mood_words": _banned_mood,
                       "banned_valuation_words": _banned_val, "banned_flow_words": _banned_flow,
                       "banned_exec_words": _banned_exec, "unbacked_levels": _unbacked,
                       "bare_digit_count": _bare_digits,            # D-HP-4(c): always on, gates nothing

@@ -2146,8 +2146,38 @@ def test_the_deep_locals_are_read_nowhere_a_shipped_constant_should_be():
     # the leg -- `_cw_slack` reads `cw_ceiling`, so the whole leg budgets against ONE number chosen
     # in ONE place. The docstring line inside the helper is stripped by the comment/blank filter
     # below only if it is a comment, so the enumeration is taken over CODE lines mentioning the token.
+    # S6 RE-ANCHOR (2026-09-09), on its ONE named cause and WITHOUT loosening the claim. STATE
+    # ENGINE D12 adds the BOARD'S DECLARED CAP to the same selection line: `_cw_turn_spent` now
+    # adds the board's SPEND as its seventh enumerated term, so a ceiling that did not move would
+    # make every board turn a `turn_budget_spent` decline of the walk. Both halves read the ONE
+    # registered `state_board` trace key and both return 0 when it is absent, so with the flag off
+    # this line evaluates to HEAD's own expression. WHAT THIS PIN OWNS IS UNCHANGED: the token
+    # still appears on the REGIME SELECTION LINE AND NOWHERE ELSE -- one number, chosen in one
+    # place, spent by every gate in the leg -- so the enumeration is still exactly one line.
     assert _lines_with("CW_TURN_CEILING") == [
-        "cw_ceiling = CW_DEEP_TURN_CEILING if deep_on else CW_TURN_CEILING"]
+        "cw_ceiling = (CW_DEEP_TURN_CEILING if deep_on else CW_TURN_CEILING) "
+        "+ _board_declared_cap(sg)"]
+    # ...and the board term is 0 with no board, which is what makes the flag-off line HEAD's and
+    # is the CAP half of D12 (the SPEND half is `_cw_turn_spent`, pinned in its own test).
+    import types as _ty
+    assert cq._board_declared_cap(_ty.SimpleNamespace(trace={})) == 0
+    # THE GAIN IS CONDITIONED ON THE LEG, not on the cap being a positive int (S6 review, fatal 2).
+    # `walk()` sets both wave caps before its anchor gate, so a DECLINED board still carries cap
+    # 24 / 50 / 71 with net_reads 0 -- and this term used to raise the walk's runaway tripwire by up
+    # to 71 reads on a turn `quantify` received no board at all. Design 3.8's own formula reads
+    # `+ (STATE_BOARD_CAP[mode] if board_fired else 0)`.
+    _fired = {"legs": {"board": {"outcome": "fired"}}, "net_reads": 0, "cap": 50}
+    assert cq._board_declared_cap(_ty.SimpleNamespace(trace={"state_board": _fired})) == 50
+    assert cq._board_declared_cap(_ty.SimpleNamespace(trace={"state_board": {"cap": 50}})) == 0
+    for _w in ("anchor_none", "pg_not_live", "lane_off:trivial", "recency_facts_off"):
+        _dec = {"legs": {"board": {"outcome": "declined", "reason": _w}}, "net_reads": 0, "cap": 50}
+        assert cq._board_declared_cap(_ty.SimpleNamespace(trace={"state_board": _dec})) == 0, _w
+    # ...and the pair is fail-closed at BOTH ends: a board that ran with no integer counter makes
+    # the SPEND None, so the CAP must be 0 rather than a ceiling for a spend nobody could price.
+    _nc = {"legs": {"board": {"outcome": "fired"}}, "cap": 50}
+    assert cq._cw_turn_spent(_ty.SimpleNamespace(
+        trace={"quantify_wave_reads": 1, "state_board": _nc})) is None
+    assert cq._board_declared_cap(_ty.SimpleNamespace(trace={"state_board": _nc})) == 0
     # ...and BOTH budget tests spell the local: the board plan's and the riders' -- ONE number,
     # chosen once, spent by every gate in the leg.
     assert "if spent + cells_planned * CW_READS_PER_CELL > cw_ceiling:" in code
@@ -2945,6 +2975,14 @@ _G1X_K96_CUT = ("# K9-6 THE FOUR-FIGURE LINE, BUILT DARK",
 # block, after K9-4's and before the `**_eod_kw` spread. THE SAME CUT-ORDER LAW, one rung further out:
 # `**_xsc_kw` is now the last kwarg before `**_eod_kw`, so it must be cut FIRST to restore `**_vr_kw)` as
 # the tail K9-4's own regex was written against. The cuts undo the appends in REVERSE ORDER, always.
+# ...and STATE-ENGINE PHASE 2, the SAME shape one sitting later again: one omit-when-off kwarg in
+# this block, after phase 0's and before the `**_eod_kw` spread. THE SAME CUT-ORDER LAW, one rung
+# further out: `**_sb_kw` is now the last kwarg before `**_eod_kw`, so it must be cut FIRST to
+# restore `**_xsc_kw)` as the tail phase 0's own regex was written against. The cuts undo the
+# appends in REVERSE ORDER, always. Phase 2's payload is a DICT (`_board_req`) rather than a bool,
+# so its assignment line is the anchor, exactly as D-XL's `_xl_kw` request dict is.
+_G1X_S6_CUT = ("# STATE-ENGINE PHASE 2, BUILT DARK",
+               '_sb_kw = {"board": _board_req} if _board_req else {}')
 _G1X_S5_CUT = ("# STATE-ENGINE PHASE 0, BUILT DARK",
                '_xsc_kw = {"xc_sublegs_on_composer": True} if _xc_sublegs_on() else {}')
 _G1X_K94_CUT = ("# K9-4 VINTAGE ROLE, BUILT DARK",
@@ -2986,11 +3024,14 @@ def _g1x_sans(producer_path: str) -> tuple:
     sans = re.sub(r",\s*\*\*_eod_kw\)", ")", sans)
     sans = sans.replace(", **_xl_kw", "")
     repro = hashlib.sha256(sans.encode("utf-8")).hexdigest()
+    if _G1X_S6_CUT[0] in sans and _G1X_S6_CUT[1] in sans:
+        sans = _cut(sans, *_G1X_S6_CUT)                     # FIRST of four: see the cut-order note above
+        sans = re.sub(r",\s*\*\*_sb_kw\)", ")", sans)
     if _G1X_S5_CUT[0] in sans and _G1X_S5_CUT[1] in sans:
-        sans = _cut(sans, *_G1X_S5_CUT)                     # FIRST of three: see the cut-order note above
+        sans = _cut(sans, *_G1X_S5_CUT)                     # SECOND of four: same note
         sans = re.sub(r",\s*\*\*_xsc_kw\)", ")", sans)
     if _G1X_K94_CUT[0] in sans and _G1X_K94_CUT[1] in sans:
-        sans = _cut(sans, *_G1X_K94_CUT)                    # SECOND: see the cut-order note above
+        sans = _cut(sans, *_G1X_K94_CUT)                    # THIRD: see the cut-order note above
         sans = re.sub(r",\s*\*\*_vr_kw\)", ")", sans)
     if _G1X_K96_CUT[0] in sans and _G1X_K96_CUT[1] in sans:
         sans = _cut(sans, *_G1X_K96_CUT)
@@ -3199,6 +3240,17 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # it adds no kwarg to `cq.quantify` and no key to the off-state kwarg set at all.
     _S5_ONE = ["_xc_sublegs_on"]
     _S5_TWO = ["_recency_facts_on"]
+    # RE-ANCHORED 2026-09-09 BY STATE-ENGINE PHASE 2, same census, same construction, same DARK
+    # default: the producer enumerates every zero-arg `_*_on` callable on `answer`, so phase 2's
+    # kill-switch `_state_board_on` (GRAPHRAG_STATE_BOARD -- the whole state board, its block, its
+    # mandate and its `board=` feed) appears here BY CONSTRUCTION. Unset resolves False, which is
+    # the request the estate serves today. Phase 2's other surfaces ARE checked above and one of
+    # them MOVES BY DESIGN: `signatures` gains four appended tail names (`cq.quantify`'s `board`,
+    # `an.answer` / `an._answer_l2`'s `mode_name`, `dp.plan_turn`'s `named`), which the prefix rule
+    # accepts; `seam_block` recovers the banked HEAD sha through the S6 cut above; `system_deck`'s
+    # fourteen renders are byte-identical because the mandate is gated on a default-False kwarg;
+    # and `seam_kwarg_keys_off` gains nothing, because `_sb_kw` is omit-when-off.
+    _S6_ONE = ["_state_board_on"]
     # THE ACCEPTED SET IS THE BASE PLUS ANY SUBSET OF THE THREE INDEPENDENTLY-REVERTABLE DARK ITEMS, and
     # that is a WIDENING OF THE ENUMERATION, never a loosening of the pin: the previous six-state list
     # was the same subset rule written out by hand for two items (MINOR-3's "each item is independently
@@ -3207,7 +3259,7 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # item ships, no unnamed helper may appear, and every value is still checked False one by one below,
     # so a default flipping in either direction still reds. `[]` (the pre-D-XL state) stays accepted.
     import itertools as _it
-    _optional = (_K96_ONE, _K94_ONE, _S5_ONE, _S5_TWO)
+    _optional = (_K96_ONE, _K94_ONE, _S5_ONE, _S5_TWO, _S6_ONE)
     _accepted = [[], _XL_SIX] + [
         sorted(_XL_SIX + _DCL_ONE + [n for grp in combo for n in grp])
         for r in range(len(_optional) + 1) for combo in _it.combinations(_optional, r)]
@@ -5167,7 +5219,19 @@ def test_s5_phase0s_the_ledger_suffix_is_head_bytes_off_and_per_layer_on(monkeyp
     # clause with an unnamed read date, or name an empty rows layer, while the other does not.
     asrc = open(an.__file__, encoding="utf-8").read()
     assert asrc.count("_recency_ledger_suffix(_rec_through, asof=str(asof) if asof else None") == 2
-    assert asrc.count("asof=str(asof) if asof else None, n_rows=n_srv)") == 1
+    # S6 RE-ANCHOR (2026-09-09): the L2 body's call gained the BOARD'S THREE LAYERS -- phase 0s
+    # left `kd_max` / `kd_min` / `tape_edge` as omit-when-absent kwargs and said in so many words
+    # that "S6 fills the two kwargs and the sentence grows to its full three-layer form with no
+    # further edit to the producer". This is that fill, and it is a SPREAD of a helper rather than
+    # three inline expressions, so both bodies can never derive a layer two different ways.
+    # WHAT THIS PIN OWNS IS UNCHANGED: both serving bodies thread the as-of AND the served-row
+    # count, so neither can ship the per-layer clause with an unnamed read date or an empty rows
+    # layer while the other does not. With the flag off the spread is `{}` and the suffix is
+    # phase 0s's own string, character for character (asserted above on the values themselves).
+    assert asrc.count("asof=str(asof) if asof else None, n_rows=n_srv,") == 1
+    assert asrc.count("**_board_ledger_kwargs(_board))") == 1
+    assert asrc.count("def _board_ledger_kwargs(") == 1
+    assert an._board_ledger_kwargs(None) == {}
     assert asrc.count("n_rows=_served_rows(extra_number_calls))") == 2   # the ledger line + the suffix
     # ...and the count they thread is the SAME producer the ledger line already states -- one
     # `_served_rows` per body, never a second count of the same rows.

@@ -20,6 +20,9 @@ EVIDENCE, analogs included -> ``## The record``; SPILLOVERS -> ``## Cross-commod
 ``## What to watch``. The mandate is APPENDED and never a rewrite of the fixed four, and it sits ABOVE
 ``_SYSTEM_HANDLES``, which stays last because it narrows every number rule.
 
+THAT MAPPING IS ABOUT NAMES, NOT ABOUT ORDER, and the first S6 build's mandate read as though it were
+about both -- see :data:`MANDATE_MOVEMENTS` for the measurement and the correction.
+
 ASCII-ONLY; the file is UTF-8.
 """
 from __future__ import annotations
@@ -37,19 +40,25 @@ from typing import Optional
 SYSTEM_STATE_BOARD_MANDATE = (
     "THE STATE OF THE WORLD block above is this turn's board: every driver the graph declares for the "
     "markets in play, read on its own series at this as-of and ranked by how far it sits from its own "
-    "history. Narrate it as a mentor in this order and no other. (1) DIRECTION: state your read of "
-    "where the anchor market's balance sits now, which way the loud drivers lean and which leg you "
-    "expect to dominate, citing the rows by handle; where the rows lean both ways, say so and name "
-    "both sides. Where a loud row is a large move on a short or thin history, or a run the block names "
+    "history. Cover these four movements as a mentor, in this order of ideas, under the headings your "
+    "response contract already names and adding no heading of your own; where a movement has no "
+    "heading of its own, narrate it inside the section its ideas belong to. (1) DIRECTION: state your "
+    "read of where the anchor market's balance sits now, which way the loud drivers lean and which "
+    "leg you expect to dominate, citing the rows by handle; where the rows lean both ways, say so and "
+    "name both sides -- unless a BOARD JOIN row says two of them are one reading under two names, "
+    "which is one side and never two. Where a loud row is a large move on a short or thin history, or "
+    "a run the block names "
     "no mechanism for, say whether you read it as an isolated shock or as a mechanism the graph "
     "explains -- that judgement is yours; the block only orders. (2) EVIDENCE: for each driver you "
     "lean on, give the figure in its unit and the plain meaning in the same sentence, and date it by "
     "the row's own knowledge date; a LIKE STATE stanza is history -- say what measured then, over the "
     "stated lag band, at both ends, then how many such cases the record carries, in words, and never "
     "present it as what will happen; when the block says no documents exist for it, say so. "
-    "(3) SPILLOVERS: name every other market the block declares the same loud state moves, with the "
-    "sign word and the lag words the block gives for THAT market; the sign can differ across markets "
-    "and you must keep each market's own, never reconciling two signs into one. (4) WATCH: close with "
+    "(3) SPILLOVERS: name the other markets the block declares the same loud state moves, each with "
+    "the sign word the block gives for THAT market and with its lag words where the block states them "
+    "for it; where the block gives a market a direction and no lag, say the direction and leave the "
+    "lag unstated rather than borrowing another market's. The sign can differ across markets and you "
+    "must keep each market's own, never reconciling two signs into one. (4) WATCH: close with "
     "the WATCH rows -- the next scheduled print, the level a convention names, the date a declared lag "
     "window opens -- as concrete items with their dates; never a generic caution. Write every "
     "PROJECTION in the conditional mood, carry its band as two calendar months, and say what it is "
@@ -63,11 +72,22 @@ SYSTEM_STATE_BOARD_MANDATE = (
 #: one rather than a canonical one (D-RC-3). It is a TABLE rather than prose so a reviewer can check the
 #: claim "no new heading" mechanically against ``response_contracts``' own two sets.
 #:
-#: SPILLOVERS IS THE ONE MOVEMENT WITHOUT A CANONICAL HOME, and that is why the third entry carries two
-#: headings: ``## Cross-commodity`` and ``## Complex-wide move`` are RESERVED literals the contract
-#: licenses per turn, not members of ``CANONICAL``, so on a turn that licenses neither the movement is
-#: narrated inside ``## Mechanism``. Recording the fallback here is what keeps "no new heading" a
-#: checkable claim instead of an assurance.
+#: SPILLOVERS IS THE ONE MOVEMENT WITHOUT A CANONICAL HOME, and the S6 review measured what that costs.
+#: ``## Cross-commodity`` and ``## Complex-wide move`` are RESERVED literals the contract licenses per
+#: turn, not members of ``CANONICAL``: 0 of the 10 shipped ``response_contracts.CONTRACTS`` carry either
+#: in ``sections``, and both are INJECTED-ONLY -- licensed by a ``CROSS-COMMODITY`` / ``CO-MOVE`` marker
+#: LINE the board mints on NONE of the three acceptance fixtures. So the FALLBACK is not the exception,
+#: it is the only branch on every board turn shipped today.
+#:
+#: AND THE FALLBACK COLLIDED HEAD-ON WITH THE SPINE. The mandate used to open "narrate it as a mentor in
+#: this order and no other" with SPILLOVERS THIRD, while ``response_contracts`` orders "'## Mechanism',
+#: '## The record', '## Where the record disagrees', '## What to watch'" and forbids returning to
+#: Mechanism after The record. A writer had to break one of the two on 100% of board turns and no deck
+#: graded which. THE MANDATE NOW STATES AN ORDER OF IDEAS UNDER THE CONTRACT'S OWN HEADINGS rather than
+#: a heading sequence, which is what the design's "the four movements map onto the response-contract
+#: spine with no new heading" was always true ABOUT -- names, never order. This table records the
+#: mapping and the fallback so "no new heading" stays a claim a reviewer can check mechanically against
+#: ``response_contracts``' own two sets.
 MANDATE_MOVEMENTS: tuple = (
     ("DIRECTION", "## Mechanism", ""),
     ("EVIDENCE", "## The record", ""),

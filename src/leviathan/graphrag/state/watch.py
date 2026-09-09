@@ -68,8 +68,15 @@ DISTANCE_UNITS: dict = {"z_bands": "sigma", "percentile_bands": "percentile poin
                         "pace_vs_prior_year": "percentage points"}
 
 
-def render_k(mode: str) -> int:
+def render_k(mode: str, knobs=None) -> int:
+    """The tier's watch render cap. S6: ``knobs.render_watch`` WINS when the board carries the render
+    fields, so this table is the DEFAULT rather than a second opinion -- and a board built from a
+    nine-field knob tuple (the S2 fixtures, the census) still reads the table, because a missing
+    attribute must never be read as a cap of zero."""
     from leviathan.graphrag import reasoning_modes as rm
+    v = getattr(knobs, "render_watch", None) if knobs is not None else None
+    if v is not None:
+        return int(v)
     return int(WATCH_RENDER_K.get(rm.base_mode(mode), 6))
 
 
@@ -188,7 +195,7 @@ def watch_rows(bd, *, analogs=(), cap: Optional[int] = None, conventions: Option
     THIS FUNCTION NEVER GUESSES A HANDLE POSITION. A kind-2 row carries the four numbers and the row
     object; the RENDER mints the line, because the handle it takes depends on how many magnitudes the
     block has already committed and only the block knows that."""
-    k = cap if cap is not None else render_k(bd.mode)
+    k = cap if cap is not None else render_k(bd.mode, getattr(bd, "knobs", None))
     order = {key: i for i, key in enumerate(bd.order)}
     loud = sorted((r for r in bd.rows if r.legs.get("loud")),
                   key=lambda r: order.get(r.key, len(order)))

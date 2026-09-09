@@ -389,8 +389,13 @@ def test_COLD_START_anchors_the_boards_the_PRICED_KEYS_sit_on_and_READS_that_set
     priced = W.cold_start_keys(B.board_knobs_of("deep"), graph=real, key_fn=_key_fn())
     bd = W.walk(graph=real, asof="2026-09-07", mode="deep", anchors=(), cold_start=True,
                 state_fn=_flat_state_fn(), key_fn=_key_fn(), receipts={})
+    # COLD START IS EXEMPT FROM THE ANCHOR CEILING THE S6 REVIEW ADDED, and this pin is why: the
+    # pricer runs FIRST and wave 1's plan IS the priced set, so cutting the BOARDS would leave the plan
+    # naming keys on boards the board no longer carries. The read budget here is bounded by the
+    # pricer's own cap; the tape column and the render are the residual, on a lane that ships dark.
     assert bd.anchor_source == "board_loudest" and len(bd.anchors) == len(priced["boards"])
     assert set(bd.anchor_slugs) == set(priced["boards"])
+    assert not [n for n in bd.notes if n.get("kind") == "anchor_cap"]
     w1 = bd.ledger.waves[1]
     assert [k.label for k in w1.plan] == priced["keys"], "the plan IS the priced set, in its order"
     assert w1.reads_used == priced["n"] == w1.reads_cap
@@ -587,6 +592,32 @@ def test_B16_the_palm_amplifier_renders_when_both_when_ids_are_loud_and_declines
                                                                     "biodiesel_mandate"}][0]
     assert not amp1["rendered"] and amp1["decline"] == "when_not_all_loud"
     assert floor1["n_matched"] == 1, "the PATTERN row still renders when its amplifier does not"
+
+
+def test_the_convergence_row_carries_NO_ungoverned_signal_note(real):
+    """MINOR (b) OF THE S6 SECOND VERIFY. `ConvergenceSignal.note` was copied onto every convergence
+    row and READ BY NOTHING -- `render.sb_convergence` has no such key -- so the board carried a second
+    ungoverned config-prose string, out of the same gitignored DAG files as `Interaction.note`, one
+    edit away from a template that would splice it into a rendered line with no fence in front of it.
+
+    THE COPY IS DROPPED RATHER THAN GOVERNED, which is the cheaper of the two doctrinal moves and the
+    one that leaves no surface: a row that wants the note later takes it from the signal and renders it
+    through `render.governed_note` and the assembled-row fence beside it, which is where the grading
+    lives. The INTERACTION note stays on its row, because a row does render it.
+
+    THE SIGNALS STILL CARRY THEIR NOTES -- nothing was deleted from the graph, and the assertion below
+    is that at least one shipped signal has prose the row no longer copies, so this pin fails if the
+    copy comes back rather than merely passing on an empty estate."""
+    rows = W.convergence_rows(real, "malaysian_crude_palm_oil_cme",
+                              {"crude_oil_price", "biodiesel_mandate"}, loud_k=24)
+    assert rows
+    for r in rows:
+        assert "note" not in r, r["name"]
+        for it in r["interactions"]:
+            assert "note" in it              # the interaction's own note is RENDERED and stays
+    with_prose = [s for c in real.contracts.values()
+                  for s in (getattr(c, "convergence", ()) or ()) if str(getattr(s, "note", "") or "")]
+    assert with_prose, "no shipped ConvergenceSignal carries a note -- this pin no longer proves it"
 
 
 def test_a_two_of_three_pattern_reports_two_of_three_and_its_own_threshold():
@@ -822,7 +853,23 @@ def test_wave_2s_rectangle_covers_what_THIS_sitting_EXECUTES_and_RESERVES_the_an
     w2 = bd.ledger.waves[2]
     assert w2.closed and w2.reads_used <= w2.reads_cap
     assert bd.legs["analog"]["outcome"] == "not_reached", "the seats are reserved, the leg is S3's"
-    assert bd.ledger.evidence_borrows == 5, "the counted analog receipt budget, `BoardEvidenceBorrows`"
+    # THE SEATS ARE A CAP AND ARE RECORDED AS ONE. `evidence_borrows` used to be assigned this number
+    # and `state.seam.counters` published it as `BoardEvidenceBorrows` -- whose 10.5 definition is
+    # "analog receipt reads on the evidence pool" -- so it read 5 on every fired Cascade board while
+    # `analogs._receipts_for` returned [] at zero reads: arm A's evidence-pool pressure taken from a
+    # number no read produced (S6 review, major 6). A BORROW IS COUNTED WHERE A BORROW HAPPENS.
+    assert bd.ledger.evidence_cap == 5, "the RESERVED analog receipt seats"
+    assert bd.ledger.benchmark_cap == 10, "the RESERVED analog benchmark seats"
+    assert bd.ledger.evidence_borrows == 0, "no receipt_fn is wired, so no borrow happened"
+    assert bd.ledger.benchmark_reads == 0, "no benchmark_fn is wired, so no read happened"
+    # AND AN UNWIRED ANALOG LEG RESERVES NEITHER COLUMN (major 7): reserving 15 reads no producer can
+    # spend put them on the WALK's own runaway ceiling through `cascade._board_declared_cap`.
+    dark = W.walk(graph=real, asof="2026-09-07", mode="max", anchors=anchors,
+                  state_fn=_flat_state_fn(), key_fn=_key_fn(), receipts={}, analog_reads=False)
+    dcols = [n for n in dark.notes if n["kind"] == "wave2_reserved"][0]["columns"]
+    assert dcols == {"analog_benchmark": 0, "analog_receipts": 0, "legb": 0}
+    assert dark.ledger.waves[2].reads_cap == w2.reads_cap - 15
+    assert dark.ledger.waves[2].closed and dark.rectangle() == []
 
 
 def test_a_FAR_read_that_declines_by_name_is_counted_in_wave_2s_own_rectangle():

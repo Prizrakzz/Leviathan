@@ -1039,15 +1039,33 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # So this is the census growing by a dark surface, not a byte moving in a flag-off request: the
     # accepted-set list gains ONE named state and nothing else, and the value check below asserts the
     # new key resolves to its default-off value where it had only a position.
+    # RE-ANCHORED 2026-09-09 BY STATE-ENGINE PHASE 2, on its ONE named cause and by the SAME
+    # optional-and-ordered rule LANE S established here: the board appends exactly one
+    # KEYWORD_ONLY name, `state_board` (default False), which ships the mandate literal that lives
+    # in `state/narration.py`. Each named append is checked ON ITS OWN TERMS below, so any one of
+    # them staying reverted is still accepted and the banked PRE-D-XL tail is still asserted where
+    # it always was, one rung further in.
     _tail = list(params)
-    assert _tail[-2:] in (["extreme_locator", "extreme_hop"],
-                          ["extreme_hop", "numbers_budget"]), _tail[-2:]
-    if _tail[-1] == "numbers_budget":                     # LANE S's ONE named append
-        assert _tail[-3:-1] == ["extreme_locator", "extreme_hop"], _tail   # ...and it moved nothing
+    _APPENDS = [n for n in ("numbers_budget", "state_board") if n in _tail]
+    assert _tail[len(_tail) - 2 - len(_APPENDS):len(_tail) - len(_APPENDS)] == \
+        ["extreme_locator", "extreme_hop"], _tail
+    assert _tail[len(_tail) - len(_APPENDS):] == _APPENDS, _tail   # appended, in order added
+    if "numbers_budget" in _tail:                         # LANE S's ONE named append
         assert params["numbers_budget"].default is False
         assert params["numbers_budget"].kind is inspect.Parameter.KEYWORD_ONLY
         assert an._system(numbers_budget=False) == base   # the default-off VALUE, not just the default
         assert an._SYSTEM_NUMBERS_BUDGET_MANDATE not in base
+    if "state_board" in _tail:                            # STATE ENGINE's ONE named append
+        assert params["state_board"].default is False
+        assert params["state_board"].kind is inspect.Parameter.KEYWORD_ONLY
+        assert an._system(state_board=False) == base      # the default-off VALUE, not just the default
+        from leviathan.graphrag.state import narration as _sn
+        assert _sn.SYSTEM_STATE_BOARD_MANDATE not in base
+        assert _sn.SYSTEM_STATE_BOARD_MANDATE in an._system(state_board=True)
+        # ...and it sits ABOVE `_SYSTEM_HANDLES`, which keeps the last word because it NARROWS
+        # every number rule while the board's mandate only demands a narration order.
+        _both = an._system(state_board=True, handles=True)
+        assert _both.index(_sn.SYSTEM_STATE_BOARD_MANDATE) < _both.index(an._SYSTEM_HANDLES)
     qs = inspect.signature(cq.quantify).parameters
     assert qs["extreme_locator"].default is None
     # the locator kwarg and the extrema rider are the LAST TWO, in the order they were added -- so
@@ -1073,7 +1091,11 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # tail, the third dark append to ride this list. The construction is unchanged -- each name is
     # OPTIONAL and ORDERED, so any one of the three staying reverted is still accepted and the banked
     # HEAD tail is still asserted where it always was, one rung further in.
-    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer")
+    # S6 RE-ANCHOR (2026-09-09), by exactly ONE more name and WITHOUT loosening the join: STATE
+    # ENGINE PHASE 2 appends `board` (GRAPHRAG_STATE_BOARD, default None -- a PAYLOAD dict, not a
+    # bool, for the same reason `extreme_locator` is one) at the tail, the fourth dark append to
+    # ride this list. The construction is unchanged: each name is OPTIONAL and ORDERED.
+    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer", "board")
                    if n in _qtail]
     assert _qtail[len(_qtail) - 2 - len(_K9_APPENDS):len(_qtail) - len(_K9_APPENDS)] == _PRE_K9_6, _qtail
     assert _qtail[len(_qtail) - len(_K9_APPENDS):] == _K9_APPENDS, _qtail   # appended, in order added
@@ -1082,10 +1104,33 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
             assert qs[_name].default is False
             assert qs[_name].kind is inspect.Parameter.KEYWORD_ONLY
             assert getattr(an, _on)() is False            # the default-off VALUE, not just the default
-    for fn, name in ((an.answer, "xl_request"), (an._answer_l2, "xl_request"),
-                     (orc.run_reasoning, "xl_request"), (orc.run_hybrid, "xl_request"),
-                     (dp.plan_turn, "xl_kinds")):
-        assert list(inspect.signature(fn).parameters)[-1] == name, fn.__name__
+    # S6 RE-ANCHOR (2026-09-09), on the SAME optional-and-ordered rule this file already uses for
+    # `cq.quantify`'s tail. STATE ENGINE PHASE 2 appends exactly one KEYWORD_ONLY name to each of
+    # four of these five -- `mode_name` on `an.answer`, `an._answer_l2`, `orc.run_reasoning` and
+    # `orc.run_hybrid` (the honored mode's NAME, which the knob DICT cannot carry because every
+    # shipped preset leaves `Mode.board` None so no knob dict moves), and `named` on
+    # `dp.plan_turn` (Amendment 2: the markets the QUESTION named are never truncated). What D-XL
+    # claims here -- `xl_request` / `xl_kinds` LANDED AT THE TAIL and moved nothing before it --
+    # is unchanged and still asserted, as the last name BEFORE the appends that followed; each is
+    # OPTIONAL, so reverting either item leaves this green.
+    #
+    # S6 RE-FIX (2026-09-09), by exactly ONE more name on ONE of the five and WITHOUT loosening the
+    # join: `dedup` on `dp.plan_turn`, the flag-gated routed-slug de-dup (major 3). It is the one
+    # append in this census whose dark value is `False` rather than `None`, because it is a SWITCH and
+    # not a payload -- so the darkness check reads "the default is the falsy one this parameter's own
+    # type declares" rather than "is None", which is what every one of these appends actually asserts.
+    for fn, name, after in ((an.answer, "xl_request", ("mode_name",)),
+                            (an._answer_l2, "xl_request", ("mode_name",)),
+                            (orc.run_reasoning, "xl_request", ("mode_name",)),
+                            (orc.run_hybrid, "xl_request", ("mode_name",)),
+                            (dp.plan_turn, "xl_kinds", ("named", "dedup"))):
+        _p = list(inspect.signature(fn).parameters)
+        _post = [n for n in after if n in _p]
+        assert _p[len(_p) - 1 - len(_post)] == name, (fn.__name__, _p[-4:])
+        assert _p[len(_p) - len(_post):] == _post, (fn.__name__, _p[-4:])
+        for _n in _post:                              # every append is DARK: optional, defaulting off
+            _d = inspect.signature(fn).parameters[_n].default
+            assert _d is None or _d is False, (fn.__name__, _n, _d)
     assert an._extreme_locator_on() is False and an._xl_lane_promote_on() is False
     assert an._extrema_own_date_on() is False and an._xl_superlative_strip_on() is False
 
@@ -1318,8 +1363,8 @@ def test_g11_the_extrema_clock_repair_is_reachable_flag_gated_and_byte_inert_whe
     # in the order they were added". PRE-BANK kept; the pin's own subject is unchanged.
     _PRE_K9_6_LAST = "extrema_own_date"                        # the banked HEAD tail name
     _tail = list(qs)
-    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer")
-                   if n in _tail]          # S5 RE-ANCHOR: phase 0's dark append, same optional-and-ordered rule
+    _K9_APPENDS = [n for n in ("xc_leg_handles", "vintage_role", "xc_sublegs_on_composer", "board")
+                   if n in _tail]          # S5/S6 RE-ANCHOR: the dark appends, same optional-and-ordered rule
     assert _tail[len(_tail) - 1 - len(_K9_APPENDS)] == _PRE_K9_6_LAST, _tail[-3:]
     assert _tail[len(_tail) - len(_K9_APPENDS):] == _K9_APPENDS, _tail[-3:]
     assert qs["extrema_own_date"].default is False

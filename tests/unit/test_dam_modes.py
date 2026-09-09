@@ -197,15 +197,26 @@ def test_the_two_new_policy_fields_default_to_none_on_every_pre_ddv_preset():
     # SCAN RUNG 3 re-pin (2026-09-08): `numbers_roster` appends AFTER numbers_calls -- the appended-last
     # law, EIGHTH application. The tail moves an eighth time and every slice below shifts left by one.
     # Same law, same reason: KNOB_FIELDS order IS the trace-stamp column order -- append, never insert.
-    assert rm.KNOB_FIELDS[-1] == "numbers_roster"
-    assert rm.KNOB_FIELDS[-2] == "numbers_calls"
-    assert rm.KNOB_FIELDS[-3] == "synth_effort"
-    assert rm.KNOB_FIELDS[-4] == "handle_prose"
-    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-6:-4]
-    assert rm.KNOB_FIELDS[-7] == "synth_model"
-    assert rm.KNOB_FIELDS[-11:-7] == ("per_seed_budget", "per_seed_evidence_cap",
+    # STATE ENGINE S6 re-pin (2026-09-09): `board` appends AFTER numbers_roster -- the
+    # appended-last law, NINTH application, and the one the board's own lane could not land
+    # (`reasoning_modes.BOARD_PRESETS`' note: the field cannot go green without moving
+    # `config_check.check_scan_roster` clause (iv), which the state-engine arc holds for S6).
+    # The tail moves a ninth time and every slice below shifts left by one. Same law, same
+    # reason: KNOB_FIELDS order IS the trace-stamp column order -- append, never insert.
+    assert rm.KNOB_FIELDS[-1] == "board"
+    assert rm.KNOB_FIELDS[-2] == "numbers_roster"
+    assert rm.KNOB_FIELDS[-3] == "numbers_calls"
+    assert rm.KNOB_FIELDS[-4] == "synth_effort"
+    assert rm.KNOB_FIELDS[-5] == "handle_prose"
+    assert ("provenance_prompt", "cascade_contract_slots") == rm.KNOB_FIELDS[-7:-5]
+    assert rm.KNOB_FIELDS[-8] == "synth_model"
+    assert rm.KNOB_FIELDS[-12:-8] == ("per_seed_budget", "per_seed_evidence_cap",
                                       "per_seed_probe_cap", "per_seed_reserve")
-    assert rm.KNOB_FIELDS[-13:-11] == ("cap_policy", "order_policy")    # appended, never sorted in
+    assert rm.KNOB_FIELDS[-14:-12] == ("cap_policy", "order_policy")    # appended, never sorted in
+    # ...and the NEW field is None on every shipped preset, so `knobs()` cannot mint the key and
+    # no preset's knob dict, trace stamp or eval `mode_knobs` column moves by a byte.
+    for _n in rm.MODES:
+        assert rm.MODES[_n].board is None and "board" not in rm.knobs(_n), _n
     for name in (rm.QUICK, rm.STANDARD, rm.DEEP):
         m = rm.MODES[name]
         assert m.cap_policy is None and m.order_policy is None, name

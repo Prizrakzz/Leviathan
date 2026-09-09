@@ -260,9 +260,13 @@ def test_p1b_the_appended_last_law_and_the_byte_identity_fence():
     """KNOB_FIELDS order IS the trace-stamp column order: append, never insert. `numbers_roster` is the
     EIGHTH application and takes the tail; `numbers_calls` (lane S, seventh) moves left by one and every
     slice below it with it."""
-    assert rm.KNOB_FIELDS[-1] == "numbers_roster"
-    assert rm.KNOB_FIELDS[-2] == "numbers_calls"
-    assert rm.KNOB_FIELDS[-3] == "synth_effort"
+    # STATE ENGINE S6 (2026-09-09): `board` is the NINTH application and takes the tail;
+    # `numbers_roster` (this wave, eighth) moves left by one and every slice below it with it.
+    # The claim this test owns -- rung 3 appended and inserted nothing -- is unchanged.
+    assert rm.KNOB_FIELDS[-1] == "board"
+    assert rm.KNOB_FIELDS[-2] == "numbers_roster"
+    assert rm.KNOB_FIELDS[-3] == "numbers_calls"
+    assert rm.KNOB_FIELDS[-4] == "synth_effort"
     for name in rm.MODES:
         if name == rm.QUICK_R0:
             continue

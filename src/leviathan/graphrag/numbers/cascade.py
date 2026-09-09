@@ -303,13 +303,62 @@ def _silver_ref(n) -> str | None:
         return None
 
 
-def _select_nodes(sg, graph) -> list:
+def _board_key(n) -> tuple:
+    """THE ONE producer of the board's `(contract, driver_id)` key for a grounded node.
+
+    IT IS A FUNCTION AND NOT TWO EXPRESSIONS because the first S6 build spelled it twice and the two
+    spellings disagreed: `_select_nodes` keyed on `id or node or driver` while `_board_near` keyed on
+    `id or ''`, so a node carrying `.node` / `.driver` but no `.id` was RE-ORDERED by the board and
+    then found no WINDOW -- the two consumers of one payload reading two keys. Production
+    `GroundedNode` carries `.id`, so it bit fixtures only; the string-identity class this estate has
+    measured three times bites production the day a producer changes shape.
+
+    id FIRST, for the reason F0/RF-1 recorded: keying on the absent attrs collapsed every prod node to
+    `(contract, None)`, the depth-0 contract seed claimed the slot and evicted every driver."""
+    return (str(getattr(n, "contract", None)),
+            str(getattr(n, "id", None) or getattr(n, "node", None)
+                or getattr(n, "driver", None) or ""))
+
+
+def _select_nodes(sg, graph, board: dict | None = None) -> list:
     """Bounded, deterministic selection: every grounded node that carries a mapped silver_ref, focus-first.
-    Dedupe by node key; order = walk order (relevance-ranked upstream)."""
+    Dedupe by node key; order = walk order (relevance-ranked upstream).
+
+    STATE ENGINE PHASE 2 (design sec 3.9 item 1, D8): with a `board` payload the ORDER is the board's
+    ranked node list, filtered to the nodes this subgraph actually carries. It FEEDS, it does not
+    REPLACE: every node the walk grounded still reaches the engine -- a node the board did not rank
+    keeps its walk position at the tail, so the selection is a RE-ORDER and never a filter. That
+    distinction is the whole of D8: the board decides what is said FIRST, the graph decides what
+    exists, and a board that could drop a grounded node would be a fifth fence.
+
+    `board is None` -> the walk order, byte-for-byte, which is every turn with the flag off.
+
+    ONE INTERACTION IS NAMED RATHER THAN DISCOVERED (S6 review). This function's own first word is
+    FOCUS-FIRST, and with a board the loudness order replaces it -- design 3.9 item 1 endorses exactly
+    that. What neither the design nor the build said is what happens NEXT: `CASCADE_CAP` truncates
+    WHOLE NODES by THIS order further down, so on a capped turn the focus contract's own node can be
+    cut where focus-first protected it. It is a re-order feeding a truncation, and the two were
+    adjudicated separately. The cap is unchanged here; the interaction is a residual for the sitting
+    that decides whether the board's order should be cut focus-first."""
     try:
         nodes = list(getattr(sg, "nodes", None) or [])
     except Exception:  # noqa: BLE001
         return []
+    order = (board or {}).get("order") if isinstance(board, dict) else None
+    if order:
+        # The board's key is `(contract, driver_id)` and so is this function's dedupe key, which is why
+        # no translation lives here: `state.board.NodeRow.key` was built to be `_select_nodes`' own key
+        # (its docstring says so). A node the board never ranked sorts to the END, in walk order.
+        # THE FEED IS BELTED: a malformed `order` costs the RE-ORDER and nothing else. `Board.set_order`
+        # already refuses anything but this board's own keys, so this belt covers only a hand-built or
+        # monkeypatched payload -- and the one thing it must never do is let a FEED take an answer down,
+        # which is the seam's own `except` clause read one layer in.
+        try:
+            pos = {(str(c), str(d)): i for i, (c, d) in enumerate(order)}
+            big = len(pos)
+            nodes = sorted(nodes, key=lambda n, _p=pos, _b=big: (_p.get(_board_key(n), _b),))
+        except Exception:  # noqa: BLE001 -- a malformed order costs the re-order, never the answer
+            pass
     seen, out = set(), []
     for n in nodes:
         # id FIRST: the production GroundedNode has .id and NEITHER .node nor .driver (F0/RF-1 -- keying on
@@ -324,11 +373,41 @@ def _select_nodes(sg, graph) -> list:
     return out
 
 
-def _derive_windows(n, near, asof) -> list[tuple]:
+def _board_near(n, near, board: dict | None):
+    """The `near` :func:`_derive_windows` sorts on, with the BOARD's own anchor date preferred.
+
+    STATE ENGINE PHASE 2 (design sec 3.9 item 2, D8): the board's window for this node carries the LOUD
+    STATE's own date (`near`) and the analog dates; when it has one, the episode nearest THAT date is
+    the one this node's legs read. The 90/90 geometry and the R3 clamp are untouched -- only which
+    episode sorts first moves, which is exactly what "S26 retires; one branch" means.
+
+    ONE HALF OF 3.9 ITEM 2 IS UNBUILT AND SAYS SO (S6 review). The design gives `_derive_windows` "the
+    loud state's date AND the analog dates" as its near; `state.walk` writes `analog_dates: ()`
+    unconditionally and this function reads only `near` / `state_date`. The analog half is phase 3's,
+    with the rest of the text tier, and the key exists so the day it is filled no consumer moves.
+
+    A USER-NAMED `near` STILL OUTRANKS THE BOARD (sec 3.1, revision 3, critic G18): `Plan.near` is an
+    explicit gesture, and this function returns the caller's value whenever there is one. The board
+    fills the slot the selector used to guess at, never the one the question already answered."""
+    if near:
+        return near
+    if not isinstance(board, dict):
+        return near
+    win = (board.get("windows") or {}).get(_board_key(n))
+    if not isinstance(win, dict):
+        return near
+    return win.get("near") or win.get("state_date") or near
+
+
+def _derive_windows(n, near, asof, board: dict | None = None) -> list[tuple]:
     """Analogue-era windows from the node's own dated props: cluster event/report dates into episodes,
     keep the 1-2 nearest `near` (else the densest), widen ~1 quarter past the event, and CLAMP each end to
     min(end, asof) (R3 -- a forward-guidance event_date can date an episode past the session cutoff; this
-    derive-side clamp is the PRIMARY PIT guard). Returns a list of (start, end); empty-span episodes drop."""
+    derive-side clamp is the PRIMARY PIT guard). Returns a list of (start, end); empty-span episodes drop.
+
+    `board` (phase 2, omit-when-off) supplies the `near` this node's own state names when the caller
+    has none -- see :func:`_board_near`. Absent -> byte-identical."""
+    near = _board_near(n, near, board)
     try:
         from leviathan.graphrag import timeline as tl
         from leviathan.graphrag.answer import _usable_date
@@ -1338,7 +1417,8 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
              extrema_own_date: bool = False,
              xc_leg_handles: bool = False,
              vintage_role: bool = False,
-             xc_sublegs_on_composer: bool = False) -> tuple:
+             xc_sublegs_on_composer: bool = False,
+             board: dict | None = None) -> tuple:
     """Select grounded nodes with mapped refs, derive analogue-era windows from their dated props, build
     per-node leg GROUPS (era legs + a current rhyme leg), detect cross-country REROUTE pairs (RF-3:
     natural two-node pairs + the synthesized primary-country beneficiary), cap on WHOLE pair-atomic
@@ -1397,6 +1477,22 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     the same flag lives in `citations._vintage_role_on`, which this module does not and must not call
     ([SKEPTIC F3]); one flag NAME, two readers, each at the seam its own module permits.
 
+    `board` (STATE ENGINE phase 2, GRAPHRAG_STATE_BOARD, design sec 3.9 / D8) is the SAME omit-when-off
+    idiom in its widest application yet, and it is a PAYLOAD DICT rather than a bool for the
+    `extreme_locator` reason: its whole input is a state the answer seam already computed. It carries
+    FOUR keys and each replaces a DECISION rather than a producer --
+      `order`   -> `_select_nodes` re-orders (never filters) the grounded nodes by the board's rank;
+      `windows` -> `_derive_windows` takes the loud state's own date as its `near` when the caller has
+                   none, keeping the 90/90 geometry and the R3 clamp;
+      `calls`   -> the board's `[N]` rows, appended to `extra_number_calls` BEFORE the base wave so
+                   the cascade's own mints continue the count and `citations` / `verify` bind them;
+      `budget`  -> the priced-and-spent counters, which reach `_cw_turn_spent` through the ONE
+                   registered `state_board` trace key rather than through a second argument (D12).
+    FEED, NEVER REPLACE: all 47 legs still run, each keeps its own flag, and each becomes a producer
+    whose node order and windows come from the board when the payload is present. `board is None` ->
+    every branch below is the branch HEAD takes, byte for byte, which is what `test_board_seam_off`
+    and the deep golden assert. This module still performs no environment read of any kind.
+
     `extreme_locator` (D-XL, E32) is the SAME omit-when-off idiom once more, and it is a REQUEST DICT
     rather than a bool because the leg's whole input is the planner's resolved intent -- board,
     direction, kind, scope, since -- resolved at the ORCHESTRATOR and threaded here as an ARGUMENT. This
@@ -1407,9 +1503,22 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     dict, not a grounded node -- so it must not die on the early return.
     Never raises (R6 -- the seam also belts it)."""
     _set_headline(headline)
+    # STATE ENGINE PHASE 2 (design 3.9 item 3, D8): THE BOARD'S OWN `[N]` ROWS LAND FIRST, before the
+    # base wave, so `base = len(extra_number_calls)` below counts them and every cascade mint CONTINUES
+    # the numbering instead of colliding with it. The list is appended IN PLACE, which is this
+    # function's own contract with the seam (`extra_number_calls is appended IN PLACE`), and the rows
+    # are already in `_cw_call`'s shape -- `state/render.sb_call` builds them -- so `citations.unify`
+    # and `verify_citations` bind them with no new class. Board absent -> the list is untouched and
+    # `base` is what it is on HEAD.
+    if board:
+        try:
+            for _c in (board.get("calls") or ()):
+                extra_number_calls.append(dict(_c))
+        except Exception:  # noqa: BLE001 -- a malformed payload costs the FEED, never the answer
+            pass
     groups = []
     dark = 0                                                      # A6 DarkRefNodes: grounded, ref unmapped
-    for n in _select_nodes(sg, graph):
+    for n in _select_nodes(sg, graph, board):
         ref = _silver_ref(n)
         row = map_row(ref)
         if row is None:
@@ -1444,7 +1553,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         # a replay turn keeps every price-context node qualitative. Fail-closed on both.
         if row.get("table") in PRICE_CONTEXT_TABLES and (price_replay or price_context_violations(row)):
             continue
-        eras = _derive_windows(n, near, asof)
+        eras = _derive_windows(n, near, asof, board)
         # T2a P4 (live-wiring fix): a `leg_mode: current` pace-capable node (esr_exports) never USES era
         # windows, yet the gate below demanded them -- and its driver (export_pace) is a WAIVERED
         # numbers-lane id with NO text slice, so ground() leaves it prior-only, _derive_windows returns
@@ -6843,6 +6952,29 @@ CW_PREWALK_MEASURED_WORST = 65  # the six pre-walk terms ENUMERATED: CASCADE_CAP
 #                               and up to 75 with it ON. It does not bind today (measured worst 25 ->
 #                               35 against CW_TURN_CEILING 60 / CW_DEEP_TURN_CEILING 80), and the
 #                               ceiling re-derivation rides the flag's arming, not this build.
+#                               [S6] AN EIGHTH TERM NOW EXISTS AND IS ALSO NOT IN THIS SUM: with
+#                               GRAPHRAG_STATE_BOARD armed the turn also spends the state board's two
+#                               waves plus ONE TAPE SEAT PER ANCHOR BOARD. SIZED ON THE SHAPE THE SEAM
+#                               ACTUALLY SERVES (S6 re-fix): the two waves are BOARD-WIDE and not
+#                               per-anchor, and the serving seam wires neither `benchmark_fn` nor
+#                               `receipt_fn`, so `wave2_shape(analog_reads=False)` darkens both analog
+#                               columns and leg B ships dark. MEASURED through `state.seam` on the
+#                               offline `fixture_state_fn` (`Board.declared_cap`, as-of 2026-09-07):
+#                               25 / 45 / 57 at ONE anchor and 28 / 50 / 64 at the tier's own anchor
+#                               ceiling (`BoardKnobs.max_anchors` 4 / 6 / 8) for Scan / Analysis /
+#                               Cascade. The 51 and 72 this note used to carry were the DESIGN's
+#                               analog-wired columns (32 + 18 + 1 and 40 + 31 + 1) and were never a
+#                               number this build could spend; the day the seam wires either producer
+#                               the caller passes `analog_reads=True` and those two return.
+#                               It is EXCLUDED from this literal for the same reason
+#                               the seventh is: `config_check` clause (x) recomputes exactly the six
+#                               config terms. It does not go uncounted, and that is the difference from
+#                               a gap -- `_cw_turn_spent` reads the board's own `net_reads` off the ONE
+#                               registered `state_board` trace key, and `cw_ceiling` gains the board's
+#                               DECLARED cap from the same key, so the enumerated worst with the board
+#                               armed is 65 + that cap against a ceiling of 60/80 + that cap. The two
+#                               move together by construction (D12) and the identity is pinned in
+#                               tests/unit/test_state_seam.py on the twelve banked turns.
 CW_DEEP_TURN_CEILING = 80     # = 44 (the pre-walk allowance the shipped test pin already carries)
 #                               + CW_DEEP_CAP 27 + CW_CONTEXT_CAP 2 + a 7-read FX allowance for
 #                               V2-3 (one FX read per non-root cell on the 8-cell union shape leaves
@@ -7230,12 +7362,28 @@ def _cw_turn_spent(sg):
     they would otherwise be spend this enumeration cannot see -- a real spend read as zero, the one
     direction the sentence above exists to prevent. The seam therefore ADDS their calls-delta into
     `quantify_transmission["net_reads"]` (and records it separately as `subleg_reads`) before the walk
-    runs. Flag off the delta does not exist and every payload is byte-identical."""
+    runs. Flag off the delta does not exist and every payload is byte-identical.
+
+    [S6] THE STATE BOARD IS THE SEVENTH TERM (design 3.8, D12). Its two waves and its anchor tape read
+    spend on the numbers bulkhead BEFORE the walk, so a board of 24-98 reads added to a measured 25
+    would exceed 80 on every Cascade turn with nothing in this enumeration able to see it. It is read
+    from the ONE registered `state_board` trace key -- the same key arm A reads and the same key the
+    ceiling re-derivation below reads -- rather than from a second argument, so there is exactly one
+    producer of the number and exactly one place a stale copy could come from (none). ABSENT IS NEVER
+    ZERO, in the strong form: a board that RAN and carries no integer counter returns None here and
+    the walk declines `turn_spend_unknown`, which is the fail-closed direction. Flag off -> the key is
+    absent -> this loop does not execute and the sum is HEAD's."""
     tr = getattr(sg, "trace", None) or {}
     wave = tr.get("quantify_wave_reads")
     if not isinstance(wave, int):
         return None                                   # stamped 0-included on every quantifying turn
     total = wave
+    sb = tr.get("state_board")
+    if isinstance(sb, dict):
+        nr = sb.get("net_reads")
+        if not isinstance(nr, int):
+            return None                               # a board with no counter is not a board with none
+        total += nr
     for key in ("quantify_transmission", "quantify_transmission_decline",
                 "quantify_chain", "quantify_chain_decline",
                 "quantify_price_leg", "quantify_price_leg_decline",
@@ -7253,6 +7401,45 @@ def _cw_turn_spent(sg):
             return None
         total += r
     return total
+
+
+def _board_declared_cap(sg) -> int:
+    """[S6] The board's DECLARED read cap, from the ONE registered `state_board` trace key. 0 when no
+    board ran (design 3.8, D12).
+
+    IT IS THE PAIR OF `_cw_turn_spent`'s SEVENTH TERM and is written beside it deliberately: the spend
+    is added to what the walk has already used and the cap is added to what the walk is allowed, so if
+    one moved without the other the walk would either starve on every board turn (spend added, ceiling
+    not) or over-spend by the board's cap (ceiling added, spend not). Both read the same key, both
+    return 0 on the same absence, and the identity `ceiling(on) - ceiling(off) == board cap` is pinned.
+
+    **THE GAIN IS CONDITIONED ON THE LEG, NOT ON THE CAP BEING A POSITIVE INT, AND THE FIRST BUILD OF
+    THIS FUNCTION HAD THAT WRONG IN A WAY THE S6 REVIEW MEASURED.** Its note used to claim "a board that
+    declined still declares 0, because `Ledger.reads_cap` is the sum of the caps the walk actually set
+    -- an off-lane board sets none". FALSE in six lines: `walk()` sets BOTH wave caps
+    (state/walk.py, `bd.ledger.waves[1].reads_cap = ...`) BEFORE the `anchor_none` gate, so a board that
+    declined for want of an anchor still carries cap 24 (quick) / 50 (deep) / 71 (max) with
+    `net_reads` 0 -- and the seam stamps that trace unconditionally while `_board_req` stays None. The
+    walk's runaway tripwire would then be raised by up to 71 reads on a turn `quantify` received no
+    board at all, and `resolve_anchors` returning empty is a LIVE case, not a theoretical one (planner:
+    "a routing miss (zero seeds) can never zero the budget"). The design's own formula conditions on the
+    leg -- sec 3.8 `cw_ceiling = (...) + (STATE_BOARD_CAP[mode] if board_fired else 0)` -- so this reads
+    `legs.board.outcome` and returns 0 for every other word.
+
+    THE SECOND HALF OF THE PAIR'S SYMMETRY IS EXPLICIT NOW TOO: `_cw_turn_spent` returns None
+    (fail-closed) when a board ran with no integer `net_reads`, so this returns 0 in exactly that state
+    rather than handing the walk a ceiling for a spend nobody could price. ABSENT IS NEVER ZERO, in its
+    strong form, from BOTH ends of the identity."""
+    tr = getattr(sg, "trace", None) or {}
+    sb = tr.get("state_board")
+    if not isinstance(sb, dict):
+        return 0
+    if ((sb.get("legs") or {}).get("board") or {}).get("outcome") != "fired":
+        return 0                          # a decline neither raises nor lowers the walk's own ceiling
+    if not isinstance(sb.get("net_reads"), int):
+        return 0                          # the spend could not be priced -> neither can the gain
+    cap = sb.get("cap")
+    return int(cap) if isinstance(cap, int) and cap > 0 else 0
 
 
 def _cw_firings(sg, graph, root: str, cov_start: str) -> tuple:
@@ -8073,7 +8260,16 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     deep_on = bool((walk_request or {}).get("deep") or (walk_request or {}).get("xccy"))
     cw_children = CW_DEEP_MAX_CHILDREN if deep_on else CW_MAX_CHILDREN
     cw_cap = CW_DEEP_CAP if deep_on else CW_CAP
-    cw_ceiling = CW_DEEP_TURN_CEILING if deep_on else CW_TURN_CEILING
+    # [S6] THE CEILING GAINS THE BOARD'S DECLARED CAP WHEN THE BOARD PAYLOAD IS PRESENT (design 3.8,
+    # D12), and the two halves of that sentence are one decision: `_cw_turn_spent` now ADDS the board's
+    # spend, so a ceiling that did not move would make every Cascade board a `turn_budget_spent`
+    # decline of the walk -- the design's own "the walk's ceiling arithmetic is the one place two
+    # drafts lost a leg by construction". THE CAP, NEVER THE SPEND: the ceiling must be derived before
+    # any read, and the cap is what the board DECLARED it could spend (`Ledger.reads_cap`, the two wave
+    # caps plus the tape seat). It is read from the SAME registered trace key the spend came from, so
+    # the two terms can never come from two boards. Board absent -> `_board_declared_cap` is 0 ->
+    # this line is `CW_DEEP_TURN_CEILING if deep_on else CW_TURN_CEILING`, HEAD's own expression.
+    cw_ceiling = (CW_DEEP_TURN_CEILING if deep_on else CW_TURN_CEILING) + _board_declared_cap(sg)
     cw_order_max = CW_DEEP_MAX_ORDER if deep_on else 2
     cw_free_allow = CW_FREE_ALLOWANCE     # build-refute minor: the width belt is the ONE budget that
     #                                       read a MODULE GLOBAL where every other reads a regime

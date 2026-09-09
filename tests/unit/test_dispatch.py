@@ -436,3 +436,210 @@ def test_plan_turn_threads_the_model_into_the_temp_gate(monkeypatch):
     monkeypatch.setenv("GRAPHRAG_DISPATCH_MODEL", "claude-sonnet-4-6")
     dp.plan_turn("q", graph=_G(), call=fake_call)
     assert seen.get("temperature") == 0
+
+
+# -- STATE ENGINE Amendment 2 + the S6 re-fix's major 3: `named`, `dedup`, FLAG-OFF IDENTITY --------
+#: HEAD's own pick expression, re-typed here so the pin is a SECOND WRITING of the rule rather than a
+#: second reading of the code. `_validate`'s docstring quotes these two lines as the flag-off path
+#: ("HEAD's own list comprehension and HEAD's own slice, character for character"); if the branch ever
+#: stops taking them, this deck says so without needing a git checkout to compare against.
+def _head_pick(plan: dict, ids: set, cap: int) -> list:
+    return [c for c in (plan.get("contracts") or []) if c in ids][:max(1, int(cap))]
+
+
+#: The two plans the S6 verifier named. A planner emits a LIST and nothing stops it emitting one slug
+#: twice; the de-dup that collapses it MOVES the ceiling's arithmetic, which is why it is flag-gated.
+_DUP = {"steps": ["reasoning", "numbers"],
+        "contracts": ["corn", "corn", "hard_red_winter_wheat_kcbt", "soft_red_winter_wheat_cbot"]}
+_QUAD = {"steps": ["reasoning"],
+         "contracts": ["corn", "corn", "corn", "corn", "hard_red_winter_wheat_kcbt"]}
+
+
+def test_validate_FLAG_OFF_is_HEADs_own_pick_on_duplicate_and_quadruple_plans():
+    """S6 RE-FIX, MAJOR 3 -- THE PIN THE FIRST BUILD DID NOT HAVE.
+
+    The routed-slug de-dup ran UNCONDITIONALLY, outside the `if named:` branch, so with
+    GRAPHRAG_STATE_BOARD off the ceiling was applied to a DE-DUPLICATED list where HEAD applied it to
+    the raw one: a plan naming one contract twice kept that contract plus TWO others where HEAD kept it
+    plus ONE. A flag-off behaviour change, with no flag and no pin, under a docstring one line above
+    that promised the opposite.
+
+    MEASURED HERE ON BOTH SHAPES AND EVERY CEILING THE ESTATE SHIPS. The expectation is HEAD's own
+    expression (`_head_pick`), and the literals below are what HEAD's module returned when this deck
+    was written -- so a future edit fails on the RULE and on the VALUE, not on one of them."""
+    for plan in (_DUP, _QUAD):
+        for cap in (1, 2, 3, 4, 6):
+            assert dp._validate(dict(plan), IDS, cap).contracts == _head_pick(plan, IDS, cap), (plan, cap)
+    # ...and the same, written out, because a re-typed rule can be re-typed wrong twice
+    assert dp._validate(dict(_DUP), IDS, 2).contracts == ["corn", "corn"]
+    assert dp._validate(dict(_DUP), IDS, 3).contracts == ["corn", "corn", "hard_red_winter_wheat_kcbt"]
+    assert dp._validate(dict(_QUAD), IDS, 3).contracts == ["corn", "corn", "corn"]
+    assert dp._validate(dict(_QUAD), IDS, 4).contracts == ["corn"] * 4
+
+
+def test_validate_flag_off_matches_HEADs_OWN_MODULE_when_git_can_hand_it_over():
+    """THE THIRD PROOF OF FLAG-OFF IDENTITY: HEAD's `dispatch.py` loaded as its own module and its
+    `_validate` run beside the tree's on the same plans.
+
+    IT IS THE WEAKEST OF THE THREE AND IS WRITTEN THAT WAY DELIBERATELY. It compares against whatever
+    HEAD happens to be, so once this work commits it compares the branch with itself and stops being a
+    regression bar -- `test_validate_FLAG_OFF_is_HEADs_own_pick_...` above is the durable one. What it
+    adds is the proof AT THE MOMENT OF THE FIX, reproducible by anyone who checks the tree out against
+    the commit before it. It SKIPS rather than fails wherever git or the blob is not there (an
+    installed wheel, a source tarball, a shallow worker image)."""
+    import importlib.util
+    import pathlib
+    import subprocess
+    import sys
+    import tempfile
+
+    import pytest
+    root = pathlib.Path(__file__).resolve().parents[2]
+    try:
+        # `encoding="utf-8"` IS LOAD-BEARING ON THE OWNER'S BOX (S6 second verify, minor (d)).
+        # `text=True` alone decodes with `locale.getpreferredencoding(False)`, which is cp1252 on
+        # Windows -- so a non-ASCII byte anywhere in HEAD's `dispatch.py` would either raise
+        # UnicodeDecodeError or, worse, mojibake silently and make this test compare the module
+        # against a corrupted copy of itself. The blob is UTF-8; say so.
+        blob = subprocess.run(["git", "-C", str(root), "show",
+                               "HEAD:src/leviathan/graphrag/dispatch.py"],
+                              capture_output=True, text=True, encoding="utf-8", timeout=60)
+    except Exception:                                   # noqa: BLE001 -- no git on this box
+        pytest.skip("git unavailable")
+    if blob.returncode != 0 or not blob.stdout:
+        pytest.skip("HEAD blob unavailable")
+    with tempfile.TemporaryDirectory() as td:
+        path = pathlib.Path(td) / "_head_dispatch.py"
+        path.write_text(blob.stdout, encoding="utf-8", newline="")
+        spec = importlib.util.spec_from_file_location("_head_dispatch", path)
+        head = importlib.util.module_from_spec(spec)
+        # REGISTERED BEFORE EXEC: `dataclasses` resolves a frozen class's own module out of
+        # `sys.modules`, so a module that is not there yet raises inside the decorator.
+        sys.modules["_head_dispatch"] = head
+        try:
+            spec.loader.exec_module(head)
+            for plan in (_DUP, _QUAD):
+                for cap in (1, 2, 3, 4, 6):
+                    assert (head._validate(dict(plan), IDS, cap).contracts
+                            == dp._validate(dict(plan), IDS, cap).contracts), (plan, cap)
+        finally:
+            sys.modules.pop("_head_dispatch", None)
+
+
+def test_the_dedup_is_FLAG_GATED_and_collapses_first_occurrence_wins():
+    """THE SWITCH ITSELF, ON. It is its OWN kwarg and not a rider on `named`'s truthiness, because a
+    board turn that names NO market still anchors, still prices a tape column and still renders -- and
+    those are not turns where a duplicate is harmless."""
+    assert dp._validate(dict(_DUP), IDS, 2, dedup=True).contracts == [
+        "corn", "hard_red_winter_wheat_kcbt"]                      # HEAD kept ["corn", "corn"]
+    assert dp._validate(dict(_DUP), IDS, 3, dedup=True).contracts == [
+        "corn", "hard_red_winter_wheat_kcbt", "soft_red_winter_wheat_cbot"]
+    assert dp._validate(dict(_QUAD), IDS, 3, dedup=True).contracts == [
+        "corn", "hard_red_winter_wheat_kcbt"]                      # four copies collapse to one
+    # THE PLANNER'S OWN CENTRALITY ORDER IS UNTOUCHED: first occurrence wins, nothing is re-ranked.
+    p = {"steps": ["reasoning"],
+         "contracts": ["hard_red_winter_wheat_kcbt", "corn", "hard_red_winter_wheat_kcbt"]}
+    assert dp._validate(dict(p), IDS, 3, dedup=True).contracts == ["hard_red_winter_wheat_kcbt", "corn"]
+    # ...and an unknown slug is still dropped on BOTH paths, which is the fence the de-dup rides inside
+    q = {"steps": ["reasoning"], "contracts": ["nope", "corn", "corn", "nope"]}
+    assert dp._validate(dict(q), IDS, 3, dedup=True).contracts == ["corn"]
+    assert dp._validate(dict(q), IDS, 3).contracts == ["corn", "corn"]
+
+
+def test_named_markets_are_all_anchors_and_the_EXEMPTION_IS_BOUNDED():
+    """AMENDMENT 2 AND ITS CEILING. Named markets escape `max_contracts`; the escape itself is bounded
+    at `NAMED_ANCHOR_CAP`, in the PLAN's order, so the total is `NAMED_ANCHOR_CAP + max_contracts` and
+    never the router's whole ranking."""
+    ids = {"c%d" % i for i in range(12)}
+    plan = {"steps": ["reasoning"], "contracts": ["c%d" % i for i in range(12)]}
+    assert dp._validate(dict(plan), ids, 2).contracts == ["c0", "c1"]            # off: the ceiling
+    # four named markets survive a quick turn's ceiling of two, and quick still infers two beyond them
+    four = dp._validate(dict(plan), ids, 2, named=("c0", "c1", "c2", "c3")).contracts
+    assert four == ["c0", "c1", "c2", "c3", "c4", "c5"]
+    # EIGHT named on the same turn is bounded by NAMED_ANCHOR_CAP: six exempt, then the ordinary two
+    eight = dp._validate(dict(plan), ids, 2, named=tuple("c%d" % i for i in range(8))).contracts
+    assert len(eight) == dp.NAMED_ANCHOR_CAP + 2 == 8
+    assert eight == ["c%d" % i for i in range(8)]
+    # the residual is NAMED rather than hidden: past the cap a typed market keeps the ordinary ceiling
+    twelve = dp._validate(dict(plan), ids, 2, named=tuple("c%d" % i for i in range(12))).contracts
+    assert len(twelve) == dp.NAMED_ANCHOR_CAP + 2
+    # the two switches compose without either reading the other
+    dupe = {"steps": ["reasoning"], "contracts": ["c0", "c0", "c1", "c2", "c3"]}
+    assert dp._validate(dict(dupe), ids, 2, named=("c0", "c1")).contracts == [
+        "c0", "c0", "c1", "c2", "c3"]                       # named, no dedup: the duplicate survives
+    assert dp._validate(dict(dupe), ids, 2, named=("c0", "c1"), dedup=True).contracts == [
+        "c0", "c1", "c2", "c3"]
+
+
+def test_named_markets_is_BOUNDED_by_its_own_declared_number_and_never_raises():
+    """THE REVIEW'S CHEAP MINOR ON `named_markets`: the docstring claimed a bound and the function
+    returned the router's whole ranking, so an estate law -- the exposure is bounded BEFORE the work --
+    rested on a sentence. MEASURED on the shipped roster (2026-09-09): 36 contracts, seventeen matches
+    for the four-market question, twenty-two for a six-market one, a widest single-token fan-out of six
+    ("palm oil"). `NAMED_ROUTE_CAP` sits above that worst case and below the roster, so it bounds the
+    return without binding on anything a question can legitimately name."""
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag import graph as G
+    real = G.CausalGraph(G.load_contracts(), silver=set(), version="deck")
+    assert dp.NAMED_ROUTE_CAP == 24 and dp.NAMED_ANCHOR_CAP == 6
+    q4 = "How do wheat, corn, soybeans and palm oil compare right now?"
+    q6 = "How do wheat, corn, soybeans, palm oil, sugar and coffee compare right now?"
+    assert len(an.route(q4, real)) == 17 and len(an.route(q6, real)) == 22
+    assert 22 < dp.NAMED_ROUTE_CAP < len(real.contracts)
+    for q in (q4, q6):
+        got = dp.named_markets(q, real)
+        assert len(got) <= dp.NAMED_ROUTE_CAP
+        assert list(got) == list(an.route(q, real))[:dp.NAMED_ROUTE_CAP]   # ONE matcher, never a copy
+    # THE ORDER-SENSITIVE BOUND BELONGS IN `_validate` AND NOT HERE, measured: a flat cut of the
+    # router's hits-then-alphabetical ranking drops two of the four markets the user actually typed.
+    flat = list(an.route(q4, real))[:dp.NAMED_ANCHOR_CAP]
+    assert "corn_cbot" not in flat and "soft_red_winter_wheat_cbot" not in flat
+    assert "sunflower_oil" in flat
+    # a naming census must never break a turn
+    assert dp.named_markets("", None) == () and dp.named_markets(None, real) == ()
+    assert dp.named_markets("wheat", object()) == ()
+
+
+def test_plan_turn_is_OMIT_WHEN_OFF_at_all_three_cap_sites(monkeypatch):
+    """With neither kwarg the PROMPT phrase, the SCHEMA `maxItems` and the VALIDATOR call are HEAD's --
+    which is what makes an injected `_validate` written against the older signature still valid, the
+    property every planner fixture in this suite rests on. With them, all three widen together."""
+    seen: dict = {}
+
+    def _cap_sys(n, **kw):
+        seen["sys_n"] = n
+        return "SYS"
+
+    def _cap_tool(ids, n, *a):
+        seen["tool_n"] = n
+        return {"name": "plan", "input_schema": {"type": "object", "properties": {}}}
+
+    def _cap_validate(out, ids, n, *a, **kw):
+        seen["validate_n"] = n
+        seen["kw"] = dict(kw)
+        return dp.Plan(steps=["reasoning"], contracts=[])
+
+    class _G:
+        contracts: dict = {"corn": None}
+
+    monkeypatch.setattr(dp, "planner_sys", _cap_sys)
+    monkeypatch.setattr(dp, "_plan_tool", _cap_tool)
+    monkeypatch.setattr(dp, "_validate", _cap_validate)
+    monkeypatch.delenv("GRAPHRAG_DISPATCH", raising=False)
+    monkeypatch.delenv("GRAPHRAG_DISPATCH_MODEL", raising=False)
+
+    def call(s, u, **k):
+        return {"steps": ["reasoning"], "contracts": []}
+
+    dp.plan_turn("q", graph=_G(), call=call, max_contracts=2)
+    assert seen == {"sys_n": 2, "tool_n": 2, "validate_n": 2, "kw": {}}    # ABSENT, not None-valued
+    seen.clear()
+    dp.plan_turn("q", graph=_G(), call=call, max_contracts=2,
+                 named=("a", "b", "c", "d"), dedup=True)
+    assert seen["sys_n"] == seen["tool_n"] == 4        # the prompt and the schema widen too...
+    assert seen["validate_n"] == 2                     # ...while the ceiling stays the tier's
+    assert seen["kw"] == {"named": ("a", "b", "c", "d"), "dedup": True}
+    seen.clear()
+    # the named set NEVER NARROWS the tier: a one-market question on a deep turn keeps its ceiling
+    dp.plan_turn("q", graph=_G(), call=call, max_contracts=6, named=("a",))
+    assert seen["sys_n"] == seen["tool_n"] == 6

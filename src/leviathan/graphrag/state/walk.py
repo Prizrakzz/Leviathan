@@ -38,6 +38,7 @@ from __future__ import annotations
 import re
 import threading
 import time
+from dataclasses import replace
 from concurrent.futures import ThreadPoolExecutor
 from typing import NamedTuple, Optional
 
@@ -374,10 +375,17 @@ def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = N
         if not slug:
             return
         prior = picked.get(slug)
+        # `named` IS MONOTONIC ACROSS THE COLLAPSE, and that is the whole reason it is a field rather
+        # than a source word: the precedence ranks `focus_driver` above `named`, so a market the user
+        # TYPED which also carries the attached driver would otherwise keep no record of having been
+        # typed -- and the anchor ceiling would cut it in favour of the driver's own tail.
+        was_named = bool(prior is not None and prior.named) or source == "named"
         if prior is not None and B.ANCHOR_SOURCES.index(prior.source) <= B.ANCHOR_SOURCES.index(source):
+            if was_named and not prior.named:
+                picked[slug] = replace(prior, named=True)
             return
         picked[slug] = B.Anchor(contract=slug, source=source, rank=rank, driver_id=driver_id,
-                                subject=subject, note=note)
+                                subject=subject, named=was_named, note=note)
 
     if attached_event:
         _add(attached_event, "attached_event", note="attached to the question")
@@ -466,9 +474,11 @@ def rank_driver_anchors(bd: B.Board) -> None:
     ordered = sorted(pos, key=lambda c: (pos[c], prior.get(c, 0), c))
     seat = {c: i for i, c in enumerate(ordered)}
     src = {s: i for i, s in enumerate(B.ANCHOR_SOURCES)}
-    new = [a if a.source != "focus_driver" else
-           B.Anchor(contract=a.contract, source=a.source, rank=seat[a.contract],
-                    driver_id=a.driver_id, subject=a.subject, note=a.note)
+    # `replace`, NEVER A RE-CONSTRUCTION: a field-by-field rebuild silently DROPS any field added
+    # after it was written, which is exactly what happened to `Anchor.named` -- the re-rank threw away
+    # the record that the user had typed this market, so the anchor ceiling then cut it. One ranking
+    # moves one field.
+    new = [a if a.source != "focus_driver" else replace(a, rank=seat[a.contract])
            for a in bd.anchors]
     bd.anchors = tuple(sorted(new, key=lambda a: (src[a.source], a.rank, a.contract)))
 
@@ -839,8 +849,17 @@ def convergence_rows(graph, contract: str, loud_ids, *, loud_k: int, band_ids=()
                     "matched": tuple(matched), "n_matched": len(matched),
                     "matched_measured": tuple(seen_state), "matched_unmeasured": tuple(unread),
                     "n_declared": len(s.drivers), "loud_k": int(loud_k),
+                    # `ConvergenceSignal.note` IS NOT COPIED HERE (S6 second verify, minor (b)). It was,
+                    # and `render.sb_convergence` reads no such key -- so the row carried a second
+                    # ungoverned config-prose string, from the same gitignored DAG files as
+                    # `Interaction.note`, sitting one edit away from a template that would splice it
+                    # into a rendered line with no fence in front of it. The interaction note earns its
+                    # place on the row above because a row DOES render it, through
+                    # `render.governed_note` and the assembled-row fence beside it; this one earned
+                    # nothing but the risk. A future row that wants it takes it from the signal and
+                    # renders it through `governed_note`, which is where the grading lives.
                     "n_with_band": sum(1 for d in matched if d in banded),
-                    "note": s.note, "interactions": tuple(inter)})
+                    "interactions": tuple(inter)})
     out.sort(key=lambda r: (-r["n_matched"], r["name"]))
     return out
 
@@ -1221,7 +1240,8 @@ def walk(*, graph, asof: str, mode: str = "deep", anchors=(), question: str = ""
          state_fn=None, key_fn=None, receipts=None, turn_kind: str = "", lane: str = "run_hybrid",
          knobs: Optional[B.BoardKnobs] = None, width: int = 2, legb_on: bool = False,
          alternative_rank: bool = False, complexes=(), chains=(),
-         positioning_ids=(), stage2: bool = True, cold_start: bool = False) -> B.Board:
+         positioning_ids=(), stage2: bool = True, cold_start: bool = False,
+         analog_reads: bool = True) -> B.Board:
     """THE WALK, in the order of sec 3.3, and it never replans.
 
     ``state_fn(ref, node) -> (StateRow, reads)`` and ``key_fn(ref, node) -> KeyPlan`` are INJECTED.
@@ -1258,11 +1278,6 @@ def walk(*, graph, asof: str, mode: str = "deep", anchors=(), question: str = ""
         bd.stamp("board", "declined", reason=f"lane_off:{mode}")
         return bd
     legb_cells = B.legb_cells_of(mode)
-    bd.ledger.waves[1].reads_cap = int(kn.wave1)
-    # THE EFFECTIVE wave-2 cap, not the declared one: with leg B dark, Cascade's 58 is 31 (sec 3.8's
-    # own "71 with leg B dark"). The ceiling the walk gains at S6 must be what the board can SPEND.
-    bd.ledger.waves[2].reads_cap = int(
-        B.wave2_shape(kn, legb_cells=legb_cells, legb_on=legb_on)["total"])
     bd.stamp_not_reached(*ALL_LEGS)
 
     # ── the LANE gate (sec 7). An off lane stamps its word so `BoardFired` is absent-when-inapplicable.
@@ -1290,6 +1305,72 @@ def walk(*, graph, asof: str, mode: str = "deep", anchors=(), question: str = ""
     if not bd.anchors:
         bd.stamp("board", "declined", reason="anchor_none")
         return bd
+
+    # ── THE ANCHOR CEILING (S6 review). `resolve_anchors` bounds only INFERRED seeds: Amendment 1's
+    #    driver anchor set is EVERY contract carrying the id, by design, and Amendment 2's named set is
+    #    exempt from `max_contracts` by design. MEASURED on the shipped graph: `El_Nino` and
+    #    `heat_stress` are each carried by 35 contracts and `crude_oil` by 24, so ONE FE gesture
+    #    (`_resolve_attachments` -> `focus_driver`) put 35 DAGs on the board -- declared cap 106 against
+    #    the design's 71, 916 rendered rows, ~37,450 writer tokens, and 35 SERIAL tape reads. Every
+    #    render cap this design ships is per ROW CLASS and none of them can see the anchor count, so
+    #    the bound has to live here, where the tier's own knob is in hand.
+    #
+    #    IT IS A CUT THAT NAMES WHAT IT CUT, like every other cut on this board: the dropped boards ride
+    #    an `anchor_cap` note that `render_board` prints as its own SB-X.
+    #
+    #    THE EXPLICIT GESTURES ARE RESERVED AND THE CUT FALLS ON THE UNBOUNDED SOURCES, which is not
+    #    the same thing as cutting the precedence tail and is the correction a first draft of this
+    #    ceiling needed. `ANCHOR_SOURCES` ranks `focus_driver` ABOVE `named` (Amendment 1's own order),
+    #    so a plain tail cut would keep a driver's twenty-ninth board and DROP the market the user
+    #    typed -- Amendment 2 defeated by the fence meant to bound Amendment 1. `attached_event` and
+    #    `named` are already bounded (one gesture; `dispatch.NAMED_ANCHOR_CAP`), so they are kept whole
+    #    and the seats that remain go to the two unbounded sources in their own precedence order. A
+    #    turn whose gestures alone exceed the tier's ceiling raises it to them rather than dropping
+    #    one, and says so by carrying no cut at all.
+    #
+    #    COLD START IS EXEMPT, and the exemption is structural rather than a carve-out. `board_loudest`
+    #    PRICES THE READ SET FIRST and the anchors are a DESCRIPTION of where the admitted keys sit
+    #    (`cold_start_keys` -> `priced['boards']`), so cutting the boards would leave wave 1's plan --
+    #    which IS the priced set, in the priced order -- naming keys on boards the board no longer
+    #    carries. The read budget there is already bounded by the pricer's own cap; what is NOT bounded
+    #    is the tape column and the render, and that is a residual of a lane that ships dark (D26).
+    #
+    #    THE CUT IS BY THE GRAPH'S DECLARED ORDER, not by the state rank, and it must be: Amendment 1
+    #    re-ranks a driver anchor set by that driver's own STATE, which does not exist until wave 1 has
+    #    run -- and wave 1 is exactly what this cut exists to bound. `_driver_anchor_order`'s order
+    #    (confidence, then the driver's own lag band, then slug) is deterministic and is the best
+    #    ordering available before a read; `rank_driver_anchors` then re-ranks what survived.
+    _amax = max(1, int(getattr(kn, "max_anchors", 0) or 0))
+    if admit_order is None and len(bd.anchors) > _amax:
+        def _explicit(a):
+            return a.source in ("attached_event", "named") or bool(getattr(a, "named", False))
+
+        _held = [a for a in bd.anchors if _explicit(a)]
+        _rest = [a for a in bd.anchors if not _explicit(a)]
+        _room = max(0, _amax - len(_held))
+        _keep = set(id(a) for a in _held) | set(id(a) for a in _rest[:_room])
+        _dropped = tuple(a.contract for a in bd.anchors if id(a) not in _keep)
+        if _dropped:
+            bd.anchors = tuple(a for a in bd.anchors if id(a) in _keep)
+            bd.notes.append({"kind": "anchor_cap", "cap": _amax, "dropped": len(_dropped),
+                             "held": len(_held), "names": _dropped})
+
+    # ── THE READ CAPS ARE DECLARED HERE, AFTER THE ANCHOR GATE AND BEFORE THE FIRST FETCH, and the
+    #    placement is the S6 review's fatal 2. They used to be set above the lane gate, so a board that
+    #    DECLINED still carried cap 24 / 50 / 71 with `net_reads` 0 -- and `cascade._board_declared_cap`
+    #    read that cap onto the walk's own ceiling on a turn `quantify` received no board at all.
+    #    Declaring them here makes "the cap the board declared" and "the board ran" ONE fact rather
+    #    than two that could disagree; `_board_declared_cap` gates on the leg as well, which is the
+    #    belt to this brace.
+    bd.ledger.waves[1].reads_cap = int(kn.wave1)
+    # THE EFFECTIVE wave-2 cap, not the declared one: with leg B dark, Cascade's 58 is 31 (sec 3.8's
+    # own "71 with leg B dark"). The ceiling the walk gains at S6 must be what the board can SPEND --
+    # which is why `analog_reads` rides the same argument shape: a turn whose caller wires no
+    # `benchmark_fn` and no `receipt_fn` can never spend those columns, and reserving them put up to 15
+    # structurally unspendable reads on the walk's runaway tripwire (S6 review, major 7).
+    bd.ledger.waves[2].reads_cap = int(
+        B.wave2_shape(kn, legb_cells=legb_cells, legb_on=legb_on,
+                      analog_reads=analog_reads)["total"])
     bd.stamp("board", "fired")
 
     # THE RULE IS ON THE BOARD, so no stage carries a second copy of the switch: `_stage1` and
@@ -1300,7 +1381,31 @@ def walk(*, graph, asof: str, mode: str = "deep", anchors=(), question: str = ""
     if stage2:
         _stage2(bd, graph, kn, key_fn=key_fn, state_fn=state_fn, receipts=receipts, width=width,
                 legb_cells=legb_cells, legb_on=legb_on, complexes=complexes, chains=chains,
-                turn_kind=turn_kind)
+                turn_kind=turn_kind, analog_reads=analog_reads)
+    return bd
+
+
+def stage2(bd: B.Board, graph, *, state_fn=None, key_fn=None, receipts=None, width: int = 2,
+           legb_on: bool = False, complexes=(), chains=(), analog_reads: bool = True) -> B.Board:
+    """STAGE 2 ALONE, on a board :func:`walk` built with ``stage2=False`` (D11, sec 3.9).
+
+    IT EXISTS BECAUSE THE TWO STAGES RUN AT TWO SEAMS AND NOT ONE. `walk(stage2=True)` is the harness
+    and census shape -- one call, both stages, no `ground()` in between. The SERVING shape is stage 1
+    after `pl.grounded_subgraph` (the anchors exist, nothing is retrieved) and stage 2 after
+    `pl.ground` (which is what fills `n.evidence`, i.e. the receipts stage 2 reads). A seam that
+    reached into `_stage2` would be a second caller of a private function with eleven keyword
+    arguments; this is the ONE public door, and it re-derives from the BOARD what the walk resolved
+    once (`bd.knobs`, `bd.mode`, `bd.turn_kind`) rather than asking the caller to carry it a second
+    time and risk carrying it differently.
+
+    A BOARD WHOSE STAGE 1 NEVER RAN IS RETURNED UNTOUCHED, with its own words already on it: the walk
+    stamps `lane_off` / `anchor_none` and returns before stage 1, and stage 2 over an anchorless board
+    would price a wave against a rank that does not exist."""
+    if bd.knobs is None or not bd.anchors or not bd.stage_done.get(1):
+        return bd
+    _stage2(bd, graph, bd.knobs, key_fn=key_fn, state_fn=state_fn, receipts=receipts, width=width,
+            legb_cells=B.legb_cells_of(bd.mode), legb_on=legb_on, complexes=complexes, chains=chains,
+            turn_kind=bd.turn_kind, analog_reads=analog_reads)
     return bd
 
 
@@ -1434,7 +1539,7 @@ def _stage1(bd, graph, kn, *, key_fn, state_fn, turn_kind, width, positioning_id
 
 
 def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, legb_on, complexes,
-            chains, turn_kind) -> None:
+            chains, turn_kind, analog_reads: bool = True) -> None:
     """STEPS 5-14 of sec 3.3: receipts, EVENT rows, the closure, the edges, the free fan, wave 2's
     price, wave 2, convergence, complexes and chains. IT NEVER RE-RANKS STAGE 1."""
     t0 = time.perf_counter()
@@ -1586,10 +1691,17 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
 
     # 10 price wave 2 -- AFTER the rank, BEFORE its own fetch. The analog columns are S3's to fill; the
     #    board prices the seats now so the rectangle is closed whether or not S3's leg runs.
+    # THE TWO ANALOG COLUMNS ARE RESERVED ONLY WHEN THEIR PRODUCER IS WIRED (S6 review, major 7). The
+    # reads are made by `analogs._outcomes_for` / `_receipts_for` through an INJECTED `benchmark_fn` /
+    # `receipt_fn`; phase 2's seam wires neither, so those seats were 3-15 reads a turn that no producer
+    # could spend, reserved against the cap and carried onto the WALK's ceiling. `analog_reads` follows
+    # leg B's rider exactly: the declared cells set the residual, the rider sets whether the column is
+    # spent. The seats are still RECORDED (`Ledger.evidence_cap` / `benchmark_cap`) so a budget term is
+    # never merely absent.
     bench = [f"analog_benchmark:{r.contract}:{r.driver_id}" for r in loud[:int(kn.analog_dims)]
-             for _ in range(int(kn.analog_k))]
+             for _ in range(int(kn.analog_k))] if analog_reads else []
     recs = [f"analog_receipt:{r.contract}:{r.driver_id}" for r in loud[:int(kn.analog_dims)]
-            for _ in range(int(kn.analog_k))]
+            for _ in range(int(kn.analog_k))] if analog_reads else []
     p2 = price_wave2(far_keys=far_priced, analog_benchmarks=bench, analog_receipts=recs,
                      legb_cells=legb_cells, legb_on=legb_on, knobs=kn)
     w2 = bd.ledger.waves[2]
@@ -1643,7 +1755,15 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
         1 for lbl, st in got2.items()
         if st is not None and status_word(st.status) in ("pool_exhausted", "pg_timeout"))
     w2.read = len({k.label for k in p2["free"]}) + len(served2)
-    bd.ledger.evidence_borrows = len(p2["columns"]["analog_receipts"])
+    # THE SEATS, NEVER THE READS (S6 review, major 6). `evidence_borrows` used to be assigned this
+    # number and `state.seam.counters` published it as `BoardEvidenceBorrows`, whose 10.5 definition is
+    # "analog receipt reads on the evidence pool" -- MEASURED at 3 on every fired Analysis board and 5
+    # on every fired Cascade board while `_receipts_for` returned [] at zero reads, because the seam
+    # wires no `receipt_fn`. Arm A's evidence-pool pressure would have been read off a number no read
+    # produced. The RESERVATION is a cap and is recorded as one; the BORROWS are counted by the one
+    # producer that makes them, in `analogs`.
+    bd.ledger.evidence_cap = len(p2["columns"]["analog_receipts"])
+    bd.ledger.benchmark_cap = len(p2["columns"]["analog_benchmark"])
 
     # 12 convergence as ORDERING WORDS, per touched board (sec 3.5, D24).
     #    `band_ids` IS THIS BOARD'S OWN, not the estate's: a board-WIDE id set (what the first build
