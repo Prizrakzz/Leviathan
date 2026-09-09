@@ -33,14 +33,45 @@ beside them, in files this package does not own: the ``ym_lag`` kwarg threaded t
 ``numbers/query.py``'s ``build_sql`` / ``run`` / ``apply_pit_filter`` (sec 1.4, D21), and the
 ``numbers/nass_states.py`` reference loader with its ``_COUNTRY_REF_LOADERS`` entry (sec 2.1).
 
+WHAT S2 ADDS (phase 1b, THE WALK, sec 11 row S2):
+  * :mod:`leviathan.graphrag.state.board` -- ``Board`` (sec 1.2's container), ``Anchor`` and the closed
+    ``ANCHOR_SOURCES`` (3.1), ``NodeRow``, the two ``WaveLedger`` rectangles (3.8), ``BoardKnobs`` and
+    the ELEVEN closed decline enums of 6.7, and ``Board.request()`` -- the ``board=`` payload S6 threads
+  * :mod:`leviathan.graphrag.state.walk`  -- the D2 rank tuple and its banked alternative (3.2), the
+    loud set's two inclusions, the anchor grammar incl. the amended driver-as-subject and the PRICED
+    cold-start read set (3.1), the full ancestor closure with the render cap (3.4), edges / convergence
+    proximity / amplifiers (3.5), the FREE fan index and the far-row rule (3.6), dated events and their
+    projection windows (3.7), and the TWO priced atomic waves with both rectangles (3.8)
+
+beside them, in a file this package does not own: the nine per-mode board knobs
+(``reasoning_modes.BOARD_PRESETS`` / ``board_preset()``), dark by construction -- ``knobs()`` is
+untouched, so no shipped preset's knob dict, trace stamp or eval column moves.
+
+WHAT S3 ADDS (phase 1b, ANALOGS + WATCH + RENDER + NARRATION, sec 11 row S3):
+  * :mod:`leviathan.graphrag.state.analogs`   -- likeness on the loud drivers' own numeric state
+    history (4.1, 4.2), the outcome over the parent's declared band at BOTH ends (4.3, leg A shipped /
+    leg B behind its rider), text receipts that EXPLAIN and an absence said plainly (4.4), event
+    analogs through ``flag_events`` and the CO-LOUD analog for a driver-as-subject anchor
+  * :mod:`leviathan.graphrag.state.calendar`  -- ``next_release()`` over the RULES-only
+    ``release_calendar.yaml`` (5.2): a rule prints a WINDOW, never a time, and no future date rides
+  * :mod:`leviathan.graphrag.state.watch`     -- the five watch kinds as ONE closed enum, ISO dates and
+    no other digits, with the kind-2 distance as a re-executable figure (5.1)
+  * :mod:`leviathan.graphrag.state.render`    -- the row classes of 6.2 with one compiled regex each,
+    ``SB_MARKER_PREFIX``, the ``_cw_call``-shaped mint of 6.3 and the SB-X replacement fence of 6.6
+  * :mod:`leviathan.graphrag.state.narration` -- the mandate literal of 6.4 and the per-layer recency
+    constants of 6.5, ASCII, register-linted at build
+  * :mod:`leviathan.graphrag.state.__main__`  -- THE OFFLINE HARNESS: the three acceptance scenarios of
+    sec 0.3 rendered from fixture arrays on the REAL thirty-six DAGs, with the slot audit and the
+    per-class row and token measurement, ASCII stdout, no read and no clock
+
 STILL TO COME (named so each absence is a decision, not a gap): ``conventions.py`` -- the accessor for
-``state_conventions.yaml``, whose blocks S1's feeders take as ARGUMENTS rather than read for themselves
--- then ``board.py``, ``walk.py``, ``analogs.py``, ``watch.py``, ``calendar.py``, ``render.py``,
-``narration.py``, ``__main__.py`` -- S2 and S3.
+``state_conventions.yaml``, whose blocks S1's feeders take as ARGUMENTS and which ``watch.py`` and
+``analogs.py`` reach through ``lint.load_conventions`` until it lands; ``board_census.py`` -- S4.
 
 ASCII-ONLY STDOUT is a law here (the Windows console is cp1252): every line any module in this package
 PRINTS is ``.encode('ascii')``-safe, while the files themselves stay UTF-8.
 """
 from __future__ import annotations
 
-__all__ = ["lagbands", "lint", "rows", "transforms", "feeders"]
+__all__ = ["lagbands", "lint", "rows", "transforms", "feeders", "board", "walk", "analogs",
+           "calendar", "watch", "render", "narration"]

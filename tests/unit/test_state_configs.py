@@ -22,8 +22,24 @@ BOARD_READ_REFS = ("oni_lag_climate",)   # `nass_crop_progress_ge_z` is HELD for
 #   contract needs a `cascade_ref` back-pointer that only the registry GENERATOR may write, and
 #   the card key + query loader + live probe land together there. The reason is written out in
 #   full in cascade_map.yaml beside the row that was pulled back out.
-DRIVER_INSTANCES = 1267          # 1,266 at HEAD + the Argentina_production child (owner decision 10)
-CASCADE_CANDIDATES = 791         # 790 at HEAD + Argentina_production, whose ref `production_region` is LIVE
+# RE-PINNED 2026-09-09 (S2+S3 re-fix), and the CAUSE is D-10 SITTING 9 -- THE SPLIT (commit aa7fa7d7,
+# owner ruling 2026-09-07). The two DAG files it edits are GITIGNORED (`configs/graphrag/`), so the
+# sitting's tracked half landed in git while the graph itself moved on disk: these two numbers were
+# measured at S0 against the pre-split graph and had been red since the split, which is a curation event
+# re-banked here rather than a defect.
+#
+#   drivers   1,267 -> 1,270  = + rough_rice_cbot/India_state_reserves,
+#                                rough_rice_cbot/Thailand_state_reserves,
+#                                soybean_oil_dce/China_state_reserves
+#                                (three sign-0 reserve-level nodes on `beginning_stock_region`)
+#   candidates  791 -> 792    = + those three, whose ref IS live, MINUS the two `buffer_stock_release`
+#                                nodes the split DETACHED from the carry-in level series (they keep
+#                                their curated policy-event node at `silver_status: planned`, so they
+#                                narrate from receipts and are no longer cascade candidates). +3 -2 = +1,
+#                                and the arithmetic is why the candidate census moved by less than the
+#                                driver census did.
+DRIVER_INSTANCES = 1270          # 1,266 at HEAD + Argentina_production (decision 10) + the three above
+CASCADE_CANDIDATES = 792         # sitting 9's own prediction #14, measured
 
 
 def test_load_map_never_sees_a_board_read_row():
@@ -45,7 +61,13 @@ def test_the_board_sees_them_and_nothing_else_extra():
 
 def test_the_candidate_census_moves_only_by_the_curated_node():
     """The un-defer gate's own number. The two board_read rows add ZERO cascade candidates; the one
-    driver decision 10 curated adds exactly one, and it rides a ref that was already live."""
+    driver decision 10 curated adds exactly one, and it rides a ref that was already live.
+
+    RE-PINNED at the S2+S3 re-fix to the D-10 sitting-9 graph (see the constants above): the driver
+    census is 1,270 and the candidate census 792, and the two moved by DIFFERENT amounts because the
+    split both added three sign-0 reserve-level nodes on a live ref and detached two release nodes onto
+    `planned`. A red here is still a curation event to re-bank deliberately -- and it will red on the
+    next sitting that touches a gitignored DAG, which is the point of measuring it from the files."""
     n = 0
     total = 0
     for p in sorted((ex._CFG / "causal").glob("*.yaml")):

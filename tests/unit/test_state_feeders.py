@@ -88,30 +88,50 @@ def test_the_live_predicate_is_NOT_the_tier():
 
 
 def _assigned_statuses():
-    """Every string a ``.status =`` assignment in ``feeders`` can put on a row, grouped by the function
-    it is assigned in. GROUPED, because the producer writes TWO closed vocabularies -- the series words
-    and SB-T's own -- and a flat set would grade each against the other's enum and pass on the union,
-    which is exactly the widening the enums exist to prevent."""
+    """Every string the producer can put on a row's ``status``, grouped by the function it is written
+    in. GROUPED, because the producer writes TWO closed vocabularies -- the series words and SB-T's own
+    -- and a flat set would grade each against the other's enum and pass on the union, which is exactly
+    the widening the enums exist to prevent.
+
+    TWO WRITE FORMS, and the second was added at S2 when the zero-read prologue was lifted into
+    ``series_key_for``: a status can be ASSIGNED (``out.status = 'read_empty'``) or PASSED as the
+    ``status=`` keyword of a constructed record (``KeyPlan(key=None, status='unmapped_ref')``). The
+    lift moved four words -- ``unmapped_ref``, ``scope_unresolved:``, ``unmapped_ref:no_registry_card``
+    and ``outlook_lane`` -- from the first form to the second, and a scanner that only knew the first
+    would have gone quietly blind on them (MEASURED: this file's own
+    ``..._the_two_words_the_first_S1_cut_invented_are_gone...`` pin failed on exactly that hole, which
+    is the whole reason the fence is written against the AST rather than against a habit)."""
     import ast
     import inspect
+
+    def _words(v):
+        if isinstance(v, ast.Constant) and isinstance(v.value, str):
+            return [v.value]
+        if isinstance(v, ast.JoinedStr) and v.values and isinstance(v.values[0], ast.Constant):
+            return [str(v.values[0].value)]
+        return []
+
     tree = ast.parse(inspect.getsource(F))
     out = {}
     for fn in ast.walk(tree):
         if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for n in ast.walk(fn):
-            if not isinstance(n, ast.Assign):
-                continue
-            targets = [t for t in n.targets if isinstance(t, ast.Attribute) and t.attr == "status"]
-            targets += [e for t in n.targets if isinstance(t, ast.Tuple) for e in t.elts
-                        if isinstance(e, ast.Attribute) and e.attr == "status"]
-            if not targets:
-                continue
-            for v in (n.value.elts if isinstance(n.value, ast.Tuple) else [n.value]):
-                if isinstance(v, ast.Constant) and isinstance(v.value, str):
-                    out.setdefault(fn.name, set()).add(v.value)
-                elif isinstance(v, ast.JoinedStr) and v.values and isinstance(v.values[0], ast.Constant):
-                    out.setdefault(fn.name, set()).add(str(v.values[0].value))
+            if isinstance(n, ast.Assign):
+                targets = [t for t in n.targets if isinstance(t, ast.Attribute) and t.attr == "status"]
+                targets += [e for t in n.targets if isinstance(t, ast.Tuple) for e in t.elts
+                            if isinstance(e, ast.Attribute) and e.attr == "status"]
+                if not targets:
+                    continue
+                for v in (n.value.elts if isinstance(n.value, ast.Tuple) else [n.value]):
+                    for w in _words(v):
+                        out.setdefault(fn.name, set()).add(w)
+            elif isinstance(n, ast.Call):
+                for kw in n.keywords:
+                    if kw.arg != "status":
+                        continue
+                    for w in _words(kw.value):
+                        out.setdefault(fn.name, set()).add(w)
     return out
 
 
@@ -120,20 +140,24 @@ def test_every_status_the_producer_can_assign_is_in_the_CLOSED_set():
     words is rendered to a reader as an SB-X absence line, so a word invented at a call site would be a
     vocabulary nobody declared and the render would have no sentence for it.
 
-    TWO ENUMS, GRADED APART. ``tape_state`` writes SB-T's own words (``no_tape_slug``, ``pre_coverage``,
-    ``front_decline``, ``changes_thin``, ``percentile_thin``) and the series producer writes sec 1.3's;
-    a word from either that is not declared in ITS OWN set fails here."""
+    THREE ENUMS, GRADED APART. ``tape_state`` writes SB-T's own words (``no_tape_slug``,
+    ``pre_coverage``, ``front_decline``, ``changes_thin``, ``percentile_thin``), ``text_state`` writes
+    the text half's three (sec 2.2) and the series producer writes sec 1.3's; a word from any of them
+    that is not declared in ITS OWN set fails here. The third set became a CONSTANT at S2 because the
+    widened scanner above found it closed only in a docstring -- i.e. graded by nothing."""
     from leviathan.graphrag.state.rows import (
         STATUS_WITH_DETAIL,
         TAPE_STATUS_WITH_DETAIL,
         TAPE_STATUS_WORDS,
+        TEXT_STATUS_WORDS,
         status_word,
     )
     by_fn = _assigned_statuses()
     assert by_fn, "the producer assigns no status at all -- the AST walk is looking at the wrong thing"
     for fn, words in by_fn.items():
         tape = fn == "tape_state"
-        vocab = TAPE_STATUS_WORDS if tape else STATUS_WORDS
+        vocab = (TEXT_STATUS_WORDS if fn == "text_state"
+                 else TAPE_STATUS_WORDS if tape else STATUS_WORDS)
         detail = TAPE_STATUS_WITH_DETAIL if tape else STATUS_WITH_DETAIL
         for w in words:
             head = status_word(w)

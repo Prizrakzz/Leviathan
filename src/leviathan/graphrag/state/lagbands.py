@@ -1,7 +1,8 @@
 """Lag-band parsing over the DAGs' declared lag vocabulary -- STATE ENGINE DESIGN sec 2.3 (D3).
 
 ONE table (``configs/graphrag/numbers/lag_bands.yaml``), one parser, no second opinion. Every ``lag``
-string the 36 curated causal DAGs declare -- 1,412 declarations in 18 distinct node strings, 8 of which
+string the 36 curated causal DAGs declare -- 1,416 declarations as re-measured 2026-09-09 (1,270 node
+lags + 146 edge lags; the D-10 sitting-9 split added three) in 18 distinct node strings, 8 of which
 are also edge strings, plus the schema default ``""`` -- resolves through :func:`parse_lag` to a
 :class:`LagBand` of ``(min_q, max_q)`` QUARTERS. A string outside the table parses to kind
 ``unspecified`` with NO band and ``unparsed`` True, so a caller counts it (``lag_unparsed``) rather than

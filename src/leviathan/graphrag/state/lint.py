@@ -603,9 +603,150 @@ def _check_nass_states() -> list[str]:
     return errs
 
 
+
+# ── clause 9 (S3): every closed word a reader can meet has a SENTENCE ────────────────────────────────
+def _check_absence_vocabulary() -> list[str]:
+    """Every word in every closed enum this package renders has a plain sentence in
+    ``render.ABSENCE_WHY``. Empty list == clean.
+
+    THIS IS THE CONTRACT BETWEEN THE VOCABULARIES AND THE RENDER, and it fails at BUILD for a measured
+    reason: ``rows.STATUS_WORDS``' own docstring says "EVERY word here is rendered to a reader as an
+    SB-X absence line the S3 render must carry a sentence for, so a word added here is work assigned to
+    a later sitting, and adding one silently is the failure this docstring exists to prevent". Prose
+    cannot enforce that. This clause can: a word without a sentence renders as the fallback, and a
+    reader would meet a generic line where a specific fact was owed."""
+    errs: list[str] = []
+    from leviathan.graphrag.state import board as B
+    from leviathan.graphrag.state import render as R
+    from leviathan.graphrag.state import rows as ROWS
+    seen: dict = {}
+    for leg, words in B.LEG_REASONS.items():
+        for w in words:
+            seen.setdefault(w, f"board.LEG_REASONS[{leg!r}]")
+    for w in ROWS.STATUS_WORDS:
+        seen.setdefault(w, "rows.STATUS_WORDS")
+    for w in ROWS.TAPE_STATUS_WORDS:
+        seen.setdefault(w, "rows.TAPE_STATUS_WORDS")
+    seen.pop("ok", None)
+    for w, where in sorted(seen.items()):
+        if w not in R.ABSENCE_WHY:
+            errs.append("render.ABSENCE_WHY has no sentence for the closed word %r (declared in %s): "
+                        "a reader would meet the fallback line instead of the fact the word names"
+                        % (w, where))
+    for w in sorted(R.ABSENCE_WHY):
+        if w not in seen:
+            errs.append("render.ABSENCE_WHY carries a sentence for %r, which no closed enum declares "
+                        "-- a sentence with no word is a vocabulary nobody can reach" % (w,))
+        if any(ch.isdigit() for ch in R.ABSENCE_WHY[w]):
+            errs.append("render.ABSENCE_WHY[%r] carries a digit; SB-X is a letters-only class" % (w,))
+    return errs
+
+
+# ── clause 10 (S3): the row-class regexes are pairwise disjoint and disjoint from the walk's ─────────
+def _check_row_classes() -> list[str]:
+    """Sec 6.2's regexes compile, are pairwise disjoint on a SAMPLE line per class, and do not match the
+    walk's own line classes (``CW_CONTEXT_LINE_RX``, ``CW_FX_LINE_RX``) or the extreme locator's.
+
+    THE SAMPLES ARE THE SPEC, and they live here rather than in a deck for one reason: the disjointness
+    claim is about the REGEXES, which are code, while a deck's corpus is about the RENDER, which is
+    behaviour. Both are graded -- the deck asserts exactly one class matches every line the three
+    acceptance fixtures produce -- and this clause is the half that fails without a board."""
+    errs: list[str] = []
+    from leviathan.graphrag.state import render as R
+    samples = {
+        "SB-H": "STATE OF THE WORLD at 2026-09-07 for CBOT soybeans: two drivers read on their own "
+                "series, one carried as dated receipts; ordered by how far each reading sits from its "
+                "own history.",
+        "SB-1": "- [N1] El Nino on CBOT soybeans, NOAA ONI for 2026-08-31: +0.98 degC; [N2] +1.2 sigma "
+                "on its trailing window of one hundred twenty months [series: CBOT soybeans; table: "
+                "NOAA ONI]",
+        "SB-V": "- [N7] WATCH the level a convention names El Nino on CBOT soybeans: 0.52 degC "
+                "under the strong line at 1.5 degC -- 2026-08-31",
+        "SB-T": "- [N9] CBOT soybeans front 2026-11 settle on 2026-09-04: 1085.08 USc/bu",
+        "SB-O": "- [N11] the soybean monthly benchmark over the band the graph declares from that "
+                "state, one to two quarters: moved 46.33 USD/t by the near end; [N12] moved 68.21 "
+                "USD/t by the far end",
+        "SB-W": "- WATCH the next scheduled print El Nino on CBOT soybeans (NOAA ONI): scheduled "
+                "between 2026-10-01 and 2026-10-05 -- 2026-10-01 to 2026-10-05",
+        "SB-R": "- [E1][T1] (Indonesia Ministry of Energy, reported 2026-05-02; event 2026-05-01) "
+                "{driver: biodiesel mandate} the blend mandate moved",
+        "SB-E": "- El Nino is declared to move CBOT soybeans in the opposite direction with a lag the "
+                "graph states as one to two quarters, at medium confidence",
+        "SB-J": "- conditional on the lag the graph states, counted from the run's start in April "
+                "2026, the effect window on CBOT soybeans opens around July 2026 and closes around "
+                "October 2026",
+        "SB-D": "- biodiesel mandate dated 2026-05-01 by [E1] (published 2026-05-02): the CME palm oil "
+                "graph records it in the same direction with a lag of zero to two quarters",
+        "SB-F": "- the same reading is declared on thirty-four other boards: in the opposite direction "
+                "on twenty-eight (CBOT corn) and in the same direction on the rest (CME palm oil)",
+        "SB-C": "- biodiesel energy-price floor (price-supportive) on CME palm oil: two of its three "
+                "declared drivers sit among this board's twenty-four loudest rows (crude oil price); "
+                "the pattern's own threshold is two",
+        "SB-M": "  amplifier on CME palm oil: crude oil price, biodiesel mandate all sit among this "
+                "board's loudest rows; the graph records the effect as amplifies",
+        "SB-P": "UPSTREAM crude oil -> soybean crush margin -> board crush -> CBOT soybeans: the graph "
+                "places crude oil two hops upstream of the CBOT soybeans price",
+        "SB-A": "LIKE STATE El Nino on CBOT soybeans: the series sat like this in June 2013; the "
+                "record carries seventy-five such crossings since 2022",
+        "SB-L": "RECENCY numbers: read as of 2026-09-07; the newest knowledge date on a number row is "
+                "2026-09-04",
+        "SB-X": "BOARD ABSENCE crude oil on CBOT soybeans: the read returned no rows for this scope at "
+                "this as-of.",
+    }
+    missing = sorted(set(R.ROW_CLASSES) - set(samples))
+    if missing:
+        errs.append("state/lint.py has no sample line for row class(es) %s -- a class with no sample "
+                    "is a class whose disjointness nobody graded" % (missing,))
+    for name, line in sorted(samples.items()):
+        hit = R.classify(line)
+        if hit != (name,):
+            errs.append("row class %s: its own sample line classifies as %s, not exactly (%r,)"
+                        % (name, hit or "no class", name))
+    for rx_name, rx in _walk_line_rxs().items():
+        for name, line in sorted(samples.items()):
+            if rx.search(line):
+                errs.append("row class %s's sample line also matches the walk's %s -- the two blocks "
+                            "would be indistinguishable to a consumer" % (name, rx_name))
+    return errs
+
+
+def _walk_line_rxs() -> dict:
+    """The walk's own rendered-line regexes, imported lazily and skipped (with no error) when the K9
+    lane has moved them: a lint that CRASHED on a rename would red the board for a change in a file
+    this package does not own."""
+    out: dict = {}
+    try:
+        from leviathan.graphrag.numbers import cascade as casc
+        for n in ("CW_CONTEXT_LINE_RX", "CW_FX_LINE_RX"):
+            rx = getattr(casc, n, None)
+            if rx is not None and hasattr(rx, "search"):
+                out[n] = rx
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+# ── clause 11 (S3): the narration literals and the calendar's rule kinds ────────────────────────────
+def _check_narration_and_calendar() -> list[str]:
+    """``narration.check_literals()`` (the mandate and the two recency sentences, bar B15) plus
+    ``calendar.check_rule_kinds()`` (every declared rule kind is one the consumer computes)."""
+    errs: list[str] = []
+    from leviathan.graphrag.state import calendar as CAL
+    from leviathan.graphrag.state import narration as NAR
+    errs += NAR.check_literals()
+    errs += CAL.check_rule_kinds()
+    return errs
+
+
 # ── entry points ─────────────────────────────────────────────────────────────────────────────────────
 def check_state_board() -> list[str]:
-    """Every S0 clause. Empty list = green. Absorbed by ``config_check.check_state_board`` after K9."""
+    """Every S0 clause plus S3's three. Empty list = green. Absorbed by
+    ``config_check.check_state_board`` after K9.
+
+    S3 ADDS THREE CLAUSES, each grading a CONTRACT BETWEEN MODULES that prose alone was carrying: every
+    closed decline word has a reader sentence (9), the row-class regexes are pairwise disjoint and
+    disjoint from the walk's own line classes (10), and the mandate, the two recency sentences and the
+    calendar's rule kinds are clean (11)."""
     errs: list[str] = []
     errs += _check_lag_table()
     errs += _check_no_summed_band()
@@ -615,6 +756,9 @@ def check_state_board() -> list[str]:
     errs += _check_ym_lag()
     errs += _check_country_ref_pairing()
     errs += _check_nass_states()
+    errs += _check_absence_vocabulary()
+    errs += _check_row_classes()
+    errs += _check_narration_and_calendar()
     return errs
 
 

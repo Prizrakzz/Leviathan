@@ -13,14 +13,30 @@ import yaml
 from leviathan.graphrag import extract as ex
 from leviathan.graphrag.state import lagbands as lb
 
-# ── the census, measured 2026-09-08 at HEAD df808f2c ─────────────────────────────────────────────────
+# ── the census, RE-MEASURED 2026-09-09 at HEAD 4fc933e7 (S2+S3 re-fix) ───────────────────────────────
+# THE CAUSE OF THE MOVE is D-10 SITTING 9 -- THE SPLIT (commit aa7fa7d7, owner ruling 2026-09-07): three
+# sign-0 reserve-level nodes joined the graph -- rough_rice_cbot/India_state_reserves,
+# rough_rice_cbot/Thailand_state_reserves and soybean_oil_dce/China_state_reserves -- each declaring
+# `0-2 quarters`. The DAG files live under the gitignored `configs/graphrag/`, so the sitting's tracked
+# half landed in git while the graph moved on disk and these pins, measured at S0 against the pre-split
+# graph, went red. Re-banked, with the delta named rather than the numbers quietly swapped.
 N_DAG_FILES = 36
-N_DRIVER_INSTANCES = 1267        # 1,266 at HEAD + Argentina_production (owner decision 10, same sitting)
-N_INTER_COMMODITY_EDGES = 146
-N_DECLARATIONS = 1413            # 1,267 node lags + 146 edge lags; NONE is absent
-N_NODE_STRINGS = 18
+N_DRIVER_INSTANCES = 1270        # 1,267 at S0 + the three D-10 sitting-9 reserve-level nodes
+N_INTER_COMMODITY_EDGES = 146    # unmoved: the split added NODES, no inter-commodity edge
+N_DECLARATIONS = 1416            # 1,270 node lags + 146 edge lags; NONE is absent
+N_NODE_STRINGS = 18              # unmoved: the three new nodes reuse a spelling the table already has
 N_EDGE_STRINGS = 8               # every one of them is also one of the 18
 N_TABLE_KEYS = 19                # the 18 strings + the schema default ""
+
+#: WHAT THE BANKED TABLE HAS NOT BEEN RE-MEASURED FOR, per key, as ``(node delta, edge delta)``.
+#: ``configs/graphrag/numbers/lag_bands.yaml`` carries per-key declaration counts measured at S0, and
+#: the three sitting-9 nodes all declare ``0-2 quarters`` -- so the table reads 484 nodes there and the
+#: DAGs now declare 487. The table is NOT edited here (this sitting's allowlist is the state package and
+#: its decks; the YAML is a curated config with its own sitting), so the delta is DECLARED, and the
+#: assertion below still binds every other key exactly. RE-BANKING lag_bands.yaml -- 484 -> 487 on
+#: ``0-2 quarters`` -- is an OWNER-APPLY item; when it lands this dict goes back to empty and the pin
+#: below tightens itself with no other edit.
+TABLE_REBANK_PENDING: dict = {"0-2 quarters": (3, 0)}
 
 
 def _docs():
@@ -78,7 +94,15 @@ def test_the_two_strings_the_walks_regex_cannot_read_are_in_the_table():
 
 
 def test_the_measured_counts_ride_the_table():
-    """The per-key declaration counts in the YAML equal what the DAGs actually declare."""
+    """The per-key declaration counts in the YAML equal what the DAGs actually declare, plus the ONE
+    named delta the D-10 sitting-9 curation opened and the table has not been re-banked for.
+
+    THE FENCE IS CORRECTED, NOT DELETED. Dropping to "the totals agree" would have let any per-key drift
+    through, and skipping the key would have stopped measuring the busiest band in the estate. Every key
+    still binds exactly; ``0-2 quarters`` binds to the table's banked count PLUS the three curated nodes
+    that moved it, so this deck reds on the next curation exactly as it did on this one -- and it reds
+    the moment ``lag_bands.yaml`` IS re-banked, which is the reminder that the owner-apply item is
+    still open."""
     bands = lb.load_lag_bands()["bands"]
     node_counts, edge_counts = {}, {}
     for _, doc in _docs():
@@ -87,8 +111,14 @@ def test_the_measured_counts_ride_the_table():
         for e in (doc.get("inter_commodity") or []):
             edge_counts[e.get("lag", "")] = edge_counts.get(e.get("lag", ""), 0) + 1
     for key, row in bands.items():
-        assert row["counts"]["nodes"] == node_counts.get(key, 0), key
-        assert row["counts"]["edges"] == edge_counts.get(key, 0), key
+        dn, de = TABLE_REBANK_PENDING.get(key, (0, 0))
+        assert row["counts"]["nodes"] + dn == node_counts.get(key, 0), key
+        assert row["counts"]["edges"] + de == edge_counts.get(key, 0), key
+    # the declared delta is the WHOLE difference between the banked table and the graph on disk
+    assert sum(r["counts"]["nodes"] for r in bands.values()) \
+        + sum(d[0] for d in TABLE_REBANK_PENDING.values()) == N_DRIVER_INSTANCES
+    assert sum(r["counts"]["edges"] for r in bands.values()) \
+        + sum(d[1] for d in TABLE_REBANK_PENDING.values()) == N_INTER_COMMODITY_EDGES
 
 
 def test_an_unknown_spelling_gets_no_band_and_is_never_zeroed():

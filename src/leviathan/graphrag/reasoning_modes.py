@@ -523,6 +523,52 @@ MODES[QUICK_N3] = replace(MODES[QUICK], name=QUICK_N3, numbers_calls=3)
 MODES[QUICK_S] = replace(MODES[QUICK], name=QUICK_S, synth_model="claude-sonnet-5")
 MODES[QUICK_R0] = replace(MODES[QUICK_S], name=QUICK_R0, numbers_roster=True)
 
+# -- STATE ENGINE S2: THE BOARD KNOBS (2026-09-09; docs/private/STATE_ENGINE_DESIGN_2026-09-07.md sec 7)
+# The NINE per-mode board constants, in the design's own declared order, unpacked by
+# `state.board.BoardKnobs` so no consumer indexes the tuple by position:
+#
+#     (loud_k, fan_k, analog_k, analog_dims, board_admit_k, wave1, wave2, receipt_cap, path_render_k)
+#
+# DARK BY CONSTRUCTION, TWO WAYS. (1) The table is keyed by BASE mode name and is consulted by NOTHING on
+# the serve path -- `state/` is imported by no serving module until the `board=` kwarg lands at S6.
+# (2) `knobs()` is untouched, so no existing knob dict, trace stamp or eval `mode_knobs` column gains a
+# key: the shipped presets are byte-identical and `standard` stays the all-None passthrough.
+#
+# WHY A MODULE TABLE AND NOT THE `Mode` FIELD THE DESIGN SPECIFIES, AND IT IS A MEASURED BLOCKER RATHER
+# THAN A PREFERENCE. Sec 7 asks for ONE appended field `board: tuple | None` after `numbers_roster`.
+# Appending it moves `KNOB_FIELDS[-1]`, and `config_check.check_scan_roster` clause (iv) asserts that
+# literal by NAME -- `if _rm.KNOB_FIELDS[-1] != "numbers_roster"` (config_check.py:3879), whose own
+# docstring says "THIS is the clause that owns the literal tail order". So the field cannot land green
+# without editing `config_check.py`, which the state-engine arc holds for S6 (it is one of the six K9
+# files S6 already edits). The knobs land HERE, at their values, threaded and tested; S6 appends the
+# `Mode` field and moves clause (iv) plus the two test tail pins in the SAME commit, which is the
+# appended-last law working exactly as written -- whoever lands last owns the shift, and that is S6.
+#
+# THE VALUES ARE SEC 7'S AND SEC 3.8'S, and every wave-2 total is the sum of that table's own four
+# columns (`state.board.wave2_shape` derives them; `check_knobs` pins the identity):
+#   Scan     24 + 0                                   = 24
+#   Analysis 32 + (12 far + 3 benchmark + 3 receipts) = 50
+#   Cascade  40 + (16 far + 10 benchmark + 5 receipts + 27 leg-B cells) = 98, i.e. 71 with leg B dark
+# The caps are UPPER BOUNDS sized from the table, not a demand forecast: the newest census measures the
+# soybeans board at 12-13 distinct series keys (sec 7, desk_cost F16), so wave 1 does not bind there.
+BOARD_PRESETS: dict[str, tuple] = {
+    #        loud_k fan_k analog_k analog_dims admit wave1 wave2 receipt_cap path_render_k
+    QUICK:  (8,     4,    0,       0,          4,    24,   0,    0,          2),
+    DEEP:   (16,    8,    1,       3,          8,    32,   18,   3,          4),
+    MAX:    (24,    16,   2,       5,          12,   40,   58,   5,          8),
+}
+
+
+def board_preset(name: str | None) -> tuple | None:
+    """The nine board knobs for a mode, or None where the tier declares none (STATE ENGINE sec 7).
+
+    KEYED ON THE BASE PRESET (`base_mode`), for the same reason `is_metered` is: a `deep_hp` turn is an
+    Analysis turn and must read the Analysis board, and a table keyed by literal name would hand every
+    `_hp` twin, every escalation name and every arm control a None -- i.e. no board at all on exactly
+    the turns an arm is measuring. `standard` and every unknown name return None, which is the
+    passthrough: no knobs, no board, and the seam stamps its own lane word."""
+    return BOARD_PRESETS.get(base_mode(name))
+
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
 # by NAME (GRAPHRAG_MODES=deep_v2 for the eval arm), which is what keeps the flip a one-env-var decision.
 # D-MW-30 (F8): esc / esc_r join the dark set IN THE SAME COMMIT that mints them. A forgotten entry here

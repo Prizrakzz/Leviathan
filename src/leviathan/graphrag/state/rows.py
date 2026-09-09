@@ -100,6 +100,20 @@ TAPE_STATUS_WORDS: tuple[str, ...] = (
 #: Same rule as :data:`STATUS_WITH_DETAIL`, for the tape words.
 TAPE_STATUS_WITH_DETAIL: frozenset[str] = frozenset({"changes_thin", "percentile_thin"})
 
+#: The TEXT half's own three words (sec 2.2) -- a THIRD closed set, and a separate one for the same
+#: reason the tape's is separate: "this node's receipts were never fetched" and "this node has no
+#: receipts" are two different sentences the S3 render owes a reader, and neither is a series decline.
+#: DECLARED AS A CONSTANT AT S2, and the trigger is measured rather than tidy: when ``series_key_for``
+#: was lifted out of ``series_state``, the status fence in ``tests/unit/test_state_feeders.py`` was
+#: widened to read ``status=`` KEYWORDS as well as ``.status =`` assignments -- and the first thing the
+#: wider scanner found was that ``text_state`` writes a vocabulary closed only in a DOCSTRING, i.e. one
+#: no test graded. A set that is closed in prose is not closed.
+TEXT_STATUS_WORDS: tuple[str, ...] = (
+    "ok",
+    "no_receipt_fetched",            # the caller passed no receipts -- V1 phase 1b retrieves none itself
+    "no_receipts",                   # receipts were passed and the node carries none: a ROW that says so
+)
+
 #: The cadences a card may declare (``TableSpec.cadence``), plus the board's own DESTINATION-GRAIN split
 #: of ``weekly`` -- a per-destination weekly card (silver_esr, silver_fgis) is read over 52 weeks at the
 #: destination grain and SUMMED per week, so its z is a 52-week z and prints as such (sec 2.1).

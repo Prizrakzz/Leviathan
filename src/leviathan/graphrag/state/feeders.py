@@ -681,6 +681,101 @@ the label rides, and ``BoardReplayLabelled`` counts it."""
 LATEST_ONLY_CARDS: frozenset[str] = frozenset({"silver_noaa_oni", "silver_noaa_iod"})
 
 
+class KeyPlan(NamedTuple):
+    """WHAT A REF RESOLVES TO AT **ZERO READS** -- the walk's pricing unit (sec 3.3 step 1, sec 3.8).
+
+    THE READ BUDGET IS PRICED BEFORE THE FETCH, and that law has a precondition nobody stated out loud
+    until the walk needed it: the pricer must know the SERIES KEY of every row in the anchor DAGs
+    before a single row is fetched, because the read count of a turn is the DISTINCT series-key count
+    (sec 1.1) and two node rows that fold onto one key must be priced as ONE. Everything that decides a
+    key -- the board's map row, ``_scope_ex``'s resolution, ``_region_row``'s metric swap, the
+    ``same_series_as`` fold and the card's axes -- is arithmetic over loaded YAML. So the resolution is
+    free, and this is it.
+
+    ONE RESOLVER, NOT TWO. :func:`series_state` calls this function and then reads; the walk calls it
+    and does not. A second copy of the prologue in ``walk.py`` would be the COMPAT-9 drift class with a
+    memo key on the end of it -- a scope resolved one way at pricing time and another way at read time
+    would mean the board paid for a key it never fetched and fetched a key it never priced, and the
+    rectangle of sec 1.2 would close on the wrong numbers.
+
+    ``key is None`` is the ABSENCE, and ``status`` is the closed word that says which one (sec 1.3):
+    ``unmapped_ref``, ``scope_unresolved:<the resolver's own reason>``, ``unmapped_ref:no_registry_card``
+    or ``outlook_lane``. Those four rows cost nothing and are never priced -- and they are still ROWS."""
+
+    key: Optional[SeriesKey]
+    status: str = "ok"
+    table: str = ""
+    metric: str = ""
+    cadence: str = ""
+    context_only: bool = False
+    offset_months: int = 0
+    alias_ref: str = ""
+    offset_note: str = ""
+    commodity: str = ""                 # `_scope_ex`'s OWN resolution, before the card-axis normalise
+    country: str = ""
+    row: Optional[dict] = None          # the board's map row as DECLARED (None only on unmapped_ref)
+    row2: Optional[dict] = None         # ...region-resolved (the metric swap applied)
+    read_row: Optional[dict] = None     # the row whose (table, metric) is ACTUALLY read, post-fold
+    src_row: Optional[dict] = None      # that row BEFORE the region swap -- the declared metric
+    ts: Any = None                      # the registry card, or None where the map row names no card
+    apply_offset: bool = False          # whether the fold licenses shifting the fetched array
+
+
+def series_key_for(ref: str, node, *, turn_kind: str = "") -> KeyPlan:
+    """``(ref, node) -> KeyPlan`` at ZERO reads. See :class:`KeyPlan` for why this is its own function.
+
+    ``turn_kind`` is here rather than at the read because the OUTLOOK decline is a zero-read fact the
+    WALK owns (sec 1.3 / D18): a positioning row on an outlook turn must never be PRICED, and a pricer
+    that could not see the lane would buy a read the producer then refuses."""
+    casc = _casc()
+
+    row = board_map_row(ref)
+    if row is None:
+        return KeyPlan(key=None, status="unmapped_ref")
+
+    commodity, country, skip = casc._scope_ex(node, row)
+    if country is casc.SKIP_NODE:
+        return KeyPlan(key=None, status=f"scope_unresolved:{skip or 'region-unresolved'}",
+                       table=row.get("table", ""), metric=row.get("metric", ""), row=row)
+
+    row2 = casc._region_row(node, row)                 # fred_fx: the resolved region's currency picks the metric
+    table, metric = row2.get("table", ""), row2.get("metric", "")
+    context_only = table in getattr(casc, "POSITIONING_TABLES", frozenset())
+    if context_only and str(turn_kind or "").strip().lower() == "outlook":
+        # R9's SHIPPED DROP, in the board's own words (cascade.py's quantify skips a POSITIONING_TABLES
+        # row on an outlook turn). The word is in the closed enum because the render owes the reader a
+        # sentence for it; it is stamped HERE, at ZERO reads, because the turn kind is knowledge the
+        # WALK has and the read does not -- the caller passes it or the board never declines this way.
+        return KeyPlan(key=None, status="outlook_lane", table=table, metric=metric,
+                       context_only=True, commodity=str(commodity or ""), country=str(country or ""),
+                       row=row, row2=row2)
+
+    from leviathan.graphrag.numbers.registry import load_registry
+    try:
+        ts = load_registry().get(table)
+    except Exception:                                   # noqa: BLE001 -- a map row naming an unknown card
+        return KeyPlan(key=None, status="unmapped_ref:no_registry_card", table=table, metric=metric,
+                       context_only=context_only, commodity=str(commodity or ""),
+                       country=str(country or ""), row=row, row2=row2)
+
+    # ── THE SAME-SERIES FOLD (sec 2.6 item 1, sec 3.6) ─────────────────────────────────────────────
+    fold = _resolve_same_series(ref, row, row2, node, casc)
+    read_row, src_row = fold.read_row, fold.src_row
+    rtable, rmetric = read_row.get("table", ""), read_row.get("metric", "")
+    c, k, mkey = _scope_for_card(ts, commodity, country,
+                                 declared_metric=str(src_row.get("metric") or ""),
+                                 resolved_metric=rmetric,
+                                 country_rule=str(src_row.get("country_rule") or ""))
+    return KeyPlan(key=SeriesKey(ref=fold.base_ref, commodity=c, country=k, metric=mkey),
+                   status="ok", table=rtable, metric=rmetric, cadence=cadence_of(ts, rtable),
+                   context_only=context_only,
+                   offset_months=int(row2.get("offset_months", 0) or 0),
+                   alias_ref=fold.alias_ref, offset_note=fold.note,
+                   commodity=str(commodity or ""), country=str(country or ""),
+                   row=row, row2=row2, read_row=read_row, src_row=src_row, ts=ts,
+                   apply_offset=fold.apply_offset)
+
+
 def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = None,
                  conventions: Optional[dict] = None, newest_first: Any = "all",
                  ym_lag: bool = True, silver_status: str = "none",
@@ -697,61 +792,33 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     half at zero reads by name (``outlook_lane``, sec 1.3 / D18). Empty -- the default -- declines
     nothing, so a caller that does not know the turn kind cannot silently assert a lane.
     """
+    # THE ZERO-READ PROLOGUE IS :func:`series_key_for` (sec 3.3 step 1). It was lifted out of this body
+    # at S2 rather than copied into the walk, because the pricer and the reader must resolve one ref to
+    # ONE key or the budget rectangle closes on numbers nothing fetched. Every early return below is the
+    # same return this function made before the lift, in the same order, with the same words.
     casc = _casc()
-    key0 = SeriesKey(ref=ref)
-    out = StateRow(key=key0, asof=asof, coverage_tier="none_text_only")
-
-    row = board_map_row(ref)
-    if row is None:
-        out.status = "unmapped_ref"
-        out.coverage_tier = coverage_tier(map_row=None, silver_status=silver_status, status=out.status)
-        return out
-
-    commodity, country, skip = casc._scope_ex(node, row)
-    if country is casc.SKIP_NODE:
-        out.status = f"scope_unresolved:{skip or 'region-unresolved'}"
-        out.coverage_tier = coverage_tier(map_row=row, silver_status=silver_status, status=out.status)
-        out.table, out.metric = row.get("table", ""), row.get("metric", "")
-        return out
-
-    row2 = casc._region_row(node, row)                 # fred_fx: the resolved region's currency picks the metric
-    table, metric = row2.get("table", ""), row2.get("metric", "")
-    out.table, out.metric = table, metric
-    out.unit = str(row2.get("native_unit", "") or "")
-    out.narrate_unit = str(row2.get("narrate_unit", "") or "")
-    out.scale = float(row2.get("scale", 1) or 1)
-    out.offset_months = int(row2.get("offset_months", 0) or 0)
-    out.context_only = table in getattr(casc, "POSITIONING_TABLES", frozenset())
-    if out.context_only and str(turn_kind or "").strip().lower() == "outlook":
-        # R9's SHIPPED DROP, in the board's own words (cascade.py's quantify skips a POSITIONING_TABLES
-        # row on an outlook turn). The word is in the closed enum because the render owes the reader a
-        # sentence for it; it is stamped HERE, at ZERO reads, because the turn kind is knowledge the
-        # WALK has and the read does not -- the caller passes it or the board never declines this way.
-        out.status = "outlook_lane"
+    plan = series_key_for(ref, node, turn_kind=turn_kind)
+    row, row2 = plan.row, plan.row2
+    out = StateRow(key=plan.key or SeriesKey(ref=ref), asof=asof, coverage_tier="none_text_only")
+    out.table, out.metric = plan.table, plan.metric
+    if row2 is not None:
+        out.unit = str(row2.get("native_unit", "") or "")
+        out.narrate_unit = str(row2.get("narrate_unit", "") or "")
+        out.scale = float(row2.get("scale", 1) or 1)
+        out.offset_months = plan.offset_months
+        out.context_only = plan.context_only
+    if plan.key is None:
+        out.status = plan.status
         out.coverage_tier = coverage_tier(map_row=row, silver_status=silver_status, status=out.status)
         return out
 
-    from leviathan.graphrag.numbers.registry import load_registry
-    try:
-        ts = load_registry().get(table)
-    except Exception:                                   # noqa: BLE001 -- a map row naming an unknown card
-        out.status = "unmapped_ref:no_registry_card"
-        out.coverage_tier = coverage_tier(map_row=row, silver_status=silver_status, status=out.status)
-        return out
+    commodity, country = plan.commodity, plan.country
+    ts, read_row, src_row = plan.ts, plan.read_row, plan.src_row
+    base_ref = plan.key.ref
+    out.alias_ref, out.offset_note = plan.alias_ref, plan.offset_note
+    table, metric = plan.table, plan.metric             # the metric ACTUALLY READ, never the alias's label
 
-    # ── THE SAME-SERIES FOLD (sec 2.6 item 1, sec 3.6) ─────────────────────────────────────────────
-    fold = _resolve_same_series(ref, row, row2, node, casc)
-    base_ref, read_row, src_row = fold.base_ref, fold.read_row, fold.src_row
-    out.alias_ref, out.offset_note = fold.alias_ref, fold.note
-    table, metric = read_row.get("table", ""), read_row.get("metric", "")
-    out.table, out.metric = table, metric              # the metric ACTUALLY READ, never the alias's label
-    c, k, mkey = _scope_for_card(ts, commodity, country,
-                                 declared_metric=str(src_row.get("metric") or ""),
-                                 resolved_metric=metric,
-                                 country_rule=str(src_row.get("country_rule") or ""))
-    out.key = SeriesKey(ref=base_ref, commodity=c, country=k, metric=mkey)
-
-    cadence = cadence_of(ts, table)
+    cadence = plan.cadence
     out.cadence = cadence
     win = history_window(cadence, table, windows)
     out.window_note = _window_note(cadence, win)
@@ -827,7 +894,7 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
 
     dates = _period_dates(rows, ts, values, collapse)
     level_row = rows[-1]                               # the served row the LEVEL's own facts come from
-    if fold.apply_offset and out.offset_months and cadence == "monthly":
+    if plan.apply_offset and out.offset_months and cadence == "monthly":
         # THE DECLARED SAME-SERIES OFFSET (cascade_map `offset_months`), applied to the BASE series'
         # array at ZERO extra reads: the palm author's "state now" is ONI six months ago. The projection
         # counts from TODAY's value and both dates print -- the row never lets a reader think the palm
@@ -859,7 +926,7 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
             # non-monthly branch below already takes.
             out.offset_note = (f"a declared {n}-month offset is NOT applied: the fetched history is "
                                f"{len(values)} monthly periods, no longer than the offset")
-    elif out.offset_months and fold.apply_offset and cadence != "monthly":
+    elif out.offset_months and plan.apply_offset and cadence != "monthly":
         # `offset_months` is declared in MONTHS. On a non-monthly cadence the board cannot convert it to
         # the card's own periods without inventing a calendar rule, so it is NOT applied and the row
         # says so -- an unapplied offset stated is a fact; an offset quietly dropped is a wrong level.
