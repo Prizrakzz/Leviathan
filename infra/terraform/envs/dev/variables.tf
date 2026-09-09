@@ -286,7 +286,9 @@ variable "futures_eod_silver_image_digest" {
   # d10s9 (r6, 2026-09-08 23:31Z): repinned to tag 20260908-d10s9 (commit aa7fa7d7) = s0s1 + D-10 sitting 9 (the split: two DAGs
   # in the overlay, waivers tracked; census prediction #14 = 792/544/248); lint smoke on b3-flat-silver:41 GREEN (config_check rc 0,
   # state.lint rc 0, 1,270 DAG instances). Applied as ONE resource. The s0s1 pin never fired a scheduled chain except the 22:30Z/23:00Z witnesses.
-  default     = "sha256:1afb58d1d92ab09c8f705a6bc8b13d71eea2e2a0058588654272914175a51bdb"
+  # nass (r7, 2026-09-09 11:18Z): repinned to tag 20260909-nass (commit fbe6a7cb) = d10s9 + the NASS gate fix (declared cottonseed absence,
+  # writer schema pin, parity sample commodities, all-SKIP = mismatch); lint smoke on b3-flat-silver:42 GREEN. Applied as ONE resource.
+  default     = "sha256:d97d8cd5b2038ca615160eb989ab8b7fc5601ecc5a0348a2add381f75e633c00"
   validation {
     condition     = var.futures_eod_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_silver_image_digest))
     error_message = "futures_eod_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
