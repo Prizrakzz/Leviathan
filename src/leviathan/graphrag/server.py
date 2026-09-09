@@ -1000,13 +1000,47 @@ def credits_route(ident: dict = Depends(_require_identity)) -> dict:
 
 
 # ── 1.2 cascade DAG topology ──────────────────────────────────────────────────────────────────────
-@app.get("/v1/graph/{contract}", response_model=M.GraphTopology)
+# K9-5 (2026-09-09): THE ?asof= OVERLAY'S SILENCE, MADE A STATED DECLINE.
+#
+# THE DEFECT. The firing overlay below resolves every driver's `silver_ref` against silver at request
+# time and was wrapped in a BARE `except Exception: pass` -- correct in its stated intent (a silver miss
+# must never break the topology view) and wrong in its effect: on a miss NO node is stamped `active`, and
+# an un-dimmed map is byte-identical to the map for "nothing fired". Two OPPOSITE facts -- "the record
+# says none of these drivers is active" and "the record could not be read" -- rendered as one picture,
+# with nothing anywhere to tell them apart: no counter, no log line, no field. `silver_status: available`
+# in the causal YAML is a DECLARATION, not a measured read, so a re-keyed driver can look live on this
+# map while its series has never been fetched once.
+#
+# WHAT CHANGES, AND WHAT DELIBERATELY DOES NOT. The map still renders, always, unchanged -- the decline is
+# additive. `fired_overlay` states the outcome in one bounded word: `ok` when the overlay applied,
+# `declined:<reason>` when it could not, absent when no `?asof=` was supplied (no overlay was asked for,
+# so there is nothing to decline). The reason is the EXCEPTION CLASS NAME, never its message: a message
+# can carry a table name, a row, or a presigned url, and this response is reader-facing.
+#
+# LOGGED ONCE PER (contract, reason), not per request: the failure mode this exists to expose is a whole
+# card being unreadable, which every request for that contract would otherwise re-print until the log
+# group is the incident.
+#
+# THE RESPONSE MODEL IS DECLARED THROUGH `responses=` RATHER THAN `response_model=`, and that is not a
+# style choice: `M.GraphTopology` is the ONE model in api_models.py without `extra="allow"`, so FastAPI's
+# response_model filter would DROP this field on the way out, and swapping the model for a widened
+# subclass would leave `GraphTopology` unreferenced -- dropping it from openapi.json and breaking
+# `apps/terminal/src/api/client.ts`'s `Schemas['GraphTopology']` on the next type regeneration. Declaring
+# the 200 schema here keeps that name in the document, keeps this route's validation contract visible,
+# and lets the extra field reach the wire. OWED, and named so it is not discovered later: one optional
+# `fired_overlay: Optional[str] = None` on `M.GraphTopology` (outside this lane's allowlist), after which
+# this route can go back to a plain `response_model=` and the FE gets the field TYPED rather than untyped.
+_OVERLAY_DECLINES_SEEN: set = set()
+
+
+@app.get("/v1/graph/{contract}", responses={200: {"model": M.GraphTopology}}, response_model=None)
 def graph_route(contract: str, asof: Optional[str] = Query(None),
                 ident: dict = Depends(_require_identity)) -> dict:
     try:
         topo = _graph().topology(contract)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"unknown contract {contract!r}")
+    overlay = None
     if asof:                                                        # overlay OBSERVED-active drivers (dim the rest)
         from leviathan.graphrag import firing as F
         try:
@@ -1015,10 +1049,46 @@ def graph_route(contract: str, asof: Optional[str] = Query(None),
             for n in topo["nodes"]:
                 if n["kind"] not in ("contract", "commodity"):
                     n["active"] = n["id"] in active
-        except Exception:  # noqa: BLE001 — a silver miss must never break the topology view
-            pass
-    return M.GraphTopology(contract=contract, graph_version=topo["graph_version"], asof=asof,
-                           nodes=topo["nodes"], edges=topo["edges"]).model_dump()
+            # THE DECLINE THAT ACTUALLY HAPPENS IN PRODUCTION IS NOT AN EXCEPTION HERE. Measured while
+            # building this: `silverleg.make_silver_lookup`'s `lookup` wraps its whole body in
+            # `except Exception: return {"live": False, "ref": None, "reason": "error"}`, so a silver miss
+            # is SWALLOWED one level below and `fire_contract` returns normally with a driver row that
+            # simply says nothing. The route's own `except` therefore covers only a catastrophic seam
+            # failure -- worth stating, but it is not the class the map was lying about.
+            # THE DISCRIMINATOR IS THE DECLARATION AGAINST THE ROW, and it needs no new field: a driver
+            # the causal YAML declares `silver_status: available` comes back carrying its resolved `ref`
+            # when it was actually read, and carrying NO ref only on the swallowed-error path. A driver
+            # declared dark is a STATED absence, not a decline, and is excluded by the same test -- which
+            # is exactly the distinction `silver_status: available` is a declaration and not a measured
+            # read (a re-keyed driver can look live on this map while its series was never fetched).
+            # THE OVERLAY STILL APPLIES on a partial read: what IS known dims correctly, and the field
+            # says how much of it is known. Suppressing the map would trade one silence for another.
+            # RESIDUAL, NAMED SO IT IS NOT DISCOVERED LATER: a CAPPED read
+            # (`{"live": False, "ref": ref, "reason": "capped"}`, budget exhaustion) keeps its ref and is
+            # invisible to this test. Separating it needs `firing._driver_row` to forward `reason`, one
+            # line in a file outside this lane's allowlist.
+            _decl = {d.id: getattr(d, "silver_status", "") for d in _graph().contracts[contract].drivers}
+            _rows = fired["drivers"]
+            _unread = [r for r in _rows if _decl.get(r["id"]) == "available" and not r.get("ref")]
+            overlay = (f"declined:silver_unread:{len(_unread)}/{len(_rows)}" if _unread else "ok")
+        except Exception as e:  # noqa: BLE001 — a silver miss must never break the topology view
+            overlay = f"declined:{type(e).__name__}"
+        if overlay != "ok":
+            # FIX-CYCLE (review MINOR): THE KEY IS THE REASON'S CLASS, NOT THE REASON. The silver_unread
+            # reason embeds a live `N/M` count, so keying the seen-set on the whole string re-logged this
+            # line every time the unread count moved -- i.e. per request on a card whose coverage is
+            # drifting, which is exactly the log-group-as-incident this block set out to avoid. The class
+            # is the first two colon fields ("declined:silver_unread", "declined:KeyError"): it keeps
+            # every exception class distinct while collapsing one card's counts to one line.
+            key = (contract, ":".join(overlay.split(":")[:2]))
+            if key not in _OVERLAY_DECLINES_SEEN:
+                _OVERLAY_DECLINES_SEEN.add(key)
+                print(f"GRAPH_OVERLAY_DECLINED contract={contract} reason={overlay}", flush=True)
+    out = M.GraphTopology(contract=contract, graph_version=topo["graph_version"], asof=asof,
+                          nodes=topo["nodes"], edges=topo["edges"]).model_dump()
+    if overlay is not None:
+        out["fired_overlay"] = overlay
+    return out
 
 
 # ── 1.3 convergence matrix ──────────────────────────────────────────────────────────────────────────

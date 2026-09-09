@@ -321,6 +321,16 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # `compute_stat` is EXCLUDED and is the only exclusion: it is a pseudo-
                                  # table minted by `_stat_calls`, in no registry, and would otherwise top
                                  # every usage census in the estate.
+                                 # K9-5 (2026-09-09): THAT EXCLUSION STANDS, AND NOW HAS A SIBLING RATHER
+                                 # THAN A HOLE. The stat belt is counted on its OWN metric --
+                                 # `NumbersStatCalls`, dimensioned `{stat}` over the eight-name enum, with
+                                 # `NumbersStatDeclined{floor}` beside it -- emitted from
+                                 # `orchestrator._stat_touches` off the same finished `number_calls` list
+                                 # this column is derived from. NO trace key was added: the per-answer
+                                 # artifact already carries `served_rows`, from which the same census is
+                                 # derivable, and appending here would re-anchor the negative-index tail
+                                 # pins for a column no gate reads. Nothing about the reach census above
+                                 # moves: a per-CARD panel must never carry a pseudo-table.
                                  # STAMPED ON BOTH LANES (the #144 precedent, carried the same way as
                                  # `futures_coverage_guard`): run_numbers_only copies it off the agent's
                                  # return, run_hybrid off the same payload through its join holder. A

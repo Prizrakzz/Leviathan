@@ -28,10 +28,28 @@ class Citation(BaseModel):
     payload: dict = {}                        # kind-specific extras (query+rows, or source_key+text)
 
 
+# K9-5 (2026-09-09): THE PSEUDO-TABLE'S OWN READER LABEL, AND WHY IT IS NOT IN display_names.yaml.
+# `numbers.agent._stat_calls` mints every computed figure under `compute_stat`, which is in no registry
+# and has no card, so `display.table_label` fell through to its strip-and-upper fallback and headlined the
+# reader's `## Sources` line with "COMPUTE STAT" -- a machine id naming a source nobody can check.
+# THE CONFIG MAP IS THE WRONG HOME, and its own gate says so: `display.check_display_names` asserts that
+# every key under `tables:` starts with `silver_` (display.py:202-204), because that map names SILVER
+# TABLES. A pseudo-table is not one, and adding it turns the build gate red. So the label lives at the
+# ONE seam that renders it -- this function, the sole reader of `table_label` on the citation lane -- and
+# `test_stat_label_path` pins the id equal to `numbers.agent.STATS_TOOL_NAME`.
+# IT IS A LAST RESORT, NOT THE COMMON CASE: a stat row that declares its source card headlines THAT card
+# (`from_number` reads `source_table` off the row), so this string is reached only by a stat OF a stat --
+# whose source really is a computed figure and not an institution, which is what it says.
+_STATS_TABLE = "compute_stat"                     # == numbers.agent.STATS_TOOL_NAME (pinned in the deck)
+_PSEUDO_TABLE_LABELS = {_STATS_TABLE: "computed statistic"}
+
+
 def _source_label(table: str) -> str:
     """Official label for a silver table — delegates to the display registry (6.1) so the number
     citation, the sources footer, and the lint agree on one name; falls back to the legacy
     strip-'silver_'+upper for an unmapped table."""
+    if table in _PSEUDO_TABLE_LABELS:
+        return _PSEUDO_TABLE_LABELS[table]
     from leviathan.graphrag import display as dp
     return dp.table_label(table)
 
@@ -131,20 +149,104 @@ def _kind_conflict(display: str, row: dict) -> bool:
     return any(rx.search(display) for k, rx in _KIND_RX.items() if k != kind)
 
 
+# -- K9-5 (2026-09-09): THE COMPUTED STATISTIC IS A ROW LIKE ANY OTHER, AND MUST LABEL LIKE ONE ---------
+# `numbers.agent._stat_calls` mints every computed figure under this pseudo-table with the stat slug as its
+# metric. Named here, never imported: this module keeps no import-time dependency on the numbers stack (the
+# `_series_truncated` / `_zero_aggregate` discipline), and `test_stat_label_path` pins this string equal to
+# `numbers.agent.STATS_TOOL_NAME` so the two can never drift apart in silence -- the id itself is
+# declared once, above `_source_label`, which is its other reader.
+
+
+def _stat_value_text(metric, value, unit) -> Optional[str]:
+    """K9-5: the ONE stat whose figure is not a magnitude -- a PERCENTILE is a RANK, and "96 percentile"
+    is not how a rank is spoken. Rendered through `cascade._rv_ordinal`, the estate's ONE ordinal producer
+    (used by the RV reading, beside `derived._dv_ordinal`'s sibling lane) -- never a second copy of the
+    st/nd/rd/th rule.
+
+    THE INJECTED ROW IS NOT ROUNDED, AND THE TOLERANCE GATE IS WHY. `_rv_ordinal`'s own contract is that
+    "the ROW stores the same rounded integer ... never a 1%-tolerance gamble on a small rank", and the
+    cascade's producer honours it by rounding the value it mints. This lane CANNOT: the agent's tool_result
+    carries stats' exact `value` to the model, `orchestrator._verify_numbers_answer` matches prose against
+    ROW values at exact-or-1%, and `stats.percentile`'s smallest possible midrank over its 8-point floor is
+    6.25 -- so rounding the row to 6 would STRIP a numbers-only answer that correctly stated 6.25, while
+    rounding only the line would strip a hybrid writer that correctly quoted "6th". Neither lane may lose.
+    So the ordinal is printed ONLY when it and the exact figure are the SAME NUMBER TO THAT VERIFIER: 93.75
+    prints as "94th" (0.27% apart, matched either way), 6.25 prints as "6.25 percentile" exactly as today.
+    The gate is the verifier's own tolerance, not a second opinion about it.
+
+    None on any other stat, on a non-numeric value, on a unit the mint did not declare, and on a
+    non-positive rank -- i.e. today's rendering, to the byte."""
+    if str(metric) != "percentile" or str(unit or "").strip() != "percentile" or value is None:
+        return None
+    try:
+        v = float(value)
+        r = round(v)
+        if r <= 0 or abs(v - r) > 0.01 * abs(r):
+            return None
+        from leviathan.graphrag.numbers.cascade import _rv_ordinal
+        return f"{_rv_ordinal(v)} percentile"
+    except Exception:  # noqa: BLE001 -- a rank must render, never raise
+        return None
+
+
+def _series_words(spec: str, own: tuple) -> str:
+    """K9-5: a `<table>.<metric>` address in the READER's words.
+
+    `agent._stat_calls` writes `z_series` as the dotted address of the series a sigma was ranked against,
+    and `from_number` printed it verbatim -- "vs 250 points of silver_futures_eod.settle" in the reader's
+    `## Sources` list, which is the exact class (a machine id in reader-facing text) this lane exists to
+    close, and which `register.internal_leaks` cannot see because it scans PROSE, not the footer.
+
+    "its own history" when the address names the row's OWN series (`own` = the (table, metric) the line
+    already headlines): there the address restates what `src`/`mdisp` just said, and the reader is owed
+    the WINDOW, not the identity twice. An address this function cannot split contributes itself
+    unchanged -- today's rendering, never a raise -- and the footer pin convicts it if a producer ever
+    mints one."""
+    spec = str(spec or "").strip()
+    if not spec:
+        return ""
+    t, dot, m = spec.partition(".")
+    if not (dot and t and m):
+        return spec
+    if (t, m) == own:
+        return "its own history"
+    return " ".join(x for x in (_source_label(t), _metric_display_name(t, m)) if x).strip() or spec
+
+
 def _metric_display_name(table: str, metric, row: Optional[dict] = None) -> str:
     """The ANALYST name for a metric on a citation label -- `_metric_unit`'s twin, and a DELEGATION.
 
     Lazy import (the `_series_truncated` / `_zero_aggregate` discipline: this module keeps no import-time
     dependency on the numbers stack), and ANY failure returns the slug -- today's rendering to the byte,
     never a raise. An unlabeled metric also returns the slug: the fence tightens family-by-family exactly
-    as labels land, which is `register._labeled_metric_slugs`' own stated rule."""
+    as labels land, which is `register._labeled_metric_slugs`' own stated rule.
+
+    K9-5: a `compute_stat` row carries its SOURCE SERIES on the row (`source_table` / `source_metric`,
+    lifted at the mint), and both ride into the same delegation so `cascade._stat_display` can qualify the
+    stat words with the series they were computed over -- ONE mapping, resolved in one place. The
+    print-kind guard is applied to the QUALIFIER rather than to the whole display: a settlement-labeled
+    base on a session-close row must lose the base, not send the reader back to `window_change`."""
     if not metric:
         return str(metric or "")
+    row = row or {}
+    q = {"table": table, "metric": metric}
+    if table == _STATS_TABLE:
+        for k in ("source_table", "source_metric"):
+            v = str(row.get(k) or "").strip()
+            if v:
+                q[k] = v
     try:
         from leviathan.graphrag.numbers.cascade import _metric_display
-        disp = _metric_display({"table": table, "metric": metric}) or str(metric)
+        disp = _metric_display(q) or str(metric)
     except Exception:  # noqa: BLE001 -- an unregistered table's label must render, never raise
         return str(metric)
+    if table == _STATS_TABLE:
+        if _kind_conflict(disp, row) and len(q) > 2:
+            try:                                   # drop the qualifier, keep the stat's own words
+                disp = _metric_display({"table": table, "metric": metric}) or str(metric)
+            except Exception:  # noqa: BLE001
+                return str(metric)
+        return disp
     if disp == str(metric):
         # PA-10d (2026-08-25): the DERIVED variants (_delta/_pct/_era_diff, minted by the cascade's
         # delta legs) carry no label of their own, so the raw id reached the menu line beside a labeled
@@ -1353,7 +1455,22 @@ def from_number(call: dict, i: int) -> Citation:
     # branch alone would have the same call's empty read and its zero-aggregate read naming the metric
     # differently in one footer -- the drift this file refuses everywhere else (`_period_label`'s "MYMY").
     mdisp = _metric_display_name(table, metric, rH)
-    src = _source_label(table)
+    # K9-5: A COMPUTED STATISTIC NAMES THE TABLE IT WAS COMPUTED OVER. `_source_label("compute_stat")` is
+    # the strip-and-upper fallback "COMPUTE STAT" -- a machine id headlining the reader's `## Sources`
+    # line, and worse, a SOURCE the reader cannot check anything against. The row declares its own source
+    # card (`source_table`, lifted at the mint beside `source_metric`), and this line reads it exactly as
+    # `_delivery` / `_zspan` / the print-kind tags read theirs: off the ROW, never off the query, because
+    # the query of a synthetic row names no card at all. Byte-inert on every row that carries no such key
+    # -- none did before this design -- and a stat OF a stat carries none by construction, so it falls
+    # back to the pseudo-table's own label ("computed statistic", `_PSEUDO_TABLE_LABELS` at the top of this
+    # module). NOT display_names.yaml: that map's own gate (`display.check_display_names`) asserts every
+    # `tables:` key starts with `silver_`, so a pseudo-table entry there turns the build gate red.
+    # THE UNIT IS NOT RESOLVED HERE, deliberately: the derived unit is the MINT's rule (a difference over
+    # a percent series is in percentage POINTS, not percent), and a registry re-read at this seam would be
+    # a SECOND scale producer able to restate a difference in the level's unit -- the K9-3 class exactly.
+    _stat_row = (table == _STATS_TABLE)
+    _src_table = str(rH.get("source_table") or "").strip() if _stat_row else ""
+    src = _source_label(_src_table or table)
     asof = q.get("asof")
     value = rH.get("value")
     unit = rH.get("unit") or _metric_unit(table, metric, q.get("commodity"))
@@ -1407,7 +1524,21 @@ def from_number(call: dict, i: int) -> Citation:
         except Exception:  # noqa: BLE001 -- a registry hiccup must fail SILENT (no label), never loud
             return True
     _geos = _geo_scopes(rows)
-    geo = q.get("country") or (None if _dest_coded(table)
+    # K9-5 FIX-CYCLE (2026-09-09), REVIEW MAJOR-1: THE FENCE IS KEYED ON THE CARD, AND A COMPUTED ROW'S
+    # CARD IS ITS SOURCE. `table` on a stat row is the PSEUDO-table `compute_stat`, which no registry
+    # resolves, so `load_registry().tables.get()` returned None, `_dest_coded` read that as "not
+    # destination-coded" (`spec is not None and ...`), and the FREE-AXIS arm ran on exactly the rows this
+    # design had just started attributing. MEASURED, one card and one country, both lanes: the fetched row
+    # printed `USDA FAS Export Sales (ESR) outstanding sales  = 123 1000 MT` -- silver_esr is the estate's
+    # one `destination_coded()` card, so the buyer is REFUSED there -- while the stat over that same series
+    # printed `... outstanding sales (change over the window) china = 45 1000 MT`. That is the subject slot
+    # wearing the DESTINATION of a flow: "China's outstanding sales" for a fact that is "outstanding sales
+    # TO China", which is the one mislabel this card's guard exists to make impossible. The row already
+    # declares the card it was computed over and `src` reads it that way; this is the SAME read, so the two
+    # halves of one label can never be fenced by different cards. Byte-inert off the stat lane (`_src_table`
+    # is '' on every fetched row) and on a stat that declares no source (the pseudo-table stays unresolved,
+    # exactly as today) -- a stat OF a stat, whose source is a computed figure and not a card.
+    geo = q.get("country") or (None if _dest_coded(_src_table or table)
                                else (next(iter(_geos)) if len(_geos) == 1 else None))
     # K9-2 (block note above `from_number`): the query names no country and the rows carry more than one,
     # so `geo` is None on BOTH arms of the expression above -- destination-coded or free-axis -- and this
@@ -1429,9 +1560,16 @@ def from_number(call: dict, i: int) -> Citation:
     # series names a length with no subject, and a series with no window asserts the whole history,
     # which after the declared-window narrowing is exactly the claim that would be false. A row
     # carrying neither renders EXACTLY as it does today: the anti-vacuity property the pin asserts.
+    #
+    # K9-5: THE SERIES IS NAMED IN THE READER'S WORDS. `z_series` is a dotted `<table>.<metric>` ADDRESS,
+    # and it was printed verbatim into the reader's `## Sources` list -- the one machine id this lane
+    # found already shipping in a rendered label. `_series_words` renders it, and collapses it to "its own
+    # history" when it names the very series this line already headlines (a stat row's source, or a
+    # board row's own card), because there the address only restates the subject twice.
     _zw = str(rH.get("z_window") or "").strip()
     _zs = str(rH.get("z_series") or "").strip()
-    _zspan = f"vs {_zw} points of {_zs}" if (_zw and _zs) else ""
+    _zsw = _series_words(_zs, (_src_table or table, str(rH.get("source_metric") or "").strip() or metric))
+    _zspan = f"vs {_zw} points of {_zsw}" if (_zw and _zsw) else ""
     # K9-4 (block note above `from_number`): the headline row's DECLARED revision role, inside the scope
     # and AFTER the period -- the role qualifies the figure the period names ("MY2025/26 USDA estimate"),
     # and putting it ahead of the period would separate the marketing year from the commodity it belongs
@@ -1467,7 +1605,11 @@ def from_number(call: dict, i: int) -> Citation:
             label = f"{src} {mdisp} {scope} = {_SCOPE_WITHHOLD_LABEL.format(k=_scope_k)}".strip()
             value, unit = None, None
         else:
-            label = f"{src} {mdisp} {scope} = {_fmt(value)} {unit}".strip()
+            # K9-5: `_stat_value_text` is None on every row but a percentile stat, so this line is
+            # byte-identical everywhere else -- including on a percentile row whose mint declared no unit.
+            _vt = _stat_value_text(metric, value, unit) if _stat_row else None
+            label = (f"{src} {mdisp} {scope} = {_vt}".strip() if _vt
+                     else f"{src} {mdisp} {scope} = {_fmt(value)} {unit}".strip())
         # D-PQ RENDER-2, second half: WHAT KIND OF PRINT this is, plus the row's own currency. Both are
         # card-declared columns and neither was reaching the writer. The currency is appended only when it
         # is not already inside the unit string (US cents/bushel already says USD; CNY/t already says CNY),
@@ -1571,6 +1713,11 @@ def from_number(call: dict, i: int) -> Citation:
     _srcm = str(rH.get("source_metric") or "").strip()
     if _srcm:
         locator["source_metric"] = _srcm
+    # K9-5: the source metric alone is not drawable when the row's own `table` is a PSEUDO-table -- a
+    # `/v1/series` re-run needs the card too. Same byte-inert rider idiom: appended only when the row
+    # declares one, and no row carried this key before this design.
+    if _src_table:
+        locator["source_table"] = _src_table
     # D-XL (E29): the LOCATED EXTREME's own session date, on the SAME byte-inert rider idiom (read off
     # the headline row, appended only when present -- and no row carried this key before this design).
     # `asof` STAYS the READ's cutoff, so the count, the span, the locator and `eval._pit_clean` all

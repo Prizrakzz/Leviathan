@@ -1010,12 +1010,71 @@ _BASIN_TAIL_METRICS: frozenset[str] = frozenset(
 _TAIL_SUFFIX = "_tail_share"
 
 
+# -- K9-5 (2026-09-09): THE COMPUTED STATISTIC'S READER NAME, IN THE ONE METRIC-DISPLAY PRODUCER ------
+# `numbers.agent._stat_calls` mints every computed statistic under the pseudo-table `compute_stat` with the
+# STAT SLUG as its metric. This function's registry read cannot resolve it -- `compute_stat` is in no
+# registry and has no card -- so the slug fell through to the reader. Measured on the banked
+# `rv_palm_rapeoil` turn, seven `## Sources` lines: "COMPUTE STAT window_change  = -82,170" -- a machine
+# table id, a snake_case metric id, and no unit, no country, no date behind any of them.
+#
+# THE MAP IS THE AGENT'S OWN CLOSED ENUM, NOT A SECOND VOCABULARY: `stats.STAT_REGISTRY`'s eight names,
+# plus the two ids `extrema` actually mints (`extrema_min` / `extrema_max`, agent.py `_stat_calls`).
+# `test_stat_label_path` pins the two sets equal, so a ninth stat cannot ship unnamed.
+#
+# ONE MAPPING, NEVER TWO: `citations._metric_display_name` DELEGATES here exactly as it does for every
+# registry metric. A second copy of this map in the citation lane is precisely how two surfaces come to
+# disagree about what a figure is CALLED (the PA-10(a) rule, restated for the derived lane).
+_STATS_PSEUDO_TABLE = "compute_stat"
+_STAT_DISPLAY: dict[str, str] = {
+    "streak": "run length",
+    "percentile": "percentile rank",
+    "zscore": "z-score",
+    "window_change": "change over the window",
+    "revision_count": "consecutive revisions in one direction",
+    "extrema": "high and low",                 # never minted itself; the two ids below are
+    "extrema_min": "low",
+    "extrema_max": "high",
+    "yoy_delta": "year-over-year change",
+    "spread": "spread between two delivery months",
+}
+
+
+def _stat_display(row: dict) -> str:
+    """The reader's name for a computed statistic, QUALIFIED BY THE SERIES IT WAS COMPUTED OVER.
+
+    `<source metric label> (<stat words>)` when the row declares its source series -- the same
+    parenthetical idiom `citations._metric_display_name` already uses for the cascade's derived
+    `_delta` / `_pct` / `_era_diff` variants, so a derived figure reads one way everywhere.
+
+    BARE STAT WORDS WHEN THE SOURCE IS ABSENT, and that is not a shortfall: a stat OF a stat carries no
+    source card (agent.py mints the chained handle's labels from the injected row), and naming the
+    original card there would attribute a twice-derived figure to a table that never served it.
+
+    An UNMAPPED stat, or a source metric the registry does not LABEL, contributes its slug and is
+    refused here -- the family-by-family tightening rule, unchanged: today's rendering, never a raise."""
+    words = _STAT_DISPLAY.get(str((row or {}).get("metric") or ""))
+    if not words:
+        return str((row or {}).get("metric"))
+    st = str((row or {}).get("source_table") or "").strip()
+    sm = str((row or {}).get("source_metric") or "").strip()
+    if st and sm and st != _STATS_PSEUDO_TABLE:          # != guards the one recursion this map can mint
+        base = _metric_display({"table": st, "metric": sm})
+        if base and base != sm:                          # an UNLABELED source metric would re-leak its slug
+            return f"{base} ({words})"
+    return words
+
+
 def _metric_display(row: dict) -> str:
     """The ANALYST name for a map row's metric on model-facing lines -- the table_label sibling
     (A1/F21 closed raw table ids on this surface; the owner's word 2026-08-22 closes METRIC ids:
     internal names never reach prose). Resolution: the registry card's Metric.label, else the slug
     (an unlabeled metric renders exactly as before -- the fence tightens family-by-family). The
-    machine identity always survives in the [N] call's query dict and the series tag."""
+    machine identity always survives in the [N] call's query dict and the series tag.
+
+    K9-5: a `compute_stat` row is resolved by the stat map above BEFORE the registry read, which cannot
+    resolve a pseudo-table and returned the raw stat slug for every computed figure in the estate."""
+    if str((row or {}).get("table") or "") == _STATS_PSEUDO_TABLE:
+        return _stat_display(row)
     try:
         from leviathan.graphrag.numbers.registry import load_registry
         m = load_registry().get(row.get("table")).metrics.get(row.get("metric"))

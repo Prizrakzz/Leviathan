@@ -81,8 +81,21 @@ class TestZRowRender:
                 "rows": [{"value": 2.1, "unit": "sigma", **extra}], "status": "ok"}
 
     def test_window_and_series_reach_the_sources_line(self):
+        # K9-5 (2026-09-09): BOTH FACTS STILL REACH THE LINE, AND THE SERIES IS NOW SPOKEN RATHER THAN
+        # ADDRESSED. The pin was `vs 250 points of silver_futures_eod.settle` -- a dotted `<table>.<metric>`
+        # machine id in the reader's `## Sources` list, invisible to `register.internal_leaks` (which scans
+        # prose, not the footer) and the one such id this estate was already shipping in a rendered label.
+        # What is auditable about a z is its WINDOW and its SUBJECT; neither needs an address to be stated.
         cit = C.from_number(self._row(z_window=250, z_series="silver_futures_eod.settle"), 1)
-        assert "vs 250 points of silver_futures_eod.settle" in cit.label
+        assert "vs 250 points of " in cit.label and "silver_futures_eod.settle" not in cit.label
+        assert "settlement price" in cit.label                      # the subject, in the reader's words
+
+    def test_the_series_collapses_to_its_own_history_when_it_names_the_rows_own_series(self):
+        # A stat row that declares its source (K9-5's mint) already HEADLINES that series, so repeating
+        # the address would state the subject twice and say nothing the reader did not just read.
+        cit = C.from_number(self._row(z_window=250, z_series="silver_futures_eod.settle",
+                                      source_table="silver_futures_eod", source_metric="settle"), 1)
+        assert "vs 250 points of its own history" in cit.label
 
     def test_a_partial_pair_renders_nothing_new(self):
         assert "vs " not in C.from_number(self._row(z_window=250), 1).label

@@ -2628,9 +2628,85 @@ def respond(*args, **kwargs) -> dict:
         # inside it cannot cost an older counter its emission; it is fail-open on its own besides.
         # Silent on every turn whose numbers lane never ran (the key is absent -> nothing to emit).
         emf.emit_table_touches(tr.get("tables_queried") or [])
+        # ── K9-5 (2026-09-09): PER-STAT USAGE. The stat belt was the estate's last untelemetered
+        # producer: `Leviathan/Serving` carries 44 metric names and not one is a tool or stat counter,
+        # and the ONE per-thing counter beside this line (`NumbersTableTouched`) EXCLUDES `compute_stat`
+        # by design and must keep excluding it -- a pseudo-table in no registry would otherwise top every
+        # per-CARD usage census in the estate. So "which of the eight stats fires, and how often" was
+        # answerable from an eval artifact and from NOWHERE ELSE in production. Measured on the 12 banked
+        # turns: 1 stat of 8 (`window_change`), 9 rows, on 1 turn -- an EVAL rate on one 6-question set,
+        # which is exactly the kind of number this metric exists to stop standing in for a live one.
+        #
+        # ITS OWN RECORD AND ITS OWN DIMENSION SET, for `emit_table_touches`' reason exactly (R14): a
+        # `stat` dimension folded into the turn block above would multiply its (intent x model x mode)
+        # set by the stat count for every metric in it. DERIVED, NEVER STAMPED PER CALL -- from
+        # `number_calls`, the same finished list every citation, footer and [N] handle is built from, so
+        # this counter can never disagree with the provenance the reader was shown.
+        # CARDINALITY IS BOUNDED BY A CLOSED ENUM, ENFORCED NOT ASSUMED: `_stat_touches` keeps only names
+        # in `stats.STAT_NAMES` (eight, asserted closed at stats.py and gated by
+        # `config_check.check_stats_registry`), so no turn can mint a dimension value. `extrema` mints TWO
+        # row ids and is folded back to ONE series: the pair is one tool call, and counting it twice would
+        # make the belt's busiest-looking stat an artifact of its row shape.
+        # ABSENT WHEN INAPPLICABLE: a turn that computed no statistic emits nothing, so a reasoning,
+        # trivial or zero-call turn cannot dilute the rate this measures (the `FloorTurns` semantics, not
+        # `tables_queried`'s present-with-[] one -- there the empty list IS the reach census' zero).
+        for _sname, _sn in sorted(_stat_touches(res.get("number_calls")).items()):
+            emf.emit({"NumbersStatCalls": _sn}, dimensions={"stat": _sname},
+                     units={"NumbersStatCalls": "Count"})
+        # THE DECLINE HALF, from the one refusal that already crosses the numbers-lane boundary. A stat
+        # floor injects NO [N] row (that is the honest-decline contract), so declines are invisible in
+        # `number_calls` by construction; `unit_mismatch_guard` is the only decline the agent stamps on
+        # its return, and all three whitelists already copy it to the trace. ONE floor word today, and the
+        # dimension is the FLOOR rather than the stat because that is what the key records -- the count
+        # floors, the empty-series decline and the curve-as-calendar decline stay unobservable until the
+        # agent records them, which is named in this lane's report as the one item it could not close.
+        _ug = tr.get("unit_mismatch_guard")
+        if _ug:
+            emf.emit({"NumbersStatDeclined": len(_ug)}, dimensions={"floor": "unit"},
+                     units={"NumbersStatDeclined": "Count"})
     except Exception:  # noqa: BLE001 — instrumentation must never break an answer
         pass
     return res
+
+
+def _stat_touches(calls) -> dict:
+    """K9-5: {stat name -> compute_stat CALLS} for one turn, derived from the finished `number_calls` list.
+
+    `numbers.agent._stat_calls` mints every computed figure under the pseudo-table `compute_stat` with the
+    stat's own name as the row `metric`, so the census is a read of the call list -- the `tables_queried`
+    discipline, one producer, never a per-call stamp. Only names in the agent's closed enum survive, so a
+    malformed or hand-built call cannot mint a CloudWatch dimension value; an import failure yields {} and
+    the counter is silently absent, never a broken turn.
+
+    THE UNIT IS THE CALL, NOT THE ROW (fix cycle 2026-09-10, review MINOR-A). Seven of the eight stats
+    mint exactly one injected row per tool call, so counting rows and counting calls agreed -- and
+    `extrema` is the one that does not: ONE call mints `extrema_min` AND `extrema_max`, so the folded
+    name was incremented twice and the belt's busiest-looking stat became an artifact of its row shape
+    (the comment at the emit site had said so since K9-5; the code counted rows anyway). The pair is
+    therefore counted as PAIRS -- `max` of the two ids, not their sum -- which is exact whenever the mint
+    produced both (always, today) and still records the fire if a downstream filter ever drops one leg.
+    A future stat that mints several rows per call needs the same treatment, and this is the seam."""
+    try:
+        from leviathan.graphrag.numbers import stats as _st
+        from leviathan.graphrag.numbers.agent import STATS_TOOL_NAME as _stn
+        names = set(_st.STAT_NAMES)
+    except Exception:  # noqa: BLE001 -- telemetry must never break a turn
+        return {}
+    out: dict = {}
+    ex = {"extrema_min": 0, "extrema_max": 0}
+    for c in (calls or []):
+        q = (c or {}).get("query") or {}
+        if str(q.get("table") or "").strip() != _stn:
+            continue
+        m = str(q.get("metric") or "").strip()
+        if m in ex:
+            ex[m] += 1
+        elif m in names:
+            out[m] = out.get(m, 0) + 1
+    n_ex = max(ex.values())
+    if n_ex and "extrema" in names:
+        out["extrema"] = n_ex
+    return out
 
 
 def _respond(query: str, *, graph, asof: Optional[str] = None, call=None, retrieve=None, model: str = an.SONNET,

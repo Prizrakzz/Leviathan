@@ -1932,7 +1932,16 @@ def _handle_kd(rows: list) -> Optional[str]:
 # many expiries, its derived figure has no single delivery month, and picking one would be the second
 # half's failure. `currency` is deliberately NOT lifted here -- it is the deferred X2 item (D-FR-6), and
 # lifting it as a side effect of this change would silently widen the unit guard's inputs.
-_STAT_ROW_LABELS = ("contract_month", "settle_kind")
+#
+# K9-5 (2026-09-09) ADDS `country`, AND THE UNANIMITY FENCE IS WHY IT IS SAFE. Measured on the banked
+# `rv_palm_rapeoil` turn: ten per-country `silver_mpoc_stock_comparison` reads fed seven window_change
+# rows, and every one of those rows reached the reader with NO SUBJECT -- "Window changes on those same
+# stock series: -226,150, -170,000, -82,170 ..." is seven magnitudes belonging to nobody. The geography is
+# the fact's own, exactly as `contract_month` is: it comes off the SOURCE rows, and it is lifted only when
+# every one of them agrees. A read spanning several destinations disagrees, contributes nothing, and the
+# label stays silent -- which is the same refusal `citations._geo_scopes` makes on the fetched lane, so a
+# national aggregate can never wear one buyer's name.
+_STAT_ROW_LABELS = ("contract_month", "settle_kind", "country")
 
 
 def _handle_labels(rows: list) -> dict:
@@ -2098,6 +2107,60 @@ def _stat_provenance(stat: str, inp: dict, handles: dict) -> dict:
 _STAT_UNIT = {"streak": "consecutive periods", "revision_count": "consecutive revisions",
               "percentile": "percentile", "zscore": "sigma", "spread": "spread"}
 
+# -- K9-5 (2026-09-09): THE THREE STATS THAT INHERIT, AND WHY THEY WERE ARRIVING UNITLESS --------------
+# `window_change`, `yoy_delta` and `extrema` are absent from the map above BY DESIGN -- they are
+# magnitude-preserving, so their unit is the SOURCE series' unit and `_STAT_UNIT.get(stat, series_unit)`
+# already said so. What it could not say is what the source's unit IS when the ROW did not carry one:
+# `_exec_stat` reads the handle's unit off `rows[0]["unit"]`, and a card whose rows carry no unit column
+# (measured: `silver_mpoc_stock_comparison`, ten reads, `unit: null` on every row) handed the mint None.
+# Every fetched row survives that because `citations._metric_unit` falls back to the CARD's declared unit
+# -- and a `compute_stat` row cannot, because the pseudo-table has no card. So the fallback is taken HERE,
+# at the mint, where the source card is known: one producer, and the unit lands on the row itself, where
+# the writer, the panel, the footer and any frozen artifact all read the same string.
+#
+# `unit_overrides` IS NOT CONSULTED, and that is the fail-closed half. The override map is keyed on
+# COMMODITY (silver_futures_eod.settle is ten currencies and declares no `unit:` at all), the handle
+# carries no commodity, and guessing one across ten currencies is the exact unattributability the price
+# card's own rule exists to refuse. Such a stat stays unitless, as it does today.
+#
+# THE SCALE RULE, ONE SCALE PER QUANTITY (K9-3's class, at its producer): a DIFFERENCE over a percent
+# series is in percentage POINTS, not percent -- "stocks-to-use 1.03033 %, up 0.00266861 ratio year on
+# year" is the measured shape of getting this wrong, three declared scales for one quantity on adjacent
+# lines. `window_change` and `yoy_delta` are differences and take `pp`, the token the deterministic
+# derived leg already mints for the same quantity (`derived.py`'s su_ratio delta). `extrema` is a LEVEL --
+# the min and max ARE readings of the series -- so it keeps the source unit exactly, percent included.
+# `percentile` and `zscore` are unitless by construction and say so in words rather than borrowing a
+# physical unit ("percentile" / "sigma"), which is why they stay in the map above.
+_DIFFERENCE_STATS = frozenset({"window_change", "yoy_delta"})
+_PERCENT_UNITS = frozenset({"%", "pct", "percent", "percentage", "pct."})
+
+
+def _registry_unit(table: Optional[str], metric: Optional[str]) -> Optional[str]:
+    """The CARD's declared unit for a metric -- `citations._metric_unit`'s commodity-less arm, and nothing
+    more. No `unit_overrides` (see above), and ANY failure is None: an unresolvable unit must leave the row
+    exactly as it renders today, never raise inside a mint."""
+    if not (table and metric):
+        return None
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        m = load_registry().get(table).metrics.get(metric)
+        return (getattr(m, "unit", "") or None) if m is not None else None
+    except Exception:  # noqa: BLE001 -- registry missing/table unknown -> no unit, never fatal
+        return None
+
+
+def _stat_unit(stat: str, series_unit: Optional[str], src_table: Optional[str] = None,
+               src_metric: Optional[str] = None) -> Optional[str]:
+    """The unit an injected stat row declares. Synthetic for the five kind-labelled stats (unchanged);
+    the source series' own unit for the three that inherit, resolved from the card when the rows carried
+    none; `pp` when a DIFFERENCE stat inherits a percent."""
+    if stat in _STAT_UNIT:
+        return _STAT_UNIT[stat]
+    u = series_unit or _registry_unit(src_table, src_metric)
+    if stat in _DIFFERENCE_STATS and str(u or "").strip().lower() in _PERCENT_UNITS:
+        return "pp"
+    return u
+
 
 def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd: Optional[str],
                 labels: Optional[dict] = None, src_table: Optional[str] = None,
@@ -2105,10 +2168,25 @@ def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd
     """Turn a SUCCESSFUL stats result into one (or, for extrema, two) synthetic lookup call(s) -- each an
     [N] row carrying the computed value so the all-numbers guard value-checks it. A decline injects nothing.
 
-    `labels` is the unambiguous expiry/settle-kind pair inherited from the source rows (_handle_labels):
-    absent for every card that carries no such column, so those rows are byte-identical to pre-D-AM-17."""
-    unit = _STAT_UNIT.get(stat, series_unit)
+    `labels` is the unambiguous expiry/settle-kind/country set inherited from the source rows
+    (_handle_labels): absent for every card that carries no such column, so those rows are byte-identical
+    to pre-D-AM-17.
+
+    K9-5: the row also names the SERIES IT WAS COMPUTED OVER (`source_table` / `source_metric`), which is
+    what lets `citations.from_number` headline the source card instead of the pseudo-table and lets
+    `cascade._stat_display` qualify the stat's words with the metric's own label -- "closing stocks
+    (change over the window)" rather than "window_change". `source_metric` is the key the V2-1 context
+    cell already established for exactly this shape (a synthesized row whose `metric` is not a card
+    metric, so the `/v1/series` drill-down needs the real one); `source_table` is its missing half, and a
+    pseudo-table row needs both to be drawable. BOTH OR NEITHER -- a table with no metric names a card
+    with no series and a metric with no table is unresolvable -- and a stat OF a stat carries neither,
+    because the chained handle's labels are minted from the injected row (which has no source card of its
+    own); that row then renders under the pseudo-table's own display entry, which is honest: its source
+    IS a computed figure."""
+    unit = _stat_unit(stat, series_unit, src_table, src_metric)
     lab = dict(labels or {})
+    if src_table and src_metric:
+        lab["source_table"], lab["source_metric"] = src_table, src_metric
     if stat == "spread":
         # A spread spans TWO delivery months, so it can never carry a single `contract_month` (the card's
         # own rule: never attach a delivery month to a row that has none). It names both legs instead,
@@ -2340,7 +2418,33 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "not there for show). A question asking for a TREND or DIRECTION requires window_change; a RUN "
         "or STREAK requires streak; HOW UNUSUAL requires zscore or percentile -- in each case read the "
         "series first (agg='series'), then REQUEST the statistic. Prose adjectives ('built steadily', "
-        "'unusually high') are NOT a substitute for the computed figure.\n"
+        "'unusually high') are NOT a substitute for the computed figure. "
+        # K9-5 (2026-09-09): the two stats the bullet never named. Measured: `extrema` had ZERO mentions
+        # anywhere in this prompt and `revision_count` was named only inside a parameter blurb, and both
+        # are among the stats that never fired on the banked set. Two sentences INSIDE this existing
+        # bullet, in its own register -- not a second enum, which is the D29 deferral this must not touch.
+        "The HIGH or the LOW of a series you have read is extrema, which returns both as a pair -- not a "
+        "maximum you pick out by eye. HOW MANY TIMES IN A ROW an estimate has been revised the same way "
+        "is revision_count over a vintage read (agg='series' on a vintage-semantics card), never a count "
+        "you make from the rows yourself. "
+        # K9-5 FIX-CYCLE (2026-09-09), REVIEW MAJOR-2 -- THE HALF THAT LANDS IN THIS BULLET. The mint now
+        # derives the injected row's unit (`_stat_unit`): a DIFFERENCE over a percent series is `pp`, and
+        # the citation label, the numbers panel and the `## Sources` footer all read that ONE string. The
+        # NUMBERS-ONLY writer reads none of them -- it sees the compute_stat tool_result, which carries no
+        # unit key at all (`_exec_stat`, one seam outside this lane's), so its only unit for the series is
+        # the `%` it read off the earlier lookup rows. Untold, that writer prints "0.6%" under a footer
+        # that says "0.6 pp": ONE figure, TWO declared scales, across the two surfaces of one answer --
+        # the K9-3 class, on the lane no flag covers. THE RULE IS STATED HERE, in the bullet the mint's own
+        # note already points at ("state it with its unit"), so the writer can apply it from the series
+        # unit it does have. The deterministic half -- carrying `_stat_unit`'s result into the tool_result
+        # beside `note` -- is one key in `_exec_stat`, and HAS NOW LANDED (fix cycle 2026-09-10): the
+        # tool_result carries `unit`, read off the row the mint produced. The two halves are belt AND
+        # braces on purpose -- the key states the scale, this rule teaches the writer what a scale
+        # MEANS, and the writer still needs the rule for the series unit it reads off plain lookups.
+        "A CHANGE IS NOT ALWAYS IN THE LEVEL'S UNIT, and one quantity is never stated on two scales: "
+        "a window_change or a yoy_delta over a series quoted in PERCENT is in percentage POINTS "
+        "(write 'pp', never '%'); the high and the low of that same series are READINGS of it and "
+        "keep percent; every other change carries the source series' own unit.\n"
         # D-AM-17 KILL-SWITCH PARITY: the spread arm's steering rides the SAME `stats_on` string as the
         # tool schema's `spread` enum member and its near_month/far_month properties, so the model is
         # never told about an arm it does not have -- and never has one it was not told how to call.
@@ -3250,7 +3354,22 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             sh = handles.get(inp.get("series_handle")) or {}
             injected = _stat_calls(stat, res, prov, sh.get("unit"), sh.get("kd"), sh.get("labels"),
                                    sh.get("src_table"), sh.get("src_metric"))
+            # K9-5 FIX-CYCLE (2026-09-09), REVIEW MAJOR-2 -- THE DETERMINISTIC HALF OF THE SCALE RULE.
+            # `_stat_unit` derives the row's unit at the mint (a DIFFERENCE over a percent series is `pp`),
+            # and the citation label, the numbers panel and the `## Sources` footer all read that ONE
+            # string off the injected row. The NUMBERS-ONLY writer reads NONE of them: it sees this
+            # tool_result's JSON text, which carried no unit key at all -- so its only unit for the series
+            # was the `%` it took off the earlier lookup rows, and it printed "0.6%" under a footer saying
+            # "0.6 pp". ONE figure, TWO declared scales, across the two surfaces of one answer.
+            #
+            # ONE PRODUCER, NOT A SECOND DERIVATION: the unit is READ OFF the row `_stat_calls` just
+            # minted (the same expression the chained handle reads five lines below), never recomputed
+            # here -- a second call to `_stat_unit` would be a second place for the scale rule to drift.
+            # `extrema` mints two rows that share one unit, so rows[0] speaks for the pair. None whenever
+            # nothing was injected: an honest decline returns above, so `injected` is non-empty on this
+            # path today, and a future stat that mints no row must say "no unit" rather than raise.
             payload = {**res, "status": "ok", "provenance": prov,
+                       "unit": (injected[0]["rows"][0].get("unit") if injected else None),
                        "note": "This is now an injected observed figure -- state it with its unit and stay "
                                "descriptive (no forecast/extrapolation)."}
             return (payload, injected)
