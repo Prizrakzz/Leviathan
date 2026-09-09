@@ -38,6 +38,7 @@ if str(_REPO_ROOT / "src") not in sys.path:
 
 from leviathan.silver.registry import load_registry  # noqa: E402
 from leviathan.silver.value_census import (  # noqa: E402
+    apply_absent_group_waiver,
     apply_vintage_waiver,
     census_column,
     evaluate_gate,
@@ -187,6 +188,12 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
     knowledge_col = contract.get("knowledge_date_col")
     vintage = contract.get("vintage_retention")
     projection_domains = contract.get("projection_domains") or {}
+    # Declared, user-gated SOURCE ABSENCE of (partition group, value column) pairs. Consumed HERE
+    # rather than inside evaluate_gate for the same reason vintage_waiver is: the declaration is a
+    # REGISTRY fact, so the gate function itself stays strict and cannot be quietly disarmed by a
+    # caller omitting an argument. See apply_absent_group_waiver for the measured trigger (the three
+    # cottonseed Tuesdays) and the three fail-closed rules.
+    absent_groups = contract.get("value_column_absent_groups") or None
 
     target_cols = list(dict.fromkeys(value_columns + ([knowledge_col] if knowledge_col else [])))
 
@@ -221,12 +228,20 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
             fstats = [stats_by_key.get(k, {}).get(col) for k in keys]
             g_census[col] = census_column(fstats, col)
         label = g or "(flat)"
-        for r in evaluate_gate(table, g_census, value_columns, min_frac,
+        g_rows = evaluate_gate(table, g_census, value_columns, min_frac,
                                floor_overrides=floor_overrides,
                                season_floor_overrides=season_overrides,
-                               as_of_month=as_of_month):  # value checks only
+                               as_of_month=as_of_month)  # value checks only
+        # A DECLARED absence is NARRATED (a warn row carrying the approval + the publisher fact);
+        # an UNDECLARED one stays a hard fail. The demotion is keyed on this group's label, so it
+        # can never reach another commodity's identical-looking row.
+        g_rows, g_absent = apply_absent_group_waiver(g_rows, label, absent_groups, value_columns)
+        for r in g_rows:
             per_group_rows.append(GateRow(r.table, r.column, r.kind, r.observed, r.threshold,
                                           f"[{label}] {r.detail}"))
+        for r in g_absent:
+            per_group_warns.append(GateRow(r.table, r.column, r.kind, r.observed, r.threshold,
+                                           f"[{label}] {r.detail}"))
         for r in evaluate_warnings(table, g_census, value_columns):
             per_group_warns.append(GateRow(r.table, r.column, r.kind, r.observed, r.threshold,
                                            f"[{label}] {r.detail}"))
@@ -265,7 +280,13 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
           + ([f"min_nonnull_frac_season_overrides ACTIVE for census month {as_of_month:02d}: "
               f"{season_overrides} (D-SG G1-5 calendar-structural columns; the month's window "
               "floor replaced the per-column floor where one is declared)"]
-             if season_overrides else []),
+             if season_overrides else [])
+          + ([f"value_column_absent_groups ACTIVE ({absent_groups.get('approved', '?')}): "
+              f"{ {g: sorted(c) for g, c in (absent_groups.get('groups') or {}).items()} } -- "
+              "these (group, column) pairs are a DECLARED source absence; their stats_unavailable/"
+              "all_nan rows are demoted to WARN and appear in warn_rows with the reason. Every "
+              "other pair, kind and group stays hard."]
+             if absent_groups else []),
     )
     # Fold per-group value rows + vintage rows into the result's gate/warn lists (waived vintage
     # rows land in WARN, and the artifact carries the waiver object itself).
@@ -275,6 +296,8 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
     d["per_group_value_census"] = group_summaries
     if waiver:
         d["vintage_waiver"] = dict(waiver)
+    if absent_groups:
+        d["value_column_absent_groups"] = dict(absent_groups)
     return result, d
 
 

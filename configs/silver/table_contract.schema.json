@@ -535,6 +535,40 @@
           "minLength": 8
         }
       }
+    },
+    "value_column_absent_groups": {
+      "type": "object",
+      "description": "Declared, user-gated SOURCE ABSENCE of specific (partition group, value column) PAIRS -- the vocabulary the V001 census lacked for a column the publisher genuinely never prints inside one partition family (MEASURED 2026-09-09: USDA NASS publishes no yield and no acreage for cottonseed, a cotton byproduct, so all 161 cottonseed partitions carry yield_t_ha / area_planted_ha / area_harvested_ha empty and the usda_nass silver gate refused three consecutive Tuesdays -- 2026-08-25 / 09-01 / 09-08 -- with byte-identical banners). The census DEMOTES the stats_unavailable / all_nan GateRow for a declared pair to a WARN that names the approval and the reason, and carries this object in the artifact: reported, never silently green. It is a statement about ABSENCE only -- a declared pair whose column turns out to carry data is censused normally, and nonnull_below_floor / sentinel_saturated / single_vintage stay HARD under any declaration. Keyed on PAIRS by design: never a whole column (a column absent in every group is not a governed value -- drop it from the numbers card), never a whole table. Every column must be a declared value_column and every group must exist in the table's projection enum, or the generator refuses to render the contract.",
+      "required": [
+        "reason",
+        "approved",
+        "groups"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 20
+        },
+        "approved": {
+          "type": "string",
+          "minLength": 8
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z0-9_]+=[A-Za-z0-9_.-]+$": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

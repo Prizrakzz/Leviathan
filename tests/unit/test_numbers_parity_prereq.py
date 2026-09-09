@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import importlib
 
+import pytest
+
 from leviathan.graphrag.numbers.registry import load_registry
 
 parity = importlib.import_module("jobs.utils.numbers_parity")
@@ -234,3 +236,127 @@ def test_psd_attributes_cell_leg_repeats_the_fence_and_mirror_guards():
     assert 'if _PSD_ATTR in tables and _PSD_ATTR in reg.tables and _PSD_ATTR in PG_MIRROR_TABLES:' in src
     # and the loop's own guards, which protect the NEXT table registered ahead of its mirror, survive
     assert "SKIP-FENCED" in src and "SKIP-UNMIRRORED" in src
+
+
+# ---- NASS GATE RCA (2026-09-09): the VACUOUS half of the usda_nass gate ----
+#
+# THE MEASURED FINDING. Both usda_nass tables have been served AND mirrored (load_pg_numbers
+# P1_TABLES) for as long as they have been wired, and both are PROJECTED on `commodity`
+# (partition_cols [commodity, year]) -- but NEITHER had a SAMPLE_COMMODITY entry. With commodity
+# None, query.build_sql raises "table {id} requires commodity (partition column)" for EVERY leg;
+# _cmp books each as `- SKIP ... spec invalid` BEFORE `compared[tid]` increments, so the EMPTY-PANEL
+# guard -- which only looks at tables that compared something -- never saw either table, `mismatches`
+# stayed empty and main() returned 0 on `## verdict: 0/0 exact-match`. Green while proving nothing,
+# which is the 2026-08-18 class exactly: a fence whose input was never measured.
+#
+# Two things are pinned below and must not be conflated: (1) the SAMPLE_COMMODITY entries, which turn
+# the two panels from 0 legs into real ones, and (2) the SPEC-INVALID-PANEL guard, which is the
+# ESTATE-WIDE half -- any table whose spec stops building (a dropped sample, a renamed partition
+# column, a region rule that no longer admits the grid) would otherwise pass the same way. Everything
+# here is offline: no Athena, no pg, only build_sql's string and the pure guard function.
+
+_NASS = ("silver_nass_annual", "silver_nass_crop_progress")
+
+
+def _leg_grid(ts):
+    """main()'s OWN leg grid for one table: the tall/wide metric cap x ASOFS x AGGS. Derived from the
+    module's constants rather than hard-coded, so a change to either shows up here as a count."""
+    metrics = list(ts.metrics) if ts.shape == "tall" else list(ts.metrics)[:4]
+    return [(m, asof, agg) for m in metrics for asof in parity.ASOFS for agg in parity.AGGS]
+
+
+def test_both_nass_tables_have_a_sample_commodity_that_actually_builds():
+    from leviathan.graphrag.numbers import query as Q
+
+    reg = load_registry()
+    built_total = 0
+    for tid in _NASS:
+        assert tid in parity.SAMPLE_COMMODITY, f"no entry -> every {tid} leg SKIPs and the panel is vacuous"
+        commodity = parity.SAMPLE_COMMODITY[tid]
+        # CONTRACT SLUG, not a base name: commodity_col is the partition `commodity`, filled from the
+        # producer's slug map. 'corn' matches zero rows -- the gold_weather_z weather-R3 trap.
+        assert commodity == "corn_cbot"
+        assert tid in reg.tables, "fenced out of the registry -> the leg would SKIP-FENCED, not compare"
+        ts = reg.get(tid)
+        assert commodity in ts.commodity_values, "the sample must be a slug the CARD declares"
+        assert tid in parity.PG_MIRROR_TABLES, (
+            "served but unmirrored -> SKIP-UNMIRRORED is a report line, NOT a mismatch, so the gate "
+            "would stay green while the mirror rotted")
+        grid = _leg_grid(ts)
+        # THE DEFECT, first: with no sample every single leg is unbuildable, and the exception is the
+        # exact one the RCA read out of query.py.
+        for metric, asof, agg in grid:
+            with pytest.raises(ValueError, match="requires commodity"):
+                Q.build_sql(Q.NumberQuery(table=tid, metric=metric, asof=asof, commodity=None,
+                                          agg=agg, limit=50))
+        # ...and with the sample, every leg compiles to real SQL that filters the partition.
+        for metric, asof, agg in grid:
+            sql = Q.build_sql(Q.NumberQuery(table=tid, metric=metric, asof=asof, commodity=commodity,
+                                            agg=agg, limit=50))
+            assert f"commodity = '{commodity}'" in sql and f"leviathan_dev.{tid}" in sql
+        built_total += len(grid)
+    # MEASURED 2026-09-09, offline: 24 + 24 legs. NOTE the RCA predicted 24 + 30 -- it multiplied
+    # crop_progress's FULL five-metric roster and missed that main() caps a WIDE table at [:4]. The
+    # honest number is 24, and the correction is worth more than the round figure: `pct_harvested`,
+    # metric #5 on that card, is the one column D-SG G1-5 gave a SEASON floor to and it is never
+    # compared by parity at all. That is a real hole, but it is the wide-cap's, not this fix's --
+    # DOCKETED rather than widened here, because lifting the cap changes every wide panel's cost.
+    assert built_total == 48, built_total
+    cp = reg.get("silver_nass_crop_progress")
+    assert cp.shape == "wide" and len(cp.metrics) == 5 and len(_leg_grid(cp)) == 24
+    assert "pct_harvested" == list(cp.metrics)[4]      # the metric the cap hides, named on purpose
+
+
+def test_an_all_skip_table_is_a_mismatch_not_a_pass():
+    """THE ESTATE-WIDE GUARD. A table whose every leg is spec-invalid compared NOTHING, so it must
+    block the flip exactly like a mismatch -- otherwise a broken instrument reads as a passing gate.
+
+    The fixture table is not invented: it is the two nass cards in the state they were actually in,
+    driven through the REAL build_sql with the sample removed, so the skip counts fed to the guard
+    are measured rather than asserted."""
+    from leviathan.graphrag.numbers import query as Q
+
+    reg = load_registry()
+    spec_invalid: dict[str, int] = {}
+    for tid in _NASS:
+        for metric, asof, agg in _leg_grid(reg.get(tid)):
+            try:                                   # this is _cmp's own try/except, verbatim in shape
+                Q.build_sql(Q.NumberQuery(table=tid, metric=metric, asof=asof, commodity=None,
+                                          agg=agg, limit=50))
+            except Exception:                      # noqa: BLE001 - the SKIP arm
+                spec_invalid[tid] = spec_invalid.get(tid, 0) + 1
+    assert spec_invalid == {"silver_nass_annual": 24, "silver_nass_crop_progress": 24}
+    # HEAD's state: nothing compared, nothing non-empty -> the old code produced ZERO mismatches
+    # and main() returned 0 on "## verdict: 0/0 exact-match".
+    out = parity.vacuity_mismatches(compared={}, nonempty={}, spec_invalid=spec_invalid)
+    assert len(out) == 2, out
+    for tid, line in zip(_NASS, sorted(out)):
+        assert line.startswith(f"SPEC-INVALID-PANEL {tid}: all 24 legs unbuildable (spec invalid)")
+        assert "proves nothing" in line            # a MISMATCH -> "FAIL - do NOT flip"
+
+
+def test_the_guard_is_silent_when_the_table_actually_compared_something():
+    """The other half of fail-closed: a table with a few legitimately-unbuildable legs BESIDE real
+    compares is untouched. A guard that fired on any skip would make every region-fenced card red."""
+    assert parity.vacuity_mismatches(compared={"t": 6}, nonempty={"t": 6},
+                                     spec_invalid={"t": 2}) == []
+    # ...and the EMPTY-PANEL guard it sits beside still fires on its own case.
+    empty = parity.vacuity_mismatches(compared={"t": 6}, nonempty={}, spec_invalid={})
+    assert len(empty) == 1 and empty[0].startswith("EMPTY-PANEL t: all 6 compared queries")
+    # both at once, both reported -- they are different failures of the same panel.
+    both = parity.vacuity_mismatches(compared={"a": 6}, nonempty={}, spec_invalid={"b": 3})
+    assert len(both) == 2 and {s.split()[0] for s in both} == {"EMPTY-PANEL", "SPEC-INVALID-PANEL"}
+
+
+def test_main_feeds_the_guard_and_books_every_spec_invalid_skip():
+    """The WIRING, asserted against the real source: a guard nothing calls is worse than no guard.
+    _cmp must tally the skip it prints, and main() must run both guards into `mismatches`."""
+    import inspect
+    src = inspect.getsource(parity.main)
+    assert "spec_invalid[tid] = spec_invalid.get(tid, 0) + 1" in src, (
+        "the spec-invalid SKIP must be COUNTED where it is printed, or the guard sees nothing")
+    assert "mismatches += vacuity_mismatches(compared, nonempty, spec_invalid)" in src
+    # the counter has to be booked before _cmp returns on the build failure, i.e. inside the except
+    # arm that emits the SKIP line -- not after the compare.
+    skip_at = src.index("spec invalid ({e})")
+    assert 0 < src.index("spec_invalid[tid]") - skip_at < 200

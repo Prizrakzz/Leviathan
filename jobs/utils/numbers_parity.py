@@ -136,7 +136,28 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # unit, value) and _rows_key projects (value, knowledge_date), a function of that key
                     # alone -- so the only rows a tie can swap are indistinguishable to the compare. The
                     # strictly-ordered single-row proof is the CELL leg in main().
-                    "silver_psd_attributes": "soybeans_cbot"}
+                    "silver_psd_attributes": "soybeans_cbot",
+                    # NASS GATE RCA (2026-09-09) -- the two nass tables have been in
+                    # load_pg_numbers.P1_TABLES all along (the mirror loads them), but NEITHER had a
+                    # SAMPLE_COMMODITY entry, and both are PROJECTED on `commodity`
+                    # (partition_cols [commodity, year]). With commodity None, query.py's
+                    # "table {id} requires commodity (partition column)" raises for EVERY leg, _cmp
+                    # books each as `- SKIP ... spec invalid` BEFORE the compare counter, so
+                    # compared[tid] stays 0, the EMPTY-PANEL guard never sees the table, and the run
+                    # returns 0. MEASURED OFFLINE 2026-09-09 through build_sql itself: 24 legs
+                    # for nass_annual (4 metrics x 3 asofs x 2 aggs) and 24 for crop_progress -- both
+                    # cards are WIDE, so main() caps the metric list at [:4] and crop_progress's fifth
+                    # metric, `pct_harvested`, is never compared at all (the RCA's "30" multiplied the
+                    # full roster and missed the cap; the uncompared fifth metric is DOCKETED, not
+                    # widened here). 48 legs, all green by VACUITY, `## verdict: 0/0 exact-match`.
+                    # This is the same class as the 2026-08-18 finding -- a fence whose input was
+                    # never measured. PROVED OFFLINE (no Athena): with these samples
+                    # build_sql returns real SQL for production_mt / yield_t_ha /
+                    # pct_good_excellent at both `latest` and `series`. corn_cbot is the liquid slug
+                    # present in BOTH cards' commodity_values (contract slugs, not base names -- the
+                    # gold_weather_z weather-R3 trap).
+                    "silver_nass_annual": "corn_cbot",
+                    "silver_nass_crop_progress": "corn_cbot"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]
@@ -222,6 +243,42 @@ def _sum_tolerant_eq(a: list[tuple], p: list[tuple]) -> bool:
     return True
 
 
+def vacuity_mismatches(compared: dict[str, int], nonempty: dict[str, int],
+                       spec_invalid: dict[str, int]) -> list[str]:
+    """The two ways a panel can be GREEN WHILE PROVING NOTHING. Pure + offline so the guards are
+    pinnable without Athena or a pg mirror (they are the only thing standing between a broken
+    instrument and a passing gate).
+
+    EMPTY-PANEL: every compared query returned 0 rows on BOTH backends (wrong sample commodity,
+    empty mirror table). 0 rows == 0 rows is an exact match, so without this the flip passes blind.
+
+    SPEC-INVALID-PANEL (NASS GATE RCA, 2026-09-09) -- the hole BEHIND that guard. A spec-invalid SKIP
+    is recorded BEFORE the compare counter increments, so a table whose EVERY leg is unbuildable
+    never enters the EMPTY-PANEL loop at all: `mismatches` stays empty, main() returns 0, and the
+    report reads `## verdict: 0/0 exact-match`. That is exactly how BOTH usda_nass tables sat green
+    for as long as they have been wired -- no SAMPLE_COMMODITY entry, so query.py raised "table
+    {id} requires commodity (partition column)" on all 24 + 24 legs. The hole is ESTATE-WIDE, not a
+    nass one: any table whose spec cannot be built (a missing sample, a renamed partition column, a
+    region rule that no longer admits the grid) passes the same way, which is the 2026-08-18 class
+    -- a fence whose input was never measured. A skip that is a PROPERTY OF THE SPEC is a broken
+    instrument, so it blocks the flip like a mismatch does.
+
+    It fires ONLY when nothing in that table compared: a table with a few legitimately-unbuildable
+    legs beside real compares is untouched, and the SKIP-FENCED / SKIP-UNMIRRORED branches
+    (deliberate, loud, and about a table nobody serves) never reach here."""
+    out: list[str] = []
+    for tid, n in compared.items():
+        if n > 0 and nonempty.get(tid, 0) == 0:
+            out.append(f"EMPTY-PANEL {tid}: all {n} compared queries returned 0 rows on both "
+                       "backends - vacuous, check SAMPLE_COMMODITY / mirror load")
+    for tid, n in spec_invalid.items():
+        if n > 0 and compared.get(tid, 0) == 0:
+            out.append(f"SPEC-INVALID-PANEL {tid}: all {n} legs unbuildable (spec invalid) - "
+                       "nothing was compared, so this panel proves nothing; check "
+                       "SAMPLE_COMMODITY / the card's partition + region rules")
+    return out
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     load_env()
@@ -240,6 +297,7 @@ def main() -> int:
     mismatches: list[str] = []
     nonempty: dict[str, int] = {}                     # per-table compared queries with actual rows
     compared: dict[str, int] = {}
+    spec_invalid: dict[str, int] = {}                 # per-table legs whose spec would not BUILD
     lines = [f"# numbers pg-parity report ({date.today().isoformat()})", ""]
     def _cmp(spec, tid, metric, asof, agg):
         """One spec -> compare Athena vs the pg mirror (the SAME build_sql string on both) and tally into
@@ -250,6 +308,7 @@ def main() -> int:
             sql = Q.build_sql(spec)
         except Exception as e:  # noqa: BLE001 — spec not valid for this table (e.g. region rules)
             lines.append(f"- SKIP {tid}.{metric} asof={asof} agg={agg}: spec invalid ({e})")
+            spec_invalid[tid] = spec_invalid.get(tid, 0) + 1
             return
         total += 1
         try:
@@ -400,12 +459,7 @@ def main() -> int:
                                    commodity=PSD_ATTR_CELL_COMMODITY, country=PSD_ATTR_CELL_COUNTRY,
                                    period=my, agg=agg, limit=50),
                      _PSD_ATTR, f"{PSD_ATTR_CELL_METRIC}[{PSD_ATTR_CELL_COUNTRY} MY{my}]", asof, agg)
-    # A panel where EVERY compared query returned 0 rows on BOTH backends proves nothing (wrong sample
-    # commodity, empty mirror table, ...) — vacuous panels BLOCK the flip like a mismatch does.
-    for tid, n in compared.items():
-        if n > 0 and nonempty.get(tid, 0) == 0:
-            mismatches.append(f"EMPTY-PANEL {tid}: all {n} compared queries returned 0 rows on both "
-                              "backends - vacuous, check SAMPLE_COMMODITY / mirror load")
+    mismatches += vacuity_mismatches(compared, nonempty, spec_invalid)
     lines += ["", f"## verdict: {match}/{total} exact-match",
               "PASS - flip GRAPHRAG_NUMBERS_BACKEND=pg" if not mismatches and match == total and total > 0
               else "FAIL - do NOT flip; mismatches below", ""]

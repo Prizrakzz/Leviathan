@@ -277,6 +277,17 @@ WRITER_SCHEMA_PINNED |= {"silver_pink_sheet_vintages"}
 # (NASA_POWER_WIDE_SCHEMA / CHIRPS_LONG_SCHEMA / CPC_SOIL_LONG_SCHEMA). Disjoint |= update so the
 # literals above stay owned by LANE OB / LANE SA.
 WRITER_SCHEMA_PINNED |= {"silver_nasa_power", "silver_chirps", "silver_cpc_soil"}
+# NASS GATE RCA 2026-09-09 (A2, the schema pin): jobs/batch/nass_annual_silver_task._partition_body
+# wrote every (commodity, year) object with a bare df.to_parquet(engine="pyarrow") and NO schema, so
+# the arrow type was INFERRED PER GROUP and a group with zero non-NA values in a measure column was
+# written as arrow `null` -- physical INT32 with no Statistics struct at all. MEASURED over all 1,206
+# canonical footers: 475 such column-instances across seven commodities. The writer now pins the
+# INV-2 contract schema (pa_schema_from_contract + the projected `year` partition field, which rides
+# in the body as well as the path), so an all-null measure column can never silently become arrow
+# `null` again -- exactly what flat_producer.pa_schema_from_contract's docstring exists to prevent.
+# The flag is the truthful statement of that pin; the CANONICAL REWRITE that makes the live bytes
+# match it (--force-overwrite, ~5 MB / 1,206 objects) is an owner-gated operational step.
+WRITER_SCHEMA_PINNED |= {"silver_nass_annual"}
 
 # LANE W: the weather serving surface is the tall, non-projected gold_weather_z (Phase D-W4); the three
 # silver weather tables are DERIVATION INPUTS only. The generator derives serving_table from the numbers
@@ -1565,6 +1576,54 @@ CURATION_OVERRIDES: dict = {
     },
     "silver_mpob": {"freshness_sla": {"cadence": "monthly"}},        # MPOB monthly palm statistics
     "silver_modis_ndvi": {"freshness_sla": {"cadence": "monthly"}},  # 16-day composite; monthly interim
+    # NASS GATE RCA (2026-09-09) -- the DECLARED SOURCE ABSENCE that unblocks the usda_nass chain.
+    #
+    # THE MEASURED TRIGGER, not a projection: the silver rebuild gate refused three consecutive
+    # Tuesdays -- 2026-08-25 (exec cd6a8d59), 2026-09-01 (cd6a9694), 2026-09-08 (cd6a9fce) -- with
+    # BYTE-IDENTICAL banners on three different gate images (95eeaf6c / d9af78ce / ee7dafce, so it is
+    # not an image artifact):
+    #     FAIL silver_nass_annual (branch A): value_census={'ok': False, 'gate_rows': 3,
+    #       'warn_rows': 0, 'files_sampled': 30, 'first_gate': "[commodity=cottonseed]
+    #       'yield_t_ha' footer carried no row-group statistics"}
+    # Canonical silver has therefore not been promoted since 2026-08-20 (20 days stale at the RCA)
+    # while fresh bronze and a fully staged shadow sat ready every week.
+    #
+    # THE PUBLISHER FACT: USDA NASS publishes NO yield and NO acreage for cottonseed. It is a
+    # BYPRODUCT of the cotton crop -- the acreage and yield series belong to the `cotton` slug, and
+    # NASS prints cottonseed as production only. Measured over every canonical object (1,206 footers,
+    # full scan 2026-09-09, not a sample): yield_t_ha and area_planted_ha are arrow `null` with NO
+    # row-group statistics in 161/161 cottonseed partitions (1866-2026), and area_harvested_ha is a
+    # correctly-typed double that is 100% null across all 2,770 rows. The sibling commodities read
+    # normally in the same files, so this is the DATA differing per group, not a writer defect.
+    #
+    # WHY A DECLARATION AND NOT A FLOOR: value_census.evaluate_gate tests files_with_stats == 0 and
+    # all_nan BEFORE the floor and `continue`s on both, so a floor of 0.0 cannot disarm either kind.
+    # A floor would also be the wrong instrument -- it would blind the other nine commodities to a
+    # real all-null regression on the same column. And note what this entry deliberately does NOT do:
+    # it does not narrow value_columns and it does not drop cottonseed from the projection enum.
+    # Narrowing blinds all ten commodities; hiding the partition is precisely the SILVER-F020 mistake
+    # the 2026-08-20 wheat-lane repair undid. The census DEMOTES these three pairs to WARN rows that
+    # carry this approval and this reason into the artifact -- reported, never silently green.
+    #
+    # PAIRS ONLY, and the generator refuses anything looser (see _apply_curation_overrides): every
+    # column must be a declared value_column, every group must exist in the projection enum, and a
+    # column declared absent in EVERY enum group is rejected outright -- a column absent everywhere
+    # is not a governed value and belongs off the numbers card, not behind a waiver.
+    "silver_nass_annual": {
+        "value_column_absent_groups": {
+            "reason": ("USDA NASS publishes cottonseed as PRODUCTION ONLY -- it is a byproduct of "
+                       "the cotton crop, so its acreage and yield belong to the `cotton` slug and "
+                       "no yield or acreage series exists at source. MEASURED 2026-09-09 over all "
+                       "1,206 canonical footers: yield_t_ha and area_planted_ha are arrow null with "
+                       "no row-group statistics in 161/161 cottonseed partitions (1866-2026), and "
+                       "area_harvested_ha is 100% null across 2,770 rows. production_mt is fully "
+                       "populated and stays governed."),
+            "approved": "2026-09-09 NASS gate RCA (three Tuesday reds: 08-25 / 09-01 / 09-08)",
+            "groups": {
+                "commodity=cottonseed": ["area_harvested_ha", "area_planted_ha", "yield_t_ha"],
+            },
+        },
+    },
     "silver_nass_crop_progress": {
         # Weekly in-season (Apr-Nov) but dark all winter: the 170d interim ceiling spans the
         # off-season gap so the alarm never cries wolf; OP-8 replaces it with a seasonal window.
@@ -1774,6 +1833,50 @@ def _apply_curation_overrides(name: str, contract: dict) -> None:
         # non-null fraction, and leaving a float there would point a census at nothing.
         if not ov["value_columns"]:
             contract["min_nonnull_frac"] = None
+    # value_column_absent_groups (NASS GATE RCA 2026-09-09): the declared SOURCE ABSENCE of
+    # (partition group, value column) PAIRS. It DEMOTES a stats_unavailable/all_nan census row to a
+    # WARN that names this approval, so it is exactly the kind of mechanism that could be abused to
+    # silence a real regression -- hence three refusals here, all fail-closed, all at generation
+    # time so a bad declaration can never reach a gate run:
+    #   (a) every named column must be a declared value_column. A typo, or a column quietly dropped
+    #       from the governed set, would otherwise be a SILENT no-op -- the gate would keep refusing
+    #       and nothing would say why (the 2026-08-18 mis-inferred-floor lesson).
+    #   (b) every named group must exist in the table's projection enum. Declaring an absence for a
+    #       partition family that does not exist is either a typo or a stale entry, and both must be
+    #       loud.
+    #   (c) a column declared absent in EVERY enum group is refused. That is a WHOLE-COLUMN absence
+    #       wearing a per-group costume: a column no commodity publishes is not a governed value and
+    #       belongs off the numbers card / out of value_columns, where the census can see the whole
+    #       truth -- not behind a waiver that makes the table look censused.
+    # Groups and columns are emitted SORTED so the render stays byte-stable (determinism test).
+    if "value_column_absent_groups" in ov:
+        decl = ov["value_column_absent_groups"]
+        governed = list(contract.get("value_columns") or [])
+        raw_groups = dict(decl.get("groups") or {})
+        enum_csv = (contract.get("projection_domains") or {}).get("projection.commodity.values")
+        enum_labels = {f"commodity={v}" for v in str(enum_csv).split(",") if v} if enum_csv else set()
+        per_column: dict[str, int] = {}
+        for label, cols in raw_groups.items():
+            unknown = [c for c in cols if c not in governed]
+            if unknown:
+                raise KeyError(f"{name}: value_column_absent_groups[{label!r}] names {unknown!r}, "
+                               f"which are not declared value_columns {governed!r}")
+            if enum_labels and label not in enum_labels:
+                raise KeyError(f"{name}: value_column_absent_groups group {label!r} is not in the "
+                               f"projection enum {sorted(enum_labels)!r}")
+            for c in cols:
+                per_column[c] = per_column.get(c, 0) + 1
+        if enum_labels:
+            whole = sorted(c for c, n in per_column.items() if n >= len(enum_labels))
+            if whole:
+                raise KeyError(f"{name}: value_column_absent_groups declares {whole!r} absent in "
+                               f"EVERY projection group -- that is a whole-column absence; remove "
+                               f"the column from value_columns instead of waiving it per group")
+        contract["value_column_absent_groups"] = {
+            "reason": decl["reason"],
+            "approved": decl["approved"],
+            "groups": {g: sorted(raw_groups[g]) for g in sorted(raw_groups)},
+        }
     for key in ("natural_key", "required_nonnull", "coverage_axis", "vintage_waiver",
                 "min_nonnull_frac_overrides", "min_nonnull_frac_season_overrides",
                 "schema_version"):

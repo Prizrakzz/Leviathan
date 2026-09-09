@@ -106,7 +106,7 @@ physical_columns:
   parquet_physical_type: null
   target_arrow_type: string
   nullable: true
-writer_schema_pinned: false
+writer_schema_pinned: true
 drift_summary:
 - column: area_planted_cv_pct
   kind: null_typed
@@ -200,3 +200,15 @@ projection_domains:
   projection.year.range: 1866,2035
   projection.year.type: integer
   storage.location.template: s3://leviathan-dev-shahem-001/silver/nass_annual/commodity=${commodity}/year=${year}
+value_column_absent_groups:
+  reason: 'USDA NASS publishes cottonseed as PRODUCTION ONLY -- it is a byproduct of the cotton crop,
+    so its acreage and yield belong to the `cotton` slug and no yield or acreage series exists at source.
+    MEASURED 2026-09-09 over all 1,206 canonical footers: yield_t_ha and area_planted_ha are arrow null
+    with no row-group statistics in 161/161 cottonseed partitions (1866-2026), and area_harvested_ha is
+    100% null across 2,770 rows. production_mt is fully populated and stays governed.'
+  approved: '2026-09-09 NASS gate RCA (three Tuesday reds: 08-25 / 09-01 / 09-08)'
+  groups:
+    commodity=cottonseed:
+    - area_harvested_ha
+    - area_planted_ha
+    - yield_t_ha

@@ -2044,6 +2044,12 @@ tables:
       silver_wasde, and there are still no durum, barley, oat, sorghum, sunflower or sugar rows.
       Anything off the ten is refused before any SQL runs; decline rather than substituting a
       different crop or class.
+      COTTONSEED IS PRODUCTION ONLY -- NASS publishes no yield and no acreage for it (the seed is a
+      byproduct of the cotton crop, so the planted/harvested area and the yield behind it belong to
+      the `cotton` slug), so yield_t_ha, area_planted_ha and area_harvested_ha are EMPTY on every
+      cottonseed row in every crop year (measured 2026-09-09: all 161 partitions, 1866-2026, 2,770
+      rows): answer a cottonseed yield or acreage question by saying it is not published and
+      pointing at `cotton`, never by returning an empty series.
       period = the CROP YEAR as an integer (2025 = the 2025 crop). Read one crop year with period=2025,
       or a run of them with period_start/period_end 'YYYY-01-01'/'YYYY-12-31' -- on this card those
       bounds bind the YEAR axis (there is no date column), so they select whole crop years inclusively.

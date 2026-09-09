@@ -438,6 +438,72 @@ def apply_vintage_waiver(
     return kept, waived
 
 
+# The two kinds that express a TOTAL absence of a value column inside one partition group -- the
+# only kinds a DECLARED absence can speak to. A column that carries data and merely falls short of
+# its floor, or is saturated at a missing-data sentinel, is present-but-wrong rather than absent, so
+# those rows (and the vintage row) stay HARD under any declaration.
+ABSENT_DEMOTABLE_KINDS: frozenset = frozenset({KIND_STATS_UNAVAILABLE, KIND_ALL_NAN})
+
+
+def apply_absent_group_waiver(
+    gate_rows: Sequence[GateRow],
+    group_label: str,
+    declaration: Optional[Mapping[str, Any]],
+    value_columns: Sequence[str],
+) -> tuple[list[GateRow], list[GateRow]]:
+    """Split one partition group's gate rows under a declared ``value_column_absent_groups``.
+
+    Returns ``(kept_hard, declared_warn)``. With the group named in the declaration, a
+    KIND_STATS_UNAVAILABLE / KIND_ALL_NAN row for a DECLARED column is DEMOTED to a warn row whose
+    detail carries the approval AND the reason -- reported, never silently green, exactly as
+    :func:`apply_vintage_waiver` handles the FAOSTAT vintage class. Every other kind, every
+    undeclared column, and every undeclared group stay HARD.
+
+    MEASURED TRIGGER (2026-09-09 RCA): USDA NASS publishes no yield and no acreage for
+    ``cottonseed`` -- it is a byproduct of the cotton crop, and the acreage/yield series belong to
+    the ``cotton`` slug -- so all 161 cottonseed partitions of ``silver_nass_annual`` carry
+    ``yield_t_ha`` / ``area_planted_ha`` as arrow ``null`` (no row-group statistics at all) and
+    ``area_harvested_ha`` as 100%-null double. The census had no vocabulary for a declared absence,
+    so the usda_nass silver chain refused three consecutive Tuesdays -- 2026-08-25, 2026-09-01,
+    2026-09-08 -- with byte-identical banners ("[commodity=cottonseed] 'yield_t_ha' footer carried
+    no row-group statistics"), leaving canonical silver 20 days stale on data that is exactly what
+    the source published. It is the 2026-08-18 mis-inferred-floor class one taxonomy level up: a
+    hard KIND rather than a threshold.
+
+    WHY THIS IS NOT A FLOOR (and why no floor could have done it): ``evaluate_gate`` checks
+    ``files_with_stats == 0`` and ``all_nan`` BEFORE the floor and ``continue``s on both, so a floor
+    of 0.0 cannot disarm either. Widening a floor would also be the wrong instrument -- it would
+    blind the OTHER nine commodities to a real all-null regression on the same column.
+
+    FAIL CLOSED, three ways, because a demotion mechanism is exactly what an abuser would reach for:
+      * only (group, column) PAIRS demote -- never a whole column, never a whole table;
+      * a column outside ``value_columns`` NEVER demotes here (a typo or a column quietly dropped
+        from the governed set is a silent no-op otherwise), and the registry generator refuses to
+        render a declaration naming an ungoverned column or an unknown projection group at all;
+      * only the two absence kinds demote. The moment a declared column starts carrying data it is
+        censused like any other -- a below-floor or sentinel row on it is still a hard fail.
+    """
+    if not declaration:
+        return list(gate_rows), []
+    declared_all = ((declaration.get("groups") or {}).get(group_label)) or ()
+    governed = set(value_columns)
+    declared = {c for c in declared_all if c in governed}
+    if not declared:
+        return list(gate_rows), []
+    approved = declaration.get("approved", "?")
+    reason = str(declaration.get("reason", "")).strip()
+    kept: list[GateRow] = []
+    warned: list[GateRow] = []
+    for r in gate_rows:
+        if r.kind in ABSENT_DEMOTABLE_KINDS and r.column in declared:
+            warned.append(GateRow(r.table, r.column, r.kind, r.observed, r.threshold,
+                                  f"DECLARED-ABSENT ({approved}): {r.detail}"
+                                  + (f" -- {reason}" if reason else "")))
+        else:
+            kept.append(r)
+    return kept, warned
+
+
 def evaluate_warnings(
     table: str,
     census_by_column: dict[str, ColumnCensus],

@@ -363,3 +363,212 @@ def test_live_registry_carries_the_esr_vintage_waiver():
     assert "silver_esr_compact" in w["reason"]
     # the certified serving surface is NOT waived -- its vintages are real.
     assert "vintage_waiver" not in reg.tables["silver_esr_compact"]
+
+
+# ---------------------------------------------------------------------------
+# NASS GATE RCA (2026-09-09): the DECLARED SOURCE ABSENCE of (group, column) PAIRS.
+#
+# THE MEASURED TRIGGER, not a hypothetical: the usda_nass silver chain refused three consecutive
+# Tuesdays -- 2026-08-25 / 09-01 / 09-08 -- on three different gate images with byte-identical
+# banners ("[commodity=cottonseed] 'yield_t_ha' footer carried no row-group statistics"), because
+# USDA NASS publishes cottonseed as PRODUCTION ONLY: it is a byproduct of the cotton crop, and the
+# acreage/yield series belong to the `cotton` slug. All 161 cottonseed partitions carry yield_t_ha
+# and area_planted_ha as arrow `null` -- physical INT32 with NO Statistics struct at all -- and
+# area_harvested_ha as a correctly-typed double that is 100% null. Canonical silver went 20 days
+# stale on data that is exactly what the source published.
+#
+# The census had no vocabulary for a declared absence, and no floor could have supplied one:
+# evaluate_gate checks files_with_stats == 0 and all_nan BEFORE the floor and `continue`s on both,
+# so a floor of 0.0 disarms neither -- and widening a floor would blind the other nine commodities
+# to a real all-null regression on the same column.
+# ---------------------------------------------------------------------------
+def _cottonseed_footer(tmp_path, name="cottonseed.parquet"):
+    """The real cottonseed footer shape, reproduced in kind: yield_t_ha and area_planted_ha written
+    as arrow `null` (physical INT32, statistics None -> has_stats False), area_harvested_ha a double
+    that is 100% null (stats present, has_min_max False), production_mt fully populated. Verified
+    against the live object
+    s3://leviathan-dev-shahem-001/silver/nass_annual/commodity=cottonseed/year=1866/part-000.parquet
+    (created_by 'parquet-cpp-arrow version 25.0.1', 12 rows, 1 row group)."""
+    tbl = pa.table({
+        "production_mt": pa.array([16329.3, 783807.6, 40000.0], type=pa.float64()),
+        "yield_t_ha": pa.array([None] * 3, type=pa.null()),             # arrow null -> NO statistics
+        "area_harvested_ha": pa.array([None] * 3, type=pa.float64()),   # double, 100% null
+        "area_planted_ha": pa.array([None] * 3, type=pa.null()),        # arrow null -> NO statistics
+    })
+    md = _write(tmp_path, name, tbl)
+    cols = ["production_mt", "yield_t_ha", "area_harvested_ha", "area_planted_ha"]
+    return {c: census_column([_stat(md, c)], c) for c in cols}, cols
+
+
+_ABSENCE_DECL = {
+    "reason": "USDA NASS publishes cottonseed as PRODUCTION ONLY (a cotton byproduct)",
+    "approved": "2026-09-09 NASS gate RCA (three Tuesday reds)",
+    "groups": {"commodity=cottonseed": ["area_harvested_ha", "area_planted_ha", "yield_t_ha"]},
+}
+
+
+def test_the_cottonseed_footer_shape_is_what_the_gate_refused(tmp_path):
+    """Pin the DEFECT first, so the fix below is measured against the real failure and not against a
+    convenient one: two columns with NO footer statistics at all, one 100%-null double."""
+    from leviathan.silver.value_census import KIND_STATS_UNAVAILABLE
+
+    census, cols = _cottonseed_footer(tmp_path)
+    assert census["yield_t_ha"].files_with_stats == 0          # arrow null -> statistics is None
+    assert census["area_planted_ha"].files_with_stats == 0
+    assert census["area_harvested_ha"].files_with_stats == 1 and census["area_harvested_ha"].all_nan
+    assert census["production_mt"].nonnull_fraction == 1.0     # the one column NASS does publish
+
+    rows = evaluate_gate("silver_nass_annual", census, cols, 0.5)
+    assert [(r.column, r.kind) for r in rows] == [
+        ("yield_t_ha", KIND_STATS_UNAVAILABLE),
+        ("area_harvested_ha", KIND_ALL_NAN),
+        ("area_planted_ha", KIND_STATS_UNAVAILABLE),
+    ]
+    # and no floor can reach them: both kinds are checked BEFORE the floor and both `continue`.
+    at_zero = evaluate_gate("silver_nass_annual", census, cols, 0.5,
+                            floor_overrides={c: 0.0 for c in cols})
+    assert len(at_zero) == 3
+
+
+def test_declared_absent_group_demotes_both_absence_kinds_to_warn(tmp_path):
+    from leviathan.silver.value_census import KIND_STATS_UNAVAILABLE, apply_absent_group_waiver
+
+    census, cols = _cottonseed_footer(tmp_path)
+    rows = evaluate_gate("silver_nass_annual", census, cols, 0.5)
+    kept, warned = apply_absent_group_waiver(rows, "commodity=cottonseed", _ABSENCE_DECL, cols)
+    assert kept == []                                          # the gate is green...
+    assert len(warned) == 3                                    # ...and every row is still REPORTED
+    for w in warned:
+        assert w.detail.startswith(
+            "DECLARED-ABSENT (2026-09-09 NASS gate RCA (three Tuesday reds))")
+        assert "PRODUCTION ONLY" in w.detail                   # the reason rides the row, always
+    assert sorted(w.column for w in warned) == ["area_harvested_ha", "area_planted_ha", "yield_t_ha"]
+    # the kind is preserved on the warn row -- a demotion, not a relabelling.
+    assert {w.kind for w in warned} == {KIND_ALL_NAN, KIND_STATS_UNAVAILABLE}
+
+
+def test_an_undeclared_group_with_the_identical_shape_still_hard_fails(tmp_path):
+    """THE FAIL-CLOSED HALF. The same footer under a group nobody declared is a real regression --
+    a corn partition whose statistics vanished must still refuse the chain."""
+    from leviathan.silver.value_census import apply_absent_group_waiver
+
+    census, cols = _cottonseed_footer(tmp_path, "corn_stats_vanished.parquet")
+    rows = evaluate_gate("silver_nass_annual", census, cols, 0.5)
+    kept, warned = apply_absent_group_waiver(rows, "commodity=corn_cbot", _ABSENCE_DECL, cols)
+    assert len(kept) == 3 and warned == []                     # corn is NOT declared -> nothing moves
+    assert [r.kind for r in kept] == [r.kind for r in rows]
+
+
+def test_no_declaration_at_all_changes_nothing(tmp_path):
+    from leviathan.silver.value_census import apply_absent_group_waiver
+
+    census, cols = _cottonseed_footer(tmp_path, "nodecl.parquet")
+    rows = evaluate_gate("silver_nass_annual", census, cols, 0.5)
+    kept, warned = apply_absent_group_waiver(rows, "commodity=cottonseed", None, cols)
+    assert kept == list(rows) and warned == []
+
+
+def test_a_declared_column_that_starts_carrying_data_is_censused_normally(tmp_path):
+    """The declaration speaks to ABSENCE only. The day NASS starts publishing cottonseed yield, a
+    thin or sentinel-saturated column on that pair is a finding like any other -- only the two
+    absence kinds are demotable, so a below-floor row stays HARD under the same declaration."""
+    from leviathan.silver.value_census import apply_absent_group_waiver
+
+    tbl = pa.table({"yield_t_ha": pa.array([1.0] + [None] * 9, type=pa.float64())})  # 10% non-null
+    md = _write(tmp_path, "cottonseed_alive.parquet", tbl)
+    census = {"yield_t_ha": census_column([_stat(md, "yield_t_ha")], "yield_t_ha")}
+    rows = evaluate_gate("silver_nass_annual", census, ["yield_t_ha"], 0.5)
+    assert [r.kind for r in rows] == [KIND_NONNULL_BELOW_FLOOR]
+    kept, warned = apply_absent_group_waiver(rows, "commodity=cottonseed", _ABSENCE_DECL,
+                                             ["yield_t_ha"])
+    assert len(kept) == 1 and warned == []
+    # ...and a sentinel-saturated column on a declared pair is equally untouchable.
+    sent = pa.table({"yield_t_ha": pa.array([-999.0] * 8, type=pa.float64())})
+    md2 = _write(tmp_path, "cottonseed_sentinel.parquet", sent)
+    c2 = {"yield_t_ha": census_column([_stat(md2, "yield_t_ha")], "yield_t_ha")}
+    r2 = evaluate_gate("silver_nass_annual", c2, ["yield_t_ha"], 0.5)
+    assert [r.kind for r in r2] == [KIND_SENTINEL_SATURATED]
+    assert apply_absent_group_waiver(r2, "commodity=cottonseed", _ABSENCE_DECL,
+                                     ["yield_t_ha"])[0] == r2
+
+
+def test_a_column_outside_value_columns_never_demotes(tmp_path):
+    """Fail closed on the SET, not only on the kind: if a declared column is not (or is no longer) a
+    governed value_column, the demotion must not fire. Otherwise a column quietly dropped from the
+    numbers card would keep a stale waiver alive with nothing to say so."""
+    from leviathan.silver.value_census import apply_absent_group_waiver
+
+    census, cols = _cottonseed_footer(tmp_path, "narrowed.parquet")
+    rows = evaluate_gate("silver_nass_annual", census, cols, 0.5)
+    governed = ["production_mt", "area_harvested_ha"]           # yield/planted no longer governed
+    kept, warned = apply_absent_group_waiver(rows, "commodity=cottonseed", _ABSENCE_DECL, governed)
+    assert [w.column for w in warned] == ["area_harvested_ha"]
+    assert sorted(r.column for r in kept) == ["area_planted_ha", "yield_t_ha"]
+
+
+def test_live_registry_carries_the_cottonseed_absence_declaration():
+    """The tracked contract validates against the strict schema (additionalProperties is false, so
+    the key exists only because the schema declares it) and reaches the census through the runner."""
+    from leviathan.silver.registry import load_registry as load_silver
+
+    reg = load_silver()
+    c = reg.tables["silver_nass_annual"]
+    d = c["value_column_absent_groups"]
+    assert d["groups"] == {"commodity=cottonseed":
+                           ["area_harvested_ha", "area_planted_ha", "yield_t_ha"]}
+    assert "2026-09-09" in d["approved"] and "PRODUCTION ONLY" in d["reason"]
+    # PAIRS, never a whole column: production_mt stays governed and undeclared, and the other nine
+    # commodities keep every one of the four value columns under the live gate.
+    assert "production_mt" not in d["groups"]["commodity=cottonseed"]
+    assert c["value_columns"] == ["production_mt", "yield_t_ha", "area_harvested_ha",
+                                  "area_planted_ha"]
+    enum = c["projection_domains"]["projection.commodity.values"].split(",")
+    assert len(enum) == 10 and "cottonseed" in enum            # the partition is NOT hidden (F020)
+    # no other contract gained a declaration in this wave.
+    declared = sorted(n for n, t in reg.tables.items() if "value_column_absent_groups" in t)
+    assert declared == ["silver_nass_annual"]
+
+
+def test_the_generator_refuses_an_ungoverned_column_an_unknown_group_and_a_whole_column():
+    """The three generation-time refusals. A demotion mechanism is exactly what an abuser reaches
+    for, so a bad declaration must never render a contract at all."""
+    import importlib.util
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location(
+        "gen_registry_absence", repo / "scripts" / "silver" / "gen_registry_from_baseline.py")
+    gen = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gen)  # type: ignore[union-attr]
+
+    def _contract():
+        return {"table_name": "t", "physical_columns": [{"name": "a"}, {"name": "b"}],
+                "value_columns": ["a", "b"],
+                "projection_domains": {"projection.commodity.values": "x,y"}}
+
+    def _decl(groups):
+        return {"value_column_absent_groups": {"reason": "r" * 30, "approved": "a" * 10,
+                                               "groups": groups}}
+
+    original = dict(gen.CURATION_OVERRIDES)
+    try:
+        # (a) a column that is not a declared value_column
+        gen.CURATION_OVERRIDES["t"] = _decl({"commodity=x": ["zzz"]})
+        with pytest.raises(KeyError, match="not declared value_columns"):
+            gen._apply_curation_overrides("t", _contract())
+        # (b) a group outside the projection enum
+        gen.CURATION_OVERRIDES["t"] = _decl({"commodity=nope": ["a"]})
+        with pytest.raises(KeyError, match="not in the projection enum"):
+            gen._apply_curation_overrides("t", _contract())
+        # (c) a column declared absent in EVERY group == a whole-column absence in disguise
+        gen.CURATION_OVERRIDES["t"] = _decl({"commodity=x": ["a"], "commodity=y": ["a"]})
+        with pytest.raises(KeyError, match="EVERY projection group"):
+            gen._apply_curation_overrides("t", _contract())
+        # ...and the honest shape renders, sorted for byte-stability.
+        gen.CURATION_OVERRIDES["t"] = _decl({"commodity=x": ["b", "a"]})
+        c = _contract()
+        gen._apply_curation_overrides("t", c)
+        assert c["value_column_absent_groups"]["groups"] == {"commodity=x": ["a", "b"]}
+    finally:
+        gen.CURATION_OVERRIDES.clear()
+        gen.CURATION_OVERRIDES.update(original)
