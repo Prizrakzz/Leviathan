@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { MOCK_SERIES } from '@/api/mock';
 import {
+  TICK_X,
+  TICK_Y,
   axisKey,
+  axisTick,
   curvePoints,
   curveSession,
   isAnomaly,
@@ -134,5 +137,30 @@ describe('D-AM-21 trackedMonths (the futures-card test, and the scope of the cur
     // whole gate: no table-name list to go stale when the next per-expiry card is registered.
     expect(trackedMonths({}, [{ value: '10.0' }, { value: '12.0' }])).toEqual([]);
     expect(trackedMonths(undefined, undefined)).toEqual([]);
+  });
+});
+
+describe('axisTick (D-UX-5) — a 34px gutter across eight orders of magnitude', () => {
+  it('keeps small magnitudes readable and compacts large ones', () => {
+    expect(axisTick(0)).toBe('0');
+    expect(axisTick(0.117499)).toBe('0.12'); // a stocks-to-use ratio
+    expect(axisTick(9.4)).toBe('9.4');
+    expect(axisTick(446)).toBe('446'); // a corn settle
+    expect(axisTick(12000)).toBe('12k');
+    expect(axisTick(-226150)).toBe('-226k'); // a window change in MT
+    expect(axisTick(3.2e6)).toBe('3.2M');
+    expect(axisTick(1.5e9)).toBe('1.5B');
+  });
+
+  it('refuses a non-finite value rather than printing NaN on an axis', () => {
+    expect(axisTick(Number.NaN)).toBe('');
+    expect(axisTick(Number.POSITIVE_INFINITY)).toBe('');
+  });
+
+  it('the tick styles carry the mono TOKEN, and the two axes anchor their labels differently', () => {
+    expect(TICK_X.fontFamily).toContain('IBM Plex Mono');
+    expect(TICK_Y.fontFamily).toBe(TICK_X.fontFamily);
+    expect(TICK_X.textAnchor).toBe('middle');
+    expect(TICK_Y.textAnchor).toBe('end'); // right-anchored into the 34px gutter
   });
 });

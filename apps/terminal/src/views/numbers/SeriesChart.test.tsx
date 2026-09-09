@@ -39,9 +39,15 @@ const TIME: Series = {
 
 /** The x-axis tick LABELS of one chart. Scoped to the chart's own `<svg>` on purpose: @visx/text measures
  *  strings by rendering them into a throwaway svg it appends to the document, so a document-wide query
- *  picks that scratch node up as a phantom first tick. */
+ *  picks that scratch node up as a phantom first tick. Scoped to `.visx-axis-bottom` for a second reason
+ *  since D-UX-5: the chart now draws a LEFT axis too, and an svg-wide `text` query returns both axes'
+ *  labels interleaved -- which is what these assertions would silently start passing over. */
 const ticks = (name: string) =>
-  [...screen.getByRole('img', { name }).querySelectorAll('text')].map((t) => t.textContent);
+  [...screen.getByRole('img', { name }).querySelectorAll('.visx-axis-bottom text')].map((t) => t.textContent);
+
+/** The y-axis tick labels of one chart -- the magnitudes M.l reserved room for since the first commit. */
+const yTicks = (name: string) =>
+  [...screen.getByRole('img', { name }).querySelectorAll('.visx-axis-left text')].map((t) => t.textContent);
 
 describe('SeriesChart time axis (unchanged)', () => {
   it('draws the period axis and the vintage marker, with no curve header', () => {
@@ -120,10 +126,12 @@ describe('SeriesChart curve axis (D-AM-21)', () => {
   });
 
   it('draws no vintage marker -- every point is the same session', () => {
-    // `stroke-cyan` / `fill-cyan` are the vintage line and the known-at-as-of dot. Neither means anything
-    // on an expiry axis: there is no "what was known then" ordering among delivery months.
+    // `stroke-asof` / `fill-asof` are the as-of line and the known-at-as-of dot (D-UX-5 moved them off
+    // `--cyan`, the swappable accent). Neither means anything on an expiry axis: there is no "what was
+    // known then" ordering among delivery months, and no as-of legend either.
     render(<SeriesChart series={CURVE} asof={ASOF} axis="curve" />);
-    expect(document.querySelectorAll('.stroke-cyan, .fill-cyan')).toHaveLength(0);
+    expect(document.querySelectorAll('.stroke-asof, .fill-asof')).toHaveLength(0);
+    expect(screen.queryByTestId('series-asof-legend')).not.toBeInTheDocument();
     expect(document.querySelectorAll('svg circle')).toHaveLength(4);
   });
 
@@ -140,5 +148,52 @@ describe('SeriesChart curve axis (D-AM-21)', () => {
     render(<SeriesChart series={withCash} asof={ASOF} axis="curve" />);
     expect(ticks('settle curve')).toEqual(['2026-07', '2026-09', '2026-12', '2027-03']);
     expect(document.querySelectorAll('svg circle')).toHaveLength(4);
+  });
+});
+
+describe('SeriesChart D-UX-5 — magnitudes, the mono token, and a NAMED as-of line', () => {
+  it('draws the LEFT axis M.l reserved room for -- a shape with no magnitudes is not a chart', () => {
+    render(<SeriesChart series={TIME} asof={ASOF} />);
+    // 10.0 -> 12.0 over a `nice()` domain: the reader can now read the level off the picture instead of
+    // recovering it from the [N#] row above.
+    const labels = yTicks('exports series');
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.every((t) => /^-?[\d.]+[kMB]?$/.test(t ?? ''))).toBe(true);
+  });
+
+  it('the curve axis gets the same left axis (its magnitudes are prices)', () => {
+    render(<SeriesChart series={CURVE} asof={ASOF} axis="curve" />);
+    expect(yTicks('settle curve').length).toBeGreaterThan(0);
+  });
+
+  it('every tick label is drawn in the MONO TOKEN, never the platform `monospace`', () => {
+    // The three hard-coded `fontFamily: 'monospace'` sites bypassed the IBM Plex Mono stack, so a chart's
+    // numerals were a different face from the [N#] row beside them.
+    render(<SeriesChart series={TIME} asof={ASOF} />);
+    const label = screen.getByRole('img', { name: 'exports series' }).querySelector('text');
+    expect(label?.getAttribute('font-family') ?? (label as SVGTextElement).style.fontFamily).toContain(
+      'IBM Plex Mono',
+    );
+  });
+
+  it('NAMES the as-of line, so the marker is not read as a vintage', () => {
+    // /v1/series has already collapsed to the latest vintage <= asof, so this line lands on the last point
+    // of essentially every time chart -- drawn bare it reads as "this point was revised", which is the one
+    // thing it does not mean.
+    render(<SeriesChart series={TIME} asof={ASOF} />);
+    const legend = screen.getByTestId('series-asof-legend');
+    expect(legend.textContent).toContain('as-of line');
+    expect(legend.textContent).toContain(ASOF);
+    expect(legend.textContent).toContain('not a vintage marker');
+    // and the same sentence rides the line itself for a reader who hovers it
+    const line = screen.getByRole('img', { name: 'exports series' }).querySelector('line.stroke-asof title');
+    expect(line?.textContent).toContain('not a revision marker');
+  });
+
+  it('the as-of ink is a DATA token, not the swappable accent', () => {
+    render(<SeriesChart series={TIME} asof={ASOF} />);
+    const svg = screen.getByRole('img', { name: 'exports series' });
+    expect(svg.querySelectorAll('line.stroke-asof')).toHaveLength(1);
+    expect(svg.querySelectorAll('.stroke-cyan, .fill-cyan')).toHaveLength(0);
   });
 });

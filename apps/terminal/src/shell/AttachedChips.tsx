@@ -1,6 +1,9 @@
 import { useUI } from '@/store/ui';
 
-const KIND_GLYPH: Record<string, string> = { node: '◈', edge: '⇢', event: '⚡' };
+// D-UX-4: `series` gets its own glyph now that a chart can actually be attached. Without it an attached
+// chart wore the node diamond and read as a graph gesture -- the tray's only affordance for telling the
+// four attachment kinds apart is this character.
+const KIND_GLYPH: Record<string, string> = { node: '◈', edge: '⇢', event: '⚡', series: '∿' };
 
 /** P2: the removable context-chip row above the composer — the user's attached graph gestures riding the
  *  next turn. Reads the store directly (SuggestionChips pattern: no new Composer props, both mount sites

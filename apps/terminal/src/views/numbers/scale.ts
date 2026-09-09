@@ -1,3 +1,18 @@
+import { MONO_STACK } from '@/tokens/tokens';
+
+// ── D-UX-5: the ONE axis tick style, shared by every chart ─────────────────────────────────────────
+// `fontFamily` used to be the literal `'monospace'` at three call sites, which bypassed the IBM Plex Mono
+// token stack and fell through to whatever the platform calls monospace -- so a chart's numerals were a
+// different face from the `[N#]` row above them. visx takes a style OBJECT, not a className, which is the
+// whole reason MONO_STACK exists rather than a Tailwind utility. Declared here (the leaf module both chart
+// components already import) so neither component owns the other's styling.
+
+const TICK_LABEL = { fill: 'var(--text-faint)', fontSize: 9, fontFamily: MONO_STACK } as const;
+/** Bottom-axis tick labels: centred under their tick. */
+export const TICK_X = { ...TICK_LABEL, textAnchor: 'middle' } as const;
+/** Left-axis tick labels: right-anchored into the 34px gutter, clear of the axis line. */
+export const TICK_Y = { ...TICK_LABEL, textAnchor: 'end', dx: '-0.25em', dy: '0.25em' } as const;
+
 export interface SeriesPoint {
   period: string;
   value: number;
@@ -107,6 +122,23 @@ export function trackedMonths(
     .filter((m) => m !== '');
   const fromRows = (rows ?? []).map((r) => String(r?.contract_month ?? '').trim()).filter((m) => m !== '');
   return [...new Set(fromQuery.length ? fromQuery : fromRows)].sort();
+}
+
+/** D-UX-5: a y-axis tick label. Compact by construction, because the left gutter is 34px wide and these
+ *  series span eight orders of magnitude across the estate (a 0.117 stocks-to-use ratio and a 226,150 MT
+ *  window change are both routine). Hand-rolled rather than `Intl.NumberFormat({notation:'compact'})`: the
+ *  suffix set and the rounding are then the same on every runtime, and this string is read against a
+ *  `[N#]` row that carries the exact figure — the axis states the SCALE, the citation states the value. */
+export function axisTick(v: number): string {
+  if (!Number.isFinite(v)) return '';
+  if (v === 0) return '0';
+  const a = Math.abs(v);
+  if (a >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
+  if (a >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (a >= 1e4) return `${Math.round(v / 1e3)}k`;
+  if (a >= 100) return v.toFixed(0);
+  if (a >= 1) return v.toFixed(1);
+  return v.toFixed(2);
 }
 
 /** |z| over threshold → an anomaly (flagged amber). */

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useUI } from '@/store/ui';
+import { ChartAttachButton } from './ChartAttachButton';
 import {
   type ChartCard,
   type ChartLocator,
@@ -66,7 +67,19 @@ function LocatorCard({ card }: { card: Extract<ChartCard, { locator: ChartLocato
   const pts = q.data ? parsePoints(q.data.points as Record<string, unknown>[]) : [];
   const drawable = loc.axis === 'curve' ? curvePoints(pts).length : pts.length;
   return (
-    <Card card={card} action={<OpenInTab locator={loc} />}>
+    // D-UX-4 MOUNT (1 of 2). The attach leaf was built, tested and server-validated end to end and then
+    // imported by nothing but its own test -- the wave closed with the capability unreachable. Its own
+    // header names this slot; this is that one line. Order is deliberate: "open in tab" is the existing
+    // primary gesture and keeps its position, attach follows it.
+    <Card
+      card={card}
+      action={
+        <>
+          <OpenInTab locator={loc} />
+          <ChartAttachButton locator={loc} />
+        </>
+      }
+    >
       {q.isError ? (
         <div className="py-0.5 font-mono text-11 text-text-faint">
           couldn’t load this chart —{' '}

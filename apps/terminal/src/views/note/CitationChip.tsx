@@ -1,5 +1,6 @@
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { useUI } from '@/store/ui';
+import { chartTitle, citationChartLocator } from '@/views/numbers/chartTriggers';
 import type { CiteOpen, ResolvedCite } from './citations';
 
 /** D-TW-23: what a chip says when this render carries no receipts (a durable turn: the drawer's evidence
@@ -37,6 +38,11 @@ export function CitationChip({
   const loc = resolved.locator;
   const isNumberLoc = loc?.kind === 'number';
   const isDocLoc = loc?.kind === 'doc' && typeof loc.source_key === 'string';
+  // D-UX-5: the chart this row was READ FROM, or null when the row carries no drawable series (a
+  // compute_stat row, a locator with no as-of). Built by the ONE locator builder in chartTriggers -- the
+  // same object the Numbers row and the chart card hand to `openTab`, so the chip's tab is the sibling
+  // cache entry of theirs and can never be a different series from the one the sentence quoted.
+  const chartLoc = isNumberLoc ? citationChartLocator(loc) : null;
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
@@ -66,6 +72,23 @@ export function CitationChip({
           {resolved.text && <div className="mt-1 text-text-dim">{resolved.text}</div>}
           {isNumberLoc && loc && (
             <div className="mt-1 font-mono text-11 text-text-dim">{numberProvenance(loc)}</div>
+          )}
+          {/* D-UX-5: a NUMBER citation opens the series it was read from, as a workspace chart tab -- the
+              exact counterpart of the doc chip's "open PDF" below, and the third and last click site for a
+              chart (the Numbers row affordance and the chart card being the other two). Scope rides: the
+              tab is the country-scoped locator the row carried (D-TW-9), pinned to that read's own as-of,
+              so the picture is the one the answer stood on and not a fresher one. A row with no drawable
+              series renders NO button rather than a dead one. */}
+          {chartLoc && (
+            <button
+              data-testid="cite-open-chart"
+              onClick={() =>
+                useUI.getState().openTab({ kind: 'chart', title: chartTitle(chartLoc), params: chartLoc })
+              }
+              className="mt-1 block font-mono text-11 text-amber hover:text-cyan"
+            >
+              open chart ▸
+            </button>
           )}
           {/* 6.5: a doc citation opens its SOURCE PDF at the cited page. P1.5: as a WORKSPACE TAB —
               dedupe by sourceKey means a second citation into an open doc focuses it + jumps its page. */}

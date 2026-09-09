@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { ChartTabParams } from '@/store/tabs';
+import { ChartAttachButton } from '@/views/numbers/ChartAttachButton';
 import { fetchSeries, seriesQueryKey } from '@/views/numbers/chartTriggers';
 import { curvePoints, parsePoints } from '@/views/numbers/scale';
 import { SeriesChart } from '@/views/numbers/SeriesChart';
@@ -26,12 +27,21 @@ export default function ChartTab({ params }: { params: ChartTabParams }) {
   const pts = q.data ? parsePoints(q.data.points as Record<string, unknown>[]) : [];
   const drawable = params.axis === 'curve' ? curvePoints(pts).length : pts.length;
 
+  // D-UX-4 MOUNT (2 of 2). The header gains an ACTION SLOT so the attach leaf can sit in it -- the second
+  // of the two one-line mounts ChartAttachButton's own header names. Attaching hands the NEXT question this
+  // tab's locator (no points, no as-of): "steer at this series", re-read under that turn's own horizon.
   const head = (
-    <div className="mb-2 font-mono text-11 uppercase tracking-wider text-text-dim" data-testid="chart-tab-head">
-      chart · {params.table} · {params.metric}
-      {params.commodity ? ` · ${params.commodity}` : ''}
-      {params.country ? ` · ${params.country}` : ''}
-      {params.asof ? ` · as of ${params.asof}` : ''}
+    <div className="mb-2 flex items-start gap-2">
+      <div
+        className="flex-1 font-mono text-11 uppercase tracking-wider text-text-dim"
+        data-testid="chart-tab-head"
+      >
+        chart · {params.table} · {params.metric}
+        {params.commodity ? ` · ${params.commodity}` : ''}
+        {params.country ? ` · ${params.country}` : ''}
+        {params.asof ? ` · as of ${params.asof}` : ''}
+      </div>
+      <ChartAttachButton locator={params} />
     </div>
   );
 

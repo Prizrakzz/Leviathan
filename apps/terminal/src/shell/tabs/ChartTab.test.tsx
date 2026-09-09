@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ getSeries: vi.fn() }));
 vi.mock('@/api/client', () => ({ getSeries: h.getSeries }));
 
+import { toContext } from '@/store/chips';
 import type { ChartTabParams } from '@/store/tabs';
 import { tabKey } from '@/store/tabs';
 import { useUI } from '@/store/ui';
@@ -66,6 +67,7 @@ describe('ChartTab (D-UX-2)', () => {
   beforeEach(() => {
     h.getSeries.mockReset().mockResolvedValue(TIME);
     useUI.setState({ tabs: [], activeTabId: null });
+    useUI.getState().clearChips();
   });
 
   it('renders a time chart from its locator, pinned to the locator\'s as-of', async () => {
@@ -156,5 +158,58 @@ describe('chart tabKey (D-UX-2 identity)', () => {
     useUI.getState().openTab({ kind: 'chart', title: 'b', params: CURVE_PARAMS });
     expect(useUI.getState().tabs).toHaveLength(2);
     expect(useUI.getState().activeTabId).toBe(tabKey('chart', CURVE_PARAMS));
+  });
+});
+
+describe('ChartTab header attach (D-UX-4 mount 2 of 2)', () => {
+  beforeEach(() => {
+    h.getSeries.mockReset().mockResolvedValue(CURVE);
+    useUI.setState({ tabs: [], activeTabId: null });
+    useUI.getState().clearChips();
+  });
+
+  it("hands the NEXT question this tab’s locator -- and NOTHING else", async () => {
+    // Exactly what `orchestrator._series_locator` validates against the numbers registry: table + metric
+    // and the optional scope dims. NO `asof` (the backend re-reads under the next turn's own horizon --
+    // the whole reason a chart left attached from an hour ago cannot drag that hour's vintage forward),
+    // NO `axis` (a drawing choice, not a series), and no points, ever.
+    mount(CURVE_PARAMS);
+    await userEvent.click(screen.getByTestId('chart-attach'));
+    expect(toContext(useUI.getState().attachedChips)).toEqual([
+      {
+        type: 'series',
+        table: 'silver_futures_eod',
+        metric: 'settle',
+        commodity: 'corn_cbot',
+        contract_month: '2026-07,2026-12',
+      },
+    ]);
+  });
+
+  it('is offered before the fetch has landed -- the locator is what attaches, not the drawing', async () => {
+    // The control must not wait on /v1/series: attaching is a "look here" gesture over the locator the tab
+    // already holds, so it works on a loading tab and on a tab whose read came back empty.
+    h.getSeries.mockReturnValue(new Promise(() => {}));
+    mount(TIME_PARAMS);
+    expect(screen.getByTestId('chart-tab-loading')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('chart-attach'));
+    expect(useUI.getState().attachedChips).toHaveLength(1);
+    // ...and it then reports itself attached rather than offering a second identical chip
+    expect(screen.getByTestId('chart-attach')).toHaveAttribute('data-attached', 'yes');
+    expect(screen.getByTestId('chart-attach')).toBeDisabled();
+  });
+
+  it("two charts differing ONLY by country are two attachments, not one", async () => {
+    // The tabKey lesson at the attachment layer: a key that dropped country would dedupe the second away
+    // and steer the next turn at the first one's series.
+    mount(TIME_PARAMS);
+    await userEvent.click(screen.getByTestId('chart-attach'));
+    cleanup();
+    mount({ ...TIME_PARAMS, country: 'Argentina' });
+    await userEvent.click(screen.getByTestId('chart-attach'));
+    expect(useUI.getState().attachedChips.map((c) => (c as { country?: string }).country)).toEqual([
+      'Brazil',
+      'Argentina',
+    ]);
   });
 });

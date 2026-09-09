@@ -24,6 +24,16 @@ export const PALETTE = {
   neg: '#F03E3E', // bearish / negative / stripped
   warn: '#F5A623', // anomaly (z-score), armed regime (reuses amber)
   live: '#35D0E0', // live / as-of = today indicator
+  // ── D-UX-5 CHART INKS. Data encoding, NOT interaction — and that distinction is the whole reason they
+  // exist as their own tokens. The charts used to draw their second line with `--cyan`, which §2.6 makes
+  // USER-SWAPPABLE: under `accent: 'amber'` the accent collapses `--cyan` onto `--amber`, the series
+  // colour, so OverlayChart's two legs and the as-of marker vs the series line became one colour. A colour
+  // that ENCODES A VALUE cannot ride a preference. Both hold the spec's cyan (§2.1 `--cyan` = #35D0E0,
+  // §4.4 "Amber curve, cyan current-marker") and neither is in ACCENT_VARS, so an accent swap cannot reach
+  // them. Two names rather than one because they are two roles: `warn`/`live` already set the precedent
+  // that a semantic alias may share another token's hex.
+  'series-b': '#35D0E0', // the SECOND series in a two-leg chart (leg A is brand amber)
+  asof: '#35D0E0', // the as-of cutoff marker: the dashed line, its dot, the sparkline tick
 } as const;
 
 export type TokenName = keyof typeof PALETTE;
@@ -45,6 +55,12 @@ export const FONTS = {
   mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
   sans: ['"IBM Plex Sans"', 'system-ui', '-apple-system', 'sans-serif'],
 } as const;
+
+/** The mono stack as ONE css `font-family` string, for the handful of places that cannot use a Tailwind
+ *  utility — an inline SVG text style (visx tick labels take a style object, not a className). Those sites
+ *  used to hard-code `'monospace'`, which silently fell through to the platform default and drew axis
+ *  labels in a different face from every other numeral on the screen. */
+export const MONO_STACK: string = FONTS.mono.join(', ');
 
 /** Type scale steps (px): text-11 … text-32. */
 export const TYPE_PX = { '11': 11, '12': 12, '13': 13, '14': 14, '16': 16, '18': 18, '24': 24, '32': 32 } as const;
@@ -84,7 +100,12 @@ export function injectTokens(el: HTMLElement = document.documentElement): void {
 export const ACCENTS = { cyan: PALETTE.cyan, amber: PALETTE.amber } as const;
 export type AccentName = keyof typeof ACCENTS;
 
-/** The interactive-accent CSS vars overridden by an accent choice (a subset of the palette keys). */
+/** The interactive-accent CSS vars overridden by an accent choice (a subset of the palette keys).
+ *
+ *  D-UX-5: `--series-b` and `--asof` are DELIBERATELY absent and must stay absent. They encode data, not
+ *  interaction, and `ACCENTS.amber === PALETTE.amber` — so adding either here would collapse a chart's two
+ *  legs (and its as-of marker) onto the series colour the moment a reader picks the amber terminal.
+ *  tokens.test.ts pins that contrast. */
 const ACCENT_VARS = ['--cyan', '--live'] as const;
 
 /**

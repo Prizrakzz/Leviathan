@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ getSeries: vi.fn() }));
 vi.mock('@/api/client', () => ({ getSeries: h.getSeries }));
 
+import { toContext } from '@/store/chips';
 import { useUI } from '@/store/ui';
 import { ChartCards } from './ChartCards';
 
@@ -193,8 +194,9 @@ describe('ChartCards — the series card', () => {
   it('draws the period series the window stat walked, with its as-of marker', async () => {
     mount({ number_calls: [PERIOD_LOOKUP, WINDOW], trace: {} });
     expect(await screen.findByRole('img', { name: /exports series/i })).toBeInTheDocument();
-    // the vintage line is the as-of marker SeriesChart draws on the time axis
-    expect(document.querySelectorAll('svg line.stroke-cyan').length).toBeGreaterThan(0);
+    // the vintage line is the as-of marker SeriesChart draws on the time axis (D-UX-5: `stroke-asof`,
+    // a data ink that no accent swap can collapse onto the series colour)
+    expect(document.querySelectorAll('svg line.stroke-asof').length).toBeGreaterThan(0);
     expect(h.getSeries.mock.calls[0]![2]).toEqual({
       commodity: 'soybeans',
       country: undefined,
@@ -238,5 +240,38 @@ describe('ChartCards — cap + priority under one answer', () => {
     const cards = await screen.findAllByTestId('chart-card');
     expect(cards).toHaveLength(2);
     expect(cards.map((c) => c.getAttribute('data-kind'))).toEqual(['curve', 'overlay']);
+  });
+});
+
+describe('ChartCards attach (D-UX-4 mount 1 of 2)', () => {
+  beforeEach(() => {
+    h.getSeries.mockReset().mockResolvedValue(CURVE_SERIES);
+    useUI.setState({ tabs: [], activeTabId: null });
+    useUI.getState().clearChips();
+  });
+
+  it("offers ATTACH beside open-in-tab, carrying the card's own locator and no vintage", async () => {
+    mount({ number_calls: [CURVE_LOOKUP, SPREAD], trace: {} });
+    const card = await screen.findByTestId('chart-card');
+    // both gestures, one action slot: hand it off to a tab, or hand it to the next question
+    expect(within(card).getByTestId('chart-card-open-tab')).toBeInTheDocument();
+    await userEvent.click(within(card).getByTestId('chart-attach'));
+    expect(toContext(useUI.getState().attachedChips)).toEqual([
+      {
+        type: 'series',
+        table: 'silver_futures_eod',
+        metric: 'settle',
+        commodity: 'corn_cbot',
+        contract_month: '2026-07,2026-12,2027-03',
+      },
+    ]);
+  });
+
+  it('the co-move card offers NEITHER -- it has no locator to hand anyone', () => {
+    // Same reasoning as the missing "open in tab": World stocks-to-use is synthesized across countries, so
+    // an attachment here would steer the next turn at a series that does not exist to be re-read.
+    mount(COMOVE);
+    expect(screen.queryByTestId('chart-card-open-tab')).toBeNull();
+    expect(screen.queryByTestId('chart-attach')).toBeNull();
   });
 });

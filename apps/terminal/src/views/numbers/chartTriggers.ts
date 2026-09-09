@@ -260,3 +260,46 @@ export function deriveChartCards(
 
   return [...curves, ...overlays, ...series].slice(0, 2);
 }
+
+/** D-UX-5: the CHART LOCATOR carried by an `[N]` citation, or `null` when that row cannot be drawn.
+ *
+ *  THE ONE BUILDER. It lives here, next to `seriesQueryKey` and `fetchSeries`, because a chip that opened a
+ *  chart through a locator of its own making would be a SECOND definition of "a series read" -- the exact
+ *  three-way cache split the D-UX-2/3 header above exists to prevent, and worse: a chip could then open a
+ *  tab that draws a different series from the one its own row was read from.
+ *
+ *  The server already mints a superset of this shape (`citations.py:1564`), so nothing is derived that the
+ *  turn did not already assert. Three rules, each of them a refusal to guess:
+ *
+ *   - `country` RIDES (D-TW-9, restated a third time). The row's value came from a country-scoped read;
+ *     an unscoped series is a different series under the same `[N#]`, and dropping the scope here would
+ *     open "Brazil soybean exports" onto the whole world's line.
+ *   - `source_metric` WINS over `metric` when present. A synthesized reader-word metric ('monthly benchmark
+ *     change') is declared by no card, so /v1/series 400s on it; the server rides the CARD metric the
+ *     percentage was computed from precisely "so a client can draw the level series instead"
+ *     (citations.py:1571-1573). Drawing the level series is what this is.
+ *   - `asof` is the READ's cutoff, unchanged. A `located_date` rider (D-XL) names the session an extreme
+ *     was FOUND on, not the horizon the answer stood at; re-pinning the chart to it would silently show
+ *     the reader a different as-of from the one the sentence beside it was written under.
+ *
+ *  Axis: a `contract_month` naming SEVERAL months is a term structure and draws as a curve; one month (or
+ *  none) is a time series. Same test `isCurveRead` applies to a call's own scope -- two months or it is
+ *  not a curve. */
+export function citationChartLocator(loc: Record<string, unknown> | undefined | null): ChartLocator | null {
+  if (!loc || loc.kind !== 'number') return null;
+  const table = str(loc.table);
+  const metric = str(loc.source_metric) || str(loc.metric);
+  const asof = str(loc.asof);
+  // A row with no table/metric (a compute_stat row carries neither) or no as-of has no series behind it:
+  // there is nothing to fetch, so the chip keeps exactly today's behaviour rather than offering a dead tab.
+  if (!table || !metric || !asof || table === STATS_TABLE) return null;
+  const months = str(loc.contract_month)
+    .split(',')
+    .map((m) => m.trim())
+    .filter((m) => m !== '');
+  const out: ChartLocator = { table, metric, axis: months.length >= 2 ? 'curve' : 'time', asof };
+  if (loc.commodity) out.commodity = str(loc.commodity);
+  if (loc.country) out.country = str(loc.country);
+  if (months.length) out.contract_month = months.join(',');
+  return out;
+}

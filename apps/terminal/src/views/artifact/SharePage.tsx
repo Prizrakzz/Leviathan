@@ -40,7 +40,11 @@ export default function SharePage() {
           </div>
         )}
         {!q.isError && !q.data && <div className="h-40 animate-pulse rounded-panel bg-bg-1" />}
-        {q.data && <FrozenTurn snapshot={q.data} />}
+        {/* D-UX-5: `liveSeries={false}`. GET /v1/share is public; GET /v1/series is NOT (`_require_identity`),
+            so a signed-out reader's numbers panel and chart cards would resolve to 401 and this page would
+            grow a row of "couldn't load this chart · retry" on every forwarded link. The frozen prose,
+            the pins and the sources are the whole of what a public reader can be shown honestly. */}
+        {q.data && <FrozenTurn snapshot={q.data} liveSeries={false} />}
       </main>
     </div>
   );

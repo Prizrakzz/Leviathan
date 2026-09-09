@@ -117,7 +117,9 @@ function NumberRow({ call, asof }: { call: NumCall; asof: string }) {
             <svg width={90} height={18} className="shrink-0" aria-hidden>
               <path d={sparkPath(pts.map((p) => p.value), 90, 18)} fill="none" className="stroke-text-dim" strokeWidth={1} />
               {vidx >= 0 && (
-                <line x1={xOf(vidx, pts.length, 90)} y1={0} x2={xOf(vidx, pts.length, 90)} y2={18} className="stroke-cyan" strokeWidth={0.8} />
+                // D-UX-5: `asof`, not `cyan` — the sparkline's as-of tick is DATA, and `--cyan` is the
+                // swappable interactive accent (amber accent -> the tick vanishes into the line).
+                <line x1={xOf(vidx, pts.length, 90)} y1={0} x2={xOf(vidx, pts.length, 90)} y2={18} className="stroke-asof" strokeWidth={0.8} />
               )}
             </svg>
           )}

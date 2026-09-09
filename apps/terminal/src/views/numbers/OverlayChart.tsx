@@ -1,8 +1,9 @@
-import { AxisBottom } from '@visx/axis';
+import { AxisBottom, AxisLeft } from '@visx/axis';
 import { Group } from '@visx/group';
 import { scaleLinear, scalePoint } from '@visx/scale';
 import { LinePath } from '@visx/shape';
 import type { OverlayLeg } from './chartTriggers';
+import { TICK_X, TICK_Y, axisTick } from './scale';
 
 const W = 360;
 const H = 150;
@@ -51,7 +52,10 @@ export function OverlayChart({
     <div data-testid="overlay-chart">
       <div className="mt-1 flex flex-wrap items-center gap-x-3 font-mono text-11 text-text-faint">
         <span className="text-amber">— {a.label}</span>
-        <span className="text-cyan">— {b.label}</span>
+        {/* D-UX-5: `series-b`, never `cyan`. The legend swatch and the stroke must be the SAME token, and
+            `--cyan` is the user-swappable interactive accent -- under `accent: 'amber'` it resolves to the
+            series colour and the two legs (and their two legend dashes) become one. */}
+        <span className="text-series-b">— {b.label}</span>
         <span>
           {a.unit}
           {win ? ` · ${win}` : ''}
@@ -61,7 +65,7 @@ export function OverlayChart({
         <Group left={M.l} top={M.t}>
           {[
             { leg: a, cls: 'stroke-amber', dot: 'fill-amber' },
-            { leg: b, cls: 'stroke-cyan', dot: 'fill-cyan' },
+            { leg: b, cls: 'stroke-series-b', dot: 'fill-series-b' },
           ].map(({ leg, cls, dot }) => (
             <g key={leg.label}>
               <LinePath
@@ -76,18 +80,11 @@ export function OverlayChart({
               ))}
             </g>
           ))}
-          <AxisBottom
-            top={IH}
-            scale={x}
-            stroke="var(--line)"
-            tickStroke="var(--line)"
-            tickLabelProps={() => ({
-              fill: 'var(--text-faint)',
-              fontSize: 9,
-              fontFamily: 'monospace',
-              textAnchor: 'middle',
-            })}
-          />
+          {/* D-UX-5: both legs share ONE y domain, so ONE left axis states the magnitudes for both --
+              which is also the only honest axis a shared-domain overlay can have. */}
+          <AxisLeft scale={y} numTicks={4} tickFormat={(v) => axisTick(Number(v))}
+            stroke="var(--line)" tickStroke="var(--line)" tickLabelProps={() => TICK_Y} />
+          <AxisBottom top={IH} scale={x} stroke="var(--line)" tickStroke="var(--line)" tickLabelProps={() => TICK_X} />
         </Group>
       </svg>
     </div>

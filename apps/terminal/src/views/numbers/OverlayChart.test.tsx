@@ -16,9 +16,12 @@ const B: OverlayLeg = {
   points: [pt('MY2018', 12.1), pt('MY2020', 9.4)],
 };
 
-/** Tick labels of the overlay's own svg (the @visx/text measuring scratch node is document-wide). */
+/** BOTTOM-axis tick labels of the overlay's own svg (the @visx/text measuring scratch node is
+ *  document-wide; and since D-UX-5 the overlay draws a left axis whose labels share the `text` tag). */
 const ticks = () =>
-  [...screen.getByRole('img', { name: /overlay/ }).querySelectorAll('text')].map((t) => t.textContent);
+  [...screen.getByRole('img', { name: /overlay/ }).querySelectorAll('.visx-axis-bottom text')].map(
+    (t) => t.textContent,
+  );
 
 describe('OverlayChart (D-UX-3, the one new primitive)', () => {
   // Every svg query below is scoped to the render's own container: @visx/text measures strings by
@@ -58,5 +61,36 @@ describe('OverlayChart (D-UX-3, the one new primitive)', () => {
   it('draws nothing when a leg is too short to be a line', () => {
     const { container } = render(<OverlayChart legs={[A, { ...B, points: [pt('MY2018', 12.1)] }]} />);
     expect(container.innerHTML).toBe('');
+  });
+});
+
+describe('OverlayChart D-UX-5 — two legs stay two legs, and the shared domain gets an axis', () => {
+  it('draws the legs in TWO DIFFERENT inks, neither of them the swappable accent', () => {
+    // Under `accent: 'amber'` the `--cyan` var resolves to `--amber`, i.e. leg A's colour -- so a leg drawn
+    // with `stroke-cyan` became invisible against the other leg for any reader on the amber terminal.
+    const { container } = render(<OverlayChart legs={[A, B]} />);
+    const strokes = [...container.querySelectorAll('svg path[class*="stroke-"]')].map((p) =>
+      p.getAttribute('class'),
+    );
+    expect(strokes).toEqual(['visx-linepath stroke-amber', 'visx-linepath stroke-series-b']);
+    expect(container.querySelectorAll('.stroke-cyan, .fill-cyan, .text-cyan')).toHaveLength(0);
+  });
+
+  it('the legend swatch is the SAME token as the stroke it explains', () => {
+    const { container } = render(<OverlayChart legs={[A, B]} />);
+    const swatches = [...container.querySelectorAll('span[class*="text-"]')].map((s) =>
+      s.getAttribute('class'),
+    );
+    expect(swatches).toContain('text-amber');
+    expect(swatches).toContain('text-series-b');
+  });
+
+  it('states the magnitudes once, on the ONE shared y domain the refusal above buys', () => {
+    // Both legs share one scale by construction (mixed units are refused, not dual-axised), so a single
+    // left axis is the only honest one -- and it is what makes "these two moved together" readable.
+    render(<OverlayChart legs={[A, B]} />);
+    const svg = screen.getByRole('img', { name: /overlay/ });
+    expect(svg.querySelectorAll('.visx-axis-left').length).toBe(1);
+    expect([...svg.querySelectorAll('.visx-axis-left text')].length).toBeGreaterThan(0);
   });
 });
