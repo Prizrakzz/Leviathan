@@ -58,7 +58,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
-from leviathan.silver.flat_producer import authorize_for_contract
+from leviathan.silver.flat_producer import authorize_for_contract, encode_partitioned_body
 from leviathan.silver.publisher import (
     ManifestState,
     PublishStrategy,
@@ -175,10 +175,55 @@ def _caller_identity(aws_region: str) -> tuple[str, str]:
     return resolve_caller_identity(aws_region)
 
 
-def _partition_body(df: pd.DataFrame) -> bytes:
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    return buf.getvalue()
+def _partition_body(df: pd.DataFrame, contract: dict) -> bytes:
+    """Encode one (country, region, year) object under the contract-PINNED arrow schema.
+
+    THE SIBLING SWEEP (NASS GATE RCA 2026-09-09, A2 extended). This was the same bare
+    ``df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")`` that let arrow infer
+    ``silver_nass_annual``'s absent measure columns as arrow ``null`` -- physical INT32 with NO
+    Statistics struct -- and refused that chain three consecutive Tuesdays. This table is FLAT (no
+    partition keys in the body), so the shared adapter reduces to the declared physical columns in
+    the body's own order and still fails closed on a missing / extra column.
+
+    MEASURED BEFORE THE PIN, on 150 canonical objects sampled evenly across all 10,532 (2026-09-09):
+    ZERO null-typed column instances. This transform is the least exposed of the five -- it casts
+    every measure explicitly (``float32`` for the five NDVI columns, ``Int16``/``Int8`` for the
+    counters) instead of backfilling with ``pd.NA``, so an all-NaN ``ndvi_z_score`` for a region with
+    too few baseline years lands as a typed float32, not arrow ``null``. The pin is here for the
+    SECOND half of the INV-2 contract rather than the first: the types those casts produce are the
+    wrong ones.
+
+    THE PHYSICAL MOVES THIS TABLE'S REWRITE WILL MAKE -- the widest of the five, named because they
+    are not free, and MEASURED by re-encoding those 150 real objects through this function: ten
+    columns move, 150/150 files, zero raises, zero value differences. ``year`` INT32(int16) ->
+    INT64, ``period`` and ``pixel_reliability`` INT32(int8) -> INT64, and ``latitude`` /
+    ``longitude`` / ``ndvi_raw`` / ``ndvi`` / ``ndvi_z_score`` / ``baseline_mean`` /
+    ``baseline_std`` FLOAT -> DOUBLE. Every one is the contract's own INV-2 target and every one is
+    already recorded in the registry's ``drift_summary`` as a SILVER-F062 widen -- but Glue still
+    declares them ``smallint`` / ``tinyint`` / ``float``, so the canonical rewrite (10,532 objects,
+    ~98 MB -- by far the largest of the five) MUST be preceded by the F011 DDL diff and the catalog
+    ALTER: a DOUBLE written under a ``float`` column is an Athena read error, not a silent widen.
+
+    THE REWRITE IS NOT OWNER-GATED, AND ON THIS TABLE THAT IS THE LARGEST RISK IN THE LANE --
+    corrected 2026-09-09 after a review finding (MAJOR); an earlier draft of this note ended
+    "nothing changes until that owner-gated ``--force-overwrite`` rewrite runs", AND THAT IS FALSE.
+    Measured in ``infra/terraform/envs/dev/dag_schedules.auto.tfvars.json``: the ENABLED
+    ``modis_biweekly`` schedule, ``cron(0 9 ? * MON *)``, carries ``promote`` with
+    ``"mode": "autonomous"`` and the command ``modis_ndvi_bronze_to_silver_task.py --force_overwrite
+    true --publish-mode canonical`` on ``leviathan-dev-modis-ndvi-bronze-to-silver`` under the KMS
+    publisher env. ``modules/step_functions/main.tf`` enters Promote as a plain Map over
+    ``$.promote.tasks`` on any GREEN gate, no human in the loop, and ``silver_rebuild_gate`` is a
+    value/footer census that cannot see a parquet-vs-Glue type mismatch at all. So the FIRST GREEN
+    MONDAY after this code reaches the worker image (repin = the trigger; next fire 2026-09-14
+    09:00Z) rewrites all 10,532 canonical objects with ten columns in types the catalog does not
+    declare -- an Athena read error on the whole table, and the largest object count in the estate.
+    SEQUENCING, an ORDER rather than a suggestion: either land the ten catalog ALTERs (``year``
+    bigint, ``period`` bigint, ``pixel_reliability`` bigint, and ``latitude`` / ``longitude`` /
+    ``ndvi_raw`` / ``ndvi`` / ``ndvi_z_score`` / ``baseline_mean`` / ``baseline_std`` double, after
+    the F011 DDL diff) BEFORE the image repin, or disable this schedule until they land. The pin is
+    what that rewrite will use, and ``tests/unit/silver/test_pinned_writer_catalog_debt.py`` is what
+    keeps the debt named."""
+    return encode_partitioned_body(df, contract)
 
 
 def _publish_modis(
@@ -208,7 +253,7 @@ def _publish_modis(
             continue
         staged.append(StagedObject(
             canonical_key=canonical_key,
-            body=_partition_body(grp.reset_index(drop=True)),
+            body=_partition_body(grp.reset_index(drop=True), contract),
             partition_values=[str(country), str(region), str(int(year))],
             row_count=len(grp),
         ))

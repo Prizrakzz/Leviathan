@@ -37,7 +37,7 @@ import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
-from leviathan.silver.flat_producer import authorize_for_contract
+from leviathan.silver.flat_producer import authorize_for_contract, encode_partitioned_body
 from leviathan.silver.publisher import (
     ManifestState,
     PublishStrategy,
@@ -217,10 +217,60 @@ def _caller_identity(aws_region: str) -> tuple[str, str]:
     return resolve_caller_identity(aws_region)
 
 
-def _partition_body(df: pd.DataFrame) -> bytes:
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    return buf.getvalue()
+def _partition_body(df: pd.DataFrame, contract: dict) -> bytes:
+    """Encode one (commodity, year) partition under the contract-PINNED arrow schema.
+
+    THE SIBLING SWEEP (NASS GATE RCA 2026-09-09, A2 extended). This was a bare
+    ``df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")`` with no schema, the
+    identical idiom that made ``silver_nass_annual`` write cottonseed's absent measure columns as
+    arrow ``null`` -- physical INT32 with NO Statistics struct -- and refused the usda_nass chain
+    three consecutive Tuesdays. This table is the sibling that shares the chain: the SAME Step
+    Functions execution publishes both, so an inferred null type here would take the whole chain
+    down the same way.
+
+    MEASURED BEFORE THE PIN, on all 280 canonical footers (2026-09-09, 143,892 rows): ZERO
+    null-typed column instances -- every one of the five value columns is DOUBLE with statistics in
+    every file, and the census passes. So this pin changes NO census kind today, and it must not be
+    read as a repair.
+
+    WHY IT IS STILL WORTH TAKING, stated as the difference it actually makes. This transform ALSO
+    backfills any ``OUTPUT_COLUMNS`` entry a NASS shard omitted with ``pd.NA`` on an object column
+    -- the exact line that produced the nass_annual defect -- but unlike nass_annual it then casts
+    the five measure columns with ``pd.to_numeric(...).astype("Float64")``
+    (``usda_nass_crop_progress.py``), so an all-NA measure lands as a typed double rather than arrow
+    ``null``. The type is therefore correct by a CONVENTION in the transform, one edit away from
+    lapsing, and nothing anywhere asserts it. The pin makes it a CONTRACT fact checked at the write.
+    The columns the convention does not cover are the backfill's non-measure entries (``source``,
+    ``week_of_year``): outside ``value_columns``, so the census would never have seen them go
+    untyped at all.
+
+    The body carries the projected ``year`` key beside the ten declared physical columns, which is
+    why the flat ``encode_parquet`` cannot be used verbatim; the shared adapter handles it and fails
+    closed on a missing / extra column and on an unmapped partition-key type.
+
+    NO PHYSICAL TYPE MOVES AT ALL -- the friendliest rewrite of the five, measured by re-encoding all
+    280 real objects through this function: 280/280, zero raises, zero value differences, and every
+    parquet physical type identical (DOUBLE stays DOUBLE, ``date`` stays INT32/date32[day], ``year``
+    stays INT64). The only schema delta is the arrow LOGICAL type of the three string columns,
+    ``large_string`` -> ``string``: the same BYTE_ARRAY on disk, the same Glue ``string``, and the
+    contract's declared ``target_arrow_type``.
+
+    WHEN THE LIVE BYTES ACTUALLY CHANGE -- corrected 2026-09-09 after a review finding (MAJOR): an
+    earlier draft of this note said "not until an owner-gated ``--force-overwrite`` canonical
+    rewrite runs", AND THAT IS FALSE. Measured in
+    ``infra/terraform/envs/dev/dag_schedules.auto.tfvars.json``: this table rides the ENABLED
+    ``nass_crop_progress`` schedule, ``cron(0 9 ? * TUE *)``, whose Step Functions ``promote`` phase
+    is ``"mode": "autonomous"`` and whose command already IS the rewrite --
+    ``nass_crop_progress_silver_task.py --force-overwrite true --publish-mode canonical`` on
+    ``leviathan-dev-silver-publisher-runner`` under the KMS publisher env, plus the same for
+    ``nass_annual_silver_task.py``. ``modules/step_functions/main.tf`` runs Promote as a plain Map
+    over ``$.promote.tasks`` on any GREEN gate, with no human in the loop, and
+    ``silver_rebuild_gate`` is a value/footer census that cannot see a parquet-vs-Glue type at all.
+    So the trigger is the WORKER IMAGE REPIN, not an owner command: the first green Tuesday after
+    this code is in the image rewrites canonical (next fire 2026-09-15 09:00Z). For this table that
+    is safe -- no physical type moves, per the measurement above -- which is exactly why the fact
+    has to be stated on the two tables where it is not (``silver_fgis``, ``silver_modis_ndvi``)."""
+    return encode_partitioned_body(df, contract)
 
 
 def _publish_nass_crop_progress(
@@ -254,7 +304,7 @@ def _publish_nass_crop_progress(
             continue
         staged.append(StagedObject(
             canonical_key=canonical_key,
-            body=_partition_body(group[OUTPUT_COLUMNS]),
+            body=_partition_body(group[OUTPUT_COLUMNS], contract),
             partition_values=[commodity, str(year)],
             row_count=len(group),
         ))

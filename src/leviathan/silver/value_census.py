@@ -32,7 +32,7 @@ S3, opens no socket, and prints nothing. ASCII only.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
 # ---------------------------------------------------------------------------
@@ -61,6 +61,9 @@ KIND_SINGLE_VINTAGE = "single_vintage"         # distinct(knowledge_date_col) ==
 KIND_ALL_CONSTANT = "all_constant"             # a value column has zero variance table-wide
 KIND_SENTINEL_SATURATED = "sentinel_saturated"  # value column saturated at a sentinel
 KIND_STATS_UNAVAILABLE = "stats_unavailable"   # footer carried no statistics -> cannot certify
+# WARN-only kind (never hard): the 3-file sample's non-null fraction and the WHOLE partition
+# group's fall on opposite sides of the column's floor. See evaluate_sample_divergence.
+KIND_SAMPLE_UNREPRESENTATIVE = "sample_unrepresentative"
 
 
 def _coerce(v: Any) -> Any:
@@ -502,6 +505,124 @@ def apply_absent_group_waiver(
         else:
             kept.append(r)
     return kept, warned
+
+
+# ---------------------------------------------------------------------------
+# THE FULL-FAMILY SCAN (NASS GATE RCA docket, 2026-09-09 -- option (a), measured).
+# ---------------------------------------------------------------------------
+def apply_full_scan(sampled: ColumnCensus, full: Optional[ColumnCensus]) -> ColumnCensus:
+    """Replace ONE field of a sampled census -- ``files_with_stats`` -- with the whole group's.
+
+    WHAT THE COIN-FLIP WAS. ``evaluate_gate`` raises KIND_STATS_UNAVAILABLE when
+    ``files_with_stats == 0``, and the runner feeds it a census built from THREE files picked
+    first / middle / last out of the group. Whether a group hard-fails on that clause is therefore
+    decided by whether those three particular objects happen to include one whose footer carries
+    statistics for the column. Measured on the real 1,206 ``silver_nass_annual`` footers
+    (2026-09-09, before the pinned rewrite): ``area_planted_ha`` was arrow ``null`` in 53 of corn's
+    161 objects, 43 of cotton's 161, 34 of rice's 132, 13 of pima's 116 and 7 of upland's 110 -- and
+    every one of those five groups passed only because its 3-file draw happened to include a typed
+    file. The RCA's own words: "the other six commodities survive on luck."
+
+    THIS FUNCTION DOES NOT RETIRE THAT COIN-FLIP, AND MUST NOT BE REPORTED AS DOING SO (review
+    finding 2026-09-09, MAJOR; an earlier draft of this docstring and of the handoff report read as
+    if it did). IT IS VERDICT-INERT, and the proof is three lines of this module. ``has_stats``
+    False leaves ``has_min_max`` False, and :attr:`FileColumnStat.effective_nonnull` returns 0
+    whenever ``has_min_max`` is False; so a group whose every SAMPLED file lacks statistics has
+    ``eff_nonnull == 0``, which is exactly ``census_column``'s ``all_nan``. ``evaluate_gate`` checks
+    ``all_nan`` immediately after the ``files_with_stats == 0`` clause. Removing the first row
+    therefore uncovers the second: the only thing this replacement can do is RELABEL a hard
+    KIND_STATS_UNAVAILABLE as a hard KIND_ALL_NAN. It can never turn a red green and never a green
+    red. MEASURED on the RCA's corn shape (161 files, 53 arrow-null, floor 0.5, whole-family
+    fraction 0.6708), every possible 3-file draw: 0 or 1 null-typed files drawn -> GREEN before and
+    after; 2 -> nonnull_below_floor at a sampled 0.3333, before and after; 3 -> stats_unavailable
+    before, all_nan after. Whether a group is red is still decided by which three objects the
+    sampler happens to draw, on all thirteen (group, column) pairs the sweep enumerated, exactly as
+    it was before this pass existed.
+
+    WHAT IT ACTUALLY BUYS, which is reporting and is worth the reads anyway: the KIND is honest ("no
+    object in this group has statistics for this column", a measurement, instead of "none of the
+    three we read had", a presumption); the whole-family fractions land in the artifact beside the
+    sampled ones; and the straddle WARN below exists at all. The cost is real and is paid inside the
+    BLOCKING gate -- up to ``FULL_SCAN_MAX_FILES`` extra footer range-GETs per table.
+
+    A real total absence still fails either way: measured on the same footers, cottonseed's
+    ``yield_t_ha`` and ``area_planted_ha`` were arrow ``null`` in 161 of 161, so 0/3 becomes 0/161,
+    the row stands as KIND_ALL_NAN, and it is the registry declaration -- never this function --
+    that narrates it.
+
+    Nothing else moves. The floor, all-NaN, sentinel and constant verdicts keep reading the SAMPLED
+    census, deliberately: the OP-8 / D-SG floors were calibrated against the 3-file estimator, and
+    swapping the estimator under them without re-deriving them would refuse honest data. Measured
+    consequence of NOT doing that swap here: over all 280 ``silver_nass_crop_progress`` footers
+    cotton's ``pct_emerged`` is 0.0306 non-null against a calibrated 0.05 floor while its 3-file
+    sample reads 0.0577, so a wholesale switch would have turned a green table red on data that is
+    exactly what NASS published. That divergence is REPORTED instead -- see
+    :func:`evaluate_sample_divergence` -- and re-calibrating the floor against a full-family
+    estimator is an OP-8 decision with its own evidence, not a side effect of this function."""
+    if full is None:
+        return sampled
+    if full.files_with_stats == sampled.files_with_stats:
+        return sampled
+    return replace(sampled, files_with_stats=full.files_with_stats)
+
+
+def evaluate_sample_divergence(
+    table: str,
+    sampled_by_column: Mapping[str, ColumnCensus],
+    full_by_column: Mapping[str, ColumnCensus],
+    value_columns: Sequence[str],
+    min_nonnull_frac: Optional[float],
+    *,
+    floor_overrides: Optional[Mapping[str, float]] = None,
+    season_floor_overrides: Optional[Mapping[str, Mapping[str, float]]] = None,
+    as_of_month: Optional[int] = None,
+) -> list[GateRow]:
+    """WARN rows for value columns whose sampled and whole-group non-null fractions STRADDLE the floor.
+
+    THE LANDMINE THIS MAKES VISIBLE, measured rather than argued. The gate's floor verdict is
+    computed over three files chosen by index -- first, middle, last -- so it moves whenever the
+    group's partition COUNT moves, on data that never changed. Sweeping every possible middle draw
+    across the real footers (2026-09-09) found THIRTEEN (group, column) pairs in the two NASS tables
+    alone whose verdict is decided by that draw: ``silver_nass_annual`` canola_ice production_mt and
+    yield_t_ha (0.5556 today, 0.2000 at the worst draw, floor 0.5), corn / cotton / rice
+    area_planted_ha (0.7259 / 0.7600 / 0.6667 today; 0.3630 / 0.4000 / 0.3182 worst), and in
+    ``silver_nass_crop_progress`` seven more including soft_red_winter_wheat's four pct_* columns,
+    which read 0.0000 if the middle draw lands on year=1981. Nothing about the DATA distinguishes
+    today's draw from those; only the file count does.
+
+    So the fraction the gate uses stays the sampled one (see :func:`apply_full_scan` for why), and
+    the whole-group fraction is computed beside it and REPORTED whenever the two disagree about the
+    floor. The row carries both numbers, so the reader is told exactly which way and by how much --
+    a fence that COMPUTES what it cannot yet safely decide, rather than one that stays silent.
+
+    Fires only on a genuine straddle (one side of the floor each), so a column comfortably above or
+    below on both estimators says nothing. WARN only, in both directions: a sample that reads BETTER
+    than the family is the live false-green (cotton's ``pct_emerged``, 0.0577 sampled vs 0.0306
+    whole-family against a 0.05 floor) and a sample that reads WORSE is the live false-red."""
+    rows: list[GateRow] = []
+    for col in value_columns:
+        s = sampled_by_column.get(col)
+        f = full_by_column.get(col)
+        if s is None or f is None or s.total_rows == 0 or f.total_rows == 0:
+            continue
+        if f.files_sampled <= s.files_sampled:
+            continue                       # the "full" scan added nothing -- no second opinion
+        floor = resolve_floor(col, min_nonnull_frac, floor_overrides,
+                              season_floor_overrides, as_of_month)
+        if floor is None:
+            continue
+        if (s.nonnull_fraction < floor) == (f.nonnull_fraction < floor):
+            continue                       # both estimators agree about the floor
+        worse = "the whole group reads BELOW" if f.nonnull_fraction < floor else \
+                "the whole group reads ABOVE"
+        rows.append(GateRow(
+            table, col, KIND_SAMPLE_UNREPRESENTATIVE, round(f.nonnull_fraction, 6), floor,
+            f"'{col}' non-null fraction is {s.nonnull_fraction:.4f} over the "
+            f"{s.files_sampled} sampled files but {f.nonnull_fraction:.4f} over all "
+            f"{f.files_sampled} in the group -- {worse} the {floor} floor. The gate verdict uses "
+            "the sampled figure (the floor was calibrated on that estimator); this row is the "
+            "measurement, for an OP-8 re-calibration to act on."))
+    return rows
 
 
 def evaluate_warnings(

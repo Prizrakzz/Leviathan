@@ -39,9 +39,11 @@ if str(_REPO_ROOT / "src") not in sys.path:
 from leviathan.silver.registry import load_registry  # noqa: E402
 from leviathan.silver.value_census import (  # noqa: E402
     apply_absent_group_waiver,
+    apply_full_scan,
     apply_vintage_waiver,
     census_column,
     evaluate_gate,
+    evaluate_sample_divergence,
     evaluate_warnings,
     file_column_stat,
     build_table_result,
@@ -90,8 +92,35 @@ def _immediate_child_prefixes(s3, prefix: str, cap: int) -> list[str]:
     return out[:cap]
 
 
-def _parquets_under(s3, prefix: str, per_group: int, page_cap: int = 6) -> list[str]:
-    """Up to ``per_group`` parquet keys spread across the (bounded) listing under ``prefix``."""
+def _parquets_under(s3, prefix: str, per_group: int, page_cap: int = 6,
+                    empty_page_cap: int = 200) -> list[str]:
+    """Up to ``per_group`` parquet keys spread across the (bounded) listing under ``prefix``.
+
+    THE EMPTY-WINDOW EXTENSION (found 2026-09-09 while censusing the four sibling writers). The
+    6-page x 400-key window is a LIST budget, not a data budget: it counts hidden control-plane
+    objects too. ``silver_modis_ndvi`` publishes under ``silver/weather/source=modis_ndvi/``, whose
+    ``_manifests/`` and ``_shadow/`` children sort BEFORE ``commodity=`` ('_' is 0x5F, 'c' is 0x63),
+    and there are 10,525 hidden parquets there -- so all 2,400 keys in the window were hidden, this
+    function returned [], and that table's value census read ZERO files and printed
+    "PASS files=0 gate_rows=0" every time it ran. A census that reads nothing passes anything: the
+    same vacuity class as the parity gate's SPEC-INVALID panel in this same RCA, on the largest
+    silver table in the estate (10,532 canonical objects).
+
+    The window therefore keeps paging -- to a hard ``empty_page_cap`` ceiling -- ONLY while it has
+    found zero candidates. That is provably inert for every prefix that yields at least one parquet
+    key inside the first ``page_cap`` pages: the key list, and so the spread indices and the sampled
+    objects, are byte-identical to before. MEASURED across the whole registry on 2026-09-09: exactly
+    four tables sampled zero files, and three of them (silver_ams_gtr, silver_eex_freight,
+    silver_moex_agro_indices) have no canonical objects at all and are unaffected. Only modis moves.
+
+    WHAT MOVING MEANS FOR THAT TABLE'S OPERATOR, said plainly. ``silver_modis_ndvi``'s value census
+    was VACUOUS and is now LIVE inside a BLOCKING gate: the first non-hidden parquet under its
+    prefix appears on LIST page 28, so the old 6-page window returned 0 keys and the table printed
+    "PASS files=0" on every run; it now reads 4 of its 10,532 objects (the full-family scan skips it
+    at the FULL_SCAN_MAX_FILES cap). Measured PASS on 2026-09-09 -- but this is a gate that can now
+    go red where it structurally could not before, and the next scheduled reader is the
+    modis_biweekly chain's gate leg, cron(0 9 ? * MON *), next fire 2026-09-14 09:00Z.
+    """
     keys: list[str] = []
     token = None
     pages = 0
@@ -104,13 +133,81 @@ def _parquets_under(s3, prefix: str, per_group: int, page_cap: int = 6) -> list[
                     if o["Key"].endswith(".parquet") and not _is_hidden(o["Key"]))
         token = r.get("NextContinuationToken")
         pages += 1
-        if not token or pages >= page_cap:
+        if not token or pages >= (page_cap if keys else empty_page_cap):
             break
     if len(keys) <= per_group:
         return keys
     # spread: first, last, and evenly-spaced interior samples (era coverage).
     idxs = sorted({round(i * (len(keys) - 1) / (per_group - 1)) for i in range(per_group)})
     return [keys[i] for i in idxs]
+
+
+# The bound on the FULL-family scan (NASS GATE RCA docket, 2026-09-09 -- option (a)). A table whose
+# canonical family exceeds this reads its footers the sampled way and says so; nothing about the
+# gate's verdict depends on the scan, so a fallback is a loss of a second opinion, never of a fence.
+# MEASURED against the live estate on 2026-09-09 (LIST-only count of all 52 censused prefixes,
+# 23,228 objects): at 2,000 the scan covers 50 of 52 tables and 8,218 objects, and the two that fall
+# back are the only ones that could make this expensive -- silver_modis_ndvi (10,532) and
+# silver_production (4,478). ~16k additional footer range-GETs on a full --all sweep, well under a
+# cent, ~1 minute at 16 workers; a per-table gate run (the usda_nass chain reads 2 tables, 1,486
+# objects) pays a few seconds.
+# WHERE THAT COST IS PAID, named because it is not a cheap place. census_one_table is called by
+# jobs/audit/silver_rebuild_gate.py, so these reads happen INSIDE the blocking gate of a scheduled
+# chain -- up to this cap in extra footer range-GETs per table, on top of the 3-per-group sample.
+# What they buy is REPORTING, not a verdict (see value_census.apply_full_scan for the proof that
+# the scan cannot change a table's colour): an honest KIND, the whole-family fractions in the
+# artifact, and the sample_unrepresentative WARN.
+FULL_SCAN_MAX_FILES = 2000
+
+
+def _all_parquets_under(s3, prefix: str, cap: int) -> Optional[list[str]]:
+    """EVERY parquet key under ``prefix``, or ``None`` once more than ``cap`` have been seen.
+
+    Deliberately separate from :func:`_parquets_under`, which the SAMPLE uses: the sampled keys must
+    stay byte-identical to what this census read before the full scan existed, so the two listings
+    never share state. Returns None (rather than a truncated list) past the cap -- a partial family
+    scan would be a THIRD estimator, and the point of this pass is to have one that is complete."""
+    keys: list[str] = []
+    token = None
+    while True:
+        kw = dict(Bucket=BUCKET, Prefix=prefix, MaxKeys=1000)
+        if token:
+            kw["ContinuationToken"] = token
+        r = s3.list_objects_v2(**kw)
+        keys.extend(o["Key"] for o in r.get("Contents", [])
+                    if o["Key"].endswith(".parquet") and not _is_hidden(o["Key"]))
+        if len(keys) > cap:
+            return None
+        token = r.get("NextContinuationToken")
+        if not token:
+            return keys
+
+
+def full_scan_groups(
+    s3,
+    groups: dict[str, list[str]],
+    prefix: str,
+    *,
+    cap: int = FULL_SCAN_MAX_FILES,
+) -> dict[str, list[str]]:
+    """``{group_label: [EVERY parquet key in that group]}``, or ``{}`` if the table exceeds ``cap``.
+
+    Keyed off the groups the sampler already chose, so the full scan speaks about exactly the
+    partition groups the gate evaluates and can never introduce one the gate does not know. The cap
+    is applied to the TABLE, not the group: a family is scanned whole or not at all, because a
+    half-scanned group's ``files_with_stats`` would be neither the sample's claim nor the family's."""
+    out: dict[str, list[str]] = {}
+    budget = cap
+    for label in groups:
+        gp = prefix if not label else f"{prefix}{label}/"
+        keys = _all_parquets_under(s3, gp, budget)
+        if keys is None:
+            return {}
+        out[label] = keys
+        budget -= len(keys)
+        if budget < 0:
+            return {}
+    return out
 
 
 def sample_groups(
@@ -165,7 +262,15 @@ def _read_footer_stats(fs, key: str, columns: list[str]) -> dict:
     return {c: file_column_stat(md, c) for c in columns}
 
 
-def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 16) -> tuple[TableCensusResult, dict]:
+# Footer-read concurrency. Raised 16 -> 32 on 2026-09-09 when the full-family scan multiplied the
+# read count: MEASURED on silver_nass_annual's 1,206 objects, 36.0 s at 16 workers, 20.9 s at 32,
+# 21.2 s at 48 -- the curve is flat past 32, so 32 is where the extra reads stop costing wall clock.
+# Purely a concurrency knob: the keys read, the stats derived and every verdict are identical.
+# It is a DEFAULT, so it also raises S3 footer concurrency for the two callers that do not pass one
+# -- jobs/audit/silver_rebuild_gate.py and jobs/audit/feature_readiness.py -- on tables the 36.0 /
+# 20.9 / 21.2 s curve was not measured on. Behaviour-neutral there too (same keys, same verdicts),
+# but unmeasured: if a caller ever needs the old ceiling it passes max_workers=16 explicitly.
+def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 32) -> tuple[TableCensusResult, dict]:
     import boto3  # lazy
     import pyarrow.fs as pafs  # lazy
 
@@ -200,11 +305,29 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
     groups = sample_groups(s3, prefix, partition_mode, projection_domains, per_group=per_group)
     all_keys = [(g, k) for g, keys in groups.items() for k in keys]
 
+    # THE FULL-FAMILY SCAN (RCA docket option (a), armed 2026-09-09). Every object of every sampled
+    # group, footer-only, so the KIND_STATS_UNAVAILABLE clause stops being a 3-file coin-flip and
+    # the whole-group non-null fraction can be reported beside the sampled one. FAIL-OPEN by
+    # construction and by the except arm below: with no scan the census behaves exactly as it did
+    # before this pass existed, so a LIST failure or an oversized family degrades the second opinion
+    # and never the gate.
+    full_groups: dict[str, list[str]] = {}
+    if target_cols and all_keys:
+        try:
+            full_groups = full_scan_groups(
+                s3, groups, prefix if prefix.endswith("/") else prefix + "/")
+        except Exception as exc:  # noqa: BLE001 -- the scan is an ADDITION; it may never break the gate
+            full_groups = {}
+            print(f"       (full-family scan unavailable for {table}: {str(exc)[:120]})")
+
     # Parallel footer reads (memory: parallelize S3-bound work).
+    sampled_keys = {k for _, k in all_keys}
+    scan_keys = sorted({k for keys in full_groups.values() for k in keys} - sampled_keys)
     stats_by_key: dict[str, dict] = {}
     if target_cols and all_keys:
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futs = {pool.submit(_read_footer_stats, fs, k, target_cols): k for _, k in all_keys}
+            futs = {pool.submit(_read_footer_stats, fs, k, target_cols): k
+                    for k in [k for _, k in all_keys] + scan_keys}
             for fut in as_completed(futs):
                 k = futs[fut]
                 try:
@@ -222,11 +345,22 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
     per_group_rows: list[GateRow] = []
     per_group_warns: list[GateRow] = []
     group_summaries: dict[str, dict] = {}
+    full_summaries: dict[str, dict] = {}
     for g, keys in groups.items():
         g_census = {}
+        g_full = {}
+        full_keys = full_groups.get(g) or []
         for col in value_columns:
             fstats = [stats_by_key.get(k, {}).get(col) for k in keys]
             g_census[col] = census_column(fstats, col)
+            if len(full_keys) > len(keys):
+                g_full[col] = census_column(
+                    [stats_by_key.get(k, {}).get(col) for k in full_keys], col)
+                # ONLY files_with_stats is taken from the whole group. See apply_full_scan for the
+                # proof that this is VERDICT-INERT -- it can only relabel a hard stats_unavailable
+                # row as a hard all_nan row, never flip a colour -- and for why the floor
+                # deliberately keeps reading the sampled fraction.
+                g_census[col] = apply_full_scan(g_census[col], g_full[col])
         label = g or "(flat)"
         g_rows = evaluate_gate(table, g_census, value_columns, min_frac,
                                floor_overrides=floor_overrides,
@@ -245,7 +379,17 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
         for r in evaluate_warnings(table, g_census, value_columns):
             per_group_warns.append(GateRow(r.table, r.column, r.kind, r.observed, r.threshold,
                                            f"[{label}] {r.detail}"))
+        # The floor landmine, COMPUTED and reported (never decided): the sampled and whole-group
+        # non-null fractions straddling this column's floor.
+        for r in evaluate_sample_divergence(table, g_census, g_full, value_columns, min_frac,
+                                            floor_overrides=floor_overrides,
+                                            season_floor_overrides=season_overrides,
+                                            as_of_month=as_of_month):
+            per_group_warns.append(GateRow(r.table, r.column, r.kind, r.observed, r.threshold,
+                                           f"[{label}] {r.detail}"))
         group_summaries[label] = {col: g_census[col].to_dict() for col in value_columns}
+        if g_full:
+            full_summaries[label] = {col: g_full[col].to_dict() for col in value_columns}
 
     # Vintage-adequacy from the table-wide knowledge census. A declared, user-gated
     # vintage_waiver (BF-W2 rider 6: annual latest-only sources where a second vintage is
@@ -286,7 +430,22 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
               "these (group, column) pairs are a DECLARED source absence; their stats_unavailable/"
               "all_nan rows are demoted to WARN and appear in warn_rows with the reason. Every "
               "other pair, kind and group stays hard."]
-             if absent_groups else []),
+             if absent_groups else [])
+          + ([f"FULL-FAMILY SCAN ACTIVE: {sum(len(v) for v in full_groups.values())} objects "
+              f"footer-read across {len(full_groups)} groups (the sample is "
+              f"{len(all_keys)}). It is REPORTING, NOT A VERDICT: only files_with_stats is taken "
+              "from it, and because a file with no statistics also books zero effective non-nulls, "
+              "retiring a stats_unavailable row uncovers the all_nan row underneath it -- the scan "
+              "can relabel a hard row, never change a table's colour. The floor / all-NaN / "
+              "sentinel verdicts all still read the 3-file sample, whose fraction the OP-8 floors "
+              "were calibrated against, so WHICH THREE OBJECTS ARE DRAWN still decides them. Where "
+              "the sampled and whole-family fractions straddle a floor, a sample_unrepresentative "
+              "WARN carries both numbers; that WARN and these fractions are what this pass adds."]
+             if full_groups else
+             [f"full-family scan SKIPPED (table exceeds the {FULL_SCAN_MAX_FILES}-object cap, or "
+              "the listing failed): stats_unavailable is reported from the 3-file sample alone "
+              "here, and no whole-family fraction is available to compare a floor verdict "
+              "against."]),
     )
     # Fold per-group value rows + vintage rows into the result's gate/warn lists (waived vintage
     # rows land in WARN, and the artifact carries the waiver object itself).
@@ -294,6 +453,9 @@ def census_one_table(contract: dict, *, per_group: int = 3, max_workers: int = 1
     object.__setattr__(result, "warn_rows", tuple(list(per_group_warns) + waived_rows))
     d = result.to_dict()
     d["per_group_value_census"] = group_summaries
+    if full_summaries:
+        d["per_group_full_family_census"] = full_summaries
+        d["full_family_files_scanned"] = sum(len(v) for v in full_groups.values())
     if waiver:
         d["vintage_waiver"] = dict(waiver)
     if absent_groups:

@@ -49,14 +49,13 @@ from datetime import datetime, timezone
 
 import pandas as pd
 import pyarrow as pa
-import pyarrow.parquet as pq
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.silver.flat_producer import (
-    arrow_type_for,
     authorize_for_contract,
-    pa_schema_from_contract,
+    encode_partitioned_body,
+    pa_schema_for_partitioned_body,
 )
 from leviathan.silver.publisher import (
     ManifestState,
@@ -230,36 +229,15 @@ def _caller_identity(aws_region: str) -> tuple[str, str]:
     return resolve_caller_identity(aws_region)
 
 
-# Partition-key glue types -> the arrow type the BODY carries for that key. The projected keys ride
-# in the parquet body as well as in the object path (`year`), which is why the flat
-# ``encode_parquet`` cannot be used here verbatim -- it refuses the body as `extra=['year']`.
-_PARTITION_KEY_ARROW = {"int": "int64", "bigint": "int64", "string": "string"}
-
-
 def _body_schema(contract: dict, columns: list[str]) -> "pa.Schema":
     """The explicit INV-2 writer schema for ONE (commodity, year) partition body.
 
-    ``pa_schema_from_contract`` gives the 14 declared physical columns with their
-    ``target_arrow_type`` and nullability; this adds the projected partition keys that ride in the
-    body (``year``) and emits the fields in the BODY's own column order, so the on-disk layout is
-    unchanged. Fail closed both ways: a contract column missing from the body, or a body column the
-    contract does not declare, raises rather than being inferred."""
-    by_name = {f.name: f for f in pa_schema_from_contract(contract)}
-    contracted = list(by_name)
-    for pk in contract.get("partition_keys") or []:
-        pk_name = pk.get("name")
-        if pk_name in by_name or pk_name not in columns:
-            continue                      # `commodity` lives only in the path; `year` also in body
-        token = _PARTITION_KEY_ARROW.get(str(pk.get("glue_type", "")).lower())
-        if token is None:
-            raise ValueError(f"{_TABLE}: unmapped partition-key glue type for {pk_name!r}")
-        by_name[pk_name] = pa.field(pk_name, arrow_type_for(token), nullable=False)
-    missing = [c for c in contracted if c not in columns]
-    extra = [c for c in columns if c not in by_name]
-    if missing or extra:
-        raise ValueError(f"{_TABLE}: partition body does not match the contract "
-                         f"(missing={missing}, extra={extra})")
-    return pa.schema([by_name[c] for c in columns])
+    LIFTED 2026-09-09 into :func:`leviathan.silver.flat_producer.pa_schema_for_partitioned_body`,
+    the ONE shared adapter the whole partition-body family now uses -- this table plus the four
+    siblings that carried the identical unpinned ``df.to_parquet`` idiom (nass_crop_progress, fgis,
+    fnc_colombia x3, modis_ndvi). This wrapper stays as the table's named seam (and because the
+    error text it raises is pinned by this task's own deck); it adds nothing of its own."""
+    return pa_schema_for_partitioned_body(contract, list(columns))
 
 
 def _partition_body(df: pd.DataFrame, contract: dict) -> bytes:
@@ -309,11 +287,7 @@ def _partition_body(df: pd.DataFrame, contract: dict) -> bytes:
     is no backfill). Re-run the F011 DDL diff / run_census reconcile before promoting: the registry
     ``drift_summary`` null_typed entries describe the OLD physical types and only clear when the R0
     snapshot is re-captured."""
-    table = pa.Table.from_pandas(df, schema=_body_schema(contract, list(df.columns)),
-                                 preserve_index=False)
-    buf = io.BytesIO()
-    pq.write_table(table, buf, compression="snappy")
-    return buf.getvalue()
+    return encode_partitioned_body(df, contract)
 
 
 def _publish_nass_annual(

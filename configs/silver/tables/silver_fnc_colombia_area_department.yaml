@@ -64,7 +64,7 @@ physical_columns:
   parquet_physical_type: null
   target_arrow_type: string
   nullable: true
-writer_schema_pinned: false
+writer_schema_pinned: true
 drift_summary:
 - column: ingest_date
   kind: null_typed

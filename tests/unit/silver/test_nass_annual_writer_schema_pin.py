@@ -30,8 +30,19 @@ measured beside it -- corn 0.7259, cotton 0.76, rice 0.6667 against a 0.5 floor,
 sampling accident -- is untouched by this pin and stays on the docket.
 
 AWS-free, no network: local parquet round-trips through the real writer function plus the tracked
-contract. The live canonical bytes do NOT change until an owner-gated ``--force-overwrite`` rewrite
-runs; these tests pin the CODE that rewrite will use.
+contract. These tests pin the CODE the canonical rewrite will use.
+
+WHEN THAT REWRITE RUNS -- corrected 2026-09-09 after a review finding (MAJOR); this header
+previously said "not until an owner-gated ``--force-overwrite`` rewrite runs", AND THAT IS FALSE.
+The ENABLED ``nass_crop_progress`` schedule, ``cron(0 9 ? * TUE *)``, carries a Step Functions
+``promote`` phase with ``"mode": "autonomous"`` whose tasks are exactly
+``nass_crop_progress_silver_task.py`` and ``nass_annual_silver_task.py`` with
+``--force-overwrite true --publish-mode canonical``, taken on any GREEN gate with no human in the
+loop. The trigger is the WORKER IMAGE REPIN: the first green Tuesday after this code is in the image
+rewrites both tables' canonical objects (next fire 2026-09-15 09:00Z). For the nass pair that is the
+INTENT -- the rewrite is what turns 475 arrow-null column-instances into typed columns with
+statistics, and no physical type lands outside its Glue declaration (see
+``test_pinned_writer_catalog_debt.py``, which names the two tables in the estate where it would).
 """
 from __future__ import annotations
 

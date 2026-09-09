@@ -195,6 +195,46 @@ PSD_ATTR_VINTAGE_CELLS = [("1998", "2026-07-01"),    # the month_code-0 era's la
                           ("2023", "2026-08-01")]    # past the whole fan -> the 2026-07-10 vintage (a DIFFERENT row)
 
 
+# ---------------------------------------------------------------------------
+# The WIDE metric cap (NASS GATE RCA docket, 2026-09-09).
+# ---------------------------------------------------------------------------
+WIDE_METRIC_CAP = 4        # the representative sample a card too wide to compare in full gets
+FULL_METRIC_MAX = 8        # ...and the width at or below which a wide card is compared IN FULL
+
+
+def metric_plan(shape: str, metrics) -> tuple[list[str], list[str]]:
+    """Which of a card's declared metrics this run compares, and which it does NOT. Pure.
+
+    THE DEFECT THIS REPLACES, measured. ``main`` used to write
+    ``list(ts.metrics) if ts.shape == "tall" else list(ts.metrics)[:4]``: a TALL card's metrics are
+    row VALUES so all of them run, and a WIDE card was sampled at its first four on the argument
+    that "metrics == columns, cheap, representative at 4". The cap was SILENT, and it silently
+    dropped ``silver_nass_crop_progress``'s fifth metric ``pct_harvested`` -- the D-SG G1-5
+    calendar-structural column, the one with its OWN season floor in the registry
+    (``min_nonnull_frac_season_overrides``), i.e. the single column on that card whose behaviour
+    anyone had bothered to calibrate. It was never compared on either backend, on any as-of, in any
+    run. Same 2026-08-18 class as the rest of this RCA: a fence whose input was never measured.
+
+    THE RULE, and why it is not simply "lift the cap". Lifting it ESTATE-WIDE was measured offline
+    against the real registry (2026-09-09): the grid goes 582 -> 1,254 legs, +672 (+115%), and 630
+    of those 672 come from three sampler-shaped cards -- silver_pink_sheet (76 metrics, +432),
+    silver_fred_fx (28, +144) and silver_psd (13, +54). pink_sheet's first four are ORDERED for this
+    panel on purpose (the W2 card spans price / fertilizer / energy / zscore), so comparing all 76
+    would more than double a blocking in-VPC gate's runtime to re-prove a deliberate design. So the
+    rule is by WIDTH: a wide card declaring <= FULL_METRIC_MAX metrics is compared IN FULL, a wider
+    one keeps the representative sample. MEASURED COST of that rule: +42 legs (582 -> 624, +7.2%) --
+    silver_cot 8 metrics (+24), and silver_noaa_oni / silver_mpob / silver_nass_crop_progress 5 each
+    (+6 apiece). At ~10 MB minimum Athena billing that is under a cent and roughly two minutes.
+
+    AND THE CAP STOPS BEING SILENT EITHER WAY: whatever it drops is RETURNED, so ``main`` prints it
+    as a report line naming the uncompared metrics. The day a card grows past the width the reader
+    sees which metrics stopped being proved, instead of finding out three Tuesdays later."""
+    ms = list(metrics)
+    if shape == "tall" or len(ms) <= FULL_METRIC_MAX:
+        return ms, []
+    return ms[:WIDE_METRIC_CAP], ms[WIDE_METRIC_CAP:]
+
+
 def _norm_value(v) -> str:
     """Rendering-insensitive value key: Athena prints large doubles in Java E-notation ('1.5461095E7'),
     psycopg prints plain decimal ('15461095.0') — the same float. Compare floats as canonical repr;
@@ -361,11 +401,16 @@ def main() -> int:
             continue
         ts = reg.get(tid)
         commodity = SAMPLE_COMMODITY.get(tid)
-        # Lift the [:4] sampling cap for TALL tables (Attack 3 #4): a tall table's metrics are ROW values
-        # (gold_weather_z has 5, silver_wasde 6) and the cap would skip metrics past the 4th, letting a
-        # broken/missing tail metric slip through parity. Wide tables (metrics == columns, cheap) keep the
-        # cap -- their panel is representative at 4.
-        metric_list = list(ts.metrics) if ts.shape == "tall" else list(ts.metrics)[:4]
+        # Which metrics this run compares, and which the width cap drops -- see metric_plan for the
+        # rule, the measured cost of every alternative, and the pct_harvested defect it closes. A
+        # dropped metric is NAMED in the report: a cap nobody can see is how the D-SG G1-5 floor
+        # column went unproved for as long as this gate has existed.
+        metric_list, uncompared = metric_plan(ts.shape, ts.metrics)
+        if uncompared:
+            lines.append(f"- METRIC-CAP {tid}: comparing {len(metric_list)} of "
+                         f"{len(metric_list) + len(uncompared)} declared metrics (wide card past "
+                         f"the {FULL_METRIC_MAX}-metric full-compare width); NOT compared: "
+                         f"{uncompared}")
         for metric in metric_list:
             for asof in ASOFS:
                 for agg in AGGS:

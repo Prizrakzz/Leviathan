@@ -56,7 +56,7 @@ import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
-from leviathan.silver.flat_producer import authorize_for_contract
+from leviathan.silver.flat_producer import authorize_for_contract, encode_partitioned_body
 from leviathan.silver.publisher import (
     ManifestState,
     PublishStrategy,
@@ -242,10 +242,53 @@ def _caller_identity(aws_region: str) -> tuple[str, str]:
     return resolve_caller_identity(aws_region)
 
 
-def _partition_body(df: pd.DataFrame) -> bytes:
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    return buf.getvalue()
+def _partition_body(df: pd.DataFrame, contract: dict) -> bytes:
+    """Encode one (leviathan_slug, marketing_year) partition under the contract-PINNED arrow schema.
+
+    THE SIBLING SWEEP (NASS GATE RCA 2026-09-09, A2 extended). This was the same bare
+    ``df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")`` that let arrow infer
+    ``silver_nass_annual``'s absent measure columns as arrow ``null`` -- physical INT32 with NO
+    Statistics struct -- and refused that chain three consecutive Tuesdays.
+
+    MEASURED BEFORE THE PIN, on all 223 canonical footers (2026-09-09, 113,217 rows): ZERO
+    null-typed column instances; both value columns are DOUBLE with statistics in every file, and
+    the census passes. The pin changes NO census kind today -- it converts a convention into a
+    contract. ``usda_fgis.py`` casts ``exports_mt_weekly`` / ``exports_mt_ctd`` with an explicit
+    ``.astype("float64")``, which is what has kept the arrow-null path shut here; nothing asserted
+    it, and nothing would have caught its removal.
+
+    BOTH partition keys ride in the body here (``leviathan_slug`` string, ``marketing_year`` int),
+    not just one -- which is exactly why the flat ``encode_parquet`` cannot be used verbatim and why
+    the shared adapter takes the keys from ``partition_keys`` rather than a hand-written list.
+
+    THE PHYSICAL MOVES THIS TABLE'S REWRITE WILL MAKE, measured by re-encoding all 223 real objects
+    through this function (223/223, zero raises, zero value differences): ``week_of_marketing_year``
+    INT32 -> INT64 and ``marketing_year`` INT32 -> INT64. Only the FIRST of the two is a catalog
+    column -- Glue declares it ``int`` and the registry's own ``drift_summary`` already records it
+    as a SILVER-F062 ``widen_int`` -- so the canonical rewrite MUST be preceded by the F011 DDL diff
+    and the catalog ALTER: writing INT64 under an ``int`` column is an Athena read error, not a
+    silent widen. ``marketing_year`` is a PROJECTED partition key (glue_nonpartition_cols 6 vs
+    physical_parquet_cols 8), so Athena takes its value from the object path and never reads the
+    body copy; its widen is invisible to the catalog.
+
+    THE REWRITE IS NOT OWNER-GATED, AND THIS TABLE IS ONE OF THE TWO WHERE THAT MATTERS -- corrected
+    2026-09-09 after a review finding (MAJOR); an earlier draft of this note ended "nothing changes
+    until that owner-gated ``--force-overwrite`` rewrite runs", AND THAT IS FALSE. Measured in
+    ``infra/terraform/envs/dev/dag_schedules.auto.tfvars.json``: the ENABLED ``fgis`` schedule,
+    ``cron(0 12 ? * THU *)``, carries ``promote`` with ``"mode": "autonomous"`` and the command
+    ``fgis_silver_task.py --force-overwrite true --publish-mode canonical`` on
+    ``leviathan-dev-fgis-silver`` under the KMS publisher env. ``modules/step_functions/main.tf``
+    enters Promote as a plain Map over ``$.promote.tasks`` on any GREEN gate, no human in the loop,
+    and ``jobs/audit/silver_rebuild_gate`` is a value/footer census -- nothing on that path can see
+    a parquet-vs-Glue type mismatch. So the FIRST GREEN THURSDAY after this code reaches the worker
+    image (repin = the trigger; next fire 2026-09-10 12:00Z) rewrites all 223 canonical objects with
+    ``week_of_marketing_year`` as INT64 under a Glue ``int`` column, which is an Athena read error on
+    every one of them. SEQUENCING, therefore, and it is an ORDER, not a suggestion: either land the
+    catalog ALTER (``ALTER TABLE leviathan_dev.silver_fgis CHANGE COLUMN week_of_marketing_year
+    week_of_marketing_year bigint``, after the F011 DDL diff) BEFORE the image repin, or disable this
+    schedule until it lands. ``tests/unit/silver/test_pinned_writer_catalog_debt.py`` is the pin that
+    keeps this debt named."""
+    return encode_partitioned_body(df, contract)
 
 
 def _publish_fgis(
@@ -283,7 +326,7 @@ def _publish_fgis(
             continue
         staged.append(StagedObject(
             canonical_key=canonical_key,
-            body=_partition_body(group[OUTPUT_COLUMNS].reset_index(drop=True)),
+            body=_partition_body(group[OUTPUT_COLUMNS].reset_index(drop=True), contract),
             partition_values=[slug, str(marketing_year)],
             row_count=len(group),
         ))

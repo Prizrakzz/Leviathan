@@ -48,7 +48,7 @@ import pandas as pd
 
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
-from leviathan.silver.flat_producer import authorize_for_contract
+from leviathan.silver.flat_producer import authorize_for_contract, encode_partitioned_body
 from leviathan.silver.publisher import (
     ManifestState,
     PublishStrategy,
@@ -188,10 +188,52 @@ def _caller_identity(aws_region: str) -> tuple[str, str]:
     return resolve_caller_identity(aws_region)
 
 
-def _partition_body(df: pd.DataFrame) -> bytes:
-    buf = io.BytesIO()
-    df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
-    return buf.getvalue()
+def _partition_body(df: pd.DataFrame, contract: dict) -> bytes:
+    """Encode one (commodity, year) partition under the contract-PINNED arrow schema.
+
+    THE SIBLING SWEEP (NASS GATE RCA 2026-09-09, A2 extended). This was the same bare
+    ``df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")`` that let arrow infer
+    ``silver_nass_annual``'s absent measure columns as arrow ``null``. One function serves all three
+    fnc tables, so the contract is passed in rather than closed over -- the schema must be THIS
+    table's, never the last one's.
+
+    MEASURED BEFORE THE PIN, on all 148 canonical footers of the three tables (2026-09-09; monthly
+    114 files / 1,360 rows, area_department 24 / 492, exports_port_type 10 / 2,147): ZERO null-typed
+    column instances. The pin changes NO census kind today -- what has kept the arrow-null path shut
+    is a convention (each transform coerces its measures with ``pd.to_numeric(..., errors="coerce")``
+    after the same ``pd.NA`` backfill that produced the nass_annual defect), and the pin makes it a
+    contract fact instead.
+
+    ONE STALE REGISTRY CLAIM, corrected by that measurement rather than inherited: the
+    ``silver_fnc_colombia_area_department`` contract still carries a ``drift_summary`` entry calling
+    ``ingest_date`` ``null_typed``. It is not -- all 24 canonical objects write it as a real string
+    with row-group statistics. That drift record describes the R0 baseline captured BEFORE the D-LD
+    Tranche-2 landing that added the column; it clears when the R0 snapshot is re-captured, and it
+    is not evidence of anything this pin repairs.
+
+    The body carries the projected ``year`` key beside the declared physical columns, which is why
+    the flat ``encode_parquet`` cannot be used verbatim.
+
+    NO PHYSICAL TYPE MOVES on any of the three, measured by re-encoding all 148 real objects through
+    this function: 148/148, zero raises, zero value differences, every parquet physical type
+    identical. The only schema delta is the arrow LOGICAL type of the string columns,
+    ``large_string`` -> ``string`` -- the same BYTE_ARRAY on disk, the same Glue ``string``, and the
+    contract's declared ``target_arrow_type``.
+
+    WHEN THE LIVE BYTES ACTUALLY CHANGE -- corrected 2026-09-09 after a review finding (MAJOR): an
+    earlier draft of this note said "not until an owner-gated ``--force-overwrite`` canonical
+    rewrite runs", AND THAT IS FALSE. Measured in
+    ``infra/terraform/envs/dev/dag_schedules.auto.tfvars.json``: the three tables ride the ENABLED
+    ``fnc_colombia`` schedule, ``cron(0 12 15 * ? *)``, whose Step Functions ``promote`` phase is
+    ``"mode": "autonomous"`` and whose command already IS the rewrite --
+    ``fnc_colombia_silver_task.py --force-overwrite true --publish-mode canonical`` on
+    ``leviathan-dev-silver-publisher-runner``. Promote is a plain Map over ``$.promote.tasks`` taken
+    on any GREEN gate, and the gate is a value/footer census that cannot see a parquet-vs-Glue type
+    at all. The trigger is therefore the WORKER IMAGE REPIN, not an owner command: the first green
+    run of the 15th after this code is in the image rewrites canonical (next fire 2026-09-15
+    12:00Z). Safe here -- no physical type moves, per the measurement above -- and stated because on
+    ``silver_fgis`` and ``silver_modis_ndvi`` the same autonomous promote is NOT safe."""
+    return encode_partitioned_body(df, contract)
 
 
 def _publish_projected(
@@ -232,7 +274,7 @@ def _publish_projected(
         commodity = str(group["leviathan_slug"].iloc[0])
         staged.append(StagedObject(
             canonical_key=canonical_key,
-            body=_partition_body(group[output_columns].reset_index(drop=True)),
+            body=_partition_body(group[output_columns].reset_index(drop=True), contract),
             partition_values=[commodity, str(year)],
             row_count=len(group),
         ))

@@ -286,8 +286,47 @@ WRITER_SCHEMA_PINNED |= {"silver_nasa_power", "silver_chirps", "silver_cpc_soil"
 # in the body as well as the path), so an all-null measure column can never silently become arrow
 # `null` again -- exactly what flat_producer.pa_schema_from_contract's docstring exists to prevent.
 # The flag is the truthful statement of that pin; the CANONICAL REWRITE that makes the live bytes
-# match it (--force-overwrite, ~5 MB / 1,206 objects) is an owner-gated operational step.
+# match it (--force-overwrite, ~5 MB / 1,206 objects) rides the usda_nass chain's own autonomous
+# promote -- see the sibling note below, which corrects the "owner-gated" reading of that phrase.
 WRITER_SCHEMA_PINNED |= {"silver_nass_annual"}
+# THE SIBLING SWEEP (2026-09-09, the same RCA one step further). A grep of jobs/batch for the bare
+# partition-body idiom found FOUR more producers carrying the identical unpinned
+# ``def _partition_body(df): df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")``
+# -- nass_crop_progress, fgis, fnc_colombia (three tables from one writer) and modis_ndvi -- so six
+# contracts join the flag. All five producers now encode through the ONE shared adapter
+# ``leviathan.silver.flat_producer.encode_partitioned_body`` (contract schema + the partition keys
+# that ride in the body, in the body's own order; fail-closed on a missing / extra column and on an
+# unmapped partition-key glue type); nass_annual's local ``_body_schema`` was LIFTED into it.
+# MEASURED before flipping the flag, by re-encoding every canonical object of the four through the
+# new code (2026-09-09; 280 + 223 + 148 + 150-of-10,532 objects): ZERO raises, ZERO value
+# differences, and ZERO null-typed column instances present beforehand -- so no census kind moves on
+# any of them today. The flag is the truthful statement that the writer passes an explicit schema.
+#
+# THE CANONICAL REWRITE IS **NOT** OWNER-GATED -- corrected 2026-09-09 after a review finding
+# (MAJOR); this note previously called it "owner-gated per table", and that reading is FALSE for all
+# four families. MEASURED in infra/terraform/envs/dev/dag_schedules.auto.tfvars.json: every one of
+# them has an ENABLED schedule whose Step Functions `promote` phase is "mode": "autonomous" and
+# whose command already IS the rewrite -- fgis cron(0 12 ? * THU *)
+# `fgis_silver_task.py --force-overwrite true --publish-mode canonical`; modis_biweekly
+# cron(0 9 ? * MON *) `--force_overwrite true --publish-mode canonical`; nass_crop_progress
+# cron(0 9 ? * TUE *) (both nass tables); fnc_colombia cron(0 12 15 * ? *). Promote is a plain Map
+# over $.promote.tasks entered on any GREEN gate (modules/step_functions/main.tf), and the gate is a
+# value/footer census (src/leviathan/silver/publisher.py has no glue_type / ALTER / type-
+# reconciliation check at all), so nothing on that path can see a parquet-vs-Glue type mismatch.
+# THE TRIGGER IS THE WORKER IMAGE REPIN, not a human: the first green scheduled run after this code
+# is in the image rewrites canonical. That is free for silver_nass_crop_progress and the three fnc
+# tables (no physical type moves) and NOT free for the other two -- silver_fgis moves
+# week_of_marketing_year INT32 -> INT64 under Glue `int` (next fire 2026-09-10 12:00Z, 223 objects)
+# and silver_modis_ndvi moves TEN columns (int16/int8 -> int64, float -> double) under
+# smallint/tinyint/float (next fire 2026-09-14 09:00Z, 10,532 objects), each an Athena read error.
+# ORDER: land those catalog ALTERs (after the F011 DDL diff), or disable those two schedules,
+# BEFORE the image repin. tests/unit/silver/test_pinned_writer_catalog_debt.py pins that the debt is
+# exactly those two tables and breaks if a seventh contract joins this flag carrying one.
+WRITER_SCHEMA_PINNED |= {
+    "silver_nass_crop_progress", "silver_fgis", "silver_modis_ndvi",
+    "silver_fnc_colombia_monthly", "silver_fnc_colombia_area_department",
+    "silver_fnc_colombia_exports_port_type",
+}
 
 # LANE W: the weather serving surface is the tall, non-projected gold_weather_z (Phase D-W4); the three
 # silver weather tables are DERIVATION INPUTS only. The generator derives serving_table from the numbers

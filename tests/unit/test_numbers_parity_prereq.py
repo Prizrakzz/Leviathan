@@ -29,21 +29,27 @@ def test_gold_weather_z_has_a_valid_sample_commodity():
     assert "gold_weather_z" in default_tables
 
 
-def test_tall_table_metric_cap_is_lifted_in_source():
-    """main() must select ALL metrics for a tall table and keep the [:4] cap only for wide tables -- assert
-    against the ACTUAL module source (not a re-implementation), so a regression that drops the shape branch
-    is caught. gold_weather_z (tall, 5 metrics) is the table BF-W1 rebuilds."""
-    import inspect
-    src = inspect.getsource(parity.main)
-    # the fixed expression: tall -> full metric list, wide -> capped at [:4].
-    assert 'ts.shape == "tall"' in src, "the tall-vs-wide metric-cap branch is missing from main()"
-    assert "list(ts.metrics)[:4]" in src, "the [:4] cap for wide tables should remain"
-    # and the raw uncapped loop `for metric in list(ts.metrics)[:4]:` must NOT survive unbranched
-    assert "for metric in list(ts.metrics)[:4]:" not in src
+def test_tall_table_metric_cap_is_lifted():
+    """main() must select ALL metrics for a tall table. gold_weather_z (tall, 5 metrics) is the table
+    BF-W1 rebuilds, and a cap would have hidden its fifth.
 
+    RE-AUTHORED 2026-09-09 (NASS gate RCA, the parity docket). This used to assert on the SOURCE
+    TEXT of ``main`` -- ``'ts.shape == "tall"' in inspect.getsource(parity.main)`` -- which is a
+    proxy for the behaviour and stopped being true the moment the selection was lifted out of
+    ``main`` into the pure, offline-testable ``metric_plan``. The behaviour is what the fence is
+    about, so assert the behaviour: source-text pins go stale on refactors that IMPROVE the code and
+    say nothing about refactors that break it. The rest of the rule (a wide card past
+    FULL_METRIC_MAX keeps a sample AND names what it dropped, and pct_harvested now builds a leg)
+    lives in tests/unit/test_numbers_parity_metric_cap.py."""
     reg = load_registry()
     gz = reg.get("gold_weather_z")
-    assert gz.shape == "tall" and len(gz.metrics) >= 5   # >4 -> the cap would have hidden metric #5
+    assert gz.shape == "tall" and len(gz.metrics) >= 5   # >4 -> a cap would have hidden metric #5
+    compared, dropped = parity.metric_plan(gz.shape, gz.metrics)
+    assert compared == list(gz.metrics) and dropped == []
+    # ...and a WIDE card that is genuinely too wide to compare in full still gets a sample.
+    wide = [f"m{i}" for i in range(parity.FULL_METRIC_MAX + 5)]
+    assert parity.metric_plan("wide", wide) == (wide[:parity.WIDE_METRIC_CAP],
+                                                wide[parity.WIDE_METRIC_CAP:])
 
 
 # ---- WIRING-W1 fold: float32-accumulation tolerance is sum-leg-only and tight ----

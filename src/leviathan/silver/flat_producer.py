@@ -113,6 +113,90 @@ def encode_parquet(df, contract: dict) -> bytes:
     return buf.getvalue()
 
 
+# ---------------------------------------------------------------------------
+# The PARTITIONED sibling of encode_parquet (NASS GATE RCA 2026-09-09, the four-sibling sweep).
+# ---------------------------------------------------------------------------
+# Partition-key glue types -> the INV-2 token the BODY carries for that key. A projected key can
+# ride in the parquet body as well as in the object path (``year``, ``marketing_year``,
+# ``leviathan_slug``), which is exactly why ``encode_parquet`` cannot be used verbatim by a
+# per-partition producer: it would refuse the body as ``extra=['year']``. The map is deliberately
+# TINY and fail-closed -- an unmapped glue type raises rather than being guessed, because guessing a
+# column's type is how the defect this helper exists to close was born.
+_PARTITION_KEY_TOKEN = {"int": "int64", "bigint": "int64", "string": "string"}
+
+
+def pa_schema_for_partitioned_body(contract: dict, columns: Sequence[str]) -> pa.Schema:
+    """The explicit INV-2 writer schema for ONE partition body of a partitioned/projected table.
+
+    :func:`pa_schema_from_contract` gives the declared ``physical_columns`` with their
+    ``target_arrow_type`` and nullability; this adds the partition keys that ride in the body and
+    emits the fields in the BODY's own column order, so the on-disk layout is unchanged. A key that
+    lives only in the object path (the usual ``commodity``) is simply absent from ``columns`` and is
+    skipped; a key the contract also declares as a physical column keeps its physical declaration.
+
+    FAIL CLOSED both ways, which is the whole point: a contract column missing from the body, a body
+    column the contract does not declare, or a partition key whose glue type has no mapping RAISES
+    rather than being inferred. Inference per group is precisely the defect -- see
+    :func:`encode_partitioned_body`.
+    """
+    by_name = {f.name: f for f in pa_schema_from_contract(contract)}
+    contracted = list(by_name)
+    for pk in contract.get("partition_keys") or []:
+        name = pk.get("name")
+        if name in by_name or name not in columns:
+            continue
+        token = _PARTITION_KEY_TOKEN.get(str(pk.get("glue_type", "")).lower())
+        if token is None:
+            raise ValueError(f"{contract.get('table_name')}: unmapped partition-key glue type "
+                             f"{pk.get('glue_type')!r} for {name!r}")
+        by_name[name] = pa.field(name, arrow_type_for(token), nullable=False)
+    missing = [c for c in contracted if c not in columns]
+    extra = [c for c in columns if c not in by_name]
+    if missing or extra:
+        raise ValueError(f"{contract.get('table_name')}: partition body does not match the contract "
+                         f"(missing={missing}, extra={extra})")
+    return pa.schema([by_name[c] for c in columns])
+
+
+def encode_partitioned_body(df, contract: dict) -> bytes:
+    """Encode ONE partition body to snappy parquet under the contract-PINNED arrow schema.
+
+    THE MEASURED TRIGGER (NASS GATE RCA, 2026-09-09). Five per-partition producers wrote their
+    bodies with a bare ``df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")``
+    and NO schema argument, so arrow INFERRED the type per group and any group holding zero non-NA
+    values in a measure column was written as arrow ``null`` -- physical INT32 with no Statistics
+    struct at all. Over the 1,206 canonical ``silver_nass_annual`` objects that produced 475 such
+    column-instances, of which the 322 cottonseed yield/planted-area ones made the SILVER-V001
+    footer census raise ``KIND_STATS_UNAVAILABLE`` and refuse the usda_nass chain three consecutive
+    Tuesdays. ``pa_schema_from_contract``'s own docstring exists to prevent exactly this ("pinning
+    it means an all-null measure column can never silently become arrow ``null``"); this function is
+    that pin for the partitioned shape, so no producer re-implements it a sixth time.
+
+    WHAT IT DOES AND DOES NOT FIX. It makes the column's TYPE a property of the contract instead of
+    the data, so the footer always carries statistics and ``null_count`` is countable. It does NOT
+    make an absent source series pass a census: a double all-null column trips ``KIND_ALL_NAN``
+    where an arrow-null one tripped ``KIND_STATS_UNAVAILABLE``, and both are hard. Narrating a real
+    absence is the registry's ``value_column_absent_groups`` job. And it moves NO non-null fraction:
+    ``value_census.file_column_stat`` skips a ``None`` statistics object, so a null-typed file books
+    its rows with ``effective_nonnull`` 0 before the pin and an all-null typed file books them with
+    ``effective_nonnull`` 0 after it.
+
+    WHEN THE LIVE BYTES OF AN ALREADY-PUBLISHED TABLE CHANGE -- corrected 2026-09-09 after a review
+    finding (MAJOR); this docstring previously said "not until an owner-gated canonical rewrite
+    runs", which is FALSE for every caller in the estate today. Each of the five producers rides an
+    ENABLED schedule whose Step Functions ``promote`` phase is ``"mode": "autonomous"`` and whose
+    command is that very ``--force-overwrite ... --publish-mode canonical`` rewrite, taken on any
+    GREEN gate with no human in the loop. The trigger is the WORKER IMAGE REPIN. A caller whose pin
+    moves a physical type into one the Glue catalog does not declare must therefore land the catalog
+    ALTER (or hold its schedule) BEFORE that repin -- see each writer's own block note, and
+    ``tests/unit/silver/test_pinned_writer_catalog_debt.py`` for the checked list."""
+    schema = pa_schema_for_partitioned_body(contract, list(df.columns))
+    table = pa.Table.from_pandas(df, schema=schema, preserve_index=False)
+    buf = io.BytesIO()
+    pq.write_table(table, buf, compression="snappy")
+    return buf.getvalue()
+
+
 def null_metrics_for(df, value_columns: Sequence[str]) -> dict[str, float]:
     """Per-value-column non-null fraction (the V001-style floor input for the publisher gate)."""
     n = len(df)
