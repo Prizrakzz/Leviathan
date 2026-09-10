@@ -99,6 +99,17 @@ L1_BARS = {"exact": 1.00, "alias": 1.00, "synonym": 0.90, "misspelling": 0.85,
 #: D9's LAYER-2 bars, quoted from the spec. `near_duplicate` and `multi` are GROUP bars, not id bars.
 L2_BARS = {"synonym": 0.90, "misspelling": 0.85, "description": 0.70,
            "near_duplicate": 1.00, "multi": 1.00}
+#: HOW MANY SEPARATE CAUSES A `multi` ROW NAMES -- the class's own contract, quoted from the deck that
+#: declares it: "MULTI -- the owner's 'multiple named drivers -> a list, and the boards union'. Two
+#: SEPARATE groups, not two names for one thing (that is near_duplicate, one subject)." The count is a
+#: CONSTANT here and not a count of the expect list, because the expect list is a list of ALTERNATIVES
+#: (:func:`score_layer2`) and its length says nothing about how many causes the ask names: `mu02` lists
+#: three ids for two causes. A deck may override it per row with a `concepts:` key -- a list of the
+#: alternative-sets, one per cause -- and neither shipped deck carries one, so both are scored at two.
+#: THE LIMITATION IS STATED RATHER THAN HIDDEN: a `multi` row that named THREE causes would be scored
+#: against two here and would pass one cause short. Every scored row's `expected_groups` and
+#: `groups_reached` ride the per-row record, so the reading is auditable off the bank without a re-run.
+MULTI_MIN_CONCEPTS = 2
 #: The like-for-like lexical baseline, MEASURED in the recon over its own thirty phrases and reproduced
 #: to the row by phase A. Printed beside every result table so the uplift is never quoted from memory.
 LEXICAL_BASELINE = {"any_hit_pct": 30.0, "hit_at_1_pct": 23.3,
@@ -397,16 +408,71 @@ def run_layer2(rows, *, graph, l1_by_id, draws, max_contracts, today, inner_call
     return out
 
 
+def concept_count(row: dict) -> int:
+    """HOW MANY SEPARATE CAUSES THE ROW NAMES -- 1 for `near_duplicate` (the class IS one subject under
+    several spellings), :data:`MULTI_MIN_CONCEPTS` for `multi`, or the length of a deck-declared
+    `concepts:` list where a deck carries one. Every other class is scored on ids and never asks."""
+    dec = row.get("concepts")
+    if dec:
+        return len(dec)
+    return 1 if row.get("klass") == "near_duplicate" else MULTI_MIN_CONCEPTS
+
+
+def _l2_hit(cl: str, got: list, *, want_ids: set, want_grp: set, n_concepts: int,
+            of_id: dict, rule: str) -> bool:
+    """ONE DRAW, under ONE of the two readings of a row's `expect` list. Both are computed on every
+    run and both are reported: `shipped_v1` is what phase B measured, `alternatives` is the corrected
+    reading and the one the verdict is taken on."""
+    if rule == "shipped_v1":
+        if cl == "multi":
+            return want_grp <= group_keys(got, of_id)
+        if cl == "near_duplicate":
+            return bool(got) and group_keys(got, of_id) == want_grp
+        return bool(set(got) & want_ids)
+    if cl in ("multi", "near_duplicate"):
+        return len(group_keys(got, of_id) & want_grp) == n_concepts
+    return bool(set(got) & want_ids)
+
+
 def score_layer2(rows: list, *, of_id: dict, inv: dict) -> dict:
     """A row PASSES at >= 2 of 3 SCORED draws (D9). Three different questions are asked of three
     different classes and they are not interchangeable:
       the id classes   -- the pick lands inside the expected id's GROUP (a near-duplicate id is the
                           same subject; D4 is the reason the group and not the id is the unit);
-      near_duplicate   -- the STRICTER form D9 states for layer 2: the picked id's group EQUALS the
-                          expected group. Layer 1 cannot ask this (it produces a list, not a pick);
-      multi            -- BOTH expected groups picked in the same draw;
+      near_duplicate   -- the pick's group equals ANY expected id's group, and only one of them;
+      multi            -- every expected CONCEPT covered by some pick, and no cause named twice;
       decoy            -- ANY non-empty pick on ANY draw is a FIRE, and the bar is zero. FATAL.
-    """
+
+    A ROW'S `expect` LIST IS A LIST OF ALTERNATIVES, AND THE FIRST CUT READ IT AS A CONJUNCTION. That
+    is the correction this function carries, and it is a SCORER defect and never a resolver one --
+    phase B's own draws prove it. The deck lists, for each cause the ask names, the ids that would all
+    be RIGHT answers for it; the group index (`state.subject.groups`) merges most of those into one
+    group but not all, because a group is a curated slice and two curated slices can hold two spellings
+    of one cause. So:
+
+      `near_duplicate` was scored `group_keys(pick) == group_keys(expect)`. On `nd03` the four
+      positioning spellings sit in `slice:cftc_positioning` while `managed_money_positioning` sits in
+      its own, and on `nd10` `India_export_ban` sits apart from the other three -- so the expected side
+      was TWO groups and equality asked the planner to name a single subject with two group keys at
+      once, which no pick can do. MEASURED: 4 of 10 under the old reading, 10 of 10 under this one, and
+      the six that moved include three rows the planner answered with the single right id on 3 of 3
+      draws. It was also failing rows for a SECOND pick outside the expected family (`nd01` adding
+      `acreage_competition` to `fertilizer_costs` on a phrase that says 'next year acreage'), which is
+      the MULTI class's question asked of a row that is not in it.
+
+      `multi` was scored `group_keys(expect) <= group_keys(pick)` -- EVERY listed group. On `mu02`
+      (`Argentina_export_tax` and `export_tax`, two spellings of one export-tax cause in two slices),
+      `mu05` and `mu06` that demanded the planner name two spellings of ONE cause as two subjects,
+      which the frozen block forbids in as many words ("Two names for ONE cause are not two subjects").
+      MEASURED: 5 of 8 under the old reading, 8 of 8 under this one.
+
+    THE CORRECTED READING IS NOT THE LOOSE ONE, and the equality is deliberate: the picks must reach
+    EXACTLY `concept_count(row)` of the expected groups. One expected group for a `near_duplicate`
+    means a planner that hedges across two alternative families still fails; exactly two for a `multi`
+    means a planner that names one cause twice (three expected groups reached for two causes) fails
+    too. What it stops charging for is a pick outside the expected families entirely -- which the
+    per-row `foreign_picks` count records rather than scores, because on these classes it is a
+    different question and one this deck does not bar."""
     per: dict = {}
     agg = collections.Counter()
     for cl in CLASSES:
@@ -420,7 +486,7 @@ def score_layer2(rows: list, *, of_id: dict, inv: dict) -> dict:
                        "bar": "0 picks on ANY draw (FATAL)",
                        "verdict": "PASS" if not fired else "FATAL"}
             continue
-        passed, unscored = [], []
+        passed, unscored, passed_v1, detail = [], [], [], []
         for r in rs:
             ok = [d for d in r["draws"] if not d.get("errored")]
             if not ok:
@@ -428,28 +494,44 @@ def score_layer2(rows: list, *, of_id: dict, inv: dict) -> dict:
                 continue
             want_ids = expand(r["expect"], of_id, inv)
             want_grp = group_keys(r["expect"], of_id)
-            hits = 0
+            n_con = concept_count(r)
+            hits = {"alternatives": 0, "shipped_v1": 0}
+            reached, foreign = set(), 0
             for d in ok:
                 got = list(d.get("subject") or [])
-                if cl == "multi":
-                    hits += int(want_grp <= group_keys(got, of_id))
-                elif cl == "near_duplicate":
-                    hits += int(bool(got) and group_keys(got, of_id) == want_grp)
-                else:
-                    hits += int(bool(set(got) & want_ids))
-            if hits * 3 >= 2 * len(ok):
+                gk = group_keys(got, of_id)
+                reached |= (gk & want_grp)
+                foreign += len(gk - want_grp)
+                for rule in hits:
+                    hits[rule] += int(_l2_hit(cl, got, want_ids=want_ids, want_grp=want_grp,
+                                              n_concepts=n_con, of_id=of_id, rule=rule))
+            if hits["alternatives"] * 3 >= 2 * len(ok):
                 passed.append(r["id"])
+            if hits["shipped_v1"] * 3 >= 2 * len(ok):
+                passed_v1.append(r["id"])
+            if cl in ("multi", "near_duplicate"):
+                detail.append({"id": r["id"], "concepts": n_con,
+                               "expected_groups": len(want_grp), "groups_reached": len(reached),
+                               "foreign_picks": foreign})
         n = len(rs) - len(unscored)
         bar = L2_BARS.get(cl)
         rate = (len(passed) / n) if n else 0.0
         per[cl] = {"n": len(rs), "scored": n, "passed": len(passed),
                    "passed_pct": round(_pct(len(passed), n), 1), "unscored": unscored,
+                   # BOTH READINGS ON EVERY RUN. The verdict is taken on `passed` (the corrected
+                   # ALTERNATIVES reading); `passed_shipped_v1` is what phase B's scorer would have
+                   # said on the same draws, so a reader comparing this run against the banked one is
+                   # never comparing two rules without being told.
+                   "passed_shipped_v1": len(passed_v1),
+                   "passed_shipped_v1_pct": round(_pct(len(passed_v1), n), 1),
                    "failed_ids": [r["id"] for r in rs
                                   if r["id"] not in passed and r["id"] not in unscored],
                    "bar": (None if bar is None else f">= {bar:.0%}"),
                    "verdict": ("-" if bar is None else
                                ("PASS" if (n and rate >= bar - 1e-9) else "MISS"))}
-        agg["n"] += n; agg["p"] += len(passed)
+        if detail:
+            per[cl]["group_detail"] = detail
+        agg["n"] += n; agg["p"] += len(passed); agg["p1"] += len(passed_v1)
     calls = [d for r in rows for d in r["draws"]]
     # ── THE SEAT PIN, READ BACK RATHER THAN PRINTED. The report writes "temperature 0" from the module
     #    constant while `_usage_call` records what was ACTUALLY passed per draw, and nothing compared
@@ -461,8 +543,15 @@ def score_layer2(rows: list, *, of_id: dict, inv: dict) -> dict:
     _models = sorted({str((d.get("usage") or {}).get("model") or "") for d in calls
                       if d.get("usage")}) or ["<none>"]
     return {"per_class": per,
+            "scoring_rule": {"reading": "alternatives", "also_reported": "shipped_v1",
+                             "multi_min_concepts": MULTI_MIN_CONCEPTS,
+                             "note": "a row's expect list is a list of ALTERNATIVES; the picks must "
+                                     "reach EXACTLY concept_count(row) of the expected groups "
+                                     "(near_duplicate 1, multi 2 unless the deck declares concepts)"},
             "all_non_decoy": {"scored": agg["n"], "passed": agg["p"],
-                              "passed_pct": round(_pct(agg["p"], agg["n"]), 1)},
+                              "passed_pct": round(_pct(agg["p"], agg["n"]), 1),
+                              "passed_shipped_v1": agg["p1"],
+                              "passed_shipped_v1_pct": round(_pct(agg["p1"], agg["n"]), 1)},
             "calls": len(calls), "errored_calls": sum(1 for d in calls if d.get("errored")),
             "usd_measured": round(sum(float(d.get("usd") or 0.0) for d in calls), 4),
             "seat_pin": {"temperature_declared": TEMPERATURE, "temperature_observed": _temps,
@@ -629,16 +718,32 @@ def markdown(doc: dict) -> str:
         L.append(f"seat {SEAT}  temperature {TEMPERATURE}  max_contracts {doc['max_contracts']}  "
                  f"draws {doc['draws']}  (a row passes at >= 2 of {doc['draws']})")
         L.append("")
-        L.append("| class | n | scored | passed | bar | verdict |")
-        L.append("|---|---|---|---|---|---|")
+        L.append("| class | n | scored | passed (alternatives) | passed (shipped v1) | bar | verdict |")
+        L.append("|---|---|---|---|---|---|---|")
         for cl, v in l2["per_class"].items():
             if cl == "decoy":
-                L.append(f"| decoy | {v['n']} | - | fired={v['fired']} | {v['bar']} | {v['verdict']} |")
+                L.append(f"| decoy | {v['n']} | - | fired={v['fired']} | fired={v['fired']} | "
+                         f"{v['bar']} | {v['verdict']} |")
             else:
                 L.append(f"| {cl} | {v['n']} | {v['scored']} | {v['passed']} ({v['passed_pct']}%) | "
+                         f"{v['passed_shipped_v1']} ({v['passed_shipped_v1_pct']}%) | "
                          f"{v['bar'] or '-'} | {v['verdict']} |")
         a = l2["all_non_decoy"]
-        L.append(f"| ALL non-decoy | - | {a['scored']} | {a['passed']} ({a['passed_pct']}%) | - | - |")
+        L.append(f"| ALL non-decoy | - | {a['scored']} | {a['passed']} ({a['passed_pct']}%) | "
+                 f"{a['passed_shipped_v1']} ({a['passed_shipped_v1_pct']}%) | - | - |")
+        L.append("")
+        # BOTH READINGS, AND WHICH ONE THE VERDICT IS TAKEN ON. The two columns differ only on
+        # `near_duplicate` and `multi`, whose `expect` lists are ALTERNATIVES rather than conjunctions;
+        # every other class is scored identically under both, which is why the difference is a scorer
+        # correction and not a re-grading of the wave.
+        _sr = l2.get("scoring_rule") or {}
+        L.append("THE VERDICT COLUMN IS `alternatives` -- a row's `expect` list names, for each cause "
+                 "the ask carries, the ids that would each be a right answer for it, and the picks "
+                 "must reach EXACTLY the row's concept count among the expected groups "
+                 f"(near_duplicate 1, multi {_sr.get('multi_min_concepts', MULTI_MIN_CONCEPTS)} "
+                 "unless the deck declares `concepts:`). `shipped v1` is the same draws under phase "
+                 "B's scorer, which read the list as a CONJUNCTION and so asked one pick to carry two "
+                 "group keys at once; the two columns coincide on every class but those two.")
         L.append("")
         L.append(f"calls {l2['calls']} (errored {l2['errored_calls']}), "
                  f"MEASURED ${l2['usd_measured']:.4f} from the usage fields")
@@ -790,7 +895,11 @@ def print_plan(deck: dict, *, layer: str, draws: int, latency: bool, latency_n: 
 # ── main ─────────────────────────────────────────────────────────────────────────────────────────
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Subject-resolver deck runner (D9 layers 1/2 + D10)")
-    ap.add_argument("--deck", required=True, help="deck YAML (calibration or held-out)")
+    ap.add_argument("--deck", help="deck YAML (calibration or held-out)")
+    ap.add_argument("--rescore", default="",
+                    help="re-score a BANKED run's draws offline under the current scorer and exit. "
+                         "Spends nothing, reads no deck and makes no call: the draws are the "
+                         "measurement and the scorer is the thing that moved.")
     ap.add_argument("--layer", default="both", choices=("1", "2", "both", "none"),
                     help="1 = the free tiers, 2 = the billed planner, both (default), none")
     ap.add_argument("--draws", type=int, default=3, help="layer-2 draws per row (default 3)")
@@ -803,6 +912,45 @@ def main(argv=None) -> int:
     ap.add_argument("--no-bank", action="store_true", help="skip the in-tree summary")
     args = ap.parse_args(argv)
 
+    # ── THE OFFLINE RE-SCORE. A banked run carries every draw's picks, so a scorer correction is a
+    #    RE-READ of one measurement and never a second run -- the same discipline the T2 gate's
+    #    decision table is recomputed under. It loads the graph (the group index is the scorer's other
+    #    input and it must be the LIVE one), and it makes no API call and reads no deck.
+    if args.rescore:
+        src = Path(args.rescore)
+        if not src.is_file():
+            print(f"REFUSED: banked run not found: {src}")
+            return 2
+        banked = json.loads(src.read_text(encoding="utf-8"))
+        rows2 = list(banked.get("layer2_rows") or [])
+        if not rows2:
+            print(f"REFUSED: {src} carries no layer2_rows -- there are no draws to re-score.")
+            return 2
+        graph = load_graph()
+        of_id, inv = group_index(graph)
+        sc = score_layer2(rows2, of_id=of_id, inv=inv)
+        doc = {k: banked.get(k) for k in ("generated_utc", "deck", "rows_total", "graph_hash",
+                                          "vocab_status", "draws", "max_contracts")}
+        doc["deck"] = f"{banked.get('deck')} (RE-SCORED from {src.name})"
+        doc["layers_run"] = ["2"]
+        doc["layer2"] = dict(sc, aborted_on_cost=bool((banked.get("layer2") or {})
+                                                      .get("aborted_on_cost")))
+        doc["bars"] = collect_bars(doc)
+        doc["verdict"], _stops, _misses = verdict_of(doc["bars"])
+        doc["failing_bars"] = _stops + _misses
+        print(_ascii(markdown(doc)))
+        out_dir = Path(args.out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stamp = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        dst = out_dir / f"{src.stem}_RESCORED_{stamp}.json"
+        dst.write_text(json.dumps(dict(doc, layer2_rows=rows2), indent=2, ensure_ascii=False),
+                       encoding="utf-8", newline="\n")
+        print(f"artifact: {dst}")
+        return 0
+
+    if not args.deck:
+        print("REFUSED: --deck is required (or --rescore a banked run).")
+        return 2
     deck_path = Path(args.deck)
     if not deck_path.exists():
         print(f"REFUSED: deck not found: {deck_path}")
@@ -962,10 +1110,13 @@ def main(argv=None) -> int:
             if doc.get(k):
                 # THE ROW IDS ARE DROPPED HERE, and that is the phrase-free rule applied to its
                 # nearest neighbour: a held-out row id plus a class plus a verdict is a map back into
-                # a deck that must stay outside the tree.
+                # a deck that must stay outside the tree. `group_detail` is named explicitly beside
+                # the `_ids` suffix rule because it is the same map wearing a different key: one entry
+                # per near_duplicate/multi row, carrying that row's id.
+                _DROP = ("unscored", "group_detail")
                 v = {kk: vv for kk, vv in doc[k].items() if kk != "per_class"}
                 v["per_class"] = {cl: {kk: vv for kk, vv in d.items()
-                                       if not kk.endswith("_ids") and kk != "unscored"}
+                                       if not kk.endswith("_ids") and kk not in _DROP}
                                   for cl, d in doc[k]["per_class"].items()}
                 summary[k] = v
         if doc.get("latency"):

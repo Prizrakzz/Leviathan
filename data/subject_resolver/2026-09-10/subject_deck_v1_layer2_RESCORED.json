@@ -1,0 +1,153 @@
+{
+  "record": "PHASE B's BANKED LAYER-2 DRAWS, RE-SCORED UNDER THE CORRECTED SCORER -- NO CALL WAS MADE",
+  "date_utc": "2026-09-10",
+  "deck": "subject_deck_v1.yaml",
+  "source_draws": "the 2026-09-10 billed run (312 calls, $2.7889) -- the same draws, re-read",
+  "scorer": "scripts/graphrag/subject_deck_run.py --rescore  (score_layer2, ALTERNATIVES reading)",
+  "what_moved": "a row's expect list is a list of ALTERNATIVES, not a conjunction. near_duplicate demanded the pick's group set EQUAL the expected group set and multi demanded every listed group, so a row whose alternatives fall in two curated slices asked ONE pick to carry two group keys at once. No draw changed; only the rule reading them.",
+  "both_readings": {
+    "near_duplicate": {
+      "alternatives": 10,
+      "shipped_v1": 4,
+      "n": 10
+    },
+    "multi": {
+      "alternatives": 8,
+      "shipped_v1": 5,
+      "n": 8
+    },
+    "all_non_decoy": {
+      "alternatives": 87,
+      "shipped_v1": 78,
+      "n": 90
+    },
+    "every_other_class": "unmoved to the row"
+  },
+  "still_failing_after_the_correction": [
+    "L2 DECOY PICKS (0 on ANY draw, FATAL)"
+  ],
+  "verdict": "STOP",
+  "layer2": {
+    "scoring_rule": {
+      "reading": "alternatives",
+      "also_reported": "shipped_v1",
+      "multi_min_concepts": 2,
+      "note": "a row's expect list is a list of ALTERNATIVES; the picks must reach EXACTLY concept_count(row) of the expected groups (near_duplicate 1, multi 2 unless the deck declares concepts)"
+    },
+    "all_non_decoy": {
+      "scored": 90,
+      "passed": 87,
+      "passed_pct": 96.7,
+      "passed_shipped_v1": 78,
+      "passed_shipped_v1_pct": 86.7
+    },
+    "calls": 312,
+    "errored_calls": 0,
+    "usd_measured": 2.7889,
+    "seat_pin": {
+      "temperature_declared": 0,
+      "temperature_observed": [
+        "0"
+      ],
+      "seat_declared": "claude-sonnet-4-6",
+      "model_observed": [
+        "claude-sonnet-4-6"
+      ],
+      "verdict": "PASS"
+    },
+    "lexical_baseline": {
+      "any_hit_pct": 30.0,
+      "hit_at_1_pct": 23.3,
+      "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
+    },
+    "aborted_on_cost": false,
+    "per_class": {
+      "exact": {
+        "n": 10,
+        "scored": 10,
+        "passed": 9,
+        "passed_pct": 90.0,
+        "passed_shipped_v1": 9,
+        "passed_shipped_v1_pct": 90.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "alias": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 10,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "synonym": {
+        "n": 14,
+        "scored": 14,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 14,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": ">= 90%",
+        "verdict": "PASS"
+      },
+      "misspelling": {
+        "n": 14,
+        "scored": 14,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 14,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": ">= 85%",
+        "verdict": "PASS"
+      },
+      "description": {
+        "n": 14,
+        "scored": 14,
+        "passed": 13,
+        "passed_pct": 92.9,
+        "passed_shipped_v1": 13,
+        "passed_shipped_v1_pct": 92.9,
+        "bar": ">= 70%",
+        "verdict": "PASS"
+      },
+      "acronym": {
+        "n": 10,
+        "scored": 10,
+        "passed": 9,
+        "passed_pct": 90.0,
+        "passed_shipped_v1": 9,
+        "passed_shipped_v1_pct": 90.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "near_duplicate": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 4,
+        "passed_shipped_v1_pct": 40.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "multi": {
+        "n": 8,
+        "scored": 8,
+        "passed": 8,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 5,
+        "passed_shipped_v1_pct": 62.5,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "decoy": {
+        "n": 14,
+        "fired": 2,
+        "bar": "0 picks on ANY draw (FATAL)",
+        "verdict": "FATAL"
+      }
+    }
+  }
+}

@@ -3,22 +3,48 @@
   "date_utc": "2026-09-10",
   "seat": "run seat (the only seat that may spend)",
   "deck": "subject_heldout_v1.yaml",
-  "layers_run_on_this_deck": ["1"],
-  "layer2_status": "HELD -- not run, nothing spent, the blind set is UNSPENT at layer 2",
-  "call_plan_not_executed": {"rows": 110, "draws": 3, "calls": 330, "anchor_usd_per_call": 0.01,
-                             "estimate_usd": 3.30},
-  "why": [
-    "The calibration deck's layer 2 STOPped on the FATAL bar: 2 of 14 decoy rows had the planner pick a subject (one on 3 of 3 draws, one on 2 of 3).",
-    "Closing that FATAL changes the frozen SUBJECT block (its sha is pinned by config_check.check_subject_resolver), which is the instrument the held-out deck exists to measure ONCE.",
-    "The layer-2 near_duplicate and multi bars are not yet a planner measurement: on 10 of 10 near_duplicate and 8 of 8 multi calibration rows the planner reached an expected id at >= 2 of 3 draws, and every miss is either an expect list spanning more than one group key (the scorer reads alternatives as required groups) or a second, defensible co-subject the deck did not list.",
-    "A blind set scored against an instrument that cannot be armed is a spent set and a measurement nobody can use. It is held for the ONE run of the fixed block."
+  "layers_run_on_this_deck": [
+    "1"
   ],
-  "spent_usd_this_sitting": 2.7889,
-  "hard_cap_usd": 12.0,
-  "unspent_headroom_usd": 9.2111,
-  "calibration_layer2_failing_bars": [
-    "L2 DECOY PICKS (0 on ANY draw, FATAL)",
-    "L2 NEAR_DUPLICATE >= 100%",
-    "L2 MULTI >= 100%"
+  "layer2_status": "HELD -- not run, nothing spent, the blind set is UNSPENT at layer 2 against BOTH v1 and v2 of the frozen block",
+  "call_plan_not_executed": {
+    "deck_rows": 110,
+    "draws": 3,
+    "calls": 330,
+    "anchor_usd_per_call": 0.01,
+    "estimate_usd": 3.3
+  },
+  "held_twice": [
+    {
+      "against": "SUBJECT block v1 (sha 39188d42...)",
+      "calibration_deck": "subject_deck_v1.yaml",
+      "calibration_layer2_decoy": "2 of 14 decoy rows fired (dc08 on 3 of 3 draws, dc09 on 2 of 3)",
+      "why_held": "closing the FATAL bar changes the frozen block, which is the instrument the blind set exists to measure ONCE; a blind set scored against an instrument that cannot be armed is a spent set."
+    },
+    {
+      "against": "SUBJECT block v2 (sha 37900160...), the +349-character closure of market structure and how-to-read",
+      "calibration_deck": "subject_deck_v2.yaml (v1's 104 rows verbatim + 14 new decoys of exactly the two shapes v1 failed)",
+      "calibration_layer2_decoy": "7 of 28 decoy rows fired -- dc08, dc16, dc17, dc18, dc21, dc22, dc25",
+      "why_held": "the pre-registered gate for spending the one-shot was a CLEAN layer-2 decoy bar on the calibration deck. It is not clean: the v2 closure moved dc09 (how-to-read) to 0 of 3 and left dc08 (market structure) firing on 2 of 3, and six of the fourteen NEW market-structure and how-to rows fire. The block's v2 is therefore not the instrument to spend the blind set on either."
+    }
+  ],
+  "what_v2_did_and_did_not_close": {
+    "closed": "dc09, the how-to-read ask that fired on 2 of 3 draws under v1, is 0 of 3 under v2. dc23, a how-to-compute ask that names a tracked quantity out loud, is also 0 of 3 at layer 2 despite carrying at layer 1.",
+    "not_closed": "dc08, the market-structure ask the closure was written for, still fires on 2 of 3 draws (calendar_spread). The six new fires are all market structure or a table-reading ask: calendar_spread on 3 rows, basis on 2, cot_positioning/managed_money_positioning on 1.",
+    "mechanism_named": "every fire is an enum id spelled like the market structure it is asked about (calendar_spread, basis) or like the positioning table (cot_positioning). Prose telling the planner that these name no cause does not outrank an enum that carries them: the closure belongs where the id is, not only where the instruction is."
+  },
+  "spent_usd_this_sitting": 3.119,
+  "spent_usd_on_the_heldout": 0.0,
+  "hard_cap_usd": 8.0,
+  "unspent_headroom_usd": 4.881,
+  "calibration_layer2_failing_bars_v2": [
+    "L2 DECOY PICKS (0 on ANY draw, FATAL) -- 7 of 28"
+  ],
+  "calibration_layer2_bars_that_now_hold_v2": [
+    "L2 SYNONYM >= 90% -- 14/14",
+    "L2 MISSPELLING >= 85% -- 14/14",
+    "L2 DESCRIPTION >= 70% -- 13/14",
+    "L2 NEAR_DUPLICATE >= 100% -- 10/10 under the corrected ALTERNATIVES scorer (4/10 under phase B's conjunction reading, same draws)",
+    "L2 MULTI >= 100% -- 8/8 under the corrected scorer (5/8 under phase B's reading, same draws)"
   ]
 }

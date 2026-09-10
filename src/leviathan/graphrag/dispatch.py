@@ -843,6 +843,18 @@ def _subject_block(subject_ids=None) -> str:
     quoted ask here would grade the prompt against its own answer key. ANY EDIT VOIDS THE FREEZE AND
     CONSUMES THE HELD-OUT SET.
 
+    V2 (2026-09-10) IS THE ONE AMENDED FREEZE, AND IT IS A MEASURED CLOSURE RATHER THAN A REWRITE.
+    Phase B's billed layer 2 STOPPED on the FATAL decoy bar: on `subject_deck_v1` the planner picked
+    `calendar_spread` on 3 of 3 draws of a MARKET-STRUCTURE ask and `ending_stocks_su_ratio` on 2 of 3
+    of a HOW-TO-READ ask. The v1 text already said a market is never a subject; what it did not close
+    is that the enum CARRIES an id spelled like the market structure (`calendar_spread`) and like the
+    table (`ending_stocks_su_ratio`), so "names no cause at all" was read as satisfied by the id. The
+    two bullets added below are that closure in the block's own register (+349 characters, ASCII, no
+    quoted ask, no question mark), and nothing else moved. The held-out set was NOT spent at layer 2
+    on v1 -- it was HELD precisely so it could grade THIS text once (D9's one-shot; the bank at
+    `data/subject_resolver/2026-09-10/subject_heldout_v1_layer2_HELD.json` records the hold) -- and it
+    was authored blind to both v1 and v2, so it stays valid. The re-freeze is `SUBJECT_BLOCK_SHA256`.
+
     IT RENDERS TRAILING -- after PRICE-EXTREME DETECTION, immediately before the single
     '## OUTPUT DISCIPLINE' anchor -- which is where every detection section this estate has added since
     D-XT lands, and which measured no routing drift on that lane."""
@@ -861,6 +873,10 @@ def _subject_block(subject_ids=None) -> str:
     "  data_families the last, and both belong outside this field. When the ask is about a market's\n"
     "  own price, its balance sheet, its basis, its spread or its calendar, and it names or describes\n"
     "  no cause at all, leave the array EMPTY.\n"
+    "- HOW A MARKET BEHAVES IS NOT A CAUSE. Its own price, spread, curve, basis, roll or front month\n"
+    "  names no subject, even where the enum carries an id by that name: leave it empty.\n"
+    "- READING A FIGURE IS NOT A CAUSE EITHER. How to read or compute a table, a ratio or a figure,\n"
+    "  and a question about this tool itself, name no subject: leave it empty.\n"
     "- EMPTY IS THE ORDINARY ANSWER and it costs the turn nothing. Leave it empty when the turn\n"
     "  describes no driver; never pad the array to fill it; never carry a cause that is merely\n"
     "  mentioned in passing, cited as background, or dismissed; and never mint a cause the ask does\n"

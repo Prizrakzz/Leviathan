@@ -183,7 +183,15 @@ HINT_ALIAS_CAP = 8
 #: the text is a pin an editor updates in the same keystroke; a pin one module away is one they must
 #: mean to move. ``config_check.check_subject_resolver`` clause (2) grades it, so an edit to the frozen
 #: prompt fails the BUILD rather than silently voiding the measurement and consuming the held-out set.
-SUBJECT_BLOCK_SHA256 = "39188d42d075f73db9c76a29bed95a53e8dc2442b06bd26e61f5d261a66a2489"
+#:
+#: V2, 2026-09-10. The FIRST re-freeze, and it is the one this pin exists to make deliberate. Phase B's
+#: billed layer 2 measured the v1 text picking a subject on two DECOY rows -- ``calendar_spread`` on a
+#: market-structure ask (3 of 3 draws) and ``ending_stocks_su_ratio`` on a how-to-read ask (2 of 3) --
+#: which is D9's FATAL bar. v2 adds the two closures those rows name and NOTHING else (+349 ASCII
+#: characters, no quoted ask, no question mark); the flag-OFF render is still "" and still byte-
+#: identical to HEAD's. v1 was ``39188d42d075f73db9c76a29bed95a53e8dc2442b06bd26e61f5d261a66a2489``
+#: and its measurement is banked in :data:`CALIBRATION_NOTE` as v1's, never carried forward as v2's.
+SUBJECT_BLOCK_SHA256 = "37900160d21a25445322b01b1420641f9e40398ce3fe6872e66fc522228843bb"
 
 #: The artifact's file name. It lives BESIDE the DAGs it was built from -- ``configs/graphrag/`` is the
 #: gitignored overlay the serving image bakes from the live tree, so the artifact rides the SAME image
@@ -1095,4 +1103,73 @@ cache; re-measured 2026-09-10 with the file already in the page cache it is 57.5
 number is the honest figure, and every per-turn row above excludes it. Both costs were per-CALL in the
 first cut of the hint line and MEASURED 33 ms p50 / 62 ms p90 between them -- more than the whole rest
 of the resolver -- of which 18.8 ms was graph.causal_graph_version() re-reading and re-hashing all 36
-causal YAMLs to re-validate a vocabulary the turn had already loaded."""
+causal YAMLs to re-validate a vocabulary the turn had already loaded.
+
+===================================================================================================
+THE v2 ADDENDUM (2026-09-10), after phase B's billed layer 2 STOPPED on the FATAL decoy bar. Three
+decisions and one new finding, all on BANKED per-row scores and BANKED draws -- no deck was re-run
+for any figure below, and nothing here was billed.
+
+(1) THE HINT FLOOR: CONSIDERED, PRICED, AND REFUSED.
+Both of phase B's decoy picks came from candidates in the 0.55-0.56 band, so the obvious lever was a
+HINT_FLOOR between CAND_FLOOR and AMBIG_FLOOR: stop SHOWING the planner a candidate that weak. The
+rule stated before the arithmetic was "take it only if it costs zero true rows". RECOMPUTED from the
+banked per-row scores of BOTH decks (the same re-read the T2 gate's table is built from), all-tiers,
+against the 0.52 baseline of 85/90 calibration and 86/92 held-out:
+
+  HINT_FLOOR   calibration all-tiers   true rows lost   held-out all-tiers   true rows lost
+  0.52 (none)  85/90  94.4%                       -     86/92  93.5%                     -
+  0.58         83/90  92.2%                       2     72/92  78.3%                    14
+  0.60         80/90  88.9%                       5     66/92  71.7%                    20
+  0.62         76/90  84.4%                       9     61/92  66.3%                    25
+
+NOT TAKEN, at any of the three. The cheapest costs two calibration rows (de04 at 0.5427 and de09 at
+0.5756, both description -- the class whose true scores bottom out exactly there) and FOURTEEN
+held-out rows across five classes, which is 15.2% of that deck's non-decoy population. It buys 3 of
+the 7 calibration decoys that carry a candidate and 4 of the 12 held-out ones, and it does not reach
+the second decoy pick AT ALL: dc09's five ids came from the ALIAS tier, which no candidate floor
+fences. So the closure belongs where the pick is made -- the frozen block, whose v2 adds the two
+sentences those rows named -- and not in a threshold that pays for it out of the description class.
+CAND_FLOOR, AMBIG_FLOOR and TOP_K are unmoved.
+
+(2) THE LAYER-2 SCORER WAS WRONG ABOUT `near_duplicate` AND `multi`, AND THE DRAWS PROVE IT.
+A row's `expect` list names, for each cause the ask carries, the ids that would EACH be a right
+answer for it -- alternatives, not a conjunction. Phase B's scorer read it as a conjunction:
+`near_duplicate` demanded `group_keys(pick) == group_keys(expect)` and `multi` demanded every listed
+group. But `groups()` is a curated slice index and two slices can hold two spellings of one cause --
+nd03's `managed_money_positioning` sits apart from the four `slice:cftc_positioning` spellings, nd10's
+`India_export_ban` apart from the other three, and mu02's `Argentina_export_tax` apart from
+`export_tax` -- so the old rule asked ONE pick to carry two group keys at once, or asked the planner
+to name two spellings of one cause as two subjects, which the frozen block forbids in as many words.
+RE-SCORED on phase B's OWN banked draws (scripts/graphrag/subject_deck_run.py --rescore, no call
+made): near_duplicate 4/10 -> 10/10, multi 5/8 -> 8/8, all non-decoy 78/90 -> 87/90. Every other
+class is unmoved to the row. Both readings print on every run from here. AFTER THE CORRECTION THE
+CALIBRATION DECK HAS EXACTLY ONE FAILING LAYER-2 BAR LEFT AND IT IS THE FATAL ONE -- which is what
+makes the block's v2 the whole remaining question.
+
+(3) THE v2 DECK'S NEW DECOY SUB-CLASS, MEASURED AT LAYER 1 (free, 2026-09-10, artifact ok, instrument
+LIVE on 118 of 118 rows). configs/graphrag/subject_deck_v2.yaml is v1's 104 rows verbatim plus
+fourteen decoys of the two shapes the FATAL bar named -- eight market-structure asks and six
+how-to/methodology/tool asks. Layer 1 on all 28 decoys: 17 put a candidate above CAND_FLOOR in front
+of the planner (7 of them v1's), and ONE carries at AMBIG_FLOOR.
+
+THE ONE CARRY IS A FINDING AND IT IS NOT TUNED AWAY. dc23 -- a methodology ask that names a tracked
+quantity by its own reader form -- is EXACT-matched by T0 and its family ranks 0.7962 / 0.7803 /
+0.7567 / 0.7352 / 0.7107, two of them above AMBIG_FLOOR 0.78. The deck's L1 DECOY CARRY bar therefore
+STOPS on v2, by construction and not by drift: v1's decoy class was "asks that name NO driver" and
+0.78 was calibrated on it, while this row names one out loud and asks how it is COMPUTED. That is the
+sub-class's whole point at layer 2, and it exposes a seam-level disagreement worth naming:
+
+  a. THE BLOCK AND THE CARRY DISAGREE ON EXACTLY THIS ASK. The v2 block tells the planner to name no
+     subject on a how-to-compute question -- and `seam._write_subject`'s carry fires on `amb and not
+     picked`, so a planner that obeys is followed by a row asking the reader which driver they meant,
+     and on an anchorless board by a `subject_ambiguous` DECLINE. The closure the block makes at the
+     pick is undone one layer down.
+  b. THE TWO IDS IT WOULD NAME ARE ONE DRIVER. `crush_margin` and `crush_margin_expansion` are both
+     `ref:crush_margin_z`. `ambiguous()` is not group-deduped, so the render's sentence -- "either of
+     two drivers this estate tracks" -- is untrue on this population, and the decline gate
+     `len(amb) >= 2` counts SPELLINGS rather than drivers, which is D4's own hazard arriving at D5.
+
+Both are DOCKETED and neither is fixed here: the fix is in `ambiguous()` and in the seam, and this
+sitting's allowlist reaches neither. The L2 decoy bar -- zero picks on any draw across all 28 rows --
+is the one the block's v2 is graded on and it is independent of this carry."""

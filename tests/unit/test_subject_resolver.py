@@ -43,6 +43,7 @@ from leviathan.graphrag.state import walk as W
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DECK = ROOT / "configs" / "graphrag" / "subject_deck_v1.yaml"
+DECK2 = ROOT / "configs" / "graphrag" / "subject_deck_v2.yaml"
 DIM = 8                                   # the fake vector width; the artifact's real one is 1024
 
 
@@ -1578,7 +1579,12 @@ def test_pb11_THE_IN_TREE_BANK_IS_PHRASE_FREE_AND_ID_FREE():
     if not bank.is_dir():
         pytest.skip("no bank in this checkout")
     banned = {"phrase", "expect", "rows", "layer1_rows", "layer2_rows", "cands", "id",
-              "fired_ids", "carried_ids", "failed_ids", "unscored"}
+              "fired_ids", "carried_ids", "failed_ids", "unscored",
+              # `group_detail` is the near_duplicate/multi per-row reading the corrected scorer adds.
+              # It does not end in `_ids` and it carries one entry PER ROW, each with that row's id --
+              # the same map back into a held-out deck wearing a different key, so it is named here
+              # as well as dropped by name in the runner's bank filter.
+              "group_detail"}
 
     def keys(node):
         """Every KEY in the document tree. The test is structural rather than a substring ban: the
@@ -1760,12 +1766,35 @@ def test_pb15_THE_RUNNING_TOTAL_IS_A_BREAKER_AND_NOT_ONLY_AN_ESTIMATE(monkeypatc
     assert mod.verdict_of(bars)[0] == "STOP"
 
 
+_ORCH = "src/leviathan/graphrag/orchestrator.py"
+
+
+def _pre_resolver_rev(path: str = _ORCH, needle: str = "GRAPHRAG_SUBJECT_RESOLVER") -> str:
+    """THE BASELINE THIS PIN COMPARES AGAINST, RESOLVED RATHER THAN SPELLED `HEAD`.
+
+    The claim is flag-off byte identity against the seam AS IT WAS BEFORE THE RESOLVER, and while the
+    wave was uncommitted that revision was simply `HEAD`. Phase B then landed (856869b6) and `HEAD`
+    became the resolver seam itself, so the literal `HEAD` silently stopped being the baseline: the
+    guard below (`the flag is not in the baseline`) is what caught it rather than the comparison
+    quietly passing against a copy of the tree.
+
+    So the baseline is DERIVED: the parent of the OLDEST commit that introduced `needle` into `path`.
+    `git log -S` and `git show` are READS -- nothing here mutates a ref, touches the index or writes
+    into the worktree -- and the answer moves with the history instead of ageing into a wrong one."""
+    try:
+        out = subprocess.check_output(
+            ["git", "log", "--format=%H", "-S", needle, "--", path], cwd=str(ROOT)).decode().split()
+        return (out[-1] + "^") if out else "HEAD"
+    except Exception:                                   # noqa: BLE001 -- a shallow clone has no parent
+        return "HEAD"
+
+
 def _head_orchestrator():
-    """HEAD's `orchestrator.py`, LOADED AS ITS OWN MODULE -- `_head_dispatch`'s idiom one file over.
-    The only way to prove flag-off byte identity of a CALL is to make HEAD's copy of the seam make it
-    on the same inputs. `git show HEAD:<path>` is a READ: nothing here mutates a ref, touches the index
-    or writes into the worktree."""
-    src = subprocess.check_output(["git", "show", "HEAD:src/leviathan/graphrag/orchestrator.py"],
+    """The PRE-RESOLVER `orchestrator.py`, LOADED AS ITS OWN MODULE -- `_head_dispatch`'s idiom one
+    file over. The only way to prove flag-off byte identity of a CALL is to make that copy of the seam
+    make it on the same inputs. See :func:`_pre_resolver_rev` for which revision that is and why it is
+    no longer spelled `HEAD`."""
+    src = subprocess.check_output(["git", "show", f"{_pre_resolver_rev()}:{_ORCH}"],
                                   cwd=str(ROOT))
     path = pathlib.Path(tempfile.mkdtemp()) / "orchestrator_head.py"
     path.write_bytes(src)
@@ -1822,3 +1851,211 @@ def test_pb1b_FLAG_OFF_IS_BYTE_IDENTICAL_TO_HEAD_AT_BOTH_CALLS(monkeypatch):
         assert sorted(head_kw) == sorted(tree_kw), (tag, sorted(head_kw), sorted(tree_kw))
         assert ({k: canon(v) for k, v in head_kw.items()}
                 == {k: canon(v) for k, v in tree_kw.items()}), tag
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE BLOCK'S v2, THE DECK'S v2, AND THE SCORER CORRECTION (2026-09-10)
+# ---------------------------------------------------------------------------------------------------
+#: The two sentences v2 adds to the frozen block, quoted here so the difference between the two freezes
+#: is a PIN and not a reader's impression. The v1 sha below is the one `state/subject.py` records beside
+#: the new one; reconstructing v1 by removing exactly these bytes and hashing to it is what proves v2 is
+#: v1 PLUS this closure and nothing else -- no reworded bullet, no silent tightening elsewhere.
+_V2_CLOSURE = (
+    "- HOW A MARKET BEHAVES IS NOT A CAUSE. Its own price, spread, curve, basis, roll or front month\n"
+    "  names no subject, even where the enum carries an id by that name: leave it empty.\n"
+    "- READING A FIGURE IS NOT A CAUSE EITHER. How to read or compute a table, a ratio or a figure,\n"
+    "  and a question about this tool itself, name no subject: leave it empty.\n")
+_V1_BLOCK_SHA = "39188d42d075f73db9c76a29bed95a53e8dc2442b06bd26e61f5d261a66a2489"
+
+
+def test_pb16_THE_BLOCK_v2_IS_v1_PLUS_TWO_CLOSURES_AND_NOTHING_ELSE():
+    """THE ONE AMENDED FREEZE. Phase B's billed layer 2 stopped on the FATAL decoy bar with the planner
+    picking `calendar_spread` on a market-structure ask (3 of 3 draws) and `ending_stocks_su_ratio` on
+    a how-to-read ask (2 of 3): v1 said a market and a table are never subjects, but the enum CARRIES
+    ids spelled like both, so "names no cause at all" was satisfiable by the id.
+
+    An amended freeze is only a measurement if the amendment is BOUNDED, so all four properties are
+    pinned together: the closure is PRESENT, it is at most +350 characters, removing it reproduces v1's
+    sha EXACTLY, and the block still renders "" with no vocabulary -- which is what keeps every
+    flag-off byte-identity pin in this file green."""
+    import hashlib
+    blk = dp._subject_block(("El_Nino",))
+    assert _V2_CLOSURE in blk
+    assert len(_V2_CLOSURE) <= 350, len(_V2_CLOSURE)
+    assert blk.isascii() and "?" not in blk
+    assert hashlib.sha256(blk.encode("utf-8")).hexdigest() == SU.SUBJECT_BLOCK_SHA256
+    v1 = blk.replace(_V2_CLOSURE, "")
+    assert len(blk) - len(v1) == len(_V2_CLOSURE) == 349
+    assert hashlib.sha256(v1.encode("utf-8")).hexdigest() == _V1_BLOCK_SHA
+    # THE PREDECESSOR IS RECORDED WHERE THE PIN IS, never only in a commit message: a reader who finds
+    # a moved sha has to be able to see WHICH text it moved from without leaving the module.
+    src = pathlib.Path(SU.__file__).read_text(encoding="utf-8")
+    assert _V1_BLOCK_SHA in src and SU.SUBJECT_BLOCK_SHA256 in src
+    # AND THE FLAG-OFF RENDER IS UNTOUCHED. `_subject_block` is the omit-when-off idiom's producer.
+    assert dp._subject_block(None) == "" and dp._subject_block(()) == ""
+
+
+def test_pb16b_THE_HINT_FLOOR_DECISION_IS_STATED_WITH_ITS_PRICE():
+    """D9's discipline on a constant: a lever considered and REFUSED is banked with the arithmetic that
+    refused it, so the next reader does not re-open it from memory. The floors themselves are UNMOVED
+    -- that is the decision -- and `CALIBRATION_NOTE` carries the cost table both decks were priced on
+    plus the reason the lever could not have reached the second decoy pick at all (an ALIAS-tier pick,
+    which no candidate floor fences)."""
+    assert (SU.CAND_FLOOR, SU.AMBIG_FLOOR, SU.TOP_K) == (0.52, 0.78, 5)
+    note = SU.CALIBRATION_NOTE
+    assert "HINT FLOOR" in note and "NOT TAKEN" in note
+    for f in ("0.58", "0.60", "0.62"):
+        assert f in note, f
+    assert note.isascii()
+    # THE MODULE STILL DECLARES NO SUCH CONSTANT. A note that says "refused" beside a constant that
+    # exists is a lever half-pulled; the decision is that there is no HINT_FLOOR to read.
+    assert not hasattr(SU, "HINT_FLOOR")
+
+
+@pytest.fixture(scope="module")
+def deck2():
+    return yaml.safe_load(DECK2.read_text(encoding="utf-8"))
+
+
+def test_pb17_THE_v2_DECK_IS_v1_VERBATIM_PLUS_ONE_DECOY_SUB_CLASS(deck, deck2):
+    """D9: a frozen instrument is never EDITED, it is superseded by a file that carries it. v2's first
+    one hundred and four rows must be v1's rows -- not equivalent, IDENTICAL, and identical as BYTES in
+    the file as well as after the parse, because a reflowed row is a row someone touched. What v2 adds
+    is one decoy sub-class of the two shapes the FATAL bar named, every row of it expecting nothing."""
+    rows1, rows2 = deck["rows"], deck2["rows"]
+    assert len(rows1) == 104 and len(rows2) >= 114
+    assert rows2[:104] == rows1, "v2's carried rows are not v1's"
+    text1, text2 = DECK.read_text(encoding="utf-8"), DECK2.read_text(encoding="utf-8")
+    assert text1[text1.index("deterministic: true"):] in text2, "the carried rows were reflowed"
+    assert text2.isascii()
+    new = rows2[104:]
+    assert len(new) >= 10, len(new)
+    assert all(r["klass"] == "decoy" and r["expect"] == [] for r in new)
+    assert all(r.get("frozen") is True and r.get("split") == "calibration" for r in new)
+    assert len({r["id"] for r in rows2}) == len(rows2)
+    # NO PROMPT SENTENCE REACHES A ROW. The block is graded blind by a held-out deck; a decoy phrase
+    # lifted from the block's own wording would grade the prompt against its own answer key, and the
+    # same reasoning runs in this direction too.
+    blk = dp._subject_block(("El_Nino",)).lower()
+    for r in new:
+        assert r["phrase"].lower() not in blk and "?" not in r["phrase"]
+    # THE HEADER PINS THE INSTRUMENT'S THREE INPUTS: the vocabulary it was scored against, the floors
+    # it was scored under, and the PROMPT it grades. A deck run whose block sha is not this one is
+    # measuring a different text and its decoy figures do not carry across.
+    assert "vocabulary_hash: 99dc11409fe9" in text2
+    assert "CAND_FLOOR: %s" % SU.CAND_FLOOR in text2
+    assert "AMBIG_FLOOR: %s" % SU.AMBIG_FLOOR in text2
+    assert SU.SUBJECT_BLOCK_SHA256 in text2 and _V1_BLOCK_SHA in text2
+    assert "ZERO picks on ANY draw" in text2
+
+
+def test_pb17b_EVERY_v2_EXPECT_ID_EXISTS_AND_THE_NEW_ROWS_NAME_NONE(deck2, graph):
+    """The v1 rule applied to v2: an id that left the graph is a row to RETIRE by hand and this is
+    where it surfaces. And the new sub-class is a DECOY class -- its rows assert nothing at all, so a
+    curation commit can never quietly turn one of them into a scored row."""
+    alive = set(SU.live_ids(graph))
+    bad = sorted({e for r in deck2["rows"] for e in (r.get("expect") or []) if e not in alive})
+    assert bad == [], bad
+    assert all(not r["expect"] for r in deck2["rows"][104:])
+
+
+def _alt_index():
+    """A hand-built group index: `a1`/`a2` are two ALTERNATIVE spellings of one cause that the slice
+    index happens to put in two groups -- `nd03`, `nd10` and `mu02`'s real shape, reproduced without a
+    graph so the pin measures the SCORER and not the curation."""
+    of_id = {"a1": "g1", "a2": "g2", "b1": "g3", "c1": "g4"}
+    inv = {"g1": {"a1"}, "g2": {"a2"}, "g3": {"b1"}, "g4": {"c1"}}
+    return of_id, inv
+
+
+def _draws(*picks):
+    return [{"subject": list(p), "temperature": 0, "usd": 0.0,
+             "usage": {"model": "claude-sonnet-4-6", "in": 1, "out": 1,
+                       "cache_read": 0, "cache_write": 0}} for p in picks]
+
+
+def test_pb18_THE_SCORER_READS_expect_AS_ALTERNATIVES_AND_REPORTS_BOTH_READINGS():
+    """THE CORRECTION, AND IT IS A SCORER DEFECT RATHER THAN A RESOLVER ONE. A row's `expect` list
+    names, for each cause the ask carries, the ids that would EACH be a right answer for it. Phase B's
+    scorer read it as a CONJUNCTION: `near_duplicate` demanded the pick's group set EQUAL the expected
+    group set, and `multi` demanded every listed group -- so a row whose alternatives fall in two
+    curated slices asked ONE pick to carry two group keys at once, and a `multi` row listing two
+    spellings of one cause asked the planner to name it twice, which the frozen block forbids in as
+    many words. Both readings are computed on every run so the two can never be confused."""
+    mod = _runner()
+    of_id, inv = _alt_index()
+    rows = [{"id": "nd", "klass": "near_duplicate", "expect": ["a1", "a2"],
+             "draws": _draws(["a1"], ["a1"], ["a1"])},
+            {"id": "mu", "klass": "multi", "expect": ["a1", "a2", "b1"],
+             "draws": _draws(["a1", "b1"], ["a1", "b1"], ["a1", "b1"])}]
+    sc = mod.score_layer2(rows, of_id=of_id, inv=inv)
+    nd, mu = sc["per_class"]["near_duplicate"], sc["per_class"]["multi"]
+    assert (nd["passed"], nd["passed_shipped_v1"]) == (1, 0), nd
+    assert (mu["passed"], mu["passed_shipped_v1"]) == (1, 0), mu
+    assert sc["scoring_rule"]["reading"] == "alternatives"
+    assert sc["scoring_rule"]["multi_min_concepts"] == mod.MULTI_MIN_CONCEPTS == 2
+    assert sc["all_non_decoy"]["passed"] == 2 and sc["all_non_decoy"]["passed_shipped_v1"] == 0
+    # THE PER-ROW READING RIDES THE SCRATCHPAD RECORD so a bar can be audited without a re-run.
+    assert {d["id"]: (d["concepts"], d["expected_groups"], d["groups_reached"])
+            for d in nd["group_detail"] + mu["group_detail"]} == {"nd": (1, 2, 1), "mu": (2, 3, 2)}
+
+
+def test_pb18b_THE_CORRECTED_READING_IS_NOT_THE_LOOSE_ONE():
+    """The equality is deliberate and it keeps both classes' teeth. `near_duplicate` is ONE subject
+    under several spellings, so a planner that hedges across two of its alternative families has not
+    resolved it; `multi` is two SEPARATE causes, so a planner that names one cause twice has not found
+    the second. And a pick in no expected family at all still fails."""
+    mod = _runner()
+    of_id, inv = _alt_index()
+    hedged = [{"id": "nd", "klass": "near_duplicate", "expect": ["a1", "a2"],
+               "draws": _draws(["a1", "a2"], ["a1", "a2"], ["a1", "a2"])}]
+    assert mod.score_layer2(hedged, of_id=of_id, inv=inv)["per_class"]["near_duplicate"]["passed"] == 0
+    wrong = [{"id": "nd", "klass": "near_duplicate", "expect": ["a1", "a2"],
+              "draws": _draws(["c1"], ["c1"], ["c1"])}]
+    assert mod.score_layer2(wrong, of_id=of_id, inv=inv)["per_class"]["near_duplicate"]["passed"] == 0
+    twice = [{"id": "mu", "klass": "multi", "expect": ["a1", "a2", "b1"],
+              "draws": _draws(["a1", "a2", "b1"], ["a1", "a2", "b1"], ["a1", "a2", "b1"])}]
+    assert mod.score_layer2(twice, of_id=of_id, inv=inv)["per_class"]["multi"]["passed"] == 0
+    # A DECK MAY DECLARE THE PARTITION where two causes is not the shape. Neither shipped deck does,
+    # and the default is the `multi` class's own contract, so the override is the stated way out.
+    three = [{"id": "mu", "klass": "multi", "expect": ["a1", "a2", "b1"],
+              "concepts": [["a1"], ["a2"], ["b1"]],
+              "draws": _draws(["a1", "a2", "b1"], ["a1", "a2", "b1"], ["a1", "a2", "b1"])}]
+    assert mod.score_layer2(three, of_id=of_id, inv=inv)["per_class"]["multi"]["passed"] == 1
+    assert mod.concept_count({"klass": "near_duplicate"}) == 1
+    assert mod.concept_count({"klass": "multi"}) == 2
+
+
+def test_pb18c_THE_REPORT_PRINTS_BOTH_COLUMNS_AND_NAMES_THE_ONE_IT_GRADES():
+    """A number whose RULE moved between two runs must never be printed as if it had not. The layer-2
+    table carries both columns and one sentence saying which the verdict is taken on."""
+    mod = _runner()
+    of_id, inv = _alt_index()
+    rows = [{"id": "nd", "klass": "near_duplicate", "expect": ["a1", "a2"],
+             "draws": _draws(["a1"], ["a1"], ["a1"])}]
+    sc = mod.score_layer2(rows, of_id=of_id, inv=inv)
+    doc = {"generated_utc": "x", "deck": "d", "rows_total": 1, "graph_hash": "h",
+           "vocab_status": "ok", "draws": 3, "max_contracts": 2, "layers_run": ["2"],
+           "layer2": dict(sc, aborted_on_cost=False, running_usd=0.0)}
+    doc["bars"] = mod.collect_bars(doc)
+    doc["verdict"], _s, _m = mod.verdict_of(doc["bars"])
+    doc["failing_bars"] = _s + _m
+    md = mod.markdown(doc)
+    assert "passed (alternatives)" in md and "passed (shipped v1)" in md
+    assert "THE VERDICT COLUMN IS `alternatives`" in md
+    assert md.isascii()
+
+
+def test_pb19_THE_OFFLINE_RESCORE_READS_BANKED_DRAWS_AND_SPENDS_NOTHING(tmp_path, capsys):
+    """A scorer correction is a RE-READ of one measurement and never a second run: the draws are
+    banked, so re-scoring them costs nothing and consumes no one-shot. The mode reads no deck and makes
+    no call, and it REFUSES a bank that carries no draws rather than reporting an empty table."""
+    mod = _runner()
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps({"deck": "d.yaml"}), encoding="utf-8")
+    assert mod.main(["--rescore", str(empty), "--out-dir", str(tmp_path)]) == 2
+    assert "carries no layer2_rows" in capsys.readouterr().out
+    assert mod.main(["--rescore", str(tmp_path / "nope.json"), "--out-dir", str(tmp_path)]) == 2
+    assert "banked run not found" in capsys.readouterr().out
+    assert mod.main([]) == 2
+    assert "--deck is required" in capsys.readouterr().out

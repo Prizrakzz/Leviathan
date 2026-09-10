@@ -1,0 +1,475 @@
+# THE SUBJECT RESOLVER CALIBRATION DECK, v2 -- v1 VERBATIM PLUS THE DECOY SUB-CLASS THE BLOCK'S
+# FATAL BAR NAMED
+#
+# Design: docs/private/SUBJECT_RESOLVER_SITTING_2026-09-09.md D9. v1: configs/graphrag/subject_deck_v1.yaml.
+#
+# WHY THERE IS A v2 AT ALL, AND WHY IT IS NOT AN EDIT. D9's rule for a frozen instrument is that it is
+# never edited: a deck whose rows move between two runs cannot compare them. So v1's one hundred and
+# four rows are carried here BYTE FOR BYTE -- same ids, same classes, same phrases, same expected ids,
+# same order -- and this file adds a new DECOY SUB-CLASS after them and changes nothing else. Every
+# figure v1 measured is therefore still measurable on this deck, row for row, beside the new rows.
+#
+# WHAT THE NEW ROWS ARE FOR. Phase B's billed layer 2 STOPPED on the FATAL decoy bar and named the
+# mechanism exactly: the planner picked `calendar_spread` on a MARKET-STRUCTURE ask (3 of 3 draws) and
+# `ending_stocks_su_ratio` on a HOW-TO-READ ask (2 of 3). The frozen block said a market, a commodity
+# and a table are never subjects; what it had not closed is that the 405-id enum CARRIES ids spelled
+# like the market structure and like the table, so "names no cause at all" was satisfiable by the id.
+# The block's v2 closes both in its own register. TWO ROWS ARE NOT A MEASUREMENT OF A CLOSURE, so this
+# deck adds FOURTEEN more of exactly those two shapes -- eight asks about how a market's own price,
+# spread, curve, basis, roll or front month BEHAVES, and six about how to READ or COMPUTE a table, a
+# ratio or a figure, or about the tool itself. They are written in a desk analyst's words, several of
+# them name a concept the enum carries an id for (basis, crush margin, calendar spread, a stocks-to-use
+# ratio), and every one of them expects the EMPTY ARRAY. That is the point: a decoy that no id shadows
+# tests nothing.
+#
+# NO HELD-OUT PHRASE IS IN THIS FILE. The held-out deck lives outside the repo, was authored blind to
+# both versions of the block, and its layer 2 has never been run -- it is the one-shot that grades the
+# v2 block. The author of these fourteen rows has not read it.
+#
+# freeze:
+#   date: 2026-09-10
+#   wave: STATE ENGINE -- SUBJECT RESOLVER, phase B follow-up (the block's v2)
+#   supersedes: subject_deck_v1.yaml -- rows 1-104 are that file's rows verbatim
+#   added: dc15-dc28, one new decoy sub-class (market structure; how-to / methodology / the tool)
+#   scored_by: |
+#     LAYER 1 -- state.subject.resolve(phrase, graph=CausalGraph.load()) -> SubjectHints, unchanged
+#     from v1: a row passes when any expected id, OR any member of that id's subject GROUP
+#     (state.subject.groups), appears in the union of hints.exact + hints.alias + the top-5
+#     hints.candidates. LAYER 2 -- dispatch.plan_turn at the seat below, 3 draws, a row passes at
+#     >= 2 of 3, scored by scripts/graphrag/subject_deck_run.py:score_layer2 under the ALTERNATIVES
+#     reading: a row's expect list names, for each cause the ask carries, the ids that would each be a
+#     right answer for it, and the picks must reach EXACTLY the row's concept count among the expected
+#     groups (near_duplicate 1, multi 2). v1's runs were scored under the CONJUNCTION reading, which
+#     asked one pick to carry two group keys at once; both columns are printed on every run.
+#   seat: claude-sonnet-4-6, temperature 0, max_contracts 2 (layer 2). Layer 1 has NO sampling seat --
+#     bge-m3 at fixed weights is deterministic, so one draw per row is the whole run.
+#   vocabulary_hash: 99dc11409fe9
+#   artifact: configs/graphrag/subject_vocab.npz -- 4,000 rows x 1,024, bge-m3, built 2026-09-09 in
+#     1,814 s by scripts/graphrag/build_subject_vocab.py
+#   planner_block_sha256: 37900160d21a25445322b01b1420641f9e40398ce3fe6872e66fc522228843bb
+#     dispatch._subject_block, the v2 text, pinned at state.subject.SUBJECT_BLOCK_SHA256 and graded by
+#     config_check.check_subject_resolver. v1 of that block was
+#     39188d42d075f73db9c76a29bed95a53e8dc2442b06bd26e61f5d261a66a2489 and it is the text the banked
+#     v1 layer-2 figures were measured against. A deck run whose block sha is not the line above is
+#     measuring a different prompt and its decoy figures do not carry across.
+#   bars:
+#     exact: 100% in hints.exact
+#     alias: 100% in hints.exact + hints.alias
+#     synonym: >= 90% of rows carry an expected id or its group in the top-5 (layer 1); >= 90% of
+#       rows passed at >= 2 of 3 draws (layer 2)
+#     misspelling: >= 85% on both layers
+#     description: >= 75% (layer 1), >= 70% (layer 2)
+#     acronym: 100% (these ids are reachable ONLY through their prose)
+#     near_duplicate: layer 1 -- the expected GROUP appears in the top-5. Layer 2 -- 100%: the pick's
+#       group equals ANY expected id's group, and exactly one of them. The expect list is a list of
+#       ALTERNATIVES for ONE cause, so a pick cannot be asked to carry two of its group keys at once.
+#     multi: layer 1 -- the groups present in the hints. Layer 2 -- 100%: every expected CONCEPT
+#       covered by some pick, a concept being the set of alternative ids the row lists for that cause.
+#     decoy: layer 1 -- ZERO candidates at or above AMBIG_FLOOR. Layer 2 -- ZERO picks on ANY draw
+#       across ALL TWENTY-EIGHT decoy rows. Both are FATAL and neither is a rate: the estate's cost of
+#       a false subject is a board anchored on a question that named no driver.
+#   calibration:
+#     CAND_FLOOR: 0.52
+#     AMBIG_FLOOR: 0.78
+#     TOP_K: 5
+#     UNMOVED FROM v1, AND THE HINT FLOOR WAS CONSIDERED AND REFUSED. Both v1 decoy picks came from
+#     candidates scoring 0.55-0.56, so a HINT_FLOOR between CAND_FLOOR and AMBIG_FLOOR would have
+#     removed dc08's candidate -- and recomputing the banked per-row scores of BOTH decks at 0.58 /
+#     0.60 / 0.62 costs 2 / 5 / 9 true calibration rows and 14 / 20 / 25 true held-out rows. The rule
+#     was "take it only if it costs zero true rows", so it is NOT taken; and it would not have reached
+#     dc09 at all, whose five candidate ids came from the ALIAS tier, which no candidate floor fences.
+#     The full table is banked on state.subject.CALIBRATION_NOTE.
+#
+# ---------------------------------------------------------------------------------------------------
+# THE NEW SUB-CLASS, MEASURED AT LAYER 1 BEFORE ANYTHING WAS BILLED (2026-09-10, free, artifact ok,
+# instrument LIVE on 118 of 118 rows)
+# ---------------------------------------------------------------------------------------------------
+#   The 104 carried rows reproduce v1 to the row on every class (exact 10/10, alias 10/10, synonym
+#   10/14, misspelling 13/14, description 14/14, acronym 10/10), which is what carrying them verbatim
+#   is for. Over all TWENTY-EIGHT decoys: 17 put a candidate above CAND_FLOOR in front of the planner
+#   (7 of those are v1's), and ONE carries at AMBIG_FLOOR -- so this deck's L1 DECOY CARRY bar STOPS.
+#   IT IS A FINDING AND IT IS NOT TUNED AWAY. The row is dc23, a methodology ask that names a tracked
+#   quantity by its own reader form: T0 EXACT-matches `crush_margin` and the family ranks 0.7962 /
+#   0.7803 / 0.7567 / 0.7352 / 0.7107, two of them above AMBIG_FLOOR 0.78. v1's decoy class was "asks
+#   that name NO driver" and 0.78 was calibrated on exactly that population; this row names one out
+#   loud and asks how it is COMPUTED, which is the sub-class's whole point at layer 2. What it exposes
+#   is a seam-level disagreement, docketed on state.subject.CALIBRATION_NOTE and fixed nowhere here:
+#     a. the v2 block tells the planner to name NO subject on a how-to-compute ask, and
+#        seam._write_subject's carry fires on `amb and not picked` -- so a planner that OBEYS is
+#        followed by a row asking the reader which driver they meant, and on an anchorless board by a
+#        `subject_ambiguous` decline. The closure made at the pick is undone one layer down.
+#     b. the two ids that row would name are ONE driver: `crush_margin` and `crush_margin_expansion`
+#        are both `ref:crush_margin_z`. `ambiguous()` is not group-deduped, so the render's sentence
+#        ("either of two drivers this estate tracks") is untrue here and the decline gate
+#        `len(amb) >= 2` counts SPELLINGS rather than drivers.
+#   THE BAR THE BLOCK'S v2 IS GRADED ON IS THE LAYER-2 ONE -- zero picks on any draw across all 28
+#   decoy rows -- and it is independent of this carry. dc23 is kept because a decoy no id shadows
+#   tests nothing, and because deleting a row that fails is how an instrument stops measuring.
+#
+# ---------------------------------------------------------------------------------------------------
+# THE ROWS BELOW, THROUGH dc14, ARE subject_deck_v1.yaml's ONE HUNDRED AND FOUR ROWS VERBATIM.
+# v1's own header -- the layer-1 result table, the held-out layer-1 table, the like-for-like baseline
+# and the curation docket -- is not repeated here; it is in that file and it still stands.
+# ---------------------------------------------------------------------------------------------------
+version: 2
+deterministic: true
+rows:
+
+# ---------------------------------------------------------------------------------------------------
+# EXACT -- the phrase carries the driver id or its reader form. T0 must reach every one of these with
+# no artifact and no embedder at all: this class is the FAIL-OPEN FLOOR, measured.
+# ---------------------------------------------------------------------------------------------------
+- {id: ex01, klass: exact, split: calibration, frozen: true, expect: [La_Nina],
+   phrase: 'what does La Nina do to corn yields'}
+- {id: ex02, klass: exact, split: calibration, frozen: true, expect: [heat_stress],
+   phrase: 'how does heat stress hit soybean pod fill'}
+- {id: ex03, klass: exact, split: calibration, frozen: true, expect: [biodiesel_mandate],
+   phrase: 'the biodiesel mandate and its effect on palm'}
+- {id: ex04, klass: exact, split: calibration, frozen: true, expect: [export_ban],
+   phrase: 'talk me through the export ban on rice'}
+- {id: ex05, klass: exact, split: calibration, frozen: true, expect: [managed_money_positioning],
+   phrase: 'what is managed money positioning doing in cotton'}
+- {id: ex06, klass: exact, split: calibration, frozen: true, expect: [freight_rates],
+   phrase: 'freight rates and the soybean basis'}
+- {id: ex07, klass: exact, split: calibration, frozen: true, expect: [safrinha],
+   phrase: 'what is the safrinha doing to the corn balance sheet'}
+- {id: ex08, klass: exact, split: calibration, frozen: true, expect: [import_tariff],
+   phrase: 'how does the import tariff change the trade flow'}
+- {id: ex09, klass: exact, split: calibration, frozen: true, expect: [crude_oil],
+   phrase: 'walk me through crude oil passing through into soyoil'}
+- {id: ex10, klass: exact, split: calibration, frozen: true, expect: [flash_drought],
+   phrase: 'is a flash drought setting up in the western belt'}
+
+# ---------------------------------------------------------------------------------------------------
+# ALIAS -- a curated `driver_slices.yaml` term, never the id. T1 must reach every one, again with no
+# artifact and no embedder. The alias map covers 297 of 405 ids (73.3%), so this class is bounded by
+# curation and not by the resolver.
+# ---------------------------------------------------------------------------------------------------
+- {id: al01, klass: alias, split: calibration, frozen: true, expect: [El_Nino],
+   phrase: 'what does the ENSO warm phase do to arabica'}
+- {id: al02, klass: alias, split: calibration, frozen: true,
+   expect: [cot_mm_positioning, cot_positioning, spec_positioning, speculative_positioning],
+   phrase: 'what do the commitments of traders say about cotton'}
+- {id: al03, klass: alias, split: calibration, frozen: true,
+   expect: [USD_index, USD_macro, USD_strength, dollar_index],
+   phrase: 'what is the DXY doing to ag export competitiveness'}
+- {id: al04, klass: alias, split: calibration, frozen: true,
+   expect: [biodiesel_mandate, blend_mandate, RenovaBio, red_iii_mandate],
+   phrase: 'does the blending mandate lift palm demand this year'}
+- {id: al05, klass: alias, split: calibration, frozen: true,
+   expect: [freight_rates, freight_cost, freight_costs, freight_logistics],
+   phrase: 'how much does ocean freight matter for the soybean basis'}
+- {id: al06, klass: alias, split: calibration, frozen: true,
+   expect: [fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs],
+   phrase: 'is the nutrient cost squeezing corn acreage'}
+- {id: al07, klass: alias, split: calibration, frozen: true,
+   expect: [crude_oil, crude_oil_price, crude_oil_input_cost],
+   phrase: 'what does Brent do to the vegoil complex'}
+- {id: al08, klass: alias, split: calibration, frozen: true,
+   expect: [EUDR, EU_EUDR, eudr_deforestation],
+   phrase: 'the EU deforestation regulation and the cocoa differential'}
+- {id: al09, klass: alias, split: calibration, frozen: true, expect: [MSP, India_MSP],
+   phrase: 'what does the minimum support price do to Indian wheat'}
+- {id: al10, klass: alias, split: calibration, frozen: true,
+   expect: [Panama_Canal_constraint, freight_disruption, port_closure],
+   phrase: 'does the Panama Canal draft limit change soybean freight'}
+
+# ---------------------------------------------------------------------------------------------------
+# SYNONYM -- the trade's own other name for the thing. This is where the shipped lexical leg measured
+# 6/10 and where the semantic tier has to earn its place.
+# ---------------------------------------------------------------------------------------------------
+- {id: sy01, klass: synonym, split: calibration, frozen: true, expect: [El_Nino],
+   phrase: 'what does the pacific warming do to corn'}
+- {id: sy02, klass: synonym, split: calibration, frozen: true, expect: [La_Nina],
+   phrase: 'how does the cold phase in the tropical pacific hit the second corn crop'}
+- {id: sy03, klass: synonym, split: calibration, frozen: true,
+   expect: [biodiesel_mandate, blend_mandate],
+   phrase: 'walk me through Indonesia mandatory palm diesel blending target'}
+- {id: sy04, klass: synonym, split: calibration, frozen: true,
+   expect: [china_import_demand, China_import_pace, china_soybean_import],
+   phrase: 'is Chinese buying still supporting beans'}
+- {id: sy05, klass: synonym, split: calibration, frozen: true,
+   expect: [USD_index, USD_strength, dollar_index],
+   phrase: 'is a firmer US currency weighing on ag exports'}
+- {id: sy06, klass: synonym, split: calibration, frozen: true,
+   expect: [managed_money_positioning, cot_mm_positioning, speculative_positioning, spec_positioning],
+   phrase: 'are the big trend followers stretched long in cotton'}
+- {id: sy07, klass: synonym, split: calibration, frozen: true,
+   expect: [fusarium_head_blight, aflatoxin],
+   phrase: 'what does wheat scab do to milling quality'}
+- {id: sy08, klass: synonym, split: calibration, frozen: true,
+   expect: [EUDR, EU_EUDR, eudr_deforestation],
+   phrase: 'the Brussels traceability rules for cocoa supply chains'}
+- {id: sy09, klass: synonym, split: calibration, frozen: true, expect: [RFS, ethanol_demand],
+   phrase: 'the federal biofuel blending obligation and soyoil demand'}
+- {id: sy10, klass: synonym, split: calibration, frozen: true,
+   expect: [blacksea_export_disruption, BlackSea_export_quota_war],
+   phrase: 'the Ukrainian grain shipping corridor collapsing again'}
+- {id: sy11, klass: synonym, split: calibration, frozen: true,
+   expect: [BRL_FX, BRL_USD, BRL_USD_fx, BRL_weakness],
+   phrase: 'a weaker Brazilian currency and how it changes farmer selling'}
+- {id: sy12, klass: synonym, split: calibration, frozen: true,
+   expect: [monsoon_active, monsoon_weak],
+   phrase: 'the Indian summer rains and the cane crop'}
+- {id: sy13, klass: synonym, split: calibration, frozen: true,
+   expect: [China_state_reserves, China_reserve_release, state_reserve_release, state_reserve_buildup],
+   phrase: 'does a Chinese government grain auction cap the rally'}
+- {id: sy14, klass: synonym, split: calibration, frozen: true,
+   expect: [ASF_outbreak, ASF_hog_herd, China_hog_herd],
+   phrase: 'a pig epidemic in China and what it does to meal demand'}
+
+# ---------------------------------------------------------------------------------------------------
+# MISSPELLING -- every one of these falls through a word-boundary matcher with no fuzzy leg, which is
+# why the shipped lexical leg measured 2/10 here. bge-m3's character-level robustness is the claim.
+# ---------------------------------------------------------------------------------------------------
+- {id: ms01, klass: misspelling, split: calibration, frozen: true, expect: [El_Nino],
+   phrase: 'what does el ninio do to arabica'}
+- {id: ms02, klass: misspelling, split: calibration, frozen: true, expect: [La_Nina],
+   phrase: 'how does la nina afect corn yeilds'}
+- {id: ms03, klass: misspelling, split: calibration, frozen: true,
+   expect: [drought, regional_drought, prairie_drought],
+   phrase: 'does drougth in the corn belt lift prices'}
+- {id: ms04, klass: misspelling, split: calibration, frozen: true,
+   expect: [frost, early_frost, winterkill_frost],
+   phrase: 'is there a frots risk in brazil coffee'}
+- {id: ms05, klass: misspelling, split: calibration, frozen: true,
+   expect: [heat_stress, flowering_heat_stress, terminal_heat],
+   phrase: 'heat stres during pod fill in the midwest'}
+- {id: ms06, klass: misspelling, split: calibration, frozen: true,
+   expect: [biodiesel_mandate, blend_mandate],
+   phrase: 'how does the biodesel mandat move palm'}
+- {id: ms07, klass: misspelling, split: calibration, frozen: true, expect: [coffee_leaf_rust],
+   phrase: 'cofee leaf rustt in colombia this season'}
+- {id: ms08, klass: misspelling, split: calibration, frozen: true,
+   expect: [fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs],
+   phrase: 'what is the ferilizer cost doing to acreage'}
+- {id: ms09, klass: misspelling, split: calibration, frozen: true,
+   expect: [Panama_Canal_constraint],
+   phrase: 'the panama cannal constraint on soybean freigt'}
+- {id: ms10, klass: misspelling, split: calibration, frozen: true,
+   expect: [export_ban, India_export_ban],
+   phrase: 'export banns on rice out of india'}
+- {id: ms11, klass: misspelling, split: calibration, frozen: true,
+   expect: [managed_money_positioning, cot_mm_positioning],
+   phrase: 'manged money positionning in corn futures'}
+- {id: ms12, klass: misspelling, split: calibration, frozen: true,
+   expect: [excess_rain, flood, waterlogging],
+   phrase: 'excesive rainfal and waterloging in the delta'}
+- {id: ms13, klass: misspelling, split: calibration, frozen: true, expect: [safrinha],
+   phrase: 'how is the safrina crop looking in mato grosso'}
+- {id: ms14, klass: misspelling, split: calibration, frozen: true,
+   expect: [USD_index, dollar_index, USD_strength],
+   phrase: 'a stronger dolar index and ag competitivness'}
+
+# ---------------------------------------------------------------------------------------------------
+# DESCRIPTION -- the ask says what the thing DOES and never names it. The shipped lexical leg measured
+# 1/10 here, and only because one phrase happened to contain the literal words 'balance sheet'.
+# ---------------------------------------------------------------------------------------------------
+- {id: de01, klass: description, split: calibration, frozen: true, expect: [Mississippi_low_water],
+   phrase: 'when the river gets too shallow to barge grain south'}
+- {id: de02, klass: description, split: calibration, frozen: true, expect: [coffee_berry_borer],
+   phrase: 'the insect that bores into coffee cherries'}
+- {id: de03, klass: description, split: calibration, frozen: true,
+   expect: [managed_money_positioning, cot_mm_positioning, speculative_positioning],
+   phrase: 'traders holding record bets on the long side'}
+- {id: de04, klass: description, split: calibration, frozen: true,
+   expect: [China_state_reserves, state_reserve_buildup, buffer_stock_release],
+   phrase: 'when the government buys grain into a strategic store'}
+- {id: de05, klass: description, split: calibration, frozen: true, expect: [blocking_high],
+   phrase: 'a wall of high pressure parking over the plains'}
+- {id: de06, klass: description, split: calibration, frozen: true,
+   expect: [ending_stocks_su_ratio, psd_ending_stock_su_ratio, ending_stock_ratio],
+   phrase: 'the ratio that says how tight the balance sheet is'}
+- {id: de07, klass: description, split: calibration, frozen: true,
+   expect: [crude_oil, crude_oil_price],
+   phrase: 'oil going up makes the blend worth more at the pump'}
+- {id: de08, klass: description, split: calibration, frozen: true,
+   expect: [Suez_Red_Sea_disruption],
+   phrase: 'ships taking the long way round Africa instead of the short cut'}
+- {id: de09, klass: description, split: calibration, frozen: true, expect: [safrinha],
+   phrase: 'the second crop planted straight after the first one comes off'}
+- {id: de10, klass: description, split: calibration, frozen: true, expect: [pre_harvest_sprouting],
+   phrase: 'grain left too wet before harvest so it sprouts in the head'}
+- {id: de11, klass: description, split: calibration, frozen: true,
+   expect: [polar_vortex, protective_snow_cover, winterkill_frost],
+   phrase: 'arctic air spilling south onto a wheat crop with no snow on it'}
+- {id: de12, klass: description, split: calibration, frozen: true,
+   expect: [board_crush, crush_margin, soybean_crush_margin, oil_share],
+   phrase: 'what a processor earns turning beans into oil and meal'}
+- {id: de13, klass: description, split: calibration, frozen: true,
+   expect: [biennial_bearing, biennial_on_year, biennial_off_year, biennial_low_cycle],
+   phrase: 'the tree that gives a big crop one year and a small one the next'}
+- {id: de14, klass: description, split: calibration, frozen: true,
+   expect: [certified_stocks_decline, tenderable_collapse],
+   phrase: 'the exchange warehouse stock that can actually be delivered against the contract'}
+
+# ---------------------------------------------------------------------------------------------------
+# ACRONYM -- the 33 all-caps ids of BRIEF.md sec 2.5. The twenty hardest score ZERO token overlap with
+# their own prose, so an embedding of the id string can never retrieve them: these rows are reachable
+# ONLY through blurb and mechanism text, which is the reason the artifact embeds prose at all.
+# ---------------------------------------------------------------------------------------------------
+- {id: ac01, klass: acronym, split: calibration, frozen: true, expect: [HLB],
+   phrase: 'the bacterial disease insects spread through Florida citrus groves'}
+- {id: ac02, klass: acronym, split: calibration, frozen: true, expect: [RFS, RIN],
+   phrase: 'the US programme that obliges refiners to blend renewable volumes'}
+- {id: ac03, klass: acronym, split: calibration, frozen: true, expect: [DMO],
+   phrase: 'the rule reserving part of the cooking oil supply for the home market'}
+- {id: ac04, klass: acronym, split: calibration, frozen: true, expect: [MSP, India_MSP],
+   phrase: 'the floor price New Delhi guarantees its farmers'}
+- {id: ac05, klass: acronym, split: calibration, frozen: true, expect: [SAM],
+   phrase: 'the southern hemisphere pressure belt shifting and raising frost risk in south Brazil'}
+- {id: ac06, klass: acronym, split: calibration, frozen: true, expect: [AMO],
+   phrase: 'the warm Atlantic cycle that raises hurricane frequency over Florida'}
+- {id: ac07, klass: acronym, split: calibration, frozen: true, expect: [AO, NAO],
+   phrase: 'the arctic pressure pattern that pushes cold air into the central US'}
+- {id: ac08, klass: acronym, split: calibration, frozen: true, expect: [CBD],
+   phrase: 'the disease that rots coffee cherries in cool wet highlands'}
+- {id: ac09, klass: acronym, split: calibration, frozen: true, expect: [FUNCAFE],
+   phrase: 'the Brazilian coffee credit facility that lets growers hold their crop back'}
+- {id: ac10, klass: acronym, split: calibration, frozen: true, expect: [TRY_USD],
+   phrase: 'the Turkish grain board setting intervention prices in a depreciating currency'}
+
+# ---------------------------------------------------------------------------------------------------
+# NEAR_DUPLICATE -- the estate carries FOUR fertilizer ids, THREE crude ids, THREE EUDR ids, FIVE
+# positioning ids and FOUR ids for one FX pair. Under any margin rule these tie BY CONSTRUCTION, so a
+# CORRECT resolution would be reported as a decline on the most-asked subjects. The subject GROUP is
+# the answer: a row passes when the resolved id's group equals the expected group.
+# ---------------------------------------------------------------------------------------------------
+- {id: nd01, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs],
+   phrase: 'the fertilizer squeeze on next year acreage'}
+- {id: nd02, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [EUDR, EU_EUDR, eudr_deforestation],
+   phrase: 'compliance cost of the deforestation rules on certified robusta'}
+- {id: nd03, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [cot_positioning, cot_mm_positioning, spec_positioning, speculative_positioning,
+            managed_money_positioning],
+   phrase: 'how stretched is spec length against its own history'}
+- {id: nd04, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [crude_oil, crude_oil_price, crude_oil_input_cost],
+   phrase: 'energy cost feeding through into the vegoil complex'}
+- {id: nd05, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [BRL_FX, BRL_USD, BRL_USD_fx, BRL_weakness],
+   phrase: 'the real weakening against the dollar and Brazilian selling'}
+- {id: nd06, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [ending_stocks, ending_stocks_su_ratio, ending_stock_ratio, psd_ending_stock_su_ratio],
+   phrase: 'where do carryout stocks leave the stocks to use ratio'}
+- {id: nd07, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [freight_cost, freight_costs, freight_rates, freight_logistics,
+            freight_logistics_disruption, freight_disruption],
+   phrase: 'shipping economics on the origin to destination leg'}
+- {id: nd08, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [CNY, CNY_FX, CNY_USD, usdcny_fx],
+   phrase: 'a softer Chinese currency and the landed cost of imported beans'}
+- {id: nd09, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [drought, regional_drought, china_drought, EU_drought, prairie_drought, flash_drought],
+   phrase: 'a rainfall deficit building through the growing season'}
+- {id: nd10, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [export_ban, export_tax, India_export_ban, minimum_export_price],
+   phrase: 'origin restricting shipments to protect its home market'}
+
+# ---------------------------------------------------------------------------------------------------
+# MULTI -- the owner's "multiple named drivers -> a list, and the boards union". Two SEPARATE groups,
+# not two names for one thing (that is near_duplicate, one subject).
+# ---------------------------------------------------------------------------------------------------
+- {id: mu01, klass: multi, split: calibration, frozen: true, expect: [El_Nino, USD_index],
+   phrase: 'how do El Nino and the dollar interact for corn'}
+- {id: mu02, klass: multi, split: calibration, frozen: true,
+   expect: [drought, Argentina_export_tax, export_tax],
+   phrase: 'drought plus the export tax on Argentine beans'}
+- {id: mu03, klass: multi, split: calibration, frozen: true,
+   expect: [EUDR, EU_EUDR, biodiesel_mandate],
+   phrase: 'the deforestation rules and the blending mandate together for palm'}
+- {id: mu04, klass: multi, split: calibration, frozen: true,
+   expect: [freight_rates, crude_oil, crude_oil_price],
+   phrase: 'freight and crude both moving against the vegoil arb'}
+- {id: mu05, klass: multi, split: calibration, frozen: true,
+   expect: [heat_stress, managed_money_positioning, cot_mm_positioning],
+   phrase: 'heat stress in the belt with the funds already long'}
+- {id: mu06, klass: multi, split: calibration, frozen: true,
+   expect: [china_import_demand, China_import_pace, USD_index, dollar_index],
+   phrase: 'Chinese buying and a strong dollar pulling in opposite directions'}
+- {id: mu07, klass: multi, split: calibration, frozen: true,
+   expect: [fertilizer_cost, fertilizer_input_costs, planted_area, acreage_competition],
+   phrase: 'input costs and the acreage fight between corn and beans'}
+- {id: mu08, klass: multi, split: calibration, frozen: true,
+   expect: [La_Nina, safrinha],
+   phrase: 'La Nina risk over the safrinha window'}
+
+# ---------------------------------------------------------------------------------------------------
+# DECOY -- asks that name NO driver. THE BAR IS FATAL, NOT A RATE: zero candidates at or above
+# AMBIG_FLOOR on every one. The vocabulary is 405 ids of ag-market prose, so ANY ag question scores
+# non-trivially against something -- which is exactly why AMBIG_FLOOR is calibrated on this class and
+# not inherited from route_semantic's min_cos (a different population: 36 contract profiles).
+# ---------------------------------------------------------------------------------------------------
+- {id: dc01, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what is the ticker for the March contract'}
+- {id: dc02, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'who publishes the WASDE and when'}
+- {id: dc03, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what was the settlement price on Friday'}
+- {id: dc04, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how many bushels are in a metric tonne of corn'}
+- {id: dc05, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'which exchange lists the palm oil contract'}
+- {id: dc06, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'when does the December contract go off the board'}
+- {id: dc07, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'summarise this week price action across the grains'}
+- {id: dc08, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what is the front month spread doing'}
+- {id: dc09, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how do I read a stocks to use table'}
+- {id: dc10, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what data sources does this tool cover'}
+- {id: dc11, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'give me the highest settle this board has ever printed'}
+- {id: dc12, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what time is the report released in Chicago'}
+- {id: dc13, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'compare wheat corn and soybeans over the last month'}
+- {id: dc14, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'explain what a marketing year is'}
+
+# ---------------------------------------------------------------------------------------------------
+# DECOY, THE v2 SUB-CLASS -- MARKET STRUCTURE. How a market's OWN price behaves: the spread, the curve,
+# the basis, the roll, the front month, open interest, implied vol, the cash-versus-board relationship.
+# These are the asks the enum SHADOWS: it carries basis, calendar_spread, wheat_corn_spread,
+# soybean_crush_margin and a dozen more ids spelled like the structure itself. The correct answer is
+# the EMPTY ARRAY on every one, and the block's v2 says so in its own register.
+# ---------------------------------------------------------------------------------------------------
+- {id: dc15, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'is the curve in backwardation or contango right now'}
+- {id: dc16, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how wide is the gulf basis against the board this morning'}
+- {id: dc17, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'the nearby is trading at a premium to the deferreds'}
+- {id: dc18, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'open interest keeps building while the price goes nowhere'}
+- {id: dc19, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what has the roll cost me over the last four expiries'}
+- {id: dc20, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'implied vol on the new crop calls looks rich to me'}
+- {id: dc21, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'where is the cash market trading relative to futures'}
+- {id: dc22, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how much has that spread widened since first notice day'}
+
+# ---------------------------------------------------------------------------------------------------
+# DECOY, THE v2 SUB-CLASS -- HOW TO READ, HOW TO COMPUTE, AND THE TOOL ITSELF. A methodology ask names
+# no cause: it asks how a figure is BUILT, not what moved it. Three of the six name a quantity the enum
+# carries an id for (a crush margin, a stocks-to-use style ratio, a percentile against history), which
+# is what makes them a test rather than a formality.
+# ---------------------------------------------------------------------------------------------------
+- {id: dc23, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'walk me through how the crush margin is calculated'}
+- {id: dc24, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how should I read a percentile rank against its own history'}
+- {id: dc25, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what is the difference between old crop and new crop in these tables'}
+- {id: dc26, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'which units does this tool report palm oil production in'}
+- {id: dc27, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how far back does the history in here actually go'}
+- {id: dc28, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'explain how you decide which drivers to show me'}

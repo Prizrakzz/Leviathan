@@ -1,0 +1,346 @@
+{
+  "generated_utc": "20260910T170130Z",
+  "deck": "subject_deck_v2.yaml",
+  "rows_total": 118,
+  "class_counts": {
+    "exact": 10,
+    "alias": 10,
+    "synonym": 14,
+    "misspelling": 14,
+    "description": 14,
+    "acronym": 10,
+    "near_duplicate": 10,
+    "multi": 8,
+    "decoy": 28
+  },
+  "graph_hash": "99dc11409fe9",
+  "vocab_status": "ok",
+  "seat": "claude-sonnet-4-6",
+  "temperature": 0,
+  "draws": 3,
+  "max_contracts": 2,
+  "layers_run": [
+    "1",
+    "2"
+  ],
+  "verdict": "STOP",
+  "failing_bars": [
+    "L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL)",
+    "L1 SYNONYM >= 90%",
+    "L2 DECOY PICKS (0 on ANY draw, FATAL)"
+  ],
+  "instrument": {
+    "rows_scanned": 118,
+    "census": {
+      "ok": 118
+    },
+    "decline_words": [
+      "missing",
+      "not_run",
+      "stale",
+      "unreadable"
+    ],
+    "declined": {},
+    "declined_rows": 0,
+    "live": true,
+    "certifying": true
+  },
+  "bars": [
+    {
+      "bar": "L1 EXACT >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 ALIAS >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 SYNONYM >= 90%",
+      "verdict": "MISS",
+      "detail": "10/14 = 71.4% all-tiers"
+    },
+    {
+      "bar": "L1 MISSPELLING >= 85%",
+      "verdict": "PASS",
+      "detail": "13/14 = 92.9% all-tiers"
+    },
+    {
+      "bar": "L1 DESCRIPTION >= 75%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 ACRONYM >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL)",
+      "verdict": "STOP",
+      "detail": "1 of 28 decoys carried (17 put a candidate above CAND_FLOOR in front of the planner)"
+    },
+    {
+      "bar": "L2 SYNONYM >= 90%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 MISSPELLING >= 85%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 DESCRIPTION >= 70%",
+      "verdict": "PASS",
+      "detail": "13/14 = 92.9% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 NEAR_DUPLICATE >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 MULTI >= 100%",
+      "verdict": "PASS",
+      "detail": "8/8 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 DECOY PICKS (0 on ANY draw, FATAL)",
+      "verdict": "STOP",
+      "detail": "7 of 28 decoy rows had the planner pick a subject on at least one draw"
+    },
+    {
+      "bar": "L2 SEAT PIN (temperature and model, read back from every draw)",
+      "verdict": "PASS",
+      "detail": "temperature observed 0 against a declared 0; billed model claude-sonnet-4-6 against a declared claude-sonnet-4-6"
+    }
+  ],
+  "layer1": {
+    "floors": {
+      "CAND_FLOOR": 0.52,
+      "AMBIG_FLOOR": 0.78,
+      "TOP_K": 5
+    },
+    "all_non_decoy": {
+      "n": 90,
+      "any_t2": 84,
+      "hit_at_1": 68,
+      "all_tiers": 85,
+      "any_t2_pct": 93.3,
+      "hit_at_1_pct": 75.6,
+      "all_tiers_pct": 94.4
+    },
+    "lexical_baseline": {
+      "any_hit_pct": 30.0,
+      "hit_at_1_pct": 23.3,
+      "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
+    },
+    "per_class": {
+      "exact": {
+        "n": 10,
+        "any_t2": 10,
+        "hit_at_1": 10,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "alias": {
+        "n": 10,
+        "any_t2": 9,
+        "hit_at_1": 7,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "synonym": {
+        "n": 14,
+        "any_t2": 10,
+        "hit_at_1": 7,
+        "all_tiers": 10,
+        "all_tiers_pct": 71.4,
+        "bar": ">= 90%",
+        "verdict": "MISS"
+      },
+      "misspelling": {
+        "n": 14,
+        "any_t2": 13,
+        "hit_at_1": 13,
+        "all_tiers": 13,
+        "all_tiers_pct": 92.9,
+        "bar": ">= 85%",
+        "verdict": "PASS"
+      },
+      "description": {
+        "n": 14,
+        "any_t2": 14,
+        "hit_at_1": 10,
+        "all_tiers": 14,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 75%",
+        "verdict": "PASS"
+      },
+      "acronym": {
+        "n": 10,
+        "any_t2": 10,
+        "hit_at_1": 7,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "near_duplicate": {
+        "n": 10,
+        "any_t2": 10,
+        "hit_at_1": 6,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "multi": {
+        "n": 8,
+        "any_t2": 8,
+        "hit_at_1": 8,
+        "all_tiers": 8,
+        "all_tiers_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "decoy": {
+        "n": 28,
+        "with_candidate": 17,
+        "carried_at_ambig_floor": 1,
+        "bar": "carry == 0 (FATAL)",
+        "verdict": "FATAL"
+      }
+    }
+  },
+  "layer2": {
+    "scoring_rule": {
+      "reading": "alternatives",
+      "also_reported": "shipped_v1",
+      "multi_min_concepts": 2,
+      "note": "a row's expect list is a list of ALTERNATIVES; the picks must reach EXACTLY concept_count(row) of the expected groups (near_duplicate 1, multi 2 unless the deck declares concepts)"
+    },
+    "all_non_decoy": {
+      "scored": 90,
+      "passed": 89,
+      "passed_pct": 98.9,
+      "passed_shipped_v1": 80,
+      "passed_shipped_v1_pct": 88.9
+    },
+    "calls": 354,
+    "errored_calls": 0,
+    "usd_measured": 3.119,
+    "seat_pin": {
+      "temperature_declared": 0,
+      "temperature_observed": [
+        "0"
+      ],
+      "seat_declared": "claude-sonnet-4-6",
+      "model_observed": [
+        "claude-sonnet-4-6"
+      ],
+      "verdict": "PASS"
+    },
+    "lexical_baseline": {
+      "any_hit_pct": 30.0,
+      "hit_at_1_pct": 23.3,
+      "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
+    },
+    "aborted_on_cost": false,
+    "running_usd": 3.119,
+    "per_class": {
+      "exact": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 10,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "alias": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 10,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "synonym": {
+        "n": 14,
+        "scored": 14,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 14,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": ">= 90%",
+        "verdict": "PASS"
+      },
+      "misspelling": {
+        "n": 14,
+        "scored": 14,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 14,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": ">= 85%",
+        "verdict": "PASS"
+      },
+      "description": {
+        "n": 14,
+        "scored": 14,
+        "passed": 13,
+        "passed_pct": 92.9,
+        "passed_shipped_v1": 13,
+        "passed_shipped_v1_pct": 92.9,
+        "bar": ">= 70%",
+        "verdict": "PASS"
+      },
+      "acronym": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 10,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "near_duplicate": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 4,
+        "passed_shipped_v1_pct": 40.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "multi": {
+        "n": 8,
+        "scored": 8,
+        "passed": 8,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 5,
+        "passed_shipped_v1_pct": 62.5,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "decoy": {
+        "n": 28,
+        "fired": 7,
+        "bar": "0 picks on ANY draw (FATAL)",
+        "verdict": "FATAL"
+      }
+    }
+  }
+}
