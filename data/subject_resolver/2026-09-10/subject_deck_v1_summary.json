@@ -1,0 +1,374 @@
+{
+  "generated_utc": "20260910T124733Z",
+  "deck": "subject_deck_v1.yaml",
+  "rows_total": 104,
+  "class_counts": {
+    "exact": 10,
+    "alias": 10,
+    "synonym": 14,
+    "misspelling": 14,
+    "description": 14,
+    "acronym": 10,
+    "near_duplicate": 10,
+    "multi": 8,
+    "decoy": 14
+  },
+  "graph_hash": "99dc11409fe9",
+  "vocab_status": "ok",
+  "seat": "claude-sonnet-4-6",
+  "temperature": 0,
+  "draws": 3,
+  "max_contracts": 2,
+  "layers_run": [
+    "1",
+    "2",
+    "latency"
+  ],
+  "verdict": "STOP",
+  "failing_bars": [
+    "L1 SYNONYM >= 90%",
+    "L2 DECOY PICKS (0 on ANY draw, FATAL)",
+    "L2 MULTI >= 100%",
+    "L2 NEAR_DUPLICATE >= 100%"
+  ],
+  "bars": [
+    {
+      "bar": "L2 SYNONYM >= 90%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 MISSPELLING >= 85%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 DESCRIPTION >= 70%",
+      "verdict": "PASS",
+      "detail": "13/14 = 92.9% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 NEAR_DUPLICATE >= 100%",
+      "verdict": "MISS",
+      "detail": "4/10 = 40.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 MULTI >= 100%",
+      "verdict": "MISS",
+      "detail": "5/8 = 62.5% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 DECOY PICKS (0 on ANY draw, FATAL)",
+      "verdict": "STOP",
+      "detail": "2 of 14 decoy rows had the planner pick a subject on at least one draw"
+    },
+    {
+      "bar": "L2 SEAT PIN (temperature and model, read back from every draw)",
+      "verdict": "PASS",
+      "detail": "temperature observed 0 against a declared 0; billed model claude-sonnet-4-6 against a declared claude-sonnet-4-6"
+    },
+    {
+      "bar": "L1 EXACT >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 ALIAS >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 SYNONYM >= 90%",
+      "verdict": "MISS",
+      "detail": "10/14 = 71.4% all-tiers"
+    },
+    {
+      "bar": "L1 MISSPELLING >= 85%",
+      "verdict": "PASS",
+      "detail": "13/14 = 92.9% all-tiers"
+    },
+    {
+      "bar": "L1 DESCRIPTION >= 75%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 ACRONYM >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL)",
+      "verdict": "PASS",
+      "detail": "0 of 14 decoys carried (7 put a candidate above CAND_FLOOR in front of the planner)"
+    },
+    {
+      "bar": "D10 ADDED WALL p90 <= 150 ms",
+      "verdict": "PASS",
+      "detail": "17.69 ms added per turn at p90 (the resolver's own wall is 246.11 ms at p90)"
+    }
+  ],
+  "layer1": {
+    "floors": {
+      "CAND_FLOOR": 0.52,
+      "AMBIG_FLOOR": 0.78,
+      "TOP_K": 5
+    },
+    "all_non_decoy": {
+      "n": 90,
+      "any_t2": 84,
+      "hit_at_1": 68,
+      "all_tiers": 85,
+      "any_t2_pct": 93.3,
+      "hit_at_1_pct": 75.6,
+      "all_tiers_pct": 94.4
+    },
+    "lexical_baseline": {
+      "any_hit_pct": 30.0,
+      "hit_at_1_pct": 23.3,
+      "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
+    },
+    "per_class": {
+      "exact": {
+        "n": 10,
+        "any_t2": 10,
+        "hit_at_1": 10,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "alias": {
+        "n": 10,
+        "any_t2": 9,
+        "hit_at_1": 7,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "synonym": {
+        "n": 14,
+        "any_t2": 10,
+        "hit_at_1": 7,
+        "all_tiers": 10,
+        "all_tiers_pct": 71.4,
+        "bar": ">= 90%",
+        "verdict": "MISS"
+      },
+      "misspelling": {
+        "n": 14,
+        "any_t2": 13,
+        "hit_at_1": 13,
+        "all_tiers": 13,
+        "all_tiers_pct": 92.9,
+        "bar": ">= 85%",
+        "verdict": "PASS"
+      },
+      "description": {
+        "n": 14,
+        "any_t2": 14,
+        "hit_at_1": 10,
+        "all_tiers": 14,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 75%",
+        "verdict": "PASS"
+      },
+      "acronym": {
+        "n": 10,
+        "any_t2": 10,
+        "hit_at_1": 7,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "near_duplicate": {
+        "n": 10,
+        "any_t2": 10,
+        "hit_at_1": 6,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "multi": {
+        "n": 8,
+        "any_t2": 8,
+        "hit_at_1": 8,
+        "all_tiers": 8,
+        "all_tiers_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "decoy": {
+        "n": 14,
+        "with_candidate": 7,
+        "carried_at_ambig_floor": 0,
+        "bar": "carry == 0 (FATAL)",
+        "verdict": "PASS"
+      }
+    }
+  },
+  "latency": {
+    "budget_ms": 150.0,
+    "n": 40,
+    "flag_off_turn_embed_ms": {
+      "p50": 228.72,
+      "p90": 240.53,
+      "mean": 230.57,
+      "n": 40
+    },
+    "flag_on_total_ms": {
+      "p50": 238.2,
+      "p90": 246.38,
+      "mean": 240.51,
+      "n": 40
+    },
+    "added_wall_per_turn_ms": {
+      "p50": 9.99,
+      "p90": 17.69,
+      "mean": 9.94,
+      "n": 40
+    },
+    "ms_board_subject_ms": {
+      "p50": 237.87,
+      "p90": 246.11,
+      "mean": 239.41,
+      "n": 40
+    },
+    "hints_line_ms": {
+      "p50": 0.24,
+      "p90": 0.39,
+      "mean": 1.07,
+      "n": 40
+    },
+    "bar": {
+      "metric": "added_wall_per_turn_ms.p90",
+      "budget_ms": 150.0,
+      "measured_ms": 17.69,
+      "verdict": "PASS"
+    },
+    "note": "OFF = the walk's own cold embed of the verbatim query, which the turn pays either way. ON = resolve() (cold, it fills the same _Q_CACHE key) + hints_line() + the walk's now-warm embed. ADDED is the difference and is what D10 budgets. ms_board_subject_ms is the resolver's OWN wall -- the production counter -- and is dominated by that shared embed. THE LANE SPLIT IS STATED AND NOT HIDDEN: these figures are a WALKING lane's. A lane that never walks (numbers_only, trivial) pays ms_board_subject_ms in full and nobody pays it back, which is what resolve(allow_embed=False) is for -- and which the orchestrator cannot decide at this call site, because the lane is plan_turn's own output (D10 addendum A1). The model load and the artifact load are once per process and sit outside every figure here: both are paid on a sentinel phrase first.",
+    "lane_split": {
+      "walking_lane_added_p90": 17.69,
+      "never_walking_lane_added_p90": 246.11
+    }
+  },
+  "instrument": {
+    "rows_scanned": 104,
+    "census": {
+      "ok": 104
+    },
+    "decline_words": [
+      "missing",
+      "not_run",
+      "stale",
+      "unreadable"
+    ],
+    "declined": {},
+    "declined_rows": 0,
+    "live": true,
+    "certifying": true
+  },
+  "layer2": {
+    "all_non_decoy": {
+      "scored": 90,
+      "passed": 78,
+      "passed_pct": 86.7
+    },
+    "calls": 312,
+    "errored_calls": 0,
+    "usd_measured": 2.7889,
+    "seat_pin": {
+      "temperature_declared": 0,
+      "temperature_observed": [
+        "0"
+      ],
+      "seat_declared": "claude-sonnet-4-6",
+      "model_observed": [
+        "claude-sonnet-4-6"
+      ],
+      "verdict": "PASS"
+    },
+    "lexical_baseline": {
+      "any_hit_pct": 30.0,
+      "hit_at_1_pct": 23.3,
+      "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
+    },
+    "aborted_on_cost": false,
+    "running_usd": 2.7889,
+    "per_class": {
+      "exact": {
+        "n": 10,
+        "scored": 10,
+        "passed": 9,
+        "passed_pct": 90.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "alias": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "synonym": {
+        "n": 14,
+        "scored": 14,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "bar": ">= 90%",
+        "verdict": "PASS"
+      },
+      "misspelling": {
+        "n": 14,
+        "scored": 14,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "bar": ">= 85%",
+        "verdict": "PASS"
+      },
+      "description": {
+        "n": 14,
+        "scored": 14,
+        "passed": 13,
+        "passed_pct": 92.9,
+        "bar": ">= 70%",
+        "verdict": "PASS"
+      },
+      "acronym": {
+        "n": 10,
+        "scored": 10,
+        "passed": 9,
+        "passed_pct": 90.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "near_duplicate": {
+        "n": 10,
+        "scored": 10,
+        "passed": 4,
+        "passed_pct": 40.0,
+        "bar": ">= 100%",
+        "verdict": "MISS"
+      },
+      "multi": {
+        "n": 8,
+        "scored": 8,
+        "passed": 5,
+        "passed_pct": 62.5,
+        "bar": ">= 100%",
+        "verdict": "MISS"
+      },
+      "decoy": {
+        "n": 14,
+        "fired": 2,
+        "bar": "0 picks on ANY draw (FATAL)",
+        "verdict": "FATAL"
+      }
+    }
+  }
+}

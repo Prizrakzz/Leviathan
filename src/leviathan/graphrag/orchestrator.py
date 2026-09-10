@@ -672,7 +672,14 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
                   # leaves `Mode.board` None precisely so no knob dict, trace stamp or eval column moves
                   # -- so the seam needs the name. Absent -> the `an.answer` call is byte-identical and
                   # an injected answer fake with the older signature stays valid.
-                  mode_name: str | None = None) -> dict:
+                  mode_name: str | None = None,
+                  # SUBJECT RESOLVER phase B (D1): the PLANNER's resolved subject, appended LAST under
+                  # the same omit-when-None idiom as `xl_request`. It is a KWARG THREAD and nothing
+                  # else -- this function reads no flag, decides nothing and only carries the payload
+                  # to `an.answer`, exactly as it carries `focus_driver`. Absent -> the `an.answer`
+                  # call is byte-identical and an injected answer fake with the older signature stays
+                  # valid, which is the property every planner and lane fixture in the suite rests on.
+                  subject=None) -> dict:
     # reroute v2: xc_request rides down to the cascade quantify seam (lane C) ONLY when the gate produced one
     # (flag on + explicit ask). None -> the kwarg is omitted so the answer() call is byte-identical to today.
     _xc = {"xc_request": xc_request} if xc_request is not None else {}
@@ -686,10 +693,11 @@ def run_reasoning(query: str, asof: str, *, graph, call=None, retrieve=None, mod
     # D-XL (E11): the SAME omit-when-None idiom as `_xc`. None -> the kwarg is ABSENT -> the
     # an.answer() call is byte-identical and an injected answer fake with the older signature is valid.
     _xl = {"xl_request": xl_request} if xl_request is not None else {}
+    _sj = {"subject": subject} if subject is not None else {}                     # SUBJECT RESOLVER: same idiom
     out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model, planner=planner,
                     extra_context=extra_context, route_fn=route_fn, near=near, silver_lookup=silver_lookup,
                     on_stage=on_stage, focus_driver=focus_driver, numbers_lookup=qfn,
-                    **_xc, **_ol, **_rck, **_mk, **_xl)
+                    **_xc, **_ol, **_rck, **_mk, **_xl, **_sj)
     out["intent"] = "reasoning"
     out.setdefault("number_calls", [])
     out["asof"] = asof
@@ -705,7 +713,10 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                response_contract: str | None = None, mode_knobs: dict | None = None,
                xl_request: dict | None = None,
                # STATE ENGINE PHASE 2: appended LAST, the `run_reasoning` note verbatim in reason.
-               mode_name: str | None = None) -> dict:
+               mode_name: str | None = None,
+               # SUBJECT RESOLVER phase B (D1): appended LAST, the `run_reasoning` note verbatim in
+               # reason -- a kwarg thread to `an.answer`, omitted when None, no flag read here.
+               subject=None) -> dict:
     """Hybrid = numbers ∥ walk. The numbers agent has ZERO dependency on the walk (its output is consumed
     only at synthesis: the prompt block + citation unify/verify), so it runs in a worker thread while
     answer() grounds the subgraph; the two join via `extra_resolver` right before prompt assembly —
@@ -983,12 +994,13 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     if mode_name:                        # STATE ENGINE: rides the SAME dict, omitted when absent
         _mk["mode_name"] = mode_name
     _xl = {"xl_request": xl_request} if xl_request is not None else {}             # D-XL: omit when None
+    _sj = {"subject": subject} if subject is not None else {}                      # SUBJECT RESOLVER: same
     try:
         out = an.answer(query, graph=graph, asof=asof, call=call, retrieve=retrieve, model=model,
                         extra_resolver=_resolve, planner=planner, route_fn=route_fn,
                         near=near, silver_lookup=silver_lookup, on_stage=on_stage,
                         focus_driver=focus_driver, numbers_lookup=query_fn,
-                        **_xc, **_ol, **_rck, **_mk, **_xl)
+                        **_xc, **_ol, **_rck, **_mk, **_xl, **_sj)
     finally:
         pool.shutdown(wait=False)
     if not holder.get("resolved"):      # early-return paths (e.g. no contract match) skip synthesis —
@@ -1737,6 +1749,34 @@ def _xc_open_legs() -> frozenset:
     if v in ("on", "1", "true"):
         return _XC_OPEN_LEGS
     return frozenset(x.strip() for x in v.split(",") if x.strip()) & _XC_OPEN_LEGS
+
+
+def _subject_resolver_on() -> bool:
+    """THE SEMANTIC SUBJECT RESOLVER's kill-switch (GRAPHRAG_SUBJECT_RESOLVER), phase B, BUILT DARK.
+    Design docs/private/SUBJECT_RESOLVER_SITTING_2026-09-09.md D1; phase A is commit 69b95316.
+
+    THIS IS THE ONLY READ OF THIS NAME IN THE ESTATE, and that is graded rather than remembered:
+    `config_check.check_subject_resolver` clause (11) greps every module of the package for an
+    `os.environ` read of it and reds on a second one wherever it sits. `state/subject.py` is allowed
+    ZERO env names (clause (1)), `dispatch.py` is on the numbers bulkhead's no-environment rule, and
+    `answer.py` only CARRIES the resolved subject as a kwarg -- so the flag is read HERE, at the
+    dispatch seam, and everything downstream is gated by an ARGUMENT. A mis-plumbed enable therefore
+    cannot fire the resolver on a turn this seam did not run.
+
+    WHEN ON, at the dispatch seam and nowhere else: `state.subject.resolve(query)` produces the three
+    deterministic tiers, `hints_line` renders ONE line into the planner's USER message, the full live
+    id set rides `plan_turn(subject_ids=)` as the schema enum (D2: the embedder PROPOSES, the planner
+    DISPOSES), and what the planner picked -- plus the carried ambiguity when it picked nothing --
+    rides `answer(subject=)` to the board seam. WHEN OFF: NOTHING is added to any call. The
+    `plan_turn` kwargs and the `an.answer` kwargs are ABSENT, not None, so both calls are byte-
+    identical to HEAD's and an injected fake written against the pre-resolver signature stays valid
+    (pinned in `tests/unit/test_subject_resolver.py`); `state/subject.py` is not even imported, so a
+    flag-off turn's cost is one `os.environ.get`.
+
+    Read PER CALL, never memoized: a serving process is long-lived, so the env-flip rollback must take
+    effect without a redeploy. Value grammar is the estate's exact spelling -- only a case-insensitive
+    on/1/true enables it, and any other value (unset, 'off', a typo, 'yes') stays off: fail-closed."""
+    return os.environ.get("GRAPHRAG_SUBJECT_RESOLVER", "").strip().lower() in ("on", "1", "true")
 
 
 # ── D-XT collective-span predicate (2026-08-29) ──────────────────────────────────────────────────────
@@ -2915,6 +2955,11 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
                                         # of that filter instead of re-deriving it (and so a legacy/fallback
                                         # turn reports 0 planned seeds rather than tripping over a NameError).
     _ms_dispatch = None
+    # SUBJECT RESOLVER phase B (D1): the turn's resolver state, hoisted OUT of the dispatch branch for
+    # the reason `pc` above is hoisted -- the payload that rides `answer(subject=)` is built AFTER the
+    # plan comes back, and a turn with an INJECTED `classify` never enters that branch at all. Off, or
+    # unreached, these three stay exactly what they are here and the `an.answer` kwarg is ABSENT.
+    _sj_on, _sj_hints, _sj_err = False, None, False
     if classify is None:
         import time as _time
         from leviathan.graphrag import dispatch as dp
@@ -2963,8 +3008,44 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
             _named = dp.named_markets(query, graph)
             if _named:
                 _nm["named"] = _named
+        # SUBJECT RESOLVER phase B (D1/D2): THE ONE FLAG READ, THE RESOLVER CALL, AND THE TWO KWARGS.
+        # THE IMPORT SITS UNDER THE FLAG TEST -- `_state_board_block_on`'s idiom verbatim, and for its
+        # stated property rather than for tidiness: with the flag off `state/subject.py` is not on a
+        # turn's import graph at all, so "the resolver's cost with the flag off is one boolean read" is
+        # a fact and not a figure of speech. `config_check` clause (12) grades it from this source.
+        #
+        # THE FULL LIVE ID SET IS WHAT IS THREADED, never the hinted ids (D2, and `config_check`
+        # clause (9) has been waiting here since phase A): the embedder PROPOSES through the hint line
+        # and the PLANNER DISPOSES over the whole vocabulary. Threading the hints as the enum would
+        # make the embedder the decider while every other clause stayed green.
+        #
+        # A RESOLVER FAILURE IS A TURN THAT PROCEEDS. `resolve()` never raises by its own contract, and
+        # this belt is the seam.py precedent for the case where the contract is wrong anyway: hints go
+        # None, `subject_resolver_error` rides the board trace, both planner kwargs stay ABSENT -- so
+        # the turn is byte-identical to a flag-off one -- and the answer is still written.
+        _sj: dict = {}
+        _sj_on = _subject_resolver_on()
+        if _sj_on:
+            try:
+                from leviathan.graphrag.state import subject as _subj  # lazy: UNDER the flag test
+                _sj_hints = _subj.resolve(query, graph=graph)
+                _sj_ids = _subj.live_ids(graph)
+                if _sj_ids:
+                    _sj = {"subject_ids": _sj_ids,
+                           "subject_hints": _subj.hints_line(_sj_hints)}
+            except Exception:  # noqa: BLE001 -- the resolver can never break a turn (seam.py:157)
+                _sj, _sj_hints, _sj_err = {}, None, True
+        # THE RESOLVER'S BAG LEADS THE FOUR, and the position is load-bearing rather than stylistic:
+        # `**_pc, **_xo, **_xl, **_nm)` is a PINNED CENSUS (`test_state_seam.py`'s
+        # `test_the_dedup_kwarg_is_OMITTED_when_the_board_is_off_at_the_orchestrator_seam` asserts that
+        # exact tail as one contiguous group, because those four are the mode/open-ask/locator/board
+        # seams and its property is that all four are omit-when-off AT THE CALL SITE). The resolver is
+        # a FIFTH, independent seam under its own flag, so it is placed BEFORE that group rather than
+        # splitting it -- the census keeps seeing what it was written to see, and this bag is pinned on
+        # its own by `test_subject_resolver.test_pb1/pb3`. Keyword order is semantically irrelevant to
+        # `plan_turn`; the key sets are disjoint, so no `**` merge can collide.
         p = dp.plan_turn(query, graph=graph, state_block=sblock, today=_today(),
-                         state_contracts=(state.contracts if state else None), call=call,
+                         state_contracts=(state.contracts if state else None), call=call, **_sj,
                          **_pc, **_xo, **_xl, **_nm)
         _ms_dispatch = int((_time.perf_counter() - _t_disp) * 1000)
         plan = None if p.fallback else p
@@ -3274,6 +3355,39 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
     # conditional kwargs (the `_rck` / `_pc` / `_xo` idiom). With no request the keyword is ABSENT, so
     # an injected `run_hybrid` / `run_reasoning` fake written against the pre-D-XL signature stays valid.
     _xlr = {"xl_request": xl_request} if xl_request is not None else {}
+    # SUBJECT RESOLVER phase B: the OMIT-WHEN-NONE kwarg for BOTH lane call sites, built HERE beside
+    # `_xlr` for `_xlr`'s own reason and built AFTER the plan for a second one -- the payload is the
+    # PLANNER's pick (D2), which does not exist until `plan_turn` has answered.
+    #
+    # THE AMBIGUITY IS CARRIED ONLY WHEN THE PLANNER PICKED NOTHING, which is D5's own condition:
+    # `SubjectHints.ambiguous()` is "what D5 carries WHEN THE PLANNER RETURNS NO SUBJECT", and a
+    # question beside an answered board contradicts it (`state.seam._stamp_subject` fences the same
+    # condition one layer down; both sides holding it is belt and braces, not a duplicate rule).
+    # The ids are lifted off the (id, score, field) triples here because the seam's payload reader
+    # takes IDS -- handing it the triples would stringify a tuple into the trace.
+    #
+    # A FAILED RESOLVER STILL SAYS SO. `subject_resolver_error` rides `Board.trace()["subject"]
+    # ["hints"]`, an EXISTING key (D8: `tracekeys.py` is not edited and no new top-level key is
+    # minted), and it is deliberately NOT a `vocab_status` word: that field is a closed set a census
+    # partitions on, and an error is not an artifact state.
+    #
+    # AND A TRANSPORT FAILURE MINTS NO QUESTION. `plan` is `None if p.fallback else p`, so on an LLM
+    # fallback -- a 429, a timeout, a malformed tool body -- `_sj_picked` is empty for a reason that
+    # has nothing to do with the planner declining, and the first cut carried the ambiguity anyway:
+    # a rendered "name one of these" row minted by an outage. D5's condition is "the planner RETURNED
+    # no subject", which presumes a planner that answered, so the carry is gated on `plan is not None`
+    # as well. Rare by measurement (phase A: 0 carries at AMBIG_FLOOR across 32 decoy rows) and it is
+    # a rendered-content path, which is why it is worth one condition rather than one re-measurement.
+    _sbj = None
+    if _sj_on:
+        _sj_picked = tuple(getattr(plan, "subject", ()) or ()) if plan is not None else ()
+        _sj_amb = (_sj_hints.ambiguous()
+                   if (plan is not None and _sj_hints is not None and not _sj_picked) else ())
+        _sbj = {"picked": list(_sj_picked),
+                "hints": ({"error": "subject_resolver_error"} if (_sj_err or _sj_hints is None)
+                          else _sj_hints.trace()),
+                "ambiguous": [str(c[0]) for c in _sj_amb]}
+    _sbk = {"subject": _sbj} if _sbj is not None else {}
     # D-AM-9: the mode stamp, UNCONDITIONALLY, beside the contract decision (the ratified position).
     # It rides EVERY turn including dark ones -- that free tally of what users would pick is the
     # whole point of stage 0 -- and tracekeys lifts it into the eval record as `mode_decision`.
@@ -3347,14 +3461,18 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
                                  # UNCONDITIONALLY here, so an injected `run_hybrid` fake broke even
                                  # flag-off, where the g1x golden's prefix-only `signatures` section
                                  # cannot see it.
-                                 families=_families, **_xlr, **_rck, **_mk)
+                                 families=_families, **_xlr, **_rck, **_mk, **_sbk)
         else:
             with _patience_ctx(_mode["honored"]), _census_ctx(_effective):  # D-MW-13/30 + EC-3, as above
                 res = run_reasoning(query, asof, graph=graph, call=call, retrieve=retrieve, model=model,
                                     planner=planner, extra_context=sblock, route_fn=route_fn, near=near,
                                     silver_lookup=silver_lookup, on_stage=on_stage,
                                     focus_driver=att["focus_driver"], qfn=qfn, xc_request=xc_request,
-                                    outlook=outlook_mode, **_xlr, **_rck, **_mk)   # omit-when-none
+                                    outlook=outlook_mode,
+                                    # SUBJECT RESOLVER: the same omit-when-none idiom, so a flag-off
+                                    # turn's call -- and an injected fake with the older signature --
+                                    # is what it was before phase B.
+                                    **_xlr, **_rck, **_mk, **_sbk)   # omit-when-none
     except Exception as e:  # noqa: BLE001 — deterministic floor: a UI turn must never 500
         # The floor's CAUSE must be visible in logs: the 2026-07-19 incident spent hours attributing
         # an Anthropic-tier outage to a feature flag because the swallowed exception was never logged

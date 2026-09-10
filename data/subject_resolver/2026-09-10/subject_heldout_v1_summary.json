@@ -1,0 +1,154 @@
+{
+  "generated_utc": "20260910T124534Z",
+  "deck": "subject_heldout_v1.yaml",
+  "rows_total": 110,
+  "class_counts": {
+    "synonym": 16,
+    "misspelling": 18,
+    "description": 18,
+    "multi": 12,
+    "near_duplicate": 12,
+    "acronym": 16,
+    "decoy": 18
+  },
+  "graph_hash": "99dc11409fe9",
+  "vocab_status": "ok",
+  "seat": "claude-sonnet-4-6",
+  "temperature": 0,
+  "draws": 3,
+  "max_contracts": 2,
+  "layers_run": [
+    "1"
+  ],
+  "verdict": "LAND-DARK",
+  "failing_bars": [
+    "L1 SYNONYM >= 90%"
+  ],
+  "bars": [
+    {
+      "bar": "L1 SYNONYM >= 90%",
+      "verdict": "MISS",
+      "detail": "14/16 = 87.5% all-tiers"
+    },
+    {
+      "bar": "L1 MISSPELLING >= 85%",
+      "verdict": "PASS",
+      "detail": "18/18 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 DESCRIPTION >= 75%",
+      "verdict": "PASS",
+      "detail": "16/18 = 88.9% all-tiers"
+    },
+    {
+      "bar": "L1 ACRONYM >= 100%",
+      "verdict": "PASS",
+      "detail": "16/16 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL)",
+      "verdict": "PASS",
+      "detail": "0 of 18 decoys carried (12 put a candidate above CAND_FLOOR in front of the planner)"
+    }
+  ],
+  "layer1": {
+    "floors": {
+      "CAND_FLOOR": 0.52,
+      "AMBIG_FLOOR": 0.78,
+      "TOP_K": 5
+    },
+    "all_non_decoy": {
+      "n": 92,
+      "any_t2": 84,
+      "hit_at_1": 68,
+      "all_tiers": 86,
+      "any_t2_pct": 91.3,
+      "hit_at_1_pct": 73.9,
+      "all_tiers_pct": 93.5
+    },
+    "lexical_baseline": {
+      "any_hit_pct": 30.0,
+      "hit_at_1_pct": 23.3,
+      "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
+    },
+    "per_class": {
+      "synonym": {
+        "n": 16,
+        "any_t2": 13,
+        "hit_at_1": 9,
+        "all_tiers": 14,
+        "all_tiers_pct": 87.5,
+        "bar": ">= 90%",
+        "verdict": "MISS"
+      },
+      "misspelling": {
+        "n": 18,
+        "any_t2": 18,
+        "hit_at_1": 15,
+        "all_tiers": 18,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 85%",
+        "verdict": "PASS"
+      },
+      "description": {
+        "n": 18,
+        "any_t2": 15,
+        "hit_at_1": 14,
+        "all_tiers": 16,
+        "all_tiers_pct": 88.9,
+        "bar": ">= 75%",
+        "verdict": "PASS"
+      },
+      "acronym": {
+        "n": 16,
+        "any_t2": 16,
+        "hit_at_1": 14,
+        "all_tiers": 16,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "near_duplicate": {
+        "n": 12,
+        "any_t2": 10,
+        "hit_at_1": 9,
+        "all_tiers": 10,
+        "all_tiers_pct": 83.3,
+        "bar": null,
+        "verdict": "-"
+      },
+      "multi": {
+        "n": 12,
+        "any_t2": 12,
+        "hit_at_1": 7,
+        "all_tiers": 12,
+        "all_tiers_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "decoy": {
+        "n": 18,
+        "with_candidate": 12,
+        "carried_at_ambig_floor": 0,
+        "bar": "carry == 0 (FATAL)",
+        "verdict": "PASS"
+      }
+    }
+  },
+  "instrument": {
+    "rows_scanned": 110,
+    "census": {
+      "ok": 110
+    },
+    "decline_words": [
+      "missing",
+      "not_run",
+      "stale",
+      "unreadable"
+    ],
+    "declined": {},
+    "declined_rows": 0,
+    "live": true,
+    "certifying": true
+  }
+}

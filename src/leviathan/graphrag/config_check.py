@@ -4365,13 +4365,42 @@ def check_subject_resolver() -> list[str]:
          render's note loop names the kind, and the seam mints the row for an ANCHORLESS board (which
          renders no ordinary block at all). Built as a clause because the first cut had all three
          halves written, sha-clean and register-clean, and wired to nobody.
-    (9)  THE PHASE-B THREAD IS THE FULL LIVE ID SET, read from `orchestrator.py`'s source. Vacuous
-         until phase B writes the call, and binding the moment it does.
+    (9)  THE PHASE-B THREAD IS THE FULL LIVE ID SET, read from `orchestrator.py`'s source -- at the
+         KWARG spelling AND at the dict-key spelling phase B actually wrote (`_sj = {"subject_ids":
+         ...}` under the omit-when-off idiom), because a clause that graded one spelling of the call
+         would have gone on passing vacuously through the very commit it was written for. One level
+         of aliasing is resolved: a local assigned from `live_ids(` is a live-id name, and anything
+         else reds. THE CALL-LEVEL PROPERTY IS PINNED BY `test_pb3`, which drives the seam and
+         compares what was threaded against `subject.live_ids(graph)`; this clause is the source-level
+         half that catches the DIRECT collapse.
     (10) THE D10 DECISION, STRUCTURALLY: `resolve()` carries a KEYWORD-ONLY `allow_embed` defaulting
          True (phase B opts OUT per lane, never in), `T2_GATE_TIERS` names only free tiers, and the
          SKIPPED word is NOT one of the three artifact-decline words that `BoardSubjectDeclined`
          pages on. The resolver runs BEFORE `plan_turn`, so its embed is COLD -- MEASURED p50 351 ms
-         against a 150 ms budget -- and these two gates are the entire answer to it."""
+         against a 150 ms budget -- and these two gates are the entire answer to it.
+    (11) THE FLAG IS READ IN EXACTLY ONE PLACE AND IT IS `graphrag/orchestrator.py` (D1). Graded over
+         the WHOLE of `src/leviathan`, because "read once" is a property of the estate and not of one
+         package: a second read anywhere -- a leaf that decided to check for itself, a helper that
+         memoized it -- is how a threaded gate becomes an ambient one, and every other clause here
+         would stay green while it happened. THE SCAN GRADES THE READ AND NOT ONE SPELLING OF IT:
+         `os.environ[...]`, `os.environ.get(...)`, `os.getenv(...)`, an aliased module, a bare
+         `environ` from `from os import environ`, and any of them wrapped across lines. Comments are
+         stripped by `tokenize` rather than by a `startswith("#")` line test, so a trailing comment
+         can neither hide a read nor invent one.
+    (12) THE RESOLVER IS NEVER IMPORTED WITH THE FLAG OFF (`_state_board_block_on`'s idiom): every
+         import of `state.subject` in `orchestrator.py` is INDENTED and its enclosing block is the
+         flag test. A module-level import would put the package on every flag-off turn's import graph
+         and quietly retire the sentence "the resolver's cost with the flag off is one boolean read".
+    (13) THE D10 BAR IS GRADED AGAINST THE BANKED RUN, at a threshold THIS MODULE OWNS. The newest
+         `data/subject_resolver/<date>/latency*.json` carries the ADDED WALL PER TURN at p90 -- what
+         D10's budget is stated over -- and this clause reds when it exceeds
+         :data:`SUBJECT_LATENCY_BUDGET_MS`. THE NUMBER IS NOT READ OUT OF THE BANK. The first cut took
+         `budget_ms` from the file it was grading, so a bank that wrote its own budget beside a p90 of
+         999 ms graded itself GREEN -- measured, not feared -- and D10's stated 150 ms was pinned
+         nowhere in the tree. The bank's own `budget_ms` is now a DISAGREEMENT check and never the
+         threshold. A bank that is ABSENT is a WARNING (:func:`subject_resolver_warnings`), for the
+         artifact's own reason: a checkout is allowed not to have run the harness, but a run that
+         MEASURED a violation must never be a green build."""
     errs: list[str] = []
     import dataclasses as _dc
     import hashlib
@@ -4552,27 +4581,42 @@ def check_subject_resolver() -> list[str]:
                     "that can stamp `subject_ambiguous` is the one board that renders nothing, and "
                     "D5's absence row would hold for nobody")
 
-    # (9) THE PHASE-B THREAD IS THE FULL LIVE ID SET, pinned from SOURCE before phase B writes it.
+    # (9) THE PHASE-B THREAD IS THE FULL LIVE ID SET, read from SOURCE.
     #     Clause (6) asserts only that the schema enum equals the vocabulary that was THREADED, so a
     #     wiring that threaded (say) the hinted ids alone would collapse D2's "the embedder PROPOSES,
     #     the planner DISPOSES" into "the embedder decides" -- and every clause and every test would
-    #     stay green. Phase A threads nothing, so this passes vacuously today and binds the moment the
-    #     orchestrator writes the call.
+    #     stay green.
+    #
+    #     BOTH SPELLINGS, AND THE REASON IS THIS CLAUSE'S OWN HISTORY. Phase A wrote it against the
+    #     KWARG form (`plan_turn(..., subject_ids=X)`) and declared it "vacuous today, binding the
+    #     moment the orchestrator writes the call". Phase B then wrote the call under the estate's
+    #     omit-when-off idiom -- `_sj = {"subject_ids": _sj_ids}; plan_turn(..., **_sj)` -- which is a
+    #     dict KEY and not a kwarg literal, so the clause went on matching nothing through the very
+    #     commit it was written for (measured: the exact D2 collapse it exists to stop left it green).
+    #     A lint that grades one spelling of a call grades a style, not a property.
+    #
+    #     ONE LEVEL OF ALIASING IS RESOLVED and no more: a local assigned from a `live_ids(` call is a
+    #     live-id name, anything else reds. Two levels would be a dataflow analysis, and the seam's
+    #     CALL-LEVEL property is pinned where it belongs -- `test_pb3` drives the seam and compares
+    #     what was threaded against `subject.live_ids(graph)` id for id.
     try:
         _osrc = (Path(__file__).resolve().parent / "orchestrator.py").read_text(encoding="utf-8")
     except Exception:  # noqa: BLE001 -- an unreadable sibling is not this clause's failure
         _osrc = ""
+    _live_names = set(re.findall(r"^\s*([A-Za-z_]\w*)\s*=\s*[^=\n]*\blive_ids\s*\(", _osrc, re.M))
     for _ln in _osrc.splitlines():
         if _ln.lstrip().startswith("#"):                    # a comment naming the kwarg is not a call
             continue
-        for _m in re.findall(r"subject_ids\s*=\s*([^,)\n]+)", _ln):
+        for _m in re.findall(r"[\"']?\bsubject_ids[\"']?\s*[:=]\s*([^,)}\n]+)", _ln):
             _expr = _m.strip()
-            if "live_ids" in _expr or _expr in ("None", "()", "_sub", "**_sub"):
+            if ("live_ids" in _expr or _expr in _live_names
+                    or _expr in ("None", "()", "_sub", "**_sub")):
                 continue
             errs.append(f"subject_resolver: orchestrator.py threads subject_ids={_expr} -- D2 threads "
-                        f"the FULL live id set (`state.subject.live_ids(graph)`). Anything narrower "
-                        f"makes the embedder the decider and the planner a rubber stamp, and the "
-                        f"schema-enum clause above would still pass")
+                        f"the FULL live id set (`state.subject.live_ids(graph)`), and {_expr!r} is "
+                        f"neither that call nor a local assigned from it {sorted(_live_names)}. "
+                        f"Anything narrower makes the embedder the decider and the planner a rubber "
+                        f"stamp, and the schema-enum clause above would still pass")
 
     # (10) THE D10 DECISION IS STRUCTURAL, so it is graded rather than remembered. The resolver's seat
     #      is BEFORE `plan_turn`, so its embed is COLD (MEASURED p50 351 ms against a 150 ms budget)
@@ -4606,7 +4650,221 @@ def check_subject_resolver() -> list[str]:
         errs.append(f"subject_resolver: HINT_STATUS_WORDS is {_su.HINT_STATUS_WORDS!r} -- it is the "
                     f"CLOSED set a census partitions on, so it is exactly the artifact's four words "
                     f"plus the two that mean the tier never ran")
+
+    # (11) THE FLAG IS READ IN EXACTLY ONE PLACE, and the place is `graphrag/orchestrator.py`. The
+    #      scan is over the READ and never over the WORD: five files document this seam by name in
+    #      prose, and a substring ban would red on a comment -- the same mistake `check_state_seam`
+    #      clause (i) records having avoided. `state/subject.py` is separately allowed ZERO names by
+    #      clause (1); this clause is the estate-wide half of the same rule.
+    #
+    #      IT GRADES THE READ, NOT ONE SPELLING OF IT. The first cut was a line-by-line
+    #      `os\.environ(?:\.get)?[\(\[]"NAME"` and it was MEASURED against six ways to write a second
+    #      read: the plain estate idiom red it, and `os.getenv(NAME)`, a line-wrapped `os.environ.get(
+    #      \n "NAME")`, `from os import environ`, and an aliased `import os as _os2` all walked
+    #      through. So the pattern now takes an OPTIONAL dotted prefix (any module alias, or none),
+    #      both accessor spellings, `getenv`, and either bracket -- and it is matched against the WHOLE
+    #      file rather than line by line, which is what makes a wrapped call visible. The one spelling
+    #      it still cannot see is the name held in a module constant, and clause (1) plus this one
+    #      leave nowhere sensible to put one.
+    #
+    #      COMMENTS ARE STRIPPED BY `tokenize`, not by `startswith("#")`: a trailing comment on a real
+    #      line of code would otherwise be scanned as code (it can invent a read) while an indented
+    #      block comment hid one. Only files that carry the NAME at all are tokenized, so the estate
+    #      -wide widening costs one substring test per module and a parse of the four that mention it.
+    #
+    #      THE ROOT IS `src/leviathan`, NOT THE GRAPHRAG PACKAGE. What ships in the image is the whole
+    #      distribution, and a read placed one directory up would have been outside the old scan.
+    _pkg = Path(__file__).resolve().parent
+    _root = _pkg.parent                                      # src/leviathan -- the whole distribution
+    _NAME = "GRAPHRAG_SUBJECT_RESOLVER"
+    # An optional dotted prefix covers `os.` and any alias and the bare `environ` of `from os import
+    # environ`; `\s*` throughout is what lets a wrapped call match. This pattern does NOT match its own
+    # source: the escapes here are backslashes where the pattern demands a literal `.` or `(`.
+    _read_rx = re.compile(r"(?:\b[A-Za-z_]\w*\s*\.\s*)?"
+                          r"(?:environ\s*(?:\.\s*get\s*)?[\(\[]|getenv\s*\()"
+                          r"\s*[\"']" + _NAME + r"[\"']")
+    _sites: list = []
+    for _py in sorted(_root.rglob("*.py")):
+        try:
+            _txt = _py.read_text(encoding="utf-8")
+        except Exception:  # noqa: BLE001 -- an unreadable sibling is not this clause's failure
+            continue
+        if _NAME not in _txt:                                # the cheap half: most modules stop here
+            continue
+        _code = _strip_py_comments(_txt)
+        for _m in _read_rx.finditer(_code):
+            _sites.append(f"{_py.relative_to(_root).as_posix()}:"
+                          f"{_code.count(chr(10), 0, _m.start()) + 1}")
+    if len(_sites) != 1 or not _sites[0].startswith("graphrag/orchestrator.py:"):
+        errs.append(f"subject_resolver: GRAPHRAG_SUBJECT_RESOLVER is read at {_sites or ['nowhere']} "
+                    f"-- D1 reads it ONCE, at the dispatch seam in graphrag/orchestrator.py, and "
+                    f"threads it. A second read is how a threaded gate becomes an ambient one, and a "
+                    f"leaf that reads it can fire the resolver on a turn the seam never planned")
+
+    # (12) THE IMPORT SITS UNDER THE FLAG TEST -- `answer._state_board_block_on`'s idiom, graded for
+    #      its stated property: with the flag off `state/subject.py` is not on the turn's import graph
+    #      at all. A module-level import is the silent way to lose that, and it changes no behaviour a
+    #      test would see -- only the cost of every flag-off turn in the estate.
+    _o_lines = _osrc.splitlines()
+    _imp_rx = re.compile(r"^(\s*)(?:from\s+leviathan\.graphrag\.state\s+import\s+subject"
+                         r"|import\s+leviathan\.graphrag\.state\.subject)\b")
+    for _i, _ln in enumerate(_o_lines):
+        _m = _imp_rx.match(_ln)
+        if not _m:
+            continue
+        _ind = len(_m.group(1))
+        if _ind == 0:
+            errs.append(f"subject_resolver: orchestrator.py imports state.subject at MODULE level "
+                        f"(line {_i + 1}) -- the import belongs under the flag test, so a flag-off "
+                        f"turn never loads the resolver package at all")
+            continue
+        # EVERY enclosing header, not just the nearest one: the import is legitimately wrapped in the
+        # `try:` that makes a resolver failure a turn that proceeds, so the question is whether the
+        # flag test is anywhere on the chain of blocks that contain it -- not whether it is the
+        # innermost. The walk stops at the enclosing `def`, which is the seam's own function.
+        _chain: list = []
+        _need = _ind
+        for _j in range(_i - 1, -1, -1):
+            _prev = _o_lines[_j]
+            if not _prev.strip() or _prev.lstrip().startswith("#"):
+                continue
+            _pi = len(_prev) - len(_prev.lstrip())
+            if _pi < _need:
+                _chain.append(_prev.strip())
+                _need = _pi
+                if _prev.lstrip().startswith("def ") or _need == 0:
+                    break
+        if not any(re.match(r"^(if|elif)\b", g) and ("_subject_resolver_on()" in g or "_sj_on" in g)
+                   for g in _chain):
+            errs.append(f"subject_resolver: the state.subject import at orchestrator.py:{_i + 1} is "
+                        f"enclosed by {_chain!r}, and the flag test is on none of them -- clause (11)'s "
+                        f"one read must be a gate the import sits under, or `state/` loads on turns "
+                        f"the resolver never runs on")
+
+    # (13) THE D10 BAR, GRADED AGAINST THE BANKED RUN. D10's budget is stated over what the turn ADDS
+    #      -- "<= 150 ms added per turn, flag on, p90" -- and the phase-A addendum settles what that
+    #      means at this call site: `resolve()`'s own wall is dominated by a COLD `evidence._Q_CACHE`
+    #      fill (p50 351 ms) that a WALKING lane was going to pay anyway, one call later, for the same
+    #      verbatim key. So the number this clause reads is the DIFFERENCE the flag makes to the turn,
+    #      and the resolver's own wall is banked beside it rather than in place of it.
+    #
+    #      AND THE THRESHOLD IS THIS MODULE'S, NEVER THE BANK'S. The first cut read `budget_ms` out of
+    #      the very file it was grading. MEASURED with the bank stubbed: p90 999 against a banked 150
+    #      reds (1 error), p90 150.01 reds, 150.0 passes -- and a bank that wrote its OWN
+    #      `budget_ms: 10000` beside `p90: 999` produced ZERO errors and a silently green build. A
+    #      clause whose bar travels with the artifact certifies nothing. So the number lives on
+    #      :data:`SUBJECT_LATENCY_BUDGET_MS`, it is pinned by `test_pb10`, and the bank's own
+    #      `budget_ms` -- which the runner writes FROM this constant -- is graded for AGREEMENT only.
+    _lat = _subject_latency_bank()
+    if _lat:
+        _budget = float(SUBJECT_LATENCY_BUDGET_MS)
+        _banked_budget = _lat.get("budget_ms")
+        if _banked_budget is not None and abs(float(_banked_budget) - _budget) > 1e-9:
+            errs.append(f"subject_resolver: the banked latency run {_lat.get('_path')} states its own "
+                        f"budget_ms {_banked_budget!r} while D10's budget is "
+                        f"{_budget:.0f} ms (config_check.SUBJECT_LATENCY_BUDGET_MS) -- a bank that "
+                        f"disagrees with the bar was measured against a different rule, and the two "
+                        f"must be reconciled by hand rather than by whichever one the reader opened")
+        try:
+            _p90 = float(((_lat.get("added_wall_per_turn_ms") or {}).get("p90")))
+        except Exception:  # noqa: BLE001
+            errs.append(f"subject_resolver: the banked latency run {_lat.get('_path')} carries no "
+                        f"readable added_wall_per_turn_ms.p90 -- D10 is graded on that figure and a "
+                        f"bank that cannot be read is not a measurement")
+        else:
+            if _p90 > _budget:
+                errs.append(f"subject_resolver: D10 FAILS on the banked run {_lat.get('_path')} -- "
+                            f"the added wall per turn is {_p90:.1f} ms at p90 against a {_budget:.0f} "
+                            f"ms budget (MsBoardSubject p90 "
+                            f"{(_lat.get('ms_board_subject_ms') or {}).get('p90')} ms is the "
+                            f"resolver's own wall, most of which a walking lane pays either way)")
     return errs
+
+
+def _strip_py_comments(txt: str) -> str:
+    """``txt`` with every COMMENT token blanked and EVERY LINE AND COLUMN PRESERVED.
+
+    A source scan that wants to grade CODE has to drop comments, and the estate's usual
+    ``lstrip().startswith("#")`` line test drops the wrong ones both ways: it keeps a trailing comment
+    on a line of real code (so a comment can invent a match) and it drops nothing else. Tokenizing is
+    the exact answer and it is cheap on the handful of files a name filter leaves. Offsets are
+    preserved by blanking IN PLACE, so a match position still maps to the source line a reader opens.
+
+    A file that will not tokenize (a syntax error mid-edit) is returned AS WRITTEN rather than
+    skipped: a lint that quietly stops looking at a broken file is a lint that passes on it."""
+    import io as _io
+    import tokenize as _tok
+    lines = txt.splitlines()
+    try:
+        for t in _tok.generate_tokens(_io.StringIO(txt).readline):
+            if t.type != _tok.COMMENT:
+                continue
+            (r, c0), (_r2, c1) = t.start, t.end
+            if 1 <= r <= len(lines):
+                ln = lines[r - 1]
+                lines[r - 1] = ln[:c0] + " " * max(0, c1 - c0) + ln[c1:]
+    except Exception:  # noqa: BLE001 -- an untokenizable file is scanned as written, never skipped
+        return txt
+    return "\n".join(lines)
+
+
+#: THE LATENCY BANK'S HOME. Phrase-free summaries only -- the deck's own phrases never leave the deck.
+SUBJECT_LATENCY_DIR = ("data", "subject_resolver")
+#: A GLOB AND NOT A FIXED NAME, and the difference is a clobber. The runner banks one latency document
+#: per DECK (`latency_<deck stem>.json`), because the first cut wrote the fixed `latency.json` for
+#: whatever deck it was handed -- so a `--latency` pass over the HELD-OUT deck would have silently
+#: replaced the calibration bank this clause grades, with no error and no trace of what was lost. The
+#: older fixed name still matches, so a bank written before the split is still read.
+SUBJECT_LATENCY_GLOB = "latency*.json"
+
+#: D10's LATENCY BUDGET, IN MILLISECONDS -- "<= 150 ms ADDED per turn, flag on, p90".
+#:
+#: THE NUMBER LIVES IN THE GRADER AND NOT IN THE ARTIFACT. Clause (13) first took it from the banked
+#: run's own `budget_ms`, which made the bar self-certifying: a bank stating `budget_ms: 10000` beside
+#: `p90: 999` graded GREEN, and D10's stated 150 was pinned nowhere in the tree. The runner writes the
+#: bank's `budget_ms` FROM this constant and clause (13) reds when the two disagree, so there is one
+#: number, in one place, and any drift is a build error rather than a reading of whichever file was
+#: opened first. Changing it is a DECISION, and the test that pins it (`test_pb10`) is where it is made.
+SUBJECT_LATENCY_BUDGET_MS = 150.0
+
+
+def _subject_latency_bank(*, root: Path | None = None) -> dict:
+    """The banked D10 latency run this build is graded on, or ``{}`` when none exists.
+
+    ``root`` is a TEST SEAT and nothing else -- the repo root to read the bank under, so `test_pb10d`
+    can drive THIS selection rule over a fixture instead of restating it. Production passes nothing.
+
+    NEWEST BY DIRECTORY NAME, which is a date (``data/subject_resolver/<YYYY-MM-DD>/``): a
+    re-measurement supersedes its predecessor, and older banks stay for the record rather than being
+    deleted. WITHIN that newest date, EVERY ``latency*.json`` is read and the WORST -- the highest
+    ``added_wall_per_turn_ms.p90`` -- is the one returned, because a date carrying two decks' harness
+    runs has two measurements of the same budget and grading only one of them is choosing the
+    population that passes. Returns the parsed document with its own path added as ``_path`` so the
+    clause that reds can name the file a reader has to open."""
+    import json as _json
+    _repo = Path(root) if root is not None else Path(__file__).resolve().parents[3]
+    base = _repo.joinpath(*SUBJECT_LATENCY_DIR)
+    if not base.is_dir():
+        return {}
+    for d in sorted((p for p in base.iterdir() if p.is_dir()), reverse=True):
+        found: list = []
+        for f in sorted(d.glob(SUBJECT_LATENCY_GLOB)):
+            try:
+                doc = _json.loads(f.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001 -- a malformed bank is no bank (the warning half)
+                continue
+            if not isinstance(doc, dict):
+                continue
+            doc["_path"] = f.relative_to(_repo).as_posix()
+            try:
+                rank = float((doc.get("added_wall_per_turn_ms") or {}).get("p90"))
+            except Exception:  # noqa: BLE001 -- an unreadable p90 sorts FIRST: clause (13) names it
+                rank = float("inf")
+            found.append((rank, doc))
+        if found:
+            found.sort(key=lambda t: -t[0])
+            return found[0][1]
+    return {}
 
 
 def subject_resolver_warnings() -> list[str]:
@@ -4634,6 +4892,14 @@ def subject_resolver_warnings() -> list[str]:
                 warns.append(f"subject_deck_v1.yaml is stamped vocabulary_hash {_dh} and the live "
                              f"graph is {_live} -- a curated id that left the graph is a deck row to "
                              f"RETIRE, never a silent regression")
+        # D10's bank. ABSENT is advisory for the artifact's own reason -- the harness needs the 25 MB
+        # vocabulary and a 2 GB model, so a checkout is allowed never to have run it -- while a bank
+        # that MEASURED a violation is fatal in `check_subject_resolver` clause (13).
+        if not _subject_latency_bank():
+            warns.append("no banked subject-resolver latency run under data/subject_resolver/<date>/"
+                         "latency*.json -- D10's p90 bar is UNGRADED until one exists. Measure it "
+                         "with: python scripts/graphrag/subject_deck_run.py --deck "
+                         "configs/graphrag/subject_deck_v1.yaml --latency")
     except Exception as e:  # noqa: BLE001 -- an advisory never fails a build
         warns.append(f"the subject resolver advisory could not be evaluated ({type(e).__name__})")
     return warns

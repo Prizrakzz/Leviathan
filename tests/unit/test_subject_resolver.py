@@ -1203,3 +1203,622 @@ def test_LAYER_1_on_the_REAL_artifact(deck, graph):
     assert st2 == "ok"
     assert "coffee_berry_borer" in {c[0] for c in cands}, cands
     assert cands[0][1] >= SU.CAND_FLOOR
+
+
+# ---------------------------------------------------------------------------------------------------
+# PHASE B -- THE ORCHESTRATOR THREAD (D1/D11)
+#
+# The seam is `orchestrator._respond`'s dispatch tier, and these decks drive it through `orch.respond`
+# with `dispatch.plan_turn` and `answer.answer` REPLACED BY RECORDERS. Nothing here loads a model,
+# calls an API or touches the network: what is under test is the WIRING -- which kwargs exist, which
+# are ABSENT, and what the payload carries -- and the wiring is exactly what a byte-identity claim is
+# made of.
+# ---------------------------------------------------------------------------------------------------
+FLAG = "GRAPHRAG_SUBJECT_RESOLVER"
+
+
+def _seam_graph():
+    """The two-contract fixture `test_orchestrator` uses. Small on purpose: `live_ids` over it is a
+    two-id vocabulary, which is what makes the threaded enum readable in an assertion."""
+    from leviathan.causal import schema as cs
+    coffee = cs.CausalContract(contract="arabica_coffee", aliases=["arabica"],
+                               drivers=[cs.Driver(id="frost", type="hazard", sign="+",
+                                                  mechanism="frost kills trees")])
+    corn = cs.CausalContract(contract="corn", aliases=["maize"],
+                             drivers=[cs.Driver(id="drought", type="hazard", sign="+",
+                                                mechanism="dryness cuts yield")])
+    return G.CausalGraph({"arabica_coffee": coffee, "corn": corn}, silver=set())
+
+
+def _stamped(payload, graph=None):
+    """A Board carrying `payload` through the SHIPPED seam functions -- the one producer of that
+    normalisation, never a re-implementation of it."""
+    bd = B.Board(asof="2026-09-09", mode="deep")
+    S._stamp_subject(bd, S._subject_payload(payload), graph=graph)
+    return bd
+
+
+def _drive_seam(monkeypatch, *, flag=None, plan_subject=(), resolve=None, classify=None,
+                plan_fallback=False, query="why is coffee bullish"):
+    """Run ONE turn through the dispatch seam and return `{plan_turn: kwargs, answer: kwargs}`.
+
+    `dp.plan_turn` and `an.answer` are the two calls D1's byte-identity claim is stated over, so both
+    are replaced by recorders and nothing downstream of them runs. `resolve` overrides
+    `state.subject.resolve` -- the seat the exception belt is tested through."""
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag import orchestrator as orch
+    seen: dict = {}
+
+    def fake_plan_turn(q, **kw):
+        seen["plan_turn"] = dict(kw)
+        return dp.Plan(steps=["reasoning"], contracts=["arabica_coffee"],
+                       subject=tuple(plan_subject), fallback=plan_fallback)
+
+    def fake_answer(q, **kw):
+        seen["answer"] = dict(kw)
+        return {"answer": "x", "structured": None, "contract": "arabica_coffee", "contracts": [],
+                "evidence": [], "model": "m", "trace": {}}
+
+    monkeypatch.setattr(dp, "plan_turn", fake_plan_turn)
+    monkeypatch.setattr(an, "answer", fake_answer)
+    if resolve is not None:
+        monkeypatch.setattr(SU, "resolve", resolve)
+    if flag is None:
+        monkeypatch.delenv(FLAG, raising=False)
+    else:
+        monkeypatch.setenv(FLAG, flag)
+    kw = {"classify": classify} if classify is not None else {}
+    orch.respond(query, graph=_seam_graph(), asof="2024-06-01",
+                 call=lambda *a, **k: {"tldr": "x", "mechanism": "y", "diagram_mermaid": "",
+                                       "sources": []},
+                 retrieve=lambda q, node, *, k, asof=None, near=None: [], **kw)
+    return seen
+
+
+def test_pb1_FLAG_OFF_ADDS_NOTHING_TO_EITHER_CALL(monkeypatch):
+    """D1's byte-identity claim, stated where it is actually made: the kwargs are ABSENT, not None.
+
+    `None` would be a behaviour change with no flag. `dispatch.plan_turn` tests `if subject_ids:` and
+    would agree -- but `an.answer(subject=None)` reaches `_answer_l2` and `fill_stage1`, and an
+    INJECTED answer fake written against the pre-resolver signature raises on the unexpected keyword.
+    Every planner and lane fixture in this suite rests on that property."""
+    seen = _drive_seam(monkeypatch, flag=None)
+    pt, ans = seen["plan_turn"], seen["answer"]
+    assert "subject_ids" not in pt and "subject_hints" not in pt, sorted(pt)
+    assert "subject" not in ans, sorted(ans)
+
+
+@pytest.mark.parametrize("value", ["", "off", "yes", "enabled", "0", "false", "On1"])
+def test_pb2_THE_FLAG_IS_FAIL_CLOSED_ON_EVERY_VALUE_BUT_THREE(monkeypatch, value):
+    """The estate's exact reader spelling: only a case-insensitive on/1/true arms it. 'yes' is in this
+    list because it is what a human types when they mean on, and the point of a fail-closed grammar is
+    that a near-miss stays DARK rather than half-arming a lane."""
+    seen = _drive_seam(monkeypatch, flag=value)
+    assert "subject_ids" not in seen["plan_turn"], (value, sorted(seen["plan_turn"]))
+    assert "subject" not in seen["answer"], (value, sorted(seen["answer"]))
+
+
+@pytest.mark.parametrize("value", ["on", "1", "true", "TRUE", " On "])
+def test_pb3_FLAG_ON_THREADS_THE_FULL_LIVE_ID_SET_AND_ONE_HINT_LINE(monkeypatch, value):
+    """D2: the embedder PROPOSES and the planner DISPOSES, so the ENUM is the whole live vocabulary
+    and never the hinted subset. `config_check` clause (9) grades that property from SOURCE; this
+    grades it from the CALL, which is the half source-reading cannot reach."""
+    seen = _drive_seam(monkeypatch, flag=value)
+    pt = seen["plan_turn"]
+    assert tuple(pt["subject_ids"]) == SU.live_ids(_seam_graph()) == ("drought", "frost")
+    assert isinstance(pt["subject_hints"], str)
+
+
+def test_pb4_THE_PLANNERS_PICK_REACHES_ANSWER_AS_THE_PAYLOAD(monkeypatch):
+    """The payload shape `state.seam._subject_payload` reads: picked ids, the hint trace, the carried
+    ambiguity. `picked` is the PLANNER's field and never the resolver's -- D2's whole point -- and the
+    board stamps what the orchestrator built, through the shipped seam function."""
+    hints = SU.SubjectHints(exact=("frost",), vocab_status="ok", ms=3.0)
+    seen = _drive_seam(monkeypatch, flag="on", plan_subject=("frost",), resolve=lambda q, **kw: hints)
+    sub = seen["answer"]["subject"]
+    assert sub["picked"] == ["frost"]
+    assert sub["hints"]["exact"] == ["frost"] and sub["hints"]["vocab_status"] == "ok"
+    assert sub["ambiguous"] == []
+    assert _stamped(sub).subject["picked"] == ["frost"]
+
+
+def test_pb5_AMBIGUITY_IS_CARRIED_ONLY_WHEN_THE_PLANNER_PICKED_NOTHING(monkeypatch):
+    """D5's own condition, held at the ORCHESTRATOR as well as at the seam. Two rows of one table: the
+    same hints, once with a pick and once without."""
+    hints = SU.SubjectHints(candidates=(("frost", 0.91, "id"), ("drought", 0.83, "id")),
+                            vocab_status="ok", ms=4.0)
+    picked = _drive_seam(monkeypatch, flag="on", plan_subject=("frost",),
+                         resolve=lambda q, **kw: hints)
+    assert picked["answer"]["subject"]["ambiguous"] == []
+    none = _drive_seam(monkeypatch, flag="on", plan_subject=(), resolve=lambda q, **kw: hints)
+    amb = none["answer"]["subject"]["ambiguous"]
+    # THE IDS, NOT THE TRIPLES. `SubjectHints.ambiguous()` yields (id, score, field); handing the seam
+    # the triples would stringify a tuple into the trace and into the rendered row.
+    assert amb == ["frost", "drought"] and all(isinstance(x, str) for x in amb)
+    assert _stamped(none["answer"]["subject"]).subject["ambiguous"] == ["frost", "drought"]
+
+
+def test_pb5b_A_PLANNER_FALLBACK_MINTS_NO_AMBIGUITY_ROW(monkeypatch):
+    """THE THIRD ROW OF THE SAME TABLE, and it is the one the first cut got wrong. `plan` is
+    `None if p.fallback else p`, so a 429, a timeout or a malformed tool body leaves the pick empty --
+    and the carry fired on it, minting a rendered "name one of these" row out of a TRANSPORT FAILURE
+    rather than out of a planner that declined. D5's condition presumes a planner that answered."""
+    hints = SU.SubjectHints(candidates=(("frost", 0.91, "id"), ("drought", 0.83, "id")),
+                            vocab_status="ok", ms=4.0)
+    seen = _drive_seam(monkeypatch, flag="on", plan_subject=(), plan_fallback=True,
+                       resolve=lambda q, **kw: hints)
+    sub = seen["answer"]["subject"]
+    assert sub["picked"] == [] and sub["ambiguous"] == [], sub
+    # THE HINTS STILL RIDE: the resolver RAN and its census must not be silently dropped just because
+    # the planner never answered -- that is the difference between `subject_resolver_error` and this.
+    assert sub["hints"]["vocab_status"] == "ok" and "error" not in sub["hints"], sub["hints"]
+    # AND THE PLANNER WAS STILL OFFERED THE LIST: the fallback is downstream of the thread.
+    assert sorted(seen["plan_turn"]["subject_ids"]) == sorted(SU.live_ids(_seam_graph()))
+
+
+def test_pb6_A_RESOLVER_THAT_RAISES_LEAVES_THE_TURN_INTACT_AND_SAYS_SO(monkeypatch):
+    """`resolve()` never raises by contract; this is the belt for the case where the contract is wrong
+    (`state/seam.py`'s own precedent). The turn PROCEEDS, both planner kwargs stay ABSENT -- so that
+    turn is byte-identical to a flag-off one -- and `subject_resolver_error` rides
+    `Board.trace()["subject"]["hints"]`, an EXISTING key: no `tracekeys.py` edit, no new top-level
+    key, no second trace channel."""
+    def boom(q, **kw):
+        raise RuntimeError("the artifact went away mid-turn")
+    seen = _drive_seam(monkeypatch, flag="on", resolve=boom)
+    pt, sub = seen["plan_turn"], seen["answer"]["subject"]
+    assert "subject_ids" not in pt and "subject_hints" not in pt, sorted(pt)
+    assert sub["hints"] == {"error": "subject_resolver_error"}
+    assert sub["picked"] == [] and sub["ambiguous"] == []
+    assert _stamped(sub).trace()["subject"]["hints"]["error"] == "subject_resolver_error"
+    # AND IT IS NOT A `vocab_status` WORD: that field is the CLOSED set a census partitions on, and an
+    # error is not an artifact state.
+    assert "subject_resolver_error" not in SU.HINT_STATUS_WORDS
+
+
+def test_pb7_AN_INJECTED_CLASSIFY_NEVER_REACHES_THE_SEAM(monkeypatch):
+    """The legacy path takes no plan, so it proposes no subject -- and it must not thread one either.
+    The flag is ON here: what keeps the resolver out is the SEAT, not the switch."""
+    def never(q, **kw):
+        raise AssertionError("the resolver ran on a legacy-classify turn")
+    seen = _drive_seam(monkeypatch, flag="on", resolve=never,
+                       classify=lambda q, call=None: {"intent": "reasoning", "needs_numbers": False,
+                                                      "needs_reasoning": True})
+    assert "plan_turn" not in seen
+    assert "subject" not in seen["answer"], sorted(seen["answer"])
+
+
+def test_pb8_THE_COUNTERS_RIDE_THE_EXISTING_BOARD_RECORD():
+    """D8's four counters, from the ONE producer (`state.seam.counters`) and typed by the `Ms` prefix
+    at `orchestrator.py`'s EXISTING board EMF line -- no new record, no new dimension, no tail re-pin.
+    ABSENT-WHEN-INAPPLICABLE is the property under test: a turn the resolver did not run carries no
+    subject key at all, so these metrics have no zero population to dilute."""
+    ok = S.counters(_stamped({"picked": ["El_Nino"], "hints": {"vocab_status": "ok", "ms": 12.4}}))
+    assert ok["BoardSubjectResolved"] == 1 and ok["MsBoardSubject"] == 12
+    assert "BoardSubjectAmbiguous" not in ok and "BoardSubjectDeclined" not in ok
+    bad = S.counters(_stamped({"picked": [], "ambiguous": ["El_Nino", "La_Nina"],
+                               "hints": {"vocab_status": "stale", "ms": 0.4}}))
+    assert bad["BoardSubjectAmbiguous"] == 1 and bad["BoardSubjectDeclined"] == 1
+    assert "MsBoardSubject" not in bad      # a literal zero is not a measurement anyone can aggregate
+    assert not [k for k in S.counters(B.Board(asof="2026-09-09", mode="deep"))
+                if k.startswith("BoardSubject") or k == "MsBoardSubject"]
+    # THE UNITS LINE THEY ARE EMITTED UNDER, read from the orchestrator's OWN source rather than
+    # restated here: `Ms`-prefixed keys type as Milliseconds automatically, which is why the timer is
+    # `MsBoardSubject` and not `SubjectMs`.
+    from leviathan.graphrag import orchestrator as orch
+    osrc = pathlib.Path(orch.__file__).read_text(encoding="utf-8")
+    assert 'Milliseconds" if k.startswith("Ms")' in osrc
+
+
+def test_pb9_THE_FLAG_IS_READ_ONCE_AND_THE_IMPORT_SITS_UNDER_IT():
+    """`check_subject_resolver` clauses (11) and (12), asserted a second way so a reviewer reading
+    either file finds the property. THE SCAN IS OVER THE READ AND NOT THE WORD -- five files document
+    this seam by name in prose, and a substring ban would red on a comment, which is the mistake
+    `check_state_seam` clause (i) records having avoided.
+
+    THE CLAUSE ITSELF IS THE PRODUCER HERE, and that is the fix rather than a shortcut. This test used
+    to COPY the clause's regex, so the two shared one blind spot instead of covering for each other:
+    the copied pattern graded ONE spelling (`os.environ[.get](\"NAME\"` on one line) and five other
+    ways to write a second read -- `os.getenv`, a wrapped call, a bare `environ`, an aliased module,
+    a bracket subscript -- walked past both. Driving `check_subject_resolver` and then MUTATING a copy
+    of the package below is what proves the property instead of restating the pattern."""
+    from leviathan.graphrag import config_check as cc
+    assert not [e for e in cc.check_subject_resolver() if "is read at" in e]
+    pkg = pathlib.Path(dp.__file__).resolve().parent
+    osrc = (pkg / "orchestrator.py").read_text(encoding="utf-8")
+    assert osrc.count(FLAG + '", "")') == 1, "the one read is not where clause (11) says it is"
+    imports = [ln for ln in osrc.splitlines()
+               if "from leviathan.graphrag.state import subject" in ln
+               and not ln.lstrip().startswith("#")]
+    assert imports, "phase B's import is gone"
+    for ln in imports:
+        assert ln.startswith(" "), ln       # indented => inside the flag's block, never module level
+
+
+@pytest.fixture(scope="module")
+def _pkg_copy(tmp_path_factory):
+    """ONE copy of `src/leviathan` for the whole mutation deck, plus the probe that runs the clause in
+    a fresh interpreter. The tree itself is NEVER written -- every mutation lands on this copy, and it
+    is restored between parameters. Module-scoped because copying 386 modules eight times is a minute
+    of wall clock for a property that one copy proves."""
+    import shutil
+    root = tmp_path_factory.mktemp("clause11")
+    src = pathlib.Path(dp.__file__).resolve().parents[1]        # src/leviathan
+    shutil.copytree(src, root / "leviathan",
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    (root / "probe.py").write_text(
+        "import sys\nsys.path.insert(0, sys.argv[1])\n"
+        "from leviathan.graphrag import config_check as cc\n"
+        "print(len([e for e in cc.check_subject_resolver() if 'is read at' in e]))\n",
+        encoding="utf-8")
+    walk = root / "leviathan" / "graphrag" / "state" / "walk.py"
+    return root, walk, walk.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("spelling,reds", [
+    ('    _x = os.environ.get("' + FLAG + '", "")\n', True),          # the plain estate idiom
+    ('    _x = os.getenv("' + FLAG + '")\n', True),                   # the second-most-likely spelling
+    ('    _x = os.environ.get(\n        "' + FLAG + '", "")\n', True),  # wrapped across two lines
+    ('    _x = os.environ["' + FLAG + '"]\n', True),                  # the bracket subscript
+    ('    _x = environ.get("' + FLAG + '", "")\n', True),             # `from os import environ`
+    ('    _x = _os2.environ.get("' + FLAG + '", "")\n', True),        # an aliased module
+    ('    _x = 1  # os.environ.get("' + FLAG + '")\n', False),        # a COMMENT is not a read
+    ('    _x = ""\n', False),                                          # the unmutated baseline
+])
+def test_pb9b_CLAUSE_11_BITES_ON_A_SECOND_READ_HOWEVER_IT_IS_SPELLED(_pkg_copy, spelling, reds):
+    """THE MUTATION HALF, on a COPY of `src/leviathan` -- the tree is never written.
+
+    A "read once" lint is only worth its sentence if a second read RED it, and the first cut was
+    measured against these eight bodies: the plain idiom red it and FIVE of the others left
+    `check_subject_resolver() == []`. The comment row is here for the other direction: `tokenize`
+    strips comments, so a trailing comment naming the read can neither hide one nor invent one."""
+    import subprocess
+    root, walk, base = _pkg_copy
+    try:
+        walk.write_text(base + "\n\ndef _probe():\n    import os  # noqa: F401\n"
+                               "    from os import environ  # noqa: F401\n"
+                               "    import os as _os2  # noqa: F401\n" + spelling + "    return _x\n",
+                        encoding="utf-8", newline="")
+        r = subprocess.run([sys.executable, str(root / "probe.py"), str(root)],
+                           capture_output=True, text=True, cwd=str(root))
+        assert r.returncode == 0, r.stderr[-2000:]
+        assert int(r.stdout.strip().splitlines()[-1]) == (1 if reds else 0), (spelling, r.stdout)
+    finally:
+        walk.write_text(base, encoding="utf-8", newline="")
+
+
+def test_pb10_THE_D10_BAR_IS_GRADED_AGAINST_A_BANKED_RUN():
+    """Clause (13). The bank is `data/subject_resolver/<date>/latency*.json` and the figure the bar is
+    stated over is the ADDED WALL PER TURN -- not the resolver's own wall, most of which is a cold
+    `evidence._Q_CACHE` fill the walking lane pays one call later for the same verbatim key.
+
+    THE THRESHOLD IS PINNED HERE, IN THE TREE, AND IT IS 150. This is the assertion the first cut did
+    not have: both the clause and this test read `budget_ms` OUT OF THE BANK they were grading, so the
+    bar travelled with the artifact and D10's stated number was written down nowhere. `test_pb10c`
+    below measures what that cost."""
+    from leviathan.graphrag import config_check as cc
+    assert cc.SUBJECT_LATENCY_BUDGET_MS == 150.0                 # D10's number, pinned in the tree
+    bank = cc._subject_latency_bank()
+    if not bank:
+        assert any("no banked subject-resolver latency run" in w
+                   for w in cc.subject_resolver_warnings())
+        pytest.skip("no latency bank in this checkout (the advisory covers it)")
+    assert bank["added_wall_per_turn_ms"]["p90"] <= cc.SUBJECT_LATENCY_BUDGET_MS
+    assert bank["bar"]["verdict"] == "PASS"
+    # AND THE BANK AGREES WITH THE GRADER: the runner writes `budget_ms` FROM the constant, so a
+    # disagreement is drift and clause (13) reds on it.
+    assert float(bank["budget_ms"]) == cc.SUBJECT_LATENCY_BUDGET_MS
+    assert not [e for e in cc.check_subject_resolver() if "D10" in e]
+
+
+@pytest.mark.parametrize("p90,banked_budget,errors", [
+    (19.66, 150.0, 0),        # the banked run as it stands
+    (150.0, 150.0, 0),        # exactly on the budget is not over it
+    (150.01, 150.0, 1),       # one hundredth of a millisecond over reds
+    (999.0, 150.0, 1),        # a two-thirds-of-a-second regression reds
+    (999.0, 10000.0, 2),      # THE SELF-CERTIFYING BANK: green before this fix, two errors now
+    (19.66, 10000.0, 1),      # a fast run that still disagrees about the rule reds on the rule
+])
+def test_pb10c_THE_D10_THRESHOLD_IS_NOT_THE_ARTIFACTS_OWN(monkeypatch, p90, banked_budget, errors):
+    """MEASURED, with the bank stubbed: the fifth row is the defect this closes.
+
+    Clause (13) used to read `float(_lat.get("budget_ms") or 150.0)` -- the threshold out of the file
+    it was grading -- so a bank writing its OWN `budget_ms: 10000` beside `p90: 999` produced ZERO
+    errors and a silently green build. It now reds twice there: once on the figure against
+    `SUBJECT_LATENCY_BUDGET_MS`, once because a bank that disagrees with the bar was measured against
+    a different rule."""
+    from leviathan.graphrag import config_check as cc
+    monkeypatch.setattr(cc, "_subject_latency_bank",
+                        lambda: {"_path": "data/subject_resolver/stub/latency_stub.json",
+                                 "budget_ms": banked_budget,
+                                 "added_wall_per_turn_ms": {"p50": 1.0, "p90": p90},
+                                 "ms_board_subject_ms": {"p50": 1.0, "p90": 2.0}})
+    got = [e for e in cc.check_subject_resolver()
+           if "D10 FAILS" in e or "states its own budget_ms" in e]
+    assert len(got) == errors, got
+
+
+def test_pb10d_A_SECOND_DECKS_LATENCY_RUN_ADDS_A_MEASUREMENT_AND_ERASES_NONE(tmp_path, monkeypatch):
+    """The bank is ONE FILE PER DECK and the WORST is graded.
+
+    `latency.json` was written unconditionally at a fixed name, so a `--latency` pass over the
+    HELD-OUT deck would have replaced the calibration bank `config_check` reads -- silently, with the
+    expensive half of the evidence gone. The name now carries the deck stem and the reader globs, so
+    two decks measured on one date are two measurements and the one that VIOLATES the budget is the
+    one the clause grades (the population that passes is not the population)."""
+    from leviathan.graphrag import config_check as cc
+    root = tmp_path / "data" / "subject_resolver" / "2026-09-11"
+    root.mkdir(parents=True)
+    for tag, p90 in (("subject_deck_v1", 19.66), ("subject_heldout_v1", 402.4)):
+        (root / f"latency_{tag}.json").write_text(json.dumps(
+            {"deck": tag, "budget_ms": cc.SUBJECT_LATENCY_BUDGET_MS,
+             "added_wall_per_turn_ms": {"p50": 1.0, "p90": p90},
+             "ms_board_subject_ms": {"p50": 1.0, "p90": 2.0}}), encoding="utf-8")
+    # THE SHIPPED SELECTION RULE, DRIVEN -- not restated. `_subject_latency_bank(root=)` is a test
+    # seat on the real body, so what this grades is the rule production reads.
+    bank = cc._subject_latency_bank(root=tmp_path)
+    assert bank["deck"] == "subject_heldout_v1" and bank["added_wall_per_turn_ms"]["p90"] == 402.4
+    assert bank["_path"].endswith("latency_subject_heldout_v1.json"), bank["_path"]
+    # THE OLD FIXED NAME IS STILL READ, so a bank written before the split is not orphaned.
+    (root / "latency.json").write_text(json.dumps(
+        {"deck": "legacy", "budget_ms": cc.SUBJECT_LATENCY_BUDGET_MS,
+         "added_wall_per_turn_ms": {"p50": 1.0, "p90": 999.0},
+         "ms_board_subject_ms": {"p50": 1.0, "p90": 2.0}}), encoding="utf-8")
+    assert cc._subject_latency_bank(root=tmp_path)["deck"] == "legacy"
+    # AND THE CLAUSE REDS ON IT: the worst of the date's banks is the one D10 is graded on. (The
+    # substitution is LAST because it retires the real reader for the rest of this test.)
+    monkeypatch.setattr(cc, "_subject_latency_bank", lambda: bank)
+    assert [e for e in cc.check_subject_resolver() if "D10 FAILS" in e]
+
+
+def test_pb11_THE_IN_TREE_BANK_IS_PHRASE_FREE_AND_ID_FREE():
+    """`test_p65`'s rule applied to phase B's own artifacts: the runner banks CLASS COUNTS in-tree and
+    per-row detail only in the scratchpad. Row IDS are dropped too -- a held-out row id beside its
+    class and its verdict is a map back into a deck that must stay outside the tree."""
+    bank = ROOT / "data" / "subject_resolver"
+    if not bank.is_dir():
+        pytest.skip("no bank in this checkout")
+    banned = {"phrase", "expect", "rows", "layer1_rows", "layer2_rows", "cands", "id",
+              "fired_ids", "carried_ids", "failed_ids", "unscored"}
+
+    def keys(node):
+        """Every KEY in the document tree. The test is structural rather than a substring ban: the
+        banked prose legitimately contains the WORD 'phrases' (the baseline note says what it was
+        measured over), and a substring ban would red on that while missing a row list nested three
+        levels down."""
+        if isinstance(node, dict):
+            for k, v in node.items():
+                yield k
+                yield from keys(v)
+        elif isinstance(node, list):
+            for v in node:
+                yield from keys(v)
+
+    for f in sorted(bank.rglob("*.json")):
+        doc = json.loads(f.read_text(encoding="utf-8"))
+        assert not (banned & set(keys(doc))), (f, sorted(banned & set(keys(doc))))
+
+
+def test_pb12_THE_RUNNER_REFUSES_BEFORE_IT_SPENDS(monkeypatch, tmp_path, capsys):
+    """The `xc_planner_soak` contract: `--dry-run` prints the exact call plan and the estimate and
+    returns 0 having spent nothing, and a layer-2 run with no key REFUSES with exit 2 rather than
+    failing row by row. Loaded by FILE LOCATION because `scripts/` is not a package."""
+    spec = importlib.util.spec_from_file_location(
+        "subject_deck_run", ROOT / "scripts" / "graphrag" / "subject_deck_run.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.SEAT == "claude-sonnet-4-6" and mod.TEMPERATURE == 0
+    assert mod.HARD_CAP_USD == 12.0
+    rc = mod.main(["--deck", str(DECK), "--layer", "both", "--draws", "3", "--dry-run"])
+    out = capsys.readouterr().out
+    assert rc == 0 and "DRY RUN: no API call made, nothing spent." in out
+    assert "312 calls" in out and "$3.12" in out and mod.SEAT in out
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert mod.main(["--deck", str(DECK), "--layer", "2", "--no-bank",
+                     "--out-dir", str(tmp_path)]) == 2
+    assert "ANTHROPIC_API_KEY is not set" in capsys.readouterr().out
+
+
+def _runner():
+    """The runner module, loaded by FILE LOCATION -- `scripts/` is not a package."""
+    spec = importlib.util.spec_from_file_location(
+        "subject_deck_run", ROOT / "scripts" / "graphrag" / "subject_deck_run.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_pb13_A_DEAD_EMBEDDER_IS_A_REFUSAL_AND_NOT_A_MEASUREMENT(monkeypatch, tmp_path, capsys):
+    """THE VACUOUS-INSTRUMENT FENCE, driven on the shape that actually happened in this checkout.
+
+    `evidence.embed` raised inside its `sentence_transformers` import chain; `semantic_candidates`
+    caught it (T0/T1 are the fail-open floor, by design) and returned `unreadable` with ZERO
+    candidates on every phrase -- while `load_vocab` in the same process returned `ok`, because that
+    word grades THE FILE. The run scored, verdicted and BANKED itself with `artifact: ok` in its own
+    header and every class at its lexical floor; at layer 2 the same state hands the planner an EMPTY
+    hint line and bills a call per draw. The held-out deck is a one-shot, so that is the money AND the
+    set. The fence reads the ROWS, refuses before layer 2, banks NOTHING, and writes a diagnostic
+    marked NON-CERTIFYING instead.
+
+    Layer 2 is asserted with the key PRESENT, because the point is that the refusal happens BEFORE the
+    key check that pb12 covers -- a run with a key and a dead embedder is exactly the billed one."""
+    mod = _runner()
+    from leviathan.graphrag.state import subject as SU
+    # THE DECLINE WORDS ARE DERIVED, NEVER TYPED: everything in the closed set that is not `ok` and not
+    # the deliberate skip. A fifth status word is a decline by default -- fail-closed.
+    assert mod.decline_words() == {"missing", "stale", "unreadable", "not_run"}
+    assert "skipped" not in mod.decline_words() and SU.STATUS_SKIPPED == "skipped"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "not-used-the-fence-fires-first")
+    # THE GRAPH AND THE ARTIFACT ARE STUBBED so this deck loads no 25 MB matrix and no 2 GB model: what
+    # is under test is the FENCE, and the fence reads the per-row status the tiers returned.
+    monkeypatch.setattr(mod, "load_graph", lambda: _seam_graph())
+    monkeypatch.setattr(SU, "load_vocab", lambda *a, **kw: ({}, "ok"))
+    monkeypatch.setattr(mod, "layer1_rows", lambda rows, *, graph, vocab: [
+        {"id": r["id"], "klass": r["klass"], "expect": list(r["expect"]), "exact": [], "alias": [],
+         "vocab_status": "unreadable", "cands": []} for r in rows])
+    rc = mod.main(["--deck", str(DECK), "--layer", "both", "--out-dir", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 2, out[-3000:]
+    assert "THE INSTRUMENT IS DEAD" in out and "instrument: DEAD" in out
+    assert "NOTHING WAS BANKED" in out and "BILLED" in out
+    diag = sorted(tmp_path.glob("*_REFUSED_instrument_dead.json"))
+    assert len(diag) == 1, sorted(p.name for p in tmp_path.iterdir())
+    doc = json.loads(diag[0].read_text(encoding="utf-8"))
+    assert doc["certifying"] is False and doc["instrument"]["live"] is False
+    assert doc["instrument"]["declined"] == {"unreadable": doc["instrument"]["rows_scanned"]}
+    assert "layer1" not in doc and "layer2" not in doc, "a refused run scores nothing"
+    # AND THE `skipped` WORD IS NOT A DECLINE: a tier the resolver chose not to run saved a turn
+    # 350-550 ms on purpose, and a census that could not tell the two apart would read every fast turn
+    # as a broken build.
+    monkeypatch.setattr(mod, "layer1_rows", lambda rows, *, graph, vocab: [
+        {"id": r["id"], "klass": r["klass"], "expect": list(r["expect"]), "exact": ["frost"],
+         "alias": [], "vocab_status": "skipped", "cands": []} for r in rows])
+    assert mod.instrument_census(mod.layer1_rows(
+        [{"id": "x", "klass": "exact", "expect": []}], graph=None, vocab=None))["live"] is True
+
+
+def test_pb14_THE_BILLED_PATH_RUNS_END_TO_END_OFFLINE(monkeypatch, capsys):
+    """THE ONE-SHOT'S OWN CODE PATH, driven with a FAKE transport and no network.
+
+    Layer 2 is the billed half and the held-out deck is spent on use, so the run seat gets ONE
+    attempt: every line of `run_layer2` -> `score_layer2` -> `collect_bars` -> `markdown` has to be
+    known to run before it is fired, including the two fences added after the review (the seat pin
+    read back from the draws, and the running-total breaker). `dp.plan_turn` is the REAL planner here
+    -- only the transport is faked -- so the kwargs, the schema and the validator are the shipped
+    ones."""
+    mod = _runner()
+    graph = _seam_graph()
+    rows = [{"id": "r1", "klass": "synonym", "phrase": "a cold snap in the growing region",
+             "expect": ["frost"]},
+            {"id": "d1", "klass": "decoy", "phrase": "who won the league", "expect": []}]
+    l1 = {"r1": {"id": "r1", "exact": [], "alias": [], "vocab_status": "ok",
+                 "cands": [["frost", 0.81, "id"]]},
+          "d1": {"id": "d1", "exact": [], "alias": [], "vocab_status": "ok", "cands": []}}
+
+    def transport(system, user, *, model, tool, **kw):
+        """The planner's tool body, plus the `_usage` pop-tag `_call_opus` attaches (D-AM-4)."""
+        pick = ["frost"] if "cold snap" in str(user) else []
+        return {"steps": ["reasoning"], "contracts": ["arabica_coffee"], "subject": pick,
+                "_usage": {"in": 1000, "out": 40, "cache_read": 0, "cache_write": 0,
+                           "model": mod.SEAT}}
+
+    meta: dict = {}
+    out = mod.run_layer2(rows, graph=graph, l1_by_id=l1, draws=3, max_contracts=2,
+                         today="2026-09-10", inner_call=transport, meta=meta)
+    of_id, inv = mod.group_index(graph)
+    sc = mod.score_layer2(out, of_id=of_id, inv=inv)
+    assert sc["calls"] == 6 and sc["errored_calls"] == 0, sc
+    assert sc["per_class"]["synonym"]["passed"] == 1
+    assert sc["per_class"]["decoy"]["fired"] == 0 and sc["per_class"]["decoy"]["verdict"] == "PASS"
+    # THE SEAT PIN IS READ BACK, not printed. `dispatch._temp_kw` forwards temperature=0 only when the
+    # callee declares it, and `providers.TEMP_DEPRECATED_SEATS` drops it for the Claude 5 family -- a
+    # silent 14-of-14 fallback is exactly what this bar exists to catch.
+    assert sc["seat_pin"]["temperature_observed"] == ["0"], sc["seat_pin"]
+    assert sc["seat_pin"]["model_observed"] == [mod.SEAT] and sc["seat_pin"]["verdict"] == "PASS"
+    doc = {"generated_utc": "x", "deck": "d", "rows_total": 2, "graph_hash": "h",
+           "vocab_status": "ok", "draws": 3, "max_contracts": 2, "layers_run": ["2"],
+           "layer2": dict(sc, aborted_on_cost=False, running_usd=meta["spent"])}
+    bars = mod.collect_bars(doc)
+    doc["bars"] = bars
+    doc["verdict"], stops, misses = mod.verdict_of(bars)
+    doc["failing_bars"] = stops + misses
+    assert any(b["bar"].startswith("L2 SEAT PIN") and b["verdict"] == "PASS" for b in bars), bars
+    assert "SEAT PIN, read back from the draws" in mod.markdown(doc)
+    # AND A MOVED SEAT STOPS. One draw at a different temperature is enough: the treatment is a prompt
+    # section plus a schema enum, so a seat that moved would move with it and nothing is attributable.
+    out[0]["draws"][0]["temperature"] = 1
+    assert mod.score_layer2(out, of_id=of_id, inv=inv)["seat_pin"]["verdict"] == "STOP"
+
+
+def test_pb15_THE_RUNNING_TOTAL_IS_A_BREAKER_AND_NOT_ONLY_AN_ESTIMATE(monkeypatch):
+    """The $12 cap was PRE-FLIGHT only: `calls x PER_CALL_USD` against the ceiling before submit (the
+    estate's own doctrine, and the right first fence) with nothing re-checking it once the run began.
+    A seat that billed far above the $0.01 anchor would have run to the end of the deck. The breaker
+    reads the SAME usage fields the dollar report is built from, and an aborted run's bars STOP so a
+    truncated population can never be read as a completed measurement."""
+    mod = _runner()
+    graph = _seam_graph()
+    rows = [{"id": f"r{i}", "klass": "synonym", "phrase": "a cold snap", "expect": ["frost"]}
+            for i in range(6)]
+    l1 = {r["id"]: {"id": r["id"], "exact": [], "alias": [], "vocab_status": "ok",
+                    "cands": [["frost", 0.81, "id"]]} for r in rows}
+
+    def spendy(system, user, *, model, tool, **kw):
+        return {"steps": ["reasoning"], "contracts": ["arabica_coffee"], "subject": ["frost"],
+                "_usage": {"in": 10_000_000, "out": 0, "cache_read": 0, "cache_write": 0,
+                           "model": mod.SEAT}}
+
+    meta: dict = {}
+    out = mod.run_layer2(rows, graph=graph, l1_by_id=l1, draws=1, max_contracts=2,
+                         today="2026-09-10", inner_call=spendy, meta=meta, cap_usd=mod.HARD_CAP_USD)
+    assert meta["aborted"] is True and meta["spent"] > mod.HARD_CAP_USD
+    assert len(out) < len(rows), "the breaker did not stop the run"
+    of_id, inv = mod.group_index(graph)
+    sc = dict(mod.score_layer2(out, of_id=of_id, inv=inv), aborted_on_cost=True,
+              running_usd=meta["spent"])
+    bars = mod.collect_bars({"layer2": sc, "draws": 1})
+    assert any(b["bar"].startswith("L2 COST BREAKER") and b["verdict"] == "STOP" for b in bars), bars
+    assert mod.verdict_of(bars)[0] == "STOP"
+
+
+def _head_orchestrator():
+    """HEAD's `orchestrator.py`, LOADED AS ITS OWN MODULE -- `_head_dispatch`'s idiom one file over.
+    The only way to prove flag-off byte identity of a CALL is to make HEAD's copy of the seam make it
+    on the same inputs. `git show HEAD:<path>` is a READ: nothing here mutates a ref, touches the index
+    or writes into the worktree."""
+    src = subprocess.check_output(["git", "show", "HEAD:src/leviathan/graphrag/orchestrator.py"],
+                                  cwd=str(ROOT))
+    path = pathlib.Path(tempfile.mkdtemp()) / "orchestrator_head.py"
+    path.write_bytes(src)
+    spec = importlib.util.spec_from_file_location("leviathan.graphrag._orch_head_subj", str(path))
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_pb1b_FLAG_OFF_IS_BYTE_IDENTICAL_TO_HEAD_AT_BOTH_CALLS(monkeypatch):
+    """THE OFF-EQUALITY, proved rather than asserted: HEAD's own `_respond_walk` runs beside the
+    tree's on the same turn with the same recorders, and the two kwarg dicts are compared key for key.
+
+    `if subject_ids:` inside `plan_turn` makes the LEAF agree whatever the seam passes, so a seam that
+    passed `subject_ids=None` would look identical from inside dispatch and would still have changed
+    `an.answer`'s signature contract. This compares the CALLS, which is where the claim is made.
+
+    HEAD's copy binds the SAME `answer` module object (its `import ... as an` resolves through
+    `sys.modules`), so one `monkeypatch.setattr(an, "answer", ...)` covers both copies."""
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag import orchestrator as orch
+    head = _head_orchestrator()
+    assert "GRAPHRAG_SUBJECT_RESOLVER" not in pathlib.Path(head.__file__).read_text(encoding="utf-8")
+    seen: dict = {}
+
+    def rec(tag, ret):
+        def f(q, **kw):
+            seen.setdefault(tag, []).append(dict(kw))
+            return ret
+        return f
+
+    plan = dp.Plan(steps=["reasoning"], contracts=["arabica_coffee"])
+    ans = {"answer": "x", "structured": None, "contract": "arabica_coffee", "contracts": [],
+           "evidence": [], "model": "m", "trace": {}}
+    monkeypatch.delenv(FLAG, raising=False)
+    monkeypatch.setattr(dp, "plan_turn", rec("plan_turn", plan))
+    monkeypatch.setattr(an, "answer", rec("answer", ans))
+    kw = dict(graph=_seam_graph(), asof="2024-06-01",
+              call=lambda *a, **k: {"tldr": "x", "mechanism": "y", "diagram_mermaid": "",
+                                    "sources": []},
+              retrieve=lambda q, node, *, k, asof=None, near=None: [])
+    head.respond("why is coffee bullish", **kw)
+    orch.respond("why is coffee bullish", **kw)
+    def canon(v):
+        """A CALLABLE compares by its QUALIFIED NAME, never by its repr. `route_fn` is a closure the
+        seam mints per turn, so its repr carries a memory address that differs between ANY two
+        invocations -- HEAD's and the tree's included. Its identity for this comparison is which
+        function the seam built, which is what a byte-identity claim about the CALL is about."""
+        return getattr(v, "__qualname__", None) or repr(v)
+
+    for tag in ("plan_turn", "answer"):
+        head_kw, tree_kw = seen[tag]
+        assert sorted(head_kw) == sorted(tree_kw), (tag, sorted(head_kw), sorted(tree_kw))
+        assert ({k: canon(v) for k, v in head_kw.items()}
+                == {k: canon(v) for k, v in tree_kw.items()}), tag

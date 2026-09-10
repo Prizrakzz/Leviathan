@@ -1,0 +1,48 @@
+{
+  "budget_ms": 150.0,
+  "n": 40,
+  "flag_off_turn_embed_ms": {
+    "p50": 228.72,
+    "p90": 240.53,
+    "mean": 230.57,
+    "n": 40
+  },
+  "flag_on_total_ms": {
+    "p50": 238.2,
+    "p90": 246.38,
+    "mean": 240.51,
+    "n": 40
+  },
+  "added_wall_per_turn_ms": {
+    "p50": 9.99,
+    "p90": 17.69,
+    "mean": 9.94,
+    "n": 40
+  },
+  "ms_board_subject_ms": {
+    "p50": 237.87,
+    "p90": 246.11,
+    "mean": 239.41,
+    "n": 40
+  },
+  "hints_line_ms": {
+    "p50": 0.24,
+    "p90": 0.39,
+    "mean": 1.07,
+    "n": 40
+  },
+  "bar": {
+    "metric": "added_wall_per_turn_ms.p90",
+    "budget_ms": 150.0,
+    "measured_ms": 17.69,
+    "verdict": "PASS"
+  },
+  "note": "OFF = the walk's own cold embed of the verbatim query, which the turn pays either way. ON = resolve() (cold, it fills the same _Q_CACHE key) + hints_line() + the walk's now-warm embed. ADDED is the difference and is what D10 budgets. ms_board_subject_ms is the resolver's OWN wall -- the production counter -- and is dominated by that shared embed. THE LANE SPLIT IS STATED AND NOT HIDDEN: these figures are a WALKING lane's. A lane that never walks (numbers_only, trivial) pays ms_board_subject_ms in full and nobody pays it back, which is what resolve(allow_embed=False) is for -- and which the orchestrator cannot decide at this call site, because the lane is plan_turn's own output (D10 addendum A1). The model load and the artifact load are once per process and sit outside every figure here: both are paid on a sentinel phrase first.",
+  "lane_split": {
+    "walking_lane_added_p90": 17.69,
+    "never_walking_lane_added_p90": 246.11
+  },
+  "deck": "subject_deck_v1.yaml",
+  "graph_hash": "99dc11409fe9",
+  "generated_utc": "20260910T124403Z"
+}

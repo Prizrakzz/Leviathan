@@ -1,0 +1,24 @@
+{
+  "record": "THE HELD-OUT LAYER-2 ONE-SHOT WAS NOT SPENT",
+  "date_utc": "2026-09-10",
+  "seat": "run seat (the only seat that may spend)",
+  "deck": "subject_heldout_v1.yaml",
+  "layers_run_on_this_deck": ["1"],
+  "layer2_status": "HELD -- not run, nothing spent, the blind set is UNSPENT at layer 2",
+  "call_plan_not_executed": {"rows": 110, "draws": 3, "calls": 330, "anchor_usd_per_call": 0.01,
+                             "estimate_usd": 3.30},
+  "why": [
+    "The calibration deck's layer 2 STOPped on the FATAL bar: 2 of 14 decoy rows had the planner pick a subject (one on 3 of 3 draws, one on 2 of 3).",
+    "Closing that FATAL changes the frozen SUBJECT block (its sha is pinned by config_check.check_subject_resolver), which is the instrument the held-out deck exists to measure ONCE.",
+    "The layer-2 near_duplicate and multi bars are not yet a planner measurement: on 10 of 10 near_duplicate and 8 of 8 multi calibration rows the planner reached an expected id at >= 2 of 3 draws, and every miss is either an expect list spanning more than one group key (the scorer reads alternatives as required groups) or a second, defensible co-subject the deck did not list.",
+    "A blind set scored against an instrument that cannot be armed is a spent set and a measurement nobody can use. It is held for the ONE run of the fixed block."
+  ],
+  "spent_usd_this_sitting": 2.7889,
+  "hard_cap_usd": 12.0,
+  "unspent_headroom_usd": 9.2111,
+  "calibration_layer2_failing_bars": [
+    "L2 DECOY PICKS (0 on ANY draw, FATAL)",
+    "L2 NEAR_DUPLICATE >= 100%",
+    "L2 MULTI >= 100%"
+  ]
+}
