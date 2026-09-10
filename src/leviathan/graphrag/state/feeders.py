@@ -53,6 +53,7 @@ from __future__ import annotations
 import copy
 import datetime as _dt
 import functools
+import math as _math
 import os
 import threading
 import time
@@ -180,21 +181,81 @@ CADENCE_HISTORY_WINDOW: dict[str, int] = {
     "release": 0,          # revision_count over vintages; NO z
 }
 
+#: THE PUBLICATION SLACK per cadence, in the cadence's OWN periods -- the FIFTH read rule, and it was
+#: measured rather than reasoned. A read span that EQUALS the history window cannot fill that window:
+#: the span is measured from the AS-OF and the newest KNOWABLE period sits a publication lag behind it,
+#: so the array comes back short by the lag and the rolling z -- a population z over exactly ``window``
+#: points ending at the last point -- declines every turn, for good.
+#:
+#: MEASURED IN-VPC (board census run #3, job 72fd69e3, the pg mirror at as-of 2026-09-07). ONI's read
+#: spanned 120 months and returned 117: 2016-09 to 2026-05, the newest month the mirror carried. The z
+#: declined ``history has 117 points, window needs 120`` on all 32 rendered ONI rows, and the row still
+#: printed a percentile (floor 8) and a run beside the refusal -- a standing that is refused while two
+#: neighbouring measures compute is the tell. 86 rendered rows across 144 board runs carried it, and
+#: EVERY ONE sat on a cadence whose span equalled its window: ONI 32, gold_weather_z 25, IOD 12, COT 12,
+#: ESR 5. No daily row and no annual row did -- daily reads 5 years for a 250-session window and annual
+#: reads the whole history.
+#:
+#: EACH NUMBER, AND WHAT IT COVERS. The lags are the registry's own declarations, read at this landing:
+#:   * monthly 12 -- the MEASURED worst monthly frontier on run #3 was ONI at 2026-05, 4.24 months
+#:     behind the as-of, and the worst DECLARED monthly lag is 45 DAYS AFTER MONTH-END (``silver_noaa_iod``
+#:     ym_publication_lag_days 45; ``silver_fnc_colombia_monthly`` / ``silver_unica_monthly_ethanol_sales``
+#:     publication_lag_days 45), which costs two data months, PLUS a stale mirror: ONI's own lag is 36
+#:     days and the mirror still stopped at 2026-05 rather than the PIT-knowable 2026-06, so two more
+#:     months. Twelve is that worst case with room, and the cost of the room is rows, not correctness.
+#:   * weekly 8 -- worst declared weekly lag 13 days (``silver_fgis``, MEASURED worst case), COT 6; two
+#:     weeks of lag plus six of a stale mirror, against a COT frontier measured 1.86 weeks behind the
+#:     as-of on run #3.
+#:   * weekly_destination 6 -- and this one is a MEASURED CHOICE BETWEEN TWO FAILURES, not a default.
+#:     The MEASURED worst frontier on this grain is corn's ESR week 2026-08-06 at as-of 2026-09-07 --
+#:     32 days, 4.57 weeks -- so a 4-week slack lands EXACTLY on 52 points for a 52-week window: one
+#:     week staler and the standing refuses again. Against that, this grain reads one row per
+#:     destination per week and is the only family where the 5,000-row cap is anywhere near: the
+#:     destination probe counted ``grain_sorghum`` at 4,293 ESR rows over 52 weeks (707 of headroom,
+#:     the tightest series still under the cap), which extrapolates to ~4,789 at 58 weeks (~211 of
+#:     headroom) and to ~4,954 at 60 (~46). Six is the widest slack that keeps that headroom in the
+#:     hundreds. The asymmetry decides it: a cap that binds is a LOUD, named, self-correcting failure
+#:     (``history_truncated:5000`` and the window note rewritten), while a span that binds is silent
+#:     and permanent. The durable fix for this grain is the per-week SUM branch in ``build_sql``
+#:     (V1.1, already named on ``CADENCE_HISTORY_WINDOW['weekly_destination']``), which removes the
+#:     row-count pressure and would let this slack be as generous as monthly's.
+#:   * biweekly 4 -- UNICA publishes 14 days after the fortnight (publication_lag_days 14 on both cards):
+#:     one fortnight of lag, four of cover.
+#:   * daily 10 -- already covered many times over (5 years is ~1,260 sessions against a 250-session
+#:     window); the number is declared so the invariant has one rule and no exception.
+#:   * annual 1 -- the span is the whole history, so the slack is nominal.
+#:   * release 0 -- ``release`` carries NO window (revision counts only), so nothing can be short.
+CADENCE_READ_SLACK: dict[str, int] = {
+    "daily": 10,               # sessions
+    "weekly": 8,               # weeks
+    "weekly_destination": 6,   # weeks -- the widest the 5,000-row cap leaves room for on this grain
+    "biweekly": 4,             # fortnights
+    "monthly": 12,             # months
+    "annual": 1,               # marketing years (the span is the whole history anyway)
+    "release": 0,              # no window at all
+}
+
 #: The READ span per cadence, as (unit, n) -> ``period_start = asof - n units``. ``None`` = read the
 #: whole per-(commodity, country) history: a marketing-year card holds ~66 rows, which is nowhere near
 #: the cap, and a date bound on a card with no date column prunes nothing anyway.
+#:
+#: EVERY SPAN EXCEEDS ITS WINDOW BY THAT CADENCE'S SLACK, and :func:`check_read_spans` asserts it at
+#: import so the pair can never drift back into equality. The four numbers that MOVED at this landing
+#: are monthly 120 -> 132, weekly 156 -> 164, weekly_destination 52 -> 58 and biweekly 78 -> 82
+#: fortnights (1,092 -> 1,148 days). ``daily`` and ``annual`` are unchanged and were never short.
 CADENCE_READ_SPAN: dict[str, Optional[tuple[str, int]]] = {
-    "daily": ("years", 5),
-    "weekly": ("weeks", 156),
-    "weekly_destination": ("weeks", 52),
-    "biweekly": ("days", 78 * 14),
-    "monthly": ("months", 120),
-    "annual": None,
+    "daily": ("years", 5),                  # ~1,260 sessions for a 250-session window: never short
+    "weekly": ("weeks", 156 + 8),
+    "weekly_destination": ("weeks", 52 + 6),
+    "biweekly": ("days", (78 + 4) * 14),
+    "monthly": ("months", 120 + 12),
+    "annual": None,                         # the whole history
     "release": None,
 }
 
 #: The two DESTINATION-GRAIN cards: one row per destination per week, no world-total code, summed per
-#: week by the SHIPPED collapse. Read over 52 weeks so the per-week rows stay under the 5,000 cap.
+#: week by the SHIPPED collapse. Read over 58 weeks -- the window's 52 plus this grain's own 6 weeks of
+#: publication slack -- so the per-week rows stay as far under the 5,000 cap as the grain allows.
 DESTINATION_GRAIN_TABLES: frozenset[str] = frozenset({"silver_esr", "silver_fgis"})
 
 #: The pink sheet serves its own 5-YEAR z columns; ranking those against a ten-year window would state a
@@ -211,6 +272,126 @@ CADENCE_PERIODS_PER_YEAR: dict[str, int] = {
     "daily": 252, "weekly": 52, "weekly_destination": 52, "biweekly": 26, "monthly": 12,
     "annual": 1, "release": 1,
 }
+
+#: One period of each cadence, IN DAYS. It is the recency leg's own age-in-periods divisor and it is
+#: also what turns a read span declared in one unit into a count of the cadence's OWN periods
+#: (:func:`read_span_periods`), which is the only unit the span-vs-window invariant can be stated in.
+#: It MOVED here from beside ``_recency`` at the read-span landing: two readers, one cadence table.
+CADENCE_DAYS: dict[str, Optional[float]] = {
+    "daily": 365.0 / 252.0, "weekly": 7.0, "weekly_destination": 7.0, "biweekly": 14.0,
+    "monthly": 365.0 / 12.0, "annual": 365.0, "release": None,
+}
+
+#: The days one unit of a READ SPAN is worth. ``CADENCE_READ_SPAN`` declares each span in whatever unit
+#: reads naturally for the cadence, and this is the only place that vocabulary is priced.
+_SPAN_UNIT_DAYS: dict[str, float] = {"years": 365.0, "months": 365.0 / 12.0, "weeks": 7.0, "days": 1.0}
+
+
+def read_span_periods(cadence: str, span: Optional[tuple[str, int]] = None) -> Optional[int]:
+    """A read span expressed in the CADENCE'S OWN PERIODS. ``None`` == the whole history (unbounded).
+
+    The invariant this exists for cannot be stated in the declared units: ``daily`` declares 5 years and
+    is measured against a 250-SESSION window; ``biweekly`` declares 1,148 days and is measured against 82
+    FORTNIGHTS. One unit, one comparison, no per-cadence special case at the call site."""
+    span = CADENCE_READ_SPAN.get(cadence) if span is None else span
+    if not span:
+        return None
+    unit, n = span
+    per = CADENCE_DAYS.get(cadence)
+    if not per:
+        return None
+    return int(_SPAN_UNIT_DAYS.get(str(unit), 1.0) * float(n) / float(per) + 1e-9)
+
+
+def read_span(cadence: str, window: Optional[int] = None) -> Optional[tuple[str, int]]:
+    """The ``(unit, n)`` span a read of this cadence covers, WIDENED where the caller's own window needs
+    more than the cadence default does. ``None`` == read the whole history.
+
+    TWO RULES, AND THE SECOND IS THE ONE THE CADENCE TABLE CANNOT KEEP ON ITS OWN. The table above is
+    already ``window + slack`` for the cadence's DEFAULT window. But a window is not always the cadence
+    default: ``state_conventions.yaml`` lets a series declare its own (``cot_mm_positioning``
+    ``history_window: 156``; ``psd_ending_stock_su_ratio`` 10) and ``TABLE_HISTORY_WINDOW`` lets a card
+    declare one (``silver_pink_sheet`` 60). Every declared window in the estate today is at or below its
+    cadence default, so this branch is a NO-OP on the served path at this landing and the table alone
+    carries the fix -- but a series that declared 200 weeks tomorrow would otherwise be read over 164 and
+    refuse its own standing for ever, silently, which is the exact defect this landing closes. So the
+    span is scaled to whichever window the row will actually be measured over, PLUS that cadence's slack.
+
+    IT ONLY EVER WIDENS. A declared window SHORTER than the cadence default (the pink sheet's 60 months)
+    keeps the full 132-month span: a narrower read would save rows nobody is short of and would make the
+    span a function of two things instead of one."""
+    span = CADENCE_READ_SPAN.get(cadence)
+    if span is None:
+        return None
+    unit, n = span
+    have = read_span_periods(cadence, span) or 0
+    need = int(window or 0) + int(CADENCE_READ_SLACK.get(cadence, 0))
+    if have > 0 and need > have:
+        n = int(_math.ceil(float(n) * float(need) / float(have)))
+    return (str(unit), int(n))
+
+
+def check_read_spans(windows: Optional[dict] = None, conventions: Optional[dict] = None) -> list[str]:
+    """Every cadence that carries a history window reads a span LONGER than that window by its own
+    publication slack. Returns the problems by name; empty == clean.
+
+    IT IS ASSERTED AT IMPORT over the module's own tables (below), and the deck runs it a second time
+    with the CONFIG's ``windows:`` block and the per-series ``history_window`` declarations threaded in
+    -- the config_check shape, in the one place that can read the config without making this module
+    import yaml on every consumer's behalf.
+
+    ``release`` is exempt BY NAME rather than by falling through a zero: it declares no window at all
+    (revision counts only), and a cadence that measures nothing cannot be measured over too little."""
+    problems: list[str] = []
+    for cadence, win in sorted(CADENCE_HISTORY_WINDOW.items()):
+        if not win:
+            continue                                       # `release`: no window, nothing to fill
+        span = CADENCE_READ_SPAN.get(cadence)
+        if span is None:
+            continue                                       # the whole history is never short
+        slack = int(CADENCE_READ_SLACK.get(cadence, -1))
+        if slack < 0:
+            problems.append(f"cadence {cadence!r} declares a read span and a window but NO slack")
+            continue
+        have = read_span_periods(cadence, span)
+        if have is None:
+            problems.append(f"cadence {cadence!r} declares span {span!r} that cannot be priced in "
+                            f"its own periods (no CADENCE_DAYS entry)")
+            continue
+        if have < int(win) + slack:
+            problems.append(f"cadence {cadence!r}: read span is {have} periods, window {int(win)} + "
+                            f"slack {slack} needs {int(win) + slack}")
+    # THE CARD-LEVEL AND SERIES-LEVEL WINDOWS, checked against the span the READ would actually take --
+    # `read_span` widens, so this can only fail where the widening itself is unavailable (a cadence with
+    # no span at all is exempt above, and a `None` span is unbounded).
+    declared: list[tuple[str, str, int]] = []
+    for table, win in sorted(TABLE_HISTORY_WINDOW.items()):
+        # A CARD OVERRIDE IS CHECKED AGAINST EVERY CADENCE, and that is not laziness: this module does
+        # not know a table's cadence without the registry (``cadence_of`` takes a TableSpec), and a
+        # window that must hold whatever cadence the card turns out to carry is the stronger claim.
+        for cad in sorted(CADENCE_READ_SPAN):
+            declared.append((f"table {table!r} on cadence {cad!r}", cad, int(win)))
+    for ref, row in sorted((conventions or {}).items()):
+        w = (row or {}).get("history_window")
+        if w is None:
+            continue
+        key = str((row or {}).get("history_window_key") or "monthly")
+        cad = key if key in CADENCE_READ_SPAN else "monthly"
+        declared.append((f"series {ref!r}", cad, int(w)))
+    for base in sorted(windows or {}):
+        cad = str(base)
+        if cad in CADENCE_READ_SPAN:
+            declared.append((f"config windows.{base}", cad, int((windows or {})[base])))
+    for who, cad, win in declared:
+        span = read_span(cad, win)
+        if span is None:
+            continue
+        have = read_span_periods(cad, span)
+        slack = int(CADENCE_READ_SLACK.get(cad, 0))
+        if have is not None and have < win + slack:
+            problems.append(f"{who}: declared window {win} on cadence {cad!r} reads {have} periods, "
+                            f"needs {win + slack}")
+    return problems
 
 
 def cadence_of(ts, table: str) -> str:
@@ -237,8 +418,12 @@ def history_window(cadence: str, table: str, windows: Optional[dict] = None) -> 
     return CADENCE_HISTORY_WINDOW.get(cadence, 0)
 
 
-def _period_start(asof: str, cadence: str) -> Optional[str]:
-    span = CADENCE_READ_SPAN.get(cadence)
+def _period_start(asof: str, cadence: str, window: Optional[int] = None) -> Optional[str]:
+    """``asof - read_span`` as an ISO day, or ``None`` for a whole-history read.
+
+    ``window`` is the window this row will be MEASURED over, and it is threaded rather than looked up
+    so the read is bounded by what the caller will actually compute (:func:`read_span`'s second rule)."""
+    span = read_span(cadence, window)
     if not span:
         return None
     unit, n = span
@@ -313,7 +498,8 @@ def state_cache_key(key: SeriesKey, asof_s: str, read_shape: str, params_hash: s
 
 
 def series_read_key(key: SeriesKey, table: str, metric: str, asof_s: str, cadence: str,
-                    read_shape: str, ym_lag: bool, row_filter_sig: str = "") -> tuple:
+                    read_shape: str, ym_lag: bool, row_filter_sig: str = "",
+                    span: Optional[tuple[str, int]] = None) -> tuple:
     """THE MEMO'S READ LAYER -- the key that makes a declared ``same_series_as`` cost what the design says
     it costs (sec 3.6 and sec 2.6 item 1: the palm row is computed "on the SAME memoised array SHIFTED by
     offset_months (zero extra reads)").
@@ -364,10 +550,19 @@ def series_read_key(key: SeriesKey, table: str, metric: str, asof_s: str, cadenc
     (measured at as-of 2026-09-08) and all five share one entry -- correctly, which is the point: the
     term splits on what the WHERE clause actually says, not on the slug that was asked for. The day a
     card's filters DIFFER by commodity, the failure direction is an extra read rather than one
-    commodity's array served under another's key -- the direction the fold's own fence already chose."""
+    commodity's array served under another's key -- the direction the fold's own fence already chose.
+
+    ``span`` IS ON THE KEY BECAUSE THE READ SPAN IS NO LONGER A FUNCTION OF THE CADENCE ALONE. Since the
+    read-span landing, :func:`read_span` widens a cadence's span to cover a window WIDER than the cadence
+    default (a per-series ``history_window``), so two rows on one series key, one cadence and one read
+    shape can now issue two different ``period_start`` values. Without this term the narrower read would
+    be served to the wider row -- a short array under a long window's label, which is the very defect
+    this landing closes, re-entering through the memo. Every span on the estate is the cadence default
+    today, so the term partitions nothing at this landing and costs one tuple slot."""
     return ("state_read", key.ref, key.commodity, key.country, key.metric, str(table), str(metric),
             str(asof_s or ""), str(cadence or ""), str(read_shape or ""), bool(ym_lag),
-            str(row_filter_sig or ""), mirror_epoch())
+            str(row_filter_sig or ""), (None if span is None else (str(span[0]), int(span[1]))),
+            mirror_epoch())
 
 
 def _cache_enabled() -> bool:
@@ -840,6 +1035,12 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     # the declared windows and the convention row, so it is knowable before a single row is fetched.
     conv = (conventions or {}).get(ref) or (conventions or {}).get(base_ref)
     is_flag = _is_flag_row(ref, row2)
+    # THE WINDOW THE READ MUST COVER, which is not always the window the row is MEASURED over. `win` is
+    # what `zscore` will be handed; a series may ALSO declare its own `history_window` in
+    # state_conventions.yaml, and `history_window()` does not consult that row today. The READ takes the
+    # wider of the two plus the cadence's slack, so a declared window can never outrun the array fetched
+    # for it -- and the measured half of it stays exactly `win`, unchanged by this line.
+    read_win = max(int(win or 0), int((conv or {}).get("history_window") or 0))
     phash = TR.params_hash(_transform_plan(cadence, win, is_flag, conv))
     ckey = state_cache_key(out.key, str(asof or "")[:10], _read_shape(newest_first), phash,
                            out.offset_months, out.alias_ref)
@@ -855,7 +1056,8 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
         # row that missed the STATE layer because it is a different STATE of a series already fetched --
         # the same-series fold's alias, a second transform plan over one array -- pays no read here.
         rows, reads = _shared_read(ts, out.key, table, metric, commodity, country, asof, cadence,
-                                   qfn=qfn, newest_first=newest_first, ym_lag=ym_lag)
+                                   qfn=qfn, newest_first=newest_first, ym_lag=ym_lag,
+                                   window=read_win)
     except BoardReadDecline as d:
         out.status = d.status
         out.reads = 1
@@ -1118,25 +1320,33 @@ def _transform_plan(cadence: str, win: int, is_flag: bool, conv: Optional[dict])
     return plan
 
 
-def board_spec(table: str, metric: str, commodity, country, asof: str, cadence: str):
+def board_spec(table: str, metric: str, commodity, country, asof: str, cadence: str,
+               window: Optional[int] = None):
     """THE BOARD'S READ, as one ``NumberQuery`` -- public so a harness, a census and a PIT pin can build
     the SAME spec the feeder builds rather than a plausible-looking neighbour of it.
 
     ``agg='series'`` with an EXPLICIT ``period_start`` per cadence and an EXPLICIT ``limit``: the two
     things ``cascade.fetch_window`` cannot express, and the reason this reads through ``query.run``
     directly. A window-less series read on ``silver_fred_fx`` is 5,538 rows against a 5,000 cap, and
-    under the default ASC order the 538 rows the cap drops are the NEWEST ones."""
+    under the default ASC order the 538 rows the cap drops are the NEWEST ones.
+
+    ``window`` is OPTIONAL and defaults to the cadence's own: a caller that does not know the window is
+    read over the cadence default's span, which is already ``window + slack`` (:data:`CADENCE_READ_SPAN`).
+    A caller that DOES know it -- ``series_state``, which computed it before it read -- passes it, and a
+    series declaring a window WIDER than its cadence default is read wide enough to fill it."""
     from leviathan.graphrag.numbers import query as Q
     return Q.NumberQuery(table=table, metric=metric, asof=asof,
                          commodity=commodity or None,
                          country=(country if country else None),
-                         agg="series", period_start=_period_start(asof, cadence), limit=READ_LIMIT)
+                         agg="series", period_start=_period_start(asof, cadence, window),
+                         limit=READ_LIMIT)
 
 
-def _read_series(ts, table, metric, commodity, country, asof, cadence, *, qfn, newest_first, ym_lag):
+def _read_series(ts, table, metric, commodity, country, asof, cadence, *, qfn, newest_first, ym_lag,
+                 window: Optional[int] = None):
     """ONE read through ``query.run`` -- the ``silverleg._rows`` shape, with an EXPLICIT window and cap."""
     from leviathan.graphrag.numbers import query as Q
-    spec = board_spec(table, metric, commodity, country, asof, cadence)
+    spec = board_spec(table, metric, commodity, country, asof, cadence, window)
     rows = Q.run(spec, query_fn=qfn, futures_newest_first=newest_first, ym_lag=ym_lag)
     return rows, 1
 
@@ -1154,7 +1364,7 @@ def _row_filter_sig(ts, metric: str, commodity) -> str:
 
 
 def _shared_read(ts, key: SeriesKey, table, metric, commodity, country, asof, cadence, *, qfn,
-                 newest_first, ym_lag):
+                 newest_first, ym_lag, window: Optional[int] = None):
     """ONE physical read per ``(series key, read shape)`` -- :func:`_read_series` behind the memo's READ
     layer (:func:`series_read_key`), which is what makes the same-series fold free.
 
@@ -1169,7 +1379,8 @@ def _shared_read(ts, key: SeriesKey, table, metric, commodity, country, asof, ca
     from the idiom rather than from a promise. The fold's zero-extra-read property is therefore a
     property of the MEMO, exactly as the design's own "one ONI read serves 35 rows" is."""
     rkey = series_read_key(key, table, metric, str(asof or "")[:10], cadence,
-                           _read_shape(newest_first), ym_lag, _row_filter_sig(ts, metric, commodity))
+                           _read_shape(newest_first), ym_lag, _row_filter_sig(ts, metric, commodity),
+                           read_span(cadence, window))
     hit = cache_get(rkey)
     if hit is not None:
         # COPIED OUT as well as in: the entry holds a whole fetched ARRAY and the collapse below is
@@ -1177,7 +1388,7 @@ def _shared_read(ts, key: SeriesKey, table, metric, commodity, country, asof, ca
         # reader of a key that is IMMORTAL on a historical as-of (``cache_put``'s own measured law).
         return [dict(r) for r in hit], 0
     rows, reads = _read_series(ts, table, metric, commodity, country, asof, cadence,
-                               qfn=qfn, newest_first=newest_first, ym_lag=ym_lag)
+                               qfn=qfn, newest_first=newest_first, ym_lag=ym_lag, window=window)
     cache_put(rkey, rows, str(asof or "")[:10])
     return rows, reads
 
@@ -1303,12 +1514,6 @@ def _convention_label(conv: dict, out: StateRow, bundle: dict, bkey: str, derivs
 #: APPROXIMATE BY CONSTRUCTION and rounded DOWN, which is the safe direction: "at least two months
 #: stale" never overstates freshness. A cadence with no standing period (``release``) has no periods to
 #: count and the field is None rather than a number nobody can check.
-CADENCE_DAYS: dict[str, Optional[float]] = {
-    "daily": 365.0 / 252.0, "weekly": 7.0, "weekly_destination": 7.0, "biweekly": 14.0,
-    "monthly": 365.0 / 12.0, "annual": 365.0, "release": None,
-}
-
-
 def _recency(out: StateRow, asof: str, ts, cadence: str = "") -> dict:
     age_days = None
     ref_date = out.knowledge_date or out.level_date
@@ -1701,6 +1906,21 @@ def text_state(node, *, asof: str, evidence_query: str = "", receipts=None,
                      status=("ok" if ranked else "no_receipts"))
 
 
+# ---------------------------------------------------------------------------------------------------
+# THE READ-SPAN PIN, AT IMPORT (the read-span landing)
+# ---------------------------------------------------------------------------------------------------
+# THIS ONE **DOES** RUN AT IMPORT, and the difference from the cascade-import pin above is the cost of
+# running it: `check_cascade_imports` has to import cascade.py and would hand every consumer of this
+# package that module's whole graph, while this reads three dicts that are literals in this same file.
+# It can therefore only ever fire on an EDIT of those literals -- which is exactly the event it exists
+# for. A `raise` and not an `assert`: `python -O` strips an assert, and a fence that a flag can remove
+# is not a fence. The message names the cadence and both numbers, so the edit that broke it is the edit
+# the traceback describes.
+_READ_SPAN_PROBLEMS = check_read_spans()
+if _READ_SPAN_PROBLEMS:                                   # pragma: no cover -- fires only on a bad edit
+    raise RuntimeError("state/feeders: the read span must exceed the history window by the cadence's "
+                       "publication slack -- " + "; ".join(_READ_SPAN_PROBLEMS))
+
 # The import-time pin (sec 2.1, critic G21). It runs on the LINT path, not on import of this module,
 # because importing cascade.py here would hand every consumer of this package that module's whole graph.
 __all__ = [
@@ -1709,7 +1929,7 @@ __all__ = [
     "fixture_query_fn", "board_query_fn", "BoardReadDecline", "mirror_epoch", "state_cache_key",
     "series_read_key",
     "cache_get", "cache_put", "cache_clear", "cadence_of", "history_window", "derive_knowledge_date",
-    "board_spec",
+    "board_spec", "read_span", "read_span_periods", "check_read_spans", "CADENCE_READ_SLACK",
     "CADENCE_CHANGE_WINDOWS", "CADENCE_HISTORY_WINDOW", "CADENCE_READ_SPAN", "CADENCE_PERIODS_PER_YEAR",
     "CADENCE_DAYS", "DESTINATION_GRAIN_TABLES", "READ_LIMIT", "VINTAGE_NOTE", "LATEST_ONLY_CARDS",
     "STATE_CACHE_MAX", "TAPE_CHANGE_SESSIONS", "TAPE_MIN_PERCENTILE_N", "TAPE_TABLE", "TAPE_METRIC",

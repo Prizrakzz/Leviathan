@@ -191,11 +191,16 @@ def test_an_unresolved_scope_declines_with_the_RESOLVERS_own_reason_word():
 # ── the read (sec 2.1) ───────────────────────────────────────────────────────────────────────────────
 def test_the_board_read_is_a_windowed_capped_series_never_a_whole_history_read():
     """``cascade.fetch_window`` takes no ``limit`` and binds ``period_start=None``; on silver_fred_fx
-    (5,538 daily rows against a 5,000 cap, ASC) the rows the cap drops are the NEWEST ones."""
+    (5,538 daily rows against a 5,000 cap, ASC) the rows the cap drops are the NEWEST ones.
+
+    THE MONTHLY DATE MOVED AT THE READ-SPAN LANDING, 2016-09-01 -> 2015-09-01, and the move IS the fix:
+    the span was 120 months against a 120-month window, so the array arrived short by the publication
+    lag and the z declined for ever. It is now ``window + CADENCE_READ_SLACK['monthly']`` = 132.
+    ``tests/unit/test_state_read_span.py`` holds the invariant and the reproduction."""
     spec = F.board_spec("silver_noaa_oni", "oni_anom", "soybeans_cbot", None, "2026-09-08", "monthly")
     assert spec.agg == "series"
     assert spec.limit == F.READ_LIMIT == 5000
-    assert spec.period_start == "2016-09-01"                 # asof minus the monthly cadence's 120 months
+    assert spec.period_start == "2015-09-01"                 # asof minus the monthly span's 132 months
     daily = F.board_spec("silver_futures_eod", "settle", "corn_cbot", None, "2026-09-08", "daily")
     assert daily.period_start == "2021-09-08"                # five years, never 'full history'
     assert F.board_spec("silver_psd", "su_ratio", "corn", "United States", "2026-09-08",

@@ -309,12 +309,114 @@ def _fixtures_mirror_nulls_annual() -> dict:
     return _annual_labels(_mirror_nulls(_fixtures()))
 
 
+# ---------------------------------------------------------------------------------------------------
+# THE LAGGED-MIRROR FIXTURE -- what a read span that EQUALS its window actually fetches
+# ---------------------------------------------------------------------------------------------------
+#: WHY A FOURTH SET EXISTS. The three sets above all hand the producer the WHOLE array, so none of them
+#: can grade the one thing that happens between the as-of and the array: the READ SPAN. The clean ONI
+#: fixture is 440 monthly points and every z over a 120-month window computes on it; the mirror served
+#: 117, and the z declined on every board.
+#:
+#: THE MEASURED SHAPE (board census run #3, job 72fd69e3, the pg mirror at as-of 2026-09-07). The read
+#: spans ``asof - CADENCE_READ_SPAN`` and the newest KNOWABLE period sits a publication lag behind the
+#: as-of, so the array arrives short by that lag. ONI: span 120 months from 2016-09, newest month on the
+#: mirror 2026-05, 117 points, ``history has 117 points, window needs 120``. 86 rendered rows across 144
+#: board runs carried the refusal -- ONI 32, gold_weather_z 25, IOD 12, COT 12, ESR 5 -- and every one
+#: sat on a cadence whose span equalled its window.
+#:
+#: THIS SET IS THAT ARITHMETIC, OFFLINE. Each array is (1) shortened by its cadence's publication lag,
+#: then (2) sliced to the span the SHIPPED :data:`feeders.CADENCE_READ_SPAN` would actually fetch. It is
+#: therefore a function of the live table rather than a copy of it: with the span equal to the window it
+#: reproduces the refusal, and with the span widened by the cadence's slack the same fixture computes.
+#: THAT IS THE POINT -- the set is the falsifier, and it flips when the table is fixed, not when this
+#: file is edited.
+#:
+#: IT IS BUILT ON THE **CLEAN** ESTATE, not on ``mirror_nulls``, for that file's own stated reason: a
+#: green banner here must mean exactly one thing -- the read span fills the window -- and never "the
+#: null boundary held as well".
+#:
+#: IT IS PINNED TO :data:`ASOF` because a fixture set is built with no as-of argument and a lag is
+#: measured from one. That is the census default too (``board_census.CENSUS_ASOF_DEFAULT``), so the
+#: offline census over this set grades the estate at the as-of the lag was cut for.
+#:
+#: THE FOUR CONTROLS ARE AS LOAD-BEARING AS THE SEVEN WITNESSES, and they are listed with their reason:
+#: ``brent_crude_z`` sits on ``silver_pink_sheet``, whose ``TABLE_HISTORY_WINDOW`` is 60 months, so its
+#: z computes on the SAME 117-point array that refuses ONI's -- the pink sheet escapes because its own
+#: window is short, exactly as the design says. The two daily cards read five years for a 250-session
+#: window and the two annual cards read the whole history, so all four compute before and after.
+MIRROR_LAG_INJECTIONS: tuple = (
+    ("oni_climate", "monthly", 3,
+     "the WITNESS: silver_noaa_oni ym_publication_lag_days 36 plus a mirror that stopped at 2026-05 "
+     "rather than the PIT-knowable 2026-06 -- three months behind the fixture's newest month"),
+    ("iod_climate", "monthly", 3,
+     "silver_noaa_iod ym_publication_lag_days 45. ONE LAG IS APPLIED TO EVERY MONTHLY CARD -- ONI's "
+     "worst-case three -- rather than each card's own, so the set grades ONE arithmetic. IOD's own "
+     "measured frontier was better and still short: the mirror carried 2026-06, its true PIT frontier, "
+     "which is 118 points against a 120-month window"),
+    ("drought_z", "monthly", 3, "gold_weather_z -- 25 of the 86 measured refusals sat on this card"),
+    ("heat_stress_z", "monthly", 3, "the second gold_weather_z column, on the same axis"),
+    ("mpob_ending_stocks", "monthly", 3, "silver_mpob publication_lag_days 43: a fourth monthly witness"),
+    ("cot_mm_positioning", "weekly", 2,
+     "silver_cot publication_lag_days 6, and the weekly span equalled its 156-week window"),
+    ("esr_exports", "weekly_destination", 5,
+     "THE MEASURED WORST FRONTIER ON THE ESTATE: corn's ESR week 2026-08-06 at as-of 2026-09-07 is 32 "
+     "days -- 4.57 weeks -- behind, while soybeans' was 2026-08-13. Five whole weeks is that corn row, "
+     "and it is why this cadence's slack is 6 rather than 4: at 4 the span returns exactly 51 points "
+     "for a 52-week window and the standing refuses anyway"),
+    ("brent_crude_z", "monthly", 3,
+     "CONTROL: the same monthly lag on the pink sheet, whose window is 60 months -- its z computes "
+     "before the fix as well as after, which is what makes the seven refusals above a span defect and "
+     "not a thin-data one"),
+    ("cbot_board_crush_margin", "daily", 1,
+     "CONTROL: gold_board_crush publication_lag_days 1; five years of sessions for a 250-session window"),
+    ("fred_fx_macro", "daily", 1, "CONTROL: the second daily card, on the same five-year span"),
+)
+
+
+def _mirror_lagged(fx: dict, asof: str = ASOF) -> dict:
+    """``_fixtures()`` re-served the way a LAGGED mirror serves it through the board's own read span.
+
+    TWO STEPS, IN THE ORDER THE ESTATE PERFORMS THEM. First the publication lag: the newest ``lag``
+    periods do not exist yet (or have not reached the mirror), so they are dropped. Then the read span:
+    ``feeders._period_start`` is asked for the SAME ``period_start`` the served read would carry, and
+    every point older than it is dropped -- which is what a ``period_start`` bound does.
+
+    IT ASKS THE SHIPPED FUNCTION rather than re-deriving the date. A fixture that computed its own
+    ``asof - 120 months`` would keep passing after the table was fixed and would grade nothing.
+
+    IT MUTATES A COPY, for :func:`_mirror_nulls`' reason -- four fixture sets run in one deck."""
+    from leviathan.graphrag.state import feeders as F
+
+    out = {k: {kk: (list(vv) if isinstance(vv, list) else vv) for kk, vv in v.items()}
+           for k, v in fx.items()}
+    for ref, cadence, lag, _why in MIRROR_LAG_INJECTIONS:
+        spec = out.get(ref)
+        if spec is None:                                 # a ref this harness stopped serving
+            continue
+        vals, dates = list(spec["values"]), list(spec["dates"])
+        if lag and len(vals) > lag:
+            vals, dates = vals[:-lag], dates[:-lag]
+        start = F._period_start(asof, cadence, F.CADENCE_HISTORY_WINDOW.get(cadence))
+        if start:
+            keep = [i for i, d in enumerate(dates) if str(d or "")[:10] >= start]
+            vals = [vals[i] for i in keep]
+            dates = [dates[i] for i in keep]
+        spec["values"], spec["dates"] = vals, dates
+    return out
+
+
+def _fixtures_mirror_lagged() -> dict:
+    return _mirror_lagged(_fixtures())
+
+
 #: The selectable fixture sets. ``default`` is the clean estate the three scenarios are graded on;
 #: ``mirror_nulls`` is the same estate with the mirror's own blanks in it; ``mirror_nulls_annual`` adds
 #: the bare marketing-year label a ``date_col``-less annual table serves, and is the hand-over gate
-#: described above.
+#: described above; ``mirror_lagged`` is the clean estate cut to what the board's own READ SPAN fetches
+#: from a mirror that is a publication lag behind the as-of, and is the read-span falsifier.
 FIXTURE_SETS: dict = {"default": _fixtures, "mirror_nulls": _fixtures_mirror_nulls,
-                      "mirror_nulls_annual": _fixtures_mirror_nulls_annual}
+                      "mirror_nulls_annual": _fixtures_mirror_nulls_annual,
+                      "mirror_lagged": _fixtures_mirror_lagged}
 
 
 def fixtures(name: str = "default") -> dict:

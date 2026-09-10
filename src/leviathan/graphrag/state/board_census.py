@@ -2193,7 +2193,16 @@ def fixture_state_fn_factory(name: str = "default"):
     bare marketing-year label a ``date_col``-less annual table actually serves, which is the half of
     the in-VPC failure that lives in ``walk``'s own month arithmetic rather than at the null boundary.
     It is RED until that one-line hand-over lands; ``state.__main__.ANNUAL_LABEL_INJECTIONS`` holds the
-    whole measurement."""
+    whole measurement.
+
+    ``mirror_lagged`` is the FOURTH set and it grades the one thing the other three cannot: the READ
+    SPAN. All three hand the producer the WHOLE array, so none of them can show what happens between the
+    as-of and the array. This one cuts each series by its cadence's publication lag and then by the span
+    ``feeders.CADENCE_READ_SPAN`` would actually fetch -- so with the span equal to the window (as it
+    shipped before the read-span landing) the ONI z declines ``history has 117 points, window needs 120``
+    on every board, exactly as the in-VPC run measured, and with the span widened by the cadence's slack
+    the same fixture computes. ``state.__main__.MIRROR_LAG_INJECTIONS`` holds the lags and their
+    registry evidence."""
     from leviathan.graphrag.state.__main__ import fixture_state_fn, fixtures
     fx = fixtures(name)
 
@@ -2522,10 +2531,12 @@ def main(argv=None) -> int:
                     help="run against state.__main__'s fixtures; no pg, no env asserts")
     ap.add_argument("--fixture", default="default",
                     help="which OFFLINE fixture set to run: 'default' (the clean estate), "
-                         "'mirror_nulls' (the mirror's own NULL-as-empty-string shape), or "
+                         "'mirror_nulls' (the mirror's own NULL-as-empty-string shape), "
                          "'mirror_nulls_annual' (that plus the bare marketing-year label a "
                          "date_col-less annual table serves -- THE RE-SUBMIT GATE, red until the "
-                         "walk._add_months hand-over lands); ignored on an in-VPC pass")
+                         "walk._add_months hand-over lands), or 'mirror_lagged' (the clean estate cut "
+                         "to what the board's own READ SPAN fetches from a mirror a publication lag "
+                         "behind the as-of -- the read-span falsifier); ignored on an in-VPC pass")
     ap.add_argument("--dump-blocks", default="",
                     help="comma-separated board slugs whose rendered block text is banked under blocks/")
     ap.add_argument("--no-probes", action="store_true")
