@@ -74,6 +74,67 @@ Read the terminal line: ``written=0`` means the filter matched nothing and any
 measurement downstream of the run is vacuous; ``refused=`` counts admitted keys
 whose vintage could not be resolved honestly.
 
+THE AS_OF LAW'S TRIPWIRES -- COUNTER-ONLY SHADOW (``LEVIATHAN_ESR_ASOF_TRIPWIRE``)
+----------------------------------------------------------------------------------
+These two checks LOG WHAT THEY WOULD REFUSE AND REFUSE NOTHING.  No key is
+dropped, no exit code moves, no byte changes.  They are instruments, and the
+promotion from counter to gate is a separate, owner-gated step.
+
+**3a -- OPEN-MARKETING-YEAR FRESHNESS.**  For a ``(commodity_code, market_year)``
+that is the OPEN marketing year, flag ``max(week_ending_date)`` more than 8 days
+before the vintage's derived release boundary.  The conditioning is not optional
+and the measurement says why: applied FLAT to the 64 raw keys of ``as_of=20260903``
+the same 8-day rule refuses **25 of 64 (39 %)**, and every single refusal is a
+legitimately CLOSED marketing year -- codes 101-107/201/301/601/1001/1101 at
+MY2026 (max week_ending 2026-06-04, lag 91 d) and the cotton/rice complex
+1201/1301/1401-1404/1498/1499/1501-1505 at MY2026 (2026-08-06, lag 28 d).  An
+absolute lag bound is a CLOSED-MARKETING-YEAR DETECTOR, not a staleness detector,
+and it degrades monotonically: every closed MY recedes another 7 days from every
+future release.  Conditioned on the open MY the refusal set on the 20260904 raw
+set falls from **25 of 64 to 2 of 64** (``1001/MY2026`` and ``106/MY2026``, the
+honest edge cases to adjudicate).
+
+**3b -- NON-REGRESSION AGAINST THE PRIOR VINTAGE.**  For every ``(commodity_code,
+market_year)``, ``max(week_ending_date)`` must not go BACKWARDS versus the most
+recent prior vintage of the same pair.  This is the check that catches the real
+defect and nothing in the estate does it today: corn ``401/MY2026`` went
+``2026-08-27 -> 2026-05-14`` between the ``as_of=20260903`` and ``as_of=20260904``
+bronze vintages built from **ETag-identical raw** (2,491 rows -> 1,734 rows;
+28,035 B -> 22,026 B).  The truncation is in the raw->bronze leg, from identical
+source bytes -- an OPEN DEFECT this task does not fix and this tripwire only
+surfaces.  It is the more dangerous of the two ESR findings, because without a
+sibling vintage to compare against a truncated partition is invisible.
+
+POSTURE, SAID PLAINLY BECAUSE IT IS THE ONE MECHANISM IN THIS CHANGE THAT IS NOT
+DEFAULT-OFF: an unset ``LEVIATHAN_ESR_ASOF_TRIPWIRE`` means ``shadow``, so this
+instrument counts and logs on every weekly fire from the moment it lands.  That
+is deliberate -- a counter that must be armed measures nothing, and the shadow is
+counter-only: ``report_tripwires``' return value is discarded at its single call
+site, no finding touches ``errors``, and neither ``sys.exit`` site's condition
+changed shape from HEAD's (pinned structurally, on the parse tree, in
+``tests/unit/silver/test_esr_vintage_stream.py``).  ``off`` is the way back and
+it is the only way back: an unrecognised value falls through to ``shadow`` and
+says so, because a typo must not be able to silently disable an instrument.
+
+Cost, stated because it is I/O added to a live weekly job:
+
+  ``off``           evaluate nothing.
+  ``shadow``        DEFAULT.  3a and 3b from data already in hand -- zero extra
+                    S3 calls.  3b then compares only against prior vintages this
+                    run itself observed, which is a re-bronze run, not a weekly
+                    one.
+  ``shadow-prior``  additionally reads ONE prior bronze object per written pair
+                    (``week_ending_date`` column only) so 3b is exact on a
+                    single-vintage weekly fire.  ~1,478 extra GETs on a weekly
+                    fire, against the 1,478 raw GETs the run already makes.
+
+DELIBERATELY NOT COVERED: the release-date DERIVATION itself still lives at the
+fetch (``jobs/ingest/fetch_usda_esr.py``, where the ``--as-of`` default launders
+``datetime.date.today()`` into the key name); here the reference is the vintage
+LABEL the key already carries, floored to its release boundary.  Retiring the
+20260904 sibling, relabelling the three un-paired non-Thursday vintages, and the
+raw->bronze truncation defect are all owner-gated work in their own lane.
+
 Usage
 -----
     python jobs/batch/esr_task.py [--bucket B] [--aws-region R]
@@ -93,11 +154,16 @@ import argparse
 import io
 import json
 import logging
+import os
 import re
 import sys
+import threading
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from typing import NamedTuple
 
+import pyarrow.parquet as pq
 from leviathan.common.config import get_required_env, load_env
 from leviathan.common.logging import get_logger
 from leviathan.storage.paths import bronze_esr_key, parse_hive_key
@@ -116,10 +182,333 @@ _RAW_PREFIX = "raw/production/source=usda_esr/"
 _RAW_META_PREFIX = "raw_meta/"
 _WORKERS = 16
 
+_BRONZE_PREFIX = "bronze/production/source=usda_esr/"
+
 # Matches the as_of partition in a weekly raw key, e.g. "as_of=20260522"
 _AS_OF_RE = re.compile(r"as_of=(\d{8})")
 # The leading YYYY-MM-DD of the sidecar's ISO-8601 download_timestamp, e.g. "2026-07-12T13:02:44Z".
 _ISO_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
+
+# ---------------------------------------------------------------------------
+# THE AS_OF LAW'S TRIPWIRES -- counter-only shadow (module docstring).
+# ---------------------------------------------------------------------------
+_TRIPWIRE_ENV = "LEVIATHAN_ESR_ASOF_TRIPWIRE"
+TRIPWIRE_OFF, TRIPWIRE_SHADOW, TRIPWIRE_SHADOW_PRIOR = "off", "shadow", "shadow-prior"
+
+# FAS ESR publishes weekly on Thursday ~12:30Z. Monday=0 in date.weekday().
+_ESR_RELEASE_WEEKDAY = 3
+# Clause 3a's bound. 8 days, not 7: a release covers the week ending the Saturday before it, so a
+# healthy open-MY pair sits 5-7 days back and 8 is the first value that is unambiguously late.
+_OPEN_MY_MAX_LAG_DAYS = 8
+
+# MIRROR of jobs/ingest/fetch_usda_esr.py's marketing-year groups (:160-166). It is a mirror and
+# not an import because these jobs run standalone -- `python jobs/batch/esr_task.py` puts
+# jobs/batch on sys.path, not the repo root, and the fetcher pulls `requests`, which the bronze
+# image need not carry. The estate's existing remedy for exactly this class (the Glue job and the
+# Airflow DAG mirror the fetcher's commodity universe) is a test that pins every mirror EQUAL to
+# the fetcher; tests/unit/silver/test_esr_vintage_stream.py does that here, behaviourally, over
+# all 44 codes of the measured source universe.
+_WHEAT_CODES = frozenset({101, 102, 103, 104, 105, 106, 107, 201})
+_COTTON_CODES = frozenset({1201, 1202, 1203, 1301, 1401, 1402, 1403, 1404})
+_RICE_CODES = frozenset({1498, 1499, 1501, 1502, 1503, 1504, 1505})
+
+# ``shadow-prior``'s SEED index is written from _WORKERS threads. The GIL makes each store atomic
+# but not the read-modify-write, so the seed is chosen under this lock and by a RULE rather than by
+# arrival: see _record_prior. Not a collection -- it does not enter the F091 census.
+_PRIORS_LOCK = threading.Lock()
+
+
+def tripwire_mode(env=None) -> str:
+    """``off`` | ``shadow`` (default) | ``shadow-prior``. Counter-only in every mode.
+
+    THE ONE MECHANISM IN THIS CHANGE THAT IS NOT DEFAULT-OFF, said plainly because it changes the
+    default behaviour of a live weekly job: an unset ``LEVIATHAN_ESR_ASOF_TRIPWIRE`` yields
+    ``shadow``, which counts and logs on every fire. Design section 3 permits that because the
+    shadow is counter-only -- ``report_tripwires``' return value is discarded at the single call
+    site and no finding touches ``errors`` or either ``sys.exit`` -- and because ``shadow`` costs
+    zero extra S3 calls. ``off`` is the way back. An UNRECOGNISED value also lands on ``shadow``
+    (never on ``off``: an instrument must not be disabled by a typo), and says so in the log
+    rather than falling through in silence.
+    """
+    raw = str((env if env is not None else os.environ).get(_TRIPWIRE_ENV, "")).strip().lower()
+    if raw in {"off", "0", "false", "no"}:
+        return TRIPWIRE_OFF
+    if raw in {TRIPWIRE_SHADOW_PRIOR, "prior"}:
+        return TRIPWIRE_SHADOW_PRIOR
+    if raw not in {"", TRIPWIRE_SHADOW, "1", "true", "yes", "on"}:
+        logger.warning(
+            "%s=%r is not a recognised mode (off | shadow | shadow-prior) -- falling through to "
+            "%s, which refuses nothing. Set it to 'off' to silence the instrument.",
+            _TRIPWIRE_ENV, raw, TRIPWIRE_SHADOW,
+        )
+    return TRIPWIRE_SHADOW
+
+
+def _record_prior(
+    priors_out: dict | None,
+    commodity_code: int,
+    market_year: int,
+    got: tuple[str, date],
+) -> None:
+    """Record ONE pair's out-of-run predecessor for 3b's seed, deterministically.
+
+    A run that holds several vintages of the same pair (a re-bronze, never the weekly single-vintage
+    fire this mode is meant for) computes a "prior" once per vintage, and the later vintages' priors
+    are IN-RUN objects. Arrival order would then decide the seed. The EARLIEST candidate is the one
+    that actually precedes the run, so that is the one kept -- 3b walks the in-run timeline itself
+    from there. Advisory either way: a wrong seed can only SUPPRESS a finding on a multi-vintage
+    re-bronze, never invent one.
+    """
+    if priors_out is None:
+        return
+    with _PRIORS_LOCK:
+        current = priors_out.get((commodity_code, market_year))
+        if current is None or got[0] < current[0]:
+            priors_out[(commodity_code, market_year)] = got
+
+
+def esr_release_on_or_before(day: date) -> date:
+    """Floor a date to the FAS ESR release boundary at or before it (the most recent Thursday).
+
+    Clause 2's derivation, as a pure function. A Friday 08:19Z re-run of the 2026-09-03 release
+    floors to 20260903 and overwrites that partition; it mints no sibling. Used here only as the
+    tripwires' REFERENCE -- this task changes no key.
+    """
+    return day - timedelta(days=(day.weekday() - _ESR_RELEASE_WEEKDAY) % 7)
+
+
+def _marketing_year_start_month(commodity_code: int) -> int:
+    """Mirror of the fetcher's :func:`_marketing_year_start_month`."""
+    if commodity_code in _WHEAT_CODES:
+        return 6  # Jun 1
+    if commodity_code in _COTTON_CODES or commodity_code in _RICE_CODES:
+        return 8  # Aug 1
+    return 9  # Sep 1 (corn, soybeans, sorghum, oilseeds, livestock, hides)
+
+
+def open_marketing_year(commodity_code: int, reference_date: date) -> int:
+    """Mirror of the fetcher's :func:`_current_marketing_year`: the MY containing *reference_date*."""
+    return (reference_date.year
+            if reference_date.month >= _marketing_year_start_month(commodity_code)
+            else reference_date.year - 1)
+
+
+class BronzeVintageObservation(NamedTuple):
+    """One bronze object as the tripwires see it. Built from the frame already in hand.
+
+    NamedTuple, not @dataclass, and the reason is mechanical rather than stylistic: this module is
+    loaded by its test decks through ``importlib.util.spec_from_file_location`` WITHOUT being
+    registered in ``sys.modules``, and under ``from __future__ import annotations`` the dataclass
+    machinery resolves each string annotation through ``sys.modules[cls.__module__]`` -- which is
+    ``None`` for such a module, so every @dataclass in this file would explode at import time and
+    take the whole existing deck with it. NamedTuple never performs that lookup.
+    """
+
+    commodity_code: int
+    market_year: int
+    as_of_date: str
+    rows: int
+    max_week_ending: date | None
+    bronze_key: str
+
+
+class TripwireFinding(NamedTuple):
+    rule: str                 # "3a-open-my-freshness" | "3b-bronze-regression"
+    commodity_code: int
+    market_year: int
+    as_of_date: str
+    detail: str
+
+    def line(self) -> str:
+        return (f"{self.rule} commodity_code={self.commodity_code} "
+                f"market_year={self.market_year} as_of={self.as_of_date}: {self.detail}")
+
+
+def _as_of_to_date(as_of_date: str) -> date | None:
+    try:
+        return date(int(as_of_date[:4]), int(as_of_date[4:6]), int(as_of_date[6:8]))
+    except (ValueError, IndexError):
+        return None
+
+
+def evaluate_open_my_freshness(
+    observations: list[BronzeVintageObservation],
+    *,
+    max_lag_days: int = _OPEN_MY_MAX_LAG_DAYS,
+) -> list[TripwireFinding]:
+    """Clause 3a, conditioned on the OPEN marketing year. Refuses nothing; returns findings.
+
+    A CLOSED marketing year is exempt BY CONSTRUCTION, and that exemption is the whole clause:
+    unconditioned, this rule refuses 25 of the 64 raw keys of the very release it was written to
+    protect, and all 25 are closed MYs whose tape legitimately stopped months ago.
+    """
+    findings: list[TripwireFinding] = []
+    for obs in observations:
+        label_day = _as_of_to_date(obs.as_of_date)
+        if label_day is None or obs.max_week_ending is None:
+            continue
+        release = esr_release_on_or_before(label_day)
+        if obs.market_year != open_marketing_year(obs.commodity_code, release):
+            continue  # closed (or new-crop) marketing year -- exempt, and that is clause 3a
+        lag = (release - obs.max_week_ending).days
+        if lag > max_lag_days:
+            findings.append(TripwireFinding(
+                rule="3a-open-my-freshness",
+                commodity_code=obs.commodity_code, market_year=obs.market_year,
+                as_of_date=obs.as_of_date,
+                detail=(f"open-MY payload is {lag} d stale -- max week_ending "
+                        f"{obs.max_week_ending.isoformat()} vs derived release "
+                        f"{release.isoformat()} (bound {max_lag_days} d); rows={obs.rows}; "
+                        f"{obs.bronze_key}"),
+            ))
+    return findings
+
+
+def evaluate_bronze_regression(
+    observations: list[BronzeVintageObservation],
+    prior: dict[tuple[int, int], tuple[str, date]],
+) -> list[TripwireFinding]:
+    """Clause 3b: ``max(week_ending_date)`` must not go BACKWARDS versus the prior vintage.
+
+    *prior* is a SEED only: ``(commodity_code, market_year) -> (prior_as_of, prior_max_week_ending)``
+    from OUTSIDE this observation set -- in ``shadow-prior`` mode, the prior bronze object on S3.
+    Within the set the comparison walks each pair's own as_of timeline ascending, so a run holding
+    several vintages of a pair judges each vintage against the one before it.
+
+    THE TRAP THIS SHAPE AVOIDS, caught by the fixture: seeding the comparison with "the latest
+    vintage this run saw" makes every observation its own predecessor, ``prior_as_of >=
+    obs.as_of_date`` short-circuits, and the instrument reports zero findings on a corpus that
+    contains a real regression. A tripwire that is silent because of how its baseline was built is
+    worse than no tripwire.
+
+    A pair with no prior is not a finding -- it is a first vintage, and inventing a baseline for it
+    would be the frequency-floor mistake.
+    """
+    by_pair: dict[tuple[int, int], list[BronzeVintageObservation]] = defaultdict(list)
+    for obs in observations:
+        if obs.max_week_ending is not None:
+            by_pair[(obs.commodity_code, obs.market_year)].append(obs)
+
+    findings: list[TripwireFinding] = []
+    for pair, group in by_pair.items():
+        seed = prior.get(pair)
+        previous = seed if (seed and seed[1] is not None) else None
+        for obs in sorted(group, key=lambda o: o.as_of_date):
+            if obs.max_week_ending is None:
+                continue  # no observation (all-missing tape): never compared, never the new prior
+            if previous is not None and previous[0] < obs.as_of_date \
+                    and obs.max_week_ending < previous[1]:
+                findings.append(TripwireFinding(
+                    rule="3b-bronze-regression",
+                    commodity_code=obs.commodity_code, market_year=obs.market_year,
+                    as_of_date=obs.as_of_date,
+                    detail=(f"max week_ending REGRESSED {previous[1].isoformat()} "
+                            f"(as_of={previous[0]}) -> {obs.max_week_ending.isoformat()}, losing "
+                            f"{(previous[1] - obs.max_week_ending).days} d of tape; "
+                            f"rows={obs.rows}; {obs.bronze_key}"),
+                ))
+            if previous is None or obs.as_of_date > previous[0]:
+                previous = (obs.as_of_date, obs.max_week_ending)
+    return sorted(findings, key=lambda f: (f.as_of_date, f.commodity_code, f.market_year))
+
+
+def priors_from_observations(
+    observations: list[BronzeVintageObservation],
+) -> dict[tuple[int, int], tuple[str, date]]:
+    """The latest vintage each pair was seen at in *observations*, as a SEED for 3b.
+
+    Only ever built from a set that is strictly EARLIER than the set being judged -- 3b walks the
+    in-run timeline itself, so seeding it with the run's own latest would make every observation its
+    own predecessor and silence the instrument.
+    """
+    best: dict[tuple[int, int], tuple[str, date]] = {}
+    for obs in observations:
+        if obs.max_week_ending is None:
+            continue
+        pair = (obs.commodity_code, obs.market_year)
+        current = best.get(pair)
+        if current is None or obs.as_of_date > current[0]:
+            best[pair] = (obs.as_of_date, obs.max_week_ending)
+    return best
+
+
+def _max_week_ending(df) -> date | None:
+    """max(week_ending_date) as a plain date, or None. Never raises: this is an instrument.
+
+    NaT-SAFE (verify seat, 2026-09-07). ``isinstance(pd.NaT, datetime.date)`` is True (NaTType
+    subclasses datetime), so the first cut's bare ``.max()`` handed pd.NaT back AS IF it were a date on
+    an all-unparseable column, and both tripwire clauses then raised on it (``release - NaT``;
+    ``NaT < date``) -- escaping report_tripwires and main(), i.e. the ONE way the counter-only shadow
+    could move an exit code, on the one mechanism that ships default-on into the live weekly fire.
+    Driven end to end through the real transform by the verify seat: weekEndingDate '' / 'n/a' ->
+    datetime64 all-NaT -> NaT -> TypeError. THE FIX: coerce, DROP NaT, then max. An all-missing column
+    reads None (the honest answer -- no observation), and one unparseable row no longer blinds the
+    whole object (the mixed object-dtype case, where ``Series.max()`` raised inside the try and the
+    instrument silently read None for a frame that carried 15 perfectly good dates).
+    """
+    try:
+        if "week_ending_date" not in df.columns or not len(df):
+            return None
+        import pandas as pd  # local: this module must import without pandas on the fetch leg
+        s = pd.to_datetime(df["week_ending_date"], errors="coerce").dropna()
+        if s.empty:
+            return None
+        value = s.max()
+    except Exception:  # noqa: BLE001
+        return None
+    if value is None:
+        return None
+    try:
+        if isinstance(value, datetime):  # pd.Timestamp IS a datetime (and so a date): normalise first
+            return value.date()
+        if hasattr(value, "date") and not isinstance(value, date):
+            return value.date()
+        return value if isinstance(value, date) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def build_prior_vintage_index(bronze_keys: list[str]) -> dict[tuple[int, int], list[str]]:
+    """``(commodity_code, market_year) -> sorted as_of labels`` from ONE bronze listing.
+
+    One paginated LIST for the whole run (8,920 keys measured 2026-09-07 = ~9 calls), never one
+    LIST per key: ``list_s3_keys`` builds a fresh boto3 client per call, so a per-key listing would
+    be 8,920 clients and 8,920 round trips to answer a question one listing already answers.
+    """
+    index: dict[tuple[int, int], list[str]] = defaultdict(list)
+    for key in bronze_keys:
+        code, year, as_of = (parse_hive_key(key, "commodity_code"),
+                             parse_hive_key(key, "market_year"),
+                             parse_hive_key(key, "as_of"))
+        if not (code and year and as_of):
+            continue
+        try:
+            index[(int(code), int(year))].append(as_of)
+        except ValueError:
+            continue
+    return {pair: sorted(set(labels)) for pair, labels in index.items()}
+
+
+def _prior_bronze_max_week_ending(
+    s3_client, bucket: str, commodity_code: int, market_year: int, as_of_date: str,
+    prior_as_ofs: list[str] | None,
+) -> tuple[str, date] | None:
+    """``shadow-prior`` only: the greatest as_of STRICTLY BEFORE *as_of_date* for this pair, and its
+    max week_ending -- ONE GET of the ``week_ending_date`` column from the prior bronze object.
+    Entirely best-effort: an instrument that can fail a bronze write is worse than no instrument.
+    """
+    earlier = [a for a in (prior_as_ofs or []) if a < as_of_date]
+    if not earlier:
+        return None
+    prior_as_of = earlier[-1]
+    prior_key = bronze_esr_key(commodity_code, market_year, prior_as_of)
+    try:
+        body = s3_download_with_retry(bucket, prior_key, s3_client)
+        prior_max = _max_week_ending(
+            pq.read_table(io.BytesIO(body), columns=["week_ending_date"]).to_pandas())
+    except Exception:  # noqa: BLE001
+        return None
+    return (prior_as_of, prior_max) if prior_max is not None else None
 
 
 def _bronze_exists(s3_client, bucket: str, key: str) -> bool:
@@ -287,6 +676,30 @@ def select_raw_keys(raw_keys: list[str], args) -> list[str]:
     return raw_keys
 
 
+def report_tripwires(
+    observations: list[BronzeVintageObservation],
+    s3_priors: dict[tuple[int, int], tuple[str, date]] | None = None,
+) -> tuple[list[TripwireFinding], list[TripwireFinding]]:
+    """Log what 3a and 3b WOULD refuse. Refuses nothing; returns the two finding lists.
+
+    Findings are named PER OBJECT, never counted into a rate: the regression set the design
+    measured is 9 of 1,478 bronze pairs, small enough to name, and a frequency floor here would
+    deny exactly the tail this instrument exists to see.
+    """
+    priors = dict(s3_priors or {})     # SEED ONLY -- 3b walks this run's own timeline itself.
+    freshness = evaluate_open_my_freshness(observations)
+    regressions = evaluate_bronze_regression(observations, priors)
+
+    logger.info(
+        "AS_OF TRIPWIRE SHADOW (counter-only, refused nothing): observations=%d  "
+        "3a-open-my-freshness=%d  3b-bronze-regression=%d  priors=%d",
+        len(observations), len(freshness), len(regressions), len(priors),
+    )
+    for finding in freshness + regressions:
+        logger.warning("WOULD REFUSE (shadow only) %s", finding.line())
+    return freshness, regressions
+
+
 def _process(
     raw_key: str,
     bucket: str,
@@ -294,7 +707,17 @@ def _process(
     force_overwrite: bool,
     backfill_as_of: str | None,
     ingest_date: str,
-) -> tuple[str, str]:
+    tripwire: str = TRIPWIRE_OFF,
+    prior_index: dict[tuple[int, int], list[str]] | None = None,
+    priors_out: dict | None = None,
+) -> tuple[str, str, BronzeVintageObservation | None]:
+    """Returns ``(status, raw_key, observation)``.
+
+    The third element is the COUNTER-ONLY tripwire observation, built from the frame this call
+    already holds -- it costs one ``max()`` over a column and changes nothing about what is
+    written. It is ``None`` for every path that never built a frame (skipped/refused/error), which
+    is the honest answer: a skipped key was not read, so nothing about it was measured.
+    """
     s3 = get_thread_local_s3_client(aws_region)
 
     commodity_code_str = parse_hive_key(raw_key, "commodity_code")
@@ -302,14 +725,14 @@ def _process(
 
     if not commodity_code_str or not market_year_str:
         logger.warning("Could not parse commodity_code/market_year from key: %s", raw_key)
-        return "error", raw_key
+        return "error", raw_key, None
 
     try:
         commodity_code = int(commodity_code_str)
         market_year = int(market_year_str)
     except ValueError:
         logger.warning("Non-integer commodity_code/market_year in key: %s", raw_key)
-        return "error", raw_key
+        return "error", raw_key, None
 
     as_of_date, provenance = resolve_as_of(raw_key, s3, bucket, backfill_as_of)
     if as_of_date is None:
@@ -317,19 +740,19 @@ def _process(
         # Refusing costs one payload; stamping today's date mints a point-in-time that never
         # existed in the surface whose entire purpose is point-in-time honesty.
         logger.debug("no resolvable as_of for %s -- refused (INV-3)", raw_key)
-        return "refused", raw_key
+        return "refused", raw_key, None
     if provenance != "raw_key":
         logger.debug("as_of=%s for %s resolved from %s", as_of_date, raw_key, provenance)
     b_key = bronze_esr_key(commodity_code, market_year, as_of_date)
 
     if not force_overwrite and _bronze_exists(s3, bucket, b_key):
-        return "skipped", raw_key
+        return "skipped", raw_key, None
 
     try:
         raw_bytes = s3_download_with_retry(bucket, raw_key, s3)
     except Exception as exc:  # noqa: BLE001
         logger.error("S3 download failed  key=%s: %s", raw_key, exc)
-        return "error", raw_key
+        return "error", raw_key, None
 
     try:
         df = transform_esr_json_to_bronze(
@@ -341,7 +764,21 @@ def _process(
         )
     except (ValueError, Exception) as exc:  # noqa: BLE001
         logger.error("ESR transform failed  key=%s: %s", raw_key, exc)
-        return "error", raw_key
+        return "error", raw_key, None
+
+    observation = None
+    if tripwire != TRIPWIRE_OFF:
+        observation = BronzeVintageObservation(
+            commodity_code=commodity_code, market_year=market_year, as_of_date=as_of_date,
+            rows=len(df), max_week_ending=_max_week_ending(df), bronze_key=b_key,
+        )
+        if tripwire == TRIPWIRE_SHADOW_PRIOR and priors_out is not None:
+            got = _prior_bronze_max_week_ending(
+                s3, bucket, commodity_code, market_year, as_of_date,
+                (prior_index or {}).get((commodity_code, market_year)),
+            )
+            if got is not None:
+                _record_prior(priors_out, commodity_code, market_year, got)
 
     try:
         buf = io.BytesIO()
@@ -356,10 +793,10 @@ def _process(
             "bronze written  commodity=%d  year=%d  as_of=%s  rows=%d  %s",
             commodity_code, market_year, as_of_date, len(df), b_key,
         )
-        return "written", raw_key
+        return "written", raw_key, observation
     except Exception as exc:  # noqa: BLE001
         logger.error("Parquet write failed  key=%s: %s", raw_key, exc)
-        return "error", raw_key
+        return "error", raw_key, None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -432,8 +869,24 @@ def main() -> None:
         logger.error("REFUSING: %s", exc)
         sys.exit(2)
 
+    # The as_of law's tripwires, COUNTER-ONLY (module docstring). `shadow-prior` buys the ONE
+    # listing that makes 3b exact on a single-vintage weekly fire; `shadow` costs nothing at all.
+    tripwire = tripwire_mode()
+    prior_index: dict[tuple[int, int], list[str]] = {}
+    if tripwire == TRIPWIRE_SHADOW_PRIOR:
+        try:
+            prior_index = build_prior_vintage_index(
+                list_s3_keys(bucket, _BRONZE_PREFIX, suffix=".parquet", aws_region=aws_region))
+        except Exception as exc:  # noqa: BLE001 -- the instrument degrades, the run does not fail
+            logger.warning("tripwire prior index unavailable (%s) -- 3b falls back to in-run "
+                           "priors only", exc)
+    logger.info("as_of tripwire mode=%s (COUNTER-ONLY: refuses nothing)  prior_index_pairs=%d",
+                tripwire, len(prior_index))
+
     start = datetime.now(timezone.utc)
     written = skipped = errors = refused = 0
+    observations: list[BronzeVintageObservation] = []
+    s3_priors: dict[tuple[int, int], tuple[str, date]] = {}
 
     with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
         futures = {
@@ -445,17 +898,22 @@ def main() -> None:
                 args.force_overwrite,
                 backfill_as_of,
                 ingest_date,
+                tripwire,
+                prior_index,
+                s3_priors,
             ): key
             for key in raw_keys
         }
         refused_samples: list[str] = []
         for fut in as_completed(futures):
             try:
-                status, key = fut.result()
+                status, key, observation = fut.result()
             except Exception as exc:  # noqa: BLE001
                 logger.error("Unexpected error: %s", exc)
                 errors += 1
                 continue
+            if observation is not None:
+                observations.append(observation)
             if status == "written":
                 written += 1
             elif status == "skipped":
@@ -474,6 +932,9 @@ def main() -> None:
             "partition's as_of never comes from today's date. Sample: %s",
             refused, ", ".join(refused_samples),
         )
+
+    if tripwire != TRIPWIRE_OFF:
+        report_tripwires(observations, s3_priors)
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     logger.info(

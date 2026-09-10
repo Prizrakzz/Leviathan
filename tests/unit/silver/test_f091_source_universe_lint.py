@@ -173,14 +173,73 @@ _LINT = _REPO / "scripts" / "silver" / "f091_source_universe_lint.py"
 #   +2 raw literals in +2 raw FILES (writer._TRUTHY, a truthy-word set for the CORPUS_LANE_GATES flag, and
 #   one module-level static collection in the new jobs/batch wrapper); NOTHING enters the universe or the
 #   docket -- the wrappers name sources only inside help text and f-strings, never as a static collection.
-PIN_RAW_LITERALS = 351          # 339 base + 3 lane E + 3 pink + 1 lane A (futures venue calendars,
-                                # landed 5e531d24) + 3 lane C (ESR net-commitment five)
-PIN_RAW_FILES = 131             # 126 base + 1 lane E + 2 pink
-PIN_UNIVERSE_LITERALS = 171     # 169 base + 1 lane E + 1 pink
-PIN_UNIVERSE_FILES = 95         # 93 base + 1 lane E + 1 pink
-PIN_COVERED_FILES = 13          # 12 base + 0 lane E + 1 pink (pink_sheet_breaks._REFUSED_SHEETS)
-PIN_DOCKET_FILES = 82           # 81 base + 1 lane E + 0 pink
-PIN_DOCKET_LITERALS = 141       # 140 base + 1 lane E + 0 pink
+# RE-MEASURED 2026-09-10 by the ESR VINTAGE-STREAM lane (LEVIATHAN_ESR_VINTAGE_STREAM +
+# LEVIATHAN_ESR_ASOF_TRIPWIRE) on the MOVED HEAD aa14046c. The Phase G text-ingestion lane above has
+# since LANDED, so its +2 raw / +2 raw files is part of the BASELINE this lane measures against
+# rather than a concurrent claim; whichever lane commits second re-measures rather than doing
+# arithmetic on a remembered total, and this lane is second. Measured TWO-TREE in the shape the
+# 09-04 lane-E block set -- the lint run against a clean `git archive HEAD` export reproduces the
+# pins it replaces EXACTLY, and the same lint run against HEAD-plus-only-this-lane's-files gives the
+# values below. THREE rows, because the third is what makes the second non-vacuous:
+#   HEAD (git archive)          -> 351 / 131 / 171 / 95 / 13 / 82 / 141   == the pins replaced here
+#   HEAD + this lane's 3 files  -> 356 / 132 / 175 / 97 / 13 / 84 / 145   == the pins below
+#   the WORKING TREE, filtered by `git ls-files` exactly as _pinned_population does
+#                               -> 356 / 132 / 175 / 97 / 13 / 84 / 145   identical to row 2
+# ATTRIBUTION IS STRUCTURAL, not a claim: `git diff --name-only HEAD -- <SCAN_ROOTS>` on the tree
+# this was measured on returns EXACTLY three paths, all this lane's --
+# jobs/batch/bronze_to_silver_esr_task.py, jobs/batch/esr_task.py, jobs/ingest/fetch_usda_esr.py --
+# so no co-tenant edit (the pace lane, the subject-resolver lane, state/, scripts/graphrag) CAN be
+# folded into this delta. The one UNTRACKED producer under SCAN_ROOTS,
+# jobs/batch/silver_eda_task.py, parses and declares no module-level collection, which is why
+# TestGatePosture's UNFILTERED docket and TestCensusPin's `git ls-files`-filtered one still
+# agree, both at 84.
+# Measured per file with lint.scan_source over `git show HEAD:<path>` versus the working tree:
+#   +2 raw literals in jobs/batch/bronze_to_silver_esr_task.py (1 -> 3): `EMITTED_COLUMNS` (18),
+#     the reindex target the streaming loop pins one vintage's concat to, and `_ON_VALUES` (4), the
+#     dark flag's accepted on-tokens. The module gains a THIRD module-level collection that this
+#     census does NOT count -- `_CGROUP_PEAK_FILES`, the two cgroup peak-memory paths (v2 then v1)
+#     the always-on instrument reads -- because the raw census floors at MIN_CARDINALITY = 3
+#     (f091_source_universe_lint.py:204) and a 2-member literal is a bound, not a universe.
+#     `_STREAM_ENV`, `_PEAK_SAMPLE_SECONDS` and `LAST_PEAK_FRAME_ROWS` are scalars and are not
+#     collections at all.
+#   +3 raw literals in jobs/batch/esr_task.py (0 -> 3), and the FILE enters the raw census for the
+#     first time (which is the whole of PIN_RAW_FILES' +1): `_WHEAT_CODES` (8), `_COTTON_CODES` (8)
+#     and `_RICE_CODES` (7), the marketing-year groups the as-of tripwire's clause 3a conditions on.
+#     They are a MIRROR of jobs/ingest/fetch_usda_esr.py and the mirror hazard is closed
+#     behaviourally rather than by import -- tests/unit/silver/test_esr_vintage_stream.py::
+#     TestReleaseDerivationAndMirrors pins open_marketing_year EQUAL to the fetcher's
+#     _current_marketing_year over all 44 codes of the measured source universe x 12 months.
+#   +4 universe literals / +2 universe FILES: all four of those names match the universe-shaped
+#     pattern (`columns?` for EMITTED_COLUMNS, `codes?` for the three groups) and both batch files
+#     are new to the universe census, so they enter PIN_UNIVERSE_FILE_LIST below.
+#   +2 DOCKET files / +4 docket literals, and COVERED DOES NOT MOVE (13, unchanged). Neither file
+#     carries a written refusal and NEITHER IS GIVEN ONE TO BUY COVERAGE. `EMITTED_COLUMNS` is a
+#     CONTRACT MIRROR, not a narrowing: its complement is not refused, it does not exist -- the deck
+#     pins the list EQUAL to what transform_esr_bronze_to_silver emits, and _reindex_emitted RAISES
+#     on a column the contract does not know rather than dropping it, so an under-declaration fails
+#     CLOSED instead of silently narrowing. The three code groups are a DAY-RULE-shaped partition of
+#     the fetcher's 44-code universe (which start month a code's marketing year takes), and all 44
+#     members are served by one of the three branches: the complement of each group is not refused,
+#     it takes another branch. This is exactly the psd_clock.py `_PSD_MONTH_END_CODES` shape the
+#     2026-09-04 lane-E note argued should ride the docket honestly rather than be argued out of it.
+#   jobs/ingest/fetch_usda_esr.py contributes NOTHING and does not appear in the per-file diff at
+#     all: its change is the counter-only release-date shadow -- a function and a log line, no
+#     module-level collection.
+#   The lane's other two files -- tests/unit/silver/test_esr_vintage_stream.py (new) and this deck
+#     -- sit outside SCAN_ROOTS ("src/leviathan/transforms", "jobs/ingest", "jobs/batch",
+#     "jobs/glue") and never enter the census at all.
+PIN_RAW_LITERALS = 356          # 351 = HEAD aa14046c, measured off a `git archive HEAD` export
+                                # + 5 ESR vintage-stream (2 in bronze_to_silver_esr_task.py's
+                                # EMITTED_COLUMNS / _ON_VALUES, 3 in esr_task.py's code groups)
+PIN_RAW_FILES = 132             # 131 HEAD, measured + 1 ESR vintage-stream (esr_task.py declares a
+                                # module-level collection for the first time)
+PIN_UNIVERSE_LITERALS = 175     # 171 HEAD, measured + 4 ESR vintage-stream
+PIN_UNIVERSE_FILES = 97         # 95 HEAD, measured + 2 ESR vintage-stream (both batch files enter
+                                # the universe census)
+PIN_COVERED_FILES = 13          # 13 HEAD, measured + 0 ESR vintage-stream -- UNCHANGED, and
+                                # deliberately so: neither file is given a refusal to buy coverage
+PIN_DOCKET_FILES = 84           # 82 HEAD, measured + 2 ESR vintage-stream
+PIN_DOCKET_LITERALS = 145       # 141 HEAD, measured + 4 ESR vintage-stream
 
 # The written refusals the estate holds today: (file, literal). The plan text said FOUR; the 08-25
 # measurement said SEVEN in code plus one in config; the C-2 change added TWO more in usda_nass.py
@@ -215,11 +274,18 @@ PIN_REFUSAL_REGISTRIES = frozenset({
 })
 PIN_REFUSAL_REGISTRIES_CONFIG = frozenset({"configs/sources/cftc_cot.yaml::not_covered:"})
 
-# The 95 files the census names, re-banked here because data/f091/source_universe_census.json is an
+# The 97 files the census names, re-banked here because data/f091/source_universe_census.json is an
 # UNTRACKED main-tree artifact this suite cannot read. The list is not decoration: a rename or a
 # deletion moves the totals without changing their shape, and only the list says which file left.
 PIN_UNIVERSE_FILE_LIST = (
     "jobs/batch/_sb_producer_publish.py",
+    # ESR VINTAGE-STREAM lane, 2026-09-10. Both enter here for the first time and both sit on the
+    # DOCKET: EMITTED_COLUMNS is a mirror of the silver contract (pinned EQUAL to what the transform
+    # emits, and _reindex_emitted raises rather than drops on an undeclared column), and the three
+    # marketing-year code groups partition the fetcher's 44-code universe by start month rather than
+    # narrowing it. Neither owes a refusal, and neither is given one to buy coverage.
+    "jobs/batch/bronze_to_silver_esr_task.py",
+    "jobs/batch/esr_task.py",
     "jobs/batch/fnc_colombia_silver_task.py",
     "jobs/batch/gold_futures_outcomes_task.py",
     "jobs/batch/gold_pattern_outcomes_task.py",

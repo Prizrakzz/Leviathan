@@ -179,6 +179,37 @@ def _marketing_year_start_month(commodity_code: int) -> int:
     return 9  # Sep 1  (corn, soybeans, sorghum, oilseeds, livestock, hides)
 
 
+# FAS ESR publishes weekly on Thursday ~12:30Z. Monday=0 in date.weekday().
+_ESR_RELEASE_WEEKDAY = 3
+
+
+def esr_release_on_or_before(day: datetime.date) -> datetime.date:
+    """The FAS ESR release boundary at or before *day* -- the most recent Thursday.
+
+    THE AS_OF LAW, CLAUSE 2's derivation -- SHADOW ONLY at this revision. Nothing here changes a
+    key: :func:`run_weekly` logs what the label WOULD have been beside the label it actually used,
+    and writes the label it actually used.
+
+    MEASURED REASON THIS EXISTS (design 1.5). ``as_of`` is the RUN date one hop removed: main()
+    launders ``datetime.date.today()`` into the ``--as-of`` DEFAULT (:513-518 at the revision this
+    was written against) and :func:`raw_esr_weekly_key` writes it into the key. Six of the thirteen
+    live compact vintages are therefore not a Thursday, and three of those six are byte-identical
+    siblings of a Thursday release -- 20260723/20260724, 20260813/20260816 and 20260903/20260904,
+    each pair identical to the byte in raw (7,994,812 / 8,278,153 / 12,510,161 B) and ETag-identical
+    on 64 of 64 objects for the last pair. The Friday 08:19Z re-run of the 2026-09-03 release would
+    floor to 20260903 under this function and overwrite that partition instead of minting a sibling.
+
+    The consequence of the sibling, measured, and why the fix is owner-gated rather than landed
+    here: NEITHER sibling is a complete point-in-time view. Of the 31 slug pairs, 8 are identical,
+    18 differ only in ROW ORDER, and 5 genuinely differ -- in BOTH directions (corn_cbot is fresher
+    at 0903, soybean_meal_cbot is fresher at 0904). A consumer filtering on the freshest label
+    ``20260904`` gets a corn series that stops in May. Retirement therefore has to REPAIR the
+    survivor from the union before dropping anything, which is a 1,571-deletion, all-or-nothing
+    owner act in its own lane -- not a side effect of a logging change.
+    """
+    return day - datetime.timedelta(days=(day.weekday() - _ESR_RELEASE_WEEKDAY) % 7)
+
+
 def _current_marketing_year(commodity_code: int, reference_date: datetime.date) -> int:
     """Return the marketing year that contains *reference_date* for this commodity.
 
@@ -402,6 +433,30 @@ def run_weekly(
     reference = datetime.date(
         int(as_of_date[:4]), int(as_of_date[4:6]), int(as_of_date[6:8])
     )
+
+    # THE AS_OF LAW, CLAUSE 2 -- COUNTER-ONLY SHADOW. Log what the label WOULD have been under the
+    # release-boundary derivation, beside the label actually used. This CHANGES NO KEY: as_of_date
+    # is written unmodified below through raw_esr_weekly_key(). Promoting the derived value to the
+    # default is a separate, owner-gated change (design sequencing step 6) because it retires the
+    # sibling vintages, which is a data act, not a logging one.
+    _derived_release = esr_release_on_or_before(reference)
+    _derived_label = _derived_release.strftime("%Y%m%d")
+    if _derived_label == as_of_date:
+        logger.info(
+            "as_of LAW SHADOW: label_used=%s  derived_release=%s  divergence_days=0  "
+            "(label IS a release boundary; nothing changed)",
+            as_of_date, _derived_label,
+        )
+    else:
+        logger.warning(
+            # Weekday names are DERIVED from the dates, never hand-labelled.
+            "as_of LAW SHADOW: label_used=%s (%s)  derived_release=%s (%s)  "
+            "divergence_days=%d -- under clause 2 this run would write as_of=%s and OVERWRITE that "
+            "partition instead of minting a sibling. NOTHING CHANGED: the key below still uses %s.",
+            as_of_date, reference.strftime("%A"), _derived_label,
+            _derived_release.strftime("%A"),
+            (reference - _derived_release).days, _derived_label, as_of_date,
+        )
 
     # Build (code, market_year) pairs — current + new-crop for each code.
     pairs: list[tuple[int, int]] = []
