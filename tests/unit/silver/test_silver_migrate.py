@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +19,7 @@ from leviathan.silver.migrate import (
     CatalogMigrator,
     ChangeType,
     MigrationConflict,
+    MigrationPlan,
     UnsafeMigration,
     build_desired_table,
     raw_snapshot_to_table_input,
@@ -191,6 +193,59 @@ def test_apply_create_writes_table_and_manifest(fake_s3, fake_glue, tmp_path):
     assert len(manifests) == 1
     payload = json.loads(manifests[0].read_text())
     assert payload["change_type"] == "create" and payload["guard_mode"] == "canonical"
+
+
+def test_the_manifest_writer_round_trips_a_boto3_shaped_table(fake_s3, fake_glue, tmp_path):
+    """THE PIN FOR THE 2026-09-10 04:07Z FAILURE.
+
+    boto3 returns Glue's ``CreateTime`` / ``UpdateTime`` / ``LastAccessTime`` as ``datetime``
+    objects, and ``raw_snapshot_to_table_input`` DELIBERATELY keeps ``LastAccessTime`` -- a
+    TableInput that omits it LOSES it on update (measured on the 2026-07-15 silver_noaa_oni widen,
+    which lost five live fields exactly that way). So a plan whose ``table_input`` IS the live
+    table -- which is how the SILVER-F062 pinned-writer widening builds it, on purpose -- carries a
+    datetime straight into the migration-manifest writer.
+
+    Without ``default=str`` that writer raises ``TypeError: Object of type datetime is not JSON
+    serializable`` -- and it raises AFTER ``glue.update_table`` has already returned. The catalog
+    moves, the manifest is never written, and the caller sees only an exception. That is not a
+    cosmetic serialisation bug: it is a mutation with no record and a false 'nothing was mutated'
+    on the operator's console. This test drives the whole apply through a datetime-bearing table
+    and re-parses the manifest.
+
+    The estate's shared FakeGlue seeds its tables through ``json.dumps(default=str)``, so its
+    tables never carry a datetime -- which is exactly why this path was green while broken."""
+    lease, token = _held_lease(fake_s3)
+    contract = _contract()
+    live = _live_from_desired(build_desired_table(contract))
+    live["VersionId"] = "0"
+    live["CreateTime"] = BASE
+    live["UpdateTime"] = BASE + timedelta(days=1)
+    live["LastAccessTime"] = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    fake_glue.tables["silver_demo"] = live
+
+    table_input = raw_snapshot_to_table_input(live)
+    assert isinstance(table_input.get("LastAccessTime"), datetime), (
+        "raw_snapshot_to_table_input must KEEP LastAccessTime -- dropping it from the TableInput "
+        "is how the noaa_oni widen lost it; keeping it is what puts a datetime in the plan")
+    table_input["StorageDescriptor"]["Columns"].append({"Name": "c", "Type": "int"})
+
+    mig = _migrator(fake_glue, [contract], lease=lease, token=token, tmp=tmp_path)
+    plan = MigrationPlan(
+        table="silver_demo", database="leviathan_test", change_type=ChangeType.ADDITIVE_UPDATE,
+        live_hash=catalog.hash_table(live), desired_hash=catalog.hash_table(table_input),
+        diffs=["columns: widened"], table_input=table_input)
+
+    out = mig.apply_table(plan)                      # this raised TypeError before the fix
+    assert out["applied"] is True and out["change_type"] == "additive_update"
+
+    payload = json.loads(Path(out["manifest"]).read_text(encoding="utf-8"))
+    # BOTH halves of the record survive: the plan side (which fired) and the backup side.
+    assert payload["plan"]["table_input"]["LastAccessTime"] == str(live["LastAccessTime"])
+    assert payload["backup"]["table_input"]["UpdateTime"] == str(live["UpdateTime"])
+    assert payload["backup"]["catalog_hash"] == plan.live_hash
+    # and the mutation itself landed.
+    assert [c["Name"] for c in fake_glue.tables["silver_demo"]["StorageDescriptor"]["Columns"]] \
+        == ["a", "b", "c"]
 
 
 def test_apply_create_is_bootstrap_only_conflict_if_now_exists(fake_s3, fake_glue, tmp_path):

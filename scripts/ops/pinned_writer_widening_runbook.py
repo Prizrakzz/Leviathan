@@ -8,11 +8,45 @@
     python scripts/ops/pinned_writer_widening_runbook.py --verify-read
     python scripts/ops/pinned_writer_widening_runbook.py --table silver_fgis --rollback
     python scripts/ops/pinned_writer_widening_runbook.py --rollback --dry-run --offline --offline-dir DIR
+    python scripts/ops/pinned_writer_widening_runbook.py --record-applied silver_fgis
 
 DRY RUN BY DEFAULT.  With no flag this reads live Glue (or, with ``--offline``, the tracked R0
 ``_raw`` sidecars) and PRINTS the plan and the before/after column types.  Nothing mutates unless
 ``--apply`` or ``--rollback`` is passed, and both of those are the OWNER's: they take a lease,
 re-read live, and refuse on any precondition.
+
+THE RUN IS IDEMPOTENT, AND THE ACCOUNTING IS A RE-READ, NOT AN INFERENCE
+-----------------------------------------------------------------------
+MEASURED 2026-09-10 04:07Z, on the owner's own console: ``--apply`` passed preflight on both
+tables, took the lease, issued ``glue.update_table`` on ``silver_fgis`` -- which SUCCEEDED,
+VersionId 0 -> 1 -- and then died inside the migration-manifest writer with ``TypeError: Object of
+type datetime is not JSON serializable``.  The exception escaped ``CatalogMigrator.apply_table``
+AFTER the mutation and BEFORE the runbook recorded the table as mutated, so the handler printed
+``ERROR -- nothing was mutated by this runbook``.  It was wrong, and being wrong there is worse
+than the crash: an owner who believes nothing moved re-runs the command.
+
+(The datetime was ``LastAccessTime``.  ``migrate.raw_snapshot_to_table_input`` deliberately does
+NOT drop it -- a TableInput that omits it LOSES it, which is exactly the field-loss this runbook's
+whole design exists to avoid -- and boto3 returns it as a ``datetime``.  The manifest writer's
+``json.dumps`` had no ``default=str``.  It does now, and one deck pins a boto3-shaped table
+round-tripping through it.)
+
+Two things follow, and both are behaviour, not documentation:
+
+  * TRUTHFUL ACCOUNTING.  Any exception inside the per-table apply RE-READS every table from live
+    Glue and prints ``APPLIED`` / ``NOT APPLIED`` / ``UNKNOWN`` with the live VersionId for each.
+    The verdict comes from the CATALOG, never from where the exception fired.  A table the re-read
+    proves APPLIED gets its machine manifest written FROM THE RE-READ (``applied: true``,
+    ``applied_at`` = the live ``UpdateTime``, ``backup`` = the pre-apply TableInput this run
+    froze), so a failed writer costs the record only until the handler runs.
+
+  * IDEMPOTENT RE-RUN.  A table whose target columns are ALREADY wide is reported ``ALREADY WIDE
+    (VersionId N, UpdateTime ...) -- skipping`` and the run moves on to the remaining tables and
+    exits 0.  Preflight refuses only a table that is NEITHER the expected narrow shape NOR the
+    expected wide one.  So after the 04:07Z half-run, the SAME ``--apply`` command finishes the
+    job: it skips ``silver_fgis`` and applies ``silver_modis_ndvi``.  (The skip is WIDEN-only.
+    ``--rollback`` keeps its strict type precondition: a reverse plan that quietly no-ops is a
+    rollback an owner believes happened.)
 
 THE TWO MUTATING PATHS ARE NOT THE SAME CALL, AND THAT IS THE WHOLE POINT
 ------------------------------------------------------------------------
@@ -107,13 +141,18 @@ whose second loop asserts that a pinned contract off the debt list declares no w
 
 EXIT CODES
 ----------
-    0  the plan printed / the apply verified
-    2  REFUSED on a precondition (types are not what we expect; Parameters or PartitionKeys would
-       move; an unsafe diff beyond the bounded reverse set; --apply combined with --offline)
+    0  the plan printed / the apply verified / every table was already wide and was skipped /
+       the applied record was reconstructed
+    2  REFUSED on a precondition (types are neither the expected narrow shape nor the expected
+       wide one; Parameters or PartitionKeys would move; an unsafe diff beyond the bounded reverse
+       set; --apply combined with --offline; --record-applied on a table that is not wide, or that
+       already has an applied machine manifest)
     3  applied but POST-APPLY VERIFICATION FAILED (the re-read does not show the expected types),
-       or --verify-read failed / returned no rows
-    4  an AWS / lease error.  The handler names every table that had already been mutated when it
-       fired -- with ``--table all`` the second table can fail after the first has applied.
+       or --verify-read failed / returned no rows, or --record-applied wrote the record but could
+       not certify the pre-apply backup
+    4  an AWS / lease error.  The handler RE-READS every table and names what actually moved --
+       with ``--table all`` the second table can fail after the first has applied, and an
+       exception can escape after the first table's update_table has already returned.
 """
 from __future__ import annotations
 
@@ -122,6 +161,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 _REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO / "src"))
@@ -209,8 +249,100 @@ class Refused(RuntimeError):
 
 
 # Tables this process has actually mutated, in order. The error handlers read it so an owner is
-# never told "no mutation was issued" after the first of two tables already moved.
+# never told "no mutation was issued" after the first of two tables already moved. A table the
+# POST-FAILURE RE-READ proves moved is appended here too -- being in this list is a statement about
+# the catalog, not about which line of this file ran.
 _MUTATED: list[str] = []
+
+# The per-table verdicts the post-failure re-read produced, in table order. _mutation_status reads
+# them so the one-line exit summary and the full report can never disagree.
+_VERDICTS: list[dict] = []
+
+# The three answers a re-read can give about one table. UNKNOWN is a first-class answer: a runbook
+# that cannot tell must say so, never round down to "nothing happened".
+APPLIED = "APPLIED"
+NOT_APPLIED = "NOT APPLIED"
+UNKNOWN = "UNKNOWN"
+
+# Which end of THIS migration a live table sits at. Only MIXED is a refusal: AT_TARGET means the
+# work is already done (skip, exit 0), AT_SOURCE means it is still to do.
+AT_SOURCE = "AT_SOURCE"
+AT_TARGET = "AT_TARGET"
+MIXED = "MIXED"
+
+
+def _column_types(table: dict) -> dict:
+    """{column name -> lower-cased Glue type} for the non-partition columns of a get_table Table."""
+    return {c.get("Name"): str(c.get("Type") or "").strip().lower()
+            for c in (table.get("StorageDescriptor") or {}).get("Columns") or []}
+
+
+def _iso(value) -> Optional[str]:
+    """A Glue time field as a string. boto3 hands CreateTime/UpdateTime/LastAccessTime back as
+    ``datetime``; the tracked R0 sidecars carry the same fields already stringified."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
+
+
+def live_shape(live: dict, changes: list[tuple[str, str, str]]) -> str:
+    """Which end of this migration the live table sits at -- AT_SOURCE, AT_TARGET or MIXED.
+
+    TOTAL BY CONSTRUCTION, and that is the point: ``widen_table_input`` can only answer "this is
+    not the state I measured", which turns a table that is ALREADY DONE into a refusal. Separating
+    "already at the target" from "some third state" is what makes the run idempotent -- and it
+    narrows the refusal to what actually deserves one."""
+    if not changes:
+        return MIXED                     # a migration with no columns is a bug, not a state
+    types = _column_types(live)
+    if all(types.get(name) == to for name, _frm, to in changes):
+        return AT_TARGET
+    if all(types.get(name) == frm for name, frm, _to in changes):
+        return AT_SOURCE
+    return MIXED
+
+
+def table_verdict(table: str, before: Optional[dict], changes: list[tuple[str, str, str]],
+                  *, glue, database: str) -> dict:
+    """RE-READ live Glue and say what actually happened to ONE table. Read-only.
+
+    This is the only question an owner has after a failed run, and it is answered by the CATALOG.
+    Where the exception fired is not evidence: MEASURED 2026-09-10 04:07Z, the exception fired
+    after ``glue.update_table`` had already returned and the table had already moved."""
+    try:
+        after = read_table(table, offline=False, glue_client=glue, database=database)
+    except Exception as exc:                                                    # noqa: BLE001
+        return {"table": table, "status": UNKNOWN, "version_id": None, "after": None,
+                "version_before": None if before is None else str(before.get("VersionId")),
+                "shape": None,
+                "detail": f"the RE-READ ITSELF failed ({type(exc).__name__}: {exc}) -- the live "
+                          "state of this table is UNKNOWN. Do not assume either way; re-run a bare "
+                          "dry-run against this table when AWS answers."}
+    types = _column_types(after)
+    shape = live_shape(after, changes)
+    version_before = None if before is None else str(before.get("VersionId"))
+    version_after = str(after.get("VersionId"))
+    moved = version_before is not None and version_after != version_before
+    n = len(changes)
+    at_target = sum(1 for name, _frm, to in changes if types.get(name) == to)
+    if shape == AT_TARGET and (moved or version_before is None):
+        status = APPLIED
+        detail = (f"VersionId {version_before} -> {version_after}; all {n} target column(s) hold "
+                  f"the target type; UpdateTime {_iso(after.get('UpdateTime'))}")
+    elif shape == AT_SOURCE and not moved:
+        status = NOT_APPLIED
+        detail = (f"VersionId {version_after} (unchanged); all {n} column(s) still hold the "
+                  f"source type; UpdateTime {_iso(after.get('UpdateTime'))}")
+    else:
+        status = UNKNOWN
+        detail = (f"live VersionId {version_after} (this run read {version_before} before it "
+                  f"started); {at_target} of {n} target column(s) hold the target type; "
+                  f"shape={shape}; UpdateTime {_iso(after.get('UpdateTime'))}. This is neither a "
+                  "clean apply nor an untouched table -- read it before doing anything else.")
+    return {"table": table, "status": status, "version_id": version_after, "after": after,
+            "version_before": version_before, "shape": shape, "detail": detail}
 
 
 def _managed_params(table: dict) -> str:
@@ -455,7 +587,8 @@ def print_plan(table: str, live: dict, desired: dict, plan: MigrationPlan,
     print(f"    diffs         : {len(plan.diffs)}")
     for d in plan.diffs:
         print(f"      {d[:2000]}")
-    print(f"    registered_partition_audit: {json.dumps(plan.registered_partition_audit, sort_keys=True)}")
+    print("    registered_partition_audit: "
+          f"{json.dumps(plan.registered_partition_audit, sort_keys=True, default=str)}")
     if direction == "ROLLBACK":
         print(f"    unsafe        : {len(plan.unsafe)} entry(ies) -- EXPECTED. A reverse plan IS a")
         print("                    narrowing, and CatalogMigrator.apply_table refuses every")
@@ -601,12 +734,28 @@ def dry_run(tables: list[str], *, offline: bool, region: str, database: str,
                   else f"offline snapshot dir {offline_dir} (AWS-free)")
     else:
         source = "live glue.get_table"
+    already = []
     for table in tables:
         changes = _assert_matches_registry(table)
         if direction == "ROLLBACK":
             changes = [(n, to, frm) for n, frm, to in changes]
         live = read_table(table, offline=offline, glue_client=glue, database=database,
                           offline_dir=offline_dir)
+        # The SAME idempotence the apply path has, so a bare dry-run is a valid CONFIRMATION that
+        # a widen landed (post-apply step 1) instead of a refusal that reads like a fault.
+        if direction != "ROLLBACK" and live_shape(live, changes) == AT_TARGET:
+            already.append(table)
+            print(_rule("="))
+            print(f"{table}   [{direction}]   source={source}")
+            print(_rule("="))
+            print(f"  ALREADY WIDE (VersionId {live.get('VersionId')}, UpdateTime "
+                  f"{_iso(live.get('UpdateTime'))}) -- skipping.")
+            print("  Every target column already holds its target type; there is nothing to plan.")
+            print(("    %-2s %-24s %-10s %-10s" % ("", "column", "target", "live")).rstrip())
+            for name, _frm, to in changes:
+                print(("    %-2s %-24s %-10s %-10s" % ("=", name, to, to)).rstrip())
+            print()
+            continue
         desired = widen_table_input(live, changes)
         assert_shape_preserved(live, desired)
         plan = build_plan(table, live, desired, mig, database, direction)
@@ -615,6 +764,8 @@ def dry_run(tables: list[str], *, offline: bool, region: str, database: str,
         check_unsafe(table, plan, changes, direction)
         print_plan(table, live, desired, plan, changes, source=source, direction=direction)
     print(_rule("="))
+    if already:
+        print(f"ALREADY WIDE (skipped, nothing to plan): {', '.join(already)}")
     print("DRY RUN -- NOTHING WAS MUTATED. No glue.update_table was issued, no lease was taken,")
     if direction == "ROLLBACK":
         print("no S3 object was written. Re-run with --rollback ALONE (drop --dry-run) to execute.")
@@ -648,8 +799,216 @@ def _write_rollback_record(table: str, plan: MigrationPlan, live: dict, result: 
         "result": result,
         "guard_mode": "canonical",
     }
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    # default=str: ``plan.to_dict()`` carries ``table_input``, which is the LIVE table with only
+    # the read-only fields dropped -- and that drop set keeps ``LastAccessTime``, which boto3 hands
+    # back as a datetime. Without this the rollback record raises the SAME TypeError that cost the
+    # 04:07Z apply its manifest, and it would raise it AFTER restore_table had already written.
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str), encoding="utf-8")
     return path
+
+
+# ---------------------------------------------------------------------------
+# the APPLIED record: the machine manifest, written from a re-read when the apply could not
+# ---------------------------------------------------------------------------
+def _applied_manifest(table: str, migrations_dir: Path) -> Optional[Path]:
+    """The machine manifest for an APPLIED widen of ``table``, if one is already on disk.
+
+    The machine convention is ``<UTC>_<table>_<change_type>.json`` and ``CatalogMigrator`` writes
+    no ``applied`` key at all -- the file's existence IS the claim -- so any file matching that
+    name counts, except one that explicitly says ``applied: false``. The hand-authored
+    ``<UTC>_<table>_type_widening_additive.json`` does not match this glob and is never mistaken
+    for it."""
+    if migrations_dir is None or not migrations_dir.exists():
+        return None
+    for path in sorted(migrations_dir.glob(f"*_{table}_{ChangeType.ADDITIVE_UPDATE.value}.json")):
+        try:
+            if json.loads(path.read_text(encoding="utf-8")).get("applied") is False:
+                continue
+        except Exception:                                                       # noqa: BLE001
+            pass                        # an unparseable record is still a record; do not overwrite
+        return path
+    return None
+
+
+def hand_authored_pre_apply(table: str, migrations_dir: Path = None) -> dict:
+    """The PRE-apply TableInput for a RECONSTRUCTED record -- with its certification RE-VERIFIED.
+
+    The hand-authored manifest carries no TableInput. What it carries is
+    ``plan_hashes.live_hash_at_authoring``: the ``catalog.hash_table`` digest of the pre-apply
+    table, alongside ``plan_hashes.recipe``, which states that that digest was MEASURED equal to
+    the tracked R0 ``_raw`` sidecar. So the SIDECAR is the pre-apply TableInput and
+    ``plan_hashes.live_hash_at_authoring`` is the field that certifies it.
+
+    This recomputes the sidecar's hash and compares. A sidecar that does not hash to that field
+    yields NO backup and says why -- a backup that might not be the state the apply overwrote is
+    worse than an absent one, because it would be restored."""
+    base = migrations_dir or MIGRATIONS_DIR
+    hand_path = base / MIGRATION_FILES[table]
+    field = "plan_hashes.live_hash_at_authoring"
+    out = {"source": None, "field": field, "table_input": None, "catalog_hash": None,
+           "verified": False, "expected": None, "got": None, "reason": None,
+           "hand_authored_manifest": hand_path.name}
+    if not hand_path.exists():
+        out["reason"] = f"the hand-authored manifest is missing: {hand_path}"
+        return out
+    hand = json.loads(hand_path.read_text(encoding="utf-8"))
+    out["expected"] = ((hand.get("plan_hashes") or {}).get("live_hash_at_authoring"))
+    snap_path = R0_RAW / f"{table}.get-table.json"
+    if not snap_path.exists():
+        out["reason"] = f"the tracked R0 sidecar is missing: {snap_path}"
+        return out
+    snapshot = json.loads(snap_path.read_text(encoding="utf-8"))
+    out["got"] = catalog.hash_table(snapshot)
+    out["source"] = (
+        f"reports/silver_readiness/20260712_p65impl/_raw/{table}.get-table.json (the tracked R0 "
+        f"sidecar), certified as the PRE-APPLY table by {field} in "
+        f"sql/athena/migrations/silver/{hand_path.name} -- re-verified by this run, not quoted")
+    if out["expected"] and out["expected"] == out["got"]:
+        out["verified"] = True
+        out["table_input"] = raw_snapshot_to_table_input(snapshot)
+        out["catalog_hash"] = out["got"]
+    else:
+        out["reason"] = (
+            f"the R0 sidecar hashes to {out['got']} but {field} says {out['expected']}: the "
+            "sidecar is NOT provably the state the apply overwrote, so no backup is recorded")
+    return out
+
+
+def write_applied_manifest(table: str, *, after: dict, changes: list[tuple[str, str, str]],
+                           database: str, migrations_dir: Path, backup: dict,
+                           reconstructed_note: str, plan: MigrationPlan = None,
+                           fencing_token=None) -> Path:
+    """Write the machine manifest for a widen that IS on the catalog, FROM THE POST-APPLY RE-READ.
+
+    Same directory and the same ``<UTC>_<table>_additive_update.json`` name ``CatalogMigrator``
+    uses, because it is the same record -- it is only being written late. ``applied_at`` is the
+    LIVE ``UpdateTime`` (the catalog's own clock: when the mutation actually landed), never this
+    process's clock, and ``reconstructed: true`` marks it so nobody mistakes it for a manifest the
+    mutation itself produced."""
+    migrations_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    path = migrations_dir / f"{ts}_{table}_{ChangeType.ADDITIVE_UPDATE.value}.json"
+    payload = {
+        "applied": True,
+        "applied_at": _iso(after.get("UpdateTime")),
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "reconstructed": True,
+        "reconstructed_note": reconstructed_note,
+        "database": database,
+        "table": table,
+        "change_type": ChangeType.ADDITIVE_UPDATE.value,
+        "package": "SILVER-F062 (PINNED-WRITER TYPE WIDENING)",
+        "guard_mode": "canonical",
+        "fencing_token": fencing_token,
+        "widened_columns": [{"name": n, "from_glue_type": f, "to_glue_type": t}
+                            for n, f, t in changes],
+        "post_apply": {
+            "version_id": str(after.get("VersionId")),
+            "update_time": _iso(after.get("UpdateTime")),
+            "catalog_hash": catalog.hash_table(after),
+            "column_types": _column_types(after),
+            "table_input": raw_snapshot_to_table_input(after),
+        },
+        "backup": backup,
+        "plan": plan.to_dict() if plan is not None else None,
+        "written_by": "scripts/ops/pinned_writer_widening_runbook.py",
+        "rollback": ("python scripts/ops/pinned_writer_widening_runbook.py "
+                     f"--table {table} --rollback"),
+    }
+    # default=str for the same reason the migrator now carries it: post_apply.table_input is the
+    # live table minus the read-only fields, and LastAccessTime stays and is a datetime.
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str), encoding="utf-8")
+    return path
+
+
+def _report_the_truth(staged: list, *, glue, database: str, direction: str,
+                      migrations_dir: Path, fencing_token=None, exc: BaseException = None,
+                      finish_hint: bool = True) -> None:
+    """RE-READ every staged table from live Glue and print what actually happened to each.
+
+    Called on ANY failure inside the per-table apply loop, and on the post-apply-verification exit.
+    It answers from the catalog, and it does three things a printed traceback cannot:
+
+      1. it names each table APPLIED / NOT APPLIED / UNKNOWN with the live VersionId;
+      2. it appends every table the re-read proves APPLIED to ``_MUTATED``, so the one-line exit
+         summary cannot say "nothing was mutated" while the catalog has moved;
+      3. it WRITES THE MISSING MANIFEST for an applied table whose record never got written --
+         from the re-read, with the pre-apply TableInput this run froze as the backup. That is the
+         exact 04:07Z hole: update_table returned, the manifest writer raised, and the estate was
+         left with a moved catalog and no machine record of it.
+
+    Read-only on AWS (get_table) plus a local file write."""
+    del _VERDICTS[:]
+    print()
+    print(_rule("="))
+    print("WHAT ACTUALLY HAPPENED -- every table RE-READ from live Glue")
+    print(_rule("="))
+    if exc is not None:
+        print(f"  the failure   : {type(exc).__name__}: {exc}")
+    print("  This runbook does NOT infer what moved from where the exception fired. An exception")
+    print("  can escape AFTER glue.update_table has returned -- MEASURED 2026-09-10 04:07Z, when")
+    print("  the migration-manifest writer raised on a datetime and the owner was told nothing was")
+    print("  mutated while silver_fgis had already gone to VersionId 1. Every line below is a")
+    print("  fresh glue.get_table issued just now.")
+    if direction == "ROLLBACK":
+        print()
+        print("  DIRECTION IS ROLLBACK, so read the words accordingly: APPLIED means the REVERSE")
+        print("  plan landed and the table is NARROW again; NOT APPLIED means it is still WIDE.")
+    print()
+    for table, live, _desired, plan, changes, _mig in staged:
+        verdict = table_verdict(table, live, changes, glue=glue, database=database)
+        _VERDICTS.append(verdict)
+        print(f"  {table:<20} {verdict['status']:<12} -- {verdict['detail']}")
+        if verdict["status"] == APPLIED and table not in _MUTATED:
+            _MUTATED.append(table)
+        if verdict["status"] != APPLIED or direction == "ROLLBACK":
+            continue
+        existing = _applied_manifest(table, migrations_dir)
+        if existing is not None:
+            print(f"    machine manifest already on disk: {existing}")
+            continue
+        try:
+            path = write_applied_manifest(
+                table, after=verdict["after"], changes=changes, database=database,
+                migrations_dir=migrations_dir, plan=plan, fencing_token=fencing_token,
+                backup={"table": table,
+                        "captured_at": _iso(live.get("UpdateTime")),
+                        "source": "the PRE-APPLY glue.get_table this run froze before it issued "
+                                  "update_table (the same TableInput the plan was cut from)",
+                        "catalog_hash": plan.live_hash,
+                        "version_id": str(live.get("VersionId")),
+                        "table_input": raw_snapshot_to_table_input(live)},
+                reconstructed_note=(
+                    "WRITTEN FROM A POST-FAILURE RE-READ, not by the mutation. "
+                    f"{'' if exc is None else type(exc).__name__ + ' '}"
+                    "escaped CatalogMigrator.apply_table after glue.update_table had already "
+                    "returned, so the manifest the apply would have written was never written. "
+                    "This record was reconstructed by the runbook's failure handler in the same "
+                    "process: applied_at is the LIVE UpdateTime, post_apply is the re-read, and "
+                    "backup is the pre-apply TableInput frozen by this run."))
+            print(f"    manifest WRITTEN from the re-read: {path}")
+        except Exception as werr:                                               # noqa: BLE001
+            print(f"    could not write the manifest ({type(werr).__name__}: {werr}) -- the "
+                  "catalog HAS moved; record it by hand.")
+    print()
+    moved = [v["table"] for v in _VERDICTS if v["status"] == APPLIED]
+    unsure = [v["table"] for v in _VERDICTS if v["status"] == UNKNOWN]
+    todo = [v["table"] for v in _VERDICTS if v["status"] == NOT_APPLIED]
+    print(f"  MOVED      : {', '.join(moved) if moved else '(none)'}")
+    print(f"  NOT MOVED  : {', '.join(todo) if todo else '(none)'}")
+    print(f"  UNKNOWN    : {', '.join(unsure) if unsure else '(none)'}")
+    if todo and direction != "ROLLBACK" and finish_hint:
+        print()
+        print("  TO FINISH THE JOB, re-run the SAME command. Preflight now SKIPS a table that is")
+        print("  already wide, so the re-run applies only what is left:")
+        print("    cd C:\\Users\\User\\Desktop\\Leviathan; "
+              "python scripts\\ops\\pinned_writer_widening_runbook.py --apply")
+    if moved and direction != "ROLLBACK":
+        print()
+        print("  TO UNDO a table that DID move:")
+        for t in moved:
+            print(f"    python scripts/ops/pinned_writer_widening_runbook.py --table {t} "
+                  "--rollback")
 
 
 def apply(tables: list[str], *, region: str, database: str, bucket: str, lease_prefix: str,
@@ -661,6 +1020,7 @@ def apply(tables: list[str], *, region: str, database: str, bucket: str, lease_p
     s3 = s3_client if s3_client is not None else boto3.client("s3", region_name=region)
     migrations_dir = migrations_dir or MIGRATIONS_DIR
     del _MUTATED[:]
+    del _VERDICTS[:]
     auth = Authorization(mode=PublishMode.CANONICAL, may_mutate_canonical=True, readiness=False,
                          reason=f"SILVER-F062 pinned-writer catalog widening (owner {direction})")
     print(_rule("="))
@@ -677,11 +1037,49 @@ def apply(tables: list[str], *, region: str, database: str, bucket: str, lease_p
 
     # ---- preflight: every table, every precondition, BEFORE any mutation ----------------------
     staged = []
+    skipped = []
     for table in tables:
         changes = _assert_matches_registry(table)
         if direction == "ROLLBACK":
             changes = [(n, to, frm) for n, frm, to in changes]
         live = read_table(table, offline=False, glue_client=glue, database=database)
+        # IDEMPOTENCE. A table already AT_TARGET is not a precondition failure -- it is the work
+        # already done, and refusing it would make a half-finished run unfinishable by the same
+        # command. Only MIXED (neither the measured narrow shape nor the measured wide one) is a
+        # refusal, and widen_table_input below is what raises it, naming the column and the type.
+        # WIDEN ONLY: a --rollback that quietly no-ops is a rollback an owner believes happened.
+        if direction != "ROLLBACK" and live_shape(live, changes) == AT_TARGET:
+            print(f"  ALREADY WIDE: {table} (VersionId {live.get('VersionId')}, UpdateTime "
+                  f"{_iso(live.get('UpdateTime'))}) -- skipping.")
+            for name, frm, to in changes:
+                print(f"    {name:<24} {frm:<10} -> {to:<10} [already {to}]")
+            skipped.append((table, live, changes))
+            record = _applied_manifest(table, migrations_dir)
+            if record is not None:
+                print(f"    applied record already on disk: {record.name}")
+            else:
+                basis = hand_authored_pre_apply(table, migrations_dir)
+                path = write_applied_manifest(
+                    table, after=live, changes=changes, database=database,
+                    migrations_dir=migrations_dir,
+                    backup={"table": table, "captured_at": None,
+                            "source": basis["source"], "certifying_field": basis["field"],
+                            "catalog_hash": basis["catalog_hash"],
+                            "table_input": basis["table_input"],
+                            "unavailable_reason": basis["reason"]},
+                    reconstructed_note=(
+                        "RECONSTRUCTED: this table was already at its target types when the run "
+                        "reached it and carried no applied machine manifest, so the widen landed "
+                        "in some earlier run whose record was never written (MEASURED 2026-09-10 "
+                        "04:07Z: the manifest writer raised TypeError on a datetime AFTER "
+                        "update_table had returned). applied_at is the LIVE UpdateTime, post_apply "
+                        "is a read of the live table, and the backup is the pre-apply TableInput "
+                        "certified by the hand-authored manifest."))
+                print(f"    applied record RECONSTRUCTED: {path}")
+                if not basis["verified"]:
+                    print(f"    WARNING: the pre-apply backup could not be certified -- "
+                          f"{basis['reason']}")
+            continue
         desired = widen_table_input(live, changes)          # refuses on any unexpected live type
         assert_shape_preserved(live, desired)               # refuses if Parameters/PK would move
         mig = CatalogMigrator(database=database, auth=auth, glue_client=glue,
@@ -697,83 +1095,119 @@ def apply(tables: list[str], *, region: str, database: str, bucket: str, lease_p
             print(f"    bounded narrowing override: {u}")
     print()
 
+    if not staged and skipped:
+        # Everything asked for was already at its target types. No lease is taken: a lease is a
+        # licence to mutate, and there is nothing to mutate.
+        print(_rule("="))
+        print(f"NOTHING TO DO -- all {len(skipped)} table(s) are ALREADY WIDE. No lease was taken,")
+        print("no glue.update_table was issued.")
+        for table, live, _changes in skipped:
+            print(f"  {table:<20} VersionId {live.get('VersionId')}  UpdateTime "
+                  f"{_iso(live.get('UpdateTime'))}")
+        print(_rule("="))
+        print_post_apply_steps([t for t, _l, _c in skipped])
+        return 0
+
     lease = Lease(bucket=bucket, prefix=lease_prefix, lock_id=lease_id, s3_client=s3)
     state = lease.acquire()
     print(f"  lease ACQUIRED s3://{bucket}/{lease.key}  owner={state.owner} "
           f"token={state.fencing_token} expires={state.expires_at}")
+    truth = dict(glue=glue, database=database, direction=direction,
+                 migrations_dir=migrations_dir, fencing_token=state.fencing_token)
     try:
-        for table, live, desired, plan, changes, mig in staged:
-            mig.lease = lease
-            mig.fencing_token = state.fencing_token
-            before_version = live.get("VersionId")
-            if direction == "ROLLBACK":
-                # restore_table, NOT apply_table: the reverse plan is a narrowing and apply_table
-                # refuses every narrowing (UnsafeMigration). restore_table re-checks the live hash
-                # against the one this plan was cut from, fences, and verifies the post-restore
-                # hash itself.
-                result = mig.restore_table(table, snapshot=desired,
-                                           expected_current_hash=plan.live_hash)
-            else:
-                result = mig.apply_table(plan)
-            after = read_table(table, offline=False, glue_client=glue, database=database)
-            after_types = {c["Name"]: c["Type"] for c in
-                           (after.get("StorageDescriptor") or {}).get("Columns", [])}
-            _MUTATED.append(table)
-            if direction == "ROLLBACK":
-                record = _write_rollback_record(table, plan, live, result, migrations_dir)
-            print()
-            print(_rule("="))
-            print(f"{'ROLLED BACK' if direction == 'ROLLBACK' else 'APPLIED'} {table}")
-            print(_rule("="))
-            if direction == "ROLLBACK":
-                print(f"  restored      : {result.get('restored')}")
-                print(f"  verified hash : {result.get('verified_hash')}")
-                print(f"    (restore_table re-read the table and asserted this equals the hash of")
-                print(f"     the narrow TableInput it wrote: {plan.desired_hash})")
-                print(f"  record        : {record}")
-            else:
-                print(f"  manifest      : {result.get('manifest')}")
-                print(f"  backup hash   : {result.get('backup_hash')}")
-            print(f"  VersionId     : {before_version}  ->  {after.get('VersionId')}")
-            print(f"  UpdateTime    : {live.get('UpdateTime')}  ->  {after.get('UpdateTime')}")
-            print("  column types now:")
-            bad = []
-            for name, frm, to in changes:
-                got = after_types.get(name)
-                ok = "OK" if got == to else "MISMATCH"
-                if got != to:
-                    bad.append((name, to, got))
-                print(f"    {name:<24} {frm:<10} -> {got:<10} [{ok}]")
-            # Compare the MANAGED parameter set: Glue may rewrite transient_lastDdlTime on any
-            # update_table, and a cosmetic key must never send the owner to a rollback.
-            # catalog._NOISE_TABLE_PARAMS is the estate's own definition of that noise -- the same
-            # one catalog.hash_table and CatalogMigrator.plan_table use.
-            pa, pb = _managed_params(live), _managed_params(after)
-            ra = json.dumps(live.get("Parameters"), sort_keys=True, default=str)
-            rb = json.dumps(after.get("Parameters"), sort_keys=True, default=str)
-            ka = json.dumps(live.get("PartitionKeys"), sort_keys=True, default=str)
-            kb = json.dumps(after.get("PartitionKeys"), sort_keys=True, default=str)
-            print(f"  Parameters preserved (managed set)  : {'YES' if pa == pb else 'NO'}")
-            if pa != pb:
-                print(f"    before: {pa}")
-                print(f"    after : {pb}")
-            elif ra != rb:
-                print("    (AWS-generated keys moved -- noise, not operator intent:")
-                print(f"     before: {ra}")
-                print(f"     after : {rb})")
-            print(f"  PartitionKeys preserved after apply : {'YES' if ka == kb else 'NO'}")
-            if bad or pa != pb or ka != kb:
-                print()
-                print("POST-APPLY VERIFICATION FAILED.")
+        # ONE try around the whole staged loop, and it wraps the ENTIRE per-table body -- the
+        # mutation, the post-read and the printing. Anything that escapes has to answer "what
+        # moved?", and the only honest answer is a fresh read of every table: the 04:07Z failure
+        # fired between update_table returning and this loop recording the table, which is exactly
+        # the window in which "where the exception fired" and "what the catalog says" disagree.
+        # _report_the_truth re-reads every STAGED table, so the granularity is per-table whichever
+        # one raised.
+        try:
+            for table, live, desired, plan, changes, mig in staged:
+                mig.lease = lease
+                mig.fencing_token = state.fencing_token
+                before_version = live.get("VersionId")
                 if direction == "ROLLBACK":
-                    print("  The ROLLBACK itself did not verify. Do NOT run the post-apply steps.")
-                    print("  Re-read the table and compare against the record written above:")
-                    print(f"  python scripts/ops/pinned_writer_widening_runbook.py --table {table}")
+                    # restore_table, NOT apply_table: the reverse plan is a narrowing and
+                    # apply_table refuses every narrowing (UnsafeMigration). restore_table
+                    # re-checks the live hash against the one this plan was cut from, fences, and
+                    # verifies the post-restore hash itself.
+                    result = mig.restore_table(table, snapshot=desired,
+                                               expected_current_hash=plan.live_hash)
                 else:
-                    print("  Roll back now:")
-                    print(f"  python scripts/ops/pinned_writer_widening_runbook.py --table {table} "
-                          "--rollback")
-                return 3
+                    result = mig.apply_table(plan)
+                after = read_table(table, offline=False, glue_client=glue, database=database)
+                after_types = {c["Name"]: c["Type"] for c in
+                               (after.get("StorageDescriptor") or {}).get("Columns", [])}
+                if table not in _MUTATED:
+                    _MUTATED.append(table)
+                if direction == "ROLLBACK":
+                    record = _write_rollback_record(table, plan, live, result, migrations_dir)
+                print()
+                print(_rule("="))
+                print(f"{'ROLLED BACK' if direction == 'ROLLBACK' else 'APPLIED'} {table}")
+                print(_rule("="))
+                if direction == "ROLLBACK":
+                    print(f"  restored      : {result.get('restored')}")
+                    print(f"  verified hash : {result.get('verified_hash')}")
+                    print("    (restore_table re-read the table and asserted this equals the hash "
+                          "of")
+                    print(f"     the narrow TableInput it wrote: {plan.desired_hash})")
+                    print(f"  record        : {record}")
+                else:
+                    print(f"  manifest      : {result.get('manifest')}")
+                    print(f"  backup hash   : {result.get('backup_hash')}")
+                print(f"  VersionId     : {before_version}  ->  {after.get('VersionId')}")
+                print(f"  UpdateTime    : {live.get('UpdateTime')}  ->  {after.get('UpdateTime')}")
+                print("  column types now:")
+                bad = []
+                for name, frm, to in changes:
+                    got = after_types.get(name)
+                    ok = "OK" if got == to else "MISMATCH"
+                    if got != to:
+                        bad.append((name, to, got))
+                    print(f"    {name:<24} {frm:<10} -> {got:<10} [{ok}]")
+                # Compare the MANAGED parameter set: Glue may rewrite transient_lastDdlTime on any
+                # update_table, and a cosmetic key must never send the owner to a rollback.
+                # catalog._NOISE_TABLE_PARAMS is the estate's own definition of that noise -- the
+                # same one catalog.hash_table and CatalogMigrator.plan_table use.
+                pa, pb = _managed_params(live), _managed_params(after)
+                ra = json.dumps(live.get("Parameters"), sort_keys=True, default=str)
+                rb = json.dumps(after.get("Parameters"), sort_keys=True, default=str)
+                ka = json.dumps(live.get("PartitionKeys"), sort_keys=True, default=str)
+                kb = json.dumps(after.get("PartitionKeys"), sort_keys=True, default=str)
+                print(f"  Parameters preserved (managed set)  : {'YES' if pa == pb else 'NO'}")
+                if pa != pb:
+                    print(f"    before: {pa}")
+                    print(f"    after : {pb}")
+                elif ra != rb:
+                    print("    (AWS-generated keys moved -- noise, not operator intent:")
+                    print(f"     before: {ra}")
+                    print(f"     after : {rb})")
+                print(f"  PartitionKeys preserved after apply : {'YES' if ka == kb else 'NO'}")
+                if bad or pa != pb or ka != kb:
+                    print()
+                    print("POST-APPLY VERIFICATION FAILED.")
+                    if direction == "ROLLBACK":
+                        print("  The ROLLBACK itself did not verify. Do NOT run the post-apply "
+                              "steps.")
+                        print("  Re-read the table and compare against the record written above:")
+                        print("  python scripts/ops/pinned_writer_widening_runbook.py --table "
+                              f"{table}")
+                    else:
+                        print("  Roll back now:")
+                        print("  python scripts/ops/pinned_writer_widening_runbook.py --table "
+                              f"{table} --rollback")
+                    # The verification failed on THIS table; the remaining staged tables were never
+                    # attempted. Say so from the catalog rather than leaving the owner to guess --
+                    # but WITHOUT the "re-run to finish" hint: the instruction on this path is the
+                    # rollback printed just above, and two contradictory next steps is worse than
+                    # one.
+                    _report_the_truth(staged, exc=None, finish_hint=False, **truth)
+                    return 3
+        except Exception as exc:                                                # noqa: BLE001
+            _report_the_truth(staged, exc=exc, **truth)
+            raise
     finally:
         lease.release()
         print()
@@ -782,7 +1216,11 @@ def apply(tables: list[str], *, region: str, database: str, bucket: str, lease_p
     if direction == "ROLLBACK":
         print_post_rollback_steps(list(_MUTATED))
     else:
-        print_post_apply_steps(list(_MUTATED))
+        # The post-apply sequence is owed for every table that is now WIDE, not only the ones THIS
+        # process moved: a table skipped as ALREADY WIDE still needs the read probe, the canonical
+        # rewrite, the R0 re-capture and its EXPECTED_DEBT line emptied.
+        print_post_apply_steps(list(_MUTATED) + [t for t, _l, _c in skipped
+                                                 if t not in _MUTATED])
     return 0
 
 
@@ -844,6 +1282,114 @@ def verify_read(tables: list[str], *, region: str, database: str, client=None, r
     return rc
 
 
+def record_applied(table: str, *, region: str, database: str, glue_client=None,
+                   migrations_dir: Path = None) -> int:
+    """RECONSTRUCT the machine manifest for a widen that IS on the catalog but was never recorded.
+
+    READ-ONLY ON AWS: one ``glue.get_table``, plus a LOCAL file write. It mutates nothing.
+
+    This exists because of a specific, measured hole. On 2026-09-10 04:07Z ``--apply`` widened
+    ``silver_fgis`` in Glue and then died inside the manifest writer, so the estate ended the run
+    with a moved catalog and NO machine record of the move -- and the hand-authored manifest still
+    saying ``applied: false``. The record is not paperwork: it carries the executable pre-apply
+    ``TableInput`` that a rollback would restore.
+
+    IT PROVES BEFORE IT WRITES, and refuses (exit 2) rather than assert:
+      * every target column must actually hold its target type in live Glue;
+      * the live ``catalog.hash_table`` digest must equal the ``desired_hash`` the hand-authored
+        manifest froze -- i.e. the catalog is EXACTLY the table that migration planned, not merely
+        a table with wide columns;
+      * no applied machine manifest may already exist for it.
+    Exit 3 means the record was written but the pre-apply backup could not be certified."""
+    glue = glue_client if glue_client is not None else _glue_client(region)
+    migrations_dir = migrations_dir or MIGRATIONS_DIR
+    changes = _assert_matches_registry(table)
+
+    print(_rule("="))
+    print(f"RECORD APPLIED [{table}] -- reconstruct the machine manifest for a widen that landed")
+    print(_rule("="))
+    print("  READ-ONLY on AWS: one glue.get_table. The only write is a local JSON file under")
+    print(f"  {migrations_dir}.")
+    print()
+
+    existing = _applied_manifest(table, migrations_dir)
+    if existing is not None:
+        raise Refused(
+            f"{table}: an applied machine manifest already exists -- {existing}\n"
+            "  There is nothing to reconstruct. Read that file; do not write a second record of "
+            "the same mutation.")
+
+    live = read_table(table, offline=False, glue_client=glue, database=database)
+    shape = live_shape(live, changes)
+    types = _column_types(live)
+    print(f"  live VersionId : {live.get('VersionId')}")
+    print(f"  live UpdateTime: {_iso(live.get('UpdateTime'))}")
+    print("  column types now:")
+    for name, frm, to in changes:
+        got = types.get(name)
+        print(f"    {name:<24} {frm:<10} -> {got:<10} [{'WIDE' if got == to else 'NOT WIDE'}]")
+    if shape != AT_TARGET:
+        raise Refused(
+            f"{table}: the catalog is not at the target types (shape={shape}) -- there is no "
+            "applied widen to record. Apply it first:\n"
+            f"  python scripts/ops/pinned_writer_widening_runbook.py --table {table} --apply")
+
+    hand_path = migrations_dir / MIGRATION_FILES[table]
+    hand = json.loads(hand_path.read_text(encoding="utf-8"))
+    planned_desired = (hand.get("plan_hashes") or {}).get("desired_hash")
+    live_hash = catalog.hash_table(live)
+    print()
+    print(f"  live catalog hash                  : {live_hash}")
+    print(f"  {hand_path.name}")
+    print(f"    plan_hashes.desired_hash         : {planned_desired}")
+    print(f"    live == the planned desired table: {'YES' if live_hash == planned_desired else 'NO'}")
+    if live_hash != planned_desired:
+        raise Refused(
+            f"{table}: live hashes to {live_hash} but the hand-authored manifest planned "
+            f"{planned_desired}. The catalog is wide but it is NOT the table that migration "
+            "planned, so this run will not claim it is. Re-measure before recording anything.")
+
+    basis = hand_authored_pre_apply(table, migrations_dir)
+    print()
+    print("  PRE-APPLY BACKUP (what a rollback would restore)")
+    print(f"    certifying field : {basis['field']} in {basis['hand_authored_manifest']}")
+    print(f"    that field says  : {basis['expected']}")
+    print(f"    R0 sidecar hashes: {basis['got']}")
+    print(f"    certified        : {'YES' if basis['verified'] else 'NO'}")
+    if not basis["verified"]:
+        print(f"    reason           : {basis['reason']}")
+
+    path = write_applied_manifest(
+        table, after=live, changes=changes, database=database, migrations_dir=migrations_dir,
+        backup={"table": table, "captured_at": None, "source": basis["source"],
+                "certifying_field": basis["field"], "catalog_hash": basis["catalog_hash"],
+                "table_input": basis["table_input"], "unavailable_reason": basis["reason"]},
+        reconstructed_note=(
+            "RECONSTRUCTED BY --record-applied, not written by the mutation. The apply that moved "
+            "this table raised inside the migration-manifest writer AFTER glue.update_table had "
+            "already returned (MEASURED 2026-09-10 04:07Z: TypeError, Object of type datetime is "
+            "not JSON serializable, on the LastAccessTime that raw_snapshot_to_table_input "
+            "deliberately keeps), so no machine manifest was ever written and the runbook reported "
+            "'nothing was mutated'. applied_at is the LIVE UpdateTime -- when the catalog actually "
+            "moved, not when this record was made. post_apply is a fresh read of live Glue; the "
+            "backup is the pre-apply TableInput certified by the hand-authored manifest."))
+    print()
+    print(f"  RECORD WRITTEN: {path}")
+    print("    applied      : true")
+    print(f"    applied_at   : {_iso(live.get('UpdateTime'))}  (the live UpdateTime)")
+    print(f"    rollback     : python scripts/ops/pinned_writer_widening_runbook.py "
+          f"--table {table} --rollback")
+    print()
+    print("  NOTHING WAS MUTATED IN AWS by this command. The Glue catalog was read, never written.")
+    if not basis["verified"]:
+        print()
+        print("  EXIT 3: the record exists, but WITHOUT a certified pre-apply backup. The rollback")
+        print("  command above still works (it reverses the live table's types in place and never")
+        print("  reads this file), but this record cannot hand a restorer the original TableInput.")
+        return 3
+    return 0
+
+
 # ---------------------------------------------------------------------------
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
@@ -857,6 +1403,12 @@ def main(argv=None) -> int:
                     help="OWNER: apply the REVERSE plan (wide -> narrow)")
     ap.add_argument("--verify-read", action="store_true", dest="verify_read",
                     help="run the bounded read probe against the CURRENT catalog")
+    ap.add_argument("--record-applied", default=None, dest="record_applied",
+                    choices=list(TABLES),
+                    help="reconstruct the machine manifest for a widen that IS on the catalog but "
+                         "was never recorded (the 04:07Z case: update_table returned, the manifest "
+                         "writer raised). READ-ONLY on AWS -- one get_table plus a local file "
+                         "write; refuses unless the table is provably at the planned wide state")
     ap.add_argument("--offline", action="store_true",
                     help="dry-run against the tracked R0 _raw sidecars instead of live Glue")
     ap.add_argument("--offline-dir", default=None, dest="offline_dir",
@@ -880,8 +1432,15 @@ def main(argv=None) -> int:
     if mutating and args.offline:
         print("REFUSED: --offline is a dry-run source; it cannot back a mutation.")
         return 2
+    if args.record_applied and (args.apply or args.rollback or args.verify_read or args.offline):
+        print("REFUSED: --record-applied is a standalone, read-only mode; it does not combine "
+              "with --apply, --rollback, --verify-read or --offline.")
+        return 2
 
     try:
+        if args.record_applied:
+            return record_applied(args.record_applied, region=args.region,
+                                  database=args.database)
         if args.verify_read:
             return verify_read(tables, region=args.region, database=args.database)
         if mutating:
@@ -906,14 +1465,31 @@ def main(argv=None) -> int:
 
 
 def _mutation_status(prefix: str) -> str:
-    """Never tell an owner 'nothing was mutated' when something was. With ``--table all`` the second
-    table's mutation can fail after the first has already landed."""
-    if not _MUTATED:
+    """Never tell an owner 'nothing was mutated' when something was, and never claim certainty the
+    runbook does not have.
+
+    ``_MUTATED`` holds every table this process is KNOWN to have moved -- both the ones the loop
+    recorded itself and the ones the post-failure re-read proved moved, which is the half that was
+    missing at 04:07Z. ``_VERDICTS`` holds the re-read's answers; a table it could not classify is
+    UNKNOWN, and an UNKNOWN table also forbids the 'nothing was mutated' line: this sentence is
+    only allowed when every table was re-read and came back unchanged."""
+    unknown = [v["table"] for v in _VERDICTS if v["status"] == UNKNOWN]
+    if not _MUTATED and not unknown:
         return f"{prefix} -- nothing was mutated by this runbook."
+    if not _MUTATED:
+        return (f"{prefix} -- the re-read could NOT establish the state of {len(unknown)} "
+                f"table(s): {', '.join(unknown)}. Do not assume nothing moved. Re-read each one "
+                "(a bare dry-run does that) before deciding anything.")
+    tail = ""
+    if unknown:
+        tail = (f" A further {len(unknown)} table(s) came back UNKNOWN from the re-read: "
+                f"{', '.join(unknown)}.")
     return (f"{prefix} -- BUT {len(_MUTATED)} table(s) WERE ALREADY MUTATED by this run: "
             f"{', '.join(_MUTATED)}. The catalog is now HALF-MOVED. Re-read each table "
             "(a bare dry-run does that and refuses if the types are not what it expects) before "
-            "deciding whether to continue or to roll the mutated table(s) back.")
+            "deciding whether to continue or to roll the mutated table(s) back." + tail +
+            " See the RE-READ report above for the per-table verdict; a mutated table's machine "
+            "manifest has been written from that re-read.")
 
 
 if __name__ == "__main__":

@@ -387,7 +387,19 @@ class CatalogMigrator:
             "guard_mode": self.auth.mode.value,
             "fencing_token": self.fencing_token,
         }
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        # default=str IS LOAD-BEARING, and it is not defensive typing. MEASURED 2026-09-10 04:07Z
+        # against live Glue: ``plan.table_input`` may be the LIVE table with the read-only fields
+        # dropped (``raw_snapshot_to_table_input``), and that drop set does NOT include
+        # ``LastAccessTime`` -- deliberately, because a TableInput that omits it LOSES it. boto3
+        # hands ``LastAccessTime``/``CreateTime``/``UpdateTime`` back as ``datetime`` objects, so a
+        # bare json.dumps here raises ``TypeError: Object of type datetime is not JSON
+        # serializable``. This writer runs AFTER the create_table/update_table has already
+        # returned, so that raise does not prevent a mutation -- it hides one: the catalog moves,
+        # the manifest is never written, and the caller sees an exception it can only read as
+        # failure. (``backup`` is already datetime-safe via ``_serializable``; this covers the plan
+        # side, which is the half that fired.)
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str),
+                        encoding="utf-8")
         return path
 
 

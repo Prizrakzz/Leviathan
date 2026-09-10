@@ -27,17 +27,20 @@ from __future__ import annotations
 
 import ast
 import json
+import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from leviathan.silver.migrate import CatalogMigrator
 from leviathan.silver.registry import load_registry
 
 # The allowlisted in-memory test surface (tests/unit/silver/conftest.py). NEVER the prod bucket or
 # the prod database: the round-trip test below drives the real mutating code path.
-from conftest import TEST_BUCKET, TEST_DB  # noqa: E402
+from conftest import FakeGlue, TEST_BUCKET, TEST_DB  # noqa: E402
 
 _REPO = Path(__file__).resolve().parents[3]
 _MIGRATIONS = _REPO / "sql" / "athena" / "migrations" / "silver"
@@ -551,6 +554,340 @@ def test_the_read_probe_fails_closed_on_zero_rows():
     rc_ok = mod.verify_read(["silver_fgis"], region="us-east-1", database=TEST_DB, client=_WG(),
                             runner=lambda client, sql, database=None: [{"n": 1}])
     assert rc_ok == 0
+
+
+# ---------------------------------------------------------------------------
+# 6. THE 2026-09-10 04:07Z FAILURE, AND THE THREE DEFECTS IT EXPOSED.
+#
+# MEASURED, on the owner's console: `--apply` passed preflight on both tables (VersionId 0 each),
+# took the lease, widened silver_fgis in Glue -- and then died inside
+# CatalogMigrator._write_migration_manifest with `TypeError: Object of type datetime is not JSON
+# serializable`. The handler printed "ERROR -- nothing was mutated by this runbook." A read-only
+# get_table at 04:15Z: silver_fgis VersionId 1, week_of_marketing_year bigint, all nine Parameters
+# and both PartitionKeys intact; silver_modis_ndvi VersionId 0, all ten columns still narrow.
+#
+# Three defects, one incident:
+#   (a) the manifest writer had no default=str, and plan.table_input IS the LIVE table with the
+#       read-only fields dropped -- a drop set that deliberately KEEPS LastAccessTime, which boto3
+#       returns as a datetime;
+#   (b) the accounting inferred what moved from WHERE the exception fired, and this exception fired
+#       after glue.update_table had already returned;
+#   (c) the type precondition treated "already wide" as a refusal, so the same command could not
+#       finish the half-done job.
+#
+# Every fake below returns boto3-SHAPED tables -- real datetimes, and a VersionId that moves --
+# because the shared FakeGlue is seeded through json.dumps(default=str) and therefore never carried
+# the datetime that fired. That is why the happy path was green while broken.
+# ---------------------------------------------------------------------------
+_APPLY_CLOCK = datetime(2026, 9, 10, 4, 7, 46, tzinfo=timezone.utc)
+
+
+class Boto3ShapedGlue(FakeGlue):
+    """FakeGlue plus the two behaviours the shared fake does not model -- the two that hid the bug.
+
+    * ``get_table`` hands back ``CreateTime`` / ``UpdateTime`` / ``LastAccessTime`` as ``datetime``
+      objects, the way boto3 does.
+    * ``update_table`` BUMPS ``VersionId`` and moves ``UpdateTime``, so "VersionId 0 -> 1" is a
+      measurement rather than a claim -- and the APPLIED / NOT APPLIED verdict, which is keyed off
+      VersionId movement, is exercised for real.
+    """
+
+    def __init__(self, clock=_APPLY_CLOCK):
+        super().__init__()
+        self.clock = clock
+
+    def seed(self, table: str, *, wide: bool = False, version: str = "0") -> dict:
+        snap = _wide_snapshot(table) if wide else json.loads(
+            (_R0_RAW / f"{table}.get-table.json").read_text(encoding="utf-8"))
+        live = json.loads(json.dumps(snap, default=str))
+        for key in ("CreateTime", "UpdateTime", "LastAccessTime"):
+            if isinstance(live.get(key), str):
+                live[key] = datetime.fromisoformat(live[key])
+        live["VersionId"] = version
+        self.tables[table] = live
+        return live
+
+    def update_table(self, DatabaseName, TableInput, **kw):
+        name = TableInput["Name"]
+        before = dict(self.tables.get(name) or {})
+        super().update_table(DatabaseName=DatabaseName, TableInput=TableInput, **kw)
+        now = self.tables[name]
+        # Glue keeps the read-only fields the TableInput cannot carry, and bumps the version.
+        now["VersionId"] = str(int(before.get("VersionId", "0")) + 1)
+        now["CreateTime"] = before.get("CreateTime")
+        now["UpdateTime"] = self.clock
+        now.setdefault("LastAccessTime", before.get("LastAccessTime"))
+        return {}
+
+
+@pytest.fixture()
+def migrations_dir(tmp_path):
+    """A tmp migrations directory carrying the two HAND-AUTHORED manifests -- the reconstruction
+    path reads its pre-apply backup basis out of them, so an empty directory would test a
+    degraded branch instead of the real one."""
+    out = tmp_path / "migrations"
+    out.mkdir()
+    for name in MIGRATION_FILES.values():
+        shutil.copy(_MIGRATIONS / name, out / name)
+    return out
+
+
+def _apply_kw(glue, s3, migrations_dir, lease_id):
+    return dict(region="us-east-1", database=TEST_DB, bucket=TEST_BUCKET, lease_prefix="silver/",
+                lease_id=lease_id, glue_client=glue, s3_client=s3, migrations_dir=migrations_dir)
+
+
+def _verdict_line(out: str, table: str) -> str:
+    lines = [ln for ln in out.splitlines() if ln.strip().startswith(table + " ")]
+    assert lines, f"no re-read verdict line for {table}"
+    return lines[0]
+
+
+def test_the_happy_path_applies_both_tables_through_a_boto3_shaped_catalog(
+        fake_s3, migrations_dir, capsys):
+    """THE PATH THAT WAS NEVER EXERCISED END TO END. Both tables, from a catalog whose get_table
+    returns datetimes, all the way to a manifest that parses. Before the datetime fix this run
+    widened silver_fgis and then raised."""
+    mod = _runbook_module()
+    glue = Boto3ShapedGlue()
+    tables = sorted(MIGRATION_FILES)
+    for table in tables:
+        glue.seed(table)
+
+    assert mod.apply(tables, direction="WIDEN",
+                     **_apply_kw(glue, fake_s3, migrations_dir, "deck-happy")) == 0
+    out = capsys.readouterr().out
+    out.encode("ascii")                                  # the owner's console is cp1252
+    assert "&&" not in out
+
+    for table, cols in _WIDE.items():
+        live = glue.tables[table]
+        assert live["VersionId"] == "1", f"{table}: VersionId did not move"
+        types = {c["Name"]: c["Type"] for c in live["StorageDescriptor"]["Columns"]}
+        for name, wide in cols.items():
+            assert types[name] == wide, f"{table}.{name} did not widen"
+    assert out.count("VersionId     : 0  ->  1") == 2
+
+    # THE MANIFESTS -- written, and RE-PARSED. This is the assertion that fails without default=str.
+    for table in MIGRATION_FILES:
+        paths = list(migrations_dir.glob(f"*_{table}_additive_update.json"))
+        assert len(paths) == 1, f"{table}: {[p.name for p in paths]}"
+        payload = json.loads(paths[0].read_text(encoding="utf-8"))
+        assert payload["change_type"] == "additive_update"
+        assert payload["guard_mode"] == "canonical"
+        # the datetime that fired, carried through as a string -- on the PLAN half, which is the
+        # half that raised (the backup half was already datetime-safe via migrate._serializable).
+        last_access = payload["plan"]["table_input"]["LastAccessTime"]
+        assert isinstance(last_access, str) and datetime.fromisoformat(last_access)
+        assert payload["backup"]["table_input"]["Name"] == table
+    assert "POST-APPLY STEPS" in out
+
+
+def test_a_mid_run_failure_after_update_table_reports_the_truth_per_table(
+        fake_s3, migrations_dir, monkeypatch, capsys):
+    """THE 04:07Z INCIDENT ITSELF -- reproduced, and accounted for.
+
+    The manifest writer is made to raise the exact TypeError the owner saw, which puts the failure
+    in the one window that matters: AFTER glue.update_table returned on the first table and BEFORE
+    the loop recorded it. The run must then say what the CATALOG says -- silver_fgis APPLIED,
+    silver_modis_ndvi NOT APPLIED -- write the record the failed writer owed, and never print
+    'nothing was mutated'."""
+    mod = _runbook_module()
+    glue = Boto3ShapedGlue()
+    tables = sorted(MIGRATION_FILES)                     # fgis first, modis second
+    for table in tables:
+        glue.seed(table)
+
+    def _raise_like_the_owners_console(self, plan, backup):
+        raise TypeError("Object of type datetime is not JSON serializable")
+
+    monkeypatch.setattr(CatalogMigrator, "_write_migration_manifest",
+                        _raise_like_the_owners_console)
+
+    with pytest.raises(TypeError):
+        mod.apply(tables, direction="WIDEN",
+                  **_apply_kw(glue, fake_s3, migrations_dir, "deck-midrun"))
+    out = capsys.readouterr().out
+    out.encode("ascii")
+
+    # THE CATALOG: the first table moved, the second never was attempted.
+    assert glue.tables["silver_fgis"]["VersionId"] == "1"
+    assert glue.tables["silver_modis_ndvi"]["VersionId"] == "0"
+    assert [c for c in glue.calls if c[0] == "update_table"] == [("update_table", "silver_fgis")]
+
+    # 1. THE REPORT, from a re-read -- not from where the exception fired.
+    assert "WHAT ACTUALLY HAPPENED -- every table RE-READ from live Glue" in out
+    fgis = _verdict_line(out, "silver_fgis")
+    assert "APPLIED" in fgis and "NOT APPLIED" not in fgis
+    assert "VersionId 0 -> 1" in fgis
+    assert "NOT APPLIED" in _verdict_line(out, "silver_modis_ndvi")
+    assert "MOVED      : silver_fgis" in out
+    assert "NOT MOVED  : silver_modis_ndvi" in out
+    assert "UNKNOWN    : (none)" in out
+
+    # 2. THE EXIT LINE the handler prints can no longer say nothing moved.
+    assert mod._MUTATED == ["silver_fgis"]
+    status = mod._mutation_status("ERROR")
+    assert "silver_fgis" in status and "HALF-MOVED" in status
+    assert "nothing was mutated" not in status
+    assert "nothing was mutated by this runbook." not in out
+
+    # 3. THE RECORD the failed writer owed, written from the re-read.
+    paths = list(migrations_dir.glob("*_silver_fgis_additive_update.json"))
+    assert len(paths) == 1, [p.name for p in paths]
+    m = json.loads(paths[0].read_text(encoding="utf-8"))
+    assert m["applied"] is True and m["reconstructed"] is True
+    assert m["applied_at"] == _APPLY_CLOCK.isoformat(), "applied_at must be the LIVE UpdateTime"
+    assert m["post_apply"]["version_id"] == "1"
+    assert m["post_apply"]["column_types"]["week_of_marketing_year"] == "bigint"
+    # the BACKUP is the PRE-apply TableInput this run froze: what a rollback would restore.
+    assert m["backup"]["version_id"] == "0"
+    backup_types = {c["Name"]: c["Type"] for c in
+                    m["backup"]["table_input"]["StorageDescriptor"]["Columns"]}
+    assert backup_types["week_of_marketing_year"] == "int"
+    # nothing is written for the table that never moved.
+    assert list(migrations_dir.glob("*_silver_modis_ndvi_additive_update.json")) == []
+
+    # 4. AND THE WAY OUT is the same command, because the re-run is now idempotent.
+    assert "TO FINISH THE JOB, re-run the SAME command" in out
+
+
+def test_the_re_run_skips_the_already_wide_table_and_applies_the_rest(
+        fake_s3, migrations_dir, capsys):
+    """(c) IDEMPOTENCE, AGAINST THE STATE THE ESTATE IS ACTUALLY IN. Live Glue at 04:15Z:
+    silver_fgis VersionId 1 and wide, silver_modis_ndvi VersionId 0 and narrow. The SAME --apply
+    must finish the job -- skip the first, apply the second, exit 0."""
+    mod = _runbook_module()
+    glue = Boto3ShapedGlue()
+    glue.seed("silver_fgis", wide=True, version="1")
+    glue.seed("silver_modis_ndvi")
+
+    assert mod.apply(sorted(MIGRATION_FILES), direction="WIDEN",
+                     **_apply_kw(glue, fake_s3, migrations_dir, "deck-rerun")) == 0
+    out = capsys.readouterr().out
+    out.encode("ascii")
+
+    assert "ALREADY WIDE: silver_fgis (VersionId 1, UpdateTime" in out
+    assert "-- skipping." in out
+    assert "preflight OK: silver_modis_ndvi" in out
+    # exactly ONE update_table: the skipped table was never written to.
+    assert [c for c in glue.calls if c[0] == "update_table"] == [
+        ("update_table", "silver_modis_ndvi")]
+    assert glue.tables["silver_fgis"]["VersionId"] == "1"
+    assert glue.tables["silver_modis_ndvi"]["VersionId"] == "1"
+
+    # the skipped table carried no applied record, so one is RECONSTRUCTED from the live read plus
+    # the pre-apply basis the hand-authored manifest certifies.
+    recon = json.loads(next(migrations_dir.glob("*_silver_fgis_additive_update.json"))
+                       .read_text(encoding="utf-8"))
+    assert recon["applied"] is True and recon["reconstructed"] is True
+    assert recon["backup"]["certifying_field"] == "plan_hashes.live_hash_at_authoring"
+    assert recon["backup"]["table_input"] is not None
+    assert recon["backup"]["unavailable_reason"] is None
+
+    # the post-apply sequence covers BOTH tables: a skipped table still owes the read probe, the
+    # canonical rewrite, the R0 re-capture and its EXPECTED_DEBT line.
+    steps = out.split("POST-APPLY STEPS", 1)[1]
+    for table in MIGRATION_FILES:
+        assert f"--table {table} --verify-read" in steps
+
+
+def test_a_fully_applied_estate_takes_no_lease_and_exits_zero(fake_s3, migrations_dir, capsys):
+    """Both tables already wide. There is nothing to mutate, so no lease is taken -- a lease is a
+    licence to mutate, not a formality."""
+    mod = _runbook_module()
+    glue = Boto3ShapedGlue()
+    for table in sorted(MIGRATION_FILES):
+        glue.seed(table, wide=True, version="1")
+
+    assert mod.apply(sorted(MIGRATION_FILES), direction="WIDEN",
+                     **_apply_kw(glue, fake_s3, migrations_dir, "deck-done")) == 0
+    out = capsys.readouterr().out
+    out.encode("ascii")
+    assert "NOTHING TO DO -- all 2 table(s) are ALREADY WIDE" in out
+    assert [c for c in glue.calls if c[0] == "update_table"] == []
+    assert fake_s3.store == {}, "no lease object should exist: nothing was mutated"
+
+
+def test_preflight_still_refuses_a_table_that_is_neither_narrow_nor_wide(fake_s3, migrations_dir):
+    """THE SKIP IS NOT A RELAXATION. A table in a THIRD state -- one debt column widened, the other
+    nine narrow -- is neither 'already done' nor 'still to do'. It is a catalog nobody measured,
+    and it still refuses, naming the column."""
+    mod = _runbook_module()
+    glue = Boto3ShapedGlue()
+    live = glue.seed("silver_modis_ndvi")
+    for col in live["StorageDescriptor"]["Columns"]:
+        if col["Name"] == "year":
+            col["Type"] = "bigint"                       # one of ten
+    assert mod.live_shape(live, mod.EXPECTED_WIDENING["silver_modis_ndvi"]) == mod.MIXED
+
+    with pytest.raises(mod.Refused) as exc:
+        mod.apply(["silver_modis_ndvi"], direction="WIDEN",
+                  **_apply_kw(glue, fake_s3, migrations_dir, "deck-mixed"))
+    assert "year" in str(exc.value) and "expected exactly 'smallint'" in str(exc.value)
+    assert [c for c in glue.calls if c[0] == "update_table"] == []
+    assert list(migrations_dir.glob("*_additive_update.json")) == []
+
+
+def test_record_applied_reconstructs_the_manifest_for_a_widen_that_landed(
+        migrations_dir, capsys):
+    """(d) THE FGIS RECORD, as a mechanism. Read-only on AWS: one get_table, no update_table, no
+    lease. It proves the catalog is at the PLANNED wide state before it claims anything, and the
+    record it writes carries the executable pre-apply TableInput a rollback would restore."""
+    mod = _runbook_module()
+    glue = Boto3ShapedGlue()
+    glue.seed("silver_fgis", wide=True, version="1")
+
+    rc = mod.record_applied("silver_fgis", region="us-east-1", database=TEST_DB,
+                            glue_client=glue, migrations_dir=migrations_dir)
+    out = capsys.readouterr().out
+    assert rc == 0, out[-3000:]
+    out.encode("ascii")
+    assert [c for c in glue.calls if c[0] != "get_table"] == [], "this mode must not mutate"
+    assert "NOTHING WAS MUTATED IN AWS by this command" in out
+
+    m = json.loads(next(migrations_dir.glob("*_silver_fgis_additive_update.json"))
+                   .read_text(encoding="utf-8"))
+    assert m["applied"] is True and m["reconstructed"] is True
+    assert m["applied_at"] == glue.tables["silver_fgis"]["UpdateTime"].isoformat()
+    assert m["post_apply"]["column_types"]["week_of_marketing_year"] == "bigint"
+    assert m["backup"]["certifying_field"] == "plan_hashes.live_hash_at_authoring"
+    assert {c["Name"]: c["Type"] for c in
+            m["backup"]["table_input"]["StorageDescriptor"]["Columns"]}[
+                "week_of_marketing_year"] == "int"
+    assert "TypeError" in m["reconstructed_note"]
+
+    # a SECOND run refuses: one mutation, one record.
+    with pytest.raises(mod.Refused) as exc:
+        mod.record_applied("silver_fgis", region="us-east-1", database=TEST_DB,
+                           glue_client=glue, migrations_dir=migrations_dir)
+    assert "already exists" in str(exc.value)
+
+
+def test_record_applied_refuses_a_table_that_is_not_wide(migrations_dir):
+    """The record is a CLAIM about the catalog, so it is gated on the catalog. A narrow table gets
+    no record, whatever anyone believes happened to it."""
+    mod = _runbook_module()
+    glue = Boto3ShapedGlue()
+    glue.seed("silver_modis_ndvi")
+    with pytest.raises(mod.Refused) as exc:
+        mod.record_applied("silver_modis_ndvi", region="us-east-1", database=TEST_DB,
+                           glue_client=glue, migrations_dir=migrations_dir)
+    assert "not at the target types" in str(exc.value)
+    assert list(migrations_dir.glob("*_additive_update.json")) == []
+
+
+def test_the_dry_run_reports_an_already_wide_table_instead_of_refusing(wide_dir):
+    """Post-apply step 1 tells the owner to CONFIRM the widen with a bare dry-run. A dry-run that
+    refuses because the widen SUCCEEDED reads like a fault -- and the printed remedy for a fault
+    here is a rollback."""
+    proc = _run("--offline", "--offline-dir", str(wide_dir))
+    out = proc.stdout.decode("ascii")
+    assert proc.returncode == 0, out[-3000:]
+    assert "ALREADY WIDE (VersionId" in out
+    assert "-- skipping." in out
+    assert "ALREADY WIDE (skipped, nothing to plan): silver_fgis, silver_modis_ndvi" in out
+    assert "DRY RUN -- NOTHING WAS MUTATED" in out
 
 
 def test_the_runbook_pins_the_same_eleven_columns_as_the_manifests():
