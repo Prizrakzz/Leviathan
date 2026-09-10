@@ -256,6 +256,67 @@ def _is_vintage(table: str) -> bool:
         return False
 
 
+def _roll_inputs_apply(table: str, spec, *, vintage: bool) -> bool:
+    """Does THIS read carry the front-month rule's OWN INPUT COLUMNS (`Q.run(roll_inputs=True)`)?
+
+    THE FINDING IT CLOSES (2026-09-10). `_pace_front_expiry` asks `futures_roll.front_month_inputs_present`
+    before it runs the named rule, and that precondition reads `open_interest` / `volume` OFF THE ROWS.
+    Neither is a served metric on the settle-only card, so `_extras` never surfaced them and this
+    function's caller never asked for them -- which means the frame handed to the rule carried no
+    activity metric AT ALL and every front-by-open-interest / front-by-volume board declined the pace
+    leg WHOLE, silently, on every quantifying turn. `_pace_front_expiry`'s own docstring recorded the
+    consequence as the live state ("the all-missing case is the live state today for every GLBX / CZCE /
+    JSE / ICE slug"). The rule was never broken; the READ never projected what the rule reads.
+
+    THE EXPOSURE, AS MEASURED (S4 board census 2026-09-07, its `tape` probe -- whose OWN read already
+    carries this projection, which is why it can be read as a population and not as a decline rate):
+    20 of the 26 tape boards run a rule that READS an activity column, 12 front-by-open-interest and 8
+    front-by-volume. Those 20 are the population this precondition can refuse. The other six cannot be
+    refused for want of it: four are delivery-cycle boards, whose rule reads no metric, and two are cash
+    references, which have no delivery-month axis at all. The PARTIAL case survives the projection and
+    is why the precondition is both-sided -- that same census has one board (malaysian_crude_palm_oil_
+    cme) printing open interest on 12 of 59 candidate rows and declining `roll_inputs_absent`.
+
+    AND WHAT IT DOES NOT MEASURE, STATED: the pace leg cannot reach this card on the served path yet
+    (item 16 -- neither `PACE_TABLES` nor `cascade_map.yaml` names it), so landing this moves no rendered
+    line today. That is measured over the 12 banked turns rather than assumed, and pinned as a TRIPWIRE
+    in tests/unit/test_cascade_walk.py: the day a map ref or a PACE_TABLES entry names the card, the
+    walk starts issuing the SERIES read and the delta has to be re-measured rather than inherited.
+
+    THREE CLAUSES, and each is a FAIL-CLOSED belt rather than a preference:
+
+      (1) `table in _PACE_EXPIRY_COL` -- the SAME membership that makes `front_expiry` the one honest
+          pace collapse on a per-delivery-month price table (`lint_pace_collapse` clause 4 binds the two
+          directions). It is the narrowest true statement of "this read feeds the front-month
+          selection", and it is why no other card's SQL can move: every other table takes the
+          omit-when-off branch and compiles the string it compiled yesterday.
+      (2) NOT `vintage`: a vintage card's series arm projects the dedup subquery's aliases and would
+          drop the columns silently, so the projection must never ride one. Clause (3) refuses that read
+          on its own; this is the cheap belt, kept because the flag is already computed one line down in
+          `fetch_window` and reading it here is why the caller passes `vintage` at all.
+      (3) THE COMPILER'S OWN ACCEPTANCE TEST, ASKED AND NEVER RESTATED. `query._roll_input_projection`
+          RAISES rather than returning "" on every read the projection could not ride: a card declaring
+          no `roll_input_cols` / `contract_month_col`, a vintage card, and any spec compiling a branch
+          other than the series arm -- the `front_expiry` SELECTION, which projects the columns ITSELF
+          on its own branch, and the `agg='latest'` level are both in that set. Which of those a given
+          read is, is `build_sql`'s business, so this ASKS IT (one call, the raise caught HERE) instead
+          of keeping a second copy of its control flow. That copy is the F-L drift class twice over: it
+          would keep passing tests while the compiler moved underneath it, and -- because clause (1) is
+          a hand-kept set while the columns are a REGISTRY declaration -- a per-expiry card added to
+          `_PACE_EXPIRY_COL` whose card declares no roll inputs would arm, raise inside `Q.run`, and turn
+          a leg that serves today into `status='error'` through `fetch_window`'s R6 degrade path.
+
+    Never raises, and that is the point rather than tidiness: an unregistered card, a whitelist-absent
+    one, and a card the compiler refuses all return False -- exactly today's behaviour (the pace leg
+    declines) rather than a new failure mode."""
+    if table not in _PACE_EXPIRY_COL or vintage:
+        return False
+    try:
+        return bool(Q._roll_input_projection(spec, _registry().get(table), True))
+    except Exception:  # noqa: BLE001 -- a card the compiler refuses costs the projection, never the answer
+        return False
+
+
 def fetch_window(qfn, *, table, metric, commodity, country, t1, t2, asof,
                  agg="series", period=None, period_type="date",
                  futures_newest_first: bool | str = False) -> dict:
@@ -277,7 +338,15 @@ def fetch_window(qfn, *, table, metric, commodity, country, t1, t2, asof,
     tokens, so even naming one in a comment reds the suite -- which is why this paragraph says "env read"
     and not the call it is naming. Default False -> Q.run compiles the byte-identical ASC total order it
     compiled before the wave. This is the GENERIC seam: `table` is a caller-supplied value, so a node whose
-    silver_ref maps to silver_futures_eod reaches the futures series branch through THIS function."""
+    silver_ref maps to silver_futures_eod reaches the futures series branch through THIS function.
+
+    THE ROLL INPUTS RIDE THE PER-EXPIRY PRICE READ (2026-09-10, the tape lane's finding). `Q.run` grew a
+    `roll_inputs` kwarg that appends the front-month rule's own activity columns to the SERIES
+    projection; `_roll_inputs_apply` decides, per read, whether this is that read. It is NOT threaded
+    from a caller and it is NOT a flag: it is a function of the TABLE and the compiled branch, which is
+    the only thing that can be known here and the only thing it depends on. Every other card takes the
+    omit-when-off branch, so the SQL and the rows are byte-identical everywhere else -- pinned by
+    compiling every registry card both ways."""
     # window clamp: SECONDARY belt only (R3). The PRIMARY future-guidance clamp lives in _derive_windows,
     # which bounds window_end to min(episode_end, session_asof) BEFORE it becomes this leg's asof.
     t2c = min(t2, asof) if (t2 and asof) else t2
@@ -289,7 +358,12 @@ def fetch_window(qfn, *, table, metric, commodity, country, t1, t2, asof,
         kw = _window_kwargs(period_type, t1, t2c, period)
         spec = Q.NumberQuery(table=table, metric=metric, asof=asof, commodity=commodity,
                              country=country, agg=agg, **kw)
-        rows = Q.run(spec, query_fn=qfn, futures_newest_first=futures_newest_first)
+        # OMIT-WHEN-OFF AT THE CALL SITE, not merely default-off in the callee -- `Q.run`'s own comment
+        # gives the reason and this seam owes it the same discipline: the estate wraps `Q.run` in spies
+        # and shims that re-declare its signature, and a kwarg passed unconditionally would break them
+        # on turns that are not using the projection at all.
+        _roll = {"roll_inputs": True} if _roll_inputs_apply(table, spec, vintage=vintage) else {}
+        rows = Q.run(spec, query_fn=qfn, futures_newest_first=futures_newest_first, **_roll)
     except Exception as e:  # noqa: BLE001 -- a bad/slow lookup must NEVER kill the reasoning turn
         return {"query": q, "rows": [], "status": "error", "error": str(e)[:200]}
     return {"query": q, "rows": rows, "status": _status(rows, vintage=vintage)}
@@ -2320,9 +2394,15 @@ def _pace_front_expiry(r: dict, expiry_col, commodity) -> tuple[list[float], str
         which column a method reads is the rule module's contract (METHOD_METRIC_COL), and a second
         copy of it here would drift the moment DCE moves to front-by-volume -- F-L in miniature, and
         invisible to the config_check source fence, which only scans for a second IMPLEMENTATION.
-        The served card is settle-ONLY, so the all-missing case is the live state today for every
-        GLBX / CZCE / JSE / ICE slug; the delivery-cycle slugs (Bursa, MIAX, Euronext/MATIF, DCE) need
-        no metric and select honestly now;
+        The served card is settle-ONLY, so the all-missing case WAS the live state on every
+        front-by-metric board until 2026-09-10: a read that did not ask for the rule's own inputs
+        handed it a frame that could not carry them, while the delivery-cycle slugs (Bursa, MIAX,
+        Euronext/MATIF, DCE) need no metric and selected honestly throughout. `fetch_window` now arms
+        `Q.run(roll_inputs=True)` on the SERIES arm of this card (`_roll_inputs_apply`), so a frame that
+        reaches this rule through that seam carries `open_interest` / `volume`. The all-missing branch
+        stays exactly as it is -- a frame assembled by any other caller can still be settle-only, and
+        the PARTIAL case never went away (S4 census 2026-09-07: malaysian_crude_palm_oil_cme prints open
+        interest on 12 of 59 candidate rows, and this clause is why it declines instead of guessing);
       * the selection returning nothing (every candidate expiry already in delivery / off-cycle);
       * the selection naming MORE THAN ONE delivery month across the window -- i.e. the front month
         ROLLED inside it. "Front expiry first, then delta across dates" is only PIT-safe while both

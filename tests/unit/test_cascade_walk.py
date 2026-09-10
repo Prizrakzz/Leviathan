@@ -5285,3 +5285,39 @@ def test_s5_phase0s_state_board_is_registered_at_the_tail_before_its_writer():
     xseg = doc[j:j + 1400]
     for w in ("fired", "declined", "not_reached", "outcome", "reason", "path", "pair_id"):
         assert w in xseg, w
+
+
+def test_the_roll_input_projection_cannot_reach_the_LEG_WAVE_s_own_reads():
+    """THE PIN THE 2026-09-10 TAPE FIX LEANS ON, and the tripwire for the day item 16 lands.
+
+    `fetch_window` now arms `query.run(roll_inputs=True)` on the SERIES arm of a per-delivery-month
+    price card, so the front-month rule is handed the activity metric it reads instead of declining
+    every front-by-open-interest / front-by-volume board. That seam is keyed on `_PACE_EXPIRY_COL`,
+    and THIS is why the walk's rendered lines could not move when it landed: the leg wave reads what
+    `cascade_map.yaml` maps, no map ref names a per-expiry price card, and `PACE_TABLES` -- the
+    inventory `_pace_grain` gates the pace leg on -- does not carry one either (silver_futures_eod is
+    item 16, still parked on the parity soak). The measured replay over the 12 banked turns agreed, and
+    says so precisely: all 50 banked silver_futures_eod call records are ONE-ROW `settle_change_pct`
+    rows carrying no delivery-month alias -- the episode-outcome leg's SYNTHETIC records
+    (`_episode_outcome_call`), which compile no SQL at all. The one real SERIES read on this card in the
+    estate is `_tape_read`, and it goes to `Q.run` DIRECTLY rather than through `fetch_window`, so this
+    seam cannot reach it either; every `fetch_window` caller that names the card (cascade `_rv_*`,
+    roster's board row) reads it at `agg='front_expiry'`, whose SQL is pinned byte-identical.
+
+    So this is a TRIPWIRE, not a fence. The day a map ref (or a PACE_TABLES entry) names that card,
+    the leg wave starts issuing the SERIES read, the projection rides it, and the walk's SQL and its
+    rows move -- at which point the delta has to be re-measured rather than assumed. Red here means
+    "go measure", never "revert"."""
+    per_expiry = set(cq._PACE_EXPIRY_COL)
+    assert per_expiry == {"silver_futures_eod"}
+    mapped = {(row or {}).get("table") for row in cq.load_map().values()}
+    assert not (mapped & per_expiry), (
+        f"a cascade_map ref now names a per-expiry price card ({sorted(mapped & per_expiry)}): the leg "
+        f"wave's series reads carry the roll-input projection, so re-measure the render replay")
+    assert not (set(cq.PACE_TABLES) & per_expiry), (
+        "item 16 landed: the pace leg can now reach _pace_front_expiry on the served path -- "
+        "re-measure which rendered lines move before shipping")
+    # and the seam itself stays shut for every table the wave DOES read, at the agg it reads them with
+    for table in sorted(t for t in mapped if t):
+        spec = cq.Q.NumberQuery(table=table, metric="x", asof=ASOF, agg="series")
+        assert cq._roll_inputs_apply(table, spec, vintage=False) is False, table
