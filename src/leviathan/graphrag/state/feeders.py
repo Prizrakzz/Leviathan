@@ -1550,6 +1550,62 @@ TAPE_MIN_PERCENTILE_N = 8
 TAPE_TABLE = "silver_futures_eod"
 TAPE_METRIC = "settle"
 
+#: THE ROLL MARGIN, in sessions: the room the scoped read leaves BEYOND the two windows it must fill, so
+#: the oldest end of the 63-session change is not sitting on the frame's own first session. Seventeen
+#: sessions is about three and a half weeks -- longer than any holiday cluster on any board's calendar.
+TAPE_ROLL_MARGIN_SESSIONS = 17
+
+#: THE TAPE READ'S OWN SCOPE, IN SESSIONS, and it is DERIVED from what the row computes rather than
+#: declared beside it: the percentile's window (the daily cadence's own, 250 sessions), plus the widest
+#: SAME-CONTRACT change (63), plus the roll margin. 330.
+#:
+#: WHY THE TAPE DOES NOT READ THE DAILY CADENCE'S SPAN, and this is the defect the scope closes. Every
+#: other daily read is ONE ROW PER SESSION, so five years is ~1,260 rows against the 5,000 cap and the
+#: span is free. The tape reads a CURVE: a liquid board lists 8-12 delivery months on every session (the
+#: widest measured on this card is 61, on palm), so the same five years is 10,000-15,000 rows and the cap
+#: cuts it. What survived the cut then decided the row: with the newest-first scope the frame kept the
+#: newest ~500 sessions and the percentile silently ranked against 1.5 years while the note said five;
+#: without it the frame would have stopped years before the as-of and the front could not be named at all.
+#: A scope of 330 sessions is what the row's OWN arithmetic needs. PRICED AT THE WORST CASE, the span is
+#: 478 calendar days and a venue that took no holiday at all would print 341 sessions in it, so the frame
+#: stays under the 5,000-row cap on every board listing up to FOURTEEN delivery months (341 x 14 = 4,774;
+#: the liquid boards list 8-12, which is 2,728-4,092). A board that lists more still truncates, still
+#: keeps the NEWEST sessions, still names its front, and still SAYS SO on ``coverage["truncated"]`` and in
+#: the window note -- measured on the fixture: at 61 expiries the frame is the newest 82 sessions and the
+#: row prints that window rather than the one it asked for.
+TAPE_READ_SESSIONS = (CADENCE_HISTORY_WINDOW["daily"] + max(TAPE_CHANGE_SESSIONS)
+                      + TAPE_ROLL_MARGIN_SESSIONS)
+
+#: The same scope in CALENDAR days -- what a ``period_start`` can actually be expressed in. Priced off
+#: :data:`CADENCE_DAYS`, the one place a session is worth a number of days (365/252), and rounded UP so
+#: the span can never come in short of the sessions it is meant to hold.
+TAPE_READ_DAYS = int(_math.ceil(TAPE_READ_SESSIONS * (CADENCE_DAYS["daily"] or 1.0)))
+
+
+def tape_period_start(asof: str, *, sessions: int = 0) -> str:
+    """``asof - TAPE_READ_DAYS`` as an ISO day: the tape read's own window start.
+
+    It is NOT ``_period_start(asof, 'daily')``. That is the SERIES span (five years) and it is right for
+    a one-row-per-session card; :data:`TAPE_READ_SESSIONS` says why a curve is read differently."""
+    n = int(sessions or TAPE_READ_SESSIONS)
+    days = int(_math.ceil(n * (CADENCE_DAYS["daily"] or 1.0)))
+    d = _dt.date(int(asof[:4]), int(asof[5:7]), int(asof[8:10])) - _dt.timedelta(days=days)
+    return d.isoformat()
+
+
+def tape_spec(slug: str, asof: str, *, limit: int = READ_LIMIT, sessions: int = 0):
+    """THE TAPE'S READ, as one ``NumberQuery`` -- public for :func:`board_spec`'s own reason: a harness,
+    the board census's tape probe and a PIT pin must build the SAME spec the feeder reads, not a
+    plausible-looking neighbour of it.
+
+    It is ``board_spec``'s spec with ONE field replaced: ``period_start`` is the tape's own scope
+    (:func:`tape_period_start`), never the daily cadence's five-year series span. Everything else --
+    the table, the metric, the commodity, ``agg='series'``, the explicit cap -- is the board's."""
+    spec = board_spec(TAPE_TABLE, TAPE_METRIC, slug, None, asof, "daily")
+    spec.period_start = tape_period_start(asof, sessions=sessions)
+    spec.limit = int(limit or READ_LIMIT)
+    return spec
+
 
 def tape_state(slug: str, asof: str, *, qfn, newest_first: Any = "all",
                limit: int = READ_LIMIT) -> TapeState:
@@ -1566,6 +1622,29 @@ def tape_state(slug: str, asof: str, *, qfn, newest_first: Any = "all",
     ``futures_roll.front_month`` under ``ROLL_RULE_VERSION`` and returns ``[]`` -- an honest, reasoned
     absence -- on an unmapped slug, a cash reference, an unlabelled curve row, or a frame whose rows do
     not carry the rule's own input. That empty is this row's ``front_decline``, by name.
+
+    AND THE RULE'S OWN INPUT NOW RIDES THE READ (``roll_inputs=True``), which is the FIX to a measured,
+    silent failure. ``open_interest`` and ``volume`` are not served metrics, so ``_extras`` never surfaced
+    them and the frame handed to the selector carried the settle and nothing the rule reads. MEASURED on
+    census run #3 (26 boards with a tape, 10 without): all 20 boards whose method reads an activity
+    metric declined ``front_decline`` -- including ``rough_rice_cbot`` at 4,495 rows and the two JSE
+    maize boards at 211 and 204, whose reads never came near the cap -- while all four
+    ``delivery_cycle`` boards, whose rule reads no metric, served. (The two cash references declined
+    too, correctly and for a different reason.) The columns are projected by
+    ``query._front_expiry_input_cols`` (bound to the rule module's
+    own ``METHOD_METRIC_COL``, raising on drift) and stripped off again by the selector, so the served
+    surface stays settle-only. A CASH REFERENCE still declines -- ``front_decline`` on a CEPEA index is
+    the rule refusing a question that cannot be asked of it, not a missing column.
+
+    THE READ IS SCOPED TO WHAT THIS ROW COMPUTES (:data:`TAPE_READ_SESSIONS`, 330 sessions), never to the
+    daily cadence's five-year series span. The span table is written for ONE ROW PER SESSION; this read is
+    a CURVE, 8-12 delivery months on every session, so five years is 10,000-15,000 rows against a 5,000
+    cap. The cap then decided the row rather than the design: what survived it fixed whether the as-of's
+    own session was even in the frame, and the percentile ranked against whatever was left while the note
+    said five years. Scoped, the widest liquid board (12 expiries) is ~4,092 rows and a board listing 14
+    is 4,774 -- under the cap, so ``truncated`` becomes the exception it was meant to be and still prints
+    honestly when a deeper-listed board hits it. It also prunes the PARTITION: the compiled read moves
+    from ``trade_year >= asof-5`` to ``trade_year >= asof-1``, which is four fewer years of scan.
 
     WHY THE SELECTOR IS HANDED THE NEWEST SESSION RATHER THAN THE WHOLE FETCH, and it is a fence rather
     than a convenience: that function fails CLOSED on a multi-session frame (``if not walkback_on and
@@ -1608,11 +1687,10 @@ def tape_state(slug: str, asof: str, *, qfn, newest_first: Any = "all",
     except Exception:                                   # noqa: BLE001
         out.status = "read_error"
         return out
-    spec = board_spec(TAPE_TABLE, TAPE_METRIC, out.slug, None, out.asof, "daily")
-    if limit != READ_LIMIT:
-        spec.limit = int(limit)
+    spec = tape_spec(out.slug, out.asof, limit=limit)
     try:
-        rows = Q.run(spec, query_fn=qfn, futures_newest_first=newest_first, ym_lag=True)
+        rows = Q.run(spec, query_fn=qfn, futures_newest_first=newest_first, ym_lag=True,
+                     roll_inputs=True)
     except BoardReadDecline as d:
         out.status, out.reads = d.status, 1
         return out
@@ -1929,7 +2007,9 @@ __all__ = [
     "fixture_query_fn", "board_query_fn", "BoardReadDecline", "mirror_epoch", "state_cache_key",
     "series_read_key",
     "cache_get", "cache_put", "cache_clear", "cadence_of", "history_window", "derive_knowledge_date",
-    "board_spec", "read_span", "read_span_periods", "check_read_spans", "CADENCE_READ_SLACK",
+    "board_spec", "tape_spec", "tape_period_start", "TAPE_READ_SESSIONS", "TAPE_READ_DAYS",
+    "TAPE_ROLL_MARGIN_SESSIONS",
+    "read_span", "read_span_periods", "check_read_spans", "CADENCE_READ_SLACK",
     "CADENCE_CHANGE_WINDOWS", "CADENCE_HISTORY_WINDOW", "CADENCE_READ_SPAN", "CADENCE_PERIODS_PER_YEAR",
     "CADENCE_DAYS", "DESTINATION_GRAIN_TABLES", "READ_LIMIT", "VINTAGE_NOTE", "LATEST_ONLY_CARDS",
     "STATE_CACHE_MAX", "TAPE_CHANGE_SESSIONS", "TAPE_MIN_PERCENTILE_N", "TAPE_TABLE", "TAPE_METRIC",

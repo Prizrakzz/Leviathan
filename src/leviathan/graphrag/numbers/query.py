@@ -954,7 +954,8 @@ def _newest_first_applies(spec: NumberQuery, ts: Optional[TableSpec], newest_fir
 
 
 def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = ATHENA_DB,
-              futures_newest_first: bool | str = False, ym_lag: bool = False) -> str:
+              futures_newest_first: bool | str = False, ym_lag: bool = False,
+              roll_inputs: bool = False) -> str:
     """Compile a NumberQuery to leakage-safe Athena SQL. The as-of guard is injected unconditionally; for
     `vintage` tables it also collapses to the LATEST vintage published on/before asof (as-known-at-asof).
 
@@ -973,7 +974,27 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     ``ym_publication_lag_days`` shift (``_ym_lagged_asof_ym``). DEFAULT-OFF -> byte-identical SQL on every
     card, which is the rollback; the STATE BOARD passes ``ym_lag=True`` on its OWN reads from day one
     (its reads are its own and move nothing else), and the estate's other year_month consumers move later
-    under ``GRAPHRAG_YM_PUBLICATION_LAG`` with a flip table. No ``os.environ`` read exists here."""
+    under ``GRAPHRAG_YM_PUBLICATION_LAG`` with a flip table. No ``os.environ`` read exists here.
+
+    ``roll_inputs`` (STATE ENGINE sec 6.2 / D19, the tape read) is the SAME idiom for the one thing the
+    SERIES branch cannot express: the front-month rule's OWN INPUT COLUMNS. ``_extras`` surfaces the
+    card's SERVED aliases, and ``open_interest`` / ``volume`` are not served metrics, so a series read of
+    ``silver_futures_eod`` comes back with the value, the session, the delivery month, the settle kind and
+    the currency -- and NOTHING the rule reads. ``select_front_expiry`` then asks
+    ``front_month_inputs_present``, which refuses a frame whose candidate rows carry no activity metric,
+    and every front-by-OI / front-by-volume board declines. MEASURED on the S4 mirror run (census #3): all
+    20 boards whose method reads a metric declined ``front_decline`` -- three of them on reads that never
+    came near the cap -- while all four ``delivery_cycle`` boards, whose rule reads no metric and is
+    therefore vacuously satisfied, served. Naming the columns HERE would restate the rule's own
+    contract, so the projection is ``_front_expiry_input_cols`` (the front-expiry branch's own accessor,
+    bound to ``futures_roll.METHOD_METRIC_COL`` and raising on drift).
+
+    DEFAULT-OFF -> byte-identical SQL on every card, which is the rollback, and it is a KWARG rather than
+    a ``NumberQuery`` field on purpose: ``agent._forced_spec`` passes the model's raw tool input into
+    ``NumberQuery``, so a field would put a projection toggle inside the model-emittable surface for the
+    sake of one engine read. FAIL-CLOSED where it cannot be served (``_roll_input_projection`` raises):
+    a caller that asked for the rule's inputs and silently did not get them is exactly the failure this
+    parameter exists to end."""
     ts = ts or load_registry().get(spec.table)
     # SEAM-C LEVELS-ONLY GUARD: a roll-spliced continuous FRONT-MONTH settle series (silver_futures_prices)
     # has NO PIT-safe cross-date delta -- the splice between expiries contaminates any change/window/curve
@@ -1037,6 +1058,7 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     nf = _newest_first_applies(spec, ts, futures_newest_first)   # S1 canary; scope per the token (D-AM-18)
     where = " AND ".join(_filters(spec, ts) + [_guard(spec, ts, ym_lag=ym_lag)])
     sel = f"{val} AS value" + "".join(f", {e} AS {a}" for e, a in extras)
+    roll_sel = _roll_input_projection(spec, ts, roll_inputs)   # "" unless the caller armed it (fail-closed)
     order = _order_col(ts)
 
     def _agg(sql: str) -> str:
@@ -1188,8 +1210,40 @@ def build_sql(spec: NumberQuery, ts: Optional[TableSpec] = None, *, db: str = AT
     # run() then re-sorts back to ASC before any consumer sees them, which is what keeps _series_from_rows,
     # streak/window_change/yoy_delta, _val()'s series[-1], _pace_synth's rows[-1] and eval._num_line's
     # rws[-1] byte-identical instead of silently sign-flipped.
+    #
+    # THE ROLL INPUTS RIDE THIS BRANCH AND ONLY THIS BRANCH (``roll_inputs``, default off): they are not
+    # served metrics, so they are appended to the SERIES projection alone, never to an aggregate (which
+    # projects `value` and nothing else) and never to a `latest` level. `select_front_expiry` strips them
+    # off the row it returns, so the served surface is settle-only wherever a consumer can see it.
+    if roll_sel:
+        base = f"SELECT {sel}{roll_sel} FROM {db}.{table} WHERE {where}"
     base += f" ORDER BY {_series_order(extras, inc_country, newest_first=nf)}"
     return base + f" LIMIT {int(spec.limit)}"
+
+
+def _roll_input_projection(spec: NumberQuery, ts: Optional[TableSpec], roll_inputs) -> str:
+    """The ``, open_interest, volume`` tail a tape read appends to the SERIES projection, or ``""``.
+
+    FAIL-CLOSED IN BOTH DIRECTIONS. Off (the default, every shipped caller) it is the empty string and
+    the compiled SQL is byte-identical. On, it RAISES rather than returning "" wherever the projection
+    could not actually ride -- a card that declares no roll inputs, a vintage card (whose series arm
+    projects the dedup subquery's aliases and would drop them), or a spec that is not a series read at
+    all. A caller that asked for the rule's input and got a frame without it does not fail: it declines
+    ``front_decline``, which is the measured, silent failure this parameter exists to end, and a silent
+    "" here would reintroduce it one frame higher."""
+    if not roll_inputs:
+        return ""
+    if ts is None or not (ts.roll_input_cols and ts.contract_month_col):
+        raise ValueError(f"table {spec.table} declares no roll_input_cols/contract_month_col, so the "
+                         f"front-month rule's own input columns cannot be projected from it -- a "
+                         f"front-expiry SELECTION over its rows would run a different, unnamed rule")
+    if ts.knowledge_semantics == "vintage" or not _is_series_branch(spec, ts):
+        raise ValueError(f"roll_inputs rides the SERIES projection of a non-vintage card; "
+                         f"{spec.table} at agg={spec.agg!r} "
+                         f"(knowledge_semantics={ts.knowledge_semantics!r}) compiles another branch, "
+                         f"which would drop the columns silently -- read the front month with "
+                         f"agg={FRONT_EXPIRY_AGG!r}, which projects them itself")
+    return "".join(f", {c}" for c in _front_expiry_input_cols(ts))
 
 
 def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec, *,
@@ -1399,7 +1453,8 @@ def resort_rows_chronological(rows: list[dict], spec: NumberQuery, ts: TableSpec
 
 
 def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
-        futures_newest_first: bool | str = False, ym_lag: bool = False) -> list[dict]:
+        futures_newest_first: bool | str = False, ym_lag: bool = False,
+        roll_inputs: bool = False) -> list[dict]:
     """Execute on the active backend (or an injected query_fn(sql)->rows for tests/session-cache wrappers).
     Returns rows as list[dict]. The pg mirror's schema is NAMED like the Athena db, so the compiled SQL is
     backend-agnostic -- routing is purely a choice of executor. POST-FETCH: apply DP-1 unit_overrides so every
@@ -1413,6 +1468,12 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
     ``ym_lag`` (STATE ENGINE sec 1.4 / D21) is threaded the same way and passed straight to ``build_sql``:
     DEFAULT-OFF -> byte-identical SQL, and it changes WHICH MONTHS a ``year_month`` card admits, never the
     row shape, so nothing after the executor moves. The state board passes it True on its own reads.
+
+    ``roll_inputs`` (STATE ENGINE sec 6.2 / D19) is threaded the same way again and DOES change the row
+    shape -- by exactly the two columns the front-month rule reads, on the series branch of a card that
+    declares them. It is armed by ``feeders.tape_state`` and by nothing else on the served path; the
+    re-sort is untouched (the roll columns are not order terms) and ``select_front_expiry`` strips them
+    from the row it returns, so no consumer downstream of the selection sees a new key.
 
     THE RE-SORT RUNS BETWEEN THE EXECUTOR AND ``_apply_unit_overrides``, ON THE RAW ROWS, AND THE ORDER OF
     THESE THREE LINES IS LOAD-BEARING. ``unit`` is a real total-order term (priority 9) and
@@ -1433,6 +1494,8 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
     # moment this lands, for turns that are not using the flag at all. With it omitted, the shipped call
     # is byte-identical until the board actually arms it -- the same discipline the emitted SQL follows.
     _lag = {"ym_lag": True} if ym_lag else {}
+    if roll_inputs:                                          # omit-when-off, for `_lag`'s stated reason
+        _lag["roll_inputs"] = True
     sql = build_sql(spec, ts, db=db, futures_newest_first=futures_newest_first, **_lag)
     rows = query_fn(sql) if query_fn is not None else default_query_fn(db=db)(sql)
     if _newest_first_applies(spec, ts, futures_newest_first):

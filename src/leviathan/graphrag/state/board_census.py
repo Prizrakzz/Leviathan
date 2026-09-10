@@ -31,6 +31,11 @@ THE SIX PROBES (sec 10.1, S0's P0-P5), each with its own function and its own ve
       eyeballed against the publishers' own statements.
   P5  THE IN-PLACE REVISION MAGNITUDE on the two latest-only climate cards.
 
+and the TAPE PROBE (``probe_tape``, added after run #3 declined the front expiry on 22 of the 26
+boards that have a tape and the artifact could not say why): per tape slug the frame's columns, its
+session span, its row count, the truncation flag, how many eligible candidates carry the metric the
+slug's own roll method reads, and the reason word for an empty selection.
+
 and the three further counts sec 10.1 names in the same paragraph, each with its own function:
 ``destination_census`` (the per-slug ESR / FGIS destination counts and the 52-week window's headroom
 under the 5,000-row cap), ``probe_oni_crossings`` (the crossing count and the closed 1-2q / 2-4q
@@ -131,8 +136,8 @@ ANALOG_BANDS: tuple = (0.5, 1.0, 1.5)
 
 #: Every probe this module owns, and the subset that needs the mirror. The split is what lets the
 #: OFFLINE pass run the pg-free half honestly instead of reporting the other half as null.
-PROBES_ALL: tuple = ("P0", "P1", "P2", "P3", "P4", "P5", "destinations", "oni_crossings")
-PROBES_PG: tuple = ("P0", "P2", "P5", "destinations", "oni_crossings")
+PROBES_ALL: tuple = ("P0", "P1", "P2", "P3", "P4", "P5", "destinations", "oni_crossings", "tape")
+PROBES_PG: tuple = ("P0", "P2", "P5", "destinations", "oni_crossings", "tape")
 PROBES_OFFLINE: tuple = ("P1", "P3", "P4")
 
 #: The fresh cascade census's PREDICTION -- design prediction #14 after D-10 sitting 9. The census
@@ -706,7 +711,13 @@ def _tape_census(bd, tape) -> dict:
                     "level_date": getattr(tp, "level_date", None),
                     "reads": int(getattr(tp, "reads", 0) or 0),
                     "n_obs": (getattr(tp, "coverage", {}) or {}).get("n_obs"),
-                    "truncated": (getattr(tp, "coverage", {}) or {}).get("truncated")})
+                    "truncated": (getattr(tp, "coverage", {}) or {}).get("truncated"),
+                    # THE SPAN THE READ ACTUALLY FETCHED, on the board record itself: run #3's tape
+                    # rows carried a status and a row count and nothing that could tell a stale
+                    # window from a missing column (probe_tape names the cause; these two say what
+                    # the row measured, per board, without opening the probe)
+                    "history_start": (getattr(tp, "coverage", {}) or {}).get("history_start"),
+                    "history_end": (getattr(tp, "coverage", {}) or {}).get("history_end")})
     return {"boards": len(tape), "rows": out,
             "leg": dict(bd.legs.get("tape") or {})}
 
@@ -1036,6 +1047,164 @@ def _cw_span_max_days() -> Optional[int]:
         return None
 
 
+# ---------------------------------------------------------------------------------------------------
+# THE TAPE PROBE -- what the tape read actually FETCHED, and why the front was or was not named
+# ---------------------------------------------------------------------------------------------------
+#: THE REASONS ``select_front_expiry`` CAN RETURN ``[]``, as words. Each one is DERIVED by asking the
+#: rule module the same question the selector asks it -- never by restating the rule here -- so a word
+#: this probe prints is a fact about the shipped selection and not a second opinion about it.
+TAPE_DECLINE_REASONS: tuple = (
+    "served",                  # not a decline: the rule named a month
+    "no_rows",                 # the read came back empty (window, partition or slug)
+    "unmapped_slug",           # roll_method_for raises: not a board the rule knows
+    "cash_reference",          # roll method 'none' -- a front month cannot be asked of a cash index
+    "roll_inputs_absent",      # the rule's OWN metric is missing on candidate rows (the S4 cause)
+    "no_eligible_expiry",      # every listed month is in delivery / off-cycle
+    "multi_session_frame",     # defensive: the newest-session slice held more than one session
+    "selection_empty",         # the rule ran and named nothing
+)
+
+
+def probe_tape(asof: str, *, qfn, slugs=None) -> dict:
+    """THE TAPE PROBE: per slug, WHAT THE READ FETCHED and WHY the front expiry was or was not named.
+
+    IT EXISTS BECAUSE RUN #3 COULD NOT SAY WHY. 22 of the 26 boards with a tape carried
+    ``{"status": "front_decline", ...}`` and a row count, and nothing else -- and three different
+    failures produce exactly those fields: a cap that kept the wrong end of the history, a projection
+    missing the rule's own input column, and the selector's own fail-closed branch. This
+    probe prints the frame's COLUMNS, its session span, its row count, the truncation flag, the count of
+    candidate rows carrying the rule's metric, and the reason word -- so the next mirror pass states the
+    cause on the estate even where a synthetic frame missed it.
+
+    IT READS THE SAME SPEC THE ROW READS (``feeders.tape_spec``), through the census's own counting
+    executor. TWO reads per slug, and the second one is deliberate: the frame this probe measures AND
+    the row the board actually renders, so a probe that agreed with itself but not with the served row
+    is not a state this artifact can be in. The verdict is ``query.select_front_expiry``'s own -- the
+    probe never re-implements the selection, it only asks the rule module the questions the selector
+    asks, in the order it asks them, so the WORD it prints and the SELECTION it reports cannot disagree."""
+    from leviathan.graphrag.numbers import query as Q
+    from leviathan.graphrag.numbers.registry import load_registry
+    from leviathan.graphrag.state import feeders as F
+
+    roster = list(slugs or _tape_slugs())
+    counter = CountingExecutor(qfn, name="tape")
+    ts = load_registry().get(F.TAPE_TABLE)
+    rows_out: list = []
+    for slug in roster:
+        row = {"slug": slug, "asof": asof}
+        spec = F.tape_spec(slug, asof)
+        row["read"] = {"period_start": spec.period_start, "limit": int(spec.limit or 0),
+                       "scope_sessions": F.TAPE_READ_SESSIONS, "scope_days": F.TAPE_READ_DAYS}
+        try:
+            fetched = Q.run(spec, query_fn=counter, futures_newest_first="all", ym_lag=True,
+                            roll_inputs=True)
+        except Exception as e:                          # noqa: BLE001 -- a probe never breaks a census
+            row["error"] = f"{type(e).__name__}: {e}"[:200]
+            rows_out.append(row)
+            continue
+        sessions = sorted({str(r.get("knowledge_date") or r.get("data_date") or "")[:10]
+                           for r in fetched} - {""})
+        newest = sessions[-1] if sessions else ""
+        curve = [r for r in fetched
+                 if str(r.get("knowledge_date") or r.get("data_date") or "")[:10] == newest]
+        row["frame"] = {
+            "columns": sorted({k for r in fetched[:1] for k in r}),
+            "n_rows": len(fetched), "n_sessions": len(sessions),
+            "session_min": sessions[0] if sessions else None, "session_max": newest or None,
+            "truncated": len(fetched) >= int(spec.limit or F.READ_LIMIT),
+            "expiries_on_newest_session": len({str(r.get("contract_month") or "") for r in curve}),
+        }
+        row.update(_tape_selection_reason(slug, curve, spec, ts))
+        st = F.tape_state(slug, asof, qfn=counter)
+        row["tape_status"] = st.status
+        row["tape_contract_month"] = st.contract_month
+        row["tape_level_date"] = st.level_date
+        rows_out.append(row)
+
+    words = collections.Counter(str(r.get("reason") or ("error" if r.get("error") else "?"))
+                                for r in rows_out)
+    served = [r["slug"] for r in rows_out if r.get("reason") == "served"]
+    truncated = [r["slug"] for r in rows_out if (r.get("frame") or {}).get("truncated")]
+    return {"asof": asof, "roster": roster, "per_slug": rows_out,
+            "reason_words": dict(words.most_common()),
+            "served": sorted(served), "served_of": len(rows_out),
+            "truncated_reads": sorted(truncated),
+            "reads": counter.snapshot(),
+            "verdict": (f"the front expiry is named on {len(served)} of {len(rows_out)} tape boards; "
+                        f"reasons {dict(words.most_common())}; {len(truncated)} read(s) hit the cap")}
+
+
+def _tape_selection_reason(slug: str, curve: list, spec, ts) -> dict:
+    """The selector's verdict on ONE newest-session curve, plus the reason word and the input count.
+
+    The order below is ``select_front_expiry``'s own, and every question is asked of
+    ``futures_roll`` rather than answered here: which method the slug rolls by, which rows are
+    ELIGIBLE candidates (``front_month_eligible``), whether every candidate carries the metric that
+    method reads (``front_month_inputs_present``), and finally what the rule selected."""
+    from leviathan.graphrag.numbers import query as Q
+
+    out: dict = {"reason": "no_rows", "roll_method": None, "n_candidates": 0,
+                 "n_candidates_with_metric": 0, "metric_col": None, "front": None}
+    if not curve:
+        return out
+    try:
+        import pandas as pd
+
+        from leviathan.silver import futures_roll as FR
+    except Exception as e:                              # noqa: BLE001
+        out["reason"] = "error"
+        out["detail"] = f"{type(e).__name__}: {e}"[:120]
+        return out
+    if len({str(r.get("knowledge_date") or r.get("data_date") or "")[:10] for r in curve}) > 1:
+        # the selector's OWN fail-closed belt, and it is asked FIRST here because it is asked first
+        # there: a frame the front rolled inside has no unambiguous front month
+        out["reason"] = "multi_session_frame"
+        return out
+    try:
+        method = str(FR.roll_method_for(slug))
+    except Exception:                                   # noqa: BLE001 -- the rule fails closed on an
+        out["reason"] = "unmapped_slug"                 # unmapped slug and so does this word
+        return out
+    out["roll_method"] = method
+    out["metric_col"] = FR.METHOD_METRIC_COL.get(method)
+    if method == FR.METHOD_NONE:
+        out["reason"] = "cash_reference"
+        return out
+    recs = []
+    for r in curve:
+        dt = str(r.get("knowledge_date") or r.get("data_date") or "")[:10]
+        rec = {"leviathan_slug": slug, "trade_date": dt,
+               "contract_month": str(r.get("contract_month") or "")[:7]}
+        for c in (ts.roll_input_cols or []):
+            rec[c] = r.get(c)
+        recs.append(rec)
+    frame = pd.DataFrame(recs)
+    elig = FR.front_month_eligible(frame)
+    out["n_candidates"] = int(len(elig))
+    col = out["metric_col"]
+    if col:
+        # THE COUNT IS OVER THE ELIGIBLE CANDIDATES, which is the set the precondition is asked about:
+        # a metric present on every row the rule would never choose is not an input the rule has.
+        vals = pd.to_numeric(elig[col], errors="coerce") if (col in getattr(elig, "columns", []) and
+                                                             len(elig)) else None
+        out["n_candidates_with_metric"] = int(vals.notna().sum()) if vals is not None else 0
+    else:
+        out["n_candidates_with_metric"] = int(len(elig))     # no metric to read: vacuously present
+    if not len(elig):
+        out["reason"] = "no_eligible_expiry"
+        return out
+    if not FR.front_month_inputs_present(elig):
+        out["reason"] = "roll_inputs_absent"
+        return out
+    picked = Q.select_front_expiry(curve, spec, ts)
+    if not picked:
+        out["reason"] = "selection_empty"
+        return out
+    out["reason"] = "served"
+    out["front"] = str(picked[0].get("contract_month") or "")[:7]
+    return out
+
+
 def _tape_slugs() -> list:
     """Every board slug that carries a per-contract tape, from the roster the tape row itself reads
     (``futures_eod_contracts.PRICE_COVERAGE_START``) intersected with the graph's contracts."""
@@ -1072,7 +1241,11 @@ def _tape_frame_for(slug: str, asof: str, *, qfn):
         from leviathan.graphrag.state import feeders as F
 
         load_registry().get(F.TAPE_TABLE)
-        spec = F.board_spec(F.TAPE_TABLE, F.TAPE_METRIC, slug, None, asof, "daily")
+        # THE ROW'S OWN SPEC, not a neighbour of it (``feeders.tape_spec``): the 330-session scope covers
+        # the widest window P2 prices (365 days) and leaves the cap unbitten on a board where the
+        # five-year span fetched 5,000 rows of curve and stopped -- on the widest boards that was fewer
+        # than 120 sessions, i.e. a span fence measured against a frame the cap had already shortened.
+        spec = F.tape_spec(slug, asof)
         rows = Q.run(spec, query_fn=qfn, futures_newest_first="all", ym_lag=True)
         cols = ["leviathan_slug", "trade_date", "contract_month", "settle", "unit", "currency",
                 "settle_kind"]
@@ -1831,6 +2004,8 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, qfn, state_fn_factory=None, tape_
         probe_block["P4"] = _guarded(probe_p4, asof)
     if "P5" in want:
         probe_block["P5"] = _guarded(probe_p5, asof, qfn=qfn, prior=prior)
+    if "tape" in want:
+        probe_block["tape"] = _guarded(probe_tape, asof, qfn=qfn)
     if "destinations" in want:
         probe_block["destinations"] = _guarded(destination_census, graph, asof, qfn=qfn)
     if "oni_crossings" in want:

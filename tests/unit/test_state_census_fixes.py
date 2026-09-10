@@ -424,3 +424,85 @@ def test_the_wrapper_forwards_the_prior_and_defaults_to_one_attempt():
     assert "--prior" in args and "s3://b/k/probes.json" in args
     A.prior = ""
     assert "--prior" not in mod.census_args(A())
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE TAPE PROBE -- run #3 declined the front expiry on 22 of 26 tape boards and could not say why
+# ---------------------------------------------------------------------------------------------------
+def _tape_qfn(*specs):
+    """A mirror-shaped executor over one fixture per slug (``state.__main__.mirror_query_fn``: it obeys
+    the compiled WHERE, projection, order and cap, so the probe measures a read rather than a dict)."""
+    from leviathan.graphrag.state import __main__ as M
+    rows: list = []
+    for slug, kw in specs:
+        rows.extend(M.tape_fixture_rows(slug, **kw))
+    return M.mirror_query_fn({"silver_futures_eod": rows})
+
+
+def test_the_tape_probe_names_the_CAUSE_per_slug_and_not_only_the_decline():
+    """Four boards, four different facts, one artifact: a front-by-open-interest board that serves, a
+    delivery-cycle board whose rule reads no metric, a board whose metric column is served BLANK (the
+    measured S4 cause, in the mirror's own NULL shape), and a cash reference that has no delivery-month
+    axis at all. Run #3's rows could not tell these apart -- every one of them printed
+    ``front_decline`` with a row count."""
+    qfn = _tape_qfn(("corn_cbot", {"sessions": 60}),
+                    ("french_wheat_matif", {"sessions": 60}),
+                    ("cocoa", {"sessions": 60, "blank_roll_inputs": True}),
+                    ("brazilian_arabica_coffee", {"sessions": 60}))
+    out = BC.probe_tape("2026-09-08", qfn=qfn,
+                        slugs=["corn_cbot", "french_wheat_matif", "cocoa",
+                               "brazilian_arabica_coffee"])
+    by = {r["slug"]: r for r in out["per_slug"]}
+    assert by["corn_cbot"]["reason"] == "served" and by["corn_cbot"]["front"] == "2026-09"
+    assert by["corn_cbot"]["roll_method"] == "open_interest"
+    assert by["french_wheat_matif"]["reason"] == "served"
+    assert by["cocoa"]["reason"] == "roll_inputs_absent", "the cause, by name"
+    assert by["cocoa"]["metric_col"] == "volume"
+    assert by["cocoa"]["n_candidates"] == 10 and by["cocoa"]["n_candidates_with_metric"] == 0, (
+        "the input COUNT is what separates a missing column from a stale window")
+    assert by["brazilian_arabica_coffee"]["reason"] == "cash_reference"
+    assert set(out["reason_words"]) == {"served", "roll_inputs_absent", "cash_reference"}
+    assert out["served"] == ["corn_cbot", "french_wheat_matif"] and out["served_of"] == 4
+    for word in out["reason_words"]:
+        assert word in BC.TAPE_DECLINE_REASONS, "every word this probe prints is in its closed set"
+
+
+def test_the_tape_probe_prints_the_FRAME_the_read_fetched():
+    """Columns, session span, row count, truncation and the expiry count on the newest session -- the
+    five facts run #3's ``{"n_obs": 5000, "truncated": true}`` could not distinguish between."""
+    qfn = _tape_qfn(("corn_cbot", {}))
+    out = BC.probe_tape("2026-09-08", qfn=qfn, slugs=["corn_cbot"])
+    row = out["per_slug"][0]
+    fr = row["frame"]
+    assert fr["n_rows"] == 3400 and fr["n_sessions"] == 340 and fr["truncated"] is False
+    assert fr["session_min"] == "2025-05-19" and fr["session_max"] == "2026-09-04"
+    assert fr["expiries_on_newest_session"] == 10
+    assert {"open_interest", "volume", "contract_month", "value"} <= set(fr["columns"]), (
+        "the projection is what the selector is handed, so the probe prints it")
+    assert row["read"]["period_start"] == "2025-05-18" and row["read"]["scope_sessions"] == 330
+    assert row["tape_status"] == "ok" and row["tape_contract_month"] == "2026-09", (
+        "cause and effect on ONE row: the frame measured here and the row the board renders")
+    assert out["reads"]["reads"] == 2, "the probe's read and the row's own, both on the census counter"
+
+
+def test_the_tape_probe_says_no_rows_rather_than_guessing_when_the_window_is_empty():
+    qfn = _tape_qfn(("corn_cbot", {"sessions": 40, "last": "2019-06-28"}))
+    out = BC.probe_tape("2026-09-08", qfn=qfn, slugs=["corn_cbot"])
+    row = out["per_slug"][0]
+    assert row["reason"] == "no_rows" and row["frame"]["n_rows"] == 0
+    assert row["frame"]["session_min"] is None and row["tape_status"] == "front_decline"
+
+
+def test_the_tape_probe_is_a_pg_probe_and_an_offline_pass_DECLARES_it_rather_than_nulling_it():
+    assert "tape" in BC.PROBES_ALL and "tape" in BC.PROBES_PG
+    assert "tape" not in BC.PROBES_OFFLINE, (
+        "it reads the mirror; an offline pass says so instead of reporting it as measured-nothing")
+
+
+def test_a_tape_probe_that_raises_is_a_named_finding_never_a_census_that_stopped():
+    def _boom(sql):
+        raise RuntimeError("the mirror is on fire")
+    out = BC.probe_tape("2026-09-08", qfn=_boom, slugs=["corn_cbot"])
+    row = out["per_slug"][0]
+    assert row["error"].startswith("RuntimeError"), "the probe carries the finding"
+    assert "reason" not in row and out["served"] == []

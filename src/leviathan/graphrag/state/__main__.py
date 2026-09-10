@@ -20,7 +20,9 @@ THE THREE SCENARIOS, and what each one is the bar for:
   1. ``soybeans_now``   -- "what is the situation on soybeans now? how is it looking 3 months from now?"
      at 2026-09-07, Cascade. The ONI state row with its z, its percentile and its four-month run; the
      edge with its band; the projection placing "3 months" inside the window; the SB-T front settle
-     with its one, five, twenty-one and sixty-three session changes and its five-year percentile; the
+     with its one, five, twenty-one and sixty-three session changes and its percentile over the window
+     that read fetched (330 sessions -- see ``feeders.TAPE_READ_SESSIONS``, which says why a CURVE is
+     not read over the daily cadence's five-year series span); the
      ``crude_oil -> soybean_crush_margin -> board_crush`` upstream path; an ONI-crossing analog with its
      outcome over the band and its count in words; a dated watch list.
   2. ``el_nino_fanout`` -- the SAME ONI state from a SOYBEANS-ONLY question. THE QUESTION DOES NOT NAME
@@ -36,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import re as _re
 import sys
 from typing import Optional
 
@@ -549,6 +552,192 @@ def fixture_benchmark_fn():
     def _fn(contract):
         return arrays.get(contract)
     return _fn
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE TAPE FIXTURE -- the READ half, offline (sec 6.2 / D19)
+# ---------------------------------------------------------------------------------------------------
+#: THE CARD'S OWN SHAPE, in numbers a laptop can hold: ten delivery months on each of 1,300 sessions is
+#: 13,000 rows -- what a five-year read of ``silver_futures_eod`` actually is on a liquid board, and 2.6x
+#: the 5,000-row cap. ``fixture_tape`` above builds a TapeState from arrays and grades the arithmetic
+#: half; THIS builds the rows a mirror would serve, so ``feeders.tape_state``'s own read -- the window,
+#: the cap, the projection, the ordering and the front-month selection -- is graded with no store.
+TAPE_FIXTURE_SESSIONS = 1300
+TAPE_FIXTURE_EXPIRIES = 10
+TAPE_FIXTURE_LAST_SESSION = "2026-09-04"
+#: The delivery cycle the fixture lists, and it is the MATIF slugs' own (``futures_roll``'s
+#: ``delivery_cycle_for('french_wheat_matif')``): four months a year, so with ten listed expiries the
+#: nearest month has been quoted for about two and a half years -- long enough for a same-contract series
+#: over any window this row measures. A cycle slug's rows are refused unless the month is ON the cycle,
+#: and an open-interest slug's are not, so one grid serves both roll methods honestly.
+TAPE_FIXTURE_CYCLE: tuple = (3, 5, 9, 12)
+
+
+def tape_fixture_rows(slug: str, *, sessions: int = TAPE_FIXTURE_SESSIONS,
+                      expiries: int = TAPE_FIXTURE_EXPIRIES,
+                      last: str = TAPE_FIXTURE_LAST_SESSION, base: float = 250.0,
+                      cycle: tuple = TAPE_FIXTURE_CYCLE, blank_roll_inputs: bool = False) -> list:
+    """``sessions x expiries`` PHYSICAL ``silver_futures_eod`` rows -- the columns the CARD declares
+    (``leviathan_slug``, ``trade_date``, ``trade_year``, ``contract_month``, ``settle``, ``settle_kind``,
+    ``currency``, ``open_interest``, ``volume``), never the query's aliases. The alias layer is the
+    executor's job (:func:`mirror_query_fn`), because a fixture that handed back aliases would skip the
+    projection -- and the projection is exactly where the front-expiry selection was losing the rule's
+    own input.
+
+    THE SETTLE RAMPS ON BOTH AXES (0.5 per session, 2.0 per expiry), so a change that had wandered onto a
+    neighbouring delivery month could not produce the same number as the same-contract one. The activity
+    metric FALLS with distance to delivery, so the front-by-open-interest and front-by-volume rules name
+    the NEAREST listed month -- which is also what the delivery-cycle rule names, so the three methods
+    agree on this fixture and a disagreement is a real finding rather than a fixture artefact.
+
+    ``blank_roll_inputs`` serves ``""`` in both metric columns: the pg read layer's own NULL shape
+    (``pgnumbers._stringify``), and the one that must still decline ``front_decline`` after the
+    projection lands -- a column that is served EMPTY is not an input the rule can read."""
+    days = _session_dates(last, int(sessions))
+    out: list = []
+    for i, d in enumerate(days):
+        y, m = int(d[:4]), int(d[5:7])
+        months: list = []
+        yy, mm = y, m
+        while len(months) < int(expiries):
+            if not cycle or mm in cycle:
+                months.append(f"{yy:04d}-{mm:02d}")
+            mm += 1
+            if mm > 12:
+                yy, mm = yy + 1, 1
+        for j, cm in enumerate(months):
+            out.append({
+                "leviathan_slug": str(slug), "trade_date": d, "trade_year": y,
+                "contract_month": cm, "settle": round(base + i * 0.5 + j * 2.0, 2),
+                "settle_kind": "official", "currency": "EUR",
+                "open_interest": ("" if blank_roll_inputs else 100000 - j * 5000),
+                "volume": ("" if blank_roll_inputs else 40000 - j * 2000),
+            })
+    return out
+
+
+# -- THE MIRROR-SHAPED EXECUTOR: it OBEYS the SQL it is handed -----------------------------------------
+_SQL_IDENT = _re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_SQL_NOISE: frozenset = frozenset({"substr", "cast", "as", "varchar", "coalesce", "case", "when",
+                                   "then", "else", "end", "date", "nulls", "last", "first"})
+_SQL_PRED = _re.compile(r"^(?P<lhs>.+?)\s*(?P<op><=|>=|<>|!=|=|<|>)\s*(?P<rhs>'[^']*'|-?\d+(?:\.\d+)?)$")
+
+
+def _sql_between(sql: str, start: str, *stops: str) -> str:
+    i = sql.find(start)
+    if i < 0:
+        return ""
+    body = sql[i + len(start):]
+    cut = [body.find(s) for s in stops if body.find(s) >= 0]
+    return (body[:min(cut)] if cut else body).strip()
+
+
+def _sql_split(body: str, sep: str = ",") -> list:
+    """Split on a separator at PAREN DEPTH ZERO -- ``substr(CAST(x AS varchar), 1, 10)`` carries commas
+    that are not column boundaries."""
+    out, depth, cur = [], 0, ""
+    for ch in body:
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        if ch == sep and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    if cur.strip():
+        out.append(cur.strip())
+    return out
+
+
+def _sql_phys(expr: str, row: dict):
+    """The PHYSICAL column an expression reads: the first identifier in it that the row actually carries.
+    A raise, never a None -- an expression this executor cannot resolve is a column the real backend WOULD
+    have resolved, and returning nothing for it is how a fixture quietly proves the wrong thing."""
+    for tok in _SQL_IDENT.findall(expr):
+        if tok.lower() in _SQL_NOISE:
+            continue
+        if tok in row:
+            return tok
+    raise AssertionError(f"the fixture rows carry no column for the SQL expression {expr!r}")
+
+
+def _sql_cell(expr: str, row: dict):
+    v = row.get(_sql_phys(expr, row))
+    return (str(v)[:10] if "substr(" in expr.lower() and v is not None else v)
+
+
+def _sql_text(v) -> str:
+    """Every cell a mirror hands back is TEXT (``pgnumbers._stringify``), including a NULL, which arrives
+    as ``""``. A fixture that returned floats would let a consumer's ``float(...)`` pass on rows the real
+    read layer hands back as strings."""
+    return "" if v is None else (v if isinstance(v, str) else str(v))
+
+
+def mirror_query_fn(rows_by_table: dict, *, tables=None):
+    """AN EXECUTOR THAT OBEYS THE COMPILED SQL: the WHERE clause, the PROJECTION, the ORDER BY and the
+    LIMIT, over PHYSICAL fixture rows.
+
+    WHY IT EXISTS BESIDE ``feeders.fixture_query_fn``, which is not replaced: that one compiles the real
+    SQL and then hands back every canned row, which is exactly right for grading the arithmetic above the
+    read. It cannot grade the read ITSELF -- a 13,000-row fixture comes back 13,000 rows deep with every
+    alias the fixture author happened to write, so the 5,000-row cap never bites, the newest-first order
+    never matters and a column the SELECT never projected is present anyway. All three of those are the
+    tape's measured failure, so grading them needs an executor that keeps the SQL's promises.
+
+    IT FAILS CLOSED. A predicate this parser cannot read RAISES rather than being skipped: a filter
+    silently ignored is a fixture that proves the read is fine when it is not."""
+    names = tuple(tables or rows_by_table)
+
+    def _run(sql: str) -> list:
+        _run.calls.append(sql)
+        for table in names:
+            if table not in sql:
+                continue
+            rows = list(rows_by_table.get(table) or [])
+            preds = [p.strip() for p in
+                     _sql_between(sql, " WHERE ", " ORDER BY ", " LIMIT ").split(" AND ") if p.strip()]
+            kept = [r for r in rows if all(_sql_keep(p, r) for p in preds)]
+            items = _sql_split(_sql_between(sql, "SELECT ", " FROM "))
+            proj = []
+            for it in items:
+                alias = it.rsplit(" AS ", 1)[1].strip() if " AS " in it else it.strip()
+                expr = it.rsplit(" AS ", 1)[0].strip() if " AS " in it else it.strip()
+                proj.append((alias, expr))
+            recs = [{a: _sql_text(_sql_cell(e, r)) for a, e in proj} for r in kept]
+            for term in reversed(_sql_split(_sql_between(sql, " ORDER BY ", " LIMIT "))):
+                parts = term.split()
+                alias, desc = parts[0], ("DESC" in [p.upper() for p in parts[1:]])
+                recs.sort(key=lambda r, a=alias: str(r.get(a) or ""), reverse=desc)
+            lim = _sql_between(sql, " LIMIT ")
+            return recs[:int(lim)] if lim.strip().isdigit() else recs
+        return []
+    _run.calls = []
+    return _run
+
+
+def _sql_keep(pred: str, row: dict) -> bool:
+    m = _SQL_PRED.match(pred.strip())
+    if not m:
+        raise AssertionError(f"the fixture executor cannot read the predicate {pred!r} -- a filter it "
+                             f"skipped would serve rows the real read never returns")
+    lhs, op, rhs = m.group("lhs"), m.group("op"), m.group("rhs")
+    cell = _sql_cell(lhs, row)
+    if rhs.startswith("'"):
+        a, b = _sql_text(cell), rhs[1:-1]
+    else:
+        try:
+            a, b = float(cell), float(rhs)                # a numeric column (trade_year) compares numeric
+        except (TypeError, ValueError):
+            return False
+    return {"=": a == b, "<=": a <= b, ">=": a >= b, "<": a < b, ">": a > b,
+            "<>": a != b, "!=": a != b}[op]
+
+
+def tape_query_fn(slug: str, **kw):
+    """The tape fixture behind the mirror-shaped executor, in one call: ``qfn = tape_query_fn(slug)``."""
+    return mirror_query_fn({"silver_futures_eod": tape_fixture_rows(slug, **kw)})
 
 
 # ---------------------------------------------------------------------------------------------------
