@@ -72,6 +72,9 @@ CENSUS_ASOF_DEFAULT = "2026-09-07"
 #: The three tiers the board declares knobs for. ``standard`` and every unarmed preset return None
 #: from ``board_knobs_of`` and are an OFF LANE by construction (sec 7).
 MODES: tuple = ("quick", "deep", "max")
+#: Boards whose RENDERED BLOCK TEXT is banked beside their census JSON (``blocks/<contract>__<mode>__<pass>.md``)
+#: -- the real-board writer smoke reads them (2026-09-10). Set by ``--dump-blocks``; empty = none.
+DUMP_BLOCKS: frozenset = frozenset()
 
 #: P1's board and P1's card. The falsifier is about ONI's rank on soybeans, and ONI is identified by
 #: the TABLE its resolved series key reads -- never by a ref string, because ``same_series_as`` folds
@@ -462,7 +465,8 @@ def board_run(graph, contract: str, mode: str, asof: str, *, state_fn, key_fn=No
              reason="template_register_trip" if blk.trips else "")
     total_ms = (time.perf_counter() - t0) * 1000.0
 
-    return {"contract": contract, "mode": mode, "asof": bd.asof,
+    return {**({"block_text": blk.text()} if contract in DUMP_BLOCKS else {}),
+            "contract": contract, "mode": mode, "asof": bd.asof,
             "rank_rule": bd.rank_rule,
             "walk_ms": round(walk_ms, 1), "total_ms": round(total_ms, 1),
             "producers_ms": round(producers_ms, 1), "render_ms": round(render_ms, 1),
@@ -2355,6 +2359,10 @@ def write_artifacts(artifact: dict, asof: str, *, out_dir=None, s3_prefix: str =
     for b in artifact.get("boards") or []:
         name = f"{b.get('contract')}__{b.get('mode')}__{b.get('pass', 'd2')}.json"
         _dump(boards_dir / name, b)
+        if b.get("block_text"):                        # the rendered block, verbatim, for the writer smoke
+            blocks_dir = base / "blocks"
+            blocks_dir.mkdir(parents=True, exist_ok=True)
+            _dump(blocks_dir / name.replace(".json", ".md"), None, text=str(b["block_text"]))
     _dump(base / "summary.json", {"summary": artifact.get("summary"),
                                   "series_keys": artifact.get("series_keys")})
     _dump(base / "probes.json", artifact.get("probes"))
@@ -2518,6 +2526,8 @@ def main(argv=None) -> int:
                          "'mirror_nulls_annual' (that plus the bare marketing-year label a "
                          "date_col-less annual table serves -- THE RE-SUBMIT GATE, red until the "
                          "walk._add_months hand-over lands); ignored on an in-VPC pass")
+    ap.add_argument("--dump-blocks", default="",
+                    help="comma-separated board slugs whose rendered block text is banked under blocks/")
     ap.add_argument("--no-probes", action="store_true")
     ap.add_argument("--no-cascade-census", action="store_true")
     ap.add_argument("--no-tape", action="store_true")
@@ -2529,6 +2539,8 @@ def main(argv=None) -> int:
 
     modes = tuple(m.strip() for m in str(a.modes).split(",") if m.strip())
     contracts = [c.strip() for c in str(a.contracts).split(",") if c.strip()] or None
+    global DUMP_BLOCKS
+    DUMP_BLOCKS = frozenset(c.strip() for c in str(a.dump_blocks or "").split(",") if c.strip())
 
     def _checkpoint(boards, keys):
         write_checkpoint(boards, keys, a.asof, out_dir=a.out, s3_prefix=a.s3)

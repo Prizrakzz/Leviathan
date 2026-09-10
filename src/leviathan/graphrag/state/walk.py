@@ -43,6 +43,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import NamedTuple, Optional
 
 from leviathan.graphrag.state import board as B
+from leviathan.graphrag.state.analogs import axis_date
 from leviathan.graphrag.state.lagbands import QUARTER_MONTHS, LagBand, parse_lag
 from leviathan.graphrag.state.rows import SIGN_WORDS, StateRow, status_word
 
@@ -1069,12 +1070,23 @@ def event_is_open(event_date: Optional[str], band: LagBand, asof: str) -> bool:
         return False
     if band.max_q is None:
         return True
-    return _add_months(event_date, int(band.max_q) * QUARTER_MONTHS) >= str(asof)[:10]
+    closes = _add_months(event_date, int(band.max_q) * QUARTER_MONTHS)
+    return bool(closes) and closes >= str(asof)[:10]
 
 
-def _add_months(iso: str, months: int) -> str:
-    """ISO date + N months, clamped to the month end. Pure calendar arithmetic, no clock."""
-    y, m, d = int(iso[0:4]), int(iso[5:7]), int(iso[8:10] or 1)
+def _add_months(iso: str, months: int) -> Optional[str]:
+    """ISO date + N months, clamped to the month end. Pure calendar arithmetic, no clock.
+
+    THE LABEL IS PLACED FIRST (2026-09-10, the S4 mirror run's other half): ``feeders._period_dates``
+    legitimately writes a bare ``YYYY`` for a marketing-year card with no month (ten annual tables on
+    the mirror), and slicing ``iso[5:7]`` on it is ``int("")`` -- the ``ValueError`` that took 35 boards
+    at quick through render's SB-J anchor. ``analogs.axis_date`` names that form first-class (a bare
+    year is its 31 December; a ``YYYY-MM`` its month end) and returns ``None`` for a label it cannot
+    place, which every caller here turns into a DECLINE rather than a raise."""
+    placed = axis_date(iso)
+    if placed is None:
+        return None
+    y, m, d = int(placed[0:4]), int(placed[5:7]), int(placed[8:10] or 1)
     total = (y * 12 + (m - 1)) + int(months)
     y2, m2 = total // 12, total % 12 + 1
     last = [31, 29 if (y2 % 4 == 0 and (y2 % 100 != 0 or y2 % 400 == 0)) else 28,
@@ -1091,6 +1103,8 @@ def projection_window(anchor_date: str, band: LagBand) -> dict:
     if not anchor_date or band.min_q is None:
         return {"opens": None, "closes": None, "open_ended": False, "declined": "lag_unparsed"}
     opens = _add_months(anchor_date, int(band.min_q) * QUARTER_MONTHS)
+    if opens is None:                                   # an anchor the calendar cannot place
+        return {"opens": None, "closes": None, "open_ended": False, "declined": "lag_unparsed"}
     if band.max_q is None:
         return {"opens": opens, "closes": None, "open_ended": True, "declined": None}
     return {"opens": opens, "closes": _add_months(anchor_date, int(band.max_q) * QUARTER_MONTHS),
@@ -1114,6 +1128,8 @@ def horizon_sits(horizon_months: Optional[int], window: dict, anchor_date: str) 
     if horizon_months is None or not anchor_date or window.get("opens") is None:
         return None
     at = _add_months(anchor_date, int(horizon_months))
+    if at is None:
+        return None
     if at < window["opens"]:
         return "before"
     if window.get("closes") and at > window["closes"]:

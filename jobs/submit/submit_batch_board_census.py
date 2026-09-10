@@ -94,6 +94,8 @@ def bootstrap(bucket: str, prefix: str) -> str:
 def census_args(a) -> list:
     """The census CLI's own arguments, forwarded verbatim so the submit record names the exact run."""
     out = ["--asof", a.asof, "--modes", a.modes, "--out", a.container_out]
+    if getattr(a, "dump_blocks", ""):
+        out += ["--dump-blocks", a.dump_blocks]
     if a.s3_out:
         out += ["--s3", a.s3_out]
     if a.contracts:
@@ -183,6 +185,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Submit the board census (S4) as an in-VPC Batch job")
     ap.add_argument("--asof", default="2026-09-07")
     ap.add_argument("--modes", default="quick,deep,max")
+    ap.add_argument("--dump-blocks", default="",
+                    help="board slugs whose rendered block text the census banks under blocks/ (the writer smoke)")
     ap.add_argument("--contracts", default="", help="comma-separated subset (default: all 36)")
     ap.add_argument("--width", type=int, default=2)
     ap.add_argument("--alternative-pass", default="max")
