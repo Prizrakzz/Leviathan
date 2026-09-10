@@ -3968,7 +3968,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                outlook: bool = False, response_contract: str | None = None,
                mode_knobs: dict | None = None,
                xl_request: dict | None = None,
-               mode_name: str | None = None) -> dict:
+               mode_name: str | None = None,
+               subject=None) -> dict:
     """L2 serving path: walk + ground the subgraph, hand it to the reasoner, and OVERRIDE the diagram with the
     graph-derived cascade. Reuses the shared render + unified footer + sanitizer. The hybrid branch's silver
     numbers ride in exactly as on the one-hop path: extra_context as a prompt block, extra_number_calls into
@@ -4081,6 +4082,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # three edges to choose the oldest of, so the board makes the defect worse. The seam
             # declines `recency_facts_off` rather than shipping the pair; `check_state_seam` pins it.
             recency_facts=_recency_facts_on(),
+            # SUBJECT RESOLVER D6/D11: A KWARG THREAD AND NOTHING ELSE. `GRAPHRAG_SUBJECT_RESOLVER` is
+            # NOT read here and is read nowhere in phase A -- the orchestrator reads it once at the
+            # dispatch seam, runs the resolver, and passes what the PLANNER picked. This module only
+            # carries it, the way it carries `focus_driver`. Default None -> `fill_stage1` normalises
+            # to an empty pick tuple and every line below it is the S6 build's own.
+            subject=subject,
             max_contracts=int((mode_knobs or {}).get("max_seeds") or 2))
     probe_retr = None if retrieve else functools.partial(ev.retrieve, mode="hybrid", rerank=False)
     _emit(on_stage, "walking")                                    # early tick: the 8-20s ground starts NOW (5.6 W5)
@@ -10794,7 +10801,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
            outlook: bool = False, response_contract: str | None = None,
            mode_knobs: dict | None = None,
            xl_request: dict | None = None,
-           mode_name: str | None = None) -> dict:
+           mode_name: str | None = None,
+           subject=None) -> dict:
     """Answer grounded in the graph(s) + dated evidence, structured for a reader. Routes (tiered lexical->semantic->
     LLM) to up to `max_contracts` (a soy<->corn question synthesizes both). Also pulls CROSS-CUTTING DRIVER evidence
     (WS-MS6 — B40/freight/FX/El Nino cascade triggers). Returns {answer (markdown), structured, contract(s),
@@ -10877,7 +10885,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                           extra_resolver=extra_resolver, focus_driver=focus_driver, use_blocks=use_blocks,
                           silver_lookup=silver_lookup, on_stage=on_stage, numbers_lookup=numbers_lookup,
                           xc_request=xc_request, outlook=outlook, response_contract=response_contract,
-                          mode_knobs=mode_knobs, xl_request=xl_request, mode_name=mode_name)
+                          mode_knobs=mode_knobs, xl_request=xl_request, mode_name=mode_name,
+                          subject=subject)
     if extra_resolver is not None:      # one-hop path: no walk to overlap — degenerate to resolving up front
         extra_context, extra_number_calls = extra_resolver()
     # node-diverse selection: siblings share an evidence shard, so a 2nd slot should add a DIFFERENT commodity

@@ -410,11 +410,19 @@ def _head_dispatch():
     return mod
 
 
-def _plan_fields(plan):
+def _plan_fields(plan, names=None):
     """FIELD-WISE, because HEAD's `Plan` and the tree's are two CLASSES and a dataclass `__eq__`
-    compares `self.__class__` first -- so `==` would be False on every pair and green nothing."""
+    compares `self.__class__` first -- so `==` would be False on every pair and green nothing.
+
+    `names` RESTRICTS THE COMPARISON TO HEAD'S OWN FIELD LIST (SUBJECT RESOLVER, 2026-09-09). The tree's
+    `Plan` gained `subject` and `subject_hints_n`, so an unrestricted dict is unequal on every pair by
+    construction and this pin would green nothing at all -- the failure mode it was written to avoid,
+    one field list over. The two NEW fields are asserted separately at their flag-off defaults, which
+    is a STRONGER claim than the old comparison made: it says both what HEAD's fields do and what the
+    new ones do."""
     import dataclasses
-    return {f.name: getattr(plan, f.name) for f in dataclasses.fields(plan)}
+    d = {f.name: getattr(plan, f.name) for f in dataclasses.fields(plan)}
+    return d if names is None else {k: d[k] for k in names}
 
 
 def test_the_routed_slug_DEDUP_is_FLAG_GATED_and_flag_off_is_HEADs_own_arithmetic(graph):
@@ -427,6 +435,8 @@ def test_the_routed_slug_DEDUP_is_FLAG_GATED_and_flag_off_is_HEADs_own_arithmeti
     the tree's on the plans that separate them -- a plan naming one contract TWICE and one naming it
     FOUR TIMES, at every ceiling any shipped tier sets, with and without the D-XL roster."""
     head = _head_dispatch()
+    import dataclasses as _dc
+    HEADN = [f.name for f in _dc.fields(head.Plan)]
     ids = set(graph.contracts)
     S, C, W, P = ("soybeans_cbot", "corn_cbot", "soft_red_winter_wheat_cbot",
                   "malaysian_crude_palm_oil_cme")
@@ -435,9 +445,17 @@ def test_the_routed_slug_DEDUP_is_FLAG_GATED_and_flag_off_is_HEADs_own_arithmeti
     for contracts in plans:
         for cap in (1, 2, 4, 6):
             out = {"steps": ["numbers"], "contracts": list(contracts)}
-            assert _plan_fields(dp._validate(dict(out), ids, cap)) ==                 _plan_fields(head._validate(dict(out), ids, cap)), (contracts, cap)
+            _tree = dp._validate(dict(out), ids, cap)
+            assert _plan_fields(_tree, HEADN) ==                 _plan_fields(head._validate(dict(out), ids, cap)), (contracts, cap)
             xl = ({"soybeans_cbot": "CBOT soybeans"}, ("windowed_extreme",))
-            assert _plan_fields(dp._validate(dict(out), ids, cap, *xl)) ==                 _plan_fields(head._validate(dict(out), ids, cap, *xl)), (contracts, cap)
+            _tree_xl = dp._validate(dict(out), ids, cap, *xl)
+            assert _plan_fields(_tree_xl, HEADN) ==                 _plan_fields(head._validate(dict(out), ids, cap, *xl)), (contracts, cap)
+            # SUBJECT RESOLVER, FLAG OFF: the two new fields hold their inert defaults on every pair
+            # above, and `Plan.trace()` gains no key at all -- the omit-when-off idiom applied to a
+            # trace, which is what keeps `test_extreme_locator`'s seven-key TAIL pin true.
+            for _p in (_tree, _tree_xl):
+                assert _p.subject == () and _p.subject_hints_n == 0, (contracts, cap)
+                assert "subject" not in _p.trace() and "subject_hints_n" not in _p.trace()
     # THE FLAG-ON HALF ACTUALLY DE-DUPS, and it costs the ceiling a seat with the flag off -- which is
     # exactly the behaviour difference that makes the gate necessary rather than tidy.
     dup = {"steps": ["numbers"], "contracts": [S, S, C]}

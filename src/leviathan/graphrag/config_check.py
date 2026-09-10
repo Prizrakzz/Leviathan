@@ -4322,6 +4322,323 @@ def check_state_seam() -> list[str]:
     return errs
 
 
+def check_subject_resolver() -> list[str]:
+    """THE SEMANTIC SUBJECT RESOLVER (docs/private/SUBJECT_RESOLVER_SITTING_2026-09-09.md D7), governed.
+    PURE READS ONLY -- module source, the frozen block's bytes, the artifact's JSON sidecar, the deck's
+    YAML header and the live graph hash. No S3, no pg, no LLM, no AWS, and NO MODEL LOAD.
+
+    WHAT THIS CHECK IS FOR. The resolver spreads one fact across five files no single diff shows
+    together -- the frozen planner section in `dispatch.py`, its sha in `state/subject.py`, the closed
+    reason word in three `state/` modules, the vocabulary artifact beside the DAGs, and the deck's
+    stamped `vocabulary_hash` -- and every way they can disagree is SILENT at serve time. A stale
+    artifact resolves ids the graph no longer carries and `walk._driver_of` swallows them, so the
+    failure is a board that anchors NOTHING with no word for why. An edited frozen block voids a
+    measurement and consumes a held-out set that cost a billed run. A `subject` key reaching the EMF
+    dimension with its two ids attached is an unbounded CloudWatch cardinality bill on a metric nobody
+    can then aggregate.
+
+    (1)  ENV-FREE: `state/subject.py` reads NO environment name at all. `check_state_seam` clause (i)
+         allows exactly one across the rest of the package; this module is allowed ZERO, because its
+         flag is read at the answer seam and threaded and it has no cache of its own to switch.
+    (2)  THE FROZEN BLOCK: `dispatch._subject_block(<vocabulary>)` hashes to
+         `subject.SUBJECT_BLOCK_SHA256`, is ASCII, carries no question mark, and renders "" on an
+         empty vocabulary.
+    (3)  THE ARTIFACT: RED on `stale` (the stamp and the live graph disagree) and on `unreadable`.
+         `missing` is a WARNING and not an error -- a checkout is allowed not to carry a 16 MB binary,
+         and the loader declines the semantic tier by name when it is absent. See
+         :func:`subject_resolver_warnings`.
+    (4)  THE CLOSED WORD IS REGISTERED IN ALL THREE SETS: `board.BOARD_REASONS`,
+         `board.REASONS_WITH_DETAIL` and `render.ABSENCE_WHY`; and `subject` sits in `ANCHOR_SOURCES`
+         between `focus_driver` and `named`. Two of three is a word that stamps and then renders as
+         the fallback, or one that renders and cannot be stamped. (4b) `board.ANCHOR_ORDER` is a
+         PERMUTATION of `ANCHOR_SOURCES` carrying the D6 amendment's one transposition -- the
+         precedence word is a LABEL and the anchor ORDER is a separate rule -- and
+         `DRIVER_ANCHOR_SOURCES` is the pair the row marker and the re-rank both read.
+    (5)  THE EMF DIMENSION IS THE BARE WORD: `seam.reason_dimension("subject_ambiguous:<a>|<b>")` is
+         `subject_ambiguous`. Asserted rather than assumed -- the ids ride the trace alone.
+    (6)  THE PLAN CARRIES IT, AND AT THE TAIL: `Plan.subject` is declared before `fallback`, so the
+         validator's explicit keywords cannot silently discard it; ONE ceiling reaches both the schema
+         and the validator; and the OFF schema carries no `subject` property at all.
+    (7)  THE FLOORS ARE ORDERED. The deck's `vocabulary_hash` drift is a WARNING, because a curated id
+         that leaves the graph must show up as a deck row to RETIRE and not as a silent regression.
+    (8)  THE CARRIED AMBIGUITY HAS A READER: `render.sb_subject_ambiguous` has a production caller, the
+         render's note loop names the kind, and the seam mints the row for an ANCHORLESS board (which
+         renders no ordinary block at all). Built as a clause because the first cut had all three
+         halves written, sha-clean and register-clean, and wired to nobody.
+    (9)  THE PHASE-B THREAD IS THE FULL LIVE ID SET, read from `orchestrator.py`'s source. Vacuous
+         until phase B writes the call, and binding the moment it does.
+    (10) THE D10 DECISION, STRUCTURALLY: `resolve()` carries a KEYWORD-ONLY `allow_embed` defaulting
+         True (phase B opts OUT per lane, never in), `T2_GATE_TIERS` names only free tiers, and the
+         SKIPPED word is NOT one of the three artifact-decline words that `BoardSubjectDeclined`
+         pages on. The resolver runs BEFORE `plan_turn`, so its embed is COLD -- MEASURED p50 351 ms
+         against a 150 ms budget -- and these two gates are the entire answer to it."""
+    errs: list[str] = []
+    import dataclasses as _dc
+    import hashlib
+    import inspect as _insp
+
+    from leviathan.graphrag import dispatch as _dsp
+    from leviathan.graphrag.state import board as _sb
+    from leviathan.graphrag.state import render as _sr
+    from leviathan.graphrag.state import seam as _ss
+    from leviathan.graphrag.state import subject as _su
+
+    # (1) env-free, read from SOURCE
+    try:
+        _src = _insp.getsource(_su)
+    except Exception as e:  # noqa: BLE001
+        return [f"subject_resolver: could not read state/subject.py ({e!r})"]
+    _names = sorted(set(re.findall(r"os\.environ\.get\(\s*[\"']([A-Za-z0-9_]+)", _src)))
+    if _names or "os.environ[" in _src:
+        errs.append(f"subject_resolver: state/subject.py reads {_names or ['os.environ[...]']} from "
+                    f"the environment -- GRAPHRAG_SUBJECT_RESOLVER is read ONCE at the answer seam and "
+                    f"threaded (the GRAPHRAG_STATE_BOARD idiom); this module is allowed ZERO names")
+
+    # (2) THE FROZEN PROMPT -- the pin that makes the freeze real
+    _blk = _dsp._subject_block(("El_Nino",))
+    _sha = hashlib.sha256(_blk.encode("utf-8")).hexdigest()
+    if _sha != _su.SUBJECT_BLOCK_SHA256:
+        errs.append(f"subject_resolver: the rendered planner block hashes to {_sha} -- the FROZEN "
+                    f"prompt is {_su.SUBJECT_BLOCK_SHA256}. An edit to a frozen prompt VOIDS its "
+                    f"measurement and consumes its held-out set; re-freeze and re-author rather than "
+                    f"re-hashing")
+    if "?" in _blk or not all(ord(c) < 128 for c in _blk):
+        errs.append("subject_resolver: the frozen block is not ASCII, or carries a question mark")
+    if _dsp._subject_block(None) != "" or _dsp._subject_block(()) != "":
+        errs.append("subject_resolver: _subject_block does not render '' on an empty vocabulary -- the "
+                    "OFF render is no longer byte-identical")
+
+    # (3) the artifact, and the two words that are FATAL
+    _status, _stamped, _live = _su.artifact_status()
+    if _status == "stale":
+        errs.append(f"subject_resolver: the vocabulary artifact is STALE -- it is stamped {_stamped} "
+                    f"and the live graph is {_live}. A stale vocabulary resolves ids the graph no "
+                    f"longer carries and the walk swallows an unknown id, so the failure is a board "
+                    f"that anchors nothing with no word for why. Rebuild it: "
+                    f"python scripts/graphrag/build_subject_vocab.py")
+    elif _status == "unreadable":
+        errs.append(f"subject_resolver: the vocabulary artifact at {_su.vocab_path()} is UNREADABLE "
+                    f"(a corrupt sidecar or a truncated npz) -- rebuild it")
+    elif _status == "ok":
+        # AND `ok` IS ASSERTED BY LOADING IT, not by reading its sidecar. `artifact_status` answers
+        # from the JSON sidecar alone, so a TRUNCATED or corrupt .npz beside a VALID sidecar returns
+        # `ok` and this clause passed green while `load_vocab` returned `unreadable` at serve time --
+        # half of the class the clause claims to red shipped green. The load is once per process and
+        # cached; a build gate can afford the 133-180 ms the shipped 25.2 MB artifact costs.
+        _v, _lst = _su.load_vocab()
+        if _lst != "ok" or _v is None:
+            errs.append(f"subject_resolver: the sidecar at {_su.vocab_path()} says the vocabulary is "
+                        f"current, but loading the matrix yields {_lst!r} -- a truncated or corrupt "
+                        f"npz beside a valid sidecar. Rebuild it: "
+                        f"python scripts/graphrag/build_subject_vocab.py")
+
+    # (4) the closed word, in all three sets, plus the anchor source's seat
+    _w = "subject_ambiguous"
+    if _w not in _sb.BOARD_REASONS:
+        errs.append(f"subject_resolver: {_w!r} is not in board.BOARD_REASONS -- the seam could not "
+                    f"stamp it and `check_reason` would raise at the stamp")
+    if _w not in _sb.REASONS_WITH_DETAIL:
+        errs.append(f"subject_resolver: {_w!r} is not in board.REASONS_WITH_DETAIL -- its two driver "
+                    f"ids ride a ':detail' tail and `check_reason` refuses an undeclared tail")
+    if _w not in _sr.ABSENCE_WHY:
+        errs.append(f"subject_resolver: render.ABSENCE_WHY has no sentence for {_w!r} -- a reader "
+                    f"would meet the fallback line instead of the fact the word names")
+    elif any(ch.isdigit() for ch in _sr.ABSENCE_WHY[_w]):
+        errs.append(f"subject_resolver: render.ABSENCE_WHY[{_w!r}] carries a digit; SB-X is a "
+                    f"letters-only class")
+    if "subject" not in _sb.ANCHOR_SOURCES:
+        errs.append("subject_resolver: 'subject' is not a declared anchor source -- "
+                    "`Anchor.__post_init__` would raise on every subject anchor")
+    elif (_sb.ANCHOR_SOURCES.index("subject") != _sb.ANCHOR_SOURCES.index("focus_driver") + 1
+          or _sb.ANCHOR_SOURCES.index("named") != _sb.ANCHOR_SOURCES.index("subject") + 1):
+        errs.append(f"subject_resolver: ANCHOR_SOURCES is {_sb.ANCHOR_SOURCES!r} -- D6 places "
+                    f"'subject' BETWEEN 'focus_driver' (an FE click always outranks an inference) and "
+                    f"'named' (a market the question names is context for the cause it asks about)")
+    # (4b) THE ORDER IS A SECOND TUPLE AND IT IS A PERMUTATION OF THE FIRST (D6 amendment: "the
+    #      precedence word is a LABEL, the anchor ORDER is a separate rule"). Two tuples over one
+    #      closed vocabulary is a word that can be added to one and forgotten in the other, so the
+    #      permutation is graded rather than remembered -- and the one transposition the amendment
+    #      asks for is pinned by name, because reading the precedence as the order is what put a
+    #      subject's thirty-four fan-out boards ahead of the market the question named.
+    if sorted(_sb.ANCHOR_ORDER) != sorted(_sb.ANCHOR_SOURCES):
+        errs.append(f"subject_resolver: ANCHOR_ORDER {_sb.ANCHOR_ORDER!r} is not a permutation of "
+                    f"ANCHOR_SOURCES {_sb.ANCHOR_SOURCES!r} -- one closed vocabulary, two orders")
+    elif (_sb.ANCHOR_ORDER.index("named") >= _sb.ANCHOR_ORDER.index("subject")
+          or _sb.ANCHOR_ORDER.index("focus_driver") >= _sb.ANCHOR_ORDER.index("named")
+          or _sb.ANCHOR_ORDER.index("subject") >= _sb.ANCHOR_ORDER.index("planner_inferred")):
+        errs.append(f"subject_resolver: ANCHOR_ORDER is {_sb.ANCHOR_ORDER!r} -- the D6 amendment "
+                    f"orders the board gestures first, then the NAMED markets ('a named market always "
+                    f"leads its turn'), then the subject's other boards, then the planner's seeds")
+    # AND THE NAMED FLAG IS PART OF THE ORDER, not only of the trim. The precedence COLLAPSES a board
+    # reached twice to the stronger word, so the market the question named comes out `source="subject",
+    # named=True` -- and an order that read the word alone seated the board D6 says must LEAD among the
+    # subject's fan-out. `anchor_order_key` is the one producer; this asserts it on that exact shape.
+    _collapsed = _sb.Anchor(contract="corn_cbot", source="subject", named=True, rank=7)
+    _plain = _sb.Anchor(contract="robusta_coffee", source="subject", rank=0)
+    if _sb.anchor_order_key(_collapsed) >= _sb.anchor_order_key(_plain):
+        errs.append("subject_resolver: anchor_order_key seats a NAMED market behind a subject's "
+                    "fan-out board -- `named` is monotonic across the precedence collapse precisely "
+                    "so the board the question typed still leads its turn (D6 amendment)")
+    if _sb.DRIVER_ANCHOR_SOURCES != ("focus_driver", "subject"):
+        errs.append(f"subject_resolver: DRIVER_ANCHOR_SOURCES is {_sb.DRIVER_ANCHOR_SOURCES!r} -- the "
+                    f"two sources whose anchor set is a DRIVER's are what `subject_ids_on`, the "
+                    f"positioning `context_only` exception and `rank_driver_anchors` all read")
+
+    # (5) the EMF dimension is the BARE word
+    _dim = _ss.reason_dimension(f"{_w}:El_Nino|La_Nina")
+    if _dim != _w:
+        errs.append(f"subject_resolver: reason_dimension yields {_dim!r} for a parametrised "
+                    f"{_w!r} -- two driver ids as a CloudWatch dimension value is the unbounded "
+                    f"cardinality that function exists to refuse")
+
+    # (6) the Plan field, its position, the one ceiling, and the OFF schema
+    _fields = [f.name for f in _dc.fields(_dsp.Plan)]
+    if "subject" not in _fields:
+        errs.append("subject_resolver: Plan has no `subject` field -- `_validate` names its keywords "
+                    "explicitly, so a schema property that stops at the schema is silently discarded")
+    elif _fields.index("subject") != _fields.index("fallback") - 2:
+        errs.append(f"subject_resolver: Plan fields end {_fields[-4:]!r} -- `subject` and "
+                    f"`subject_hints_n` are APPENDED AT THE TAIL, immediately before `fallback`")
+    if _dsp.SUBJECT_CAP != 3:
+        errs.append(f"subject_resolver: SUBJECT_CAP is {_dsp.SUBJECT_CAP} -- D2 declares three, and "
+                    f"the schema maxItems, the validator's cap and the frozen block all read this one "
+                    f"literal")
+    _tool = _dsp._plan_tool(["corn_cbot"], 2, subject_ids=("El_Nino", "La_Nina"))
+    _props = _tool["input_schema"]["properties"]
+    if "subject" not in _props:
+        errs.append("subject_resolver: the plan tool carries no `subject` property with a vocabulary "
+                    "threaded")
+    else:
+        if _props["subject"].get("maxItems") != _dsp.SUBJECT_CAP:
+            errs.append(f"subject_resolver: the schema maxItems is "
+                        f"{_props['subject'].get('maxItems')} and SUBJECT_CAP is {_dsp.SUBJECT_CAP} "
+                        f"-- one ceiling, three sites")
+        if _props["subject"]["items"].get("enum") != ["El_Nino", "La_Nina"]:
+            errs.append("subject_resolver: the schema's subject enum is not the threaded vocabulary")
+    if _tool["input_schema"]["required"] != ["steps", "contracts"]:
+        errs.append("subject_resolver: a detection field became REQUIRED in the plan tool")
+    if "subject" in _dsp._plan_tool(["corn_cbot"], 2)["input_schema"]["properties"]:
+        errs.append("subject_resolver: the plan tool carries `subject` with NO vocabulary threaded -- "
+                    "the OFF schema is no longer byte-identical")
+
+    # (7) the floors are ordered
+    if _su.AMBIG_FLOOR < _su.CAND_FLOOR:
+        errs.append(f"subject_resolver: AMBIG_FLOOR {_su.AMBIG_FLOOR} is below CAND_FLOOR "
+                    f"{_su.CAND_FLOOR} -- a score too weak to hint with cannot be strong enough to "
+                    f"interrupt a reader over")
+
+    # (8) THE CARRIED AMBIGUITY HAS A READER, and this clause exists because for one build it did not:
+    #     `render.sb_subject_ambiguous` was written, sha-clean, register-clean and called by NOTHING on
+    #     any production path, while `seam._stamp_subject` appended a note kind the render's own note
+    #     loop had no branch for. Every test passed. The stamp fired, the counter incremented, the
+    #     trace carried both ids, and the block said nothing -- which is the silent-decline class this
+    #     board's whole closed decline vocabulary exists to close. A CALLER is the property, so a
+    #     caller is what is graded.
+    try:
+        _rsrc = _insp.getsource(_sr)
+        _ssrc = _insp.getsource(_ss)
+    except Exception as e:  # noqa: BLE001
+        _rsrc = _ssrc = ""
+        errs.append(f"subject_resolver: could not read the render/seam source ({e!r})")
+    if _rsrc and len(re.findall(r"sb_subject_ambiguous\s*\(", _rsrc)) < 2:
+        errs.append("subject_resolver: render.sb_subject_ambiguous has no caller in render.py -- the "
+                    "note loop must consume kind == 'subject_ambiguous', or the row the ambiguity "
+                    "carry exists to mint reaches no reader on any turn")
+    if _rsrc and "\"subject_ambiguous\"" not in _rsrc and "'subject_ambiguous'" not in _rsrc:
+        errs.append("subject_resolver: render.py never names the note kind 'subject_ambiguous'")
+    if _ssrc and "sb_subject_ambiguous" not in _ssrc:
+        errs.append("subject_resolver: state/seam.py mints no block for an ANCHORLESS ambiguous "
+                    "board -- `fill_stage2` gates the whole render on `bd.anchors`, so the one board "
+                    "that can stamp `subject_ambiguous` is the one board that renders nothing, and "
+                    "D5's absence row would hold for nobody")
+
+    # (9) THE PHASE-B THREAD IS THE FULL LIVE ID SET, pinned from SOURCE before phase B writes it.
+    #     Clause (6) asserts only that the schema enum equals the vocabulary that was THREADED, so a
+    #     wiring that threaded (say) the hinted ids alone would collapse D2's "the embedder PROPOSES,
+    #     the planner DISPOSES" into "the embedder decides" -- and every clause and every test would
+    #     stay green. Phase A threads nothing, so this passes vacuously today and binds the moment the
+    #     orchestrator writes the call.
+    try:
+        _osrc = (Path(__file__).resolve().parent / "orchestrator.py").read_text(encoding="utf-8")
+    except Exception:  # noqa: BLE001 -- an unreadable sibling is not this clause's failure
+        _osrc = ""
+    for _ln in _osrc.splitlines():
+        if _ln.lstrip().startswith("#"):                    # a comment naming the kwarg is not a call
+            continue
+        for _m in re.findall(r"subject_ids\s*=\s*([^,)\n]+)", _ln):
+            _expr = _m.strip()
+            if "live_ids" in _expr or _expr in ("None", "()", "_sub", "**_sub"):
+                continue
+            errs.append(f"subject_resolver: orchestrator.py threads subject_ids={_expr} -- D2 threads "
+                        f"the FULL live id set (`state.subject.live_ids(graph)`). Anything narrower "
+                        f"makes the embedder the decider and the planner a rubber stamp, and the "
+                        f"schema-enum clause above would still pass")
+
+    # (10) THE D10 DECISION IS STRUCTURAL, so it is graded rather than remembered. The resolver's seat
+    #      is BEFORE `plan_turn`, so its embed is COLD (MEASURED p50 351 ms against a 150 ms budget)
+    #      and the whole answer is two gates: `T2_GATE_TIERS` skips the tier when a free tier already
+    #      named an id, and `allow_embed=False` refuses it on a lane that will never walk and so will
+    #      never pay it back. Both have a way of being un-landed silently -- a default flipped to
+    #      False makes every lane lexical-only, a gate word nobody declares makes the tuple inert --
+    #      and neither shows up in a test that injects its own vectors.
+    _sig = _insp.signature(_su.resolve).parameters
+    if "allow_embed" not in _sig:
+        errs.append("subject_resolver: `resolve()` carries no `allow_embed` -- D10's lane knob is the "
+                    "only thing that keeps a cold 351 ms embed off a lane that never walks")
+    else:
+        if _sig["allow_embed"].default is not True:
+            errs.append(f"subject_resolver: resolve(allow_embed=) defaults to "
+                        f"{_sig['allow_embed'].default!r} -- phase B opts OUT per lane, it never opts "
+                        f"in, and a default-off knob silences the semantic tier estate-wide")
+        if _sig["allow_embed"].kind is not _insp.Parameter.KEYWORD_ONLY:
+            errs.append("subject_resolver: resolve(allow_embed=) is positional -- every seat on this "
+                        "function is keyword-only so a new one cannot be filled by accident")
+    if not set(_su.T2_GATE_TIERS) <= {"exact", "alias"}:
+        errs.append(f"subject_resolver: T2_GATE_TIERS is {_su.T2_GATE_TIERS!r} -- the only tiers that "
+                    f"can suppress T2 are the two free ones, and a word outside them is a gate that "
+                    f"never fires (or fires on a tier that does not exist)")
+    if _su.STATUS_SKIPPED in _su.VOCAB_STATUS_WORDS:
+        errs.append("subject_resolver: the SKIPPED word is one of the artifact's own status words -- "
+                    "`BoardSubjectDeclined` reads those three, so a saved embed would page as a "
+                    "shipped artifact that disagrees with the shipped graph")
+    if set(_su.HINT_STATUS_WORDS) != set(_su.VOCAB_STATUS_WORDS) | {_su.STATUS_NOT_RUN,
+                                                                   _su.STATUS_SKIPPED}:
+        errs.append(f"subject_resolver: HINT_STATUS_WORDS is {_su.HINT_STATUS_WORDS!r} -- it is the "
+                    f"CLOSED set a census partitions on, so it is exactly the artifact's four words "
+                    f"plus the two that mean the tier never ran")
+    return errs
+
+
+def subject_resolver_warnings() -> list[str]:
+    """The resolver's ADVISORY half (non-fatal): a MISSING artifact, and a deck whose stamped
+    `vocabulary_hash` has drifted from the live graph.
+
+    NEITHER IS A BUILD FAILURE, AND THE ASYMMETRY IS THE DESIGN. A missing artifact fails OPEN -- the
+    loader declines the semantic tier by name and T0/T1 still run -- so a working tree that never built
+    the 16 MB binary is a working tree, not a broken build; a STALE one is fatal because it serves
+    WRONG ids silently. A drifted deck hash means a curated id may have left the graph, which is a row
+    to RETIRE by hand and not a regression to red."""
+    warns: list[str] = []
+    try:
+        from leviathan.graphrag.state import subject as _su
+        _status, _stamped, _live = _su.artifact_status()
+        if _status == "missing":
+            warns.append(f"the subject vocabulary artifact is MISSING at {_su.vocab_path()} -- the "
+                         f"semantic tier declines by name (T0 exact and T1 alias still run). Build it "
+                         f"with: python scripts/graphrag/build_subject_vocab.py")
+        _deck = Path(__file__).resolve().parents[3] / "configs" / "graphrag" / "subject_deck_v1.yaml"
+        if _deck.exists():
+            _hdr = yaml.safe_load(_deck.read_text(encoding="utf-8")) or {}
+            _dh = str((_hdr.get("freeze") or {}).get("vocabulary_hash") or "")
+            if _dh and _dh != _live:
+                warns.append(f"subject_deck_v1.yaml is stamped vocabulary_hash {_dh} and the live "
+                             f"graph is {_live} -- a curated id that left the graph is a deck row to "
+                             f"RETIRE, never a silent regression")
+    except Exception as e:  # noqa: BLE001 -- an advisory never fails a build
+        warns.append(f"the subject resolver advisory could not be evaluated ({type(e).__name__})")
+    return warns
+
+
 def check_cascade_notch() -> list[str]:
     """THE CASCADE NOTCH (2026-09-06, docs/private/SCAN_TIER_DESIGN.md section 3, F9/F10), governed.
     PURE READS ONLY -- the preset table, `server._CREDIT_PRICES` by AST, and the FE roster as text. No
@@ -4490,7 +4807,11 @@ def main() -> int:
                         # config_check after K9" owed -- and `state_seam` grades the phase-2
                         # wiring's own grammar. Both are pure reads; neither needs a store.
                         ("state_board", check_state_board()),
-                        ("state_seam", check_state_seam())):
+                        ("state_seam", check_state_seam()),
+                        # SUBJECT RESOLVER: APPENDED AT THE TAIL, the same append-never-insert
+                        # law this roster keeps for itself. A pure read: module source, the
+                        # frozen block, the artifact sidecar and the live graph hash.
+                        ("subject_resolver", check_subject_resolver())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")
@@ -4499,6 +4820,13 @@ def main() -> int:
         else:
             print(f"PASS {label}")
     # Advisory (non-fatal): topical-token near-misses a human reviews but that never fail the build.
+    # Advisory (non-fatal): the SUBJECT RESOLVER's two soft states -- a working tree that never
+    # built the vocabulary artifact, and a deck whose stamped vocabulary_hash has drifted.
+    subj = subject_resolver_warnings()
+    if subj:
+        print(f"WARN subject_resolver ({len(subj)} advisory -- non-fatal):")
+        for w in subj:
+            print(f"  - {w}")
     from leviathan.graphrag.evidence import bare_name_warnings, driver_slice_alias_warnings
     warns = driver_slice_alias_warnings()
     if warns:

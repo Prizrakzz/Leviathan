@@ -351,8 +351,15 @@ RENDER_REASONS: tuple[str, ...] = ("template_register_trip",)
 #: handed BOTH sentences AND three candidate edges to choose the older of, so the board makes the
 #: defect worse rather than better. The seam therefore declines with this word rather than shipping the
 #: pair, and the census can see exactly how often that state was reached.
+#: ``subject_ambiguous`` IS THE SUBJECT RESOLVER'S ADDITION (D5), and it names a CARRY rather than an
+#: outage. When the deterministic tiers propose two drivers a typed phrase could mean and the planner
+#: declines to pick one, the alternative is to guess -- and a guessed subject anchors every board
+#: carrying it, which is the widest wrong answer this board can give. So the board declines with this
+#: word, the render names BOTH drivers in reader words and asks the reader to say which, and the
+#: census can measure exactly how often a phrase this estate's own vocabulary could not disambiguate
+#: reached a turn. It is the ONLY board reason that carries a detail, and the detail is two NAMES.
 BOARD_REASONS: tuple[str, ...] = ("pg_not_live", "anchor_none", "turn_spend_unknown", "lane_off",
-                                  "recency_facts_off")
+                                  "recency_facts_off", "subject_ambiguous")
 
 #: leg name -> its own closed enum. THE LEG NAME IS PART OF THE VOCABULARY: sec 6.7's `conv:` line reads
 #: "interaction: when_not_all_loud", i.e. the leg is `interaction` and the reason is the word after it.
@@ -377,9 +384,17 @@ LEG_REASONS: dict = {
 #: word admitted to the detail set is a word the S3 render owes a SECOND sentence (the detail's), and
 #: nothing in this package ever stamped one. The six that remain each carry a detail some caller
 #: actually writes -- ``thin_history:3``, ``changes_thin:<n>``, ``lane_off:<lane>``.
+#: ``subject_ambiguous`` IS THE SEVENTH, AND IT IS THE FIRST WHOSE DETAIL IS NOT A COUNT OR A LANE
+#: NAME. The note above is the reason the set is small: a word admitted here is a word the S3 render
+#: OWES A SECOND SENTENCE. This one is admitted precisely because that second sentence is the point --
+#: ``render.sb_subject_ambiguous`` renders the two driver DISPLAY names and asks the reader to name
+#: one, which ``absence_why`` cannot do (it drops the detail on purpose: every other detail is a digit
+#: in a letters-only class). The detail is carried as ``subject_ambiguous:<id>|<id>`` and the ids
+#: NEVER reach the EMF dimension -- ``seam.reason_dimension`` cuts at the colon, and two driver ids
+#: joined by a pipe is exactly the unbounded CloudWatch cardinality that function exists to refuse.
 REASONS_WITH_DETAIL: frozenset = frozenset({
     "scope_unresolved", "thin_history", "history_truncated", "changes_thin", "percentile_thin",
-    "lane_off",
+    "lane_off", "subject_ambiguous",
 })
 
 #: The four lanes the board does NOT run on (sec 7), each stamped ``board: lane_off:<word>`` so
@@ -414,10 +429,83 @@ def check_reason(leg: str, reason: str) -> Optional[str]:
 ANCHOR_SOURCES: tuple[str, ...] = (
     "attached_event",     # `_resolve_attachments` -- an explicit gesture outranks the board (3.1)
     "focus_driver",       # DRIVER-AS-SUBJECT: the anchor set is every contract carrying the id
+    # THE RESOLVED SUBJECT (SUBJECT RESOLVER D6), and its seat in this order is the whole decision:
+    # BELOW `focus_driver`, because an FE `focus_driver` attachment is a CLICK and a subject is an
+    # INFERENCE about a typed phrase, and this estate's doctrine is that an explicit gesture wins;
+    # ABOVE `named`, because a market the question names is context for the cause it asks about, and
+    # the subject IS the cause. When both a focus_driver and a differing subject are present BOTH
+    # anchor and `Board.trace()` stamps `subject.vs_focus = differ` -- a silent override is the exact
+    # class `Anchor.named` was added to close.
+    "subject",
     "named",              # the user NAMED this market: never truncated by MAX_CONTRACTS (Amendment 2)
     "planner_inferred",   # the planner's own enumeration: MAX_CONTRACTS still bounds THESE
     "board_loudest",      # COLD START: no market named (V1.1 by D26; built here, default OFF)
 )
+
+#: THE ORDER THE ANCHORS SIT IN ON THE BOARD -- a SEPARATE RULE from the precedence above, and the
+#: separation is the SUBJECT RESOLVER's D6 amendment stated as code ("the precedence word is a LABEL,
+#: the anchor ORDER is a separate rule").
+#:
+#: :data:`ANCHOR_SOURCES` decides TWO things and neither of them is position: which word wins when one
+#: board is reached by two routes (``anchor_source``, the trace and EMF word), and who survives a
+#: ``max_anchors`` trim. Reading it as the render order as well collapses three decisions into one
+#: tuple, and the collapse has a MEASURED cost: with ``subject`` seated above ``named``, the ask "what
+#: does the pacific warming do to corn" opened on ``robusta_coffee`` and put ``corn_cbot`` -- the board
+#: the question NAMED -- in the last surviving seat at every tier (quick 3/4, deep 5/6, max 7/8).
+#:
+#: SO THE ORDER IS: the GESTURES first (an attachment, then an FE ``focus_driver`` click), then the
+#: NAMED markets, then the subject's OTHER boards, then the planner's own seeds, then cold start. "A
+#: named market always leads its turn": the El Nino question opens on corn's board with the El Nino
+#: row inside it, and the other thirty-four El Nino boards are the FAN-OUT, not the lead.
+#:
+#: IT IS A PERMUTATION OF :data:`ANCHOR_SOURCES` AND NOTHING ELSE -- same words, same length, one
+#: transposition -- so a word added to one and forgotten in the other is a build failure
+#: (``config_check.check_subject_resolver`` clause (4)) rather than a board that renders in an order
+#: nobody declared. With no subject on the turn the two tuples agree on every pair that can co-occur,
+#: which is why an unflagged board's anchor order is S6's own, seat for seat.
+ANCHOR_ORDER: tuple[str, ...] = (
+    "attached_event", "focus_driver", "named", "subject", "planner_inferred", "board_loudest",
+)
+
+
+def anchor_order_index(source: str) -> int:
+    """Where ``source`` sits in the RENDER order (:data:`ANCHOR_ORDER`). An unknown word sorts last
+    rather than raising: ``Anchor.__post_init__`` is the gate that refuses an undeclared source, and a
+    sort is not a place to discover one."""
+    try:
+        return ANCHOR_ORDER.index(str(source))
+    except ValueError:
+        return len(ANCHOR_ORDER)
+
+
+def anchor_order_key(a) -> tuple:
+    """THE SORT KEY for an anchor set -- ``(order, rank, contract)`` -- and the ONE producer of it, so
+    the anchor pass and the post-wave re-rank cannot order the same board two ways.
+
+    IT READS ``named`` AND NOT ONLY ``source``, and that is the half a source-word-only order misses.
+    The precedence COLLAPSES a board reached twice to the stronger word: a market the question named
+    which also carries the resolved subject ends up ``source="subject"`` with ``named=True``, because
+    ``subject`` outranks ``named`` in :data:`ANCHOR_SOURCES`. Ordering on the word alone therefore
+    seated exactly the board D6's amendment says must LEAD -- "what does the pacific warming do to
+    corn" opens on corn -- among the subject's thirty-four fan-out boards, alphabetically. ``named``
+    is monotonic across that collapse for precisely this reason ("once named, always named"), and the
+    ``max_anchors`` trim already reads it the same way.
+
+    A GESTURE STILL OUTRANKS A NAMED MARKET: ``attached_event`` and ``focus_driver`` keep their own
+    seats, so a click leads its turn whether or not the same board was typed."""
+    src = str(getattr(a, "source", ""))
+    named_seat = ANCHOR_ORDER.index("named")
+    i = anchor_order_index(src)
+    if getattr(a, "named", False) and i > named_seat:
+        i = named_seat
+    return (i, int(getattr(a, "rank", 0) or 0), str(getattr(a, "contract", "")))
+
+
+#: The sources whose anchor set is a DRIVER's -- every contract carrying the id, read off the graph
+#: rather than planned. Both are exempt from ``max_contracts`` and both are re-ranked by that driver's
+#: own state after wave 1; the difference between them is provenance (a click versus an inference),
+#: which is what :data:`ANCHOR_SOURCES` records.
+DRIVER_ANCHOR_SOURCES: tuple[str, ...] = ("focus_driver", "subject")
 
 
 @dataclass(frozen=True)
@@ -446,6 +534,15 @@ class Anchor:
     #: twenty-ninth board: Amendment 2 defeated by the fence that bounds Amendment 1. This flag is
     #: what an explicit-gesture reservation reads, and it is monotonic -- once named, always named.
     named: bool = False
+    #: WHICH IDS OF THE SUBJECT'S GROUP THIS BOARD ACTUALLY CARRIES (SUBJECT RESOLVER D4). A subject
+    #: expands to its GROUP -- the ids that share a curated ``driver_slices`` slice, or a ``silver_ref``
+    #: set where no slice covers them -- because the estate carries four fertilizer ids, three crude
+    #: ids, three EUDR ids and five positioning ids for four concepts, and the boards union is what the
+    #: owner asked for. But the group is a property of the SUBJECT and the ids on this board are a
+    #: property of THIS BOARD, and they are not the same tuple: `fertilizer_input_costs` sits on eight
+    #: boards and `fertilizer_cost` on five. Recording the intersection here is what lets the render
+    #: and the trace say which name this board answered under, instead of naming the group and hoping.
+    group: tuple = ()
     note: str = ""
 
     def __post_init__(self):
@@ -707,6 +804,13 @@ class Board:
     stage_ms: dict = field(default_factory=lambda: {1: 0.0, 2: 0.0})
     stage_done: dict = field(default_factory=lambda: {1: False, 2: False})
     notes: list = field(default_factory=list)       # SB-X material the walk names (dropped keys, cuts)
+    #: THE SUBJECT RESOLUTION (SUBJECT RESOLVER D8), and it rides HERE rather than on a new trace key
+    #: for a measured reason: appending one key to `tracekeys.TRACE_RECORD_KEYS` reds SEVEN test files'
+    #: negative-index tail pins (the S5 measurement, `tracekeys.py:449`). `Board.trace()` is the ONE
+    #: producer of the already-registered `state_board` payload, so a sub-dict inside it costs zero
+    #: registry churn and zero re-pins. EMPTY on every turn the resolver did not run, and `trace()`
+    #: omits the key entirely then -- so a flag-off board's payload is byte-identical to S6's.
+    subject: dict = field(default_factory=dict)
 
     # ── anchors ─────────────────────────────────────────────────────────────────────────────────────
     @property
@@ -724,11 +828,43 @@ class Board:
 
     @property
     def subject_driver(self) -> str:
-        """The driver being EXPLAINED, when the anchor is a driver (Amendment 1). '' otherwise."""
-        for a in self.anchors:
-            if a.source == "focus_driver" and a.driver_id:
-                return a.driver_id
+        """The driver being EXPLAINED, when the anchor is a driver (Amendment 1). '' otherwise.
+
+        BOTH DRIVER SOURCES, IN PRECEDENCE ORDER (SUBJECT RESOLVER D6). This property filtered
+        ``focus_driver`` alone, and it is one of the TWO readers of that predicate -- the other is
+        ``walk._stage1``, which reads THIS -- so a RESOLVED subject reached neither: positioning's D18
+        ``context_only`` exception was live on an FE click (measured 6 of 6 rows marked) and dead on
+        the resolver's own path (0 of 6, with a row still ``context_only``). An FE click still wins,
+        because it is first in :data:`ANCHOR_SOURCES` and this loop takes the sources in that order.
+
+        A GROUP-CARRYING SUBJECT ANCHOR HAS NO SINGLE DRIVER, and this property is single-valued, so it
+        answers only for an anchor that carries exactly one id (``Anchor.driver_id``). The plural case
+        is :meth:`subject_ids_on`, which is what the row marker and the re-rank actually read."""
+        for src in ANCHOR_SOURCES:
+            if src not in DRIVER_ANCHOR_SOURCES:
+                continue
+            for a in self.anchors:
+                if a.source == src and a.driver_id:
+                    return a.driver_id
         return ""
+
+    def subject_ids_on(self, contract: str) -> tuple:
+        """Every driver id THIS BOARD is anchored on as a subject -- the anchor's own ``driver_id``
+        plus the members of its :attr:`Anchor.group` that this board carries.
+
+        THE GROUP IS A PROPERTY OF THE SUBJECT AND THE IDS ARE A PROPERTY OF THE BOARD (D4), and this
+        is the one producer of the intersection. ``fertilizer_input_costs`` sits on eight boards and
+        ``fertilizer_cost`` on five: naming the group and hoping would mark a row on a board that does
+        not carry it, and reading ``driver_id`` alone would mark none of them, because a subject anchor
+        reached by a group of two or more declares no single id."""
+        out: set = set()
+        for a in self.anchors:
+            if a.contract != contract or a.source not in DRIVER_ANCHOR_SOURCES:
+                continue
+            if a.driver_id:
+                out.add(str(a.driver_id))
+            out |= {str(i) for i in (a.group or ()) if str(i or "").strip()}
+        return tuple(sorted(out))
 
     # ── the ledger's laws ───────────────────────────────────────────────────────────────────────────
     def net_reads(self) -> int:
@@ -846,14 +982,23 @@ class Board:
         """The ``state_board`` trace key's payload (sec 6.7, D10). ONE registered key, every leg on it.
 
         ``stage_ms`` rides here because arm A must identify the pole per turn (sec 3.9): the board's own
-        two stages beside ``timing_ms.fill / rest / numbers``."""
-        return {"legs": dict(self.legs), "stage_ms": dict(self.stage_ms),
-                "anchors": self.anchor_slugs, "anchor_source": self.anchor_source,
-                "mode": self.mode, "asof": self.asof, "horizon_months": self.horizon_months,
-                "rank_rule": self.rank_rule,
-                "ledger": self.ledger.to_dict(), "net_reads": self.net_reads(),
-                "cap": self.declared_cap(), "rectangle": self.rectangle(),
-                "rows": len(self.rows), "series": len(self.series), "notes": list(self.notes)}
+        two stages beside ``timing_ms.fill / rest / numbers``.
+
+        ``subject`` (SUBJECT RESOLVER D8) is OMITTED when the resolver did not run, so a flag-off
+        payload is byte-identical to S6's -- the omit-when-off idiom, applied to a trace as well as to
+        a prompt. When present it carries ``{hints, picked, groups, source, vs_focus}``: the tiers'
+        own output, what the PLANNER picked from it, what each pick expanded to, which anchor source
+        the board ended on, and whether an FE ``focus_driver`` disagreed."""
+        out = {"legs": dict(self.legs), "stage_ms": dict(self.stage_ms),
+               "anchors": self.anchor_slugs, "anchor_source": self.anchor_source,
+               "mode": self.mode, "asof": self.asof, "horizon_months": self.horizon_months,
+               "rank_rule": self.rank_rule,
+               "ledger": self.ledger.to_dict(), "net_reads": self.net_reads(),
+               "cap": self.declared_cap(), "rectangle": self.rectangle(),
+               "rows": len(self.rows), "series": len(self.series), "notes": list(self.notes)}
+        if self.subject:
+            out["subject"] = dict(self.subject)
+        return out
 
 
 def board_knobs_of(mode: str) -> Optional[BoardKnobs]:

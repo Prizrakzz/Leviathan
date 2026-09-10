@@ -73,13 +73,106 @@ def lane_word(lane: Optional[str]) -> str:
 
 
 # ---------------------------------------------------------------------------------------------------
+# THE SUBJECT (SUBJECT RESOLVER D5 / D6 / D8) -- threaded, never read from the environment
+# ---------------------------------------------------------------------------------------------------
+def _subject_payload(subject) -> dict:
+    """Normalise the threaded subject into ``{on, picked, hints, ambiguous}``. NEVER RAISES.
+
+    TWO SHAPES ARE ACCEPTED AND THAT IS DELIBERATE, not laxity: the orchestrator threads a MAPPING
+    (the planner's picks, the resolver's hint payload, the carried ambiguity), while a deck that only
+    needs the anchor behaviour threads a bare sequence of ids. ``None`` -- every turn the flag does not
+    reach -- yields ``on=False`` and an empty pick tuple, and every line downstream is then S6's own."""
+    out = {"on": False, "picked": (), "hints": {}, "ambiguous": ()}
+    if subject is None:
+        return out
+    try:
+        if isinstance(subject, dict):
+            picked = tuple(str(i) for i in (subject.get("picked") or ()) if str(i or "").strip())
+            amb = tuple(str(i) for i in (subject.get("ambiguous") or ()) if str(i or "").strip())
+            hints = dict(subject.get("hints") or {})
+        else:
+            picked = tuple(str(i) for i in (subject or ()) if str(i or "").strip())
+            amb, hints = (), {}
+    except Exception:                                   # noqa: BLE001 -- a malformed payload is OFF
+        return out
+    return {"on": bool(picked or amb or hints), "picked": picked, "hints": hints, "ambiguous": amb}
+
+
+def _stamp_subject(bd, sub: dict, *, graph=None, focus_driver: str = "") -> None:
+    """Write ``Board.subject`` (D8) and, where the turn earned it, the ``subject_ambiguous`` decline.
+
+    THE AMBIGUITY IS CARRIED ON EVERY BOARD THAT HAS ONE, AND THE DECLINE IS TAKEN ONLY ON AN
+    ANCHORLESS BOARD -- two states, and the restraint on the second is the point. A turn that anchored
+    on markets the user named has an answer to give; replacing it with a question would be a fence that
+    DELETES, which doctrine forbids. What that turn gets instead is the ambiguity on the board's own
+    NOTES, which the S3 render mints as an SB-X row beside everything else it carries
+    (``render.render_board``'s note loop -- and that branch had to be BUILT: for one build this note
+    was appended into a loop that had no case for it, so the row reached nobody). An ANCHORLESS board
+    would have declined ``anchor_none`` -- "the question named no market this estate tracks" -- and
+    ``subject_ambiguous`` is strictly more informative about the same turn: it names the two drivers
+    the phrase could mean and asks the reader to choose. That board renders NO ordinary block at all
+    (``fill_stage2`` gates the whole render on ``bd.anchors``), so the seam mints the one row by hand
+    rather than letting the more informative decline be the more silent one.
+
+    THE IDS RIDE THE DETAIL TAIL AND THE TRACE, NEVER THE EMF DIMENSION: ``reason_dimension`` cuts at
+    the colon precisely so an unbounded value cannot become a CloudWatch dimension, and two driver ids
+    joined by a pipe is exactly that. Asserted in the deck rather than assumed."""
+    if bd is None or not sub.get("on"):
+        return
+    try:
+        picked = tuple(sub.get("picked") or ())
+        amb = tuple(sub.get("ambiguous") or ())
+        gm: dict = {}
+        if picked and graph is not None:
+            from leviathan.graphrag.state import subject as SUBJ
+            gm = {p: list(SUBJ.expand_group((p,), graph)) for p in picked}
+        fd = str(focus_driver or "")
+        vs = ""
+        if fd and picked:
+            vs = "same" if fd in set(picked) | {i for v in gm.values() for i in v} else "differ"
+        bd.subject = {"hints": dict(sub.get("hints") or {}), "picked": list(picked),
+                      "groups": gm, "source": bd.anchor_source, "vs_focus": vs}
+        # WHICH IDS EACH BOARD ACTUALLY ANSWERED UNDER -- `Anchor.group` READ, not merely written. The
+        # field's stated purpose is "what lets the render and the trace say which name this board
+        # answered under", and until this line nothing but the anchor collapse read it: the trace
+        # carried the pick -> group map, which is a property of the SUBJECT, and never the per-board
+        # intersection, which is a property of the BOARD (`fertilizer_input_costs` sits on eight boards
+        # and `fertilizer_cost` on five).
+        carried = {a.contract: list(a.group) for a in bd.anchors if a.source == "subject" and a.group}
+        if carried:
+            bd.subject["carried"] = carried
+        if amb and not picked:
+            # THE CARRY IS ITS OWN FACT AND IT IS RECORDED WHETHER OR NOT THE BOARD DECLINED, because
+            # the render mints the row on both paths and a counter that could only fire on the
+            # anchorless one would measure the rarer half of what a reader is shown.
+            #
+            # AND IT IS FENCED ON `not picked`, which is D5's own condition and was NOT in the code.
+            # `SubjectHints.ambiguous()` is "what D5 CARRIES into the answer WHEN THE PLANNER RETURNS
+            # NO SUBJECT", and the seam appended the note whenever the tuple was non-empty -- so a
+            # turn where the planner DID choose, and the board therefore opened on that choice, would
+            # still have stopped to ask the reader which of two drivers they meant. A question beside
+            # an answered board is not more information, it is a contradiction: the block says "here
+            # is El Nino on corn" and the row underneath says "name the one you mean". The two ids
+            # stay on the TRACE either way through `hints`, so nothing is deleted -- only the row that
+            # interrupts a reader is fenced, which is the AMBIG_FLOOR's own posture one layer up.
+            bd.subject["ambiguous"] = list(amb[:2])
+            bd.notes.append({"kind": "subject_ambiguous", "ids": list(amb[:2])})
+        if not picked and len(amb) >= 2 and not bd.anchors:
+            bd.stamp("board", "declined", reason="subject_ambiguous:" + "|".join(amb[:2]))
+            bd.subject["declined"] = "subject_ambiguous"
+    except Exception:                                   # noqa: BLE001 -- a board must never break a turn
+        return
+
+
+# ---------------------------------------------------------------------------------------------------
 # STAGE 1 -- after `pl.grounded_subgraph`, before `pl.ground` (D11)
 # ---------------------------------------------------------------------------------------------------
 def fill_stage1(*, graph, sg, asof: str, mode: str, query: str = "", lane: str = "run_hybrid",
                 qfn=None, state_fn=None, key_fn=None, turn_kind: str = "", legb_on: bool = False,
                 attached_event: Optional[str] = None, focus_driver: str = "", named=(),
                 max_contracts: int = 2, width: int = 2, alternative_rank: bool = False,
-                pg_live: bool = True, recency_facts: bool = True, analog_reads: bool = False):
+                pg_live: bool = True, recency_facts: bool = True, analog_reads: bool = False,
+                subject=None):
     """Build the board and run STAGE 1. Returns a :class:`state.board.Board`, or ``None`` when the
     turn cannot carry one at all (no graph, no as-of, no subgraph).
 
@@ -104,7 +197,17 @@ def fill_stage1(*, graph, sg, asof: str, mode: str, query: str = "", lane: str =
     ``analog_reads`` states whether THIS caller wires an analog producer (`benchmark_fn` /
     `receipt_fn` at stage 2). It defaults FALSE here because the serving seam wires neither, and a
     reserved seat no producer can spend is a read on the walk's ceiling that nothing can ever pay --
-    the leg-B rider, one column pair over (design 3.8; S6 review, major 7)."""
+    the leg-B rider, one column pair over (design 3.8; S6 review, major 7).
+
+    ``subject`` (SUBJECT RESOLVER D6) is the turn's resolved subject, threaded as an ARGUMENT for the
+    same reason `focus_driver` and `recency_facts` are -- ``check_state_seam`` clause (i) allows
+    exactly ONE environment name across this package, so the flag is read once at the answer seam.
+    It is a MAPPING ``{picked, hints, ambiguous}`` or a bare sequence of ids (the deck's short form);
+    ``None`` is absent and every line below is then the S6 build's own, character for character.
+
+    THE PICKS ANCHOR AND THE AMBIGUITY DECLINES, and they are two different states. Picks expand to
+    their groups and anchor; an ambiguity the PLANNER declined to resolve anchors nothing and stamps
+    ``subject_ambiguous`` with the two ids on its detail tail, so the render can name them and ask."""
     try:
         from leviathan.graphrag.state import walk as W
 
@@ -139,12 +242,17 @@ def fill_stage1(*, graph, sg, asof: str, mode: str, query: str = "", lane: str =
                      reason=off if off in ("pg_not_live", "recency_facts_off")
                      else f"lane_off:{off}")
             return bd
+        _sub = _subject_payload(subject)
         anchors = W.resolve_anchors(
             contracts=[c for c in (getattr(sg, "seeds", None) or []) if c],
             named=tuple(named or ()), attached_event=attached_event,
             focus_driver=str(focus_driver or ""), graph=graph,
             max_contracts=max(0, int(max_contracts or 0)),
-            positioning_ids=_positioning_ids())
+            positioning_ids=_positioning_ids(),
+            # OMIT-WHEN-OFF ONE LAYER DOWN: with no subject this is `()` and `resolve_anchors` takes
+            # the branch it took at S6, so the anchor set is the S6 build's own on every turn the
+            # resolver did not reach.
+            subject=_sub["picked"])
         # THE LANE IS THREADED, not re-spelled. It was a literal `"run_hybrid"` here while the caller's
         # real lane arrived at :66 and was read only by the off-lane test above -- a threaded fact
         # overwritten by a constant, inert today only because `Board.trace()` carries no lane field and
@@ -156,6 +264,7 @@ def fill_stage1(*, graph, sg, asof: str, mode: str, query: str = "", lane: str =
                     knobs=B.board_knobs_of(mode), width=width, legb_on=legb_on,
                     alternative_rank=alternative_rank, stage2=False,
                     analog_reads=bool(analog_reads))
+        _stamp_subject(bd, _sub, graph=graph, focus_driver=str(focus_driver or ""))
         return bd
     except Exception:                                   # noqa: BLE001 -- a board must never break a turn
         return None
@@ -255,6 +364,22 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
             calls = list(blk.calls)
         else:
             ana, wr, rec, text, calls = [], [], {}, "", []
+            # THE ONE BLOCK A DECLINED BOARD MAY MINT (SUBJECT RESOLVER D5), and it exists because the
+            # two halves of that decision landed on opposite sides of this gate. `_stamp_subject` takes
+            # the `subject_ambiguous` decline ONLY on an anchorless board -- the restraint is right, a
+            # board with markets to talk about must not be replaced by a question -- and this gate
+            # renders NOTHING without anchors. So the ONE board that could stamp the word was the one
+            # board guaranteed to produce no reader text, and D5's "the block's absence row says, in
+            # reader words, that the question may mean <name a> or <name b> and asks the reader to name
+            # one" held for nobody. It is minted through `render.Block` rather than as a bare string so
+            # the register fence grades it like every other row: a row that trips is CORRECTED, and a
+            # row whose whole content is two driver display names is exactly the class
+            # `register.internal_leaks` exists to grade.
+            _sj = getattr(bd, "subject", None) or {}
+            if _sj.get("declined") == "subject_ambiguous" and _sj.get("ambiguous"):
+                _b = R.Block(start=max(1, int(n_start)), e_start=max(1, int(e_start)))
+                _b.add(R.sb_subject_ambiguous(_sj.get("ambiguous") or ()), label="subject ambiguous")
+                text, calls = _b.text(), list(_b.calls)
         # THE SEAM'S OWN WALL WINS, and the first build's `or` discarded it (S6 review, major 11).
         # `walk._stage2` has already stamped slot 2 with the time IT spent, so `x or y` kept the inner
         # number and threw away the measurement that includes the tape read, the analogs, the watch
@@ -309,9 +434,11 @@ def counters(bd, *, block: str = "", analogs=(), watch=(), render_ms: float = 0.
     board_leg = legs.get("board") or {}
     fired = 1 if board_leg.get("outcome") == "fired" else 0
     out: dict = {"BoardFired": fired}
+    _subj = _subject_counters(bd)
     if not fired:
         # THE DECLINED HALF IS A MEASURED ONE, under the `reason` dimension 10.5 gives this counter.
         out["BoardDeclined"] = 1
+        out.update(_subj)                               # a DECLINED board still measured its subject
         return out
     from leviathan.graphrag.state.rows import status_word
 
@@ -370,6 +497,48 @@ def counters(bd, *, block: str = "", analogs=(), watch=(), render_ms: float = 0.
         out["MsBoardRender"] = int(_rms)
     if block:
         out["BoardBlockChars"] = len(block)
+    out.update(_subj)
+    return out
+
+
+def _subject_counters(bd) -> dict:
+    """The SUBJECT RESOLVER's four counters (D8), ABSENT-WHEN-INAPPLICABLE like every other key here.
+
+    NO NEW EMF RECORD AND NO NEW DIMENSION. They ride the board's own record at
+    ``orchestrator.py:2607-2621``, whose ``units`` line types any ``Ms``-prefixed key as Milliseconds
+    automatically -- which is why the timer is ``MsBoardSubject`` and not ``SubjectMs``. On a turn the
+    resolver did not run, ``Board.subject`` is empty and this returns ``{}``, so the metrics have no
+    zero-population to dilute and a census can tell "off" from "ran and found nothing"."""
+    sj = getattr(bd, "subject", None) or {}
+    if not sj:
+        return {}
+    hints = sj.get("hints") or {}
+    picked = sj.get("picked") or []
+    out: dict = {}
+    if picked:
+        out["BoardSubjectResolved"] = 1
+    # THE COUNTER MEASURES WHAT A READER WAS SHOWN, and the render mints the SB-X row on BOTH paths --
+    # the anchorless decline and the ambiguity carried beside an anchored board's own rows. Gating this
+    # on `declined` alone published the rarer half: an ambiguity on an ANCHORED board rendered a row
+    # and emitted no counter at all, so the metric and the block disagreed by construction on the more
+    # common of the two states.
+    if sj.get("ambiguous") or sj.get("declined") == "subject_ambiguous":
+        out["BoardSubjectAmbiguous"] = 1
+    # A DECLINED TIER IS ITS OWN MEASUREMENT, and it is the one the deploy gate cares about: `stale`
+    # and `missing` are the two words that mean the shipped artifact and the shipped graph disagree.
+    if str(hints.get("vocab_status") or "") in ("missing", "stale", "unreadable"):
+        out["BoardSubjectDeclined"] = 1
+    # A LITERAL ZERO IS NOT A MEASUREMENT ANYONE CAN AGGREGATE, and that is why this key is ABSENT
+    # below a millisecond rather than published as 0. `orchestrator.py:2619` types every `Ms`-prefixed
+    # key as MILLISECONDS, so a published 0 does not enter CloudWatch as "under half a millisecond" --
+    # it enters as a zero-latency SAMPLE, and a p50 built from a population of them says the resolver
+    # is free on turns where it in fact ran and took 0.4 ms. Absence costs nothing here because the
+    # timer is never the only witness that the tier ran: `BoardSubjectResolved`, `BoardSubjectDeclined`
+    # and `Board.trace()["subject"]["hints"]["ms"]` all still say so, and the trace keeps the fraction
+    # this key cannot carry. It is also `MsBoard`'s own idiom in this same function, applied here.
+    _ms = hints.get("ms")
+    if isinstance(_ms, (int, float)) and int(float(_ms)) >= 1:
+        out["MsBoardSubject"] = int(float(_ms))            # `int(ms)`, this file's own convention
     return out
 
 

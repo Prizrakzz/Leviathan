@@ -3142,11 +3142,21 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     assert _of[-1] == "fallback" and _nf[-1] == "fallback", (_of[-1], _nf[-1])
     assert _nf[:len(_of) - 1] == _of[:-1], (_of, _nf)          # every banked field, in order, unmoved
     _added = _nf[len(_of) - 1:-1]
-    assert _added in ([], ["price_extreme", "xl_kind", "xl_board", "xl_direction", "xl_since",
-                           "xl_scope", "xl_confidence"]), _added
+    _XL = ["price_extreme", "xl_kind", "xl_board", "xl_direction", "xl_since", "xl_scope",
+           "xl_confidence"]
+    # THE SUBJECT RESOLVER'S PAIR (2026-09-09) IS THE SECOND DECLARED APPEND, and it is admitted HERE,
+    # by name, rather than by loosening the join -- which is what this pin's own docstring demands
+    # ("Re-anchor on a named measurement, never by loosening the join"). It is admitted only in the
+    # position D-XL's own fields hold: at the TAIL, immediately before `fallback`, with an inert
+    # default, and with EVERY other section of the bank still byte-equal -- `planner_sys`, `plan_tool`,
+    # `system_deck` and `seam_kwarg_keys_off` are asserted unmoved above and they ARE unmoved, which is
+    # the flag-off byte-identity claim this bank exists to hold. `test_subject_resolver` carries the
+    # same claim a second way, against HEAD's own module loaded beside the tree's.
+    _SUBJ = ["subject", "subject_hints_n"]
+    assert _added in ([], _XL, _XL + _SUBJ), _added
     # ...and their TYPES and DEFAULTS, so an appended field cannot be a required one
     for name, typ, dflt in nb["plan_fields"][len(_of) - 1:-1]:
-        assert dflt in ("False", "None"), (name, typ, dflt)
+        assert dflt in ("False", "None", "()", "0"), (name, typ, dflt)
 
     # seam_block: byte-identical to the bank ONCE the D-XL kwarg block is cut out. This is the whole
     # of "E16 inserted a kwarg and moved nothing else", measured rather than promised.

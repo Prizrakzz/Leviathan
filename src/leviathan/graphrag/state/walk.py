@@ -328,10 +328,44 @@ def loud_set(rows, *, loud_k: int, alternative=False) -> list:
 # ---------------------------------------------------------------------------------------------------
 # 3.1 THE ANCHOR -- what the query decides, and nothing more
 # ---------------------------------------------------------------------------------------------------
+def subject_anchor_plan(graph, subject=(), *, expand: bool = True) -> tuple:
+    """``((slug, order_key, ids_on_that_board), ...)`` for a resolved subject, in the GRAPH's declared
+    order. Pure: zero reads, no state, no environment, and deterministic on every tie.
+
+    THE PICKS ARE EXPANDED TO THEIR GROUPS FIRST (SUBJECT RESOLVER D4). The planner names ONE id and
+    the estate carries four ids for fertilizer, three for crude, three for EUDR and five for
+    positioning -- different ids on different boards for one concept -- so an unexpanded pick answers
+    on the boards that happened to spell it that way and silently misses the rest. ``expand=False`` is
+    the deck's seat for measuring the difference, never a configuration.
+
+    THE ORDER IS ``_driver_anchor_order``'s, per id, merged by BEST key then slug. Not a per-id
+    concatenation: two ids of one group would then rank every board of the first ahead of every board
+    of the second, and the anchor ceiling would cut by alphabet. One board, one seat, best key wins."""
+    ids = tuple(str(i) for i in (subject or ()) if str(i or "").strip())
+    if not ids or graph is None:
+        return ()
+    if expand:
+        try:
+            from leviathan.graphrag.state import subject as SUBJ
+            ids = SUBJ.expand_group(ids, graph) or ids
+        except Exception:                               # noqa: BLE001 -- no group table is not an error;
+            pass                                        # the picks themselves are the honest fallback
+    best: dict = {}
+    carried: dict = {}
+    for did in sorted(ids):
+        for slug, key in _driver_anchor_order(graph, did):
+            carried.setdefault(slug, set()).add(did)
+            if slug not in best or key < best[slug]:
+                best[slug] = key
+    return tuple((slug, best[slug], tuple(sorted(carried[slug])))
+                 for slug in sorted(best, key=lambda s: (best[s], s)))
+
+
 def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = None,
                     focus_driver: str = "", graph=None, max_contracts: int = 2,
                     positioning_ids=(), cold_start: bool = False, cold_start_priced=None,
-                    cold_start_knobs: Optional[B.BoardKnobs] = None, key_fn=None) -> tuple:
+                    cold_start_knobs: Optional[B.BoardKnobs] = None, key_fn=None,
+                    subject=()) -> tuple:
     """The ANCHOR SET and every anchor's `source` (sec 3.1 + sec 16 Amendments 1 and 2).
 
     THE PRECEDENCE, and each step is a decision the design records:
@@ -345,6 +379,16 @@ def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = N
          STATE after wave 1, which is the ranking Amendment 1 asks for and which cannot exist before a
          read. `subject` rides every one of them: positioning's `context_only` rule (2.4 / D18) YIELDS
          when the query names the thing being explained.
+      2b. **A RESOLVED SUBJECT ANCHORS ITS GROUP** (SUBJECT RESOLVER D6), in `focus_driver`'s own
+         shape: every contract carrying any id of the subject's group, in the graph's declared order,
+         exempt from `max_contracts` for exactly the reason a `focus_driver` set is -- those contracts
+         are not PLANNED, they are read off the graph -- and bounded by the tier's own
+         `BoardKnobs.max_anchors`, which `walk()` applies AFTER this function and which holds only the
+         EXPLICIT sources. A subject is an inference about a typed phrase, so it is cut before an
+         attachment and before a market the user named, which is the doctrine and not a convenience.
+         **AN FE `focus_driver` OUTRANKS IT AND NEVER SILENCES IT**: when both are present and DIFFER,
+         BOTH anchor (the precedence orders them) and `Board.trace()['subject']['vs_focus']` says
+         `differ`. A silent override is the exact class `Anchor.named` was added to close.
       3. **NAMED MARKETS ARE ALL ANCHORS** (Amendment 2). `MAX_CONTRACTS` (dispatch.py:47) exists to
          bound the PLANNER's own enumeration against the composition ceiling; under the board it keeps
          that job for INFERRED seeds and stops truncating what the user NAMED. A question naming wheat,
@@ -370,7 +414,7 @@ def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = N
     inferred is a NAMED anchor and is never truncated."""
     picked: dict = {}
 
-    def _add(slug, source, *, rank=0, driver_id="", subject=False, note=""):
+    def _add(slug, source, *, rank=0, driver_id="", subject=False, group=(), note=""):
         slug = str(slug or "").strip()
         if not slug:
             return
@@ -380,21 +424,42 @@ def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = N
         # TYPED which also carries the attached driver would otherwise keep no record of having been
         # typed -- and the anchor ceiling would cut it in favour of the driver's own tail.
         was_named = bool(prior is not None and prior.named) or source == "named"
+        # `group` IS MONOTONIC ACROSS THE COLLAPSE for the same reason `named` is: the precedence ranks
+        # `focus_driver` ABOVE `subject`, so a board that is BOTH -- the driver the user attached, on a
+        # board the resolved subject's group also reaches -- would otherwise keep no record of which
+        # subject id it carries, and the render could not say which name it answered under.
+        was_group = tuple(sorted(set(getattr(prior, "group", ()) or ()) | set(group or ())))
         if prior is not None and B.ANCHOR_SOURCES.index(prior.source) <= B.ANCHOR_SOURCES.index(source):
-            if was_named and not prior.named:
-                picked[slug] = replace(prior, named=True)
+            if (was_named and not prior.named) or was_group != tuple(prior.group or ()):
+                picked[slug] = replace(prior, named=was_named or prior.named, group=was_group)
             return
         picked[slug] = B.Anchor(contract=slug, source=source, rank=rank, driver_id=driver_id,
-                                subject=subject, named=was_named, note=note)
+                                subject=subject, named=was_named, group=was_group, note=note)
 
     if attached_event:
         _add(attached_event, "attached_event", note="attached to the question")
 
     if focus_driver and graph is not None:
-        subject = str(focus_driver) in set(positioning_ids or ())
+        # RENAMED FROM `subject` AT THE RESOLVER LANDING, and the rename is load-bearing rather than
+        # tidy: this line REBOUND the function's own `subject` parameter -- the picked driver ids --
+        # to a BOOL, so every subject anchor below silently disappeared on any turn that also carried
+        # an FE `focus_driver`. Two facts, one name, and the collision was invisible because both
+        # values are truthy-looking. The `Anchor` FIELD is still `subject` (positioning's
+        # `context_only` exception, Amendment 1); only this local moves.
+        _fd_is_subject = str(focus_driver) in set(positioning_ids or ())
         for i, (slug, _terms) in enumerate(_driver_anchor_order(graph, focus_driver)):
-            _add(slug, "focus_driver", rank=i, driver_id=str(focus_driver), subject=subject,
+            _add(slug, "focus_driver", rank=i, driver_id=str(focus_driver), subject=_fd_is_subject,
                  note="carries the driver the question names")
+
+    # THE RESOLVED SUBJECT, ADDED BEFORE THE INFERRED LOOP AND THAT IS THE EXEMPTION. `inferred` below
+    # is `contracts` MINUS what is already picked, so a board anchored here never spends one of
+    # `max_contracts`' seats -- the same structural exemption `focus_driver` gets, expressed the same
+    # way rather than by a second carve-out.
+    _pos = set(positioning_ids or ())
+    for i, (slug, _key, _ids) in enumerate(subject_anchor_plan(graph, subject)):
+        _add(slug, "subject", rank=i, driver_id=(_ids[0] if len(_ids) == 1 else ""),
+             subject=bool(_pos & set(_ids)), group=_ids,
+             note="carries the driver the question is about")
 
     for i, slug in enumerate(named or ()):
         _add(slug, "named", rank=i, note="named in the question")
@@ -415,8 +480,13 @@ def resolve_anchors(*, contracts=(), named=(), attached_event: Optional[str] = N
         for i, slug in enumerate(priced.get("boards") or ()):
             _add(slug, "board_loudest", rank=i, note="no market was named")
 
-    order = {s: i for i, s in enumerate(B.ANCHOR_SOURCES)}
-    return tuple(sorted(picked.values(), key=lambda a: (order[a.source], a.rank, a.contract)))
+    # THE ORDER IS `ANCHOR_ORDER`'s AND NOT THE PRECEDENCE'S (SUBJECT RESOLVER D6 amendment). The two
+    # were one tuple until the resolver landed, and reading the precedence as the position put the
+    # subject's thirty-four fan-out boards AHEAD of the board the question named -- measured on D6's
+    # own example ("what does the pacific warming do to corn" opened on `robusta_coffee`, with
+    # `corn_cbot` in the last surviving seat at every tier). The precedence still decides the WORD and
+    # the trim; `ANCHOR_ORDER` decides who leads. With no subject the two agree seat for seat.
+    return tuple(sorted(picked.values(), key=B.anchor_order_key))
 
 
 def _driver_anchor_order(graph, driver_id: str) -> list:
@@ -443,26 +513,45 @@ def _driver_of(graph, contract: str, driver_id: str):
 
 
 def rank_driver_anchors(bd: B.Board) -> None:
-    """AMENDMENT 1's ranking, applied AFTER wave 1: a `focus_driver` anchor set is ordered by THAT
-    DRIVER'S OWN STATE on each contract (the 3.2 tuple over the driver's row on that board).
+    """AMENDMENT 1's ranking, applied AFTER wave 1: a DRIVER anchor set is ordered by THAT DRIVER'S
+    OWN STATE on each contract (the 3.2 tuple over the driver's row on that board).
 
     IT RUNS IN STAGE 1 AND NOT AT ANCHOR TIME because the state does not exist at anchor time, and a
     ranking asserted before its input is a ranking of the alphabet. Anchors from every other source
-    keep their arrival order -- that order is the planner's, and the board does not re-plan."""
-    did = bd.subject_driver
-    if not did:
+    keep their arrival order -- that order is the planner's, and the board does not re-plan.
+
+    BOTH DRIVER SOURCES, ONE PASS EACH (SUBJECT RESOLVER D6 amendment). This function filtered
+    ``a.source == "focus_driver"`` twice over, so a RESOLVED subject's boards kept the graph-declared
+    order the anchor pass gave them and the amendment's "then the subject's OTHER boards ranked by the
+    subject driver's own state after wave 1" had no producer. Each source is ranked against its own
+    driver and inside its own block: the two never interleave, because :data:`board.ANCHOR_ORDER` seats
+    them apart and this function only moves ``rank`` WITHIN a source."""
+    for source in B.DRIVER_ANCHOR_SOURCES:
+        _rank_one_driver_source(bd, source)
+
+
+def _rank_one_driver_source(bd: B.Board, source: str) -> None:
+    """:func:`rank_driver_anchors` for ONE source. Separate so the two passes cannot share a variable
+    and so an anchor set with no rows under this source leaves every other source untouched."""
+    anchors = [a for a in bd.anchors if a.source == source]
+    if not anchors:
         return
+    key = rank_key_for(bd.rank_rule)
     pos = {}
-    for a in bd.anchors:
-        if a.source != "focus_driver":
-            continue
-        r = bd.row(a.contract, did)
+    for a in anchors:
+        # THE IDS THIS BOARD IS ANCHORED ON, not "the" driver: a resolved subject expands to its GROUP
+        # (D4) and a group of two or more declares no single `driver_id`, so the rank is the BEST of
+        # the group's own rows on this board. `subject_ids_on` is the one producer of that
+        # intersection; a `focus_driver` anchor carries exactly one id and takes the same path.
+        ids = list(bd.subject_ids_on(a.contract)) or (
+            [bd.subject_driver] if bd.subject_driver else [])
+        rows = [r for r in (bd.row(a.contract, i) for i in ids) if r is not None]
         # THE BOARD'S OWN TUPLE, not the shipped one by name: this ranking is "that driver's own state"
         # (Amendment 1), and under the alternative arm the driver's state is read by the alternative
         # tuple like every other rank consultation. The absent-row sentinel outranks nothing under
         # either tuple -- band 9 is past every coverage band there is.
-        key = rank_key_for(bd.rank_rule)
-        pos[a.contract] = key(r) if r is not None else (9, 0.0, 0.0, 0.0, 0.0, 0.0, did)
+        pos[a.contract] = min((key(r) for r in rows),
+                              default=(9, 0.0, 0.0, 0.0, 0.0, 0.0, (ids[0] if ids else "")))
     if not pos:
         return
     # THE PRIOR (graph-declared) ORDER IS THE TIE-BREAK, and it is load-bearing rather than tidy: a
@@ -470,17 +559,18 @@ def rank_driver_anchors(bd: B.Board) -> None:
     # anchor's state is IDENTICAL by construction and the state rank cannot separate them. Without this
     # term the set would fall back to alphabetical order and DISCARD the confidence-and-lag order
     # `_driver_anchor_order` computed off the graph.
-    prior = {a.contract: a.rank for a in bd.anchors if a.source == "focus_driver"}
+    prior = {a.contract: a.rank for a in anchors}
     ordered = sorted(pos, key=lambda c: (pos[c], prior.get(c, 0), c))
     seat = {c: i for i, c in enumerate(ordered)}
-    src = {s: i for i, s in enumerate(B.ANCHOR_SOURCES)}
     # `replace`, NEVER A RE-CONSTRUCTION: a field-by-field rebuild silently DROPS any field added
     # after it was written, which is exactly what happened to `Anchor.named` -- the re-rank threw away
     # the record that the user had typed this market, so the anchor ceiling then cut it. One ranking
     # moves one field.
-    new = [a if a.source != "focus_driver" else replace(a, rank=seat[a.contract])
-           for a in bd.anchors]
-    bd.anchors = tuple(sorted(new, key=lambda a: (src[a.source], a.rank, a.contract)))
+    new = [a if a.source != source else replace(a, rank=seat[a.contract]) for a in bd.anchors]
+    # AND THE RE-SORT TAKES `ANCHOR_ORDER` TOO. It read the PRECEDENCE, so a board whose subject
+    # anchors were re-ranked here would have been re-seated ahead of the market the question named --
+    # undoing, one stage later, exactly what `resolve_anchors` had just ordered correctly.
+    bd.anchors = tuple(sorted(new, key=B.anchor_order_key))
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -1418,8 +1508,33 @@ def _stage1(bd, graph, kn, *, key_fn, state_fn, turn_kind, width, positioning_id
     On every other turn it is ``None`` and the term is the anchor ordinal sec 3.8 declares."""
     t0 = time.perf_counter()
     key_fn = key_fn or _default_key_fn
-    subject_driver = bd.subject_driver
+    # THE SUBJECT ROWS, PER BOARD, FROM THE ANCHORS THEMSELVES (SUBJECT RESOLVER D6). This read
+    # `bd.subject_driver` and matched ONE id, which is the second reader of the `focus_driver`
+    # predicate the resolver's landing missed: on the FE path 6 of 6 `cot_mm_positioning` rows were
+    # marked and on the resolved-subject path 0 were, leaving a row `context_only` on the very turn
+    # whose subject it is. `subject_ids_on` answers for BOTH sources and for a GROUP -- five
+    # positioning ids are one subject, and the exception is owed to whichever of them a board carries.
+    #
+    # THE D6 AMENDMENT'S ROW-ORDER HALF IS PHASE B'S, AND THIS IS ITS EXACT SEAM (declared 2026-09-10,
+    # NOT built here). The amendment has two halves: "NAMED markets each with the subject's row LEADING
+    # INSIDE IT". The anchor-ORDER half is built and pinned (`board.ANCHOR_ORDER`, `anchor_order_key`,
+    # `resolve_anchors`'s sort, and the deck's "corn leads" test). The ROW-ORDER half needs three
+    # changes and every one of them moves a MEASURED quantity, which is why it is not taken in a fix
+    # round that can only re-read layer 1:
+    #   (i)   THIS LINE. `Anchor.subject` is the POSITIONING exception flag (Amendment 1), not "this
+    #         anchor carries the subject", so today only positioning rows are marked at all. Phase B
+    #         reads `a.source in B.DRIVER_ANCHOR_SOURCES` and takes the ids from `bd.subject_ids_on`,
+    #         which already answers for both driver sources and for a group.
+    #   (ii)  `rank_key_for` / `rank_rows` -- the ONE producer of within-board row order, stored by
+    #         `Board.set_order` and read by `render.render_board`'s `order` dict and by nothing else. A
+    #         subject-leading term is a new FIRST element of that tuple (`0 if row.subject else 1`),
+    #         applied per board so it cannot reorder boards against `ANCHOR_ORDER`.
+    #   (iii) `loud_set`, which re-ranks each board's rows with the same key and cuts at `loud_k`. A
+    #         row promoted to the front of a board therefore DISPLACES the loudest row that sat in the
+    #         last surviving seat -- a rendered-content change on every subject turn, at every tier,
+    #         which needs its own measurement and is exactly what layer 1 cannot grade.
     subject_slugs = {a.contract for a in bd.anchors if a.subject}
+    subject_ids = {c: set(bd.subject_ids_on(c)) for c in subject_slugs}
 
     # 0  rows = EVERY node of EVERY anchor DAG -- never filtered, whatever tier it lands in.
     priced, plans = [], {}
@@ -1430,7 +1545,7 @@ def _stage1(bd, graph, kn, *, key_fn, state_fn, turn_kind, width, positioning_id
             # POSITIONING AS SUBJECT (Amendment 1): `context_only` yields when the query names the
             # driver being explained. It is set on the ROW, so every consumer of the rule reads one
             # field rather than re-deriving the exception.
-            if subject_driver and d.id == subject_driver and a.contract in subject_slugs:
+            if d.id in subject_ids.get(a.contract, ()):
                 row.subject = True
             bd.rows.append(row)
             node = _WalkNode(a.contract, d)

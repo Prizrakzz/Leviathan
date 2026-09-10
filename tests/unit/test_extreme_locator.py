@@ -1119,11 +1119,22 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # append in this census whose dark value is `False` rather than `None`, because it is a SWITCH and
     # not a payload -- so the darkness check reads "the default is the falsy one this parameter's own
     # type declares" rather than "is None", which is what every one of these appends actually asserts.
-    for fn, name, after in ((an.answer, "xl_request", ("mode_name",)),
-                            (an._answer_l2, "xl_request", ("mode_name",)),
-                            (orc.run_reasoning, "xl_request", ("mode_name",)),
-                            (orc.run_hybrid, "xl_request", ("mode_name",)),
-                            (dp.plan_turn, "xl_kinds", ("named", "dedup"))):
+    #
+    # SUBJECT RESOLVER PHASE A RE-ANCHOR (2026-09-10), by exactly ONE more name on `an.answer` and
+    # `an._answer_l2` (`subject`, the threaded resolved subject -- a PAYLOAD dict, default None) and
+    # TWO on `dp.plan_turn` (`subject_ids` and `subject_hints`, the hint line's two halves), and
+    # WITHOUT loosening the join. The names are listed on the ORCHESTRATOR entries too even though
+    # phase A has not appended them there: `_post` filters `after` to the names the signature
+    # ACTUALLY carries, so each is optional -- the two orchestrator rows stay green today on
+    # `("mode_name",)` alone, and stay green after phase B threads `subject` through them, without a
+    # second edit to this census. That is the same optional-and-ordered rule the K9 appends ride, and
+    # it is why this file's re-anchors are additions rather than rewrites.
+    for fn, name, after in ((an.answer, "xl_request", ("mode_name", "subject")),
+                            (an._answer_l2, "xl_request", ("mode_name", "subject")),
+                            (orc.run_reasoning, "xl_request", ("mode_name", "subject")),
+                            (orc.run_hybrid, "xl_request", ("mode_name", "subject")),
+                            (dp.plan_turn, "xl_kinds", ("named", "dedup", "subject_ids",
+                                                        "subject_hints"))):
         _p = list(inspect.signature(fn).parameters)
         _post = [n for n in after if n in _p]
         assert _p[len(_p) - 1 - len(_post)] == name, (fn.__name__, _p[-4:])

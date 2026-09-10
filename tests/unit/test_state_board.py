@@ -268,9 +268,15 @@ def test_an_anchor_source_outside_the_closed_set_RAISES():
 
 def test_the_anchor_sources_are_in_PRECEDENCE_order_strongest_first():
     """An explicit gesture outranks the board (3.1); a driver anchor outranks a market the planner
-    merely inferred; cold start is last because it is what happens when nothing else did."""
-    assert B.ANCHOR_SOURCES == ("attached_event", "focus_driver", "named", "planner_inferred",
-                                "board_loudest")
+    merely inferred; cold start is last because it is what happens when nothing else did.
+
+    `subject` IS THE SUBJECT RESOLVER'S ONE WORD (D6, 2026-09-09), and its seat is the decision the
+    pin exists to hold: BELOW `focus_driver`, because an FE attachment is a CLICK and a resolved
+    subject is an INFERENCE about a typed phrase; ABOVE `named`, because a market the question names is
+    context for the CAUSE it asks about. `Anchor.__post_init__` raises on any word not in this tuple,
+    so the vocabulary edit is enforced at construction."""
+    assert B.ANCHOR_SOURCES == ("attached_event", "focus_driver", "subject", "named",
+                                "planner_inferred", "board_loudest")
 
 
 def test_an_empty_anchor_set_reports_anchor_none():
@@ -321,9 +327,14 @@ def test_read_empty_is_a_BARE_word_and_the_detail_set_is_only_what_sec_6_7_param
     assert "read_empty" in B.SERIES_REASONS and "read_empty" not in B.REASONS_WITH_DETAIL
     assert B.check_reason("series", "read_empty") is None
     assert B.check_reason("series", "read_empty:all_blank") is not None
+    # `subject_ambiguous` IS THE SEVENTH (SUBJECT RESOLVER D5, 2026-09-09) and the FIRST whose detail
+    # is not a count or a lane name: it carries two driver IDS, and `render.sb_subject_ambiguous` is
+    # the SECOND SENTENCE this set's own rule demands -- it names both drivers in reader words and asks
+    # the reader which they mean. Admitted with its render, which is the bar `read_empty` failed.
     assert B.REASONS_WITH_DETAIL == frozenset({
         "scope_unresolved", "thin_history", "history_truncated", "changes_thin", "percentile_thin",
-        "lane_off"})
+        "lane_off", "subject_ambiguous"})
+    assert B.check_reason("board", "subject_ambiguous:El_Nino|La_Nina") is None
     from leviathan.graphrag.state.rows import STATUS_WITH_DETAIL
     assert "read_empty" in STATUS_WITH_DETAIL, "the FEEDER's status set is a different set, unmoved"
 

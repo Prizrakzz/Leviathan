@@ -267,6 +267,13 @@ ABSENCE_WHY: dict = {
     "lane_off": "this turn does not run the board",
     "recency_facts_off": "the per-layer recency grammar this board's rows are written for is not "
                          "switched on for this turn",
+    # SUBJECT RESOLVER D5. THE ONLY ENTRY IN THIS MAP WHOSE WORD OWES A SECOND SENTENCE, and the
+    # sentence below is deliberately the HALF that does not name the drivers: `absence_why` drops
+    # every detail (each existing one is a count, and a count in a letters-only class is a digit), so a
+    # caller that reached this map by the ordinary route still gets a true, complete sentence.
+    # `sb_subject_ambiguous` is the row that adds the names.
+    "subject_ambiguous": "the question could be about either of two drivers this estate tracks, and "
+                         "it does not say which",
 }
 
 #: The fallback. It is deliberately a SENTENCE and not the raw word: a reader must never be shown a
@@ -1134,6 +1141,47 @@ def sb_absence(label: str, reason: str) -> str:
     return f"BOARD ABSENCE {label}: {absence_why(reason)}."
 
 
+def sb_subject_ambiguous(driver_ids, *, label: str = "subject") -> str:
+    """SB-X, THE CARRIED-AMBIGUITY ROW (SUBJECT RESOLVER D5). A GENUINELY NEW SHAPE, not a reuse.
+
+    WHY ``sb_absence`` CANNOT DO IT. :func:`absence_why` drops the ``:detail`` tail on purpose -- every
+    other detail in the estate is a COUNT, and a count in a letters-only class is a digit a writer may
+    copy into a claim. THIS detail is two driver NAMES, which is the whole content of the row: an
+    absence line reading "the question could be about either of two drivers" and then not saying which
+    two tells the reader nothing they can act on. So the word keeps its own sentence in
+    :data:`ABSENCE_WHY` (true and complete on its own, for every caller that reaches it by the ordinary
+    route) and this builder adds the second sentence with the names.
+
+    THE NAMES ARE READER WORDS AND NOT IDS. :func:`humanise` is the estate's ONE display vocabulary;
+    printing ``el_nino`` here would trip ``register.internal_leaks``, which is never relaxable, on a row
+    whose entire job is to be read. The ids ride the board's TRACE and the ``:detail`` tail only, and
+    ``seam.reason_dimension`` cuts that tail at the colon so two ids joined by a pipe can never become
+    an unbounded CloudWatch dimension value.
+
+    IT ASKS. That is the owner's word -- ambiguity is CARRIED into the answer and the reader is asked
+    to name one -- and it is why this row, alone among the absences, addresses the reader directly.
+
+    AND IT COUNTS. :data:`ABSENCE_WHY`'s sentence for this word says "EITHER OF TWO drivers", which is
+    true of the state D5 usually carries and false of a one-id carry -- and a one-id carry is reachable
+    (``AMBIG_FLOOR`` is a floor, not a pair rule: one candidate can clear it while the planner still
+    picks nothing). The plural sentence then printed "either of two drivers ... It could mean El Nino",
+    which counts to two and then names one. So the singular gets its OWN sentence here rather than the
+    closed word getting a second entry: :data:`ABSENCE_WHY` is one sentence per word by construction,
+    and the word is the same fact either way -- the reader was not told which driver the question
+    means."""
+    names = [humanise(d) for d in (driver_ids or ()) if str(d or "").strip()]
+    if not names:
+        return sb_absence(label, "subject_ambiguous")
+    if len(names) == 1:
+        return (f"BOARD ABSENCE {label}: the question may be about a driver this estate tracks and "
+                f"does not name it outright. It could mean {names[0]}; say so and this board opens "
+                f"on it.")
+    joined = (" or ".join(names) if len(names) < 3
+              else ", ".join(names[:-1]) + " or " + names[-1])
+    return (f"BOARD ABSENCE {label}: {absence_why('subject_ambiguous')}. It could mean {joined}; "
+            f"name the one you mean and this board opens on it.")
+
+
 # ---------------------------------------------------------------------------------------------------
 # THE REPLACEMENT FENCE (sec 6.6) -- CORRECT, never delete
 # ---------------------------------------------------------------------------------------------------
@@ -1779,6 +1827,16 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         elif note.get("kind") == "edge_hop_cap":
             b.add(sb_absence("the link direction this tier does not walk", "edge_hop_cap"),
                   label="edge hop cap")
+        elif note.get("kind") == "subject_ambiguous":
+            # THE CARRIED AMBIGUITY (SUBJECT RESOLVER D5), AND IT IS THE ONE NOTE THAT IS NOT A CUT.
+            # Every other branch above names rows or boards a ceiling dropped; this one names a
+            # question the estate could not read -- two drivers a typed phrase could mean, which the
+            # planner declined to choose between. The note was appended by `seam._stamp_subject` and
+            # had NO branch here at all, so the row `sb_subject_ambiguous` exists to mint reached no
+            # reader on any turn: the stamp fired, the counter incremented, the trace carried both ids,
+            # and the block said nothing. That is the silent-decline class this board's whole closed
+            # decline vocabulary exists to close, so it is consumed here beside every other note.
+            b.add(sb_subject_ambiguous(note.get("ids") or ()), label="subject ambiguous")
     return b
 
 
