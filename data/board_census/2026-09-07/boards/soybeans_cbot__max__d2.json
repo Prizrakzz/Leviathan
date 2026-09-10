@@ -1,16 +1,16 @@
 {
- "block_text": "STATE OF THE WORLD at 2026-09-07 for CBOT soybeans: seventeen drivers read on their own series, zero carried as dated receipts; ordered by how far each reading sits from its own history on its own window, then by the graph's declared confidence.\n- [N1] cot mm positioning on CBOT soybeans, COT for 2026-08-25: 200679 contracts; [N2] +1.7 sigma on its trailing window of one hundred fifty-six weeks; [N3] 95th percentile of its own record; rising in each of the last two weeks; past the line the desk convention calls top decile; historical context only: this row is what the reporting funds held, never a cause the graph declares [series: CBOT soybeans; table: COT]\n- cot mm positioning is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- [N4] Brazil export tax on CBOT soybeans, USDA PSD for 2026: 118000000 MMT; [N5] +1.6 sigma on its trailing window of ten marketing years; [N6] 99th percentile of its own record; rising in each of the last two marketing years [series: CBOT soybeans; country: Brazil; table: USDA PSD]\n- Brazil export tax is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to two quarters, at low confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2024 and closes around June 2025; that window closed on 2025-06-30\n- [N7] China state reserves on CBOT soybeans, USDA PSD for 2026: 44359000 MMT; [N8] +1.4 sigma on its trailing window of ten marketing years; [N9] 98th percentile of its own record; falling over the last marketing year [series: CBOT soybeans; country: China; table: USDA PSD]\n- China state reserves is declared to move CBOT soybeans with no committed direction with a lag the graph states as zero to two quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2025 and closes around June 2026; that window closed on 2026-06-30\n- [N10] El Nino on CBOT soybeans, NOAA ONI for 2026-05: +0.98 degC; [N11] +1.4 sigma on its trailing window of one hundred twenty months; [N12] 86th percentile of its own record; rising in each of the last six months; past the line the desk convention calls elevated; read from a table revised in place; the value as known at 2026-09-07 is not recoverable and is shown as revised through 2026-09-10 [series: CBOT soybeans; table: NOAA ONI]\n- El Nino is declared to move CBOT soybeans in the opposite direction with a lag the graph states as one to two quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in November 2025, the effect window on CBOT soybeans opens around February 2026 and closes around May 2026; that window closed on 2026-05-30\n- [N13] La Nina on CBOT soybeans, NOAA ONI for 2026-05: +0.98 degC; [N14] +1.4 sigma on its trailing window of one hundred twenty months; [N15] 86th percentile of its own record; rising in each of the last six months; past the line the desk convention calls elevated; read from a table revised in place; the value as known at 2026-09-07 is not recoverable and is shown as revised through 2026-09-10 [series: CBOT soybeans; table: NOAA ONI]\n- La Nina is declared to move CBOT soybeans in the same direction with a lag the graph states as one to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in November 2025, the effect window on CBOT soybeans opens around February 2026 and closes around May 2026; that window closed on 2026-05-30\n- [N16] TRQ soybeans on CBOT soybeans, USDA PSD for 2026: 4300000 MMT; [N17] +1.2 sigma on its trailing window of ten marketing years; [N18] 99th percentile of its own record; rising in each of the last four marketing years [series: CBOT soybeans; country: Thailand; table: USDA PSD]\n- TRQ soybeans is declared to move CBOT soybeans in the same direction with a lag the graph states as one to four quarters, at low confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around March 2023 and closes around December 2023; that window closed on 2023-12-31\n- [N19] flash drought on CBOT soybeans, GOLD WEATHER Z for 2026-07: 0.6 z; [N20] +1.1 sigma on its trailing window of one hundred twenty months; [N21] 85th percentile of its own record; rising over the last month; past the line the desk convention calls notable [series: CBOT soybeans; country: United States; table: GOLD WEATHER Z]\n- flash drought is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in June 2026, the effect window on CBOT soybeans opens around June 2026 and closes around September 2026\n- [N22] export pace lag on CBOT soybeans, USDA FAS Export Sales (ESR) for 2026-08-13: 405.15 1000 MT; [N23] -1.1 sigma on its trailing window of fifty-two weeks; [N24] 10th percentile of its own record; rising over the last week; past the line the desk convention calls behind [series: CBOT soybeans; table: USDA FAS Export Sales (ESR)]\n- export pace lag is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at high confidence\n- conditional on the lag the graph states, counted from the run's start in August 2026, the effect window on CBOT soybeans opens around August 2026 and closes around November 2026\n- [N25] psd ending stock su ratio on CBOT soybeans, USDA PSD for 2026: 0.11 %; [N26] -0.6 sigma on its trailing window of ten marketing years; [N27] 25th percentile of its own record; falling in each of the last three marketing years; past the line the desk convention calls tight [series: CBOT soybeans; country: United States; table: USDA PSD]\n- psd ending stock su ratio is declared to move CBOT soybeans in the opposite direction with a lag the graph states as zero to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2023 and closes around June 2024; that window closed on 2024-06-30\n- [N28] crude oil on CBOT soybeans, World Bank Pink Sheet for 2026-07-01 2026M08: -0.01 z; [N29] -0.6 sigma on its trailing window of sixty months; [N30] 47th percentile of its own record; falling in each of the last three months [series: CBOT soybeans; table: World Bank Pink Sheet]\n- crude oil is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to two quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in April 2026, the effect window on CBOT soybeans opens around April 2026 and closes around October 2026\n- [N31] board crush on CBOT soybeans, GOLD BOARD CRUSH for 2026-08-20 cbot_board_crush_v1: 2.6 USD/bu; [N32] +0.6 sigma on its trailing window of two hundred fifty sessions; [N33] 92nd percentile of its own record; rising over the last session; past the line the desk convention calls high; read through 2026-08-21, 17-day span to this as-of [series: CBOT soybeans; table: GOLD BOARD CRUSH]\n- board crush is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in August 2026, the effect window on CBOT soybeans opens around August 2026 and closes around November 2026\n- [N34] soybean crush margin on CBOT soybeans, GOLD BOARD CRUSH for 2026-08-20 cbot_board_crush_v1: 2.6 USD/bu; [N35] +0.6 sigma on its trailing window of two hundred fifty sessions; [N36] 92nd percentile of its own record; rising over the last session; past the line the desk convention calls high; read through 2026-08-21, 17-day span to this as-of [series: CBOT soybeans; table: GOLD BOARD CRUSH]\n- soybean crush margin is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at high confidence\n- conditional on the lag the graph states, counted from the run's start in August 2026, the effect window on CBOT soybeans opens around August 2026 and closes around November 2026\n- [N37] Argentina production on CBOT soybeans, USDA PSD for 2026: 50000000 MMT; [N38] +0.5 sigma on its trailing window of ten marketing years; [N39] 85th percentile of its own record; rising over the last marketing year [series: CBOT soybeans; country: Argentina; table: USDA PSD]\n- Argentina production is declared to move CBOT soybeans in the opposite direction with a lag the graph states as one to three quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around March 2026 and closes around September 2026\n- [N40] area on CBOT soybeans, USDA PSD for 2026: 34714 M ha; [N41] +0.4 sigma on its trailing window of ten marketing years; [N42] 91st percentile of its own record; rising over the last marketing year [series: CBOT soybeans; country: United States; table: USDA PSD]\n- area is declared to move CBOT soybeans in the opposite direction with a lag the graph states as two to four quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around June 2026 and closes around December 2026\n- [N43] Argentina export registration on CBOT soybeans, USDA PSD for 2026: 6450000 MMT; [N44] +0.1 sigma on its trailing window of ten marketing years; [N45] 61st percentile of its own record; falling over the last marketing year [series: CBOT soybeans; country: Argentina; table: USDA PSD]\n- Argentina export registration is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2025 and closes around March 2026; that window closed on 2026-03-31\n- [N46] Argentina export tax on CBOT soybeans, USDA PSD for 2026: 6450000 MMT; [N47] +0.1 sigma on its trailing window of ten marketing years; [N48] 61st percentile of its own record; falling over the last marketing year [series: CBOT soybeans; country: Argentina; table: USDA PSD]\n- Argentina export tax is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2025 and closes around June 2026; that window closed on 2026-06-30\n- [N49] early frost on CBOT soybeans, GOLD WEATHER Z for 2026-07: 8 events in its last one hundred twenty months; the last was dated 2026-05 [series: CBOT soybeans; country: United States; table: GOLD WEATHER Z]\n- early frost is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- conditional on the lag the graph states, counted from this reading's own date in July 2026, the effect window on CBOT soybeans opens around July 2026 and closes around October 2026\nBOARD JOIN board crush and soybean crush margin on CBOT soybeans: these are read on ONE series and the rows above print the SAME reading under each name. They are phases of one series and not separate readings.\nBOARD JOIN Argentina export registration and Argentina export tax on CBOT soybeans: these are read on ONE series and the rows above print the SAME reading under each name. They are phases of one series and not separate readings.\nBOARD JOIN El Nino and La Nina on CBOT soybeans: these are read on ONE series and the rows above print the SAME reading under each name. The graph declares them opposite signs on this board, which is what two phases of one series means; they are not two readings that disagree.\nUPSTREAM export pace lag -> psd ending stock su ratio -> CBOT soybeans: the graph places export pace lag one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to one quarter; the measured rows on it are [N22][N25]\nUPSTREAM export pace lag -> wasde direct revisions -> CBOT soybeans: the graph places export pace lag one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to one quarter; the measured rows on it are [N22]\nUPSTREAM soybean crush margin -> psd ending stock su ratio -> CBOT soybeans: the graph places soybean crush margin one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to one quarter; the measured rows on it are [N34][N25]\nUPSTREAM China import tariff -> export pace lag -> CBOT soybeans: the graph places China import tariff one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N22]\nUPSTREAM drought -> psd ending stock su ratio -> CBOT soybeans: the graph places drought one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N25]\nUPSTREAM drought -> conab production revision -> CBOT soybeans: the graph places drought one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; no row on it carries a measured state\nUPSTREAM drought -> wasde direct revisions -> CBOT soybeans: the graph places drought one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; no row on it carries a measured state\nUPSTREAM heat stress -> psd ending stock su ratio -> CBOT soybeans: the graph places heat stress one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N25]\n- the same reading is declared on thirteen other boards: in the same direction on thirteen (BMF arabica coffee, CBOT soybean meal, CBOT soybean oil, CBOT srw wheat, DCE soybean meal, DCE soybean oil, DCE soybeans, DCE soybeans, ICE arabica coffee, KCBT hrw wheat, MATIF french wheat, MGEX hrs wheat, soybeans)\n- the same reading is declared on two other boards: in the same direction on two (ICE raw sugar, ICE robusta coffee)\n- Brazil export tax is declared to move ICE raw sugar in the same direction with a lag the graph states as zero to two quarters, at low confidence\n- Brazil export tax is declared to move ICE robusta coffee in the same direction with a lag the graph states as zero to two quarters, at low confidence\n- the same reading is declared on eight other boards: with no committed direction on eight (BMF corn, CBOT corn, DCE soybean oil, DCE soybeans, DCE soybeans, ICE cotton, KCBT hrw wheat, corn)\n- China state reserves is declared to move BMF corn with no committed direction with a lag the graph states as zero to two quarters, at low confidence\n- China state reserves is declared to move corn with no committed direction with a lag the graph states as zero to two quarters, at medium confidence\n- the same reading is declared on thirty-four other boards: in the opposite direction on twenty-eight (BMF arabica coffee, BMF corn, CBOT corn, CBOT soybean meal, CBOT soybean oil, CBOT srw wheat, DCE soybean meal, DCE soybean oil, DCE soybeans, DCE soybeans, ICE arabica coffee, ICE canola, ICE cotton, ICE orange juice, ICE raw sugar, ICE white sugar, JSE yellow maize, KCBT hrw wheat, MATIF corn, MATIF rapeseed, MGEX hrs wheat, ZCE rapeseed meal, ZCE rapeseed oil, barley, corn, sorghum, soybeans, sunflower oil) and in the same direction on the rest (CBOT rice, CME palm oil, DCE palm olein, ICE cocoa, ICE robusta coffee, JSE white maize)\n- El Nino is declared to move ICE cocoa in the same direction with a lag the graph states as one to three quarters, at medium confidence -- the same reading this board carries, read on that graph's own edge\n- El Nino is declared to move CME palm oil in the same direction with a lag the graph states as two to four quarters, at high confidence -- the same reading this board carries, read on that graph's own edge\n- the same reading is declared on thirty-three other boards: in the same direction on twenty-nine (BMF arabica coffee, BMF corn, CBOT corn, CBOT rice, CBOT soybean meal, CBOT soybean oil, CBOT srw wheat, DCE soybean meal, DCE soybean oil, DCE soybeans, DCE soybeans, ICE arabica coffee, ICE canola, ICE cocoa, ICE cotton, ICE orange juice, ICE raw sugar, ICE robusta coffee, ICE white sugar, KCBT hrw wheat, MATIF corn, MGEX hrs wheat, ZCE rapeseed meal, ZCE rapeseed oil, barley, corn, sorghum, soybeans, sunflower oil) and in the opposite direction on the rest (CME palm oil, DCE palm olein, JSE white maize, JSE yellow maize)\n- La Nina is declared to move JSE white maize in the opposite direction with a lag the graph states as one to three quarters, at high confidence -- the same reading this board carries, read on that graph's own edge\n- La Nina is declared to move JSE yellow maize in the opposite direction with a lag the graph states as one to three quarters, at high confidence -- the same reading this board carries, read on that graph's own edge\n- the same reading is declared on eighteen other boards: in the same direction on eighteen (BMF arabica coffee, BMF corn, CBOT corn, CBOT soybean meal, CBOT srw wheat, DCE soybean meal, DCE soybean oil, DCE soybeans, ICE arabica coffee, ICE canola, JSE white maize, JSE yellow maize, KCBT hrw wheat, MATIF corn, MATIF french wheat, MGEX hrs wheat, corn, soybeans)\n- flash drought is declared to move BMF corn in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- flash drought is declared to move corn in the same direction with a lag the graph states as zero to one quarter, at medium confidence\nBOARD ABSENCE the far boards past this tier's spillover cut (BMF arabica coffee, BMF corn, CBOT corn, CBOT rice, CBOT soybean meal, CBOT soybean oil, CBOT srw wheat, DCE palm olein, DCE soybean meal, DCE soybean oil, DCE soybeans, ICE arabica coffee, ICE canola, ICE cotton, ICE orange juice, ICE raw sugar, ICE robusta coffee, ICE white sugar, JSE white maize, KCBT hrw wheat, MATIF french wheat, MATIF rapeseed, MGEX hrs wheat, ZCE rapeseed oil, barley, corn, soybeans): the far boards past this tier's fan are named here; their own states were not read.\nCROSS-COMMODITY: the loud readings on CBOT soybeans are declared on eight other markets -- BMF corn, CME palm oil, ICE cocoa, ICE raw sugar, ICE robusta coffee, JSE white maize, JSE yellow maize, corn -- and each of the rows above carries that market's own sign words and the lag words the graph states for it.\n- trade-war demand loss (price-pressuring) on CBOT soybeans: four of its four declared drivers sit among this board's twenty-four loudest rows (export pace lag, China state reserves, each with its own [N] z); two of them carry no series this board could read (China import tariff, section301 tariffs); the pattern's own threshold is two; one carries a declared desk band\n  amplifier on CBOT soybeans: China import tariff, export pace lag all sit among this board's loudest rows; the graph records the effect as amplifies; China import tariff carries no series this board could read -- Chinese tariffs on US origin collapse US export sales pace, building US carryout and pressuring the CBOT benchmark while Brazil premiums firm.\n  amplifier on CBOT soybeans: section301 tariffs, China state reserves all sit among this board's loudest rows; the graph records the effect as amplifies; section301 tariffs carries no series this board could read -- Tariff escalation plus Chinese reserve releases compound demand destruction for US beans.\n- supply glut (price-pressuring) on CBOT soybeans: three of its five declared drivers sit among this board's twenty-four loudest rows (area, psd ending stock su ratio, each with its own [N] z); one of them carries no series this board could read (USD index); the pattern's own threshold is three; one carries a declared desk band\n- South American weather squeeze (price-supportive) on CBOT soybeans: three of its five declared drivers sit among this board's twenty-four loudest rows (psd ending stock su ratio, with its own [N] z); two of them carry no series this board could read (drought, heat stress); the pattern's own threshold is three; one carries a declared desk band\n  amplifier on CBOT soybeans: La Nina, drought all sit among this board's loudest rows; the graph records the effect as amplifies; drought carries no series this board could read -- La Nina is the teleconnection forcing the South American drought, so co-occurrence confirms causal yield risk rather than noise.\n  amplifier on CBOT soybeans: drought, heat stress all sit among this board's loudest rows; the graph records the effect as amplifies; drought, heat stress carry no series this board could read -- Combined heat and moisture deficit during pod fill produces non-linear yield loss far exceeding either alone.\n- crush demand-pull rally (price-supportive) on CBOT soybeans: three of its seven declared drivers sit among this board's twenty-four loudest rows (soybean crush margin, board crush, crude oil, each with its own [N] z); the pattern's own threshold is two; two carry a declared desk band\n- US drought (price-supportive) on CBOT soybeans: two of its five declared drivers sit among this board's twenty-four loudest rows (flash drought, with its own [N] z); one of them carries no series this board could read (heat stress); the pattern's own threshold is three; one carries a declared desk band\n  amplifier on CBOT soybeans: flash drought, heat stress all sit among this board's loudest rows; the graph records the effect as amplifies; heat stress carries no series this board could read -- Rapid August moisture loss with heat during pod fill collapses US yield potential before any mitigation.\n- [N50] CBOT soybeans front 2026-11 settle on 2026-09-04: 1309.75 US cents/bushel; [N51] -6.5 over one session on the same contract; [N52] 21.75 over five sessions on the same contract; [N53] 117.5 over twenty-one sessions on the same contract; [N54] 132 over sixty-three sessions on the same contract; [N55] the level at the 99th percentile of the window this read fetched (324 sessions on 2026-11, 2025-05-19 to 2026-09-04); the standings that name their own populations and realised volatility are not served yet and are not claimed here\nLIKE STATE El Nino on CBOT soybeans: the series sat like this in October 2025; the record carries two such crossings since 2015; each move below is read over the band the graph declares for the leg it names, and the row prints that band; measured on the record as revised through September 2026\n- [N56] Argentina production on CBOT soybeans over the band the graph declares from that state, one to two quarters: moved 500000 MMT by the near end; [N57] moved 500000 MMT by the far end\nLIKE STATE El Nino on CBOT soybeans: the corpus holds no dated document for this window; the figures above stand on the series alone\nLIKE STATE La Nina on CBOT soybeans: the series sat like this in October 2025; the record carries two such crossings since 2015; each move below is read over the band the graph declares for the leg it names, and the row prints that band; measured on the record as revised through September 2026\n- [N58] flash drought on CBOT soybeans over the band the graph declares from that state, one to two quarters: moved 0.22 z by the near end; [N59] moved 0.41 z by the far end\nLIKE STATE La Nina on CBOT soybeans: the corpus holds no dated document for this window; the figures above stand on the series alone\nBOARD ABSENCE a like state on this board: no past state on this series is like this one under the likeness rule.\n- WATCH the next scheduled print cot mm positioning on CBOT soybeans (COT): scheduled on the publisher's own weekday -- 2026-09-11\n- [N60] WATCH the level a convention names El Nino on CBOT soybeans: 0.02 degC under the moderate line at 1 degC -- 2026-05\n- WATCH a declared lag window cot mm positioning on CBOT soybeans: the zero to one quarter window the graph declares, counted from that reading's own date, opens and closes on these dates -- 2026-08-11 to 2026-11-11\n- WATCH what the record did after a like state El Nino on CBOT soybeans: after the like state dated 2025-10, Argentina production on CBOT soybeans was read at the far end of that declared band -- 2026\n- WATCH the next scheduled print Brazil export tax on CBOT soybeans (USDA PSD): scheduled inside the publisher's own monthly window, on these dates -- 2026-09-09 to 2026-09-12\n- [N61] WATCH the level a convention names La Nina on CBOT soybeans: 0.02 degC under the moderate line at 1 degC -- 2026-05\n- WATCH a declared lag window flash drought on CBOT soybeans: the zero to one quarter window the graph declares, counted from that reading's own date, opens and closes on these dates -- 2026-06-30 to 2026-09-30\n- WATCH what the record did after a like state La Nina on CBOT soybeans: after the like state dated 2025-10, flash drought on CBOT soybeans was read at the far end of that declared band -- 2026-04\nRECENCY numbers: read as of 2026-09-07; the newest knowledge date on a number row is 20260820 and the oldest is 2026-05-31\nRECENCY text: the newest dated document behind this answer is not carried on this page\nRECENCY tape: the board price tape runs through 2026-09-04\nBOARD ABSENCE China import tariff on CBOT soybeans, USD index on CBOT soybeans, drought on CBOT soybeans, flowering stress on CBOT soybeans, heat stress on CBOT soybeans, macro demand on CBOT soybeans, section301 tariffs on CBOT soybeans, soy dollar on CBOT soybeans: the region this row declares does not resolve to a single scope the store can be asked about.\nBOARD ABSENCE EUDR on CBOT soybeans, Mississippi low water on CBOT soybeans, Panama Canal constraint on CBOT soybeans, RFS on CBOT soybeans, RIN on CBOT soybeans, biodiesel mandate on CBOT soybeans, calendar spread on CBOT soybeans, conab production revision on CBOT soybeans, excess rain on CBOT soybeans, farm credit cost on CBOT soybeans, favorable rainfall on CBOT soybeans, freight disruption on CBOT soybeans, oil share on CBOT soybeans, pod fill on CBOT soybeans, port closure on CBOT soybeans, renewable diesel capacity on CBOT soybeans, safrinha on CBOT soybeans, soybean cyst nematode on CBOT soybeans, soybean rust on CBOT soybeans, sudden death syndrome on CBOT soybeans, wasde direct revisions on CBOT soybeans, withheld supply on CBOT soybeans: the graph names a series no served card carries, so there is nothing to read.\nBOARD ABSENCE the upstream paths past this tier's render cut (Argentina export tax, China import tariff, El Nino, La Nina, RFS, TRQ soybeans, biodiesel mandate, crude oil, drought, export pace lag, farm credit cost, heat stress, macro demand, port closure, psd ending stock su ratio, soybean crush margin): the rows past this tier's render cut are named here.\nBOARD ABSENCE the far states of the rows past this tier's cut (EUDR on CBOT soybeans, Mississippi low water on CBOT soybeans, Panama Canal constraint on CBOT soybeans, RFS on CBOT soybeans, RIN on CBOT soybeans, biodiesel mandate on CBOT soybeans, calendar spread on CBOT soybeans, conab production revision on CBOT soybeans, excess rain on CBOT soybeans, farm credit cost on CBOT soybeans, favorable rainfall on CBOT soybeans, freight disruption on CBOT soybeans, oil share on CBOT soybeans, pod fill on CBOT soybeans, port closure on CBOT soybeans, safrinha on CBOT soybeans, soy dollar on CBOT soybeans, soybean cyst nematode on CBOT soybeans, soybean rust on CBOT soybeans, sudden death syndrome on CBOT soybeans, withheld supply on CBOT soybeans): the far boards past this tier's fan are named here; their own states were not read.\nBOARD ABSENCE the keys this turn's budget did not reach (China import tariff on DCE palm olein, area on CBOT srw wheat, area on DCE soybeans, area on KCBT hrw wheat, area on MATIF french wheat, area on MGEX hrs wheat, drought on sorghum, export pace lag on CBOT soybean meal, export pace lag on CBOT srw wheat, export pace lag on KCBT hrw wheat, export pace lag on MATIF french wheat, export pace lag on MGEX hrs wheat, flash drought on DCE soybean meal, flash drought on DCE soybean oil, flash drought on DCE soybeans, flash drought on ICE canola, flash drought on JSE yellow maize, flash drought on MATIF corn, flowering stress on BMF arabica coffee, flowering stress on BMF corn, flowering stress on ICE arabica coffee, flowering stress on ICE canola, flowering stress on ICE cocoa, flowering stress on JSE white maize, flowering stress on JSE yellow maize, flowering stress on MATIF corn, heat stress on MATIF french wheat, heat stress on MGEX hrs wheat, psd ending stock su ratio on BMF arabica coffee, psd ending stock su ratio on CBOT soybean meal, psd ending stock su ratio on CBOT soybean oil, psd ending stock su ratio on DCE soybean meal, and two further rows this line does not name): this turn's read budget was spent before these keys, which are named here.",
+ "block_text": "STATE OF THE WORLD at 2026-09-07 for CBOT soybeans: seventeen drivers read on their own series, zero carried as dated receipts; ordered by how far each reading sits from its own history on its own window, then by the graph's declared confidence.\n- [N1] El Nino on CBOT soybeans, NOAA ONI for 2026-07: +1.8 degC; [N2] +2.4 sigma on its trailing window of one hundred twenty months; [N3] 93rd percentile of its own record; rising in each of the last eight months; past the line the desk convention calls strong; read from a table revised in place; the value as known at 2026-09-07 is not recoverable and is shown as revised through 2026-09-10 [series: CBOT soybeans; table: NOAA ONI]\n- El Nino is declared to move CBOT soybeans in the opposite direction with a lag the graph states as one to two quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in November 2025, the effect window on CBOT soybeans opens around February 2026 and closes around May 2026; that window closed on 2026-05-30\n- [N4] La Nina on CBOT soybeans, NOAA ONI for 2026-07: +1.8 degC; [N5] +2.4 sigma on its trailing window of one hundred twenty months; [N6] 93rd percentile of its own record; rising in each of the last eight months; past the line the desk convention calls strong; read from a table revised in place; the value as known at 2026-09-07 is not recoverable and is shown as revised through 2026-09-10 [series: CBOT soybeans; table: NOAA ONI]\n- La Nina is declared to move CBOT soybeans in the same direction with a lag the graph states as one to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in November 2025, the effect window on CBOT soybeans opens around February 2026 and closes around May 2026; that window closed on 2026-05-30\n- [N7] cot mm positioning on CBOT soybeans, COT for 2026-09-01: 234920 contracts; [N8] +2.0 sigma on its trailing window of one hundred fifty-six weeks; [N9] 100th percentile of its own record; rising in each of the last three weeks; past the line the desk convention calls top decile; historical context only: this row is what the reporting funds held, never a cause the graph declares [series: CBOT soybeans; table: COT]\n- cot mm positioning is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- [N10] Brazil export tax on CBOT soybeans, USDA PSD for 2026: 118000000 MMT; [N11] +1.6 sigma on its trailing window of ten marketing years; [N12] 99th percentile of its own record; rising in each of the last two marketing years [series: CBOT soybeans; country: Brazil; table: USDA PSD]\n- Brazil export tax is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to two quarters, at low confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2024 and closes around June 2025; that window closed on 2025-06-30\n- [N13] China state reserves on CBOT soybeans, USDA PSD for 2026: 44359000 MMT; [N14] +1.4 sigma on its trailing window of ten marketing years; [N15] 98th percentile of its own record; falling over the last marketing year [series: CBOT soybeans; country: China; table: USDA PSD]\n- China state reserves is declared to move CBOT soybeans with no committed direction with a lag the graph states as zero to two quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2025 and closes around June 2026; that window closed on 2026-06-30\n- [N16] export pace lag on CBOT soybeans, USDA FAS Export Sales (ESR) for 2026-08-27: 311.85 1000 MT; [N17] -1.3 sigma on its trailing window of fifty-two weeks; [N18] 6th percentile of its own record; falling over the last week; past the line the desk convention calls behind [series: CBOT soybeans; table: USDA FAS Export Sales (ESR)]\n- export pace lag is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at high confidence\n- conditional on the lag the graph states, counted from the run's start in August 2026, the effect window on CBOT soybeans opens around August 2026 and closes around November 2026\n- [N19] TRQ soybeans on CBOT soybeans, USDA PSD for 2026: 4300000 MMT; [N20] +1.2 sigma on its trailing window of ten marketing years; [N21] 99th percentile of its own record; rising in each of the last four marketing years [series: CBOT soybeans; country: Thailand; table: USDA PSD]\n- TRQ soybeans is declared to move CBOT soybeans in the same direction with a lag the graph states as one to four quarters, at low confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around March 2023 and closes around December 2023; that window closed on 2023-12-31\n- [N22] flash drought on CBOT soybeans, GOLD WEATHER Z for 2026-07: 0.6 z; [N23] +1.1 sigma on its trailing window of one hundred twenty months; [N24] 85th percentile of its own record; rising over the last month; past the line the desk convention calls notable [series: CBOT soybeans; country: United States; table: GOLD WEATHER Z]\n- flash drought is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in June 2026, the effect window on CBOT soybeans opens around June 2026 and closes around September 2026\n- [N25] psd ending stock su ratio on CBOT soybeans, USDA PSD for 2026: 0.11 %; [N26] -0.6 sigma on its trailing window of ten marketing years; [N27] 25th percentile of its own record; falling in each of the last three marketing years; past the line the desk convention calls tight [series: CBOT soybeans; country: United States; table: USDA PSD]\n- psd ending stock su ratio is declared to move CBOT soybeans in the opposite direction with a lag the graph states as zero to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2023 and closes around June 2024; that window closed on 2024-06-30\n- [N28] crude oil on CBOT soybeans, World Bank Pink Sheet for 2026-07-01 2026M09: -0.01 z; [N29] -0.6 sigma on its trailing window of sixty months; [N30] 47th percentile of its own record; falling in each of the last three months [series: CBOT soybeans; table: World Bank Pink Sheet]\n- crude oil is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to two quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in April 2026, the effect window on CBOT soybeans opens around April 2026 and closes around October 2026\n- [N31] board crush on CBOT soybeans, GOLD BOARD CRUSH for 2026-08-20 cbot_board_crush_v1: 2.6 USD/bu; [N32] +0.6 sigma on its trailing window of two hundred fifty sessions; [N33] 92nd percentile of its own record; rising over the last session; past the line the desk convention calls high; read through 2026-08-21, 17-day span to this as-of [series: CBOT soybeans; table: GOLD BOARD CRUSH]\n- board crush is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in August 2026, the effect window on CBOT soybeans opens around August 2026 and closes around November 2026\n- [N34] soybean crush margin on CBOT soybeans, GOLD BOARD CRUSH for 2026-08-20 cbot_board_crush_v1: 2.6 USD/bu; [N35] +0.6 sigma on its trailing window of two hundred fifty sessions; [N36] 92nd percentile of its own record; rising over the last session; past the line the desk convention calls high; read through 2026-08-21, 17-day span to this as-of [series: CBOT soybeans; table: GOLD BOARD CRUSH]\n- soybean crush margin is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at high confidence\n- conditional on the lag the graph states, counted from the run's start in August 2026, the effect window on CBOT soybeans opens around August 2026 and closes around November 2026\n- [N37] Argentina production on CBOT soybeans, USDA PSD for 2026: 50000000 MMT; [N38] +0.5 sigma on its trailing window of ten marketing years; [N39] 85th percentile of its own record; rising over the last marketing year [series: CBOT soybeans; country: Argentina; table: USDA PSD]\n- Argentina production is declared to move CBOT soybeans in the opposite direction with a lag the graph states as one to three quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around March 2026 and closes around September 2026\n- [N40] area on CBOT soybeans, USDA PSD for 2026: 34714 M ha; [N41] +0.4 sigma on its trailing window of ten marketing years; [N42] 91st percentile of its own record; rising over the last marketing year [series: CBOT soybeans; country: United States; table: USDA PSD]\n- area is declared to move CBOT soybeans in the opposite direction with a lag the graph states as two to four quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around June 2026 and closes around December 2026\n- [N43] Argentina export registration on CBOT soybeans, USDA PSD for 2026: 6450000 MMT; [N44] +0.1 sigma on its trailing window of ten marketing years; [N45] 61st percentile of its own record; falling over the last marketing year [series: CBOT soybeans; country: Argentina; table: USDA PSD]\n- Argentina export registration is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2025 and closes around March 2026; that window closed on 2026-03-31\n- [N46] Argentina export tax on CBOT soybeans, USDA PSD for 2026: 6450000 MMT; [N47] +0.1 sigma on its trailing window of ten marketing years; [N48] 61st percentile of its own record; falling over the last marketing year [series: CBOT soybeans; country: Argentina; table: USDA PSD]\n- Argentina export tax is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT soybeans opens around December 2025 and closes around June 2026; that window closed on 2026-06-30\n- [N49] early frost on CBOT soybeans, GOLD WEATHER Z for 2026-07: 8 events in its last one hundred twenty months; the last was dated 2026-05 [series: CBOT soybeans; country: United States; table: GOLD WEATHER Z]\n- early frost is declared to move CBOT soybeans in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- conditional on the lag the graph states, counted from this reading's own date in July 2026, the effect window on CBOT soybeans opens around July 2026 and closes around October 2026\nBOARD JOIN board crush and soybean crush margin on CBOT soybeans: these are read on ONE series and the rows above print the SAME reading under each name. They are phases of one series and not separate readings.\nBOARD JOIN Argentina export registration and Argentina export tax on CBOT soybeans: these are read on ONE series and the rows above print the SAME reading under each name. They are phases of one series and not separate readings.\nBOARD JOIN El Nino and La Nina on CBOT soybeans: these are read on ONE series and the rows above print the SAME reading under each name. The graph declares them opposite signs on this board, which is what two phases of one series means; they are not two readings that disagree.\nUPSTREAM export pace lag -> psd ending stock su ratio -> CBOT soybeans: the graph places export pace lag one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to one quarter; the measured rows on it are [N16][N25]\nUPSTREAM export pace lag -> wasde direct revisions -> CBOT soybeans: the graph places export pace lag one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to one quarter; the measured rows on it are [N16]\nUPSTREAM soybean crush margin -> psd ending stock su ratio -> CBOT soybeans: the graph places soybean crush margin one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to one quarter; the measured rows on it are [N34][N25]\nUPSTREAM China import tariff -> export pace lag -> CBOT soybeans: the graph places China import tariff one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N16]\nUPSTREAM drought -> psd ending stock su ratio -> CBOT soybeans: the graph places drought one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N25]\nUPSTREAM drought -> conab production revision -> CBOT soybeans: the graph places drought one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; no row on it carries a measured state\nUPSTREAM drought -> wasde direct revisions -> CBOT soybeans: the graph places drought one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; no row on it carries a measured state\nUPSTREAM heat stress -> psd ending stock su ratio -> CBOT soybeans: the graph places heat stress one hop upstream of the CBOT soybeans price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N25]\n- the same reading is declared on thirty-four other boards: in the opposite direction on twenty-eight (BMF arabica coffee, BMF corn, CBOT corn, CBOT soybean meal, CBOT soybean oil, CBOT srw wheat, DCE soybean meal, DCE soybean oil, DCE soybeans, DCE soybeans, ICE arabica coffee, ICE canola, ICE cotton, ICE orange juice, ICE raw sugar, ICE white sugar, JSE yellow maize, KCBT hrw wheat, MATIF corn, MATIF rapeseed, MGEX hrs wheat, ZCE rapeseed meal, ZCE rapeseed oil, barley, corn, sorghum, soybeans, sunflower oil) and in the same direction on the rest (CBOT rice, CME palm oil, DCE palm olein, ICE cocoa, ICE robusta coffee, JSE white maize)\n- El Nino is declared to move ICE cocoa in the same direction with a lag the graph states as one to three quarters, at medium confidence -- the same reading this board carries, read on that graph's own edge\n- El Nino is declared to move CME palm oil in the same direction with a lag the graph states as two to four quarters, at high confidence -- the same reading this board carries, read on that graph's own edge\n- the same reading is declared on thirty-three other boards: in the same direction on twenty-nine (BMF arabica coffee, BMF corn, CBOT corn, CBOT rice, CBOT soybean meal, CBOT soybean oil, CBOT srw wheat, DCE soybean meal, DCE soybean oil, DCE soybeans, DCE soybeans, ICE arabica coffee, ICE canola, ICE cocoa, ICE cotton, ICE orange juice, ICE raw sugar, ICE robusta coffee, ICE white sugar, KCBT hrw wheat, MATIF corn, MGEX hrs wheat, ZCE rapeseed meal, ZCE rapeseed oil, barley, corn, sorghum, soybeans, sunflower oil) and in the opposite direction on the rest (CME palm oil, DCE palm olein, JSE white maize, JSE yellow maize)\n- La Nina is declared to move JSE white maize in the opposite direction with a lag the graph states as one to three quarters, at high confidence -- the same reading this board carries, read on that graph's own edge\n- La Nina is declared to move JSE yellow maize in the opposite direction with a lag the graph states as one to three quarters, at high confidence -- the same reading this board carries, read on that graph's own edge\n- the same reading is declared on thirteen other boards: in the same direction on thirteen (BMF arabica coffee, CBOT soybean meal, CBOT soybean oil, CBOT srw wheat, DCE soybean meal, DCE soybean oil, DCE soybeans, DCE soybeans, ICE arabica coffee, KCBT hrw wheat, MATIF french wheat, MGEX hrs wheat, soybeans)\n- the same reading is declared on two other boards: in the same direction on two (ICE raw sugar, ICE robusta coffee)\n- Brazil export tax is declared to move ICE raw sugar in the same direction with a lag the graph states as zero to two quarters, at low confidence\n- Brazil export tax is declared to move ICE robusta coffee in the same direction with a lag the graph states as zero to two quarters, at low confidence\n- the same reading is declared on eight other boards: with no committed direction on eight (BMF corn, CBOT corn, DCE soybean oil, DCE soybeans, DCE soybeans, ICE cotton, KCBT hrw wheat, corn)\n- China state reserves is declared to move BMF corn with no committed direction with a lag the graph states as zero to two quarters, at low confidence\n- China state reserves is declared to move corn with no committed direction with a lag the graph states as zero to two quarters, at medium confidence\n- the same reading is declared on sixteen other boards: in the same direction on eleven (BMF arabica coffee, CBOT soybean meal, DCE soybeans, ICE arabica coffee, ICE cocoa, ICE raw sugar, ICE robusta coffee, JSE white maize, MATIF corn, soybeans, sunflower oil) and in the opposite direction on the rest (CBOT srw wheat, CME palm oil, KCBT hrw wheat, MATIF french wheat, MGEX hrs wheat)\n- export pace lag is declared to move MATIF french wheat in the opposite direction with a lag the graph states as zero to two quarters, at high confidence\n- export pace lag is declared to move MGEX hrs wheat in the opposite direction with a lag the graph states as zero to one quarter, at high confidence\nBOARD ABSENCE the far boards past this tier's spillover cut (BMF arabica coffee, BMF corn, CBOT corn, CBOT rice, CBOT soybean meal, CBOT soybean oil, CBOT srw wheat, DCE palm olein, DCE soybean meal, DCE soybean oil, DCE soybeans, ICE arabica coffee, ICE canola, ICE cotton, ICE orange juice, ICE raw sugar, ICE robusta coffee, ICE white sugar, JSE white maize, KCBT hrw wheat, MATIF french wheat, MATIF rapeseed, MGEX hrs wheat, ZCE rapeseed oil, barley, corn, soybeans): the far boards past this tier's fan are named here; their own states were not read.\nCROSS-COMMODITY: the loud readings on CBOT soybeans are declared on ten other markets -- BMF corn, CME palm oil, ICE cocoa, ICE raw sugar, ICE robusta coffee, JSE white maize, JSE yellow maize, MATIF french wheat, MGEX hrs wheat, corn -- and each of the rows above carries that market's own sign words and the lag words the graph states for it.\n- trade-war demand loss (price-pressuring) on CBOT soybeans: four of its four declared drivers sit among this board's twenty-four loudest rows (export pace lag, China state reserves, each with its own [N] z); two of them carry no series this board could read (China import tariff, section301 tariffs); the pattern's own threshold is two; one carries a declared desk band\n  amplifier on CBOT soybeans: China import tariff, export pace lag all sit among this board's loudest rows; the graph records the effect as amplifies; China import tariff carries no series this board could read -- Chinese tariffs on US origin collapse US export sales pace, building US carryout and pressuring the CBOT benchmark while Brazil premiums firm.\n  amplifier on CBOT soybeans: section301 tariffs, China state reserves all sit among this board's loudest rows; the graph records the effect as amplifies; section301 tariffs carries no series this board could read -- Tariff escalation plus Chinese reserve releases compound demand destruction for US beans.\n- supply glut (price-pressuring) on CBOT soybeans: three of its five declared drivers sit among this board's twenty-four loudest rows (area, psd ending stock su ratio, each with its own [N] z); one of them carries no series this board could read (USD index); the pattern's own threshold is three; one carries a declared desk band\n- South American weather squeeze (price-supportive) on CBOT soybeans: three of its five declared drivers sit among this board's twenty-four loudest rows (psd ending stock su ratio, with its own [N] z); two of them carry no series this board could read (drought, heat stress); the pattern's own threshold is three; one carries a declared desk band\n  amplifier on CBOT soybeans: La Nina, drought all sit among this board's loudest rows; the graph records the effect as amplifies; drought carries no series this board could read -- La Nina is the teleconnection forcing the South American drought, so co-occurrence confirms causal yield risk rather than noise.\n  amplifier on CBOT soybeans: drought, heat stress all sit among this board's loudest rows; the graph records the effect as amplifies; drought, heat stress carry no series this board could read -- Combined heat and moisture deficit during pod fill produces non-linear yield loss far exceeding either alone.\n- crush demand-pull rally (price-supportive) on CBOT soybeans: three of its seven declared drivers sit among this board's twenty-four loudest rows (soybean crush margin, board crush, crude oil, each with its own [N] z); the pattern's own threshold is two; two carry a declared desk band\n- US drought (price-supportive) on CBOT soybeans: two of its five declared drivers sit among this board's twenty-four loudest rows (flash drought, with its own [N] z); one of them carries no series this board could read (heat stress); the pattern's own threshold is three; one carries a declared desk band\n  amplifier on CBOT soybeans: flash drought, heat stress all sit among this board's loudest rows; the graph records the effect as amplifies; heat stress carries no series this board could read -- Rapid August moisture loss with heat during pod fill collapses US yield potential before any mitigation.\n- [N50] CBOT soybeans front 2026-11 settle on 2026-09-04: 1309.75 US cents/bushel; [N51] -6.5 over one session on the same contract; [N52] 21.75 over five sessions on the same contract; [N53] 117.5 over twenty-one sessions on the same contract; [N54] 132 over sixty-three sessions on the same contract; [N55] the level at the 99th percentile of the window this read fetched (324 sessions on 2026-11, 2025-05-19 to 2026-09-04); the standings that name their own populations and realised volatility are not served yet and are not claimed here\nBOARD ABSENCE a like state on this board: no past state on this series is like this one under the likeness rule.\n- WATCH the next scheduled print El Nino on CBOT soybeans (NOAA ONI): scheduled inside the publisher's own monthly window, on these dates -- 2026-10-01 to 2026-10-05\n- [N56] WATCH the level a convention names El Nino on CBOT soybeans: 0.2 degC under the extreme line at 2 degC -- 2026-07\n- WATCH a declared lag window cot mm positioning on CBOT soybeans: the zero to one quarter window the graph declares, counted from that reading's own date, opens and closes on these dates -- 2026-08-11 to 2026-11-11\n- WATCH the next scheduled print La Nina on CBOT soybeans (NOAA ONI): scheduled inside the publisher's own monthly window, on these dates -- 2026-10-01 to 2026-10-05\n- [N57] WATCH the level a convention names La Nina on CBOT soybeans: 0.2 degC under the extreme line at 2 degC -- 2026-07\n- WATCH a declared lag window export pace lag on CBOT soybeans: the zero to one quarter window the graph declares, counted from that reading's own date, opens and closes on these dates -- 2026-08-20 to 2026-11-20\n- WATCH the next scheduled print cot mm positioning on CBOT soybeans (COT): scheduled on the publisher's own weekday -- 2026-09-11\n- [N58] WATCH the level a convention names flash drought on CBOT soybeans: 0.89 sigma under the severe line at 2 sigma -- 2026-07\nRECENCY numbers: read as of 2026-09-07; the newest knowledge date on a number row is 20260904 and the oldest is 2026-05-31\nRECENCY text: the newest dated document behind this answer is not carried on this page\nRECENCY tape: the board price tape runs through 2026-09-04\nBOARD ABSENCE China import tariff on CBOT soybeans, USD index on CBOT soybeans, drought on CBOT soybeans, flowering stress on CBOT soybeans, heat stress on CBOT soybeans, macro demand on CBOT soybeans, section301 tariffs on CBOT soybeans, soy dollar on CBOT soybeans: the region this row declares does not resolve to a single scope the store can be asked about.\nBOARD ABSENCE EUDR on CBOT soybeans, Mississippi low water on CBOT soybeans, Panama Canal constraint on CBOT soybeans, RFS on CBOT soybeans, RIN on CBOT soybeans, biodiesel mandate on CBOT soybeans, calendar spread on CBOT soybeans, conab production revision on CBOT soybeans, excess rain on CBOT soybeans, farm credit cost on CBOT soybeans, favorable rainfall on CBOT soybeans, freight disruption on CBOT soybeans, oil share on CBOT soybeans, pod fill on CBOT soybeans, port closure on CBOT soybeans, renewable diesel capacity on CBOT soybeans, safrinha on CBOT soybeans, soybean cyst nematode on CBOT soybeans, soybean rust on CBOT soybeans, sudden death syndrome on CBOT soybeans, wasde direct revisions on CBOT soybeans, withheld supply on CBOT soybeans: the graph names a series no served card carries, so there is nothing to read.\nBOARD ABSENCE the upstream paths past this tier's render cut (Argentina export tax, China import tariff, El Nino, La Nina, RFS, TRQ soybeans, biodiesel mandate, crude oil, drought, export pace lag, farm credit cost, heat stress, macro demand, port closure, psd ending stock su ratio, soybean crush margin): the rows past this tier's render cut are named here.\nBOARD ABSENCE the far states of the rows past this tier's cut (EUDR on CBOT soybeans, Mississippi low water on CBOT soybeans, Panama Canal constraint on CBOT soybeans, RFS on CBOT soybeans, RIN on CBOT soybeans, biodiesel mandate on CBOT soybeans, calendar spread on CBOT soybeans, conab production revision on CBOT soybeans, excess rain on CBOT soybeans, farm credit cost on CBOT soybeans, favorable rainfall on CBOT soybeans, freight disruption on CBOT soybeans, oil share on CBOT soybeans, pod fill on CBOT soybeans, port closure on CBOT soybeans, safrinha on CBOT soybeans, soy dollar on CBOT soybeans, soybean cyst nematode on CBOT soybeans, soybean rust on CBOT soybeans, sudden death syndrome on CBOT soybeans, withheld supply on CBOT soybeans): the far boards past this tier's fan are named here; their own states were not read.\nBOARD ABSENCE the keys this turn's budget did not reach (China import tariff on DCE palm olein, area on CBOT srw wheat, area on DCE soybeans, area on KCBT hrw wheat, area on MATIF french wheat, area on MGEX hrs wheat, drought on sorghum, flash drought on CBOT srw wheat, flash drought on DCE soybean meal, flash drought on DCE soybean oil, flash drought on DCE soybeans, flash drought on ICE canola, flash drought on JSE white maize, flash drought on JSE yellow maize, flash drought on KCBT hrw wheat, flash drought on MATIF corn, flash drought on MATIF french wheat, flash drought on MGEX hrs wheat, flowering stress on BMF arabica coffee, flowering stress on BMF corn, flowering stress on ICE arabica coffee, flowering stress on ICE canola, flowering stress on ICE cocoa, flowering stress on JSE white maize, flowering stress on JSE yellow maize, flowering stress on MATIF corn, heat stress on MATIF french wheat, heat stress on MGEX hrs wheat, psd ending stock su ratio on BMF arabica coffee, psd ending stock su ratio on CBOT soybean meal, psd ending stock su ratio on CBOT soybean oil, psd ending stock su ratio on DCE soybean meal, and two further rows this line does not name): this turn's read budget was spent before these keys, which are named here.",
  "contract": "soybeans_cbot",
  "mode": "max",
  "asof": "2026-09-07",
  "rank_rule": "d2",
- "walk_ms": 199.8,
- "total_ms": 1403.2,
- "producers_ms": 11.6,
- "render_ms": 1126.8,
+ "walk_ms": 261.5,
+ "total_ms": 1464.2,
+ "producers_ms": 11.5,
+ "render_ms": 1131.2,
  "stage_ms": {
-  "1": 105.0,
-  "2": 94.3
+  "1": 118.9,
+  "2": 142.2
  },
  "rows": {
   "total": 47,
@@ -40,30 +40,80 @@
     {
      "seat": 0,
      "contract": "soybeans_cbot",
+     "driver_id": "El_Nino",
+     "series_key": "oni_climate|_global|",
+     "table": "silver_noaa_oni",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 2.4267,
+     "z": 2.426665229537876,
+     "percentile": 92.74809160305344,
+     "pct_extremity": 42.7481,
+     "run_length": 8,
+     "run": {
+      "direction": "up",
+      "length": 8,
+      "since_date": "2025-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 131,
+     "loud": true
+    },
+    {
+     "seat": 1,
+     "contract": "soybeans_cbot",
+     "driver_id": "La_Nina",
+     "series_key": "oni_climate|_global|",
+     "table": "silver_noaa_oni",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 2.4267,
+     "z": 2.426665229537876,
+     "percentile": 92.74809160305344,
+     "pct_extremity": 42.7481,
+     "run_length": 8,
+     "run": {
+      "direction": "up",
+      "length": 8,
+      "since_date": "2025-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 131,
+     "loud": true
+    },
+    {
+     "seat": 2,
+     "contract": "soybeans_cbot",
      "driver_id": "cot_mm_positioning",
      "series_key": "cot_mm_positioning|soybeans_cbot|",
      "table": "silver_cot",
      "status": "ok",
      "coverage_band": 0,
-     "abs_z": 1.734,
-     "z": 1.7340120164648203,
-     "percentile": 94.78527607361963,
-     "pct_extremity": 44.7853,
-     "run_length": 2,
+     "abs_z": 2.0211,
+     "z": 2.0210876435439338,
+     "percentile": 99.6951219512195,
+     "pct_extremity": 49.6951,
+     "run_length": 3,
      "run": {
       "direction": "up",
-      "length": 2,
+      "length": 3,
       "since_date": "2026-08-11"
      },
      "convention_hit": 1,
      "band_crossed": true,
      "event_open": false,
      "window_note": "156 weeks",
-     "n_obs": 163,
+     "n_obs": 164,
      "loud": true
     },
     {
-     "seat": 1,
+     "seat": 3,
      "contract": "soybeans_cbot",
      "driver_id": "Brazil_export_tax",
      "series_key": "export|soybeans_cbot|Brazil",
@@ -88,7 +138,7 @@
      "loud": true
     },
     {
-     "seat": 2,
+     "seat": 4,
      "contract": "soybeans_cbot",
      "driver_id": "China_state_reserves",
      "series_key": "beginning_stock_region|soybeans_cbot|China",
@@ -113,57 +163,32 @@
      "loud": true
     },
     {
-     "seat": 3,
-     "contract": "soybeans_cbot",
-     "driver_id": "El_Nino",
-     "series_key": "oni_climate|_global|",
-     "table": "silver_noaa_oni",
-     "status": "ok",
-     "coverage_band": 0,
-     "abs_z": 1.3829,
-     "z": 1.3829176141214428,
-     "percentile": 86.43410852713178,
-     "pct_extremity": 36.4341,
-     "run_length": 6,
-     "run": {
-      "direction": "up",
-      "length": 6,
-      "since_date": "2025-11"
-     },
-     "convention_hit": 1,
-     "band_crossed": true,
-     "event_open": false,
-     "window_note": "120 months",
-     "n_obs": 129,
-     "loud": true
-    },
-    {
-     "seat": 4,
-     "contract": "soybeans_cbot",
-     "driver_id": "La_Nina",
-     "series_key": "oni_climate|_global|",
-     "table": "silver_noaa_oni",
-     "status": "ok",
-     "coverage_band": 0,
-     "abs_z": 1.3829,
-     "z": 1.3829176141214428,
-     "percentile": 86.43410852713178,
-     "pct_extremity": 36.4341,
-     "run_length": 6,
-     "run": {
-      "direction": "up",
-      "length": 6,
-      "since_date": "2025-11"
-     },
-     "convention_hit": 1,
-     "band_crossed": true,
-     "event_open": false,
-     "window_note": "120 months",
-     "n_obs": 129,
-     "loud": true
-    },
-    {
      "seat": 5,
+     "contract": "soybeans_cbot",
+     "driver_id": "export_pace_lag",
+     "series_key": "esr_exports|soybeans_cbot|",
+     "table": "silver_esr",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.3259,
+     "z": -1.3259064562540699,
+     "percentile": 6.140350877192983,
+     "pct_extremity": 43.8596,
+     "run_length": 1,
+     "run": {
+      "direction": "down",
+      "length": 1,
+      "since_date": "2026-08-20"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "52 weeks",
+     "n_obs": 57,
+     "loud": true
+    },
+    {
+     "seat": 6,
      "contract": "soybeans_cbot",
      "driver_id": "TRQ_soybeans",
      "series_key": "import|soybeans_cbot|Thailand",
@@ -188,7 +213,7 @@
      "loud": true
     },
     {
-     "seat": 6,
+     "seat": 7,
      "contract": "soybeans_cbot",
      "driver_id": "flash_drought",
      "series_key": "drought_z|soybeans_cbot|United States",
@@ -210,31 +235,6 @@
      "event_open": false,
      "window_note": "120 months",
      "n_obs": 131,
-     "loud": true
-    },
-    {
-     "seat": 7,
-     "contract": "soybeans_cbot",
-     "driver_id": "export_pace_lag",
-     "series_key": "esr_exports|soybeans_cbot|",
-     "table": "silver_esr",
-     "status": "ok",
-     "coverage_band": 0,
-     "abs_z": 1.0804,
-     "z": -1.080426887752207,
-     "percentile": 10.0,
-     "pct_extremity": 40.0,
-     "run_length": 1,
-     "run": {
-      "direction": "up",
-      "length": 1,
-      "since_date": "2026-08-06"
-     },
-     "convention_hit": 1,
-     "band_crossed": true,
-     "event_open": false,
-     "window_note": "52 weeks",
-     "n_obs": 55,
      "loud": true
     },
     {
@@ -292,6 +292,16 @@
    "loud": [
     {
      "contract": "soybeans_cbot",
+     "driver_id": "El_Nino",
+     "table": "silver_noaa_oni"
+    },
+    {
+     "contract": "soybeans_cbot",
+     "driver_id": "La_Nina",
+     "table": "silver_noaa_oni"
+    },
+    {
+     "contract": "soybeans_cbot",
      "driver_id": "cot_mm_positioning",
      "table": "silver_cot"
     },
@@ -307,13 +317,8 @@
     },
     {
      "contract": "soybeans_cbot",
-     "driver_id": "El_Nino",
-     "table": "silver_noaa_oni"
-    },
-    {
-     "contract": "soybeans_cbot",
-     "driver_id": "La_Nina",
-     "table": "silver_noaa_oni"
+     "driver_id": "export_pace_lag",
+     "table": "silver_esr"
     },
     {
      "contract": "soybeans_cbot",
@@ -324,11 +329,6 @@
      "contract": "soybeans_cbot",
      "driver_id": "flash_drought",
      "table": "gold_weather_z"
-    },
-    {
-     "contract": "soybeans_cbot",
-     "driver_id": "export_pace_lag",
-     "table": "silver_esr"
     },
     {
      "contract": "soybeans_cbot",
@@ -414,31 +414,31 @@
    "convention_crossed_ranks": [
     {
      "contract": "soybeans_cbot",
-     "driver_id": "cot_mm_positioning",
+     "driver_id": "El_Nino",
      "seat": 0,
      "in_loud": true
     },
     {
      "contract": "soybeans_cbot",
-     "driver_id": "El_Nino",
-     "seat": 3,
-     "in_loud": true
-    },
-    {
-     "contract": "soybeans_cbot",
      "driver_id": "La_Nina",
-     "seat": 4,
+     "seat": 1,
      "in_loud": true
     },
     {
      "contract": "soybeans_cbot",
-     "driver_id": "flash_drought",
-     "seat": 6,
+     "driver_id": "cot_mm_positioning",
+     "seat": 2,
      "in_loud": true
     },
     {
      "contract": "soybeans_cbot",
      "driver_id": "export_pace_lag",
+     "seat": 5,
+     "in_loud": true
+    },
+    {
+     "contract": "soybeans_cbot",
+     "driver_id": "flash_drought",
      "seat": 7,
      "in_loud": true
     },
@@ -468,30 +468,80 @@
     {
      "seat": 0,
      "contract": "soybeans_cbot",
+     "driver_id": "El_Nino",
+     "series_key": "oni_climate|_global|",
+     "table": "silver_noaa_oni",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 2.4267,
+     "z": 2.426665229537876,
+     "percentile": 92.74809160305344,
+     "pct_extremity": 42.7481,
+     "run_length": 8,
+     "run": {
+      "direction": "up",
+      "length": 8,
+      "since_date": "2025-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 131,
+     "loud": true
+    },
+    {
+     "seat": 1,
+     "contract": "soybeans_cbot",
+     "driver_id": "La_Nina",
+     "series_key": "oni_climate|_global|",
+     "table": "silver_noaa_oni",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 2.4267,
+     "z": 2.426665229537876,
+     "percentile": 92.74809160305344,
+     "pct_extremity": 42.7481,
+     "run_length": 8,
+     "run": {
+      "direction": "up",
+      "length": 8,
+      "since_date": "2025-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 131,
+     "loud": true
+    },
+    {
+     "seat": 2,
+     "contract": "soybeans_cbot",
      "driver_id": "cot_mm_positioning",
      "series_key": "cot_mm_positioning|soybeans_cbot|",
      "table": "silver_cot",
      "status": "ok",
      "coverage_band": 0,
-     "abs_z": 1.734,
-     "z": 1.7340120164648203,
-     "percentile": 94.78527607361963,
-     "pct_extremity": 44.7853,
-     "run_length": 2,
+     "abs_z": 2.0211,
+     "z": 2.0210876435439338,
+     "percentile": 99.6951219512195,
+     "pct_extremity": 49.6951,
+     "run_length": 3,
      "run": {
       "direction": "up",
-      "length": 2,
+      "length": 3,
       "since_date": "2026-08-11"
      },
      "convention_hit": 1,
      "band_crossed": true,
      "event_open": false,
      "window_note": "156 weeks",
-     "n_obs": 163,
+     "n_obs": 164,
      "loud": true
     },
     {
-     "seat": 1,
+     "seat": 3,
      "contract": "soybeans_cbot",
      "driver_id": "Brazil_export_tax",
      "series_key": "export|soybeans_cbot|Brazil",
@@ -516,7 +566,7 @@
      "loud": true
     },
     {
-     "seat": 2,
+     "seat": 4,
      "contract": "soybeans_cbot",
      "driver_id": "China_state_reserves",
      "series_key": "beginning_stock_region|soybeans_cbot|China",
@@ -541,57 +591,32 @@
      "loud": true
     },
     {
-     "seat": 3,
-     "contract": "soybeans_cbot",
-     "driver_id": "El_Nino",
-     "series_key": "oni_climate|_global|",
-     "table": "silver_noaa_oni",
-     "status": "ok",
-     "coverage_band": 0,
-     "abs_z": 1.3829,
-     "z": 1.3829176141214428,
-     "percentile": 86.43410852713178,
-     "pct_extremity": 36.4341,
-     "run_length": 6,
-     "run": {
-      "direction": "up",
-      "length": 6,
-      "since_date": "2025-11"
-     },
-     "convention_hit": 1,
-     "band_crossed": true,
-     "event_open": false,
-     "window_note": "120 months",
-     "n_obs": 129,
-     "loud": true
-    },
-    {
-     "seat": 4,
-     "contract": "soybeans_cbot",
-     "driver_id": "La_Nina",
-     "series_key": "oni_climate|_global|",
-     "table": "silver_noaa_oni",
-     "status": "ok",
-     "coverage_band": 0,
-     "abs_z": 1.3829,
-     "z": 1.3829176141214428,
-     "percentile": 86.43410852713178,
-     "pct_extremity": 36.4341,
-     "run_length": 6,
-     "run": {
-      "direction": "up",
-      "length": 6,
-      "since_date": "2025-11"
-     },
-     "convention_hit": 1,
-     "band_crossed": true,
-     "event_open": false,
-     "window_note": "120 months",
-     "n_obs": 129,
-     "loud": true
-    },
-    {
      "seat": 5,
+     "contract": "soybeans_cbot",
+     "driver_id": "export_pace_lag",
+     "series_key": "esr_exports|soybeans_cbot|",
+     "table": "silver_esr",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.3259,
+     "z": -1.3259064562540699,
+     "percentile": 6.140350877192983,
+     "pct_extremity": 43.8596,
+     "run_length": 1,
+     "run": {
+      "direction": "down",
+      "length": 1,
+      "since_date": "2026-08-20"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "52 weeks",
+     "n_obs": 57,
+     "loud": true
+    },
+    {
+     "seat": 6,
      "contract": "soybeans_cbot",
      "driver_id": "TRQ_soybeans",
      "series_key": "import|soybeans_cbot|Thailand",
@@ -616,7 +641,7 @@
      "loud": true
     },
     {
-     "seat": 6,
+     "seat": 7,
      "contract": "soybeans_cbot",
      "driver_id": "flash_drought",
      "series_key": "drought_z|soybeans_cbot|United States",
@@ -638,31 +663,6 @@
      "event_open": false,
      "window_note": "120 months",
      "n_obs": 131,
-     "loud": true
-    },
-    {
-     "seat": 7,
-     "contract": "soybeans_cbot",
-     "driver_id": "export_pace_lag",
-     "series_key": "esr_exports|soybeans_cbot|",
-     "table": "silver_esr",
-     "status": "ok",
-     "coverage_band": 0,
-     "abs_z": 1.0804,
-     "z": -1.080426887752207,
-     "percentile": 10.0,
-     "pct_extremity": 40.0,
-     "run_length": 1,
-     "run": {
-      "direction": "up",
-      "length": 1,
-      "since_date": "2026-08-06"
-     },
-     "convention_hit": 1,
-     "band_crossed": true,
-     "event_open": false,
-     "window_note": "52 weeks",
-     "n_obs": 55,
      "loud": true
     },
     {
@@ -720,6 +720,16 @@
    "loud": [
     {
      "contract": "soybeans_cbot",
+     "driver_id": "El_Nino",
+     "table": "silver_noaa_oni"
+    },
+    {
+     "contract": "soybeans_cbot",
+     "driver_id": "La_Nina",
+     "table": "silver_noaa_oni"
+    },
+    {
+     "contract": "soybeans_cbot",
      "driver_id": "cot_mm_positioning",
      "table": "silver_cot"
     },
@@ -735,13 +745,8 @@
     },
     {
      "contract": "soybeans_cbot",
-     "driver_id": "El_Nino",
-     "table": "silver_noaa_oni"
-    },
-    {
-     "contract": "soybeans_cbot",
-     "driver_id": "La_Nina",
-     "table": "silver_noaa_oni"
+     "driver_id": "export_pace_lag",
+     "table": "silver_esr"
     },
     {
      "contract": "soybeans_cbot",
@@ -752,11 +757,6 @@
      "contract": "soybeans_cbot",
      "driver_id": "flash_drought",
      "table": "gold_weather_z"
-    },
-    {
-     "contract": "soybeans_cbot",
-     "driver_id": "export_pace_lag",
-     "table": "silver_esr"
     },
     {
      "contract": "soybeans_cbot",
@@ -842,31 +842,31 @@
    "convention_crossed_ranks": [
     {
      "contract": "soybeans_cbot",
-     "driver_id": "cot_mm_positioning",
+     "driver_id": "El_Nino",
      "seat": 0,
      "in_loud": true
     },
     {
      "contract": "soybeans_cbot",
-     "driver_id": "El_Nino",
-     "seat": 3,
-     "in_loud": true
-    },
-    {
-     "contract": "soybeans_cbot",
      "driver_id": "La_Nina",
-     "seat": 4,
+     "seat": 1,
      "in_loud": true
     },
     {
      "contract": "soybeans_cbot",
-     "driver_id": "flash_drought",
-     "seat": 6,
+     "driver_id": "cot_mm_positioning",
+     "seat": 2,
      "in_loud": true
     },
     {
      "contract": "soybeans_cbot",
      "driver_id": "export_pace_lag",
+     "seat": 5,
+     "in_loud": true
+    },
+    {
+     "contract": "soybeans_cbot",
+     "driver_id": "flash_drought",
      "seat": 7,
      "in_loud": true
     },
@@ -917,7 +917,7 @@
      "deferred": 0,
      "declined": 0,
      "reads_used": 14,
-     "ms": 102.05847700001414,
+     "ms": 116.05512599999201,
      "plan": [
       [
        "cbot_board_crush_margin|_global|",
@@ -1074,14 +1074,14 @@
      "deferred": 35,
      "declined": 0,
      "reads_used": 16,
-     "ms": 81.95993399999679,
+     "ms": 130.75159699999972,
      "plan": [
       [
        "export|raw_sugar|Brazil",
        "export",
        "raw_sugar",
        "Brazil_export_tax",
-       1,
+       3,
        2,
        0,
        false
@@ -1091,7 +1091,7 @@
        "export",
        "robusta_coffee",
        "Brazil_export_tax",
-       1,
+       3,
        1,
        0,
        false
@@ -1101,7 +1101,7 @@
        "beginning_stock_region",
        "corn",
        "China_state_reserves",
-       2,
+       4,
        2,
        1,
        false
@@ -1111,7 +1111,7 @@
        "beginning_stock_region",
        "cotton",
        "China_state_reserves",
-       2,
+       4,
        1,
        2,
        false
@@ -1121,7 +1121,7 @@
        "beginning_stock_region",
        "soybeans_no_1_dce",
        "China_state_reserves",
-       2,
+       4,
        1,
        2,
        false
@@ -1131,7 +1131,7 @@
        "beginning_stock_region",
        "soybean_oil_dce",
        "China_state_reserves",
-       2,
+       4,
        1,
        1,
        false
@@ -1141,7 +1141,7 @@
        "beginning_stock_region",
        "soybeans_no_2_dce",
        "China_state_reserves",
-       2,
+       4,
        1,
        1,
        false
@@ -1151,7 +1151,7 @@
        "beginning_stock_region",
        "campinas_corn_reference_bmf",
        "China_state_reserves",
-       2,
+       4,
        1,
        0,
        false
@@ -1161,141 +1161,9 @@
        "import",
        "hard_red_winter_wheat_kcbt",
        "China_state_reserves",
-       2,
+       4,
        1,
        0,
-       false
-      ],
-      [
-       "drought_z|campinas_corn_reference_bmf|Brazil",
-       "drought_z",
-       "campinas_corn_reference_bmf",
-       "flash_drought",
-       6,
-       2,
-       1,
-       false
-      ],
-      [
-       "drought_z|corn_cbot|United States",
-       "drought_z",
-       "corn",
-       "flash_drought",
-       6,
-       2,
-       1,
-       false
-      ],
-      [
-       "drought_z|french_wheat_matif|EU Belt",
-       "drought_z",
-       "french_wheat_matif",
-       "flash_drought",
-       6,
-       2,
-       1,
-       false
-      ],
-      [
-       "drought_z|hard_red_spring_wheat_mgex|Northern Plains",
-       "drought_z",
-       "hard_red_spring_wheat_mgex",
-       "flash_drought",
-       6,
-       2,
-       1,
-       false
-      ],
-      [
-       "drought_z|hard_red_winter_wheat_kcbt|United States",
-       "drought_z",
-       "hard_red_winter_wheat_kcbt",
-       "flash_drought",
-       6,
-       2,
-       1,
-       false
-      ],
-      [
-       "drought_z|soft_red_winter_wheat_cbot|United States",
-       "drought_z",
-       "soft_red_winter_wheat_cbot",
-       "flash_drought",
-       6,
-       2,
-       1,
-       false
-      ],
-      [
-       "drought_z|south_african_white_maize_jse|South Africa",
-       "drought_z",
-       "south_african_white_maize_jse",
-       "flash_drought",
-       6,
-       2,
-       1,
-       false
-      ]
-     ],
-     "deferred_keys": [
-      [
-       "drought_z|south_african_yellow_maize_jse|South Africa",
-       "drought_z",
-       "south_african_yellow_maize_jse",
-       "flash_drought",
-       6,
-       2,
-       1,
-       false
-      ],
-      [
-       "drought_z|canola_ice|Canada",
-       "drought_z",
-       "canola_ice",
-       "flash_drought",
-       6,
-       1,
-       1,
-       false
-      ],
-      [
-       "drought_z|french_maize_matif|EU Belt",
-       "drought_z",
-       "french_maize_matif",
-       "flash_drought",
-       6,
-       1,
-       1,
-       false
-      ],
-      [
-       "drought_z|soybean_meal_dce|United States",
-       "drought_z",
-       "soybean_meal_dce",
-       "flash_drought",
-       6,
-       1,
-       1,
-       false
-      ],
-      [
-       "drought_z|soybean_oil_dce|United States",
-       "drought_z",
-       "soybean_oil_dce",
-       "flash_drought",
-       6,
-       1,
-       1,
-       false
-      ],
-      [
-       "drought_z|soybeans_no_2_dce|United States",
-       "drought_z",
-       "soybeans_no_2_dce",
-       "flash_drought",
-       6,
-       1,
-       1,
        false
       ],
       [
@@ -1303,7 +1171,7 @@
        "esr_exports",
        "soybean_meal_cbot",
        "export_pace_lag",
-       7,
+       5,
        1,
        2,
        false
@@ -1313,7 +1181,7 @@
        "export",
        "french_wheat_matif",
        "export_pace_lag",
-       7,
+       5,
        1,
        2,
        false
@@ -1323,7 +1191,7 @@
        "fgis_inspections_pace",
        "hard_red_spring_wheat_mgex",
        "export_pace_lag",
-       7,
+       5,
        1,
        2,
        false
@@ -1333,7 +1201,7 @@
        "fgis_inspections_pace",
        "hard_red_winter_wheat_kcbt",
        "export_pace_lag",
-       7,
+       5,
        1,
        2,
        false
@@ -1343,9 +1211,141 @@
        "fgis_inspections_pace",
        "soft_red_winter_wheat_cbot",
        "export_pace_lag",
-       7,
+       5,
        1,
        2,
+       false
+      ],
+      [
+       "drought_z|campinas_corn_reference_bmf|Brazil",
+       "drought_z",
+       "campinas_corn_reference_bmf",
+       "flash_drought",
+       7,
+       2,
+       1,
+       false
+      ],
+      [
+       "drought_z|corn_cbot|United States",
+       "drought_z",
+       "corn",
+       "flash_drought",
+       7,
+       2,
+       1,
+       false
+      ]
+     ],
+     "deferred_keys": [
+      [
+       "drought_z|french_wheat_matif|EU Belt",
+       "drought_z",
+       "french_wheat_matif",
+       "flash_drought",
+       7,
+       2,
+       1,
+       false
+      ],
+      [
+       "drought_z|hard_red_spring_wheat_mgex|Northern Plains",
+       "drought_z",
+       "hard_red_spring_wheat_mgex",
+       "flash_drought",
+       7,
+       2,
+       1,
+       false
+      ],
+      [
+       "drought_z|hard_red_winter_wheat_kcbt|United States",
+       "drought_z",
+       "hard_red_winter_wheat_kcbt",
+       "flash_drought",
+       7,
+       2,
+       1,
+       false
+      ],
+      [
+       "drought_z|soft_red_winter_wheat_cbot|United States",
+       "drought_z",
+       "soft_red_winter_wheat_cbot",
+       "flash_drought",
+       7,
+       2,
+       1,
+       false
+      ],
+      [
+       "drought_z|south_african_white_maize_jse|South Africa",
+       "drought_z",
+       "south_african_white_maize_jse",
+       "flash_drought",
+       7,
+       2,
+       1,
+       false
+      ],
+      [
+       "drought_z|south_african_yellow_maize_jse|South Africa",
+       "drought_z",
+       "south_african_yellow_maize_jse",
+       "flash_drought",
+       7,
+       2,
+       1,
+       false
+      ],
+      [
+       "drought_z|canola_ice|Canada",
+       "drought_z",
+       "canola_ice",
+       "flash_drought",
+       7,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|french_maize_matif|EU Belt",
+       "drought_z",
+       "french_maize_matif",
+       "flash_drought",
+       7,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|soybean_meal_dce|United States",
+       "drought_z",
+       "soybean_meal_dce",
+       "flash_drought",
+       7,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|soybean_oil_dce|United States",
+       "drought_z",
+       "soybean_oil_dce",
+       "flash_drought",
+       7,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|soybeans_no_2_dce|United States",
+       "drought_z",
+       "soybeans_no_2_dce",
+       "flash_drought",
+       7,
+       1,
+       1,
        false
       ],
       [
@@ -1596,8 +1596,18 @@
        "oni_climate",
        "robusta_coffee",
        "El_Nino",
-       3,
+       0,
        32,
+       2,
+       true
+      ],
+      [
+       "esr_exports|soybeans_cbot|",
+       "esr_exports",
+       "soybeans",
+       "export_pace_lag",
+       5,
+       1,
        2,
        true
       ],
@@ -1606,19 +1616,9 @@
        "drought_z",
        "soybeans",
        "flash_drought",
-       6,
-       1,
-       1,
-       true
-      ],
-      [
-       "esr_exports|soybeans_cbot|",
-       "esr_exports",
-       "soybeans",
-       "export_pace_lag",
        7,
        1,
-       2,
+       1,
        true
       ],
       [
@@ -1681,11 +1681,61 @@
   "wave1_deferred": [],
   "wave2_deferred": [
    [
+    "drought_z|french_wheat_matif|EU Belt",
+    "drought_z",
+    "french_wheat_matif",
+    "flash_drought",
+    7,
+    2,
+    1,
+    false
+   ],
+   [
+    "drought_z|hard_red_spring_wheat_mgex|Northern Plains",
+    "drought_z",
+    "hard_red_spring_wheat_mgex",
+    "flash_drought",
+    7,
+    2,
+    1,
+    false
+   ],
+   [
+    "drought_z|hard_red_winter_wheat_kcbt|United States",
+    "drought_z",
+    "hard_red_winter_wheat_kcbt",
+    "flash_drought",
+    7,
+    2,
+    1,
+    false
+   ],
+   [
+    "drought_z|soft_red_winter_wheat_cbot|United States",
+    "drought_z",
+    "soft_red_winter_wheat_cbot",
+    "flash_drought",
+    7,
+    2,
+    1,
+    false
+   ],
+   [
+    "drought_z|south_african_white_maize_jse|South Africa",
+    "drought_z",
+    "south_african_white_maize_jse",
+    "flash_drought",
+    7,
+    2,
+    1,
+    false
+   ],
+   [
     "drought_z|south_african_yellow_maize_jse|South Africa",
     "drought_z",
     "south_african_yellow_maize_jse",
     "flash_drought",
-    6,
+    7,
     2,
     1,
     false
@@ -1695,7 +1745,7 @@
     "drought_z",
     "canola_ice",
     "flash_drought",
-    6,
+    7,
     1,
     1,
     false
@@ -1705,7 +1755,7 @@
     "drought_z",
     "french_maize_matif",
     "flash_drought",
-    6,
+    7,
     1,
     1,
     false
@@ -1715,7 +1765,7 @@
     "drought_z",
     "soybean_meal_dce",
     "flash_drought",
-    6,
+    7,
     1,
     1,
     false
@@ -1725,7 +1775,7 @@
     "drought_z",
     "soybean_oil_dce",
     "flash_drought",
-    6,
+    7,
     1,
     1,
     false
@@ -1735,59 +1785,9 @@
     "drought_z",
     "soybeans_no_2_dce",
     "flash_drought",
-    6,
-    1,
-    1,
-    false
-   ],
-   [
-    "esr_exports|soybean_meal_cbot|",
-    "esr_exports",
-    "soybean_meal_cbot",
-    "export_pace_lag",
     7,
     1,
-    2,
-    false
-   ],
-   [
-    "export|french_wheat_matif|European Union",
-    "export",
-    "french_wheat_matif",
-    "export_pace_lag",
-    7,
     1,
-    2,
-    false
-   ],
-   [
-    "fgis_inspections_pace|hard_red_spring_wheat_mgex|",
-    "fgis_inspections_pace",
-    "hard_red_spring_wheat_mgex",
-    "export_pace_lag",
-    7,
-    1,
-    2,
-    false
-   ],
-   [
-    "fgis_inspections_pace|hard_red_winter_wheat_kcbt|",
-    "fgis_inspections_pace",
-    "hard_red_winter_wheat_kcbt",
-    "export_pace_lag",
-    7,
-    1,
-    2,
-    false
-   ],
-   [
-    "fgis_inspections_pace|soft_red_winter_wheat_cbot|",
-    "fgis_inspections_pace",
-    "soft_red_winter_wheat_cbot",
-    "export_pace_lag",
-    7,
-    1,
-    2,
     false
    ],
    [
@@ -2038,10 +2038,10 @@
   "replay_labelled": 2
  },
  "render": {
-  "lines": 114,
-  "chars": 29311,
-  "est_tokens": 7328,
-  "calls": 61,
+  "lines": 108,
+  "chars": 28053,
+  "est_tokens": 7013,
+  "calls": 58,
   "trips": [],
   "trip_count": 0,
   "welds": 0,
@@ -2052,33 +2052,29 @@
    "SB-P": 8,
    "SB-F": 7,
    "SB-X": 7,
-   "SB-W": 6,
    "SB-C": 5,
    "SB-M": 5,
-   "SB-A": 4,
+   "SB-W": 5,
    "SB-JOIN": 3,
+   "SB-V": 3,
    "SB-L": 3,
-   "SB-O": 2,
-   "SB-V": 2,
    "SB-H": 1,
    "SB-T": 1
   },
   "by_class_chars": {
-   "SB-1": 5554,
-   "SB-X": 4331,
-   "SB-E": 4211,
+   "SB-1": 5555,
+   "SB-X": 4319,
+   "SB-E": 4240,
    "SB-J": 3031,
-   "SB-F": 2561,
+   "SB-F": 2618,
    "SB-P": 1945,
    "SB-C": 1636,
    "SB-M": 1578,
-   "SB-W": 1126,
-   "SB-A": 852,
+   "SB-W": 887,
    "SB-JOIN": 715,
    "SB-T": 540,
-   "SB-O": 361,
+   "SB-V": 371,
    "SB-L": 266,
-   "SB-V": 246,
    "SB-H": 245
   },
   "unclassified": [],
@@ -2095,8 +2091,8 @@
  },
  "legs": {
   "analog": {
-   "outcome": "fired",
-   "reason": null,
+   "outcome": "declined",
+   "reason": "no_like_state",
    "reads": 0
   },
   "board": {
@@ -2146,30 +2142,46 @@
   }
  },
  "declines": {
-  "leg_declines": {},
+  "leg_declines": {
+   "analog:no_like_state": 1
+  },
   "row_status_words": {
    "ok": 30
   },
   "outcomes": [
    [
     "fired",
-    10
+    9
+   ],
+   [
+    "declined",
+    1
    ]
   ]
  },
  "analogs": {
   "stanzas": 5,
-  "fired": 2,
+  "fired": 0,
   "declined": {
-   "no_like_state": 3
+   "no_like_state": 5
   },
   "seeds_measured": 5,
   "candidates_by_sigma_band": {
    "0.5": [
     {
+     "driver_id": "El_Nino",
+     "candidates": 0,
+     "history_n": 131
+    },
+    {
+     "driver_id": "La_Nina",
+     "candidates": 0,
+     "history_n": 131
+    },
+    {
      "driver_id": "cot_mm_positioning",
-     "candidates": 2,
-     "history_n": 163
+     "candidates": 1,
+     "history_n": 164
     },
     {
      "driver_id": "Brazil_export_tax",
@@ -2180,23 +2192,23 @@
      "driver_id": "China_state_reserves",
      "candidates": 16,
      "history_n": 63
-    },
-    {
-     "driver_id": "El_Nino",
-     "candidates": 0,
-     "history_n": 129
-    },
-    {
-     "driver_id": "La_Nina",
-     "candidates": 0,
-     "history_n": 129
     }
    ],
    "1.0": [
     {
+     "driver_id": "El_Nino",
+     "candidates": 0,
+     "history_n": 131
+    },
+    {
+     "driver_id": "La_Nina",
+     "candidates": 0,
+     "history_n": 131
+    },
+    {
      "driver_id": "cot_mm_positioning",
      "candidates": 5,
-     "history_n": 163
+     "history_n": 164
     },
     {
      "driver_id": "Brazil_export_tax",
@@ -2207,23 +2219,23 @@
      "driver_id": "China_state_reserves",
      "candidates": 23,
      "history_n": 63
-    },
-    {
-     "driver_id": "El_Nino",
-     "candidates": 0,
-     "history_n": 129
-    },
-    {
-     "driver_id": "La_Nina",
-     "candidates": 0,
-     "history_n": 129
     }
    ],
    "1.5": [
     {
+     "driver_id": "El_Nino",
+     "candidates": 1,
+     "history_n": 131
+    },
+    {
+     "driver_id": "La_Nina",
+     "candidates": 1,
+     "history_n": 131
+    },
+    {
      "driver_id": "cot_mm_positioning",
-     "candidates": 7,
-     "history_n": 163
+     "candidates": 8,
+     "history_n": 164
     },
     {
      "driver_id": "Brazil_export_tax",
@@ -2234,16 +2246,6 @@
      "driver_id": "China_state_reserves",
      "candidates": 26,
      "history_n": 63
-    },
-    {
-     "driver_id": "El_Nino",
-     "candidates": 1,
-     "history_n": 129
-    },
-    {
-     "driver_id": "La_Nina",
-     "candidates": 1,
-     "history_n": 129
     }
    ]
   }
@@ -2498,7 +2500,7 @@
     ],
     [
      "french_wheat_matif",
-     "export_pace_lag"
+     "flash_drought"
     ],
     [
      "french_wheat_matif",
@@ -2510,7 +2512,7 @@
     ],
     [
      "hard_red_spring_wheat_mgex",
-     "export_pace_lag"
+     "flash_drought"
     ],
     [
      "hard_red_spring_wheat_mgex",
@@ -2522,7 +2524,7 @@
     ],
     [
      "hard_red_winter_wheat_kcbt",
-     "export_pace_lag"
+     "flash_drought"
     ],
     [
      "palm_olein_dce",
@@ -2534,11 +2536,15 @@
     ],
     [
      "soft_red_winter_wheat_cbot",
-     "export_pace_lag"
+     "flash_drought"
     ],
     [
      "sorghum",
      "drought"
+    ],
+    [
+     "south_african_white_maize_jse",
+     "flash_drought"
     ],
     [
      "south_african_white_maize_jse",
@@ -2551,10 +2557,6 @@
     [
      "south_african_yellow_maize_jse",
      "flowering_stress"
-    ],
-    [
-     "soybean_meal_cbot",
-     "export_pace_lag"
     ],
     [
      "soybean_meal_cbot",
@@ -2601,16 +2603,16 @@
     "area|soybeans_no_1_dce|China",
     "drought_z|canola_ice|Canada",
     "drought_z|french_maize_matif|EU Belt",
+    "drought_z|french_wheat_matif|EU Belt",
+    "drought_z|hard_red_spring_wheat_mgex|Northern Plains",
+    "drought_z|hard_red_winter_wheat_kcbt|United States",
+    "drought_z|soft_red_winter_wheat_cbot|United States",
     "drought_z|sorghum|United States",
+    "drought_z|south_african_white_maize_jse|South Africa",
     "drought_z|south_african_yellow_maize_jse|South Africa",
     "drought_z|soybean_meal_dce|United States",
     "drought_z|soybean_oil_dce|United States",
     "drought_z|soybeans_no_2_dce|United States",
-    "esr_exports|soybean_meal_cbot|",
-    "export|french_wheat_matif|European Union",
-    "fgis_inspections_pace|hard_red_spring_wheat_mgex|",
-    "fgis_inspections_pace|hard_red_winter_wheat_kcbt|",
-    "fgis_inspections_pace|soft_red_winter_wheat_cbot|",
     "heat_stress_z|arabica_coffee|Brazil",
     "heat_stress_z|brazilian_arabica_coffee|Brazil",
     "heat_stress_z|campinas_corn_reference_bmf|Brazil",
@@ -2642,8 +2644,8 @@
  ],
  "trace": {
   "stage_ms": {
-   "1": 105.02102999998897,
-   "2": 94.30620999995654
+   "1": 118.8855879999835,
+   "2": 142.1738520000133
   },
   "anchors": [
    "soybeans_cbot"
@@ -2882,7 +2884,7 @@
      ],
      [
       "french_wheat_matif",
-      "export_pace_lag"
+      "flash_drought"
      ],
      [
       "french_wheat_matif",
@@ -2894,7 +2896,7 @@
      ],
      [
       "hard_red_spring_wheat_mgex",
-      "export_pace_lag"
+      "flash_drought"
      ],
      [
       "hard_red_spring_wheat_mgex",
@@ -2906,7 +2908,7 @@
      ],
      [
       "hard_red_winter_wheat_kcbt",
-      "export_pace_lag"
+      "flash_drought"
      ],
      [
       "palm_olein_dce",
@@ -2918,11 +2920,15 @@
      ],
      [
       "soft_red_winter_wheat_cbot",
-      "export_pace_lag"
+      "flash_drought"
      ],
      [
       "sorghum",
       "drought"
+     ],
+     [
+      "south_african_white_maize_jse",
+      "flash_drought"
      ],
      [
       "south_african_white_maize_jse",
@@ -2935,10 +2941,6 @@
      [
       "south_african_yellow_maize_jse",
       "flowering_stress"
-     ],
-     [
-      "soybean_meal_cbot",
-      "export_pace_lag"
      ],
      [
       "soybean_meal_cbot",
@@ -2985,16 +2987,16 @@
      "area|soybeans_no_1_dce|China",
      "drought_z|canola_ice|Canada",
      "drought_z|french_maize_matif|EU Belt",
+     "drought_z|french_wheat_matif|EU Belt",
+     "drought_z|hard_red_spring_wheat_mgex|Northern Plains",
+     "drought_z|hard_red_winter_wheat_kcbt|United States",
+     "drought_z|soft_red_winter_wheat_cbot|United States",
      "drought_z|sorghum|United States",
+     "drought_z|south_african_white_maize_jse|South Africa",
      "drought_z|south_african_yellow_maize_jse|South Africa",
      "drought_z|soybean_meal_dce|United States",
      "drought_z|soybean_oil_dce|United States",
      "drought_z|soybeans_no_2_dce|United States",
-     "esr_exports|soybean_meal_cbot|",
-     "export|french_wheat_matif|European Union",
-     "fgis_inspections_pace|hard_red_spring_wheat_mgex|",
-     "fgis_inspections_pace|hard_red_winter_wheat_kcbt|",
-     "fgis_inspections_pace|soft_red_winter_wheat_cbot|",
      "heat_stress_z|arabica_coffee|Brazil",
      "heat_stress_z|brazilian_arabica_coffee|Brazil",
      "heat_stress_z|campinas_corn_reference_bmf|Brazil",
@@ -3028,6 +3030,6 @@
  "pass": "d2",
  "physical_reads_board": {
   "reads": 31,
-  "rows": 16578
+  "rows": 18190
  }
 }

@@ -1,8 +1,8 @@
 {
  "summary": {
   "asof": "2026-09-07",
-  "started_utc": "2026-09-10T13:16:29+00:00",
-  "wall_s": 200.4,
+  "started_utc": "2026-09-10T13:32:07+00:00",
+  "wall_s": 191.9,
   "fixture": "",
   "estate": "pg-mirror",
   "boards": 36,
@@ -17,28 +17,9 @@
    "runs": 36,
    "compared": 36,
    "top_row_differs_on": [
-    "brazilian_arabica_coffee/max",
-    "campinas_corn_reference_bmf/max",
-    "canola_ice/max",
-    "corn/max",
-    "corn_cbot/max",
-    "french_maize_matif/max",
-    "french_rapeseed_matif/max",
     "hard_red_spring_wheat_mgex/max",
     "malaysian_crude_palm_oil_cme/max",
-    "palm_olein_dce/max",
-    "rapeseed_meal_zce/max",
-    "rapeseed_oil_zce/max",
-    "robusta_coffee/max",
-    "rough_rice_cbot/max",
-    "soft_red_winter_wheat_cbot/max",
-    "south_african_white_maize_jse/max",
-    "soybean_meal_cbot/max",
-    "soybean_meal_dce/max",
-    "soybean_oil_dce/max",
-    "soybeans_no_1_dce/max",
-    "soybeans_no_2_dce/max",
-    "sunflower_oil/max"
+    "palm_olein_dce/max"
    ],
    "net_read_delta": {
     "min": 0,
@@ -82,9 +63,9 @@
      "lines_alt": 102,
      "rows_d2": 31,
      "rows_alt": 31,
-     "top_row_d2": "biennial_on_year",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "campinas_corn_reference_bmf",
@@ -95,9 +76,9 @@
      "lines_alt": 118,
      "rows_d2": 39,
      "rows_alt": 39,
-     "top_row_d2": "China_state_reserves",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "canola_ice",
@@ -108,9 +89,9 @@
      "lines_alt": 127,
      "rows_d2": 45,
      "rows_alt": 45,
-     "top_row_d2": "domestic_crush_demand",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "cocoa",
@@ -121,8 +102,8 @@
      "lines_alt": 85,
      "rows_d2": 30,
      "rows_alt": 30,
-     "top_row_d2": "harmattan",
-     "top_row_alt": "harmattan",
+     "top_row_d2": "El_Nino",
+     "top_row_alt": "El_Nino",
      "same_top_row": true
     },
     {
@@ -134,9 +115,9 @@
      "lines_alt": 116,
      "rows_d2": 49,
      "rows_alt": 49,
-     "top_row_d2": "China_state_reserves",
-     "top_row_alt": "managed_money_positioning",
-     "same_top_row": false
+     "top_row_d2": "El_Nino",
+     "top_row_alt": "El_Nino",
+     "same_top_row": true
     },
     {
      "contract": "corn_cbot",
@@ -144,12 +125,12 @@
      "net_reads_d2": 38,
      "net_reads_alt": 38,
      "lines_d2": 128,
-     "lines_alt": 122,
+     "lines_alt": 125,
      "rows_d2": 54,
      "rows_alt": 54,
-     "top_row_d2": "China_state_reserves",
-     "top_row_alt": "managed_money_positioning",
-     "same_top_row": false
+     "top_row_d2": "El_Nino",
+     "top_row_alt": "El_Nino",
+     "same_top_row": true
     },
     {
      "contract": "cotton",
@@ -160,8 +141,8 @@
      "lines_alt": 99,
      "rows_d2": 37,
      "rows_alt": 37,
-     "top_row_d2": "speculative_positioning",
-     "top_row_alt": "speculative_positioning",
+     "top_row_d2": "El_Nino",
+     "top_row_alt": "El_Nino",
      "same_top_row": true
     },
     {
@@ -173,9 +154,9 @@
      "lines_alt": 100,
      "rows_d2": 36,
      "rows_alt": 36,
-     "top_row_d2": "planted_area",
-     "top_row_alt": "ending_stocks_su_ratio",
-     "same_top_row": false
+     "top_row_d2": "El_Nino",
+     "top_row_alt": "El_Nino",
+     "same_top_row": true
     },
     {
      "contract": "french_rapeseed_matif",
@@ -186,9 +167,9 @@
      "lines_alt": 121,
      "rows_d2": 40,
      "rows_alt": 40,
-     "top_row_d2": "russia_rapeseed_supply",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "french_wheat_matif",
@@ -221,12 +202,12 @@
      "mode": "max",
      "net_reads_d2": 33,
      "net_reads_alt": 33,
-     "lines_d2": 113,
+     "lines_d2": 106,
      "lines_alt": 106,
      "rows_d2": 43,
      "rows_alt": 43,
      "top_row_d2": "area",
-     "top_row_alt": "cot_mm_positioning",
+     "top_row_alt": "El_Nino",
      "same_top_row": false
     },
     {
@@ -234,7 +215,7 @@
      "mode": "max",
      "net_reads_d2": 39,
      "net_reads_alt": 39,
-     "lines_d2": 131,
+     "lines_d2": 128,
      "lines_alt": 126,
      "rows_d2": 51,
      "rows_alt": 51,
@@ -277,22 +258,22 @@
      "lines_alt": 121,
      "rows_d2": 36,
      "rows_alt": 36,
-     "top_row_d2": "CNY_FX",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "rapeseed_oil_zce",
      "mode": "max",
      "net_reads_d2": 31,
      "net_reads_alt": 31,
-     "lines_d2": 124,
+     "lines_d2": 125,
      "lines_alt": 125,
      "rows_d2": 31,
      "rows_alt": 31,
-     "top_row_d2": "US_section301_tariffs",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "raw_sugar",
@@ -303,8 +284,8 @@
      "lines_alt": 119,
      "rows_d2": 39,
      "rows_alt": 39,
-     "top_row_d2": "cot_positioning",
-     "top_row_alt": "cot_positioning",
+     "top_row_d2": "El_Nino",
+     "top_row_alt": "El_Nino",
      "same_top_row": true
     },
     {
@@ -316,9 +297,9 @@
      "lines_alt": 90,
      "rows_d2": 31,
      "rows_alt": 31,
-     "top_row_d2": "consumption_growth",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "rough_rice_cbot",
@@ -329,30 +310,30 @@
      "lines_alt": 88,
      "rows_d2": 33,
      "rows_alt": 33,
-     "top_row_d2": "India_state_reserves",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "soft_red_winter_wheat_cbot",
      "mode": "max",
      "net_reads_d2": 34,
      "net_reads_alt": 34,
-     "lines_d2": 108,
+     "lines_d2": 113,
      "lines_alt": 108,
      "rows_d2": 47,
      "rows_alt": 47,
-     "top_row_d2": "area",
+     "top_row_d2": "cot_mm_positioning",
      "top_row_alt": "cot_mm_positioning",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "sorghum",
      "mode": "max",
      "net_reads_d2": 23,
      "net_reads_alt": 23,
-     "lines_d2": 64,
-     "lines_alt": 64,
+     "lines_d2": 68,
+     "lines_alt": 68,
      "rows_d2": 15,
      "rows_alt": 15,
      "top_row_d2": "El_Nino",
@@ -368,9 +349,9 @@
      "lines_alt": 121,
      "rows_d2": 34,
      "rows_alt": 34,
-     "top_row_d2": "white_food_demand",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "south_african_yellow_maize_jse",
@@ -390,13 +371,13 @@
      "mode": "max",
      "net_reads_d2": 33,
      "net_reads_alt": 33,
-     "lines_d2": 110,
+     "lines_d2": 112,
      "lines_alt": 107,
      "rows_d2": 39,
      "rows_alt": 39,
-     "top_row_d2": "cattle_cycle_herd_size",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "soybean_meal_dce",
@@ -407,9 +388,9 @@
      "lines_alt": 100,
      "rows_d2": 33,
      "rows_alt": 33,
-     "top_row_d2": "hog_margin",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "soybean_oil_cbot",
@@ -429,13 +410,13 @@
      "mode": "max",
      "net_reads_d2": 28,
      "net_reads_alt": 28,
-     "lines_d2": 99,
+     "lines_d2": 100,
      "lines_alt": 100,
      "rows_d2": 33,
      "rows_alt": 33,
-     "top_row_d2": "russia_sunoil_supply",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "soybeans",
@@ -446,8 +427,8 @@
      "lines_alt": 88,
      "rows_d2": 37,
      "rows_alt": 37,
-     "top_row_d2": "cot_mm_positioning",
-     "top_row_alt": "cot_mm_positioning",
+     "top_row_d2": "El_Nino",
+     "top_row_alt": "El_Nino",
      "same_top_row": true
     },
     {
@@ -455,12 +436,12 @@
      "mode": "max",
      "net_reads_d2": 31,
      "net_reads_alt": 31,
-     "lines_d2": 114,
+     "lines_d2": 108,
      "lines_alt": 108,
      "rows_d2": 47,
      "rows_alt": 47,
-     "top_row_d2": "cot_mm_positioning",
-     "top_row_alt": "cot_mm_positioning",
+     "top_row_d2": "El_Nino",
+     "top_row_alt": "El_Nino",
      "same_top_row": true
     },
     {
@@ -468,26 +449,26 @@
      "mode": "max",
      "net_reads_d2": 28,
      "net_reads_alt": 28,
-     "lines_d2": 100,
+     "lines_d2": 101,
      "lines_alt": 101,
      "rows_d2": 23,
      "rows_alt": 23,
-     "top_row_d2": "CNY_FX",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "soybeans_no_2_dce",
      "mode": "max",
      "net_reads_d2": 24,
      "net_reads_alt": 24,
-     "lines_d2": 91,
+     "lines_d2": 92,
      "lines_alt": 92,
      "rows_d2": 30,
      "rows_alt": 30,
-     "top_row_d2": "China_hog_herd",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "sunflower_oil",
@@ -498,9 +479,9 @@
      "lines_alt": 61,
      "rows_d2": 14,
      "rows_alt": 14,
-     "top_row_d2": "import_tariff",
+     "top_row_d2": "El_Nino",
      "top_row_alt": "El_Nino",
-     "same_top_row": false
+     "same_top_row": true
     },
     {
      "contract": "white_sugar",
@@ -516,7 +497,7 @@
      "same_top_row": true
     }
    ],
-   "verdict": "the alternative tuple selects a different top row on 22 of 36 board/mode pair(s); net reads differ by +0 across the pass"
+   "verdict": "the alternative tuple selects a different top row on 3 of 36 board/mode pair(s); net reads differ by +0 across the pass"
   },
   "board_errors": [],
   "series_keys_estate": 286,
@@ -567,29 +548,29 @@
   "physical_reads": {
    "name": "boards",
    "reads": 3484,
-   "rows": 1306001,
+   "rows": 1315258,
    "ms": {
     "n": 3484,
-    "p50": 2.72,
-    "p90": 13.87,
-    "max": 151.02,
-    "mean": 7.46,
-    "total": 25989.58
+    "p50": 2.55,
+    "p90": 12.63,
+    "max": 192.55,
+    "mean": 7.81,
+    "total": 27194.19
    },
    "declines": {},
    "errors": {},
    "max_concurrency": 2,
    "by_table": {
     "silver_noaa_oni": 140,
-    "gold_weather_z": 832,
+    "gold_weather_z": 805,
     "silver_fred_fx": 156,
-    "SELECT": 1723,
+    "SELECT": 1736,
     "silver_cot": 58,
     "silver_noaa_iod": 72,
     "silver_futures_eod": 104,
-    "silver_pink_sheet": 308,
+    "silver_pink_sheet": 309,
     "silver_production": 16,
-    "silver_fgis": 43,
+    "silver_fgis": 56,
     "gold_futures_spreads": 8,
     "silver_mpob": 8,
     "gold_board_crush": 16
@@ -652,7 +633,7 @@
     ],
     "keys_dropped": {
      "wave1": 0,
-     "wave2": 243,
+     "wave2": 234,
      "boards_capped": 33,
      "measured_under": "analogs UNWIRED (analog_reads=False) and leg B DARK (legb_on=False) -- the effective rectangle, not the declared cap"
     },
@@ -666,55 +647,55 @@
     },
     "render_lines": {
      "min": 35,
-     "median": 54.0,
-     "max": 72
+     "median": 53.0,
+     "max": 69
     },
     "render_chars": {
-     "min": 8530,
-     "median": 13535.0,
-     "max": 18348
+     "min": 8325,
+     "median": 13648.5,
+     "max": 18107
     },
     "render_est_tokens": {
-     "min": 2132,
-     "median": 3383.5,
-     "max": 4587
+     "min": 2081,
+     "median": 3412.5,
+     "max": 4527
     },
     "sec7_planned_lines": "17-20",
     "sec7_planned_tokens": 1100,
     "class_lines": {
-     "SB-E": 357,
+     "SB-E": 367,
      "SB-X": 343,
-     "SB-1": 305,
-     "SB-J": 290,
-     "SB-F": 126,
+     "SB-1": 299,
+     "SB-J": 282,
+     "SB-F": 112,
      "SB-L": 108,
      "SB-P": 72,
      "SB-W": 72,
      "SB-C": 66,
-     "SB-JOIN": 60,
+     "SB-JOIN": 58,
      "SB-H": 36,
      "SB-V": 36,
      "SB-T": 23,
-     "SB-M": 22
+     "SB-M": 19
     },
     "class_chars": {
-     "SB-X": 112434,
-     "SB-1": 105982,
-     "SB-J": 56290,
-     "SB-E": 55313,
-     "SB-F": 45797,
-     "SB-C": 17914,
-     "SB-P": 17580,
-     "SB-JOIN": 15466,
-     "SB-W": 13471,
+     "SB-X": 111854,
+     "SB-1": 103041,
+     "SB-E": 57580,
+     "SB-J": 54779,
+     "SB-F": 50728,
+     "SB-C": 17876,
+     "SB-P": 17641,
+     "SB-JOIN": 14916,
+     "SB-W": 13423,
      "SB-T": 12332,
      "SB-L": 9810,
      "SB-H": 8743,
-     "SB-M": 5797,
-     "SB-V": 4554
+     "SB-M": 5131,
+     "SB-V": 4376
     },
     "leg_declines": {
-     "interaction:when_not_all_loud": 15
+     "interaction:when_not_all_loud": 18
     },
     "row_status_words": {
      "ok": 452,
@@ -724,52 +705,52 @@
     "stage_ms": {
      "1": {
       "n": 36,
-      "p50": 53.9,
-      "p90": 118.6,
-      "max": 315.4,
-      "mean": 67.29,
-      "total": 2422.6
+      "p50": 51.8,
+      "p90": 137.2,
+      "max": 298.8,
+      "mean": 71.19,
+      "total": 2562.9
      },
      "2": {
       "n": 36,
-      "p50": 5.6,
-      "p90": 6.9,
-      "max": 7.7,
-      "mean": 5.7,
-      "total": 205.1
+      "p50": 5.2,
+      "p90": 6.4,
+      "max": 7.0,
+      "mean": 5.22,
+      "total": 188.0
      }
     },
     "total_ms": {
      "n": 36,
-     "p50": 505.2,
-     "p90": 633.5,
-     "max": 2937.2,
-     "mean": 572.98,
-     "total": 20627.3
+     "p50": 494.85,
+     "p90": 652.1,
+     "max": 2769.9,
+     "mean": 560.48,
+     "total": 20177.3
     },
     "walk_ms": {
      "n": 36,
-     "p50": 59.5,
-     "p90": 126.5,
-     "max": 322.7,
-     "mean": 73.32,
-     "total": 2639.4
+     "p50": 57.25,
+     "p90": 144.4,
+     "max": 305.5,
+     "mean": 76.71,
+     "total": 2761.5
     },
     "render_ms": {
      "n": 36,
-     "p50": 401.3,
-     "p90": 456.4,
-     "max": 2350.9,
-     "mean": 455.77,
-     "total": 16407.7
+     "p50": 401.6,
+     "p90": 458.9,
+     "max": 2220.1,
+     "mean": 446.96,
+     "total": 16090.5
     },
     "producers_ms": {
      "n": 36,
-     "p50": 0.8,
-     "p90": 0.9,
-     "max": 31.6,
-     "mean": 1.61,
-     "total": 57.8
+     "p50": 0.7,
+     "p90": 0.8,
+     "max": 29.9,
+     "mean": 1.48,
+     "total": 53.2
     }
    },
    "deep": {
@@ -822,7 +803,7 @@
     ],
     "keys_dropped": {
      "wave1": 0,
-     "wave2": 471,
+     "wave2": 468,
      "boards_capped": 30,
      "measured_under": "analogs UNWIRED (analog_reads=False) and leg B DARK (legb_on=False) -- the effective rectangle, not the declared cap"
     },
@@ -836,60 +817,60 @@
     },
     "render_lines": {
      "min": 43,
-     "median": 85.5,
-     "max": 100
+     "median": 84.5,
+     "max": 95
     },
     "render_chars": {
-     "min": 10960,
-     "median": 21279.5,
-     "max": 24362
+     "min": 10948,
+     "median": 20805.0,
+     "max": 23198
     },
     "render_est_tokens": {
-     "min": 2740,
-     "median": 5320.0,
-     "max": 6090
+     "min": 2737,
+     "median": 5201.5,
+     "max": 5800
     },
     "sec7_planned_lines": "~40",
     "sec7_planned_tokens": 2400,
     "class_lines": {
-     "SB-E": 617,
-     "SB-1": 484,
-     "SB-J": 467,
-     "SB-X": 315,
-     "SB-F": 191,
+     "SB-E": 612,
+     "SB-1": 481,
+     "SB-J": 464,
+     "SB-X": 306,
+     "SB-F": 193,
      "SB-P": 144,
      "SB-W": 144,
      "SB-C": 110,
      "SB-L": 108,
      "SB-JOIN": 82,
-     "SB-M": 73,
      "SB-V": 72,
-     "SB-A": 38,
+     "SB-M": 71,
      "SB-H": 36,
      "SB-T": 23,
-     "SB-O": 12
+     "SB-A": 12,
+     "SB-O": 3
     },
     "class_chars": {
-     "SB-1": 157158,
-     "SB-X": 116479,
-     "SB-E": 96899,
-     "SB-J": 89294,
-     "SB-F": 70607,
-     "SB-P": 35045,
-     "SB-C": 33343,
-     "SB-W": 26912,
+     "SB-1": 155850,
+     "SB-X": 114852,
+     "SB-E": 96350,
+     "SB-J": 88754,
+     "SB-F": 71978,
+     "SB-P": 35051,
+     "SB-C": 33329,
+     "SB-W": 26930,
      "SB-JOIN": 20696,
-     "SB-M": 20196,
+     "SB-M": 19781,
      "SB-T": 12332,
      "SB-L": 9806,
-     "SB-V": 9045,
+     "SB-V": 8800,
      "SB-H": 8743,
-     "SB-A": 8198,
-     "SB-O": 2133
+     "SB-A": 2599,
+     "SB-O": 545
     },
     "leg_declines": {
-     "analog:no_like_state": 17,
-     "interaction:when_not_all_loud": 3
+     "analog:no_like_state": 30,
+     "interaction:when_not_all_loud": 5
     },
     "row_status_words": {
      "ok": 839,
@@ -899,52 +880,52 @@
     "stage_ms": {
      "1": {
       "n": 36,
-      "p50": 52.8,
-      "p90": 119.6,
-      "max": 141.2,
-      "mean": 60.64,
-      "total": 2182.9
+      "p50": 49.75,
+      "p90": 120.3,
+      "max": 134.7,
+      "mean": 59.84,
+      "total": 2154.3
      },
      "2": {
       "n": 36,
-      "p50": 57.4,
-      "p90": 156.6,
-      "max": 186.8,
-      "mean": 73.55,
-      "total": 2647.7
+      "p50": 55.75,
+      "p90": 184.4,
+      "max": 239.9,
+      "mean": 79.87,
+      "total": 2875.4
      }
     },
     "total_ms": {
      "n": 36,
-     "p50": 928.35,
-     "p90": 1085.9,
-     "max": 1220.7,
-     "mean": 900.6,
-     "total": 32421.7
+     "p50": 860.85,
+     "p90": 1038.0,
+     "max": 1120.1,
+     "mean": 860.43,
+     "total": 30975.5
     },
     "walk_ms": {
      "n": 36,
-     "p50": 104.65,
-     "p90": 240.4,
-     "max": 271.0,
-     "mean": 134.55,
-     "total": 4843.9
+     "p50": 110.4,
+     "p90": 276.1,
+     "max": 311.0,
+     "mean": 139.99,
+     "total": 5039.5
     },
     "render_ms": {
      "n": 36,
-     "p50": 689.55,
-     "p90": 761.4,
-     "max": 787.0,
-     "mean": 671.83,
-     "total": 24185.9
+     "p50": 675.35,
+     "p90": 739.6,
+     "max": 762.1,
+     "mean": 656.53,
+     "total": 23635.1
     },
     "producers_ms": {
      "n": 36,
-     "p50": 8.8,
-     "p90": 178.7,
-     "max": 193.1,
-     "mean": 64.0,
-     "total": 2304.1
+     "p50": 7.05,
+     "p90": 170.2,
+     "max": 183.4,
+     "mean": 34.74,
+     "total": 1250.7
     }
    },
    "max": {
@@ -1017,56 +998,56 @@
     },
     "render_lines": {
      "min": 61,
-     "median": 109.0,
-     "max": 131
+     "median": 107.0,
+     "max": 128
     },
     "render_chars": {
-     "min": 14272,
-     "median": 27405.5,
-     "max": 31989
+     "min": 15155,
+     "median": 26824.5,
+     "max": 31738
     },
     "render_est_tokens": {
-     "min": 3568,
-     "median": 6851.5,
-     "max": 7997
+     "min": 3789,
+     "median": 6706.0,
+     "max": 7934
     },
     "sec7_planned_lines": "66-80",
     "sec7_planned_tokens": 3900,
     "class_lines": {
-     "SB-E": 896,
+     "SB-E": 894,
      "SB-1": 541,
      "SB-J": 524,
-     "SB-X": 301,
+     "SB-X": 299,
      "SB-P": 288,
-     "SB-F": 257,
-     "SB-W": 200,
+     "SB-F": 259,
+     "SB-W": 198,
      "SB-M": 152,
      "SB-C": 113,
      "SB-L": 108,
      "SB-A": 102,
-     "SB-V": 88,
+     "SB-V": 90,
      "SB-JOIN": 87,
-     "SB-O": 37,
+     "SB-O": 38,
      "SB-H": 36,
      "SB-T": 23
     },
     "class_chars": {
-     "SB-1": 173071,
-     "SB-E": 146462,
-     "SB-X": 127453,
-     "SB-J": 99897,
-     "SB-F": 92629,
-     "SB-P": 70346,
+     "SB-1": 172581,
+     "SB-E": 146207,
+     "SB-X": 127076,
+     "SB-J": 99880,
+     "SB-F": 92266,
+     "SB-P": 70323,
      "SB-M": 44988,
-     "SB-C": 39632,
-     "SB-W": 37230,
-     "SB-A": 21831,
+     "SB-C": 39644,
+     "SB-W": 36599,
      "SB-JOIN": 21819,
+     "SB-A": 21798,
      "SB-T": 12332,
-     "SB-V": 11199,
+     "SB-V": 11244,
      "SB-L": 9806,
      "SB-H": 8743,
-     "SB-O": 6593
+     "SB-O": 6744
     },
     "leg_declines": {
      "analog:no_like_state": 9
@@ -1079,64 +1060,64 @@
     "stage_ms": {
      "1": {
       "n": 36,
-      "p50": 53.7,
-      "p90": 105.0,
-      "max": 135.7,
-      "mean": 59.78,
-      "total": 2152.0
+      "p50": 50.9,
+      "p90": 118.9,
+      "max": 137.1,
+      "mean": 60.16,
+      "total": 2165.9
      },
      "2": {
       "n": 36,
-      "p50": 109.5,
-      "p90": 203.3,
-      "max": 279.6,
-      "mean": 113.87,
-      "total": 4099.3
+      "p50": 100.3,
+      "p90": 203.5,
+      "max": 300.4,
+      "mean": 109.7,
+      "total": 3949.2
      }
     },
     "total_ms": {
      "n": 36,
-     "p50": 1405.55,
-     "p90": 1676.2,
-     "max": 1924.7,
-     "mean": 1398.63,
-     "total": 50350.6
+     "p50": 1363.1,
+     "p90": 1645.0,
+     "max": 1743.9,
+     "mean": 1364.53,
+     "total": 49123.0
     },
     "walk_ms": {
      "n": 36,
-     "p50": 168.3,
-     "p90": 288.5,
-     "max": 360.2,
-     "mean": 174.1,
-     "total": 6267.5
+     "p50": 145.05,
+     "p90": 315.9,
+     "max": 353.0,
+     "mean": 170.23,
+     "total": 6128.1
     },
     "render_ms": {
      "n": 36,
-     "p50": 1085.1,
-     "p90": 1199.6,
-     "max": 1290.9,
-     "mean": 1079.87,
-     "total": 38875.4
+     "p50": 1062.5,
+     "p90": 1188.9,
+     "max": 1242.5,
+     "mean": 1063.24,
+     "total": 38276.8
     },
     "producers_ms": {
      "n": 36,
-     "p50": 23.9,
-     "p90": 219.6,
-     "max": 546.3,
-     "mean": 112.77,
-     "total": 4059.7
+     "p50": 22.35,
+     "p90": 208.9,
+     "max": 533.4,
+     "mean": 101.63,
+     "total": 3658.6
     }
    }
   },
   "athena_calls": 0,
-  "p1_verdict": "neither",
+  "p1_verdict": "d2",
   "p2_verdict": "no window is clean on every board; leg B stays dark and the row says so",
   "p3_verdict": "all declarations parse to a band",
   "p4_verdict": "16 calendared cards over 12 sources; 11 name a release inside the next 60 days; 11 carry verified_against (owner curation, sec 10.1); 0 rule-kind finding(s)",
-  "p5_verdict": "no prior vintage existed: this run BANKS the first snapshot and reports the internal lag witness only -- silver_noaa_iod: 0 lag-column mismatch(es) over 913 checks against ['iod_dmi_3month_avg']; silver_noaa_oni: 0 lag-column mismatch(es) over 3638 checks against ['oni_anom']",
-  "p0_verdict": "measured: per-read p50 w1=1.84 ms, w2=2.4 ms, w4=9.38 ms",
-  "oni_crossings_verdict": "ONI crossed 32 time(s) over 129 months from 2015-09 (a desk band is declared)",
-  "destinations_verdict": "7 series read at the 5,000-row cap and would truncate silently: corn_cbot, hard_red_spring_wheat_mgex, hard_red_winter_wheat_kcbt, soft_red_winter_wheat_cbot, soybean_meal_cbot, soybean_oil_cbot, soybeans_cbot",
+  "p5_verdict": "measured against a banked prior vintage -- silver_noaa_iod: 0 period(s) revised, max 0.0 over 918 overlapping period(s); silver_noaa_oni: 883 period(s) revised, max 0.44 over 917 overlapping period(s)",
+  "p0_verdict": "measured: per-read p50 w1=1.84 ms, w2=2.11 ms, w4=9.32 ms",
+  "oni_crossings_verdict": "ONI crossed 36 time(s) over 131 months from 2015-09 (a desk band is declared)",
+  "destinations_verdict": "8 series read at the 5,000-row cap and would truncate silently: corn_cbot, grain_sorghum, hard_red_spring_wheat_mgex, hard_red_winter_wheat_kcbt, soft_red_winter_wheat_cbot, soybean_meal_cbot, soybean_oil_cbot, soybeans_cbot",
   "cascade_census": {
    "legs": 792,
    "fires": 544,
@@ -1196,26 +1177,26 @@
      "1": {
       "n": 24,
       "p50": 1.84,
-      "p90": 10.46,
-      "max": 11.57,
-      "mean": 3.38,
-      "total": 81.12
+      "p90": 10.12,
+      "max": 11.47,
+      "mean": 3.37,
+      "total": 80.79
      },
      "2": {
       "n": 24,
-      "p50": 2.4,
-      "p90": 12.1,
-      "max": 17.07,
-      "mean": 5.06,
-      "total": 121.44
+      "p50": 2.11,
+      "p90": 11.18,
+      "max": 16.18,
+      "mean": 4.81,
+      "total": 115.55
      },
      "4": {
       "n": 24,
-      "p50": 9.38,
-      "p90": 19.6,
-      "max": 28.44,
-      "mean": 10.79,
-      "total": 258.93
+      "p50": 9.32,
+      "p90": 20.73,
+      "max": 24.83,
+      "mean": 9.97,
+      "total": 239.2
      }
     },
     "source": "P0",
@@ -1226,14 +1207,14 @@
     "measured": {
      "state_cache": "off",
      "state_cache_note": "the memo is OFF: every agent-thread read is a physical read and the load is real",
-     "board_wall_ms": 171.0,
+     "board_wall_ms": 153.7,
      "board_per_read": {
       "n": 24,
-      "p50": 7.74,
-      "p90": 21.53,
-      "max": 33.78,
-      "mean": 10.91,
-      "total": 261.79
+      "p50": 6.19,
+      "p90": 18.46,
+      "max": 32.67,
+      "mean": 10.18,
+      "total": 244.37
      },
      "board_reads": 24,
      "board_declines": {},
@@ -1246,15 +1227,15 @@
      "agent_declines": {},
      "agent_per_read": {
       "n": 16,
-      "p50": 18.3,
-      "p90": 40.67,
-      "max": 44.8,
-      "mean": 21.21,
-      "total": 339.33
+      "p50": 20.6,
+      "p90": 43.27,
+      "max": 43.61,
+      "mean": 21.83,
+      "total": 349.28
      },
-     "p50_alone_ms": 2.4,
-     "p50_beside_agent_ms": 7.74,
-     "slowdown_x": 3.23,
+     "p50_alone_ms": 2.11,
+     "p50_beside_agent_ms": 6.19,
+     "slowdown_x": 2.93,
      "slowdown_note": ""
     },
     "source": "P0",
@@ -1362,7 +1343,7 @@
    },
    "oni_iod_revision_magnitude": {
     "quoted": "the magnitude of any in-place ONI / IOD revision on the mirror -- no prior vintage exists (Appendix B)",
-    "measured": "no prior vintage existed: this run BANKS the first snapshot and reports the internal lag witness only -- silver_noaa_iod: 0 lag-column mismatch(es) over 913 checks against ['iod_dmi_3month_avg']; silver_noaa_oni: 0 lag-column mismatch(es) over 3638 checks against ['oni_anom']",
+    "measured": "measured against a banked prior vintage -- silver_noaa_iod: 0 period(s) revised, max 0.0 over 918 overlapping period(s); silver_noaa_oni: 883 period(s) revised, max 0.44 over 917 overlapping period(s)",
     "source": "P5",
     "state": "measured"
    },
@@ -1371,9 +1352,10 @@
     "measured": {
      "series": 11,
      "read": 11,
-     "min_headroom": -18490,
+     "min_headroom": -25837,
      "at_cap": [
       "corn_cbot",
+      "grain_sorghum",
       "hard_red_spring_wheat_mgex",
       "hard_red_winter_wheat_kcbt",
       "soft_red_winter_wheat_cbot",
@@ -1382,7 +1364,7 @@
       "soybeans_cbot"
      ],
      "unread": 0,
-     "verdict": "7 series read at the 5,000-row cap and would truncate silently: corn_cbot, hard_red_spring_wheat_mgex, hard_red_winter_wheat_kcbt, soft_red_winter_wheat_cbot, soybean_meal_cbot, soybean_oil_cbot, soybeans_cbot"
+     "verdict": "8 series read at the 5,000-row cap and would truncate silently: corn_cbot, grain_sorghum, hard_red_spring_wheat_mgex, hard_red_winter_wheat_kcbt, soft_red_winter_wheat_cbot, soybean_meal_cbot, soybean_oil_cbot, soybeans_cbot"
     },
     "source": "destinations",
     "state": "measured"
@@ -1393,13 +1375,13 @@
      "quick": {
       "lines": {
        "min": 35,
-       "median": 54.0,
-       "max": 72
+       "median": 53.0,
+       "max": 69
       },
       "est_tokens": {
-       "min": 2132,
-       "median": 3383.5,
-       "max": 4587
+       "min": 2081,
+       "median": 3412.5,
+       "max": 4527
       },
       "planned_lines": "17-20",
       "planned_tokens": 1100
@@ -1407,13 +1389,13 @@
      "deep": {
       "lines": {
        "min": 43,
-       "median": 85.5,
-       "max": 100
+       "median": 84.5,
+       "max": 95
       },
       "est_tokens": {
-       "min": 2740,
-       "median": 5320.0,
-       "max": 6090
+       "min": 2737,
+       "median": 5201.5,
+       "max": 5800
       },
       "planned_lines": "~40",
       "planned_tokens": 2400
@@ -1421,13 +1403,13 @@
      "max": {
       "lines": {
        "min": 61,
-       "median": 109.0,
-       "max": 131
+       "median": 107.0,
+       "max": 128
       },
       "est_tokens": {
-       "min": 3568,
-       "median": 6851.5,
-       "max": 7997
+       "min": 3789,
+       "median": 6706.0,
+       "max": 7934
       },
       "planned_lines": "66-80",
       "planned_tokens": 3900
@@ -1451,9 +1433,17 @@
    "p1_falsifier": {
     "quoted": "ONI's +0.98 degC against its own 120-month history is a modest sigma [A] and a same-month weather z can out-rank it (sec 3.2)",
     "measured": {
-     "verdict": "neither",
-     "d2_passes_on": [],
-     "alternative_passes_on": []
+     "verdict": "d2",
+     "d2_passes_on": [
+      "deep",
+      "max",
+      "quick"
+     ],
+     "alternative_passes_on": [
+      "deep",
+      "max",
+      "quick"
+     ]
     },
     "source": "P1",
     "state": "measured"
@@ -1536,19 +1526,19 @@
    "oni_crossing_count": {
     "quoted": "the ONI crossing count since 1950 with closed 1-2q and 2-4q windows -- the words scenario 2 narrates (sec 10.1)",
     "measured": {
-     "crossings": 32,
+     "crossings": 36,
      "history_start": "2015-09",
-     "n_periods": 129,
+     "n_periods": 131,
      "windows": {
       "1_2q": {
-       "opens": "2026-07-30",
-       "closes": "2026-10-30",
+       "opens": "2026-10-31",
+       "closes": "2027-01-31",
        "open_ended": false,
        "declined": null
       },
       "2_4q": {
-       "opens": "2026-10-30",
-       "closes": "2027-04-30",
+       "opens": "2027-01-31",
+       "closes": "2027-07-31",
        "open_ended": false,
        "declined": null
       }
