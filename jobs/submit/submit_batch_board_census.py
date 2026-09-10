@@ -21,6 +21,10 @@ bootstrap three lines long instead of shipping a shadow package.
     python jobs/submit/submit_batch_board_census.py --dry-run
     python jobs/submit/submit_batch_board_census.py --wait
     python jobs/submit/submit_batch_board_census.py --asof 2026-09-07 --modes quick,deep,max --wait
+
+A SUBMIT IS A PURCHASE, so :func:`annual_handover_open` runs BEFORE any env read and any AWS call and
+REFUSES while the one known board-killing defect is still in ``walk`` -- the class that cost the
+2026-09-09 pass 140 of 144 board runs. A ``--dry-run`` prints the refusal and continues.
 """
 from __future__ import annotations
 
@@ -48,6 +52,33 @@ MODULE_REL = "src/leviathan/graphrag/state/board_census.py"
 #: in-VPC probe laws name by hand.
 OVERRIDE_LIMIT = 8192
 OVERRIDE_FLOOR = 6000            # refuse well below the cliff; a submit is not the place to find it
+
+
+def annual_handover_open() -> bool:
+    """Is the ONE known board-killing defect still in the image's own ``walk``? (S4 review, MAJOR.)
+
+    THE MEASUREMENT THIS GUARDS AGAINST REPEATING. The 2026-09-09 in-VPC pass (job 7a0f90a9) lost 140
+    of 144 board runs -- 35 of 36 boards at ``quick`` alone -- to one raise. Half of it was the null
+    boundary and is closed. The other half is a bare marketing-year label (``"2025"``, which
+    ``feeders._period_dates`` legitimately writes for the TEN ``date_col``-less annual tables in
+    ``configs/graphrag/numbers/tables.yaml``) reaching ``walk._add_months``, whose ``int(iso[5:7])``
+    slice is EMPTY on it. ``render`` anchors the SB-J projection on ``st.level_date`` for every
+    rendered non-``context_only`` row at every mode, so the raise does not need an analog to fire.
+
+    A SUBMIT IS A PURCHASE. Re-running the census before that one-line hand-over lands buys the same
+    35 lost boards a second time, so this is checked HERE, at the door where the money is spent,
+    rather than trusted to a runbook. It is a pure import of the repo's own ``walk`` -- no AWS call,
+    no clock, no network -- and it is only a proxy for the IMAGE's walk: the two agree exactly when
+    the jobdef is repinned past the fix, which is the same precondition every other census re-run has.
+
+    ``--ack-annual-handover`` is the stated escape, for the case where a caller wants the pass anyway
+    (a subset that carries no annual card, a probe-only run)."""
+    from leviathan.graphrag.state import walk as W
+    try:
+        W._add_months("2025", 3)
+    except ValueError:
+        return True
+    return False
 
 
 def bootstrap(bucket: str, prefix: str) -> str:
@@ -182,9 +213,39 @@ def main() -> int:
                     help="s3://... for the artifacts (default: derived under the probe prefix)")
     ap.add_argument("--wait", action="store_true", help="poll to a terminal status and print it")
     ap.add_argument("--poll-s", type=int, default=30)
+    ap.add_argument("--ack-annual-handover", action="store_true",
+                    help="submit even though walk._add_months still raises on a bare marketing-year "
+                         "label (see annual_handover_open) -- the pass will lose every board that "
+                         "renders an annual card")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the EXACT upload and submit and do neither")
     a = ap.parse_args()
+
+    # THE PREFLIGHT, BEFORE ANY ENV IS READ AND BEFORE ANY AWS CALL IS MADE. It is not a lint: it is
+    # the door the last census walked through to lose 35 of 36 boards.
+    if annual_handover_open() and not a.ack_annual_handover:
+        msg = (
+            "board census REFUSED: the annual bare-year hand-over is still OPEN.\n"
+            "  walk._add_months('2025', 3) raises ValueError: invalid literal for int() with "
+            "base 10: ''\n"
+            "  render.py anchors the SB-J projection on st.level_date, so EVERY board that renders a "
+            "date_col-less\n"
+            "  annual card (silver_psd, silver_production, silver_nass_annual, silver_icco_cocoa, "
+            "...) errors at\n"
+            "  EVERY mode, quick included. Job 7a0f90a9 measured 140/144 runs lost to this class.\n"
+            "  THE FIX is one line inside walk._add_months: place the label through "
+            "analogs.axis_date, exactly as\n"
+            "  analogs._window_end does. THE PROOF is\n"
+            "    python -m leviathan.graphrag.state.board_census --offline --fixture "
+            "mirror_nulls_annual\n"
+            "  coming back with zero board errors (it is RED today, by design).\n"
+            "  To submit anyway: --ack-annual-handover")
+        # A DRY RUN BUYS NOTHING, so it prints the refusal and continues -- blocking it would block the
+        # one command that verifies the submit's own shape. A real submit stops here.
+        if a.dry_run:
+            logger.warning("%s", msg)
+        else:
+            raise SystemExit(msg)
 
     aws_region = get_required_env("AWS_REGION")
     ts = utc_now_iso().replace(":", "-").replace("+00-00", "Z")

@@ -664,7 +664,16 @@ def derive_knowledge_date(ts, row: dict) -> tuple[Optional[str], str]:
     lag = int(getattr(ts, "publication_lag_days", 0) or 0)
     if not lag:
         return str(dd)[:10], "the observation's own date; no publication lag declared"
-    d = _dt.date.fromisoformat(str(dd)[:10]) + _dt.timedelta(days=lag)
+    # A MALFORMED DATE DECLINES BY NAME RATHER THAN RAISING. A NULL was already safe -- `""` is falsy
+    # and `not dd` returns the stated basis above -- but a non-empty label this calendar cannot parse
+    # (`"2026-13-01"`, a truncated cell, a stray footnote) reached `date.fromisoformat` unguarded and
+    # raised. The walk fences that into a `read_error` row, so the column would be DEMOTED SILENTLY by
+    # one bad cell; a stated absence is a sentence the row can print instead.
+    try:
+        d = _dt.date.fromisoformat(str(dd)[:10]) + _dt.timedelta(days=lag)
+    except (TypeError, ValueError):
+        return None, (f"the card serves a date this calendar cannot read ({str(dd)[:10]!r}), so a "
+                      f"{lag}-day publication lag cannot be applied to it")
     return d.isoformat(), f"observation {str(dd)[:10]} plus a {lag}-day publication lag"
 
 
@@ -892,8 +901,33 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
         out.coverage_tier = coverage_tier(map_row=row, silver_status=silver_status, status=out.status)
         return out
 
-    dates = _period_dates(rows, ts, values, collapse)
-    level_row = rows[-1]                               # the served row the LEVEL's own facts come from
+    # THE LABEL AXIS IS BUILT OVER THE ROWS THE COLLAPSE ACTUALLY ADMITTED, and that is a MEASURED
+    # correction, not tidying. ``cascade._pace_series`` SKIPS a row whose value does not parse
+    # (cascade.py:2408) -- which on the mirror is every NULL cell, rendered ``""`` by
+    # ``pgnumbers._stringify`` -- while ``_period_dates`` walked EVERY row and produced one label per
+    # row. The two axes then differed in length and the mismatch branch trims the labels from the
+    # FRONT, so a null anywhere but the front shifts the whole array by one period. MEASURED on a
+    # 140-month ONI frame with ONE blank cell inside the fetched window: 110 of 118 observations came
+    # back labelled with the wrong month -- silently, with the level, the z, the percentile, the run
+    # and every window change computed against dates they do not belong to. Handing the SAME admission
+    # test the collapse uses is what makes the two axes parallel by construction rather than by luck.
+    dated_rows = [r for r in rows if _parses(r.get("value"))]
+    dates = _period_dates(dated_rows, ts, values, collapse)
+    # THE NULL BOUNDARY, ONCE, WHERE THE ARRAY IS BUILT (``transforms.clean_pairs``). ``_pace_series``
+    # already drops a row whose value does not parse (cascade.py:2408), so on the served path this drops
+    # NOTHING and ``n_null_cells`` is zero; what it does close is the DATE axis, which carries a null
+    # wherever the mirror served no date at all. A ``""`` there is what rode into ``int(iso[0:4])`` and
+    # raised on 140 of 144 board runs in the S4 in-VPC pass. Cleaning the pair TOGETHER is the point: an
+    # array cleaned without its axis is an array whose dates no longer say what its values are values of.
+    values, dates, drops = TR.clean_pairs_counted(values, dates)
+    n_null_cells = drops["null"]
+    if not values:
+        # Unreachable behind the all-blank guard above, and stated rather than assumed: a frame that
+        # carried no reading is an EMPTY READ by name, never a collapse that ran over nothing.
+        out.status = "read_empty:all_blank"
+        out.coverage_tier = coverage_tier(map_row=row, silver_status=silver_status, status=out.status)
+        return out
+    level_row = dated_rows[-1]                         # the served row the LEVEL's own facts come from
     if plan.apply_offset and out.offset_months and cadence == "monthly":
         # THE DECLARED SAME-SERIES OFFSET (cascade_map `offset_months`), applied to the BASE series'
         # array at ZERO extra reads: the palm author's "state now" is ONI six months ago. The projection
@@ -903,7 +937,9 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
         # an offset on its own series): shifting an alias's already-lagged column would double the lag,
         # which is the defect that function's docstring measures.
         n = int(out.offset_months)
-        parallel = len(rows) == len(values)             # one served row per period: no collapse ran
+        # ONE ADMITTED ROW PER PERIOD: no collapse ran (and the comparison is against the rows the
+        # collapse ADMITTED, so a blank cell no longer makes a parallel frame look collapsed).
+        parallel = len(dated_rows) == len(values)
         if len(values) > n:
             values, dates = values[:-n], dates[:-n]
             if parallel:
@@ -914,7 +950,7 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
                 # 2026-09-05 -- the SOYBEAN row's knowledge date, on the palm row's reading. Both dates
                 # print (sec 2.6 item 1), and a knowledge date belonging to a different observation is
                 # the wrong one of the two.
-                level_row = rows[-(n + 1)]
+                level_row = dated_rows[-(n + 1)]
             else:
                 out.offset_note = (f"{out.offset_note}; the knowledge date is the newest served row's -- "
                                    f"a collapsed cross-section has no single row parallel to the "
@@ -950,7 +986,21 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     out.role = level_row.get("revision_stamp") or None
     out.coverage = {"first_obs": getattr(ts, "first_obs", None), "n_obs": len(values),
                     "history_start": dates[0] if dates else None,
-                    "history_end": dates[-1] if dates else None, "truncated": truncated}
+                    "history_end": dates[-1] if dates else None, "truncated": truncated,
+                    # A HOLE IS COUNTED, NEVER SWALLOWED: the number of served cells that carried no
+                    # reading and were dropped from the array below (sec 2.1's read rules say an
+                    # absence is a fact the row states, not a silence).
+                    #
+                    # AND AN ABSENCE IS NOT A DEFECT. `dropped_null` counts cells the source declared
+                    # NULL; `dropped_unparseable` counts cells that carried something this package
+                    # could not read as a number (a stray unit suffix, a footnote marker) and
+                    # `dropped_bool` a flag column served as True/False. Folded into one count, a
+                    # systematically malformed column reads as a SPARSE one under the word `null` and
+                    # the defect is unraisable -- `transforms.cell_kind` holds the whole reason.
+                    "dropped_null": int(n_null_cells),
+                    "dropped_unparseable": int(drops["unparseable"]),
+                    "dropped_bool": int(drops["bool"]),
+                    "undated_periods": sum(1 for d in dates if d is None)}
 
     bundle = {out.key.label(): {"values": values, "dates": dates, "unit": out.unit}}
     bkey = out.key.label()
@@ -969,7 +1019,10 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
                                    params={"window_periods": max(1, win or 12)})
         derivs.append(rec)
         out.flag_state = (None if fe["declined"] else
-                          {"last_event_date": fe["last_event_date"],
+                          # ``stats.flag_events`` stringifies its own date axis (``str(d)``), so an
+                          # UNDATED event would print the literal word "None" as a date. The null comes
+                          # back through the boundary's own coercion instead.
+                          {"last_event_date": TR.date_or_none(fe["last_event_date"]),
                            "events_in_window": fe["events_in_window"],
                            "periods_since": fe["periods_since"],
                            "window_periods": fe["window_periods"]})
@@ -1142,32 +1195,44 @@ def _period_dates(rows: list, ts, values: list, collapse) -> list:
 
     A collapsed cross-section has ONE value per period, so its axis is the DISTINCT period labels in row
     order. Where the two lengths still disagree -- a card whose period key this function cannot
-    reproduce -- the axis is trimmed or padded with EMPTY strings rather than guessed: a blank date on a
-    rendered row is visible, and a plausible wrong one is not."""
+    reproduce -- the axis is trimmed or padded with a NULL rather than guessed: a blank date on a
+    rendered row is visible, and a plausible wrong one is not.
+
+    **THE NULL IS ``None`` AND NOT ``""``, and that is the S4 fix.** The reason above is unchanged; the
+    VALUE is. ``pgnumbers._stringify`` renders every NULL cell as the empty string to match Athena, so a
+    served row with no date column at all produced ``""`` here, ``""`` rode the array into
+    ``analogs._window_end`` and ``int(iso[0:4])`` raised -- MEASURED as
+    ``ValueError: invalid literal for int() with base 10: ''`` on 140 of 144 board runs in the in-VPC S4
+    pass (job 7a0f90a9). ``None`` is the absence every consumer in this package already tests for; the
+    empty string is a string that reaches an int()."""
     out: list = []
     seen: set = set()
     for i, r in enumerate(rows):
-        d = ""
+        d = None
         for k in ("data_date", "week_ending_date", "date", "report_date"):
-            if r.get(k) not in (None, ""):
-                d = str(r[k])
+            d = TR.date_or_none(r.get(k))
+            if d is not None:
                 break
-        if not d and r.get("year") not in (None, ""):
+        if d is None and TR.date_or_none(r.get("year")) is not None:
             try:
-                d = (f"{int(r['year']):04d}-{int(r['month']):02d}" if r.get("month") not in (None, "")
-                     else f"{int(r['year']):04d}")
+                d = (f"{int(r['year']):04d}-{int(r['month']):02d}"
+                     if TR.date_or_none(r.get("month")) is not None else f"{int(r['year']):04d}")
             except (TypeError, ValueError):
-                d = str(r.get("year"))
-        if not d:
-            d = str(r.get("period") or r.get("knowledge_date") or r.get("contract_month") or "")
-        d = d[:10]
+                d = TR.date_or_none(r.get("year"))
+        if d is None:
+            for k in ("period", "knowledge_date", "contract_month"):
+                d = TR.date_or_none(r.get(k))
+                if d is not None:
+                    break
+        d = d[:10] if d else None
         if d and d in seen and collapse:
             continue
         seen.add(d)
         out.append(d)
-    if len(out) != len(values):
-        return out[-len(values):] if len(out) > len(values) else out + [""] * (len(values) - len(out))
-    return out
+    # ONE ALIGNMENT RULE, and it lives in ``transforms.align_axis`` rather than here. This branch and
+    # ``clean_pairs``' own zip disagreed about which end a surplus label comes off (front here, back
+    # there); the rule and its two reasons are stated once in that function and both builders take it.
+    return TR.align_axis(values, out)
 
 
 def _since_date(dates: list, run_len: int) -> Optional[str]:
@@ -1216,11 +1281,17 @@ def _convention_label(conv: dict, out: StateRow, bundle: dict, bkey: str, derivs
     else:
         return {"label": None, "band": None, "source": conv.get("verified"),
                 "declined": f"unknown band kind {kind!r}"}
+    value = TR.num_or_none(value)
     if value is None:
         return {"label": None, "band": None, "source": conv.get("verified"),
                 "declined": f"{kind} needs a reading this row could not measure"}
     rkey = f"{bkey}#{kind}"
-    bundle[rkey] = {"values": [float(value)], "dates": [out.level_date or ""], "unit": out.unit}
+    # THE DATE AXIS CARRIES THE LEVEL'S OWN DATE OR A NULL. It used to carry ``""`` for an undated
+    # level, which is a string this package then had to parse; ``regime_flag`` reads only the ``last``
+    # selector off ``values`` and never touches this axis, so the null costs the transform nothing and
+    # costs the next reader a raise.
+    bundle[rkey] = {"values": [float(value)], "dates": [TR.date_or_none(out.level_date)],
+                    "unit": out.unit}
     res, rec = TR.run_transform("regime_flag", bundle, key=rkey,
                                 params={"kind": kind, "bands": list(bands), "labels": list(labels)})
     derivs.append(rec)
@@ -1450,21 +1521,35 @@ def state_from_arrays(ref: str, values, dates, *, cadence: str = "monthly", asof
     key = SeriesKey(ref=ref, commodity=commodity, country=country)
     out = StateRow(key=key, asof=asof, table=table or ref, metric=metric or ref, cadence=cadence,
                    unit=unit, narrate_unit=narrate_unit, scale=scale)
-    vals = [float(v) for v in (values or [])]
-    ds = [str(d) for d in (dates or [])]
+    # THE SAME NULL BOUNDARY THE SERVED PATH TAKES (``transforms.clean_pairs``), and it is not a
+    # convenience here: the arrays this builder is handed offline are the MIRROR'S OWN shape in the
+    # ``mirror_nulls`` fixture set, where a NULL cell is ``""``. ``[float(v) for v in values]`` raised
+    # ``could not convert string to float: ''`` on one blank cell and the walk fenced the whole series
+    # into a ``read_error`` row -- a real column silently demoted by one hole.
+    vals, ds, drops = TR.clean_pairs_counted(values, dates)
+    n_null = drops["null"]
     if not vals:
-        out.status = "read_empty"
+        # ALL-BLANK IS AN EMPTY READ WITH ITS OWN WORD, the same one ``series_state`` uses, so a
+        # fixture column of nulls and a served column of nulls render the same sentence.
+        # A COLUMN OF DEFECTS IS NOT A COLUMN OF NULLS, and the qualifier says which. The closed WORD
+        # is `read_empty` either way (`status_word` splits at the colon), so every consumer branches
+        # exactly as before; what changes is that an all-unparseable column -- a real read of a column
+        # this package could not parse a single cell of -- no longer wears the word `blank`.
+        out.status = ("read_empty:all_blank" if n_null
+                      else ("read_empty:all_unparseable"
+                            if (drops["unparseable"] or drops["bool"]) else "read_empty"))
         out.coverage_tier = "series_thin"
         return out
-    if len(ds) != len(vals):
-        ds = (ds + [""] * len(vals))[:len(vals)]
     win = history_window(cadence, table or ref, windows)
     out.window_note = _window_note(cadence, win)
     out.level, out.level_date = vals[-1], ds[-1]
     out.knowledge_date = knowledge_date or (ds[-1] if ds else None)
     out.knowledge_basis = "supplied by the fixture" if knowledge_date else "the observation's own date"
     out.coverage = {"first_obs": None, "n_obs": len(vals), "history_start": ds[0], "history_end": ds[-1],
-                    "truncated": False}
+                    "truncated": False, "dropped_null": int(n_null),
+                    "dropped_unparseable": int(drops["unparseable"]),
+                    "dropped_bool": int(drops["bool"]),
+                    "undated_periods": sum(1 for d in ds if d is None)}
     bundle = {key.label(): {"values": vals, "dates": ds, "unit": unit}}
     bkey = key.label()
     derivs: list = []

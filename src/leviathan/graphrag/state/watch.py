@@ -235,6 +235,21 @@ def watch_rows(bd, *, analogs=(), cap: Optional[int] = None, conventions: Option
         # -- kind 3: the declared lag window, counted from this row's own anchor date ---------------
         win_src = bd.windows.get(row.key) or {}
         anchor = row.event_date or win_src.get("near") or (st.level_date if st is not None else None)
+        # A LABEL WALK'S OWN MONTH ARITHMETIC CANNOT READ IS NOT AN ANCHOR HERE. ``walk._add_months``
+        # slices ``iso[5:7]``, and on the MARKETING-YEAR label ``feeders._period_dates`` legitimately
+        # writes for a card that carries ``year`` and no month (a bare ``YYYY``) that slice is empty --
+        # ``int("")`` raises, which is the same ``invalid literal for int() with base 10: ''`` the S4
+        # in-VPC pass measured. ``""`` and ``None`` are already falsy and decline above; this is the
+        # third form. It is a GUARD, not the fix: the fix is one line inside ``walk._add_months``
+        # -- place the label through ``analogs.axis_date``, which knows all three forms, exactly as
+        # ``analogs._window_end`` now does. THE FUNCTION IS CITED BY NAME AND NEVER BY LINE: the lane
+        # that holds walk.py moved it (1052 -> 1077) while this comment was being reviewed, and a line
+        # number is a citation that rots. walk.py is held by that lane, so the watch row declines by
+        # name instead of ending the board and the defect is carried as a finding -- measured by
+        # ``tests/unit/test_state_null_boundary.py`` sections 5 and 6, and gated at the door by
+        # ``jobs/submit/submit_batch_board_census.annual_handover_open``.
+        if anchor is not None and len(str(anchor)[:10]) < 7:
+            anchor = None
         if anchor:
             w = projection_window(anchor, row.lag_band)
             if w.get("declined") or not w.get("opens"):

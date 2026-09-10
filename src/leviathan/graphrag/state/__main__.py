@@ -174,6 +174,158 @@ def _fixtures() -> dict:
         "export": {"values": exp_id, "dates": a_d, "unit": "MMT", "narrate_unit": "MMT"},
     }
 
+# ---------------------------------------------------------------------------------------------------
+# THE MIRROR-SHAPED FIXTURE -- what the pg read layer actually hands the producer
+# ---------------------------------------------------------------------------------------------------
+#: WHY A SECOND FIXTURE SET EXISTS. ``_fixtures`` above is a CLEAN estate: every value is a float and
+#: every date is an ISO label, which is what a hand-written array looks like and is NOT what the mirror
+#: serves. ``numbers/pgnumbers._stringify`` renders a NULL cell as the EMPTY STRING to match Athena's
+#: ``GetQueryResults`` ("VarCharValue absent"), so a served row can carry ``""`` in its value column, in
+#: its date column, in ``month`` on a year-only row -- and ``feeders._period_dates`` pads a short date
+#: axis with ``""`` besides. The in-VPC S4 census MEASURED the consequence on 2026-09-09 (job 7a0f90a9):
+#: 140 of 144 board runs raised ``ValueError: invalid literal for int() with base 10: ''`` and P5 raised
+#: ``could not convert string to float: ''``. This fixture set is that shape, offline, so the boundary
+#: that admits a blank cell is graded on a laptop instead of in a Batch job.
+#:
+#: EACH INJECTION IS ONE MEASURED SHAPE, and they are listed here rather than scattered through the
+#: builder so a reader can see the whole census of blanks in one place.
+#:
+#: WHAT THIS SET DOES **NOT** CARRY, stated here so a green ``mirror_nulls`` banner is not read as a
+#: verdict on the whole in-VPC failure: the bare marketing-year label that a ``date_col``-less ANNUAL
+#: table serves. Every bare ``YYYY`` below sits MID-ARRAY (``heat_stress_z`` 5-8), so no rendered row's
+#: ``level_date`` is ever a bare year in this set and ``walk``'s own month arithmetic is never handed
+#: one. :data:`ANNUAL_LABEL_INJECTIONS` and the ``mirror_nulls_annual`` set carry that shape, and they
+#: say why it is a separate set.
+MIRROR_NULL_INJECTIONS: tuple = (
+    ("oni_climate", "dates", "a NULL date column on the card every board on the estate folds onto"),
+    ("iod_climate", "dates", "the same blank on a second widely-carried climate card"),
+    ("brent_crude_z", "dates", "the same blank on the macro card the fan boards carry"),
+    ("heat_stress_z", "dates", "a year_month card whose `month` is NULL -- `_period_dates` writes the "
+                              "bare `YYYY`, and a fully NULL row writes `''`"),
+    ("mpob_ending_stocks", "level_date", "a LEVEL row with no date at all"),
+    ("esr_exports", "dates_short", "a date axis SHORTER than the values -- `_period_dates` pads the "
+                                   "tail with `''`"),
+    ("cot_mm_positioning", "values", "a NULL numeric cell inside an otherwise served column"),
+    ("psd_ending_stock_su_ratio", "all_blank", "a value column that is blank all the way down"),
+)
+
+
+def _mirror_nulls(fx: dict) -> dict:
+    """``_fixtures()`` re-served the way the pg mirror serves it: ``""`` wherever a cell is NULL.
+
+    IT MUTATES A COPY AND NEVER THE CLEAN SET, so the two fixture sets can run in one process (the deck
+    runs both) and the default census pass is byte-identical to what it was."""
+    out = {k: {kk: (list(vv) if isinstance(vv, list) else vv) for kk, vv in v.items()}
+           for k, v in fx.items()}
+
+    # (1) A NULL DATE COLUMN. A contiguous RUN of blanks, not one cell: the analog selector's candidate
+    # is a CROSSING, and a single blanked label would only be hit when a crossing happened to land on
+    # it -- a fixture whose bar fires by luck is not a fixture. Six months guarantee a run start.
+    for ref, spans in (("oni_climate", ((196, 202), (404, 408))),
+                       ("iod_climate", ((233, 239),)),
+                       ("brent_crude_z", ((88, 94),))):
+        for lo, hi in spans:
+            for i in range(lo, hi):
+                out[ref]["dates"][i] = ""
+
+    # (2) THE YEAR-ONLY ROWS a `year_month` card writes when `month` is NULL, and one row whose year is
+    # NULL too. Both come straight out of `feeders._period_dates`'s own year branch.
+    hea = out["heat_stress_z"]["dates"]
+    for i in (5, 6, 7, 8):
+        hea[i] = hea[i][:4]
+    hea[11] = ""
+
+    # (3) THE LEVEL ROW WITH NO DATE -- the newest served row's date column is NULL, so `out.level_date`
+    # is `""` and `_convention_label` mints `{"dates": [""]}` beside a real level.
+    out["mpob_ending_stocks"]["dates"][-1] = ""
+
+    # (4) A DATE AXIS SHORTER THAN THE VALUES: `_period_dates` pads the tail with `""` rather than
+    # guessing, and `feeders.state_from_arrays` pads the same way.
+    out["esr_exports"]["dates"] = out["esr_exports"]["dates"][3:]
+
+    # (5) A NULL NUMERIC CELL inside a column that is otherwise served.
+    cot = out["cot_mm_positioning"]["values"]
+    for i in (61, 132, len(cot) - 2):
+        cot[i] = ""
+
+    # (6) A VALUE COLUMN BLANK ALL THE WAY DOWN -- the shape `feeders.series_state` names
+    # `read_empty:all_blank` on the served path, and which the fixture path had no word for at all.
+    su = out["psd_ending_stock_su_ratio"]
+    su["values"] = [""] * len(su["values"])
+    return out
+
+
+def _fixtures_mirror_nulls() -> dict:
+    return _mirror_nulls(_fixtures())
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE ANNUAL LABEL -- the OTHER half of the measured in-VPC failure, and it is NOT the null boundary
+# ---------------------------------------------------------------------------------------------------
+#: WHY A THIRD SET EXISTS, AND WHAT IT IS FOR. ``mirror_nulls`` grades what a NULL cell does. It does
+#: NOT grade the second shape the S4 in-VPC pass (job 7a0f90a9) actually died of, because the clean
+#: estate dates every annual card with a full ISO day (``_year_ends``) and the mirror does not:
+#: ``configs/graphrag/numbers/tables.yaml`` declares TEN annual tables with NO ``date_col``
+#: (``silver_psd``, ``silver_production``, ``silver_nass_annual``, ``silver_icco_cocoa``,
+#: ``silver_psd_attributes``, ``silver_ams_cotton_quality``, ``silver_production_livestock``,
+#: ``silver_fnc_colombia_area_department`` among them), several of them carried by nearly every board,
+#: and for those ``feeders._period_dates`` legitimately writes the BARE MARKETING YEAR -- ``"2025"``.
+#:
+#: ``analogs`` places that label through :func:`analogs.axis_date` ("a bare ``YYYY`` is that year's
+#: 31 December") and does not raise. ``walk._add_months`` slices ``iso[5:7]`` instead, and on a bare
+#: year that slice is EMPTY -- the same ``invalid literal for int() with base 10: ''``. It is reached
+#: from ``render``'s SB-J projection (``anchor_date = win.get("near") or st.level_date``) for every
+#: rendered non-``context_only`` row at EVERY mode, which is why the in-VPC pass lost 35 of 36 boards
+#: at ``quick``, where no analog runs at all.
+#:
+#: **THIS SET IS THEREFORE RED BY DESIGN UNTIL THE ONE-LINE HAND-OVER LANDS IN ``walk.py``** (place the
+#: label through ``analogs.axis_date`` inside ``walk._add_months``, exactly as ``analogs._window_end``
+#: now does). It is the RE-SUBMIT GATE: ``board_census --offline --fixture mirror_nulls_annual`` must
+#: come back with zero board errors before the in-VPC census is submitted again, or the census will buy
+#: the same 35 lost boards a second time. It is kept apart from ``mirror_nulls`` so that a green
+#: ``mirror_nulls`` banner means exactly one thing -- the null boundary is closed -- rather than two.
+ANNUAL_LABEL_INJECTIONS: tuple = (
+    ("export", "bare_year", "an annual card that RENDERS: its LAST label is the bare marketing year, "
+                            "so `st.level_date` is `'2025'` and the SB-J projection anchors on it"),
+    ("psd_ending_stock_su_ratio", "bare_year", "the second annual card on the estate, on the same "
+                                               "axis; it stays value-blank from `mirror_nulls`, so it "
+                                               "grades the label without rendering a row"),
+)
+
+
+def _annual_labels(fx: dict) -> dict:
+    """Every ANNUAL card re-labelled the way a ``date_col``-less annual table is actually served: the
+    bare ``YYYY`` ``feeders._period_dates`` writes from a row that carries ``year`` and no ``month``.
+
+    IT MUTATES A COPY, for :func:`_mirror_nulls`' reason -- three fixture sets run in one deck."""
+    out = {k: {kk: (list(vv) if isinstance(vv, list) else vv) for kk, vv in v.items()}
+           for k, v in fx.items()}
+    for ref, _shape, _why in ANNUAL_LABEL_INJECTIONS:
+        out[ref]["dates"] = [str(d)[:4] for d in out[ref]["dates"]]
+    return out
+
+
+def _fixtures_mirror_nulls_annual() -> dict:
+    return _annual_labels(_mirror_nulls(_fixtures()))
+
+
+#: The selectable fixture sets. ``default`` is the clean estate the three scenarios are graded on;
+#: ``mirror_nulls`` is the same estate with the mirror's own blanks in it; ``mirror_nulls_annual`` adds
+#: the bare marketing-year label a ``date_col``-less annual table serves, and is the hand-over gate
+#: described above.
+FIXTURE_SETS: dict = {"default": _fixtures, "mirror_nulls": _fixtures_mirror_nulls,
+                      "mirror_nulls_annual": _fixtures_mirror_nulls_annual}
+
+
+def fixtures(name: str = "default") -> dict:
+    """One named fixture set. An unknown name is a KeyError with the roster in it, never a silent
+    fall-back to the clean set -- a null-boundary deck that silently ran on clean arrays would pass
+    while proving nothing."""
+    fn = FIXTURE_SETS.get(str(name or "default"))
+    if fn is None:
+        raise KeyError(f"unknown fixture set {name!r}; the sets are {sorted(FIXTURE_SETS)}")
+    return fn()
+
 
 def _benchmark_arrays() -> dict:
     """The monthly BENCHMARK per anchor board -- the World Bank column ``_RV_PRICE_SERIES`` maps per

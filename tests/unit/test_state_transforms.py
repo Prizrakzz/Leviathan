@@ -35,9 +35,20 @@ def test_every_transform_is_a_stats_call_and_this_module_defines_no_stat():
         assert spec.fn() is getattr(st, spec.stat)
     module_fns = {n for n, o in vars(TR).items()
                   if inspect.isfunction(o) and not n.startswith("_") and o.__module__ == TR.__name__}
-    # the module's own public functions are the RUNNER and the RENDERER, never a calculation
+    # the module's own public functions are the RUNNER, the RENDERER and the NULL BOUNDARY -- never a
+    # calculation. The boundary (`num_or_none` / `date_or_none` / `is_null_token` / `cell_kind` /
+    # `align_axis` / `clean_pairs` / `dated_pairs` and their counted twins) is the S4 null fix: it
+    # decides whether a served cell carries a READING at all, WHICH KIND of hole it is when it does not,
+    # and how the period axis is made parallel to the values. A cell with no reading leaves the array as
+    # a hole. That is a coercion, an admission test and an alignment; it computes no statistic, which is
+    # what the clause is about, and the two asserts below hold the line by NAME.
+    boundary = {"is_null_token", "num_or_none", "date_or_none", "cell_kind", "align_axis",
+                "clean_pairs", "clean_pairs_counted", "dated_pairs", "dated_pairs_counted"}
     assert module_fns == {"run_transform", "re_execute", "re_execute_all", "render_params",
-                          "params_hash", "lint_registry"}
+                          "params_hash", "lint_registry"} | boundary
+    # the boundary is not a second calculator: it names no stat and it widens no registry
+    assert not (boundary & set(st.STAT_REGISTRY))
+    assert not (boundary & {s.stat for s in TR.TRANSFORM_REGISTRY.values()})
 
 
 def test_an_unknown_transform_and_an_unknown_parameter_are_both_loud(bundle):

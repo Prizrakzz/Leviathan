@@ -46,6 +46,195 @@ from typing import Any, Callable, Optional
 from leviathan.graphrag.numbers import stats as st
 
 # ---------------------------------------------------------------------------------------------------
+# THE NULL BOUNDARY -- one pair of coercions, applied where an ARRAY IS BUILT and nowhere else
+# ---------------------------------------------------------------------------------------------------
+#: THE SHAPES A NULL CELL ARRIVES IN. ``numbers/pgnumbers._stringify`` renders a NULL as the EMPTY
+#: STRING on purpose -- "Athena's GetQueryResults renders NULL as '' (VarCharValue absent) -- match it"
+#: (pgnumbers.py:35) -- so every value and every date a served row carries can be ``""``. The other
+#: members are what the same cell looks like once something has already stringified it: ``str(None)``
+#: is ``"None"`` and a NaN prints as ``"nan"``. This set is the whole vocabulary of "no reading"; a
+#: string that is not in it and does not parse as a number is a DEFECT rather than a null, and
+#: :func:`num_or_none` returns ``None`` for it too because a board may not invent a figure either way.
+NULL_TOKENS: frozenset = frozenset({"", "none", "nan", "null", "na", "n/a", "-", "--"})
+
+
+def is_null_token(v) -> bool:
+    """Whether ``v`` is one of the shapes a NULL cell reaches this package in."""
+    if v is None:
+        return True
+    if isinstance(v, str):
+        return v.strip().lower() in NULL_TOKENS
+    if isinstance(v, float):
+        return v != v                                   # NaN, without importing math for one line
+    return False
+
+
+def num_or_none(v) -> Optional[float]:
+    """A served cell as a FLOAT, or ``None`` when it carries no reading.
+
+    THE ONE PLACE A BLANK BECOMES A HOLE. ``stats._floats`` raises TypeError on a ``None`` and
+    ``float("")`` raises ValueError, so a blank cell that reaches an array reaches a raise -- which is
+    exactly what the in-VPC S4 census measured (140 of 144 board runs). The fix is not a try/except at
+    each of the twenty-odd parse sites; it is that an array is BUILT through this function, so the
+    arrays the transforms and the analog selector read are numeric by construction.
+
+    A HOLE IS NEVER A ZERO. This returns ``None`` and the caller DROPS the observation (the same thing
+    ``numbers.cascade._pace_series`` already does on the served path -- cited by FUNCTION, because that
+    file is held by another lane and a line number is a citation that rots); substituting ``0.0`` would
+    move a mean, a z and a percentile by a number nobody read off a card."""
+    if is_null_token(v):
+        return None
+    if isinstance(v, bool):
+        return None                                     # a flag column is not a reading
+    try:
+        f = float(v if not isinstance(v, str) else v.strip().replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    if f != f or f in (float("inf"), float("-inf")):
+        return None
+    return f
+
+
+#: The three ways a served cell can fail to be a reading, kept APART because they are three different
+#: facts about the source. ``null`` is an absence the source DECLARED; ``unparseable`` is a DEFECT (a
+#: stray unit suffix, a footnote marker, a thousands separator this function does not eat); ``bool`` is
+#: a FLAG column served as ``True``/``False``, which is not a reading at all.
+DROP_KINDS: tuple = ("null", "unparseable", "bool")
+
+
+def cell_kind(v) -> str:
+    """Which of :data:`DROP_KINDS` a served cell is, or ``"reading"``.
+
+    WHY THE THREE ARE NOT ONE COUNT. :func:`num_or_none` returns ``None`` for all three and the ARRAY
+    is right either way -- a hole is a hole. The LEDGER is not: a systematically malformed column
+    (``"1,234 MT"``, ``"n.a.(p)"``) drops every observation and would report under a key whose word is
+    ``null``, so a BROKEN read reads as a SPARSE one and nobody can raise the defect; and a flag column
+    served as ``True``/``False`` would report as an empty read rather than as the 1/0 series it is. A
+    count that cannot tell an absence from a defect cannot raise the defect, so this names which.
+
+    Nothing on the estate serves a Python bool today (flag cards carry 0/1 and ``pgnumbers`` stringifies
+    every cell), which is exactly why the hole would be silent if one ever did."""
+    if is_null_token(v):
+        return "null"
+    if isinstance(v, bool):
+        return "bool"
+    return "reading" if num_or_none(v) is not None else "unparseable"
+
+
+def date_or_none(v) -> Optional[str]:
+    """A served period label as a STRING, or ``None`` when the row carries no date.
+
+    ``feeders._period_dates`` used to write ``""`` for an unplaceable label and its own docstring gave
+    the reason ("a blank date on a rendered row is visible, and a plausible wrong one is not"). The
+    reason still holds and the VALUE changes: ``None`` is the absence every consumer in this package
+    already tests for, while ``""`` is a string that reaches ``int(iso[0:4])`` and raises. The label is
+    NOT parsed here -- ``analogs.axis_date`` owns the calendar and this function owns the null."""
+    if is_null_token(v):
+        return None
+    s = v if isinstance(v, str) else str(v)
+    s = s.strip()
+    return s or None
+
+
+def align_axis(values, dates) -> list:
+    """The period axis made PARALLEL to ``values`` -- ONE alignment rule, stated once, for both builders.
+
+    THERE WERE TWO. ``feeders._period_dates`` trimmed a too-long label axis from the FRONT
+    (``out[-len(values):]``) while :func:`clean_pairs` truncated one from the END (it indexed
+    ``ds[i]`` for ``i < len(vs)``), and the two therefore disagreed about which observation a surplus
+    label belongs to. Unreachable on the served path -- ``_period_dates`` normalises before
+    ``clean_pairs`` ever sees the pair -- and a disagreement about which end is the safe one is still
+    a disagreement, so both callers now take this function and there is one rule to read.
+
+    THE RULE, AND WHY THE TWO CASES ACT ON DIFFERENT ENDS.
+      * TOO FEW LABELS: pad at the BACK with ``None``. A label the builder could not mint cannot be
+        invented, and the nulls land where the axis ran out rather than shifting every value one
+        period along -- ``_period_dates``' own measured defect (110 of 118 observations relabelled by
+        ONE blank cell) is exactly the shift this refuses.
+      * TOO MANY LABELS: drop from the FRONT. Surplus labels are labels the collapse did not use, and
+        the newest observation is the one the row PRINTS (``level`` / ``level_date`` are ``[-1]``), so
+        the end that must keep its own label is the newest one.
+    Neither case guesses: nothing is renamed, only appended or dropped."""
+    vs = list(values or [])
+    ds = list(dates or [])
+    if len(ds) == len(vs):
+        return ds
+    if len(ds) < len(vs):
+        return ds + [None] * (len(vs) - len(ds))
+    return ds[len(ds) - len(vs):]
+
+
+def clean_pairs(values, dates) -> tuple:
+    """``(values, dates, n_dropped)`` -- one numeric array and its period axis, built together.
+
+    THE PAIR IS THE UNIT, and that is the whole point of doing this once instead of per call site: an
+    array cleaned without its axis is an array whose dates no longer say what its values are values
+    OF. A position whose VALUE is null is dropped (the transforms cannot hold a hole -- ``_floats``
+    raises on one); a position whose DATE is null KEEPS its value and carries ``None`` as its label,
+    because the reading is real and only its placement is missing.
+
+    The two axes are made parallel by :func:`align_axis` first and the missing labels are ``None``, so
+    a date axis shorter than the values (``_period_dates``' own pad case) never shifts a value onto
+    another period's date.
+
+    ``n_dropped`` is the TOTAL of the three drop kinds; :func:`clean_pairs_counted` returns the same
+    two arrays with the breakdown, and the callers that keep a coverage ledger take that one."""
+    vs, ds, counts = clean_pairs_counted(values, dates)
+    return vs, ds, sum(counts[k] for k in DROP_KINDS)
+
+
+def clean_pairs_counted(values, dates) -> tuple:
+    """:func:`clean_pairs` with the drop LEDGER: ``(values, dates, counts)``.
+
+    ``counts`` carries one key per :data:`DROP_KINDS` entry plus ``undated`` (positions that KEPT their
+    reading and lost only their label). :func:`cell_kind` says why an absence, a defect and a flag are
+    three counts rather than one."""
+    vs = list(values or [])
+    ds = align_axis(vs, dates)
+    out_v: list = []
+    out_d: list = []
+    counts = {k: 0 for k in DROP_KINDS}
+    counts["undated"] = 0
+    for i, raw in enumerate(vs):
+        kind = cell_kind(raw)
+        if kind != "reading":
+            counts[kind] += 1
+            continue
+        out_v.append(num_or_none(raw))
+        d = date_or_none(ds[i])
+        if d is None:
+            counts["undated"] += 1
+        out_d.append(d)
+    return out_v, out_d, counts
+
+
+def dated_pairs(values, dates) -> tuple:
+    """:func:`clean_pairs` plus the DATE side: a position with no label is dropped as well.
+
+    THE TWO ARE DIFFERENT QUESTIONS AND THE CALLERS ARE DIFFERENT. A ROW keeps an undated observation
+    -- the level is real, only its label is missing, and the row prints the level and says the date is
+    absent. A HISTORY cannot: every consumer of an analog history places its positions on a calendar
+    (the knowledge axis, the candidate's own closable window, the join between two cadences), and an
+    observation that cannot be placed would be compared against dates it has no relation to. So the
+    selectors take this one, and the row builders take :func:`clean_pairs`."""
+    vs, ds, counts = dated_pairs_counted(values, dates)
+    return vs, ds, sum(counts[k] for k in DROP_KINDS) + counts["undated"]
+
+
+def dated_pairs_counted(values, dates) -> tuple:
+    """:func:`dated_pairs` with the drop LEDGER: ``(values, dates, counts)``.
+
+    ``undated`` here counts positions this function DROPPED for having no label -- the same word the
+    row builder uses for positions it KEPT -- so the two ledgers say what each caller did with a hole
+    rather than both saying 'a hole was seen'."""
+    vs, ds, counts = clean_pairs_counted(values, dates)
+    keep = [i for i, d in enumerate(ds) if d is not None]
+    if len(keep) == len(ds):
+        return vs, ds, counts
+    return [vs[i] for i in keep], [ds[i] for i in keep], counts
+
+
+# ---------------------------------------------------------------------------------------------------
 # THE INPUT MODEL -- references, never values.
 # ---------------------------------------------------------------------------------------------------
 #: The closed selector vocabulary. A derivation's input is ``(bundle key, selector)``; the selector says

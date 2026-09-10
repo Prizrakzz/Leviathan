@@ -95,17 +95,36 @@ def state_history(st, *, window: Optional[int] = None, lag_days: int = 0,
     carry their own record (sec 2.5's rule is about RENDERED figures)."""
     key = st.key.label()
     arrays = (st.inputs or {}).get(key) or {}
-    values = [float(v) for v in (arrays.get("values") or [])]
-    dates = [str(d) for d in (arrays.get("dates") or [])]
+    # THE NULL BOUNDARY, BEFORE THE PREFIX WALK (``transforms.dated_pairs``). The mirror renders a NULL
+    # cell as ``""`` (``pgnumbers._stringify``), so a served array can carry a blank value or a blank
+    # period label; ``float("")`` raises and a blank label rode into ``int(iso[0:4])`` and raised on 140
+    # of 144 board runs in the in-VPC S4 pass. Both are dropped HERE, once, because everything below
+    # this line places a position on a calendar: the knowledge axis, the candidate's closable window,
+    # the cross-cadence join. A DROPPED NULL IS A HOLE, NOT A ZERO -- the observation leaves the array
+    # rather than entering it as a value nobody read -- and the count rides on the dict so a stanza can
+    # never be shorter than its own history without saying why.
+    values, dates, drops = TR.dated_pairs_counted(arrays.get("values"), arrays.get("dates"))
+    n_dropped = sum(drops[k] for k in TR.DROP_KINDS) + drops["undated"]
     win = int(window or (st.z or {}).get("window_n") or (st.z or {}).get("window") or 0)
     lag = max(0, int(lag_days or 0))
+    # THE COUNT IS THE TOTAL AND THE BREAKDOWN RIDES BESIDE IT. `n_dropped_null` keeps its name and its
+    # meaning (every position this history could not carry); `dropped` says WHICH -- a declared NULL, a
+    # cell that did not parse (a DEFECT), a flag column, or a reading whose period label could not be
+    # placed. `transforms.cell_kind` holds the reason the three are not one number.
     out = {"dates": dates, "values": values, "z": [None] * len(values), "pct": [None] * len(values),
-           "window": win, "lag_days": lag}
+           "window": win, "lag_days": lag, "n_dropped_null": int(n_dropped),
+           "dropped": {k: int(v) for k, v in drops.items()}}
     if not values:
         return out
     z_raw: list = [None] * len(values)
     if win:
-        res, _rec = TR.run_transform("rolling_zscore", st.inputs, key=key, params={"window": win})
+        # THE TRANSFORM RUNS OVER THE CLEANED ARRAY, never ``st.inputs``. Running it over the raw bundle
+        # would return a vector as long as the UNCLEANED series, and every index below -- the knowable
+        # map, the crossing, the tie-break -- would then read a z belonging to a different observation.
+        # The window PARAMETER does not move: the rolling window is still ``win`` periods of the array
+        # it is given, which is sec 4.1's own semantics with the holes taken out.
+        clean = {key: {"values": values, "dates": dates, "unit": arrays.get("unit") or ""}}
+        res, _rec = TR.run_transform("rolling_zscore", clean, key=key, params={"window": win})
         if not res.get("declined"):
             z_raw = list(res.get("series") or [])
     idx = _knowable_indices(dates, lag)
@@ -199,9 +218,22 @@ def _prefix_percentiles(values) -> list:
     out: list = []
     seen: list = []
     for i, v in enumerate(values):
-        x = float(v)
+        x = TR.num_or_none(v)
+        if x is None:
+            # A CELL WITH NO READING IS A HOLE IN THE VECTOR AND NOT A MEMBER OF THE POPULATION: it is
+            # neither ranked nor counted against the floor. The position is KEPT so the vector stays
+            # parallel to its own dates -- dropping it here would shift every later rank onto the wrong
+            # observation. (`state_history` has already dropped these; this is the guard for a caller
+            # that hands a raw array straight in.)
+            out.append(None)
+            continue
         bisect.insort(seen, x)
-        n = i + 1
+        # THE POPULATION IS WHAT WAS ACTUALLY READ, and that is what the floor is a floor ON. ``i + 1``
+        # counts the positions walked, holes included, so a prefix of eight positions holding six
+        # readings would have passed ``MIN_PERCENTILE_N`` on six -- the refusal floor moving because a
+        # cell was blank. ``len(seen)`` is the same number on an array with no holes in it (which is
+        # every array ``state_history`` hands in) and the honest one on any other.
+        n = len(seen)
         if n < floor:
             out.append(None)
             continue
@@ -238,8 +270,17 @@ def _index_on_or_before(dates, t: str) -> Optional[int]:
     return best
 
 
-def _window_end(iso: str, months: int) -> str:
+def _window_end(iso, months: int) -> Optional[str]:
     """The END OF THE MONTH ``months`` after ``iso`` -- the resolution a band declared in QUARTERS has.
+    ``None`` when the label cannot be placed on the calendar.
+
+    **IT GOES THROUGH :func:`axis_date`, AND THAT IS THE S4 NULL FIX.** The first cut sliced the string
+    directly (``int(iso[0:4]), int(iso[5:7])``), which raises on the two labels this package actually
+    carries at the edges: the mirror's blank (``""``, a NULL date column rendered by
+    ``pgnumbers._stringify``) and the annual card's bare ``YYYY`` (whose ``[5:7]`` slice is empty). Both
+    raised ``invalid literal for int() with base 10: ''``. ``axis_date`` is the one calendar in this
+    module and it already knows all three label forms, so the window is built on the same day the read
+    dates the observation by, and an unplaceable label yields a stated ``None`` rather than a raise.
 
     THE MONTH IS THE GRAIN AND THE DAY IS NOT, and the first cut got that wrong in the direction that
     LOSES an observation. ``_add_months`` preserves the day: six months after a 2000-11-30 print is
@@ -247,7 +288,10 @@ def _window_end(iso: str, months: int) -> str:
     :func:`_index_on_or_before` fell back to APRIL and the "far end" of a one-to-two-quarter band was
     read five months out instead of six. A lag the graph states in quarters resolves to a month, so the
     window's end is that month's end and the month's own print is inside it."""
-    y, m = int(iso[0:4]), int(iso[5:7])
+    placed = axis_date(iso)
+    if placed is None:
+        return None
+    y, m = int(placed[0:4]), int(placed[5:7])
     total = (y * 12 + (m - 1)) + int(months)
     y2, m2 = total // 12, total % 12 + 1
     last = [31, 29 if (y2 % 4 == 0 and (y2 % 100 != 0 or y2 % 400 == 0)) else 28,
@@ -255,10 +299,14 @@ def _window_end(iso: str, months: int) -> str:
     return f"{y2:04d}-{m2:02d}-{last:02d}"
 
 
-def _add_months(iso: str, months: int) -> str:
+def _add_months(iso, months: int) -> Optional[str]:
     """ISO + N months, clamped to the month end. Pure arithmetic; ``walk`` holds the twin and both are
-    the ``_cw_first_of_months`` discipline -- this package reads no clock."""
-    y, m, d = int(iso[0:4]), int(iso[5:7]), int(iso[8:10] or 1)
+    the ``_cw_first_of_months`` discipline -- this package reads no clock. ``None`` on a label
+    :func:`axis_date` cannot place, for :func:`_window_end`'s own reason."""
+    placed = axis_date(iso)
+    if placed is None:
+        return None
+    y, m, d = int(placed[0:4]), int(placed[5:7]), int(placed[8:10] or 1)
     total = (y * 12 + (m - 1)) + int(months)
     y2, m2 = total // 12, total % 12 + 1
     last = [31, 29 if (y2 % 4 == 0 and (y2 % 100 != 0 or y2 % 400 == 0)) else 28,
@@ -289,7 +337,11 @@ def crossings(hist: dict, *, convention: Optional[dict] = None, min_run: int = 1
     seen: set = set()
 
     def _add(i, kind, band=None):
-        if i in seen or i <= 0 or i >= len(dates):
+        # A CANDIDATE THIS CALENDAR CANNOT DATE IS NOT A CANDIDATE. Every downstream filter is a
+        # statement about the candidate's DATE -- "its outcome window has closed", "it was knowable at
+        # t", "it is N months from the last pick" -- so a crossing at an unplaceable label could support
+        # none of them, and admitting it is what put ``""`` in front of ``int(iso[0:4])``.
+        if i in seen or i <= 0 or i >= len(dates) or axis_date(dates[i]) is None:
             return
         seen.add(i)
         out.append({"index": i, "date": dates[i], "kind": kind, "band": band})
@@ -310,14 +362,16 @@ def crossings(hist: dict, *, convention: Optional[dict] = None, min_run: int = 1
             _add(i, "run_start")
     if convention:
         kind = str(convention.get("kind") or "")
-        bands = [float(b) for b in (convention.get("bands") or [])]
+        bands = [b for b in (TR.num_or_none(x) for x in (convention.get("bands") or []))
+                 if b is not None]
         readings = (percentile_vector(hist) if kind == "percentile_bands" else values)
         for b in bands:
             was = None
             for i, v in enumerate(readings):
-                if v is None:
+                rv = TR.num_or_none(v)
+                if rv is None:
                     continue
-                now = _past_line(kind, float(v), b, bands)
+                now = _past_line(kind, rv, b, bands)
                 if was is False and now:
                     _add(i, "band_crossing", b)
                 was = now
@@ -365,13 +419,13 @@ def likeness(candidate_date: str, dims: list) -> Optional[dict]:
     for dim in dims:
         hist = dim["hist"]
         i = _index_on_or_before(hist["dates"], candidate_date)
-        z_t = None if i is None else hist["z"][i]
-        z_now = dim.get("z_now")
+        z_t = None if i is None else TR.num_or_none(hist["z"][i])
+        z_now = TR.num_or_none(dim.get("z_now"))
         if z_t is None or z_now is None:
             continue
         seen += 1
-        gaps.append(abs(float(z_t) - float(z_now)))
-        if (float(z_t) >= 0) == (float(z_now) >= 0):
+        gaps.append(abs(z_t - z_now))
+        if (z_t >= 0) == (z_now >= 0):
             agree += 1
     if not gaps or agree < _ceil_half(len(dims)):
         return None
@@ -412,7 +466,11 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
     for c in cands:
         if horizon is not None:
             far = _window_end(c["date"], horizon)
-            if far > str(asof)[:10]:
+            # AN UNPLACEABLE CANDIDATE HAS NO CLOSABLE WINDOW. The filter's claim is "this candidate's
+            # outcome window has already closed"; a date the calendar cannot read supports no such
+            # claim, so the candidate is not admitted -- the same shape the ``lag_days`` branch below
+            # already takes for a label ``_add_days`` cannot place.
+            if far is None or far > str(asof)[:10]:
                 continue
         if lag_days:
             # A LABEL THIS AXIS CANNOT PLACE IS NOT ADMITTED. The filter's claim is "this crossing was
@@ -448,8 +506,13 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
     for s in scored:
         if len(picked) >= max(0, int(analog_k)):
             break
-        if any(abs(_months_between(p["date"], s["date"])) < int(min_separation_months)
-               for p in picked):
+        # A SEPARATION NOBODY COULD MEASURE EXCLUDES NOTHING (see :func:`_months_between`): ``None``
+        # means one of the two dates is unplaceable, and the min-separation rule is an EXCLUSION that
+        # has to be earned. Unreachable in practice -- ``crossings`` mints no undatable candidate --
+        # and written this way so a future label the calendar cannot read costs a stanza its ORDERING
+        # rather than costing the reader the stanza.
+        seps = [_months_between(p["date"], s["date"]) for p in picked]
+        if any(m is not None and abs(m) < int(min_separation_months) for m in seps):
             continue
         picked.append(s)
     return {"picked": tuple(picked), "n_candidates": observable, "declined": None}
@@ -473,9 +536,19 @@ def _desc_date(s: str) -> tuple:
     return tuple(-ord(c) for c in str(s or ""))
 
 
-def _months_between(a: str, b: str) -> int:
-    ay, am = int(str(a)[0:4]), int(str(a)[5:7])
-    by, bm = int(str(b)[0:4]), int(str(b)[5:7])
+def _months_between(a, b) -> Optional[int]:
+    """Whole months from ``a`` to ``b``, or ``None`` when either side cannot be placed on the calendar.
+
+    BOTH SIDES GO THROUGH :func:`axis_date` for :func:`_window_end`'s reason: the raw slice
+    ``int(str(a)[5:7])`` is empty on a blank label AND on the annual card's bare ``YYYY``, and both
+    raised. The two callers are separation filters and each treats ``None`` as NO SEPARATION
+    CONSTRAINT -- an exclusion has to be earned by a measurement, and a separation nobody could measure
+    excludes nothing."""
+    da, db = axis_date(a), axis_date(b)
+    if da is None or db is None:
+        return None
+    ay, am = int(da[0:4]), int(da[5:7])
+    by, bm = int(db[0:4]), int(db[5:7])
     return (by * 12 + bm) - (ay * 12 + am)
 
 
@@ -518,10 +591,17 @@ def outcome_over_band(*, label: str, values, dates, t: str, band: LagBand, asof:
         return {**base, "declined": "horizon_open", "decline_leg": "analog"}
     near_date = _window_end(t, int(band.min_q) * QUARTER_MONTHS)
     far_date = _window_end(t, int(band.max_q) * QUARTER_MONTHS)
+    if near_date is None or far_date is None:
+        # A STATE DATE THE CALENDAR CANNOT PLACE HAS NO WINDOW TO READ AN OUTCOME OVER. The word is the
+        # closed vocabulary's own (``board.ANALOG_REASONS``) and renders as "the series carries no
+        # observation over that window" -- true of a window that could not be constructed at all.
+        return {**base, "declined": "no_tape_rows", "decline_leg": "analog"}
     if far_date > str(asof)[:10]:
         return {**base, "declined": "horizon_open", "decline_leg": "analog"}
-    ds = [str(d) for d in (dates or [])]
-    vs = [float(v) for v in (values or [])]
+    # THE CONSEQUENCE SERIES THROUGH THE SAME BOUNDARY: a blank cell in the benchmark column raised
+    # ``could not convert string to float: ''`` here, and an undated observation cannot be located by
+    # ``_index_on_or_before`` at either end of the window.
+    vs, ds, _n_dropped = TR.dated_pairs(values, dates)
     i0 = _index_on_or_before(ds, t)
     i1 = _index_on_or_before(ds, near_date)
     i2 = _index_on_or_before(ds, far_date)
@@ -562,8 +642,9 @@ def event_analogs(row, *, asof: str, band: Optional[LagBand] = None) -> dict:
                 "declined": "no_numeric_event_history"}
     key = st.key.label()
     arrays = (st.inputs or {}).get(key) or {}
-    values = [float(v) for v in (arrays.get("values") or [])]
-    dates = [str(d) for d in (arrays.get("dates") or [])]
+    # A FLAG EVENT IS A DATE, so an undated non-zero cell is not an event this selector can offer: it
+    # leaves through the same boundary the state history uses.
+    values, dates, _n_dropped = TR.dated_pairs(arrays.get("values"), arrays.get("dates"))
     hz = None if (band is None or band.max_q is None) else int(band.max_q) * QUARTER_MONTHS
     out: list = []
     for i, v in enumerate(values):
@@ -572,8 +653,10 @@ def event_analogs(row, *, asof: str, band: Optional[LagBand] = None) -> dict:
         d = dates[i]
         if d >= str(asof)[:10]:
             continue
-        if hz is not None and _window_end(d, hz) > str(asof)[:10]:
-            continue
+        if hz is not None:
+            closes = _window_end(d, hz)
+            if closes is None or closes > str(asof)[:10]:
+                continue
         out.append(d)
     if not out:
         return {"contract": row.contract, "driver_id": row.driver_id, "dates": (),
@@ -622,7 +705,10 @@ def co_loud_analogs(bd, driver_id: str, *, k: int = 2, decile: float = 90.0,
         per[a.contract] = {"row": row, "hist": hist}
     if len(per) < max(1, int(k)):
         return {"driver_id": driver_id, "dates": (), "declined": "no_like_state", "per_contract": {}}
-    all_dates = sorted({d for v in per.values() for d in v["hist"]["dates"] if d})
+    # ONLY DATES THE CALENDAR CAN PLACE. A co-occurrence is a claim about one DAY across contracts, and
+    # an unplaceable label is a day nobody can name -- it would also reach ``_months_between`` below.
+    all_dates = sorted({d for v in per.values() for d in v["hist"]["dates"]
+                        if d and axis_date(d) is not None})
     hits: list = []
     for d in all_dates:
         if d >= str(bd.asof)[:10]:
@@ -630,8 +716,8 @@ def co_loud_analogs(bd, driver_id: str, *, k: int = 2, decile: float = 90.0,
         n = 0
         for v in per.values():
             i = _index_on_or_before(v["hist"]["dates"], d)
-            p = None if i is None else percentile_vector(v["hist"])[i]
-            if p is not None and float(p) >= float(decile):
+            p = None if i is None else TR.num_or_none(percentile_vector(v["hist"])[i])
+            if p is not None and p >= float(decile):
                 n += 1
         if n >= max(1, int(k)):
             hits.append({"date": d, "n_contracts": n})
@@ -639,7 +725,9 @@ def co_loud_analogs(bd, driver_id: str, *, k: int = 2, decile: float = 90.0,
     for h in sorted(hits, key=lambda x: _desc_date(x["date"])):
         if len(picked) >= max(0, int(analog_k)):
             break
-        if any(abs(_months_between(p["date"], h["date"])) < 12 for p in picked):
+        # ``None`` is NO SEPARATION CONSTRAINT here for :func:`select_analogs`'s stated reason.
+        seps = [_months_between(p["date"], h["date"]) for p in picked]
+        if any(m is not None and abs(m) < 12 for m in seps):
             continue
         picked.append(h)
     per_contract = _co_loud_outcomes(bd, per, picked, benchmark_fn=benchmark_fn)
@@ -799,7 +887,7 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
         hists[r.key] = h
         z_now = None
         if r.state.z and not r.state.z.get("declined"):
-            z_now = float(r.state.z["value"])
+            z_now = TR.num_or_none(r.state.z["value"])
         dims.append({"id": r.driver_id, "hist": h, "z_now": z_now})
     dims.extend(_price_dimensions(price_dims))
     price_admitted = len(dims) - len(seeds)
@@ -858,8 +946,9 @@ def _price_dimensions(price_dims) -> list:
     like any other, and the likeness then asks whether the DRIVERS looked alike too."""
     out: list = []
     for pd in list(price_dims or ())[:2]:
-        vals = [float(v) for v in (pd.get("values") or [])]
-        ds = [str(d) for d in (pd.get("dates") or [])]
+        # THE SAME BOUNDARY AS A DRIVER DIMENSION: a price dimension is ranked by the same prefix
+        # arithmetic and joined to a candidate by the same date, so it may not carry a blank either.
+        vals, ds, _n_dropped = TR.dated_pairs(pd.get("values"), pd.get("dates"))
         if not vals:
             continue
         key = str(pd.get("id") or "price")
@@ -1043,6 +1132,10 @@ def leg_b_rows(analogs, *, on: bool = False, cell_fn=None, verdict_fn=None, span
             continue
         t1 = _window_end(a["date"], int(band.min_q) * QUARTER_MONTHS)
         t2 = _window_end(a["date"], int(band.max_q) * QUARTER_MONTHS)
+        if t1 is None or t2 is None:
+            # THE SAME SKIP THE UNDATED ANALOG TAKES at the top of this loop: leg B is a cell over a
+            # dated window, and there is no window here to read one over.
+            continue
         if _days_between(t1, t2) > span_max_days:
             t2 = _add_days(t1, span_max_days)
             note = ("the window is the lower end of the declared band, because the span the tape read "

@@ -58,6 +58,8 @@ import threading
 import time
 from typing import Optional
 
+from leviathan.graphrag.state import transforms as TR
+
 # ---------------------------------------------------------------------------------------------------
 # THE DECLARED CONSTANTS -- every one of them the design's own, restated so the artifact is auditable
 # ---------------------------------------------------------------------------------------------------
@@ -668,15 +670,16 @@ def _analog_census(bd, ana) -> dict:
                 continue
             try:
                 hist = A.state_history(st, lag_days=A._lag_days_of(r))
-                z_now = (float(st.z["value"]) if st.z and not st.z.get("declined") else None)
+                z_now = (TR.num_or_none(st.z["value"]) if st.z and not st.z.get("declined")
+                         else None)
                 dims = [{"id": r.driver_id, "hist": hist, "z_now": z_now}]
                 seeds_measured += 1
                 for band in ANALOG_BANDS:
                     n = 0
                     for d in (hist.get("dates") or ()):
                         lk = A.likeness(str(d)[:10], dims)
-                        if lk is not None and lk.get("distance") is not None \
-                                and float(lk["distance"]) <= float(band):
+                        dist = None if lk is None else TR.num_or_none(lk.get("distance"))
+                        if dist is not None and dist <= float(band):
                             n += 1
                     per_band[str(band)].append({"driver_id": r.driver_id, "candidates": n,
                                                 "history_n": len(hist.get("dates") or ())})
@@ -1257,8 +1260,13 @@ def probe_p5(asof: str, *, qfn, prior=None) -> dict:
                 key = f"{int(y):04d}-{int(m):02d}"
             except (TypeError, ValueError):
                 continue
-            v = r.get(anom_col) if anom_col else None
-            series[key] = (None if v is None else float(v))
+            # THE MIRROR RENDERS A NULL AS ``""`` (``pgnumbers._stringify``), and ``float("")``
+            # raises -- which is exactly what the in-VPC S4 pass measured here:
+            # ``P5 ERROR ValueError: could not convert string to float: ''``. The snapshot's cells go
+            # through the state package's own null boundary, so a blank cell is a stated ``None`` in
+            # the banked vintage (and ``non_null_values`` below counts it as the absence it is)
+            # instead of a probe that never ran.
+            series[key] = TR.num_or_none(r.get(anom_col)) if anom_col else None
         rec["n_periods"] = len(series)
         rec["value_column"] = anom_col
         rec["columns"] = [str(k) for k in ((rows[0] or {}) if rows else {})]
@@ -1391,8 +1399,7 @@ def _lag_witness(rows, series: dict, table: str, *, anom_col: Optional[str] = No
         except (TypeError, ValueError):
             continue
         for b in by_base:
-            v = r.get(b)
-            by_base[b][ym] = (None if v is None else float(v))
+            by_base[b][ym] = TR.num_or_none(r.get(b))
 
     checked = 0
     mismatches: list = []
@@ -1408,7 +1415,10 @@ def _lag_witness(rows, series: dict, table: str, *, anom_col: Optional[str] = No
             base_col = bases.get(col)
             if base_col is None:
                 continue
-            v = r.get(col)
+            # A BLANK LAG CELL IS NOT A DISAGREEMENT AND NOT A COMPARISON EITHER: it is a cell
+            # with no reading, so it is skipped exactly as a ``None`` always was -- and it no longer
+            # reaches ``float("")`` on the way.
+            v = TR.num_or_none(r.get(col))
             if v is None:
                 continue
             ym = _shift_month(y, m, -int(n))
@@ -1417,12 +1427,12 @@ def _lag_witness(rows, series: dict, table: str, *, anom_col: Optional[str] = No
                 continue
             checked += 1
             per_column[col] += 1
-            d = abs(float(v) - float(base))
+            d = abs(v - base)
             deltas.append(d)
             if d > LAG_WITNESS_TOLERANCE:
                 mismatches.append({"period": f"{y:04d}-{m:02d}", "column": col,
-                                   "lagged_value": float(v), "base_column": base_col,
-                                   "base_at": ym, "base_value": float(base),
+                                   "lagged_value": v, "base_column": base_col,
+                                   "base_at": ym, "base_value": base,
                                    "delta": round(d, 6)})
     if not checked:
         return {"available": False, "columns": [c for c, _ in lags], "bases": bases,
@@ -1469,14 +1479,16 @@ def _prior_diff(series: dict, prior_block: dict) -> dict:
     for k, v in sorted(series.items()):
         if k not in prior:
             continue
-        pv = prior[k]
+        # THE PRIOR IS A BANKED JSON VINTAGE and a run older than this fix banked ``""`` cells into
+        # it, so the prior side takes the boundary too -- a diff must never raise on its own archive.
+        v, pv = TR.num_or_none(v), TR.num_or_none(prior[k])
         if v is None or pv is None:
             if v != pv:
                 changed.append({"period": k, "was": pv, "now": v, "delta": None})
             continue
-        d = float(v) - float(pv)
+        d = v - pv
         if abs(d) > 1e-9:
-            changed.append({"period": k, "was": float(pv), "now": float(v), "delta": round(d, 6)})
+            changed.append({"period": k, "was": pv, "now": v, "delta": round(d, 6)})
     added = sorted(set(series) - set(prior))
     dropped = sorted(set(prior) - set(series))
     mags = [abs(c["delta"]) for c in changed if c["delta"] is not None]
@@ -1652,8 +1664,10 @@ def destination_census(graph, asof: str, *, qfn) -> dict:
             sql = (f"SELECT COUNT(*) AS n, {dsel} AS destinations "
                    f"FROM {Q.ATHENA_DB}.{physical} WHERE " + " AND ".join(where))
             got = counter(sql)
-            n = int((got[0] or {}).get("n") or 0) if got else 0
-            dests = (got[0] or {}).get("destinations") if got else None
+            n = int(TR.num_or_none((got[0] or {}).get("n")) or 0) if got else 0
+            # ``COUNT(DISTINCT ...)`` over a table with no destination column serves NULL, which the
+            # mirror renders as ``""`` -- and ``int("")`` raises. The count is a number or an absence.
+            dests = TR.num_or_none((got[0] or {}).get("destinations")) if got else None
             rec.update({"rows_52w": n,
                         "destinations": (None if dests is None else int(dests)),
                         "cap": F.READ_LIMIT, "headroom": F.READ_LIMIT - n,
@@ -1723,7 +1737,7 @@ def cascade_leg_census(asof: str, *, qfn) -> dict:
 def census(*, asof: str = CENSUS_ASOF_DEFAULT, qfn, state_fn_factory=None, tape_fn=None,
            tape_fn_factory=None, modes=MODES, contracts=None, width: int = 2,
            alternative_pass: str = "max", probes=True, prior=None, cascade_legs: bool = True,
-           checkpoint=None) -> dict:
+           checkpoint=None, fixture: str = "") -> dict:
     """THE WHOLE BOARD CENSUS. Returns ``{"summary": ..., "boards": [...], "probes": {...}}``.
 
     ``state_fn_factory(asof, counter) -> state_fn`` is injected so the same pass runs against the pg
@@ -1737,6 +1751,13 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, qfn, state_fn_factory=None, tape_
     ``attemptDurationSeconds`` kill, a put_object failure or the closing ``ATHENA_CALLS == 0`` assert
     would otherwise take 144 finished board runs down with them. It is best-effort by construction: a
     checkpoint that raised would be a writer ending a census it exists to protect.
+
+    ``fixture`` NAMES THE ESTATE THE PASS READ, and it rides onto the artifact. An offline pass over a
+    fixture set and an in-VPC pass over the real mirror produced banners that were identical in every
+    header field: only the first line of STDOUT said ``fixtures=mirror_nulls``, and stdout is not banked
+    with the artifact -- so a banked offline banner was indistinguishable from a measurement of the
+    estate, which is exactly the provenance a census artifact exists to carry. ``""`` means the LIVE pg
+    mirror and prints as ``estate=pg-mirror``.
 
     THE MEMO IS CLEARED BETWEEN BOARDS, deliberately. With ``GRAPHRAG_STATE_CACHE`` off (the shipped
     default) the memo is a no-op and this changes nothing; with it ON, a board that inherited the
@@ -1819,7 +1840,7 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, qfn, state_fn_factory=None, tape_
 
     summary = _summarise(asof, boards, keys, probe_block, read_counter,
                          started=started, wall_s=round(time.perf_counter() - t_start, 1),
-                         roster=roster, modes=list(modes))
+                         roster=roster, modes=list(modes), fixture=str(fixture or ""))
     return {"summary": summary, "boards": boards, "probes": probe_block,
             "series_keys": keys}
 
@@ -1834,7 +1855,8 @@ def _guarded(fn, *a, **k) -> dict:
                 "traceback": traceback.format_exc()[-1200:]}
 
 
-def _summarise(asof, boards, keys, probes, counter, *, started, wall_s, roster, modes) -> dict:
+def _summarise(asof, boards, keys, probes, counter, *, started, wall_s, roster, modes,
+               fixture: str = "") -> dict:
     from leviathan.graphrag.state import board as B
 
     # THE TAPE ROSTER IS A ZERO-READ FACT and is measured here rather than inside P2, so it is on the
@@ -1877,8 +1899,10 @@ def _summarise(asof, boards, keys, probes, counter, *, started, wall_s, roster, 
             #
             # THE CONDITION RIDES THE FIGURE. This wave-2 count is the EFFECTIVE cap's, not the
             # DECLARED one's: `board_run` walks with `legb_on=False` and `analog_reads=False` (it
-            # wires no benchmark_fn / receipt_fn, and walk.py:1756 is explicit that reserving those
-            # seats would put up to 15 UNSPENDABLE reads on the ceiling). Quoted against sec 3.8's
+            # wires no benchmark_fn / receipt_fn, and `walk.walk`'s effective-wave-2-cap clause is
+            # explicit that reserving those seats would put up to 15 UNSPENDABLE reads on the
+            # ceiling -- cited BY FUNCTION, never by line, because the lane that holds walk.py moves
+            # it and a line number is a citation that rots). Quoted against sec 3.8's
             # 58 without this line, the number reads like a contradiction instead of a measurement
             # of a different rectangle.
             "keys_dropped": {"wave1": sum(len(b["budget"]["wave1_deferred"]) for b in rows),
@@ -2078,6 +2102,11 @@ def _summarise(asof, boards, keys, probes, counter, *, started, wall_s, roster, 
 
     return {
         "asof": asof, "started_utc": started, "wall_s": wall_s,
+        # THE ESTATE THIS PASS READ. `""` is the live pg mirror; anything else is a `state.__main__`
+        # fixture set, and an artifact that does not say which is an artifact whose figures cannot be
+        # attributed. It is one field because the banner is the thing that gets banked and quoted.
+        "fixture": str(fixture or ""),
+        "estate": (f"fixtures:{fixture}" if fixture else "pg-mirror"),
         "boards": len(roster), "modes": list(modes), "board_runs": len(boards),
         "alternative_pass": alt_rollup,
         "board_errors": errored,
@@ -2147,6 +2176,28 @@ def _fixture_state_fn_factory(asof: str, counter):
     return fixture_state_fn(asof)
 
 
+def fixture_state_fn_factory(name: str = "default"):
+    """A state-fn factory over ONE NAMED fixture set (``state.__main__.FIXTURE_SETS``).
+
+    IT EXISTS SO THE NULL BOUNDARY IS GRADED OFFLINE. ``mirror_nulls`` is ``default`` with the pg read
+    layer's own blanks in it -- ``pgnumbers._stringify`` renders NULL as ``""`` to match Athena -- and
+    the in-VPC S4 pass MEASURED what that costs: 140 of 144 board runs raised
+    ``invalid literal for int() with base 10: ''``. Selecting the set here means one census command
+    reproduces that on a laptop and one census command proves it fixed.
+
+    ``mirror_nulls_annual`` is the THIRD set and it is the RE-SUBMIT GATE: the same estate with the
+    bare marketing-year label a ``date_col``-less annual table actually serves, which is the half of
+    the in-VPC failure that lives in ``walk``'s own month arithmetic rather than at the null boundary.
+    It is RED until that one-line hand-over lands; ``state.__main__.ANNUAL_LABEL_INJECTIONS`` holds the
+    whole measurement."""
+    from leviathan.graphrag.state.__main__ import fixture_state_fn, fixtures
+    fx = fixtures(name)
+
+    def _factory(asof: str, counter):
+        return fixture_state_fn(asof, fx)
+    return _factory
+
+
 def _pg_tape_fn(counter=None):
     """The tape reader for the in-VPC pass, wired from ``feeders.tape_state``.
 
@@ -2180,7 +2231,10 @@ def banner(artifact: dict) -> str:
     A("")
     A(f"started {s.get('started_utc')}  wall {s.get('wall_s')} s  "
       f"boards {s.get('boards')}  runs {s.get('board_runs')}  "
-      f"ATHENA_CALLS={s.get('athena_calls')}")
+      f"ATHENA_CALLS={s.get('athena_calls')}  "
+      # THE PROVENANCE CLAUSE. Without it an offline fixture banner and a real estate measurement are
+      # byte-identical in the header, and only stdout -- which is not banked -- said which.
+      f"estate={s.get('estate') or 'pg-mirror'}")
     phys = s.get("physical_reads") or {}
     A(f"physical mirror reads {phys.get('reads')} "
       f"(p50 {(phys.get('ms') or {}).get('p50')} ms, max {(phys.get('ms') or {}).get('max')} ms); "
@@ -2458,6 +2512,12 @@ def main(argv=None) -> int:
                     help="the mode the ALTERNATIVE-tuple pass runs at ('' to skip)")
     ap.add_argument("--offline", action="store_true",
                     help="run against state.__main__'s fixtures; no pg, no env asserts")
+    ap.add_argument("--fixture", default="default",
+                    help="which OFFLINE fixture set to run: 'default' (the clean estate), "
+                         "'mirror_nulls' (the mirror's own NULL-as-empty-string shape), or "
+                         "'mirror_nulls_annual' (that plus the bare marketing-year label a "
+                         "date_col-less annual table serves -- THE RE-SUBMIT GATE, red until the "
+                         "walk._add_months hand-over lands); ignored on an in-VPC pass")
     ap.add_argument("--no-probes", action="store_true")
     ap.add_argument("--no-cascade-census", action="store_true")
     ap.add_argument("--no-tape", action="store_true")
@@ -2474,12 +2534,13 @@ def main(argv=None) -> int:
         write_checkpoint(boards, keys, a.asof, out_dir=a.out, s3_prefix=a.s3)
 
     if a.offline:
-        print("board_census: OFFLINE pass (fixtures; no mirror, no env asserts)")
-        art = census(asof=a.asof, qfn=_dead_qfn, state_fn_factory=_fixture_state_fn_factory,
+        print(f"board_census: OFFLINE pass (fixtures={a.fixture}; no mirror, no env asserts)")
+        art = census(asof=a.asof, qfn=_dead_qfn,
+                     state_fn_factory=fixture_state_fn_factory(a.fixture),
                      tape_fn=None, modes=modes, contracts=contracts, width=a.width,
                      alternative_pass=a.alternative_pass,
                      probes=(() if a.no_probes else PROBES_OFFLINE), cascade_legs=False,
-                     prior=read_prior(a.prior), checkpoint=_checkpoint)
+                     prior=read_prior(a.prior), checkpoint=_checkpoint, fixture=a.fixture)
         athena_calls = 0
     else:
         env = assert_pg_only()
