@@ -4400,7 +4400,22 @@ def check_subject_resolver() -> list[str]:
          nowhere in the tree. The bank's own `budget_ms` is now a DISAGREEMENT check and never the
          threshold. A bank that is ABSENT is a WARNING (:func:`subject_resolver_warnings`), for the
          artifact's own reason: a checkout is allowed not to have run the harness, but a run that
-         MEASURED a violation must never be a green build."""
+         MEASURED a violation must never be a green build.
+    (14) THE OWN-STRUCTURE FENCE (phase D). `subject.OWN_STRUCTURE_IDS` is the closed set of ids that
+         ARE the anchor's own price structure -- its curve, its cash-versus-board -- and so are a
+         CONDITION and never a cause, which is `cascade_map`'s self-reference refusal stated where the
+         subject is chosen. Four properties, each with its own way of un-landing in silence:
+         (a) the fenced ids are ABSENT from `live_ids` (the enum the orchestrator threads and
+         `_validate` re-verifies a reply against) and PRESENT in `all_ids` (the tiers must still MATCH
+         them, or the trace stops recording that a phrase named one); (b) `hints_line` prints none of
+         them and `SubjectHints.ambiguous` carries none -- the two other seams by which a fenced id
+         could reach a planner or a reader; (c) `own_structure_candidates(graph)["unfenced"]` is
+         EMPTY, so a curation commit that adds another id of this shape REDS THE BUILD instead of
+         shipping it into the enum (a fence of two string literals over 36 YAMLs under active edit
+         goes stale in silence otherwise); (d) the fence swallows NO POSITIONING id -- D18 and the
+         owner's own scenario make positioning a subject, and `cot_mm_positioning` is typed
+         `instrument` on some boards, so the one id a type-shaped rule could have caught is asserted
+         free of it."""
     errs: list[str] = []
     import dataclasses as _dc
     import hashlib
@@ -4778,6 +4793,86 @@ def check_subject_resolver() -> list[str]:
                             f"ms budget (MsBoardSubject p90 "
                             f"{(_lat.get('ms_board_subject_ms') or {}).get('p90')} ms is the "
                             f"resolver's own wall, most of which a walking lane pays either way)")
+
+    # (14) THE OWN-STRUCTURE FENCE. Read from the LIVE graph, because the property is a relation
+    #      between two string literals and 36 YAMLs under active curation -- the half a source scan
+    #      cannot see. The graph load is the same one clauses elsewhere in this module take.
+    _fence = set(_su.OWN_STRUCTURE_IDS)
+    if not _fence:
+        errs.append("subject_resolver: OWN_STRUCTURE_IDS is EMPTY -- phase C MEASURED the planner "
+                    "picking `calendar_spread` on four decoy rows and `basis` on two once the enum "
+                    "offered them, and the frozen block's prose could not outrank the enum. An empty "
+                    "fence is that measurement discarded")
+    else:
+        try:
+            from leviathan.graphrag import graph as _Gm
+            _g = _Gm.CausalGraph.load()
+        except Exception as e:  # noqa: BLE001 -- an unloadable graph is another check's failure
+            _g = None
+            errs.append(f"subject_resolver: the causal graph could not be loaded for the own-structure "
+                        f"fence ({type(e).__name__}) -- clause (14) is UNGRADED on this build")
+        if _g is not None:
+            _all, _live = set(_su.all_ids(_g)), set(_su.live_ids(_g))
+            if _live != _all - _fence:
+                errs.append(f"subject_resolver: `live_ids` is not `all_ids` minus OWN_STRUCTURE_IDS "
+                            f"-- it drops {sorted(_all - _fence - _live)} and adds "
+                            f"{sorted(_live - _all)}. One fence, one definition: the tiers range over "
+                            f"`all_ids` and the planner over `live_ids`, and anything between them is "
+                            f"a third population nobody declared")
+            _leak = sorted(_fence & _live)
+            if _leak:
+                errs.append(f"subject_resolver: {_leak} is in `live_ids` -- that tuple IS the planner's "
+                            f"enum (and what `_validate` re-verifies against), so a fenced id there is "
+                            f"an id the model may pick. The anchor's own price structure is a "
+                            f"CONDITION, never a cause")
+            _lint = _su.own_structure_candidates(_g)
+            if _lint["unfenced"]:
+                _why = "; ".join(f"{i} -- {_lint['why'][i]}" for i in _lint["unfenced"])
+                errs.append(f"subject_resolver: the graph declares instrument-type driver ids that ARE "
+                            f"an anchor's own price structure and OWN_STRUCTURE_IDS does not carry "
+                            f"them ({_why}). Either fence them in `state/subject.py`, or state in that "
+                            f"constant's docstring why the id is a CROSS-market instrument -- a cause "
+                            f"of a DIFFERENT board, with a sign and a lag -- rather than the anchor's "
+                            f"own curve")
+            # (d) THE FENCE NEVER SWALLOWS A POSITIONING ID. `cot_mm_positioning` is typed
+            #     `instrument` on some boards and `positioning` on others, so a rule shaped on the
+            #     TYPE word alone would take it -- and D18 plus the owner's own scenario ("why are
+            #     many agri contracts long in managed money") make positioning one of the most-asked
+            #     subjects this estate carries.
+            _pos = sorted({str(d.id) for cid in (getattr(_g, "contracts", {}) or {})
+                           for d in _g.contracts[cid].drivers
+                           if "positioning" in str(getattr(d, "type", "") or "")})
+            _eaten = sorted(_fence & set(_pos))
+            if _eaten:
+                errs.append(f"subject_resolver: the own-structure fence carries {_eaten}, which the "
+                            f"graph types as POSITIONING -- D18 keeps positioning subject-eligible and "
+                            f"the owner's own scenario is a positioning question")
+            if _pos and not (set(_pos) - _fence) <= _live:
+                errs.append(f"subject_resolver: positioning ids {sorted(set(_pos) - _fence - _live)} "
+                            f"are declared by the graph and absent from the planner's enum")
+    # (14b) THE OTHER TWO SEAMS, asserted by CALLING them rather than by reading the source: a fenced
+    #       id offered to `hints_line` must not be printed, and one offered to `ambiguous()` must not
+    #       be carried. Both take a synthetic hints object, so this costs no graph and no artifact.
+    _f1 = sorted(_fence)[0] if _fence else ""
+    if _f1:
+        _hh = _su.SubjectHints(exact=(_f1,), alias=(_f1,),
+                               candidates=((_f1, 0.99, "id"),), vocab_status="ok")
+        if _f1 in _su.hints_line(_hh, vocab=None):
+            errs.append(f"subject_resolver: hints_line prints the fenced id {_f1!r} -- the enum "
+                        f"refuses it, so a hint line that names it spends a slot advertising an id "
+                        f"the schema forbids and the validator drops")
+        if _hh.ambiguous():
+            errs.append(f"subject_resolver: SubjectHints.ambiguous carries the fenced id {_f1!r} -- "
+                        f"the carry is the row that STOPS a reader and asks them to choose, and an id "
+                        f"the planner may not pick is not one a reader may be asked for")
+        _dup = _su.SubjectHints(candidates=(("a_x", 0.99, "id"), ("a_y", 0.98, "id")),
+                                groups=(("a_x", "ref:one"), ("a_y", "ref:one")), vocab_status="ok")
+        if len(_dup.ambiguous()) != 1:
+            errs.append("subject_resolver: SubjectHints.ambiguous is not GROUP-deduped -- "
+                        "`render.ABSENCE_WHY` promises 'either of two drivers' and the seam's decline "
+                        "gate is `len(amb) >= 2`, so both count SPELLINGS until this collapses a group "
+                        "to its strongest member (measured on deck v2's dc23: crush_margin 0.7962 and "
+                        "crush_margin_expansion 0.7803 are one driver)")
     return errs
 
 
@@ -4878,6 +4973,7 @@ def subject_resolver_warnings() -> list[str]:
     to RETIRE by hand and not a regression to red."""
     warns: list[str] = []
     try:
+        from leviathan.graphrag import graph as _G
         from leviathan.graphrag.state import subject as _su
         _status, _stamped, _live = _su.artifact_status()
         if _status == "missing":
@@ -4895,6 +4991,16 @@ def subject_resolver_warnings() -> list[str]:
         # D10's bank. ABSENT is advisory for the artifact's own reason -- the harness needs the 25 MB
         # vocabulary and a 2 GB model, so a checkout is allowed never to have run it -- while a bank
         # that MEASURED a violation is fatal in `check_subject_resolver` clause (13).
+        # A FENCE ENTRY THE GRAPH NO LONGER DECLARES. Advisory for the deck-hash reason: a curation
+        # commit is allowed to retire an id, and a fence that outlives one fences nothing -- it does
+        # not serve a wrong id, it serves no id. Naming it keeps `OWN_STRUCTURE_IDS` a set of live
+        # facts rather than a set of remembered ones.
+        _absent = _su.own_structure_candidates(_G.CausalGraph.load())["absent"] \
+            if hasattr(_G, "CausalGraph") else ()
+        if _absent:
+            warns.append(f"OWN_STRUCTURE_IDS carries {list(_absent)}, which the live graph no longer "
+                         f"declares -- a fence entry that fences nothing. Retire it with the curation "
+                         f"commit that retired the id, or leave it and re-read this line next build")
         if not _subject_latency_bank():
             warns.append("no banked subject-resolver latency run under data/subject_resolver/<date>/"
                          "latency*.json -- D10's p90 bar is UNGRADED until one exists. Measure it "

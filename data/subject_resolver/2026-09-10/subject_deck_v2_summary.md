@@ -1,6 +1,6 @@
 # SUBJECT RESOLVER DECK RUN -- subject_deck_v2.yaml
 
-- generated: 20260910T170130Z
+- generated: 20260910T205950Z
 - rows: 118  graph: 99dc11409fe9  artifact: ok
 - instrument: LIVE -- per-row vocab_status {'ok': 118} over 118 rows
 - layers run: 1, 2
@@ -27,6 +27,8 @@ lexical baseline, like for like: 30.0% any-hit / 23.3% hit@1 -- the shipped driv
 
 BARS ARE GRADED ON THE `all-tiers` COLUMN -- T0 exact UNION T1 alias UNION the frozen-floor top-5 -- which is wider than D9's literal 'in the top-5 candidates'. The `anyT2` column beside it is the strict top-5 reading; no bar's verdict differs between the two on either deck.
 
+THE SHIPPED CARRY, beside the bar's raw count: **2 of 5** rows at AMBIG_FLOOR would STOP A READER, and **0 of 1** of the DECOY rows the FATAL bar is stated over. The fence drops 0, the free-tier decline drops 3, and the group key narrows 1. THE BAR ABOVE IS UNMOVED and still grades the RAW count: retargeting a pre-registered bar inside the sitting whose change it grades is how an instrument stops being independent of what it measures. Pointing it at `SubjectHints.ambiguous` plus the seam's rule is a DOCKET item.
+
 ## LAYER 2 -- the planner (billed)
 
 seat claude-sonnet-4-6  temperature 0  max_contracts 2  draws 3  (a row passes at >= 2 of 3)
@@ -37,16 +39,16 @@ seat claude-sonnet-4-6  temperature 0  max_contracts 2  draws 3  (a row passes a
 | alias | 10 | 10 | 10 (100.0%) | 10 (100.0%) | - | - |
 | synonym | 14 | 14 | 14 (100.0%) | 14 (100.0%) | >= 90% | PASS |
 | misspelling | 14 | 14 | 14 (100.0%) | 14 (100.0%) | >= 85% | PASS |
-| description | 14 | 14 | 13 (92.9%) | 13 (92.9%) | >= 70% | PASS |
+| description | 14 | 14 | 14 (100.0%) | 14 (100.0%) | >= 70% | PASS |
 | acronym | 10 | 10 | 10 (100.0%) | 10 (100.0%) | - | - |
 | near_duplicate | 10 | 10 | 10 (100.0%) | 4 (40.0%) | >= 100% | PASS |
 | multi | 8 | 8 | 8 (100.0%) | 5 (62.5%) | >= 100% | PASS |
-| decoy | 28 | - | fired=7 | fired=7 | 0 picks on ANY draw (FATAL) | FATAL |
-| ALL non-decoy | - | 90 | 89 (98.9%) | 80 (88.9%) | - | - |
+| decoy | 28 | - | fired=2 | fired=2 | 0 picks on ANY draw (FATAL) | FATAL |
+| ALL non-decoy | - | 90 | 90 (100.0%) | 81 (90.0%) | - | - |
 
 THE VERDICT COLUMN IS `alternatives` -- a row's `expect` list names, for each cause the ask carries, the ids that would each be a right answer for it, and the picks must reach EXACTLY the row's concept count among the expected groups (near_duplicate 1, multi 2 unless the deck declares `concepts:`). `shipped v1` is the same draws under phase B's scorer, which read the list as a CONJUNCTION and so asked one pick to carry two group keys at once; the two columns coincide on every class but those two.
 
-calls 354 (errored 0), MEASURED $3.1190 from the usage fields
+calls 354 (errored 0), MEASURED $3.1318 from the usage fields
 
 SEAT PIN, read back from the draws (never only printed): temperature declared 0 / observed 0; seat declared claude-sonnet-4-6 / billed claude-sonnet-4-6 -- PASS
 
@@ -61,10 +63,10 @@ SEAT PIN, read back from the draws (never only printed): temperature declared 0 
 - **STOP** L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL) -- 1 of 28 decoys carried (17 put a candidate above CAND_FLOOR in front of the planner)
 - **PASS** L2 SYNONYM >= 90% -- 14/14 = 100.0% at >= 2 of 3 draws
 - **PASS** L2 MISSPELLING >= 85% -- 14/14 = 100.0% at >= 2 of 3 draws
-- **PASS** L2 DESCRIPTION >= 70% -- 13/14 = 92.9% at >= 2 of 3 draws
+- **PASS** L2 DESCRIPTION >= 70% -- 14/14 = 100.0% at >= 2 of 3 draws
 - **PASS** L2 NEAR_DUPLICATE >= 100% -- 10/10 = 100.0% at >= 2 of 3 draws
 - **PASS** L2 MULTI >= 100% -- 8/8 = 100.0% at >= 2 of 3 draws
-- **STOP** L2 DECOY PICKS (0 on ANY draw, FATAL) -- 7 of 28 decoy rows had the planner pick a subject on at least one draw
+- **STOP** L2 DECOY PICKS (0 on ANY draw, FATAL) -- 2 of 28 decoy rows had the planner pick a subject on at least one draw
 - **PASS** L2 SEAT PIN (temperature and model, read back from every draw) -- temperature observed 0 against a declared 0; billed model claude-sonnet-4-6 against a declared claude-sonnet-4-6
 
 ## VERDICT: STOP

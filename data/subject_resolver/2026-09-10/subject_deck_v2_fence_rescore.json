@@ -1,0 +1,49 @@
+{
+  "generated_utc": "20260910T170130Z",
+  "what": "THE OWN-STRUCTURE FENCE (state.subject.OWN_STRUCTURE_IDS) APPLIED TO PHASE C's BANKED LAYER-2 DRAWS -- a free offline re-read, no call made, no one-shot consumed",
+  "deck": "subject_deck_v2.yaml (IN-TREE; its row ids are already in the tree, so naming them here is not the held-out map `test_pb11` exists to refuse)",
+  "source_run": "scratchpad subject_deck_v2_20260910T173956Z.json -- 354 calls, errored 0, MEASURED $3.1190, seat claude-sonnet-4-6, temperature 0, draws 3",
+  "rows_total": 118,
+  "graph_hash": "99dc11409fe9",
+  "fence": [
+    "basis",
+    "calendar_spread"
+  ],
+  "counterfactual": true,
+  "decoy": {
+    "n": 28,
+    "rows_that_picked": 7,
+    "rows_removed_by_the_fence": 6,
+    "removed_rows": [
+      "dc08",
+      "dc16",
+      "dc17",
+      "dc21",
+      "dc22",
+      "dc25"
+    ],
+    "rows_remaining": 1,
+    "remaining_rows": [
+      "dc18"
+    ],
+    "draws_total": 84,
+    "draws_with_a_pick": 16,
+    "draws_removed_by_the_fence": 13,
+    "draws_remaining": 3
+  },
+  "non_decoy": {
+    "n": 90,
+    "rows_losing_an_EXPECTED_id": 0,
+    "expected_rows": [],
+    "rows_losing_a_SPURIOUS_second_pick": 2,
+    "spurious_rows": [
+      "al05",
+      "ex06"
+    ]
+  },
+  "hint_line": {
+    "rows_whose_hint_line_carried_a_fenced_id": 16,
+    "of_rows": 118
+  },
+  "note": "SIX OF THE SEVEN DECOY FIRES ARE REMOVED BY THE ENUM ALONE. dc08 / dc17 / dc22 / dc25 picked calendar_spread and dc16 / dc21 picked basis -- both now absent from live_ids, from the hint line and from the ambiguity carry, and dispatch._validate drops either from a reply that names one anyway. dc18 STAYS: it is an open-interest-as-a-market-fact ask answered with cot_positioning + managed_money_positioning, and positioning is subject-eligible by D18 and by the owner's own scenario, so that row is a planner judgement and not a fence question. NO TRUE ROW LOSES AN EXPECTED ID; two (ex06 exact, al05 alias) lose a SPURIOUS second pick of `basis` beside the freight driver they were written for and keep the expected one, which is the fence removing an over-anchor rather than an answer. IT IS A CEILING AND NOT A PREDICTION -- what a planner does with the shorter list on those six rows is the next billed run's first obligation."
+}

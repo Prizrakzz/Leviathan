@@ -1,5 +1,5 @@
 {
-  "generated_utc": "20260910T170130Z",
+  "generated_utc": "20260910T205950Z",
   "deck": "subject_deck_v2.yaml",
   "rows_total": 118,
   "class_counts": {
@@ -94,7 +94,7 @@
     {
       "bar": "L2 DESCRIPTION >= 70%",
       "verdict": "PASS",
-      "detail": "13/14 = 92.9% at >= 2 of 3 draws"
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
     },
     {
       "bar": "L2 NEAR_DUPLICATE >= 100%",
@@ -109,7 +109,7 @@
     {
       "bar": "L2 DECOY PICKS (0 on ANY draw, FATAL)",
       "verdict": "STOP",
-      "detail": "7 of 28 decoy rows had the planner pick a subject on at least one draw"
+      "detail": "2 of 28 decoy rows had the planner pick a subject on at least one draw"
     },
     {
       "bar": "L2 SEAT PIN (temperature and model, read back from every draw)",
@@ -136,6 +136,15 @@
       "any_hit_pct": 30.0,
       "hit_at_1_pct": 23.3,
       "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
+    },
+    "shipped_carry": {
+      "raw_rows_at_ambig_floor": 5,
+      "carried": 2,
+      "dropped_by_the_fence": 0,
+      "declined_on_a_free_tier_hit": 3,
+      "narrowed_by_the_group_key": 1,
+      "decoy_carried": 0,
+      "decoy_raw_at_ambig_floor": 1
     },
     "per_class": {
       "exact": {
@@ -228,14 +237,14 @@
     },
     "all_non_decoy": {
       "scored": 90,
-      "passed": 89,
-      "passed_pct": 98.9,
-      "passed_shipped_v1": 80,
-      "passed_shipped_v1_pct": 88.9
+      "passed": 90,
+      "passed_pct": 100.0,
+      "passed_shipped_v1": 81,
+      "passed_shipped_v1_pct": 90.0
     },
     "calls": 354,
     "errored_calls": 0,
-    "usd_measured": 3.119,
+    "usd_measured": 3.1318,
     "seat_pin": {
       "temperature_declared": 0,
       "temperature_observed": [
@@ -253,7 +262,7 @@
       "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
     },
     "aborted_on_cost": false,
-    "running_usd": 3.119,
+    "running_usd": 3.1318,
     "per_class": {
       "exact": {
         "n": 10,
@@ -298,10 +307,10 @@
       "description": {
         "n": 14,
         "scored": 14,
-        "passed": 13,
-        "passed_pct": 92.9,
-        "passed_shipped_v1": 13,
-        "passed_shipped_v1_pct": 92.9,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 14,
+        "passed_shipped_v1_pct": 100.0,
         "bar": ">= 70%",
         "verdict": "PASS"
       },
@@ -337,7 +346,7 @@
       },
       "decoy": {
         "n": 28,
-        "fired": 7,
+        "fired": 2,
         "bar": "0 picks on ANY draw (FATAL)",
         "verdict": "FATAL"
       }

@@ -1,0 +1,89 @@
+{
+  "generated_utc": "20260910T213559Z",
+  "deck": "subject_deck_v2.yaml",
+  "graph_hash": "99dc11409fe9",
+  "seat": "claude-sonnet-4-6",
+  "temperature": 0,
+  "draws": 3,
+  "max_contracts": 2,
+  "fence": [
+    "basis",
+    "calendar_spread"
+  ],
+  "live_ids": 403,
+  "all_ids": 405,
+  "lint_unfenced": [],
+  "usd_measured": 3.1318,
+  "calls": 354,
+  "errored_calls": 0,
+  "phase_c_usd_measured": 3.119,
+  "phase_c_calls": 354,
+  "decoy_rows_fired": {
+    "phase_c": 7,
+    "rescore_predicted": 1,
+    "phase_d_measured": 2,
+    "n": 28
+  },
+  "decoy_draws_fired": {
+    "phase_c": 16,
+    "rescore_predicted": 3,
+    "phase_d_measured": 5,
+    "n": 84
+  },
+  "decoy_rows_fired_ids": {
+    "phase_c": [
+      "dc08",
+      "dc16",
+      "dc17",
+      "dc18",
+      "dc21",
+      "dc22",
+      "dc25"
+    ],
+    "phase_d": [
+      "dc18",
+      "dc22"
+    ]
+  },
+  "decoy_draws_by_row_phase_d": {
+    "dc18": 3,
+    "dc22": 2
+  },
+  "substitution": {
+    "row": "dc22",
+    "phase_c_pick": "calendar_spread",
+    "phase_d_pick": "wheat_corn_spread",
+    "note": "an unfenced CROSS-market instrument; the fence removes an id, not an ask"
+  },
+  "l2_non_decoy": {
+    "phase_c": [
+      89,
+      90,
+      98.9
+    ],
+    "phase_d": [
+      90,
+      90,
+      100.0
+    ]
+  },
+  "l1_identical_to_phase_c": true,
+  "shipped_carry": {
+    "raw_rows_at_ambig_floor": 5,
+    "carried": 2,
+    "dropped_by_the_fence": 0,
+    "declined_on_a_free_tier_hit": 3,
+    "narrowed_by_the_group_key": 1,
+    "decoy_carried": 0,
+    "decoy_raw_at_ambig_floor": 1
+  },
+  "heldout_spent": false,
+  "heldout_gate": "spend the one-shot ONLY on a clean decoy bar (0 picks on any draw across 28)",
+  "verdict": "STOP",
+  "failing_bars": [
+    "L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL)",
+    "L2 DECOY PICKS (0 on ANY draw, FATAL)",
+    "L1 SYNONYM >= 90%"
+  ],
+  "phrase_free": true
+}

@@ -98,9 +98,14 @@ def test_T1_alias_is_INTERSECTED_with_the_live_id_set(graph):
     """T1 (D3, risk 7). ``evidence.driver_alias()`` returns 424 entries and 127 of them point at ids
     that are in NO DAG -- accent folds and curation drift, MEASURED. An unintersected alias hands the
     planner an id its own enum does not carry, and downstream ``walk._driver_of`` swallows an unknown
-    id, so the failure would be a board that anchors NOTHING with no word for why."""
+    id, so the failure would be a board that anchors NOTHING with no word for why.
+
+    THE INTERSECTION IS AGAINST ``all_ids`` AND NOT THE ENUM (phase D). The tier's job is to say what
+    the phrase NAMED; the own-structure fence is applied at the three seams where an id would reach a
+    planner or a reader. Intersecting here instead would delete a T0/T1 hit from the trace, which is
+    how a census stops being able to count what the fence had work to do on."""
     from leviathan.graphrag import evidence as ev
-    alive = set(SU.live_ids(graph))
+    alive = set(SU.all_ids(graph))
     raw = set(ev.driver_alias())
     assert raw - alive, "the alias map no longer carries ids outside the graph -- re-measure this claim"
     for phrase in ("what do the commitments of traders say about cotton",
@@ -2059,3 +2064,263 @@ def test_pb19_THE_OFFLINE_RESCORE_READS_BANKED_DRAWS_AND_SPENDS_NOTHING(tmp_path
     assert "banked run not found" in capsys.readouterr().out
     assert mod.main([]) == 2
     assert "--deck is required" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------------------------------
+# PHASE D -- THE OWN-STRUCTURE ENUM FENCE, THE CARRY RULE, AND THE GROUP-DEDUPED CARRY (2026-09-10)
+#
+# Phase C measured what the frozen block's prose could not do: with `calendar_spread` and `basis` in
+# the enum the planner picked one of them on SIX decoy rows (13 of the 16 decoy draws that picked
+# anything at all). The closure therefore moves from the prompt to the ENUM, and the two other seams
+# those ids could still have reached a planner or a reader through -- the hint line and the ambiguity
+# carry -- move with it.
+# ---------------------------------------------------------------------------------------------------
+def test_pd1_THE_FENCE_IS_A_CLOSED_SET_AND_live_ids_IS_all_ids_MINUS_IT(graph):
+    """THE ENUM IS THE FENCE'S ONE JOB. `live_ids` is what `orchestrator.py` threads as
+    `plan_turn(subject_ids=)`, which mints the tool schema's enum AND is what `_validate` re-verifies
+    a reply against, so an id absent from it is refused twice over. `all_ids` keeps the whole graph,
+    because the TIERS must still be able to match a fenced id or the trace stops recording that a
+    phrase named one."""
+    assert SU.OWN_STRUCTURE_IDS == frozenset({"calendar_spread", "basis"})
+    a, live = set(SU.all_ids(graph)), set(SU.live_ids(graph))
+    assert len(a) == 405 and len(live) == 403, (len(a), len(live))    # MEASURED, graph 99dc11409fe9
+    assert live == a - set(SU.OWN_STRUCTURE_IDS)
+    assert set(SU.OWN_STRUCTURE_IDS) <= a, "the fence names an id the graph does not declare"
+    # AND THE TIER STILL SEES IT. `basis` is a driver id in its own reader form, so T0 matches the
+    # word wherever a desk types it -- deck v2's dc16 is exactly that row, and its `exact` list is
+    # what keeps the fence's work visible in the trace instead of silent.
+    assert "basis" in SU.exact_ids("how wide is the gulf basis against the board", graph)
+
+
+def test_pd2_THE_LINT_FLAGS_THE_SHAPE_AND_NOT_THE_SPELLING(graph):
+    """A fence of two string literals over 36 YAMLs under active curation goes stale in silence, so
+    the SHAPE is graded: an instrument-type id whose `silver_ref` measures the anchor's own curve or
+    its own cash-versus-board relationship. MEASURED on graph 99dc11409fe9 -- the strong leg finds
+    exactly the two ids the fence carries, over the whole graph and every type."""
+    lint = SU.own_structure_candidates(graph)
+    assert lint["fenced"] == ("basis", "calendar_spread")
+    assert lint["unfenced"] == (), lint["unfenced"]
+    assert lint["absent"] == ()
+    assert lint["why"]["basis"] == "silver_ref basis_z"
+    assert "kc_calendar_spread" in lint["why"]["calendar_spread"]
+    # THE 23 CROSS-MARKET INSTRUMENTS ARE UNTOUCHED, and they are why the lint is a shape test and
+    # not "every id typed `instrument`": each is declared as a cause of a DIFFERENT board, with a
+    # sign and a lag, and "the soy-palm premium" is a subject a desk asks about.
+    for i in ("soybean_crush_margin", "wheat_corn_spread", "soyoil_palm_premium", "oil_share",
+              "arabica_robusta_spread", "export_parity_floor", "sugar_ethanol_parity"):
+        assert i not in SU.OWN_STRUCTURE_IDS and i in set(SU.live_ids(graph)), i
+    # POSITIONING STAYS SUBJECT-ELIGIBLE (D18, and the owner's own scenario: "why are many agri
+    # contracts long in managed money"). `cot_mm_positioning` is typed `instrument` on some boards
+    # and `positioning` on others, so it is the one id a type-shaped rule would have eaten.
+    for i in ("cot_mm_positioning", "cot_positioning", "managed_money_positioning",
+              "spec_positioning", "speculative_positioning"):
+        assert i in set(SU.live_ids(graph)), i
+        assert i not in SU.OWN_STRUCTURE_IDS, i
+
+
+def test_pd2b_THE_LINT_BITES_ON_A_CURATED_ID_THAT_THE_FENCE_DOES_NOT_CARRY():
+    """The property the build gate exists for, DRIVEN rather than described: a synthetic graph that
+    declares a third own-structure instrument is flagged, and the same graph carrying a cross-market
+    instrument is not. Neither is the shipped graph, so this pin cannot pass by accident of curation."""
+    from leviathan.causal import schema as cs
+
+    def _g(did, ref):
+        c = cs.CausalContract(contract="corn", aliases=["maize"],
+                              drivers=[cs.Driver(id=did, type="instrument", sign="+",
+                                                 mechanism="m", silver_ref=ref)])
+        return G.CausalGraph({"corn": c}, silver=set())
+
+    assert SU.own_structure_candidates(_g("gulf_basis", "gulf_basis_z"))["unfenced"] == ("gulf_basis",)
+    assert SU.own_structure_candidates(_g("front_calendar", "spread"))["unfenced"] \
+        == ("front_calendar",)
+    assert SU.own_structure_candidates(_g("soyoil_palm_premium", "spread"))["unfenced"] == ()
+    # AND A FENCE ENTRY THE GRAPH NO LONGER DECLARES IS `absent` -- advisory and never an error: a
+    # curation commit may retire an id, and a fence that outlives one fences nothing at all.
+    assert set(SU.own_structure_candidates(_g("soyoil_palm_premium", "spread"))["absent"]) \
+        == set(SU.OWN_STRUCTURE_IDS)
+
+
+def test_pd3_THE_HINT_LINE_AND_THE_CARRY_REFUSE_A_FENCED_ID():
+    """THE OTHER TWO SEAMS. The enum refuses the pick; a hint line that still NAMED the id would
+    spend a slot advertising something the schema forbids and `_validate` drops, and a carry that
+    named it would stop a reader to ask which of two drivers they meant when one of them is the
+    board's own curve. Both are asserted by CALLING the shipped producers."""
+    h = SU.SubjectHints(exact=("basis", "freight_rates"), alias=("calendar_spread",),
+                        candidates=(("basis", 0.99, "id"), ("El_Nino", 0.80, "blurb")),
+                        vocab_status="ok")
+    line = SU.hints_line(h, vocab=None)
+    assert "basis" not in line and "calendar_spread" not in line, line
+    assert "freight_rates" in line and "El_Nino" in line
+    assert [c[0] for c in h.ambiguous()] == ["El_Nino"]
+    # A LINE THAT LOSES EVERY PART RENDERS "" -- the omit-when-empty idiom the caller already
+    # honours, never a bare "subject hints:" with nothing after it.
+    assert SU.hints_line(SU.SubjectHints(exact=("basis",), alias=("calendar_spread",)),
+                         vocab=None) == ""
+    # AND THE TIERS' OWN RECORD IS UNTOUCHED: the trace still says the phrase named one.
+    assert h.trace()["exact"] == ["basis", "freight_rates"]
+    assert [c[0] for c in h.candidates] == ["basis", "El_Nino"]
+
+
+def test_pd4_THE_CARRY_IS_GROUP_DEDUPED_AND_dc23_IS_THE_ROW_IT_WAS_MEASURED_ON():
+    """D4's hazard arriving at D5. `render.ABSENCE_WHY` promises "either of two drivers this estate
+    tracks" and the seam's decline gate is `len(amb) >= 2`; both were counting SPELLINGS. MEASURED on
+    deck v2's dc23 -- `crush_margin` 0.7962 and `crush_margin_expansion` 0.7803, both above
+    AMBIG_FLOOR and both `ref:crush_margin_z` -- so the estate's only measured carry was a row asking
+    a reader to choose between two names for one driver. The STRONGEST member of each group survives,
+    because `candidates` is score-descending and the strongest is the one the words came closest to."""
+    h = SU.SubjectHints(candidates=(("crush_margin", 0.7962, "id"),
+                                    ("crush_margin_expansion", 0.7803, "id")),
+                        groups=(("crush_margin", "ref:crush_margin_z"),
+                                ("crush_margin_expansion", "ref:crush_margin_z")),
+                        vocab_status="ok")
+    assert [c[0] for c in h.ambiguous()] == ["crush_margin"]
+    # TWO GROUPS STILL TIE, which is the state D5 was written for and the only one that renders the
+    # sentence truthfully.
+    two = SU.SubjectHints(candidates=(("El_Nino", 0.91, "id"), ("La_Nina", 0.83, "id")),
+                          groups=(("El_Nino", "slice:enso"), ("La_Nina", "slice:la_nina")),
+                          vocab_status="ok")
+    assert [c[0] for c in two.ambiguous()] == ["El_Nino", "La_Nina"]
+    # NO KEY IS NOT A LICENCE TO MERGE: a hand-built hints object with no group map de-duplicates by
+    # ID alone, which is the honest floor.
+    bare = SU.SubjectHints(candidates=(("a", 0.91, "id"), ("b", 0.83, "id")), vocab_status="ok")
+    assert [c[0] for c in bare.ambiguous()] == ["a", "b"]
+
+
+def test_pd4b_resolve_STAMPS_THE_GROUP_KEY_SO_THE_CARRY_NEEDS_NO_GRAPH(graph):
+    """The key travels WITH the hints because the production caller has no graph: `orchestrator.py`
+    calls `hints.ambiguous()` after `plan_turn`, and the D4 key is a property of the resolution and
+    not of the caller. `groups()` is process-cached per graph, so the stamp costs a dict lookup."""
+    rows = [("crush_margin", "id", _e(0)), ("crush_margin_expansion", "id", _e(0)),
+            ("El_Nino", "blurb", _e(1))]
+    h = SU.resolve("how is the crush margin computed", graph=graph, vocab=_fake_vocab(rows),
+                   embed_fn=lambda xs: [_e(0)])
+    assert h.groups, "resolve stamped no group keys"
+    assert dict(h.groups)["crush_margin"] == "ref:crush_margin_z"
+    assert dict(h.groups)["crush_margin_expansion"] == "ref:crush_margin_z"
+    # (`El_Nino` is in the fake vocabulary and scores 0 against this query, so CAND_FLOOR keeps it out
+    # of the candidate list entirely -- the two crush spellings are what the tier proposed.)
+    assert [c[0] for c in h.candidates] == ["crush_margin", "crush_margin_expansion"]
+    # AND THE STAMP IS WHAT `ambiguous()` READS -- no graph passed, and the two spellings collapse.
+    stamped = SU.SubjectHints(candidates=h.candidates, groups=h.groups)
+    assert [c[0] for c in stamped.ambiguous(floor=-1.0)] == ["crush_margin"]
+    # A CALLER THAT HAS A GRAPH MAY PASS ONE INSTEAD, for hints built without the stamp.
+    nokey = SU.SubjectHints(candidates=h.candidates)
+    assert [c[0] for c in nokey.ambiguous(floor=-1.0, graph=graph)] == ["crush_margin"]
+    assert len(nokey.ambiguous(floor=-1.0)) == 2, "no key must not merge"
+
+
+def test_pd5_THE_CARRY_IS_DECLINED_WHEN_A_FREE_TIER_MATCHED_THE_PHRASE():
+    """THE CARRY RULE (phase D). D5 carries an ambiguity when the phrase COULD MEAN two drivers and
+    the planner could not choose -- and that reading only holds when the candidates came from the
+    SEMANTIC tier alone. A T0 or T1 hit means the planner was shown the driver BY NAME and returned
+    nothing anyway, which is a DELIBERATE DECLINE: the how-to case, where a desk types "crush margin"
+    literally and asks how the figure is computed and the frozen block tells the planner to name no
+    subject. Deck v2's dc23 is that row, and it was the estate's only measured carry."""
+    semantic = {"picked": [], "ambiguous": ["El_Nino", "La_Nina"],
+                "hints": {"exact": [], "alias": [], "vocab_status": "ok"}}
+    bd = _stamped(semantic)
+    assert bd.subject["ambiguous"] == ["El_Nino", "La_Nina"]
+    assert [n for n in bd.notes if n.get("kind") == "subject_ambiguous"]
+    assert bd.legs["board"]["reason"] == "subject_ambiguous:El_Nino|La_Nina"
+    assert "ambiguous_declined" not in bd.subject
+    for lex in ({"exact": ["crush_margin"], "alias": []}, {"exact": [], "alias": ["crush_margin"]}):
+        declined = _stamped({"picked": [], "ambiguous": ["El_Nino", "La_Nina"],
+                             "hints": dict(lex, vocab_status="ok")})
+        assert "ambiguous" not in declined.subject, lex
+        assert [n for n in declined.notes if n.get("kind") == "subject_ambiguous"] == [], lex
+        # AND THE BOARD DOES NOT DECLINE. The anchorless decline is minted from the SAME tuple, so
+        # the gate that empties it empties both -- one rule, both sides, rather than a note the
+        # render suppresses beside a decline word it still stamps.
+        assert declined.legs.get("board", {}).get("reason", "") == "", lex
+        # NOT DELETED, NAMED: a census must be able to tell "no ambiguity" from "an ambiguity a
+        # free-tier hit disqualified", and the two ids stay on the trace through `hints` either way.
+        assert declined.subject["ambiguous_declined"] == "lexical_hit", lex
+    # A PAYLOAD WITH NO HINTS AT ALL -- the deck's short form -- reports no lexical hit and CARRIES.
+    # Absence of evidence that a free tier fired is not evidence that one did.
+    assert _stamped({"picked": [], "ambiguous": ["El_Nino", "La_Nina"]}).subject["ambiguous"] \
+        == ["El_Nino", "La_Nina"]
+
+
+def test_pd5b_THE_COUNTER_FOLLOWS_THE_CARRY_AND_NOT_THE_CANDIDATE_LIST():
+    """`BoardSubjectAmbiguous` measures WHAT A READER WAS SHOWN (its own comment in `seam.py`), so a
+    carry the lexical rule declined must publish none -- otherwise the metric and the block disagree
+    by construction on exactly the row the rule exists for."""
+    shown = S.counters(_stamped({"picked": [], "ambiguous": ["El_Nino", "La_Nina"],
+                                 "hints": {"vocab_status": "ok", "ms": 4.0}}))
+    assert shown["BoardSubjectAmbiguous"] == 1
+    quiet = S.counters(_stamped({"picked": [], "ambiguous": ["El_Nino", "La_Nina"],
+                                 "hints": {"exact": ["crush_margin"], "vocab_status": "ok",
+                                           "ms": 4.0}}))
+    assert "BoardSubjectAmbiguous" not in quiet, quiet
+
+
+def test_pd5c_A_FENCED_LEXICAL_HIT_DECLINES_THE_CARRY_AND_IT_IS_A_STATED_SCOPE():
+    """THE ONE CASE WHERE THE RULE'S REASON AND ITS COMPUTATION COME APART, PINNED SO IT IS READ AS A
+    DECISION. `_stamp_subject`'s reason for the decline is "the planner was shown the driver BY NAME
+    and returned nothing" -- and a fenced id is the one thing a free tier can match that the planner
+    is NEVER shown: `live_ids` drops it from the enum and `hints_line` drops it from the line. It
+    declines the carry anyway, for the ROW's sake and not the planner's: a desk that typed the
+    board's own curve or its own cash-versus-board asked a market-structure question, and answering
+    one with "did you mean either of these two drivers?" is the decoy noise the enum fence exists to
+    kill, one layer further out at the row that stops a reader.
+
+    MEASURED across all 17 banked layer-1 runs of both in-tree decks and the held-out set: 77 rows
+    carry a candidate at AMBIG_FLOOR and ZERO have a fenced-only lexical hit, so the clause moves no
+    banked number and this pin is the only place the behaviour exists to be read."""
+    assert {"basis", "calendar_spread"} <= set(SU.OWN_STRUCTURE_IDS)     # not a pin by accident
+    for lex in ({"exact": ["basis"], "alias": []},
+                {"exact": [], "alias": ["calendar_spread"]},
+                {"exact": ["basis"], "alias": ["withheld_supply"]}):     # fenced beside an unfenced
+        declined = _stamped({"picked": [], "ambiguous": ["El_Nino", "La_Nina"],
+                             "hints": dict(lex, vocab_status="ok")})
+        assert "ambiguous" not in declined.subject, lex
+        assert declined.subject["ambiguous_declined"] == "lexical_hit", lex
+        assert declined.legs.get("board", {}).get("reason", "") == "", lex
+    # AND THE FENCED ID IS STILL ON THE TRACE. Nothing is deleted anywhere in this rule: the hint
+    # dict rides `Board.trace()` untouched, so a census can count the phrases the fence had work to
+    # do on -- which is the same posture `hints_line` and `ambiguous()` take one layer up.
+    kept = _stamped({"picked": [], "ambiguous": ["El_Nino", "La_Nina"],
+                     "hints": {"exact": ["basis"], "alias": [], "vocab_status": "ok"}})
+    assert kept.subject["hints"]["exact"] == ["basis"]
+
+
+def test_pd6_THE_PLANNER_CANNOT_PICK_A_FENCED_ID_EVEN_IF_IT_NAMES_ONE(graph):
+    """THE FENCE IS REFUSED TWICE. The enum never offers it, and `dispatch._validate` re-verifies the
+    reply against the SAME vocabulary -- so a model that names `calendar_spread` anyway has that
+    MEMBER dropped and keeps the rest, which is the validator's stated member-failure behaviour and
+    not a voided plan."""
+    ids = SU.live_ids(graph)
+    tool = dp._plan_tool(["corn_cbot"], 2, subject_ids=ids)
+    enum = tool["input_schema"]["properties"]["subject"]["items"]["enum"]
+    assert "calendar_spread" not in enum and "basis" not in enum
+    assert "soybean_crush_margin" in enum and "cot_mm_positioning" in enum
+    out = dp._validate({"steps": ["reasoning"], "contracts": ["corn_cbot"],
+                        "subject": ["calendar_spread", "El_Nino", "basis"]},
+                       set(graph.contracts), 2, subject_ids=ids)
+    assert out.subject == ("El_Nino",), out.subject
+
+
+def test_pd7_THE_FENCE_RE_SCORES_PHASE_CS_OWN_BANKED_DRAWS():
+    """THE FREE RE-SCORE, BANKED. Phase C's layer 2 had SEVEN decoy rows pick a subject on at least
+    one draw; SIX picked a FENCED id and one -- dc18, an open-interest-as-a-market-fact ask answered
+    with two POSITIONING ids -- did not. The fence removes six rows and thirteen of the sixteen decoy
+    draws that picked anything; dc18 stays, and it is a planner judgement rather than a fence
+    question. Pinned from the phrase-free bank so the next billed run reports a MOVEMENT and not a
+    new baseline.
+
+    IT IS A COUNTERFACTUAL AND THE BANK SAYS SO IN A FIELD. The fence makes those picks structurally
+    impossible; what a planner does with the SHORTER list on those rows is what the next run
+    measures, and no re-read of banked draws can answer it."""
+    bank = ROOT / "data" / "subject_resolver" / "2026-09-10" / "subject_deck_v2_fence_rescore.json"
+    assert bank.is_file(), "the phase-D re-score bank is missing"
+    doc = json.loads(bank.read_text(encoding="utf-8"))
+    assert doc["fence"] == ["basis", "calendar_spread"]
+    assert doc["counterfactual"] is True
+    assert doc["decoy"]["rows_that_picked"] == 7
+    assert doc["decoy"]["rows_removed_by_the_fence"] == 6
+    assert doc["decoy"]["rows_remaining"] == 1
+    assert doc["decoy"]["remaining_rows"] == ["dc18"]
+    assert doc["decoy"]["draws_with_a_pick"] == 16
+    assert doc["decoy"]["draws_removed_by_the_fence"] == 13
+    assert doc["non_decoy"]["rows_losing_an_EXPECTED_id"] == 0
+    assert doc["non_decoy"]["rows_losing_a_SPURIOUS_second_pick"] == 2

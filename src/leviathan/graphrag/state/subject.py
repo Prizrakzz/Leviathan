@@ -18,6 +18,13 @@ produce :class:`SubjectHints`, the orchestrator renders :func:`hints_line` into 
 message, and the planner returns ids from an enum which ``dispatch._validate`` re-verifies against the
 live id set. This module never anchors, never routes and never writes a trace key.
 
+WITH ONE FENCE, AND IT IS ON THE ENUM RATHER THAN ON THE PROMPT (phase D, 2026-09-10).
+:data:`OWN_STRUCTURE_IDS` is the closed set of ids that ARE the anchor's own price structure -- its
+curve, its cash-versus-board -- and so are a CONDITION and never a cause. They are absent from
+:func:`live_ids`, from :func:`hints_line` and from :meth:`SubjectHints.ambiguous`, and present in
+:func:`all_ids`, which is what the tiers match over. The measurement that made it an enum question
+rather than a prompt one is in the phase-D addendum at the foot of this file.
+
 IT IS ENV-FREE, AND THAT IS GRADED. ``config_check.check_state_seam`` clause (i) allows exactly ONE
 environment name across ``state/*`` (``GRAPHRAG_STATE_CACHE``); ``check_subject_resolver`` clause (1)
 greps THIS file for any read at all. The flag ``GRAPHRAG_SUBJECT_RESOLVER`` is read ONCE at the
@@ -173,6 +180,65 @@ T2_GATE_TIERS: tuple = ()
 #: on a set the planner collapses back to one pick anyway. The tuple is bounded here rather than at the
 #: render so the count the trace reports is the count the planner saw.
 HINT_ALIAS_CAP = 8
+
+#: THE ANCHOR'S OWN PRICE STRUCTURE -- A CLOSED SET, AND NEVER A SUBJECT (phase D, 2026-09-10).
+#:
+#: A SUBJECT IS A CAUSE. These two ids are not causes of the board they sit on: they ARE that board --
+#: the same market's own curve (front against deferred) and the same market's cash against its own
+#: futures. MEASURED on the shipped graph: ``calendar_spread`` is type ``instrument`` on NINE boards
+#: with ``silver_ref`` ``spread`` / ``kc_calendar_spread`` / ``srw_calendar_spread``, and ``basis`` is
+#: type ``instrument`` on FOUR with ``basis_z``. Naming either as THE SUBJECT asks the walk to explain
+#: a market with itself, which is the self-reference ``cascade_map`` already refuses one layer down.
+#: This is that same law, stated where the subject is chosen rather than where the cascade is drawn.
+#:
+#: THE OTHER 23 INSTRUMENT-TYPE IDS STAY, AND THE DISTINCTION IS THE WHOLE POINT.
+#: ``soybean_crush_margin``, ``wheat_corn_spread``, ``soyoil_palm_premium``, ``oil_share``, the two
+#: parity floors -- every one of them is a CROSS-market instrument the graph declares as a cause of a
+#: DIFFERENT board, with a sign and a lag. "The soy-palm premium" is a subject a desk asks about; "the
+#: calendar spread" is the board's own price structure. POSITIONING IS A SUBJECT TOO and stays
+#: eligible by name (D18 and the owner's own scenario, "why are many agri contracts long in managed
+#: money"): ``cot_mm_positioning`` is typed ``instrument`` on some boards and ``positioning`` on
+#: others, and ``config_check.check_subject_resolver`` clause (14) asserts the fence swallows none of
+#: the five positioning ids.
+#:
+#: IT IS AN ENUM FENCE AND NOT A PROMPT ONE, BECAUSE THE PROMPT WAS TRIED AND THEN MEASURED. The
+#: frozen block's v2 says in as many words that a market's own price, spread, curve, basis, roll or
+#: front month names no subject "even where the enum carries an id by that name" -- and on phase C's
+#: billed layer 2 the planner picked ``calendar_spread`` on four decoy rows and ``basis`` on two
+#: anyway (dc08 / dc17 / dc22 / dc25 and dc16 / dc21; 13 of the 16 decoy draws that picked anything).
+#: Prose cannot outrank an enum that offers the id, so the id leaves the enum.
+#:
+#: WHERE THE FENCE LANDS -- THREE SEAMS, AND NOWHERE ELSE. :func:`live_ids` (the enum the orchestrator
+#: threads, which ``dispatch._validate`` re-verifies a reply against, so a fenced id is dropped twice
+#: over), :func:`hints_line` (the one line the planner reads) and :meth:`SubjectHints.ambiguous` (the
+#: carry that interrupts a reader). THE TIERS STILL SEE THE IDS: :func:`exact_ids`, :func:`alias_ids`
+#: and :func:`semantic_candidates` range over :func:`all_ids`, so a phrase that says "basis" still
+#: records its T0 hit on the trace and a census can count how often the fence had something to do.
+#: :func:`groups` and :func:`expand_group` are unfenced for a different reason: a group answers "which
+#: boards does this pick open", not "what is this turn about", so a fenced id may still ride a
+#: legitimate pick's group as a MEMBER -- ``basis`` sits in ``slice:basis_and_farmer_selling`` with
+#: ``sagis_deliveries`` and ``withheld_supply``, and a turn about farmer selling is entitled to the
+#: boards that carry it.
+OWN_STRUCTURE_IDS: frozenset = frozenset({"calendar_spread", "basis"})
+
+#: THE LINT'S STRONG LEG: a ``silver_ref`` carrying either word measures the ANCHOR'S OWN curve or its
+#: own cash-versus-board relationship, however the id happens to be spelled. MEASURED over the whole
+#: graph, every type: the only two ids with such a ref are the two in the fence.
+_OWN_STRUCTURE_REF_WORDS: tuple = ("calendar", "basis")
+
+#: THE LINT'S WEAK LEG, AND ITS REACH IS STATED RATHER THAN IMPLIED. A bare ``spread`` ref names no
+#: market at all, so the ID is the only witness of whether the instrument spans TWO markets or is the
+#: anchor's own structure. An id built ENTIRELY from these structural words names none --
+#: ``calendar_spread`` is exactly that shape -- while every legitimate cross-market instrument on the
+#: shipped graph carries at least one market token (``arabica_robusta_spread``, ``gasoil_palm_spread``,
+#: ``rsm_soymeal_spread``, ``white_raw_premium``, ...). MEASURED: ten ids carry a bare-``spread`` ref
+#: set and this leg flags ZERO of them, which is the honest reading of what it is for -- a tripwire for
+#: the NEXT id named for a structure instead of for two markets. It cannot see an id that names ONE
+#: market beside a structural word (a hypothetical ``corn_calendar``), and the strong leg is what
+#: catches that class whenever the curation gives it a ref of its own.
+_STRUCTURE_WORDS: frozenset = frozenset({
+    "spread", "premium", "ratio", "share", "margin", "parity", "competition", "calendar", "basis",
+    "price", "floor", "board", "curve", "roll", "front", "month", "carry", "cash", "structure"})
 
 #: THE FROZEN PLANNER SECTION'S SHA -- ``sha256(dispatch._subject_block(<any non-empty vocabulary>))``.
 #: The block carries NO substitution at all (the 405-id enum lives in the tool schema, where it is
@@ -340,8 +406,15 @@ def _reset_caches() -> None:
 # ---------------------------------------------------------------------------------------------------
 # THE LIVE ID SET, AND THE ONE SHIPPED MATCHER
 # ---------------------------------------------------------------------------------------------------
-def live_ids(graph) -> tuple:
-    """Every driver id the graph declares, sorted. 405 on the shipped 36-contract roster (MEASURED)."""
+def all_ids(graph) -> tuple:
+    """EVERY driver id the graph declares, sorted -- fence and all. 405 on the shipped 36-contract
+    roster (MEASURED).
+
+    THIS IS THE TIERS' POPULATION AND THE GROUP INDEX'S, and :func:`live_ids` is this minus
+    :data:`OWN_STRUCTURE_IDS`. The two producers are separate on purpose: a fenced id must still be
+    MATCHABLE (a phrase that says "basis" records its T0 hit, and the trace says so) while never being
+    SELECTABLE, and one function cannot answer both questions without a caller guessing which it
+    got."""
     out = set()
     for cid in getattr(graph, "contracts", {}) or {}:
         try:
@@ -350,6 +423,79 @@ def live_ids(graph) -> tuple:
         except Exception:                                  # noqa: BLE001 -- a malformed board is skipped
             continue
     return tuple(sorted(out))
+
+
+def live_ids(graph) -> tuple:
+    """THE ENUM THE PLANNER IS GIVEN: :func:`all_ids` minus :data:`OWN_STRUCTURE_IDS`. 403 of 405 on
+    the shipped roster (MEASURED).
+
+    THE ORCHESTRATOR THREADS EXACTLY THIS TUPLE (``dispatch.plan_turn(subject_ids=)``), which mints the
+    tool schema's enum AND is what ``dispatch._validate`` re-verifies the reply against -- so a fenced
+    id is refused twice: the model is never offered it, and a model that names it anyway has that
+    member dropped. ``config_check.check_subject_resolver`` clause (9) already grades that the
+    orchestrator threads THIS function and nothing narrower."""
+    return tuple(i for i in all_ids(graph) if i not in OWN_STRUCTURE_IDS)
+
+
+def _instrument_refs(graph) -> dict:
+    """``{driver_id: (refs, ...)}`` over the ids the graph types ``instrument`` on ANY board. An id
+    typed ``instrument`` on one board and ``positioning`` on another is here -- ``cot_mm_positioning``
+    is precisely that -- because the lint's question is about the id's SHAPE and the fence's own
+    membership is what decides the rest."""
+    out: dict = {}
+    for cid in getattr(graph, "contracts", {}) or {}:
+        try:
+            for d in graph.contracts[cid].drivers:
+                if "instrument" not in str(getattr(d, "type", "") or ""):
+                    continue
+                r = str(getattr(d, "silver_ref", "") or "")
+                s = out.setdefault(str(d.id), set())
+                if r:
+                    s.add(r)
+        except Exception:                                  # noqa: BLE001 -- a malformed board is skipped
+            continue
+    return {i: tuple(sorted(rs)) for i, rs in out.items()}
+
+
+def own_structure_candidates(graph) -> dict:
+    """THE FENCE'S LINT: which instrument-type ids the GRAPH now carries that look like the anchor's
+    own price structure, split by whether :data:`OWN_STRUCTURE_IDS` already carries them.
+
+    IT EXISTS BECAUSE A FENCE OF LITERALS GOES STALE IN SILENCE. The set below is two strings; the
+    curation that produced them is 36 YAMLs under active edit, and the next ``srw_calendar_spread`` or
+    ``gulf_basis`` typed as a driver would land in the planner's enum with nothing to say so. So the
+    SHAPE is graded and not the spelling, on two legs whose reach is stated on their own constants:
+
+      strong  any ``silver_ref`` containing ``calendar`` or ``basis`` (:data:`_OWN_STRUCTURE_REF_WORDS`)
+              -- the ref MEASURES the anchor's own curve or its own cash-versus-board relationship,
+              whatever the id is called.
+      weak    a ref set of exactly ``{"spread"}`` -- which names no market -- on an id built entirely
+              from :data:`_STRUCTURE_WORDS`. It flags nothing on today's graph and is a tripwire, not
+              a census.
+
+    ``{"fenced": (...), "unfenced": (...), "absent": (...), "why": {id: reason}}``. ``unfenced`` is
+    what ``config_check.check_subject_resolver`` clause (14) REDS on -- an id the graph declares, the
+    lint recognises and the fence does not carry. ``absent`` is a fence entry the graph no longer
+    declares, which is advisory (``subject_resolver_warnings``): a curation commit is allowed to
+    retire an id, and a fence that outlives one fences nothing rather than breaking anything.
+
+    NOTHING HERE RESOLVES ANYTHING. It is a lint over the graph, called by the build gate and by the
+    deck runner's report, and no serving path reads it."""
+    refs = _instrument_refs(graph)
+    flagged: dict = {}
+    for i, rs in sorted(refs.items()):
+        low = [r.lower() for r in rs]
+        hit = [r for r in low if any(w in r for w in _OWN_STRUCTURE_REF_WORDS)]
+        if hit:
+            flagged[i] = "silver_ref " + "/".join(sorted(set(hit)))
+            continue
+        if set(low) == {"spread"} and all(t in _STRUCTURE_WORDS for t in i.lower().split("_") if t):
+            flagged[i] = "a bare 'spread' ref on an id built only from structure words"
+    declared = set(refs)
+    return {"fenced": tuple(sorted(i for i in flagged if i in OWN_STRUCTURE_IDS)),
+            "unfenced": tuple(sorted(i for i in flagged if i not in OWN_STRUCTURE_IDS)),
+            "absent": tuple(sorted(i for i in OWN_STRUCTURE_IDS if i not in declared)),
+            "why": dict(flagged)}
 
 
 def _graph_key(graph) -> tuple:
@@ -362,10 +508,14 @@ def _graph_key(graph) -> tuple:
 def _id_matchers(graph) -> dict:
     """``{driver_id: matcher}`` over TWO surface forms each -- the id, and its reader form
     ('El_Nino' -> 'El Nino') -- through ``harvest.build_matcher``, the estate's ONE accent/case-folded
-    word-boundary matcher. Built once per graph."""
+    word-boundary matcher. Built once per graph.
+
+    OVER :func:`all_ids`, NOT THE ENUM: T0 is allowed to MATCH a fenced id so the trace can say the
+    phrase named one (dc16's "basis" is exactly that row); the fence is applied where the id would
+    reach the planner or the reader, never where it would make the record dishonest."""
     key = _graph_key(graph)
     hit = _FORMS_CACHE.get(key)
-    ids = live_ids(graph)
+    ids = all_ids(graph)
     if hit is not None and hit[0] == ids:
         return hit[1]
     from leviathan.graphrag import harvest as hv
@@ -409,7 +559,9 @@ def alias_ids(query: str, graph) -> tuple:
         slices = set(ev.driver_slices_for(q))
         if not slices:
             return ()
-        alive = set(live_ids(graph))
+        alive = set(all_ids(graph))                        # the TIER's population; the fence is at the
+                                                           # three seams, never at the match (see
+                                                           # OWN_STRUCTURE_IDS)
         out = sorted({did for did, sl in ev.driver_alias().items()
                       if sl in slices and did in alive})
     except Exception:                                      # noqa: BLE001 -- a config outage declines T1
@@ -463,7 +615,7 @@ def semantic_candidates(query: str, graph, *, embed_fn=None, vocab=None, path: O
         cur = best.get(ids[r])
         if cur is None or sc > cur[0]:
             best[ids[r]] = (sc, fields[r], r)
-    alive = set(live_ids(graph)) if graph is not None else None
+    alive = set(all_ids(graph)) if graph is not None else None   # the TIER's population, not the enum
     rows = [(sc, i, fl, r) for i, (sc, fl, r) in best.items()
             if sc >= cut and (alive is None or i in alive)]
     rows.sort(key=lambda t: (-t[0], t[1]))                 # score desc, then id -- fully deterministic
@@ -501,9 +653,15 @@ def groups(graph) -> dict:
     with its off-year), and 26 slice groups carry four ids or more, which is a TOPIC family and not a
     synonym set (four pest complexes, ``slice:black_sea_corridor`` at eleven, ``slice:tariff`` at ten).
     Both censuses are banked by NUMBER and by NAME in ``test_subject_resolver.py`` and docketed. The
-    fence that bounds the harm already exists and is graded on every tier: ``BoardKnobs.max_anchors``."""
+    fence that bounds the harm already exists and is graded on every tier: ``BoardKnobs.max_anchors``.
+
+    OVER :func:`all_ids`: the group index answers "which boards does this pick open", which is a
+    question about the GRAPH and not about the enum, so it stays complete. A fenced id therefore keeps
+    its group key -- which is what lets :meth:`SubjectHints.ambiguous` de-duplicate a candidate list
+    that still contains one, and what keeps ``group_census``'s banked numbers a census of the graph
+    rather than of the fence."""
     key = _graph_key(graph)
-    ids = live_ids(graph)
+    ids = all_ids(graph)
     hit = _GROUP_CACHE.get(key)
     if hit is not None and hit[0] == ids:
         return dict(hit[1])
@@ -562,9 +720,12 @@ def expand_group(ids, graph) -> tuple:
 
 def group_census(graph) -> dict:
     """The census the tests bank (D4: "MEASURE the groups the two keys produce"). Pure counts, no I/O
-    beyond the graph and the slices, so a deck can pin every number without a model or a database."""
+    beyond the graph and the slices, so a deck can pin every number without a model or a database.
+
+    IT COUNTS THE GRAPH, NOT THE ENUM (:func:`all_ids`), so the banked numbers move when the CURATION
+    moves and stay still when the fence does."""
     gm = group_members(graph)
-    ids = live_ids(graph)
+    ids = all_ids(graph)
     by_slice = {k: v for k, v in gm.items() if k.startswith("slice:")}
     by_ref = {k: v for k, v in gm.items() if k.startswith("ref:")}
     by_id = {k: v for k, v in gm.items() if k.startswith("id:")}
@@ -690,6 +851,13 @@ class SubjectHints:
     candidates: tuple = ()            # ((driver_id, score, field), ...) -- score desc, then id
     vocab_status: str = STATUS_NOT_RUN
     ms: float = 0.0
+    #: ``((driver_id, group_key), ...)`` for the candidates, stamped by :func:`resolve` from
+    #: :func:`groups`. APPENDED AT THE TAIL (the estate's own rule for a field added to a shape other
+    #: code constructs), and it exists so :meth:`ambiguous` can de-duplicate BY GROUP without a graph:
+    #: the orchestrator calls ``hints.ambiguous()`` with no graph in hand and the D4 key is a property
+    #: of the resolution, not of the caller. Empty on a hand-built ``SubjectHints`` -- then the method
+    #: de-duplicates by ID alone and says so, which is the honest floor rather than a wrong merge.
+    groups: tuple = ()
 
     def ids(self) -> tuple:
         """Every id any tier named, strongest tier first, deduped. The planner's enum is the full live
@@ -701,11 +869,47 @@ class SubjectHints:
                 out.append(i)
         return tuple(out)
 
-    def ambiguous(self, floor: float = AMBIG_FLOOR) -> tuple:
+    def ambiguous(self, floor: float = AMBIG_FLOOR, *, graph=None) -> tuple:
         """The candidates at or above :data:`AMBIG_FLOOR` -- what D5 CARRIES into the answer when the
-        planner returns no subject. Empty when the semantic tier declined, which is correct: a declined
-        tier proposed nothing, so there is nothing a reader was owed."""
-        return tuple(c for c in self.candidates if float(c[1]) >= float(floor))
+        planner returns no subject -- FENCED and GROUP-DEDUPED. Empty when the semantic tier declined,
+        which is correct: a declined tier proposed nothing, so there is nothing a reader was owed.
+
+        FENCED (:data:`OWN_STRUCTURE_IDS`): the carry is the one row that STOPS a reader and asks them
+        a question, and "did you mean the calendar spread" is a question about the board's own price
+        structure, which is never the subject. An id the planner may not pick must not be an id the
+        reader is asked to choose.
+
+        GROUP-DEDUPED, AND THAT WAS A MEASURED DEFECT RATHER THAN A TIDY-UP. ``render.ABSENCE_WHY``
+        says the question may mean "either of two drivers this estate tracks" and the seam's decline
+        gate is ``len(amb) >= 2``; both were counting SPELLINGS. MEASURED on phase C's layer 1, deck
+        v2 row dc23: ``crush_margin`` 0.7962 and ``crush_margin_expansion`` 0.7803 both clear
+        :data:`AMBIG_FLOOR` and are ONE driver -- both are ``ref:crush_margin_z`` -- so the estate's
+        only measured carry was a row telling a reader to choose between two names for one thing.
+        That is D4's own hazard (near-duplicate ids tie by construction) arriving at D5, and the key
+        that closes it is the key D4 already built. The STRONGEST candidate of each group survives,
+        because :attr:`candidates` is score-descending and the strongest is the one the reader's own
+        words came closest to.
+
+        THE KEY COMES FROM :attr:`groups` (stamped by :func:`resolve`), or from ``graph=`` for a
+        caller that has one, or -- with neither -- every id is its own group and the method
+        de-duplicates by id alone. A missing key is not a licence to merge."""
+        gk = dict(self.groups or ())
+        if not gk and graph is not None:
+            try:
+                gk = {c[0]: groups(graph).get(c[0], "") for c in self.candidates}
+            except Exception:                              # noqa: BLE001 -- a hint is never worth a turn
+                gk = {}
+        out, seen = [], set()
+        for c in self.candidates:
+            i = str(c[0])
+            if float(c[1]) < float(floor) or i in OWN_STRUCTURE_IDS:
+                continue
+            key = str(gk.get(i) or "") or ("id:" + i)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(c)
+        return tuple(out)
 
     def trace(self) -> dict:
         """The ``subject.hints`` sub-dict of ``Board.trace()`` (D8). Scores rounded to three places:
@@ -755,7 +959,7 @@ def resolve(query: str, *, graph, embed_fn=None, vocab=None, path: Optional[Path
     A SKIPPED TIER SAYS SO: ``vocab_status`` is :data:`STATUS_SKIPPED`, which is neither ``ok`` nor one
     of the three decline words, so a census can tell a saved embed from a broken artifact."""
     t0 = time.perf_counter()
-    ex = al = cands = ()
+    ex = al = cands = gk = ()
     status = STATUS_NOT_RUN
     try:
         ex = exact_ids(query, graph)
@@ -769,10 +973,19 @@ def resolve(query: str, *, graph, embed_fn=None, vocab=None, path: Optional[Path
         else:
             cands, status = semantic_candidates(query, graph, embed_fn=embed_fn, vocab=vocab,
                                                 path=path, top_k=top_k)
+            # THE D4 KEY, STAMPED WHERE THE GRAPH IS IN HAND. `ambiguous()` de-duplicates by GROUP and
+            # its production caller (`orchestrator.py`, after `plan_turn`) has no graph, so the key
+            # travels with the hints rather than being re-derived from a graph the carry does not
+            # hold. `groups()` is process-cached per graph, so this costs a dict lookup per candidate.
+            if cands:
+                _gmap = groups(graph)                      # ONE call: `groups` returns a COPY of a
+                _gmap = _gmap if isinstance(_gmap, dict) else {}   # 405-entry dict on every call
+                gk = tuple((c[0], str(_gmap.get(c[0]) or "")) for c in cands)
     except Exception:                                      # noqa: BLE001 -- a resolver failure must
         pass                                               # never break a turn (seam.py's precedent)
     return SubjectHints(exact=tuple(ex), alias=tuple(al), candidates=tuple(cands),
-                        vocab_status=status, ms=(time.perf_counter() - t0) * 1000.0)
+                        vocab_status=status, ms=(time.perf_counter() - t0) * 1000.0,
+                        groups=tuple(gk))
 
 
 def _reader_name(driver_id: str) -> str:
@@ -893,20 +1106,30 @@ def hints_line(hints: SubjectHints, *, vocab=_LOAD_VOCAB, max_blurb: int = 90) -
     and the caller omits the line entirely -- the omit-when-off idiom, one layer up."""
     if not isinstance(hints, SubjectHints):
         return ""
+    # THE FENCE, AT THE ONE LINE THE PLANNER READS (:data:`OWN_STRUCTURE_IDS`). The enum already
+    # refuses these ids; a hint line that still NAMED one would spend a slot advertising an id the
+    # schema forbids and the validator drops -- and phase C measured what an offered id does to a
+    # market-structure ask. The tiers keep their own record: `hints.exact` still carries the T0 match
+    # and the trace still prints it, so a census can count the phrases the fence had work to do on.
+    # A LINE THAT LOSES EVERY PART RENDERS "", which is the same omit-when-empty the caller already
+    # honours.
+    ex = tuple(i for i in hints.exact if i not in OWN_STRUCTURE_IDS)
+    al = tuple(i for i in hints.alias if i not in OWN_STRUCTURE_IDS)
+    cd = tuple(c for c in hints.candidates if str(c[0]) not in OWN_STRUCTURE_IDS)
     parts = []
-    if hints.exact:
-        parts.append("exact " + ", ".join(f"{_reader_name(i)} [{i}]" for i in hints.exact))
-    if hints.alias:
-        parts.append("alias " + ", ".join(f"{_reader_name(i)} [{i}]" for i in hints.alias))
-    if hints.candidates:
+    if ex:
+        parts.append("exact " + ", ".join(f"{_reader_name(i)} [{i}]" for i in ex))
+    if al:
+        parts.append("alias " + ", ".join(f"{_reader_name(i)} [{i}]" for i in al))
+    if cd:
         # THE LOAD IS TAKEN HERE AND NOWHERE ELSE: only the CANDIDATE chunks carry a blurb, so a turn
         # whose hints are exact/alias-only -- and an empty-hints call, which is the common one -- never
         # touches the artifact at all.
         if vocab is _LOAD_VOCAB:
             vocab = _loaded_vocab()
-        blurbs = _blurbs_for({c[0]: c[2] for c in hints.candidates}, vocab)
+        blurbs = _blurbs_for({c[0]: c[2] for c in cd}, vocab)
         chunks = []
-        for did, score, _field in hints.candidates:
+        for did, score, _field in cd:
             blurb = str(blurbs.get(did) or "").strip().replace("\n", " ")
             if len(blurb) > max_blurb:
                 blurb = blurb[:max_blurb].rstrip() + "..."
@@ -925,10 +1148,11 @@ def hints_line(hints: SubjectHints, *, vocab=_LOAD_VOCAB, max_blurb: int = 90) -
 
 
 __all__ = ["CAND_FLOOR", "AMBIG_FLOOR", "TOP_K", "HINT_ALIAS_CAP", "T2_GATE_TIERS",
-           "SUBJECT_BLOCK_SHA256",
+           "SUBJECT_BLOCK_SHA256", "OWN_STRUCTURE_IDS",
            "VOCAB_FILENAME", "VOCAB_STATUS_WORDS", "STATUS_NOT_RUN", "STATUS_SKIPPED",
            "HINT_STATUS_WORDS", "WIDE_GROUP", "SubjectHints",
-           "artifact_status", "load_vocab", "vocab_path", "live_graph_hash", "live_ids",
+           "artifact_status", "load_vocab", "vocab_path", "live_graph_hash", "all_ids", "live_ids",
+           "own_structure_candidates",
            "exact_ids", "alias_ids", "semantic_candidates", "groups", "group_members",
            "group_census", "merge_census", "expand_group", "resolve", "hints_line"]
 
@@ -1172,4 +1396,57 @@ sub-class's whole point at layer 2, and it exposes a seam-level disagreement wor
 
 Both are DOCKETED and neither is fixed here: the fix is in `ambiguous()` and in the seam, and this
 sitting's allowlist reaches neither. The L2 decoy bar -- zero picks on any draw across all 28 rows --
-is the one the block's v2 is graded on and it is independent of this carry."""
+is the one the block's v2 is graded on and it is independent of this carry.
+
+===================================================================================================
+THE PHASE-D ADDENDUM (2026-09-10). Phase C's billed layer 2 answered the question v2 was written to
+ask, and the answer was no: 7 of 28 decoy rows still had the planner pick a subject. Three closures,
+all free, none of them a threshold, and the two dockets above are two of them.
+
+(1) THE ENUM FENCE, AND WHY IT IS THE ENUM AND NOT THE PROMPT. Of the seven fires, SIX picked an id
+that IS the anchor's own price structure -- `calendar_spread` on dc08/dc17/dc22/dc25 and `basis` on
+dc16/dc21 -- while the frozen block already said, in as many words, that a market's own price,
+spread, curve, basis, roll or front month names no subject "even where the enum carries an id by that
+name". That sentence is the strongest form the prose can take; the measurement says it does not beat
+an enum that offers the id. So :data:`OWN_STRUCTURE_IDS` leaves the enum, the hint line and the carry
+(the three seams; the TIERS still match, so the trace still says the phrase named one), and
+`dispatch._validate` drops a fenced id from a reply that names one anyway.
+
+THE RE-SCORE OF PHASE C's OWN BANKED DRAWS, free and offline (`--rescore`, no call made; banked at
+data/subject_resolver/2026-09-10/subject_deck_v2_fence_rescore.json and pinned by `test_pd7`):
+
+  decoy ROWS that picked a subject      7 of 28   -> fence removes 6, leaving 1 (dc18)
+  decoy DRAWS that picked a subject    16 of 84   -> fence removes 13, leaving 3
+  true rows losing an EXPECTED id       0 of 90
+  true rows losing a SPURIOUS 2nd pick  2 (ex06, al05: `basis` beside the freight driver they name)
+  rows whose HINT LINE carried a fenced id  16 of 118
+
+dc18 STAYS AND IT IS NOT A FENCE QUESTION: an open-interest-as-a-market-fact ask answered with
+`cot_positioning` + `managed_money_positioning`, and positioning is subject-eligible by D18 and by the
+owner's own scenario. Whether the planner should have declined it is a planner judgement the next
+billed run measures. AND THE WHOLE TABLE IS A CEILING RATHER THAN A PREDICTION: the picks it removes
+are structurally impossible under the fence, but what a planner does with the SHORTER list on those
+six rows is what no re-read of banked draws can answer.
+
+(2) THE CARRY RULE. `subject_ambiguous` is stamped only when the candidates at :data:`AMBIG_FLOOR`
+came from the SEMANTIC tier -- no T0 or T1 hit on the phrase -- and the planner picked nothing. A free
+tier that matched means the planner was shown the driver BY NAME and declined anyway, which is a
+decision and not an ambiguity, and dc23 (a how-to-compute ask that names its quantity outright) is
+exactly that row. MEASURED on the free layer-1 re-run of deck v2 under this build: 5 of 118 rows carry
+at AMBIG_FLOOR raw; the shipped path carries 2, and **0 of the 1 decoy row** -- the L1 FATAL bar's only
+row reaches no reader. THE BAR ITSELF IS UNMOVED and still grades the raw count, because retargeting a
+pre-registered bar inside the sitting whose change it grades is how an instrument stops being
+independent of what it measures; the runner prints BOTH readings and the retarget is docketed.
+
+(3) `ambiguous()` IS GROUP-DEDUPED, which is the second docket above. `crush_margin` 0.7962 and
+`crush_margin_expansion` 0.7803 are one driver (`ref:crush_margin_z`), so the render's "either of two
+drivers this estate tracks" and the seam's `len(amb) >= 2` now count DRIVERS. The key is stamped onto
+:class:`SubjectHints` by :func:`resolve`, because the production caller of `ambiguous()` is the
+orchestrator AFTER `plan_turn` and holds no graph.
+
+WHAT THIS COSTS, STATED. The held-out deck carries ONE row whose expected id is `calendar_spread`
+(hs_016, synonym). Under the fence that row cannot resolve at layer 2 by construction, so it is a
+KNOWN casualty of a deliberate design decision and not a resolver miss -- a desk asking whether the
+board is paying anyone to carry it is asking about the curve, and this build's answer is that the
+curve is a CONDITION and never a subject. It must be scored as such when the one-shot is spent, not
+counted as a synonym failure. No in-tree deck row expects a fenced id (MEASURED on both v1 and v2)."""

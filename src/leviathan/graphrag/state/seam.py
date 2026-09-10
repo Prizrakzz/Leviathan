@@ -114,6 +114,16 @@ def _stamp_subject(bd, sub: dict, *, graph=None, focus_driver: str = "") -> None
     (``fill_stage2`` gates the whole render on ``bd.anchors``), so the seam mints the one row by hand
     rather than letting the more informative decline be the more silent one.
 
+    AND THE CARRY HAS THREE CONDITIONS, NOT ONE (phase D, 2026-09-10). The planner must have returned
+    NO subject (D5's own words, held here and at the orchestrator), the candidates must be worth a
+    reader's interruption (:data:`state.subject.AMBIG_FLOOR`, one layer up), and NO FREE TIER MAY HAVE
+    MATCHED THE PHRASE. The third is the one this build adds: a T0 or T1 hit means the planner was
+    shown the driver by its own name and declined anyway, which is a decision rather than an
+    ambiguity, and the estate's only measured carry (deck v2's dc23, a how-to-compute ask on a driver
+    the phrase names outright) was exactly that shape. What the carry is fenced ON, and what it now
+    de-duplicates BY, are two halves of one correction: ``SubjectHints.ambiguous()`` collapses a group
+    to its strongest member, so ``len(amb) >= 2`` below counts DRIVERS and not spellings.
+
     THE IDS RIDE THE DETAIL TAIL AND THE TRACE, NEVER THE EMF DIMENSION: ``reason_dimension`` cuts at
     the colon precisely so an unbounded value cannot become a CloudWatch dimension, and two driver ids
     joined by a pipe is exactly that. Asserted in the deck rather than assumed."""
@@ -141,6 +151,47 @@ def _stamp_subject(bd, sub: dict, *, graph=None, focus_driver: str = "") -> None
         carried = {a.contract: list(a.group) for a in bd.anchors if a.source == "subject" and a.group}
         if carried:
             bd.subject["carried"] = carried
+        # THE FREE-TIER DECLINE (phase D, 2026-09-10). A carry is D5's answer to "the phrase could
+        # mean two drivers and the planner could not choose" -- and that reading only holds when the
+        # candidates came from the SEMANTIC tier alone. When T0 or T1 matched the phrase, the planner
+        # was shown the driver BY NAME and still returned nothing, which is a DELIBERATE DECLINE and
+        # not an ambiguity: the how-to case is exactly this shape -- a desk types "crush margin"
+        # literally, asks how the figure is COMPUTED, and the frozen block tells the planner to name
+        # no subject. MEASURED on phase C, deck v2 row dc23: T0 exact-matched `crush_margin` and two
+        # ids of that one family cleared AMBIG_FLOOR (0.7962 / 0.7803), so the estate's ONLY measured
+        # carry was a row that would have asked the reader to choose after the planner had already
+        # decided there was nothing to choose between. The v2 block's closure at the PICK was being
+        # undone one layer down; this is the same closure at the carry.
+        #
+        # THE HINTS ARE THE WITNESS AND THEY ALREADY RIDE THE PAYLOAD (`SubjectHints.trace()` carries
+        # `exact` and `alias`), so nothing new is threaded. A payload with no hints at all -- a deck's
+        # short form -- reports no lexical hit and carries, which is the fail-open reading: absence of
+        # evidence that a free tier fired is not evidence that one did.
+        #
+        # AND A HIT ON A FENCED ID COUNTS, WHICH IS A SCOPE AND NOT AN OVERSIGHT. A phrase that
+        # word-matches `state.subject.OWN_STRUCTURE_IDS` was never SHOWN to the planner -- the enum
+        # and the hint line both drop it -- so the "shown by name and declined" reading does not hold
+        # for it. It declines the carry anyway, for the row's own sake rather than the planner's: a
+        # desk that typed the board's own curve or its own cash-versus-board asked a MARKET-STRUCTURE
+        # question, which the frozen block already tells the planner to name no subject for, and
+        # answering it with "did you mean the soy-palm premium?" is the same decoy noise the enum
+        # fence exists to kill -- one layer further out, at the row that STOPS A READER. MEASURED
+        # across every banked layer-1 run of both decks and the held-out set (17 runs): 77 rows carry
+        # a candidate at AMBIG_FLOOR and ZERO of them have a fenced-only lexical hit, so this clause
+        # moves no banked number. It is stated because a rule whose reason and whose computation
+        # disagree on a case nobody has met yet is a rule that will be read wrong when someone does.
+        _lex = ()
+        try:
+            _h = sub.get("hints") or {}
+            _lex = tuple(_h.get("exact") or ()) + tuple(_h.get("alias") or ())
+        except Exception:                               # noqa: BLE001 -- a malformed hint dict is no hit
+            _lex = ()
+        if amb and not picked and _lex:
+            # NOT DELETED, NAMED. The two ids stay on the trace through `hints` either way; what this
+            # records is that the CARRY was declined and why, so a census can separate "no ambiguity"
+            # from "an ambiguity a free-tier hit disqualified".
+            bd.subject["ambiguous_declined"] = "lexical_hit"
+            amb = ()
         if amb and not picked:
             # THE CARRY IS ITS OWN FACT AND IT IS RECORDED WHETHER OR NOT THE BOARD DECLINED, because
             # the render mints the row on both paths and a counter that could only fire on the

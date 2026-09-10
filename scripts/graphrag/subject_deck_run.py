@@ -265,6 +265,114 @@ def instrument_census(scored: list) -> dict:
             "live": not declined, "certifying": not declined}
 
 
+def shipped_carry(scored: list, *, of_id: dict) -> dict:
+    """THE CARRY THE ESTATE ACTUALLY TAKES, beside the raw candidate count the L1 decoy bar grades.
+
+    A REPORT LINE AND NEVER A BAR (phase D). `score_layer1`'s decoy row counts every row with a
+    candidate at or above AMBIG_FLOOR, which is what the floor was calibrated on and what the FATAL
+    bar has always been stated over. Since phase D the SHIPPED path carries fewer of them, by two
+    rules that live in the resolver and the seam rather than in this scorer:
+
+      the FENCE     `SubjectHints.ambiguous` drops `state.subject.OWN_STRUCTURE_IDS` -- an id the
+                    planner may not pick is not one a reader may be asked to choose.
+      the GROUP     it collapses a group to its strongest member, so two spellings of one driver are
+                    ONE entry ("either of two drivers" is true only when two GROUPS tie).
+      the FREE-TIER a T0 or T1 hit on the phrase means the planner was shown the driver by name and
+      DECLINE      declined anyway, which `state.seam._stamp_subject` reads as a decision rather than
+                    an ambiguity, and no row is minted.
+
+    So the two numbers answer two questions -- "how many rows put a strong candidate in front of the
+    planner" and "how many rows would STOP A READER" -- and both are printed. THE BAR IS UNMOVED: it
+    still grades the raw count, because retargeting a pre-registered bar inside the sitting whose
+    change it grades is how an instrument stops being independent of the thing it measures. That
+    retarget is a docket item and it is named in the report."""
+    from leviathan.graphrag.state import subject as SU
+    fenced, deduped, lexical, carried = [], [], [], []
+    for r in scored:
+        cands = tuple((c[0], float(c[1]), c[2]) for c in r["cands"])
+        raw = [c for c in cands if c[1] >= SU.AMBIG_FLOOR]
+        if not raw:
+            continue
+        h = SU.SubjectHints(exact=tuple(r["exact"]), alias=tuple(r["alias"]), candidates=cands,
+                            groups=tuple((c[0], str(of_id.get(c[0]) or "")) for c in cands),
+                            vocab_status=str(r["vocab_status"]))
+        amb = h.ambiguous()
+        if not amb:
+            fenced.append(r["id"])
+            continue
+        if len(amb) < len(raw):
+            deduped.append(r["id"])
+        if r["exact"] or r["alias"]:
+            lexical.append(r["id"])
+            continue
+        carried.append(r["id"])
+    # COUNTS AND ROW LISTS ARE SEPARATE KEYS, and every list ends in `_rows` so the in-tree bank's
+    # filter drops it by suffix: a held-out row id beside its class and its verdict is a map back
+    # into a deck that must stay outside the tree (`test_pb11`'s rule, applied to a new key).
+    klass = {r["id"]: r["klass"] for r in scored}
+    return {"raw_rows_at_ambig_floor": len(fenced) + len(lexical) + len(carried),
+            "carried": len(carried), "dropped_by_the_fence": len(fenced),
+            "declined_on_a_free_tier_hit": len(lexical), "narrowed_by_the_group_key": len(deduped),
+            # THE DECOY SPLIT, because the FATAL bar is stated over decoys alone: a carry on a TRUE
+            # row is a turn where the planner is expected to pick anyway (`not picked` never holds),
+            # while a carry on a driver-free ask is the row that bar exists to refuse.
+            "decoy_carried": sum(1 for i in carried if klass.get(i) == "decoy"),
+            "decoy_raw_at_ambig_floor": sum(1 for i in fenced + lexical + carried
+                                            if klass.get(i) == "decoy"),
+            "fenced_rows": sorted(fenced), "narrowed_rows": sorted(deduped),
+            "lexical_rows": sorted(lexical), "carried_rows": sorted(carried)}
+
+
+def fence_rescore(rows2: list, l1_rows: list) -> dict:
+    """THE OWN-STRUCTURE FENCE APPLIED TO BANKED DRAWS -- free, offline, and a COUNTERFACTUAL.
+
+    Phase C's billed layer 2 measured the picks a planner made with `calendar_spread` and `basis` in
+    its enum. The fence removes them from the enum AND from the hint line, and `dispatch._validate`
+    re-verifies a reply against the same vocabulary, so every banked pick of a fenced id is
+    structurally impossible under it. That is what this counts, and it is a CEILING on what the fence
+    removes rather than a prediction of the next run: what a planner does with the SHORTER list on
+    those rows is exactly what no re-read of banked draws can answer, and the `counterfactual` field
+    says so in the artifact."""
+    from leviathan.graphrag.state import subject as SU
+    F = set(SU.OWN_STRUCTURE_IDS)
+    l1 = {r["id"]: r for r in l1_rows or []}
+    dec_pick, dec_removed, dec_left, spurious, expected_lost = [], [], [], [], []
+    draws_total = draws_pick = draws_removed = hint_rows = 0
+    for r in rows2:
+        a = l1.get(r["id"]) or {}
+        top = [c[0] for c in (a.get("cands") or []) if c[1] >= SU.CAND_FLOOR][:SU.TOP_K]
+        if (set(top) | set(a.get("exact") or ()) | set(a.get("alias") or ())) & F:
+            hint_rows += 1
+        picks = [tuple(dr.get("subject") or ()) for dr in r["draws"]]
+        if r["klass"] == "decoy":
+            draws_total += len(picks)
+            n_any = sum(1 for p in picks if p)
+            draws_pick += n_any
+            if n_any:
+                dec_pick.append(r["id"])
+                n_after = sum(1 for p in picks if set(p) - F)
+                draws_removed += n_any - n_after
+                (dec_left if n_after else dec_removed).append(r["id"])
+        elif any(set(p) & F for p in picks):
+            (expected_lost if set(r["expect"] or ()) & F else spurious).append(r["id"])
+    return {"fence": sorted(F), "counterfactual": True,
+            "decoy": {"n": sum(1 for r in rows2 if r["klass"] == "decoy"),
+                      "rows_that_picked": len(dec_pick),
+                      "rows_removed_by_the_fence": len(dec_removed),
+                      "removed_rows": sorted(dec_removed),
+                      "rows_remaining": len(dec_left), "remaining_rows": sorted(dec_left),
+                      "draws_total": draws_total, "draws_with_a_pick": draws_pick,
+                      "draws_removed_by_the_fence": draws_removed,
+                      "draws_remaining": draws_pick - draws_removed},
+            "non_decoy": {"n": sum(1 for r in rows2 if r["klass"] != "decoy"),
+                          "rows_losing_an_EXPECTED_id": len(expected_lost),
+                          "expected_rows": sorted(expected_lost),
+                          "rows_losing_a_SPURIOUS_second_pick": len(spurious),
+                          "spurious_rows": sorted(spurious)},
+            "hint_line": {"rows_whose_hint_line_carried_a_fenced_id": hint_rows,
+                          "of_rows": len(rows2)}}
+
+
 def score_layer1(scored: list, *, of_id: dict, inv: dict) -> dict:
     from leviathan.graphrag.state import subject as SU
     fl, am, k = SU.CAND_FLOOR, SU.AMBIG_FLOOR, SU.TOP_K
@@ -711,6 +819,22 @@ def markdown(doc: dict) -> str:
                  "The `anyT2` column beside it is the strict top-5 reading; no bar's verdict differs "
                  "between the two on either deck.")
         L.append("")
+        # THE TWO READINGS OF "A CARRY", printed together for the reason the layer-2 scorer prints
+        # its two: one of them is what the bar grades and the other is what a reader would meet.
+        sc = l1.get("shipped_carry")
+        if sc:
+            L.append(f"THE SHIPPED CARRY, beside the bar's raw count: **{sc['carried']} of "
+                     f"{sc['raw_rows_at_ambig_floor']}** rows at AMBIG_FLOOR would STOP A READER, "
+                     f"and **{sc['decoy_carried']} of {sc['decoy_raw_at_ambig_floor']}** of the "
+                     f"DECOY rows the FATAL bar is stated over. The fence drops "
+                     f"{sc['dropped_by_the_fence']}, the free-tier decline drops "
+                     f"{sc['declined_on_a_free_tier_hit']}, and the group key narrows "
+                     f"{sc['narrowed_by_the_group_key']}. THE BAR ABOVE IS "
+                     f"UNMOVED and still grades the RAW count: retargeting a pre-registered bar "
+                     f"inside the sitting whose change it grades is how an instrument stops being "
+                     f"independent of what it measures. Pointing it at `SubjectHints.ambiguous` plus "
+                     f"the seam's rule is a DOCKET item.")
+            L.append("")
     l2 = doc.get("layer2")
     if l2:
         L.append("## LAYER 2 -- the planner (billed)")
@@ -774,6 +898,34 @@ def markdown(doc: dict) -> str:
                  f"{lat['bar']['measured_ms']} ms -- {lat['bar']['verdict']}")
         L.append("")
         L.append(lat["note"])
+        L.append("")
+    fr = doc.get("fence_rescore")
+    if fr:
+        d, n = fr["decoy"], fr["non_decoy"]
+        L.append("## THE OWN-STRUCTURE FENCE, APPLIED TO THESE DRAWS (free, a COUNTERFACTUAL)")
+        L.append("")
+        L.append(f"fence: {', '.join(fr['fence'])} -- removed from the enum, from the hint line and "
+                 f"from the ambiguity carry (`state.subject.OWN_STRUCTURE_IDS`)")
+        L.append("")
+        L.append(f"- DECOY: {d['rows_that_picked']} of {d['n']} rows picked a subject on at least "
+                 f"one draw; the fence removes {d['rows_removed_by_the_fence']} of them "
+                 f"({', '.join(d['removed_rows']) or 'none'}), leaving {d['rows_remaining']} "
+                 f"({', '.join(d['remaining_rows']) or 'none'}).")
+        L.append(f"- DECOY DRAWS: {d['draws_with_a_pick']} of {d['draws_total']} carried a pick; "
+                 f"{d['draws_removed_by_the_fence']} are structurally impossible under the fence, "
+                 f"{d['draws_remaining']} remain.")
+        L.append(f"- TRUE ROWS: {n['rows_losing_an_EXPECTED_id']} of {n['n']} lose an EXPECTED id "
+                 f"({', '.join(n['expected_rows']) or 'none'}); "
+                 f"{n['rows_losing_a_SPURIOUS_second_pick']} lose a SPURIOUS second pick and keep "
+                 f"the expected one ({', '.join(n['spurious_rows']) or 'none'}).")
+        L.append(f"- HINT LINE: {fr['hint_line']['rows_whose_hint_line_carried_a_fenced_id']} of "
+                 f"{fr['hint_line']['of_rows']} rows had a fenced id on the line the planner read.")
+        L.append("")
+        L.append("IT IS A CEILING ON WHAT THE FENCE REMOVES AND NOT A PREDICTION. The banked picks "
+                 "of a fenced id cannot be made under it -- the enum never offers the id and "
+                 "`_validate` drops it from a reply that names one anyway -- but what a planner does "
+                 "with the SHORTER list on those rows is what no re-read of banked draws can answer, "
+                 "and it is the next billed run's first obligation.")
         L.append("")
     L.append("## BARS")
     L.append("")
@@ -935,6 +1087,9 @@ def main(argv=None) -> int:
         doc["layers_run"] = ["2"]
         doc["layer2"] = dict(sc, aborted_on_cost=bool((banked.get("layer2") or {})
                                                       .get("aborted_on_cost")))
+        # THE FENCE, ON THE SAME BANKED DRAWS. A re-read and never a second run: it costs nothing,
+        # consumes no one-shot, and its own artifact field says it is a counterfactual.
+        doc["fence_rescore"] = fence_rescore(rows2, list(banked.get("layer1_rows") or []))
         doc["bars"] = collect_bars(doc)
         doc["verdict"], _stops, _misses = verdict_of(doc["bars"])
         doc["failing_bars"] = _stops + _misses
@@ -983,9 +1138,15 @@ def main(argv=None) -> int:
     t0 = time.perf_counter()
     graph = load_graph()
     vocab, vstatus = SU.load_vocab(graph=graph)
+    # THE ENUM'S SIZE AND THE FENCE'S, TOGETHER. `live_ids` is what the planner is offered and
+    # `all_ids` is what the tiers match over, so a reader of this header can tell a curation change
+    # (both numbers move) from a fence change (only the first does) without opening the module.
+    _lint = SU.own_structure_candidates(graph)
     print(f"graph {SU.live_graph_hash(graph)}  contracts {len(graph.contracts)}  "
-          f"driver ids {len(SU.live_ids(graph))}  artifact {vstatus}  "
-          f"({time.perf_counter() - t0:.1f}s)")
+          f"driver ids {len(SU.live_ids(graph))} of {len(SU.all_ids(graph))}  "
+          f"own-structure fence {sorted(SU.OWN_STRUCTURE_IDS)} "
+          f"(lint unfenced: {list(_lint['unfenced']) or 'none'})  "
+          f"artifact {vstatus}  ({time.perf_counter() - t0:.1f}s)")
     # THE ARTIFACT FENCE (the FILE). The INSTRUMENT fence -- whether the tier actually ran, which is a
     # different failure and the one that reproduced in this checkout -- is below, after layer 1.
     # `--latency` is fenced here too: a harness that times a declining tier times the free tiers.
@@ -1047,6 +1208,8 @@ def main(argv=None) -> int:
             return 2
         if args.layer in ("1", "both"):
             doc["layer1"] = score_layer1(l1_scored, of_id=of_id, inv=inv)
+            # THE SECOND READING OF THE CARRY, beside the bar's own and never in place of it.
+            doc["layer1"]["shipped_carry"] = shipped_carry(l1_scored, of_id=of_id)
             doc["layers_run"].append("1")
     if args.layer in ("2", "both"):
         print("[layer 2] the planner")
@@ -1114,7 +1277,14 @@ def main(argv=None) -> int:
                 # the `_ids` suffix rule because it is the same map wearing a different key: one entry
                 # per near_duplicate/multi row, carrying that row's id.
                 _DROP = ("unscored", "group_detail")
+                # AND THE SAME RULE ONE LEVEL UP. `shipped_carry` is a layer-1 key rather than a
+                # per-class one and it carries row lists of its own, every one suffixed `_rows` so a
+                # SUFFIX drops them here the way `_ids` drops the per-class ones. The counts beside
+                # them are the measurement and they ride.
                 v = {kk: vv for kk, vv in doc[k].items() if kk != "per_class"}
+                if isinstance(v.get("shipped_carry"), dict):
+                    v["shipped_carry"] = {kk: vv for kk, vv in v["shipped_carry"].items()
+                                          if not kk.endswith("_rows")}
                 v["per_class"] = {cl: {kk: vv for kk, vv in d.items()
                                        if not kk.endswith("_ids") and kk not in _DROP}
                                   for cl, d in doc[k]["per_class"].items()}
