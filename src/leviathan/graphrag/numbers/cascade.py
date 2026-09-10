@@ -3464,6 +3464,32 @@ def _xc_sides_ok(pair_row, source: str, target: str) -> bool:
         return False
 
 
+#: THE JOIN KEY on a world-balance call record (S7 item 3), minted ONCE here and read through
+#: :func:`xc_join_head` -- the `_sb` idiom (`state/render.sb_call`), applied to the leg that mints
+#: three rows for one rendered sentence.
+#:
+#: IT HAS NO SHIPPED CONSUMER YET AND THAT IS STATED WHERE IT IS MINTED (see `_xc_leg_lines`). It is a
+#: declaration a later surface can read, not a change in what any surface prints today.
+XC_JOIN_KEY = "_xc_join"
+
+
+def xc_join_head(call: dict):
+    """The ``[N]`` handle heading the joined row this call belongs to, or ``None`` when it heads no
+    join. ONE reader for the key, so a consumer cannot invent a second spelling of "these three rows
+    are one sentence"."""
+    j = (call or {}).get(XC_JOIN_KEY) or {}
+    h = j.get("head")
+    return int(h) if isinstance(h, int) else None
+
+
+def xc_join_is_member(call: dict) -> bool:
+    """True for a row the joined sentence serves but does not head -- the baseline and the delta. These
+    are the rows a use census must NOT count as separate offers, and the pair the writer prints under
+    the head's handle."""
+    return xc_join_head(call) is not None and str(((call or {}).get(XC_JOIN_KEY) or {}).get("role")
+                                                  or "") != "level"
+
+
 def _xc_leg_lines(la, source, A, lb, target, B, calls: list, base: int, asof, *,
                   handles: bool = False) -> tuple:
     """The per-leg composite [N] line shape shared by the divergence (opposite-sign) and co-move (same-sign)
@@ -3505,6 +3531,35 @@ def _xc_leg_lines(la, source, A, lb, target, B, calls: list, base: int, asof, *,
         n += 1
         _delta = _xc_call(cmdty, d, my_hi, asof, unit="pp")          # the delta (backs the '..pp' term)
         calls.append(_delta)
+        # ── ONE HANDLE PER JOINED SENTENCE (S7 item 3) ──────────────────────────────────────────────
+        # THE DEFECT, MEASURED ON THE TWELVE BANKED TURNS. This leg mints THREE rows for ONE rendered
+        # sentence, and the sentence prints all three magnitudes under the FIRST handle. The writer
+        # copies the sentence -- correctly, and the verifier binds it, because `_end` is `shown` all
+        # three -- so `[N{handle}]` is cited and `[N{handle+1}]` / `[N{handle+2}]` are served, spent and
+        # never cited. Every one of the 22 tightest used-without-citing rows in the census is this
+        # shape, all class `xc`, and it is the K9-6 one-handle-per-magnitude rule read from the other
+        # end: the row is a JOINED one and the menu presented it as three separate offers.
+        #
+        # THE STAMP CORRECTS AND COMPUTES; IT DELETES NOTHING. All three call records stay, all three
+        # values stay served, the [N] STRIDE STAYS 3 and every later handle keeps its position -- so
+        # the rendered prose is byte-identical and no artifact renumbers. What changes is that the two
+        # sibling rows now SAY they are members of the joined row `[N{handle}]` heads, through one
+        # producer (:func:`xc_join_head`).
+        #
+        # AND IT IS AN ADDRESS, NOT YET THE FIX -- SAID PLAINLY, BECAUSE THE FIRST CUT'S OWN COMMENT
+        # CLAIMED THREE READERS THAT DO NOT EXIST. Grep the estate: `XC_JOIN_KEY`, `xc_join_head` and
+        # `xc_join_is_member` are read by NOTHING in `src/`, `jobs/` or `scripts/` outside this file --
+        # `citations.render` (which is BOTH the [N] menu the writer reads and the `## Sources` footer)
+        # is byte-identical with the key stripped and still lists three rows, and `eval._served_rows`
+        # projects a closed key set that never sees it. So the 22 used-without-citing `xc` rows the
+        # census measured would re-score IDENTICALLY today. What this buys is that the fact "these three
+        # rows are one sentence" is now ON THE RECORD and has exactly one spelling, so the two surfaces
+        # that would close the defect -- `citations.render` folding members under their head, and a
+        # joined-row denominator in the eval census -- can be built without inventing a second one.
+        # Both are outside this sitting's allowlist and are carried, not claimed.
+        _members = (handle, handle + 1, handle + 2)
+        for _c, _role in ((_end, "level"), (_base, "baseline"), (_delta, "delta")):
+            _c[XC_JOIN_KEY] = {"head": handle, "members": _members, "role": _role}
         v_hi, v_lo, v_d = _xc_row_val(_end), _xc_row_val(_base), _xc_row_val(_delta)
         legs.append((handle, v_hi, v_lo, v_d))
         # World is SYNTHESIZED from per-country silver_psd rows (_world_su_ratio), so the scope tag states the

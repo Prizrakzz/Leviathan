@@ -53,12 +53,23 @@ SYSTEM_STATE_BOARD_MANDATE = (
     "lean on, give the figure in its unit and the plain meaning in the same sentence, and date it by "
     "the row's own knowledge date; a LIKE STATE stanza is history -- say what measured then, over the "
     "stated lag band, at both ends, then how many such cases the record carries, in words, and never "
-    "present it as what will happen; when the block says no documents exist for it, say so. "
+    "present it as what will happen; when the block says no documents exist for it, say so. The "
+    "RECENCY rows belong to this movement and are owed to the reader like any other evidence: give "
+    "each layer its own plain sentence -- the newest knowledge date the number rows carry, the newest "
+    "dated document behind the page, the session the board price tape runs through -- so the reader "
+    "learns how far each layer reaches instead of inferring one edge from another. "
     "(3) SPILLOVERS: name the other markets the block declares the same loud state moves, each with "
     "the sign word the block gives for THAT market and with its lag words where the block states them "
     "for it; where the block gives a market a direction and no lag, say the direction and leave the "
     "lag unstated rather than borrowing another market's. The sign can differ across markets and you "
-    "must keep each market's own, never reconciling two signs into one. (4) WATCH: close with "
+    "must keep each market's own, never reconciling two signs into one. When the block carries a "
+    "CROSS-COMMODITY line, that line is the board's own and it names the markets the rows above "
+    "reach: those markets are what the cross-commodity section holds on this turn, each with the sign "
+    "words and the lag words its own row carries. That line licenses the section and states nothing "
+    "else: it carries no stocks-to-use rows and no handle of its own, it is not a link in a "
+    "transmission chain, and it opens no fork heading. A CROSS-COMMODITY line that sets two "
+    "commodities' stocks-to-use rows side by side is a different line under its own rule; read each "
+    "line by the rows beneath it. (4) WATCH: close with "
     "the WATCH rows -- the next scheduled print, the level a convention names, the date a declared lag "
     "window opens -- as concrete items with their dates; never a generic caution. Write every "
     "PROJECTION in the conditional mood, carry its band as two calendar months, and say what it is "
@@ -76,8 +87,38 @@ SYSTEM_STATE_BOARD_MANDATE = (
 #: ``## Cross-commodity`` and ``## Complex-wide move`` are RESERVED literals the contract licenses per
 #: turn, not members of ``CANONICAL``: 0 of the 10 shipped ``response_contracts.CONTRACTS`` carry either
 #: in ``sections``, and both are INJECTED-ONLY -- licensed by a ``CROSS-COMMODITY`` / ``CO-MOVE`` marker
-#: LINE the board mints on NONE of the three acceptance fixtures. So the FALLBACK is not the exception,
-#: it is the only branch on every board turn shipped today.
+#: LINE. AT S6 THE BOARD MINTED NEITHER, on any of the three acceptance fixtures, so the fallback was
+#: not the exception: it was the only branch on every board turn shipped.
+#:
+#: WHAT THAT COST, MEASURED TWICE. Over the twelve banked cascade turns ``## Mechanism`` carried 1 of
+#: 239 first-cited handles (0.4%) against ``## The record``'s 147 -- so the movement was aimed at the
+#: one section the writer keeps number-free. And on three prod-seat draws over the acceptance fixtures
+#: SPILLOVERS was the only movement of the four that broke: dropped entirely on ``soybeans_now`` (ten
+#: off-anchor fan rows, zero named), parked after ``## What to watch`` on ``el_nino_fanout``, and
+#: placed correctly only on ``b40_event``, where the anchor board IS the spillover subject.
+#:
+#: S7 GIVES IT THE HOME RATHER THAN REWORDING THE MOVEMENT. ``render.sb_cross_commodity`` mints the
+#: ``CROSS-COMMODITY`` licence line the persona already keys the heading on, iff the block rendered at
+#: least one FAR row across a cross edge -- so ``## Cross-commodity`` is now the LIVE branch on a board
+#: turn that has spillovers and the fallback stays exactly where it was for a board that has none. The
+#: mandate gains ONE sentence scoping that line (the four movements keep ONE producer, which is the
+#: G5 law); the persona paragraph at answer.py:550-577 is NOT touched, so a flag-off turn is
+#: byte-identical.
+#:
+#: AND THE SCOPING SENTENCE IS WHERE FOUR CONSUMERS OF THE BARE WORD ARE ANSWERED AT ONCE, which is the
+#: reason it sits in the mandate rather than in any of them. The token ``CROSS-COMMODITY`` is read by
+#: ``_SYSTEM_CASCADE_A`` (answer.py:550-577, the su_ratio rule -- "two DIFFERENT commodities'
+#: stocks-to-use ratios ... show BOTH commodities' su_ratio [N] rows"), by ``_SYSTEM_CASCADE_B``
+#: (answer.py:709, "if there is NO CROSS-COMMODITY line ... do not invent a fork"), by
+#: ``_SYSTEM_TRANSMISSION`` (answer.py:783, "a link whose line begins CROSS-COMMODITY is a
+#: relative-value divergence"), and by ``numbers/cascade.py``'s own world-balance leg, which mints a
+#: second line under the same word on a turn that runs both legs. EDITING ANY OF THE THREE PERSONA
+#: PARAGRAPHS WOULD CHANGE THE SYSTEM PROMPT ON EVERY FLAG-OFF TURN -- they are unconditional module
+#: constants -- so the scope is stated in the ONE literal that ships only when the board does: the
+#: board's line carries no stocks-to-use rows and no handle, is not a chain link, opens no fork, and a
+#: line that DOES set two su_ratio rows side by side keeps its own rule. The eval-side half of the same
+#: collision (`_cascade_asserts`' `reroute_v2_expected` negative branch, which reds on the HEADING) is
+#: exempted there, gated on this turn's own `state_board` trace.
 #:
 #: AND THE FALLBACK COLLIDED HEAD-ON WITH THE SPINE. The mandate used to open "narrate it as a mentor in
 #: this order and no other" with SPILLOVERS THIRD, while ``response_contracts`` orders "'## Mechanism',

@@ -1736,3 +1736,63 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
     except Exception:  # noqa: BLE001 — a verifier bug must never eat an answer
         report["error"] = True
     return report
+
+
+# ═══ COVERAGE HELPERS -- COUNTERS, NEVER CHARGES (STATE ENGINE S7 item 1) ═══════════════════════════
+# THREE PUBLIC READERS OVER THE PREDICATES THIS MODULE ALREADY OWNS, and they exist so that a coverage
+# instrument one package over does not have to reach for `_num_matches`, `_mismatch_pool`,
+# `_claim_numbers_with_decimals`, `_mask_handles`, `_handle_members` and `_SENT_SPLIT` by their private
+# names. NOT ONE OF THEM CAN CHARGE ANYTHING: no report, no `by_rule`, no strip, no return value the
+# verifier reads. That separation is the (1b) lesson stated as code -- out-of-range [N] were caught
+# 1054/1054 while wrong-but-VALID [N] were missed 217/1054, so counting handles is not checking
+# bindings, and the thing that BINDS a board figure stays `_check_number_handle` above, unchanged.
+
+
+def sentences(prose: str) -> list[str]:
+    """The prose as this module's OWN sentences (`_SENT_SPLIT`), blanks dropped. One splitter in the
+    estate: a coverage figure counted over a second sentence boundary would not be comparable with the
+    strip-rate denominator (`claim_count`), which is split by this one."""
+    return [s for s in _SENT_SPLIT.split(str(prose or "")) if s.strip()]
+
+
+def cited_number_handles(prose: str) -> frozenset[int]:
+    """Every `[N]` index the prose cites, through THE handle parser (`_HANDLE` + `_handle_members`).
+
+    IT IS NOT THE NAIVE TEST. `eval._cascade_stats` asks `f"[{id}]" in prose`, which cannot see a
+    GROUPED token (`[N41,42]`, `[N41-43]`); `_handle_members` is the shipped parser for exactly that
+    shape, so a writer that grouped three handles into one token is credited with all three rather than
+    with none. Pass POST-VERIFY `structured` prose and never `out['answer']` -- the `## Sources` footer
+    re-renders every ledgered handle including the ones the verifier just stripped."""
+    out: set[int] = set()
+    for m in _HANDLE.finditer(str(prose or "")):
+        for kind, idx in _handle_members(m.group(0)):
+            if kind == "N":
+                out.add(int(idx))
+    return frozenset(out)
+
+
+def row_pool(call: dict) -> list[float]:
+    """What a citation of THIS call may claim: `_mismatch_pool`'s own pool -- the magnitudes the panel
+    line PRINTED (`shown`) when the engine recorded them, else every row. The board's rows always carry
+    `shown`, so a board figure is checked against the one magnitude its own handle was minted with."""
+    return _mismatch_pool(call or {}, _row_vals(call or {}))
+
+
+def figure_referenced(sents, values) -> bool:
+    """Does any sentence carry a magnitude that matches any of `values` under `_num_matches`?
+
+    THE SAME PREDICATE THE VERIFIER CHARGES WITH, used here only to COUNT. Handles are masked first
+    (`_mask_handles`) so a handle's own digits can never be read as a claim, and the reader-precision
+    arm rides along because `_claim_numbers_with_decimals` returns the decimals beside the values.
+
+    IT IS DELIBERATELY THE LOOSE READ, and a caller reporting it should say so: `_num_matches` bridges
+    five reporting scales, so a value match is evidence that a row reached the page and is not proof
+    that THAT row did. The tight read is the cited-handle set above; report both."""
+    vals = [v for v in (values or [])]
+    if not vals:
+        return False
+    for s in sents or ():
+        nums, decs = _claim_numbers_with_decimals(_mask_handles(s))
+        if nums and _num_matches(nums, vals, decs):
+            return True
+    return False

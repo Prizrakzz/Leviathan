@@ -1523,13 +1523,28 @@ def _cascade_asserts(q: dict, out: dict) -> dict | None:
             # leg's retrieval-derived eras, so a boolean true-pin FLAPS -- C10/gating F3). Both branches also
             # require the dispatch planner actually ran: a p.fallback turn skips the v2 predicate entirely, so
             # a negative pin would false-green without ever exercising it (C11c). planner=='llm' == non-fallback.
+            #
+            # ── S7: THE STATE BOARD IS A SECOND, LEGITIMATE LICENSOR OF THIS HEADING ─────────────────
+            # `render.sb_cross_commodity` mints a `CROSS-COMMODITY` line -- the exact marker the persona
+            # keys `## Cross-commodity` on -- whenever the board rendered a far row across a cross edge,
+            # so the SPILLOVERS movement has the heading `narration.MANDATE_MOVEMENTS` names for it. A
+            # writer that takes that licence renders the heading with `reroute_v2_pairs == 0`, which is
+            # the NEGATIVE branch's failing shape EXACTLY -- and the branch would red with nothing
+            # wrong, on 9 live deck rows carrying `reroute_v2_expected: false` and on every board turn
+            # with a spillover. The pin is about the RV-v2 LEG (did the su_ratio fork fire, and did the
+            # writer invent the heading without it), so a heading the BOARD licensed is outside its
+            # subject. The exemption is as narrow as the fact: this turn's own `state_board` trace must
+            # say the block minted the licence line. Flag-off, and any board with no far row, is
+            # byte-identical -- there is no such trace and no such key.
             fired_v2 = cs["reroute_v2_pairs"] > 0
             heading = "## Cross-commodity" in mech
+            _sb_lic = bool((((out.get("trace") or {}).get("state_board") or {}).get("coverage")
+                            or {}).get("spillover_licensed"))
             non_fallback = ((out.get("intent_decision") or {}).get("planner")) == "llm"
             if bool(want):
                 res[k] = fired_v2 and heading and non_fallback
             else:
-                res[k] = (not fired_v2) and (not heading) and non_fallback
+                res[k] = (not fired_v2) and (not heading or _sb_lic) and non_fallback
         elif k == "comove_expected":
             # SEAM A: mirrors reroute_v2_expected. The POSITIVE pin is observational (a co-move fires only when
             # the focus leg's retrieval-derived eras yield two SAME-sign World deltas AND no era diverges, so a
@@ -2771,7 +2786,84 @@ def run(graph: gph.CausalGraph, queries: list[dict], *, model: str = an.SONNET, 
 
 
 # ── LLM-judge: a quant/hedge-fund analyst rates usefulness + exposes gaps ──────────────
-def _judge_tool(continuity: bool = False) -> dict:
+def _judge_state_panel(out: dict) -> str:
+    """The judge's STATE BOARD USE panel: what the coverage instrument counted on THIS turn, or "" when
+    the record carries no `state_board` trace at all (STATE ENGINE S7 item 5).
+
+    WHY IT IS ABSENT-WHEN-INAPPLICABLE AND `_judge_episodes_panel` IS NOT. That panel renders '(none)'
+    on every deck because its ground truth -- an injected episode line -- is a thing the OFF arm could
+    also have invented, so both arms must be graded by one instrument. A board turn is not like that: a
+    turn with no board has no board rows to use, no coverage to score and nothing a judge could be
+    right or wrong about, so a rendered '(none)' would be an invitation to score a dimension whose
+    subject does not exist. The dimension is OPTIONAL in the schema for the same reason
+    `directional_traceability` and `episode_enumeration` are (W5-D6, W4-N1): adding it to `required`
+    would force a score on every existing deck row and move those decks' baselines for no reason.
+
+    IT SHOWS THE COUNTS AND THE MISSES, NOT A VERDICT. The judge is told in so many words that the
+    numbers are COVERAGE and not correctness -- the (1b) lesson, which is the whole reason
+    `board_coverage` is an instrument rather than a fence.
+
+    AND IT LEADS WITH THE TIGHT READ. `*_cited` is what the writer NAMED by handle; `*_referenced` adds
+    a bound value match on the row's own level figure. On the three banked prod-seat draws the loose arm
+    adds ZERO rows beyond the tight one while a control corpus carrying no board magnitude at any scale
+    still scores 2-5 of 8-9 through `_num_matches`' five-scale bridging -- so the cited count is the
+    informative half and the panel prints it first.
+
+    A `declined` COVERAGE DICT RENDERS NOTHING. The instrument stamps its own failure at the answer seam
+    rather than swallowing it, and a judge asked to score `state_use` off a broken instrument would be
+    scoring a fabricated zero -- the exact law the empty-board return exists to keep."""
+    cov = ((out.get("trace") or {}).get("state_board") or {}).get("coverage") or {}
+    if not cov or cov.get("declined"):
+        return ""
+
+    def _pair(hit: str, tot: str) -> str:
+        return f"{int(cov.get(hit) or 0)} of {int(cov.get(tot) or 0)}"
+
+    missed = cov.get("missed") or {}
+    lines = [
+        f"- loud state rows CITED by handle: {_pair('loud_cited', 'loud_rows')} "
+        f"(the tier's loudness cut is {int(cov.get('loud_k') or 0)}; two rows the block declares one "
+        f"reading under two names count once)",
+        f"- loud state rows referenced: {_pair('loud_referenced', 'loud_rows')} "
+        f"(the cited rows plus {int(cov.get('loud_figure_only') or 0)} matched on the row's own figure "
+        f"with no handle -- a looser read, not a tighter one)",
+        f"- OPEN dated-event rows referenced: {_pair('events_referenced', 'events_open')}",
+        f"- per-layer RECENCY rows stated as layer facts: {_pair('recency_referenced', 'recency_rows')}",
+        f"- WATCH rows carried into the answer: {_pair('watch_referenced', 'watch_rows')}",
+        f"- far spillover rows named: {_pair('spillover_referenced', 'spillover_rows')}"
+        + ("; the block minted the cross-commodity licence line"
+           if cov.get("spillover_licensed") else "; the block minted no licence line"),
+    ]
+    for name, key in (("loud", "loud"), ("event", "events"), ("recency", "recency"),
+                      ("watch", "watch"), ("spillover", "spillover")):
+        ids = list(missed.get(key) or ())
+        if ids:
+            lines.append(f"- rows of class {name} the answer never referenced: {', '.join(ids[:12])}"
+                         + (f" (+{len(ids) - 12} more)" if len(ids) > 12 else ""))
+    return "\n".join(lines)
+
+
+#: The `state_use` rubric bullet. It lives in the PER-TURN user block rather than in `_JUDGE_SYS`
+#: because `_JUDGE_SYS` is one shared, cache-controlled constant every deck in the estate pays for: a
+#: bullet about a dark board would change the cached system prefix on every judged row of every deck
+#: that has no board. Same text, same instrument, one turn's cost.
+_JUDGE_STATE_USE = (
+    "- state_use (1-5): score this ONLY because a STATE BOARD USE panel is present above; omit it "
+    "otherwise. The panel counts COVERAGE, not correctness -- it says which board rows the answer "
+    "referenced, never whether it referenced the right ones, so do NOT read a high count as grounding "
+    "and do not re-score grounding here. Judge whether the answer's DIRECTION, SPILLOVER and WATCH "
+    "claims are ANCHORED IN BOARD ROWS: 5 = the loud rows carry the direction with their own figures "
+    "and dates, the other markets are named each with ITS OWN sign rather than one reconciled sign, "
+    "each layer's recency is stated as a fact about that layer, and the watch items are the block's "
+    "own dated rows; 3 = the loud rows land and the spillover or watch movement is generic; 1 = the "
+    "board was handed over and the answer argues from nothing in it. AN HONEST REFUSAL SCORES HIGH: "
+    "naming a row the answer deliberately left out, or saying a coverage gap is a coverage gap, is "
+    "use of the board, not a miss. Do NOT reward a board-shaped answer for its shape -- an answer "
+    "that recites rows without a mechanism scores LOW here and low on usefulness.\n"
+)
+
+
+def _judge_tool(continuity: bool = False, state_use: bool = False) -> dict:
     n = {"type": "integer"}                                            # 1-5
     arr = {"type": "array", "items": {"type": "string"}}
     props = {"usefulness": n, "convexity": n, "point_in_time": n, "grounding": n, "source_diversity": n,
@@ -2792,6 +2884,11 @@ def _judge_tool(continuity: bool = False) -> dict:
     if continuity:                                                     # multi-turn: did it read the conversation right?
         props["continuity"] = n
         required = required + ["continuity"]
+    if state_use:                                                      # S7: only on a turn that carried a board
+        # OPTIONAL AND ABSENT-WHEN-INAPPLICABLE, like `directional_traceability` and
+        # `episode_enumeration`: a turn with no board has no state use to score, and a required field
+        # would force every existing deck row to invent one.
+        props["state_use"] = n
     return {"name": "score_answer",
             "description": "A senior quant RESEARCHER's verdict on a fundamental convexity-shock answer.",
             "input_schema": {"type": "object", "properties": props, "required": required}}
@@ -2968,6 +3065,7 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
     ev_text = "\n".join(f"- ({e['source']}, {e['date']}) {e.get('text', '')}" for e in out.get("evidence") or [])
     num_text = _judge_numbers_panel(out)
     ep_text = _judge_episodes_panel(out)                              # W4-N1: the injected episode ground truth
+    sb_text = _judge_state_panel(out)                                 # S7: absent unless the turn carried a board
     convo = ""
     if convo_history is not None:
         convo = (f"=== CONVERSATION SO FAR (prior turns; the current question may be vague/pronoun-based and "
@@ -2993,10 +3091,18 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
             f"=== OBSERVED NUMBERS THE TOOL LOOKED UP (as-known at asof; multi-row calls list ALL retrieved "
             f"rows — a narrated figure that matches ANY listed row at its stated period is GROUNDED, not a "
             f"hallucination) ===\n{num_text or '(none)'}\n\n"
-            f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
+            # S7: OMITTED ENTIRELY when the turn carried no board, which is why it is a conditional
+            # segment and not a '(none)' panel -- see `_judge_state_panel` for the difference from the
+            # DATED EPISODES block, which is rendered on every deck deliberately.
+            + (f"=== STATE BOARD USE ON THIS TURN (deterministic COVERAGE counts against the STATE OF "
+               f"THE WORLD block the tool was shown; these say WHICH rows were referenced, NEVER "
+               f"whether they were referenced correctly) ===\n{sb_text}\n\n"
+               f"Also score `state_use` (1-5):\n{_JUDGE_STATE_USE}\n" if sb_text else "")
+            + f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
     sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # judge calls share it
     scores, _ = call(client, sys_blocks, user, model=model, max_tokens=3200,
-                     tool=_judge_tool(continuity=convo_history is not None))  # headroom for adaptive thinking
+                     tool=_judge_tool(continuity=convo_history is not None,
+                                      state_use=bool(sb_text)))  # headroom for adaptive thinking
     # PARSE-TIME normalization (RCA-561): the model occasionally emits a list field as one prose
     # string; unvalidated, len() downstream counted its CHARACTERS (the 561 spike). Coerce at the
     # source so no consumer can ever see a degenerate shape: string -> [string], clip at 16 items.
@@ -3052,6 +3158,9 @@ def _metrics(r: dict) -> dict:
             "banned_exec_words": int(tr.get("banned_exec_words") or 0),
             "unbacked_levels": int(tr.get("unbacked_levels") or 0),
             "outlook_mode": bool(tr.get("outlook_mode")),
+            # S7: None on every row whose turn carried no board -- the `dir_trace` idiom, so a mixed
+            # deck aggregates over the rows that HAVE the axis instead of over a fabricated zero.
+            "state_use": j.get("state_use"),
             "dir_trace": j.get("directional_traceability"),
             "src_div": j.get("source_diversity"), "mech_voice": j.get("mechanism_voice"),
             "usefulness": j.get("usefulness"), "convexity": j.get("convexity"),

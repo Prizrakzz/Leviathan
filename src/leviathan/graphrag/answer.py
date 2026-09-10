@@ -4182,13 +4182,21 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # hoisted so the mirror cannot flip between the board's read and the gate.
     _quant_on = (numbers_lookup is not None
                  and os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off" and _pg_live)
+    # [S7] THE COVERAGE INSTRUMENT'S TWO PRECONDITIONS, resolved here and read once after the writer:
+    # the board's [N] ORIGIN (the handle its first call took -- board calls are a contiguous prefix,
+    # `quantify` appends them before its base wave) and whether the block actually REACHED the prompt.
+    # A block that never shipped has no coverage to measure, and scoring one would charge a writer for
+    # rows it was never handed.
+    _board_n_start, _board_block_shipped = None, False
     if _board is not None:
+        _board_n_start = len(extra_number_calls or []) + 1
         _sb = _sbs.fill_stage2(_board, graph=graph, sg=sg,
                                record_through=_record_through(_evidence) or "",
-                               n_start=len(extra_number_calls or []) + 1,
+                               n_start=_board_n_start,
                                e_start=len(_uniq) + 1)
         if _sb.get("block") and _quant_on:
             volatile_blocks = volatile_blocks + [_sb["block"]]
+            _board_block_shipped = True
         if _sb.get("request") and _quant_on:
             _board_req = _sb["request"]
         # THE TRACE KEY IS STAMPED WHETHER THE BOARD FIRED OR DECLINED (design 6.7, D10): one
@@ -4656,6 +4664,43 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # switch, no new cost class, and every existing key is byte-identical.
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         postverify_tldr=structured.get("tldr"), postverify_mechanism=structured.get("mechanism")))
+    # ══ STATE ENGINE S7 -- THE BOARD-COVERAGE INSTRUMENT, BESIDE THE VERIFIER AND NEVER INSIDE IT ═══
+    # WHAT THE WRITER DID WITH THE BOARD, counted against the rendered block: the top-`loud_k` state
+    # rows, every OPEN event row, every RECENCY layer fact, every WATCH row and the far spillover rows.
+    # It rides the ALREADY-REGISTERED `state_board` key as a `coverage` sub-dict (`Board.trace()`'s own
+    # producer), so no `tracekeys` registration moves and no artifact tail pin re-anchors.
+    #
+    # IT IS A COUNTER AND NEVER A FENCE (`state.render.board_coverage`'s own note, and the D-HP (1b)
+    # lesson: out-of-range [N] caught 1054/1054, wrong-but-VALID [N] missed 217/1054). Nothing here
+    # strips a sentence, charges a class, moves `by_rule` or changes one byte of the answer. The EMF
+    # counter the arm will read is DECLARED for phase B's `seam.counters` and deliberately not written
+    # here -- `state/seam.py` is another lane's file this sitting.
+    #
+    # THE PROSE IS THE POST-VERIFY `structured` BODY AND NEVER `out['answer']` -- the primary-gate
+    # trap: the `## Sources` footer re-renders every ledgered [N] INCLUDING the ones the verifier just
+    # stripped, so a scan of the rendered page false-passes on a fabrication (eval.py:423-426).
+    #
+    # A BROKEN INSTRUMENT IS STAMPED, NEVER SILENT. The `except` is right -- an instrument must never
+    # break the answer it measures -- but a swallowed failure that left no key would be indistinguishable
+    # from a turn that measured zero, which is the "absent is never zero" law read from the other end. So
+    # the decline lands as `coverage = {'declined': <reason>}`: the judge panel renders nothing on it,
+    # the counters phase B publishes can omit rather than zero, and a reader of the trace can see it.
+    if _board is not None and _board_block_shipped:
+        try:
+            # lazy: flag-guarded, phase-2 only
+            from leviathan.graphrag.state import render as _sbr
+            _cov = _sbr.board_coverage(
+                _board,
+                f"{structured.get('tldr') or ''} {structured.get('mechanism') or ''}",
+                n_start=int(_board_n_start or 1))
+        except Exception as _cov_exc:  # noqa: BLE001 -- named and stamped, never raised onward
+            _cov = {"declined": type(_cov_exc).__name__}
+        # AN EMPTY DICT IS THE BOARD SAYING IT RENDERED NO ROW (`board_coverage`'s own contract), and it
+        # is stamped nowhere: `Board.trace()` omits the key and the judge is never handed a 0-of-0 panel.
+        if _cov:
+            _board.coverage = _cov
+            if isinstance(sg.trace.get("state_board"), dict):
+                sg.trace["state_board"]["coverage"] = _cov
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
     # F7 `verified`: the verifier is DONE, so the streamed draft's citation handles are now reconcilable —

@@ -49,6 +49,28 @@ from leviathan.graphrag.state.rows import SIGN_WORDS, status_word
 #: matching the moment the block's header changed a character after it.
 SB_MARKER_PREFIX = "STATE OF THE WORLD at "
 
+#: THE SPILLOVER HOME (S7 item 2). The persona licenses a dedicated ``## Cross-commodity`` heading on
+#: any block line beginning with this word (answer.py:550-577, the RV-v2 D5 reserved heading), and
+#: ``narration.MANDATE_MOVEMENTS`` sends the SPILLOVERS movement there -- with ``## Mechanism`` as the
+#: FALLBACK. MEASURED, the fallback was the only branch that ever fired: no board minted this line, and
+#: ``## Mechanism`` carried 1 of 239 first-cited handles across the twelve banked turns, so the movement
+#: aimed at the one section the writer keeps number-free. The prod-seat smoke read the consequence
+#: directly -- SPILLOVERS dropped entirely on ``soybeans_now``, parked past ``## What to watch`` on
+#: ``el_nino_fanout``, and landed correctly only on ``b40_event``, where the anchor board IS the
+#: spillover subject.
+#:
+#: SO THE BOARD MINTS THE LICENCE, AND ONLY WHEN IT HAS ROWS TO PUT UNDER IT: one line, minted iff at
+#: least one FAR row across a cross edge actually RENDERED (a fan far row carrying its own sign word and
+#: its own board). A licence with no rows behind it is the +10-hallucination class the walk's own marker
+#: gate exists to refuse, so "no far row rendered" mints nothing and the fallback stands unchanged.
+#:
+#: IT IS ONE CONSTANT, HERE, beside the block's other marker -- the CW_MARKER_PREFIX law. config_check's
+#: clause (iv) compares ``SB_MARKER_PREFIX`` against the five reserved persona marker words and its own
+#: note says the board "mints none of them today"; that note is now false BY DESIGN and the clause it
+#: needs is written out in ``tests/unit/test_board_coverage.py`` (see OWED_CONFIG_CHECK_CLAUSE) because
+#: ``config_check.py`` is another lane's file this sitting.
+SB_CROSS_COMMODITY_PREFIX = "CROSS-COMMODITY"
+
 
 def block_marker_present(volatile_prompt: Optional[str]) -> bool:
     """``SB_MARKER_PREFIX in vp`` -- the predicate S6's ``_state_board_block_on`` calls, minted beside
@@ -343,6 +365,25 @@ def board_label(slug: str) -> str:
     return ascii_text(_display.node_label(str(slug or ""), kind="contract"))
 
 
+def _market_words(slug: str) -> tuple:
+    """The ALTERNATIVE spellings a reader may use for one board, as the coverage instrument's token
+    group for a far row (S7 item 1): the full reader label and, when it opens with an exchange code,
+    the label without it.
+
+    IT IS DELIBERATELY CHARITABLE AND THE CHARITY IS BOUNDED. ``board_label`` is ``'{EXCH} {node}'``
+    and the smoke seat's writer wrote both spellings ("on CME palm oil the El Nino phase is declared"
+    and "palm"), so requiring the exchange code would score a market the answer plainly named as a
+    MISS. The bound is that only the leading ALL-CAPS token is optional: nothing here matches a
+    commodity word the far board does not carry, and the two-token minimum stops "ICE cocoa" collapsing
+    to a word short enough to hit by accident."""
+    lbl = board_label(slug)
+    out = [lbl]
+    parts = lbl.split(" ")
+    if len(parts) > 2 and parts[0].isupper():
+        out.append(" ".join(parts[1:]))
+    return tuple(out)
+
+
 def table_words(table: str) -> str:
     """A card as its SOURCE label (``silver_noaa_oni`` -> ``NOAA ONI``). An unmapped table strips
     ``silver_`` and upper-cases, so this function cannot return a raw slug -- which is why the reader
@@ -441,7 +482,16 @@ ROW_CLASSES: dict = {
     "SB-E": re.compile(r"^- .+ is declared to move .+ with a lag the graph states as "),
     "SB-J": re.compile(r"^- conditional on the lag the graph states, counted from "),
     "SB-D": re.compile(r"^- .+ dated " + _ISO + r" by \[E\d+\] \(published " + _ISO + r"\): "),
-    "SB-F": re.compile(r"^- the same reading is declared on "),
+    # SB-F CARRIES TWO SHAPES AND STAYS ONE CLASS (S7 item 2). The fan index line and the
+    # CROSS-COMMODITY licence line are the same object to every consumer that matters -- both are the
+    # spillover section, both are letters-plus-word-counts, neither mints a handle -- so the licence
+    # rides this class's regex as a second alternation rather than becoming a nineteenth key. THAT IS A
+    # DECISION ABOUT A FILE THIS SITTING DOES NOT OWN: `state/lint.py`'s clause 10 keys its sample map
+    # on `set(ROW_CLASSES)` and reds a class with no sample, and lint.py is outside this sitting's
+    # allowlist -- so a new key would have shipped a red `config_check`. The alternation keeps the
+    # existing SB-F sample classifying as exactly ("SB-F",) and adds no unsampled key.
+    "SB-F": re.compile(r"^(?:- the same reading is declared on |"
+                       + SB_CROSS_COMMODITY_PREFIX + r"[ :])"),
     "SB-C": re.compile(r"^- .+ on .+: .+ of its .+ declared drivers sits? among "),
     "SB-M": re.compile(r"^  amplifier on "),
     "SB-P": re.compile(r"^UPSTREAM "),
@@ -714,15 +764,50 @@ def sb_projection(*, board: str, anchor_words: str, window: dict, horizon_months
     return (f"- conditional on the lag the graph states, counted from {anchor_words}, {body}{tail}")
 
 
+def event_window_open(window: dict, asof: str) -> Optional[bool]:
+    """Is this EVENT row's declared window still open at ``asof``? ``None`` when no window was placed.
+
+    ONE PRODUCER, because two consumers now ask it: :func:`sb_event` prints the answer as a sentence and
+    the coverage instrument (S7 item 1) counts OPEN event rows as its own denominator. The first cut
+    computed the predicate twice -- once here as a rendered clause and once in the counter -- which is
+    the shape where a board tells a reader a window is open and tells a census it is closed."""
+    if window.get("declined") or not window.get("opens"):
+        return None
+    if window.get("open_ended"):
+        return True
+    return bool(str(window.get("closes") or "") >= str(asof)[:10])
+
+
+def sb_cross_commodity(names, *, anchor: str = "") -> str:
+    """THE SPILLOVER LICENCE (S7 item 2) -- one line, minted by :func:`render_board` iff the block
+    rendered at least one FAR row across a cross edge.
+
+    IT IS A LICENCE AND NOT A CLAIM. It asserts no magnitude, no sign and no lag of its own: every one
+    of those already sits on the far rows above it, each with the sign word and the lag words the graph
+    declares for THAT market. What the line does is give the SPILLOVERS movement a heading to land in --
+    ``narration.MANDATE_MOVEMENTS`` names ``## Cross-commodity`` first and ``## Mechanism`` as the
+    fallback, and until this line existed the fallback was the only branch that ever fired.
+
+    LETTERS AND WORD-COUNTS ONLY, like every other SB-F row: the names come through
+    :func:`board_label`, the count through :func:`words_for_int`, and no digit reaches the line."""
+    named = sorted({str(n) for n in names if n})
+    body = ", ".join(named)
+    seat = f"the loud readings on {anchor}" if anchor else "this board's loud readings"
+    return (f"{SB_CROSS_COMMODITY_PREFIX}: {seat} are declared on {words_for_int(len(named))} other "
+            f"{'market' if len(named) == 1 else 'markets'} -- {body} -- and each of the rows above "
+            f"carries that market's own sign words and the lag words the graph states for it.")
+
+
 def sb_event(row, *, receipt_handle: int, published: str, board: str, window: dict,
              asof: str) -> str:
     """SB-D (sec 6.2, 3.7, B18): a dated EVENT, anchored at the EVENT date and never at a later
     analysis piece's publication date. ISO dates only."""
-    if window.get("declined") or not window.get("opens"):
+    _open = event_window_open(window, asof)
+    if _open is None:
         state = "the graph declares no lag from it, so no window is placed"
     elif window.get("open_ended"):
         state = f"the window opened around {month_words(window['opens'])} and the graph declares no close"
-    elif window.get("closes") >= str(asof)[:10]:
+    elif _open:
         state = f"the window is open until about {month_words(window['closes'])}"
     else:
         state = f"the window has been closed since about {month_words(window['closes'])}"
@@ -1258,6 +1343,18 @@ class Block:
         #: "hits": (...)}``. Recorded rather than silent: a weld correction changes a committed row's
         #: bytes, and a byte change nobody can count is a byte change nobody can review.
         self.welds: list = []
+        #: THE COVERAGE MANIFEST (S7 item 1), parallel to :attr:`lines`: one dict per committed row
+        #: carrying the ROLE the render gave it, the ``[N]`` handles it actually minted, and -- for a
+        #: letters-only row -- the token groups a reader must utter to have used it.
+        #:
+        #: IT EXISTS BECAUSE ``calls`` LOSES THE ROW (the G1 gap, measured by the design lane).
+        #: ``self.calls`` is flat and ``self.classes`` is parallel to ``lines``, not to ``calls``, so
+        #: "which board rows reached the page" could not be computed from the shipped payload at all --
+        #: the counters publish twenty-odd numbers about what the board COST and not one about what it
+        #: BOUGHT. The stamp is written HERE, where the line and its calls are committed together, for
+        #: the same reason they are committed together: a manifest built anywhere else would be a
+        #: second opinion about which handles belong to which row.
+        self.rows_meta: list = []
         self._next = int(start)
         self._next_e = int(e_start)
         self._open = ""                 # the unterminated sentence the committed rows end in
@@ -1285,8 +1382,19 @@ class Block:
         return self._next
 
     def add(self, line: str, calls=(), *, label: str = "", display: str = "",
-            allow_empty: bool = False):
+            allow_empty: bool = False, role: str = "", rank=None, tokens=()):
         """Commit ONE row. Returns the line actually committed (possibly the SB-X correction).
+
+        ``role`` / ``rank`` / ``tokens`` FEED :attr:`rows_meta` AND NOTHING ELSE (S7 item 1). They
+        change no byte of the block: a caller that passes none of them still gets a manifest entry,
+        with an empty role, which is what every row that no coverage rule asks about should carry.
+        ``tokens`` is the letters-only surface's own reference test, minted here from the row's own
+        display words -- a tuple of ALTERNATIVE GROUPS, all of which must be satisfied inside ONE prose
+        sentence for the row to count as referenced (see :func:`board_coverage`).
+
+        A ROW THE FENCE CORRECTED KEEPS ITS ROLE AND LOSES ITS HANDLES, which is the honest record: the
+        reader met an SB-X absence where a loud row should have been, so the row is still in the
+        denominator and can never be referenced.
 
         ``label`` IS INTERNAL AND ``display`` IS THE READER'S -- and separating them is the S6 re-fix's
         major 1. The correction row used to interpolate ``label``, which every caller builds from the
@@ -1320,14 +1428,52 @@ class Block:
             if self.lines and not str(self.lines[-1]).rstrip().endswith((".", "!", "?", ";")):
                 self.lines[-1] = self.lines[-1].rstrip() + "."
                 self.classes[-1] = classify(self.lines[-1])
+                # THE MANIFEST IS PART OF THE COMMITTED ROW, so a weld correction that rewrites a
+                # committed line rewrites its manifest entry too -- otherwise the coverage instrument
+                # would grade a row against bytes the reader never saw.
+                if self.rows_meta:
+                    self.rows_meta[-1]["line"] = self.lines[-1]
+                    self.rows_meta[-1]["cls"] = (self.classes[-1] or ("",))[0]
             self._open = ""
+        _h0 = self._next
         self.lines.append(line)
         self.classes.append(classify(line))
         self._open = open_sentence((self._open + "\n" + line) if self._open else line)
         for c in calls:
             self.calls.append(c)
             self._next += 1
+        self.rows_meta.append({
+            "role": str(role or ""), "rank": rank,
+            "cls": (self.classes[-1] or ("",))[0],
+            "handles": tuple(range(_h0, self._next)),
+            "tokens": tuple(tuple(str(t) for t in g if str(t)) for g in (tokens or ()) if g),
+            "line": line,
+        })
         return line
+
+    def join_rows(self, handles, group: str) -> int:
+        """Stamp ``join`` on the manifest entries whose FIRST handle is in ``handles``. Returns how many
+        rows were stamped.
+
+        TWO NAMES, ONE READING -- THE COVERAGE HALF OF THE PHASE-PAIR FENCE. The BOARD JOIN line already
+        tells the reader that El Nino and La Nina are one ONI reading under two names, and the mandate
+        tells the writer to give ONE side and never two (the prod-seat smoke measured it obeying that on
+        10 of 10 groups, exactly one member cited each time). Without this stamp the folded twin scored
+        as an unused loud row on every single group -- twelve of the fourteen apparently-ignored loud
+        rows on the three banked draws -- while the LOOSE read scored it as USED, because the twins
+        share one series and therefore one ``shown`` pool. Both readings were artefacts of counting two
+        rows where the block declares one.
+
+        IT CHANGES NO BYTE OF THE BLOCK: the manifest is parallel telemetry, both rows keep their line,
+        their handles and their own declared sign, and the JOIN row itself still renders."""
+        want = {int(h) for h in (handles or ())}
+        n = 0
+        for m in self.rows_meta:
+            hs = tuple(m.get("handles") or ())
+            if hs and int(hs[0]) in want:
+                m["join"] = str(group)
+                n += 1
+        return n
 
     def _weld_hits(self, line: str) -> list:
         """The detectors the OPEN sentence plus this candidate trip together. Empty == no weld."""
@@ -1403,6 +1549,85 @@ def render_caps(mode: str, knobs=None) -> dict:
     return base
 
 
+_ISO_RX = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+#: The layer words a RECENCY row's own sentence must share with the prose for the row to count as
+#: referenced -- the row template's OWN edge phrasing (``narration.recency_rows``), lower-cased, so
+#: this is a restatement of the line rather than a second vocabulary.
+#:
+#: THEY ARE THE EDGE WORDS AND NOT THE DATE WORDS, and the first cut proved why. It admitted "as of"
+#: on the numbers layer and a bare "tape" on the tape layer, and re-scoring the three banked prod-seat
+#: draws then returned 3 of 7 referenced -- against a human reading of the same three answers that
+#: found ZERO. All three "hits" were the loose token: "Reading the board as of 2026-09-07" (the turn's
+#: as-of, which nearly every answer states, and not the layer's edge), "Front-month tape context ...
+#: settled on 2026-09-04" (a price row, not the tape's edge) and "A dated document already on the
+#: record (reported 2026-08-20)" (one document, not the newest). The row's claim is "the newest X is
+#: D"; the token must be the part that makes it that claim.
+#: A BARE "knowledge date" WAS STILL THE WRONG TOKEN, for the same reason one turn further in: the
+#: EVIDENCE movement already tells the writer to date every row it leans on by that row's own
+#: knowledge date, so "Note its knowledge date is 2025-12-31" -- a per-ROW sentence, and the correct
+#: behaviour under a DIFFERENT rule -- landed in the same sentence as one of the layer's own dates and
+#: scored the LAYER row as used. The qualifier is what separates the two claims, and it is the word
+#: the row's own template carries.
+#: THE COUPLING IS NAMED RATHER THAN HIDDEN: these are the mandate's OWN words for the three layers
+#: ("the newest knowledge date the number rows carry, the newest dated document behind the page, the
+#: session the board price tape runs through"), so a writer that conveys the layer fact in its own
+#: words -- "the most recent number behind this page is dated 2026-09-04" -- scores MISSED. The
+#: alternatives above widen the tape and text layers as far as a bounded list can, and the direction of
+#: the residual error is UNDER-claim, which is the safe one for an instrument. But a rise in
+#: `recency_referenced` at the arm must be read as uptake OR as transcription of the literal being
+#: taught, and the two cannot be separated by this counter alone.
+_RECENCY_LAYER_WORDS: dict = {
+    "numbers": ("newest knowledge date",),
+    "text": ("newest dated document", "newest document"),
+    "tape": ("price tape", "tape runs through", "tape edge"),
+}
+
+
+def _name_words(label: str) -> tuple:
+    """A row's own name plus the ONE relaxation the instrument allows: its last word, when that word is
+    long enough to be a name rather than a preposition.
+
+    IT IS THE SAME BOUNDED CHARITY AS :func:`_market_words`. The board calls a driver "ending stocks"
+    and the prod seat wrote "Malaysian month-end stocks print 2026-09-10" -- one row, one date, one
+    plainly-used fact, and a full-label test would have scored it a MISS. The bound is that only the
+    LAST word is optional and only at five characters or more, so "IDR USD" does not collapse to a
+    three-letter token that hits by accident."""
+    lbl = str(label or "").strip()
+    if not lbl:
+        return ()
+    last = lbl.split(" ")[-1]
+    return (lbl, last) if (len(last) >= 5 and last != lbl) else (lbl,)
+
+
+def _watch_tokens(w: dict) -> tuple:
+    """A WATCH row's reference test: its own ISO date(s), and the driver it watches, in ONE sentence.
+
+    A DATE ALONE IS NOT ENOUGH AND A NAME ALONE IS NOT EITHER. The block carries thirty-odd ISO dates
+    and a `## What to watch` section that repeats one of them proves nothing about WHICH row it came
+    from; the pair is what makes the count a count of rows rather than of dates."""
+    dates = tuple(_ISO_RX.findall(str(w.get("dates") or "")))
+    who = ()
+    row = w.get("row") or ()
+    if isinstance(row, (tuple, list)) and len(row) == 2 and row[1]:
+        who = _name_words(humanise(row[1]))
+    groups = [g for g in (dates, who) if g]
+    return tuple(groups)
+
+
+def _recency_tokens(layer: str, text: str) -> tuple:
+    """A RECENCY row's reference test: its own ISO date(s) AND one of its layer's own edge words.
+
+    A ROW WITH NO DATE IS UNTESTABLE, NOT MISSED ("not carried on this page" is the true statement for
+    a layer this turn holds nothing for). Returning no groups is how a row leaves the denominator --
+    absent is never zero, and a coverage figure must never charge a writer for a fact nobody served."""
+    dates = tuple(_ISO_RX.findall(str(text or "")))
+    if not dates:
+        return ()
+    words = _RECENCY_LAYER_WORDS.get(str(layer or ""), ())
+    return (dates, words) if words else (dates,)
+
+
 def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None, start: int = 1,
                  e_start: int = 1, anchor_label: str = "", loud_only: bool = True, age_clauses=None,
                  caps: Optional[dict] = None) -> Block:
@@ -1444,7 +1669,11 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         line, calls = sb_state(h, row, asof=bd.asof, age_clause=ages.get(row.key, ""))
         if line:
             b.add(line, calls, label=f"{row.contract}/{row.driver_id}",
-                  display=f"the state row for {row_words(row.contract, row.driver_id)}")
+                  display=f"the state row for {row_words(row.contract, row.driver_id)}",
+                  # THE RANK IS THE LOUD CUT'S OWN POSITION (S7 item 1), taken from `rendered`, which is
+                  # `bd.order`-sorted -- never from the [N] index, which is call order and carries no
+                  # rank at all (the utilisation census's own finding: "today's block has NO RANK").
+                  role="state", rank=len(handles_by_row))
             handles_by_row[row.key] = h
         b.add(sb_edge(row), label=f"edge {row.driver_id}",
               display=f"the declared link for {row_words(row.contract, row.driver_id)}")
@@ -1502,6 +1731,10 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         b.add(sb_phase_pair(_names, board_label(_c), opposed=len(_signs) > 1),
               label=f"phase pair {_c}",
               display=f"the phase-pair reading on {board_label(_c)}")
+        # THE COVERAGE INSTRUMENT MUST COUNT WHAT THE READER WAS TOLD (S7 fix pass). The line above says
+        # these rows are ONE reading under two names, so they are ONE denominator entry -- see
+        # `Block.join_rows` for the two measured artefacts that came of counting them as two.
+        b.join_rows([handles_by_row[r.key] for r in _rows if r.key in handles_by_row], f"{_c}|{_k}")
 
     # -- EVENTS ---------------------------------------------------------------------------------------
     for row in rendered:
@@ -1518,11 +1751,21 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         # so the citation resolves to the document the row names.
         rc = dict(row.event_receipt or ((row.receipts or {}).get("top") or [{}])[0] or {})
         e = b.take_e()
+        _ew = projection_window(row.event_date, row.lag_band)
+        _eopen = event_window_open(_ew, bd.asof)
         b.add(sb_event(row, receipt_handle=e, published=rc.get("date") or row.event_date,
                        board=board_label(row.contract),
-                       window=projection_window(row.event_date, row.lag_band), asof=bd.asof),
+                       window=_ew, asof=bd.asof),
               label=f"event {row.driver_id}",
-              display=f"the event row for {row_words(row.contract, row.driver_id)}")
+              display=f"the event row for {row_words(row.contract, row.driver_id)}",
+              # AN OPEN WINDOW IS THE COVERAGE DENOMINATOR; a closed one is history and is not counted
+              # against the writer (S7 item 1). `None` -- no window placed -- is neither.
+              role=("event_open" if _eopen else ("event_closed" if _eopen is False else "event")),
+              # THE EVENT'S OWN DATE PLUS ITS NAME, both in the reader's words. The `[E]` half is
+              # DELIBERATELY NOT a token: until phase 3 a board-minted [E] is not in the turn's
+              # evidence list (seam.py's declared residual), so scoring the handle would charge a
+              # phase-3 gap to the writer.
+              tokens=((row.event_date,), _name_words(humanise(row.driver_id))))
         if rc.get("date"):
             b.add(sb_receipt(e, int(rc.get("tier") or 3), rc, driver_id=row.driver_id),
                   label=f"event receipt {row.driver_id}",
@@ -1548,6 +1791,7 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # value (sec 3.6), and it is an ORDERING, never an exclusion -- the SB-F line above names every far
     # board either way, loud or quiet, read or not.
     spill, cut_boards = 0, []
+    far_rendered: list = []                 # the CROSS edges that reached the reader with their own row
     fan_entries = sorted((e for e in bd.fan if e.get("loud") or not loud_only),
                          key=lambda e: order.get((e["contract"], e["driver_id"]), len(order)))
     far_per_entry = max(1, int(cap["spillover"]) // max(1, min(len(fan_entries), 8)))
@@ -1568,14 +1812,41 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             if spill >= int(cap["spillover"]):
                 cut_boards.append(f["contract"])
                 continue
+            # A CROSS EDGE IS ONE WHOSE FAR BOARD IS NOT THE SEED'S OWN. The fan index carries same-board
+            # entries too (a driver declared on this board under another name), and those are not a
+            # spillover -- licensing a cross-commodity heading off one would put this board's own rows
+            # under a heading about other markets.
+            #
+            # AND THE ROLE CARRIES THE SAME SPLIT, so the coverage denominator and the licence count ONE
+            # population under one word. The first cut stamped every far row `far` while the licence
+            # named only the cross ones, which is two numbers about "spillovers" that can disagree on
+            # any board carrying a same-board fan entry (none of the three fixtures does, which is
+            # exactly why it had to be closed by construction rather than by observation).
+            _cross = str(f["contract"]) != str(e["contract"])
             b.add(sb_edge(seed, far=f), label=f"far {f['contract']}/{f['driver_id']}",
-                  display=f"the spillover link for {row_words(f['contract'], f['driver_id'])}")
+                  display=f"the spillover link for {row_words(f['contract'], f['driver_id'])}",
+                  role=("far" if _cross else "far_same_board"),
+                  tokens=(_market_words(f["contract"]),))
             spill += 1
+            if _cross:
+                far_rendered.append(str(f["contract"]))
         cut_boards.extend(f["contract"] for f in far_named[far_per_entry:])
     if cut_boards:
         b.add(sb_absence("the far boards past this tier's spillover cut ("
                          + ", ".join(sorted({board_label(c) for c in cut_boards})) + ")", "fan_cap"),
               label="fan render cap")
+    # -- THE SPILLOVER LICENCE (S7 item 2) -------------------------------------------------------------
+    # MINTED IFF THE FAR ROWS ARE ACTUALLY THERE, and it closes the section they are in rather than
+    # opening it -- the reader meets the rows, then the line that says where they belong. See
+    # `sb_cross_commodity` for why this exists at all and `SB_CROSS_COMMODITY_PREFIX` for the
+    # measurement: without it, SPILLOVERS has no heading and falls into `## Mechanism`, which carried
+    # 1 of 239 first-cited handles across the twelve banked turns.
+    if far_rendered:
+        b.add(sb_cross_commodity(sorted({board_label(c) for c in far_rendered}),
+                                 anchor=anchor_label or ", ".join(board_label(s)
+                                                                  for s in bd.anchor_slugs)),
+              label="cross-commodity licence", display="the spillover licence",
+              role="spillover_licence")
 
     # -- CONVERGENCE ----------------------------------------------------------------------------------
     # THE CAP COUNTS PATTERNS, AND A RENDERED PATTERN KEEPS ITS AMPLIFIER SUB-LINES. Counting both
@@ -1732,13 +2003,24 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                                         asof=bd.asof, band_words=w.get("band_words") or "",
                                         kind_words=w["kind_words"], row_label=w["label"],
                                         dates=w.get("dates") or "")
-            b.add(line, calls, label=f"watch {w['kind']}")
+            # THE KIND-2 WATCH ROW IS ON THE HANDLE SURFACE (SB-V) AND STILL A WATCH ROW. It carries
+            # both: its distance figure is bound to its own [N], so `board_coverage` reads it through
+            # the same value matcher as every other figure -- and it counts in `watch_referenced`,
+            # because the mandate's fourth movement asks for the WATCH rows and does not except this one.
+            b.add(line, calls, label=f"watch {w['kind']}", role="watch",
+                  tokens=_watch_tokens(w))
             continue
-        b.add(sb_watch(w), label=f"watch {w['kind']}")
+        b.add(sb_watch(w), label=f"watch {w['kind']}", role="watch", tokens=_watch_tokens(w))
 
     # -- RECENCY ---------------------------------------------------------------------------------------
     for layer, text in (recency or {}).items():
-        b.add(sb_recency(layer, text), label=f"recency {layer}")
+        # THE RECENCY ROW'S REFERENCE TEST IS ITS DATE **AND** ITS LAYER WORD, in ONE sentence -- the
+        # `_slot_geo_mismatch` discipline (comparisons, never attempts) applied to a letters-only row.
+        # A date alone would pass on any answer that dated one number row by its knowledge date, which
+        # is a DIFFERENT rule (the EVIDENCE movement's) and is exactly what the prod-seat smoke saw:
+        # rows dated correctly, and 0 of 9 RECENCY rows stated as a fact about their own layer.
+        b.add(sb_recency(layer, text), label=f"recency {layer}", role="recency",
+              tokens=_recency_tokens(layer, text))
 
     # -- ABSENCES, GROUPED BY REASON WORD, every name listed --------------------------------------------
     groups: dict = {}
@@ -1837,6 +2119,14 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             # and the block said nothing. That is the silent-decline class this board's whole closed
             # decline vocabulary exists to close, so it is consumed here beside every other note.
             b.add(sb_subject_ambiguous(note.get("ids") or ()), label="subject ambiguous")
+    # THE COVERAGE MANIFEST RIDES THE BOARD (S7 item 1). It is stamped HERE and by nothing else,
+    # because this function is the only place that knows which rows a reader actually met -- after
+    # every cap, every fence correction and every weld. `Board.coverage` is filled later, at the answer
+    # seam, once there is a draft to read it against; this is the half that cannot be recomputed then.
+    try:
+        bd.rendered_rows = tuple(dict(m) for m in b.rows_meta)
+    except Exception:                       # noqa: BLE001 -- a board must never break on its own telemetry
+        pass
     return b
 
 
@@ -1901,3 +2191,289 @@ def _anchor_words(st, anchor_date: str) -> str:
     if since and str(since)[:10] == str(anchor_date)[:10]:
         return f"the run's start in {month_words(anchor_date)}"
     return f"this reading's own date in {month_words(anchor_date)}"
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE COVERAGE INSTRUMENT (S7 item 1) -- A COUNTER, NEVER A FENCE
+# ---------------------------------------------------------------------------------------------------
+#: The roles whose rows carry a magnitude bound to their own ``[N]``. Every other role is letters-only
+#: and is graded on its token groups instead.
+_HANDLE_ROLES: frozenset = frozenset({"state", "watch"})
+
+#: THE VERDICT LATTICE, best first. A JOINED denominator entry takes its BEST member's verdict, because
+#: the join says the two rows are ONE reading under two names and the mandate tells the writer to give
+#: one side and never two -- so a writer that folded them correctly must not be charged for the twin.
+_VERDICT_RANK: dict = {"cited": 3, "figure": 2, "tokens": 1, "": 0}
+
+
+def _best_verdict(a, b):
+    """The stronger of two verdicts. ``None`` (UNTESTABLE) loses to every real verdict and wins only
+    against another ``None`` -- a group is untestable only when every member of it is."""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return a if _VERDICT_RANK.get(a, 0) >= _VERDICT_RANK.get(b, 0) else b
+
+
+def _row_figures(handles, calls, n_start: int) -> list:
+    """The magnitudes a row's own handles were minted with -- ``verify._mismatch_pool``'s pool, read
+    from the board's own call records rather than re-parsed off the rendered line.
+
+    ``calls`` IS THE BOARD'S OWN LIST and ``n_start`` is the handle its first call took, so
+    ``handle - n_start`` is the index. The board's calls are a CONTIGUOUS ``[N]`` prefix by
+    construction (``quantify`` appends them before its base wave), which is what makes this join an
+    index rather than a guess -- the G2 gap, answered by arithmetic and said so.
+
+    THE LOOSE READ PASSES ONLY THE ROW'S FIRST HANDLE (see :func:`board_coverage`). This function
+    still reads every handle it is given, because a caller wanting the whole pool -- a deck, a census
+    -- is asking a different question than the coverage verdict is."""
+    from leviathan.graphrag import verify as _vf
+    out: list = []
+    for h in handles or ():
+        i = int(h) - int(n_start)
+        if 0 <= i < len(calls or ()):
+            out.extend(_vf.row_pool(calls[i]))
+    return out
+
+
+def _tokens_referenced(groups, sents) -> bool:
+    """ONE sentence carries at least one member of EVERY group. No groups == untestable, and the caller
+    keeps an untestable row out of the denominator rather than reading it as a no."""
+    if not groups:
+        return False
+    for s in sents:
+        low = s.lower()
+        if all(any(str(t).lower() in low for t in g) for g in groups):
+            return True
+    return False
+
+
+def _row_id(i: int, m: dict) -> str:
+    """A MISSED row's id: its handle when it has one, else its class and its index in the block.
+
+    A ROW WITHOUT A HANDLE STILL NEEDS A NAME -- four fifths of this block has no handle, and a miss
+    list that could only name the fifth that does would be a miss list about the wrong problem."""
+    hs = tuple(m.get("handles") or ())
+    if hs:
+        return "N%d" % int(hs[0])
+    return "%s@%d" % (m.get("cls") or "row", int(i))
+
+
+def board_coverage(bd, prose: str, *, n_start: int = 1, loud_k=None, calls=None) -> dict:
+    """WHAT THE WRITER DID WITH THE BOARD, counted against the rendered block. A COUNTER, NEVER A FENCE.
+
+    THE (1b) LESSON IS BINDING, AND IT IS WHY THIS RETURNS NUMBERS AND CHANGES NOTHING. The D-HP
+    fixture replay caught out-of-range ``[N]`` 1054 of 1054 and MISSED wrong-but-valid ``[N]`` 217 of
+    1054 (79.4%) and wrong-but-real ``[E]`` 791 of 791 (100%): counting handles is not checking
+    bindings. "The writer referenced nine board rows" says nothing about whether it referenced the
+    RIGHT nine, so the FENCE stays the shipped value check (``verify._check_number_handle``), which
+    already binds every board figure with no new class, and this is an INSTRUMENT for the arm. Nothing
+    here can strip a sentence, drop a row or decline a leg.
+
+    TWO SURFACES, because four fifths of the block carries no handle at all -- measured at 14 of 83
+    rendered lines and 20.2% of the characters on the banked board census.
+
+      * THE HANDLE SURFACE (``state`` rows and the kind-2 ``watch`` row): REFERENCED when its ``[N]``
+        is cited, or -- the LOOSE read -- when its OWN LEVEL magnitude appears in a sentence BOUND to
+        it, within ``verify._num_matches`` tolerance (the estate's matcher, imported, never a second
+        one). Both qualifiers are load-bearing and both were added after the first cut MEASURED
+        saturated: see THE THREE FALSE POSITIVES below.
+      * THE LETTERS SURFACE (``far`` rows, ``recency`` rows, the unhandled ``watch`` rows, open
+        ``event`` rows): REFERENCED when ONE prose sentence carries at least one member of every token
+        group the render minted for that row. ``verify._SENT_SPLIT`` is the sentence boundary, for the
+        same reason: one splitter in the estate.
+
+    THE THREE FALSE POSITIVES THAT SHAPED THE LOOSE READ, each reproduced on a banked prod-seat draw.
+    The first cut ran ``figure_referenced`` over EVERY sentence of the whole answer against the pool of
+    ALL THREE handles a state row mints, and scored 38 of 38 loud rows REFERENCED on three draws whose
+    own human read found fourteen loud rows never used. The controls said the same thing from the other
+    side: strip every ``[N]`` and multiply every magnitude by 1.37 -- so no board number is present at
+    any scale -- and the read still returned 10/12, 9/12 and 8/14; a bare number-soup with no words at
+    all returned 12/12, 12/12 and 14/14; and each board scored 12/12 or 14/14 against the OTHER
+    scenarios' answers. A numerator that survives its own falsifier is not a numerator.
+
+      (a) A JOIN TWIN IS THE SAME SERIES. ``El Nino`` and ``La Nina`` sit on one ONI reading under two
+          names, so they share one ``shown`` pool and a sentence about one scored BOTH. The mandate
+          tells the writer to give ONE side and never two, so the twin the writer correctly folded was
+          a GUARANTEED false positive -- twelve of the fourteen uncited loud rows were exactly that.
+          FIXED BY FOLDING: a ``join`` group is ONE denominator entry taking its best member's verdict.
+      (b) SIGMA AND PERCENTILE ARE DIMENSIONLESS AND COLLIDE ACROSS EVERY ROW. ``-0.9 sigma`` on an
+          export-tax row was matched by the crush row's ``+0.9 sigma`` (``_num_matches`` is
+          sign-insensitive and scale-bridging); a percentile hits any two-digit token on the page.
+          FIXED BY POOLING ONLY THE ROW'S FIRST HANDLE -- the LEVEL for a state row, the distance for
+          the kind-2 watch row -- which is the one magnitude carrying the row's own unit.
+      (c) A SENTENCE THAT CITES ANOTHER ROW IS NOT EVIDENCE FOR THIS ONE. A flash-drought row was
+          scored referenced by a sentence about reporting-fund length that cited ``[N26]`` and
+          ``[N27]``. FIXED BY BINDING: a value match counts only in a sentence that carries this row's
+          OWN handle or carries no board handle at all -- the ``audit2.py`` adjacency idiom the smoke
+          pass already built, stated as a rule.
+
+    EVEN SO, ``*_cited`` IS THE INFORMATIVE HALF AND A READER SHOULD LEAD WITH IT. The loose read is
+    reported separately (``*_figure_only``) and never blended into the tight one.
+
+    THE DENOMINATORS ARE COMPARISONS, NEVER ATTEMPTS (``answer._slot_geo_mismatch``'s discipline). A
+    row with no testable surface -- a recency layer this turn carries nothing for -- is UNTESTABLE and
+    leaves the denominator, because a coverage figure that charged the writer for a fact nobody served
+    would be measuring the board rather than the use of it.
+
+    THE OPEN-EVENT DENOMINATOR IS OPEN EVENTS ONLY. A closed window is history and the mandate asks
+    nothing of it; ``events_open`` counts the rows whose window is still open at the as-of, through the
+    one producer both consumers read (:func:`event_window_open`).
+
+    ``prose`` MUST BE THE POST-VERIFY ``structured`` BODY and never ``out['answer']``: the
+    ``## Sources`` footer re-renders every ledgered ``[N]`` INCLUDING the ones the verifier just
+    stripped, so a scan of the rendered page false-passes on fabrications -- eval.py's primary-gate
+    trap, stated at its own :423-426."""
+    from leviathan.graphrag import verify as _vf
+    rows = list(getattr(bd, "rendered_rows", ()) or ())
+    # ABSENT IS NEVER ZERO, AND THIS IS THE FUNCTION WRITTEN TO HONOUR IT. A board that rendered no row
+    # has nothing to have used, so it returns NOTHING rather than a truthy all-zero dict: `Board.trace`
+    # then omits the key (its own docstring's promise) and `eval._judge_state_panel` renders no panel,
+    # so the judge is never asked to score `state_use` on a turn whose board put no row on the page.
+    # THE PATH IS LIVE, not hypothetical: `seam.fill_stage2`'s SUBJECT RESOLVER ambiguity branch ships a
+    # one-line block WITHOUT calling `render_board`, so `_sb['block']` is truthy and `rendered_rows` is
+    # still empty -- a fabricated 0-of-0 inside the arm's own new dimension.
+    if not rows:
+        return {}
+    text = str(prose or "")
+    sents = _vf.sentences(text)
+    cited = _vf.cited_number_handles(text)
+    # ``calls`` DEFAULTS TO THE BOARD'S OWN LIST, which the SEAM writes (`bd.calls = calls`) right
+    # after the render. An OFFLINE caller -- the harness, a deck, a re-score of a banked draw -- holds
+    # the `Block` and not a seam-filled board, so it may hand the block's own list rather than mutating
+    # a board to satisfy an instrument. Same list either way; one of the two callers just has it first.
+    calls = list(calls if calls is not None else (getattr(bd, "calls", ()) or ()))
+    k = int(loud_k if loud_k is not None else (getattr(getattr(bd, "knobs", None), "loud_k", 0) or 0))
+    # EVERY HANDLE THE BOARD PUT ON THE PAGE, so a sentence can be asked whether it points at some
+    # OTHER board row. A handle outside this set (a cascade row, an agent lookup) says nothing about
+    # which board row a sentence is about, so it must not close a sentence to the loose read.
+    board_handles = frozenset(int(h) for m in rows for h in (m.get("handles") or ()))
+    sent_handles = [frozenset(_vf.cited_number_handles(s)) & board_handles for s in sents]
+
+    def _bound_sents(hs):
+        """The sentences a value match on THIS row may be read from: the ones carrying the row's own
+        handle, plus the ones carrying no board handle at all.
+
+        THIS IS THE BINDING `verify` ALWAYS HAD AND THE FIRST CUT DROPPED. The verifier charges a
+        magnitude per SENTENCE and per CITED HANDLE; a coverage read that ran the same predicate with
+        no handle binding at all scored a row referenced by a sentence about a different row (false
+        positive (c) above). A sentence that cites another board row is that row's testimony."""
+        own = {int(h) for h in hs}
+        return [s for s, sh in zip(sents, sent_handles) if (sh & own) or not sh]
+
+    def _verdict(m: dict):
+        """``"cited"`` / ``"figure"`` / ``"tokens"`` / ``""`` (missed) / ``None`` (UNTESTABLE).
+
+        THE TIGHT AND THE LOOSE READ ARE TWO ANSWERS AND ARE REPORTED AS TWO. ``cited`` is the tight
+        one -- the writer named the handle. ``figure`` is the loose one -- the row's own LEVEL
+        magnitude matched, in a sentence bound to the row, through ``_num_matches``, which bridges five
+        reporting scales and is therefore evidence that the row reached the page rather than proof that
+        THIS row did. The census that measured this corpus reported its used-without-citing figure at
+        four tightnesses for exactly that reason; a single blended number would hide the same thing."""
+        hs = tuple(m.get("handles") or ())
+        groups = tuple(m.get("tokens") or ())
+        role = m.get("role")
+        if role in _HANDLE_ROLES and hs:
+            if cited & {int(h) for h in hs}:
+                return "cited"
+            # THE FIRST HANDLE ONLY -- the level for a state row, the distance for the kind-2 watch
+            # row. The sigma and the percentile are DIMENSIONLESS and collide across every row on the
+            # board (false positive (b) above): `_num_matches` is sign-insensitive, so one row's
+            # "-0.9 sigma" is matched by another's "+0.9 sigma", and a percentile hits any two-digit
+            # token. Nothing is deleted -- both siblings are still served, still handled, still bound
+            # by `_check_number_handle`; they are not EVIDENCE OF USE of the row they hang on.
+            if _vf.figure_referenced(_bound_sents(hs), _row_figures(hs[:1], calls, n_start)):
+                return "figure"
+            # A HANDLED ROW MAY STILL CARRY A LETTERS SURFACE -- the kind-2 WATCH row is on both, and
+            # a writer that named the row and its date without restating the distance figure USED it.
+            # The first cut short-circuited here and forfeited that row's token test silently.
+            if groups and _tokens_referenced(groups, sents):
+                return "tokens"
+            # A HANDLED ROW WITH NO SERVED MAGNITUDE IS STILL TESTABLE: its handle was on the page and
+            # was not cited. That is a MISS, not an absent measurement.
+            return ""
+        if not groups:
+            # A HANDLE-ROLE ROW WITH NEITHER HANDLES NOR TOKENS IS ONE THE REGISTER FENCE CORRECTED
+            # (`Block.add` sets `calls = ()` and commits the SB-X line). Its own docstring promises the
+            # row "is still in the denominator and can never be referenced" -- and the first cut let it
+            # fall out of BOTH numerator and denominator, so a board that corrected every loud row read
+            # `0 of 0` and a corrected row biased the figure UPWARD, the one direction an instrument
+            # must never take. A MISS is what the reader met: an absence where a loud row should be.
+            return "" if role in _HANDLE_ROLES else None
+        return "tokens" if _tokens_referenced(groups, sents) else ""
+
+    def _bucket(want):
+        """(referenced, cited, figure-only, testable, missed ids) over the DENOMINATOR ENTRIES the
+        rows whose (index, meta) ``want`` admits make up.
+
+        A DENOMINATOR ENTRY IS A ROW, EXCEPT WHERE THE BLOCK SAYS TWO ROWS ARE ONE READING. Rows
+        sharing a ``join`` stamp (``render_board``'s phase pairs, the BOARD JOIN line's own subjects)
+        collapse to ONE entry carrying the best member's verdict, because the mandate instructs the
+        writer to give one side and never two and the smoke measured it obeying that on 10 of 10
+        groups. Counting the folded twin as a separate miss would charge the writer for compliance.
+
+        ``cited`` is the TIGHT read and is always <= ``referenced``; on a letters-only class the two
+        are equal by construction, because there is no handle to cite."""
+        entries: dict = {}
+        order: list = []
+        for i, m in enumerate(rows):
+            if not want(i, m):
+                continue
+            key = str(m.get("join") or "") or ("#%d" % i)
+            if key not in entries:
+                entries[key] = [_verdict(m), _row_id(i, m)]
+                order.append(key)
+            else:
+                entries[key][0] = _best_verdict(entries[key][0], _verdict(m))
+        hit, tight, fig, seen, missed = 0, 0, 0, 0, []
+        for key in order:
+            v, rid = entries[key]
+            if v is None:
+                continue
+            seen += 1
+            if v:
+                hit += 1
+            else:
+                missed.append(rid)
+            if v == "cited":
+                tight += 1
+            elif v == "figure":
+                fig += 1
+        return hit, tight, fig, seen, missed
+
+    # THE LOUD CUT IS THE TIER'S OWN ``loud_k`` AND THE ROWS ARE IN THE WALK'S RANK ORDER, never in [N]
+    # order -- the utilisation census measured that today's block has no rank at all and that its index
+    # is call order, so a coverage bar ranked by handle would be ranked by nothing.
+    _state = [i for i, m in enumerate(rows) if m.get("role") == "state"]
+    _top = set(_state[:k] if k else _state)
+    loud_ref, loud_cit, loud_fig, loud_seen, loud_missed = _bucket(lambda i, m: i in _top)
+    ev_ref, _ev_cit, _ev_fig, ev_seen, ev_missed = _bucket(lambda i, m: m.get("role") == "event_open")
+    rec_ref, _rc_cit, _rc_fig, rec_seen, rec_missed = _bucket(lambda i, m: m.get("role") == "recency")
+    w_ref, w_cit, w_fig, w_seen, w_missed = _bucket(lambda i, m: m.get("role") == "watch")
+    sp_ref, _sp_cit, _sp_fig, sp_seen, sp_missed = _bucket(lambda i, m: m.get("role") == "far")
+    return {
+        # THE TIGHT READ LEADS. `*_cited` is what a writer NAMED; `*_referenced` adds the bound value
+        # match, and `*_figure_only` is exactly the part that rests on it -- reported apart so no reader
+        # can blend a loose count into a tight claim (the census's own four-tightness discipline).
+        "loud_k": k, "loud_rows": loud_seen, "loud_cited": loud_cit, "loud_referenced": loud_ref,
+        "loud_figure_only": loud_fig,
+        "events_open": ev_seen, "events_referenced": ev_ref,
+        # THE EVENT DENOMINATOR'S OWN SHAPE, so a reader can see what it is NOT counting. A closed
+        # window is history and the mandate asks nothing of it; a row with NO window placed is neither
+        # open nor closed, and the first cut left it invisible in source comments alone.
+        "events_closed": sum(1 for m in rows if m.get("role") == "event_closed"),
+        "events_unplaced": sum(1 for m in rows if m.get("role") == "event"),
+        "recency_rows": rec_seen, "recency_referenced": rec_ref,
+        "watch_rows": w_seen, "watch_referenced": w_ref, "watch_cited": w_cit,
+        "watch_figure_only": w_fig,
+        # THE SPILLOVER DENOMINATOR IS THE LICENCE'S OWN POPULATION -- far rows across a CROSS edge,
+        # the rows the licence line names. A same-board fan far row is not another market and is
+        # counted beside it rather than inside it, so the two numbers can never disagree under one word.
+        "spillover_rows": sp_seen, "spillover_referenced": sp_ref,
+        "spillover_same_board_rows": sum(1 for m in rows if m.get("role") == "far_same_board"),
+        "spillover_licensed": any(m.get("role") == "spillover_licence" for m in rows),
+        "missed": {"loud": tuple(loud_missed), "events": tuple(ev_missed),
+                   "recency": tuple(rec_missed), "watch": tuple(w_missed),
+                   "spillover": tuple(sp_missed)},
+    }

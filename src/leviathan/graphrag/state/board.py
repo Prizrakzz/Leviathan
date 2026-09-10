@@ -811,6 +811,30 @@ class Board:
     #: registry churn and zero re-pins. EMPTY on every turn the resolver did not run, and `trace()`
     #: omits the key entirely then -- so a flag-off board's payload is byte-identical to S6's.
     subject: dict = field(default_factory=dict)
+    #: THE COVERAGE MANIFEST (S7 item 1), written by ``render.render_board`` and by nothing else: one
+    #: entry per RENDERED row carrying the role the render gave it, the ``[N]`` handles it minted and
+    #: the token groups a letters-only row is graded on. It is on the BOARD rather than on the returned
+    #: ``Block`` because the seam returns the block as TEXT -- the object is gone by the time there is a
+    #: draft to read it against, and the seam is another lane's file this sitting.
+    rendered_rows: tuple = ()
+    #: WHAT THE WRITER DID WITH THOSE ROWS (``render.board_coverage``), filled at the answer seam AFTER
+    #: the verifier returns and never before -- a coverage figure derived from the answer it shaped
+    #: would be the circularity ``_composition_census`` is positioned to avoid, read from the other end.
+    #:
+    #: IT RIDES ``trace()`` FOR THE ``subject`` REASON, restated: appending a key to
+    #: ``tracekeys.TRACE_RECORD_KEYS`` reds seven test files' negative-index tail pins, and
+    #: :meth:`trace` is the ONE producer of the already-registered ``state_board`` payload -- so a
+    #: sub-dict inside it costs zero registry churn and zero re-pins. EMPTY on every turn nothing
+    #: measured, and :meth:`trace` omits the key entirely then.
+    #:
+    #: "NOTHING MEASURED" IS THE INSTRUMENT'S OWN ANSWER AND NOT A GUESS AT THIS END.
+    #: ``render.board_coverage`` returns ``{}`` when the block rendered no row at all -- the live case
+    #: is ``seam.fill_stage2``'s SUBJECT RESOLVER ambiguity branch, which ships a one-line block WITHOUT
+    #: calling ``render_board`` -- and the answer seam stamps ``{"declined": <reason>}`` when the
+    #: instrument itself raised. Both are honest absences; neither is a zero. The judge panel renders
+    #: nothing on either, so ``state_use`` can never be scored against a board that put no row on the
+    #: page.
+    coverage: dict = field(default_factory=dict)
 
     # ── anchors ─────────────────────────────────────────────────────────────────────────────────────
     @property
@@ -998,6 +1022,10 @@ class Board:
                "rows": len(self.rows), "series": len(self.series), "notes": list(self.notes)}
         if self.subject:
             out["subject"] = dict(self.subject)
+        # ``coverage`` (S7 item 1) is OMITTED when nothing measured it -- the same omit-when-off idiom,
+        # and the same reason: a flag-off (or pre-writer) payload stays byte-identical to S6's.
+        if self.coverage:
+            out["coverage"] = dict(self.coverage)
         return out
 
 
