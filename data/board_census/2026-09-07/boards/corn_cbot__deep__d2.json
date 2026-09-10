@@ -1,0 +1,2693 @@
+{
+ "block_text": "STATE OF THE WORLD at 2026-09-07 for CBOT corn: twenty-three drivers read on their own series, zero carried as dated receipts; ordered by how far each reading sits from its own history on its own window, then by the graph's declared confidence.\n- [N1] China state reserves on CBOT corn, USDA PSD for 2026: 177148000 MMT; [N2] -2.2 sigma on its trailing window of ten marketing years; [N3] 84th percentile of its own record; falling in each of the last two marketing years [series: CBOT corn; country: China; table: USDA PSD]\n- China state reserves is declared to move CBOT corn with no committed direction with a lag the graph states as zero to two quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT corn opens around December 2024 and closes around June 2025; that window closed on 2025-06-30\n- [N4] managed money positioning on CBOT corn, COT for 2026-08-25: 317448 contracts; [N5] +2.0 sigma on its trailing window of one hundred fifty-six weeks; [N6] 95th percentile of its own record; rising in each of the last two weeks; past the line the desk convention calls top decile; historical context only: this row is what the reporting funds held, never a cause the graph declares [series: CBOT corn; table: COT]\n- managed money positioning is declared to move CBOT corn in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- [N7] cattle cycle herd size on CBOT corn, PRODUCTION LIVESTOCK for 2024: 87157400 million head; [N8] -1.9 sigma on its trailing window of ten marketing years; [N9] 1st percentile of its own record; falling in each of the last five marketing years [series: CBOT corn; country: United States; table: PRODUCTION LIVESTOCK]\n- cattle cycle herd size is declared to move CBOT corn in the same direction with a lag the graph states as four to eight quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT corn opens around December 2020 and closes around December 2021; that window closed on 2021-12-31\n- [N10] MXN USD on CBOT corn, ECB reference rates for 2026-09-07: 16.91 local currency per USD; [N11] -1.6 sigma on its trailing window of two hundred fifty sessions; [N12] 6th percentile of its own record; rising over the last session; past the line the desk convention calls moderate [series: CBOT corn; table: ECB reference rates]\n- MXN USD is declared to move CBOT corn in the opposite direction with a lag the graph states as zero to two quarters, at low confidence\n- conditional on the lag the graph states, counted from the run's start in September 2026, the effect window on CBOT corn opens around September 2026 and closes around March 2027\n- [N13] El Nino on CBOT corn, NOAA ONI for 2026-05: +0.98 degC; [N14] +1.4 sigma on its trailing window of one hundred twenty months; [N15] 86th percentile of its own record; rising in each of the last six months; past the line the desk convention calls elevated; read from a table revised in place; the value as known at 2026-09-07 is not recoverable and is shown as revised through 2026-09-10 [series: CBOT corn; table: NOAA ONI]\n- El Nino is declared to move CBOT corn in the opposite direction with a lag the graph states as one to three quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in November 2025, the effect window on CBOT corn opens around February 2026 and closes around August 2026; that window closed on 2026-08-30\n- [N16] La Nina on CBOT corn, NOAA ONI for 2026-05: +0.98 degC; [N17] +1.4 sigma on its trailing window of one hundred twenty months; [N18] 86th percentile of its own record; rising in each of the last six months; past the line the desk convention calls elevated; read from a table revised in place; the value as known at 2026-09-07 is not recoverable and is shown as revised through 2026-09-10 [series: CBOT corn; table: NOAA ONI]\n- La Nina is declared to move CBOT corn in the same direction with a lag the graph states as one to three quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in November 2025, the effect window on CBOT corn opens around February 2026 and closes around August 2026; that window closed on 2026-08-30\n- [N19] feed demand on CBOT corn, PSD ATTRIBUTES for 2026: 154947 MMT; [N20] +1.3 sigma on its trailing window of ten marketing years; [N21] 95th percentile of its own record; falling over the last marketing year [series: CBOT corn; country: United States; table: PSD ATTRIBUTES]\n- feed demand is declared to move CBOT corn in the same direction with a lag the graph states as zero to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT corn opens around December 2025 and closes around June 2026; that window closed on 2026-06-30\n- [N22] planted area on CBOT corn, USDA PSD for 2026: 35852 M ha; [N23] +1.3 sigma on its trailing window of ten marketing years; [N24] 98th percentile of its own record; falling over the last marketing year [series: CBOT corn; country: United States; table: USDA PSD]\n- planted area is declared to move CBOT corn in the opposite direction with a lag the graph states as one to three quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT corn opens around March 2026 and closes around September 2026\n- [N25] ethanol demand on CBOT corn, PSD ATTRIBUTES for 2026: 176665 MMT; [N26] +0.9 sigma on its trailing window of ten marketing years; [N27] 98th percentile of its own record; rising in each of the last two marketing years [series: CBOT corn; country: United States; table: PSD ATTRIBUTES]\n- ethanol demand is declared to move CBOT corn in the same direction with a lag the graph states as zero to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT corn opens around December 2024 and closes around June 2025; that window closed on 2025-06-30\n- [N28] flash drought on CBOT corn, GOLD WEATHER Z for 2026-07: 0.56 z; [N29] +0.9 sigma on its trailing window of one hundred twenty months; [N30] 82nd percentile of its own record; rising over the last month [series: CBOT corn; country: United States; table: GOLD WEATHER Z]\n- flash drought is declared to move CBOT corn in the same direction with a lag the graph states as zero to one quarter, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in June 2026, the effect window on CBOT corn opens around June 2026 and closes around September 2026\n- [N31] gdd accumulation on CBOT corn, GOLD WEATHER Z for 2026-07: 1.25 z; [N32] +0.9 sigma on its trailing window of one hundred twenty months; [N33] 84th percentile of its own record; rising over the last month [series: CBOT corn; country: United States; table: GOLD WEATHER Z]\n- gdd accumulation is declared to move CBOT corn with no committed direction with a lag the graph states as zero to one quarter, at low confidence\n- conditional on the lag the graph states, counted from the run's start in June 2026, the effect window on CBOT corn opens around June 2026 and closes around September 2026\n- [N34] urea cost on CBOT corn, World Bank Pink Sheet for 2026-07-01 2026M08: -0.48 z; [N35] -0.8 sigma on its trailing window of sixty months; [N36] 29th percentile of its own record; falling in each of the last three months [series: CBOT corn; table: World Bank Pink Sheet]\n- urea cost is declared to move CBOT corn in the same direction with a lag the graph states as one to four quarters, at low confidence\n- conditional on the lag the graph states, counted from the run's start in April 2026, the effect window on CBOT corn opens around July 2026 and closes around April 2027\n- [N37] ukraine corn export competition on CBOT corn, USDA PSD for 2026: 22000000 MMT; [N38] -0.7 sigma on its trailing window of ten marketing years; [N39] 81st percentile of its own record; falling over the last marketing year [series: CBOT corn; country: Ukraine; table: USDA PSD]\n- ukraine corn export competition is declared to move CBOT corn in the opposite direction with a lag the graph states as zero to two quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT corn opens around December 2025 and closes around June 2026; that window closed on 2026-06-30\n- [N40] TRQ corn on CBOT corn, USDA PSD for 2026: 5000000 MMT; [N41] -0.7 sigma on its trailing window of ten marketing years; [N42] 89th percentile of its own record; rising in each of the last two marketing years [series: CBOT corn; country: China; table: USDA PSD]\n- TRQ corn is declared to move CBOT corn in the same direction with a lag the graph states as one to four quarters, at low confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT corn opens around March 2025 and closes around December 2025; that window closed on 2025-12-31\n- [N43] china import demand on CBOT corn, USDA PSD for 2026: 5000000 MMT; [N44] -0.7 sigma on its trailing window of ten marketing years; [N45] 89th percentile of its own record; rising in each of the last two marketing years [series: CBOT corn; country: China; table: USDA PSD]\n- china import demand is declared to move CBOT corn in the same direction with a lag the graph states as zero to two quarters, at medium confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT corn opens around December 2024 and closes around June 2025; that window closed on 2025-06-30\n- [N46] natural gas on CBOT corn, World Bank Pink Sheet for 2026-07-01 2026M08: -0.48 z; [N47] -0.6 sigma on its trailing window of sixty months; [N48] 42nd percentile of its own record; falling over the last month [series: CBOT corn; table: World Bank Pink Sheet]\n- natural gas is declared to move CBOT corn in the same direction with a lag the graph states as one to four quarters, at low confidence\n- conditional on the lag the graph states, counted from the run's start in June 2026, the effect window on CBOT corn opens around September 2026 and closes around June 2027\n- [N49] export pace on CBOT corn, USDA FAS Export Sales (ESR) for 2026-08-06: 1767.26 1000 MT; [N50] +0.5 sigma on its trailing window of fifty-two weeks; [N51] 73rd percentile of its own record; falling over the last week; past the line the desk convention calls ahead; read through 2026-08-16, 22-day span to this as-of [series: CBOT corn; table: USDA FAS Export Sales (ESR)]\n- export pace is declared to move CBOT corn in the same direction with a lag the graph states as zero to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in July 2026, the effect window on CBOT corn opens around July 2026 and closes around January 2027\n- [N52] ending stocks su ratio on CBOT corn, USDA PSD for 2026: 0.13 %; [N53] -0.5 sigma on its trailing window of ten marketing years; [N54] 17th percentile of its own record; falling over the last marketing year; past the line the desk convention calls tight [series: CBOT corn; country: United States; table: USDA PSD]\n- ending stocks su ratio is declared to move CBOT corn in the opposite direction with a lag the graph states as zero to two quarters, at high confidence\n- conditional on the lag the graph states, counted from the run's start in , the effect window on CBOT corn opens around December 2025 and closes around June 2026; that window closed on 2026-06-30\nBOARD JOIN TRQ corn and china import demand on CBOT corn: these are read on ONE series and the rows above print the SAME reading under each name. They are phases of one series and not separate readings.\nBOARD JOIN El Nino and La Nina on CBOT corn: these are read on ONE series and the rows above print the SAME reading under each name. The graph declares them opposite signs on this board, which is what two phases of one series means; they are not two readings that disagree.\nUPSTREAM ethanol demand -> ending stocks su ratio -> CBOT corn: the graph places ethanol demand one hop upstream of the CBOT corn price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N25][N52]\nUPSTREAM export pace -> ending stocks su ratio -> CBOT corn: the graph places export pace one hop upstream of the CBOT corn price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N49][N52]\nUPSTREAM drought -> ending stocks su ratio -> CBOT corn: the graph places drought one hop upstream of the CBOT corn price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N52]\nUPSTREAM heat stress -> ending stocks su ratio -> CBOT corn: the graph places heat stress one hop upstream of the CBOT corn price and declares its own lag onto that price as zero to two quarters; the measured rows on it are [N52]\n- the same reading is declared on eight other boards: with no committed direction on eight (BMF corn, CBOT soybeans, DCE soybean oil, DCE soybeans, DCE soybeans, ICE cotton, KCBT hrw wheat, corn)\n- China state reserves is declared to move BMF corn with no committed direction with a lag the graph states as zero to two quarters, at low confidence\n- the same reading is declared on ten other boards: in the same direction on ten (BMF corn, CBOT rice, ICE canola, JSE white maize, JSE yellow maize, MATIF corn, MATIF rapeseed, ZCE rapeseed meal, ZCE rapeseed oil, corn)\n- the same reading is declared on two other boards: in the same direction on two (CBOT soybean meal, corn)\n- cattle cycle herd size is declared to move corn in the same direction with a lag the graph states as four to eight quarters, at medium confidence -- the same reading this board carries, read on that graph's own edge\n- the same reading is declared on thirty-four other boards: in the opposite direction on twenty-eight (BMF arabica coffee, BMF corn, CBOT soybean meal, CBOT soybean oil, CBOT soybeans, CBOT srw wheat, DCE soybean meal, DCE soybean oil, DCE soybeans, DCE soybeans, ICE arabica coffee, ICE canola, ICE cotton, ICE orange juice, ICE raw sugar, ICE white sugar, JSE yellow maize, KCBT hrw wheat, MATIF corn, MATIF rapeseed, MGEX hrs wheat, ZCE rapeseed meal, ZCE rapeseed oil, barley, corn, sorghum, soybeans, sunflower oil) and in the same direction on the rest (CBOT rice, CME palm oil, DCE palm olein, ICE cocoa, ICE robusta coffee, JSE white maize)\n- El Nino is declared to move CME palm oil in the same direction with a lag the graph states as two to four quarters, at high confidence -- the same reading this board carries, read on that graph's own edge\n- the same reading is declared on thirty-three other boards: in the same direction on twenty-nine (BMF arabica coffee, BMF corn, CBOT rice, CBOT soybean meal, CBOT soybean oil, CBOT soybeans, CBOT srw wheat, DCE soybean meal, DCE soybean oil, DCE soybeans, DCE soybeans, ICE arabica coffee, ICE canola, ICE cocoa, ICE cotton, ICE orange juice, ICE raw sugar, ICE robusta coffee, ICE white sugar, KCBT hrw wheat, MATIF corn, MGEX hrs wheat, ZCE rapeseed meal, ZCE rapeseed oil, barley, corn, sorghum, soybeans, sunflower oil) and in the opposite direction on the rest (CME palm oil, DCE palm olein, JSE white maize, JSE yellow maize)\nBOARD ABSENCE the far boards past this tier's spillover cut (BMF arabica coffee, BMF corn, CBOT rice, CBOT soybean meal, CBOT soybeans, CBOT srw wheat, DCE palm olein, DCE soybean meal, DCE soybean oil, DCE soybeans, ICE arabica coffee, ICE canola, ICE cotton, ICE robusta coffee, JSE white maize, JSE yellow maize, KCBT hrw wheat, MATIF corn, MATIF french wheat, MATIF rapeseed, MGEX hrs wheat, barley, corn, sorghum): the far boards past this tier's fan are named here; their own states were not read.\nCROSS-COMMODITY: the loud readings on CBOT corn are declared on three other markets -- BMF corn, CME palm oil, corn -- and each of the rows above carries that market's own sign words and the lag words the graph states for it.\n- demand-pull rally (price-supportive) on CBOT corn: five of its eight declared drivers sit among this board's sixteen loudest rows (ethanol demand, feed demand, china import demand, export pace, ending stocks su ratio, each with its own [N] z); the pattern's own threshold is three; two carry a declared desk band\n  amplifier on CBOT corn: export pace, ending stocks su ratio all sit among this board's loudest rows; the graph records the effect as amplifies -- Fast exports against a tight S/U ratio accelerate the squeeze.\n- big-crop glut (price-pressuring) on CBOT corn: two of its eight declared drivers sit among this board's sixteen loudest rows (planted area, ending stocks su ratio, each with its own [N] z); the pattern's own threshold is three; one carries a declared desk band\n- weather squeeze (price-supportive) on CBOT corn: one of its seven declared drivers sits among this board's sixteen loudest rows (flash drought, with its own [N] z); the pattern's own threshold is three; none of them carries a declared desk band\n- supply-shock squeeze (price-supportive) on CBOT corn: one of its five declared drivers sits among this board's sixteen loudest rows (ending stocks su ratio, with its own [N] z); the pattern's own threshold is two; one carries a declared desk band\n- [N55] CBOT corn front 2026-12 settle on 2026-09-04: 536.75 US cents/bushel; [N56] -4 over one session on the same contract; [N57] 0.25 over five sessions on the same contract; [N58] 64.25 over twenty-one sessions on the same contract; [N59] 70.25 over sixty-three sessions on the same contract; [N60] the level at the 99th percentile of the window this read fetched (324 sessions on 2026-12, 2025-05-19 to 2026-09-04); the standings that name their own populations and realised volatility are not served yet and are not claimed here\nLIKE STATE China state reserves on CBOT corn: the series sat like this in ; the record carries one such crossing since 2004; each move below is read over the band the graph declares for the leg it names, and the row prints that band; measured on the record as revised through September 2026\n- [N61] china import demand on CBOT corn over the band the graph declares from that state, zero to two quarters: moved 0 MMT by the near end; [N62] moved 1000000 MMT by the far end\n- [N63] China state reserves on BMF corn over the band the graph declares from that state, zero to two quarters: moved 0 MMT by the near end; [N64] moved -14780000 MMT by the far end\n- [N65] China state reserves on CBOT soybeans over the band the graph declares from that state, zero to two quarters: moved 0 MMT by the near end; [N66] moved -130000 MMT by the far end\n- [N67] China state reserves on DCE soybean oil over the band the graph declares from that state, zero to two quarters: moved 0 MMT by the near end; [N68] moved 68000 MMT by the far end\nBOARD ABSENCE the outcomes of this like state past this tier's outcome cut (China state reserves on DCE soybeans, China state reserves on ICE cotton, China state reserves on KCBT hrw wheat): the rows past this tier's render cut are named here.\nLIKE STATE China state reserves on CBOT corn: the corpus holds no dated document for this window; the figures above stand on the series alone\nBOARD ABSENCE the like states past this tier's stanza cut (MXN USD on CBOT corn): the rows past this tier's render cut are named here.\nBOARD ABSENCE a like state on this board: no past state on this series is like this one under the likeness rule.\n- WATCH the next scheduled print China state reserves on CBOT corn (USDA PSD): scheduled inside the publisher's own monthly window, on these dates -- 2026-09-09 to 2026-09-12\n- [N69] WATCH the level a convention names MXN USD on CBOT corn: 1.42 sigma under the strong line at 3 sigma -- 2026-09-07\n- WATCH a declared lag window managed money positioning on CBOT corn: the zero to one quarter window the graph declares, counted from that reading's own date, opens and closes on these dates -- 2026-08-11 to 2026-11-11\n- WATCH what the record did after a like state China state reserves on CBOT corn: after the like state dated 2025, china import demand on CBOT corn was read at the far end of that declared band -- 2026\n- WATCH the next scheduled print managed money positioning on CBOT corn (COT): scheduled on the publisher's own weekday -- 2026-09-11\n- [N70] WATCH the level a convention names El Nino on CBOT corn: 0.02 degC under the moderate line at 1 degC -- 2026-05\nRECENCY numbers: read as of 2026-09-07; the newest knowledge date on a number row is 20260816 and the oldest is 2026-07-06\nRECENCY text: the newest dated document behind this answer is not carried on this page\nRECENCY tape: the board price tape runs through 2026-09-04\nBOARD ABSENCE ARS FX on CBOT corn, UAH USD on CBOT corn, USD index on CBOT corn, drought on CBOT corn, export ban on CBOT corn, flowering stress on CBOT corn, frost on CBOT corn, heat stress on CBOT corn, import tariff on CBOT corn, macro demand on CBOT corn: the region this row declares does not resolve to a single scope the store can be asked about.\nBOARD ABSENCE Mississippi low water on CBOT corn, Panama Canal constraint on CBOT corn, RFS on CBOT corn, RIN on CBOT corn, blocking high on CBOT corn, calendar spread on CBOT corn, cattle on feed on CBOT corn, corn rootworm on CBOT corn, crop progress condition on CBOT corn, ear rot on CBOT corn, excess rain on CBOT corn, fall armyworm on CBOT corn, favorable rainfall on CBOT corn, freight logistics on CBOT corn, gray leaf spot on CBOT corn, ndvi vegetation health on CBOT corn, safrinha on CBOT corn, southern rust on CBOT corn, soybean corn price ratio on CBOT corn, tar spot on CBOT corn, wheat corn spread on CBOT corn: the graph names a series no served card carries, so there is nothing to read.\nBOARD ABSENCE the rows this board read that sit below this tier's loudness cut (BRL FX on CBOT corn, crude oil on CBOT corn, dap cost on CBOT corn, fertilizer input costs on CBOT corn, russia corn export competition on CBOT corn): the rows past this tier's render cut are named here.\nBOARD ABSENCE the upstream paths past this tier's render cut (China state reserves, El Nino, La Nina, MXN USD, RFS, RIN, TRQ corn, UAH USD, USD index, blocking high, cattle cycle herd size, cattle on feed, china import demand, crude oil, dap cost, drought, ending stocks su ratio, ethanol demand, excess rain, export ban, export pace, feed demand, fertilizer input costs, frost, and ten further rows this line does not name): the rows past this tier's render cut are named here.\nBOARD ABSENCE the far states of the rows past this tier's cut (BRL FX on CBOT corn, Mississippi low water on CBOT corn, Panama Canal constraint on CBOT corn, RFS on CBOT corn, RIN on CBOT corn, UAH USD on CBOT corn, USD index on CBOT corn, blocking high on CBOT corn, calendar spread on CBOT corn, cattle on feed on CBOT corn, corn rootworm on CBOT corn, crop progress condition on CBOT corn, crude oil on CBOT corn, dap cost on CBOT corn, drought on CBOT corn, ear rot on CBOT corn, excess rain on CBOT corn, export ban on CBOT corn, fall armyworm on CBOT corn, favorable rainfall on CBOT corn, fertilizer input costs on CBOT corn, flowering stress on CBOT corn, freight logistics on CBOT corn, frost on CBOT corn, and eleven further rows this line does not name): the far boards past this tier's fan are named here; their own states were not read.\nBOARD ABSENCE the keys this turn's budget did not reach (china import demand on ICE canola, china import demand on sorghum, ending stocks su ratio on BMF corn, ending stocks su ratio on ICE canola, ending stocks su ratio on MATIF corn, ending stocks su ratio on MATIF rapeseed, ending stocks su ratio on ZCE rapeseed oil, export pace on sorghum, flash drought on BMF corn, flash drought on CBOT srw wheat, flash drought on ICE canola, flash drought on KCBT hrw wheat, flash drought on MATIF corn, flash drought on MATIF french wheat, flash drought on MGEX hrs wheat, natural gas on barley, ukraine corn export competition on BMF corn): this turn's read budget was spent before these keys, which are named here.",
+ "contract": "corn_cbot",
+ "mode": "deep",
+ "asof": "2026-09-07",
+ "rank_rule": "d2",
+ "walk_ms": 177.0,
+ "total_ms": 1177.7,
+ "producers_ms": 173.3,
+ "render_ms": 762.0,
+ "stage_ms": {
+  "1": 136.9,
+  "2": 39.7
+ },
+ "rows": {
+  "total": 54,
+  "series_rows": 33,
+  "by_coverage_tier": {
+   "series": 33,
+   "planned_text_only": 13,
+   "declared_available_unserved": 8
+  },
+  "by_status": {
+   "ok": 23,
+   "unmapped_ref": 21,
+   "scope_unresolved": 10
+  },
+  "replay_labelled": 2,
+  "context_only": 1,
+  "anchors": [
+   "corn_cbot"
+  ],
+  "anchor_source": "named"
+ },
+ "loud": {
+  "walked_rule": "d2",
+  "loud_k": 16,
+  "d2": {
+   "order": [
+    {
+     "seat": 0,
+     "contract": "corn_cbot",
+     "driver_id": "China_state_reserves",
+     "series_key": "beginning_stock_region|corn_cbot|China",
+     "table": "silver_psd",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 2.2074,
+     "z": -2.2074309536158245,
+     "percentile": 84.32835820895522,
+     "pct_extremity": 34.3284,
+     "run_length": 2,
+     "run": {
+      "direction": "down",
+      "length": 2,
+      "since_date": "2024"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 67,
+     "loud": true
+    },
+    {
+     "seat": 1,
+     "contract": "corn_cbot",
+     "driver_id": "managed_money_positioning",
+     "series_key": "cot_mm_positioning|corn_cbot|",
+     "table": "silver_cot",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 2.0051,
+     "z": 2.005122361191563,
+     "percentile": 95.39877300613497,
+     "pct_extremity": 45.3988,
+     "run_length": 2,
+     "run": {
+      "direction": "up",
+      "length": 2,
+      "since_date": "2026-08-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "156 weeks",
+     "n_obs": 163,
+     "loud": true
+    },
+    {
+     "seat": 2,
+     "contract": "corn_cbot",
+     "driver_id": "cattle_cycle_herd_size",
+     "series_key": "herd_size_cattle|cattle_beef|United States",
+     "table": "silver_production_livestock",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.8857,
+     "z": -1.8857155782070762,
+     "percentile": 0.78125,
+     "pct_extremity": 49.2188,
+     "run_length": 5,
+     "run": {
+      "direction": "down",
+      "length": 5,
+      "since_date": "2019"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 64,
+     "loud": true
+    },
+    {
+     "seat": 3,
+     "contract": "corn_cbot",
+     "driver_id": "MXN_USD",
+     "series_key": "fred_fx_macro|_global||mxn_usd",
+     "table": "silver_fred_fx",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.5797,
+     "z": -1.579742768585692,
+     "percentile": 5.503512880562061,
+     "pct_extremity": 44.4965,
+     "run_length": 1,
+     "run": {
+      "direction": "up",
+      "length": 1,
+      "since_date": "2026-09-04"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "250 sessions",
+     "n_obs": 1281,
+     "loud": true
+    },
+    {
+     "seat": 4,
+     "contract": "corn_cbot",
+     "driver_id": "El_Nino",
+     "series_key": "oni_climate|_global|",
+     "table": "silver_noaa_oni",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.3829,
+     "z": 1.3829176141214428,
+     "percentile": 86.43410852713178,
+     "pct_extremity": 36.4341,
+     "run_length": 6,
+     "run": {
+      "direction": "up",
+      "length": 6,
+      "since_date": "2025-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 129,
+     "loud": true
+    },
+    {
+     "seat": 5,
+     "contract": "corn_cbot",
+     "driver_id": "La_Nina",
+     "series_key": "oni_climate|_global|",
+     "table": "silver_noaa_oni",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.3829,
+     "z": 1.3829176141214428,
+     "percentile": 86.43410852713178,
+     "pct_extremity": 36.4341,
+     "run_length": 6,
+     "run": {
+      "direction": "up",
+      "length": 6,
+      "since_date": "2025-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 129,
+     "loud": true
+    },
+    {
+     "seat": 6,
+     "contract": "corn_cbot",
+     "driver_id": "feed_demand",
+     "series_key": "psd_feed_use|corn_cbot|United States",
+     "table": "silver_psd_attributes",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.2764,
+     "z": 1.2763841213202838,
+     "percentile": 94.77611940298507,
+     "pct_extremity": 44.7761,
+     "run_length": 1,
+     "run": {
+      "direction": "down",
+      "length": 1,
+      "since_date": "2025"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 67,
+     "loud": true
+    },
+    {
+     "seat": 7,
+     "contract": "corn_cbot",
+     "driver_id": "planted_area",
+     "series_key": "area|corn_cbot|United States",
+     "table": "silver_psd",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.2595,
+     "z": 1.2595343833209955,
+     "percentile": 97.76119402985074,
+     "pct_extremity": 47.7612,
+     "run_length": 1,
+     "run": {
+      "direction": "down",
+      "length": 1,
+      "since_date": "2025"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 67,
+     "loud": true
+    },
+    {
+     "seat": 8,
+     "contract": "corn_cbot",
+     "driver_id": "ethanol_demand",
+     "series_key": "psd_fsi_use|corn_cbot|United States",
+     "table": "silver_psd_attributes",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 0.9152,
+     "z": 0.9152255390875528,
+     "percentile": 97.76119402985074,
+     "pct_extremity": 47.7612,
+     "run_length": 2,
+     "run": {
+      "direction": "up",
+      "length": 2,
+      "since_date": "2024"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 67,
+     "loud": true
+    },
+    {
+     "seat": 9,
+     "contract": "corn_cbot",
+     "driver_id": "flash_drought",
+     "series_key": "drought_z|corn_cbot|United States",
+     "table": "gold_weather_z",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 0.9126,
+     "z": 0.9125839826078268,
+     "percentile": 82.06106870229007,
+     "pct_extremity": 32.0611,
+     "run_length": 1,
+     "run": {
+      "direction": "up",
+      "length": 1,
+      "since_date": "2026-06"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 131,
+     "loud": true
+    }
+   ],
+   "loud_n": 18,
+   "loud": [
+    {
+     "contract": "corn_cbot",
+     "driver_id": "China_state_reserves",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "managed_money_positioning",
+     "table": "silver_cot"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "cattle_cycle_herd_size",
+     "table": "silver_production_livestock"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "MXN_USD",
+     "table": "silver_fred_fx"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "El_Nino",
+     "table": "silver_noaa_oni"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "La_Nina",
+     "table": "silver_noaa_oni"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "feed_demand",
+     "table": "silver_psd_attributes"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "planted_area",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "ethanol_demand",
+     "table": "silver_psd_attributes"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "flash_drought",
+     "table": "gold_weather_z"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "gdd_accumulation",
+     "table": "gold_weather_z"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "urea_cost",
+     "table": "silver_pink_sheet"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "ukraine_corn_export_competition",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "TRQ_corn",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "china_import_demand",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "natural_gas",
+     "table": "silver_pink_sheet"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "export_pace",
+     "table": "silver_esr"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "ending_stocks_su_ratio",
+     "table": "silver_psd"
+    }
+   ],
+   "convention_crossed_ranks": [
+    {
+     "contract": "corn_cbot",
+     "driver_id": "managed_money_positioning",
+     "seat": 1,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "MXN_USD",
+     "seat": 3,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "El_Nino",
+     "seat": 4,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "La_Nina",
+     "seat": 5,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "export_pace",
+     "seat": 19,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "ending_stocks_su_ratio",
+     "seat": 21,
+     "in_loud": true
+    }
+   ],
+   "rank_words": "ordered by how far each reading sits from its own history on its own window, then by the graph's declared confidence"
+  },
+  "alternative": {
+   "order": [
+    {
+     "seat": 0,
+     "contract": "corn_cbot",
+     "driver_id": "China_state_reserves",
+     "series_key": "beginning_stock_region|corn_cbot|China",
+     "table": "silver_psd",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 2.2074,
+     "z": -2.2074309536158245,
+     "percentile": 84.32835820895522,
+     "pct_extremity": 34.3284,
+     "run_length": 2,
+     "run": {
+      "direction": "down",
+      "length": 2,
+      "since_date": "2024"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 67,
+     "loud": true
+    },
+    {
+     "seat": 1,
+     "contract": "corn_cbot",
+     "driver_id": "managed_money_positioning",
+     "series_key": "cot_mm_positioning|corn_cbot|",
+     "table": "silver_cot",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 2.0051,
+     "z": 2.005122361191563,
+     "percentile": 95.39877300613497,
+     "pct_extremity": 45.3988,
+     "run_length": 2,
+     "run": {
+      "direction": "up",
+      "length": 2,
+      "since_date": "2026-08-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "156 weeks",
+     "n_obs": 163,
+     "loud": true
+    },
+    {
+     "seat": 2,
+     "contract": "corn_cbot",
+     "driver_id": "cattle_cycle_herd_size",
+     "series_key": "herd_size_cattle|cattle_beef|United States",
+     "table": "silver_production_livestock",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.8857,
+     "z": -1.8857155782070762,
+     "percentile": 0.78125,
+     "pct_extremity": 49.2188,
+     "run_length": 5,
+     "run": {
+      "direction": "down",
+      "length": 5,
+      "since_date": "2019"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 64,
+     "loud": true
+    },
+    {
+     "seat": 3,
+     "contract": "corn_cbot",
+     "driver_id": "MXN_USD",
+     "series_key": "fred_fx_macro|_global||mxn_usd",
+     "table": "silver_fred_fx",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.5797,
+     "z": -1.579742768585692,
+     "percentile": 5.503512880562061,
+     "pct_extremity": 44.4965,
+     "run_length": 1,
+     "run": {
+      "direction": "up",
+      "length": 1,
+      "since_date": "2026-09-04"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "250 sessions",
+     "n_obs": 1281,
+     "loud": true
+    },
+    {
+     "seat": 4,
+     "contract": "corn_cbot",
+     "driver_id": "El_Nino",
+     "series_key": "oni_climate|_global|",
+     "table": "silver_noaa_oni",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.3829,
+     "z": 1.3829176141214428,
+     "percentile": 86.43410852713178,
+     "pct_extremity": 36.4341,
+     "run_length": 6,
+     "run": {
+      "direction": "up",
+      "length": 6,
+      "since_date": "2025-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 129,
+     "loud": true
+    },
+    {
+     "seat": 5,
+     "contract": "corn_cbot",
+     "driver_id": "La_Nina",
+     "series_key": "oni_climate|_global|",
+     "table": "silver_noaa_oni",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.3829,
+     "z": 1.3829176141214428,
+     "percentile": 86.43410852713178,
+     "pct_extremity": 36.4341,
+     "run_length": 6,
+     "run": {
+      "direction": "up",
+      "length": 6,
+      "since_date": "2025-11"
+     },
+     "convention_hit": 1,
+     "band_crossed": true,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 129,
+     "loud": true
+    },
+    {
+     "seat": 6,
+     "contract": "corn_cbot",
+     "driver_id": "feed_demand",
+     "series_key": "psd_feed_use|corn_cbot|United States",
+     "table": "silver_psd_attributes",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.2764,
+     "z": 1.2763841213202838,
+     "percentile": 94.77611940298507,
+     "pct_extremity": 44.7761,
+     "run_length": 1,
+     "run": {
+      "direction": "down",
+      "length": 1,
+      "since_date": "2025"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 67,
+     "loud": true
+    },
+    {
+     "seat": 7,
+     "contract": "corn_cbot",
+     "driver_id": "planted_area",
+     "series_key": "area|corn_cbot|United States",
+     "table": "silver_psd",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 1.2595,
+     "z": 1.2595343833209955,
+     "percentile": 97.76119402985074,
+     "pct_extremity": 47.7612,
+     "run_length": 1,
+     "run": {
+      "direction": "down",
+      "length": 1,
+      "since_date": "2025"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 67,
+     "loud": true
+    },
+    {
+     "seat": 8,
+     "contract": "corn_cbot",
+     "driver_id": "ethanol_demand",
+     "series_key": "psd_fsi_use|corn_cbot|United States",
+     "table": "silver_psd_attributes",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 0.9152,
+     "z": 0.9152255390875528,
+     "percentile": 97.76119402985074,
+     "pct_extremity": 47.7612,
+     "run_length": 2,
+     "run": {
+      "direction": "up",
+      "length": 2,
+      "since_date": "2024"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "10 marketing years",
+     "n_obs": 67,
+     "loud": true
+    },
+    {
+     "seat": 9,
+     "contract": "corn_cbot",
+     "driver_id": "flash_drought",
+     "series_key": "drought_z|corn_cbot|United States",
+     "table": "gold_weather_z",
+     "status": "ok",
+     "coverage_band": 0,
+     "abs_z": 0.9126,
+     "z": 0.9125839826078268,
+     "percentile": 82.06106870229007,
+     "pct_extremity": 32.0611,
+     "run_length": 1,
+     "run": {
+      "direction": "up",
+      "length": 1,
+      "since_date": "2026-06"
+     },
+     "convention_hit": 0,
+     "band_crossed": false,
+     "event_open": false,
+     "window_note": "120 months",
+     "n_obs": 131,
+     "loud": true
+    }
+   ],
+   "loud_n": 18,
+   "loud": [
+    {
+     "contract": "corn_cbot",
+     "driver_id": "China_state_reserves",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "managed_money_positioning",
+     "table": "silver_cot"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "cattle_cycle_herd_size",
+     "table": "silver_production_livestock"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "MXN_USD",
+     "table": "silver_fred_fx"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "El_Nino",
+     "table": "silver_noaa_oni"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "La_Nina",
+     "table": "silver_noaa_oni"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "feed_demand",
+     "table": "silver_psd_attributes"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "planted_area",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "ethanol_demand",
+     "table": "silver_psd_attributes"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "flash_drought",
+     "table": "gold_weather_z"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "gdd_accumulation",
+     "table": "gold_weather_z"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "urea_cost",
+     "table": "silver_pink_sheet"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "ukraine_corn_export_competition",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "TRQ_corn",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "china_import_demand",
+     "table": "silver_psd"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "natural_gas",
+     "table": "silver_pink_sheet"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "export_pace",
+     "table": "silver_esr"
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "ending_stocks_su_ratio",
+     "table": "silver_psd"
+    }
+   ],
+   "convention_crossed_ranks": [
+    {
+     "contract": "corn_cbot",
+     "driver_id": "managed_money_positioning",
+     "seat": 1,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "MXN_USD",
+     "seat": 3,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "El_Nino",
+     "seat": 4,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "La_Nina",
+     "seat": 5,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "export_pace",
+     "seat": 19,
+     "in_loud": true
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "ending_stocks_su_ratio",
+     "seat": 21,
+     "in_loud": true
+    }
+   ],
+   "rank_words": "ordered by whether each reading has crossed a level its desk convention names, then by how far it sits from its own history on its own window"
+  },
+  "order_identical": true
+ },
+ "fan": {
+  "index_entries": 52,
+  "far_rows": 498,
+  "far_boards": 35,
+  "edges": 25,
+  "paths": 124,
+  "convergence": 4
+ },
+ "budget": {
+  "net_reads": 34,
+  "declared_cap": 45,
+  "headroom": 11,
+  "rectangle": [],
+  "rectangle_closed": true,
+  "ledger": {
+   "waves": {
+    "1": {
+     "wave": 1,
+     "reads_cap": 32,
+     "series_declared": 21,
+     "read": 21,
+     "deferred": 0,
+     "declined": 0,
+     "reads_used": 21,
+     "ms": 133.65795499998967,
+     "plan": [
+      [
+       "oni_climate|_global|",
+       "oni_climate",
+       "corn_cbot",
+       "La_Nina",
+       0,
+       2,
+       2,
+       false
+      ],
+      [
+       "import|corn_cbot|China",
+       "import",
+       "corn_cbot",
+       "china_import_demand",
+       0,
+       2,
+       1,
+       false
+      ],
+      [
+       "area|corn_cbot|United States",
+       "area",
+       "corn_cbot",
+       "planted_area",
+       0,
+       1,
+       2,
+       false
+      ],
+      [
+       "esr_exports|corn_cbot|",
+       "esr_exports",
+       "corn_cbot",
+       "export_pace",
+       0,
+       1,
+       2,
+       false
+      ],
+      [
+       "psd_ending_stock_su_ratio|corn_cbot|United States",
+       "psd_ending_stock_su_ratio",
+       "corn_cbot",
+       "ending_stocks_su_ratio",
+       0,
+       1,
+       2,
+       false
+      ],
+      [
+       "psd_feed_use|corn_cbot|United States",
+       "psd_feed_use",
+       "corn_cbot",
+       "feed_demand",
+       0,
+       1,
+       2,
+       false
+      ],
+      [
+       "psd_fsi_use|corn_cbot|United States",
+       "psd_fsi_use",
+       "corn_cbot",
+       "ethanol_demand",
+       0,
+       1,
+       2,
+       false
+      ],
+      [
+       "beginning_stock_region|corn_cbot|China",
+       "beginning_stock_region",
+       "corn_cbot",
+       "China_state_reserves",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "brent_crude_z|_global|",
+       "brent_crude_z",
+       "corn_cbot",
+       "crude_oil",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "cot_mm_positioning|corn_cbot|",
+       "cot_mm_positioning",
+       "corn_cbot",
+       "managed_money_positioning",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|corn_cbot|United States",
+       "drought_z",
+       "corn_cbot",
+       "flash_drought",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "export|corn_cbot|Russia",
+       "export",
+       "corn_cbot",
+       "russia_corn_export_competition",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "export|corn_cbot|Ukraine",
+       "export",
+       "corn_cbot",
+       "ukraine_corn_export_competition",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "fred_fx_macro|_global||brl_usd",
+       "fred_fx_macro",
+       "corn_cbot",
+       "BRL_FX",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "herd_size_cattle|cattle_beef|United States",
+       "herd_size_cattle",
+       "corn_cbot",
+       "cattle_cycle_herd_size",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "dap_z|_global|",
+       "dap_z",
+       "corn_cbot",
+       "dap_cost",
+       0,
+       1,
+       0,
+       false
+      ],
+      [
+       "fred_fx_macro|_global||mxn_usd",
+       "fred_fx_macro",
+       "corn_cbot",
+       "MXN_USD",
+       0,
+       1,
+       0,
+       false
+      ],
+      [
+       "gdd_z|corn_cbot|United States",
+       "gdd_z",
+       "corn_cbot",
+       "gdd_accumulation",
+       0,
+       1,
+       0,
+       false
+      ],
+      [
+       "natural_gas_us_z|_global|",
+       "natural_gas_us_z",
+       "corn_cbot",
+       "natural_gas",
+       0,
+       1,
+       0,
+       false
+      ],
+      [
+       "npk_fertilizer_z|_global|",
+       "npk_fertilizer_z",
+       "corn_cbot",
+       "fertilizer_input_costs",
+       0,
+       1,
+       0,
+       false
+      ],
+      [
+       "urea_z|_global|",
+       "urea_z",
+       "corn_cbot",
+       "urea_cost",
+       0,
+       1,
+       0,
+       false
+      ]
+     ],
+     "deferred_keys": [],
+     "declined_keys": [],
+     "free_keys": [],
+     "closed": true,
+     "priced_before_fetch": true
+    },
+    "2": {
+     "wave": 2,
+     "reads_cap": 12,
+     "series_declared": 43,
+     "read": 26,
+     "deferred": 17,
+     "declined": 0,
+     "reads_used": 12,
+     "ms": 28.218151000004355,
+     "plan": [
+      [
+       "beginning_stock_region|cotton|China",
+       "beginning_stock_region",
+       "cotton",
+       "China_state_reserves",
+       0,
+       1,
+       2,
+       false
+      ],
+      [
+       "beginning_stock_region|soybeans_no_1_dce|China",
+       "beginning_stock_region",
+       "soybeans_no_1_dce",
+       "China_state_reserves",
+       0,
+       1,
+       2,
+       false
+      ],
+      [
+       "beginning_stock_region|soybean_oil_dce|China",
+       "beginning_stock_region",
+       "soybean_oil_dce",
+       "China_state_reserves",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "beginning_stock_region|soybeans_cbot|China",
+       "beginning_stock_region",
+       "soybeans_cbot",
+       "China_state_reserves",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "beginning_stock_region|soybeans_no_2_dce|China",
+       "beginning_stock_region",
+       "soybeans_no_2_dce",
+       "China_state_reserves",
+       0,
+       1,
+       1,
+       false
+      ],
+      [
+       "beginning_stock_region|campinas_corn_reference_bmf|China",
+       "beginning_stock_region",
+       "campinas_corn_reference_bmf",
+       "China_state_reserves",
+       0,
+       1,
+       0,
+       false
+      ],
+      [
+       "import|hard_red_winter_wheat_kcbt|China",
+       "import",
+       "hard_red_winter_wheat_kcbt",
+       "China_state_reserves",
+       0,
+       1,
+       0,
+       false
+      ],
+      [
+       "psd_feed_use|south_african_yellow_maize_jse|South Africa",
+       "psd_feed_use",
+       "south_african_yellow_maize_jse",
+       "feed_demand",
+       6,
+       1,
+       2,
+       false
+      ],
+      [
+       "psd_feed_use|french_maize_matif|European Union",
+       "psd_feed_use",
+       "french_maize_matif",
+       "feed_demand",
+       6,
+       1,
+       1,
+       false
+      ],
+      [
+       "area|south_african_white_maize_jse|South Africa",
+       "area",
+       "south_african_white_maize_jse",
+       "planted_area",
+       7,
+       1,
+       2,
+       false
+      ],
+      [
+       "area|south_african_yellow_maize_jse|South Africa",
+       "area",
+       "south_african_yellow_maize_jse",
+       "planted_area",
+       7,
+       1,
+       2,
+       false
+      ],
+      [
+       "area|french_maize_matif|European Union",
+       "area",
+       "french_maize_matif",
+       "planted_area",
+       7,
+       1,
+       1,
+       false
+      ]
+     ],
+     "deferred_keys": [
+      [
+       "drought_z|campinas_corn_reference_bmf|Brazil",
+       "drought_z",
+       "campinas_corn_reference_bmf",
+       "flash_drought",
+       9,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|canola_ice|Canada",
+       "drought_z",
+       "canola_ice",
+       "flash_drought",
+       9,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|french_maize_matif|EU Belt",
+       "drought_z",
+       "french_maize_matif",
+       "flash_drought",
+       9,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|french_wheat_matif|EU Belt",
+       "drought_z",
+       "french_wheat_matif",
+       "flash_drought",
+       9,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|hard_red_spring_wheat_mgex|Northern Plains",
+       "drought_z",
+       "hard_red_spring_wheat_mgex",
+       "flash_drought",
+       9,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|hard_red_winter_wheat_kcbt|United States",
+       "drought_z",
+       "hard_red_winter_wheat_kcbt",
+       "flash_drought",
+       9,
+       1,
+       1,
+       false
+      ],
+      [
+       "drought_z|soft_red_winter_wheat_cbot|United States",
+       "drought_z",
+       "soft_red_winter_wheat_cbot",
+       "flash_drought",
+       9,
+       1,
+       1,
+       false
+      ],
+      [
+       "export|campinas_corn_reference_bmf|Ukraine",
+       "export",
+       "campinas_corn_reference_bmf",
+       "ukraine_corn_export_competition",
+       12,
+       1,
+       1,
+       false
+      ],
+      [
+       "export|canola_ice|China",
+       "export",
+       "canola_ice",
+       "china_import_demand",
+       14,
+       1,
+       2,
+       false
+      ],
+      [
+       "import|sorghum|China",
+       "import",
+       "sorghum",
+       "china_import_demand",
+       14,
+       1,
+       2,
+       false
+      ],
+      [
+       "natural_gas_eu_z|_global|",
+       "natural_gas_eu_z",
+       "barley",
+       "natural_gas",
+       15,
+       5,
+       0,
+       false
+      ],
+      [
+       "esr_exports|grain_sorghum|",
+       "esr_exports",
+       "sorghum",
+       "export_pace",
+       19,
+       1,
+       2,
+       false
+      ],
+      [
+       "psd_ending_stock_su_ratio|campinas_corn_reference_bmf|Brazil",
+       "psd_ending_stock_su_ratio",
+       "campinas_corn_reference_bmf",
+       "ending_stocks_su_ratio",
+       21,
+       1,
+       2,
+       false
+      ],
+      [
+       "psd_ending_stock_su_ratio|canola_ice|Canada",
+       "psd_ending_stock_su_ratio",
+       "canola_ice",
+       "ending_stocks_su_ratio",
+       21,
+       1,
+       2,
+       false
+      ],
+      [
+       "psd_ending_stock_su_ratio|french_maize_matif|European Union",
+       "psd_ending_stock_su_ratio",
+       "french_maize_matif",
+       "ending_stocks_su_ratio",
+       21,
+       1,
+       2,
+       false
+      ],
+      [
+       "psd_ending_stock_su_ratio|french_rapeseed_matif|European Union",
+       "psd_ending_stock_su_ratio",
+       "french_rapeseed_matif",
+       "ending_stocks_su_ratio",
+       21,
+       1,
+       2,
+       false
+      ],
+      [
+       "psd_ending_stock_su_ratio|rapeseed_oil_zce|China",
+       "psd_ending_stock_su_ratio",
+       "rapeseed_oil_zce",
+       "ending_stocks_su_ratio",
+       21,
+       1,
+       2,
+       false
+      ]
+     ],
+     "declined_keys": [],
+     "free_keys": [
+      [
+       "beginning_stock_region|corn_cbot|China",
+       "beginning_stock_region",
+       "corn",
+       "China_state_reserves",
+       0,
+       1,
+       1,
+       true
+      ],
+      [
+       "herd_size_cattle|cattle_beef|United States",
+       "herd_size_cattle",
+       "corn",
+       "cattle_cycle_herd_size",
+       2,
+       2,
+       1,
+       true
+      ],
+      [
+       "oni_climate|_global|",
+       "oni_climate",
+       "robusta_coffee",
+       "El_Nino",
+       4,
+       16,
+       2,
+       true
+      ],
+      [
+       "psd_feed_use|corn_cbot|United States",
+       "psd_feed_use",
+       "corn",
+       "feed_demand",
+       6,
+       1,
+       2,
+       true
+      ],
+      [
+       "area|corn_cbot|United States",
+       "area",
+       "corn",
+       "planted_area",
+       7,
+       1,
+       2,
+       true
+      ],
+      [
+       "psd_fsi_use|corn_cbot|United States",
+       "psd_fsi_use",
+       "corn",
+       "ethanol_demand",
+       8,
+       1,
+       2,
+       true
+      ],
+      [
+       "drought_z|corn_cbot|United States",
+       "drought_z",
+       "corn",
+       "flash_drought",
+       9,
+       1,
+       1,
+       true
+      ],
+      [
+       "gdd_z|corn_cbot|United States",
+       "gdd_z",
+       "corn",
+       "gdd_accumulation",
+       10,
+       1,
+       0,
+       true
+      ],
+      [
+       "urea_z|_global|",
+       "urea_z",
+       "barley",
+       "urea_cost",
+       11,
+       8,
+       1,
+       true
+      ],
+      [
+       "export|corn_cbot|Ukraine",
+       "export",
+       "corn",
+       "ukraine_corn_export_competition",
+       12,
+       1,
+       1,
+       true
+      ],
+      [
+       "import|corn_cbot|China",
+       "import",
+       "corn",
+       "TRQ_corn",
+       13,
+       2,
+       0,
+       true
+      ],
+      [
+       "natural_gas_us_z|_global|",
+       "natural_gas_us_z",
+       "corn",
+       "natural_gas",
+       15,
+       2,
+       0,
+       true
+      ],
+      [
+       "esr_exports|corn_cbot|",
+       "esr_exports",
+       "corn",
+       "export_pace",
+       19,
+       1,
+       2,
+       true
+      ],
+      [
+       "psd_ending_stock_su_ratio|corn_cbot|United States",
+       "psd_ending_stock_su_ratio",
+       "corn",
+       "ending_stocks_su_ratio",
+       21,
+       1,
+       2,
+       true
+      ]
+     ],
+     "closed": true,
+     "priced_before_fetch": true
+    }
+   },
+   "evidence_borrows": 0,
+   "evidence_cap": 0,
+   "benchmark_reads": 0,
+   "benchmark_cap": 0,
+   "replay_labelled": 2,
+   "pool_declined": 0,
+   "budget_capped": 17,
+   "tape_reads": 1,
+   "tape_cap": 1,
+   "reads_used": 34,
+   "reads_cap": 45
+  },
+  "wave1_deferred": [],
+  "wave2_deferred": [
+   [
+    "drought_z|campinas_corn_reference_bmf|Brazil",
+    "drought_z",
+    "campinas_corn_reference_bmf",
+    "flash_drought",
+    9,
+    1,
+    1,
+    false
+   ],
+   [
+    "drought_z|canola_ice|Canada",
+    "drought_z",
+    "canola_ice",
+    "flash_drought",
+    9,
+    1,
+    1,
+    false
+   ],
+   [
+    "drought_z|french_maize_matif|EU Belt",
+    "drought_z",
+    "french_maize_matif",
+    "flash_drought",
+    9,
+    1,
+    1,
+    false
+   ],
+   [
+    "drought_z|french_wheat_matif|EU Belt",
+    "drought_z",
+    "french_wheat_matif",
+    "flash_drought",
+    9,
+    1,
+    1,
+    false
+   ],
+   [
+    "drought_z|hard_red_spring_wheat_mgex|Northern Plains",
+    "drought_z",
+    "hard_red_spring_wheat_mgex",
+    "flash_drought",
+    9,
+    1,
+    1,
+    false
+   ],
+   [
+    "drought_z|hard_red_winter_wheat_kcbt|United States",
+    "drought_z",
+    "hard_red_winter_wheat_kcbt",
+    "flash_drought",
+    9,
+    1,
+    1,
+    false
+   ],
+   [
+    "drought_z|soft_red_winter_wheat_cbot|United States",
+    "drought_z",
+    "soft_red_winter_wheat_cbot",
+    "flash_drought",
+    9,
+    1,
+    1,
+    false
+   ],
+   [
+    "export|campinas_corn_reference_bmf|Ukraine",
+    "export",
+    "campinas_corn_reference_bmf",
+    "ukraine_corn_export_competition",
+    12,
+    1,
+    1,
+    false
+   ],
+   [
+    "export|canola_ice|China",
+    "export",
+    "canola_ice",
+    "china_import_demand",
+    14,
+    1,
+    2,
+    false
+   ],
+   [
+    "import|sorghum|China",
+    "import",
+    "sorghum",
+    "china_import_demand",
+    14,
+    1,
+    2,
+    false
+   ],
+   [
+    "natural_gas_eu_z|_global|",
+    "natural_gas_eu_z",
+    "barley",
+    "natural_gas",
+    15,
+    5,
+    0,
+    false
+   ],
+   [
+    "esr_exports|grain_sorghum|",
+    "esr_exports",
+    "sorghum",
+    "export_pace",
+    19,
+    1,
+    2,
+    false
+   ],
+   [
+    "psd_ending_stock_su_ratio|campinas_corn_reference_bmf|Brazil",
+    "psd_ending_stock_su_ratio",
+    "campinas_corn_reference_bmf",
+    "ending_stocks_su_ratio",
+    21,
+    1,
+    2,
+    false
+   ],
+   [
+    "psd_ending_stock_su_ratio|canola_ice|Canada",
+    "psd_ending_stock_su_ratio",
+    "canola_ice",
+    "ending_stocks_su_ratio",
+    21,
+    1,
+    2,
+    false
+   ],
+   [
+    "psd_ending_stock_su_ratio|french_maize_matif|European Union",
+    "psd_ending_stock_su_ratio",
+    "french_maize_matif",
+    "ending_stocks_su_ratio",
+    21,
+    1,
+    2,
+    false
+   ],
+   [
+    "psd_ending_stock_su_ratio|french_rapeseed_matif|European Union",
+    "psd_ending_stock_su_ratio",
+    "french_rapeseed_matif",
+    "ending_stocks_su_ratio",
+    21,
+    1,
+    2,
+    false
+   ],
+   [
+    "psd_ending_stock_su_ratio|rapeseed_oil_zce|China",
+    "psd_ending_stock_su_ratio",
+    "rapeseed_oil_zce",
+    "ending_stocks_su_ratio",
+    21,
+    1,
+    2,
+    false
+   ]
+  ],
+  "wave1_declined": [],
+  "wave2_declined": [],
+  "budget_capped": 17,
+  "pool_declined": 0,
+  "replay_labelled": 2
+ },
+ "render": {
+  "lines": 100,
+  "chars": 24362,
+  "est_tokens": 6090,
+  "calls": 70,
+  "trips": [],
+  "trip_count": 0,
+  "welds": 0,
+  "by_class_lines": {
+   "SB-E": 21,
+   "SB-1": 18,
+   "SB-J": 17,
+   "SB-X": 10,
+   "SB-F": 6,
+   "SB-P": 4,
+   "SB-C": 4,
+   "SB-O": 4,
+   "SB-W": 4,
+   "SB-L": 3,
+   "SB-JOIN": 2,
+   "SB-A": 2,
+   "SB-V": 2,
+   "SB-H": 1,
+   "SB-M": 1,
+   "SB-T": 1
+  },
+  "by_class_chars": {
+   "SB-1": 5672,
+   "SB-X": 4371,
+   "SB-J": 3192,
+   "SB-E": 3149,
+   "SB-F": 2026,
+   "SB-C": 1070,
+   "SB-P": 924,
+   "SB-O": 732,
+   "SB-W": 726,
+   "SB-T": 534,
+   "SB-JOIN": 475,
+   "SB-A": 431,
+   "SB-L": 266,
+   "SB-H": 244,
+   "SB-V": 241,
+   "SB-M": 210
+  },
+  "unclassified": [],
+  "multi_class": [],
+  "caps": {
+   "spillover": 8,
+   "convergence": 4,
+   "analog": 1,
+   "analog_outcomes": 4,
+   "receipts": 3,
+   "absence": 0,
+   "absence_names": 24
+  }
+ },
+ "legs": {
+  "analog": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 0
+  },
+  "board": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 0
+  },
+  "edge": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 0
+  },
+  "fan": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 0
+  },
+  "interaction": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 0
+  },
+  "path": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 0
+  },
+  "render": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 0
+  },
+  "series": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 21
+  },
+  "tape": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 1
+  },
+  "watch": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 0
+  }
+ },
+ "declines": {
+  "leg_declines": {},
+  "row_status_words": {
+   "ok": 33
+  },
+  "outcomes": [
+   [
+    "fired",
+    10
+   ]
+  ]
+ },
+ "analogs": {
+  "stanzas": 3,
+  "fired": 2,
+  "declined": {
+   "no_like_state": 1
+  },
+  "seeds_measured": 3,
+  "candidates_by_sigma_band": {
+   "0.5": [
+    {
+     "driver_id": "China_state_reserves",
+     "candidates": 5,
+     "history_n": 67
+    },
+    {
+     "driver_id": "managed_money_positioning",
+     "candidates": 0,
+     "history_n": 163
+    },
+    {
+     "driver_id": "cattle_cycle_herd_size",
+     "candidates": 17,
+     "history_n": 64
+    }
+   ],
+   "1.0": [
+    {
+     "driver_id": "China_state_reserves",
+     "candidates": 6,
+     "history_n": 67
+    },
+    {
+     "driver_id": "managed_money_positioning",
+     "candidates": 3,
+     "history_n": 163
+    },
+    {
+     "driver_id": "cattle_cycle_herd_size",
+     "candidates": 23,
+     "history_n": 64
+    }
+   ],
+   "1.5": [
+    {
+     "driver_id": "China_state_reserves",
+     "candidates": 9,
+     "history_n": 67
+    },
+    {
+     "driver_id": "managed_money_positioning",
+     "candidates": 5,
+     "history_n": 163
+    },
+    {
+     "driver_id": "cattle_cycle_herd_size",
+     "candidates": 33,
+     "history_n": 64
+    }
+   ]
+  }
+ },
+ "watch": {
+  "rows": 6,
+  "fired": 6,
+  "declined": []
+ },
+ "tape": {
+  "boards": 1,
+  "rows": [
+   {
+    "slug": "corn_cbot",
+    "status": "ok",
+    "contract_month": "2026-12",
+    "level_date": "2026-09-04",
+    "reads": 1,
+    "n_obs": 324,
+    "truncated": false,
+    "history_start": "2025-05-19",
+    "history_end": "2026-09-04"
+   }
+  ],
+  "leg": {
+   "outcome": "fired",
+   "reason": null,
+   "reads": 1
+  }
+ },
+ "notes": [
+  {
+   "kind": "path_render_cap",
+   "names": [
+    "safrinha",
+    "La_Nina",
+    "La_Nina",
+    "La_Nina",
+    "La_Nina",
+    "La_Nina",
+    "planted_area",
+    "China_state_reserves",
+    "China_state_reserves",
+    "China_state_reserves",
+    "feed_demand",
+    "feed_demand",
+    "feed_demand",
+    "ethanol_demand",
+    "ukraine_corn_export_competition",
+    "ukraine_corn_export_competition",
+    "china_import_demand",
+    "china_import_demand",
+    "crude_oil",
+    "crude_oil",
+    "crude_oil",
+    "russia_corn_export_competition",
+    "russia_corn_export_competition",
+    "USD_index",
+    "cattle_on_feed",
+    "drought",
+    "drought",
+    "excess_rain",
+    "export_ban",
+    "heat_stress",
+    "USD_index",
+    "blocking_high",
+    "blocking_high",
+    "cattle_on_feed",
+    "excess_rain",
+    "export_ban",
+    "frost",
+    "cattle_on_feed",
+    "drought",
+    "export_ban",
+    "cattle_on_feed",
+    "drought",
+    "drought",
+    "El_Nino",
+    "El_Nino",
+    "La_Nina",
+    "La_Nina",
+    "El_Nino",
+    "El_Nino",
+    "El_Nino",
+    "La_Nina",
+    "La_Nina",
+    "La_Nina",
+    "La_Nina",
+    "La_Nina",
+    "El_Nino",
+    "La_Nina",
+    "La_Nina",
+    "La_Nina",
+    "La_Nina",
+    "RFS",
+    "macro_demand",
+    "soybean_corn_price_ratio",
+    "RFS",
+    "RFS",
+    "macro_demand",
+    "soybean_corn_price_ratio",
+    "macro_demand",
+    "macro_demand",
+    "cattle_cycle_herd_size",
+    "cattle_cycle_herd_size",
+    "cattle_cycle_herd_size",
+    "cattle_cycle_herd_size",
+    "cattle_cycle_herd_size",
+    "China_state_reserves",
+    "MXN_USD",
+    "MXN_USD",
+    "MXN_USD",
+    "feed_demand",
+    "ethanol_demand",
+    "ukraine_corn_export_competition",
+    "china_import_demand",
+    "crude_oil",
+    "crude_oil",
+    "export_pace",
+    "ending_stocks_su_ratio",
+    "RIN",
+    "UAH_USD",
+    "import_tariff",
+    "RIN",
+    "RIN",
+    "UAH_USD",
+    "import_tariff",
+    "UAH_USD",
+    "import_tariff",
+    "El_Nino",
+    "El_Nino",
+    "La_Nina",
+    "La_Nina",
+    "La_Nina",
+    "El_Nino",
+    "planted_area",
+    "urea_cost",
+    "urea_cost",
+    "urea_cost",
+    "urea_cost",
+    "TRQ_corn",
+    "TRQ_corn",
+    "TRQ_corn",
+    "natural_gas",
+    "natural_gas",
+    "natural_gas",
+    "natural_gas",
+    "natural_gas",
+    "natural_gas",
+    "fertilizer_input_costs",
+    "fertilizer_input_costs",
+    "dap_cost",
+    "dap_cost",
+    "cattle_cycle_herd_size"
+   ]
+  },
+  {
+   "kind": "fan_states_unread",
+   "loud_k": 16,
+   "rows": 35,
+   "names": [
+    [
+     "corn_cbot",
+     "BRL_FX"
+    ],
+    [
+     "corn_cbot",
+     "Mississippi_low_water"
+    ],
+    [
+     "corn_cbot",
+     "Panama_Canal_constraint"
+    ],
+    [
+     "corn_cbot",
+     "RFS"
+    ],
+    [
+     "corn_cbot",
+     "RIN"
+    ],
+    [
+     "corn_cbot",
+     "UAH_USD"
+    ],
+    [
+     "corn_cbot",
+     "USD_index"
+    ],
+    [
+     "corn_cbot",
+     "blocking_high"
+    ],
+    [
+     "corn_cbot",
+     "calendar_spread"
+    ],
+    [
+     "corn_cbot",
+     "cattle_on_feed"
+    ],
+    [
+     "corn_cbot",
+     "corn_rootworm"
+    ],
+    [
+     "corn_cbot",
+     "crop_progress_condition"
+    ],
+    [
+     "corn_cbot",
+     "crude_oil"
+    ],
+    [
+     "corn_cbot",
+     "dap_cost"
+    ],
+    [
+     "corn_cbot",
+     "drought"
+    ],
+    [
+     "corn_cbot",
+     "ear_rot"
+    ],
+    [
+     "corn_cbot",
+     "excess_rain"
+    ],
+    [
+     "corn_cbot",
+     "export_ban"
+    ],
+    [
+     "corn_cbot",
+     "fall_armyworm"
+    ],
+    [
+     "corn_cbot",
+     "favorable_rainfall"
+    ],
+    [
+     "corn_cbot",
+     "fertilizer_input_costs"
+    ],
+    [
+     "corn_cbot",
+     "flowering_stress"
+    ],
+    [
+     "corn_cbot",
+     "freight_logistics"
+    ],
+    [
+     "corn_cbot",
+     "frost"
+    ],
+    [
+     "corn_cbot",
+     "gray_leaf_spot"
+    ],
+    [
+     "corn_cbot",
+     "heat_stress"
+    ],
+    [
+     "corn_cbot",
+     "import_tariff"
+    ],
+    [
+     "corn_cbot",
+     "macro_demand"
+    ],
+    [
+     "corn_cbot",
+     "ndvi_vegetation_health"
+    ],
+    [
+     "corn_cbot",
+     "russia_corn_export_competition"
+    ],
+    [
+     "corn_cbot",
+     "safrinha"
+    ],
+    [
+     "corn_cbot",
+     "southern_rust"
+    ],
+    [
+     "corn_cbot",
+     "soybean_corn_price_ratio"
+    ],
+    [
+     "corn_cbot",
+     "tar_spot"
+    ],
+    [
+     "corn_cbot",
+     "wheat_corn_spread"
+    ]
+   ]
+  },
+  {
+   "kind": "wave2_reserved",
+   "columns": {
+    "analog_benchmark": 0,
+    "analog_receipts": 0,
+    "legb": 0
+   }
+  },
+  {
+   "kind": "budget_cap",
+   "wave": 2,
+   "pairs": [
+    [
+     "barley",
+     "natural_gas"
+    ],
+    [
+     "campinas_corn_reference_bmf",
+     "ending_stocks_su_ratio"
+    ],
+    [
+     "campinas_corn_reference_bmf",
+     "flash_drought"
+    ],
+    [
+     "campinas_corn_reference_bmf",
+     "ukraine_corn_export_competition"
+    ],
+    [
+     "canola_ice",
+     "china_import_demand"
+    ],
+    [
+     "canola_ice",
+     "ending_stocks_su_ratio"
+    ],
+    [
+     "canola_ice",
+     "flash_drought"
+    ],
+    [
+     "french_maize_matif",
+     "ending_stocks_su_ratio"
+    ],
+    [
+     "french_maize_matif",
+     "flash_drought"
+    ],
+    [
+     "french_rapeseed_matif",
+     "ending_stocks_su_ratio"
+    ],
+    [
+     "french_wheat_matif",
+     "flash_drought"
+    ],
+    [
+     "hard_red_spring_wheat_mgex",
+     "flash_drought"
+    ],
+    [
+     "hard_red_winter_wheat_kcbt",
+     "flash_drought"
+    ],
+    [
+     "rapeseed_oil_zce",
+     "ending_stocks_su_ratio"
+    ],
+    [
+     "soft_red_winter_wheat_cbot",
+     "flash_drought"
+    ],
+    [
+     "sorghum",
+     "china_import_demand"
+    ],
+    [
+     "sorghum",
+     "export_pace"
+    ]
+   ],
+   "names": [
+    "drought_z|campinas_corn_reference_bmf|Brazil",
+    "drought_z|canola_ice|Canada",
+    "drought_z|french_maize_matif|EU Belt",
+    "drought_z|french_wheat_matif|EU Belt",
+    "drought_z|hard_red_spring_wheat_mgex|Northern Plains",
+    "drought_z|hard_red_winter_wheat_kcbt|United States",
+    "drought_z|soft_red_winter_wheat_cbot|United States",
+    "esr_exports|grain_sorghum|",
+    "export|campinas_corn_reference_bmf|Ukraine",
+    "export|canola_ice|China",
+    "import|sorghum|China",
+    "natural_gas_eu_z|_global|",
+    "psd_ending_stock_su_ratio|campinas_corn_reference_bmf|Brazil",
+    "psd_ending_stock_su_ratio|canola_ice|Canada",
+    "psd_ending_stock_su_ratio|french_maize_matif|European Union",
+    "psd_ending_stock_su_ratio|french_rapeseed_matif|European Union",
+    "psd_ending_stock_su_ratio|rapeseed_oil_zce|China"
+   ]
+  },
+  {
+   "kind": "complexes",
+   "rows": []
+  },
+  {
+   "kind": "chains",
+   "rows": []
+  }
+ ],
+ "trace": {
+  "stage_ms": {
+   "1": 136.888636000009,
+   "2": 39.711363000009214
+  },
+  "anchors": [
+   "corn_cbot"
+  ],
+  "anchor_source": "named",
+  "mode": "deep",
+  "asof": "2026-09-07",
+  "horizon_months": null,
+  "rank_rule": "d2",
+  "net_reads": 34,
+  "cap": 45,
+  "rectangle": [],
+  "rows": 54,
+  "series": 33,
+  "notes": [
+   {
+    "kind": "path_render_cap",
+    "names": [
+     "safrinha",
+     "La_Nina",
+     "La_Nina",
+     "La_Nina",
+     "La_Nina",
+     "La_Nina",
+     "planted_area",
+     "China_state_reserves",
+     "China_state_reserves",
+     "China_state_reserves",
+     "feed_demand",
+     "feed_demand",
+     "feed_demand",
+     "ethanol_demand",
+     "ukraine_corn_export_competition",
+     "ukraine_corn_export_competition",
+     "china_import_demand",
+     "china_import_demand",
+     "crude_oil",
+     "crude_oil",
+     "crude_oil",
+     "russia_corn_export_competition",
+     "russia_corn_export_competition",
+     "USD_index",
+     "cattle_on_feed",
+     "drought",
+     "drought",
+     "excess_rain",
+     "export_ban",
+     "heat_stress",
+     "USD_index",
+     "blocking_high",
+     "blocking_high",
+     "cattle_on_feed",
+     "excess_rain",
+     "export_ban",
+     "frost",
+     "cattle_on_feed",
+     "drought",
+     "export_ban",
+     "cattle_on_feed",
+     "drought",
+     "drought",
+     "El_Nino",
+     "El_Nino",
+     "La_Nina",
+     "La_Nina",
+     "El_Nino",
+     "El_Nino",
+     "El_Nino",
+     "La_Nina",
+     "La_Nina",
+     "La_Nina",
+     "La_Nina",
+     "La_Nina",
+     "El_Nino",
+     "La_Nina",
+     "La_Nina",
+     "La_Nina",
+     "La_Nina",
+     "RFS",
+     "macro_demand",
+     "soybean_corn_price_ratio",
+     "RFS",
+     "RFS",
+     "macro_demand",
+     "soybean_corn_price_ratio",
+     "macro_demand",
+     "macro_demand",
+     "cattle_cycle_herd_size",
+     "cattle_cycle_herd_size",
+     "cattle_cycle_herd_size",
+     "cattle_cycle_herd_size",
+     "cattle_cycle_herd_size",
+     "China_state_reserves",
+     "MXN_USD",
+     "MXN_USD",
+     "MXN_USD",
+     "feed_demand",
+     "ethanol_demand",
+     "ukraine_corn_export_competition",
+     "china_import_demand",
+     "crude_oil",
+     "crude_oil",
+     "export_pace",
+     "ending_stocks_su_ratio",
+     "RIN",
+     "UAH_USD",
+     "import_tariff",
+     "RIN",
+     "RIN",
+     "UAH_USD",
+     "import_tariff",
+     "UAH_USD",
+     "import_tariff",
+     "El_Nino",
+     "El_Nino",
+     "La_Nina",
+     "La_Nina",
+     "La_Nina",
+     "El_Nino",
+     "planted_area",
+     "urea_cost",
+     "urea_cost",
+     "urea_cost",
+     "urea_cost",
+     "TRQ_corn",
+     "TRQ_corn",
+     "TRQ_corn",
+     "natural_gas",
+     "natural_gas",
+     "natural_gas",
+     "natural_gas",
+     "natural_gas",
+     "natural_gas",
+     "fertilizer_input_costs",
+     "fertilizer_input_costs",
+     "dap_cost",
+     "dap_cost",
+     "cattle_cycle_herd_size"
+    ]
+   },
+   {
+    "kind": "fan_states_unread",
+    "loud_k": 16,
+    "rows": 35,
+    "names": [
+     [
+      "corn_cbot",
+      "BRL_FX"
+     ],
+     [
+      "corn_cbot",
+      "Mississippi_low_water"
+     ],
+     [
+      "corn_cbot",
+      "Panama_Canal_constraint"
+     ],
+     [
+      "corn_cbot",
+      "RFS"
+     ],
+     [
+      "corn_cbot",
+      "RIN"
+     ],
+     [
+      "corn_cbot",
+      "UAH_USD"
+     ],
+     [
+      "corn_cbot",
+      "USD_index"
+     ],
+     [
+      "corn_cbot",
+      "blocking_high"
+     ],
+     [
+      "corn_cbot",
+      "calendar_spread"
+     ],
+     [
+      "corn_cbot",
+      "cattle_on_feed"
+     ],
+     [
+      "corn_cbot",
+      "corn_rootworm"
+     ],
+     [
+      "corn_cbot",
+      "crop_progress_condition"
+     ],
+     [
+      "corn_cbot",
+      "crude_oil"
+     ],
+     [
+      "corn_cbot",
+      "dap_cost"
+     ],
+     [
+      "corn_cbot",
+      "drought"
+     ],
+     [
+      "corn_cbot",
+      "ear_rot"
+     ],
+     [
+      "corn_cbot",
+      "excess_rain"
+     ],
+     [
+      "corn_cbot",
+      "export_ban"
+     ],
+     [
+      "corn_cbot",
+      "fall_armyworm"
+     ],
+     [
+      "corn_cbot",
+      "favorable_rainfall"
+     ],
+     [
+      "corn_cbot",
+      "fertilizer_input_costs"
+     ],
+     [
+      "corn_cbot",
+      "flowering_stress"
+     ],
+     [
+      "corn_cbot",
+      "freight_logistics"
+     ],
+     [
+      "corn_cbot",
+      "frost"
+     ],
+     [
+      "corn_cbot",
+      "gray_leaf_spot"
+     ],
+     [
+      "corn_cbot",
+      "heat_stress"
+     ],
+     [
+      "corn_cbot",
+      "import_tariff"
+     ],
+     [
+      "corn_cbot",
+      "macro_demand"
+     ],
+     [
+      "corn_cbot",
+      "ndvi_vegetation_health"
+     ],
+     [
+      "corn_cbot",
+      "russia_corn_export_competition"
+     ],
+     [
+      "corn_cbot",
+      "safrinha"
+     ],
+     [
+      "corn_cbot",
+      "southern_rust"
+     ],
+     [
+      "corn_cbot",
+      "soybean_corn_price_ratio"
+     ],
+     [
+      "corn_cbot",
+      "tar_spot"
+     ],
+     [
+      "corn_cbot",
+      "wheat_corn_spread"
+     ]
+    ]
+   },
+   {
+    "kind": "wave2_reserved",
+    "columns": {
+     "analog_benchmark": 0,
+     "analog_receipts": 0,
+     "legb": 0
+    }
+   },
+   {
+    "kind": "budget_cap",
+    "wave": 2,
+    "pairs": [
+     [
+      "barley",
+      "natural_gas"
+     ],
+     [
+      "campinas_corn_reference_bmf",
+      "ending_stocks_su_ratio"
+     ],
+     [
+      "campinas_corn_reference_bmf",
+      "flash_drought"
+     ],
+     [
+      "campinas_corn_reference_bmf",
+      "ukraine_corn_export_competition"
+     ],
+     [
+      "canola_ice",
+      "china_import_demand"
+     ],
+     [
+      "canola_ice",
+      "ending_stocks_su_ratio"
+     ],
+     [
+      "canola_ice",
+      "flash_drought"
+     ],
+     [
+      "french_maize_matif",
+      "ending_stocks_su_ratio"
+     ],
+     [
+      "french_maize_matif",
+      "flash_drought"
+     ],
+     [
+      "french_rapeseed_matif",
+      "ending_stocks_su_ratio"
+     ],
+     [
+      "french_wheat_matif",
+      "flash_drought"
+     ],
+     [
+      "hard_red_spring_wheat_mgex",
+      "flash_drought"
+     ],
+     [
+      "hard_red_winter_wheat_kcbt",
+      "flash_drought"
+     ],
+     [
+      "rapeseed_oil_zce",
+      "ending_stocks_su_ratio"
+     ],
+     [
+      "soft_red_winter_wheat_cbot",
+      "flash_drought"
+     ],
+     [
+      "sorghum",
+      "china_import_demand"
+     ],
+     [
+      "sorghum",
+      "export_pace"
+     ]
+    ],
+    "names": [
+     "drought_z|campinas_corn_reference_bmf|Brazil",
+     "drought_z|canola_ice|Canada",
+     "drought_z|french_maize_matif|EU Belt",
+     "drought_z|french_wheat_matif|EU Belt",
+     "drought_z|hard_red_spring_wheat_mgex|Northern Plains",
+     "drought_z|hard_red_winter_wheat_kcbt|United States",
+     "drought_z|soft_red_winter_wheat_cbot|United States",
+     "esr_exports|grain_sorghum|",
+     "export|campinas_corn_reference_bmf|Ukraine",
+     "export|canola_ice|China",
+     "import|sorghum|China",
+     "natural_gas_eu_z|_global|",
+     "psd_ending_stock_su_ratio|campinas_corn_reference_bmf|Brazil",
+     "psd_ending_stock_su_ratio|canola_ice|Canada",
+     "psd_ending_stock_su_ratio|french_maize_matif|European Union",
+     "psd_ending_stock_su_ratio|french_rapeseed_matif|European Union",
+     "psd_ending_stock_su_ratio|rapeseed_oil_zce|China"
+    ]
+   },
+   {
+    "kind": "complexes",
+    "rows": []
+   },
+   {
+    "kind": "chains",
+    "rows": []
+   }
+  ]
+ },
+ "pass": "d2",
+ "physical_reads_board": {
+  "reads": 34,
+  "rows": 13485
+ }
+}
