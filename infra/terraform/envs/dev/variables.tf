@@ -288,7 +288,11 @@ variable "futures_eod_silver_image_digest" {
   # state.lint rc 0, 1,270 DAG instances). Applied as ONE resource. The s0s1 pin never fired a scheduled chain except the 22:30Z/23:00Z witnesses.
   # nass (r7, 2026-09-09 11:18Z): repinned to tag 20260909-nass (commit fbe6a7cb) = d10s9 + the NASS gate fix (declared cottonseed absence,
   # writer schema pin, parity sample commodities, all-SKIP = mismatch); lint smoke on b3-flat-silver:42 GREEN. Applied as ONE resource.
-  default     = "sha256:d97d8cd5b2038ca615160eb989ab8b7fc5601ecc5a0348a2add381f75e633c00"
+  # s7pre3 (r8, 2026-09-11 00:40Z): repinned to tag 20260910-s7pre3 (commit 9a84a82d) = nass + the three producer commits since fbe6a7cb
+  # (3f5f4720 pinned writers + value census live; 06a14e19 migrate.py; 45af35f7 ESR vintage streaming DARK behind LEVIATHAN_ESR_VINTAGE_STREAM,
+  # as-of tripwires counter-only) -- allowed because the fgis / modis / esr_compact Glue widenings are all APPLIED (2026-09-10); lint smoke on
+  # b3-flat-silver:43 GREEN (11 producer / gate / census modules + graphrag import). Applied as ONE resource.
+  default     = "sha256:16068c6bb84d55e56b9b71fb29a6a5fbc7d119ef5009035a142db8fdc6f58b8f"
   validation {
     condition     = var.futures_eod_silver_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_silver_image_digest))
     error_message = "futures_eod_silver_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
