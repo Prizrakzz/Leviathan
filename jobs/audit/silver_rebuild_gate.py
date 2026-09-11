@@ -138,6 +138,55 @@ GATE_VERDICT_METRIC = "GateVerdict"
 CENSUS_HARDFAIL_METRIC = "ValueCensusHardFailTables"
 GATE_METRIC_NAMESPACE = "Leviathan/Silver"
 
+# ---------------------------------------------------------------------------
+# SILVER-C001 DATA-FRESHNESS STAGE (2026-09-11) -- DARK. Reports, never blocks.
+#
+# THE BLIND SPOT IT FILLS, MEASURED. Not one stage in either branch tuple READS A DATE.
+# `stage_feature_probe` asserts bytes exist and carry the contract's columns; `stage_value_census`
+# asserts a non-null FRACTION; `stage_parity` compares pg against Athena, and its own docstring already
+# concedes that "identically-wrong on both backends is a clean PASS"; `contract_check` is a DISTINCT
+# vocabulary walk; `cascade_census_diff` counts DARK legs, and a leg returning a stale row is LIT. So
+# on 2026-09-07, -08, -09 and -11 this gate passed with `gold_weather_z` -- a SERVED numbers card --
+# frozen at data month 2026-07, 42 days behind, while the board printed "for 2026-07 ... rising over
+# the last month" beside COT at 2026-09-01.
+#
+# AND THE ESTATE'S ONLY FRESHNESS CLOCK MISSES IT TOO: `silver/freshness.py:136 newest_last_modified`
+# measures S3 OBJECT MTIME. The producers rewrite the object daily (gold corn_cbot.parquet mtime
+# 2026-09-11T09:19:50Z, silver chirps canonical 09:49:08Z), so FreshnessLagDays read 0 on a dead leg.
+# Even a correct data-date read against the EXISTING denominator would have been silent: the monthly
+# cadence default is 45 days and the data lag was 42, first breaching 2026-09-15.
+#
+# SO THE DENOMINATOR IS THE CARD'S OWN PROMISE AND NOTHING ELSE. For a `year_month` card,
+# `_ym_lagged_asof_ym(asof, ym_publication_lag_days)` is the exact arithmetic the as-of guard uses to
+# ADMIT a month; if the bytes do not hold the newest month the guard admits, the card is promising a
+# row that does not exist. That fires TODAY, on gold_weather_z, with no new constant invented anywhere.
+# For a date-grain card there IS no such promise -- `freshness_sla.max_lag_days` is null on
+# gold_weather_z, silver_chirps AND silver_nasa_power, and configs/datasets/source_contracts.yaml
+# declares no publication lag for either weather source -- so this stage reports the AGE of the newest
+# data date as a fact and deliberately does NOT name it "behind". A metric called `DaysBehind` with no
+# declared denominator would be a threshold invented in telemetry, which is the failure mode this stage
+# exists to remove, not to repeat.
+#
+# AND THE `asof` IN THAT ARITHMETIC IS THE WALL CLOCK, NEVER `ctx.census_asof` -- see `_freshness_clock`,
+# which carries the driven numbers. `census_asof` is the cascade-census DIFF BASELINE (a pinned
+# historical date, argparse default the frozen "2026-02-15"); reading it as "now" made this stage report
+# -6 months behind on a 42-day-stale table and would have GREENED it on the promotion flip.
+#
+# DARK MEANS DARK. With `_DATA_FRESHNESS_BLOCKING = False` the stage returns SKIPPED on EVERY path --
+# never GREEN, never RED -- so `TableResult.ok` (which needs one GREEN and no RED) is bit-identical to
+# the pre-stage gate for every possible input, and the measurement rides in `detail`, in the artifact
+# bundle and in CloudWatch. Promotion is this one constant, on the owner's word: the
+# `GateContext.severity_split` rollback-lever precedent.
+# ---------------------------------------------------------------------------
+_DATA_FRESHNESS_BLOCKING = False
+FRESHNESS_MONTHS_BEHIND_METRIC = "DataFreshnessMonthsBehind"
+FRESHNESS_DATA_AGE_METRIC = "DataDateAgeDays"
+
+# Populated by `stage_data_freshness`, read by `_main()` into `_VERDICT_RECORD`. Module state for the
+# same reason `_VERDICT_RECORD` is: no caller of run_gate()/run_table() has to change shape. Cleared
+# at the top of every `run_gate`, so "empty means nothing measured" holds per RUN, not per interpreter.
+_FRESHNESS_MEASUREMENTS: dict = {}
+
 # The gate's own three-valued verdict vocabulary. "YELLOW" is not a word the gate speaks: a PASS that
 # rode over drift is still a PASS, and naming it PASS_WITH_DRIFT keeps the metric readable against
 # the banner it is derived from.
@@ -204,10 +253,24 @@ def _emit_gate_metrics(record: dict) -> None:
             {"MetricName": CENSUS_HARDFAIL_METRIC, "Timestamp": now,
              "Value": float(record["census_hard_fail"]), "Unit": "Count", "Dimensions": []},
         ]
+        # THE DARK FRESHNESS DATUMS, folded into the call this function ALREADY makes -- no second
+        # put_metric_data, no new IAM. Dimensioned {Table, Family} so a per-table alarm is plannable in
+        # HCL without metric math. The ALARM stays UNBUILT on purpose: the threshold is set from a week
+        # of measured data, not guessed the day the metric is born.
+        for tbl, m in sorted((record.get("data_freshness") or {}).items()):
+            dims = [{"Name": "Table", "Value": tbl}, {"Name": "Family", "Value": record["family"]}]
+            if m.get("months_behind") is not None:
+                data.append({"MetricName": FRESHNESS_MONTHS_BEHIND_METRIC, "Timestamp": now,
+                             "Value": float(m["months_behind"]), "Unit": "Count", "Dimensions": dims})
+            if m.get("data_age_days") is not None:
+                data.append({"MetricName": FRESHNESS_DATA_AGE_METRIC, "Timestamp": now,
+                             "Value": float(m["data_age_days"]), "Unit": "Count", "Dimensions": dims})
         boto3.client("cloudwatch").put_metric_data(
             Namespace=GATE_METRIC_NAMESPACE, MetricData=data)
         print(f"  [metric] GateVerdict family={record['family']} verdict={verdict}; "
               f"{CENSUS_HARDFAIL_METRIC}={record['census_hard_fail']} -> {GATE_METRIC_NAMESPACE}")
+        for tbl, m in sorted((record.get("data_freshness") or {}).items()):
+            print(f"  [metric] data_freshness {tbl}: {m.get('detail', '')}")
     except Exception as e:  # noqa: BLE001 -- telemetry must never change a verdict
         print(f"  [metric] WARN could not emit gate metrics ({type(e).__name__}: {str(e)[:160]}) "
               f"-- the verdict above stands and is unaffected")
@@ -797,6 +860,196 @@ def stage_value_census(table: str, ctx: GateContext) -> StageResult:
         return StageResult("value_census", RED, f"{type(e).__name__}: {str(e)[:200]}")
 
 
+def _mirror_relation(ts) -> str:
+    """``leviathan_dev.<physical>`` -- the SCHEMA-QUALIFIED relation, and never a bare table name.
+
+    THE DEFECT THIS FUNCTION IS THE REPAIRED FORM OF (adversarial review, 2026-09-11). Both tip
+    statements were built as ``FROM {ts.athena_table or ts.id}``. The pg mirror does NOT put its
+    tables on the default search_path: ``jobs/utils/load_pg_numbers.py:640-643`` creates every one of
+    them as ``"{SCHEMA}"."{physical}"`` with ``SCHEMA = "leviathan_dev"`` (:472, whose own comment
+    pins ``== numbers.pgnumbers.SCHEMA == query.ATHENA_DB``), and the connection this stage's
+    ``query_fn`` runs on sets no search_path at all -- ``pgnumbers._num_acquire`` connects with
+    ``options="-c statement_timeout=..."``, which REPLACES any options the DSN might have carried.
+    An unqualified name therefore raises UndefinedTable in production, the stage's own never-raises
+    fence turns that into SKIPPED "not measured", and the instrument reports nothing FOREVER while
+    reading as installed -- the same blind-spot class this wave was opened to close, re-entering by
+    the schema prefix instead of by the clock.
+
+    THE PROOF IT IS THE QUALIFIED FORM THAT IS RIGHT is a sibling on the SAME ``ctx.query_fn`` in the
+    SAME gate run: ``numbers/cascade_census.py:232`` builds ``FROM {Q.ATHENA_DB}.{table}``, as does
+    every FROM in ``numbers/query.build_sql`` (:1098-1219, ``db: str = ATHENA_DB``). This stage was
+    the only pg reader in the estate spelling the relation bare.
+
+    ``Q.ATHENA_DB`` rather than a local literal so there is exactly ONE name for the mirror schema;
+    imported inside the function because the gate must stay AWS-free and light at import time."""
+    from leviathan.graphrag.numbers import query as Q
+    return f"{Q.ATHENA_DB}.{ts.athena_table or ts.id}"
+
+
+def _tip_ym_sql(ts) -> str:
+    return (f"SELECT MAX(({ts.year_col} * 100) + {ts.month_col}) AS tip_ym "
+            f"FROM {_mirror_relation(ts)}")
+
+
+def _tip_date_sql(ts) -> str:
+    return f"SELECT MAX({ts.date_col}) AS tip_date FROM {_mirror_relation(ts)}"
+
+
+def _months_between_ym(claimed_ym: int, actual_ym: int) -> int:
+    """``claimed - actual`` in MONTHS, so 202601 against 202512 is 1, not 89."""
+    cy, cm = divmod(int(claimed_ym), 100)
+    ay, am = divmod(int(actual_ym), 100)
+    return (cy - ay) * 12 + (cm - am)
+
+
+def _freshness_clock() -> str:
+    """The date this stage asks "is the data current?" AS OF. The WALL CLOCK, and never ``census_asof``.
+
+    THE TRAP THIS FUNCTION EXISTS TO KEEP CLOSED (a MEASURED incident, not a hypothetical).
+    ``ctx.census_asof`` is the cascade-census DIFF BASELINE -- a deliberately PINNED historical date --
+    and its argparse default is the frozen ``"2026-02-15"`` (``--asof``, ``_main``). The scheduled DAG
+    passes the real scheduled time and the submit wrapper defaults to today, so the frozen default bites
+    exactly the HAND-RUN path -- which is the path a weather backfill is verified on. The same default
+    is already on the record as an incident in its own right:
+    ``jobs/submit/submit_batch_silver_rebuild_gate.py:49-56`` -- "ASOF TRAP (measured 2026-08-21): the
+    old frozen default '2026-02-15' made every manual gate run PIT-read the store seven months back ...
+    A census asof must default to NOW unless the caller pins one."
+
+    DRIVEN ON THE REAL CARD, 2026-09-11. With ``census_asof`` as the clock and the real 202607 tip, this
+    stage reported ``202607 vs 202601 knowable at asof 2026-02-15 ... -6 month(s) behind``, recorded
+    ``months_behind: -6`` and published ``DataFreshnessMonthsBehind = -6.0``. Two harms, both fatal to
+    the point of the stage: the negative datum POISONS the very week of measurements the alarm threshold
+    is to be set from, and flipping ``_DATA_FRESHNESS_BLOCKING`` then returned GREEN on the 42-day-stale
+    table (the judgement is ``behind > 0``) -- the stated one-constant promotion path certifying a frozen
+    table as fresh, which is the exact class this stage was built to remove, entering by another door.
+
+    A FUNCTION rather than an inline ``datetime.now`` so the deck can pin a date without pinning a day:
+    a test that had to run on the real calendar would go red on 2026-09-12."""
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def stage_data_freshness(table: str, ctx: GateContext) -> StageResult:
+    """DARK data-freshness read: does this table's newest DATA period match what its own card promises?
+
+    See the block comment at ``_DATA_FRESHNESS_BLOCKING`` for why the gate had no such stage and why
+    the denominator is the card's own ``ym_publication_lag_days`` rather than a new threshold.
+
+    ONE BOUNDED AGGREGATE against the PG MIRROR, and only for a table that is IN the mirror. No Athena
+    (silver_nasa_power and silver_chirps are the projection/INV-3 class and must never be scanned here),
+    and no S3 footer walk -- a footer read of silver_chirps' canonical objects is ~1.4K GETs per gate
+    run, which is not a cost a dark stage may impose. A Branch-B feeder therefore reports SKIPPED with
+    that reason named; measuring the feeders from footers is the stated follow-up, deliberately
+    unbuilt rather than half-built.
+
+    NEVER RAISES, and in dark mode NEVER returns GREEN or RED -- an exception is reported as a SKIPPED
+    that says what failed, because a telemetry stage that can red a gate is worse than no stage."""
+    unmeasured = None
+    try:
+        if ctx.query_fn is None:
+            unmeasured = "no pg query_fn (offline/dry) -- data freshness not measured"
+        elif table not in PG_MIRROR_TABLES:
+            unmeasured = (f"{table} is not in the pg mirror -- a data-date read would need an S3 footer "
+                          f"walk (Athena is barred for the projection class); not measured")
+        else:
+            ts = ctx.numbers_reg.get(table)
+            if ts is None:
+                unmeasured = f"{table} has no numbers-registry card -- no declared period axis to read"
+            elif getattr(ts, "knowledge_semantics", None) == "year_month":
+                unmeasured = _measure_year_month(table, ts, ctx)
+            elif getattr(ts, "date_col", None):
+                unmeasured = _measure_data_date(table, ts, ctx)
+            else:
+                unmeasured = f"{table} declares neither year_month nor a date column -- nothing to read"
+    except Exception as e:  # noqa: BLE001 -- a freshness read may never decide a gate
+        unmeasured = f"not measured ({type(e).__name__}: {str(e)[:200]})"
+
+    measurement = _FRESHNESS_MEASUREMENTS.get(table)
+    if measurement is None:
+        return StageResult("data_freshness", SKIPPED, unmeasured or "not measured")
+    detail = measurement["detail"]
+    if not _DATA_FRESHNESS_BLOCKING:
+        # DARK: the numbers ride in `detail` (and so into the artifact bundle) and into CloudWatch,
+        # and the verdict is untouched. SKIPPED, not GREEN, so this stage can never be the one GREEN
+        # that `TableResult.ok` requires -- with the constant False the gate's verdict for every input
+        # is bit-identical to the pre-stage gate.
+        return StageResult("data_freshness", SKIPPED, f"DARK (reporting only): {detail}")
+    behind = measurement.get("months_behind")
+    if behind is None:
+        # MEASURED BUT NOT JUDGEABLE -- a date-grain card with no declared source publication lag.
+        # Greening it would let the promotion flip turn "I have no denominator" into "this table is
+        # fresh" for every date-grain table at once, which is the invented threshold this whole stage
+        # exists to avoid. It stays SKIPPED until a lag is declared.
+        return StageResult("data_freshness", SKIPPED, f"{detail} -- measured, NOT judgeable")
+    if behind < 0:
+        # THE BYTES ARE AHEAD OF THE PROMISE, and that is NOT evidence of freshness. Two things can
+        # produce it and this stage can distinguish neither: a producer that legitimately holds a month
+        # the as-of guard will not yet serve, or a MEASUREMENT CLOCK reading earlier than the data --
+        # which is precisely how the frozen `census_asof` default turned a 42-day-stale table into a
+        # GREEN (see `_freshness_clock`). A staleness stage may never certify on a number it cannot
+        # interpret, and SKIPPED costs nothing: both branches already carry a GREEN of their own
+        # (pg_reload on A, feature_probe on B), so nothing is promoted or blocked by this line.
+        return StageResult("data_freshness", SKIPPED,
+                           f"{detail} -- measured, NOT judgeable (the bytes hold a month the card does "
+                           f"not yet admit; a staleness stage cannot read that as fresh)")
+    if behind > 0:
+        return StageResult("data_freshness", RED, detail, errors=[f"{table}: {detail}"])
+    return StageResult("data_freshness", GREEN, detail)
+
+
+def _measure_year_month(table: str, ts, ctx: GateContext) -> Optional[str]:
+    """Measure a ``year_month`` card against its OWN publication promise. Records the measurement and
+    returns None, or returns the reason it could not be measured."""
+    # THE SERVING ARITHMETIC, REUSED -- restating it here would create a second calendar opinion that
+    # could drift from the one the as-of guard actually applies.
+    from leviathan.graphrag.numbers.query import _ym_lagged_asof_ym
+    lag = getattr(ts, "ym_publication_lag_days", None)
+    if not lag:
+        return (f"{table} declares no ym_publication_lag_days -- the card makes no promise about which "
+                f"month is knowable, so there is nothing to measure it against")
+    if not (ts.year_col and ts.month_col):
+        return f"{table} is year_month but declares no year_col/month_col"
+    rows = ctx.query_fn(_tip_ym_sql(ts))
+    raw = (rows or [{}])[0].get("tip_ym")
+    if raw in (None, ""):
+        return f"{table} mirror returned no tip month (empty table?)"
+    actual = int(float(raw))
+    asof = _freshness_clock()          # the WALL CLOCK, never ctx.census_asof -- see _freshness_clock
+    claimed = _ym_lagged_asof_ym(asof, lag)
+    behind = _months_between_ym(claimed, actual)
+    _FRESHNESS_MEASUREMENTS[table] = {
+        "grain": "year_month", "claimed_ym": claimed, "actual_ym": actual, "months_behind": behind,
+        "asof": asof, "ym_publication_lag_days": int(lag),
+        # "wall clock" is spelled out because the artifact bundle ALSO carries `as_of_census` (the diff
+        # baseline), and confusing the two is the defect this line is the repaired form of.
+        "detail": (f"newest data month {actual} vs {claimed} knowable at {asof} (wall clock; "
+                   f"ym_publication_lag_days={int(lag)}): {behind} month(s) behind"),
+    }
+    return None
+
+
+def _measure_data_date(table: str, ts, ctx: GateContext) -> Optional[str]:
+    """Measure a date-grain card's newest data date. Reports its AGE as a fact -- there is no declared
+    source publication lag anywhere in the estate to call it 'behind' against (see the block comment)."""
+    rows = ctx.query_fn(_tip_date_sql(ts))
+    raw = (rows or [{}])[0].get("tip_date")
+    if raw in (None, ""):
+        return f"{table} mirror returned no tip date (empty table?)"
+    tip = str(raw)[:10]
+    asof = _freshness_clock()          # the WALL CLOCK, never ctx.census_asof -- see _freshness_clock
+    try:
+        age = (datetime.strptime(asof, "%Y-%m-%d") - datetime.strptime(tip, "%Y-%m-%d")).days
+    except ValueError:
+        return f"{table} tip date {tip!r} is not an ISO date -- not measured"
+    _FRESHNESS_MEASUREMENTS[table] = {
+        "grain": "data_date", "tip_date": tip, "data_age_days": age, "asof": asof,
+        "months_behind": None,   # NO declared denominator: freshness_sla.max_lag_days is null and
+        #                          source_contracts.yaml declares no publication lag for these sources
+        "detail": (f"newest data date {tip}, {age} day(s) before {asof} (wall clock); no declared "
+                   f"source publication lag to judge it against (freshness_sla.max_lag_days is null)"),
+    }
+    return None
+
+
 # --- the two branch pipelines ----------------------------------------------------------------------------
 # BRANCH-A STAGE ORDER, and why the V001 census sits THIRD.
 #
@@ -819,9 +1072,18 @@ def stage_value_census(table: str, ctx: GateContext) -> StageResult:
 #
 # MEASURED for silver_futures_eod, 2026-08-01: settle non-null 445,888 / 455,882 = 0.9781 against the
 # contract's min_nonnull_frac 0.5 (configs/silver/tables/silver_futures_eod.yaml).
+#
+# WHERE THE DATA-FRESHNESS STAGE SITS, AND WHY LAST. It is the newest stage, it is DARK, and the
+# widening-scope convention above places a stage by what it speaks about -- this one speaks about THIS
+# table, so by that rule it belongs beside value_census. It is appended at the END instead for one
+# reason: a dark stage must not change the ORDER in which an existing red is reached, and on Branch A
+# it depends on pg_reload having already reloaded the mirror it reads. When the owner promotes it to
+# blocking, moving it up beside value_census is the right second step and costs nothing.
 _BRANCH_A_STAGES = (stage_pg_reload, stage_parity, stage_value_census, stage_contract_check,
-                    stage_cascade_census_diff, stage_config_check, stage_eval_subset)
-_BRANCH_B_STAGES = (stage_feature_probe, stage_value_census, stage_config_check)
+                    stage_cascade_census_diff, stage_config_check, stage_eval_subset,
+                    stage_data_freshness)
+_BRANCH_B_STAGES = (stage_feature_probe, stage_value_census, stage_config_check,
+                    stage_data_freshness)
 
 
 def run_table(table: str, ctx: GateContext, *, branch_a_stages=_BRANCH_A_STAGES,
@@ -851,6 +1113,9 @@ def _submit_command(tables: list[str]) -> str:
 def run_gate(tables: list[str], ctx: GateContext, *, branch_a_stages=_BRANCH_A_STAGES,
              branch_b_stages=_BRANCH_B_STAGES) -> dict:
     """Dispatch every table, fail closed on any red, and build the one artifact bundle for the run."""
+    # Module state, per RUN: a second run_gate() in the same process must not inherit the first one's
+    # measurements (the `_VERDICT_RECORD.clear()` precedent in main()).
+    _FRESHNESS_MEASUREMENTS.clear()
     results = [run_table(t, ctx, branch_a_stages=branch_a_stages, branch_b_stages=branch_b_stages)
                for t in tables]
     banner = {
@@ -873,6 +1138,10 @@ def run_gate(tables: list[str], ctx: GateContext, *, branch_a_stages=_BRANCH_A_S
         "tables": tables,
         "results": [r.to_dict() for r in results],
         "banner": banner,
+        # The DARK data-freshness numbers, per table, as measured this run (empty when nothing could
+        # be measured). Additive: no existing bundle reader keys off this, and the stage's own
+        # StageResult.detail carries the same figures in words for a human reading the stages.
+        "data_freshness": {t: dict(m) for t, m in _FRESHNESS_MEASUREMENTS.items()},
         # FENCE (I-1): every artifact bundle now records WHICH CONTAINER produced it. The 2026-07-24
         # bundles could not answer that question, so nobody could tell a config fault from an image
         # fault by reading them.
@@ -1223,6 +1492,9 @@ def _main(argv=None) -> int:
         "census_hard_fail": sum(
             1 for r in bundle["results"] for s in r["stages"]
             if s["name"] == "value_census" and s["status"] == RED),
+        # DARK telemetry only -- read straight off the bundle so the metric and the artifact can never
+        # disagree, and absent from the verdict arithmetic entirely.
+        "data_freshness": bundle.get("data_freshness") or {},
     })
     # D-PR-8: the ONLY path that may return EXIT_REFUSAL. Everything above this line is a fault in the
     # gate's own inputs or image and carries its own code, so exit 1 now means exactly one thing:

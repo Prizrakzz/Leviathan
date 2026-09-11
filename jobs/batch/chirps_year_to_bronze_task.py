@@ -8,6 +8,16 @@ rasterio pass.  This is 31x more efficient than chirps_to_bronze_task.py
 The output schema and S3 partition structure are identical to the per-commodity
 task, so all downstream silver tasks are unaffected.
 
+THE COMPLETENESS-AWARE WRITE SKIP (2026-09-11).  This task's all-null write gate has been correct
+since BF-W1, but its write skip was EXISTENCE-ONLY -- the same defect that froze the daily task's
+August 2026 at 31 rows / 0 observations for twenty days.  A re-run over a month whose source has since
+published more days declined to refresh it, so the only repair available was ``--force_overwrite``,
+which steps past the shrink protection as well.  The skip now measures OBSERVED DAYS on both sides
+(``_rewrite_admitted``), which is monotone and therefore its own anti-shrink floor.  The helper trio is
+the byte-equivalent of ``chirps_to_bronze_task``'s -- see that module's note on why it is duplicated
+rather than imported, and ``tests/unit/test_chirps_bronze_completeness_skip.py``, which runs the SAME
+case table through both modules so a drift is a red deck.
+
 Required args: --year, --bucket, --aws_region
 Optional args: --force_overwrite (default: false), --ingest_date (default: today)
 """
@@ -44,6 +54,67 @@ logger = get_logger("chirps_year_to_bronze_task")
 # carry CHIRPS precipitation -- the first ingest minted 15,142 all-NaN month partitions for
 # 27 such regions (BF-W1 census). Their precipitation lives in nasa_power (global coverage).
 CHIRPS_LAT_LIMIT = 50.0
+
+
+# ---------------------------------------------------------------------------
+# The observation-count yardstick (2026-09-11) -- see the module docstring.
+# ---------------------------------------------------------------------------
+
+def _nonnull_day_count(rows: list[dict]) -> int:
+    """How many of these bronze rows carry an actual precipitation OBSERVATION.
+
+    Row count is the calendar length of the month whether the source published 31 days or none
+    (``fetch_chirps_daily_values`` returns ``{region: None}`` on a 404), so the honest count is the
+    non-null one; a float NaN counts as absent."""
+    n = 0
+    for r in rows:
+        v = r.get("precipitation_mm")
+        if v is None:
+            continue
+        if isinstance(v, float) and v != v:      # NaN -- present in the column, absent as data
+            continue
+        n += 1
+    return n
+
+
+def _rewrite_admitted(new_nonnull: int, stored_nonnull: int | None) -> bool:
+    """May this run REPLACE an existing bronze month with what it just fetched?
+
+    STRICTLY MONOTONE: admitted only when this run holds MORE observed days than the stored partition.
+    EQUAL is the ordinary rerun and stays a no-op; FEWER is the shrink an anti-shrink floor exists to
+    refuse; UNKNOWN (``None``) is not grounds to act, because a rewrite REPLACES and a run that cannot
+    see what it is replacing cannot prove it would not shrink.  ``--force_overwrite true`` is the
+    operator naming the overwrite."""
+    if stored_nonnull is None:
+        return False
+    return new_nonnull > stored_nonnull
+
+
+def _stored_nonnull_days(s3_client, bucket: str, bronze_key: str) -> int | None:
+    """Observed (non-null) days in the bronze month already at ``bronze_key``; None when unknowable.
+
+    Companion ``_meta.json``'s ``nonnull_count`` first (one small GET); the partition itself as the
+    fallback for every object minted before that field existed.  Any failure to READ is an UNKNOWN,
+    never a decline in itself -- ``_rewrite_admitted`` owns what an unknown means."""
+    meta_key = bronze_key.replace("part-000.parquet", "_meta.json")
+    try:
+        meta = json.loads(s3_client.get_object(Bucket=bucket, Key=meta_key)["Body"].read())
+        value = meta.get("nonnull_count")
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+    except Exception as exc:  # noqa: BLE001 -- no/unreadable meta is ordinary for a pre-2026-09-11 object
+        logger.debug("No readable nonnull_count in %s (%s) -- reading the partition", meta_key, exc)
+    try:
+        body = s3_client.get_object(Bucket=bucket, Key=bronze_key)["Body"].read()
+        col = pd.read_parquet(io.BytesIO(body), columns=["precipitation_mm"])["precipitation_mm"]
+        return int(col.notna().sum())
+    except Exception as exc:  # noqa: BLE001 -- an unreadable partition is an UNKNOWN, never a decline
+        logger.warning(
+            "Could not read the stored observation count of %s (%s: %s) -- treating it as UNKNOWN, "
+            "which declines the rewrite; --force_overwrite true names the overwrite",
+            bronze_key, type(exc).__name__, str(exc)[:200],
+        )
+        return None
 
 
 def _build_location_index(
@@ -165,27 +236,43 @@ def _process_month(
             bkey = bronze_weather_key(
                 "chirps", commodity, country, region, year, month, "part-000.parquet"
             )
-            if not force_overwrite:
-                try:
-                    s3_client.head_object(Bucket=bucket, Key=bkey)
-                    logger.info("Skipping existing: %s", bkey)
-                    continue
-                except s3_client.exceptions.ClientError as exc:
-                    if exc.response["Error"]["Code"] != "404":
-                        raise
-
-            null_count = sum(1 for r in rows if r["precipitation_mm"] is None)
-            if null_count == len(rows):
+            new_nonnull = _nonnull_day_count(rows)
+            if new_nonnull == 0:
                 # WRITE-GATE (BF-W1): an all-null region-month is structural absence (out of
                 # coverage, or the source file is not published yet). Minting a NaN partition
                 # fabricates presence -- the exact defect the 2026-05-16 vintage carpeted the
                 # lake with. Skip; the honest representation of no data is NO partition.
+                # HOISTED ABOVE THE WRITE SKIP (2026-09-11) so the decision that needs no S3 call at
+                # all is taken first; the verdict is unchanged either way.
                 logger.warning(
                     "SKIP all-null precipitation (no partition written): commodity=%s "
                     "country=%s region=%s %d-%02d",
                     commodity, country, region, year, month,
                 )
                 continue
+
+            if not force_overwrite:
+                try:
+                    s3_client.head_object(Bucket=bucket, Key=bkey)
+                except s3_client.exceptions.ClientError as exc:
+                    if exc.response["Error"]["Code"] != "404":
+                        raise
+                    # absent -> write it
+                else:
+                    # EXISTENCE-ONLY -> COMPLETENESS-AWARE (2026-09-11), see _rewrite_admitted.
+                    stored = _stored_nonnull_days(s3_client, bucket, bkey)
+                    if not _rewrite_admitted(new_nonnull, stored):
+                        logger.info(
+                            "Skipping fresh: %s (this run observed %d of %d days; stored holds %s -- "
+                            "a rewrite may only ADD observed days)",
+                            bkey, new_nonnull, len(rows),
+                            "an unreadable count" if stored is None else f"{stored}",
+                        )
+                        continue
+                    logger.info(
+                        "Refreshing INCOMPLETE bronze: %s (observed days %d -> %d of %d)",
+                        bkey, stored, new_nonnull, len(rows),
+                    )
 
             df = pd.DataFrame(rows)
             buf = io.BytesIO()
@@ -206,6 +293,9 @@ def _process_month(
                     "country":             country,
                     "region":              region,
                     "row_count":           len(df),
+                    # The yardstick the NEXT run measures against (see _stored_nonnull_days):
+                    # row_count is the calendar length of the month either way.
+                    "nonnull_count":       new_nonnull,
                     "source_url_template": source_url_template,
                     "access_timestamp":    access_timestamp,
                 }, indent=2).encode("utf-8"),

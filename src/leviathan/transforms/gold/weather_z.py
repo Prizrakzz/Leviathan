@@ -538,3 +538,58 @@ def compute_weather_z(
     if not basin_extra.empty:
         gold = pd.concat([gold, basin_extra], ignore_index=True)
     return gold
+
+
+# ── freshness tripwire (2026-09-11) ─────────────────────────────────────────────────────────────────
+# A MEASUREMENT, NOT A GATE. Nothing in this block is called from compute_weather_z or from any
+# function it calls; it consumes a FINISHED gold frame and returns numbers. The z arithmetic above is
+# untouched by construction, which is the whole of the lane's "tripwire only, never a behaviour
+# change" mandate discharged structurally rather than by promise.
+#
+# WHY PER-METRIC AND NOT PER-TABLE. gold_weather_z is ONE parquet per commodity carrying five metrics
+# fed by TWO independent sources: nasa_power (tmax_anomaly / gdd_z / heat_stress_z / frost_event_flag)
+# and chirps (drought_z). MEASURED 2026-09-11: both halves were frozen at 202607, but the nasa half
+# can be moved forward today and the chirps half cannot -- the source has published nothing after
+# 2026-07-31. The moment the nasa half advances, four metrics tip at 202608 and drought_z at 202607
+# inside one object under one table-level lag declaration; a table-grain counter would read the max,
+# report "0 behind", and hide the drought hole exactly when it opens.
+
+def metric_tip_ym(gold: "pd.DataFrame | None") -> dict:
+    """The newest DATA MONTH present per metric, as ``year * 100 + month``.
+
+    ``{metric: tip_ym}`` over whatever the frame actually holds -- an empty frame, a None, or a frame
+    missing any of ``metric`` / ``year`` / ``month`` returns ``{}`` rather than raising, because this is
+    telemetry and telemetry may not be the thing that fails a producer run. Rows whose year or month
+    will not coerce to an integer are dropped from the measurement (they cannot be a tip of anything).
+
+    MEASURED on the live object 2026-09-11 (gold/weather_z/corn_cbot.parquet, 45,002 rows): every one
+    of the five metrics returned 202607, while the served card's own ``_ym_lagged_asof_ym(today, 7)``
+    admitted 202608 -- the newest month the card PROMISES did not exist in the bytes, silently."""
+    if gold is None or len(gold) == 0:
+        return {}
+    for col in ("metric", "year", "month"):
+        if col not in gold.columns:
+            return {}
+    df = gold[["metric", "year", "month"]].copy()
+    df["year"] = pd.to_numeric(df["year"], errors="coerce")
+    df["month"] = pd.to_numeric(df["month"], errors="coerce")
+    df = df.dropna(subset=["year", "month"])
+    if df.empty:
+        return {}
+    df["ym"] = df["year"].astype(int) * 100 + df["month"].astype(int)
+    return {str(m): int(v) for m, v in df.groupby("metric")["ym"].max().items()}
+
+
+def months_behind(claimed_ym: "int | None", actual_ym: "int | None") -> "int | None":
+    """How many MONTHS the bytes lag the newest month their own card says is knowable.
+
+    ``claimed_ym`` comes from the card's shipped arithmetic (``numbers.query._ym_lagged_asof_ym`` over
+    ``ym_publication_lag_days``) -- this function invents no threshold and holds no calendar opinion of
+    its own; it only differences two ``YYYYMM`` integers in month units, so 202609 against 202512 is 9,
+    not 97. Either side ``None`` (nothing measured, or the card declares no lag) returns None: an
+    unmeasured thing must read as absent, never as zero."""
+    if claimed_ym is None or actual_ym is None:
+        return None
+    cy, cm = divmod(int(claimed_ym), 100)
+    ay, am = divmod(int(actual_ym), 100)
+    return (cy - ay) * 12 + (cm - am)

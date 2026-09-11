@@ -3,6 +3,30 @@
 Runs as a Fargate container task.  No Glue bootstrap — leviathan is
 installed in the image via ``pip install -e ".[batch]"``.
 
+THE AUGUST-2026 FREEZE, AND THE THREE GATES THAT CLOSE IT (2026-09-11)
+---------------------------------------------------------------------
+MEASURED: ``bronze/weather/source=chirps/commodity=corn_cbot/.../year=2026/month=08/part-000.parquet``
+held 31 rows and ZERO precipitation observations, LastModified 2026-08-22T09:04:3xZ, unchanged through
+twenty consecutive green daily runs.  Silver's F044 null-drop turned that into NO August partition at
+all, and ``gold_weather_z`` -- a SERVED numbers card -- tipped at data month 2026-07 while its own card
+promised 2026-08.  Three independent mechanisms produced it, and all three are closed here:
+
+1. THE ALL-NULL WRITE GATE.  ``fetch_chirps_daily_values`` returns ``{region: None}`` on a 404
+   (chirps.py:59-63) -- a TRUTHY dict -- so a month the source has not published yet was written as a
+   full-length, all-null SKELETON.  The sibling backfill task has refused that since BF-W1
+   (``chirps_year_to_bronze_task.py:177-188``); the daily task only WARNED and wrote it anyway.  Now
+   it refuses too: the honest representation of no data is NO partition.
+2. THE EXISTENCE-ONLY WRITE SKIP.  ``head_object`` -> "Skipping existing" -> ``continue`` preserved
+   that skeleton forever.  CHIRPS has NO RAW TIER, so the cpc lane's mtime rule has nothing to measure
+   against; the yardstick here is the OBSERVATION COUNT (``_rewrite_admitted``), which is strictly
+   monotone and therefore carries its own anti-shrink floor.
+3. THE M-2 IMMUTABILITY ASSUMPTION.  ``_months_to_process`` refetched an older month only when a
+   sentinel object was ABSENT.  The skeleton was present, so from 2026-10-01 (August becomes M-2)
+   August would never have been re-downloaded again -- not even after CHIRPS published it.  MEASURED:
+   CHIRPS v2.0 finals publish in MONTH BLOCKS (all of July present by 2026-08-22; none of August
+   present at 2026-09-11, 11 days past month-end), so a month lands AFTER it becomes M-2.  The
+   sentinel test is now a COMPLETENESS test, and a month leaves the window the instant it completes.
+
 Required args: --commodity, --year, --bucket, --aws_region
 Optional args: --ingest_date (default: today), --force_overwrite (default: false)
 """
@@ -26,6 +50,165 @@ from leviathan.storage.paths import bronze_weather_key
 from leviathan.storage.s3 import get_thread_local_s3_client, list_s3_keys
 
 logger = get_logger("chirps_to_bronze_task")
+
+# CHIRPS is a quasi-global product: coverage hard-stops at 50S-50N
+# (configs/sources/chirps.yaml, coverage.lat_max).  DUPLICATED from
+# ``chirps_year_to_bronze_task.CHIRPS_LAT_LIMIT`` rather than imported: the two Batch entrypoints are
+# invoked BY PATH (``python jobs/batch/<task>.py``), which puts jobs/batch/ -- not the repo root -- on
+# sys.path[0], and the unit deck loads each file standalone via ``spec_from_file_location``, so a
+# cross-task import would resolve at runtime and not in the deck.  The duplication is PINNED instead:
+# ``tests/unit/test_chirps_month_window_completeness.py`` asserts the two constants are equal, so a
+# drift in either file is a red deck rather than a silent divergence.
+CHIRPS_LAT_LIMIT = 50.0
+
+# How long after a month ENDS this task keeps asking whether the source has published (more of) it.
+# MEASURED, not defensive: the July 2026 block was complete by 2026-08-22 (<= 22 days past month-end)
+# and the August block is still absent at 2026-09-11 (>= 11 days and counting), so the observed
+# publication lag for a whole-month CHIRPS block sits in the low tens of days.  120 is ~5x the longest
+# lag actually observed, which is generous enough that no real publication is missed and short enough
+# that a month the source will NEVER complete (a permanently-missing day) stops costing a daily
+# re-download within one quarter.  Past the window the sentinel is trusted on EXISTENCE exactly as
+# before, so the pre-fix cost profile is restored for every settled month.
+#
+# READ 120 AS A COST CEILING, NOT ONLY AS A PATIENCE WINDOW (named in review).  For a month the source
+# will never complete -- one permanently-missing CHIRPS day in the sentinel region -- this is the worst
+# case in full: the month re-enters the window on EVERY daily run from M-2 until month_end + 120, each
+# pass downloading the whole month for every region of that commodity, and ``_rewrite_admitted`` then
+# DECLINES the write because the count is equal.  Real raster reads, no write, bounded at ~4 months.
+# The far more common shape is cheap: an entirely unpublished month leaves NO sentinel at all (the
+# all-null write gate refuses to mint one), so its re-entry costs only 404s.  Lowering this constant
+# trades publication coverage for that ceiling; raising it does the reverse.
+_COMPLETENESS_LOOKBACK_DAYS = 120
+
+
+def _nonnull_day_count(rows: list[dict]) -> int:
+    """How many of these bronze rows carry an actual precipitation OBSERVATION.
+
+    ROW COUNT IS NOT A MEASUREMENT HERE.  ``fetch_chirps_daily_values`` returns ``{region: None}`` for a
+    day the source has not published (chirps.py:59-63) -- a TRUTHY dict -- so ``_process_month`` builds a
+    row for that day anyway with ``precipitation_mm=None``.  The row count is therefore ALWAYS the
+    calendar length of the month and says nothing at all about how much data arrived; the honest count
+    is the non-null one.  A float NaN counts as ABSENT for the same reason parquet excludes NaN from
+    min/max and ``value_census.FileColumnStat.effective_nonnull`` books it as missing."""
+    n = 0
+    for r in rows:
+        v = r.get("precipitation_mm")
+        if v is None:
+            continue
+        if isinstance(v, float) and v != v:      # NaN -- present in the column, absent as data
+            continue
+        n += 1
+    return n
+
+
+def _rewrite_admitted(new_nonnull: int, stored_nonnull: int | None) -> bool:
+    """May this run REPLACE an existing bronze month with what it just fetched?
+
+    THE YARDSTICK IS OBSERVATION COUNT, NOT OBJECT MTIME.  The cpc lane closed the same defect class one
+    seam over with ``_bronze_is_stale(bronze_mtime, raw_max_mtime)``, but that rule needs a RAW object
+    whose mtime can prove the bronze stale, and CHIRPS HAS NO RAW TIER (configs/sources/chirps.yaml:
+    "HTTP range-read via rasterio/vsicurl -- no raw S3 tier").  What both sides of this comparison CAN
+    state is how many days of the month actually carry an observation.
+
+    STRICTLY MONOTONE, so the anti-shrink floor the cpc lane had to ship as a SEPARATE rule
+    (``_rewrite_would_shrink``) is built into this one: a rewrite is admitted only when this run holds
+    MORE observed days than the stored partition already does.  EQUAL is not an improvement -- that is
+    the ordinary same-day rerun, and it stays a no-op (AV-12).  FEWER is exactly the shrink a floor
+    exists to refuse: a run that reached 5 of 31 days because UCSB was throttling must never replace a
+    31-day partition and call it a refresh.
+
+    ``stored_nonnull is None`` -- the stored partition's count could not be read at all -- is NOT
+    grounds to act, the same reading ``_bronze_is_stale`` and ``_rewrite_would_shrink`` take of an
+    unknown.  A rewrite REPLACES, and a run that cannot see what it is replacing cannot prove it would
+    not shrink.  ``--force_overwrite true`` is the operator naming the overwrite and steps past all of
+    this on purpose."""
+    if stored_nonnull is None:
+        return False
+    return new_nonnull > stored_nonnull
+
+
+def _stored_nonnull_days(s3_client, bucket: str, bronze_key: str) -> int | None:
+    """Observed (non-null) days in the bronze month already at ``bronze_key``; None when unknowable.
+
+    TWO READS, CHEAPEST FIRST.  The companion ``_meta.json`` carries ``nonnull_count`` for every
+    partition this module has written since 2026-09-11 -- one small GET.  Every partition minted BEFORE
+    that has no such field, and the 2026-08-22 all-null August skeletons are precisely those, so the
+    fallback reads the partition itself: 7.4 KB MEASURED for a 31-row region-month, one column.
+
+    ANY FAILURE TO READ IS AN UNKNOWN (None), never a decline in itself -- ``_rewrite_admitted`` owns
+    what an unknown means, and this function only reports what it could and could not see."""
+    meta_key = bronze_key.replace("part-000.parquet", "_meta.json")
+    try:
+        meta = json.loads(s3_client.get_object(Bucket=bucket, Key=meta_key)["Body"].read())
+        value = meta.get("nonnull_count")
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+    except Exception as exc:  # noqa: BLE001 -- no/unreadable meta is ordinary for a pre-2026-09-11 object
+        logger.debug("No readable nonnull_count in %s (%s) -- reading the partition", meta_key, exc)
+    try:
+        body = s3_client.get_object(Bucket=bucket, Key=bronze_key)["Body"].read()
+        col = pd.read_parquet(io.BytesIO(body), columns=["precipitation_mm"])["precipitation_mm"]
+        return int(col.notna().sum())
+    except Exception as exc:  # noqa: BLE001 -- an unreadable partition is an UNKNOWN, never a decline
+        logger.warning(
+            "Could not read the stored observation count of %s (%s: %s) -- treating it as UNKNOWN, "
+            "which declines the rewrite; --force_overwrite true names the overwrite",
+            bronze_key, type(exc).__name__, str(exc)[:200],
+        )
+        return None
+
+
+def _month_end(year: int, month: int) -> date:
+    return date(year, month, calendar.monthrange(year, month)[1])
+
+
+def _within_completeness_window(year: int, month: int, today: date,
+                                lookback_days: int = _COMPLETENESS_LOOKBACK_DAYS) -> bool:
+    """Is this elapsed month still young enough that the source may yet publish (more of) it?
+
+    See ``_COMPLETENESS_LOOKBACK_DAYS``.  Outside the window the sentinel is trusted on EXISTENCE, which
+    is the pre-fix behaviour byte for byte -- so a 1981 backfill month is never re-probed."""
+    return (today - _month_end(year, month)).days <= lookback_days
+
+
+def _abs_latitude(loc) -> float | None:
+    """``|latitude|`` of a region, or None when the config does not state one this run can read."""
+    try:
+        return abs(float(loc["latitude"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _sentinel_location(locations: list[Region]):
+    """The region whose bronze month object stands for "this month was processed, and how much arrived".
+
+    TWO CHANGES FROM ``locations[0]``, both forced by the all-null write gate.  (a) The sentinel must be
+    a region CHIRPS can actually cover: an out-of-band region (|lat| > 50) is now never written at all,
+    so a commodity whose first region sits in Saskatchewan or Poland would have no sentinel for ANY
+    month and every elapsed month would re-enter the window forever.  (b) Among in-band regions the one
+    nearest the equator is chosen -- deterministic, and the least likely to sit at a coverage edge.
+
+    AN UNSTATED LATITUDE IS NOT AN EXCLUSION.  A region whose config carries no readable ``latitude``
+    cannot be PROVEN out of band, and here the consequence of excluding it is severe and asymmetric:
+    excluding every region would leave the commodity with no sentinel at all and put every elapsed
+    month back in the download window permanently.  So an unknown ranks BEHIND every region with a
+    known in-band latitude and is used only when nothing else qualifies -- which reduces to
+    ``locations[0]``, the pre-2026-09-11 sentinel, byte for byte.
+
+    None means every region has a KNOWN latitude and all of them are outside the coverage band:
+    structural absence, not a gap, and the caller declines the whole commodity rather than
+    downloading rasters it cannot use."""
+    in_band: list[tuple[float, Region]] = []
+    unknown: list[Region] = []
+    for loc in locations:
+        lat = _abs_latitude(loc)
+        if lat is None:
+            unknown.append(loc)
+        elif lat <= CHIRPS_LAT_LIMIT:
+            in_band.append((lat, loc))
+    if in_band:
+        return min(in_band, key=lambda pair: pair[0])[1]
+    return unknown[0] if unknown else None
 
 
 def _discover_commodities(bucket: str, aws_region: str) -> list[str]:
@@ -51,7 +234,18 @@ def _months_to_process(
       daily runs kept succeeding. The previous month is therefore always in the window: by M-2 the
       source is final and the sentinel may again be trusted. NOTE the January edge: a daily
       January run passes year=current only, so December year-1 is refetched via main()'s
-      previous-year top-up, not through this function."""
+      previous-year top-up, not through this function.
+
+      THE M-2 IMMUTABILITY ASSUMPTION, CLOSED (2026-09-11). "By M-2 the source is final" is FALSE for
+      CHIRPS and was measured false: v2.0 finals publish in MONTH BLOCKS, and the August 2026 block was
+      still entirely absent on 2026-09-11 -- eleven days past month-end, with the whole month due to
+      land at once, i.e. AFTER August becomes M-2 on 2026-10-01. The 2026-08-22 all-null skeleton would
+      have outlived the publication that was supposed to replace it, silently and forever. So for an
+      older CURRENT-YEAR month the sentinel is no longer asked "do you EXIST" but "are you COMPLETE":
+      absent -> download; present but holding fewer observed days than the calendar month has ->
+      download; complete -> leave it, permanently. A month drops out of the window the instant it
+      completes, so the extra cost is self-retiring, and past ``_COMPLETENESS_LOOKBACK_DAYS`` the
+      existence test returns unchanged."""
     if year > today.year:
         return []
     if year == today.year - 1 and today.month == 1 and not force_overwrite:
@@ -64,8 +258,16 @@ def _months_to_process(
         return list(range(1, 13))
     if not locations:
         return []
-    sentinel_country = locations[0]["country"]
-    sentinel_region = locations[0]["region"]
+    sentinel_loc = _sentinel_location(locations)
+    if sentinel_loc is None:
+        logger.info(
+            "commodity=%s year=%d: every region is outside the CHIRPS %.0fS-%.0fN coverage band -- "
+            "structural absence, no month of this year can carry precipitation",
+            commodity, year, CHIRPS_LAT_LIMIT, CHIRPS_LAT_LIMIT,
+        )
+        return []
+    sentinel_country = sentinel_loc["country"]
+    sentinel_region = sentinel_loc["region"]
     months: list[int] = []
     for month in range(1, today.month + 1):
         if force_overwrite or month >= today.month - 1:      # current AND previous month, always
@@ -77,6 +279,21 @@ def _months_to_process(
         try:
             s3_client.head_object(Bucket=bucket, Key=sentinel)
         except Exception:  # noqa: BLE001 -- absent (or unprovable): (re)download this past month
+            months.append(month)
+            continue
+        if not _within_completeness_window(year, month, today):
+            continue                                          # settled: existence is final, as before
+        stored = _stored_nonnull_days(s3_client, bucket, sentinel)
+        if stored is None:
+            continue          # unknown is never grounds to spend a month of global raster reads
+        days_in_month = calendar.monthrange(year, month)[1]
+        if stored < days_in_month:
+            logger.info(
+                "commodity=%s %d-%02d re-enters the window: sentinel %s holds %d of %d observed days "
+                "(the source publishes CHIRPS finals in month blocks, so an incomplete elapsed month "
+                "is a month still arriving, not a settled one)",
+                commodity, year, month, sentinel_region, stored, days_in_month,
+            )
             months.append(month)
     return months
 
@@ -134,15 +351,6 @@ def _process_month(
         logger.warning("No data for %d-%02d commodity=%s", year, month, commodity)
         return
 
-    # Entity check: warn if any expected location has all-null precipitation values
-    for (country, region), rows in region_rows.items():
-        null_count = sum(1 for r in rows if r["precipitation_mm"] is None)
-        if null_count == len(rows):
-            logger.warning(
-                "All-null precipitation for country=%s region=%s %d-%02d commodity=%s",
-                country, region, year, month, commodity,
-            )
-
     s3_client = get_thread_local_s3_client(aws_region)
     access_timestamp = datetime.now(timezone.utc).isoformat()
     source_url_template = (
@@ -153,14 +361,47 @@ def _process_month(
         bkey = bronze_weather_key(
             "chirps", commodity, country, region, year, month, "part-000.parquet"
         )
+        new_nonnull = _nonnull_day_count(rows)
+
+        # WRITE-GATE (BF-W1, ported from chirps_year_to_bronze_task.py:177-188 -- the sibling has had
+        # it since the post-rebuild census and this task never did). An all-null region-month is
+        # STRUCTURAL ABSENCE: out of the 50S-50N coverage band, or a month the source has not published
+        # yet. Minting a NaN partition fabricates presence, and that fabrication is what froze
+        # gold_weather_z at 2026-07 for twenty days. The honest representation of no data is NO
+        # partition. UNCONDITIONAL -- ``--force_overwrite`` may not overwrite a real month with an
+        # empty one either, exactly as in the sibling.
+        if new_nonnull == 0:
+            logger.warning(
+                "SKIP all-null precipitation (no partition written): commodity=%s country=%s "
+                "region=%s %d-%02d (%d days fetched, 0 observed)",
+                commodity, country, region, year, month, len(rows),
+            )
+            continue
+
         if not force_overwrite:
             try:
                 s3_client.head_object(Bucket=bucket, Key=bkey)
-                logger.info("Skipping existing: %s", bkey)
-                continue
             except s3_client.exceptions.ClientError as exc:
                 if exc.response["Error"]["Code"] != "404":
                     raise
+                # absent -> write it
+            else:
+                # THE EXISTENCE-ONLY SKIP, REPLACED (2026-09-11). See ``_rewrite_admitted``: the old
+                # branch logged "Skipping existing" and continued on EXISTENCE alone, which preserved
+                # the 2026-08-22 all-null August skeleton through every subsequent green run.
+                stored = _stored_nonnull_days(s3_client, bucket, bkey)
+                if not _rewrite_admitted(new_nonnull, stored):
+                    logger.info(
+                        "Skipping fresh: %s (this run observed %d of %d days; stored holds %s -- "
+                        "a rewrite may only ADD observed days)",
+                        bkey, new_nonnull, len(rows),
+                        "an unreadable count" if stored is None else f"{stored}",
+                    )
+                    continue
+                logger.info(
+                    "Refreshing INCOMPLETE bronze: %s (observed days %d -> %d of %d)",
+                    bkey, stored, new_nonnull, len(rows),
+                )
 
         df  = pd.DataFrame(rows)
         buf = io.BytesIO()
@@ -178,6 +419,11 @@ def _process_month(
             "country": country,
             "region": region,
             "row_count": len(df),
+            # THE YARDSTICK, PERSISTED. row_count is the calendar length of the month and is the same
+            # 31 whether the source published 31 days or none; nonnull_count is what the next run's
+            # ``_rewrite_admitted`` measures against, and writing it here is what keeps that decision
+            # to one small GET instead of a Parquet read (``_stored_nonnull_days``).
+            "nonnull_count": new_nonnull,
             "source_url_template": source_url_template,
             "access_timestamp": access_timestamp,
         }

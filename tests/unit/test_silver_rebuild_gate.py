@@ -512,9 +512,16 @@ def test_branch_a_carries_the_v001_populatedness_floor():
     # of the three cross-table stages -- which is the widening-scope convention the whole pipeline is
     # written in (this table -> the numbers vocabulary -> the cascade -> the repo lints -> the deck).
     # A cheap table-specific red must not be paid for behind a full cascade census.
+    #
+    # WIDENED 2026-09-11 (the dark data-freshness stage): the pin is the ORDER OF THE VERDICT-BEARING
+    # SEVEN, which is what the widening-scope reason above is about -- not the tuple's length. It is
+    # now a PREFIX equality plus a named tail, so appending a stage stays a deliberate edit here while
+    # re-ordering or dropping any of the seven still fails, and the dark stage's own position (LAST,
+    # after the pg reload it reads, and after every stage that can red) is pinned by name.
     order = [s.__name__ for s in g._BRANCH_A_STAGES]
-    assert order == ["stage_pg_reload", "stage_parity", "stage_value_census", "stage_contract_check",
-                     "stage_cascade_census_diff", "stage_config_check", "stage_eval_subset"], order
+    assert order[:7] == ["stage_pg_reload", "stage_parity", "stage_value_census", "stage_contract_check",
+                         "stage_cascade_census_diff", "stage_config_check", "stage_eval_subset"], order
+    assert order[7:] == ["stage_data_freshness"], order
 
 
 # ---------------------------------------------------------------------------
