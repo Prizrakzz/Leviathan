@@ -586,19 +586,40 @@ MODES[QUICK_R0] = replace(MODES[QUICK_S], name=QUICK_R0, numbers_roster=True)
 #                                        set sec 3.1's precedence can produce without a fan-out.
 #   `render_absence_names` 16 / 24 / 32 -- NAMES printed inside ONE SB-X line; the remainder is stated
 #                                        as a count. One absence line measured 23,871 characters.
+# S7 MOVES THE SCAN ROW AND ONLY THE SCAN ROW (owner's ratified rule, 09-10: "Scan (quick) gets render
+# CAPS at S7; deep and max run UNCAPPED into arm A, the judged delta decides"). Five quick numbers move
+# and three knobs are appended:
+#   path_render_k        2 -> 1    SB-P, 3.7% of the quick block; the walk's own path rank is the cut
+#   render_convergence   2 -> 1    SB-C (+ its SB-M sub-lines), 4.8% together
+#   render_absence       0 -> 3    SB-X GROUPS -- the LARGEST class on the quick board at 23.2%
+#   render_absence_names 16 -> 6   the NAMES inside one SB-X line
+#   render_fan_names     -- 8      the BOARD names inside one SB-F index line (628-648 chars each)
+#   render_projection    -- 4      SB-J, 11.4%, minted once per state row outside every existing cap
+#   render_edge          -- 0      minted dark on every tier; S8 sets the number
+# EVERY ONE OF THOSE FIVE MOVES IS QUICK'S AND ONLY QUICK'S (scoped in round 2). DEEP AND MAX CARRY THE
+# S6 NUMBERS UNCHANGED, `render_fan_names` INCLUDED -- the first cut gave deep 24, and a bound on the
+# enumeration inside one line is still a bound the owner's ratified rule did not grant a control cell.
+# Deep and max render byte-identical to the S6 block, which is what makes the judged delta readable.
+# MEASURED BASIS (S4 board census, 36 boards, pg mirror, in-VPC): the quick block's median is 53 lines /
+# 13,648.5 chars / ~3,412.5 est tokens against sec 7's Scan sizing of ~17-20 lines / ~1,100 tokens, i.e.
+# 3.10x by tokens, in front of a 105-154-word Scan writer budget. Deep is 2.17x and max 1.72x.
 BOARD_PRESETS: dict[str, tuple] = {
     #        loud_k fan_k analog_k analog_dims admit wave1 wave2 receipt_cap path_render_k
     #                                                     | spill conv analog outcomes rcpt watch absence
     #                                                     |                          max_anchors abs_names
-    QUICK:  (8,     4,    0,       0,          4,    24,   0,    0,          2,
-             4,    2,   0,     0,        0,   3,    0,
-             4,    16),
+    #                                                     |            fan_names projection edge (S7)
+    QUICK:  (8,     4,    0,       0,          4,    24,   0,    0,          1,
+             4,    1,   0,     0,        0,   3,    3,
+             4,    6,
+             8,    4,   0),
     DEEP:   (16,    8,    1,       3,          8,    32,   18,   3,          4,
              8,    4,   1,     4,        3,   6,    0,
-             6,    24),
+             6,    24,
+             0,    0,   0),
     MAX:    (24,    16,   2,       5,          12,   40,   58,   5,          8,
              16,   6,   2,     4,        5,   8,    0,
-             8,    32),
+             8,    32,
+             0,    0,   0),
 }
 
 

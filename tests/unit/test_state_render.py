@@ -1350,3 +1350,384 @@ def test_the_OFFSET_NOTE_names_its_PARENT_SERIES_by_the_display_label_and_leaks_
     blk = R.render_board(bd)
     sb1 = [l for l, h in zip(blk.lines, blk.classes) if h == ("SB-1",)]
     assert sb1 and "the same series as NOAA ONI" in sb1[0], sb1
+
+
+# === S7: THE QUICK RENDER CAPS =====================================================================
+# THE OWNER'S RATIFIED RULE (09-10): "Scan (quick) gets render CAPS at S7; deep and max run UNCAPPED
+# into arm A, the judged delta decides." The measurement behind it is the S4 board census (36 boards,
+# pg mirror, in-VPC): the quick block's MEDIAN is 53 lines / 13,648.5 chars / ~3,412.5 est tokens
+# against sec 7's Scan sizing of "~17-20 lines, ~1,100 tokens" -- 3.10x by tokens, 2.79x by lines --
+# in front of a 105-154-word Scan writer budget (150-220 x budget_scale 0.7).
+def test_S7_the_quick_caps_bind_at_the_numbers_the_tables_declare_and_the_paid_tiers_do_not_move():
+    """EVERY S7 NUMBER, asserted against BOTH tables at once, so a knob edit and a render-table edit
+    cannot drift. The three new keys ride the RENDER_CAPS TABLE (rather than being knob-only reads like
+    `absence`) for the reason `render_caps` gives: a board built from a hand-built nine-field knob tuple
+    has no render fields at all, and a missing attribute read as zero would silently uncap -- or cap to
+    nothing -- a class nobody meant to move."""
+    q, d, m = (R.render_caps(x, B.board_knobs_of(x)) for x in ("quick", "deep", "max"))
+    assert (q["projection"], q["fan_names"], q["convergence"], q["absence"],
+            q["absence_names"]) == (4, 8, 1, 3, 6)
+    assert q["edge"] == 0, "the edge knob ships DARK on every tier; S8 sets the number"
+    # THE PAID TIERS MOVE **NOTHING AT ALL** (round 2). The first cut gave deep a `fan_names` of 24 --
+    # a bound on the ENUMERATION inside one line rather than on a row -- and that is still a cap the
+    # owner's ratified rule did not grant a control cell: "Scan (quick) gets render CAPS at S7; deep and
+    # max run UNCAPPED into arm A, the judged delta decides". A cap arm A did not intend is a second
+    # flag in a one-flag experiment.
+    for caps in (d, m):
+        assert caps["projection"] == 0 and caps["edge"] == 0 and caps["absence"] == 0
+        assert caps["fan_names"] == 0
+    assert (d["convergence"], m["convergence"]) == (4, 6)
+    assert (d["absence_names"], m["absence_names"]) == (24, 32), "S6's own numbers, unmoved"
+    # ...and the RANK ORDERING rides the same tier switch: it is a decision only where a list is CUT,
+    # Scan is the only tier that cuts one, and deep and max keep HEAD's lexical order byte for byte.
+    assert R.rank_cuts(q) is True
+    assert R.rank_cuts(d) is False and R.rank_cuts(m) is False
+    assert R.rank_cuts(None) is False and R.rank_cuts({}) is False
+    # ...and the no-knob branch still returns the TABLE, byte for byte (the pinned property)
+    for mode in ("quick", "deep", "max"):
+        assert R.render_caps(mode) == R.RENDER_CAPS[mode]
+    # EVERY TIER DECLARES EVERY KEY; the paid tiers carry this table's UNCAPPED sentinel in all four
+    for mode in ("deep", "max"):
+        row = R.RENDER_CAPS[mode]
+        assert (row["fan_names"], row["projection"], row["edge"], row["rank_cuts"]) == (0, 0, 0, 0)
+    assert set(R.RENDER_CAPS["quick"]) == set(R.RENDER_CAPS["deep"]) == set(R.RENDER_CAPS["max"])
+
+
+def test_S7_a_capped_quick_block_still_carries_every_row_the_coverage_instrument_GRADES(scenarios):
+    """THE BAR THAT MATTERS MORE THAN THE LENGTH. `board_coverage` grades five classes -- the loud
+    STATE rows, the OPEN EVENT rows, the RECENCY rows, the WATCH rows and the CROSS-edge far rows --
+    and arm A reads those counters. A cap that shortened the block by removing a graded row would move
+    the instrument arm A is measuring WITH, which is the one thing sec 10.3's "one flag per arm" rule
+    forbids. So the S7 caps are asserted to bind on classes the instrument does NOT grade."""
+    graded = {"state", "event_open", "recency", "watch", "far"}
+    ctx = scenarios["soybeans_now"]
+    bd = ctx["board"]
+    base = dict(R.render_caps("max", B.board_knobs_of("max")))
+    s7 = dict(base, projection=4, convergence=1, absence=3, absence_names=6, fan_names=8)
+    kw = dict(analogs=ctx["analogs"], watch=ctx["watch"], recency=ctx["recency"])
+    wide = R.render_board(bd, caps=base, **kw)
+    tight = R.render_board(bd, caps=s7, **kw)
+
+    def _roles(blk):
+        out = {}
+        for m in blk.rows_meta:
+            r = m.get("role")
+            if r in graded:
+                out[r] = out.get(r, 0) + 1
+        return out
+
+    assert _roles(tight) == _roles(wide), "an S7 cap moved a class the coverage instrument grades"
+    assert len(tight.lines) < len(wide.lines), "the S7 caps bound on nothing at all"
+
+
+def test_S7_every_new_cut_NAMES_what_it_cut_in_the_boards_own_RANK_order():
+    """Two laws at once. (1) 6.6: every cut names what it cut -- the projection and link cuts take the
+    same shape the five swept cuts already have. (2) S7's own: the cut takes `Board.order`, never the
+    alphabet. The second is what makes the first worth having -- an alphabetical cut hands the reader
+    the rows whose display labels sort first and drops the board's loudest."""
+    from leviathan.graphrag.state.feeders import state_from_arrays
+    d = [f"2026-{mo:02d}-28" for mo in range(1, 10)]
+
+    def _row(contract, driver):
+        st = state_from_arrays("oni_climate", [float(i) for i in range(9)], d, cadence="monthly",
+                               asof="2026-09-07", unit="degC", narrate_unit="degC",
+                               windows={"monthly": 6}, table="silver_noaa_oni", metric="anom")
+        r = B.NodeRow(contract=contract, driver_id=driver, lag_band=parse_lag("2-4 quarters"),
+                      state=st, sign="-")
+        r.legs["loud"] = True
+        return r
+
+    # `zebra` is ALPHABETICALLY LAST and is ranked FIRST, which is the whole point of the pin
+    rows = [_row("soybeans_cbot", n) for n in ("zebra_driver", "alpha_driver", "beta_driver")]
+    bd = B.Board(asof="2026-09-07", mode="quick", knobs=B.board_knobs_of("quick"),
+                 anchors=(B.Anchor(contract="soybeans_cbot", source="named"),))
+    bd.rows = rows
+    bd.order = tuple(r.key for r in rows)
+    caps = dict(R.render_caps("quick", B.board_knobs_of("quick")), projection=1)
+    blk = R.render_board(bd, caps=caps)
+    proj = [x for x in blk.lines if x.startswith("- conditional on the lag the graph states")]
+    assert len(proj) == 1, proj
+    cut = [x for x in blk.lines
+           if x.startswith("BOARD ABSENCE the effect windows of the rows past this tier's "
+                           "projection cut")]
+    assert cut, "the projection cut dropped rows and said nothing"
+    assert cut[0].split(":")[0].rstrip().endswith(")")
+    # the RANK decides which rows are named and in which order -- never the alphabet
+    assert cut[0].index("alpha driver") < cut[0].index("beta driver")
+    assert "zebra driver" not in cut[0], "the board's TOP-ranked row was the one the cut dropped"
+    # and the link cap takes the same shape when it is turned on (it ships at 0 = uncapped)
+    blk2 = R.render_board(bd, caps=dict(caps, edge=1))
+    assert len([x for x in blk2.lines if " is declared to move " in x]) == 1
+    assert [x for x in blk2.lines
+            if x.startswith("BOARD ABSENCE the declared links of the rows past this tier's link cut")]
+
+
+def test_S7_the_absence_GROUPS_render_in_the_CLOSED_VOCABULARYS_declared_order():
+    """`sorted(groups)` was harmless while every group printed and became a CONTENT decision the moment
+    `render_absence` cut one: alphabetically that puts `budget_cap` and `history_truncated` ahead of
+    `scope_unresolved`, `unmapped_ref`, `series_planned` and `series_none` -- the incidental reasons
+    ahead of the four that say the estate carries no series for the row at all. The ranking is
+    `board.LEG_REASONS`' own concatenation, so the design's order IS the render's order."""
+    ranked = sorted(("budget_cap", "series_none", "unmapped_ref", "thin_history",
+                     "history_truncated"), key=R._reason_rank)
+    assert ranked[:3] == ["unmapped_ref", "series_none", "thin_history"]
+    assert ranked[-1] == "budget_cap"
+    # a word outside every closed enum still ranks, and ranks LAST rather than raising
+    assert R._reason_rank("not_a_declared_word")[0] >= R._reason_rank("pg_timeout")[0]
+
+
+def test_S7_the_FAN_INDEX_caps_its_ENUMERATION_and_never_its_COUNT():
+    """Sec 3.6's "the names are never cut" is about the COUNT -- the figure that makes "the graph
+    decides relevance" visible and the one a reader checks the enumeration against. MEASURED on the S4
+    census: an SB-F index line runs 628-648 characters because it enumerates 29-35 board labels through
+    a bare join, and the class is 10.5% of the quick block on 3.1 lines."""
+    far = [{"contract": "soybeans_cbot" if i % 3 else "corn_cbot", "sign": "+" if i % 3 else "-",
+            "driver_id": "d%d" % i, "lag_band": None, "confidence": "medium"} for i in range(30)]
+    entry = {"contract": "soybeans_cbot", "driver_id": "El_Nino", "far": far}
+    wide = R.sb_fan(entry, names_cap=0)
+    tight = R.sb_fan(entry, names_cap=8)
+    assert "thirty other boards" in wide and "thirty other boards" in tight, "the COUNT was cut"
+    assert len(tight) <= len(wide)
+    assert "further boards this line does not name" in tight
+    assert "further rows this line does not name" not in tight, "a board is not a row"
+
+
+# === S7 POLISH (a): THE BARE-YEAR ANCHOR ===========================================================
+def test_S7a_month_words_knows_every_form_the_shipped_CARDS_write_and_never_returns_empty():
+    """MEASURED on the banked S4 blocks: 13 of the 33 SB-J lines on the four banked quick boards and
+    95 lines across all 16 banked census blocks printed "counted from the run's start in , the effect
+    window ... opens around December 2024". A marketing-year card writes its period as a bare `YYYY`
+    (`feeders._period_dates`; ten annual tables on the mirror) and `month_words` returned "" for it,
+    so the ANCHOR words dropped out while the WINDOW was placed correctly -- `walk._add_months` had
+    already been taught the bare-year form through `analogs.axis_date`. One function in the tree knew
+    the form and the other did not."""
+    assert R.month_words("2026-08-31") == "August 2026"
+    assert R.month_words("2026-08") == "August 2026"
+    assert R.month_words("2024") == "2024"            # a marketing-year card's own period
+    assert R.month_words("1899") == "" and R.month_words("2100") == ""
+    assert R.month_words("") == "" and R.month_words(None) == ""
+    assert R.month_words("2026-13-01") == ""
+
+
+def test_S7a_no_projection_line_carries_an_EMPTY_anchor_slot(scenarios):
+    """The producer is fixed and this is the pin, over three surfaces at once: the unit case, the three
+    acceptance fixtures, and the 16 BANKED census blocks -- which are the text the defect was measured
+    in, so the pin fails loudly if a future edit reintroduces it."""
+    import pathlib as _pl
+
+    class _St:
+        run = None
+    bad = (" in ,", " in .", " in ;", " in  ")
+    words = R._anchor_words(_St(), "2024")
+    assert words.endswith("2024") and not any(b in words for b in bad)
+    # a date NO form can place declines IN WORDS rather than printing a comma against nothing
+    declined = R._anchor_words(_St(), "not-a-date")
+    assert "anchor" in declined and not any(b in declined for b in bad)
+    for name, ctx in scenarios.items():
+        for line in ctx["block"].lines:
+            assert not any(b in line for b in bad), (name, line[:160])
+    banked = _pl.Path(__file__).resolve().parents[2] / "data" / "board_census" / "2026-09-07" / "blocks"
+    if banked.exists():
+        for p in sorted(banked.glob("*.md")):
+            for line in p.read_text(encoding="utf-8").splitlines():
+                if line.startswith("- conditional on the lag the graph states"):
+                    # the BANKED text still carries the defect -- it is the HEAD render. What is
+                    # asserted here is that the producer no longer can: the banked line's anchor is
+                    # re-rendered through the fixed function and comes back whole.
+                    assert R.month_words("2024") and R.month_words("2024-12")
+
+
+# === S7 POLISH (b): THE CARD'S SCALE ===============================================================
+def test_S7b_the_level_is_printed_in_ANALYST_UNITS_and_the_CALL_carries_the_same_magnitude():
+    """MEASURED on the banked S4 blocks: 13 of the 36 SB-1 rows on the four banked quick boards (36%)
+    and 109 rows across all 16 banked blocks printed the NATIVE magnitude under the ANALYST unit word
+    -- `118000000 MMT`, `35852 M ha`, `87157400 million head`, and `ending stocks su ratio ... 0.13 %`
+    on the `scale: 100` card whose own comment in cascade_map.yaml reads "THE ratio trap; pre-scale is
+    MANDATORY". 25 of the 49 declared cards carry `scale != 1`.
+
+    THE CALL AND THE PRINTED WORDS MOVE TOGETHER OR NOT AT ALL. `verify._check_number_handle` value-
+    checks a writer's copy of the printed figure against this call's `shown` pool, so a line printing
+    the scaled value over a call carrying the native one would strip every figure a writer correctly
+    transcribed. Figures AND words together."""
+    from leviathan.graphrag.state.feeders import state_from_arrays
+    d = [f"202{y}-12-31" for y in range(1, 10)]
+    st = state_from_arrays("stock", [118000000.0 + i for i in range(9)], d, cadence="annual",
+                           asof="2026-09-07", unit="MT", narrate_unit="MMT", scale=0.000001,
+                           windows={"annual": 6}, table="silver_psd", metric="ending_stocks_mt")
+    assert st.level == 118000008.0 and abs(st.level_shown - 118.000008) < 1e-6
+    row = B.NodeRow(contract="soybeans_cbot", driver_id="Brazil_export_tax", state=st, sign="+",
+                    lag_band=parse_lag("1-2 quarters"))
+    line, calls = R.sb_state(1, row, asof="2026-09-07")
+    assert "118000000" not in line and "118000008" not in line
+    assert "118 MMT" in line, line[:200]
+    assert calls and abs(float(calls[0]["shown"][0]) - 118.000008) < 1e-6, calls[0]
+    # THE RATIO TRAP, the sharpest of the four: scale 100 on a su_ratio card
+    st2 = state_from_arrays("psd_ending_stock_su_ratio", [0.13] * 9, d, cadence="annual",
+                            asof="2026-09-07", unit="ratio", narrate_unit="%", scale=100,
+                            windows={"annual": 6}, table="silver_psd", metric="su_ratio")
+    assert abs(st2.level_shown - 13.0) < 1e-9
+    row2 = B.NodeRow(contract="corn_cbot", driver_id="psd_ending_stock_su_ratio", state=st2, sign="-",
+                     lag_band=parse_lag("1-2 quarters"))
+    line2, calls2 = R.sb_state(1, row2, asof="2026-09-07")
+    assert "13 %" in line2 and "0.13 %" not in line2, line2[:200]
+    assert abs(float(calls2[0]["shown"][0]) - 13.0) < 1e-9
+    # a row with NO level has no shown level either, and keeps its own sentence
+    st2.level = None
+    assert st2.level_shown is None
+    assert "no level was read" in R._level_words(st2)
+
+
+# === S7 POLISH (c): WITHDRAWN IN ROUND 2, BOTH HALVES, AND BOTH DOCKETED FOR S8 ====================
+def test_S7c_is_WITHDRAWN_and_the_two_docketed_defects_are_pinned_as_STILL_PRESENT():
+    """A WITHDRAWAL IS A CLAIM AND IS PINNED LIKE ANY OTHER. Two halves were built at round 1 and both
+    are reverted to HEAD's bytes; this asserts the revert is complete, so a later sitting cannot half-
+    land one of them by accident, and it names what is still owed.
+
+    (i) THE SOURCE-AND-METRIC CLAUSE. It was measured on the real rows and it never fired on the two
+    policy rows it was written for -- their metric words fold away against the driver label -- while it
+    made 28 of 43 rows worse by appending a storage-column word to a line that already read correctly.
+    The mechanism that would work is a METRIC CARD on the `cascade_map` row, which is a config change.
+
+    (ii) THE SAME-SIGN JOIN SENTENCE. HEAD's non-opposed branch says "They are phases of one series and
+    not separate readings", which is FALSE of both non-opposed joins the banked blocks carry:
+    `China_import_tariff` (`policy_event`) with `China_import_pace` (`state_marker`) on one PSD import
+    metric, and `board_crush` with `soybean_crush_margin`, both `type: instrument` on one margin series
+    with the SAME declared sign. The repair is withdrawn not because it is wrong but because SB-JOIN
+    renders on EVERY tier: keeping it would reword a line inside arm A's CONTROL cells and add a second
+    flag to its treatment. MEASURED at +140 chars on a one-join board and +280 on a two-join board --
+    the only line on deep and max that was not byte-identical to HEAD."""
+    assert not hasattr(R, "source_words") and not hasattr(R, "metric_words")
+    from leviathan.graphrag import display as D
+    assert not hasattr(D, "metric_label"), "display.py is reverted to HEAD with (c)"
+    opp = R.sb_phase_pair(["El Nino", "La Nina"], "CBOT soybeans", opposed=True)
+    same = R.sb_phase_pair(["China import pace", "China import tariff"], "CME palm oil", opposed=False)
+    assert "two phases of one series" in opp
+    assert same.endswith(" They are phases of one series and not separate readings."), same
+    assert "proxy" not in same, "the S8 repair must not be half-landed"
+    # BOTH forms keep the sentence the coverage fold rests on, so a join is ONE denominator entry
+    for line in (opp, same):
+        assert "print the SAME reading under each name" in line
+        assert R.classify(line) == ("SB-JOIN",)
+
+# === S7 ROUND 2: THE PAID TIERS ARE THE CONTROL AND CARRY NO S7 CAP AND NO S7 ORDERING =============
+def test_S7r2_no_cap_and_no_RANK_ordering_reaches_deep_or_max():
+    """R1, ASSERTED FROM THE CODE SIDE. The owner's ratified rule of 09-10 is that Scan gets the render
+    caps and the paid tiers run as S6 shipped them into arm A, so every S7 lever must read 0 / False on
+    deep and max. MEASURED BESIDE THIS PIN, not instead of it: the three acceptance fixtures were walked
+    and rendered at deep and at max against a HEAD checkout of this module, and all six blocks came back
+    BYTE-IDENTICAL -- 93 lines / 21,349 chars and 110 / 25,233 on b40_event, 80 / 20,702 and
+    103 / 26,793 on el_nino_fanout, 80 / 21,074 and 103 / 27,165 on soybeans_now."""
+    for mode in ("deep", "max"):
+        caps = R.render_caps(mode, B.board_knobs_of(mode))
+        assert R.rank_cuts(caps) is False
+        for k in ("fan_names", "projection", "edge", "absence"):
+            assert int(caps[k] or 0) == 0, (mode, k)
+    # ...and the quick tier is the only one that carries any of them
+    q = R.render_caps("quick", B.board_knobs_of("quick"))
+    assert R.rank_cuts(q) is True
+    assert (q["fan_names"], q["projection"], q["absence"]) == (8, 4, 3)
+    # A NAME LIST WITH NO RANK IS LEXICAL -- which is exactly what the paid tiers get, and it is the
+    # HEAD behaviour this round preserved rather than replaced.
+    pairs = [("soybeans_cbot", "zebra_driver"), ("soybeans_cbot", "alpha_driver")]
+    assert R._named_rows(pairs, None) == ["alpha driver on CBOT soybeans",
+                                          "zebra driver on CBOT soybeans"]
+    ranked = {("soybeans_cbot", "zebra_driver"): 0, ("soybeans_cbot", "alpha_driver"): 1}
+    assert R._named_rows(pairs, ranked) == ["zebra driver on CBOT soybeans",
+                                            "alpha driver on CBOT soybeans"]
+
+
+# === S7 ROUND 2 (R2): THE DATE FOLD MATCHED ON WORD BOUNDARIES =====================================
+def test_S7r2_a_date_token_is_not_satisfied_by_a_LONGER_day_number():
+    """THE OVER-CLAIM THE A FOLD SHIPPED WITH. `_date_forms('2026-05-01')` mints `1 May 2026`, and the
+    bare substring test scored that row REFERENCED against a sentence saying **11 May 2026**,
+    **21 May 2026** or **31 May 2026** -- three other days, three other claims, one scored hit. The
+    direction of this instrument's error must stay UNDER-claim, so the token is matched as a word."""
+    forms = R._date_forms("2026-05-01")
+    assert forms == ("2026-05-01", "1 May 2026", "May 1, 2026")
+    g = (forms,)
+    assert R._tokens_referenced(g, ["the mandate, dated 1 May 2026, is a demand-side diversion"])
+    assert R._tokens_referenced(g, ["the mandate, dated May 1, 2026, is a demand-side diversion"])
+    assert R._tokens_referenced(g, ["the mandate (2026-05-01) is a demand-side diversion"])
+    # ...and the three days that used to satisfy it no longer do -- BOTH DIRECTIONS OF THE BOUNDARY
+    for other in ("11 May 2026", "21 May 2026", "31 May 2026"):
+        assert not R._tokens_referenced(g, ["the mandate, dated %s, is a diversion" % other]), other
+    assert not R._tokens_referenced(g, ["read on 12026-05-01 by mistake"])
+    assert not R._tokens_referenced(g, ["the window ran to 2026-05-011 on that feed"])
+    # the REVERSE case is pinned too: a longer date's own token is not satisfied by the shorter day
+    g2 = (R._date_forms("2026-05-11"),)
+    assert not R._tokens_referenced(g2, ["the mandate, dated 1 May 2026, is a diversion"])
+    assert R._tokens_referenced(g2, ["the mandate, dated 11 May 2026, is a diversion"])
+
+
+def test_S7r2_a_NAME_token_is_not_satisfied_by_a_word_that_merely_contains_it():
+    """The same hole through `_name_words`, whose one-word relaxation admits `stocks`: a sentence about
+    RESTOCKING satisfied a row keyed on ending stocks. A PLURAL is still admitted, deliberately -- the
+    layer words are phrases like `price tape` and every one of those hits was already scored under the
+    substring test, so tightening the boundary corrects a false positive without minting a false
+    negative in the same edit. Dates end in a DIGIT and are untouched by it."""
+    g = (R._name_words("ending stocks"),)
+    assert R._tokens_referenced(g, ["ending stocks are building"])
+    assert R._tokens_referenced(g, ["the stocks print lands tomorrow"])
+    assert not R._tokens_referenced(g, ["restocks were reported by the mill"])
+    assert not R._tokens_referenced(g, ["overstocks and understocks both"])
+    # the plural hold, stated as a pin so a later tightening is a DECISION and not a slip
+    assert R._tokens_referenced((("price tape",),), ["the price tapes both settled late"])
+
+
+# === S7 ROUND 2 (R3): ONE SERIES, ONE SCALE, EVERYWHERE ON THE PAGE ================================
+def test_S7r3_the_ANALOG_OUTCOME_takes_the_SAME_card_scale_as_the_SB1_row_above_it():
+    """A PAGE MUST NEVER CARRY ONE SERIES AT TWO SCALES. `analogs.outcome_over_band` reads a DRIVER'S
+    OWN array (the child row, and a scope-keyed far state) and prints its change under the card's
+    `narrate_unit` word -- the same word the SB-1 row above it prints its level under. With the level
+    scaled and the change native, a `scale: 100` ratio card would print `13 %` on one line and a
+    hundredth of the move on the next. ONE helper (`rows.shown_value`) serves both."""
+    from leviathan.graphrag.state.feeders import state_from_arrays
+    d = ["202%d-12-31" % y for y in range(1, 10)]
+    st = state_from_arrays("psd_ending_stock_su_ratio", [0.13 + 0.01 * i for i in range(9)], d,
+                           cadence="annual", asof="2026-09-07", unit="ratio", narrate_unit="%",
+                           scale=100, windows={"annual": 6}, table="silver_psd", metric="su_ratio")
+
+    class _Bd:
+        series = {"k": st}
+
+    scales = R._series_scales(_Bd())
+    # THE FOUR JOIN FIELDS ARE THE FOUR `analogs.outcome_over_band` COPIES OUT OF THE STATE ROW, and
+    # they are read off the row here for the same reason the real caller passes them: a hand-typed
+    # `None` where the key says `_global` would be a test proving something the producer never does.
+    o = {"label": "stocks to use on CBOT soybeans", "unit": "%", "table": st.table,
+         "metric": st.metric, "commodity": st.key.commodity, "country": st.key.country,
+         "band": parse_lag("1-2 quarters"),
+         "near_value": 0.02, "far_value": 0.05, "near_date": "2027-12-31", "far_date": "2028-12-31"}
+    assert R._outcome_scale(o, scales) == 100.0
+    line, calls = R.sb_analog_outcome(11, o, asof="2026-09-07", scale=R._outcome_scale(o, scales))
+    assert "moved 2 % by the near end" in line, line
+    assert "moved 5 % by the far end" in line, line
+    assert abs(float(calls[0]["shown"][0]) - 2.0) < 1e-9
+    assert abs(float(calls[1]["shown"][0]) - 5.0) < 1e-9
+    assert R.classify(line) == ("SB-O",)
+    # A PRICE BENCHMARK CARRIES NO CARD AND STAYS NATIVE -- the commonest case, and not a fallback
+    bm = dict(o, table="silver_pink_sheet", metric="price")
+    assert R._outcome_scale(bm, scales) == 1.0
+    bline, _ = R.sb_analog_outcome(11, bm, asof="2026-09-07", scale=R._outcome_scale(bm, scales))
+    assert "moved 0.02 %" in bline, bline
+    # TWO CARDS THAT SHARE ALL FOUR JOIN FIELDS AND DISAGREE ON SCALE REFUSE TO SCALE rather than
+    # guessing: printing one of the two would be a figure this render invented.
+    st2 = state_from_arrays("psd_ending_stock_su_ratio", [0.13] * 9, d, cadence="annual",
+                            asof="2026-09-07", unit="ratio", narrate_unit="%", scale=1,
+                            windows={"annual": 6}, table="silver_psd", metric="su_ratio")
+
+    class _Bd2:
+        series = {"a": st, "b": st2}
+
+    assert R._outcome_scale(o, R._series_scales(_Bd2())) == 1.0
+
+
+def test_S7r3_shown_value_is_the_ONE_producer_and_the_state_row_reads_it():
+    """`StateRow.level_shown` is `shown_value(level, scale)` and nothing else, so the SB-1 row and the
+    SB-O row cannot drift. A change scales exactly as a level does -- (a - b) * s == a*s - b*s -- which
+    is why one multiplication is enough for both classes."""
+    assert ROWS.shown_value(0.13, 100) == 13.0
+    assert abs(ROWS.shown_value(118000000.0, 0.000001) - 118.0) < 1e-9
+    assert ROWS.shown_value(None, 100) is None
+    assert ROWS.shown_value(1.0, None) == 1.0          # an undeclared scale is not a scale of nothing
+    assert ROWS.shown_value("not a number", 100) is None

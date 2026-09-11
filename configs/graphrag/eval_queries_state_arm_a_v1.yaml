@@ -1,0 +1,183 @@
+# STATE-ENGINE ARM A deck v1 (2026-09-11) -- the panel ids, authored ONCE for the board's own arm.
+#
+# THE ARM THIS SERVES (design docs/private/STATE_ENGINE_DESIGN_2026-09-07.md sec 10.3):
+# `GRAPHRAG_STATE_BOARD` ON vs OFF, everything else identical, at seat parity (writer `claude-opus-5`,
+# numbers `claude-sonnet-5` with adaptive thinking, `--via-orchestrator`, `--model` explicit in BOTH
+# cells because the eval's `--model` WINS over env), with the FOUR dark legs lit in BOTH cells
+# (`GRAPHRAG_EXTREME_LOCATOR`, `GRAPHRAG_RV_REGIONAL`, `GRAPHRAG_COT_OUTCOMES`,
+# `GRAPHRAG_CASCADE_CONTEXT`) and `GRAPHRAG_STRIP_AUDIT=on` in both. The env for both cells is the
+# STORED base -- `configs/graphrag/arm_env_base.yaml`, refreshed from `leviathan-dev-serving:133` --
+# and the two cells differ by exactly ONE `--env`:
+#
+#   treatment:  --env-base configs/graphrag/arm_env_base.yaml --env GRAPHRAG_STATE_BOARD=on
+#   control:    --env-base configs/graphrag/arm_env_base.yaml           (the flag defaults off)
+#
+# VENUE: in-VPC on the ON-DEMAND Batch queue, `--job-definition leviathan-dev-graphrag-eval`. OFF-VPC
+# the board declines `pg_not_live` on EVERY turn and the arm measures a board that never fired --
+# three prior instances of that artifact class are on the record. `BoardFired == 1` on every treatment
+# turn is a PRECONDITION read BEFORE any bar, never a result.
+#
+# THE ROWS ARE THE SIX BANKED rv PAIRS, VERBATIM from `eval_queries_rv_reading_v1.yaml` (2026-08-29,
+# a frozen instrument) -- same ids, same contracts, same question text, so the arm's answers are
+# comparable to the banked draws and to the blind panel's own pairs (design 10.4). They are COPIED
+# rather than referenced because a deck that re-pointed at another file would make an arm's population
+# depend on an edit nobody diffs. The `category` is re-stamped `state_arm_a` so the artifact can tell
+# an arm row from an rv-reading row at a glance; nothing else moves.
+#
+# NO PINNED asof, DELIBERATELY AND FOR TWO REASONS. The rv reading rides the price_replay belt (any
+# historical asof drops it whole), and design 10.3's as-of parity rule binds both cells of ANY
+# comparison to the LIVE as-of inside ONE calendar window -- never one banked and one fresh, because
+# new WASDE / ESR / COT prints land between two days and would be read as the treatment.
+#
+# EXPECTATIONS ARE MINIMAL (`needs_evidence` only), exactly as the rv deck's are: the arm's bars read
+# the artifact's DETERMINISTIC counters -- `timing_ms.{fill,rest,numbers,quantify,synth_llm}` p50/p90,
+# `ms_board`, `BoardPoolDeclined`, `BoardEvidenceBorrows`, `BoardReplayLabelled`, strips, `by_rule`,
+# register trips, `n_tool_uses`, and the TWELVE coverage counters the S7 seam now publishes -- never
+# per-row expect blocks.
+#
+# ── THE SEVENTH ID: FOUND, FILLED, AND ATTRIBUTED TO THE OWNER'S OWN TURN ───────────────────────────
+# Design 10.3 and 10.4 both say SEVEN: "the six banked rv pairs + THE OWNER'S SOYBEAN QUESTION". This
+# header has now been wrong TWICE about that question's provenance, in opposite directions, and both
+# corrections are kept in place rather than tidied away because the pattern is the lesson: each draft
+# searched a narrower place than the claim it then made.
+#   DRAFT 1 (2026-09-11 morning) said the text "exists in no deck, no design section and no scratch
+#     file in this repo" and left the slot EMPTY. Refuted by two in-tree sources (below).
+#   DRAFT 2 (round 1) filled the slot from those two sources but wrote `owner_verbatim: false` and the
+#     sentence "no source in the tree says these are the words the OWNER TYPED ... the design quotes
+#     the scenario, never the operator". That searched THE TREE and then made a claim about THE RECORD
+#     -- and the record is not only the tree. Refuted below, and the flag is now TRUE.
+#
+# THE THREE SOURCES, weakest to strongest:
+#
+#   src/leviathan/graphrag/state/__main__.py:20 and :777  the shipped offline harness's `soybeans_now`
+#     scenario -- same text, same as-of, same tier. AGENT-authored, derived.
+#   docs/private/STATE_ENGINE_DESIGN_2026-09-07.md:152  sec 0.3, "Scenario 1 -- \"what is the situation
+#     on soybeans now? how is it looking 3 months from now?\" (as-of 2026-09-07, Cascade)", the FIRST of
+#     "the three target answers as the spec"; sec 0.2 names the arc's origin as "the owner's first live
+#     Cascade turn (2026-09-07, soybeans)". AGENT-authored, quoting the scenario, not the operator.
+#   THE LIVING MEMORY, `project_dec_evidence_corpus.md:2041` -- "OWNER CASCADE SMOKE #2 VERIFIED 09-07
+#     10:47-10:49Z (rev 131 + bundle index-9Oj2bNiB): GET /v1/respond/stream ... mode=max on 'what is
+#     the situation on soybeans now? how is it looking 3 months from now?'", with the turn's own end-of-
+#     turn metrics beside it (writer claude-opus-5, CascadeFired 1/4, CitedN 29, CostUsd $0.461,
+#     AnswerChars 21,431) and :2044 recording the owner's READ of that very answer ("OWNER READ OF THE
+#     FIRST CASCADE ANSWER 09-07 ~11:20-11:50Z (soybeans)", the three challenges that became the
+#     then/now doctrine and this whole arc). THAT IS THE OPERATOR'S OWN TURN, at the right date, the
+#     right tier and the right revision -- and the string is BYTE-EQUAL to the `question:` below
+#     (verified by comparison, not by eye).
+#
+# WHY `owner_verbatim: true`, AND EXACTLY WHAT GRADE OF EVIDENCE THAT IS. The record is a LOGGED
+# REQUEST from the owner's own browser stream, not a keystroke capture, and that distinction was
+# weighed rather than skipped: the `q=` of a `GET /v1/respond/stream` is the text the owner typed into
+# the Terminal input, transported. The only thing a request string can lose that a transcript keeps is
+# whitespace normalisation at the input boundary -- which is a transport detail, not an authorship
+# question. Nothing in the chain is agent-authored, nothing is at the wrong date, and the same file
+# records the owner reading the answer it produced. Calling that "not the owner's words" would set a
+# bar no evidence in this estate could ever clear, which is the opposite of what the flag is for.
+# SO THE ARM REPORT SAYS: the seventh row is the owner's 2026-09-07 Cascade turn, as logged in the
+# living memory at :2041, at mode=max on rev 131.
+# THE ALTERNATIVE THAT WAS NOT CHOSEN, recorded so the choice is reviewable: the S6b smoke harness's
+# `soybeans_deep` turn -- "what is the state of the world for soybeans and where is it going over the
+# next two quarters?" (scratchpad writer_board_use/smoke_real/smoke_real_run.py TURNS, 2026-09-10). It
+# is an AGENT-authored smoke question at the wrong date with no owner attribution at all, so it is
+# strictly weaker provenance than either source above; it is named here, not used.
+#
+# WHAT THE SEVENTH ROW COSTS: the arm becomes 7 x {Analysis, Cascade} x 2 cells = 28 turns, plus the
+# unchanged 3-id Scan cost probe x 2 = 6, so 34 turns and $33.5 .. $56.6 (midpoint ~$45) against the
+# six-row deck's 30 turns and $29.7 .. $49.7. The blind panel's own arithmetic (7 pairs x 2 judges + 1
+# tally = 15 agents, the workflow cap) assumes seven and only closes at seven.
+# THE SOYBEANS BOARD NOW CARRIES THREE OF THE SEVEN ROWS (`rv_beans_meal`, `rv_beans_oil` and this
+# one). That is stated rather than balanced away: the owner's question is the arc's origin and the
+# board it anchors is the one the design's three target answers are written on. The Scan cost probe's
+# trio is UNCHANGED and still spans three different fans, so the cost row stays attributable.
+#
+# ── THE SCAN COST PROBE IS A NAMED SUBSET OF THIS DECK, NOT ANOTHER DECK ────────────────────────────
+# Design 10.3 prices "a 3-id Scan cost probe x 2 = 6". It runs through `--only-ids` over THREE of the
+# rows below, so the probe and the panel measure the SAME questions at two tiers and the cost row is
+# attributable. The six rows sit on FIVE distinct anchor boards (soybeans_cbot carries two); the three
+# below are picked one per complex -- vegoil, grain, palm -- so the probe spans three different fans
+# rather than three rows off one board:
+#
+#   --mode quick --only-ids rv_soyoil_palm,rv_corn_wheat,rv_palm_rapeoil
+#
+# Scan's own flip bar is the cost probe plus B1-B20 green on the harness -- no quality panel (design
+# 10.3, critic G20), and Scan carries the ratified S7 render caps while deep and max run UNCAPPED.
+queries:
+- id: rv_soyoil_palm
+  contract: soybean_oil_cbot
+  category: state_arm_a
+  expected_intent: reasoning
+  question: Palm oil's supply picture has been shifting. How does that reach soybean oil, and where
+    does the balance between the two sheets stand this marketing year?
+  expect:
+    needs_evidence: true
+- id: rv_corn_wheat
+  contract: corn_cbot
+  category: state_arm_a
+  expected_intent: reasoning
+  question: With corn's balance sheet where it is, what does that do to wheat on the feed side, and
+    how do the two sheets compare this marketing year?
+  expect:
+    needs_evidence: true
+- id: rv_beans_meal
+  contract: soybeans_cbot
+  category: state_arm_a
+  expected_intent: reasoning
+  question: How is the soybean balance sheet feeding through to soybean meal this year -- is the
+    crush pulling the meal sheet tighter than the bean sheet?
+  expect:
+    needs_evidence: true
+- id: rv_palm_rapeoil
+  contract: malaysian_crude_palm_oil_cme
+  category: state_arm_a
+  expected_intent: reasoning
+  question: Set palm oil against rapeseed oil for me -- whose stocks position moved more this year,
+    and how do the two read against each other now?
+  expect:
+    needs_evidence: true
+- id: rv_beans_oil
+  contract: soybeans_cbot
+  category: state_arm_a
+  expected_intent: reasoning
+  question: Walk me from soybeans to soybean oil -- how do the two balance sheets sit against each
+    other at this point in the marketing year?
+  expect:
+    needs_evidence: true
+# THE ONE ROW WHOSE DECLINE IS ITSELF DATA. `rv_canola_rapeoil` carries the docketed canola bare-name
+# resolve gap and is expected to mis-resolve or decline on the rv leg -- the rv deck says so in its own
+# header. It is KEPT because the board's anchor and its SB-X absence vocabulary are exactly what a
+# turn like this exercises, and because dropping the awkward row is how a population gets flattered.
+- id: rv_canola_rapeoil
+  contract: canola_ice
+  category: state_arm_a
+  expected_intent: reasoning
+  question: Canola against rapeseed oil -- how do the seed and the oil balance sheets compare this
+    year, and which side tightened?
+  expect:
+    needs_evidence: true
+# THE SEVENTH ROW -- the arc's own origin turn, in the owner's own words. See the header section "THE
+# SEVENTH ID" for the full provenance chain and for exactly what grade of evidence `owner_verbatim:
+# true` rests on: the living memory records the owner's own 2026-09-07 Cascade stream request carrying
+# this string BYTE FOR BYTE, at the right date, the right tier and the right revision, with his read of
+# that answer logged three lines later. The two extra keys are metadata only -- `eval.load_queries`
+# yaml-loads the rows and every reader takes its fields with `.get`, so they ride the deck without
+# reaching the prompt. NO `asof` KEY, like every row above: the rv reading rides the price_replay belt
+# (a historical as-of drops it whole) and design 10.3's as-of parity rule binds both cells to the LIVE
+# as-of inside ONE calendar window.
+- id: rv_soybeans_state_2026_09_07
+  contract: soybeans_cbot
+  category: state_arm_a
+  expected_intent: reasoning
+  question: what is the situation on soybeans now? how is it looking 3 months from now?
+  owner_verbatim: true
+  provenance: "the living memory `project_dec_evidence_corpus.md:2041` (under
+    C:/Users/User/.claude/projects/C--Users-User-Desktop-Leviathan/memory/)
+    -- `OWNER CASCADE SMOKE #2 VERIFIED 09-07 10:47-10:49Z (rev 131
+    + bundle index-9Oj2bNiB): GET /v1/respond/stream ... mode=max on '<this question>'`, with the
+    turn's own metrics (writer claude-opus-5, CascadeFired 1/4, CitedN 29, CostUsd $0.461) and :2044
+    recording the owner's read of that answer. Corroborated in the tree by
+    docs/private/STATE_ENGINE_DESIGN_2026-09-07.md:152 (sec 0.3 Scenario 1, as-of 2026-09-07, Cascade)
+    and src/leviathan/graphrag/state/__main__.py:20,:777 (harness scenario `soybeans_now`), both of
+    which render the same turn. The memory record is a LOGGED REQUEST from the owner's own stream, not
+    a keystroke capture -- weighed and accepted as verbatim in the header."
+  expect:
+    needs_evidence: true

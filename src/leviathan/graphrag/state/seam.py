@@ -552,6 +552,89 @@ def counters(bd, *, block: str = "", analogs=(), watch=(), render_ms: float = 0.
     return out
 
 
+# THE TWELVE COVERAGE COUNTERS' NAMES, DECLARED ONCE so the pin, the emitter and the config check can
+# all read ONE tuple rather than three copies of a list. Order is the reading order of the table in
+# S7's plan: the loud triple, then the four letter-surface pairs, then the licence.
+COVERAGE_COUNTERS = ("BoardRowsLoud", "BoardRowsLoudReferenced", "BoardRowsLoudCited",
+                     "BoardEventsOpen", "BoardEventsReferenced",
+                     "BoardRecencyRows", "BoardRecencyReferenced",
+                     "BoardWatchRows", "BoardWatchReferenced",
+                     "BoardSpilloverRows", "BoardSpilloverReferenced", "BoardSpilloverLicensed")
+
+# (denominator counter, denominator coverage key, ((numerator counter, numerator key), ...)). The
+# PAIR is the unit of emission: a numerator with no denominator is not a measurement, so the two (or
+# three) names land together or not at all.
+_COVERAGE_GROUPS = (
+    ("BoardRowsLoud", "loud_rows", (("BoardRowsLoudReferenced", "loud_referenced"),
+                                    ("BoardRowsLoudCited", "loud_cited"))),
+    ("BoardEventsOpen", "events_open", (("BoardEventsReferenced", "events_referenced"),)),
+    ("BoardRecencyRows", "recency_rows", (("BoardRecencyReferenced", "recency_referenced"),)),
+    ("BoardWatchRows", "watch_rows", (("BoardWatchReferenced", "watch_referenced"),)),
+    ("BoardSpilloverRows", "spillover_rows", (("BoardSpilloverReferenced", "spillover_referenced"),)),
+)
+
+
+def coverage_counters(cov) -> dict:
+    """THE TWELVE COUNTERS THAT MEASURE WHAT THE BOARD *BOUGHT*, off `render.board_coverage`'s dict.
+
+    WHY THIS IS A SECOND FUNCTION AND NOT FOUR LINES INSIDE :func:`counters`. `counters()` is called
+    from `fill_stage2` (:447) -- BEFORE the writer runs. `Board.coverage` is filled at `answer.py`
+    :4701, AFTER the verifier returns. Minting these inside `counters()` would therefore publish
+    TWELVE FAKE ZEROS on every turn in the estate, against that function's own first law: every key is
+    OMITTED when the turn cannot measure it, ABSENT IS NEVER ZERO. So the coverage half is its own
+    producer, called from the ONE place that assembles the EMF record after the answer is complete
+    (`orchestrator.py`'s board block), and `answer.py` stays out of this lane entirely.
+
+    THE EMISSION RULES, each one a refusal to publish a number nobody measured:
+
+      * an EMPTY dict is the board saying it RENDERED NO ROW (`board_coverage`'s own contract -- the
+        live path is `fill_stage2`'s subject-ambiguity branch at :428-433, which ships a one-line block
+        without calling `render_board`). Nothing is emitted, including the licence.
+      * a `declined` dict is a BROKEN INSTRUMENT, stamped by `answer.py`'s named except. An instrument
+        that failed measured nothing; a zero here would be indistinguishable from a turn whose writer
+        used no row, which is the same law read from the other end.
+      * a PAIR whose DENOMINATOR is 0 is omitted WHOLE. A recency layer this turn carries nothing for
+        is UNTESTABLE, not a miss (`board_coverage`'s "denominators are comparisons, never attempts");
+        publishing `BoardRecencyReferenced=0` beside `BoardRecencyRows=0` would put a turn that had
+        nothing to reference into the same series as a turn that ignored three layers.
+      * `BoardSpilloverLicensed` is the ONE exception and is present whenever the INSTRUMENT REPORTED
+        IT -- i.e. whenever `spillover_licensed` is a key of the dict -- because it is a fact about the
+        BLOCK and not about the writer: 0 means "the board minted no CROSS-COMMODITY line", which is a
+        measurement, not an absence. THE EXCEPTION IS NOT A LICENCE TO INVENT: keyed on "the dict is
+        non-empty" it also fired on a TRUNCATED or hand-edited coverage dict -- `{"loud_rows": "9"}`
+        minted `BoardSpilloverLicensed=0` and published "the board rendered rows and licensed no
+        cross-commodity line" for a dict that proves NEITHER half. `board_coverage` always returns the
+        key on a real turn, so requiring it costs the live path nothing and closes the replay path.
+
+    WHAT STAYS OUT OF EMF ON PURPOSE: `loud_k`, `loud_figure_only`, `watch_cited`, `watch_figure_only`,
+    `events_closed`, `events_unplaced`, `spillover_same_board_rows` and `missed`. They ride the
+    artifact, where the arm reads them off the trace; as counters they would double this record's
+    monthly cardinality for splits one deck's own analysis answers. `BoardRowsLoudCited` is the TIGHT
+    read and leads; `*_figure_only` is the loose remainder and is never blended into it.
+    """
+    if not isinstance(cov, dict) or not cov or cov.get("declined"):
+        return {}
+    out: dict = {}
+    for den_name, den_key, nums in _COVERAGE_GROUPS:
+        den = cov.get(den_key)
+        if not isinstance(den, (int, bool)) or int(den) <= 0:
+            continue                                    # UNTESTABLE -> the whole group is absent
+        out[den_name] = int(den)
+        for num_name, num_key in nums:
+            num = cov.get(num_key)
+            out[num_name] = int(num) if isinstance(num, (int, bool)) else 0
+    # THE LICENCE IS A FACT ABOUT THE BLOCK. `spillover_licensed` is `any(...)` -- a bool -- and
+    # `int()` is what makes it a Count the dashboard can sum; it is emitted even at 0 because "the
+    # board rendered rows and licensed no spillover" is exactly the population the S8 ground arm needs.
+    # GATED ON THE KEY'S PRESENCE, not on the dict being truthy: the exception exists because the
+    # INSTRUMENT reported a 0, and a dict that never carried the key reported nothing. `board_coverage`
+    # returns it on every real turn, so this changes no live path and stops a truncated replay
+    # (`{"loud_rows": "9"}`) from publishing a fact it does not hold.
+    if "spillover_licensed" in cov:
+        out["BoardSpilloverLicensed"] = 1 if cov.get("spillover_licensed") else 0
+    return out
+
+
 def _subject_counters(bd) -> dict:
     """The SUBJECT RESOLVER's four counters (D8), ABSENT-WHEN-INAPPLICABLE like every other key here.
 

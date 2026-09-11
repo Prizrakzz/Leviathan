@@ -1,0 +1,266 @@
+# THE ARM ENV BASE -- the eval lane's environment, STORED so it can be DIFFED.
+#
+# WHY THIS FILE EXISTS. Until 2026-09-11 the base was reconstructed BY HAND for every paid arm, from
+# three layers no diff ever showed together: a job definition nobody read, `submit_eval.DEFAULT_JOB_ENV`
+# (one key), and a `--env KEY=VAL` list re-typed at the prompt. Its only record was AFTER the fact, in
+# `data/batch_runs/eval_*.json` under `env_overrides`. That is how the V2-3 / V2-5 arms came to run
+# `GRAPHRAG_NUMBERS_THINKING` OFF while production ran it ON -- an arm that measured a seat the estate
+# does not serve. The stored file is the DIFFABLE thing; THE LIVE TASKDEF IS THE AUTHORITY, and
+# `submit_eval.py --from-taskdef <family:rev>` is what re-reads it and refuses a submission whose base
+# has drifted.
+#
+# REFRESH CADENCE: re-run `--from-taskdef leviathan-dev-serving:<live>` and re-bank this file BEFORE
+# EVERY PAID ARM, and whenever a serving revision ships. Bump `taskdef.revision` and `taskdef.read_utc`
+# in the same edit, and record what moved under `diff_vs_prior_base`.
+#
+# THE THREE SECTIONS ARE THREE DIFFERENT CLAIMS:
+#   copy_from_taskdef  -- "serving sets this and the arm must too, at THIS value". A key here that is
+#                         absent from the live taskdef, or carries a different value there, REFUSES the
+#                         submission under `--from-taskdef`. This is the parity half.
+#   never_copy         -- "serving sets this and the arm must NOT". Each carries its one-line reason.
+#                         The parity WARNING honours this list, so it stops crying about GRAPHRAG_AUTH.
+#   arm_only           -- "the arm sets this and serving does not". The dark legs lit in BOTH cells, the
+#                         strip audit, and the arm's own flag.
+#
+# NOT AN ARM CONCERN, AND NAMED SO NOBODY ADDS IT: secrets and ports CANNOT be set through a Batch
+# `containerOverrides` at all. `ANTHROPIC_API_KEY` and `EVIDENCE_PG_DSN` must be ON THE JOB DEFINITION
+# (`leviathan-dev-graphrag-eval:14` already carries both). See `job_definition` below.
+
+schema: arm_env_base/v1
+
+taskdef:
+  family: leviathan-dev-serving
+  revision: 133
+  read_utc: '2026-09-11'
+  image: leviathan-dev-leviathan-embedder@sha256:ddf6ab07f1b9dac383e4fbf2a9db0ad0dbdcf71c7d844b69a8817e00990997de
+  container: serving
+  env_count: 73
+  graphrag_env_count: 63
+
+job_definition:
+  # WHAT `submit_eval.py` DEFAULTS TO TODAY, kept so nothing existing changes.
+  submit_eval_default: leviathan-dev-evidence-build
+  # WHAT AN ARM MUST PASS with `--job-definition`. `leviathan-dev-evidence-build:135` carries 11 env
+  # vars and ZERO GRAPHRAG_* flags, and its image predates the S6 board wiring -- an arm submitted onto
+  # it measures a tree with no board at all. `leviathan-dev-graphrag-eval:14` carries 20 baked env, the
+  # ANTHROPIC_API_KEY and EVIDENCE_PG_DSN secrets, and the right image family.
+  arm: leviathan-dev-graphrag-eval
+  # A JOBDEF REPIN KEEPS ITS REPOSITORY: graphrag-eval is the EMBEDDER family, the silver six are the
+  # WORKER family. A worker digest on the embedder repo dies at STARTING with CannotPullContainerError.
+  repository_family: embedder
+  secrets_required_on_jobdef:
+    - ANTHROPIC_API_KEY
+    - EVIDENCE_PG_DSN
+  # IN-VPC OR THE ARM MEASURES NOTHING (design 10.3, desk_cost F15): off-VPC the board declines
+  # `pg_not_live` on every turn. `GRAPHRAG_NUMBERS_BACKEND=pg` + EVIDENCE_PG_DSN are the two halves.
+  queue: leviathan-dev-queue-ondemand
+
+# ── COPY FROM THE TASKDEF (42) ──────────────────────────────────────────────────────────────────────
+# Every one of these CHANGES THE MEASURED ANSWER. The five that decide an arm are called out; the rest
+# are the estate's shipped legs, copied so the board is measured against the estate it will live in.
+copy_from_taskdef:
+  # -- the seats. The eval's own `--model` WINS over env for the writer (the 09-01 lesson), so BOTH are
+  #    passed explicitly in both arms; these two keep the NUMBERS seat and the thinking knob honest.
+  GRAPHRAG_SYNTH_MODEL: claude-opus-5
+  GRAPHRAG_NUMBERS_MODEL: claude-sonnet-5
+  # THE DOCKET'S OWN GAP: the V2-3 / V2-5 arms ran this OFF while prod runs it ON. `numbers/agent.py`
+  # arms adaptive thinking only when the resolved seat is adaptive-capable AND the provider is
+  # anthropic -- so this key and GRAPHRAG_PROVIDER are one decision, not two.
+  GRAPHRAG_NUMBERS_THINKING: adaptive
+  # THE SINGLE MOST CONSEQUENTIAL KEY FOR ARM A. With the board ON and this OFF, `state/board.py`
+  # DECLINES the recency leg `recency_facts_off` and the treatment cell loses its whole RECENCY
+  # movement -- the class the S6b smoke moved 0/9 -> 9/9. An arm run without it measures a board with
+  # one movement missing and reports it as the board's own ceiling.
+  GRAPHRAG_RECENCY_FACTS: 'on'
+  # WITHOUT THIS EVERY TURN RUNS THE `default` CONTRACT and `response_contracts.apply()` early-returns
+  # unchanged -- the F3 budget seam is unreachable and the contract dimension is vacuous.
+  GRAPHRAG_RESPONSE_CONTRACT: verification,ranking,context_node,counterfactual,compare,recency,enumeration,horizon
+  # REDUNDANT BUT STATED: `providers.provider()` already defaults to anthropic when the var is absent.
+  # It is written down so nobody sets `bedrock` and silently disarms adaptive thinking above.
+  GRAPHRAG_PROVIDER: anthropic
+  # THE TIER ALLOWLIST, AND THE PRIOR BASE'S TRAP. The 2026-09-01 base carried `quick,deep`: `--mode`
+  # REQUESTS a tier and this allowlist HONORS it, so a `max` row would have been requested and never
+  # honored, silently. Arm A runs Analysis + Cascade on 7 ids plus a 3-id Scan cost probe -- all three.
+  GRAPHRAG_MODES: quick,deep,max
+  # -- the numbers lane and the mirror (in-VPC; `pg_not_live` on every turn without it)
+  GRAPHRAG_NUMBERS_BACKEND: pg
+  GRAPHRAG_DERIVED_ARITH: 'on'
+  GRAPHRAG_EVIDENCE_BATCH: '1'
+  # -- retrieval sizing. An arm on different ANN parameters measures a different retrieval.
+  GRAPHRAG_PG_ANN: 'on'
+  GRAPHRAG_PG_ANN_EF: '800'
+  GRAPHRAG_PG_ANN_MST: '200000'
+  GRAPHRAG_PG_ANN_MANIFEST: s3://leviathan-dev-shahem-001/graphrag_evidence/eval/pg_ann_manifest.json
+  GRAPHRAG_SILVER_CACHE: 'on'
+  # -- the cascade legs the board is measured beside
+  GRAPHRAG_CASCADE_CHAIN: 'on'
+  GRAPHRAG_CASCADE_DEEP: 'on'
+  GRAPHRAG_CASCADE_HEADLINE: 'on'
+  GRAPHRAG_CASCADE_PACE_LEG: 'on'
+  GRAPHRAG_CASCADE_PRICE_LEG: 'on'
+  GRAPHRAG_CASCADE_TRANSMISSION: 'on'
+  GRAPHRAG_CASCADE_WALK: 'on'
+  GRAPHRAG_CASCADE_XCCY: 'on'
+  GRAPHRAG_COMOVE: 'on'
+  GRAPHRAG_REROUTE_V2: 'on'
+  GRAPHRAG_RV_READING: 'on'
+  GRAPHRAG_XC_LLM_DETECT: 'on'
+  # -- convergence, routing and the reader-facing legs
+  GRAPHRAG_CONTEXT_ATTACH: 'on'
+  GRAPHRAG_CONVERGENCE_CACHE: 'on'
+  GRAPHRAG_CONVERGENCE_INTENSITY: 'on'
+  GRAPHRAG_CONVERGENCE_WARM: 'on'
+  GRAPHRAG_EPISODE_SCAFFOLD: 'on'
+  GRAPHRAG_FAMILY_FACET: 'on'
+  GRAPHRAG_FUTURES_NEWEST_FIRST: 'on'
+  GRAPHRAG_GEO_ROUTING: 'on'
+  GRAPHRAG_OUTLOOK: 'on'
+  GRAPHRAG_PROFILE_CONTEXT: 'on'
+  GRAPHRAG_RECENCY_STAMP: 'on'
+  GRAPHRAG_SUGGEST_CATALOG: 'on'
+  GRAPHRAG_TIMELINE: 'on'
+  GRAPHRAG_TLDR_COHERENCE: 'on'
+  GRAPHRAG_TRIVIAL_ROUTER: 'on'
+
+# ── NEVER COPY (25) ─────────────────────────────────────────────────────────────────────────────────
+# Each reason is the one sentence that says what copying it would DO, not that it is "serving-only".
+never_copy:
+  # auth / identity -- a Batch job has no HTTP surface
+  GRAPHRAG_AUTH: a Batch job has no HTTP surface to authenticate
+  GRAPHRAG_CORS_ORIGINS: browser-origin policy for a lane with no browser
+  COGNITO_APP_CLIENT_ID: identity-pool wiring for a surface the eval does not have
+  COGNITO_REGION: identity-pool wiring for a surface the eval does not have
+  COGNITO_USER_POOL_ID: identity-pool wiring for a surface the eval does not have
+  GRAPHRAG_METER_EXEMPT_SUBS: carries a REAL Cognito sub -- a user identity must never enter a job env
+  # metering / credits -- a 34-turn arm can HALT mid-deck under these
+  GRAPHRAG_CREDITS: every arm turn would bill against a user's credit ledger
+  GRAPHRAG_CREDITS_LIMIT: a 34-turn arm under a 100-credit ledger halts mid-deck
+  GRAPHRAG_TURN_QUOTA: a 50-turn quota halts a 34-turn arm's session mid-deck
+  # production writes -- an eval writing the live store is a production write from an arm
+  GRAPHRAG_STORE: an eval writing into the live terminal store is a production write
+  GRAPHRAG_STORE_TABLE: names the live terminal store the line above must not reach
+  GRAPHRAG_SESSIONS_TABLE: the live sessions table; same production write
+  GRAPHRAG_THREAD_TITLES: mints titles into the live store
+  GRAPHRAG_NOTIFICATIONS: would emit user notifications from an eval turn
+  # streaming surface -- the eval never streams
+  GRAPHRAG_COALESCE_WINDOW: an SSE coalescing window on a lane that never streams
+  GRAPHRAG_COALESCE_QUIESCENCE: an SSE quiescence timer on a lane that never streams
+  GRAPHRAG_ROLLUP_ASYNC: a streaming-surface knob with no streaming surface
+  # dockets and guardrails the arm has no business declaring
+  GRAPHRAG_DOSSIER: the owner's dossier docket -- copying it pins a dark flag the arm never asked about
+  GRAPHRAG_GUARDRAIL: a Bedrock guardrail id, per-call cost, on a lane that is not the serving surface
+  GRAPHRAG_GUARDRAIL_VERSION: the DRAFT version of that guardrail
+  # telemetry -- the arm reads its counters off the ARTIFACT, never the serving namespace
+  GRAPHRAG_FRONT_EXPIRY_METRICS: publishes eval turns into the serving EMF namespace and pollutes the production dashboards
+  # image and pool sizing
+  GRAPHRAG_HF_S3_CACHE: an image concern -- the eval image bakes its own model cache
+  EVIDENCE_PG_POOL: serving-shaped pool sizing; the eval's concurrency is --workers
+  EVIDENCE_PG_STATEMENT_TIMEOUT_MS: serving-shaped timeout; the eval's own wall is the job timeout
+  # THE TRAP, AND IT MUST BE DECIDED RATHER THAN DEFAULTED (see `open_decisions` below)
+  GRAPHRAG_RERANK_BACKEND: a GENUINE parity var with NO COHERE_API_KEY on the eval jobdef -- copying it blind silently degrades or fails; decide it, do not default it
+
+# ── ARM ONLY (5, plus the arm's own flag named below) ───────────────────────────────────────────────
+# The mapping holds FIVE keys. The sixth thing this section is about -- `arm_flag` -- is deliberately
+# NOT one of them, because it is the treatment and must be passed per cell; the header read "(6)" over
+# a mapping of five, and every other count in this file (42 / 25) is exact and asserted.
+# None of these is on the serving taskdef, and that is correct rather than a gap.
+arm_only:
+  # THE FOUR DARK LEGS, LIT IN **BOTH** CELLS (design 10.3): the board must be measured against the
+  # estate it will live in, not against a thinner one.
+  GRAPHRAG_EXTREME_LOCATOR: 'on'
+  GRAPHRAG_RV_REGIONAL: 'on'
+  GRAPHRAG_COT_OUTCOMES: 'on'
+  GRAPHRAG_CASCADE_CONTEXT: 'on'
+  # A LEGITIMATE DIVERGENCE, STATED RATHER THAN "FIXED": serving runs STRIP_AUDIT off, both arms run it
+  # ON. Strip count is the estate's primary judge-free quality metric and the design names it.
+  GRAPHRAG_STRIP_AUDIT: 'on'
+# The arm's OWN flag is not listed above because it is the treatment itself and must be passed per
+# cell, on the command line, so the two cells differ by exactly one `--env`:
+#   treatment: --env GRAPHRAG_STATE_BOARD=on
+#   control:   (nothing -- the flag defaults off, and flag-off is byte-identical by construction)
+arm_flag: GRAPHRAG_STATE_BOARD
+
+# Serving does NOT set these; the JOBDEF bakes them and they must stay. Listed so a jobdef repin that
+# drops one is visible here rather than at a container that cannot import its own package.
+container_env_on_jobdef:
+  PYTHONPATH: /app/src
+  PYTHONUNBUFFERED: '1'
+  AWS_REGION: us-east-1
+  LEVIATHAN_ENV: dev
+  LEVIATHAN_BUCKET: leviathan-dev-shahem-001
+  EVIDENCE_S3: s3://leviathan-dev-shahem-001/graphrag_evidence
+  EVIDENCE_BACKEND: pg
+
+# ── THE PRIOR BASE, AND THE DIFF AGAINST IT ─────────────────────────────────────────────────────────
+# There was no stored base before this file, so the PRIOR base is RECONSTRUCTED and recorded here in
+# full: a future refresh diffs against a real predecessor rather than against nothing.
+prior_base:
+  reconstructed_utc: '2026-09-11'
+  sources:
+    - leviathan-dev-graphrag-eval:14 (20 baked env, 13 of them GRAPHRAG_*)
+    - submit_eval.DEFAULT_JOB_ENV = {GRAPHRAG_REROUTE_V2 = on}
+    - data/batch_runs/eval_2026-09-01T10-04-53.025564+00-00.json env_overrides (25 hand-typed keys)
+  distinct_names: 33
+  graphrag_names: 26
+
+diff_vs_prior_base:
+  # ADDED (17) -- every one changes the measured answer; the first five decide arm A
+  added:
+    - GRAPHRAG_SYNTH_MODEL
+    - GRAPHRAG_NUMBERS_MODEL
+    - GRAPHRAG_NUMBERS_THINKING
+    - GRAPHRAG_RECENCY_FACTS
+    - GRAPHRAG_RESPONSE_CONTRACT
+    - GRAPHRAG_PROVIDER
+    - GRAPHRAG_CASCADE_DEEP
+    - GRAPHRAG_CASCADE_WALK
+    - GRAPHRAG_CASCADE_XCCY
+    - GRAPHRAG_DERIVED_ARITH
+    - GRAPHRAG_RV_READING
+    - GRAPHRAG_TIMELINE
+    - GRAPHRAG_SUGGEST_CATALOG
+    - GRAPHRAG_EVIDENCE_BATCH
+    - GRAPHRAG_PG_ANN_EF
+    - GRAPHRAG_PG_ANN_MST
+    - GRAPHRAG_PG_ANN_MANIFEST
+  # ADDED BY THE ARM ITSELF (4) -- the dark legs, lit in BOTH cells
+  added_arm_only:
+    - GRAPHRAG_EXTREME_LOCATOR
+    - GRAPHRAG_RV_REGIONAL
+    - GRAPHRAG_COT_OUTCOMES
+    - GRAPHRAG_CASCADE_CONTEXT
+  # CHANGED (1)
+  changed:
+    GRAPHRAG_MODES:
+      prior: quick,deep
+      now: quick,deep,max
+      why: '`--mode max` was REQUESTED and never HONORED under the prior allowlist -- silently'
+  # REMOVED (0) -- nothing the prior base carried is dropped; the two PYTHON* keys move to
+  # `container_env_on_jobdef`, where they were baked all along
+  removed: []
+  # UNCHANGED (25 GRAPHRAG_* present in both at the same value)
+  unchanged_count: 25
+
+# ── WHAT IS STILL OWED ──────────────────────────────────────────────────────────────────────────────
+# EVERY `key` BELOW REFUSES A SUBMISSION UNTIL IT IS NAMED OUT LOUD. `submit_eval.py` reads this
+# section (`open_decision_keys`), prints each question and fact as a WARNING, and EXITS unless the
+# operator passes `--accept-open-decision <KEY>` (or `ALL`); the accepted list rides the run record.
+# THAT GUARD EXISTS BECAUSE THIS SECTION WAS SILENCED BY CONSTRUCTION: an undecided key is filed under
+# `never_copy` (correctly -- see the reason there), and `never_copy` is the ONE section the parity
+# warning suppresses, `base_drift` never walks and `base_new_in_serving` counts as CLASSIFIED. MEASURED
+# 2026-09-11: a dry run with `--env-base` + `--from-taskdef leviathan-dev-serving:133` printed ZERO
+# lines about GRAPHRAG_RERANK_BACKEND, so a $30-55 arm would have submitted in total silence on the one
+# key this file's own words call "a GENUINE parity var" and "unresolved".
+open_decisions:
+  - key: GRAPHRAG_RERANK_BACKEND
+    question: cohere (prod parity) or local bge (today's silent default)?
+    fact: 'prod reranks with Cohere; leviathan-dev-graphrag-eval:14 carries NO COHERE_API_KEY secret, so copying the key today degrades or fails'
+    options:
+      - add COHERE_API_KEY to the eval jobdef and move the key into copy_from_taskdef
+      - leave it off and SAY, in the arm report, that the arm measured bge retrieval
+    owner: unresolved as of 2026-09-11
+    note: 'if cohere is chosen, the Bedrock quota lane caps concurrency -- drop to --workers 1'
+    # THE A/B SURVIVES EITHER WAY and that is why this is a report obligation rather than a blocker:
+    # the key is CONSTANT across both cells, so the judged delta is unaffected. What is affected is the
+    # sentence the arm report owes about what retrieval it measured -- today, local bge, not prod Cohere.
+    constant_across_cells: true

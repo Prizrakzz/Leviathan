@@ -647,6 +647,163 @@ def test_the_emf_counters_are_absent_when_inapplicable_and_read_the_LEDGER(fired
     assert out["trace"]["counters"] == c            # ONE producer for the dashboard and the artifact
     assert S.counters(None) == {}
     assert S.reason_dimension(None) == "none" and S.reason_dimension("thin_history:3") == "other"
+    # AND NOT ONE OF THE TWELVE COVERAGE NAMES IS HERE. `counters()` runs inside `fill_stage2`, BEFORE
+    # the writer; `Board.coverage` is filled after the verifier returns. A coverage counter minted at
+    # this call site is a FAKE ZERO on every turn in the estate -- see `coverage_counters` below.
+    assert not (set(c) & set(S.COVERAGE_COUNTERS)), sorted(set(c) & set(S.COVERAGE_COUNTERS))
+
+
+# ═══ S7: THE TWELVE COVERAGE COUNTERS -- what the board BOUGHT, not what it cost ════════════════════
+def test_the_twelve_coverage_counters_are_named_and_minted_from_the_coverage_dict():
+    """(i) THE NAMES. Twelve, exactly, and every one of them a `Board*` Count -- the orchestrator's
+    `units` line types any `Ms`-prefixed key as Milliseconds, so a timer smuggled into this tuple would
+    be published in the wrong unit with nothing to catch it."""
+    assert len(S.COVERAGE_COUNTERS) == 12 == len(set(S.COVERAGE_COUNTERS))
+    assert all(n.startswith("Board") and not n.startswith("Ms") for n in S.COVERAGE_COUNTERS)
+    assert set(S.COVERAGE_COUNTERS) == {
+        "BoardRowsLoud", "BoardRowsLoudReferenced", "BoardRowsLoudCited",
+        "BoardEventsOpen", "BoardEventsReferenced",
+        "BoardRecencyRows", "BoardRecencyReferenced",
+        "BoardWatchRows", "BoardWatchReferenced",
+        "BoardSpilloverRows", "BoardSpilloverReferenced", "BoardSpilloverLicensed"}
+    # A FULL DICT MINTS ALL TWELVE, so the tuple is not a list of names nobody publishes.
+    full = {"loud_rows": 9, "loud_referenced": 5, "loud_cited": 3,
+            "events_open": 2, "events_referenced": 1,
+            "recency_rows": 3, "recency_referenced": 2,
+            "watch_rows": 4, "watch_referenced": 1,
+            "spillover_rows": 6, "spillover_referenced": 2, "spillover_licensed": True}
+    out = S.coverage_counters(full)
+    assert set(out) == set(S.COVERAGE_COUNTERS)
+    assert all(isinstance(v, int) and not isinstance(v, bool) for v in out.values()), out
+    assert out["BoardRowsLoud"] == 9 and out["BoardRowsLoudReferenced"] == 5
+    assert out["BoardRowsLoudCited"] == 3 and out["BoardSpilloverLicensed"] == 1
+
+
+def test_a_coverage_counter_is_ABSENT_when_its_denominator_is_and_the_licence_is_the_exception():
+    """(ii) ABSENT IS NEVER ZERO, one pair at a time.
+
+    A recency layer this turn carries nothing for is UNTESTABLE, not a miss -- `board_coverage`'s own
+    "denominators are comparisons, never attempts". Publishing `BoardRecencyReferenced=0` beside
+    `BoardRecencyRows=0` would put a turn that had NOTHING to reference into the same series as a turn
+    that ignored three layers, and no dashboard filter can separate them afterwards.
+
+    `BoardSpilloverLicensed` is the ONE exception and it is a fact about the BLOCK: 0 means "the board
+    rendered rows and minted no CROSS-COMMODITY line", which is a measurement."""
+    zero = {"loud_rows": 4, "loud_referenced": 1, "loud_cited": 1,
+            "events_open": 0, "events_referenced": 0,
+            "recency_rows": 0, "recency_referenced": 0,
+            "watch_rows": 0, "watch_referenced": 0,
+            "spillover_rows": 0, "spillover_referenced": 0, "spillover_licensed": False}
+    out = S.coverage_counters(zero)
+    assert set(out) == {"BoardRowsLoud", "BoardRowsLoudReferenced", "BoardRowsLoudCited",
+                        "BoardSpilloverLicensed"}
+    assert out["BoardSpilloverLicensed"] == 0          # the exception: minted at zero, on purpose
+    # EACH PAIR GOES WHOLE. A numerator with no denominator is not a measurement.
+    for den, nums in (("events_open", ("BoardEventsOpen", "BoardEventsReferenced")),
+                      ("recency_rows", ("BoardRecencyRows", "BoardRecencyReferenced")),
+                      ("watch_rows", ("BoardWatchRows", "BoardWatchReferenced")),
+                      ("spillover_rows", ("BoardSpilloverRows", "BoardSpilloverReferenced"))):
+        one = dict(zero, **{den: 2})
+        got = set(S.coverage_counters(one))
+        assert set(nums) <= got, (den, got)
+        assert got - set(nums) == {"BoardRowsLoud", "BoardRowsLoudReferenced", "BoardRowsLoudCited",
+                                   "BoardSpilloverLicensed"}, (den, got)
+    # THE THREE SHAPES THAT MINT NOTHING AT ALL -- and the middle one is the live path: `fill_stage2`'s
+    # subject-ambiguity branch ships a one-line block WITHOUT calling `render_board`, so the block is
+    # truthy and `rendered_rows` is empty. A 0-of-0 there is a fabricated figure inside the arm's own
+    # new dimension. The third is `answer.py`'s named except: a BROKEN instrument measured nothing.
+    assert S.coverage_counters(None) == {}
+    assert S.coverage_counters({}) == {}
+    assert S.coverage_counters({"declined": "KeyError", "loud_rows": 9}) == {}
+    # KEYS THAT ARE NOT NUMBERS ARE NOT DENOMINATORS (a truncated or hand-edited artifact replay) --
+    # AND THE LICENCE IS NOT AN EXEMPTION FROM THAT LAW. This dict proves NEITHER half of the sentence
+    # `BoardSpilloverLicensed=0` publishes ("the board rendered rows and licensed no CROSS-COMMODITY
+    # line"): there is no usable denominator and no licence reading at all. The exception is keyed on
+    # the INSTRUMENT HAVING REPORTED -- `spillover_licensed` being a KEY -- and not on the dict being
+    # merely non-empty, so a truncated replay mints nothing and a real turn is untouched.
+    assert S.coverage_counters({"loud_rows": "9"}) == {}
+    assert S.coverage_counters({"loud_rows": "9", "spillover_licensed": False}) == \
+        {"BoardSpilloverLicensed": 0}
+    # AND `render.board_coverage` ALWAYS CARRIES THE KEY on the path that renders rows, so requiring it
+    # costs the live path nothing: its only other exit is the no-rows `{}`, which mints nothing anyway.
+    # MEASURED: the instrument has exactly two exits and the second one names the key unconditionally.
+    _bc = inspect.getsource(R.board_coverage)
+    assert '"spillover_licensed": any(' in _bc
+    assert _bc.count("return {") == 2 and "return {}" in _bc      # the no-rows exit and the real one
+
+
+def test_the_tight_read_never_exceeds_the_loose_one_on_a_REAL_board(fired):
+    """(iii) `BoardRowsLoudCited <= BoardRowsLoudReferenced <= BoardRowsLoud`, on the board the SEAM
+    itself filled and rendered -- a real `rendered_rows` list, a real `bd.calls`, a real draft.
+
+    THE THREE ACCEPTANCE FIXTURES ARE `test_board_coverage.py`'s, deliberately: they cost ~56 s to
+    build (MEASURED 2026-09-11) and that deck already pins the INSTRUMENT on all three. What is pinned
+    HERE is the PRODUCER -- that the counters carry the instrument's numbers through unchanged and keep
+    its ordering, on a board this deck already holds."""
+    bd, out = fired
+    assert bd.rendered_rows and out["block"]
+    # ONE REPRESENTATIVE PER DENOMINATOR ENTRY, and the fold is not optional: `render_board` stamps
+    # `join` on the members of every phase pair (El Nino / La Nina on ONE ONI reading) and
+    # `board_coverage` folds them, so a draft citing two halves of one entry is a draft citing ONE row.
+    # MEASURED on this fixture: [N1] and [N4] share a join and scored `loud_cited == 1`, not 2.
+    ents, _seen = [], set()
+    for m in bd.rendered_rows:
+        if m.get("role") != "state" or not m.get("handles"):
+            continue
+        key = str(m.get("join") or "") or ("#%d" % id(m))
+        if key in _seen:
+            continue
+        _seen.add(key)
+        ents.append(m)
+    assert len(ents) >= 2
+    draft = " ".join(f"The board carries this reading [N{m['handles'][0]}]." for m in ents[:2])
+    for prose in ("", draft, draft + " Nothing else was used."):
+        cov = R.board_coverage(bd, prose, n_start=1, calls=bd.calls)
+        cnt = S.coverage_counters(cov)
+        assert cnt["BoardRowsLoudCited"] <= cnt["BoardRowsLoudReferenced"] <= cnt["BoardRowsLoud"]
+        assert cnt["BoardRowsLoud"] == cov["loud_rows"]
+        assert cnt["BoardRowsLoudCited"] == cov["loud_cited"]
+        for name, key in (("BoardEventsReferenced", "events_referenced"),
+                          ("BoardRecencyReferenced", "recency_referenced"),
+                          ("BoardWatchReferenced", "watch_referenced"),
+                          ("BoardSpilloverReferenced", "spillover_referenced")):
+            if name in cnt:
+                assert cnt[name] == cov[key], (name, cnt, cov)
+    # THE EMPTY DRAFT IS A REAL DRAFT: every denominator stands, every numerator is zero. The board
+    # rendered rows, so the counters are PRESENT -- absent-when-inapplicable is about the DENOMINATOR.
+    cnt0 = S.coverage_counters(R.board_coverage(bd, "", n_start=1, calls=bd.calls))
+    assert cnt0["BoardRowsLoud"] > 0 and cnt0["BoardRowsLoudCited"] == 0
+    # AND THE WRITER'S OWN DRAFT MOVES THE TIGHT READ -- an instrument that cannot move is not one.
+    cnt1 = S.coverage_counters(R.board_coverage(bd, draft, n_start=1, calls=bd.calls))
+    assert cnt1["BoardRowsLoudCited"] == 2, (cnt1, draft)
+
+
+def test_the_coverage_counters_ride_the_boards_OWN_emf_record_and_are_silent_flag_off():
+    """(iv) ONE RECORD, ONE CALL SITE, AND NOTHING ON A FLAG-OFF TURN.
+
+    The counters are minted at the orchestrator's board EMF block (`_sbs.coverage_counters`) and NOT
+    inside `seam.counters()`, because that runs in `fill_stage2` before the writer. They ride the
+    EXISTING record -- same `(mode x reason)` dimensions, no second `emf.emit`, no new cardinality --
+    and the whole block is inside `if isinstance(_sbt, dict)`, so a turn with no `state_board` trace
+    (every flag-off turn in the estate) emits nothing at all."""
+    src = inspect.getsource(orch)
+    assert src.count("_sbs.coverage_counters(") == 1, "one call site, or two records could disagree"
+    blk = src[src.index('_sbt = tr.get("state_board")'):]
+    blk = blk[:blk.index("emf.emit_quality(tr)")]
+    assert blk.count("emf.emit(") == 1                  # the coverage half adds NO second record
+    assert 'if isinstance(_sbt, dict):' in blk          # flag off -> no key -> nothing emitted
+    # THE FALLBACK ORDER IS LOAD-BEARING: `BoardFired` is minted BEFORE the coverage update, so a
+    # record that somehow carried coverage and no counters still carries the fired/declined sample.
+    assert blk.index('"BoardFired"') < blk.index("_sbs.coverage_counters(")
+    # EVERY NEW NAME IS A Count under the record's own `units` line -- none of the twelve starts `Ms`.
+    assert not any(n.startswith("Ms") for n in S.COVERAGE_COUNTERS)
+    # AND THE PRODUCER IS NOT IN `counters()`, which is where a naive landing would have put it.
+    assert "coverage_counters" not in inspect.getsource(S.counters)
+    # CLAUSES (xii) + (xiii) GREEN, and the whole function is asserted rather than a substring of it:
+    # a clause that only grades itself cannot see the drift it exists to catch. The errors ride the
+    # message so a red from ANOTHER clause names itself instead of reading as this pin's failure.
+    _errs = cc.check_state_seam()
+    assert not _errs, _errs
 
 
 def test_the_trace_key_carries_the_spend_and_the_cap_the_walk_reads(fired):
@@ -695,15 +852,29 @@ def test_the_render_caps_are_knobs_at_the_shipped_values_and_S7_decides(graph):
     """Sec 7 + the S2/S3 measured OVERRUN. The caps ride the mode table with every other per-mode
     constant; their DEFAULTS are the design's planned sizes (which is what `render.RENDER_CAPS` and
     `watch.WATCH_RENDER_K` already ship), and the MEASURED sizes are recorded beside them in
-    `BoardKnobs`. NOTHING IS TIGHTENED HERE: a cap change is a prompt-content change and arm A must
-    measure ONE instrument, so the knob exists and S7 sets it."""
+    `BoardKnobs`. NOTHING WAS TIGHTENED AT S6: a cap change is a prompt-content change and arm A must
+    measure ONE instrument, so the knob existed and S7 set it.
+
+    S7 HAS NOW SET IT, AND THIS PIN IS CORRECTED RATHER THAN RELAXED (2026-09-11). The owner's 09-10
+    ruling is that **Scan (quick) gets render caps and deep and max run UNCAPPED into arm A**, so the
+    old literal `absence=0` on ALL THREE tiers is no longer the shipped shape and asserting it would
+    red on the ratified change. The comparison now reads the KNOB, which is what `render_caps` is
+    defined to do, and the ratified SHAPE is asserted as its own claim below -- a pin that reads the
+    knob and says nothing about the tiers would have been a pin rewritten to match the code."""
     from leviathan.graphrag.state import watch as WA
     for mode in ("quick", "deep", "max"):
         kn = B.board_knobs_of(mode)
-        assert R.render_caps(mode, kn) == dict(R.RENDER_CAPS[mode], absence=0,
+        assert R.render_caps(mode, kn) == dict(R.RENDER_CAPS[mode], absence=kn.render_absence,
                                                absence_names=kn.render_absence_names)
         assert R.render_caps(mode) == R.RENDER_CAPS[mode]        # no knobs -> the shipped table
         assert WA.render_k(mode, kn) == WA.WATCH_RENDER_K[mode]
+    # THE RATIFIED S7 SHAPE, STATED AS ITS OWN CLAIM (owner, 2026-09-10). The Scan block MEASURED 3.10x
+    # sec 7's planned size against a 105-154-word writer budget, so quick is CAPPED; deep and max run
+    # UNCAPPED into arm A and the JUDGED delta decides them. A cap that crept onto deep or max would
+    # change the prompt of the very cell the arm is measuring, which is the one thing 10.3 forbids.
+    assert B.board_knobs_of("quick").render_absence > 0, "Scan's render cap is the ratified S7 change"
+    assert B.board_knobs_of("deep").render_absence == 0, "deep runs UNCAPPED into arm A"
+    assert B.board_knobs_of("max").render_absence == 0, "max runs UNCAPPED into arm A"
     # a knob that MOVES actually moves the render, so the lever is live for S7 rather than declared
     kn = B.board_knobs_of("max")._replace(render_convergence=1, render_absence=2,
                                           render_absence_names=3)
@@ -719,7 +890,7 @@ def test_the_render_caps_are_knobs_at_the_shipped_values_and_S7_decides(graph):
     assert not any(ch.isdigit() for ch in cut[len(", ".join(long[:5])):])
     # ...and a nine-field tuple (the S2 fixtures, the census) still reads the shipped table
     nine = B.BoardKnobs(*tuple(B.board_knobs_of("deep"))[:9])
-    assert R.render_caps("deep", nine) == dict(R.RENDER_CAPS["deep"], absence=0,
+    assert R.render_caps("deep", nine) == dict(R.RENDER_CAPS["deep"], absence=nine.render_absence,
                                                absence_names=nine.render_absence_names)
 
 

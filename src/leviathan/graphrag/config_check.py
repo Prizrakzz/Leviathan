@@ -4180,7 +4180,62 @@ def check_state_seam() -> list[str]:
            with -- the property every injected answer fake in the suite rests on.
     (xi)   THE ANCHOR CEILING IS DECLARED ON EVERY TIER (`BoardKnobs.max_anchors`), because it is the
            one bound that stops a user gesture scaling the read budget, the tape column, the [N]
-           address space and the block's length together."""
+           address space and the block's length together.
+    (xii)  THE SPILLOVER LICENCE IS A DECLARED MINT, NOT A SILENT ONE. Clause (iv) compares
+           `SB_MARKER_PREFIX` against the five INJECTED-ONLY marker LINES the persona keys reserved
+           headings on (CROSS-COMMODITY / CO-MOVE / CROSS-BOARD / DIVERGENCE / REROUTE) and its own
+           note said "the board mints none of them today". THAT NOTE IS NOW FALSE BY DESIGN:
+           `render.sb_cross_commodity` mints a CROSS-COMMODITY line so the SPILLOVERS movement has the
+           heading `narration.MANDATE_MOVEMENTS` already names for it. The clause is therefore an
+           ALLOWLIST OF ONE rather than a ban:
+             (a) `render.SB_CROSS_COMMODITY_PREFIX` is the ONE of the five the board may mint, it is
+                 minted by exactly one producer (`sb_cross_commodity`, ONE call site in
+                 `render_board`), and NO OTHER of the five reserved words appears on a CODE line of
+                 `state/render.py` at all -- so no other row builder can open a reserved heading.
+                 PROSE IS BOTH COMMENTS AND DOCSTRINGS (`_strip_prose`): the first cut stripped `#`
+                 lines only, and THIS ESTATE WRITES ITS DOCTRINE IN DOCSTRINGS, so explaining the
+                 DIVERGENCE or REROUTE collision inside a `state/render.py` docstring would have
+                 reddened the BUILD on the explanation -- clause (i)'s own lesson, one clause short.
+                 Other string literals are KEPT: an f-string is how a marker line is minted;
+             (b) the mint is CONDITIONAL on the block having rendered at least one far row across a
+                 CROSS edge (`if far_rendered:` guards the one call site), so a licence can never
+                 demand a section the block carries no rows for -- the +10-hallucination class the
+                 walk's own marker gate exists to refuse;
+             (c) `narration.SYSTEM_STATE_BOARD_MANDATE` carries the sentence that SCOPES that line, so
+                 the FOUR MOVEMENTS keep ONE producer (the G5 law) and the persona paragraph at
+                 answer.py:550-577 is untouched -- which is what keeps a flag-off turn byte-identical.
+                 The scoping sentence must answer ALL FOUR readers of the bare word: `_SYSTEM_CASCADE_A`
+                 (:550-577, the su_ratio rule), `_SYSTEM_CASCADE_B` (:709, "no CROSS-COMMODITY line ->
+                 do not invent a fork"), `_SYSTEM_TRANSMISSION` (:783, "a CROSS-COMMODITY link is a
+                 relative-value divergence") and the world-balance leg in `numbers/cascade.py`, which
+                 mints a SECOND line under the same word on a turn that runs both legs -- so all four
+                 clauses are asserted present: no stocks-to-use rows, no handle of its own, not a chain
+                 link, opens no fork heading;
+             (d) the EVAL-SIDE half of the same collision is closed and must stay closed:
+                 `eval._cascade_asserts`' `reroute_v2_expected` NEGATIVE branch reds on the HEADING,
+                 which the board now licenses with `reroute_v2_pairs == 0` -- nine live deck rows carry
+                 that pin. The exemption is gated on this turn's own `state_board` trace reporting
+                 `coverage.spillover_licensed`, and it is in the NEGATIVE branch ONLY, so flag-off and
+                 no-far-row boards are unchanged and a POSITIVE pin can never be licensed into passing.
+                 THE POSITIVE BRANCH IS ISOLATED BY A BOUNDED SEARCH -- the first `else:` AFTER the
+                 `if`, not the first `else:` in the region -- and a branch that cannot be isolated is a
+                 RED. The unbounded slice passed SILENTLY on an empty string the day an `else:` landed
+                 before the `if`, i.e. it graded nothing and reported green;
+           THE FIXTURE HALF OF (a) AND (b) IS THE DECK'S, NOT THIS FUNCTION'S, and that is a measured
+           decision rather than an omission: building the three acceptance fixtures costs ~56 s
+           (MEASURED 2026-09-11, 28.9 / 27.2 s), which is a build gate's whole budget, and this
+           function's first line promises PURE READS. `tests/unit/test_board_coverage.py` pins the
+           licence positively on all three fixtures and negatively on an empty fan; what is graded HERE
+           is the source-level property that keeps those pins true -- one producer, one guarded call
+           site, four absent words, four mandate clauses, one narrow eval exemption.
+    (xiii) THE TWELVE COVERAGE COUNTERS DO NOT DRIFT FROM THEIR DENOMINATORS. `seam.COVERAGE_COUNTERS`
+           names them, `seam.coverage_counters` is their ONE producer, and every coverage key it reads
+           is a key `render.board_coverage` actually returns -- a renamed key there would otherwise
+           turn a live counter into a silent permanent absence, which is the one failure mode
+           "absent is never zero" cannot tell from a quiet week. It also grades the CALL SITE: the
+           counters are minted at the orchestrator's board EMF block and NOT inside `seam.counters()`,
+           because that function runs in `fill_stage2` BEFORE the writer, where `Board.coverage` is
+           still empty -- a naive landing there publishes twelve fake zeros on every turn."""
     errs: list[str] = []
     import inspect as _insp
 
@@ -4237,11 +4292,13 @@ def check_state_seam() -> list[str]:
         errs.append(f"state_seam: {_e}")
     # (iv) marker uniqueness against every other seam marker a volatile prompt can carry -- INCLUDING
     #      the five INJECTED-ONLY marker LINES the persona keys reserved headings on (answer.py's
-    #      CROSS-COMMODITY / CO-MOVE / CROSS-BOARD / DIVERGENCE / REROUTE). The board mints none of
-    #      them today, verified on all three acceptance fixtures, so this is a FENCE GAP the S6 review
-    #      closed rather than a live collision -- but a future board row beginning with one of those
-    #      words would silently license a reserved heading, which is the same class of defect one lane
-    #      over and is exactly what a marker-uniqueness clause is for.
+    #      CROSS-COMMODITY / CO-MOVE / CROSS-BOARD / DIVERGENCE / REROUTE). THE NOTE THAT STOOD HERE
+    #      -- "the board mints none of them today" -- IS NOW FALSE BY DESIGN and is CORRECTED rather
+    #      than deleted: `render.sb_cross_commodity` mints CROSS-COMMODITY on purpose (S7 item 2), so
+    #      the ban became an ALLOWLIST OF ONE and the whole of it is graded at clause (xii) below.
+    #      What stays HERE is what this clause was always about: `SB_MARKER_PREFIX` itself must not
+    #      overlap any of them, because two markers containing one another would make two seam gates
+    #      fire on one block -- the `_cascade_context_block_on` refute-M2 defect, one lane over.
     _marker = _sr.SB_MARKER_PREFIX
     _others = {"cascade.CW_MARKER_PREFIX": getattr(_cq, "CW_MARKER_PREFIX", ""),
                "cascade._BLOCK_HEADER": getattr(_cq, "_BLOCK_HEADER", ""),
@@ -4319,6 +4376,116 @@ def check_state_seam() -> list[str]:
             errs.append(f"state_seam: {_name} declares no anchor ceiling -- one focus_driver gesture "
                         f"anchors every contract carrying the id (measured 35) and scales the read "
                         f"budget, the tape column and the block together")
+    # (xii)(a) the allowlist of ONE: the prefix is one of the five, one producer, one call site
+    _RESERVED_FIVE = ("CROSS-COMMODITY", "CO-MOVE", "CROSS-BOARD", "DIVERGENCE", "REROUTE")
+    _xcp = getattr(_sr, "SB_CROSS_COMMODITY_PREFIX", "")
+    if _xcp not in _RESERVED_FIVE:
+        errs.append(f"state_seam: render.SB_CROSS_COMMODITY_PREFIX is {_xcp!r}, which is not one of "
+                    f"the five reserved marker words {_RESERVED_FIVE!r} -- the licence line would key "
+                    f"no persona heading and the SPILLOVERS movement would fall into ## Mechanism")
+    try:
+        _mint = _sr.sb_cross_commodity(("Palm Oil (BMD)", "Soybean Oil (CBOT)"),
+                                       anchor="Soybeans (CBOT)")
+    except Exception as e:  # noqa: BLE001
+        _mint = ""
+        errs.append(f"state_seam: render.sb_cross_commodity does not build a line ({e!r})")
+    if _mint and not _mint.startswith(_xcp):
+        errs.append(f"state_seam: render.sb_cross_commodity does not OPEN with "
+                    f"SB_CROSS_COMMODITY_PREFIX -- the persona keys the heading on a line that BEGINS "
+                    f"with the word, so a licence buried mid-line licenses nothing")
+    _rb = _insp.getsource(_sr.render_board)
+    if _rb.count("sb_cross_commodity(") != 1:
+        errs.append(f"state_seam: render_board calls sb_cross_commodity "
+                    f"{_rb.count('sb_cross_commodity(')} times -- the licence must have exactly ONE "
+                    f"producer and ONE call site, or two blocks could license one heading twice")
+    # NO OTHER RESERVED WORD MAY OPEN A BOARD LINE. PROSE IS STRIPPED FIRST -- comments AND docstrings
+    # -- because the module DISCUSSES the collision at length (that is the doctrine) and a substring
+    # ban over prose would red on the EXPLANATION rather than on a mint: clause (i)'s own lesson. The
+    # comment half shipped; the docstring half did not, and THIS ESTATE WRITES ITS DOCTRINE IN
+    # DOCSTRINGS, so the day someone explained the DIVERGENCE or REROUTE collision inside a
+    # `state/render.py` docstring the BUILD went red on the explanation. Docstrings ONLY: every OTHER
+    # string literal stays, because an f-string is exactly how a mint is written and a scan that
+    # dropped all strings would be blind to the thing it grades.
+    _rsrc = _strip_prose(_insp.getsource(_sr))
+    for _w in _RESERVED_FIVE:
+        if _w != _xcp and _w in _rsrc:
+            errs.append(f"state_seam: state/render.py carries the reserved marker word {_w!r} on a "
+                        f"CODE line -- the board may mint {_xcp!r} and nothing else of the five, or a "
+                        f"board row silently licenses a persona heading it has no rows for")
+    # (xii)(b) the mint is CONDITIONAL on a rendered far row across a cross edge
+    if "if far_rendered:" not in _rb or _rb.index("if far_rendered:") > _rb.index("sb_cross_commodity("):
+        errs.append("state_seam: the CROSS-COMMODITY licence is not guarded by `if far_rendered:` "
+                    "before its call site -- an unconditional licence demands a section the block "
+                    "carries no rows for, which is the hallucination class the marker gate refuses")
+    # (xii)(c) the mandate SCOPES the word for all four of its readers
+    for _need, _why in (("carries no stocks-to-use rows", "_SYSTEM_CASCADE_A's su_ratio rule"),
+                        ("no handle of its own", "the handle surface"),
+                        ("not a link in a transmission chain", "_SYSTEM_TRANSMISSION (answer.py:783)"),
+                        ("opens no fork heading", "_SYSTEM_CASCADE_B (answer.py:709)")):
+        if _need not in _sn.SYSTEM_STATE_BOARD_MANDATE:
+            errs.append(f"state_seam: the mandate does not say {_need!r} about the CROSS-COMMODITY "
+                        f"line -- {_why} reads the bare word and would take the board's licence for "
+                        f"its own leg")
+    # (xii)(d) the eval exemption is NARROW: the negative branch only, gated on this turn's own trace
+    from leviathan.graphrag import eval as _ev
+    _ca = _insp.getsource(_ev._cascade_asserts)
+    if "spillover_licensed" not in _ca:
+        errs.append("state_seam: eval._cascade_asserts does not read coverage.spillover_licensed -- "
+                    "the reroute_v2_expected NEGATIVE pin reds on the heading the board now licenses, "
+                    "on nine live deck rows and on every board turn with a spillover")
+    else:
+        _neg = _ca[_ca.index("fired_v2 = "):] if "fired_v2 = " in _ca else _ca
+        # THE POSITIVE BRANCH IS ISOLATED BY AN `if` AND THE FIRST `else:` **AFTER** IT, and the search
+        # is bounded for a reason: `_neg.index("else:")` scanned from the START of the region, so an
+        # `else:` landing anywhere BEFORE the `if` made the slice EMPTY and the clause PASS SILENTLY,
+        # having graded nothing at all. MEASURED 2026-09-11: slice length 90, the positive branch
+        # correctly isolated -- so this fix costs today's grade nothing and closes tomorrow's. A branch
+        # that CANNOT be isolated is a RED, never a pass: a clause that grades nothing must say so.
+        _pos = ""
+        _i = _neg.find("if bool(want):")
+        if _i < 0:
+            errs.append("state_seam: clause (xii)(d) cannot find the `if bool(want):` branch inside "
+                        "eval._cascade_asserts' fired_v2 region -- the spillover exemption's blast "
+                        "radius is UNGRADED, and an ungraded exemption is how a board licence comes to "
+                        "make a leg that never fired pass")
+        else:
+            _j = _neg.find("else:", _i)
+            if _j <= _i:
+                errs.append("state_seam: clause (xii)(d) found no `else:` after `if bool(want):` in "
+                            "eval._cascade_asserts -- the POSITIVE branch cannot be isolated, so this "
+                            "clause would grade an empty string and pass on anything")
+            else:
+                _pos = _neg[_i:_j]
+        if "_sb_lic" in _pos:
+            errs.append("state_seam: the spillover exemption reaches the reroute_v2_expected POSITIVE "
+                        "branch -- a board licence must never make a leg that did not fire pass")
+    # (xiii) the twelve coverage counters, their denominators and their CALL SITE
+    _cov_keys = set()
+    for _den_name, _den_key, _nums in _ss._COVERAGE_GROUPS:
+        _cov_keys.add(_den_key)
+        _cov_keys.update(_k for _, _k in _nums)
+    _cov_keys.add("spillover_licensed")
+    _bc = _insp.getsource(_sr.board_coverage)
+    for _k in sorted(_cov_keys):
+        if f'"{_k}"' not in _bc:
+            errs.append(f"state_seam: seam.coverage_counters reads coverage key {_k!r}, which "
+                        f"render.board_coverage does not return -- the counter would be permanently "
+                        f"ABSENT and indistinguishable from a quiet week")
+    _emitted = set(_ss.coverage_counters({_k: 1 for _k in _cov_keys}))
+    if _emitted != set(_ss.COVERAGE_COUNTERS) or len(_ss.COVERAGE_COUNTERS) != 12:
+        errs.append(f"state_seam: seam.COVERAGE_COUNTERS declares "
+                    f"{sorted(_ss.COVERAGE_COUNTERS)!r} but the producer emits {sorted(_emitted)!r} "
+                    f"-- the declared names and the minted names are one list or the dashboard reads "
+                    f"a metric nobody publishes")
+    if "coverage_counters" in _insp.getsource(_ss.counters):
+        errs.append("state_seam: seam.counters() mints the coverage counters -- it is called from "
+                    "fill_stage2, BEFORE the writer, where Board.coverage is still empty, so every "
+                    "turn in the estate would publish twelve fake zeros against this function's own "
+                    "first law")
+    if "coverage_counters" not in _orcs:
+        errs.append("state_seam: the orchestrator's board EMF block does not call "
+                    "seam.coverage_counters -- Board.coverage is filled after the verifier returns "
+                    "(answer.py:4701) and that block is the one place holding both halves of the turn")
     return errs
 
 
@@ -4900,6 +5067,51 @@ def _strip_py_comments(txt: str) -> str:
                 lines[r - 1] = ln[:c0] + " " * max(0, c1 - c0) + ln[c1:]
     except Exception:  # noqa: BLE001 -- an untokenizable file is scanned as written, never skipped
         return txt
+    return "\n".join(lines)
+
+
+def _strip_prose(txt: str) -> str:
+    """``txt`` with every COMMENT **and every DOCSTRING** blanked, lines and columns preserved.
+
+    THE COMMENT HALF IS NOT THE WHOLE OF PROSE IN THIS ESTATE. A word-ban over source exists to grade
+    what the code MINTS, and it must not red on the paragraph that EXPLAINS why the word is reserved --
+    that is clause (i)'s lesson. :func:`_strip_py_comments` closes the `#` half; this closes the other
+    one, and the other one is where this estate actually writes its doctrine. `state/render.py` carries
+    the CROSS-COMMODITY / DIVERGENCE / REROUTE collision argument at length, and the day it moves from
+    a comment block into a function docstring -- the more natural home for it -- a comment-only strip
+    turns the explanation into a BUILD FAILURE.
+
+    DOCSTRINGS ONLY, and the restriction is the point: every OTHER string literal survives, because an
+    f-string IS how a marker line is minted and a scan that dropped all strings would be blind to the
+    exact thing it grades. A module that will not parse is returned as the comment-strip left it, for
+    the same reason as above: a lint that quietly stops looking is a lint that passes."""
+    import ast as _ast
+    src = _strip_py_comments(txt)
+    lines = src.splitlines()
+    try:
+        tree = _ast.parse(src)
+    except Exception:  # noqa: BLE001 -- an unparsable module keeps the comment strip, never skipped
+        return src
+    for node in _ast.walk(tree):
+        if not isinstance(node, (_ast.Module, _ast.ClassDef, _ast.FunctionDef, _ast.AsyncFunctionDef)):
+            continue
+        body = list(getattr(node, "body", None) or ())
+        if not body:
+            continue
+        first = body[0]
+        if not (isinstance(first, _ast.Expr) and isinstance(first.value, _ast.Constant)
+                and isinstance(first.value.value, str)):
+            continue
+        s = first.value
+        r0, c0, r1, c1 = s.lineno, s.col_offset, s.end_lineno, s.end_col_offset
+        for r in range(r0, min(int(r1 or r0), len(lines)) + 1):
+            if not (1 <= r <= len(lines)):
+                continue
+            ln = lines[r - 1]
+            a = min(c0 if r == r0 else 0, len(ln))
+            b = min(c1 if r == r1 else len(ln), len(ln))
+            if b > a:
+                lines[r - 1] = ln[:a] + " " * (b - a) + ln[b:]
     return "\n".join(lines)
 
 

@@ -30,61 +30,58 @@ from leviathan.graphrag.state import __main__ as H
 from leviathan.graphrag.state import narration as N
 from leviathan.graphrag.state import render as R
 
-# ═══ THE OWED config_check CLAUSE ═══════════════════════════════════════════════════════════════════
-# `config_check.py` IS ANOTHER LANE'S FILE THIS SITTING, so the clause this build owes it is written
-# out here verbatim and asserted below in the only half this deck can own -- the behaviour. Whoever
-# next opens `config_check.check_state_seam` should paste it in as clause (xii) and delete this note.
+# === THE TWO OWED NOTES, NOW LANDED (S7 render lane) ==============================================
+# S6 shipped this deck with two OWED notes, because `config_check.py` and `state/seam.py` were other
+# lanes' files that sitting and a clause you cannot commit is a clause you write out verbatim. BOTH
+# HAVE LANDED, so the notes are deleted and replaced by the ONE thing a deck can own about them --
+# assertions that the landed surfaces are the ones that were asked for:
 #
-#   (xii)  THE SPILLOVER LICENCE IS A DECLARED MINT, NOT A SILENT ONE. Clause (iv) compares
-#          `SB_MARKER_PREFIX` against the five INJECTED-ONLY marker LINES the persona keys reserved
-#          headings on (CROSS-COMMODITY / CO-MOVE / CROSS-BOARD / DIVERGENCE / REROUTE) and its own
-#          note said "the board mints none of them today, verified on all three acceptance fixtures".
-#          THAT NOTE IS NOW FALSE BY DESIGN: `render.sb_cross_commodity` mints a CROSS-COMMODITY line
-#          so the SPILLOVERS movement has the heading `narration.MANDATE_MOVEMENTS` already names for
-#          it. The clause therefore becomes an ALLOWLIST OF ONE rather than a ban:
-#            (a) `render.SB_CROSS_COMMODITY_PREFIX` is the ONE constant the board may mint from the
-#                five, it is minted by exactly one producer (`sb_cross_commodity`, one call site in
-#                `render_board`), and no OTHER of the five reserved words begins any rendered line --
-#                assert it on the three acceptance fixtures' rendered blocks, as clause (iv)'s note
-#                already claimed to;
-#            (b) the mint is CONDITIONAL on the block having rendered at least one far row across a
-#                cross edge, so a licence can never demand a section the block carries no rows for
-#                (the +10-hallucination class the walk's own marker gate exists to refuse);
-#            (c) `narration.SYSTEM_STATE_BOARD_MANDATE` carries the sentence that scopes that line, so
-#                the FOUR MOVEMENTS keep ONE producer (the G5 law) and the persona paragraph at
-#                answer.py:550-577 is not touched -- which is what keeps a flag-off turn
-#                byte-identical. The scoping sentence must answer ALL FOUR readers of the bare word,
-#                not one: `_SYSTEM_CASCADE_A` (:550-577, the su_ratio rule), `_SYSTEM_CASCADE_B`
-#                (:709, "no CROSS-COMMODITY line -> do not invent a fork"), `_SYSTEM_TRANSMISSION`
-#                (:783, "a CROSS-COMMODITY link is a relative-value divergence") and the world-balance
-#                leg in `numbers/cascade.py`, which mints a SECOND line under the same word on a turn
-#                that runs both legs. Assert the four clauses are present: no stocks-to-use rows, no
-#                handle of its own, not a chain link, opens no fork heading;
-#            (d) the EVAL-SIDE half of the same collision is closed and must stay closed:
-#                `eval._cascade_asserts`' `reroute_v2_expected` NEGATIVE branch reds on the HEADING,
-#                which the board now licenses with `reroute_v2_pairs == 0` -- nine live deck rows carry
-#                that pin. The exemption is gated on this turn's own `state_board` trace reporting
-#                `coverage.spillover_licensed`, so flag-off and no-far-row boards are unchanged.
-OWED_CONFIG_CHECK_CLAUSE = "check_state_seam clause (xii) -- see the module note above"
+#   * `config_check.check_state_seam` clause (xii), THE SPILLOVER LICENCE AS AN ALLOWLIST OF ONE:
+#     `render.SB_CROSS_COMMODITY_PREFIX` is the only one of the persona's five reserved marker words
+#     the board may mint, it has one producer and one call site, the mint is CONDITIONAL on a rendered
+#     far row across a cross edge, and the mandate scopes the word for all four of its readers;
+#   * clause (xiii) and `seam.COVERAGE_COUNTERS`, THE TWELVE COUNTERS and their denominators -- the
+#     names the S6 note asked phase B to publish, now declared in the seam beside the dict they are
+#     computed from.
+#
+# WHAT IS ASSERTED HERE IS THE JOIN, not the clause bodies: that the twelve counter names exist, that
+# every one of them is computable from what `board_coverage` returns, and that the estate's own lint
+# is green on the pair. The clause bodies are graded where they live.
+COVERAGE_COUNTER_NAMES = ("BoardRowsLoud", "BoardRowsLoudReferenced", "BoardRowsLoudCited",
+                          "BoardEventsOpen", "BoardEventsReferenced",
+                          "BoardRecencyRows", "BoardRecencyReferenced",
+                          "BoardWatchRows", "BoardWatchReferenced",
+                          "BoardSpilloverRows", "BoardSpilloverReferenced",
+                          "BoardSpilloverLicensed")
 
-# ═══ THE OWED EMF COUNTERS ══════════════════════════════════════════════════════════════════════════
-# `state/seam.py` IS ALSO ANOTHER LANE'S FILE THIS SITTING, and `seam.counters()` is where the board's
-# EMF block is minted. G3 on the design lane's reading is that all twenty-odd counters there measure
-# what the board COST and not one measures what it BOUGHT -- `BoardBlockChars` counts what was SHOWN.
-# The coverage dict now holds the numbers; these are the counter names phase B should publish from it,
-# absent-when-inapplicable exactly like every other key that function emits (never a fake zero):
-#
-#     BoardRowsLoud / BoardRowsLoudReferenced / BoardRowsLoudCited
-#     BoardEventsOpen / BoardEventsReferenced
-#     BoardRecencyRows / BoardRecencyReferenced
-#     BoardWatchRows / BoardWatchReferenced
-#     BoardSpilloverRows / BoardSpilloverReferenced / BoardSpilloverLicensed
-#
-# NONE OF THEM IS WRITTEN HERE, deliberately: an EMF counter is a serving-side emission and this
-# sitting ships an instrument, not a dashboard. `Board.coverage` and `Board.trace()['coverage']` carry
-# every input those twelve need.
-OWED_EMF_COUNTERS = ("BoardRowsLoudReferenced", "BoardEventsReferenced", "BoardRecencyReferenced",
-                     "BoardWatchReferenced", "BoardSpilloverReferenced")
+#: counter name -> the `board_coverage` key it is computed from. It is written out so the claim "every
+#: counter is computable from the instrument's own dict" is an ASSERTION rather than a reading.
+COUNTER_SOURCE_KEYS = {
+    "BoardRowsLoud": "loud_rows", "BoardRowsLoudReferenced": "loud_referenced",
+    "BoardRowsLoudCited": "loud_cited", "BoardEventsOpen": "events_open",
+    "BoardEventsReferenced": "events_referenced", "BoardRecencyRows": "recency_rows",
+    "BoardRecencyReferenced": "recency_referenced", "BoardWatchRows": "watch_rows",
+    "BoardWatchReferenced": "watch_referenced", "BoardSpilloverRows": "spillover_rows",
+    "BoardSpilloverReferenced": "spillover_referenced",
+    "BoardSpilloverLicensed": "spillover_licensed",
+}
+
+
+def test_the_two_OWED_notes_have_LANDED_and_the_seam_declares_the_twelve_counters(boards):
+    """THE HANDOFF IS CLOSED AND THIS IS WHAT CLOSED IT. A deleted OWED note with nothing asserted in
+    its place is a note that stopped being true quietly; these three asserts are what make the deletion
+    a fact rather than a tidy-up."""
+    from leviathan.graphrag import config_check as cc
+    from leviathan.graphrag.state import seam as SEAM
+    assert tuple(SEAM.COVERAGE_COUNTERS) == COVERAGE_COUNTER_NAMES
+    ctx = boards["el_nino_fanout"]
+    cov = R.board_coverage(ctx["board"], "nothing in particular", n_start=1,
+                           calls=ctx["block"].calls)
+    for name, key in sorted(COUNTER_SOURCE_KEYS.items()):
+        assert name in SEAM.COVERAGE_COUNTERS, name
+        assert key in cov, (name, key)
+    assert cc.check_state_seam() == []
+
 
 _RESERVED_MARKER_WORDS = ("CO-MOVE", "CROSS-BOARD", "DIVERGENCE", "REROUTE")
 
@@ -214,16 +211,17 @@ def test_coverage_never_fences(boards):
     """A COUNTER, NEVER A FENCE. The instrument returns plain ints and tuples and touches nothing: no
     line of the block, no call record, no leg stamp, no trip.
 
-    AND THE COUNTERS IT FEEDS ARE DECLARED, NOT WRITTEN. `seam.counters()` is another lane's file this
-    sitting, so the twelve EMF names phase B should publish are named in :data:`OWED_EMF_COUNTERS` and
-    the module note above it -- every one of them computable from the dict this returns."""
+    AND THE COUNTERS IT FEEDS ARE DECLARED IN THE SEAM. The twelve EMF names are
+    `seam.COVERAGE_COUNTERS`, pinned against this instrument's own keys in
+    :data:`COUNTER_SOURCE_KEYS` -- every one of them computable from the dict this returns."""
     ctx = boards["b40_event"]
     bd, blk = ctx["board"], ctx["block"]
     before = (list(blk.lines), list(blk.trips), [dict(c) for c in blk.calls], dict(bd.legs))
     cov = R.board_coverage(bd, "anything at all [N1]", n_start=1, calls=blk.calls)
     assert (list(blk.lines), list(blk.trips), [dict(c) for c in blk.calls], dict(bd.legs)) == before
     assert all(isinstance(v, (int, bool)) for k, v in cov.items() if k != "missed")
-    assert OWED_EMF_COUNTERS and all(n.startswith("Board") for n in OWED_EMF_COUNTERS)
+    assert COVERAGE_COUNTER_NAMES and all(n.startswith("Board")
+                                          for n in COVERAGE_COUNTER_NAMES)
 
 
 # ═══ 1b. THE THREE FALSE POSITIVES THE FIRST CUT SHIPPED ════════════════════════════════════════════
@@ -714,3 +712,151 @@ def test_the_judge_metrics_row_carries_state_use_as_none_without_a_board():
     assert E._metrics(row)["state_use"] is None
     row["judge"] = {"state_use": 4}
     assert E._metrics(row)["state_use"] == 4
+
+
+# === S7: THE COVERAGE INSTRUMENT'S TOKEN FOLDS =====================================================
+# TWO FOLDS SHIPPED AND ONE WAS REFUSED BY ITS OWN FALSIFIER. All three were re-scored on the banked
+# prod-seat draws (scratchpad/writer_board_use/smoke_s6b) against the three controls
+# `board_coverage`'s docstring records, plus the S6 NEGATIVE control and the HUMAN ceiling.
+#
+#   A  DATE FORMS (`_date_forms`)  -- SHIPPED. Day-precise forms only.
+#   B  RECENCY LAYER WORDS         -- SHIPPED. Superlative-carrying alternatives only.
+#   C  TWO-SENTENCE WINDOW         -- REFUSED. See `_TOKEN_WINDOW_SENTS`' own note for the numbers.
+#
+# MEASURED, POOLED OVER THE THREE S6b DRAWS (HEAD -> S7):
+#   recency_referenced   5/7 -> 6/7      (soybeans_now's numbers layer 1/2 -> 2/2, the specified bar)
+#   events_referenced    0/1 -> 0/1      (NOT recovered -- see the pin below for why)
+#   watch_referenced     7/22 -> 7/22    unmoved
+#   loud_referenced     19/26 -> 19/26   unmoved
+#   spillover           18/22 -> 18/22   unmoved
+# CONTROLS (HEAD -> S7): STRIPPED 11/26, 0/7, 0/22, 18/22 -> IDENTICAL. SOUP 26/26, 0/7, 6/22, 0/22
+#   -> IDENTICAL. CROSSED 22/26, 5/7, 5/22, 11/22 -> 22/26, 6/7, 5/22, 11/22: recency +1, and the
+#   movement is NAMED rather than explained away in the pin below.
+# S6 NEGATIVE CONTROL: recency 0/7 -> 0/7. The S6 answers genuinely never stated a layer fact and the
+#   fold did not invent one -- the bar the plan called non-negotiable.
+# HUMAN CEILING: the human read of the same three answers found 7 of 22 watch rows used; the
+#   instrument reads 7. INSTR <= HUMAN holds.
+def test_S7A_the_date_fold_admits_every_DAY_PRECISE_spelling_and_no_coarser_one():
+    """The ISO string is what `sb_event` prints; `1 May 2026` and `May 1, 2026` are the two ordinary
+    spellings a reader writes. EVERY form names the SAME DAY.
+
+    THE COARSER FORM WAS BUILT AND MEASURED AND REMOVED. The first cut also returned
+    `month_words(iso)` (`May 2026`), on the argument that the block prints that form itself. Re-scoring
+    the banked draws killed it: the CROSSED control rose from 5 of 22 watch rows to 9 of 22, i.e. the
+    control rose by MORE than the real signal (7 -> 9), because the three fixtures share drivers and
+    "El Nino" plus "October 2026" in another scenario's answer satisfied a watch row keyed on
+    2026-10-01. A fold that lifts a control is not a fold."""
+    forms = R._date_forms("2026-05-01")
+    assert "2026-05-01" in forms and "1 May 2026" in forms and "May 1, 2026" in forms
+    assert "May 2026" not in forms, "a month form is a coarser claim than the row's own date"
+    assert not any(f.strip() in ("May", "2026") for f in forms)
+    for f in forms:
+        assert "2026" in f, f            # no bare month -- it would hit any sentence about spring
+        assert any(ch.isdigit() for ch in f.replace("2026", "")) or f == "2026-05-01"
+    assert R._date_forms("") == () and R._date_forms("not-a-date") == ("not-a-date",)
+    # the group helper folds every date in a text into ONE group, de-duplicated and order-stable
+    grp = R._date_group("from 2026-05-01 to 2026-05-01 and 2026-11-15")
+    assert grp.count("2026-05-01") == 1 and "15 November 2026" in grp
+
+
+def test_S7A_the_three_graded_classes_share_ONE_date_helper(boards):
+    """One helper, three call sites (events, `_watch_tokens`, `_recency_tokens`), so the three classes
+    can never drift apart on what counts as a date. Asserted on the rendered rows rather than on the
+    source, because that is the property that matters."""
+    seen = set()
+    for ctx in boards.values():
+        for m in ctx["board"].rendered_rows:
+            role = m.get("role")
+            if role not in ("event_open", "event_closed", "event", "watch", "recency"):
+                continue
+            for grp in (m.get("tokens") or ()):
+                for tok in grp:
+                    if R._ISO_RX.fullmatch(str(tok)):
+                        seen.add(role)
+                        assert set(R._date_forms(str(tok))) <= set(grp), (role, tok)
+    assert {"watch", "recency"} <= seen, sorted(seen)
+
+
+def test_S7B_every_added_recency_word_carries_a_SUPERLATIVE():
+    """THE RULE THAT BOUNDS THE WIDENING, and it is the map's own argument. The EVIDENCE movement tells
+    the writer to date every row it leans on by that row's own knowledge date, so a bare
+    `knowledge date` was correctly refused -- the SUPERLATIVE is exactly what separates a claim about
+    the LAYER from a claim about a ROW. Every alternative added at S7 carries one."""
+    sup = ("newest", "oldest", "most recent")
+    for layer, words in R._RECENCY_LAYER_WORDS.items():
+        for w in words:
+            if layer == "tape":
+                continue                  # the tape words name the EDGE itself, not a superlative
+            assert any(s in w for s in sup), (layer, w)
+    assert "knowledge date" not in R._RECENCY_LAYER_WORDS["numbers"]
+    assert "newest number row" in R._RECENCY_LAYER_WORDS["numbers"]
+
+
+def test_S7C_the_token_window_is_ONE_sentence_and_the_refusal_is_recorded():
+    """The window fold was SPECIFIED, BUILT, RE-SCORED AND REFUSED. Its own note in `render.py` carries
+    the three measurements; this pin is what stops it being widened again without re-running them."""
+    assert R._TOKEN_WINDOW_SENTS == 1
+    sents = ["The mandate moved on 2026-05-01.", "It is a demand-side diversion."]
+    groups = (("2026-05-01",), ("mandate",))
+    assert R._tokens_referenced(groups, sents) is True          # both in sentence one
+    split = ["The blend changed on 2026-05-01.", "The mandate is a domestic call."]
+    assert R._tokens_referenced(groups, split) is False         # one apart -- and it STAYS a miss
+    assert R._tokens_referenced(groups, split, window=2) is True
+
+
+def test_S7_the_b40_EVENT_row_still_misses_and_the_CAUSE_is_the_NAME_not_the_date():
+    """THE BAR THE PLAN SET WAS `events_referenced` 0/1 -> 1/1 AND IT IS NOT MET. Stating why is worth
+    more than the counter.
+
+    MEASURED on the banked `b40_event` draw: the date group now HITS -- sentence 0 reads "Indonesia's
+    move to a forty percent palm blend, dated 1 May 2026, is a demand-side diversion", which the
+    ISO-only test missed and the day-precise fold catches. What does not hit is the NAME group: that
+    sentence calls the event by its CONTENT ("a forty percent palm blend"), and the nearest sentence
+    carrying "mandate" is s2, with the tldr's second half between them. Recovering it would need either
+    a three-sentence window (refused, see `_TOKEN_WINDOW_SENTS`) or admitting "B40" and "blend" as name
+    tokens -- a vocabulary THE BLOCK DOES NOT PRINT, which is the unbounded charity `_name_words`' own
+    bound exists to refuse.
+
+    SO THE RESIDUAL IS NAMED AND THE DIRECTION IS THE SAFE ONE: the instrument UNDER-claims this row."""
+    forms = R._date_forms("2026-05-01")
+    s0 = ("Indonesia's move to a forty percent palm blend, dated 1 May 2026, is a demand-side "
+          "diversion: it burns exportable palm inside the origin.")
+    assert any(f.lower() in s0.lower() for f in forms), "the date fold must catch this sentence"
+    names = R._name_words("biodiesel mandate")
+    assert not any(n.lower() in s0.lower() for n in names), "the NAME is what is absent, not the date"
+    assert R._tokens_referenced((forms, names), [s0]) is False
+
+# === S7 ROUND 2 (R5): WHY THE CROSSED CONTROL CANNOT GRADE THE RECENCY CLASS ON THESE FIXTURES =====
+def test_S7r2_the_CROSSED_control_is_DEGENERATE_for_recency_because_the_LAYER_FACT_is_shared(boards):
+    """THE B FOLD'S +1 SHOWS UP ON THE CONTROL AS WELL AS ON THE SIGNAL, AND THIS IS WHY -- a measured
+    property of the fixture set, not a leak in the fold.
+
+    THE CROSSED control scores each board against the OTHER scenarios' answers, and "a fold that lifts
+    a control is not a fold, it is a leak" is this instrument's own rule. Re-scored on the banked
+    prod-seat draws, `recency_referenced` moved 5/7 -> 6/7 on the real signal AND 5/7 -> 6/7 on CROSSED.
+    The rule would condemn the fold -- except that the three acceptance fixtures print the SAME recency
+    lines: one as-of, one set of knowledge dates, one tape edge (2026-09-04). A recency row of board A
+    satisfied by board B's answer is not cross-row bleed here; it is the same claim about the same day,
+    which is what this pin measures.
+
+    THE SHARPEST READING IS AT HEAD, WHERE THE CONTROL BEAT THE SIGNAL: `soybeans_now` scored its OWN
+    recency 1 of 2 and its CROSSED recency 2 of 2, because the crossed pool is two answers of prose
+    against one. A control that outscores the real read on the class it is grading is measuring the
+    prose volume, not the transcription.
+
+    SO THE +1 IS CARRIED AS A NAMED LIMIT INTO ARM A: on this fixture set, CROSSED grades the loud,
+    watch and spillover classes and does NOT grade recency. Arm A's deck spans different boards with
+    different as-ofs, where the layer facts diverge and the control becomes informative again."""
+    lines = {}
+    for name in H.SCENARIOS:
+        blk = boards[name]["block"]
+        lines[name] = {ln.split(":", 1)[0]: ln for ln in blk.lines if ln.startswith("RECENCY ")}
+    names = sorted(lines)
+    assert len(names) >= 2
+    # the NUMBERS and TAPE layer lines are the SAME LINE on every fixture -- byte for byte
+    for layer in ("RECENCY numbers", "RECENCY tape"):
+        vals = {lines[n].get(layer) for n in names}
+        assert len(vals) == 1 and None not in vals, (layer, vals)
+    # ...so any answer that transcribes one board's layer fact transcribes all three
+    shared = lines[names[0]]["RECENCY numbers"]
+    assert "2026-09-04" in shared and "newest knowledge date" in shared, shared

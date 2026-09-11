@@ -57,10 +57,27 @@ GRAPHRAG_PLAN.md
 # directory is excluded, so the negations below only work in this form. Nothing else changes -- every
 # other entry under `configs/graphrag/`, subdirectories included, is ignored exactly as before.
 # THE HELD-OUT DECK IS NOT HERE AND NEVER WILL BE: it lives outside the repository by design.
+#
+# THE STATE-ENGINE ARM A PAIR IS THE SECOND STATED EXCEPTION, on the SAME ruling and for the same
+# reason -- written here rather than carried by an invisible `git add -f`. `tests/unit/
+# test_submit_eval_parity.py` is a TRACKED deck that READS both files (it grades the stored env base
+# key by key and the arm deck row by row), so on a fresh clone of the commit that carries the deck the
+# module fixture raised FileNotFoundError and the pins ERRORED or SKIPPED: a committed deck that
+# cannot run from its own commit. `git add -f` would have landed them once and left the RULE saying
+# they are private, so the next clone-and-run finds the same red with no rule to read. Named here, the
+# two are ordinary tracked files and `git status` shows them like anything else.
+# NEITHER CARRIES A SECRET, and that was checked rather than assumed: the base lists env var NAMES and
+# non-secret values (its `never_copy` reasons NAME `GRAPHRAG_METER_EXEMPT_SUBS` and the three
+# `COGNITO_*` keys without carrying any of their values), the bucket and ECR digest it does name are
+# already in 629 tracked files, and six eval decks under `configs/graphrag/` are tracked today
+# (`eval_queries_router_v2.yaml`, `eval_queries_pattern_records.yaml` and four more), so an arm deck in
+# the repository is the established shape, not a new class of exposure.
 configs/graphrag/*
 !configs/graphrag/subject_deck_v1.yaml
 !configs/graphrag/subject_deck_v2.yaml
 !configs/graphrag/subject_deck_v3.yaml
+!configs/graphrag/arm_env_base.yaml
+!configs/graphrag/eval_queries_state_arm_a_v1.yaml
 docs/graphrag/corpus_profile/
 
 # Claude working files

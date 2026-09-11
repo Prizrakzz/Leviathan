@@ -141,6 +141,36 @@ def is_measured(status: str) -> bool:
     return status_word(status) == "ok"
 
 
+def shown_value(value, scale) -> Optional[float]:
+    """**THE ONE PLACE A CARD'S ``scale`` IS APPLIED IN THE STATE LANE** (S7 polish (b)) -- ``value *
+    scale``, the magnitude that belongs under the card's ``narrate_unit`` word.
+
+    THE DEFECT IT CLOSES, MEASURED on the banked S4 blocks: 13 of the 36 SB-1 rows on the four banked
+    quick boards (36%) and 109 rows across all 16 banked blocks printed the NATIVE magnitude under the
+    ANALYST unit word -- ``118000000 MMT`` where the card declares ``scale: 0.000001``, ``35852 M ha``
+    on a ``scale: 0.001`` area card, ``87157400 million head``, and -- the sharpest -- a stocks-to-use
+    ratio printed as ``0.13 %`` where the ``scale: 100`` card's own comment in ``cascade_map.yaml``
+    (:188) reads "THE ratio trap; pre-scale is MANDATORY". That last is a 100x error on the most
+    desk-legible number a grain board prints. 25 of the 49 declared cards carry ``scale != 1``.
+
+    IT IS ONE FUNCTION BECAUSE A PAGE MUST NEVER CARRY ONE SERIES AT TWO SCALES. Two classes render a
+    figure OF a card's series: the SB-1 state row (through :attr:`StateRow.level_shown`) and the SB-O
+    analog outcome, whose change is read off the SAME array by ``analogs.outcome_over_band`` and printed
+    under the SAME unit word (``render.sb_analog_outcome``). A change scales exactly as a level does --
+    ``(a - b) * s == a*s - b*s`` -- so one multiplication serves both, and a second implementation would
+    be a second chance for the two halves of one page to disagree.
+
+    ``None`` in, ``None`` out, and an unparseable pair declines the same way: a row that read no level
+    has no shown level either, and the render's own "no level was read" clause is the sentence for it.
+    A missing or zero-ish ``scale`` is read as 1 -- an undeclared scale is not a scale of nothing."""
+    if value is None:
+        return None
+    try:
+        return float(value) * float(scale or 1.0)
+    except (TypeError, ValueError):
+        return None
+
+
 # ---------------------------------------------------------------------------------------------------
 # THE SERIES KEY (sec 1.1) -- silverleg's memo key generalised.
 # ---------------------------------------------------------------------------------------------------
@@ -289,9 +319,51 @@ class StateRow:
     window_note: str = ""                      # the window each measure names, in the cadence's own noun
     asof: str = ""
 
+    @property
+    def level_shown(self) -> Optional[float]:
+        """THE LEVEL IN ANALYST UNITS -- ``level * scale`` -- and it exists because until S7 the card's
+        own ``scale`` had NO CONSUMER anywhere in this package (S7 polish (b)).
+
+        THE DEFECT IT CLOSES, MEASURED on the banked S4 blocks: 13 of the 36 SB-1 rows on the four
+        banked quick boards (36%), 109 rows across all 16 banked blocks, printed the NATIVE magnitude
+        under the ANALYST unit word -- ``118000000 MMT`` where the card declares
+        ``scale: 0.000001  # 2,462,000 MT -> 2.46 MMT``, ``35852 M ha`` on a ``scale: 0.001`` area card,
+        ``87157400 million head``, and -- the sharpest -- ``ending stocks su ratio ... 0.13 %`` on the
+        ``scale: 100`` card whose own comment in ``cascade_map.yaml`` (:188) reads "THE ratio trap;
+        pre-scale is MANDATORY". That last one is a 100x error on the most desk-legible number a grain
+        board prints. 25 of the 49 declared cards carry ``scale != 1``.
+
+        IT IS A SECOND FIELD AND NOT A MUTATION OF ``level``, and that is the whole design. ``level``
+        stays NATIVE because three other legs read it in native units and are correct there: the
+        convention comparison (``feeders._convention_label`` -> ``watch.convention_distance``), the
+        derivation bundle (``inputs``, which must stay re-executable against the fetched rows), and the
+        change windows. ``z`` and ``percentile`` are dimensionless and are scale-invariant either way.
+        The RENDER reads this one; nothing else changes.
+
+        THE ONE PLACE THE TWO COULD DISAGREE IS THE KIND-2 WATCH ROW, and the estate is measured clean
+        on it: ``watch.DISTANCE_UNITS`` falls back to ``narrate_unit`` for ``abs_bands`` conventions
+        ONLY, and the intersection of "card with ``scale != 1``" and "declared convention" is exactly
+        two refs -- ``mpob_ending_stocks`` and ``psd_ending_stock_su_ratio`` -- and BOTH are
+        ``percentile_bands``, which measures its distance in percentile points. ``state/lint.py``'s
+        clause 4 now asserts that intersection stays empty, so the day an ``abs_bands`` convention is
+        declared on a scaled card the lint reds instead of a block printing one series in two units.
+
+        ``None`` in, ``None`` out: a row that read no level has no shown level either, and the render's
+        own "no level was read" clause is the sentence for it.
+
+        THE ARITHMETIC ITSELF LIVES IN :func:`shown_value`, ONE FUNCTION, because the SB-1 row is not
+        the only place a figure of this series reaches a page: the analog OUTCOME rows (SB-O) read the
+        same card's array through ``analogs.outcome_over_band`` and print their change under the same
+        analyst unit word. Two multiplications would be two chances to disagree, and a page carrying one
+        series at two scales is the defect this whole item exists to close."""
+        return shown_value(self.level, self.scale)
+
     def to_dict(self) -> dict:
         d = asdict(self)
         d["key"] = self.key.label()
+        # A PROPERTY IS NOT A FIELD, so ``asdict`` cannot see it -- and the trace is what a census, a
+        # replay and an arm report read. The NATIVE value stays under its own name beside it.
+        d["level_shown"] = self.level_shown
         return d
 
     def declined_windows(self) -> list:

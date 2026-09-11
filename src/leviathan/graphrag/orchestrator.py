@@ -2652,6 +2652,29 @@ def respond(*args, **kwargs) -> dict:
                 if not _sbc:
                     _sbc = {"BoardFired": 1 if (((_sbt.get("legs") or {}).get("board") or {})
                                                 .get("outcome") == "fired") else 0}
+                # S7: THE COVERAGE HALF IS MINTED HERE AND NOWHERE ELSE, because it is the only place
+                # in the estate that holds both halves of the turn. `seam.counters()` runs inside
+                # `fill_stage2` -- BEFORE the writer -- while `Board.coverage` is filled after the
+                # verifier returns (answer.py:4701), so the twelve names cannot be minted there
+                # without publishing twelve fake zeros on every turn. `dict.update` and not a second
+                # `emf.emit`: same record, same (mode x reason) dimension VALUES -- no new dimension
+                # and no new dimension value -- and the `units` line below already types every one of
+                # them a Count (none starts `Ms`). THE BILL IS NOT ZERO AND IT IS SAID PLAINLY, because
+                # R14 refuses a recurring charge nobody named: a custom metric is billed per (name x
+                # dimension set), so twelve NAMES on an existing dimension set are twelve new billed
+                # metrics per (mode x reason) combination this lane actually emits. MEASURED on the
+                # scenario-2 deep board, 2026-09-11: this record carries 19 names today and 29 with the
+                # coverage half (10 of the twelve on that board -- the events pair is absent because
+                # `events_open` is 0, which is the producer's absent-is-never-zero law doing its job).
+                # That is the cost, and it buys the only read in the estate of what the board BOUGHT
+                # rather than what it cost.
+                # Absent-when-inapplicable is the producer's contract, not this line's -- an empty, a
+                # declined or a no-row coverage dict returns {} and this adds nothing. AFTER the
+                # BoardFired fallback above and never before it: a record that carried coverage but no
+                # counters would otherwise ship twelve coverage names with no `BoardFired` beside
+                # them, and the turn's own fired/declined series would lose a sample to a dict that
+                # was merely non-empty.
+                _sbc.update(_sbs.coverage_counters(_sbt.get("coverage") or {}))
                 _reason = ((_sbt.get("legs") or {}).get("board") or {}).get("reason")
                 emf.emit(_sbc,
                          dimensions={"mode": _sbt.get("mode") or rm.STANDARD,

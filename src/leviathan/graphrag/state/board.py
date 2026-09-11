@@ -186,9 +186,34 @@ class BoardKnobs(NamedTuple):
     #                                    note below: this is the term that made the declared cap, the
     #                                    tape column, the render and the pre-writer wall all scale with
     #                                    a user gesture rather than with a tier.
-    render_absence_names: int = 24     # NAMES printed inside one SB-X line (16 / 24 / 32); the
+    render_absence_names: int = 24     # NAMES printed inside one SB-X line (6 / 24 / 32); the
     #                                    remainder is stated as a COUNT, so the row still says what it
     #                                    cut. 0 = uncapped.
+    # -- S7: THE THREE CLASSES SEC 7's SCAN ROW NEVER BUDGETED, appended LAST. The S4 census measured
+    #    the quick block at 3.10x sec 7's own Scan sizing by tokens (13,648.5 chars / ~3,412.5 est
+    #    tokens at the median board, against "~17-20 lines, ~1,100 tokens") in front of a 105-154-word
+    #    writer budget -- and 22.5% of that block sits in five classes the design's Scan row never
+    #    priced (SB-J, SB-P, SB-JOIN, SB-T, SB-H). These three are the ones a CAP can reach.
+    #    EVERY VALUE BELOW IS QUICK'S. Deep and max keep 0 or their own table value: the owner's
+    #    ratified rule of 09-10 is that Scan gets caps at S7 and the paid tiers run UNCAPPED into arm A.
+    render_fan_names: int = 0          # BOARD names printed inside ONE SB-F index line (8 / 0 / 0).
+    #                                    MEASURED 628-648 chars per index line, enumerating 29-35 board
+    #                                    labels through a bare join; the class is 10.5% of the quick
+    #                                    block. The COUNT is never cut -- only the enumeration.
+    #                                    DEEP SHIPS UNCAPPED (round 2): the first cut gave it 24, and a
+    #                                    bound on the enumeration is still a bound arm A did not ask
+    #                                    for on a control cell. The DEFAULT is 0 for the same reason a
+    #                                    missing attribute is read as 0 -- a hand-built knob tuple must
+    #                                    never silently cut a class nobody meant to move.
+    render_projection: int = 0         # SB-J rows (4 / 0 / 0). Minted once per rendered state row,
+    #                                    OUTSIDE every existing cap; 11.4% of the quick block and not a
+    #                                    line sec 7's Scan row budgets. The cut takes `Board.order`.
+    render_edge: int = 0               # the SEED's OWN SB-E line (0 / 0 / 0 -- UNCAPPED EVERYWHERE).
+    #                                    The mechanism lands dark at S7 and the NUMBER is S8's: SB-E is
+    #                                    what makes ruling 3 renderable (two boards, two lines, never
+    #                                    reconciled), so cutting it decides what the reader is TOLD and
+    #                                    not merely how long the page is. `render_spillover` already
+    #                                    bounds the FAR edges; this knob is the near one.
 
 
 #: Reads per leg-B tape cell -- ``cascade.CW_READS_PER_CELL`` (:6411), restated rather than imported so

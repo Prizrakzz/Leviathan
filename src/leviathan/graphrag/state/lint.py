@@ -504,6 +504,34 @@ def _check_board_read_rows() -> list[str]:
             errs.append("cascade_map %r: same_series_as without offset_months -- a collapsed row must say "
                         "by how much it is shifted, or it is silently claiming to BE the other series" % (ref,))
 
+    # ── S7 polish (b): THE STATE LANE PRINTS ONE SERIES IN ONE UNIT ──────────────────────────────────
+    # TWO CLASSES RENDER A FIGURE OF A CARD'S SERIES AND BOTH NOW GO THROUGH `rows.shown_value`: the
+    # SB-1 state row (`render._level_words`, via `StateRow.level_shown`) and the SB-O analog outcome
+    # (`render.sb_analog_outcome`, given the card's scale by `render._series_scales`). A change scales
+    # exactly as a level does, so ONE multiplication serves both and a page cannot carry one series at
+    # two magnitudes. THE THIRD CONSUMER IS THE ONE THIS CLAUSE GUARDS, because it is the one the state
+    # lane does not own:
+    # `render._level_words` now prints ``level * scale`` in the card's ``narrate_unit`` (the SB-1 row),
+    # while `watch.convention_distance` compares and prints the NATIVE level -- and `watch.DISTANCE_UNITS`
+    # falls back to the row's own ``narrate_unit`` for ``abs_bands`` and for ``abs_bands`` ALONE. So an
+    # ``abs_bands`` convention declared on a SCALED card would put one series on the page twice, in two
+    # magnitudes, under ONE unit word. MEASURED at this landing: 25 of the 49 declared cards carry
+    # ``scale != 1``, 23 refs carry a convention, the intersection is exactly ``mpob_ending_stocks`` and
+    # ``psd_ending_stock_su_ratio``, and BOTH are ``percentile_bands`` -- which measures its distance in
+    # percentile points and never reads ``narrate_unit``. The estate is clean today; this clause is what
+    # makes the day it stops being clean a LINT failure rather than a rendered block.
+    _convs = (load_conventions().get("conventions") or {})
+    for ref, row in board_map().items():
+        row = row or {}
+        if float(row.get("scale", 1) or 1) == 1:
+            continue
+        if str((_convs.get(ref) or {}).get("kind") or "") == "abs_bands":
+            errs.append("cascade_map %r: scale=%r with an `abs_bands` convention -- the state row "
+                        "prints level*scale in %r while watch.convention_distance prints the NATIVE "
+                        "level under the SAME unit word, so one series would reach the reader as two "
+                        "magnitudes (S7 polish (b))"
+                        % (ref, row.get("scale"), row.get("narrate_unit")))
+
     # `global_state` agrees with the row's own keying prose and with the card's axes
     for ref, row in board_map().items():
         row = row or {}
@@ -697,6 +725,19 @@ def _check_row_classes() -> list[str]:
                    "opposite signs on this board, which is what two phases of one series means; they "
                    "are not two readings that disagree.",
     }
+    # ── S7 polish (a): NO RENDERED LINE MAY CARRY AN EMPTY ANCHOR ────────────────────────────────────
+    # `month_words` returned "" for the bare-year form a marketing-year card writes, so `_anchor_words`
+    # interpolated nothing and the block printed "counted from the run's start in , the effect window
+    # ...". MEASURED at 95 lines across the 16 banked census blocks (quick 13, deep 26, max 56). The
+    # producer is fixed; this is the pin, asserted on the SAMPLES here and by the deck on the fixtures
+    # and the banked blocks.
+    _EMPTY_SLOT = (" in ,", " in .", " in ;", "from  ", " in  ", "( )", "()")
+    for name, line in sorted(samples.items()):
+        for bad in _EMPTY_SLOT:
+            if bad in line:
+                errs.append("row class %s: its sample line carries an empty interpolation slot (%r) -- "
+                            "a fence that deleted half a clause and left the punctuation"
+                            % (name, bad))
     missing = sorted(set(R.ROW_CLASSES) - set(samples))
     if missing:
         errs.append("state/lint.py has no sample line for row class(es) %s -- a class with no sample "

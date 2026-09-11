@@ -538,7 +538,10 @@ def test_the_FULL_closure_is_walked_on_every_tier_and_only_the_RENDER_is_capped(
         b = {(p["ancestor"], p["bottom"], p["depth"])
              for p in W.ancestor_paths(real, casc, "soybeans_cbot", did)}
         assert a == b, f"{did}: the closure must not shrink with the tier"
-    assert sum(1 for p in scan.paths if p["rendered"]) == 2
+    # S7 (2026-09-11): Scan's path_render_k moved 2 -> 1 -- the ratified quick RENDER cap (SB-P was 3.7%
+    # of the quick block; the walk's own path rank is the cut). The CLOSURE above is what must not shrink;
+    # the render count is the tier's knob, read from BOARD_PRESETS['quick'], and it is 1 on Scan now.
+    assert sum(1 for p in scan.paths if p["rendered"]) == 1
     assert sum(1 for p in casc.paths if p["rendered"]) == 8
     assert all(p["decline"] == "render_cap" for p in casc.paths if not p["rendered"])
     assert any(n["kind"] == "path_render_cap" and n["names"] for n in casc.notes)
