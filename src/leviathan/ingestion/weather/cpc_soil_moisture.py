@@ -4,8 +4,15 @@ Data source: CPC Leaky Bucket hydrological model.  One GeoTIFF per variable per
 day, global 0.5°×0.5° grid (720×360 cells), EPSG:4326.
 
 FTP root: https://ftp.cpc.ncep.noaa.gov/wd51yf/global_daily/
-  - GeoTIFF/w.YYYYMMDD.tif          — rolling current-year daily files
-  - clim/w.YYYY.tif.tar.gz           — annual archives, 2000–present
+  - GeoTIFF/w.YYYYMMDD.tif          — the CURRENT year's dailies, and only that year
+  - clim/w.YYYY.tif.tar.gz           — annual archives for CLOSED years, 2000–last year
+
+The two directories have DISJOINT domains — there is no day both carry, so each year has
+exactly one source.  MEASURED 2026-09-11: ``GeoTIFF/`` listed 1,512 files, every one of them
+2026 (six variables x 252 days, Jan 1 .. Sep 9, no interior gap — it is NOT a rolling window
+within the calendar year), while ``clim/`` stopped at ``w.2025.tif.tar.gz`` and a HEAD of
+``clim/w.2026.tif.tar.gz`` answered 404.  CPC publishes day D at about 17:53Z on D+1, so at
+08:00Z the newest available day is D-2.  Evidence: ``tests/fixtures/cpc_soil/capture_notes.md``.
 
 Variable codes
 --------------
@@ -82,12 +89,20 @@ def download_cpc_annual_tarball(year: int, variable: str = "w") -> bytes:
 
     Contains one GeoTIFF per calendar day for the given year (365 or 366 files).
 
+    CLOSED YEARS ONLY.  ``clim/`` is not published for a year still in progress — measured
+    2026-09-11, HEAD ``clim/w.2026.tif.tar.gz`` answered 404 while ``clim/w.2025.tif.tar.gz``
+    answered 200 (86,244,454 bytes).  Callers must not reach here for the current year; the live
+    ``GeoTIFF/`` directory is its only source (``download_cpc_daily_tif``).
+
     Args:
-        year: Calendar year, e.g. ``2024``.  Available 2000–present.
+        year: Calendar year, e.g. ``2024``.  Available 2000 through the last CLOSED year.
         variable: Variable prefix, e.g. ``"w"`` (soil moisture).
 
     Returns:
         Raw bytes of the ``.tif.tar.gz`` archive.
+
+    Raises:
+        requests.HTTPError: 404 for a year with no archive yet (after the retry shape above).
     """
     url = f"{CPC_FTP_BASE}/clim/{variable}.{year}.tif.tar.gz"
     logger.info("Downloading CPC annual tarball: %s (~85MB, may take a moment)", url)

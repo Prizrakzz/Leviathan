@@ -2,11 +2,18 @@
 
 Tests are pure Python — no S3/AWS/network dependencies.
 Synthetic GeoTIFF files are created in memory via rasterio MemoryFile.
+
+The directory-listing parser is exercised against a VERBATIM trim of the live GeoTIFF index
+captured 2026-09-11 (``tests/fixtures/cpc_soil/``); cases the live index cannot supply — a foreign
+year, a malformed date stem — are built inline below and labelled as synthetic.
 """
 from __future__ import annotations
 
+import importlib.util
 import io
+import sys
 import tarfile
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -18,6 +25,20 @@ from leviathan.ingestion.weather.cpc_soil_moisture import (
 from leviathan.storage.paths import raw_cpc_tif_key
 from rasterio.crs import CRS
 from rasterio.transform import from_bounds
+
+_REPO = Path(__file__).resolve().parents[2]
+_FIXTURES = _REPO / "tests" / "fixtures" / "cpc_soil"
+
+
+def _cpc_task():
+    """Load the Batch entrypoint by path (it lives outside the installed package)."""
+    spec = importlib.util.spec_from_file_location(
+        "cpc_task_listing", _REPO / "jobs" / "batch" / "cpc_soil_to_raw_task.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["cpc_task_listing"] = mod
+    spec.loader.exec_module(mod)
+    return mod
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -195,3 +216,63 @@ class TestExtractTifsFromTarball:
     def test_empty_tarball_returns_empty(self) -> None:
         tar_bytes = _make_tarball({})
         assert extract_tifs_from_tarball(tar_bytes, variable="w") == {}
+
+
+# ---------------------------------------------------------------------------
+# _parse_daily_listing — the live GeoTIFF index, captured 2026-09-11
+# ---------------------------------------------------------------------------
+
+class TestParseDailyListing:
+    """The index is the statement of what CPC has PUBLISHED, and after 2026-09-11 that statement is
+    what the raw window and the trailing-hole report are both measured against.  Parsing it wrongly
+    is therefore no longer cosmetic."""
+
+    def _html(self) -> str:
+        return (_FIXTURES / "geotiff_index.sample.html").read_text(encoding="utf-8")
+
+    def test_parses_the_captured_index_sorted(self) -> None:
+        dates = _cpc_task()._parse_daily_listing(self._html(), 2026, "w")
+        assert dates == sorted(dates)
+        assert dates[0] == "20260101"
+        assert dates[-1] == "20260909"          # the publication tip as captured
+        assert len(dates) == 14                 # the trim's w rows; the live index carried 252
+
+    def test_variable_filter_drops_the_other_five_variables(self) -> None:
+        mod = _cpc_task()
+        html = self._html()
+        # The live index carries six variables x 252 days = 1,512 anchors; the trim keeps e and w.
+        assert mod._parse_daily_listing(html, 2026, "e") == ["20260101", "20260102", "20260103"]
+        assert "20260103" not in mod._parse_daily_listing(html, 2026, "w")
+        assert mod._parse_daily_listing(html, 2026, "swe") == []
+
+    def test_year_filter_drops_other_years(self) -> None:
+        mod = _cpc_task()
+        assert mod._parse_daily_listing(self._html(), 2025, "w") == []
+        # SYNTHETIC (the live 2026 index carries no 2025 rows): prove the filter, not the absence.
+        injected = self._html().replace(
+            '<tr><td><a href="w.20260101.tif">',
+            '<tr><td><a href="w.20251231.tif">w.20251231.tif</a></td></tr>\n'
+            '<tr><td><a href="w.20260101.tif">',
+        )
+        assert mod._parse_daily_listing(injected, 2025, "w") == ["20251231"]
+        assert "20251231" not in mod._parse_daily_listing(injected, 2026, "w")
+
+    def test_month_boundary_is_carried_whole(self) -> None:
+        dates = _cpc_task()._parse_daily_listing(self._html(), 2026, "w")
+        assert {"20260829", "20260830", "20260831", "20260901"} <= set(dates)
+
+    def test_malformed_date_stem_is_skipped_not_raised(self) -> None:
+        # SYNTHETIC: an impossible calendar day, to pin that the parse declines rather than dies.
+        mod = _cpc_task()
+        injected = self._html().replace(
+            '<tr><td><a href="w.20260101.tif">',
+            '<tr><td><a href="w.20269999.tif">w.20269999.tif</a></td></tr>\n'
+            '<tr><td><a href="w.20260101.tif">',
+        )
+        dates = mod._parse_daily_listing(injected, 2026, "w")
+        assert "20269999" not in dates
+        assert len(dates) == 14
+
+    def test_an_unparseable_page_yields_nothing(self) -> None:
+        assert _cpc_task()._parse_daily_listing("<html>503 Service Unavailable</html>",
+                                                2026, "w") == []

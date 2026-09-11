@@ -162,11 +162,21 @@ def test_cpc_soil_to_raw_defaults_current_year_and_env(monkeypatch):
     monkeypatch.setattr(cpc_raw, "_process_year_via_daily_files",
                         lambda **kw: seen.update(kw) or (0, 0))
     # PARTIAL-MONTH FIX (2026-08-22): with WHOLE trailing months, the tarball stays untouched on a
-    # current-year default run -- the original claim, now stated on its real precondition. A HOLE
-    # legitimately reaches the tarball (the self-heal); that path is pinned in
+    # current-year default run -- the original claim, now stated on its real precondition. A
+    # CLOSED-YEAR hole legitimately reaches the tarball (the self-heal); a CURRENT-year hole never
+    # does, because clim/ has no current-year archive. Both paths are pinned in
     # test_weather_fetch_trailing_months.py, not here.
+    # The live index and the raw LIST are read once in main() and handed down -- stubbed here so
+    # this thin-contract test stays offline.
+    monkeypatch.setattr(cpc_raw, "_list_available_daily_dates", lambda year, variable: ([], True))
+    monkeypatch.setattr(cpc_raw, "_list_present_raw_days", lambda *a, **k: set())
+    # the hole report returns (present, expected, BASIS) since 2026-09-11 round 2 -- the yardstick
+    # that produced ``expected`` rides with it so the report can PRINT which one it used
     monkeypatch.setattr(cpc_raw, "_trailing_month_holes",
-                        lambda bucket, region, variable: {"whole": (31, 31)})
+                        lambda present, published, today=None: {
+                            "whole": (31, 31, cpc_raw._BASIS_PUBLISHED)})
+    monkeypatch.setattr(cpc_raw, "_upstream_short_months",
+                        lambda published, today=None: {})
     monkeypatch.setattr(cpc_raw, "_process_year_via_tarball",
                         lambda **kw: (_ for _ in ()).throw(AssertionError("whole months must use daily-files")))
     monkeypatch.setattr(sys, "argv", ["cpc_soil_to_raw_task.py"])
