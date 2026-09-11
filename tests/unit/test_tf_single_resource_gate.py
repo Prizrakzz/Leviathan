@@ -848,3 +848,70 @@ class TestItMutatesNothing:
                     called.add(name)
         assert not (imported & {"boto3", "botocore", "subprocess", "os"}), sorted(imported)
         assert called == set(), sorted(called)
+
+
+class TestTheNamedSet:
+    """``--address`` is REPEATABLE (2026-09-11): a family that must move together -- the three cpc_soil
+    jobdefs on one per-family digest -- cannot be three saved plans (the second is stale once the first
+    applies), so the gate signs for exactly the NAMED SET and runs every per-resource clause on each."""
+
+    SECOND = "module.batch.aws_batch_job_definition.cpc_soil_to_raw"
+
+    @classmethod
+    def _two_movers(cls, plan: dict) -> dict:
+        two = copy.deepcopy(plan)
+        rc = copy.deepcopy(_moved(two))
+        rc["address"] = cls.SECOND
+        two["resource_changes"].append(rc)
+        return two
+
+    def test_one_address_is_the_original_shape(self, tool, futures_plan):
+        ok, _ = _gate_futures(tool, futures_plan)
+        ok_list, _ = tool.gate(futures_plan, [FUTURES_ADDRESS], ["container_properties.image"],
+                               expect_unchanged_envelope=True)
+        assert ok and ok_list
+
+    def test_two_names_on_a_one_mover_plan_fail(self, tool, futures_plan):
+        ok, report = tool.gate(futures_plan, [FUTURES_ADDRESS, FUTURES_ADDRESS + "_b"],
+                               ["container_properties.image"], expect_unchanged_envelope=True)
+        assert not ok
+        assert any("2 named, 1 moved" in line for line in report)
+
+    def test_the_named_set_passes_when_every_mover_is_named(self, tool, futures_plan):
+        two = self._two_movers(futures_plan)
+        ok, report = tool.gate(two, [FUTURES_ADDRESS, self.SECOND], ["container_properties.image"],
+                               expect_unchanged_envelope=True)
+        assert ok, report
+        assert sum(1 for line in report if line.startswith("-- resource ")) == 2
+
+    def test_an_unnamed_mover_fails_even_when_the_named_one_is_clean(self, tool, futures_plan):
+        two = self._two_movers(futures_plan)
+        ok, report = tool.gate(two, [FUTURES_ADDRESS], ["container_properties.image"],
+                               expect_unchanged_envelope=True)
+        assert not ok
+        assert any("1 named, 2 moved" in line for line in report)
+
+    def test_a_named_set_where_one_member_moves_the_envelope_fails(self, tool, futures_plan):
+        two = self._two_movers(futures_plan)
+        rc2 = next(rc for rc in two["resource_changes"] if rc["address"] == self.SECOND)
+        after = _container(rc2["change"], "after")
+        for req in after["resourceRequirements"]:
+            if req["type"] == "MEMORY":
+                req["value"] = "8192"
+        _set_container(rc2["change"], "after", after)
+        ok, report = tool.gate(two, [FUTURES_ADDRESS, self.SECOND], ["container_properties.image"],
+                               expect_unchanged_envelope=True)
+        assert not ok
+        assert any("the envelope is unchanged" in line and line.startswith("FAIL") for line in report)
+
+    def test_the_cli_accepts_a_repeated_address(self, tool, futures_plan, tmp_path):
+        two = self._two_movers(futures_plan)
+        path = tmp_path / "plan.json"
+        path.write_text(json.dumps(two), encoding="utf-8")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = tool.main(["--plan-json", str(path), "--address", FUTURES_ADDRESS,
+                            "--address", self.SECOND, "--expect-changed", "container_properties.image",
+                            "--expect-unchanged-envelope"])
+        assert rc == 0, buf.getvalue()
+        assert "TF SINGLE-RESOURCE GATE: PASS" in buf.getvalue()

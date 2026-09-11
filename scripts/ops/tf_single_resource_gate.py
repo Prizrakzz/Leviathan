@@ -261,9 +261,11 @@ def resource_requirements(container: dict) -> dict:
             if isinstance(r, dict) and "type" in r}
 
 
-def gate(plan: dict, address: str, expect_changed, *, expect_unchanged_envelope: bool = False,
+def gate(plan: dict, address, expect_changed, *, expect_unchanged_envelope: bool = False,
          allow_unknown=()) -> tuple[bool, list[str]]:
-    """Pure: ``(ok, report lines)``. Reads ``plan``; touches no file, no network, no terraform."""
+    """Pure: ``(ok, report lines)``. Reads ``plan``; touches no file, no network, no terraform.
+
+    ``address`` is one resource address or a list of them: the NAMED SET that must move together."""
     report: list[str] = []
     ok = True
 
@@ -298,107 +300,131 @@ def gate(plan: dict, address: str, expect_changed, *, expect_unchanged_envelope:
     # A -target that resolves to nothing plans ZERO changes and reads as 'already applied'.
     # MEASURED 2026-09-04: `-target=module.scheduler...` -- there is no module.scheduler in this
     # stack -- planned 0 changes while the live schedule still lacked the tasks the operator
-    # believed were armed. Zero is a FAIL here, and so is two.
-    if not check(len(moved) == 1,
-                 "exactly ONE resource moves (a zero-change plan is a -target that resolved to "
-                 f"nothing, not an applied change) -- {len(moved)} moved"):
+    # believed were armed. Zero is a FAIL here, and so is a mover nobody named.
+    #
+    # THE NAMED SET (2026-09-11): `--address` is repeatable. A family whose jobdefs must move TOGETHER
+    # (the three cpc_soil legs on one per-family digest) cannot be applied as three saved plans -- the
+    # second saved plan is stale the moment the first applies -- so the gate signs for exactly the
+    # named set: every named address moves, nothing unnamed moves, and every mover passes the same
+    # per-resource clauses one at a time. One address is the original single-resource shape.
+    addresses = [address] if isinstance(address, str) else [a for a in address if a]
+    if not addresses:
+        return False, ["FAIL no --address named"]
+    head = ("exactly ONE resource moves" if len(addresses) == 1
+            else f"exactly the {len(addresses)} NAMED resources move")
+    if not check(len(moved) == len(addresses),
+                 head + " (a zero-change plan is a -target that resolved to nothing, not an "
+                 "applied change; an unnamed mover is never signed for) -- "
+                 f"{len(addresses)} named, {len(moved)} moved"):
         return ok, report
+    matched: list[dict] = []
+    for wanted_addr in addresses:
+        hits = [rc for rc in moved if address_matches(wanted_addr, rc.get("address", ""))]
+        check(len(hits) == 1,
+              f"the moved resource is the targeted address -- expected {wanted_addr}, plan carries "
+              f"{[rc.get('address') for rc in hits] or [rc.get('address') for rc in moved]}")
+        matched.extend(h for h in hits if h not in matched)
+    unnamed = [rc.get("address") for rc in moved if rc not in matched]
+    check(not unnamed,
+          f"every moved resource is a targeted address -- unnamed movers {unnamed or 'none'}")
 
-    change = moved[0].get("change") or {}
-    actual_address = moved[0].get("address", "")
-    check(address_matches(address, actual_address),
-          f"the moved resource is the targeted address -- expected {address}, plan carries "
-          f"{actual_address}")
-    actions = change.get("actions") or []
-    check(actions == ["update"],
-          "the action is a pure in-place update (a create/delete/replace is never a targeted "
-          f"repin) -- actions {actions}")
+    def _one(rc: dict) -> None:
+        if len(matched) > 1:
+            report.append(f"-- resource {rc.get('address')}")
+        change = rc.get("change") or {}
+        actions = change.get("actions") or []
+        check(actions == ["update"],
+              "the action is a pure in-place update (a create/delete/replace is never a targeted "
+              f"repin) -- actions {actions}")
 
-    before = change.get("before") or {}
-    after = change.get("after") or {}
-    unknown_mirror = change.get("after_unknown") or {}
-    computed = sorted(k for k, v in unknown_mirror.items() if _has_unknown(v))
-    report.append(f"computed after apply (after_unknown): {computed or 'none'}")
-    if allowed_unknown:
-        report.append(f"excused by --allow-unknown: {sorted(allowed_unknown)}")
+        before = change.get("before") or {}
+        after = change.get("after") or {}
+        unknown_mirror = change.get("after_unknown") or {}
+        computed = sorted(k for k, v in unknown_mirror.items() if _has_unknown(v))
+        report.append(f"computed after apply (after_unknown): {computed or 'none'}")
+        if allowed_unknown:
+            report.append(f"excused by --allow-unknown: {sorted(allowed_unknown)}")
 
-    raw_moved = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
-    report.append(f"attributes moved (RAW before/after): {raw_moved or 'none'}")
-    # PER-LEAF, never per-attribute: an attribute is excused only when its KNOWN leaves are
-    # identical on both sides. See _known_only for the measured false PASS this closes.
-    effective, excused = [], []
-    for key in raw_moved:
-        mirror = unknown_mirror.get(key, False)
-        if key in allowed_unknown or (_known_only(before.get(key), mirror)
-                                      == _known_only(after.get(key), mirror)):
-            excused.append(key)
-        else:
-            effective.append(key)
-    report.append(f"attributes moved (after removing computed/excused): {effective or 'none'}")
-    report.append(f"excused (only apply-time-unknown leaves moved, or --allow-unknown): "
-                  f"{excused or 'none'}")
-
-    unexpected = sorted(set(effective) - set(wanted))
-    # An EXPECTED attribute the operator excused by hand still counts as moved: --allow-unknown on
-    # the very attribute you expect is the shape of a partially-computed expected value, and
-    # subtracting it here is what made that combination unreachable in the first build.
-    excused_by_flag = {k for k in wanted if k in allowed_unknown and k in raw_moved}
-    absent = sorted(set(wanted) - set(effective) - excused_by_flag)
-    check(not unexpected, f"no attribute moved that was not expected -- unexpected {unexpected}")
-    # An expected attribute that did NOT move is a VACUOUS apply: the saved plan does not carry
-    # the change the operator is signing for. Same failure mode as the rev-110 vacuous gate.
-    check(not absent, f"every expected attribute actually moved -- did not move {absent}")
-
-    for attribute, subkeys in sorted(wanted.items()):
-        if not subkeys or attribute not in raw_moved:
-            continue
-        try:
-            b_obj = _as_mapping(before.get(attribute), attribute, "before")
-            a_obj = _as_mapping(after.get(attribute), attribute, "after")
-        except GateRefusal as exc:
-            check(False, f"{attribute} can be read as an object -- {exc}")
-            continue
-        raw_inner = sorted(k for k in set(b_obj) | set(a_obj) if b_obj.get(k) != a_obj.get(k))
-        n_b = normalise_container_properties(b_obj)
-        n_a = normalise_container_properties(a_obj)
-        inner = sorted(k for k in set(n_b) | set(n_a) if n_b.get(k) != n_a.get(k))
-        report.append(f"{attribute} keys moved (RAW): {raw_inner or 'none'}")
-        report.append(f"{attribute} keys moved (NORMALISED -- provider empties dropped, "
-                      f"environment order-free): {inner or 'none'}")
-        check(inner == sorted(subkeys),
-              f"only {sorted(subkeys)} moved inside {attribute} -- normalised diff {inner}")
-        # NOT a value check -- a PRESENCE check. MEASURED 2026-09-06 fix-pass: `image: ""` and a
-        # container_properties with the image key DELETED both produced the normalised diff
-        # ['image'] and PASSED. Neither is ever a repin, and both are cheap to refuse.
-        empty = sorted(s for s in subkeys if not a_obj.get(s))
-        check(not empty, f"every expected subkey of {attribute} still carries a value after the "
-                         f"apply (presence only -- WHICH value is never checked) -- empty or "
-                         f"absent {empty}")
-
-    if expect_unchanged_envelope:
-        b_cp = before.get("container_properties")
-        a_cp = after.get("container_properties")
-        if b_cp is None and a_cp is None:
-            check(False, "--expect-unchanged-envelope needs container_properties: this resource "
-                         "has none (the clause is a Batch job definition clause)")
-        else:
-            try:
-                b_env = resource_requirements(_as_mapping(b_cp, "container_properties", "before"))
-                a_env = resource_requirements(_as_mapping(a_cp, "container_properties", "after"))
-            except GateRefusal as exc:
-                check(False, f"the envelope can be read -- {exc}")
+        raw_moved = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+        report.append(f"attributes moved (RAW before/after): {raw_moved or 'none'}")
+        # PER-LEAF, never per-attribute: an attribute is excused only when its KNOWN leaves are
+        # identical on both sides. See _known_only for the measured false PASS this closes.
+        effective, excused = [], []
+        for key in raw_moved:
+            mirror = unknown_mirror.get(key, False)
+            if key in allowed_unknown or (_known_only(before.get(key), mirror)
+                                          == _known_only(after.get(key), mirror)):
+                excused.append(key)
             else:
-                # WHAT THIS CLAUSE HAS ACTUALLY READ, and nothing more: the only envelope it has
-                # ever seen is {'VCPU': '1', 'MEMORY': '4096'} on the 2026-09-06 futures_eod_silver
-                # plan. The 12,288 MiB post-OOM bump people cite belongs to
-                # leviathan-dev-esr-bronze-to-silver and leviathan-dev-silver-publisher-runner,
-                # which are NOT terraform resources and can never reach this code path (MEASURED:
-                # `grep -c 12288 infra/terraform/modules/batch/main.tf` = 0; every MEMORY value in
-                # that module is one of 512/1024/2048/4096/8192/16384). The clause
-                # stands on its own shape -- a descriptor re-authored from constants moves the
-                # envelope silently on whichever jobdef it is aimed at -- not on that number.
-                check(b_env == a_env, f"the envelope is unchanged -- {b_env} -> {a_env}")
+                effective.append(key)
+        report.append(f"attributes moved (after removing computed/excused): {effective or 'none'}")
+        report.append(f"excused (only apply-time-unknown leaves moved, or --allow-unknown): "
+                      f"{excused or 'none'}")
 
+        unexpected = sorted(set(effective) - set(wanted))
+        # An EXPECTED attribute the operator excused by hand still counts as moved: --allow-unknown on
+        # the very attribute you expect is the shape of a partially-computed expected value, and
+        # subtracting it here is what made that combination unreachable in the first build.
+        excused_by_flag = {k for k in wanted if k in allowed_unknown and k in raw_moved}
+        absent = sorted(set(wanted) - set(effective) - excused_by_flag)
+        check(not unexpected, f"no attribute moved that was not expected -- unexpected {unexpected}")
+        # An expected attribute that did NOT move is a VACUOUS apply: the saved plan does not carry
+        # the change the operator is signing for. Same failure mode as the rev-110 vacuous gate.
+        check(not absent, f"every expected attribute actually moved -- did not move {absent}")
+
+        for attribute, subkeys in sorted(wanted.items()):
+            if not subkeys or attribute not in raw_moved:
+                continue
+            try:
+                b_obj = _as_mapping(before.get(attribute), attribute, "before")
+                a_obj = _as_mapping(after.get(attribute), attribute, "after")
+            except GateRefusal as exc:
+                check(False, f"{attribute} can be read as an object -- {exc}")
+                continue
+            raw_inner = sorted(k for k in set(b_obj) | set(a_obj) if b_obj.get(k) != a_obj.get(k))
+            n_b = normalise_container_properties(b_obj)
+            n_a = normalise_container_properties(a_obj)
+            inner = sorted(k for k in set(n_b) | set(n_a) if n_b.get(k) != n_a.get(k))
+            report.append(f"{attribute} keys moved (RAW): {raw_inner or 'none'}")
+            report.append(f"{attribute} keys moved (NORMALISED -- provider empties dropped, "
+                          f"environment order-free): {inner or 'none'}")
+            check(inner == sorted(subkeys),
+                  f"only {sorted(subkeys)} moved inside {attribute} -- normalised diff {inner}")
+            # NOT a value check -- a PRESENCE check. MEASURED 2026-09-06 fix-pass: `image: ""` and a
+            # container_properties with the image key DELETED both produced the normalised diff
+            # ['image'] and PASSED. Neither is ever a repin, and both are cheap to refuse.
+            empty = sorted(s for s in subkeys if not a_obj.get(s))
+            check(not empty, f"every expected subkey of {attribute} still carries a value after the "
+                             f"apply (presence only -- WHICH value is never checked) -- empty or "
+                             f"absent {empty}")
+
+        if expect_unchanged_envelope:
+            b_cp = before.get("container_properties")
+            a_cp = after.get("container_properties")
+            if b_cp is None and a_cp is None:
+                check(False, "--expect-unchanged-envelope needs container_properties: this resource "
+                             "has none (the clause is a Batch job definition clause)")
+            else:
+                try:
+                    b_env = resource_requirements(_as_mapping(b_cp, "container_properties", "before"))
+                    a_env = resource_requirements(_as_mapping(a_cp, "container_properties", "after"))
+                except GateRefusal as exc:
+                    check(False, f"the envelope can be read -- {exc}")
+                else:
+                    # WHAT THIS CLAUSE HAS ACTUALLY READ, and nothing more: the only envelope it has
+                    # ever seen is {'VCPU': '1', 'MEMORY': '4096'} on the 2026-09-06 futures_eod_silver
+                    # plan. The 12,288 MiB post-OOM bump people cite belongs to
+                    # leviathan-dev-esr-bronze-to-silver and leviathan-dev-silver-publisher-runner,
+                    # which are NOT terraform resources and can never reach this code path (MEASURED:
+                    # `grep -c 12288 infra/terraform/modules/batch/main.tf` = 0; every MEMORY value in
+                    # that module is one of 512/1024/2048/4096/8192/16384). The clause
+                    # stands on its own shape -- a descriptor re-authored from constants moves the
+                    # envelope silently on whichever jobdef it is aimed at -- not on that number.
+                    check(b_env == a_env, f"the envelope is unchanged -- {b_env} -> {a_env}")
+
+
+    for rc in matched:
+        _one(rc)
     return ok, report
 
 
@@ -408,8 +434,10 @@ def main(argv=None) -> int:
                     "(read-only: it runs no terraform and mutates nothing)")
     parser.add_argument("--plan-json", required=True,
                         help="`terraform show -json <planfile>` output")
-    parser.add_argument("--address", required=True,
-                        help="the targeted resource address, with or without its count index")
+    parser.add_argument("--address", required=True, action="append",
+                        help="the targeted resource address, with or without its count index; "
+                             "REPEATABLE for a family that must move together -- the gate then "
+                             "signs for exactly the named set")
     parser.add_argument("--expect-changed", action="append", default=[], metavar="ATTR[.SUBKEY]",
                         help="repeatable; e.g. container_properties.image, definition")
     parser.add_argument("--expect-unchanged-envelope", action="store_true",

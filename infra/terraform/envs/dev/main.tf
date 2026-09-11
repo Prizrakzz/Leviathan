@@ -222,6 +222,9 @@ module "batch" {
   # fetch legs -- see the variable's comment). Sharing one digest would have
   # re-registered the publishing leg from the older fetch pin.
   futures_eod_silver_image_digest = var.futures_eod_silver_image_digest
+  # The three cpc_soil jobdefs are pinned SEPARATELY from the fleet (the 2026-09-11 fetcher fix
+  # rides its own image; the fleet digest moves alone by its standing law).
+  cpc_soil_image_digest = var.cpc_soil_image_digest
   # The SILVER-F014 gated writer: silver_futures_eod is class-A REGISTERED, so its
   # producer needs glue:CreatePartition, which only this role carries.
   silver_publisher_job_role_arn = module.iam.silver_publisher_role_arn

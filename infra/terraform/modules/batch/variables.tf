@@ -162,6 +162,25 @@ variable "futures_eod_image_digest" {
   }
 }
 
+variable "cpc_soil_image_digest" {
+  # THE CPC SOIL FAMILY'S OWN PIN (2026-09-11). Empty (default) = the three cpc jobdefs ride
+  # var.worker_fleet_image_digest with the other producer families, the original shape.
+  #
+  # It exists for the same reason futures_eod_silver_image_digest does: the fleet digest is
+  # shared by ten producer families and its standing law is 'a fleet digest move rides ONE change,
+  # alone', while the CPC fetcher fix (commit ffb4139a: the current month reads CPC's published set,
+  # the bronze month skip becomes freshness-aware, a publisher-stall alarm) must reach production
+  # on its own image without moving nine unrelated families. The three cpc jobdefs move together.
+  type        = string
+  description = "sha256 digest override for the three cpc_soil jobdefs (to-raw, raw-to-bronze, bronze-to-silver). Empty = share var.worker_fleet_image_digest."
+  default     = ""
+
+  validation {
+    condition     = var.cpc_soil_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.cpc_soil_image_digest))
+    error_message = "cpc_soil_image_digest must be empty or a full 'sha256:<64 hex>' digest -- a TAG is not accepted."
+  }
+}
+
 variable "futures_eod_silver_image_digest" {
   # THE SILVER LEG'S OWN PIN. Empty (default) = it rides var.futures_eod_image_digest
   # with the two fetch jobdefs, which is the original one-pin-for-the-family shape.

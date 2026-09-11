@@ -132,6 +132,14 @@ locals {
     ? "${var.ecr_repository_url}:latest"
     : "${var.ecr_repository_url}@${var.worker_fleet_image_digest}"
   )
+
+  # The three CPC SOIL jobdefs may be pinned ahead of the fleet -- see var.cpc_soil_image_digest
+  # (2026-09-11, the fetcher fix ffb4139a). Empty override = share the fleet digest.
+  cpc_soil_image = (
+    var.cpc_soil_image_digest == ""
+    ? local.worker_fleet_image
+    : "${var.ecr_repository_url}@${var.cpc_soil_image_digest}"
+  )
 }
 
 resource "aws_batch_compute_environment" "this" {
@@ -950,7 +958,7 @@ resource "aws_batch_job_definition" "cpc_soil_to_raw" {
   }
 
   container_properties = jsonencode({
-    image = local.worker_fleet_image
+    image = local.cpc_soil_image
 
     command = [
       "jobs/batch/cpc_soil_to_raw_task.py",
@@ -1038,7 +1046,7 @@ resource "aws_batch_job_definition" "cpc_soil_raw_to_bronze" {
   }
 
   container_properties = jsonencode({
-    image = local.worker_fleet_image
+    image = local.cpc_soil_image
 
     command = [
       "jobs/batch/cpc_raw_to_bronze_task.py",
@@ -1123,7 +1131,7 @@ resource "aws_batch_job_definition" "cpc_soil_bronze_to_silver" {
   }
 
   container_properties = jsonencode({
-    image = local.worker_fleet_image
+    image = local.cpc_soil_image
 
     command = [
       "jobs/batch/cpc_bronze_to_silver_task.py",

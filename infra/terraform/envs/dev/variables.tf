@@ -252,6 +252,20 @@ variable "futures_eod_image_digest" {
   }
 }
 
+variable "cpc_soil_image_digest" {
+  # THE THREE CPC SOIL JOBDEFS' OWN PIN (2026-09-11). Empty = they ride worker_fleet_image_digest.
+  # Set to the worker digest built at commit ffb4139a (the fetcher fix) when that image lands;
+  # applied as ONE change over exactly three resources through scripts/ops/tf_single_resource_gate.py.
+  # cpcfix (r1, 2026-09-11 14:55Z): tag 20260911-cpcfix = worker digest below, built from a CLEAN worktree at ffb4139a
+  # (the overlay clean; kaniko SUCCEEDED); the three cpc jobdefs leave the fleet's 91104375 (08-27) for it.
+  type        = string
+  default     = "sha256:62396a7ac93560e020ce697f9606bef2789944adfd73630494990b13be3c626b"
+  validation {
+    condition     = var.cpc_soil_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.cpc_soil_image_digest))
+    error_message = "cpc_soil_image_digest must be empty or a full 'sha256:<64 hex>' digest (a TAG is not accepted)."
+  }
+}
+
 variable "futures_eod_silver_image_digest" {
   # THE SILVER LEG ONLY. The two FETCH jobdefs stay on futures_eod_image_digest above.
   #
