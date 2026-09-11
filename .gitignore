@@ -46,7 +46,21 @@ GRAPHRAG_PLAN.md
 
 # GraphRAG private IP — vocab / templates / params / gold sets / corpus profile.
 # (The schema CODE under src/leviathan/graphrag/ is public; only these configs are private.)
-configs/graphrag/
+#
+# THE SHIPPED SUBJECT-RESOLVER DECKS ARE THE ONE STATED EXCEPTION, and it is written here rather than
+# carried by an invisible `git add -f`. D9 of the subject-resolver sitting requires the calibration
+# deck to be FORCE-TRACKED like `driver_slices.yaml`; v1 and v2 are in the repository on exactly that
+# ruling, but on a rule nobody could read -- so v3 was authored, pinned by four tests, and left
+# OUTSIDE the repository, where a commit by explicit path refuses the path and lands a red tree.
+# The directory rule is therefore spelled `configs/graphrag/*` and the three decks are named back in:
+# a TRAILING-SLASH rule excludes the DIRECTORY itself, and git cannot re-include a file whose parent
+# directory is excluded, so the negations below only work in this form. Nothing else changes -- every
+# other entry under `configs/graphrag/`, subdirectories included, is ignored exactly as before.
+# THE HELD-OUT DECK IS NOT HERE AND NEVER WILL BE: it lives outside the repository by design.
+configs/graphrag/*
+!configs/graphrag/subject_deck_v1.yaml
+!configs/graphrag/subject_deck_v2.yaml
+!configs/graphrag/subject_deck_v3.yaml
 docs/graphrag/corpus_profile/
 
 # Claude working files

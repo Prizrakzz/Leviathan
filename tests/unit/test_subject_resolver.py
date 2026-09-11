@@ -22,7 +22,9 @@ file finds it.
 """
 from __future__ import annotations
 
+import collections
 import dataclasses
+import hashlib
 import importlib.util
 import json
 import pathlib
@@ -44,6 +46,7 @@ from leviathan.graphrag.state import walk as W
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DECK = ROOT / "configs" / "graphrag" / "subject_deck_v1.yaml"
 DECK2 = ROOT / "configs" / "graphrag" / "subject_deck_v2.yaml"
+DECK3 = ROOT / "configs" / "graphrag" / "subject_deck_v3.yaml"
 DIM = 8                                   # the fake vector width; the artifact's real one is 1024
 
 
@@ -1882,15 +1885,25 @@ def test_pb16_THE_BLOCK_v2_IS_v1_PLUS_TWO_CLOSURES_AND_NOTHING_ELSE():
     An amended freeze is only a measurement if the amendment is BOUNDED, so all four properties are
     pinned together: the closure is PRESENT, it is at most +350 characters, removing it reproduces v1's
     sha EXACTLY, and the block still renders "" with no vocabulary -- which is what keeps every
-    flag-off byte-identity pin in this file green."""
+    flag-off byte-identity pin in this file green.
+
+    PHASE E (2026-09-11) MOVED THE LIVE TEXT TO v3, AND THIS PIN IS CORRECTED RATHER THAN DELETED. What
+    it asserts is a fact about v2's relationship to v1, and that fact has not changed -- but the block
+    `dispatch` renders is no longer v2, so removing v2's closure from the LIVE text now leaves v1 plus
+    the v3 bullet and reproduces nothing. v2 is therefore RECONSTRUCTED from the live text by removing
+    the v3 bullet first, and every original assertion below then runs on the text it was always about.
+    The reconstruction is not assumed: it is hashed against `_V2_BLOCK_SHA` before anything is read
+    from it, which is the same proof `pe1` makes from the other side."""
     import hashlib
     blk = dp._subject_block(("El_Nino",))
-    assert _V2_CLOSURE in blk
+    assert hashlib.sha256(blk.encode("utf-8")).hexdigest() == SU.SUBJECT_BLOCK_SHA256
+    v2 = blk.replace(_V3_CLOSURE, "")
+    assert hashlib.sha256(v2.encode("utf-8")).hexdigest() == _V2_BLOCK_SHA, "v2 did not reconstruct"
+    assert _V2_CLOSURE in v2
     assert len(_V2_CLOSURE) <= 350, len(_V2_CLOSURE)
     assert blk.isascii() and "?" not in blk
-    assert hashlib.sha256(blk.encode("utf-8")).hexdigest() == SU.SUBJECT_BLOCK_SHA256
-    v1 = blk.replace(_V2_CLOSURE, "")
-    assert len(blk) - len(v1) == len(_V2_CLOSURE) == 349
+    v1 = v2.replace(_V2_CLOSURE, "")
+    assert len(v2) - len(v1) == len(_V2_CLOSURE) == 349
     assert hashlib.sha256(v1.encode("utf-8")).hexdigest() == _V1_BLOCK_SHA
     # THE PREDECESSOR IS RECORDED WHERE THE PIN IS, never only in a commit message: a reader who finds
     # a moved sha has to be able to see WHICH text it moved from without leaving the module.
@@ -1947,10 +1960,16 @@ def test_pb17_THE_v2_DECK_IS_v1_VERBATIM_PLUS_ONE_DECOY_SUB_CLASS(deck, deck2):
     # THE HEADER PINS THE INSTRUMENT'S THREE INPUTS: the vocabulary it was scored against, the floors
     # it was scored under, and the PROMPT it grades. A deck run whose block sha is not this one is
     # measuring a different text and its decoy figures do not carry across.
+    #
+    # PHASE E: the sha this asserts is v2's OWN and no longer the live constant. That is the pin doing
+    # exactly its job rather than failing -- v2 is a frozen instrument, it graded the v2 block, and its
+    # header must go on saying so after the live text moves to v3. The live constant is asserted
+    # against the live deck in `pe3`; reading it here would have made this header's claim follow
+    # whatever `dispatch` renders today, which is the one thing a freeze must not do.
     assert "vocabulary_hash: 99dc11409fe9" in text2
     assert "CAND_FLOOR: %s" % SU.CAND_FLOOR in text2
     assert "AMBIG_FLOOR: %s" % SU.AMBIG_FLOOR in text2
-    assert SU.SUBJECT_BLOCK_SHA256 in text2 and _V1_BLOCK_SHA in text2
+    assert _V2_BLOCK_SHA in text2 and _V1_BLOCK_SHA in text2
     assert "ZERO picks on ANY draw" in text2
 
 
@@ -2324,3 +2343,1231 @@ def test_pd7_THE_FENCE_RE_SCORES_PHASE_CS_OWN_BANKED_DRAWS():
     assert doc["decoy"]["draws_removed_by_the_fence"] == 13
     assert doc["non_decoy"]["rows_losing_an_EXPECTED_id"] == 0
     assert doc["non_decoy"]["rows_losing_a_SPURIOUS_second_pick"] == 2
+
+
+# ---------------------------------------------------------------------------------------------------
+# PHASE E -- THE BLOCK'S v3 (THE CLOSURE AT THE ASK) AND THE DECK'S v3 (THE dc18 RE-LABEL), 2026-09-11
+#
+# Phase D left exactly two decoy rows firing, and the owner ruled on both. dc18 was never a decoy:
+# positioning is a subject when a desk asks about it (D18, and the owner's own scenario), and the
+# estate's own curation carries `open interest` as a term of the `cftc_positioning` slice -- so the row
+# is re-labelled, in a NEW deck, because a frozen instrument is superseded and never edited. dc22 is a
+# real miss that no enum entry can close: the fence took `calendar_spread` and the planner reached for
+# `wheat_corn_spread`, an UNFENCED and legitimate cross-market subject. An enum fence removes an id,
+# not an ask -- so the closure is stated at the ASK, in one bullet of the frozen block.
+# ---------------------------------------------------------------------------------------------------
+#: The ONE sentence v3 adds, quoted here so the third freeze is a PIN and not a reader's impression --
+#: the `_V2_CLOSURE` idiom exactly. Removing these bytes and hashing to the v2 sha is what proves v3 is
+#: v2 PLUS this bullet and nothing else: no reworded closure, no silent tightening elsewhere.
+_V3_CLOSURE = (
+    "- A SPREAD, CURVE OR BASIS WITHOUT BOTH ITS MARKETS NAMES NOTHING. A spread, a curve or a basis\n"
+    "  named without both of its markets is the board's own structure and not a cause: leave it empty.\n")
+_V2_BLOCK_SHA = "37900160d21a25445322b01b1420641f9e40398ce3fe6872e66fc522228843bb"
+#: The five ids the owner's ruling makes dc18's answer -- `nd03`'s list, and the same shape: FIVE
+#: spellings of ONE cause across TWO curated slices.
+_POSITIONING = ["cot_positioning", "cot_mm_positioning", "spec_positioning",
+                "speculative_positioning", "managed_money_positioning"]
+_DC18_AT = 107                            # MEASURED: dc18's parsed index in both v2 and v3
+#: `subject_deck_run.deck_identity(DECK3)["deck_rows_sha256"]` -- v3's 118 rows in deck order with
+#: `max_contracts` 2 and `today` 2026-09-10, MEASURED 2026-09-11. Spelled here as a literal rather than
+#: imported from the runner so that `pe9` grades the runner's PIN against a number this file states
+#: independently: a single edit that moved both the deck and the constant would otherwise agree with
+#: itself. v2's is `81c8a1f8cbc4...`, and the two decks differ by exactly one row.
+_V3_ROWS_SHA = "7b079452fa9652362bcebdeba7441f298642dbfe889399d27c59cdf355ca1c86"
+
+
+def test_pe1_THE_BLOCK_v3_IS_v2_PLUS_ONE_BULLET_AND_NOTHING_ELSE():
+    """THE SECOND AMENDED FREEZE, graded the way the first one was. Phase D's billed layer 2 left dc22
+    firing: an ask about a spread that names NEITHER of the markets it spans, answered with
+    `wheat_corn_spread` on 2 of 3 draws once `calendar_spread` was fenced out of the enum. A THIRD
+    fence entry is the wrong lever -- the graph carries twenty-three legitimate cross-market
+    instruments and the resolver's own prose says the soy-palm premium is a subject a desk asks about
+    -- so v3 states the TEST that separates them instead, at the ask.
+
+    An amended freeze is only a measurement if the amendment is BOUNDED, so the same five properties
+    are pinned together: the bullet is PRESENT and it occurs ONCE, it is at most +200 characters,
+    removing it reproduces v2's sha EXACTLY, the v2 closure run is still CONTIGUOUS (which is what
+    keeps `pb16` green and is why the bullet goes after that run rather than inside it), and the block
+    still renders "" with no vocabulary."""
+    import hashlib
+    blk = dp._subject_block(("El_Nino",))
+    assert _V3_CLOSURE in blk
+    assert len(_V3_CLOSURE) <= 200, len(_V3_CLOSURE)
+    assert blk.isascii() and "?" not in blk
+    assert hashlib.sha256(blk.encode("utf-8")).hexdigest() == SU.SUBJECT_BLOCK_SHA256
+    v2 = blk.replace(_V3_CLOSURE, "")
+    assert len(blk) - len(v2) == len(_V3_CLOSURE) == 194     # ONE occurrence, and it is bounded
+    assert hashlib.sha256(v2.encode("utf-8")).hexdigest() == _V2_BLOCK_SHA
+    # THE v2 CLOSURE RUN IS UNBROKEN. `pb16` reads both v2 bullets as ONE contiguous string, so an
+    # insertion BETWEEN them would pass every hash pin above and still void the earlier freeze's proof.
+    assert _V2_CLOSURE in blk
+    # BOTH PREDECESSORS ARE RECORDED WHERE THE PIN IS, never only in a commit message: a reader who
+    # finds a moved sha must be able to see which texts it moved from without leaving the module.
+    src = pathlib.Path(SU.__file__).read_text(encoding="utf-8")
+    assert _V1_BLOCK_SHA in src and _V2_BLOCK_SHA in src and SU.SUBJECT_BLOCK_SHA256 in src
+    # AND THE FLAG-OFF RENDER IS UNTOUCHED, which is what keeps every byte-identity pin in this file
+    # green through a third freeze.
+    assert dp._subject_block(None) == "" and dp._subject_block(()) == ""
+
+
+@pytest.fixture(scope="module")
+def deck3():
+    return yaml.safe_load(DECK3.read_text(encoding="utf-8"))
+
+
+def test_pe2_THE_v3_DECK_IS_THE_v2_DECK_MINUS_THE_dc18_RE_LABEL(deck2, deck3):
+    """D9 AGAIN, AND THE SAME IDIOM `pb17` USES ON v2: a frozen instrument is never EDITED, it is
+    SUPERSEDED by a file that carries it. v2 keeps grading phase D and is not touched; v3 carries all
+    118 rows in v2's order and exactly ONE of them says something different.
+
+    The re-label is bounded from both sides: every OTHER row is v2's row object identically, and on
+    dc18 itself the id, the split, the frozen flag and -- above all -- the PHRASE are v2's bytes. A
+    re-labelled row is only comparable across the two runs if the ASK did not move; what moved is the
+    answer key. The only key added is `concepts`, which DECLARES the count the class rules would
+    otherwise infer (see `pe5`)."""
+    rows2, rows3 = deck2["rows"], deck3["rows"]
+    assert len(rows3) == len(rows2) == 118
+    assert [r["id"] for r in rows3] == [r["id"] for r in rows2], "a row moved position"
+    assert [i for i in range(len(rows2)) if rows2[i] != rows3[i]] == [_DC18_AT]
+    a, b = rows2[_DC18_AT], rows3[_DC18_AT]
+    assert a["id"] == b["id"] == "dc18"
+    for k in ("id", "split", "frozen", "phrase"):
+        assert a[k] == b[k], k
+    assert (a["klass"], b["klass"]) == ("decoy", "alias")
+    assert a["expect"] == [] and b["expect"] == _POSITIONING
+    assert sorted(set(b) - set(a)) == ["concepts"] and not set(a) - set(b)
+    # THE BYTES, NOT ONLY THE PARSE. v1's row region is still a literal substring -- a reflowed row is
+    # a row someone touched, and the carry has to survive two supersessions rather than one.
+    text1, text3 = DECK.read_text(encoding="utf-8"), DECK3.read_text(encoding="utf-8")
+    assert text1[text1.index("deterministic: true"):] in text3, "the carried rows were reflowed"
+    assert text3.isascii()
+
+
+def test_pe3_THE_v3_HEADER_PINS_THE_INSTRUMENTS_THREE_INPUTS(deck3):
+    """`pb17`'s header half, on v3: the vocabulary the deck was scored against, the floors it was
+    scored under, and the PROMPT it grades -- plus BOTH predecessor shas, because the figures banked
+    against v1 and v2 are figures about those texts and a reader must be able to tell which run
+    measured which prompt without leaving the file.
+
+    AND NO BLOCK SENTENCE REACHES A ROW. The block is graded blind by a held-out deck; a phrase lifted
+    from the block's own wording would grade the prompt against its own answer key. `pb17` ran this
+    over the fourteen rows it added; here it runs over ALL 118, because the block itself gained new
+    prose this time and the risk runs in that direction too.
+
+    EACH SHA IS PINNED ON ITS OWN KEY, NOT MERELY 'PRESENT IN THE FILE'. This header carries THREE
+    shas -- the live one and both predecessors -- so a bare `sha in text` assertion is satisfied by
+    any of the three and would stay green through the exact failure it exists to catch: a pin that
+    slid back to v2's text while the header still advertised v3's. The assertions therefore read the
+    LABELLED line, which is the only place the deck says which prompt it grades."""
+    text3 = DECK3.read_text(encoding="utf-8")
+    assert "vocabulary_hash: 99dc11409fe9" in text3
+    assert "CAND_FLOOR: %s" % SU.CAND_FLOOR in text3
+    assert "AMBIG_FLOOR: %s" % SU.AMBIG_FLOOR in text3
+    assert "planner_block_sha256: %s" % SU.SUBJECT_BLOCK_SHA256 in text3
+    assert "v2  %s" % _V2_BLOCK_SHA in text3 and "v1  %s" % _V1_BLOCK_SHA in text3
+    assert "ZERO picks on ANY draw" in text3
+    blk = dp._subject_block(("El_Nino",)).lower()
+    for r in deck3["rows"]:
+        assert r["phrase"].lower() not in blk, r["id"]
+        assert "?" not in r["phrase"], r["id"]
+
+
+def test_pe4_EVERY_v3_EXPECT_ID_EXISTS_AND_THE_DECOY_ROWS_STILL_NAME_NONE(deck3, graph):
+    """The v1 rule applied to v3: an id that left the graph is a row to RETIRE BY HAND and this is
+    where it surfaces. `pb17b`'s second half is CARRIED FORWARD rather than deleted -- it asserted that
+    every v2 row after the carried 104 expects nothing, and that is still true of v2; on v3 the same
+    assertion is made with dc18 named as the ONE stated exception, so a curation commit still cannot
+    quietly turn another one of them into a scored row.
+
+    The counts are pinned because the FATAL decoy bar is a COUNT and not a rate: twenty-seven decoy
+    rows, ninety-one non-decoy, eleven of them alias."""
+    alive = set(SU.live_ids(graph))
+    bad = sorted({e for r in deck3["rows"] for e in (r.get("expect") or []) if e not in alive})
+    assert bad == [], bad
+    new = deck3["rows"][104:]
+    assert len(new) == 14
+    silent = [r for i, r in enumerate(new, start=104) if i != _DC18_AT]
+    assert len(silent) == 13
+    assert all(r["klass"] == "decoy" and not r["expect"] for r in silent)
+    assert all(r.get("frozen") is True and r.get("split") == "calibration" for r in new)
+    by_class = collections.Counter(r["klass"] for r in deck3["rows"])
+    assert by_class["decoy"] == 27
+    assert sum(n for k, n in by_class.items() if k != "decoy") == 91
+    assert by_class["alias"] == 11
+    assert all(not r["expect"] for r in deck3["rows"] if r["klass"] == "decoy")
+    assert len({r["id"] for r in deck3["rows"]}) == 118
+
+
+def test_pe5_dc18_IS_ONE_CAUSE_WITH_FIVE_SPELLINGS_AND_NOT_A_near_duplicate(deck3, graph):
+    """WHY THE ROW IS AN `alias` ROW CARRYING A DECLARED CONCEPT COUNT, and why "concept count 1" could
+    NOT have been spelled as `klass: near_duplicate`.
+
+    The five positioning ids sit in TWO curated slices -- `slice:cftc_positioning` holds four of them
+    and `managed_money_positioning` is a slice of its own -- which is `nd03`'s exact shape. On an ID
+    class the alternatives reading asks only that a pick REACH an expected id or its group, so the
+    owner's ruling ("any pick reaching the positioning group passes") is what the scorer already does.
+    On `near_duplicate` the rule is an EQUALITY on the count of expected groups reached, so phase D's
+    own picks -- `cot_positioning` and `managed_money_positioning`, one from each slice -- reach TWO
+    groups against a concept count of one and the row would score ZERO. The class is therefore chosen
+    by measurement rather than by taste, and `alias` is also the deck's own definition of it: `open
+    interest` IS a curated `driver_slices.yaml` term of the positioning slice, which is exactly why the
+    free T1 tier fires on this phrase.
+
+    No model and no API call: the picks below are phase D's banked ones, and nothing here spends."""
+    mod = _runner()
+    row = deck3["rows"][_DC18_AT]
+    assert mod.concept_count(row) == 1, "the row must declare ONE cause"
+    of_id = SU.groups(graph)
+    inv = collections.defaultdict(set)
+    for i, k in of_id.items():
+        inv[k].add(i)
+    assert len(mod.group_keys(_POSITIONING, of_id)) == 2, "the five ids are TWO curated slices"
+    assert mod.expand(_POSITIONING, of_id, inv) >= set(_POSITIONING)
+    # PHASE D's OWN PICKS, one id from each of the two slices, scored under both readings of the class.
+    picks = _draws(*[["cot_positioning", "managed_money_positioning"]] * 3)
+    as_alias = dict(row, draws=picks)
+    as_nd = dict(row, klass="near_duplicate", draws=picks)
+    as_nd.pop("concepts")
+    sc_a = mod.score_layer2([as_alias], of_id=of_id, inv=inv)["per_class"]["alias"]
+    sc_n = mod.score_layer2([as_nd], of_id=of_id, inv=inv)["per_class"]["near_duplicate"]
+    assert (sc_a["scored"], sc_a["passed"]) == (1, 1), sc_a
+    assert (sc_n["scored"], sc_n["passed"]) == (1, 0), sc_n
+    # AND THE ROW STILL ENTERS THE POPULATION THE GATE READS. `L2_BARS` carries no `alias` key, so the
+    # class draws no per-class verdict of its own -- `all_non_decoy` is where it counts, and that is
+    # the number the held-out one-shot's gate is stated over.
+    assert "alias" not in mod.L2_BARS
+    assert sc_a["verdict"] == "-"
+    assert mod.score_layer2([as_alias], of_id=of_id, inv=inv)["all_non_decoy"]["passed"] == 1
+
+
+def test_pe6_THE_POSITIONING_GROUP_IS_NOT_EATEN_BY_ANYTHING(graph):
+    """config_check clause 14(d), pinned from the DECK's side. The own-structure fence is the one
+    mechanism that could make the owner's ruling unanswerable -- a fenced id is refused twice over, so
+    a positioning id inside it would turn dc18 into a row no planner could pass however it is classed.
+    `cot_mm_positioning` is typed as an instrument on some boards and is exactly the id a type-shaped
+    fence rule would have eaten; the fence is a closed set of two literals for that reason."""
+    for i in _POSITIONING:
+        assert i not in SU.OWN_STRUCTURE_IDS, i
+        assert i in set(SU.live_ids(graph)), i
+    assert SU.OWN_STRUCTURE_IDS == frozenset({"calendar_spread", "basis"})
+
+
+def test_pe7_THE_RUNS_OWN_CEILING_IS_A_FENCE_AND_NOT_ONLY_A_PRINTED_ESTIMATE(tmp_path, capsys):
+    """`HARD_CAP_USD` is the SITTING's ceiling and a single run's is often tighter -- phase E's law is
+    $4 for the calibration re-run and $4 for the held-out one-shot, both well inside $12. Until now
+    that tighter number lived nowhere in the code: the runner printed an ESTIMATE and an operator read
+    it, so the law was WATCHED rather than fenced, and a run that mis-estimated would have spent
+    against $12 with nothing to stop it.
+
+    `--cap-usd` threads one number through both fences -- the pre-flight refusal and `run_layer2`'s
+    running-total breaker -- and it can only TIGHTEN: a value above the sitting's own ceiling is
+    refused, because a flag that widens a stated ceiling is not a fence at all. Nothing here spends;
+    every path below returns before a key is read."""
+    mod = _runner()
+    # THE DEFAULT IS THE SITTING'S CEILING and the dry run still reads $12.00 (`pb12`'s figures move
+    # for nobody).
+    assert mod.main(["--deck", str(DECK), "--layer", "both", "--draws", "3", "--dry-run"]) == 0
+    assert "$12.00 hard cap" in capsys.readouterr().out
+    # IT TIGHTENS, AND THE PLAN SAYS SO IN THE LINE THAT NAMES THE EXPOSURE.
+    assert mod.main(["--deck", str(DECK), "--layer", "both", "--draws", "3", "--dry-run",
+                     "--cap-usd", "4"]) == 0
+    out = capsys.readouterr().out
+    assert "$4.00 hard cap" in out and "the sitting ceiling is $12.00" in out
+    # IT NEVER WIDENS.
+    assert mod.main(["--deck", str(DECK), "--layer", "2", "--cap-usd", "20",
+                     "--out-dir", str(tmp_path)]) == 2
+    assert "never widens it" in capsys.readouterr().out
+    assert mod.main(["--deck", str(DECK), "--layer", "2", "--cap-usd", "0",
+                     "--out-dir", str(tmp_path)]) == 2
+    assert "must be positive" in capsys.readouterr().out
+    # AND IT REFUSES BEFORE IT SPENDS, on the run's own number rather than the sitting's: 312 calls at
+    # the anchor is $3.12, which is inside $12 and outside $1.
+    assert mod.main(["--deck", str(DECK), "--layer", "2", "--draws", "3", "--cap-usd", "1",
+                     "--no-bank", "--out-dir", str(tmp_path)]) == 2
+    assert "exceeds this run's $1.00 cap" in capsys.readouterr().out
+
+
+def test_pe8_EVERY_SHIPPED_DECK_IS_COMMITTABLE_BY_ITS_OWN_PATH():
+    """D9 REQUIRES THE CALIBRATION DECK TO BE FORCE-TRACKED, and until phase E that requirement was
+    carried by a `git add -f` somebody typed once and nobody could read afterwards. `.gitignore`
+    ignores `configs/graphrag/` wholesale (the private-IP fence), v1 and v2 are in the repository on
+    the D9 exception, and v3 -- authored, headed, and pinned by `pe2`..`pe5` -- was NOT: the commit
+    that carried phase E would have refused the path, and `pe2`..`pe5` would have ERRORED on a
+    missing file in a tree whose own memory index reads 'Lost gitignored files recover VERBATIM from
+    Claude Code transcripts'. A deck that four tests read is not an ephemeral config.
+
+    So the exception is now a RULE (`configs/graphrag/*` plus one negation per shipped deck) and this
+    is the pin that keeps it one. It is stated over the PATHS THE INSTRUMENT READS rather than over
+    the text of `.gitignore`, so a v4 authored the same way goes red HERE -- before its commit -- and
+    not in whatever run first fails to find it.
+
+    `git check-ignore -q --no-index` is a READ: no ref moves, no index is touched, nothing is
+    written. `--no-index` is load-bearing -- without it a TRACKED path is reported as un-ignored
+    whatever the rules say, so v1 and v2 would pass on their tracking alone and the rule they depend
+    on would go ungraded. `-q` is load-bearing too: with `-v` the exit status is 0 when ANY pattern
+    matches, a negation included, and the assertion would invert."""
+    for deck in (DECK, DECK2, DECK3):
+        rel = deck.relative_to(ROOT).as_posix()
+        r = subprocess.run(["git", "check-ignore", "-q", "--no-index", rel],
+                           cwd=str(ROOT), capture_output=True)
+        assert r.returncode == 1, (
+            f"{rel} is IGNORED by a .gitignore rule -- `git add {rel}` will refuse it and the commit "
+            f"will not carry the deck")
+        assert deck.is_file(), rel
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE GATE THAT DECIDES WHETHER THE ONE-SHOT IS SPENT
+# ---------------------------------------------------------------------------------------------------
+def _gate_doc(**over):
+    """A synthetic v3-shaped run whose every pre-registered check passes. No deck is read, no call is
+    made: the gate is arithmetic over the run's own fields and this is those fields -- the decoy
+    class's `n`/`scored`/`fired`, the non-decoy `scored`/`passed`, the run's `errored_calls`, the seat
+    pin and the cost breaker, against the deck's own `class_counts` census; and then the five that say
+    WHAT RAN rather than what happened -- the block sha these draws were made under, the digest of the
+    deck they were drawn on, the hash of the graph they were drawn against, the run's three-draw shape
+    (118 rows x 3 = 354 calls), and the absence of a re-score marker.
+
+    THE PROVENANCE FIELDS ARE THE LIVE ONES, deliberately. `SU.SUBJECT_BLOCK_SHA256` is read from the
+    module rather than spelled, because the gate compares a run against THIS TREE and a frozen literal
+    here would turn a block change into a red test in a file that is not the block's pin (`pe1` is).
+    `SU.live_graph_hash()` is read the same way and for a stronger reason: the deck and the block are
+    FROZEN for the certification and the graph is deliberately not -- it is meant to move between
+    sittings, so the gate compares a run to the live hash and never to a pin, and a literal here would
+    grade the opposite discipline. The deck digest is the one spelled case: see `_V3_ROWS_SHA`."""
+    doc = {"class_counts": {"exact": 10, "alias": 11, "synonym": 14, "misspelling": 14,
+                            "description": 14, "acronym": 10, "near_duplicate": 10, "multi": 8,
+                            "decoy": 27},
+           "planner_block_sha256": SU.SUBJECT_BLOCK_SHA256,
+           "graph_hash": SU.live_graph_hash(),
+           "deck": "subject_deck_v3.yaml", "deck_rows_sha256": _V3_ROWS_SHA,
+           "rows_total": 118, "draws": 3,
+           "layer2": {"per_class": {"decoy": {"n": 27, "scored": 27, "fired": 0}},
+                      "all_non_decoy": {"scored": 91, "passed": 91},
+                      "calls": 354, "errored_calls": 0,
+                      "seat_pin": {"verdict": "PASS"},
+                      "aborted_on_cost": False}}
+    for k, v in over.items():
+        if k in ("fired", "n_decoy", "dec_scored"):
+            doc["layer2"]["per_class"]["decoy"][
+                {"fired": "fired", "n_decoy": "n", "dec_scored": "scored"}[k]] = v
+        elif k == "no_dec_scored":                       # the KEY absent, not the count at zero
+            doc["layer2"]["per_class"]["decoy"].pop("scored")
+        elif k in ("scored", "passed"):
+            doc["layer2"]["all_non_decoy"][k] = v
+        elif k == "errored":
+            doc["layer2"]["errored_calls"] = v
+        elif k == "no_errored_census":
+            doc["layer2"].pop("errored_calls")
+        elif k == "pin":
+            doc["layer2"]["seat_pin"] = v
+        elif k == "aborted":
+            doc["layer2"]["aborted_on_cost"] = v
+        elif k == "calls":
+            doc["layer2"]["calls"] = v
+        elif k == "drop":                                # a bank written before a field existed
+            for name in ([v] if isinstance(v, str) else list(v)):
+                doc.pop(name, None)
+                doc["layer2"].pop(name, None)
+        else:
+            doc[k] = v
+    return doc
+
+
+def _gate_record(mod, **over):
+    """THE DOCUMENT THE GATE IS ACTUALLY HANDED: the IMMUTABLE PER-RUN RECORD a layer-2 run banks,
+    built from the synthetic run doc above by the runner's own producer.
+
+    The gate stopped taking a run doc when the bank was found to transplant provenance: the dated
+    `<deck>_summary.json` is a fixed path that MERGES, so a later run's `planner_block_sha256` and
+    `graph_hash` could sit over an earlier run's preserved `layer2` -- the two checks this arc exists
+    for, asserting on the durable artifact the opposite of what they were built to prevent. The record
+    carries provenance INSIDE the layer-2 document, is written once at a path that carries the run's
+    own stamp, and is the only artifact class the gate will certify. Building it here through
+    `layer2_record` rather than by hand is deliberate: every direction below is then driven against
+    the shape the runner actually banks."""
+    return mod.layer2_record(_gate_doc(**over))
+
+
+def test_pe9_THE_ONE_SHOT_GATE_IS_GRADED_IN_CODE_AND_IS_FAIL_CLOSED():
+    """THE MOST LIKELY OPERATOR ERROR ON THE BILLED RUN, closed in code. The runner's exit code grades
+    EVERY evaluated bar together and the calibration decks carry a FATAL layer-1 decoy carry (dc23)
+    that the deck header explicitly authorises reading past, because the block is graded on the
+    LAYER-2 bar -- so a v3 run whose gate passes in full still exits 1. An operator reading the exit
+    code reads a STOP and holds a gate that opened; an operator reading the console prose reads
+    whichever line he reaches first. `oneshot_gate` reads the layer-2 fields the gate is
+    pre-registered over, and this is the pin on that reading.
+
+    IT IS FAIL-CLOSED IN EVERY DIRECTION, and every direction is driven here: a decoy that fired, a
+    decoy population that was never asked, a draw that errored anywhere on the run, a population one
+    row short of the deck's own census, one row that scored and did not pass, a seat pin that moved,
+    a run the cost breaker truncated, and -- the case no bar would have caught -- a layer 2 that never
+    ran at all, which yields NO gate rather than an open one.
+
+    AND THE FIVE THAT GRADE WHAT RAN. The outcome checks certify that SOMETHING was measured
+    cleanly, never that THIS was, and five clean-looking runs proved it: one whose draws were made
+    under the block's v2 text (the deck header says in as many words that such a run's decoy figures do
+    not carry across, and nothing read the sha), one shaped like deck v2 (28 decoys, 90 non-decoy --
+    internally consistent, and the denominators came from the doc's own census so it opened), one made
+    against a GRAPH this tree no longer loads (the block is substitution-free, so its sha names the
+    prompt and carries none of the enum; what the planner may pick is `live_ids` of the graph minus
+    the own-structure fence, and `graph_hash` is the field that names the graph half), one at
+    `--draws 1`, which has no ">= 2 of 3" reading in it at all, and one that is a `--rescore` -- a
+    re-read of banked picks under today's scorer and not the run it would certify. Each is driven
+    below, from both sides: the WRONG value and the ABSENT key, because a bank written before the
+    field existed must hold the one-shot rather than skip the check.
+
+    AND TWO MORE, ADDED 2026-09-11 WHEN THE BANK ITSELF WAS FOUND WANTING. THE ARTIFACT CLASS: the
+    gate is handed a per-run RECORD and refuses a merged summary, a run doc or an unreadable path by
+    name, because the summary is a fixed path that merges and its top-level provenance names the
+    LATEST run on the deck rather than the layer 2 beneath it. THE CENSUS: the denominators are read
+    from the certifying DECK FILE, because `class_counts` carried by the document made "all 91 rows
+    were SCORED" a statement the document could satisfy by agreeing with itself -- a forged 28/90
+    census beside the TRUE v3 rows digest passed three checks with figures deck v3 does not contain.
+    Every count is also read as a COUNT: a present-but-null field is an absence, never a zero."""
+    mod = _runner()
+    g = mod.oneshot_gate(_gate_record(mod))
+    assert g["verdict"] == "OPEN" and g["failing"] == []
+    assert [c["pass"] for c in g["checks"]] == [True] * 14
+    # THE GRAPH IS COMPARED LIVE AND NOT TO A PIN, which is the one place this gate deliberately
+    # differs from the deck and the block. The helper must agree with the module's own producer, and
+    # it must read as an ABSENCE rather than as "" when the graph cannot be read at all.
+    assert mod.live_graph_hash_or_none() == SU.live_graph_hash() and mod.live_graph_hash_or_none()
+    # THE PIN IS THE LIVE DECK'S, IN BOTH DIRECTIONS. The runner's constant is what the gate compares a
+    # run against, so it is graded here against the file itself and against the deck it must NOT
+    # accept: v2 and v3 differ by one row, which is the collision a filename check would have missed.
+    assert mod.CERTIFYING_DECK_ROWS_SHA256 == _V3_ROWS_SHA
+    assert mod.deck_identity(DECK3, mod.load_deck(DECK3))["deck_rows_sha256"] == _V3_ROWS_SHA
+    assert mod.deck_identity(DECK2, mod.load_deck(DECK2))["deck_rows_sha256"] != _V3_ROWS_SHA
+    assert mod.deck_identity(DECK, mod.load_deck(DECK))["deck_rows_sha256"] != _V3_ROWS_SHA
+    # AND THE FILE DIGEST IS A DIFFERENT NUMBER FROM THE ROWS DIGEST -- the header is comments, so a
+    # deck written up after the run it certifies moves one and not the other. That is why the gate is
+    # stated over the rows.
+    _ident = mod.deck_identity(DECK3, mod.load_deck(DECK3))
+    assert _ident["deck_sha256"] != _ident["deck_rows_sha256"]
+    assert _ident["deck"] == "subject_deck_v3.yaml" == mod.CERTIFYING_DECK
+    # A GATE THAT WAS NEVER MEASURED IS NEVER REPORTED AS OPEN. Silence is the answer to a document
+    # that is not an artifact this gate has anything to say about -- no layer 2, no run index, no
+    # record kind.
+    assert mod.oneshot_gate({"class_counts": {"decoy": 27}}) is None
+    # BUT A PER-RUN RECORD IS ANSWERED IN THE SAME WORDS THROUGH EITHER DOOR. A record carrying
+    # `kind: subject_resolver_layer2_run_v1` with an EMPTY `layer2` used to read HELD from a path and
+    # None from a dict -- one document, two readings -- and a caller taking None for "nothing to
+    # grade" would have missed "this RECORD recorded no measurement". It is HELD, on the measurement
+    # checks, and its artifact CLASS is not among the failures: the class is right, the content is not.
+    _empty = mod.oneshot_gate(mod.layer2_record({"deck": "subject_deck_v3.yaml"}))
+    assert _empty is not None and _empty["verdict"] == "HELD"
+    assert not any(c.startswith("THE ARTIFACT CLASS") for c in _empty["failing"]), _empty["failing"]
+    assert any(c.startswith("DECOYS") for c in _empty["failing"]), _empty["failing"]
+    # ── THE ARTIFACT CLASS. The gate certifies ONE document class and every other one is REFUSED by
+    #    name rather than graded on its contents: the merged summary (whose top-level provenance names
+    #    the LATEST run on the deck and date and not the layer 2 beneath it), a bare run doc, and a
+    #    path that cannot be read at all. Each is HELD, and the artifact-class check is among the
+    #    failing ones.
+    for _wrong, _why in (
+            ({"kind": mod.SUMMARY_KIND, "layer2_runs": [],
+              "layer2": (_gate_doc()["layer2"])}, "a merged summary with a preserved layer 2"),
+            ({"layer2_runs": [{"file": "x.json"}]}, "a summary written with no `kind`"),
+            (_gate_doc(), "a run doc is not the record the run banks"),
+            ("no_such_record_20260911T000000Z.json", "a path that cannot be read")):
+        _g = mod.oneshot_gate(_wrong)
+        assert _g is not None and _g["verdict"] == "HELD", _why
+        assert any(c.startswith("THE ARTIFACT CLASS") for c in _g["failing"]), (_why, _g["failing"])
+    for over, why in (({"fired": 1}, "one decoy fired"),
+                      ({"scored": 90}, "a row went unscored"),
+                      ({"passed": 90}, "a scored row failed"),
+                      ({"pin": {"verdict": "STOP"}}, "the seat moved"),
+                      ({"pin": {}}, "no seat pin was recorded"),
+                      ({"aborted": True}, "the cost breaker truncated the run"),
+                      ({"n_decoy": 26}, "the deck's decoy class was not scored whole"),
+                      # THE FAIL-OPEN THE FIRST CUT SHIPPED WITH, driven from both sides: a decoy
+                      # class that fired zero times because it was never asked, and a run that
+                      # errored a single draw on a row whose other two landed -- invisible to every
+                      # per-population count and still a two-draw row read as a three-draw one.
+                      ({"dec_scored": 0, "errored": 81}, "every decoy draw errored"),
+                      ({"dec_scored": 26}, "one decoy row had every draw error"),
+                      ({"errored": 1}, "one draw errored anywhere on the run"),
+                      ({"no_errored_census": True}, "the run recorded no errored-call census"),
+                      ({"no_dec_scored": True}, "the decoy class recorded no scored census"),
+                      # THE PROMPT. The v2 sha is the exact shape the verifier drove: an otherwise
+                      # clean layer 2 whose draws were made under a different text.
+                      ({"planner_block_sha256": _V2_BLOCK_SHA}, "the draws were made under block v2"),
+                      ({"planner_block_sha256": _V1_BLOCK_SHA}, "the draws were made under block v1"),
+                      ({"drop": "planner_block_sha256"}, "the run recorded no block sha"),
+                      # THE DECK. A v2-shaped census with v2's digest, and the same census with the
+                      # digest simply absent -- the bank shape that predates the field.
+                      ({"deck_rows_sha256": "81c8a1f8cbc412d643ca5f111decd000"
+                                            "5944b0f9e324945272c8c3269f78cc92",
+                        "deck": "subject_deck_v2.yaml",
+                        "class_counts": {"exact": 10, "alias": 10, "synonym": 14, "misspelling": 14,
+                                         "description": 14, "acronym": 10, "near_duplicate": 10,
+                                         "multi": 8, "decoy": 28},
+                        "n_decoy": 28, "dec_scored": 28, "scored": 90, "passed": 90},
+                       "a clean run on deck v2 is not a run on deck v3"),
+                      ({"drop": "deck_rows_sha256"}, "the run recorded no deck identity"),
+                      # THE GRAPH. The exact doc the verifier drove: a stale hash beside a stale
+                      # `vocab_status` and a four-month-old stamp, every outcome clean. The enum the
+                      # planner picks from is the GRAPH's and the block sha cannot stand in for it.
+                      ({"graph_hash": "deadbeefdeadbeef", "vocab_status": "stale",
+                        "generated_utc": "20260511T000000Z"},
+                       "the draws were made against a graph this tree does not load"),
+                      ({"drop": "graph_hash"}, "the run recorded no graph hash"),
+                      # THE MEASUREMENT. A re-score is a re-read of banked picks under today's
+                      # scorer; both the structural field and the label decoration hold the gate, so
+                      # a doc written before the field existed is recognised by the decoration alone.
+                      ({"rescored_from": "subject_v3_20260911T000000Z.json"},
+                       "a re-score is not the run it would certify"),
+                      ({"deck": "subject_deck_v3.yaml (RE-SCORED from a_bank.json)"},
+                       "a re-score is recognised by its label when the field is absent"),
+                      # THE DECOY DENOMINATOR IS POSITIVE. At zero the FATAL bar reads
+                      # "0 of 0 fired ... and all 0 SCORED -- PASS" and the gate opens on a deck with
+                      # no decoys in it: the one asymmetry left beside checks 2 and 3, both of which
+                      # have carried their positivity guard from the start.
+                      ({"class_counts": {"decoy": 0, "synonym": 118}, "n_decoy": 0, "dec_scored": 0,
+                        "scored": 118, "passed": 118},
+                       "a deck with no decoys does not satisfy the FATAL decoy bar"),
+                      # THE SHAPE. One draw per row has no 2-of-3 reading in it, and a call census
+                      # short of rows x draws is a population that was never fully asked.
+                      ({"draws": 1, "calls": 118}, "a one-draw run has no >= 2 of 3 bar"),
+                      ({"calls": 353}, "one row x draw was never called"),
+                      ({"drop": "draws"}, "the run recorded no draw count"),
+                      ({"drop": "rows_total"}, "the run recorded no row count"),
+                      ({"drop": "calls"}, "the run recorded no call census"),
+                      # THE CENSUS, WHICH IS THE DECK FILE'S AND NOT THE RECORD'S. A forged census
+                      # beside the TRUE v3 rows digest is the shape that passed three checks with
+                      # figures deck v3 does not contain -- v2's 28/90 wearing v3's identity.
+                      ({"class_counts": {"exact": 10, "alias": 10, "synonym": 14,
+                                         "misspelling": 14, "description": 14, "acronym": 10,
+                                         "near_duplicate": 10, "multi": 8, "decoy": 28},
+                        "n_decoy": 28, "dec_scored": 28, "scored": 90, "passed": 90},
+                       "a v2-shaped census forged beside a TRUE v3 deck digest"),
+                      ({"class_counts": {"exact": 10, "alias": 11, "synonym": 14,
+                                         "misspelling": 14, "description": 14, "acronym": 10,
+                                         "near_duplicate": 10, "multi": 8, "decoy": 27},
+                        "rows_total": 117},
+                       "a census that does not sum to the record's own row count"),
+                      ({"drop": "class_counts"}, "the record carries no class census"),
+                      # A PRESENT-BUT-NULL COUNT IS AN ABSENCE AND NOT A ZERO. `int(x or 0)` read
+                      # `null` as a clean census, which is the one reading a gate may never take.
+                      ({"errored": None}, "a null errored_calls is not zero errors"),
+                      ({"fired": None}, "a null decoy fire census is not zero fires"),
+                      ({"scored": None}, "a null non-decoy scored census is not a scored population"),
+                      ({"dec_scored": None}, "a null decoy scored census is not a scored class")):
+        g = mod.oneshot_gate(_gate_record(mod, **over))
+        assert g["verdict"] == "HELD", why
+        assert len(g["failing"]) >= 1, why
+    # THE DENOMINATORS ARE THE CERTIFYING DECK FILE'S AND NOT THE RECORD'S: a record whose census is
+    # not the deck's fails on THE CENSUS however internally consistent it is.
+    assert mod.oneshot_gate(
+        _gate_record(mod, class_counts={"exact": 95, "decoy": 27}))["verdict"] == "HELD"
+    _census = mod.certifying_census()
+    assert _census["class_counts"]["decoy"] == 27 and _census["rows_total"] == 118
+    assert sum(_census["class_counts"].values()) == 118
+    assert _census["deck_rows_sha256"] == _V3_ROWS_SHA
+    # AND THE v2 RUN FAILS ON ITS IDENTITY -- the point of the check. It now fails on FOUR checks
+    # rather than one, and that is the tightening rather than a blunting: with the denominators taken
+    # from the deck FILE, a record naming another deck has no denominators at all, so the two SCORED
+    # checks and the census go with the identity instead of passing beside it.
+    _v2 = mod.oneshot_gate(_gate_record(
+        mod,
+        deck_rows_sha256="81c8a1f8cbc412d643ca5f111decd0005944b0f9e324945272c8c3269f78cc92",
+        deck="subject_deck_v2.yaml",
+        class_counts={"exact": 10, "alias": 10, "synonym": 14, "misspelling": 14,
+                      "description": 14, "acronym": 10, "near_duplicate": 10, "multi": 8,
+                      "decoy": 28},
+        n_decoy=28, dec_scored=28, scored=90, passed=90))
+    assert _v2["verdict"] == "HELD"
+    assert any(c.startswith("THE DECK") for c in _v2["failing"]), _v2["failing"]
+    assert any(c.startswith("THE CENSUS") for c in _v2["failing"]), _v2["failing"]
+    # AND EACH OF THESE DIRECTIONS FAILS ON ITS OWN CHECK AND ON NO OTHER -- which is what makes each
+    # of them a measurement of the thing it names rather than a doc that happens to be wrong in
+    # several places at once. The stale-graph doc is the verifier's own: every outcome check passes on
+    # it, and the graph hash is the only one that does not.
+    _stale = mod.oneshot_gate(_gate_record(mod, graph_hash="deadbeefdeadbeef", vocab_status="stale",
+                                           generated_utc="20260511T000000Z"))
+    assert _stale["failing"] == [c["check"] for c in _stale["checks"]
+                                 if c["check"].startswith("THE GRAPH")]
+    _resc = mod.oneshot_gate(_gate_record(mod, rescored_from="subject_v3_20260911T000000Z.json"))
+    assert _resc["failing"] == [c["check"] for c in _resc["checks"]
+                                if c["check"].startswith("THE MEASUREMENT")]
+    # THE PROMPT, ALONE. The block sha reaches no other check -- the prompt is substitution-free, so
+    # it names the text and carries none of the enum -- and a run under block v2 with every outcome
+    # clean is exactly the document the verifier drove.
+    _v2blk = mod.oneshot_gate(_gate_record(mod, planner_block_sha256=_V2_BLOCK_SHA))
+    assert _v2blk["failing"] == [c["check"] for c in _v2blk["checks"]
+                                 if c["check"].startswith("PROVENANCE")]
+    # AND THE SHAPE, ALONE. A one-draw run's counts are all internally consistent -- 118 rows, 118
+    # calls, every row scored and passed -- and there is no ">= 2 of 3" reading anywhere in it.
+    _one = mod.oneshot_gate(_gate_record(mod, draws=1, calls=118))
+    assert _one["failing"] == [c["check"] for c in _one["checks"]
+                               if c["check"].startswith("THE SHAPE")]
+    # THE DECOY DENOMINATOR IS POSITIVE, and with the census now taken from the deck file a record
+    # claiming a decoy-free deck fails on BOTH the census it forged and the bar that census was
+    # forged to satisfy vacuously.
+    _nodec = mod.oneshot_gate(_gate_record(mod, class_counts={"decoy": 0, "synonym": 118},
+                                           n_decoy=0, dec_scored=0, scored=118, passed=118))
+    assert _nodec["verdict"] == "HELD"
+    assert any(c.startswith("DECOYS") for c in _nodec["failing"]), _nodec["failing"]
+    assert any(c.startswith("THE CENSUS") for c in _nodec["failing"]), _nodec["failing"]
+
+
+def test_pe9c_AN_ALL_ERRORED_DECOY_CLASS_IS_NOT_A_CLEAN_DECOY_BAR(capsys):
+    """THE FAIL-OPEN CLOSED END TO END -- the scorer, the bar, the console and the gate, on ONE
+    synthetic run in which every decoy draw errored.
+
+    `fired` is computed over the NON-ERRORED draws, so before this the decoy class read
+    `{n: 27, fired: 0, verdict PASS}` on a run that had asked nothing: the FATAL bar printed PASS,
+    the console printed `picks=-` for an errored draw exactly as it prints for a decoy the planner
+    correctly declined, and the pre-registered gate -- whose non-decoy side has always required
+    `scored == n` -- OPENED. Eighty-one billed errors and no measurement at all would have spent the
+    one-shot. Four things are driven here because all four were silent: the scorer's `scored` /
+    `unscored` split, the class verdict, the bar's own detail line, and the gate."""
+    mod = _runner()
+    graph = _seam_graph()
+    of_id, inv = mod.group_index(graph)
+    rows = [{"id": f"d{i}", "klass": "decoy", "expect": [],
+             "draws": [{"errored": "planner_fallback (no raise)", "usd": 0.01,
+                        "temperature": 0, "usage": {"model": mod.SEAT}} for _ in range(3)]}
+            for i in range(27)]
+    sc = mod.score_layer2(rows, of_id=of_id, inv=inv)
+    dec = sc["per_class"]["decoy"]
+    # THE SCORER. Zero fired -- and zero SCORED, which is the half that was missing.
+    assert dec["n"] == 27 and dec["fired"] == 0
+    assert dec["scored"] == 0 and len(dec["unscored"]) == 27
+    assert dec["verdict"] == "FATAL", "an unasked decoy population is not a passed FATAL bar"
+    assert sc["calls"] == 81 and sc["errored_calls"] == 81
+    # THE BAR. It STOPs, and its detail says WHY rather than printing a clean-looking '0 of 27'.
+    bar = [b for b in mod.collect_bars({"layer2": sc, "draws": 3})
+           if b["bar"].startswith("L2 DECOY")][0]
+    assert bar["verdict"] == "STOP" and "0 of 27 rows were SCORED" in bar["detail"]
+    # AND THE THIRD READING OF THE SAME FIELD: ABSENT, which is neither 27 nor 0. A bank written before
+    # `scored` existed rendered the bare "0 of 27 decoy rows picked a subject" line -- the exact
+    # sentence a PERFECT decoy bar prints -- with nothing saying the denominator was never recorded.
+    # Silence and a clean bar are opposite claims and they rendered identically.
+    _old = {"per_class": {"decoy": {"n": 27, "fired": 0, "verdict": "PASS", "fired_ids": []}}}
+    _bar_old = [b for b in mod.collect_bars({"layer2": _old, "draws": 3})
+                if b["bar"].startswith("L2 DECOY")][0]
+    assert "UNKNOWN denominator" in _bar_old["detail"], _bar_old["detail"]
+    assert "rows were SCORED" not in _bar_old["detail"]
+    # THE GATE. Both new checks fail, and the one-shot is NOT spent.
+    doc = {"class_counts": {"exact": 91, "decoy": 27},
+           "layer2": dict(sc, all_non_decoy={"scored": 91, "passed": 91},
+                          seat_pin={"verdict": "PASS"}, aborted_on_cost=False)}
+    g = mod.oneshot_gate(mod.layer2_record(doc))
+    assert g["verdict"] == "HELD"
+    assert any("SCORED" in c and "DECOYS" in c for c in g["failing"]), g["failing"]
+    assert any(c.startswith("EVERY DRAW WAS SCORED") for c in g["failing"]), g["failing"]
+    # AND THE PROVENANCE CHECKS FAIL ON THE SAME DOC, because a synthetic run records no block sha,
+    # no deck digest, no graph hash and no draw census -- the shape of every bank written before those
+    # fields existed. Absent is not a pass: the gate holds on all four as well.
+    assert any(c.startswith("PROVENANCE") for c in g["failing"]), g["failing"]
+    assert any(c.startswith("THE DECK") for c in g["failing"]), g["failing"]
+    assert any(c.startswith("THE GRAPH") for c in g["failing"]), g["failing"]
+    assert any(c.startswith("THE SHAPE") for c in g["failing"]), g["failing"]
+    # AND THE CENSUS, which on this doc is a census of nothing the certifying deck contains.
+    assert any(c.startswith("THE CENSUS") for c in g["failing"]), g["failing"]
+    mod.print_gate(g)
+    out = capsys.readouterr().out
+    assert out.isascii() and "GATE: HELD" in out and "0 of 27 scored" in out
+    assert "81 of 81 calls errored" in out
+    # AND THE CONSOLE, WHICH IS WHAT AN OPERATOR ACTUALLY WATCHES WHILE THE MONEY IS BEING SPENT. An
+    # errored draw and a decoy the planner correctly declined both rendered `-`, so twenty-seven
+    # broken rows scrolled past looking exactly like twenty-seven clean ones. The transport RAISES
+    # here -- `_usage_call` records it and `plan_turn` maps it to a fallback -- which is the shape a
+    # real outage takes, and the row must print ERR.
+    def boom(system, user, *, model, tool, **kw):
+        raise RuntimeError("the seat refused")
+
+    rows2 = [{"id": "d1", "klass": "decoy", "phrase": "who won the league", "expect": []}]
+    l1 = {"d1": {"id": "d1", "exact": [], "alias": [], "vocab_status": "ok", "cands": []}}
+    out2 = mod.run_layer2(rows2, graph=graph, l1_by_id=l1, draws=3, max_contracts=2,
+                          today="2026-09-11", inner_call=boom, meta={})
+    console = capsys.readouterr().out
+    assert console.isascii() and "picks=ERR,ERR,ERR" in console, console
+    assert "picks=-" not in console, console
+    assert all(d.get("errored") for d in out2[0]["draws"])
+
+
+def test_pe9b_THE_GATE_READOUT_IS_ASCII_AND_SAYS_WHICH_WAY_IT_WENT(capsys):
+    """THE ONE HALF OF THE RUNNER A FREE RUN NEVER REACHES. The gate exists only when layer 2 ran, so
+    the readout the PAID seat reads is the one line of this script that would otherwise ship having
+    never been executed -- which is why it is a function rather than four statements inside `main`.
+
+    Both directions are printed here, and the ASCII assertion is the owner's console law (this box's
+    stdout is cp1252 and a box-drawing character in a report is a crash, not a cosmetic)."""
+    mod = _runner()
+    mod.print_gate(mod.oneshot_gate(_gate_record(mod, generated_utc="20260911T090000Z")))
+    out = capsys.readouterr().out
+    assert out.isascii() and "GATE: OPEN" in out and "may be run ONCE" in out
+    assert "NOT the VERDICT line above and NOT the exit code" in out
+    assert out.count("PASS ") == 14 and "FAIL " not in out
+    # AND IT NAMES THE DOCUMENT THE VERDICT IS ABOUT. The operator's next act is to hand a per-run
+    # record's PATH to the one-shot agent, so the stamp the gate was computed on is printed with the
+    # verdict rather than matched up afterwards from a directory listing.
+    assert "record stamped 20260911T090000Z" in out
+    # THE READOUT NAMES WHAT RAN AND NOT ONLY WHAT HAPPENED: the prompt at twelve characters, the deck
+    # it was measured on, the graph it was drawn against, the run's shape, and that it is a run rather
+    # than a re-score. An operator reading this line can tell a v3 run from a v2 one without opening
+    # the artifact.
+    assert SU.SUBJECT_BLOCK_SHA256[:12] in out and _V3_ROWS_SHA[:12] in out
+    assert f"{SU.live_graph_hash()} against the live {SU.live_graph_hash()}" in out
+    assert "3 draws x 118 rows = 354 calls" in out
+    assert "a run, not a re-score" in out
+    # AND THE SEAT PIN'S READOUT NAMES THE TEST IT PASSED. The model half is a FAMILY test -- the
+    # declared seat must be a SUBSTRING of every billed model id -- and the line used to read like an
+    # equality, which is a different and stronger claim than the one the scorer makes.
+    assert "model FAMILY by substring" in out
+    mod.print_gate(mod.oneshot_gate(_gate_record(mod, fired=2)))
+    out = capsys.readouterr().out
+    assert out.isascii() and "GATE: HELD" in out and "The one-shot is NOT spent." in out
+    assert "FAIL " in out and "2 fired" in out
+    # AND AN ABSENT FIELD PRINTS AS AN ABSENCE RATHER THAN AS A ZERO OR A BLANK.
+    mod.print_gate(mod.oneshot_gate(_gate_record(mod, no_dec_scored=True,
+                                                 drop=("planner_block_sha256", "deck_rows_sha256",
+                                                       "graph_hash", "draws"))))
+    out = capsys.readouterr().out
+    assert out.isascii() and "GATE: HELD" in out
+    assert "no scored census for the decoy class" in out
+    assert "recorded no planner block sha" in out and "recorded no deck identity" in out
+    assert "recorded no graph hash" in out
+    assert "no draw, row or call census" in out
+    # AND A RE-SCORE SAYS SO IN THE READOUT AND NOT ONLY IN THE VERDICT, because the line an operator
+    # acts on is this one and "a re-read of banked picks" is the whole of the reason.
+    mod.print_gate(mod.oneshot_gate(_gate_record(mod,
+                                                 rescored_from="subject_v3_20260911T000000Z.json")))
+    out = capsys.readouterr().out
+    assert out.isascii() and "GATE: HELD" in out
+    assert "a RE-SCORE of subject_v3_20260911T000000Z.json" in out
+    assert "not the run it would certify" in out
+    # AND THE WRONG ARTIFACT CLASS SAYS WHICH CLASS IT WAS AND WHERE THE RIGHT ONE IS. A merged
+    # summary is the document most likely to be handed to this gate by mistake -- it is the file in
+    # the dated bank with the deck's name on it -- and "REFUSED" plus the pointer is what stops that
+    # being a silent HELD on some other check.
+    mod.print_gate(mod.oneshot_gate({"kind": mod.SUMMARY_KIND, "layer2_runs": [],
+                                     "layer2": _gate_doc()["layer2"]}))
+    out = capsys.readouterr().out
+    assert out.isascii() and "GATE: HELD" in out
+    assert "REFUSED -- a MERGED DECK SUMMARY" in out and "layer2_runs" in out
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE BANK THAT CANNOT TRANSPLANT PROVENANCE -- one immutable record per layer-2 run, and a summary
+# that only POINTS at them (2026-09-11, the round-3 MAJOR closed)
+#
+# The defect, MEASURED before the fix on a doctored bank and free: `data/subject_resolver/<date>/
+# <deck>_summary.json` is a FIXED path per deck per date, merged with `_merged = dict(_prev);
+# _merged.update(summary)`. The preserve loop kept an earlier run's `layer2` and its `oneshot_gate`
+# -- which is what stops a free layer-1 re-run erasing a billed measurement -- while every provenance
+# field in the LATER run's summary overwrote the banked one. So one ordinary `--layer 1` pass left an
+# earlier layer 2 and an earlier OPEN gate sitting under a fresh `planner_block_sha256`, a fresh
+# `graph_hash` and a fresh stamp: the three checks this arc exists to add, asserting on the durable
+# artifact the opposite of what they were built to prevent. The same site replaced a first calibration
+# with a second outright, so the tree kept the LAST attempt and no count of attempts at all.
+# ---------------------------------------------------------------------------------------------------
+def _pe10_deck(tmp_path):
+    """A TWO-ROW DECK OF THIS TEST'S OWN. It is deliberately not a shipped deck: what is under test is
+    the BANK, and a two-row deck makes the billed path two calls of a fake transport. Its rows carry
+    ids, which is exactly what must not reach the in-tree record."""
+    p = tmp_path / "pe10_deck.yaml"
+    p.write_text("today: 2026-09-10\nmax_contracts: 2\nrows:\n"
+                 "  - {id: r1, klass: synonym, expect: [frost], "
+                 "phrase: a cold snap in the growing region}\n"
+                 "  - {id: d1, klass: decoy, expect: [], phrase: who won the league}\n",
+                 encoding="utf-8", newline="\n")
+    return p
+
+
+def _pe10_wire(mod, monkeypatch, *, stamps):
+    """THE ZERO-COST SEAT. `dp.plan_turn` is the REAL planner and only the TRANSPORT is faked (the
+    `pb14` idiom), the graph is the two-contract fixture, the vocabulary artifact is stubbed `ok` and
+    the semantic tier is stubbed LIVE so the instrument fence passes. `_utc_stamp` is driven from a
+    list because the record's NAME is the run's stamp at one-second resolution: two runs inside one
+    second are a collision the writer REFUSES, and a test that slept would be measuring the clock."""
+    from leviathan.graphrag import answer as an
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "not-used-the-transport-is-fake")
+    monkeypatch.delenv("GRAPHRAG_DISPATCH", raising=False)
+    monkeypatch.setattr(mod, "load_graph", _seam_graph)
+    monkeypatch.setattr(SU, "load_vocab", lambda *a, **kw: ({}, "ok"))
+    monkeypatch.setattr(mod, "layer1_rows", lambda rows, *, graph, vocab: [
+        {"id": r["id"], "klass": r["klass"], "expect": list(r["expect"]), "exact": [], "alias": [],
+         "vocab_status": "ok",
+         "cands": ([["frost", 0.81, "id"]] if r["klass"] != "decoy" else [])} for r in rows])
+    _seq = list(stamps)
+    monkeypatch.setattr(mod, "_utc_stamp", lambda: _seq.pop(0) if _seq else "20260911T235959Z")
+
+    def transport(system, user, *, model, tool, **kw):
+        pick = ["frost"] if "cold snap" in str(user) else []
+        return {"steps": ["reasoning"], "contracts": ["arabica_coffee"], "subject": pick,
+                "_usage": {"in": 1000, "out": 40, "cache_read": 0, "cache_write": 0,
+                           "model": mod.SEAT}}
+
+    monkeypatch.setattr(an, "_call_opus", transport)
+
+
+def test_pe10_A_LAYER_2_RUN_BANKS_ONE_IMMUTABLE_RECORD_AND_THE_SUMMARY_ONLY_POINTS_AT_IT(
+        monkeypatch, tmp_path, capsys):
+    """THE FOUR DIRECTIONS THE FIX IS STATED OVER, DRIVEN END TO END THROUGH `main` AT ZERO COST.
+
+    (1) A layer-2 run writes ONE file whose name carries the run's own stamp, carrying provenance,
+        the measurement, the bars and the gate computed over THAT SAME document; the dated summary
+        keeps a POINTER to it and no layer-2 block of its own.
+    (2) A FREE `--layer 1` re-run afterwards leaves that file BYTE-IDENTICAL and the pointer list
+        unchanged -- the transplant, driven in the direction it actually occurred.
+    (3) A SECOND layer-2 run adds a SECOND file and touches neither the first file nor its pointer,
+        so two calibrations are two entries: the attempt count nothing in the tree had.
+    (4) The gate REFUSES the merged summary by its artifact class, and grades the per-run record by
+        PATH, which is how the one-shot's operator will be handed it.
+    (5) AND THE CARRIED FREE LAYER IS STAMPED WITH THE RUN THAT MEASURED IT. The same transplant
+        survives on the free side of the merge: `_merged.update(summary)` replaces the header's
+        `generated_utc` / `planner_block_sha256` / `graph_hash` while the preserve loop carries a
+        predecessor's `layer1` unchanged, so the report printed a full provenance header over a LAYER 1
+        table measured by an earlier run. No money and no gate ride on it -- the gate refuses this
+        document by artifact class and layer 1 is free and re-derivable -- so the block is STAMPED
+        (`layer1_generated_utc`) and the report says so, rather than moved into a record of its own.
+
+    AND THE RECORD IS PHRASE-FREE AND ID-FREE, which `pb11` grades over the whole bank directory and
+    this grades over the new file: the deck's row ids are `r1` and `d1` and neither may appear."""
+    mod = _runner()
+    deck = _pe10_deck(tmp_path)
+    bank, out = tmp_path / "bank", tmp_path / "out"
+    _pe10_wire(mod, monkeypatch, stamps=["20260911T101010Z", "20260911T101010Z"])
+    rc = mod.main(["--deck", str(deck), "--layer", "2", "--draws", "1", "--cap-usd", "1",
+                   "--bank-dir", str(bank), "--out-dir", str(out)])
+    console = capsys.readouterr().out
+    assert rc == 0, console[-2000:]
+    assert console.isascii()
+    # -- (1) ONE RECORD, NAMED BY THE RUN'S OWN STAMP, AND IT CARRIES EVERYTHING TOGETHER.
+    recs = sorted(bank.glob("pe10_deck_layer2_*.json"))
+    assert [p.name for p in recs] == ["pe10_deck_layer2_20260911T101010Z.json"], recs
+    rec = json.loads(recs[0].read_text(encoding="utf-8"))
+    assert rec["kind"] == mod.RECORD_KIND
+    prov = rec["provenance"]
+    for k in ("generated_utc", "planner_block_sha256", "graph_hash", "deck", "deck_sha256",
+              "deck_rows_sha256", "rows_total", "class_counts", "draws", "seat",
+              "temperature", "own_structure_fence", "live_ids_count", "runner_sha256"):
+        assert k in prov, k
+    assert prov["planner_block_sha256"] == SU.SUBJECT_BLOCK_SHA256
+    assert prov["own_structure_fence"] == sorted(SU.OWN_STRUCTURE_IDS)
+    assert prov["live_ids_count"] == len(SU.live_ids(_seam_graph()))
+    assert prov["class_counts"] == {"synonym": 1, "decoy": 1} and prov["rows_total"] == 2
+    # THE DECK'S VERSION IS A FIELD RATHER THAN A FILENAME FOR A READER TO PARSE -- v1, v2 and v3 are
+    # three instruments and a record should say which one it names. This deck carries no version in
+    # its name and correctly gets none: an invented one would be provenance the run never had.
+    assert "deck_version" not in prov
+    assert mod.layer2_record({"deck": "subject_deck_v3.yaml", "layer2": {"calls": 1}}
+                             )["provenance"]["deck_version"] == "v3"
+    assert rec["layer2"]["calls"] == 2 and rec["layer2"]["errored_calls"] == 0
+    assert rec["layer2"]["per_class"]["decoy"]["fired"] == 0
+    assert rec["layer2"]["per_class"]["synonym"]["passed"] == 1
+    assert rec["layer2"]["seat_pin"]["verdict"] == "PASS"
+    assert rec["bars"] and all("rows" not in b for b in rec["bars"])
+    # THE GATE IS INSIDE THE DOCUMENT IT WAS COMPUTED ON, and it HOLDS -- this is not the certifying
+    # deck, and a run on any other deck holds the gate by construction.
+    assert rec["oneshot_gate"]["verdict"] == "HELD"
+    assert any(c.startswith("THE DECK") for c in rec["oneshot_gate"]["failing"])
+    assert not any(c.startswith("THE ARTIFACT CLASS") for c in rec["oneshot_gate"]["failing"])
+    # AND IT IS PHRASE-FREE AND ID-FREE: `pb11`'s rule, applied to the new file.
+    _text = recs[0].read_text(encoding="utf-8")
+    assert "cold snap" not in _text and '"r1"' not in _text and '"d1"' not in _text
+    assert "unscored_n" in _text and '"unscored"' not in _text
+    # THE SUMMARY POINTS AND DOES NOT CERTIFY.
+    _sum_path = bank / "pe10_deck_summary.json"
+    summary = json.loads(_sum_path.read_text(encoding="utf-8"))
+    assert summary["kind"] == mod.SUMMARY_KIND
+    assert "layer2" not in summary and "oneshot_gate" not in summary
+    assert [r["file"] for r in summary["layer2_runs"]] == [recs[0].name]
+    assert summary["layer2_runs"][0]["planner_block_sha256"] == SU.SUBJECT_BLOCK_SHA256
+    assert summary["layer2_runs"][0]["gate_verdict"] == "HELD"
+    assert summary["oneshot_gate_latest"]["file"] == recs[0].name
+    assert "THE ATTEMPT COUNT IS THE LENGTH OF THIS LIST" in (
+        bank / "pe10_deck_summary.md").read_text(encoding="utf-8")
+    _before = recs[0].read_bytes()
+    _sum_before = json.loads(_sum_path.read_text(encoding="utf-8"))
+
+    # -- (2) THE FREE LAYER-1 RE-RUN. This is the exact pass that transplanted provenance: it makes no
+    #    draw, it costs nothing, and it used to rewrite the block sha and the graph hash sitting over
+    #    a banked layer 2.
+    _pe10_wire(mod, monkeypatch, stamps=["20260911T111111Z", "20260911T111111Z"])
+    rc1 = mod.main(["--deck", str(deck), "--layer", "1", "--bank-dir", str(bank),
+                    "--out-dir", str(out)])
+    capsys.readouterr()
+    assert rc1 in (0, 1)
+    assert recs[0].read_bytes() == _before, "the free re-run rewrote a banked layer-2 record"
+    _sum2 = json.loads(_sum_path.read_text(encoding="utf-8"))
+    assert _sum2["layer2_runs"] == _sum_before["layer2_runs"], "the pointer list moved"
+    assert _sum2["oneshot_gate_latest"] == _sum_before["oneshot_gate_latest"]
+    assert _sum2["generated_utc"] == "20260911T111111Z", "the summary names the LATEST run"
+    assert _sum2["layer2_runs"][0]["generated_utc"] == "20260911T101010Z", (
+        "the pointer still names the run that made the draws")
+    assert _sum2["layers_run"] == ["1", "2"] and "layer1" in _sum2
+    # THIS RUN MEASURED LAYER 1, so the header stamp IS the layer-1 stamp and there is nothing to
+    # carry: an inherited `layer1_generated_utc` here would itself be the lie.
+    assert "layer1_generated_utc" not in _sum2
+
+    # -- (3) THE SECOND LAYER-2 RUN. A second attempt is a second FILE and a second POINTER, and the
+    #    first of each is untouched -- the tree can now say how many calibrations were run.
+    _pe10_wire(mod, monkeypatch, stamps=["20260911T121212Z", "20260911T121212Z"])
+    rc2 = mod.main(["--deck", str(deck), "--layer", "2", "--draws", "1", "--cap-usd", "1",
+                    "--bank-dir", str(bank), "--out-dir", str(out)])
+    capsys.readouterr()
+    assert rc2 == 0
+    recs2 = sorted(bank.glob("pe10_deck_layer2_*.json"))
+    assert [p.name for p in recs2] == ["pe10_deck_layer2_20260911T101010Z.json",
+                                       "pe10_deck_layer2_20260911T121212Z.json"], recs2
+    assert recs[0].read_bytes() == _before, "the second run overwrote the first record"
+    _sum3 = json.loads(_sum_path.read_text(encoding="utf-8"))
+    assert [r["file"] for r in _sum3["layer2_runs"]] == [p.name for p in recs2]
+    assert len(_sum3["layer2_runs"]) == 2, "the attempt count is the pointer list's length"
+    assert _sum3["oneshot_gate_latest"]["file"] == recs2[1].name
+    # -- (5) THE CARRIED LAYER 1 IS STAMPED WITH THE RUN THAT MEASURED IT, AND THE REPORT SAYS SO.
+    #    This run measured layer 2 only; the layer-1 table below the header was measured at 111111Z
+    #    and the header names 121212Z, which is exactly the pair that used to be printed silently.
+    assert "layer1" in _sum3 and _sum3["layers_run"] == ["1", "2"]
+    assert _sum3["layer1_generated_utc"] == "20260911T111111Z", (
+        "the carried layer-1 table is not stamped with the run that measured it")
+    _md3 = (bank / "pe10_deck_summary.md").read_text(encoding="utf-8")
+    assert "- generated: 20260911T121212Z" in _md3
+    assert "LAYER 1 was MEASURED at 20260911T111111Z" in _md3
+    assert "nor the layer 2 in any of the files above" in _md3
+    # AND A COLLISION IS REFUSED RATHER THAN RESOLVED: the same record written twice STOPs, which is
+    # the only safe answer when a path already holds a measurement.
+    with pytest.raises(SystemExit) as _ex:
+        mod.write_layer2_record(bank, "pe10_deck", json.loads(_before.decode("utf-8")))
+    assert _ex.value.code == 2
+    assert "written ONCE" in capsys.readouterr().out
+    assert recs[0].read_bytes() == _before
+
+    # -- (4) THE ARTIFACT CLASS, ON THE REAL FILES. The summary is REFUSED by name; the record is
+    #    graded by PATH, which is how the one-shot's operator will hand it on.
+    _g_sum = mod.oneshot_gate(_sum3)
+    assert _g_sum["verdict"] == "HELD"
+    assert any(c.startswith("THE ARTIFACT CLASS") for c in _g_sum["failing"]), _g_sum["failing"]
+    _g_rec = mod.oneshot_gate(recs2[1])
+    assert _g_rec["verdict"] == "HELD"                      # not the certifying deck
+    assert not any(c.startswith("THE ARTIFACT CLASS") for c in _g_rec["failing"]), _g_rec["failing"]
+    assert _g_rec["certifies"] == "20260911T121212Z"
+    # AND THE SAME QUESTION AS A COMMAND, because the operator's instruction is to read the gate off
+    # the record BY NAME: a door that only opens from Python is a door nobody uses at the seat, and
+    # "read the gate off the file" would quietly become "trust the console line from an hour ago".
+    # It costs nothing, it decides one thing, and its exit code IS the gate (0 OPEN / 1 HELD / 2 not
+    # a gradable record) -- which is the one place in this script where the exit code may be read as
+    # the gate, precisely because no bar is being graded beside it.
+    assert mod.main(["--grade-record", str(recs2[1])]) == 1
+    _out = capsys.readouterr().out
+    assert _out.isascii() and "GATE: HELD" in _out and recs2[1].name in _out
+    assert mod.main(["--grade-record", str(bank / "pe10_deck_summary.json")]) == 1
+    assert "REFUSED -- a MERGED DECK SUMMARY" in capsys.readouterr().out
+    # A DOCUMENT THAT CANNOT BE READ AS A RECORD IS A REFUSED CLASS AND NOT A SILENCE; a NAME that is
+    # not a file is the one refusal, because it is a typo and not a verdict.
+    assert mod.main(["--grade-record", str(bank / "pe10_deck_summary.md")]) == 1
+    assert "could not be read as a per-run record" in capsys.readouterr().out
+    assert mod.main(["--grade-record", str(bank / "no_such_record.json")]) == 2
+    assert "no such record" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE CERTIFICATE NAMES ITS BYTES, AND THE RUN MEASURES ITS PROMPT (2026-09-11, the round-4 findings)
+#
+# Two defects of the same shape, one MAJOR and one minor, both under the certificate's own claims.
+#
+# THE MAJOR. `planner_block_sha256` was the one provenance input that was DECLARED rather than
+# MEASURED: `main` wrote `SU.SUBJECT_BLOCK_SHA256` (the module CONSTANT) onto the record and
+# `live_block_sha()` read the SAME constant back, so the gate's PROVENANCE check was a constant against
+# itself at both ends and nothing in the runner ever hashed the block text the run actually sends.
+# MEASURED free and in-process: with `dispatch._subject_block` returning a text hashing to 14703c0a77c8
+# while the pin stayed d7ed2de860fc, the run RECORDED d7ed2de860fc, the readout printed
+# `PASS  PROVENANCE ... d7ed2de860fc against the live d7ed2de860fc`, and the GATE read OPEN with zero
+# failing checks on 354 clean calls. That is the exact fail-open this arc closed for THE DECK (hashed
+# off the file) and THE GRAPH (stamped off the DAG bytes).
+#
+# THE MINOR. The record's FILE NAME was not bound to the stamp inside it. MEASURED: copying
+# `<deck>_layer2_20260911T110000Z.json` to `<deck>_layer2_20261231T000000Z.json` graded OPEN, beside a
+# readout saying "computed on the per-run layer-2 record stamped 20260911T110000Z" -- a file in the
+# tree named for a run that did not happen.
+# ---------------------------------------------------------------------------------------------------
+def test_pe11_THE_RUN_MEASURES_ITS_PROMPT_AND_THE_GATE_NAMES_THE_BYTES_IT_GRADED(
+        monkeypatch, tmp_path, capsys):
+    """FOUR DIRECTIONS, ALL AT ZERO COST THROUGH THE SAME FAKE TRANSPORT `pe10` uses.
+
+    (1) THE PROMPT IS MEASURED. With `_subject_block` rendering a text whose digest is NOT the pin, the
+        run REFUSES before a call is made and before anything is banked -- and the refusal names both
+        digests, because "the block moved" and "the pin is stale" are different repairs.
+    (2) AND A LEGITIMATE RE-FREEZE RUNS AND BANKS ITS OWN DIGEST. With the render moved AND the pin
+        moved with it, the fence is satisfied, the run proceeds, and the record carries that digest --
+        which is not the one this tree's real constant carries. (1) is the direction that FALSIFIES
+        the old code, which recorded the pin whatever the renderer did and ran on; this one pins that
+        the field follows the render rather than being a literal, and that the fence tightens nothing
+        for a block that was re-frozen properly.
+    (3) THE FILE NAME IS BOUND TO THE STAMP INSIDE IT. A hand-copy at a foreign name is HELD on THE
+        FILE NAME, and the readout prints the graded file's own sha256 so the certificate names its
+        BYTES and not only its stamp. The real record passes the same check.
+    (4) `--rescore` ANSWERS WITH ITS OWN VERDICT. It returned 0 unconditionally -- a $0 diagnostic
+        whose exit code could not fail, which is the "READ EVERY EXIT CODE" law from the other side."""
+    mod = _runner()
+    deck = _pe10_deck(tmp_path)
+    bank, out = tmp_path / "bank", tmp_path / "out"
+    # THE REAL PIN, READ BEFORE ANYTHING IS MOVED -- it is the value the OLD code recorded whatever the
+    # renderer did, and step (2) is stated against it.
+    _real_pin = SU.SUBJECT_BLOCK_SHA256
+
+    # ── (1) THE PROMPT IS MEASURED, AND A MOVED BLOCK REFUSES BEFORE ANY SPEND.
+    _pe10_wire(mod, monkeypatch, stamps=["20260911T140000Z", "20260911T140000Z"])
+    monkeypatch.setattr(dp, "_subject_block",
+                        lambda ids=None: "" if not ids else "A DIFFERENT PROMPT ENTIRELY.\n")
+    rc = mod.main(["--deck", str(deck), "--layer", "2", "--draws", "1", "--cap-usd", "1",
+                   "--bank-dir", str(bank), "--out-dir", str(out)])
+    console = capsys.readouterr().out
+    assert rc == 2, console[-2000:]
+    assert console.isascii()
+    assert "NOT THE PROMPT THIS TREE PINS" in console
+    _fake_sha = hashlib.sha256(b"A DIFFERENT PROMPT ENTIRELY.\n").hexdigest()
+    assert _fake_sha in console and _real_pin in console
+    assert "NOTHING WAS BANKED" in console
+    # NOTHING WAS BANKED AND NOTHING WAS ASKED -- the refusal sits before the layer-2 loop's own rows.
+    assert not bank.exists() or not list(bank.glob("*.json"))
+    assert "[layer 2] the planner" not in console
+
+    # ── (2) A LEGITIMATE RE-FREEZE RUNS, AND THE RECORD CARRIES THE DIGEST THAT WAS RENDERED. Move
+    #    the pin WITH the render: the fence is satisfied, the run proceeds, and what lands on the
+    #    record is the digest of the text that was rendered -- which the real constant is not. The
+    #    FALSIFYING direction is (1) above; this one pins that the fence does not tighten anything for
+    #    a block that was re-frozen properly, and that the banked field follows the render.
+    _pe10_wire(mod, monkeypatch, stamps=["20260911T141500Z", "20260911T141500Z"])
+    monkeypatch.setattr(dp, "_subject_block",
+                        lambda ids=None: "" if not ids else "A DIFFERENT PROMPT ENTIRELY.\n")
+    monkeypatch.setattr(SU, "SUBJECT_BLOCK_SHA256", _fake_sha)
+    rc2 = mod.main(["--deck", str(deck), "--layer", "2", "--draws", "1", "--cap-usd", "1",
+                    "--bank-dir", str(bank), "--out-dir", str(out)])
+    console = capsys.readouterr().out
+    assert rc2 == 0, console[-2000:]
+    assert "MEASURED from dispatch._subject_block" in console
+    _rec_path = bank / "pe10_deck_layer2_20260911T141500Z.json"
+    _rec = json.loads(_rec_path.read_text(encoding="utf-8"))
+    assert _rec["provenance"]["planner_block_sha256"] == _fake_sha
+    assert _rec["provenance"]["planner_block_sha256"] != _real_pin
+    monkeypatch.undo()
+
+    # ── (3) THE FILE NAME AGAINST THE STAMP INSIDE IT, AND THE BYTES NAMED IN THE READOUT.
+    _copy = bank / "pe10_deck_layer2_20261231T000000Z.json"
+    _copy.write_bytes(_rec_path.read_bytes())
+    _g_copy = mod.oneshot_gate(_copy)
+    assert _g_copy["verdict"] == "HELD"
+    assert any(c.startswith("THE FILE NAME") for c in _g_copy["failing"]), _g_copy["failing"]
+    assert _g_copy["graded_file"] == _copy.name
+    assert _g_copy["graded_file_sha256"] == hashlib.sha256(_copy.read_bytes()).hexdigest()
+    mod.print_gate(_g_copy)
+    _out = capsys.readouterr().out
+    assert _out.isascii()
+    assert "is NAMED for a run it does not carry" in _out
+    assert _g_copy["graded_file_sha256"] in _out
+    # THE REAL RECORD PASSES THE SAME CHECK, and a document graded in memory has no name to disagree
+    # with anything -- the runner derives one from the other, so the check is vacuous there and says so.
+    _g_real = mod.oneshot_gate(_rec_path)
+    assert not any(c.startswith("THE FILE NAME") for c in _g_real["failing"]), _g_real["failing"]
+    _g_mem = mod.oneshot_gate(_rec)
+    assert not any(c.startswith("THE FILE NAME") for c in _g_mem["failing"]), _g_mem["failing"]
+    assert "graded_file" not in _g_mem
+    # AND THE COMMAND DOOR ANSWERS THE SAME WAY, which is the door the one-shot's operator uses.
+    assert mod.main(["--grade-record", str(_copy)]) == 1
+    assert "THE FILE NAME" in capsys.readouterr().out
+
+    # ── (4) `--rescore` FOLLOWS THE RUN IT RE-READ. The banked artifact's decoy row is doctored to
+    #    FIRE, which is the FATAL bar -- the re-score must print STOP and EXIT 1.
+    _art = out / "pe10_deck_20260911T141500Z.json"
+    _banked = json.loads(_art.read_text(encoding="utf-8"))
+    monkeypatch.setattr(mod, "load_graph", _seam_graph)
+    assert mod.main(["--rescore", str(_art)]) == 0, capsys.readouterr().out[-2000:]
+    capsys.readouterr()
+    for _r in _banked["layer2_rows"]:
+        if _r["klass"] == "decoy":
+            for _d in _r["draws"]:
+                _d["subject"] = ["frost"]
+    _fired = out / "pe10_deck_FIRED.json"
+    _fired.write_text(json.dumps(_banked, indent=2), encoding="utf-8", newline="\n")
+    assert mod.main(["--rescore", str(_fired)]) == 1
+    _out = capsys.readouterr().out
+    assert _out.isascii() and "VERDICT: STOP" in _out
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE LEGACY PREDECESSOR BANK, AND THE ORDER THE THREE ARTIFACTS LAND IN (2026-09-11, round 5)
+#
+# THE MAJOR IT CLOSES. `markdown()` renders BANKED documents as well as live ones, and its layer-2
+# TOTAL row indexed five fields bare (`scored`, `passed`, `passed_pct`, `passed_shipped_v1`,
+# `passed_shipped_v1_pct`) while every per-class row above it had already been taught `.get`. The real
+# `data/subject_resolver/2026-09-10/subject_deck_v1_summary.json` carries an `all_non_decoy` of
+# {scored, passed, passed_pct} -- written before the `shipped v1` column existed -- and the dated
+# summary's MERGE carries a predecessor's `layer2` block onto every later run (layer 2 never rides a
+# new run's summary, so the preserve loop always fires). MEASURED end to end through the fake
+# transport, `--deck subject_deck_v1.yaml --layer 2 --bank-dir <copy of that directory>`:
+# `KeyError: 'passed_shipped_v1'` out of `markdown(summary)`, with the immutable record ALREADY on
+# disk and the pointer entry never written. Twice over: two runs, two records, ZERO pointers -- two
+# real layer-2 attempts that the attempt count (the pointer list's length) did not count, beside a
+# summary whose two halves still described the predecessor's run.
+#
+# AND THE ORDER IS HALF THE FIX. `write_layer2_record` sat AHEAD of `markdown(summary)`, which put the
+# one artifact the one-shot is spent against outside the render-before-write rule the scratchpad
+# artifact and the summary both obey. The KeyError is closed by `.get`; the ORDER is what makes the
+# NEXT rendering defect lose all three halves together instead of banking one of them. The record
+# still precedes the summary that points at it, so a refused write never leaves a dangling pointer.
+# ---------------------------------------------------------------------------------------------------
+def test_pe12_A_LEGACY_PREDECESSOR_BANK_STILL_LANDS_THE_RECORD_THE_POINTER_AND_BOTH_HALVES(
+        monkeypatch, tmp_path, capsys):
+    """THE LEGACY `layer2` BLOCK IS THE REAL ONE, lifted from the tracked 2026-09-10 v1 bank rather
+    than invented here: an older shape a test made up would prove only that the test can imagine a
+    missing key, and the defect is about a shape that actually exists in this repository.
+
+    FOUR THINGS MUST LAND, and before the fix exactly one of them did: the per-run RECORD, the
+    POINTER entry inside the summary, and BOTH summary halves (.json and .md). Plus two properties of
+    the carried block itself -- it is CARRIED and not deleted (it is somebody's banked figures) and it
+    is rendered under the stamp of the run that measured it."""
+    mod = _runner()
+    deck = _pe10_deck(tmp_path)
+    bank, out = tmp_path / "bank", tmp_path / "out"
+    bank.mkdir()
+
+    # THE PREDECESSOR: a summary written by an OLDER runner, carrying the real legacy layer-2 block.
+    _legacy_src = ROOT / "data" / "subject_resolver" / "2026-09-10" / "subject_deck_v1_summary.json"
+    _legacy = json.loads(_legacy_src.read_text(encoding="utf-8"))
+    _l2 = _legacy["layer2"]
+    # THE SHAPE THAT BREAKS IT, ASSERTED RATHER THAN ASSUMED -- if a later bank gains these keys this
+    # test is measuring nothing and must say so instead of passing quietly.
+    assert "passed_shipped_v1" not in _l2["all_non_decoy"], (
+        "the legacy fixture no longer carries the missing-key shape this test is stated over")
+    _prev = {"kind": mod.SUMMARY_KIND, "generated_utc": "20260910T124733Z",
+             "deck": "pe10_deck.yaml", "rows_total": 2, "layers_run": ["2"],
+             "graph_hash": "legacy", "vocab_status": "ok", "verdict": "LAND-DARK",
+             "failing_bars": [], "bars": [], "layer2": _l2}
+    (bank / "pe10_deck_summary.json").write_text(json.dumps(_prev, indent=2), encoding="utf-8",
+                                                 newline="\n")
+    (bank / "pe10_deck_summary.md").write_text("# the predecessor report\n", encoding="utf-8",
+                                               newline="\n")
+
+    _pe10_wire(mod, monkeypatch, stamps=["20260911T160000Z", "20260911T160000Z"])
+    rc = mod.main(["--deck", str(deck), "--layer", "2", "--draws", "1", "--cap-usd", "1",
+                   "--bank-dir", str(bank), "--out-dir", str(out)])
+    console = capsys.readouterr().out
+    assert rc == 0, console[-3000:]                  # it RAISED KeyError here before the fix
+    assert console.isascii()
+
+    # (1) THE RECORD.
+    _rec_path = bank / "pe10_deck_layer2_20260911T160000Z.json"
+    assert _rec_path.is_file()
+    # (2) THE POINTER -- the attempt count, which read zero on a real attempt.
+    _sum = json.loads((bank / "pe10_deck_summary.json").read_text(encoding="utf-8"))
+    assert [r["file"] for r in _sum["layer2_runs"]] == [_rec_path.name]
+    # (3) AND (4) BOTH SUMMARY HALVES, REWRITTEN BY THIS RUN.
+    assert _sum["generated_utc"] == "20260911T160000Z"
+    _md = (bank / "pe10_deck_summary.md").read_text(encoding="utf-8")
+    assert "- generated: 20260911T160000Z" in _md and "the predecessor report" not in _md
+    # THE CARRIED BLOCK IS RENDERED, NOT DELETED, AND IT IS STAMPED WITH THE RUN THAT MEASURED IT.
+    assert _sum["layer2"] == _l2 and _sum["layer2_generated_utc"] == "20260910T124733Z"
+    assert "LAYER 2 -- the planner (billed)" in _md
+    assert "| ALL non-decoy | - | 90 | 78 (86.7%) | - (-%) | - | - |" in _md, (
+        "the legacy total row must render its absences as absences, not raise")
+
+    # THE POINTER CARRIES A DIGEST OF THE BYTES THAT LANDED, and it is the digest of THIS file.
+    _ptr = _sum["layer2_runs"][0]
+    assert _ptr["record_sha256"] == hashlib.sha256(_rec_path.read_bytes()).hexdigest()
+    assert _ptr["gate_verdict"] == "HELD"            # not the certifying deck
+
+    # AND `--grade-record` PUTS THE RECORD BACK AGAINST THAT POINTER. A clean record agrees; the same
+    # record hand-edited IN PLACE -- at its own name, keeping its own stamp, which is the one edit no
+    # check INSIDE the document can see -- is REFUSED by field name with exit 2.
+    assert mod.main(["--grade-record", str(_rec_path)]) == 1
+    _out = capsys.readouterr().out
+    assert _out.isascii() and "`record_sha256` agrees" in _out and "`gate_verdict` agrees" in _out
+    _doctored = json.loads(_rec_path.read_text(encoding="utf-8"))
+    _doctored["oneshot_gate"]["verdict"] = "OPEN"     # the certificate, edited to certify itself
+    _rec_path.write_text(json.dumps(_doctored, indent=2), encoding="utf-8", newline="\n")
+    assert mod.main(["--grade-record", str(_rec_path)]) == 2
+    _out = capsys.readouterr().out
+    assert _out.isascii() and "REFUSED on `record_sha256`" in _out
+    assert "CROSS-CHECK: REFUSED" in _out
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE SCRATCHPAD ARTIFACT IS THE FENCE ANOTHER FENCE'S HONESTY DEPENDS ON, AND WHERE THE PER-ROW
+# DETAIL LIVES AFTER THE SESSION (2026-09-11, round 5, minors (b) and (e))
+#
+# `write_layer2_record` has refused a stamp collision since the record existed, and its refusal text
+# says "the run's own full artifact is in the scratchpad and nothing was lost". The scratchpad artifact
+# was written with `write_text`, which OVERWRITES -- so the sentence the record's refusal leans on was
+# not true of the file it leans on. And the scratchpad is session-temp, which left the one-shot's
+# per-row picks with no durable home at all once the in-tree bank is phrase-free and id-free by law.
+# ---------------------------------------------------------------------------------------------------
+def test_pe13_THE_SCRATCHPAD_REFUSES_A_CLOBBER_AND_THE_FULL_ARTIFACT_HAS_A_DURABLE_HOME(
+        monkeypatch, tmp_path, capsys):
+    """THREE DIRECTIONS, ALL FREE.
+
+    (1) A second run of one deck into one out-dir inside one UTC second REFUSES rather than replacing
+        the first run's artifact -- and the refusal lands AHEAD of every bank write, so the tree gains
+        no record, no summary and no pointer from the run that was stopped.
+    (2) `--full-artifact-dir` copies the UNFILTERED artifact (every draw and every per-row pick, by
+        ROW ID) to a durable home, while the in-tree bank stays phrase-free and id-free.
+    (3) A `--full-artifact-dir` inside this repository that git does not call IGNORED is refused
+        before the deck is even read -- because "point it somewhere untracked" is an instruction and
+        this is a fence."""
+    mod = _runner()
+    deck = _pe10_deck(tmp_path)
+    bank, out = tmp_path / "bank", tmp_path / "out"
+    durable = tmp_path / "durable"
+
+    # (2) THE DURABLE COPY, on the first run.
+    _pe10_wire(mod, monkeypatch, stamps=["20260911T170000Z", "20260911T170000Z"])
+    rc = mod.main(["--deck", str(deck), "--layer", "2", "--draws", "1", "--cap-usd", "1",
+                   "--bank-dir", str(bank), "--out-dir", str(out),
+                   "--full-artifact-dir", str(durable)])
+    console = capsys.readouterr().out
+    assert rc == 0, console[-2000:]
+    assert console.isascii() and "durable:" in console
+    _scratch = out / "pe10_deck_20260911T170000Z.json"
+    _durable = durable / "pe10_deck_20260911T170000Z.json"
+    assert _scratch.is_file() and _durable.is_file()
+    assert _durable.read_bytes() == _scratch.read_bytes(), "the durable copy is the same artifact"
+    assert (durable / "pe10_deck_20260911T170000Z.md").is_file()
+    # IT IS A COPY AND NOT A MOVE, and it carries what the tree may never carry: the PER-ROW PICKS,
+    # keyed by ROW ID. MEASURED HERE AND STATED BECAUSE IT IS NOT WHAT "full artifact" sounds like:
+    # neither `layer1_rows` nor `layer2_rows` carries the ASK -- both are keyed by `id` and the deck's
+    # phrases never enter any artifact this script writes. So the durable home is complete only
+    # because THE HELD-OUT DECK LIVES IN IT TOO: the deck is the id -> phrase join, and it is the
+    # reason that directory and not some other one.
+    _dtext = _durable.read_text(encoding="utf-8")
+    assert '"r1"' in _dtext and '"layer2_rows"' in _dtext
+    assert "cold snap" not in _dtext, (
+        "the artifact is id-keyed; if it ever carries phrases, say so where durability is described")
+    _rec_text = (bank / "pe10_deck_layer2_20260911T170000Z.json").read_text(encoding="utf-8")
+    assert "cold snap" not in _rec_text and '"r1"' not in _rec_text
+
+    # (1) THE CLOBBER, REFUSED. Same deck, same out-dir, same stamp: the first run's artifact is
+    # another run's bytes and this run may not replace them.
+    _before = _scratch.read_bytes()
+    _bank_before = sorted(p.name for p in bank.iterdir())
+    _pe10_wire(mod, monkeypatch, stamps=["20260911T170000Z", "20260911T170000Z"])
+    with pytest.raises(SystemExit) as _ex:
+        mod.main(["--deck", str(deck), "--layer", "2", "--draws", "1", "--cap-usd", "1",
+                  "--bank-dir", str(bank), "--out-dir", str(out)])
+    assert _ex.value.code == 2
+    _out_txt = capsys.readouterr().out
+    assert _out_txt.isascii()
+    assert "already exists and is NOT being overwritten" in _out_txt
+    assert "this run has banked nothing" in _out_txt
+    assert _scratch.read_bytes() == _before, "the earlier run's artifact was replaced"
+    assert sorted(p.name for p in bank.iterdir()) == _bank_before, (
+        "the stopped run still banked something")
+
+    # (3) A TRACKED DURABLE HOME IS REFUSED BEFORE ANYTHING IS READ. `src/` is tracked; nothing is
+    # written to it and the refusal names why.
+    assert mod.main(["--deck", str(deck), "--layer", "2", "--draws", "1", "--cap-usd", "1",
+                     "--bank-dir", str(bank), "--out-dir", str(tmp_path / "out3"),
+                     "--full-artifact-dir", str(ROOT / "src" / "leviathan")]) == 2
+    _out_txt = capsys.readouterr().out
+    assert _out_txt.isascii() and "git does not report it as IGNORED" in _out_txt
+    assert "Nothing was read, nothing was spent" in _out_txt
+    assert not (tmp_path / "out3").exists()
+    # AND THE PHASE-E HOME IS ACCEPTED, because it is gitignored in this tree -- the fence must not be
+    # a fence against the thing it was built for.
+    assert mod.main(["--deck", str(deck), "--layer", "both", "--draws", "1", "--cap-usd", "1",
+                     "--dry-run",
+                     "--full-artifact-dir", str(ROOT / "docs" / "private" / "subject_heldout")]) == 0
+    assert capsys.readouterr().out.isascii()

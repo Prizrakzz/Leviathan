@@ -855,6 +855,21 @@ def _subject_block(subject_ids=None) -> str:
     `data/subject_resolver/2026-09-10/subject_heldout_v1_layer2_HELD.json` records the hold) -- and it
     was authored blind to both v1 and v2, so it stays valid. The re-freeze is `SUBJECT_BLOCK_SHA256`.
 
+    V3 (2026-09-11) IS THE SECOND AMENDED FREEZE, AND IT CLOSES AN ASK RATHER THAN AN ID. Phase D moved
+    the market-structure closure from this prose to the ENUM -- `calendar_spread` and `basis` are fenced
+    out of `state.subject.live_ids` -- and the billed layer 2 on `subject_deck_v2` came back with the
+    decoy fires down from 7 of 28 to 2. One of the two remaining is `dc22`, an ask about a spread that
+    names NEITHER of the markets it spans: with `calendar_spread` gone from the enum the planner reached
+    for `wheat_corn_spread`, an UNFENCED and entirely legitimate cross-market instrument. AN ENUM FENCE
+    REMOVES AN ID, NOT AN ASK, and no further fence entry can close this one without eating the
+    twenty-three real cross-market subjects the graph carries (the soy-palm premium, the crush margin,
+    the oil share and the two parity floors are all subjects a desk asks about). So the closure is
+    stated as the TEST that separates them -- both market names present, or no subject -- in one bullet
+    of this block's own register (+194 ASCII characters, no quoted ask, no question mark), and nothing
+    else moved: removing exactly those bytes reproduces v2's sha, the v2 closure run stays contiguous,
+    and the flag-OFF render is still "". The pin moves with the text; the held-out set was still not
+    spent at layer 2 on v1 or v2, so it is still blind to all three.
+
     IT RENDERS TRAILING -- after PRICE-EXTREME DETECTION, immediately before the single
     '## OUTPUT DISCIPLINE' anchor -- which is where every detection section this estate has added since
     D-XT lands, and which measured no routing drift on that lane."""
@@ -877,6 +892,8 @@ def _subject_block(subject_ids=None) -> str:
     "  names no subject, even where the enum carries an id by that name: leave it empty.\n"
     "- READING A FIGURE IS NOT A CAUSE EITHER. How to read or compute a table, a ratio or a figure,\n"
     "  and a question about this tool itself, name no subject: leave it empty.\n"
+    "- A SPREAD, CURVE OR BASIS WITHOUT BOTH ITS MARKETS NAMES NOTHING. A spread, a curve or a basis\n"
+    "  named without both of its markets is the board's own structure and not a cause: leave it empty.\n"
     "- EMPTY IS THE ORDINARY ANSWER and it costs the turn nothing. Leave it empty when the turn\n"
     "  describes no driver; never pad the array to fill it; never carry a cause that is merely\n"
     "  mentioned in passing, cited as background, or dismissed; and never mint a cause the ask does\n"

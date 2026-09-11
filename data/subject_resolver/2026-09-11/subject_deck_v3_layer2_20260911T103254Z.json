@@ -1,0 +1,349 @@
+{
+  "kind": "subject_resolver_layer2_run_v1",
+  "record": "ONE LAYER-2 RUN, WRITTEN ONCE AND NEVER MERGED INTO. Provenance rides the measurement it describes; the gate below was computed over this document. The dated <deck>_summary.json beside it is an INDEX of these files and certifies nothing.",
+  "provenance": {
+    "generated_utc": "20260911T103254Z",
+    "planner_block_sha256": "d7ed2de860fc445fc74cf1a0190b72f32b54f4e5d01550b3fa205d4296ac01f3",
+    "graph_hash": "99dc11409fe9",
+    "deck": "subject_deck_v3.yaml",
+    "deck_sha256": "7f89ac368aeed6462f1feeb93d15f61b226d01f9482f10b1218c979c4914332f",
+    "deck_rows_sha256": "7b079452fa9652362bcebdeba7441f298642dbfe889399d27c59cdf355ca1c86",
+    "rows_total": 118,
+    "class_counts": {
+      "exact": 10,
+      "alias": 11,
+      "synonym": 14,
+      "misspelling": 14,
+      "description": 14,
+      "acronym": 10,
+      "near_duplicate": 10,
+      "multi": 8,
+      "decoy": 27
+    },
+    "draws": 3,
+    "seat": "claude-sonnet-4-6",
+    "temperature": 0,
+    "max_contracts": 2,
+    "vocab_status": "ok",
+    "own_structure_fence": [
+      "basis",
+      "calendar_spread"
+    ],
+    "live_ids_count": 403,
+    "all_ids_count": 405,
+    "deck_version": "v3",
+    "runner_sha256": "554e71fc625af1a3b96d0b5fba7001e02814ed306a9696ff987a0f061c2277c9",
+    "runner_git_sha": "2070335dd167d7aad7fca09039175225d618a108"
+  },
+  "layer2": {
+    "scoring_rule": {
+      "reading": "alternatives",
+      "also_reported": "shipped_v1",
+      "multi_min_concepts": 2,
+      "note": "a row's expect list is a list of ALTERNATIVES; the picks must reach EXACTLY concept_count(row) of the expected groups (near_duplicate 1, multi 2 unless the deck declares concepts)"
+    },
+    "all_non_decoy": {
+      "scored": 91,
+      "passed": 91,
+      "passed_pct": 100.0,
+      "passed_shipped_v1": 82,
+      "passed_shipped_v1_pct": 90.1
+    },
+    "calls": 354,
+    "errored_calls": 0,
+    "usd_measured": 3.1552,
+    "seat_pin": {
+      "temperature_declared": 0,
+      "temperature_observed": [
+        "0"
+      ],
+      "seat_declared": "claude-sonnet-4-6",
+      "model_observed": [
+        "claude-sonnet-4-6"
+      ],
+      "model_test": "a model FAMILY test: 'claude-sonnet-4-6' must be a SUBSTRING of every billed model id -- a provider prefix or a dated suffix passes, another family does not",
+      "temperature_test": "exact: every draw's recorded temperature repr",
+      "verdict": "PASS"
+    },
+    "lexical_baseline": {
+      "any_hit_pct": 30.0,
+      "hit_at_1_pct": 23.3,
+      "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
+    },
+    "aborted_on_cost": false,
+    "running_usd": 3.1552,
+    "cap_usd": 4.0,
+    "per_class": {
+      "exact": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 10,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": null,
+        "verdict": "-",
+        "unscored_n": 0
+      },
+      "alias": {
+        "n": 11,
+        "scored": 11,
+        "passed": 11,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 11,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": null,
+        "verdict": "-",
+        "unscored_n": 0
+      },
+      "synonym": {
+        "n": 14,
+        "scored": 14,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 14,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": ">= 90%",
+        "verdict": "PASS",
+        "unscored_n": 0
+      },
+      "misspelling": {
+        "n": 14,
+        "scored": 14,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 14,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": ">= 85%",
+        "verdict": "PASS",
+        "unscored_n": 0
+      },
+      "description": {
+        "n": 14,
+        "scored": 14,
+        "passed": 14,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 14,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": ">= 70%",
+        "verdict": "PASS",
+        "unscored_n": 0
+      },
+      "acronym": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 10,
+        "passed_shipped_v1_pct": 100.0,
+        "bar": null,
+        "verdict": "-",
+        "unscored_n": 0
+      },
+      "near_duplicate": {
+        "n": 10,
+        "scored": 10,
+        "passed": 10,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 4,
+        "passed_shipped_v1_pct": 40.0,
+        "bar": ">= 100%",
+        "verdict": "PASS",
+        "unscored_n": 0
+      },
+      "multi": {
+        "n": 8,
+        "scored": 8,
+        "passed": 8,
+        "passed_pct": 100.0,
+        "passed_shipped_v1": 5,
+        "passed_shipped_v1_pct": 62.5,
+        "bar": ">= 100%",
+        "verdict": "PASS",
+        "unscored_n": 0
+      },
+      "decoy": {
+        "n": 27,
+        "scored": 27,
+        "fired": 1,
+        "bar": "0 picks on ANY draw (FATAL)",
+        "verdict": "FATAL",
+        "unscored_n": 0
+      }
+    }
+  },
+  "bars": [
+    {
+      "bar": "L1 EXACT >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 ALIAS >= 100%",
+      "verdict": "PASS",
+      "detail": "11/11 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 SYNONYM >= 90%",
+      "verdict": "MISS",
+      "detail": "10/14 = 71.4% all-tiers"
+    },
+    {
+      "bar": "L1 MISSPELLING >= 85%",
+      "verdict": "PASS",
+      "detail": "13/14 = 92.9% all-tiers"
+    },
+    {
+      "bar": "L1 DESCRIPTION >= 75%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 ACRONYM >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL)",
+      "verdict": "STOP",
+      "detail": "1 of 27 decoys carried (16 put a candidate above CAND_FLOOR in front of the planner)"
+    },
+    {
+      "bar": "L2 SYNONYM >= 90%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 MISSPELLING >= 85%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 DESCRIPTION >= 70%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 NEAR_DUPLICATE >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 MULTI >= 100%",
+      "verdict": "PASS",
+      "detail": "8/8 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 DECOY PICKS (0 on ANY draw, FATAL)",
+      "verdict": "STOP",
+      "detail": "1 of 27 decoy rows had the planner pick a subject on at least one draw; all 27 rows were SCORED"
+    },
+    {
+      "bar": "L2 SEAT PIN (temperature and model, read back from every draw)",
+      "verdict": "PASS",
+      "detail": "temperature observed 0 against a declared 0 (exact); billed model claude-sonnet-4-6 against a declared claude-sonnet-4-6 -- a model FAMILY test: 'claude-sonnet-4-6' must be a SUBSTRING of every billed model id -- a provider prefix or a dated suffix passes, another family does not"
+    }
+  ],
+  "verdict": "STOP",
+  "failing_bars": [
+    "L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL)",
+    "L2 DECOY PICKS (0 on ANY draw, FATAL)",
+    "L1 SYNONYM >= 90%"
+  ],
+  "instrument": {
+    "rows_scanned": 118,
+    "census": {
+      "ok": 118
+    },
+    "decline_words": [
+      "missing",
+      "not_run",
+      "stale",
+      "unreadable"
+    ],
+    "declined": {},
+    "declined_rows": 0,
+    "live": true,
+    "certifying": true
+  },
+  "oneshot_gate": {
+    "gate": "HELD-OUT ONE-SHOT -- pre-registered as 'a clean calibration decoy bar'",
+    "certifies": "20260911T103254Z",
+    "checks": [
+      {
+        "check": "THE ARTIFACT CLASS: a per-run layer-2 record, not a summary or a run doc",
+        "measured": "a per-run layer-2 record",
+        "pass": true
+      },
+      {
+        "check": "THE FILE NAME: the name ENDS in the stamp of the run inside it (a suffix test; identity is bound by THE DECK's rows digest, not by a name)",
+        "measured": "graded on a document held in memory -- it has no file name to disagree with its stamp, and the runner derives one from the other",
+        "pass": true
+      },
+      {
+        "check": "THE CENSUS: the record's classes are the certifying deck's, and they sum to it",
+        "measured": "118 rows in 9 classes against the deck file's 118 (27 decoy / 91 non-decoy); the record's own rows_total is 118",
+        "pass": true
+      },
+      {
+        "check": "DECOYS: 0 of 27 fired on ANY draw, and all 27 SCORED",
+        "measured": "1 fired; 27 of 27 scored",
+        "pass": false
+      },
+      {
+        "check": "NON-DECOY: all 91 of the deck's rows were SCORED",
+        "measured": "91 scored",
+        "pass": true
+      },
+      {
+        "check": "NON-DECOY: every scored row PASSED",
+        "measured": "91 of 91 passed",
+        "pass": true
+      },
+      {
+        "check": "EVERY DRAW WAS SCORED: no call errored anywhere on the run",
+        "measured": "0 of 354 calls errored",
+        "pass": true
+      },
+      {
+        "check": "SEAT PIN: temperature exact, model FAMILY by substring, read back from every draw",
+        "measured": "PASS (a model FAMILY test: 'claude-sonnet-4-6' must be a SUBSTRING of every billed model id -- a provider prefix or a dated suffix passes, another family does not)",
+        "pass": true
+      },
+      {
+        "check": "THE POPULATION IS WHOLE: the run completed inside its own cap",
+        "measured": "ran to the last row",
+        "pass": true
+      },
+      {
+        "check": "PROVENANCE: the draws were made under the LIVE planner block",
+        "measured": "d7ed2de860fc against the live d7ed2de860fc",
+        "pass": true
+      },
+      {
+        "check": "THE DECK: the rows measured are subject_deck_v3.yaml's",
+        "measured": "subject_deck_v3.yaml rows 7b079452fa96 against the certifying 7b079452fa96",
+        "pass": true
+      },
+      {
+        "check": "THE GRAPH: the draws were made against the LIVE graph",
+        "measured": "99dc11409fe9 against the live 99dc11409fe9",
+        "pass": true
+      },
+      {
+        "check": "THE SHAPE: 3 draws on every row of the deck",
+        "measured": "3 draws x 118 rows = 354 calls",
+        "pass": true
+      },
+      {
+        "check": "THE MEASUREMENT: the gate is graded on the run that made the draws",
+        "measured": "a run, not a re-score",
+        "pass": true
+      }
+    ],
+    "failing": [
+      "DECOYS: 0 of 27 fired on ANY draw, and all 27 SCORED"
+    ],
+    "verdict": "HELD"
+  }
+}

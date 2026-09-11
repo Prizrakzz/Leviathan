@@ -257,7 +257,21 @@ _STRUCTURE_WORDS: frozenset = frozenset({
 #: characters, no quoted ask, no question mark); the flag-OFF render is still "" and still byte-
 #: identical to HEAD's. v1 was ``39188d42d075f73db9c76a29bed95a53e8dc2442b06bd26e61f5d261a66a2489``
 #: and its measurement is banked in :data:`CALIBRATION_NOTE` as v1's, never carried forward as v2's.
-SUBJECT_BLOCK_SHA256 = "37900160d21a25445322b01b1420641f9e40398ce3fe6872e66fc522228843bb"
+#:
+#: V3, 2026-09-11. THE SECOND RE-FREEZE, AND IT CLOSES AN ASK RATHER THAN AN ID. Phase D moved the
+#: market-structure closure from the prose into the ENUM (:data:`OWN_STRUCTURE_IDS`) and the billed
+#: layer 2 on ``subject_deck_v2`` took the decoy fires from 7 of 28 to 2. One of the two is ``dc22``,
+#: an ask about a spread that names NEITHER market it spans: with ``calendar_spread`` gone the planner
+#: reached instead for ``wheat_corn_spread`` -- an UNFENCED id, and a legitimate cross-market subject
+#: on a real ask. AN ENUM FENCE REMOVES AN ID, NOT AN ASK, and no further fence entry closes this one
+#: without eating the twenty-three real cross-market instruments the graph carries. So v3 states the
+#: TEST that separates them -- both market names present, or no subject -- in ONE bullet of the block's
+#: own register (+194 ASCII characters, no quoted ask, no question mark), and nothing else moved:
+#: removing exactly those bytes reproduces the v2 sha below, and the flag-OFF render is still "".
+#: v2 was ``37900160d21a25445322b01b1420641f9e40398ce3fe6872e66fc522228843bb`` and its measurement is
+#: banked as v2's -- phase D's 90 of 90 non-decoy and 2 of 28 decoys are figures about THAT text and
+#: they are not carried forward as v3's. The instrument that grades v3 is ``subject_deck_v3.yaml``.
+SUBJECT_BLOCK_SHA256 = "d7ed2de860fc445fc74cf1a0190b72f32b54f4e5d01550b3fa205d4296ac01f3"
 
 #: The artifact's file name. It lives BESIDE the DAGs it was built from -- ``configs/graphrag/`` is the
 #: gitignored overlay the serving image bakes from the live tree, so the artifact rides the SAME image
@@ -1449,4 +1463,83 @@ WHAT THIS COSTS, STATED. The held-out deck carries ONE row whose expected id is 
 KNOWN casualty of a deliberate design decision and not a resolver miss -- a desk asking whether the
 board is paying anyone to carry it is asking about the curve, and this build's answer is that the
 curve is a CONDITION and never a subject. It must be scored as such when the one-shot is spent, not
-counted as a synonym failure. No in-tree deck row expects a fenced id (MEASURED on both v1 and v2)."""
+counted as a synonym failure. No in-tree deck row expects a fenced id (MEASURED on both v1 and v2).
+
+===================================================================================================
+THE PHASE-E ADDENDUM (2026-09-11). The owner ruled on the two rows phase D left firing, and the two
+rulings are different KINDS of thing -- one is a classification and one is an engineering change.
+
+(1) dc18 IS A POSITIONING ASK AND WAS NEVER A DECOY. The line above -- "whether the planner should
+have declined it is a planner judgement the next billed run measures" -- is SUPERSEDED: there was
+nothing for the planner to decline. Positioning is a subject when a desk asks about it (D18, and the
+owner's own scenario), and this estate's own curation says so out loud -- `open interest` is a term
+of the `cftc_positioning` slice in `configs/graphrag/driver_slices.yaml`, which is exactly why T1
+ALIAS fires on that phrase. So the row is re-labelled `alias`, in a NEW deck rather than by an edit
+(D9: a frozen instrument is superseded, never edited), and its expected ids are the five positioning
+spellings -- `nd03`'s list, and `nd03`'s shape: FIVE ids across TWO curated slices. The count is
+DECLARED with a `concepts:` key rather than implied by a class, because the only class that carries
+"one cause" as a rule is `near_duplicate`, whose alternatives rule is an EQUALITY on groups reached
+-- and phase D's own picks reach both slices, so that class would score the row ZERO. MEASURED
+offline on the banked draws: `alias` 3 of 3, `near_duplicate` 0 of 3.
+The decoy class on the v3 deck is therefore TWENTY-SEVEN rows and the non-decoy population NINETY-ONE.
+
+(2) dc22 IS CLOSED AT THE ASK, WHICH IS WHERE THE FENCE COULD NOT REACH. With `calendar_spread`
+fenced, the planner answered "a spread widened, since when" with `wheat_corn_spread` -- an UNFENCED
+id, and a legitimate cross-market subject on a real ask. AN ENUM FENCE REMOVES AN ID, NOT AN ASK, and
+a third fence entry cannot separate the two without eating the twenty-three real cross-market
+instruments this graph carries (the soy-palm premium, the crush margin, the oil share, the two parity
+floors). The closure is therefore the TEST that separates them, stated in the block's own register:
+a spread, a curve or a basis named without BOTH of its markets names no subject. That is the whole of
+the block's v3 (+194 characters; :data:`SUBJECT_BLOCK_SHA256` above, with the removal proof).
+
+THE BILLED MEASUREMENT THAT NOW STANDS BEHIND (2) -- AND IT SAYS THE BULLET DID NOT WORK. v3's LAYER
+1 ran free (deterministic, 118 scorings, zero API calls; its table is in the deck's own header) and
+v3's LAYER 2 ran ONCE on the real seat: 354 plan_turn calls = 118 rows x 3 draws, claude-sonnet-4-6
+at temperature 0, $3.1552 read back from the usage fields against a $4.00 cap, 0 errored calls. ALL
+NON-DECOY 91 of 91 scored and 91 of 91 PASSED. THE DECOY CLASS FIRED ONCE: dc22, on 2 of 3 draws,
+with `wheat_corn_spread` -- the same row, the same id and the same count as under the block's v2. So
+the bullet above is FREE BUT INEFFECTIVE, and both halves are measured: it was in the rendered block
+(the run renders this prompt over its own live ids, hashes it and refuses on a mismatch -- it matched
+the pin), and all SIX non-decoy rows in its censused blast radius passed on all three draws while the
+five other spread-word decoys read "-" on every draw. A bullet that states the TEST -- both markets
+named, or no subject -- does not bind an ask that names NO market at all, which is dc22's shape, and
+the free `--rescore` counterfactual says an enum fence cannot reach it either (0 of 1 fired rows and
+0 of 2 fired draws removed). THE ROW IS THE OWNER'S CALL, NOT THIS MODULE'S: retarget the bar, reword
+the closure, or accept the row and re-pre-register -- and a bar is not retargeted inside the sitting
+whose change it grades. Phase D's figures stay attached to v2, which is untouched.
+THE PRE-REGISTERED GATE IS UNCHANGED and it is read on the v3 deck: layer-2 decoy picks 0 of 27 with
+all 27 decoy rows SCORED, `all_non_decoy` scored 91 AND passed 91, and ZERO errored calls anywhere on
+the run. Every one of those is two numbers rather than one, and for the same reason on both sides:
+`scored` drops a row whose draws all errored, 90 of 90 would print as 100%, and a decoy that was
+never asked does not fire -- so "0 fired" is a measurement only beside the count that was asked. ON
+THE CALIBRATION JUST DESCRIBED THE GATE READ 13 of 14 PASS, 1 FAIL -> HELD, the single failing check
+being that decoy clause, so THE HELD-OUT ONE-SHOT IS STILL UNSPENT and its layer 2 has still never
+been run.
+
+AND THE GATE NOW GRADES ITS OWN PRECONDITIONS BESIDE THOSE OUTCOMES. "A clean decoy bar ON DECK v3,
+UNDER THIS BLOCK, AGAINST THIS GRAPH, at three draws a row" was always the whole of the
+pre-registration, and the code read only the first half of the sentence: a run measured on the v2
+deck, or one whose draws were made under the block's v2 text, or one made against a graph this tree no
+longer loads, or one drawn once a row instead of three times, satisfied every outcome check and OPENED
+it. The runner therefore records which prompt, which deck and which graph a run measured -- the sha
+above, a digest of the deck's rows, and ``graph_hash`` -- and grades all three against this tree, with
+the draw count, each fail-closed on an absent field. The three are INDEPENDENT and none stands in for
+another: the block is substitution-free (the pinned text renders identically for a one-id vocabulary
+and for the whole enum), so its sha names the PROMPT and carries nothing about what may be picked --
+that is ``live_ids`` of the GRAPH, and the graph hash is the only field that names it. The deck and
+the block are frozen for the certification and the graph is compared LIVE, because the graph is meant
+to move between sittings. A bank written before those fields existed HOLDS the one-shot rather than
+skipping the check, and so does a ``--rescore``: the gate is stated over the run that made the draws,
+never over a re-read of banked picks under whatever scorer stands today.
+
+TWO THINGS THE RUNNER DOES THAT THIS PIN DEPENDS ON, so a reader of this module is not sent to a
+script to learn them. (i) THE RECORDED BLOCK SHA IS A MEASUREMENT AND NOT A RESTATEMENT OF THIS
+CONSTANT: a calibration renders ``dispatch._subject_block`` over its own ``live_ids``, hashes it,
+prints the digest, and REFUSES -- nothing billed, nothing banked -- when it is not the pin above. It
+used to record this constant while the gate read the same constant back, which is a constant compared
+with itself at both ends. (ii) THE CERTIFIED ARTIFACT IS ONE IMMUTABLE PER-RUN FILE,
+``data/subject_resolver/<date>/<deck>_layer2_<the run's UTC stamp>.json``, carrying provenance WITH
+the measurement and the gate computed over that same document; the dated summary beside it keeps only
+an append-only pointer list, so the number of calibration ATTEMPTS is the length of that list, and an
+existing record path is refused rather than overwritten. Whoever spends the one-shot reads the gate
+off that file by name -- never off the summary, which the gate refuses by artifact class."""

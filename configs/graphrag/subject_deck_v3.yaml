@@ -1,0 +1,776 @@
+# THE SUBJECT RESOLVER CALIBRATION DECK, v3 -- v2 VERBATIM EXCEPT THE ONE ROW THE OWNER RE-LABELLED
+#
+# Design: docs/private/SUBJECT_RESOLVER_SITTING_2026-09-09.md D9. v2: configs/graphrag/subject_deck_v2.yaml.
+# v1: configs/graphrag/subject_deck_v1.yaml.
+#
+# WHY THERE IS A v3 AT ALL, AND WHY IT IS NOT AN EDIT. D9's rule for a frozen instrument is that it is
+# never edited: a deck whose rows move between two runs cannot compare them. v2 therefore stays exactly
+# as it is -- it is the instrument phase D was measured on, and every phase-D figure is still readable
+# against it row for row. This file carries v2's one hundred and eighteen rows in v2's own order, and
+# ONE of them says something different: dc18.
+#
+# WHAT THE OWNER RULED (2026-09-11). Phase D's billed layer 2 left two decoy rows firing out of
+# twenty-eight, and they were two different kinds of thing:
+#   dc18 -- 'open interest ...' -> cot_positioning + managed_money_positioning on 3 of 3 draws. NOT a
+#     defect. Positioning is a subject when a desk asks about it (D18, and the owner's own scenario);
+#     the estate's own curation says so out loud -- `open interest` is a term of the `cftc_positioning`
+#     slice in configs/graphrag/driver_slices.yaml, which is exactly why the free ALIAS tier fires on
+#     this phrase. The row was mis-classed as a decoy. It is re-labelled here as what it always was: an
+#     ALIAS row, whose expected ids are the positioning group.
+#   dc22 -- 'a spread ... ' -> wheat_corn_spread on 2 of 3 draws. A real defect, and one an enum fence
+#     cannot reach: the fenced id (`calendar_spread`) was replaced by an UNFENCED and entirely
+#     legitimate cross-market instrument. An enum fence removes an ID, not an ASK. The closure is
+#     therefore made at the ask, in the frozen block's v3 (one bullet: a spread, a curve or a basis
+#     named without both of its markets names no subject). dc22 STAYS A DECOY and it is the row that
+#     grades that bullet.
+#
+# SO THE DECOY CLASS IS TWENTY-SEVEN ROWS ON THIS DECK, NOT TWENTY-EIGHT, and the non-decoy population
+# is ninety-one. Both counts are stated here because the FATAL bar is a count and not a rate.
+#
+# NO HELD-OUT PHRASE IS IN THIS FILE. The held-out deck lives outside the repo, was authored blind to
+# all three versions of the block, and its layer 2 has still never been run -- it is the one-shot that
+# grades the v3 block, and the pre-registered gate for spending it is a CLEAN layer-2 decoy bar on this
+# deck. The author of this file has not read it.
+#
+# WHAT IS DURABLE WHERE -- THREE HOMES, AND THEY DO NOT OVERLAP (ruled 2026-09-11, and it is the
+# closure of the one open question the phrase-free fence left). (1) THE TRACKED BANK,
+# `data/subject_resolver/<date>/`: the immutable per-run record and its dated summary index, PHRASE-
+# FREE AND ID-FREE by law -- class counts, digests and verdicts, with every `*_ids` list, `unscored`
+# and `group_detail` dropped and the counts kept (`unscored_n`). It is the certificate, it is what
+# gets committed, and it is all that gets committed. (2) THE SCRATCHPAD, session-temp: the full
+# artifact, every draw and every per-row pick, keyed by ROW ID -- which is why it is not in the tree
+# and why it does not survive the session. (3) THE DURABLE UNTRACKED HOME,
+# `docs/private/subject_heldout/` (gitignored): the runner's `--full-artifact-dir` copies that same
+# full artifact there, and the HELD-OUT DECK ITSELF lives there. So the one-shot's per-row detail
+# outlives the session and no held-out row id ever enters the repository. The runner REFUSES a
+# `--full-artifact-dir` inside this repo that `git check-ignore` does not report as ignored, before it
+# reads a deck or spends a cent.
+#   AND THE ARTIFACT CARRIES NO ASK -- measured, and worth saying because "the full artifact" does not
+#   sound like it: `layer1_rows` and `layer2_rows` carry `id`, `klass`, `expect`, the hint counts and
+#   every draw's picks, and neither carries `phrase`. The ROW ID is therefore what the tracked bank
+#   drops and what the untracked home keeps, and a durable copy is complete only BESIDE THE DECK that
+#   keys it. That is the reason the deck and the copies share one directory rather than two.
+#
+# freeze:
+#   date: 2026-09-11
+#   wave: STATE ENGINE -- SUBJECT RESOLVER, phase E (the block's v3 and the dc18 re-label)
+#   supersedes: subject_deck_v2.yaml -- every row is that file's row verbatim except dc18
+#   changed: dc18 -- klass decoy -> alias; expect [] -> the five positioning ids; `concepts:` declared
+#     so the row is scored as ONE cause under five spellings. Its id, split, frozen flag and PHRASE are
+#     v2's bytes: a re-labelled row is only comparable if the ask itself did not move.
+#   added: NOTHING. No row is new, no row is deleted, and no row changes position.
+#   scored_by: |
+#     LAYER 1 -- state.subject.resolve(phrase, graph=CausalGraph.load()) -> SubjectHints, unchanged
+#     from v1: a row passes when any expected id, OR any member of that id's subject GROUP
+#     (state.subject.groups), appears in the union of hints.exact + hints.alias + the top-5
+#     hints.candidates. LAYER 2 -- dispatch.plan_turn at the seat below, 3 draws, a row passes at
+#     >= 2 of 3, scored by scripts/graphrag/subject_deck_run.py:score_layer2 under the ALTERNATIVES
+#     reading: a row's expect list names, for each cause the ask carries, the ids that would each be a
+#     right answer for it. On an ID class (dc18's `alias` is one) ANY pick reaching an expected id or
+#     its group passes; on near_duplicate and multi the picks must reach EXACTLY the row's concept
+#     count among the expected groups (near_duplicate 1, multi 2, or a row's own `concepts:` list).
+#     dc18 is an ID class carrying a declared concept count of ONE -- its five ids sit in TWO curated
+#     slices (cftc_positioning and managed_money_positioning), which is the same shape nd03 has, and
+#     the reason the row is NOT near_duplicate: that class's equality rule would ask one pick to carry
+#     two group keys at once, and the block forbids naming one cause twice in as many words.
+#   seat: claude-sonnet-4-6, temperature 0, max_contracts 2 (layer 2). Layer 1 has NO sampling seat --
+#     bge-m3 at fixed weights is deterministic, so one draw per row is the whole run.
+#   vocabulary_hash: 99dc11409fe9
+#   artifact: configs/graphrag/subject_vocab.npz -- 4,000 rows x 1,024, bge-m3, built 2026-09-09 in
+#     1,814 s by scripts/graphrag/build_subject_vocab.py
+#   planner_block_sha256: d7ed2de860fc445fc74cf1a0190b72f32b54f4e5d01550b3fa205d4296ac01f3
+#     dispatch._subject_block, the v3 text, pinned at state.subject.SUBJECT_BLOCK_SHA256 and graded by
+#     config_check.check_subject_resolver. v3 is v2 PLUS ONE BULLET (+194 ASCII characters, no quoted
+#     ask, no question mark) and nothing else: removing exactly those bytes reproduces v2's sha. The
+#     predecessors, and the texts the banked figures were measured against:
+#       v2  37900160d21a25445322b01b1420641f9e40398ce3fe6872e66fc522228843bb
+#       v1  39188d42d075f73db9c76a29bed95a53e8dc2442b06bd26e61f5d261a66a2489
+#     A deck run whose block sha is not the line above is measuring a different prompt and its decoy
+#     figures do not carry across.
+#   bars:
+#     exact: 100% in hints.exact
+#     alias: 100% in hints.exact + hints.alias -- ELEVEN rows on this deck (v2's ten plus dc18)
+#     synonym: >= 90% of rows carry an expected id or its group in the top-5 (layer 1); >= 90% of
+#       rows passed at >= 2 of 3 draws (layer 2)
+#     misspelling: >= 85% on both layers
+#     description: >= 75% (layer 1), >= 70% (layer 2)
+#     acronym: 100% (these ids are reachable ONLY through their prose)
+#     near_duplicate: layer 1 -- the expected GROUP appears in the top-5. Layer 2 -- 100%: the pick's
+#       group equals ANY expected id's group, and exactly one of them. The expect list is a list of
+#       ALTERNATIVES for ONE cause, so a pick cannot be asked to carry two of its group keys at once.
+#     multi: layer 1 -- the groups present in the hints. Layer 2 -- 100%: every expected CONCEPT
+#       covered by some pick, a concept being the set of alternative ids the row lists for that cause.
+#     decoy: layer 1 -- ZERO candidates at or above AMBIG_FLOOR. Layer 2 -- ZERO picks on ANY draw
+#       across ALL TWENTY-SEVEN decoy rows. Both are FATAL and neither is a rate: the estate's cost of
+#       a false subject is a board anchored on a question that named no driver.
+#     NOTE ON dc18's OWN BAR: L2_BARS carries no `alias` key, so the re-labelled row draws no per-class
+#       layer-2 verdict of its own ("-"). It is scored, and it enters `all_non_decoy` -- which is what
+#       the gate reads, at ninety-one rows rather than ninety.
+#   calibration:
+#     CAND_FLOOR: 0.52
+#     AMBIG_FLOOR: 0.78
+#     TOP_K: 5
+#     UNMOVED FROM v1 AND v2, AND THE HINT FLOOR WAS CONSIDERED AND REFUSED THERE ON ITS MEASURED
+#     PRICE: a floor between CAND_FLOOR and AMBIG_FLOOR at 0.58 / 0.60 / 0.62 costs 2 / 5 / 9 true
+#     calibration rows and 14 / 20 / 25 true held-out rows, and it would not have reached the
+#     alias-tier decoy pick at all. The full table is banked on state.subject.CALIBRATION_NOTE.
+#
+# ---------------------------------------------------------------------------------------------------
+# THE PREDECESSOR MEASUREMENT -- WHAT PHASE D MEASURED, ON v2, ON THE BLOCK'S v2 (2026-09-10, $3.1318,
+# 354 Sonnet-4-6 calls at temperature 0, the seat pin read back from every draw)
+# ---------------------------------------------------------------------------------------------------
+#   LAYER 2 on deck v2: exact 10/10, alias 10/10, synonym 14/14, misspelling 14/14, description 14/14,
+#   acronym 10/10, near_duplicate 10/10, multi 8/8 -- ALL NON-DECOY 90 of 90. DECOYS 2 of 28: dc18
+#   (re-labelled by this file) and dc22 (the row the block's v3 exists for).
+#   LAYER 1 on deck v2: byte-identical to phase C's; the SHIPPED carry 5 raw rows at AMBIG_FLOOR -> 2
+#   carried, decoys carried 0 of 28, while the RAW L1 decoy bar still reads dc23 = 1 and STOPs.
+#   THOSE ARE v2's FIGURES AND THEY ARE NOT THIS DECK'S. They are recorded here so a reader can see
+#   what moved and what did not.
+#
+# ---------------------------------------------------------------------------------------------------
+# THIS DECK'S OWN LAYER 1 -- MEASURED, FREE, BEFORE ANYTHING WAS BILLED (2026-09-11, artifact ok,
+# instrument LIVE on 118 of 118 rows, 0 API calls, $0.00)
+# ---------------------------------------------------------------------------------------------------
+#   PASS  L1 EXACT        >= 100%   10/10 = 100.0% all-tiers
+#   PASS  L1 ALIAS        >= 100%   11/11 = 100.0% all-tiers
+#   MISS  L1 SYNONYM      >=  90%   10/14 =  71.4% all-tiers
+#   PASS  L1 MISSPELLING  >=  85%   13/14 =  92.9% all-tiers
+#   PASS  L1 DESCRIPTION  >=  75%   14/14 = 100.0% all-tiers
+#   PASS  L1 ACRONYM      >= 100%   10/10 = 100.0% all-tiers
+#   STOP  L1 DECOY CARRY  (0 at AMBIG_FLOOR, FATAL)   1 of 27 carried (dc23); 16 of 27 put a candidate
+#         above CAND_FLOOR in front of the planner
+#   VERDICT: STOP -- failing: L1 DECOY CARRY; L1 SYNONYM
+#
+#   EVERY CARRIED CLASS REPRODUCES v2 TO THE ROW, which is what carrying the rows verbatim is for, and
+#   the ONE figure that moved is the one the re-label moved: ALIAS 10/10 -> 11/11. dc18 clears the
+#   FREE tier's bar on the ALIAS tier alone -- `open interest` is a curated term of the
+#   `cftc_positioning` slice, so T1 returns four of the row's five expected ids with no embedder and
+#   no artifact involved. The SYNONYM MISS at 10/14 is v1's own carried figure, unchanged since the
+#   first frozen run, and it is not this deck's finding.
+#
+#   THE DECOY CARRY, AND WHY THIS DECK'S VERDICT READS STOP BEFORE LAYER 2 IS EVEN RUN: the L1 DECOY
+#   CARRY bar is FATAL and dc23 (a how-to-compute ask that names `crush_margin` outright, T0-exact)
+#   still trips it -- a finding phase C made and phase D deliberately did not retarget, because a bar
+#   is not retargeted inside the sitting whose change it grades. The count fell 1 of 28 -> 1 of 27
+#   only because dc18 left the class; the carried ROW is the same row. THE BAR THE BLOCK'S v3 IS
+#   GRADED ON IS THE LAYER-2 ONE -- zero picks on any draw across all 27 decoy rows -- and it is
+#   independent of this carry.
+#
+# ---------------------------------------------------------------------------------------------------
+# THIS DECK'S OWN LAYER 2 -- RUN ONCE, BILLED, AND THE GATE IS HELD ON ONE ROW (2026-09-11)
+# ---------------------------------------------------------------------------------------------------
+#   MEASURED ON THE REAL SEAT: 354 plan_turn calls = 118 rows x 3 draws, claude-sonnet-4-6 at
+#   temperature 0, max_contracts 2; $3.1552 read back from the usage fields against a $4.00 hard cap
+#   and a $12.00 sitting ceiling; aborted_on_cost false -- the run reached the last row. ONE attempt,
+#   and the attempt count is not a claim: it is the LENGTH of the summary's `layer2_runs` pointer
+#   list, which is 1. EVERY CELL BELOW IS FILLED FROM THE RECORD AND NOT FROM THE CONSOLE.
+#
+#   PASS  L2 SYNONYM        >=  90%    14 / 14 = 100.0%   at >= 2 of 3 draws
+#   PASS  L2 MISSPELLING    >=  85%    14 / 14 = 100.0%   at >= 2 of 3 draws
+#   PASS  L2 DESCRIPTION    >=  70%    14 / 14 = 100.0%   at >= 2 of 3 draws
+#   PASS  L2 NEAR_DUPLICATE >= 100%    10 / 10 = 100.0%   at >= 2 of 3 draws
+#   PASS  L2 MULTI          >= 100%     8 / 8  = 100.0%   at >= 2 of 3 draws
+#   STOP  L2 DECOY PICKS    (0 on ANY draw, FATAL)   1 of 27 fired, 27 of 27 SCORED   row: dc22
+#   PASS  L2 SEAT PIN       temperature observed 0 against a declared 0 (exact); billed model
+#         claude-sonnet-4-6 against the declared family, read back from every draw
+#   PASS  ALL NON-DECOY     91 of 91 SCORED, 91 of 91 PASSED = 100.0%   (the SHIPPED-v1 reading is
+#         recorded beside it and carries no bar: 82 of 91 = 90.1%)
+#   PASS  ERRORED CALLS     0 of 354
+#   ----  BILLED            $3.1552, measured from the usage fields ($3.54 was the anchor's estimate)
+#   ----  THE RECORD        data/subject_resolver/2026-09-11/subject_deck_v3_layer2_20260911T103254Z.json
+#         sha256 4e5dbd503ad4ac1606e16f89b2fd7eb4120f0dac2628cc22887742fbce43abda
+#   ----  ATTEMPT No.       1  -- len(`layer2_runs`) in subject_deck_v3_summary.json beside it
+#   ----  THE GATE          13 of 14 checks PASS, 1 FAIL -> HELD. The one failing check is the decoy
+#         clause: "DECOYS: 0 of 27 fired on ANY draw, and all 27 SCORED" -- measured, 1 fired and 27
+#         of 27 scored. The other thirteen passed: the artifact class; the file name against the stamp
+#         inside; the census (118 rows in 9 classes, 27 decoy / 91 non-decoy, read from THIS FILE);
+#         NON-DECOY all 91 scored; NON-DECOY 91 of 91 passed; 0 of 354 calls errored; the seat pin;
+#         the population whole; PROVENANCE (the live block d7ed2de860fc); THE DECK (rows
+#         7b079452fa96); THE GRAPH (the live 99dc11409fe9); THE SHAPE (3 x 118 = 354); THE MEASUREMENT
+#         (a run, not a re-score). `--grade-record` re-read the banked file and returned the same
+#         reading independently, exit 1, and CROSS-CHECKED the sibling summary's pointer:
+#         `record_sha256` agrees and `gate_verdict` agrees -- HELD then, HELD now.
+#   THE ONE-SHOT IS THEREFORE NOT SPENT, and the held-out deck's layer 2 has still never been run.
+#
+#   THE FINDING, AND IT IS EXACTLY ONE ROW. dc22 fired on 2 of 3 draws with `wheat_corn_spread`: the
+#   SAME row, the SAME id and the SAME count as under the block's v2. THE v3 BULLET IS FREE BUT
+#   INEFFECTIVE, and both halves of that sentence are measured and not inferred.
+#     INEFFECTIVE. The bullet was demonstrably IN the rendered block -- the run renders
+#       `dispatch._subject_block` over its own 403 live ids, hashes it and REFUSES before any spend on
+#       a mismatch, and it matched the pin d7ed2de860fc -- it was written for dc22, it is graded on
+#       dc22, and dc22 did not move. A bullet that states the TEST (both markets named, or no subject)
+#       does not bind an ask that names NO market at all, and that is the shape of dc22's ask.
+#     FREE. The blast radius censused further down this header was measured and it is EMPTY. All SIX
+#       non-decoy rows that carry a spread/basis/curve word PASSED on all three draws -- ex06
+#       (`freight_rates` x3), al05 (`freight_cost` x3), al08 (`EUDR`), ac01 (`HLB` x3), mu04
+#       (`freight_cost` + crude), de12 (`board_crush` x3) -- and the five OTHER spread-word decoys
+#       (dc08, dc15, dc16, dc17, dc23) read "-" on every draw. The bullet suppressed nothing.
+#   SO THE CHOICE IS NOT "IS THE BULLET WORTH ITS COST". It costs nothing; it also buys nothing. It is
+#   three options and all three are the owner's: retarget the bar (dc22 is the only row between a
+#   clean gate and the one-shot), reword the closure so it binds an ask that names no market rather
+#   than one that names a single market, or accept the row and re-pre-register the gate. A bar is not
+#   retargeted inside the sitting whose change it grades, which is precisely this situation.
+#   AND AN ENUM FENCE CANNOT REACH IT EITHER -- the free `--rescore` counterfactual over this run's own
+#   picks: the own-structure fence removes 0 of the 1 fired decoy ROWS and 0 of the 2 fired DRAWS,
+#   while 16 of 118 rows carried a fenced id on their hint line. That is the phase-D finding holding
+#   at the ask, one version of the block later.
+#
+#   LAYER 1 DID NOT MOVE. Every class figure, the decoy carry (1 of 27, dc23), the 16-row candidate
+#   count and all three floors are identical to the free baseline in the block above -- the deck edit
+#   and the block edit reached layer 2 only, which is what the design said they would. The L1 SYNONYM
+#   MISS at 10/14 is v1's own carried figure and is not this deck's finding.
+#
+#   THE RUN'S EXIT CODE WAS 1, AS PRE-REGISTERED, AND IT IS NOT THE GATE: the layer-1 dc23 carry is
+#   FATAL and STOPs before layer 2 is reached, so a run whose fourteen checks ALL pass still exits 1.
+#   READ THE GATE, NOT THE EXIT CODE.
+#   exact, alias and acronym carry NO layer-2 class bar of their own (L2_BARS has no key for them), so
+#   they draw "-" in the per-class table and are graded inside ALL NON-DECOY -- which is the ninety-one
+#   the gate reads, and all ninety-one passed. dc18's re-label lands there and nowhere else: the
+#   re-labelled row scored as `alias` and passed on all three draws, which is the ruling measured.
+#
+#   THE CALL PLAN, TAKEN FREE AND READ BACK BEFORE THE SPEND (2026-09-11, `--layer both --dry-run
+#   --cap-usd 4`, exit 0): 354 plan_turn calls = 118 rows x 3 draws; ESTIMATE $3.54 at the planner's
+#   $0.01 per-call anchor, against the $4.00 HARD CAP for the run with the $12.00 sitting ceiling
+#   printed beside it. The dry run made no API call and spent nothing. THE BILLED FIGURE IS $3.1552,
+#   read back from the usage fields -- that is the number in the table above, and never the estimate.
+#   (Phase D's identical shape on deck v2 cost $3.1318; this run is $0.0234 more.)
+#
+#   THE PRE-REGISTERED GATE FOR THE HELD-OUT ONE-SHOT, WRITTEN DOWN BEFORE THE MEASUREMENT, because a
+#   gate stated after a result is not a gate. It is graded IN CODE by
+#   scripts/graphrag/subject_deck_run.py:oneshot_gate, in its own vocabulary {OPEN, HELD}, and it is
+#   FOURTEEN checks -- TWO over the ARTIFACT it is handed, SEVEN over what HAPPENED and FIVE over what
+#   RAN:
+#     (1) THE ARTIFACT CLASS: the document is a PER-RUN LAYER-2 RECORD, `data/subject_resolver/<UTC
+#         date>/<deck>_layer2_<the run's UTC stamp>.json` -- written once, never merged into, carrying
+#         its provenance INSIDE the layer-2 document. A merged summary, a run doc or a bank written
+#         before the record existed is REFUSED by name.
+#     (2) THE FILE NAME: when the gate is handed a PATH, the name ENDS in `_layer2_<the
+#         `generated_utc` inside the document>.json`. It is a SUFFIX test and nothing more -- what
+#         comes before that suffix is not graded, and a record copied to any other prefix at its own
+#         stamp passes it. IDENTITY IS BOUND BY (11), THE ROWS DIGEST, with the block sha (10) and
+#         the graph hash (12) beside it; a file name carries none of those and is never read as
+#         provenance. This check closes exactly one hole: a file NAMED for a run whose stamp it does
+#         not hold. The runner derives one from the other so it can never write a file that fails
+#         this -- a hand COPY can, and it graded OPEN while claiming a run that never happened. The
+#         graded file's own sha256 is printed with the verdict.
+#     (3) THE CENSUS: the record's `class_counts` IS this deck file's own census and sums to its
+#         `rows_total` -- 118 rows, 27 decoy, 91 non-decoy. The denominators of (4)-(6) are read from
+#         THE DECK FILE and not from the record, so a forged census beside a true digest has nothing
+#         to satisfy.
+#     (4) the decoy class fires 0 of 27 on ANY draw AND all 27 rows were SCORED. The denominator must
+#         be POSITIVE: a deck with no decoys in it does not satisfy a FATAL decoy bar vacuously.
+#     (5) all 91 non-decoy rows were SCORED
+#     (6) every scored non-decoy row PASSED -- 91 of 91
+#     (7) NO call errored anywhere on the run -- 0 of 354. A present-but-NULL census is an ABSENCE and
+#         not a zero.
+#     (8) the SEAT PIN reads temperature 0 (exactly) and claude-sonnet-4-6 (a model FAMILY substring
+#         test) back from every draw
+#     (9) THE POPULATION IS WHOLE -- the cost breaker did not truncate the run
+#    (10) THE PROMPT: the run's `planner_block_sha256` == this tree's LIVE pin (the sha line above).
+#         THAT FIELD IS MEASURED AND NOT DECLARED: the run renders `dispatch._subject_block` over its
+#         own `live_ids` and hashes it, and REFUSES before any spend when the digest is not the pin.
+#         It used to record the module constant while the gate read the same constant back -- a
+#         constant against itself at both ends, MEASURED to read OPEN on 354 calls made under a
+#         different text.
+#    (11) THE DECK: the run's `deck_rows_sha256` == this file's ROWS digest, 7b079452fa96... -- the
+#         rows and not the file, so writing this header up cannot break the pin
+#    (12) THE GRAPH: the run's `graph_hash` == the graph this tree loads TODAY. Compared LIVE and
+#         never pinned, because the deck and the block are frozen for this certification and the
+#         graph is meant to move between sittings.
+#    (13) THE SHAPE: 3 draws on every one of the 118 rows, and calls == rows x draws
+#    (14) THE MEASUREMENT: the doc is a RUN and not a `--rescore` re-read of one
+#   Check (4)'s SCORED half and (7) exist because a decoy row whose every draw errored used to read
+#   as a decoy that declined: an unasked row is not a row that answered zero. Checks (10)-(14) exist
+#   because outcomes are half a gate -- a clean run on deck v2, a run whose draws were made under the
+#   block's v2 text, a run made against a graph this tree no longer loads, a `--draws 1` run with no
+#   ">= 2 of 3" reading in it, and a re-score of banked picks under today's scorer EACH satisfied the
+#   outcome checks and opened a gate certifying something they had not measured. EVERY ONE OF THEM IS
+#   FAIL-CLOSED ON AN ABSENT FIELD: a bank written before the field existed HOLDS the one-shot.
+#   They were added in five fix rounds, and every round landed BEFORE any layer-2 measurement on this
+#   deck -- the pre-registration was TIGHTENED against no result, which is the only direction it may
+#   move.
+#
+#   WHAT THE RECORD CARRIES THAT THE GATE DOES NOT GRADE -- said out loud, because a field inside a
+#   certificate reads as a graded field unless it is named otherwise. `runner_sha256` (the runner
+#   script's own bytes) and `runner_git_sha` (the tree's HEAD, present only when git answers) ride
+#   every record's provenance and are NOT among the fourteen checks. They are RECORDED, for a reader
+#   who asks months later WHICH CODE produced a measurement; they are not graded, because the gate is
+#   a statement about the run's inputs -- the prompt, the deck, the graph, the shape and the seat --
+#   and pinning a runner digest would make every later fix to this script un-gradeable against banks
+#   it did not write. The same is true of `deck_version` and `deck_sha256`: recorded, and the graded
+#   deck identity is the ROWS digest in (11).
+#
+#   AND ONE WITNESS THAT SITS OUTSIDE THE DOCUMENT. Every one of the fourteen checks is computed from
+#   fields INSIDE the record, so a record hand-edited IN PLACE -- at its own name, keeping its own
+#   stamp -- moves the evidence and the verdict together (MEASURED, free: a HELD record edited to read
+#   zero fired decoys graded OPEN, fourteen of fourteen). The summary's pointer therefore carries
+#   `record_sha256`, the digest of the bytes the record was written with, and `--grade-record`
+#   CROSS-CHECKS it -- plus the `gate_verdict` the pointer recorded at bank time -- refusing a
+#   mismatch by name with exit 2. It corroborates and never certifies: the summary is the merged index
+#   check (1) refuses, so this can never open a held gate, only stop a spend on a document its own
+#   index disagrees with. A pointer written before the field existed reports NOT CROSS-CHECKED.
+#
+#   READ THE GATE, NOT THE EXIT CODE. This deck STOPs on the layer-1 dc23 carry above, before layer 2
+#   is reached, so a run whose fourteen checks ALL pass still exits 1. The gate is printed in its own
+#   block: on the console, in the artifact JSON, and on the face of the markdown report.
+#   Exit 2 from `--grade-record` is NOT a held gate -- it is a refusal to answer the question: the
+#   path is not a file, the document is not a gradable record, or it disagrees with its own pointer.
+#
+#   THE PROVENANCE INPUTS ARE INDEPENDENT and none stands in for another. The pinned block is
+#   SUBSTITUTION-FREE -- MEASURED: it renders identically for a one-id vocabulary and for the whole
+#   enum -- so its sha names WHICH PROMPT and carries nothing about what may be PICKED. What may be
+#   picked is `live_ids` of the graph, which is `all_ids` of the GRAPH MINUS the own-structure fence
+#   (`state.subject.OWN_STRUCTURE_IDS`): the graph hash names the first half and the fence is RECORDED
+#   on every run as `own_structure_fence` beside `live_ids_count`, so a curation change (both counts
+#   move) and a fence change (only the enum does) are told apart off the bank. And the asks are the
+#   DECK's.
+#
+#   WHAT CHECKS (10)-(12) ACTUALLY BITE ON, said plainly because it reads like a tautology and is not:
+#   on the run that writes the record they are SELF-COMPARISONS -- the block sha and the graph hash are
+#   read from the same process a moment before the comparison -- and they exist for
+#   every LATER reading of that record: a bank re-graded tomorrow, a `--rescore`, or a document
+#   produced by something other than this runner, which is the population whoever spends the one-shot
+#   actually reads from. THE LIVE RUN'S OWN GUARANTEE ON (10) IS MADE BY A REFUSAL AND NOT BY THE
+#   CHECK: the run renders the block, hashes it, and STOPS with exit 2 -- nothing billed, nothing
+#   banked -- when the digest is not the pin, so the field the check later reads is a measurement that
+#   was already fenced. Check (2) is the same idea one level out: the runner can only write a record
+#   whose name is its stamp, so the check is there for the copy somebody makes afterwards.
+#
+#   AND THE NAMED PATH IS THE PER-RUN RECORD. Nothing counted CALIBRATION ATTEMPTS until 2026-09-11:
+#   the dated `<deck>_summary.json` was a FIXED path that MERGED, so a second calibration replaced the
+#   first outright and one free `--layer 1` re-run left an earlier layer 2 and an earlier OPEN gate
+#   sitting under a fresh block sha and a fresh graph hash (MEASURED on a doctored bank, free --
+#   round-3 adversarial verification). THAT FINDING IS CLOSED, and this is the shape that closed it:
+#   every layer-2 run writes ONE immutable record at the path named in check (1), carrying provenance
+#   WITH the measurement and the gate computed over that same document; the summary keeps only an
+#   append-only POINTER list `layer2_runs` plus the latest verdict copied for a reader, so THE ATTEMPT
+#   COUNT IS THE LENGTH OF THAT LIST; and a record path that already exists is REFUSED rather than
+#   overwritten. Whoever spends the one-shot reads the gate off THE RECORD'S PATH, by name -- never
+#   off the summary (the gate refuses it) and never off "a run that opened".
+#
+# ---------------------------------------------------------------------------------------------------
+# WHAT TO READ FIRST WHEN LAYER 2 IS BILLED -- THE NEW BULLET'S BLAST RADIUS, CENSUSED NOT GUESSED
+# ---------------------------------------------------------------------------------------------------
+# THE CENSUS BELOW IS THE PRE-REGISTRATION, LEFT EXACTLY AS IT WAS WRITTEN BEFORE THE SPEND. IT HAS
+# SINCE BEEN MEASURED, AND THE RESULT IS EMPTY: all SIX non-decoy rows named here PASSED on all three
+# draws -- ex06, al05, ac01, mu04, de12 and al08 -- and the five OTHER spread-word decoys (dc08, dc15,
+# dc16, dc17, dc23) read "-" on every draw. NOTHING WAS SUPPRESSED, so the bullet has no price to
+# weigh; it also did not move dc22, which is the finding in the layer-2 block above. A reader who
+# wants the outcome should read this census for WHAT WAS ASKED OF THE RUN and that block for WHAT THE
+# RUN ANSWERED. The text from here down is unamended.
+#
+# The v3 bullet (a spread, a curve or a basis named without both of its markets names no subject) was
+# written for dc22 and it is graded on dc22. But a sentence added to a prompt is read on EVERY row,
+# and LAYER 1 NEVER SEES THE BLOCK AT ALL -- so the free run banked above cannot measure this in
+# either direction, for good or for harm. The billed layer 2 is its only measurement.
+#
+# THE CENSUS. Eleven of this deck's 118 ASKS name one of `spread | basis | curve | crush | calendar |
+# contango | backwardation | arb | premium | discount | differential`. SIX ARE DECOYS (dc08, dc15,
+# dc16, dc17, dc22, dc23) and FIVE ARE NOT: ex06, al05, al08, ac01, mu04. A sixth non-decoy row, de12,
+# names none of those words and is the structure in PROSE. All six non-decoy rows are counted in the
+# gate's ninety-one, so a suppression of any one of them fails the gate and correctly withholds the
+# one-shot -- but these are the rows to read first, in this order, and a MISS on one of them is the
+# bullet's price to be weighed against dc22 and not a defect of the deck:
+#
+#   ex06  exact        'freight rates and the soybean basis'
+#         READ THIS ONE FIRST. It names a BASIS with one market -- the bullet's own shape -- while its
+#         subject, `freight_rates`, is named outright beside it. The bullet has to suppress the BASIS
+#         as a subject without taking the turn with it. Its class bar is 100% and phase D's block-v2
+#         run passed the exact class 10 of 10.
+#   al05  alias        'how much does ocean freight matter for the soybean basis'
+#         The same shape one tier down, and the same 100% class bar (phase D: alias 10 of 10).
+#   ac01  acronym      'the bacterial disease insects spread through Florida citrus groves'
+#         `spread` AS A VERB. This is the false positive a KEYWORD fence would have made, and it is
+#         the row that proves the closure was made in prose at the ask rather than on a word. The
+#         acronym class is reachable ONLY through its prose and its bar is 100% (phase D: 10 of 10).
+#   mu04  multi        'freight and crude both moving against the vegoil arb'
+#         Two concepts, both named outright; the structure is context and not subject (phase D: the
+#         multi class 8 of 8).
+#   de12  description  'what a processor earns turning beans into oil and meal'
+#         Names no spread word at all and IS the crush in prose -- the nearest SEMANTIC neighbour
+#         where the four above are the nearest lexical ones (phase D: description 14 of 14).
+#
+#   al08  alias        'the EU deforestation regulation and the cocoa differential'
+#         A word the bullet does not name, on a row whose subject is a regulation; listed so the
+#         census is whole rather than convenient.
+#
+# ---------------------------------------------------------------------------------------------------
+# THE ROWS BELOW, THROUGH dc14, ARE subject_deck_v1.yaml's ONE HUNDRED AND FOUR ROWS VERBATIM, AND THE
+# ROWS AFTER THEM ARE subject_deck_v2.yaml's FOURTEEN VERBATIM EXCEPT dc18. Neither predecessor's own
+# header -- v1's layer-1 result table, the held-out layer-1 table, the like-for-like baseline and the
+# curation docket; v2's new-sub-class layer-1 measurement -- is repeated here; both still stand.
+# ---------------------------------------------------------------------------------------------------
+version: 3
+deterministic: true
+rows:
+
+# ---------------------------------------------------------------------------------------------------
+# EXACT -- the phrase carries the driver id or its reader form. T0 must reach every one of these with
+# no artifact and no embedder at all: this class is the FAIL-OPEN FLOOR, measured.
+# ---------------------------------------------------------------------------------------------------
+- {id: ex01, klass: exact, split: calibration, frozen: true, expect: [La_Nina],
+   phrase: 'what does La Nina do to corn yields'}
+- {id: ex02, klass: exact, split: calibration, frozen: true, expect: [heat_stress],
+   phrase: 'how does heat stress hit soybean pod fill'}
+- {id: ex03, klass: exact, split: calibration, frozen: true, expect: [biodiesel_mandate],
+   phrase: 'the biodiesel mandate and its effect on palm'}
+- {id: ex04, klass: exact, split: calibration, frozen: true, expect: [export_ban],
+   phrase: 'talk me through the export ban on rice'}
+- {id: ex05, klass: exact, split: calibration, frozen: true, expect: [managed_money_positioning],
+   phrase: 'what is managed money positioning doing in cotton'}
+- {id: ex06, klass: exact, split: calibration, frozen: true, expect: [freight_rates],
+   phrase: 'freight rates and the soybean basis'}
+- {id: ex07, klass: exact, split: calibration, frozen: true, expect: [safrinha],
+   phrase: 'what is the safrinha doing to the corn balance sheet'}
+- {id: ex08, klass: exact, split: calibration, frozen: true, expect: [import_tariff],
+   phrase: 'how does the import tariff change the trade flow'}
+- {id: ex09, klass: exact, split: calibration, frozen: true, expect: [crude_oil],
+   phrase: 'walk me through crude oil passing through into soyoil'}
+- {id: ex10, klass: exact, split: calibration, frozen: true, expect: [flash_drought],
+   phrase: 'is a flash drought setting up in the western belt'}
+
+# ---------------------------------------------------------------------------------------------------
+# ALIAS -- a curated `driver_slices.yaml` term, never the id. T1 must reach every one, again with no
+# artifact and no embedder. The alias map covers 297 of 405 ids (73.3%), so this class is bounded by
+# curation and not by the resolver.
+# ---------------------------------------------------------------------------------------------------
+- {id: al01, klass: alias, split: calibration, frozen: true, expect: [El_Nino],
+   phrase: 'what does the ENSO warm phase do to arabica'}
+- {id: al02, klass: alias, split: calibration, frozen: true,
+   expect: [cot_mm_positioning, cot_positioning, spec_positioning, speculative_positioning],
+   phrase: 'what do the commitments of traders say about cotton'}
+- {id: al03, klass: alias, split: calibration, frozen: true,
+   expect: [USD_index, USD_macro, USD_strength, dollar_index],
+   phrase: 'what is the DXY doing to ag export competitiveness'}
+- {id: al04, klass: alias, split: calibration, frozen: true,
+   expect: [biodiesel_mandate, blend_mandate, RenovaBio, red_iii_mandate],
+   phrase: 'does the blending mandate lift palm demand this year'}
+- {id: al05, klass: alias, split: calibration, frozen: true,
+   expect: [freight_rates, freight_cost, freight_costs, freight_logistics],
+   phrase: 'how much does ocean freight matter for the soybean basis'}
+- {id: al06, klass: alias, split: calibration, frozen: true,
+   expect: [fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs],
+   phrase: 'is the nutrient cost squeezing corn acreage'}
+- {id: al07, klass: alias, split: calibration, frozen: true,
+   expect: [crude_oil, crude_oil_price, crude_oil_input_cost],
+   phrase: 'what does Brent do to the vegoil complex'}
+- {id: al08, klass: alias, split: calibration, frozen: true,
+   expect: [EUDR, EU_EUDR, eudr_deforestation],
+   phrase: 'the EU deforestation regulation and the cocoa differential'}
+- {id: al09, klass: alias, split: calibration, frozen: true, expect: [MSP, India_MSP],
+   phrase: 'what does the minimum support price do to Indian wheat'}
+- {id: al10, klass: alias, split: calibration, frozen: true,
+   expect: [Panama_Canal_constraint, freight_disruption, port_closure],
+   phrase: 'does the Panama Canal draft limit change soybean freight'}
+
+# ---------------------------------------------------------------------------------------------------
+# SYNONYM -- the trade's own other name for the thing. This is where the shipped lexical leg measured
+# 6/10 and where the semantic tier has to earn its place.
+# ---------------------------------------------------------------------------------------------------
+- {id: sy01, klass: synonym, split: calibration, frozen: true, expect: [El_Nino],
+   phrase: 'what does the pacific warming do to corn'}
+- {id: sy02, klass: synonym, split: calibration, frozen: true, expect: [La_Nina],
+   phrase: 'how does the cold phase in the tropical pacific hit the second corn crop'}
+- {id: sy03, klass: synonym, split: calibration, frozen: true,
+   expect: [biodiesel_mandate, blend_mandate],
+   phrase: 'walk me through Indonesia mandatory palm diesel blending target'}
+- {id: sy04, klass: synonym, split: calibration, frozen: true,
+   expect: [china_import_demand, China_import_pace, china_soybean_import],
+   phrase: 'is Chinese buying still supporting beans'}
+- {id: sy05, klass: synonym, split: calibration, frozen: true,
+   expect: [USD_index, USD_strength, dollar_index],
+   phrase: 'is a firmer US currency weighing on ag exports'}
+- {id: sy06, klass: synonym, split: calibration, frozen: true,
+   expect: [managed_money_positioning, cot_mm_positioning, speculative_positioning, spec_positioning],
+   phrase: 'are the big trend followers stretched long in cotton'}
+- {id: sy07, klass: synonym, split: calibration, frozen: true,
+   expect: [fusarium_head_blight, aflatoxin],
+   phrase: 'what does wheat scab do to milling quality'}
+- {id: sy08, klass: synonym, split: calibration, frozen: true,
+   expect: [EUDR, EU_EUDR, eudr_deforestation],
+   phrase: 'the Brussels traceability rules for cocoa supply chains'}
+- {id: sy09, klass: synonym, split: calibration, frozen: true, expect: [RFS, ethanol_demand],
+   phrase: 'the federal biofuel blending obligation and soyoil demand'}
+- {id: sy10, klass: synonym, split: calibration, frozen: true,
+   expect: [blacksea_export_disruption, BlackSea_export_quota_war],
+   phrase: 'the Ukrainian grain shipping corridor collapsing again'}
+- {id: sy11, klass: synonym, split: calibration, frozen: true,
+   expect: [BRL_FX, BRL_USD, BRL_USD_fx, BRL_weakness],
+   phrase: 'a weaker Brazilian currency and how it changes farmer selling'}
+- {id: sy12, klass: synonym, split: calibration, frozen: true,
+   expect: [monsoon_active, monsoon_weak],
+   phrase: 'the Indian summer rains and the cane crop'}
+- {id: sy13, klass: synonym, split: calibration, frozen: true,
+   expect: [China_state_reserves, China_reserve_release, state_reserve_release, state_reserve_buildup],
+   phrase: 'does a Chinese government grain auction cap the rally'}
+- {id: sy14, klass: synonym, split: calibration, frozen: true,
+   expect: [ASF_outbreak, ASF_hog_herd, China_hog_herd],
+   phrase: 'a pig epidemic in China and what it does to meal demand'}
+
+# ---------------------------------------------------------------------------------------------------
+# MISSPELLING -- every one of these falls through a word-boundary matcher with no fuzzy leg, which is
+# why the shipped lexical leg measured 2/10 here. bge-m3's character-level robustness is the claim.
+# ---------------------------------------------------------------------------------------------------
+- {id: ms01, klass: misspelling, split: calibration, frozen: true, expect: [El_Nino],
+   phrase: 'what does el ninio do to arabica'}
+- {id: ms02, klass: misspelling, split: calibration, frozen: true, expect: [La_Nina],
+   phrase: 'how does la nina afect corn yeilds'}
+- {id: ms03, klass: misspelling, split: calibration, frozen: true,
+   expect: [drought, regional_drought, prairie_drought],
+   phrase: 'does drougth in the corn belt lift prices'}
+- {id: ms04, klass: misspelling, split: calibration, frozen: true,
+   expect: [frost, early_frost, winterkill_frost],
+   phrase: 'is there a frots risk in brazil coffee'}
+- {id: ms05, klass: misspelling, split: calibration, frozen: true,
+   expect: [heat_stress, flowering_heat_stress, terminal_heat],
+   phrase: 'heat stres during pod fill in the midwest'}
+- {id: ms06, klass: misspelling, split: calibration, frozen: true,
+   expect: [biodiesel_mandate, blend_mandate],
+   phrase: 'how does the biodesel mandat move palm'}
+- {id: ms07, klass: misspelling, split: calibration, frozen: true, expect: [coffee_leaf_rust],
+   phrase: 'cofee leaf rustt in colombia this season'}
+- {id: ms08, klass: misspelling, split: calibration, frozen: true,
+   expect: [fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs],
+   phrase: 'what is the ferilizer cost doing to acreage'}
+- {id: ms09, klass: misspelling, split: calibration, frozen: true,
+   expect: [Panama_Canal_constraint],
+   phrase: 'the panama cannal constraint on soybean freigt'}
+- {id: ms10, klass: misspelling, split: calibration, frozen: true,
+   expect: [export_ban, India_export_ban],
+   phrase: 'export banns on rice out of india'}
+- {id: ms11, klass: misspelling, split: calibration, frozen: true,
+   expect: [managed_money_positioning, cot_mm_positioning],
+   phrase: 'manged money positionning in corn futures'}
+- {id: ms12, klass: misspelling, split: calibration, frozen: true,
+   expect: [excess_rain, flood, waterlogging],
+   phrase: 'excesive rainfal and waterloging in the delta'}
+- {id: ms13, klass: misspelling, split: calibration, frozen: true, expect: [safrinha],
+   phrase: 'how is the safrina crop looking in mato grosso'}
+- {id: ms14, klass: misspelling, split: calibration, frozen: true,
+   expect: [USD_index, dollar_index, USD_strength],
+   phrase: 'a stronger dolar index and ag competitivness'}
+
+# ---------------------------------------------------------------------------------------------------
+# DESCRIPTION -- the ask says what the thing DOES and never names it. The shipped lexical leg measured
+# 1/10 here, and only because one phrase happened to contain the literal words 'balance sheet'.
+# ---------------------------------------------------------------------------------------------------
+- {id: de01, klass: description, split: calibration, frozen: true, expect: [Mississippi_low_water],
+   phrase: 'when the river gets too shallow to barge grain south'}
+- {id: de02, klass: description, split: calibration, frozen: true, expect: [coffee_berry_borer],
+   phrase: 'the insect that bores into coffee cherries'}
+- {id: de03, klass: description, split: calibration, frozen: true,
+   expect: [managed_money_positioning, cot_mm_positioning, speculative_positioning],
+   phrase: 'traders holding record bets on the long side'}
+- {id: de04, klass: description, split: calibration, frozen: true,
+   expect: [China_state_reserves, state_reserve_buildup, buffer_stock_release],
+   phrase: 'when the government buys grain into a strategic store'}
+- {id: de05, klass: description, split: calibration, frozen: true, expect: [blocking_high],
+   phrase: 'a wall of high pressure parking over the plains'}
+- {id: de06, klass: description, split: calibration, frozen: true,
+   expect: [ending_stocks_su_ratio, psd_ending_stock_su_ratio, ending_stock_ratio],
+   phrase: 'the ratio that says how tight the balance sheet is'}
+- {id: de07, klass: description, split: calibration, frozen: true,
+   expect: [crude_oil, crude_oil_price],
+   phrase: 'oil going up makes the blend worth more at the pump'}
+- {id: de08, klass: description, split: calibration, frozen: true,
+   expect: [Suez_Red_Sea_disruption],
+   phrase: 'ships taking the long way round Africa instead of the short cut'}
+- {id: de09, klass: description, split: calibration, frozen: true, expect: [safrinha],
+   phrase: 'the second crop planted straight after the first one comes off'}
+- {id: de10, klass: description, split: calibration, frozen: true, expect: [pre_harvest_sprouting],
+   phrase: 'grain left too wet before harvest so it sprouts in the head'}
+- {id: de11, klass: description, split: calibration, frozen: true,
+   expect: [polar_vortex, protective_snow_cover, winterkill_frost],
+   phrase: 'arctic air spilling south onto a wheat crop with no snow on it'}
+- {id: de12, klass: description, split: calibration, frozen: true,
+   expect: [board_crush, crush_margin, soybean_crush_margin, oil_share],
+   phrase: 'what a processor earns turning beans into oil and meal'}
+- {id: de13, klass: description, split: calibration, frozen: true,
+   expect: [biennial_bearing, biennial_on_year, biennial_off_year, biennial_low_cycle],
+   phrase: 'the tree that gives a big crop one year and a small one the next'}
+- {id: de14, klass: description, split: calibration, frozen: true,
+   expect: [certified_stocks_decline, tenderable_collapse],
+   phrase: 'the exchange warehouse stock that can actually be delivered against the contract'}
+
+# ---------------------------------------------------------------------------------------------------
+# ACRONYM -- the 33 all-caps ids of BRIEF.md sec 2.5. The twenty hardest score ZERO token overlap with
+# their own prose, so an embedding of the id string can never retrieve them: these rows are reachable
+# ONLY through blurb and mechanism text, which is the reason the artifact embeds prose at all.
+# ---------------------------------------------------------------------------------------------------
+- {id: ac01, klass: acronym, split: calibration, frozen: true, expect: [HLB],
+   phrase: 'the bacterial disease insects spread through Florida citrus groves'}
+- {id: ac02, klass: acronym, split: calibration, frozen: true, expect: [RFS, RIN],
+   phrase: 'the US programme that obliges refiners to blend renewable volumes'}
+- {id: ac03, klass: acronym, split: calibration, frozen: true, expect: [DMO],
+   phrase: 'the rule reserving part of the cooking oil supply for the home market'}
+- {id: ac04, klass: acronym, split: calibration, frozen: true, expect: [MSP, India_MSP],
+   phrase: 'the floor price New Delhi guarantees its farmers'}
+- {id: ac05, klass: acronym, split: calibration, frozen: true, expect: [SAM],
+   phrase: 'the southern hemisphere pressure belt shifting and raising frost risk in south Brazil'}
+- {id: ac06, klass: acronym, split: calibration, frozen: true, expect: [AMO],
+   phrase: 'the warm Atlantic cycle that raises hurricane frequency over Florida'}
+- {id: ac07, klass: acronym, split: calibration, frozen: true, expect: [AO, NAO],
+   phrase: 'the arctic pressure pattern that pushes cold air into the central US'}
+- {id: ac08, klass: acronym, split: calibration, frozen: true, expect: [CBD],
+   phrase: 'the disease that rots coffee cherries in cool wet highlands'}
+- {id: ac09, klass: acronym, split: calibration, frozen: true, expect: [FUNCAFE],
+   phrase: 'the Brazilian coffee credit facility that lets growers hold their crop back'}
+- {id: ac10, klass: acronym, split: calibration, frozen: true, expect: [TRY_USD],
+   phrase: 'the Turkish grain board setting intervention prices in a depreciating currency'}
+
+# ---------------------------------------------------------------------------------------------------
+# NEAR_DUPLICATE -- the estate carries FOUR fertilizer ids, THREE crude ids, THREE EUDR ids, FIVE
+# positioning ids and FOUR ids for one FX pair. Under any margin rule these tie BY CONSTRUCTION, so a
+# CORRECT resolution would be reported as a decline on the most-asked subjects. The subject GROUP is
+# the answer: a row passes when the resolved id's group equals the expected group.
+# ---------------------------------------------------------------------------------------------------
+- {id: nd01, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [fertilizer_cost, fertilizer_costs, fertilizer_input_cost, fertilizer_input_costs],
+   phrase: 'the fertilizer squeeze on next year acreage'}
+- {id: nd02, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [EUDR, EU_EUDR, eudr_deforestation],
+   phrase: 'compliance cost of the deforestation rules on certified robusta'}
+- {id: nd03, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [cot_positioning, cot_mm_positioning, spec_positioning, speculative_positioning,
+            managed_money_positioning],
+   phrase: 'how stretched is spec length against its own history'}
+- {id: nd04, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [crude_oil, crude_oil_price, crude_oil_input_cost],
+   phrase: 'energy cost feeding through into the vegoil complex'}
+- {id: nd05, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [BRL_FX, BRL_USD, BRL_USD_fx, BRL_weakness],
+   phrase: 'the real weakening against the dollar and Brazilian selling'}
+- {id: nd06, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [ending_stocks, ending_stocks_su_ratio, ending_stock_ratio, psd_ending_stock_su_ratio],
+   phrase: 'where do carryout stocks leave the stocks to use ratio'}
+- {id: nd07, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [freight_cost, freight_costs, freight_rates, freight_logistics,
+            freight_logistics_disruption, freight_disruption],
+   phrase: 'shipping economics on the origin to destination leg'}
+- {id: nd08, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [CNY, CNY_FX, CNY_USD, usdcny_fx],
+   phrase: 'a softer Chinese currency and the landed cost of imported beans'}
+- {id: nd09, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [drought, regional_drought, china_drought, EU_drought, prairie_drought, flash_drought],
+   phrase: 'a rainfall deficit building through the growing season'}
+- {id: nd10, klass: near_duplicate, split: calibration, frozen: true,
+   expect: [export_ban, export_tax, India_export_ban, minimum_export_price],
+   phrase: 'origin restricting shipments to protect its home market'}
+
+# ---------------------------------------------------------------------------------------------------
+# MULTI -- the owner's "multiple named drivers -> a list, and the boards union". Two SEPARATE groups,
+# not two names for one thing (that is near_duplicate, one subject).
+# ---------------------------------------------------------------------------------------------------
+- {id: mu01, klass: multi, split: calibration, frozen: true, expect: [El_Nino, USD_index],
+   phrase: 'how do El Nino and the dollar interact for corn'}
+- {id: mu02, klass: multi, split: calibration, frozen: true,
+   expect: [drought, Argentina_export_tax, export_tax],
+   phrase: 'drought plus the export tax on Argentine beans'}
+- {id: mu03, klass: multi, split: calibration, frozen: true,
+   expect: [EUDR, EU_EUDR, biodiesel_mandate],
+   phrase: 'the deforestation rules and the blending mandate together for palm'}
+- {id: mu04, klass: multi, split: calibration, frozen: true,
+   expect: [freight_rates, crude_oil, crude_oil_price],
+   phrase: 'freight and crude both moving against the vegoil arb'}
+- {id: mu05, klass: multi, split: calibration, frozen: true,
+   expect: [heat_stress, managed_money_positioning, cot_mm_positioning],
+   phrase: 'heat stress in the belt with the funds already long'}
+- {id: mu06, klass: multi, split: calibration, frozen: true,
+   expect: [china_import_demand, China_import_pace, USD_index, dollar_index],
+   phrase: 'Chinese buying and a strong dollar pulling in opposite directions'}
+- {id: mu07, klass: multi, split: calibration, frozen: true,
+   expect: [fertilizer_cost, fertilizer_input_costs, planted_area, acreage_competition],
+   phrase: 'input costs and the acreage fight between corn and beans'}
+- {id: mu08, klass: multi, split: calibration, frozen: true,
+   expect: [La_Nina, safrinha],
+   phrase: 'La Nina risk over the safrinha window'}
+
+# ---------------------------------------------------------------------------------------------------
+# DECOY -- asks that name NO driver. THE BAR IS FATAL, NOT A RATE: zero candidates at or above
+# AMBIG_FLOOR on every one. The vocabulary is 405 ids of ag-market prose, so ANY ag question scores
+# non-trivially against something -- which is exactly why AMBIG_FLOOR is calibrated on this class and
+# not inherited from route_semantic's min_cos (a different population: 36 contract profiles).
+# ---------------------------------------------------------------------------------------------------
+- {id: dc01, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what is the ticker for the March contract'}
+- {id: dc02, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'who publishes the WASDE and when'}
+- {id: dc03, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what was the settlement price on Friday'}
+- {id: dc04, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how many bushels are in a metric tonne of corn'}
+- {id: dc05, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'which exchange lists the palm oil contract'}
+- {id: dc06, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'when does the December contract go off the board'}
+- {id: dc07, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'summarise this week price action across the grains'}
+- {id: dc08, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what is the front month spread doing'}
+- {id: dc09, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how do I read a stocks to use table'}
+- {id: dc10, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what data sources does this tool cover'}
+- {id: dc11, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'give me the highest settle this board has ever printed'}
+- {id: dc12, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what time is the report released in Chicago'}
+- {id: dc13, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'compare wheat corn and soybeans over the last month'}
+- {id: dc14, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'explain what a marketing year is'}
+
+# ---------------------------------------------------------------------------------------------------
+# DECOY, THE v2 SUB-CLASS -- MARKET STRUCTURE. How a market's OWN price behaves: the spread, the curve,
+# the basis, the roll, the front month, implied vol, the cash-versus-board relationship. These are the
+# asks the enum SHADOWS: it carries basis, calendar_spread, wheat_corn_spread, soybean_crush_margin and
+# a dozen more ids spelled like the structure itself. The correct answer is the EMPTY ARRAY on every
+# one of the SEVEN that remain, and the block says so in its own register.
+#
+# dc18 SITS IN THIS BLOCK AND IS NO LONGER ONE OF THEM. It is kept in position -- a frozen instrument
+# does not reorder its rows -- but its class is `alias` and its expected ids are the positioning group.
+# OPEN INTEREST IS NOT MARKET STRUCTURE IN THIS ESTATE'S OWN CURATION: it is a term of the
+# `cftc_positioning` slice, positioning is subject-eligible by D18 and by the owner's ruling of
+# 2026-09-11, and the free ALIAS tier fires on the phrase for exactly that reason. The sentence above
+# is true of the other seven rows of this sub-class and it is NOT true of dc18, which is why it is
+# said here rather than left to a reader to notice.
+# ---------------------------------------------------------------------------------------------------
+- {id: dc15, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'is the curve in backwardation or contango right now'}
+- {id: dc16, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how wide is the gulf basis against the board this morning'}
+- {id: dc17, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'the nearby is trading at a premium to the deferreds'}
+- {id: dc18, klass: alias, split: calibration, frozen: true,
+   expect: [cot_positioning, cot_mm_positioning, spec_positioning, speculative_positioning,
+            managed_money_positioning],
+   concepts: [[cot_positioning, cot_mm_positioning, spec_positioning, speculative_positioning,
+               managed_money_positioning]],
+   phrase: 'open interest keeps building while the price goes nowhere'}
+- {id: dc19, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what has the roll cost me over the last four expiries'}
+- {id: dc20, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'implied vol on the new crop calls looks rich to me'}
+- {id: dc21, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'where is the cash market trading relative to futures'}
+- {id: dc22, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how much has that spread widened since first notice day'}
+
+# ---------------------------------------------------------------------------------------------------
+# DECOY, THE v2 SUB-CLASS -- HOW TO READ, HOW TO COMPUTE, AND THE TOOL ITSELF. A methodology ask names
+# no cause: it asks how a figure is BUILT, not what moved it. Three of the six name a quantity the enum
+# carries an id for (a crush margin, a stocks-to-use style ratio, a percentile against history), which
+# is what makes them a test rather than a formality.
+# ---------------------------------------------------------------------------------------------------
+- {id: dc23, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'walk me through how the crush margin is calculated'}
+- {id: dc24, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how should I read a percentile rank against its own history'}
+- {id: dc25, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'what is the difference between old crop and new crop in these tables'}
+- {id: dc26, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'which units does this tool report palm oil production in'}
+- {id: dc27, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'how far back does the history in here actually go'}
+- {id: dc28, klass: decoy, split: calibration, frozen: true, expect: [],
+   phrase: 'explain how you decide which drivers to show me'}

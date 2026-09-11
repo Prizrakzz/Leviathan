@@ -1,0 +1,265 @@
+{
+  "generated_utc": "20260911T103254Z",
+  "deck": "subject_deck_v3.yaml",
+  "rows_total": 118,
+  "class_counts": {
+    "exact": 10,
+    "alias": 11,
+    "synonym": 14,
+    "misspelling": 14,
+    "description": 14,
+    "acronym": 10,
+    "near_duplicate": 10,
+    "multi": 8,
+    "decoy": 27
+  },
+  "graph_hash": "99dc11409fe9",
+  "vocab_status": "ok",
+  "planner_block_sha256": "d7ed2de860fc445fc74cf1a0190b72f32b54f4e5d01550b3fa205d4296ac01f3",
+  "deck_sha256": "7f89ac368aeed6462f1feeb93d15f61b226d01f9482f10b1218c979c4914332f",
+  "deck_rows_sha256": "7b079452fa9652362bcebdeba7441f298642dbfe889399d27c59cdf355ca1c86",
+  "own_structure_fence": [
+    "basis",
+    "calendar_spread"
+  ],
+  "live_ids_count": 403,
+  "all_ids_count": 405,
+  "seat": "claude-sonnet-4-6",
+  "temperature": 0,
+  "draws": 3,
+  "max_contracts": 2,
+  "layers_run": [
+    "1",
+    "2"
+  ],
+  "verdict": "STOP",
+  "failing_bars": [
+    "L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL)",
+    "L2 DECOY PICKS (0 on ANY draw, FATAL)",
+    "L1 SYNONYM >= 90%"
+  ],
+  "kind": "subject_resolver_deck_summary_v1",
+  "instrument": {
+    "rows_scanned": 118,
+    "census": {
+      "ok": 118
+    },
+    "decline_words": [
+      "missing",
+      "not_run",
+      "stale",
+      "unreadable"
+    ],
+    "declined": {},
+    "declined_rows": 0,
+    "live": true,
+    "certifying": true
+  },
+  "bars": [
+    {
+      "bar": "L1 EXACT >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 ALIAS >= 100%",
+      "verdict": "PASS",
+      "detail": "11/11 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 SYNONYM >= 90%",
+      "verdict": "MISS",
+      "detail": "10/14 = 71.4% all-tiers"
+    },
+    {
+      "bar": "L1 MISSPELLING >= 85%",
+      "verdict": "PASS",
+      "detail": "13/14 = 92.9% all-tiers"
+    },
+    {
+      "bar": "L1 DESCRIPTION >= 75%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 ACRONYM >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% all-tiers"
+    },
+    {
+      "bar": "L1 DECOY CARRY (0 at AMBIG_FLOOR, FATAL)",
+      "verdict": "STOP",
+      "detail": "1 of 27 decoys carried (16 put a candidate above CAND_FLOOR in front of the planner)"
+    },
+    {
+      "bar": "L2 SYNONYM >= 90%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 MISSPELLING >= 85%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 DESCRIPTION >= 70%",
+      "verdict": "PASS",
+      "detail": "14/14 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 NEAR_DUPLICATE >= 100%",
+      "verdict": "PASS",
+      "detail": "10/10 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 MULTI >= 100%",
+      "verdict": "PASS",
+      "detail": "8/8 = 100.0% at >= 2 of 3 draws"
+    },
+    {
+      "bar": "L2 DECOY PICKS (0 on ANY draw, FATAL)",
+      "verdict": "STOP",
+      "detail": "1 of 27 decoy rows had the planner pick a subject on at least one draw; all 27 rows were SCORED"
+    },
+    {
+      "bar": "L2 SEAT PIN (temperature and model, read back from every draw)",
+      "verdict": "PASS",
+      "detail": "temperature observed 0 against a declared 0 (exact); billed model claude-sonnet-4-6 against a declared claude-sonnet-4-6 -- a model FAMILY test: 'claude-sonnet-4-6' must be a SUBSTRING of every billed model id -- a provider prefix or a dated suffix passes, another family does not"
+    }
+  ],
+  "layer1": {
+    "floors": {
+      "CAND_FLOOR": 0.52,
+      "AMBIG_FLOOR": 0.78,
+      "TOP_K": 5
+    },
+    "all_non_decoy": {
+      "n": 91,
+      "any_t2": 85,
+      "hit_at_1": 68,
+      "all_tiers": 86,
+      "any_t2_pct": 93.4,
+      "hit_at_1_pct": 74.7,
+      "all_tiers_pct": 94.5
+    },
+    "lexical_baseline": {
+      "any_hit_pct": 30.0,
+      "hit_at_1_pct": 23.3,
+      "note": "the shipped driver matcher over the recon's 30 synonym/misspelling/description phrases (BRIEF.md sec 6; reproduced 2026-09-10)"
+    },
+    "shipped_carry": {
+      "raw_rows_at_ambig_floor": 5,
+      "carried": 2,
+      "dropped_by_the_fence": 0,
+      "declined_on_a_free_tier_hit": 3,
+      "narrowed_by_the_group_key": 1,
+      "decoy_carried": 0,
+      "decoy_raw_at_ambig_floor": 1
+    },
+    "per_class": {
+      "exact": {
+        "n": 10,
+        "any_t2": 10,
+        "hit_at_1": 10,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "alias": {
+        "n": 11,
+        "any_t2": 10,
+        "hit_at_1": 7,
+        "all_tiers": 11,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "synonym": {
+        "n": 14,
+        "any_t2": 10,
+        "hit_at_1": 7,
+        "all_tiers": 10,
+        "all_tiers_pct": 71.4,
+        "bar": ">= 90%",
+        "verdict": "MISS"
+      },
+      "misspelling": {
+        "n": 14,
+        "any_t2": 13,
+        "hit_at_1": 13,
+        "all_tiers": 13,
+        "all_tiers_pct": 92.9,
+        "bar": ">= 85%",
+        "verdict": "PASS"
+      },
+      "description": {
+        "n": 14,
+        "any_t2": 14,
+        "hit_at_1": 10,
+        "all_tiers": 14,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 75%",
+        "verdict": "PASS"
+      },
+      "acronym": {
+        "n": 10,
+        "any_t2": 10,
+        "hit_at_1": 7,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": ">= 100%",
+        "verdict": "PASS"
+      },
+      "near_duplicate": {
+        "n": 10,
+        "any_t2": 10,
+        "hit_at_1": 6,
+        "all_tiers": 10,
+        "all_tiers_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "multi": {
+        "n": 8,
+        "any_t2": 8,
+        "hit_at_1": 8,
+        "all_tiers": 8,
+        "all_tiers_pct": 100.0,
+        "bar": null,
+        "verdict": "-"
+      },
+      "decoy": {
+        "n": 27,
+        "with_candidate": 16,
+        "carried_at_ambig_floor": 1,
+        "bar": "carry == 0 (FATAL)",
+        "verdict": "FATAL"
+      }
+    }
+  },
+  "layer2_runs": [
+    {
+      "file": "subject_deck_v3_layer2_20260911T103254Z.json",
+      "record_sha256": "4e5dbd503ad4ac1606e16f89b2fd7eb4120f0dac2628cc22887742fbce43abda",
+      "generated_utc": "20260911T103254Z",
+      "planner_block_sha256": "d7ed2de860fc445fc74cf1a0190b72f32b54f4e5d01550b3fa205d4296ac01f3",
+      "graph_hash": "99dc11409fe9",
+      "deck_rows_sha256": "7b079452fa9652362bcebdeba7441f298642dbfe889399d27c59cdf355ca1c86",
+      "draws": 3,
+      "rows_total": 118,
+      "calls": 354,
+      "errored_calls": 0,
+      "usd_measured": 3.1552,
+      "gate_verdict": "HELD"
+    }
+  ],
+  "oneshot_gate_latest": {
+    "file": "subject_deck_v3_layer2_20260911T103254Z.json",
+    "generated_utc": "20260911T103254Z",
+    "verdict": "HELD",
+    "failing": [
+      "DECOYS: 0 of 27 fired on ANY draw, and all 27 SCORED"
+    ]
+  }
+}
