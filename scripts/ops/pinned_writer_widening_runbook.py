@@ -713,7 +713,15 @@ def print_post_apply_steps(applied: list[str]) -> None:
     for t in applied:
         print(f"    sql/athena/migrations/silver/{MIGRATION_FILES[t]}")
     print("    The machine manifest CatalogMigrator wrote on apply lands in the same directory as")
-    print("    <UTC>_<table>_additive_update.json and carries the executable backup.")
+    print("    <UTC>_<table>_additive_update.json. WHICH HALF OF IT IS EXECUTABLE (MEASURED")
+    print("    2026-09-11): plan.table_input IS an executable TableInput -- the wide, post-apply")
+    print("    table, with the read-only fields already dropped. The backup.table_input this path")
+    print("    writes is a RAW get_table snapshot and is NOT: Glue rejects the nine read-only")
+    print("    fields on input (CatalogId, CreateTime, CreatedBy, DatabaseName, UpdateTime,")
+    print("    VersionId, IsRegisteredWithLakeFormation, and the two view flags). Restore it")
+    print("    through CatalogMigrator.restore_table(snapshot=...), which drops those nine first,")
+    print("    never by handing that blob to glue.update_table. (--rollback never reads this file;")
+    print("    it plans against live Glue. The backup is the hand-restore basis of last resort.)")
     print()
     print("ONLY AFTER ALL OF THE ABOVE is the fbe6a7cb silver-jobdef repin hold released.")
 
