@@ -609,6 +609,51 @@ def test_the_knowledge_date_is_DERIVED_PER_CARD_CLASS_and_says_which_derivation_
     assert kd2 == "2026-07-31" and "no publication lag declared" in basis2
 
 
+def test_the_year_month_knowledge_date_uses_the_ROWS_OWN_METRIC_lag_not_the_cards():
+    """THE ROW CARRIES ITS METRIC AND THE PROMISE IS THE METRIC'S (fix 2026-09-11).
+
+    This function read ``ts.ym_publication_lag_days`` -- the CARD default -- while the served row
+    carries its metric under the ``metric`` alias (``query._extras`` projects ``metric_col`` on every
+    tall card). On ``gold_weather_z``, the one card declaring per-metric lags, that printed a CHIRPS
+    reading's knowledge date twenty days early AND said so in the basis string, naming the NASA number
+    as the derivation: a wrong date wearing a stated, wrong reason.
+
+    MEASURED on the live card for data month 2026-07:
+      * ``drought_z`` (CHIRPS, 25 d): 2026-07-31 + 25 = 2026-08-25;
+      * ``tmax_anomaly`` (NASA, 5 d): 2026-07-31 + 5 = 2026-08-05.
+    Twenty days apart, on one card, for the same month -- which is the whole reason the card declares
+    per metric at all."""
+    ts = load_registry().get("gold_weather_z")
+
+    kd, basis = F.derive_knowledge_date(ts, {"year": 2026, "month": 7, "metric": "drought_z"})
+    assert kd == "2026-08-25"
+    assert "data month 2026-07, knowable from 2026-08-25" in basis
+    assert "month-end plus 25 days" in basis, "the basis names the METRIC's lag, not the card's"
+
+    kd_n, basis_n = F.derive_knowledge_date(ts, {"year": 2026, "month": 7, "metric": "tmax_anomaly"})
+    assert kd_n == "2026-08-05" and "month-end plus 5 days" in basis_n
+
+    # the derived siblings ride the stem's promise, same as the guard and the gate do
+    for metric in ("drought_z_tail_share", "drought_z_cells"):
+        assert F.derive_knowledge_date(ts, {"year": 2026, "month": 7, "metric": metric})[0] == \
+            "2026-08-25", metric
+
+    # THE DEFECT ITSELF, reproduced: the card default is what the shipped code read for every metric
+    assert F.derive_knowledge_date(ts, {"year": 2026, "month": 7})[0] == "2026-08-05", \
+        "a row with no metric still falls to the card default -- unchanged, and the only honest " \
+        "answer when the row does not say which metric it is"
+
+
+def test_a_row_whose_metric_the_card_does_not_name_falls_to_the_card_default():
+    """Fail-SOFT on the way a row can be unrecognisable. ``registry.lag_days_for`` returns the card
+    default for an unknown metric, an empty one and a ``None``, so a fixture row, a wide card or a
+    renamed metric costs a row its NARROWER promise -- never its knowledge date."""
+    ts = load_registry().get("gold_weather_z")
+    for metric in ("not_a_metric", "", None):
+        kd, basis = F.derive_knowledge_date(ts, {"year": 2026, "month": 7, "metric": metric})
+        assert kd == "2026-08-05" and "month-end plus 5 days" in basis, metric
+
+
 def test_the_replay_LABEL_rides_a_latest_only_card_at_a_historical_asof_and_the_row_still_SERVES():
     """Revision 1 of the design DECLINED those refs' series half at zero reads. That is a fence that
     deletes where a label already exists -- it would have darkened the ENSO state on 33 boards in every

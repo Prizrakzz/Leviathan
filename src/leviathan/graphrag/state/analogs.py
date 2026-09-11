@@ -827,14 +827,29 @@ def _lag_days_of(row) -> int:
 
     ONE FIELD OR THE OTHER, NEVER BOTH: the lint refuses ``ym_publication_lag_days`` on a card that is
     not ``year_month`` (state/lint.py:539), so a declared ym lag IS the card's year_month declaration
-    and needs no second semantics field carried onto the row to be read correctly here."""
+    and needs no second semantics field carried onto the row to be read correctly here.
+
+    THE LAG IS PER METRIC, NOT PER CARD (2026-09-11), and the rule lives in ONE place --
+    ``registry.metric_lag_override``. The row's OWN stamped ``ym_publication_lag_days`` is passed as the
+    default and the registry is consulted for the METRIC OVERRIDE ALONE, never the card default: the
+    stamp is what ``feeders._recency`` read this row under, and a card-level fallback would let a
+    registry loaded now overrule it. So a card with no per-metric declaration, a fixture row, and a
+    table the registry cannot resolve all read exactly what they read before; only a metric carrying
+    its own declared lag moves. ``gold_weather_z`` is the card that forced it: ``drought_z`` rides
+    CHIRPS month blocks (BOUNDED 11 < lag <= 22 days past month-end by the two 2026-09-11 HEAD reads;
+    the card declares 22 plus a 3-day margin, 25 -- the 45 first written here was a misread of those
+    same two observations) while its four NASA siblings ride a 3-day daily feed, and one lag on this
+    axis has to be wrong for the four or wrong for the fifth."""
     st = getattr(row, "state", None)
     if st is None:
         return 0
     rec = st.recency or {}
-    for field in ("ym_publication_lag_days", "publication_lag_days"):
+    from leviathan.graphrag.numbers import registry as REG
+    for v in (REG.metric_lag_override(getattr(st, "table", ""), getattr(st, "metric", ""),
+                                      default=rec.get("ym_publication_lag_days")),
+              rec.get("publication_lag_days")):
         try:
-            v = int(rec.get(field) or 0)
+            v = int(v or 0)
         except (TypeError, ValueError):
             continue
         if v:

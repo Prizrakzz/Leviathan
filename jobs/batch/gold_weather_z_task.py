@@ -142,10 +142,18 @@ def _read_long(bucket: str, source: str, commodity: str, aws_region: str) -> pd.
 #
 # THE DENOMINATOR IS THE CARD'S OWN PROMISE, not a new constant. ``_ym_lagged_asof_ym`` is the shipped
 # arithmetic the board's own reads use; reusing it means this tripwire can never disagree with the
-# guard that admits the month. Its input, ``ym_publication_lag_days``, is declared as 7 on the card
-# with the card's own note that the number is UNVERIFIED -- and the measurement below is what refutes
-# it. Correcting that declaration is a CONFIG change outside this lane; until it lands, this counter
-# reports against the number the serving stack actually uses, which is the honest thing to report.
+# guard that admits the month.
+#
+# AND THE PROMISE IS NOW PER METRIC (2026-09-11). The 7 this comment used to name was a single blanket
+# number the card's own note called UNVERIFIED, and the refutation was not "7 is wrong" but "one number
+# cannot be right here": ``weather_z._complete_months_only`` gates month completeness PER SOURCE SLICE,
+# so the four NASA metrics emit a month CHIRPS has not published. MEASURED 2026-09-11 -- NASA POWER AG
+# is 3 days behind (the card default is that plus a 2-day margin, 5); CHIRPS v2.0 final publishes in
+# MONTH BLOCKS -- July complete by 08-22 (day 22 past month-end: an UPPER bound) and August entirely
+# absent at 09-11 (day 11: a LOWER bound), so 11 < lag <= 22 -- and ``drought_z`` carries its own 25,
+# that upper bound plus a 3-day margin. ``registry.lag_days_for`` is the one place precedence lives,
+# and this emitter reads it through that function, so the producer's counter and the gate's freshness
+# stage cannot drift apart.
 #
 # IT CAN NEVER CHANGE THE JOB'S EXIT CODE. The whole body is wrapped, boto3 is imported inside, and a
 # failure prints one line and returns -- the ``silver_rebuild_gate._emit_gate_metrics`` precedent
@@ -156,8 +164,16 @@ _TIP_YM_METRIC = "WeatherZTipYm"
 _TIP_BEHIND_METRIC = "WeatherZMonthsBehind"
 
 
-def _claimed_ym() -> int | None:
-    """The newest data month gold_weather_z's OWN card says is knowable today.
+def _claimed_ym(metric: str = "") -> int | None:
+    """The newest data month gold_weather_z's OWN card says is knowable today, FOR ONE METRIC.
+
+    THE CARD DOES NOT MAKE ONE PROMISE (2026-09-11). ``drought_z`` rides CHIRPS, which publishes a
+    whole month AS A BLOCK (measured 11 < lag <= 22 days past month-end; the card declares 25); the
+    four NASA metrics ride a daily feed 3 days behind.
+    ``registry.lag_days_for`` is the ONE place that precedence lives, and this emitter reads it through
+    that function rather than off the card, so the producer's counter and the gate's freshness stage
+    can never disagree about which month a metric owes. ``metric=""`` (no metric named) falls back to
+    the card default, which is what a caller with nothing to name should get.
 
     Reads ``ym_publication_lag_days`` off the numbers registry and runs the serving arithmetic
     (``numbers.query._ym_lagged_asof_ym``) over it. The underscore is deliberate: that private function
@@ -176,10 +192,10 @@ def _claimed_ym() -> int | None:
     from datetime import datetime, timezone
 
     from leviathan.graphrag.numbers.query import _ym_lagged_asof_ym
-    from leviathan.graphrag.numbers.registry import load_registry
+    from leviathan.graphrag.numbers.registry import lag_days_for, load_registry
 
     ts = load_registry().get("gold_weather_z")
-    lag = getattr(ts, "ym_publication_lag_days", None)
+    lag = lag_days_for(ts, metric)
     if not lag:
         return None
     # UTC, not ``date.today()``: this container runs UTC and the gate's own freshness clock
@@ -206,18 +222,25 @@ def _emit_freshness_tripwire(commodity: str, gold: pd.DataFrame) -> None:
         if not tips:
             return
         try:
-            claimed = _claimed_ym()
+            # ONE DENOMINATOR PER METRIC (2026-09-11), because the card no longer makes one promise:
+            # drought_z's CHIRPS block lag is 25 days and its four NASA siblings' is 5. Under the
+            # single blanket read this loop published "1 month behind" for all five on 2026-09-11 --
+            # right about the four (a real raw->bronze freeze) and wrong about drought_z, which at its
+            # own 25-day promise is exactly ON TIME that day (claimed 202607, held 202607): the August
+            # CHIRPS block has not published and drought_z does not owe it yet.
+            claimed = {m: _claimed_ym(m) for m in tips}
         except Exception as exc:  # noqa: BLE001 -- an unreadable card costs the DENOMINATOR, not the tip
-            claimed = None
+            claimed = {}
             logger.warning(
                 "freshness tripwire: the gold_weather_z card is unreadable (%s: %s) -- publishing the "
                 "data-month tip WITHOUT months_behind; the tip does not depend on the card",
                 type(exc).__name__, str(exc)[:200],
             )
-        behind = {m: months_behind(claimed, ym) for m, ym in tips.items()}
+        behind = {m: months_behind(claimed.get(m), ym) for m, ym in tips.items()}
         logger.info(
             "freshness  commodity=%s  claimed_ym=%s  tips=%s  months_behind=%s",
-            commodity, claimed if claimed is not None else "undeclared",
+            commodity,
+            {m: claimed[m] for m in sorted(claimed)} if claimed else "undeclared",
             {m: tips[m] for m in sorted(tips)},
             {m: behind[m] for m in sorted(behind)},
         )

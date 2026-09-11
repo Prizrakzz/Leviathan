@@ -544,7 +544,7 @@ def test_POSITIONING_AS_SUBJECT_is_the_one_exception_to_context_only():
 #: The three ``year_month`` cards the board leans on, and the lag each DECLARES (S0, measured against
 #: the live registry here rather than restated). They are the whole population of the ym rule: every
 #: other board card is a ``data_date`` or a ``vintage`` card and carries its lag in the other field.
-YM_CARDS: dict = {"silver_noaa_oni": 36, "silver_noaa_iod": 45, "gold_weather_z": 7}
+YM_CARDS: dict = {"silver_noaa_oni": 36, "silver_noaa_iod": 45, "gold_weather_z": 5}
 
 
 def _ym_labels(n, start_year=2010, start_month=1):
@@ -585,6 +585,81 @@ def test_the_THREE_year_month_cards_DECLARE_their_lag_in_the_ym_field_and_the_ac
         st = _ym_state(d, [float(i % 5) for i in range(24)], lag=ts.ym_publication_lag_days)
         row = B.NodeRow(contract="c", driver_id="d", state=st)
         assert A._lag_days_of(row) == lag, tid
+
+
+def test_the_accessor_reads_the_METRICS_lag_and_not_just_the_cards(monkeypatch):
+    """S7-W (2026-09-11). ``gold_weather_z`` carries metrics fed by TWO sources ~20 days apart in
+    release cadence, so ONE lag on this axis has to be wrong for four metrics or wrong for the fifth.
+    (The CHIRPS number was corrected 45 -> 25 the same day: the two HTTP-HEAD observations behind it
+    BOUND the lag -- July's block present at day 22 past month-end is an upper bound, August absent at
+    day 11 is a lower one -- so 11 < lag <= 22, and 25 is that upper bound plus a 3-day margin.)
+
+    THE ROW'S OWN STAMP IS THE DEFAULT, NOT THE ANSWER. ``feeders._recency`` writes the CARD's value
+    onto every row, so a per-metric read that only consulted the row would be the card-level read with
+    extra steps; the accessor passes the stamp to ``registry.metric_lag_override`` as the fallback and
+    lets a declared metric override win. That ordering is what keeps every OTHER card, every fixture
+    row, and every unresolvable table byte-identical -- graded below."""
+    st = _ym_state(_ym_labels(24), [float(i % 5) for i in range(24)], lag=5)
+    st.table = "gold_weather_z"
+    row = B.NodeRow(contract="c", driver_id="d", state=st)
+    for metric, want in (("drought_z", 25), ("drought_z_tail_share", 25), ("drought_z_cells", 25),
+                         ("tmax_anomaly", 5), ("gdd_z", 5), ("heat_stress_z", 5),
+                         ("frost_event_flag", 5), ("frost_event_share", 5)):
+        st.metric = metric
+        assert A._lag_days_of(row) == want, metric
+
+    # the three fall-throughs, each of which keeps a caller reading exactly what it read before
+    st.metric = "a_metric_the_card_never_declared"
+    assert A._lag_days_of(row) == 5, "an unnamed metric takes the card default"
+    st.table = "a_table_the_registry_never_had"
+    assert A._lag_days_of(row) == 5, "an unresolvable table falls back to the row's own stamp"
+    st.table, st.metric = "gold_weather_z", "drought_z"
+    st.recency = {**st.recency, "ym_publication_lag_days": None, "publication_lag_days": 6}
+    assert A._lag_days_of(row) == 25, "the registry still answers when the row carries no ym stamp"
+
+
+def test_the_per_metric_lag_LEAVES_the_knowledge_axis_WHERE_IT_WAS_for_both_sources():
+    """THE MEASURED EFFECT, on the axis the 2026-09-07 board census actually read, RE-MEASURED after
+    the CHIRPS lag was corrected 45 -> 25 (2026-09-11 verify pass).
+
+    The census banked ``history_n = 131`` for the ``drought`` / ``flash_drought`` analog seeds on eight
+    boards, and the gold bytes tip at data month 2026-07 -- so the axis is the 131 monthly labels
+    2015-09 .. 2026-07. Re-indexing it under the old blanket 7 and the two DECLARED values:
+
+      * 7 -> 5  (NASA)  : **0 of 131** positions move; admissible set unchanged at 131.
+      * 7 -> 25 (CHIRPS): **0 of 131** positions move; admissible set unchanged at 131, still ending
+        at 2026-07.
+
+    WHY BOTH ARE ZERO, and the precise form of a claim this deck used to state too widely. Every
+    position on THIS axis is a month END, and the knowable index at position P is the newest label
+    whose month-end plus the lag is <= P. Consecutive month-ends are 28-31 days apart, so any lag up
+    to 28 admits exactly the prior month and the map is one step wide across that whole band. The
+    band is NOT a general property of the lag arithmetic: ``query._ym_lagged_asof_ym`` is evaluated at
+    an ARBITRARY calendar as-of, and there 5 and 7 place different months on 24 days of 2026 (see
+    tests/unit/test_state_registry_ym_lag.py). Month-end positions, one step; any day of the month,
+    not. Stating which one is being measured is the whole correction.
+
+    AND THE COUNTERFACTUAL IS KEPT, because it is what the wave believed for half a day: under the
+    misread 45, **130 of 131** positions move back a month, the head gains a second hole, and 2026-07
+    stops being an admissible candidate at the census as-of (131 -> 130). So the size of this
+    correction is not cosmetic -- 45 would have re-scored every drought crossing on the board against
+    a month block it did not need to withhold, and 25 is measured to re-score none of them."""
+    d = _ym_labels(131, 2015, 9)
+    assert d[0] == "2015-09" and d[-1] == "2026-07" and len(d) == 131
+
+    i7, i5, i25, i45 = (A._knowable_indices(d, n) for n in (7, 5, 25, 45))
+    assert i7 == i5, "the NASA default is the old blanket number on a month-END axis"
+    assert i7 == i25, "and so is the corrected CHIRPS number -- 25 is inside the 28-day step"
+    assert i7.count(None) == i25.count(None) == 1
+    # the counterfactual: the misread 45 crosses the step and moves almost the whole axis
+    assert sum(1 for a, b in zip(i7, i45) if a != b) == 130 and i45.count(None) == 2
+
+    asof = "2026-09-07"                                   # the census as-of these seeds were read at
+    admissible = {lag: [x for x in d if A._add_days(A.axis_date(x), lag) <= asof]
+                  for lag in (7, 5, 25, 45)}
+    assert len(admissible[7]) == len(admissible[5]) == len(admissible[25]) == 131
+    assert admissible[7][-1] == admissible[25][-1] == "2026-07"
+    assert len(admissible[45]) == 130 and admissible[45][-1] == "2026-06"
 
 
 def test_a_year_month_label_is_placed_on_its_MONTH_END_the_day_the_live_read_places_it():

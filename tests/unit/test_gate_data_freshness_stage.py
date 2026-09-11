@@ -294,6 +294,152 @@ class TestYearMonthMeasurement:
         assert g._FRESHNESS_MEASUREMENTS == {}
 
 
+class TestPerMetricYearMonthMeasurement:
+    """A card whose metrics promise DIFFERENT months is measured once per metric (2026-09-11).
+
+    THE DEFECT IT CLOSES IS A WRONG VERDICT, not a missing one. Under the single blanket lag this stage
+    read "1 month behind" for all five live ``gold_weather_z`` metrics on 2026-09-11. That is TRUE of
+    the four NASA ones -- a real raw->bronze freeze -- and FALSE of ``drought_z``, whose CHIRPS month
+    block simply had not published and which is exactly ON its own promise that day. One number cannot
+    carry both verdicts, and the wrong half is the half an operator would have chased.
+
+    THE CHIRPS NUMBER MOVED 45 -> 25 (2026-09-11, verify pass, same day): the two HTTP-HEAD
+    observations behind it BOUND the lag rather than fixing it -- July's block PRESENT at day 22 past
+    month-end is an UPPER bound, August ABSENT at day 11 is a LOWER one, so 11 < lag <= 22 and the
+    declaration is 22 plus a 3-day margin. Under 25 the measured 2026-09-11 verdict for ``drought_z``
+    is 0 months behind, not -1: the promise admits 202607 and the bytes hold 202607.
+    """
+
+    @staticmethod
+    def _live_card():
+        """THE REAL CARD, not a double. The whole claim is about what the shipped declaration says, and
+        a hand-built double would grade this deck's opinion of it instead."""
+        from leviathan.graphrag.numbers.registry import load_registry
+        return load_registry().get("gold_weather_z")
+
+    @staticmethod
+    def _rows(**tips):
+        return [{"metric": m, "tip_ym": str(ym)} for m, ym in tips.items()]
+
+    def test_the_live_card_takes_the_per_metric_path_and_the_single_lag_cards_do_not(self):
+        assert len(set(g._metric_lags(self._live_card()).values())) > 1
+        for card in (_ym_card(), _date_card()):
+            assert g._metric_lags(card) == {}, "a card double with no metrics must not switch paths"
+
+    def test_the_MEASURED_2026_09_11_verdict_splits_the_two_sources(self, _mirrored):
+        """The live tip, measured off gold/weather_z/corn_cbot.parquet that day: every metric at
+        202607. NASA's 5-day lag admits 202608 (one month behind -- the freeze); CHIRPS' 25-day lag
+        admits 202607 (2026-09-11 minus 25 days is 2026-08-17, and August has not ended), so
+        ``drought_z`` is exactly ON its promise and the freeze verdict belongs to the NASA four alone.
+        That is the split, and it is the same split the 45 produced -- one metric clear, four behind --
+        arrived at from the bound the measurement actually supports."""
+        rows = self._rows(drought_z=202607, tmax_anomaly=202607, gdd_z=202607,
+                          heat_stress_z=202607, frost_event_flag=202607)
+        g.stage_data_freshness("gold_weather_z", _ctx(self._live_card(), rows))
+        m = g._FRESHNESS_MEASUREMENTS["gold_weather_z"]
+        assert m["grain"] == "year_month_per_metric"
+        by = m["by_metric"]
+        assert by["drought_z"] == {"lag_days": 25, "claimed_ym": 202607, "actual_ym": 202607,
+                                   "months_behind": 0}
+        for nasa in ("tmax_anomaly", "gdd_z", "heat_stress_z", "frost_event_flag"):
+            assert by[nasa] == {"lag_days": 5, "claimed_ym": 202608, "actual_ym": 202607,
+                                "months_behind": 1}, nasa
+        assert m["months_behind"] == 1
+        assert m["worst_metric"] in {"tmax_anomaly", "gdd_z", "heat_stress_z", "frost_event_flag"}
+
+    def test_the_judgement_is_the_WORST_metric_so_four_fresh_ones_cannot_bury_one_frozen(self,
+                                                                                        _mirrored):
+        """Averaging, or reading the table's own tip, is how a blind spot re-enters one level down."""
+        rows = self._rows(drought_z=202606, tmax_anomaly=202608, gdd_z=202608,
+                          heat_stress_z=202608, frost_event_flag=202512)
+        g.stage_data_freshness("gold_weather_z", _ctx(self._live_card(), rows))
+        m = g._FRESHNESS_MEASUREMENTS["gold_weather_z"]
+        assert m["worst_metric"] == "frost_event_flag" and m["months_behind"] == 8
+        # drought_z at 202606 is ONE month behind its own 25-day promise (which admits 202607) -- a
+        # real, small shortfall that the aggregate correctly declines to let win. Under the 45 this
+        # number replaced the same tip read as 0; the verdict the test is about -- max, not mean --
+        # is the same either way, and pinning the measured value keeps the deck honest about which
+        # lag it is grading.
+        assert m["by_metric"]["drought_z"]["months_behind"] == 1
+        assert m["by_metric"]["drought_z"]["lag_days"] == 25
+
+    def test_an_ALL_NEGATIVE_card_still_reaches_the_bytes_are_ahead_branch(self, _mirrored):
+        """``max`` must not clamp: when every metric is ahead of its promise the aggregate stays
+        negative and the stage's stated "cannot read that as fresh" branch is the one that answers."""
+        rows = self._rows(drought_z=202608, tmax_anomaly=202609)
+        res = g.stage_data_freshness("gold_weather_z", _ctx(self._live_card(), rows))
+        assert g._FRESHNESS_MEASUREMENTS["gold_weather_z"]["months_behind"] < 0
+        assert res.status == g.SKIPPED
+
+    def test_a_metric_ABSENT_from_the_mirror_is_unmeasured_not_infinitely_behind(self, _mirrored):
+        """The card's whitelist carries aggregate-only basin metrics that have ZERO rows on a per-cell
+        commodity. Honest absence -- the same reading the empty-mirror rule already takes."""
+        g.stage_data_freshness("gold_weather_z",
+                               _ctx(self._live_card(), self._rows(drought_z=202607)))
+        m = g._FRESHNESS_MEASUREMENTS["gold_weather_z"]
+        assert m["worst_metric"] == "drought_z"
+        assert "tmax_anomaly" in m["metrics_absent_from_mirror"]
+        assert "drought_z" not in m["metrics_absent_from_mirror"]
+
+    def test_an_EMPTY_mirror_is_still_unmeasured_rather_than_a_breach(self, _mirrored):
+        res = g.stage_data_freshness("gold_weather_z", _ctx(self._live_card(), []))
+        assert res.status == g.SKIPPED and "no tip month for any metric" in res.detail
+        assert g._FRESHNESS_MEASUREMENTS == {}
+
+    def test_the_grouped_sql_is_ONE_bounded_aggregate_on_the_qualified_mirror_relation(self):
+        from leviathan.graphrag.numbers import query as Q
+        sql = g._tip_ym_by_metric_sql(self._live_card())
+        assert sql == ("SELECT metric AS metric, MAX((year * 100) + month) AS tip_ym "
+                       f"FROM {Q.ATHENA_DB}.gold_weather_z GROUP BY metric")
+        assert sql.count("SELECT") == 1 and " JOIN " not in sql
+
+    def test_a_metric_that_DECLARES_ZERO_is_measured_and_not_dropped_as_undeclared(self, _mirrored):
+        """``_metric_lags`` filtered with ``if lag:`` and a declared ``0`` is falsy (fix 2026-09-11).
+
+        ``registry.lag_days_for`` draws the line the estate agreed on -- ``None`` is UNDECLARED and
+        ``0`` is a real declaration, "this source prints on the data month's last day" -- and the
+        falsy filter un-drew it one consumer down. The consequence is not a wrong number but a MISSING
+        verdict, and on the freshest metric of the card: ``_measure_year_month_by_metric`` grades only
+        ``set(tips) & set(lags)``, so a zero-lag metric drops out of ``lags``, is never compared to
+        anything, and lands in ``metrics_absent_from_mirror`` while its rows sit right there. The
+        metric whose promise a freeze would breach FIRST is the one the staleness stage would never
+        have graded."""
+        from leviathan.graphrag.numbers.registry import Metric, TableSpec
+        card = TableSpec(
+            id="gold_weather_z", description="d", shape="tall", year_col="year", month_col="month",
+            metric_col="metric", value_col="value", knowledge_semantics="year_month",
+            ym_publication_lag_days=5,
+            metrics={"prints_on_month_end": Metric(ym_publication_lag_days=0),
+                     "prints_a_block_later": Metric(ym_publication_lag_days=25)})
+        assert g._metric_lags(card) == {"prints_on_month_end": 0, "prints_a_block_later": 25}, \
+            "a declared 0 is a lag; only None is undeclared"
+
+        rows = self._rows(prints_on_month_end=202608, prints_a_block_later=202607)
+        g.stage_data_freshness("gold_weather_z", _ctx(card, rows))
+        m = g._FRESHNESS_MEASUREMENTS["gold_weather_z"]
+        by = m["by_metric"]
+        # THE ARITHMETIC A DECLARED ZERO GETS, measured rather than assumed: ``_ym_lagged_asof_ym``
+        # treats a FALSY lag as the IDENTITY by its own stated contract (the byte-identical pre-wave
+        # literal, pinned in test_numbers_query_ym_lag), so 0 admits the AS-OF's own month 202609 --
+        # not 202608, which is what month-end arithmetic on a 0-day lag would give. That is a
+        # property of the compiler, deliberately unchanged here; what this fix is about is that the
+        # metric is GRADED AT ALL. Both facts are pinned so neither can move silently.
+        assert by["prints_on_month_end"] == {"lag_days": 0, "claimed_ym": 202609,
+                                             "actual_ym": 202608, "months_behind": 1}
+        assert by["prints_a_block_later"]["months_behind"] == 0
+        assert "prints_on_month_end" not in m["metrics_absent_from_mirror"]
+        assert "prints_on_month_end=1(lag 0)" in m["detail"]
+        assert m["worst_metric"] == "prints_on_month_end" and m["months_behind"] == 1
+
+    def test_the_detail_line_names_every_metric_and_its_own_lag(self, _mirrored):
+        """A per-metric verdict that printed only the worst would hide the very split it exists to
+        show -- an operator has to be able to see that drought_z is not the frozen one."""
+        rows = self._rows(drought_z=202607, tmax_anomaly=202607)
+        g.stage_data_freshness("gold_weather_z", _ctx(self._live_card(), rows))
+        detail = g._FRESHNESS_MEASUREMENTS["gold_weather_z"]["detail"]
+        assert "drought_z=0(lag 25)" in detail and "tmax_anomaly=1(lag 5)" in detail
+
+
 class TestDataDateMeasurement:
     def test_a_date_grain_card_reports_AGE_and_refuses_to_call_it_behind(self, _mirrored):
         """There is NO declared denominator: freshness_sla.max_lag_days is null on gold_weather_z,

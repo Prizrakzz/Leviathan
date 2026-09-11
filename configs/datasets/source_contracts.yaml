@@ -27,8 +27,31 @@ sources:
     expected_min_rows: 1000
     duplicate_check: full
 
+  # PUBLICATION CADENCE, MEASURED 2026-09-11 by HTTP HEAD against
+  # data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/tifs/p05/2026/ : every day of 2026-07 present
+  # (the block landed before 2026-08-22, the day the bronze objects carrying it were written) and
+  # 2026-08-01 .. 2026-08-31 ALL 404 -- eleven days past August's own month-end with no partial days
+  # available. CHIRPS v2.0 FINAL does not publish daily; it publishes the whole MONTH AS A BLOCK.
+  # WHAT THE TWO OBSERVATIONS BOUND (corrected 2026-09-11, same day): July PRESENT at day 22 is an
+  # UPPER bound -- the block was there by then and may have landed earlier, so lag <= 22; August
+  # ABSENT at day 11 is a LOWER bound, lag > 11. The lag is therefore 11 < lag <= 22, and the 25
+  # below is the upper bound plus a 3-day margin (a lag is a WITHHOLDING: long is safe, short is a
+  # leak). The 45 this replaces was a MISREADING of these same two numbers -- an analogy to the
+  # slow monthly `silver_noaa_iod` sibling, made while the measurement in hand already bounded the
+  # lag at 22. Nothing new was measured to correct it; the arithmetic was re-read.
+  # A FASTER PRODUCT EXISTS AND IS NOT YET FETCHED (found 2026-09-11): CHIRPS v2.0 also publishes a
+  # PRELIM daily series at .../CHIRPS-2.0/prelim/global_daily/tifs/p05/2026/ , current to 2026-09-05
+  # with all 31 August days present. A follow-up fetcher lane reads it; after that the served lag is
+  # ~5 days and the 25 here becomes the FINAL product's REVISION HORIZON rather than its first print.
+  # This block is DOCUMENTATION of the source, read by no code: the point-in-time promise the serving
+  # stack keeps is the numbers card's per-metric `ym_publication_lag_days` on gold_weather_z's
+  # `drought_z` (configs/graphrag/numbers/tables.yaml), and this file is where the measurement lives.
+  # It is deliberately NOT written into configs/silver/tables/silver_chirps.yaml, where
+  # `publication_lag_days` is consumed as GRACE on a WRITE-RECENCY alarm and would loosen it -- the
+  # category error dag_catalog.FRESHNESS_LAG_OVERRIDES exists to cancel.
   - source_key: weather:chirps
     title: CHIRPS precipitation silver
+    publication_lag_days: 25
     glue_table: silver_chirps
     s3_prefix: s3://leviathan-dev-shahem-001/silver/weather/source=chirps/
     status: core
@@ -42,8 +65,15 @@ sources:
     athena_mode: metadata_only
     duplicate_skip_reason: large partitioned daily weather source; exact duplicate scan is deferred to source-specific validation
 
+  # PUBLICATION CADENCE, MEASURED 2026-09-11 from the API payload itself: the September window
+  # returned 11 day keys of which 8 carried real values, the last real day being 2026-09-08 -- the
+  # endpoint fills its trailing ~3 days with the -999 sentinel. So NASA POWER AG is a DAILY release 3
+  # days behind, which is ~20 days ahead of the CHIRPS sibling above (3 vs 11 < lag <= 22) and is the
+  # whole reason gold_weather_z declares its lag per metric rather than per card. Documentation, read
+  # by no code; see the CHIRPS note for why it does not go in the silver contract's freshness fields.
   - source_key: weather:nasa_power
     title: NASA POWER weather silver
+    publication_lag_days: 3
     glue_table: silver_nasa_power
     s3_prefix: s3://leviathan-dev-shahem-001/silver/weather/source=nasa_power/
     status: core

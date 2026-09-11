@@ -835,7 +835,16 @@ def derive_knowledge_date(ts, row: dict) -> tuple[Optional[str], str]:
       * ``year_month`` cards -> MONTH-END plus ``ym_publication_lag_days``, printed as "data month
         YYYY-MM, knowable from {ISO}".
     ``None`` with a stated basis when the card gives nothing to derive from -- never a guess, and never
-    the as-of standing in for a knowledge date."""
+    the as-of standing in for a knowledge date.
+
+    THE YEAR_MONTH LAG IS THE **ROW'S METRIC'S**, NOT THE CARD'S (fix 2026-09-11). The served row
+    carries its metric under the ``metric`` alias (``query._extras`` projects ``metric_col`` on every
+    tall card), and on the one card that declares per-metric lags the card default is the WRONG lag for
+    three of its metrics: a ``drought_z`` reading printed "knowable from" a date twenty days earlier
+    than the CHIRPS block that carries it (2026-08-05 against the measured 2026-08-25, for data month
+    2026-07), under a basis string that named the NASA number. The precedence
+    lives once, in ``registry.lag_days_for``, and the printed basis now says the metric's own lag.
+    A row with no ``metric`` (a wide card, a fixture) falls to the card default exactly as before."""
     sem = getattr(ts, "knowledge_semantics", "")
     if sem == "year_month":
         y, m = row.get("year"), row.get("month")
@@ -844,7 +853,13 @@ def derive_knowledge_date(ts, row: dict) -> tuple[Optional[str], str]:
         except (TypeError, ValueError):
             return None, "year_month card with no year/month on the row"
         end = _month_end(y, m)
-        lag = getattr(ts, "ym_publication_lag_days", None)
+        # IMPORTED IN-FUNCTION, the idiom this module already uses for every `numbers` import
+        # (`_read_series`, `board_map`, the tape reader): `state.feeders` is imported BY the numbers
+        # cascade helpers, and a module-level edge back into `numbers.registry` puts a second arrow on
+        # a seam that is one-directional today. Measured: `python -c "import
+        # leviathan.graphrag.numbers.registry, leviathan.graphrag.state.feeders"` in both orders.
+        from leviathan.graphrag.numbers.registry import lag_days_for
+        lag = lag_days_for(ts, row.get("metric"))
         if not lag:
             return end, f"data month {y:04d}-{m:02d}, month-end {end}; no publication lag declared"
         d = _dt.date.fromisoformat(end) + _dt.timedelta(days=int(lag))

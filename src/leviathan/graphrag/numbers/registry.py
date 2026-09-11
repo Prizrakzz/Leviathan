@@ -47,6 +47,30 @@ class Metric(BaseModel):
     #                                                          on EVERY row (incl. agg-shaped rows, which emit no
     #                                                          extras); build_sql RAISES if it is set and the query
     #                                                          carries no commodity (unattributable blank-unit rows).
+    ym_publication_lag_days: Optional[int] = None            # PER-METRIC YEAR_MONTH PUBLICATION LAG (2026-09-11).
+    #                                                          The card-level field of the same name is the card's
+    #                                                          DEFAULT; this one OVERRIDES it for one metric, and it
+    #                                                          exists because a tall card can carry metrics fed by
+    #                                                          SOURCES ON DIFFERENT RELEASE CADENCES. MEASURED on
+    #                                                          gold_weather_z, the card that forced it: NASA POWER AG
+    #                                                          fills its trailing ~3 days with -999 and is otherwise
+    #                                                          current to yesterday (a DAILY release), while CHIRPS
+    #                                                          v2.0 final publishes in MONTH BLOCKS (July 2026
+    #                                                          complete by 2026-08-22; August still absent on
+    #                                                          2026-09-11) -- and `weather_z._complete_months_only`
+    #                                                          gates completeness PER SOURCE SLICE (:316/:328/:349
+    #                                                          NASA, :388 CHIRPS, :403 NASA), so the four NASA
+    #                                                          metrics emit a month CHIRPS has not published. ONE
+    #                                                          blanket card lag is therefore a choice between
+    #                                                          throwing ~20 days of freshness away on four metrics
+    #                                                          (25 minus 5, the two declared lags) and promising a
+    #                                                          fifth a month early; per-metric is the only
+    #                                                          declaration that is true of both.
+    #                                                          None (the default) = NO OVERRIDE -> the card's own
+    #                                                          value stands, and every card in the estate that
+    #                                                          declares none is byte-identical to before.
+    #                                                          READ ONLY through `lag_days_for` -- never off the
+    #                                                          Metric directly, so the precedence rule has one home.
     row_filters: dict[str, dict[str, list[str]]] = {}        # A3 (PRICE_OBSERVABILITY re-whitelist): per-commodity
     #                                                          row constraints for a metric whose silver rows carry
     #                                                          ATTRIBUTION BLEED. Shape {commodity: {column: [allowed
@@ -404,6 +428,161 @@ class NumbersRegistry(BaseModel):
         if table_id not in self.tables:
             raise KeyError(f"unknown table '{table_id}' (known: {sorted(self.tables)})")
         return self.tables[table_id]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE PER-METRIC YEAR_MONTH PUBLICATION LAG (2026-09-11) -- ONE rule, read by four consumers.
+# ---------------------------------------------------------------------------------------------------
+def lag_days_for(ts, metric) -> Optional[int]:
+    """The ``ym_publication_lag_days`` that governs ONE metric of ONE card: the metric's own override,
+    else the card's default, else ``None``.
+
+    THE WHOLE PRECEDENCE LIVES HERE AND NOWHERE ELSE, because it is read from four places that must
+    never disagree -- the analog knowledge axis (``state/analogs._lag_days_of``), the gate's freshness
+    stage (``silver_rebuild_gate._measure_year_month``), the producer's tripwire
+    (``gold_weather_z_task._claimed_ym``) and :func:`check_metric_lags` -- and a second copy of "which
+    lag wins" is the F-L drift class this estate names by hand.
+
+    ``None`` IS UNDECLARED, NOT ZERO, and it is returned unchanged: every consumer already reads a falsy
+    lag as "no shift, and say so" (``query._ym_lagged_asof_ym`` returns the bare ``_asof_ym``), and
+    turning an absent declaration into ``0`` here would silently convert "this card makes no promise"
+    into "this source prints on the data month's last day" -- a claim no card in this estate has
+    measured. A metric override of ``0`` is a real declaration and is honoured as one.
+
+    NEVER RAISES on a card shape it does not recognise: ``metrics`` absent, not a dict, or holding a
+    plain dict rather than a :class:`Metric` all fall through to the card default. The gate's own test
+    doubles are ``SimpleNamespace`` cards with no ``metrics`` at all, and a freshness stage that raised
+    on one would be a telemetry stage deciding a gate."""
+    default = getattr(ts, "ym_publication_lag_days", None)
+    if not metric:
+        return default
+    metrics = getattr(ts, "metrics", None)
+    if not isinstance(metrics, dict):
+        return default
+    m = metrics.get(str(metric))
+    if m is None:
+        return default
+    own = m.get("ym_publication_lag_days") if isinstance(m, dict) else \
+        getattr(m, "ym_publication_lag_days", None)
+    return default if own is None else own
+
+
+def metric_lag_override(table: str, metric: str, *, default=None) -> Optional[int]:
+    """The metric's OWN declared ``ym_publication_lag_days`` off the loaded registry, else ``default``.
+
+    THE CARD DEFAULT IS DELIBERATELY NOT CONSULTED HERE, and that is the whole difference from
+    :func:`lag_days_for`. This is the accessor for a consumer that ALREADY HOLDS a lag and wants to
+    know only whether one metric narrows it -- ``state/analogs._lag_days_of``, which is handed a board
+    row that ``feeders._recency`` already stamped with the card's value at READ time. Falling back to
+    the card here would let a registry loaded NOW silently overrule what a row was actually read under,
+    which is a different number on a historical replay and, measured at this landing, on a fixture:
+    ``tests/unit/test_state_analogs.py`` builds ONI-keyed rows carrying the IOD lag, and a card-level
+    fallback answered 36 where the row said 45. So the rule is exact -- **only a metric that declares
+    its own lag moves anything** -- and every card with no per-metric declaration, every fixture row
+    and every unresolvable table is byte-identical to before.
+
+    Fail-soft on every way the card can be unreachable: an unknown table, the
+    ``GRAPHRAG_NUMBERS_DISABLE`` single-table rollback, a fixture keyed to a table that was never
+    registered, an image with no ``configs/graphrag`` baked in. All return ``default`` -- the value the
+    caller already had -- so this function can narrow a lag and can never take one away."""
+    try:
+        ts = load_registry().tables.get(str(table))
+    except Exception:  # noqa: BLE001 -- a registry that will not load may not cost a caller its lag
+        return default
+    metrics = getattr(ts, "metrics", None) if ts is not None else None
+    if not isinstance(metrics, dict) or not metric:
+        return default
+    m = metrics.get(str(metric))
+    own = getattr(m, "ym_publication_lag_days", None) if m is not None else None
+    return default if own is None else own
+
+
+def check_metric_lags(reg: Optional[NumbersRegistry] = None) -> list[str]:
+    """Every per-metric ``ym_publication_lag_days`` is legal, reachable, and not silently missing.
+
+    **NOT YET WIRED INTO THE BUILD (standing item, opened 2026-09-11).** As it ships, this function's
+    only caller is its own deck (``tests/unit/test_state_registry_ym_lag.py::TestPerMetricLag``), so it
+    is a lint that grades a registry nobody asked it about: a CI run that never loads that deck, or an
+    image built from a config edit alone, passes with the estate red. The wiring is one tuple entry in
+    ``graphrag.config_check.main``'s check list -- deliberately NOT made here, because the S7b lane
+    holds ``config_check.py`` and a second writer on that file is the shared-worktree index race this
+    estate has already paid for. THE ORCHESTRATOR ADDS IT after S7b commits; until then the only thing
+    standing between a silently-inherited lag and production is the deck below.
+
+    THE DEFECT CLASS IT CLOSES, stated as the thing that would happen. A per-metric lag is the ONLY
+    place in the estate where two metrics of ONE card make DIFFERENT point-in-time promises, so the
+    failure mode is not a wrong number -- it is an ABSENT one: a metric added to a card that already
+    carries overrides inherits the default silently, and the board then serves it a month (or six
+    weeks) before its source prints. Nothing else in the stack can see that; the value is well-formed,
+    the SQL compiles, and the row simply arrives early. Hence four mechanical clauses:
+
+      1. An override only on a ``year_month`` card -- the card-level lint's own rule
+         (``state/lint.py:567``), applied one level down. On any other card the key shifts nothing and
+         is a declaration the reader would believe.
+      2. A non-negative int. ``None`` is the absent default and is not a value.
+      3. A card carrying ANY override MUST declare a card-level default. Without it the metrics that
+         carry no override fall to ``None`` -- NO shift at all -- which is the widest possible leak,
+         reached by writing a tighter lag on a sibling.
+      4. THE DERIVED-SIBLING CLAUSE, and it is the one that earns this function. A tall card names its
+         aggregate rows after the metric they aggregate: ``drought_z`` has ``drought_z_tail_share`` and
+         ``drought_z_cells``, built from the SAME source cells by the same producer. A sibling left on
+         the default while its stem carries an override is a basin tail-share served twenty days before
+         the rain that made it was published -- the same figure, the same source, two promises. Any
+         metric whose id is ``{stem}_...`` must carry the stem's own lag.
+      5. NO SILENT INHERITANCE ON A CARD THAT DECLARES ANY OVERRIDE (added 2026-09-11). Clause 4 is
+         ONE-DIRECTIONAL and a verify pass measured both holes it leaves: dropping the STEM's own
+         override while the siblings keep theirs PASSES (nothing starts with a stem that no longer
+         declares anything), and a BRAND-NEW metric fed by the slow source -- a second CHIRPS reading
+         on ``gold_weather_z``, which is the next lane's own plan -- passes with no override at all,
+         inheriting the fast source's 5 days and serving twenty days early. So: once ONE metric of a
+         card declares its own lag, EVERY metric of that card must declare its own explicitly. The
+         card default stays (clause 3 requires it) and stays the fallback for every OTHER card; on
+         this one it stops being reachable by silence, which is the only way it was ever wrong. The
+         cost is a line per metric in the overlay, paid once, and the reader of any one line no longer
+         has to know which source feeds it to know what it promises.
+
+    Returns a list of strings; empty is green. A registry that will not load is NOT swallowed here --
+    this is a lint, and a lint that cannot read its subject must say so rather than pass."""
+    reg = reg or load_registry()
+    errs: list[str] = []
+    for tid in sorted(reg.tables):
+        ts = reg.tables[tid]
+        metrics = getattr(ts, "metrics", None) or {}
+        own = {mid: getattr(m, "ym_publication_lag_days", None) for mid, m in metrics.items()}
+        declared = {mid: v for mid, v in own.items() if v is not None}
+        if not declared:
+            continue
+        if getattr(ts, "knowledge_semantics", None) != "year_month":
+            errs.append(
+                "registry %r: metrics %s declare ym_publication_lag_days on a %r card -- the key "
+                "shifts only the year_month branch of the as-of guard, so on this card it is a "
+                "promise nothing keeps" % (tid, sorted(declared), getattr(ts, "knowledge_semantics", None)))
+        for mid, v in sorted(declared.items()):
+            if not isinstance(v, int) or isinstance(v, bool) or v < 0:
+                errs.append("registry %r metric %r: ym_publication_lag_days must be a non-negative "
+                            "int, got %r" % (tid, mid, v))
+        if getattr(ts, "ym_publication_lag_days", None) is None:
+            errs.append(
+                "registry %r: metrics %s declare a per-metric ym_publication_lag_days while the CARD "
+                "declares none -- every other metric on this card would then shift by nothing at all, "
+                "which is a wider promise than the one being narrowed" % (tid, sorted(declared)))
+        for stem, v in sorted(declared.items()):
+            for mid in sorted(metrics):
+                if mid == stem or not mid.startswith(stem + "_"):
+                    continue
+                if own.get(mid) != v:
+                    errs.append(
+                        "registry %r metric %r derives from %r (same stem, same producer) but carries "
+                        "lag %r against the stem's %r -- one source cannot print the reading and its "
+                        "own aggregate on two different days" % (tid, mid, stem, own.get(mid), v))
+        silent = sorted(mid for mid, v in own.items() if v is None)
+        if silent:
+            errs.append(
+                "registry %r: metrics %s carry NO ym_publication_lag_days of their own on a card that "
+                "declares %s -- once one metric narrows the promise, silence is no longer a reading of "
+                "the card default but an unstated claim about which source feeds this metric; declare "
+                "the card default explicitly on each" % (tid, silent, sorted(declared)))
+    return errs
 
 
 # SEAM C (futures v1.5-lite): silver_futures_prices is REGISTERED in tables.yaml + linted

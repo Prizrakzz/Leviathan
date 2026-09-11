@@ -161,11 +161,28 @@ GATE_METRIC_NAMESPACE = "Leviathan/Silver"
 # ADMIT a month; if the bytes do not hold the newest month the guard admits, the card is promising a
 # row that does not exist. That fires TODAY, on gold_weather_z, with no new constant invented anywhere.
 # For a date-grain card there IS no such promise -- `freshness_sla.max_lag_days` is null on
-# gold_weather_z, silver_chirps AND silver_nasa_power, and configs/datasets/source_contracts.yaml
-# declares no publication lag for either weather source -- so this stage reports the AGE of the newest
+# gold_weather_z, silver_chirps AND silver_nasa_power -- so this stage reports the AGE of the newest
 # data date as a fact and deliberately does NOT name it "behind". A metric called `DaysBehind` with no
 # declared denominator would be a threshold invented in telemetry, which is the failure mode this stage
-# exists to remove, not to repeat.
+# exists to remove, not to repeat. (configs/datasets/source_contracts.yaml gained MEASURED source
+# publication lags on 2026-09-11 -- chirps 25, nasa_power 3 -- but they are documentation of the
+# SOURCE and are read by no code, deliberately: `dag_catalog.effective_sla_lag_days` consumes a silver
+# contract's `publication_lag_days` as GRACE on a WRITE-RECENCY alarm, so wiring a CONTENT lag through
+# there would loosen the very ceiling it looks like it tightens. That is the category error
+# `dag_catalog.FRESHNESS_LAG_OVERRIDES` exists to cancel, and the silver_noaa_iod curation states the
+# same rule for the same reason: a year_month card's content lag belongs in the numbers stack.)
+#
+# AND THE PROMISE CAN BE PER METRIC (2026-09-11). `gold_weather_z` is fed by TWO sources whose release
+# cadences are ~20 days apart (NASA POWER AG 3 days behind a DAILY feed, so 5 declared; CHIRPS v2.0
+# final in MONTH BLOCKS, measured 11 < lag <= 22 past month-end, so 25 declared), and
+# `weather_z._complete_months_only` gates month completeness PER SOURCE SLICE -- so its four NASA
+# metrics genuinely emit a month CHIRPS has not published. Under one blanket lag this stage read
+# "1 month behind" for all five on 2026-09-11: TRUE of the four (the real freeze) and FALSE of
+# drought_z, which at its own 25-day promise is EXACTLY ON IT that day (claimed 202607, held 202607)
+# and owes the August block nothing yet. `_measure_year_month` therefore switches to
+# `_measure_year_month_by_metric` whenever a card's metrics resolve to more than one lag, and judges on
+# the WORST. A card with one lag -- every other card in the estate -- keeps the single aggregate and a
+# byte-identical measurement dict.
 #
 # AND THE `asof` IN THAT ARITHMETIC IS THE WALL CLOCK, NEVER `ctx.census_asof` -- see `_freshness_clock`,
 # which carries the driven numbers. `census_asof` is the cascade-census DIFF BASELINE (a pinned
@@ -891,6 +908,18 @@ def _tip_ym_sql(ts) -> str:
             f"FROM {_mirror_relation(ts)}")
 
 
+def _tip_ym_by_metric_sql(ts) -> str:
+    """The same bounded aggregate, GROUPED BY the tall card's metric column.
+
+    STILL ONE STATEMENT AND STILL BOUNDED -- the group cardinality is the card's own declared metric
+    whitelist (fifteen on ``gold_weather_z``), not a data-dependent fan-out -- so the stage's cost
+    promise ("ONE bounded aggregate against the PG MIRROR") is unchanged. It is only emitted for a card
+    whose metrics do NOT all share one publication lag; a card with a single lag keeps
+    :func:`_tip_ym_sql` and its byte-identical measurement."""
+    return (f"SELECT {ts.metric_col} AS metric, MAX(({ts.year_col} * 100) + {ts.month_col}) AS tip_ym "
+            f"FROM {_mirror_relation(ts)} GROUP BY {ts.metric_col}")
+
+
 def _tip_date_sql(ts) -> str:
     return f"SELECT MAX({ts.date_col}) AS tip_date FROM {_mirror_relation(ts)}"
 
@@ -1008,6 +1037,15 @@ def _measure_year_month(table: str, ts, ctx: GateContext) -> Optional[str]:
                 f"month is knowable, so there is nothing to measure it against")
     if not (ts.year_col and ts.month_col):
         return f"{table} is year_month but declares no year_col/month_col"
+    # A CARD WHOSE METRICS PROMISE DIFFERENT MONTHS IS MEASURED PER METRIC, and it is the only way this
+    # stage can be right about ``gold_weather_z`` at all. Under the single blanket lag the stage read
+    # "1 month behind" for all five of its live metrics on 2026-09-11 -- TRUE of the four NASA ones (a
+    # real producer freeze) and FALSE of drought_z, whose CHIRPS month block simply had not published
+    # and which at its own 25-day promise is EXACTLY ON IT (claimed 202607 against 202607 held: 0
+    # behind). One number cannot carry both verdicts, and the wrong half of it is the half that would
+    # have been chased -- an operator sent after a CHIRPS "freeze" that is the source's own cadence.
+    if len(set(_metric_lags(ts).values())) > 1:
+        return _measure_year_month_by_metric(table, ts, ctx)
     rows = ctx.query_fn(_tip_ym_sql(ts))
     raw = (rows or [{}])[0].get("tip_ym")
     if raw in (None, ""):
@@ -1023,6 +1061,98 @@ def _measure_year_month(table: str, ts, ctx: GateContext) -> Optional[str]:
         # baseline), and confusing the two is the defect this line is the repaired form of.
         "detail": (f"newest data month {actual} vs {claimed} knowable at {asof} (wall clock; "
                    f"ym_publication_lag_days={int(lag)}): {behind} month(s) behind"),
+    }
+    return None
+
+
+def _metric_lags(ts) -> dict:
+    """``{metric: lag_days}`` for every metric this card declares, through the registry's ONE rule.
+
+    Empty for a card with no ``metrics`` dict, no ``metric_col`` (a WIDE card has no metric axis to
+    group on, so there is nothing to measure per metric), or no resolvable lag. More than one DISTINCT
+    VALUE here is what switches this stage to the per-metric read; one value -- the whole estate except
+    ``gold_weather_z`` today -- keeps the single-aggregate path and its byte-identical measurement dict,
+    which is why the switch is on the values and not on the metric count.
+
+    A DECLARED ``0`` IS A LAG AND IS KEPT (fix 2026-09-11). The filter was ``if lag:``, which cannot
+    tell ``None`` -- undeclared, nothing to measure against -- from a metric that declares it prints on
+    its own month-end. ``registry.lag_days_for`` already draws that line ("a metric override of 0 is a
+    real declaration and is honoured as one") and dropping it here un-drew it one consumer down: the
+    metric would vanish from ``lags``, ``_measure_year_month_by_metric`` skips every metric not in that
+    set, and the freshest promise on the card -- the one a freeze would breach FIRST -- would be the
+    one metric the staleness stage never graded. ``is not None`` is the same reading as the rule's."""
+    if not getattr(ts, "metric_col", None):
+        return {}
+    metrics = getattr(ts, "metrics", None)
+    if not isinstance(metrics, dict) or not metrics:
+        return {}
+    from leviathan.graphrag.numbers.registry import lag_days_for
+    out = {}
+    for mid in metrics:
+        lag = lag_days_for(ts, mid)
+        if lag is not None:
+            out[str(mid)] = int(lag)
+    return out
+
+
+def _measure_year_month_by_metric(table: str, ts, ctx: GateContext) -> Optional[str]:
+    """The year_month measurement, once PER METRIC, against each metric's own publication promise.
+
+    THE JUDGEMENT IS THE WORST METRIC (``max``) and that is deliberate: ``stage_data_freshness`` grades
+    on ``months_behind``, and a table is stale if ANY served metric of it is stale. Taking a mean, or
+    the card-level tip, would let four fresh metrics bury one frozen one -- which is the shape of the
+    blind spot this whole stage exists to remove, re-entering one level down.
+
+    A NEGATIVE PER-METRIC VALUE IS CARRIED, NOT CLAMPED, and the stage already has a stated branch for
+    a negative aggregate -- "the bytes hold a month the card does not yet admit; a staleness stage
+    cannot read that as fresh". ``max`` lets a genuinely-behind sibling win over it, and leaves the
+    all-negative case to that branch untouched (driven on a synthetic frame in
+    ``test_gate_data_freshness_stage.py::test_an_ALL_NEGATIVE_card_still_reaches_the_bytes_are_ahead_branch``).
+    THE LIVE CARD DOES NOT PRODUCE ONE TODAY, and the correction matters: under the misread 45 this
+    docstring recorded ``drought_z`` at -1 on 2026-09-11; at the measured 25 it is 0 -- the promise
+    admits 202607 and the bytes hold 202607, so the metric is exactly on its promise rather than ahead
+    of it, and the freeze verdict belongs to the four NASA metrics alone.
+
+    A METRIC THE MIRROR DOES NOT CARRY IS UNMEASURED, NEVER INFINITELY BEHIND. The card's whitelist
+    includes aggregate-only metrics (the basin ``_tail_share`` / ``_cells`` rows) that have zero rows
+    on a per-cell commodity -- honest absence, and the stage's own empty-mirror rule already says an
+    absent tip reads as unmeasured rather than as a breach."""
+    from leviathan.graphrag.numbers.query import _ym_lagged_asof_ym
+    lags = _metric_lags(ts)
+    rows = ctx.query_fn(_tip_ym_by_metric_sql(ts)) or []
+    tips: dict = {}
+    for r in rows:
+        name, raw = r.get("metric"), r.get("tip_ym")
+        if name is None or raw in (None, ""):
+            continue
+        tips[str(name)] = int(float(raw))
+    if not tips:
+        return f"{table} mirror returned no tip month for any metric (empty table?)"
+    asof = _freshness_clock()          # the WALL CLOCK, never ctx.census_asof -- see _freshness_clock
+    by_metric: dict = {}
+    for metric in sorted(set(tips) & set(lags)):
+        claimed = _ym_lagged_asof_ym(asof, lags[metric])
+        by_metric[metric] = {"lag_days": lags[metric], "claimed_ym": claimed,
+                             "actual_ym": tips[metric],
+                             "months_behind": _months_between_ym(claimed, tips[metric])}
+    if not by_metric:
+        return (f"{table} mirror carries no metric this card declares a lag for "
+                f"(mirror has {sorted(tips)[:8]})")
+    worst = max(by_metric, key=lambda m: by_metric[m]["months_behind"])
+    behind = by_metric[worst]["months_behind"]
+    unmeasured = sorted(set(lags) - set(tips))
+    _FRESHNESS_MEASUREMENTS[table] = {
+        "grain": "year_month_per_metric", "claimed_ym": by_metric[worst]["claimed_ym"],
+        "actual_ym": by_metric[worst]["actual_ym"], "months_behind": behind, "asof": asof,
+        "ym_publication_lag_days": by_metric[worst]["lag_days"], "worst_metric": worst,
+        "by_metric": by_metric, "metrics_absent_from_mirror": unmeasured,
+        "detail": (f"worst metric {worst}: newest data month {by_metric[worst]['actual_ym']} vs "
+                   f"{by_metric[worst]['claimed_ym']} knowable at {asof} (wall clock; "
+                   f"ym_publication_lag_days={by_metric[worst]['lag_days']}): {behind} month(s) "
+                   f"behind; per metric "
+                   + ", ".join(f"{m}={by_metric[m]['months_behind']}(lag {by_metric[m]['lag_days']})"
+                               for m in sorted(by_metric))
+                   + (f"; not in mirror: {unmeasured}" if unmeasured else "")),
     }
     return None
 

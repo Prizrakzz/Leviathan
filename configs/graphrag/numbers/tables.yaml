@@ -1021,23 +1021,58 @@ tables:
     year_col: year                       # year_month semantics: (year*100+month) is the window/guard axis
     month_col: month
     knowledge_semantics: year_month       # as-of guard = (year*100+month) <= asof_ym (no CAST, no partition)
-    ym_publication_lag_days: 7    # STATE ENGINE sec 1.4 (S0). Days AFTER MONTH-END before a data month is
-    #                               PUBLIC. DERIVED, NOT GUESSED, from this card's two own statements: the
-    #                               transform DROPS any month not covering every calendar day, so a month is
-    #                               emitted only once it is complete; and "the latest row can therefore lag up
-    #                               to ~5 weeks behind today", which a month landing about a week after its
-    #                               own month-end satisfies (~31 + 7 days measured from the data month's
-    #                               first day). UNVERIFIED against the producer's actual emit times -- the
-    #                               refutable claim is written down rather than left silent, and S4's census
-    #                               measures it. Nothing reads it until the `ym_lag` kwarg (S1).
+    ym_publication_lag_days: 5    # THE CARD DEFAULT, and it is the NASA POWER value -- MEASURED 2026-09-11,
+    #                               not derived from this card's own prose as the 7 it replaces was. The
+    #                               NASA POWER AG endpoint fills its trailing ~3 days with -999; the last
+    #                               REAL day in the September window fetched on 2026-09-11 was 2026-09-08,
+    #                               so the source lag is 3 days, and 5 is that measurement plus a two-day
+    #                               margin (a lag is a WITHHOLDING: long is safe, short is a leak).
+    #                               THE 7 IT REPLACES was never measured against a producer -- the card's
+    #                               own note said so ("UNVERIFIED ... S4's census measures it"), and it was
+    #                               a single blanket number over metrics fed by TWO sources on different
+    #                               release cadences. It is not "corrected" to one new blanket number:
+    #                               drought_z carries its own 25 below, because the two sources publish on
+    #                               schedules ~20 days apart and `weather_z._complete_months_only` gates
+    #                               month completeness PER SOURCE SLICE, so the four NASA metrics really do
+    #                               emit a month CHIRPS has not published yet. See `drought_z`'s entry.
+    #                               EVERY METRIC BELOW DECLARES ITS OWN LAG EXPLICITLY, including the ones
+    #                               whose value equals this default: `registry.check_metric_lags` clause 5
+    #                               forbids silent inheritance on a card that declares any override, so a
+    #                               new metric cannot arrive here and take the FAST source's promise by
+    #                               saying nothing. This field is still the card default and is still what
+    #                               a reader without a metric in hand gets; on this card nothing reaches it
+    #                               by silence.
     metric_col: metric                    # tall: the metric NAME lives here
     value_col: value                      # tall: the z-score / flag value lives here
     metrics:
-      drought_z:        {label: "drought z-score", unit: "z", desc: "longest consecutive dry-day run in the month, z vs prior-year same months (CHIRPS)"}
-      heat_stress_z:    {label: "heat-stress z-score", unit: "z", desc: "count of days above the heat threshold in the month, z vs prior-year same months"}
-      gdd_z:            {label: "growing-degree-day z-score", unit: "z", desc: "growing-degree-days accumulated in the month, z vs prior-year same months"}
-      tmax_anomaly:     {label: "max-temperature anomaly", unit: "z", desc: "mean daily max temperature in the month, z vs prior-year same months"}
-      frost_event_flag: {label: "frost occurrence", unit: "0/1", desc: "1 if the monthly minimum temperature fell below the frost threshold"}
+      # THE CHIRPS OVERRIDE (2026-09-11, CORRECTED the same day). CHIRPS v2.0 FINAL does not publish
+      # daily: it publishes the whole month AS A BLOCK. MEASURED by HTTP HEAD against
+      # data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/tifs/p05/2026/ -- every day of 2026-07
+      # present on 2026-09-11, and the July block was already complete on 2026-08-22 (the day the
+      # bronze objects carrying it were written), which is 22 days past July's month-end; and
+      # 2026-08-01 through 2026-08-31 all 404 on 2026-09-11, which is 11 days past August's.
+      # WHAT THOSE TWO OBSERVATIONS BOUND, stated as the inequality they actually are: July PRESENT at
+      # day 22 is an UPPER bound (lag <= 22 -- the block was there by then, and may have landed
+      # earlier); August ABSENT at day 11 is a LOWER bound (lag > 11). So the final product's lag is
+      # 11 < lag <= 22. 25 is the upper bound plus a 3-day margin (a lag is a WITHHOLDING: long is
+      # safe, short is a leak). THE 45 THIS REPLACES WAS A MISREADING of those same two numbers -- it
+      # read "absent at 11, present at 22" as evidence of a ~45-day lag by analogy to the
+      # `silver_noaa_iod` sibling, when the measurement in hand already bounded it at 22. Nothing new
+      # was measured to correct it; the arithmetic was re-read.
+      # AND THERE IS A FASTER PRODUCT, found 2026-09-11 and NOT yet read by anything here: CHIRPS v2.0
+      # also publishes a PRELIM daily series at .../CHIRPS-2.0/prelim/global_daily/tifs/p05/2026/ ,
+      # current to 2026-09-05 with all 31 August days present. A follow-up fetcher lane reads it; when
+      # it does, this metric's lag becomes ~5 (the prelim's own cadence) and 25 survives as the FINAL
+      # product's REVISION HORIZON -- the date by which the authoritative block replaces the prelim.
+      # Until that lane lands, the served figure is the final block's and 25 is its promise.
+      drought_z:        {label: "drought z-score", unit: "z", desc: "longest consecutive dry-day run in the month, z vs prior-year same months (CHIRPS)", ym_publication_lag_days: 25}
+      # The four NASA POWER readings. Each declares the card default EXPLICITLY (check_metric_lags
+      # clause 5): on a card carrying any override, silence is not "the default" but an unstated claim
+      # about which source feeds the metric.
+      heat_stress_z:    {label: "heat-stress z-score", unit: "z", desc: "count of days above the heat threshold in the month, z vs prior-year same months", ym_publication_lag_days: 5}
+      gdd_z:            {label: "growing-degree-day z-score", unit: "z", desc: "growing-degree-days accumulated in the month, z vs prior-year same months", ym_publication_lag_days: 5}
+      tmax_anomaly:     {label: "max-temperature anomaly", unit: "z", desc: "mean daily max temperature in the month, z vs prior-year same months", ym_publication_lag_days: 5}
+      frost_event_flag: {label: "frost occurrence", unit: "0/1", desc: "1 if the monthly minimum temperature fell below the frost threshold", ym_publication_lag_days: 5}
       # -- AGGREGATE rows only (GN-2 W1.1 + W-2/W-3/W-4, 2026-08-25; weather_z._basin_rows): rows whose
       # country is a BASIN surface ('West Africa', 'EU Belt', 'SE Asia Palm Belt', 'Northern Plains')
       # at region <basin>_basin, or a MEMBER country at region <member>_country -- the per-country tail
@@ -1048,11 +1083,11 @@ tables:
       # as % via the sanctioned scale knob (the su_ratio ratio-normalizer precedent), so the narration
       # quotes "18.2 %" while the pg row keeps 0.1818 -- figures in analyst units, always beside the
       # plain-language framing, never one without the other (owner's word 2026-08-22).
-      drought_z_tail_share:     {label: "share of basin cells in drought-z tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma drought_z that month (0-1)"}
-      heat_stress_z_tail_share: {label: "share of basin cells in heat-stress tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma heat_stress_z that month (0-1)"}
-      gdd_z_tail_share:         {label: "share of basin cells in GDD tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma gdd_z that month (0-1)"}
-      tmax_anomaly_tail_share:  {label: "share of basin cells in max-temperature tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma tmax_anomaly that month (0-1)"}
-      frost_event_share:        {label: "share of basin cells with frost", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells whose monthly minimum fell below the frost threshold (0-1; the flag renamed at aggregate grain so a fraction is never misread as a flag)"}
+      drought_z_tail_share:     {label: "share of basin cells in drought-z tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma drought_z that month (0-1)", ym_publication_lag_days: 25}   # CHIRPS block: the stem's own lag (registry.check_metric_lags clause 4)
+      heat_stress_z_tail_share: {label: "share of basin cells in heat-stress tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma heat_stress_z that month (0-1)", ym_publication_lag_days: 5}
+      gdd_z_tail_share:         {label: "share of basin cells in GDD tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma gdd_z that month (0-1)", ym_publication_lag_days: 5}
+      tmax_anomaly_tail_share:  {label: "share of basin cells in max-temperature tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma tmax_anomaly that month (0-1)", ym_publication_lag_days: 5}
+      frost_event_share:        {label: "share of basin cells with frost", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells whose monthly minimum fell below the frost threshold (0-1; the flag renamed at aggregate grain so a fraction is never misread as a flag)", ym_publication_lag_days: 5}
       # -- <metric>_cells (W-3, the fidelity guard that ships WITH the basins): how many member cells the
       # aggregate row above was built from, at BOTH grains. Integer counts stored as floats. The
       # >=2-member-countries test runs on the WHOLE commodity frame across ALL metrics, but the sources
@@ -1064,11 +1099,11 @@ tables:
       # one by a basin that is 4/5 US -- while the temperature metrics on the SAME surface carry every
       # member. Reading drought_z_cells BESIDE tmax_anomaly_cells (8 vs 16) is what makes that visible;
       # a member with no cells for a metric simply has NO country-tier row for it.
-      drought_z_cells:          {label: "member cells behind the drought-z read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country drought_z aggregate that month (source-coverage provenance; short against a sibling metric's count means the source does not cover every member)"}
-      heat_stress_z_cells:      {label: "member cells behind the heat-stress read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country heat_stress_z aggregate that month"}
-      gdd_z_cells:              {label: "member cells behind the GDD read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country gdd_z aggregate that month"}
-      tmax_anomaly_cells:       {label: "member cells behind the max-temperature read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country tmax_anomaly aggregate that month"}
-      frost_event_flag_cells:   {label: "member cells behind the frost read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country frost_event_share that month"}
+      drought_z_cells:          {label: "member cells behind the drought-z read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country drought_z aggregate that month (source-coverage provenance; short against a sibling metric's count means the source does not cover every member)", ym_publication_lag_days: 25}   # CHIRPS block: the stem's own lag (registry.check_metric_lags clause 4)
+      heat_stress_z_cells:      {label: "member cells behind the heat-stress read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country heat_stress_z aggregate that month", ym_publication_lag_days: 5}
+      gdd_z_cells:              {label: "member cells behind the GDD read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country gdd_z aggregate that month", ym_publication_lag_days: 5}
+      tmax_anomaly_cells:       {label: "member cells behind the max-temperature read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country tmax_anomaly aggregate that month", ym_publication_lag_days: 5}
+      frost_event_flag_cells:   {label: "member cells behind the frost read", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country frost_event_share that month", ym_publication_lag_days: 5}
     notes: >
       z-scores are dimensionless (scale 1 — never delta a z against a level). country is the PSD Title-Case
       surface form ('United States', 'Brazil', 'European Union') so a country_rule=region weather leg

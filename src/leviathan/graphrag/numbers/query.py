@@ -18,7 +18,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
-from leviathan.graphrag.numbers.registry import TableSpec, load_registry
+from leviathan.graphrag.numbers.registry import TableSpec, lag_days_for, load_registry
 
 ATHENA_DB = "leviathan_dev"
 
@@ -578,13 +578,25 @@ def _guard(spec: NumberQuery, ts: TableSpec, *, ym_lag: bool = False) -> str:
     ``os.environ`` — the ``futures_newest_first`` idiom). DEFAULT-OFF and byte-identical: with it absent,
     and with it ON against a card that declares no ``ym_publication_lag_days``, the emitted string is the
     one that shipped. It touches ONE branch: the non-year_month path keeps ``publication_lag_days``
-    exactly as it was."""
+    exactly as it was.
+
+    THE LAG IS THE **METRIC'S**, NOT THE CARD'S (fix 2026-09-11). This branch read the card default off
+    ``ts`` while the spec in hand names a metric, and on the ONE card that declares per-metric lags that
+    is the engine contradicting itself inside a single turn: the board passes ``ym_lag=True`` on EVERY
+    read (``state/feeders`` :693/:1059/:1350/:1391/:1692, ``state/board_census`` :1138/:1288), so a
+    ``drought_z`` row was ADMITTED under the card's 5-day NASA default while the analog axis
+    (``state/analogs._lag_days_of`` -> ``registry.metric_lag_override``) RANKED that same row under
+    CHIRPS' own block lag. ``registry.lag_days_for`` is the ONE home of that precedence and this
+    compiler now reads it. Every card whose metrics declare no override returns the card default
+    unchanged, so its emitted string is byte-identical (measured: 12,512 compiled strings across all 41
+    cards, both settings, three scopes -- only ``gold_weather_z``'s three CHIRPS metrics move, and only
+    under ``ym_lag=True``)."""
     if ts.knowledge_semantics == "year_month":
         if not (ts.year_col and ts.month_col):
             raise ValueError(f"table {ts.id} year_month semantics needs year_col + month_col")
         # the bare-column year bound is implied by the ym expression (any year > asof_year makes
         # year*100+month exceed asof_ym) — it exists purely so projection pruning can see the guard.
-        ym = (_ym_lagged_asof_ym(spec.asof, getattr(ts, "ym_publication_lag_days", None))
+        ym = (_ym_lagged_asof_ym(spec.asof, lag_days_for(ts, getattr(spec, "metric", None)))
               if ym_lag else _asof_ym(spec.asof))
         return (f"({ts.year_col} * 100 + {ts.month_col}) <= {ym} "
                 f"AND {ts.year_col} <= {ym // 100}")
@@ -1255,9 +1267,14 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec, *,
     ``ym_lag`` is ``build_sql``'s own kwarg and MUST be passed the same value: this function is the SQL's
     oracle, and an oracle that verifies a different point-in-time rule than the compiler verifies nothing
     (the R2 trap this docstring's own vintage-format note is about, one branch over). One PARITY test
-    compiles and filters the same specs under both settings -- STATE ENGINE sec 1.4 (D21), S1."""
+    compiles and filters the same specs under both settings -- STATE ENGINE sec 1.4 (D21), S1.
+
+    AND IT READS THE **METRIC'S** LAG, through ``registry.lag_days_for``, for exactly the reason
+    ``_guard`` does (fix 2026-09-11): an oracle holding the card default while the compiler holds the
+    metric's override is the same divergence one level down, and this function is the anti-leakage
+    property test's own reference. The two sites move together or neither moves."""
     kcol = ts.knowledge_col()
-    ym = ((_ym_lagged_asof_ym(spec.asof, getattr(ts, "ym_publication_lag_days", None)) if ym_lag
+    ym = ((_ym_lagged_asof_ym(spec.asof, lag_days_for(ts, getattr(spec, "metric", None))) if ym_lag
            else _asof_ym(spec.asof))
           if ts.knowledge_semantics == "year_month" else None)
     guard_asof = _pub_lagged_asof(spec.asof, ts.publication_lag_days)   # publication-lag shift; mirrors _guard
