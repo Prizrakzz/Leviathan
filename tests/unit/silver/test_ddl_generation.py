@@ -196,21 +196,26 @@ _ESR_FIVE = [
 ]
 
 
-def test_esr_compact_ddl_does_not_yet_render_the_five(reg):
-    """THE REGISTRY NEVER LEADS LIVE GLUE (2026-09-04).
+def test_esr_compact_ddl_renders_the_five_since_the_gated_alter(reg):
+    """THE REGISTRY NEVER LEADS LIVE GLUE (2026-09-04), AND NO LONGER TRAILS IT (2026-09-10).
 
-    Both ESR transforms now emit the five net-commitment columns, but live
-    ``leviathan_dev.silver_esr_compact`` still carries 12 columns until the gated
-    ``ALTER TABLE ... ADD COLUMNS`` is applied. They are therefore staged as physical-only
-    (``glue_type: null``), which ``ddl.catalog_columns`` excludes from the DDL by construction.
-    Declaring them as catalog columns first is not a harmless head start: measured, it reds
-    ``test_generated_matches_live_glue_for_every_table`` above with
-    ``columns extra: [the five]`` on silver_esr_compact, which is that test doing its job."""
+    Both ESR transforms emit the five net-commitment columns. While live
+    ``leviathan_dev.silver_esr_compact`` still carried 12 columns they were staged as physical-only
+    (``glue_type: null``), which ``ddl.catalog_columns`` excludes from the DDL by construction, and
+    declaring them as catalog columns first would not have been a harmless head start: measured
+    then, it reds ``test_generated_matches_live_glue_for_every_table`` above with
+    ``columns extra: [the five]`` on silver_esr_compact, which is that test doing its job.
+
+    The gated ``ALTER TABLE ... ADD COLUMNS`` has since been applied (live table VersionId 2,
+    UpdateTime 2026-09-10T20:00:43+03:00), the R0 record was refreshed and the registry
+    regenerated, so the five are now catalog columns and DO render. The sibling
+    ``test_esr_compact_ddl_renders_the_five_last_once_registered`` still pins the ORDER on a
+    deepcopy and keeps doing so."""
     contract = reg.table("silver_esr_compact")
-    assert D.physical_only_columns(contract) == _ESR_FIVE
+    assert D.physical_only_columns(contract) == []
     sql = D.render_ddl(contract)
     for name in _ESR_FIVE:
-        assert name not in sql, name
+        assert name in sql, name
 
 
 def test_esr_compact_ddl_renders_the_five_last_once_registered(reg):

@@ -84,6 +84,25 @@ _CHECK_VOLATILE = {"captured_at_utc", "anchor_git_sha", "package", "readiness_re
                    "reproduction_commands", "readiness_state", "refreshed"}
 
 
+def _head_git_sha() -> str:
+    """The sha of the tree this capture was taken from, or "" when it cannot be resolved.
+
+    ``census_one`` has always accepted ``anchor_git_sha``, but until 2026-09-10 ``main`` never
+    passed it, so every CLI re-capture wrote the field EMPTY and ``--check`` could not see the
+    loss (``anchor_git_sha`` is in ``_CHECK_VOLATILE``). The generator copies the field into each
+    contract's ``provenance`` block (gen_registry_from_baseline.py:887), so a bare re-capture
+    silently deleted a tracked provenance value -- one record (silver_ams_gtr) still carries the
+    empty string from that gap. Computing it here CORRECTS the fence rather than deleting it.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(_REPO), capture_output=True,
+                             text=True, timeout=15)
+    except Exception:
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
 def _canonical(obj) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str)
 
@@ -403,6 +422,9 @@ def main() -> None:
     ap.add_argument("--check", action="store_true", help="capture and DIFF vs the stored record; write nothing")
     ap.add_argument("--raw", action="store_true", help="also write the _raw/ get-table/get-partitions sidecars")
     ap.add_argument("--dry-run", action="store_true", help="print the record; write nothing")
+    ap.add_argument("--anchor-git-sha", default=None, dest="anchor_git_sha",
+                    help="provenance anchor to stamp; default = the current HEAD sha "
+                         "(pass an explicit value, or '' to leave the field empty)")
     args = ap.parse_args()
 
     if args.verify_legacy:
@@ -412,8 +434,9 @@ def main() -> None:
     if args.check:
         sys.exit(check_one(args.table))
 
+    anchor = args.anchor_git_sha if args.anchor_git_sha is not None else _head_git_sha()
     record, raw_t, raw_p = census_one(args.table, database=args.database, bucket=args.bucket,
-                                      sample_key=args.sample_key)
+                                      sample_key=args.sample_key, anchor_git_sha=anchor)
     text = json.dumps(record, indent=1, ensure_ascii=True) + "\n"
     if args.dry_run:
         print(text)

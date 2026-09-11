@@ -1420,26 +1420,47 @@ CURATION_OVERRIDES: dict = {
     # August 2026" reading came from the window in which `changes` went dead and would have
     # excluded six vintages whose raw does carry the five.
     #
-    # STAGED HIDDEN, NOT REGISTERED -- and that is a statement about the LIVE CATALOG, not a
-    # hedge. additive_columns_registered means "the Glue ADD COLUMNS has been applied"; it resolves
+    # REGISTERED SINCE 2026-09-10 -- and that is a statement about the LIVE CATALOG, not a hedge.
+    # additive_columns_registered means "the Glue ADD COLUMNS has been applied"; it resolves
     # float64 -> double, puts the five in the rendered DDL, and makes catalog_columns 17. Live
-    # leviathan_dev.silver_esr_compact still has 12. Declaring 17 before the ALTER would put the
-    # registry AHEAD of live Glue, which is precisely what
-    # test_ddl_generation.test_generated_matches_live_glue_for_every_table refuses (measured: the
-    # registered variant reds that test with a 5-column add-only drift row on silver_esr_compact).
-    # Hidden is the estate's own name for this state -- "producer-emitted columns NOT yet in the
-    # live catalog" -- with two precedents in this file: the WASDE value_low/value_high pair
-    # standing hidden right now, and SILVER-F059's week_ending_date, which was staged hidden and
-    # then promoted in the SAME change as its gated ALTER + R0 snapshot refresh.
+    # leviathan_dev.silver_esr_compact now has 17 (VersionId 2, UpdateTime 2026-09-10T20:00:43+03:00,
+    # the five LAST as double). Until that ALTER landed the five stood HIDDEN here, because
+    # declaring 17 ahead of live Glue is precisely what
+    # test_ddl_generation.test_generated_matches_live_glue_for_every_table refuses (measured then:
+    # the registered variant reds that test with a 5-column add-only drift row on
+    # silver_esr_compact). Hidden is the estate's own name for that state -- "producer-emitted
+    # columns NOT yet in the live catalog" -- and one instance of it is still standing in this
+    # file: the WASDE value_low/value_high pair. The other precedent, SILVER-F059's
+    # week_ending_date, was staged hidden and then promoted in the SAME change as its gated ALTER
+    # + R0 snapshot refresh, exactly as the five were here.
     #
-    # THE FLIP (rollout step 5, one commit): apply the silver_esr_compact half of
-    # sql/athena/migrations/silver/silver_esr_f030_additive.sql under lease, refresh
-    # reports/silver_readiness/20260712_p65impl/tables/silver_esr_compact.json from the post-ALTER
-    # live table, rename `additive_columns_hidden` to `additive_columns` below, add
-    # "additive_columns_registered": True, and regenerate. Order matters twice over: the ALTER must
-    # come AFTER the producer image carrying reconcile_schema_widen=True is live on
-    # esr-bronze-to-silver AND silver-publisher-runner, or the next canonical promote fails closed
-    # for the whole family on the 12-vs-17 partition-SD diff.
+    # THIS ENTRY IS NOW INERT ON THE GENERATED TREE, AND THAT IS EXPECTED (measured 2026-09-10 by
+    # rendering all 51 contracts with and without it: byte-identical). Once the R0 refresh puts the
+    # five in the glue section, build_contract seeds ordered_names from glue.nonpartition_columns
+    # FIRST (build_contract:679), so both loops in _apply_curation_overrides hit their
+    # `if cn not in by_name` guard and add nothing. The entry is kept as the documented record of
+    # the promotion -- three test docstrings and two runbooks send a reader here -- and follows the
+    # SILVER-F059 precedent noted below, where the override was ultimately retired once the column
+    # resolved from the glue section. Retiring it renders identically; do not read its presence as
+    # evidence that it is doing work.
+    #
+    # THE FLIP (rollout step 5, one commit) -- EXECUTED 2026-09-10/11: the ALTER was applied by
+    # hand (machine manifest sql/athena/migrations/silver/
+    # 20260910T170043Z_silver_esr_compact_additive_update.json, which carries the pre-apply
+    # TableInput a rollback would restore), then
+    # reports/silver_readiness/20260712_p65impl/tables/silver_esr_compact.json was refreshed from
+    # the post-ALTER live table (12 -> 17 nonpartition columns; catalog_hash_sha256
+    # 10e9e4be... -> cb1a9fdc...), `additive_columns_hidden` was renamed to `additive_columns`
+    # below, "additive_columns_registered": True was added, and the tree was regenerated. Order
+    # mattered twice over: the ALTER had to come AFTER the producer image carrying
+    # reconcile_schema_widen=True was live on esr-bronze-to-silver AND silver-publisher-runner, or
+    # the next canonical promote would fail closed for the whole family on the 12-vs-17
+    # partition-SD diff. WHAT REMAINS is the canonical promote (esr_netcommitment_runbook.py
+    # --step S7): until it repairs the 243 partition descriptors, a partition whose descriptor
+    # still says 12 columns reads the five as NULL. That is the descriptor talking, never a
+    # verdict on the data -- and it is already partly done: the 20260910 white_wheat probe
+    # partition read all five NON-NULL on 2026-09-10, because its object was written after the
+    # producer carried reconcile_schema_widen.
     #
     # value_columns are deliberately NOT overridden. build_contract derives them from the numbers
     # CARD's metric keys, so while configs/graphrag/numbers/tables.yaml#silver_esr omits the five
@@ -1450,13 +1471,14 @@ CURATION_OVERRIDES: dict = {
     # widens value_columns, so the card flip IS the governance promotion and must wait for the
     # census to read >= 0.5 per commodity (measured 0.667 with two of three sampled populated).
     "silver_esr_compact": {
-        "additive_columns_hidden": [
+        "additive_columns": [
             ("accumulated_exports_1000mt", "float64"),
             ("current_my_net_sales_1000mt", "float64"),
             ("current_my_total_commitment_1000mt", "float64"),
             ("next_my_outstanding_sales_1000mt", "float64"),
             ("next_my_net_sales_1000mt", "float64"),
         ],
+        "additive_columns_registered": True,
     },
     # ── Wave-3 conab canary forensics (2026-07-17): the production_revision_thousand_bags min_nonnull
     # override is RETIRED by WIRING WAVE-1 (2026-07-23). Wiring silver_conab_coffee into the numbers

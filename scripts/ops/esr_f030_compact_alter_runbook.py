@@ -85,8 +85,8 @@ restore basis is not a tracked snapshot but the LIVE table with only the five ta
 so unrelated catalog drift is never reverted, and ``restore_table`` refuses if the live hash moved
 since the plan was cut and verifies the post-restore hash itself.
 
-WHAT ``--offline`` READS, AND WHY IT IS NOT THE ``_raw`` SIDECAR
----------------------------------------------------------------
+WHAT ``--offline`` READS: A PRECEDENCE, NOT A FILE
+--------------------------------------------------
 The estate's usual AWS-free source is ``reports/silver_readiness/20260712_p65impl/_raw/<table>
 .get-table.json``.  For THIS table that sidecar is STALE and this runbook refuses to plan from it.
 MEASURED 2026-09-10: the sidecar carries 13 columns (``as_of_date`` is still an in-file column) and
@@ -94,25 +94,71 @@ ONE partition key (``commodity``); live carries 12 columns and TWO partition key
 ``as_of_date``) -- the sidecar predates the SILVER-F031 option-b as_of_date dimension, and
 ``run_census``'s own recipe-v1 digest reads 669fa230... on it against 10e9e4be... on live.
 
-The tracked file that IS live, and says so, is the R0 RECORD
-``reports/silver_readiness/20260712_p65impl/tables/silver_esr_compact.json``.  Its ``glue`` block
-rebuilt through ``run_census._record_glue_to_raw_shape`` hashes -- under ``run_census
-.catalog_hash_v1``, the recipe that block's own ``catalog_hash_sha256`` was minted with -- to
-10e9e4be31fcefec1d4654688c1cb0a10870bf11593af776c6c92d3ddae340b8, and MEASURED 2026-09-10 live
-Glue hashes to the same value under the same recipe.  ``--offline`` therefore reads that record and
-RE-VERIFIES the digest before it plans anything; a record that does not verify is a refusal, not a
-warning.  ``--offline-dir DIR`` reads ``DIR/silver_esr_compact.get-table.json`` instead, and exists
-so a simulated post-apply catalog can be previewed without touching AWS.
+Neither is the R0 RECORD ``reports/silver_readiness/20260712_p65impl/tables/
+silver_esr_compact.json`` the answer on its own, and until 2026-09-11 this file called it "the
+TRACKED file that IS live".  IT WAS NEVER TRACKED: ``.gitignore`` carries a
+``reports/silver_readiness/`` rule and ``git ls-files`` returns nothing under it, so a fresh clone
+has no copy.  THE RULE IS CITED, NEVER ITS LINE NUMBER -- MEASURED 2026-09-11, that same rule sat
+at ``.gitignore`` line 77 at HEAD and line 91 in the working tree (a concurrent lane inserted
+fourteen lines above it within the hour), so a pinned line number is a fact that rots silently
+while a rule name stays true.  ``git check-ignore`` is the measurement, and the deck makes it.
+Worse, it is a LIVING file -- this runbook's own post-apply step [2] RE-CAPTURES it -- so once the
+ALTER landed (2026-09-10) it became the 17-column POST-ALTER shape, minted under ``run_census``
+recipe v2, and a runbook that read it as its narrow baseline under recipe v1 refused every offline
+mode it had.
+
+So the offline source is a STATED PRECEDENCE over two halves of one file, resolved at run time by
+``narrow_basis`` (the PRE-ALTER table) and ``offline_table`` (the CURRENT catalog):
+
+  1. THE MACHINE MANIFEST ``sql/athena/migrations/silver/<UTC>_silver_esr_compact_additive_update
+     .json``, which ``CatalogMigrator`` wrote INSIDE the mutation and which ``sql/`` tracks.  Its
+     ``backup.table_input`` is the pre-apply ``glue.get_table`` snapshot (12 columns, both
+     partition keys) and its ``plan.table_input`` is the executable POST-ALTER TableInput
+     ``glue.update_table`` was handed.  Each carries its own catalog digest and is re-certified
+     against BOTH that digest and this runbook's pinned live measurement -- MEASURED 2026-09-11:
+     ``backup.catalog_hash`` = c1cfd5e8... = ``MEASURED['live_catalog_hash']`` and
+     ``plan.desired_hash`` = 70294ffa... = ``catalog.hash_table`` of LIVE GLUE today.  Written
+     once, never re-captured: it cannot go stale the way the R0 record did.
+     A RECONSTRUCTED MANIFEST CARRIES NO PLAN, and that is not a defect in it: ``--record-applied``
+     never cut one, so ``write_applied_manifest`` stores ``plan: null`` and a self-certifying
+     ``post_apply.table_input`` + ``post_apply.catalog_hash`` instead.  ``offline_table`` therefore
+     reads ``plan`` first and ``post_apply`` second -- ABSENCE falls through, non-certification
+     still refuses -- because otherwise running this runbook's own repair mode would turn
+     ``--offline`` into a permanent exit 2.  That shape is on this tree already: MEASURED
+     2026-09-11, the sibling ``20260910T060216Z_silver_fgis_additive_update.json`` has
+     ``reconstructed: true``, ``plan: null``, and a ``post_apply`` that re-hashes exactly.
+  2. OTHERWISE the R0 record -- the correct narrow basis only BEFORE the ALTER lands.  Its digest
+     is re-verified under THE RECIPE IT STAMPS (``glue.hash_recipe``: absent = the ghost tool's v1,
+     ``2`` = ``run_census.hash_block``), which is ``run_census.check_one``'s own selection.
+
+A source that does not certify itself is a refusal, not a warning.  ``--offline-dir DIR`` reads
+``DIR/silver_esr_compact.get-table.json`` instead, and exists so a simulated catalog can be
+previewed without touching AWS.
+
+THE NARROW BASIS IS A get_table SNAPSHOT, NOT A TableInput.  ``backup.table_input`` is a RAW
+``get_table`` blob and still carries the nine read-only fields Glue REJECTS on input (``CatalogId``,
+``CreateTime``, ``CreatedBy``, ``DatabaseName``, ``UpdateTime``, ``VersionId``,
+``IsRegisteredWithLakeFormation`` and the two view flags -- measured on the sibling modis lane).
+It reaches a TableInput only through ``migrate.raw_snapshot_to_table_input`` (the migrator's OWN
+drop list; this file never carries a second copy of it) or through
+``CatalogMigrator.restore_table``, which applies the same helper.  Handing that blob straight to
+``glue.update_table`` would fail.
 
 WHAT THE READ PROBE PROVES, AND WHAT IT CANNOT
 ----------------------------------------------
 ``--verify-read`` runs ONE bounded, partition-filtered SELECT of the five columns on the newest
 canonical partition.  It proves the EXISTING objects still read under the widened catalog.  It does
-NOT prove the five are populated, and it must not be read that way: Athena resolves a registered
-partition's columns from the PARTITION descriptor, and every one of the 243 still says 12 columns
-until the next canonical promote repairs them.  NULLs on the five are therefore EXPECTED between
-the ALTER and the promote.  Zero ROWS, on the other hand, is a failure -- the probe partition was
-measured to hold an object.
+NOT prove the five are populated, and it must not be read that way -- in EITHER direction.
+
+This file predicted all-NULL, on the reasoning that Athena resolves a registered partition's
+columns from the PARTITION descriptor and every one of the 243 still says 12 columns until the next
+canonical promote repairs them.  The first half is still true -- MEASURED 2026-09-11 by
+``glue.get_partitions``: 243 of 243 at 12 columns, the probe partition included.  THE PREDICTION IS
+NOT: MEASURED 2026-09-10, ``--verify-read`` returned 5 rows with ALL FIVE NON-NULL over that
+12-column descriptor.  So a non-NULL sample does not prove the promote has run, and an all-NULL one
+would not prove it has not; the descriptor count is partition work still owed, never a verdict on
+what a SELECT returns.  Zero ROWS remains a failure -- the probe partition was measured to hold an
+object.
 
 EXIT CODES
 ----------
@@ -120,8 +166,13 @@ EXIT CODES
        the applied record was reconstructed
     2  REFUSED on a precondition (the live shape is neither the measured 12-column one nor the
        17-column target; Parameters or PartitionKeys would move; an unsafe diff beyond the bounded
-       reverse set; the registry leads live Glue; --apply combined with --offline; silver_esr named;
-       --record-applied on a table that is not wide, or that already has an applied manifest)
+       reverse set; the registry leads live Glue -- forwards OR, on a --rollback, backwards;
+       --apply combined with --offline; silver_esr named; --record-applied on a table that is not
+       wide, or that already has an applied manifest; and, on the offline paths, a SOURCE THAT
+       DOES NOT CERTIFY ITSELF -- a manifest half whose recomputed catalog.hash_table does not
+       match the digest stored beside it or this runbook's pinned live measurement, an R0 record
+       whose digest does not verify under the recipe it stamps or that stamps a recipe this
+       runbook cannot recompute, or a narrow basis that is not the measured 12-column shape)
     3  applied but POST-APPLY VERIFICATION FAILED (the re-read does not show the 17 columns), or
        --verify-read failed / returned no rows, or --record-applied wrote the record but could not
        certify the pre-apply backup
@@ -221,6 +272,23 @@ MEASURED = {
     "r0_sidecar_columns": 13,
     "registered_partitions": 243,
     "registered_partitions_at_12_columns": 243,
+    # THE POST-ALTER SIDE, MEASURED 2026-09-11 by glue.get_table (read-only) after the 2026-09-10
+    # ALTER landed. The offline path is certified against these: a manifest whose plan half does
+    # not hash to live_catalog_hash_post_alter is not the table this runbook is talking about.
+    "measured_post_alter_on": "2026-09-11",
+    "live_columns_post_alter": 17,
+    "live_version_id_post_alter": "2",
+    "live_update_time_post_alter": "2026-09-10T20:00:43+03:00",
+    "live_catalog_hash_post_alter":
+        "70294ffacf556b5bad9c7aab4543e12d7123b7bf282ef38988a6dfd3b5457d3f",
+    # MEASURED 2026-09-11 by glue.get_partitions over every registered partition, AFTER the ALTER:
+    # the table descriptor is 17 columns and all 243 partition descriptors are still 12.
+    "registered_partitions_at_12_columns_post_alter": 243,
+    # MEASURED 2026-09-10 by --verify-read on commodity=white_wheat / as_of_date=20260910, whose
+    # partition descriptor was MEASURED 2026-09-11 to be one of those 243 twelve-column ones.
+    # This is the measurement that falsified this runbook's all-NULL prediction.
+    "verify_read_rows": 5,
+    "verify_read_non_null_of_five": 5,
     "newest_object": ("s3://leviathan-dev-shahem-001/silver/esr/commodity=white_wheat/"
                       "as_of=20260910/part-000.parquet"),
     "newest_object_bytes": 33315,
@@ -318,6 +386,19 @@ def _managed_params(table: dict) -> str:
 
 def _rule(ch: str = "-") -> str:
     return ch * 78
+
+
+def _repo_rel(path) -> str:
+    """A repo-relative POSIX path where the file IS under the repo, the plain path otherwise.
+
+    ``Path.relative_to`` RAISES on a path outside the repo, and the basis paths are module
+    constants a caller may point elsewhere (the deck does, at a synthesized record). A provenance
+    string is not worth an exception, and a naming helper that can only handle one location is how
+    a path claim goes stale."""
+    try:
+        return str(Path(path).resolve().relative_to(_REPO)).replace("\\", "/")
+    except (ValueError, OSError):
+        return str(path).replace("\\", "/")
 
 
 # ---------------------------------------------------------------------------
@@ -418,15 +499,86 @@ def _glue_client(region: str):
     return boto3.client("glue", region_name=region)
 
 
+# THE OFFLINE PRECEDENCE, STATED ONCE. Both entries are read-only, and every mode that needs a
+# pre-ALTER table resolves through it (``narrow_basis``) rather than naming a file of its own.
+# WHERE IT IS PRINTED, EXACTLY (this comment said "printed wherever a basis is used", which was an
+# overclaim in a lane whose subject is overclaims -- corrected 2026-09-11): the FULL two-rung list
+# is printed by --record-applied, the one mode that has to justify a reconstructed backup; every
+# other mode prints the RESOLVED source line instead -- the file, the half, the certifying field
+# and its re-computed digest -- which is what an owner reading one run needs. A run never leaves
+# its basis unnamed; only --record-applied prints the rule that chose it.
+NARROW_BASIS_PRECEDENCE = (
+    "1. THE MACHINE MANIFEST sql/athena/migrations/silver/<UTC>_silver_esr_compact_"
+    "additive_update.json -- backup.table_input, the pre-apply glue.get_table snapshot "
+    "CatalogMigrator froze INSIDE the mutation. Written once, never re-captured, and git tracks "
+    "sql/. Present only AFTER the ALTER has landed.",
+    "2. OTHERWISE the R0 record reports/silver_readiness/20260712_p65impl/tables/"
+    "silver_esr_compact.json -- the narrow basis ONLY before the ALTER lands, because this "
+    "runbook's own step [2] re-captures it to the POST-ALTER shape (done 2026-09-10). It is also "
+    "GITIGNORED (the reports/silver_readiness/ rule in .gitignore), so a fresh clone carries no "
+    "copy at all.",
+)
+
+# The R0 digest recipes this runbook knows how to RE-COMPUTE. run_census mints v2 today; records
+# left by the ghost tool carry no stamp and are v1. An unknown stamp is a refusal, never a guess.
+_KNOWN_R0_RECIPES = (1, 2)
+
+
+def _r0_digest(block: dict, census) -> tuple[int, str, str]:
+    """``(recipe, recomputed digest, the name of the field it certifies)`` for an R0 record's own
+    catalog digest, UNDER THE RECIPE THE RECORD SAYS IT WAS MINTED WITH.
+
+    ``run_census`` has two generations of recipe and every record states which one it carries;
+    ``run_census.check_one`` selects on exactly that stamp -- quoted, scripts/silver/run_census.py
+    line 378:
+
+        legacy = "hash_recipe" not in stored.get("glue", {})
+
+    so this does the same. Recomputing a recipe-v2 record under v1 is not a detection, it is a
+    FALSE ALARM: MEASURED 2026-09-10, after this runbook's own step [2] re-captured the record,
+    a v1 recomputation read 68df4346... against the record's stored v2 cb1a9fdc..., and every
+    offline mode of this runbook refused with 'the R0 record does not certify itself'."""
+    if census.HASH_RECIPE_VERSION not in _KNOWN_R0_RECIPES:
+        raise Refused(
+            f"run_census now mints hash recipe v{census.HASH_RECIPE_VERSION}, which this runbook "
+            f"has no recomputation for (it knows v{', v'.join(str(r) for r in _KNOWN_R0_RECIPES)})."
+            " Teach it the new recipe rather than letting it certify a record under the wrong one.")
+    stamp = block.get("hash_recipe")
+    v1 = (1, census.catalog_hash_v1(census._record_glue_to_raw_shape(block)),
+          "glue.catalog_hash_sha256 (run_census recipe v1, the ghost tool's)")
+    if stamp is None:
+        return v1
+    try:
+        recipe = int(stamp)
+    except (TypeError, ValueError):
+        raise Refused(f"the R0 record stamps glue.hash_recipe {stamp!r}, which is not a recipe "
+                      "number -- refusing rather than guessing which recipe minted its digest.")
+    if recipe == 1:
+        return v1
+    if recipe == 2:
+        return 2, census.hash_block(block), "glue.catalog_hash_sha256 (run_census recipe v2)"
+    raise Refused(f"the R0 record stamps glue.hash_recipe {recipe}, which this runbook has no "
+                  f"recomputation for (it knows v{', v'.join(str(r) for r in _KNOWN_R0_RECIPES)}) "
+                  "-- refusing rather than assuming one.")
+
+
 def r0_record_table() -> tuple[dict, dict]:
-    """``(table, certification)`` -- the tracked R0 RECORD rebuilt into a ``get_table``-shaped
-    Table, with its recipe-v1 digest RE-COMPUTED and compared to the field that certifies it.
+    """``(table, certification)`` -- the R0 RECORD rebuilt into a ``get_table``-shaped Table, with
+    its OWN digest RE-COMPUTED under the recipe it stamps and compared to the field it certifies.
 
     The record, not the ``_raw`` sidecar: MEASURED 2026-09-10, the sidecar is the PRE-deprojection
     table (13 columns, one partition key) and hashes to something live has not been for two
-    months."""
+    months. And the record is the SECOND-precedence basis, not the first -- see
+    ``NARROW_BASIS_PRECEDENCE``: it is gitignored, and it is re-captured by this runbook's own
+    step [2], so after an apply it is the WIDE state rather than the narrow one."""
     if not R0_RECORD.exists():
-        raise Refused(f"the tracked R0 record is missing: {R0_RECORD}")
+        raise Refused(
+            f"the R0 record is not on disk: {R0_RECORD}\n"
+            "  reports/silver_readiness/ is GITIGNORED (the reports/silver_readiness/ rule in "
+            ".gitignore) and git ls-files returns nothing under it,\n"
+            "  so a fresh clone carries no R0 record. Re-capture it with\n"
+            "    python scripts/silver/run_census.py --table silver_esr_compact\n"
+            "  or work from the tracked machine manifest instead (see NARROW_BASIS_PRECEDENCE).")
     record = json.loads(R0_RECORD.read_text(encoding="utf-8"))
     block = record.get("glue") or {}
     census = _census_module()
@@ -435,12 +587,15 @@ def r0_record_table() -> tuple[dict, dict]:
     table["VersionId"] = str(block.get("version_id"))
     table["UpdateTime"] = block.get("update_time")
     table["CreateTime"] = block.get("create_time")
-    got = census.catalog_hash_v1(table)
+    recipe, got, field = _r0_digest(block, census)
     expected = block.get("catalog_hash_sha256")
     cert = {
-        "source": (f"reports/silver_readiness/20260712_p65impl/tables/{TABLE}.json (the tracked R0 "
-                   "record), rebuilt through run_census._record_glue_to_raw_shape"),
-        "field": "glue.catalog_hash_sha256 (run_census recipe v1)",
+        "source": (f"reports/silver_readiness/20260712_p65impl/tables/{TABLE}.json (the R0 record, "
+                   f"GITIGNORED), rebuilt through run_census._record_glue_to_raw_shape and "
+                   f"re-verified under the recipe it stamps (v{recipe})"),
+        "field": field,
+        "record": _repo_rel(R0_RECORD),
+        "basis": "R0 record",
         "expected": expected, "got": got, "verified": bool(expected) and expected == got,
         "catalog_hash": catalog.hash_table(table),
     }
@@ -450,6 +605,198 @@ def r0_record_table() -> tuple[dict, dict]:
             f"block gives {got} but the record stores {expected}. A snapshot that cannot prove it "
             "is the table it claims to be may not back a plan.")
     return table, cert
+
+
+def applied_manifest_record(migrations_dir: Optional[Path] = None) -> Optional[tuple[Path, dict]]:
+    """``(path, payload)`` of the machine manifest for this table's ADD COLUMNS, or ``None``.
+
+    ``_applied_manifest`` FINDS the file and deliberately returns an unparseable one rather than
+    skipping it, so that nothing overwrites a record. A basis, unlike an existence check, has to
+    READ it -- so an unparseable manifest is a refusal here."""
+    path = _applied_manifest(migrations_dir or MIGRATIONS_DIR)
+    if path is None:
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:                                                     # noqa: BLE001
+        raise Refused(f"the machine manifest {path} does not parse ({type(exc).__name__}: {exc}) "
+                      "-- it is the tracked record of this migration, and a plan may not be cut "
+                      "from a record that cannot be read.")
+    return path, payload
+
+
+# WHAT EACH HALF OF THE MANIFEST ACTUALLY IS, in the words every refusal and every printed source
+# line uses. ``backup`` is a RAW get_table snapshot and is named as one: calling it an "executable
+# TableInput" is what this file's own header warns against, because those nine read-only fields are
+# still on it and glue.update_table rejects them.
+BACKUP_HALF_IS = ("the RAW pre-apply glue.get_table snapshot a rollback restores through "
+                  "CatalogMigrator.restore_table, never glue.update_table")
+PLAN_HALF_IS = "the executable POST-ALTER TableInput glue.update_table was handed"
+POST_APPLY_HALF_IS = ("the POST-ALTER table re-read from live Glue and frozen by --record-applied, "
+                      "which a reconstructed record carries INSTEAD of a plan")
+
+
+def _half_present(payload: dict, *, block: str, key: str) -> bool:
+    """Is this half of the manifest THERE at all? Absence and non-certification are different
+    answers and get different treatment: absence may fall through to the next source (a manifest
+    written by ``--record-applied`` carries no ``plan`` -- MEASURED on the sibling fgis manifest
+    ``20260910T060216Z_silver_fgis_additive_update.json``, ``plan: null`` with a ``post_apply``
+    beside it), while a half that is present and does NOT certify is always a refusal."""
+    body = payload.get(block) or {}
+    snap = body.get(key)
+    return isinstance(snap, dict) and bool(_columns(snap))
+
+
+def _manifest_half(path: Path, payload: dict, *, block: str, key: str, hash_key: str,
+                   pinned: str, pinned_name: str, what: str) -> tuple[dict, dict]:
+    """One half of the machine manifest as a table, RE-CERTIFIED TWICE.
+
+    ``backup`` is the pre-apply table the mutation froze; ``plan`` is the post-apply TableInput it
+    handed ``update_table``; ``post_apply`` is the post-ALTER re-read a reconstructed record carries
+    INSTEAD of a plan. Each stores its own catalog digest beside it, so the first check is
+    SELF-certification -- recompute ``catalog.hash_table`` over the stored table and compare. The
+    second is against this runbook's own pinned measurement of that side of live Glue, so a
+    hand-edited manifest, or some other migration's manifest, cannot quietly back a plan."""
+    body = payload.get(block) or {}
+    snap = body.get(key)
+    if not isinstance(snap, dict) or not _columns(snap):
+        raise Refused(f"the machine manifest {path.name} carries no usable {block}.{key} ({what}) "
+                      "-- this runbook will not plan without it.")
+    expected = body.get(hash_key)
+    got = catalog.hash_table(snap)
+    cert = {
+        "source": f"sql/athena/migrations/silver/{path.name} ({block}.{key} -- {what})",
+        "field": f"{block}.{hash_key} (leviathan.silver.catalog.hash_table)",
+        "record": f"sql/athena/migrations/silver/{path.name}",
+        "basis": "machine manifest",
+        "expected": expected, "got": got, "verified": bool(expected) and expected == got,
+        "catalog_hash": got,
+    }
+    if not cert["verified"]:
+        raise Refused(
+            f"the machine manifest does not certify its own {block}: recomputing {cert['field']} "
+            f"over {block}.{key} gives {got} but the manifest stores {expected}. A snapshot that "
+            "cannot prove it is the table it claims to be may not back a plan.")
+    if got != pinned:
+        raise Refused(
+            f"the machine manifest's {block}.{key} ({what}) hashes to {got}, but this runbook pins "
+            f"MEASURED[{pinned_name!r}] = {pinned} -- the value measured against LIVE GLUE. The "
+            "manifest and the measurement disagree, so at least one of them is not this table. "
+            "REFUSED rather than planning from whichever was read first.")
+    return snap, cert
+
+
+def _assert_narrow(table: dict, cert: dict) -> None:
+    """A narrow basis must BE the measured 12-column pre-ALTER table, columns and partition keys."""
+    got = tuple((c.get("Name"), str(c.get("Type") or "").strip().lower()) for c in _columns(table))
+    if got != NARROW_COLUMNS:
+        why = ("the R0 record is a LIVING file: this runbook's own step [2] re-captures it to the "
+               "POST-ALTER shape once the ALTER lands, which is exactly why the machine manifest "
+               "outranks it." if cert.get("basis") == "R0 record" else
+               "the machine manifest's backup is written once, by the mutation; a backup that is "
+               "not the narrow shape means this is not that mutation's manifest.")
+        raise Refused(f"{cert['source']} is not the measured PRE-ALTER shape -- REFUSED.\n"
+                      f"  basis   : {[n for n, _ in got]}\n"
+                      f"  expected: {list(NARROW_NAMES)}\n  {why}")
+    keys = tuple((p.get("Name"), str(p.get("Type") or "").strip().lower())
+                 for p in table.get("PartitionKeys") or [])
+    if keys != PARTITION_KEYS:
+        raise Refused(f"{cert['source']} does not carry the measured partition keys -- REFUSED.\n"
+                      f"  basis   : {list(keys)}\n  expected: {list(PARTITION_KEYS)}")
+
+
+def narrow_basis(migrations_dir: Optional[Path] = None) -> tuple[dict, dict]:
+    """``(table, certification)`` -- the PRE-ALTER (12-column) table, from the first source in
+    ``NARROW_BASIS_PRECEDENCE`` that exists, with THAT source's own digest re-computed.
+
+    WHAT COMES BACK IS A ``get_table`` SNAPSHOT, NOT A TableInput. Post-apply it is the manifest's
+    RAW pre-apply blob, which still carries the nine read-only fields Glue REJECTS on input
+    (CatalogId, CreateTime, CreatedBy, DatabaseName, UpdateTime, VersionId,
+    IsRegisteredWithLakeFormation and the two view flags). It reaches a TableInput only through
+    ``migrate.raw_snapshot_to_table_input`` -- the migrator's OWN drop list, never a second copy of
+    it in this file -- or through ``CatalogMigrator.restore_table``, which applies that same helper.
+    Handing this blob straight to ``glue.update_table`` would fail."""
+    found = applied_manifest_record(migrations_dir)
+    if found is not None:
+        path, payload = found
+        table, cert = _manifest_half(
+            path, payload, block="backup", key="table_input", hash_key="catalog_hash",
+            pinned=MEASURED["live_catalog_hash"], pinned_name="live_catalog_hash",
+            what=BACKUP_HALF_IS)
+    else:
+        table, cert = r0_record_table()
+    _assert_narrow(table, cert)
+    return table, cert
+
+
+def offline_table(migrations_dir: Optional[Path] = None) -> tuple[dict, dict]:
+    """``(table, certification)`` -- the AWS-FREE view of the CURRENT catalog.
+
+    SAME PRECEDENCE, OTHER HALF, AND THAT HALF HAS TWO FORMS. Once the ALTER has landed the
+    manifest's ``plan.table_input`` IS the catalog: it is the executable TableInput
+    ``glue.update_table`` was handed, and MEASURED 2026-09-11 it re-hashes to
+    ``catalog.hash_table`` of live Glue. Before it lands there is no manifest, and the R0 record is
+    the current (narrow) catalog.
+
+    A RECONSTRUCTED MANIFEST HAS NO PLAN, AND THAT IS NOT A DEFECT IN IT. ``--record-applied``
+    exists for the 04:07Z hole -- the ALTER landed and the migrator's manifest was never written --
+    and what it can honestly freeze is the POST-apply re-read, not a plan it never cut:
+    ``write_applied_manifest`` stores ``"plan": None`` and a self-certifying
+    ``post_apply.table_input`` + ``post_apply.catalog_hash`` instead. That shape is not
+    hypothetical: MEASURED 2026-09-11, the sibling manifest
+    ``sql/athena/migrations/silver/20260910T060216Z_silver_fgis_additive_update.json`` on this very
+    tree carries ``reconstructed: true``, ``plan: null`` and a ``post_apply`` whose stored
+    ``catalog_hash`` re-hashes exactly. Reading only ``plan`` would mean that running this
+    runbook's OWN repair mode turned ``--offline`` into a permanent exit 2 -- the repair destroying
+    the capability. So the halves are tried in order (plan, then post_apply) and ABSENCE falls
+    through while NON-CERTIFICATION still refuses; if neither half is there the R0 record is the
+    last rung, and a refusal there names both failures rather than the last one.
+
+    A TableInput carries no VersionId or UpdateTime, so those two come from the manifest's own
+    ``post_apply`` when it has them and otherwise from this runbook's pinned live measurement of
+    the post-ALTER table -- admissible only because the hash fence inside ``_manifest_half`` has
+    just proved the manifest IS that table, and labelled as such in the source line the plan header
+    prints."""
+    found = applied_manifest_record(migrations_dir)
+    if found is None:
+        return r0_record_table()
+    path, payload = found
+    halves = (
+        dict(block="plan", key="table_input", hash_key="desired_hash", what=PLAN_HALF_IS),
+        dict(block="post_apply", key="table_input", hash_key="catalog_hash",
+             what=POST_APPLY_HALF_IS),
+    )
+    absent = [f"{h['block']}.{h['key']}" for h in halves
+              if not _half_present(payload, block=h["block"], key=h["key"])]
+    for half in halves:
+        if not _half_present(payload, block=half["block"], key=half["key"]):
+            continue
+        snap, cert = _manifest_half(
+            path, payload, pinned=MEASURED["live_catalog_hash_post_alter"],
+            pinned_name="live_catalog_hash_post_alter", **half)
+        table = dict(snap)
+        table.setdefault("Name", TABLE)
+        body = payload.get(half["block"]) or {}
+        version, update, whence = (
+            (body.get("version_id"), body.get("update_time"),
+             f"the manifest's own {half['block']}.version_id/update_time, frozen from live Glue "
+             "when the record was written")
+            if body.get("version_id") and body.get("update_time") else
+            (MEASURED["live_version_id_post_alter"], MEASURED["live_update_time_post_alter"],
+             f"MEASURED {MEASURED['measured_post_alter_on']} by glue.get_table, not carried by a "
+             "TableInput"))
+        table["VersionId"] = str(version)
+        table["UpdateTime"] = update
+        return table, dict(cert, version_source=f"VersionId/UpdateTime are {whence}")
+    # Neither half is on the manifest. The R0 record is the last rung -- and post-ALTER it IS the
+    # current catalog, because step [2] re-captured it. If it cannot be read either, say BOTH.
+    try:
+        return r0_record_table()
+    except Refused as exc:
+        raise Refused(
+            f"the machine manifest {path.name} carries neither of the halves that describe the "
+            f"CURRENT catalog ({', '.join(absent)}), so the R0 record was the last rung -- and it "
+            f"does not stand either:\n  {exc}")
 
 
 def sidecar_note() -> str:
@@ -473,9 +820,10 @@ def read_table(*, offline: bool, glue_client=None, database: str = DATABASE,
             raise Refused(f"offline source missing: {path}")
         return json.loads(path.read_text(encoding="utf-8")), f"offline snapshot {path} (AWS-free)"
     if offline:
-        table, cert = r0_record_table()
-        return table, (f"tracked R0 record, digest RE-VERIFIED ({cert['field']} = {cert['got']}) "
-                       "(AWS-free)")
+        table, cert = offline_table()
+        extra = f"; {cert['version_source']}" if cert.get("version_source") else ""
+        return table, (f"{cert['source']}, digest RE-VERIFIED ({cert['field']} = {cert['got']})"
+                       f"{extra} (AWS-free)")
     return (glue_client.get_table(DatabaseName=database, Name=TABLE)["Table"],
             "live glue.get_table")
 
@@ -746,8 +1094,16 @@ def print_plan(live: dict, desired: dict, plan: MigrationPlan, five: list[tuple[
             print("    trailing append, and the producer image carries reconcile_schema_widen=True")
             print(f"    ({MEASURED['producer_flag_file']}:{MEASURED['producer_flag_line']} at "
                   f"{MEASURED['producer_flag_commit']}).")
-            print("    Until that promote runs, the five read NULL through Athena. That is the")
-            print("    partition descriptor talking, not the data.")
+            print("    Until that promote runs the partition descriptors keep "
+                  f"{MEASURED['live_columns']} columns -- MEASURED")
+            print(f"    {MEASURED['measured_post_alter_on']} by glue.get_partitions, all "
+                  f"{MEASURED['registered_partitions_at_12_columns_post_alter']} of them still do.")
+            print("    READ THAT AS PARTITION WORK STILL OWED, NOT AS A PREDICTION OF NULLS: this")
+            print("    runbook predicted the five would read NULL until the promote, and MEASURED")
+            print(f"    2026-09-10 the --verify-read probe returned {MEASURED['verify_read_rows']} "
+                  f"rows, and {MEASURED['verify_read_non_null_of_five']} of the five read")
+            print("    NON-NULL over a 12-column partition descriptor. Neither result is a verdict")
+            print("    on the data.")
     if direction == "ROLLBACK":
         print(f"    unsafe        : {len(plan.unsafe)} entry(ies) -- EXPECTED. A reverse plan"
               " DROPS")
@@ -791,12 +1147,21 @@ def print_post_apply_steps() -> None:
     print("[1] PROVE THE EXISTING OBJECTS STILL READ under the widened catalog. One bounded,")
     print("    partition-filtered SELECT of the five on the newest canonical partition.")
     print("    python scripts/ops/esr_f030_compact_alter_runbook.py --verify-read")
-    print("    EXPECT rows, and EXPECT the five to be NULL: Athena reads a registered partition's")
-    print("    columns from the PARTITION descriptor, and all "
-          f"{MEASURED['registered_partitions']} still say "
-          f"{MEASURED['live_columns']} columns")
-    print("    until step [5]. Rows = the objects read. Zero rows = a failure; roll back:")
+    print("    EXPECT ROWS. Rows = the objects read. Zero rows = a failure; roll back:")
     print("    python scripts/ops/esr_f030_compact_alter_runbook.py --rollback")
+    print("    EXPECT NOTHING IN PARTICULAR OF THE VALUES. This step used to say 'EXPECT the five")
+    print("    to be NULL', reasoning that Athena reads a registered partition's columns from the")
+    print(f"    PARTITION descriptor and all {MEASURED['registered_partitions']} still say "
+          f"{MEASURED['live_columns']} columns until step [5].")
+    print(f"    The descriptors ARE still narrow -- MEASURED "
+          f"{MEASURED['measured_post_alter_on']} by glue.get_partitions, "
+          f"{MEASURED['registered_partitions_at_12_columns_post_alter']} of")
+    print(f"    {MEASURED['registered_partitions']}, the probe partition included. THE PREDICTION "
+          "WAS WRONG: MEASURED 2026-09-10 this")
+    print(f"    probe returned {MEASURED['verify_read_rows']} rows, and "
+          f"{MEASURED['verify_read_non_null_of_five']} of the five read NON-NULL over that")
+    print("    12-column descriptor. Populated or NULL, the probe proves readability and nothing")
+    print("    else.")
     print()
     print("[2] REFRESH THE R0 RECORD FROM THE POST-ALTER LIVE TABLE. --check first (it writes")
     print("    nothing and prints the stored-vs-live diff), then the real capture.")
@@ -806,6 +1171,12 @@ def print_post_apply_steps() -> None:
     print("      reports/silver_readiness/20260712_p65impl/tables/silver_esr_compact.json")
     print("      (glue.nonpartition_columns 12 -> 17, glue.num_nonpartition_columns, and the")
     print("       fingerprint the registry copies as fingerprint.catalog_hash_sha256)")
+    print("      THAT FILE IS GITIGNORED (the 'reports/silver_readiness/' rule in .gitignore --")
+    print("      the RULE, not a line number: that rule moved from line 77 to line 91 inside one")
+    print("      hour on 2026-09-11), so it does")
+    print("      NOT ride in the commit and a fresh clone will not have it. This runbook therefore")
+    print("      stops using it as its pre-ALTER basis the moment this step runs: the tracked")
+    print("      machine manifest written by the apply outranks it (NARROW_BASIS_PRECEDENCE).")
     print("    DO NOT pass --raw. The _raw sidecar is the frozen pre-event side by design, and for")
     print("    this table it is already the pre-F031 shape; re-capturing it destroys a record and")
     print("    refreshes nothing this migration needs.")
@@ -825,17 +1196,39 @@ def print_post_apply_steps() -> None:
           "tests/unit/silver/test_esr_contract_rebaseline.py -q")
     print("    python -m pytest tests/unit/silver/test_esr_f030_compact_alter_runbook.py -q")
     print("    python -m pytest tests/unit/silver -q")
-    print("    EXPECT: sql/athena/ddl/silver/silver_esr_compact.sql goes 12 -> 17 columns, the")
-    print("    five LAST, as double. TWO tests carry their post-ALTER form in their own")
-    print("    docstrings and must be flipped in this commit:")
+    print("    EXPECT: sql/athena/ddl_generated/silver_esr_compact.sql goes 12 -> 17 columns, the")
+    print("    five LAST, as double. (That is the generated tree's real path -- this step named")
+    print("    sql/athena/ddl/silver/, which has never existed in this repo; corrected 2026-09-11")
+    print("    after the generator was run and the file VERIFIED at 17 columns.)")
+    print("    THE HAND DDL IS NOW DRIFTED, DELIBERATELY AND OUT OF THIS COMMIT'S SCOPE.")
+    print("    sql/athena/ddl/silver_esr_compact.sql is a DIFFERENT, TRACKED file -- the hand-DDL")
+    print("    tree (scripts/silver/generate_ddls_from_registry.py calls it that) that")
+    print("    config_check.check_numbers_schema_pins reads for card-vs-DDL drift. MEASURED")
+    print("    2026-09-11 it still declares 12 columns while the generated file declares 17, and")
+    print("    that lint only fires on a column a numbers CARD references -- none of the five is")
+    print("    referenced by any card in configs/graphrag/numbers/tables.yaml today, so the drift")
+    print("    is latent, not failing. It becomes real the first time a card reads one of the")
+    print("    five. NOT FIXED HERE -- repairing the hand DDL is outside this runbook's own files,")
+    print("    so it is named as owed rather than left for the next reader to discover.")
+    print("    THREE tests carry their post-ALTER form and must be flipped in this commit -- this")
+    print("    step named two until 2026-09-11, and the third went red on the same regeneration.")
+    print("    ALL THREE WERE RENAMED BY THE FLIP, so the names below are the POST-ALTER ones and")
+    print("    each line records the pre-ALTER name it replaced (this step named the old three")
+    print("    until 2026-09-11, by which time none of them existed):")
     print("      tests/unit/silver/test_esr_contract_rebaseline.py::")
-    print("        test_the_five_are_physical_only_until_the_gated_alter")
-    print("        -- its docstring: 'This test then flips to asserting glue_type == \"double\"'")
+    print("        TestAdditiveNetCommitmentColumns::")
+    print("        test_the_five_are_registered_catalog_columns_since_the_gated_alter")
+    print("        -- was test_the_five_are_physical_only_until_the_gated_alter, whose docstring")
+    print("           said 'This test then flips to asserting glue_type == \"double\"'.")
     print("      tests/unit/silver/test_ddl_generation.py::")
-    print("        test_esr_compact_ddl_does_not_yet_render_the_five")
-    print("        -- its sibling test_esr_compact_ddl_renders_the_five_last_once_registered")
-    print("           already passes today (it simulates the flip on a deepcopy) and keeps")
-    print("           passing.")
+    print("        test_esr_compact_ddl_renders_the_five_since_the_gated_alter")
+    print("        -- was test_esr_compact_ddl_does_not_yet_render_the_five. Its sibling")
+    print("           test_esr_compact_ddl_renders_the_five_last_once_registered already passed")
+    print("           before the flip (it simulates it on a deepcopy) and keeps passing.")
+    print("      tests/unit/silver/test_esr_f030_compact_alter_runbook.py::")
+    print("        test_the_contract_registers_the_five_today")
+    print("        -- was test_the_contract_stages_the_five_hidden_today, asserting STAGED_HIDDEN.")
+    print("           THE ONE TEST THAT PINS TODAY'S CONTRACT STATE.")
     print()
     print("[5] THE CANONICAL PROMOTE -- this is what repairs the "
           f"{MEASURED['registered_partitions']} partition descriptors")
@@ -847,8 +1240,16 @@ def print_post_apply_steps() -> None:
           "silver_esr_compact --region us-east-1 --query 'length(Partitions)' --output text")
     print()
     print("[6] THE RECORD. There is no hand-authored manifest for this ALTER: the machine manifest")
-    print("    CatalogMigrator wrote above IS the record, and it carries the executable pre-apply")
-    print("    TableInput a rollback would restore. Keep it in the commit.")
+    print("    CatalogMigrator wrote above IS the record, and it carries the RAW pre-apply")
+    print("    get_table snapshot a rollback restores. KEEP IT IN THE COMMIT -- after step [2] it is")
+    print("    also this runbook's NARROW BASIS (the R0 record is gitignored AND has just")
+    print("    been re-captured to the wide shape), so leaving it out breaks --offline and the")
+    print("    reconstructed backup in a fresh clone.")
+    print("    backup.table_input in that file is a RAW get_table snapshot: it still carries the")
+    print("    nine read-only fields Glue REJECTS on input (CatalogId, CreateTime, CreatedBy,")
+    print("    DatabaseName, UpdateTime, VersionId, IsRegisteredWithLakeFormation and the two view")
+    print("    flags). Restore it ONLY through CatalogMigrator.restore_table(snapshot=...), which")
+    print("    drops them; never hand that blob to glue.update_table.")
     print()
     print("ROLLBACK, IF STEP [1] FAILS:")
     print("    python scripts/ops/esr_f030_compact_alter_runbook.py --rollback")
@@ -1018,29 +1419,38 @@ def _applied_manifest(migrations_dir: Path) -> Optional[Path]:
     return None
 
 
-def pre_apply_basis(five: list[tuple[str, str]]) -> dict:
+def pre_apply_basis(five: list[tuple[str, str]],
+                    migrations_dir: Optional[Path] = None) -> dict:
     """The PRE-apply TableInput for a RECONSTRUCTED record -- with its certification RE-VERIFIED.
 
-    There is no hand-authored manifest for this migration, so the certificate is the R0 RECORD's
-    own ``glue.catalog_hash_sha256``: recompute it over the record's glue block with the estate's
-    recipe and compare. A basis that does not verify yields NO backup and says why -- a backup that
-    might not be the state the apply overwrote is worse than an absent one, because it would be
-    restored."""
-    out = {"source": None, "field": "glue.catalog_hash_sha256 (run_census recipe v1)",
-           "table_input": None, "catalog_hash": None, "verified": False, "expected": None,
-           "got": None, "reason": None, "record": str(R0_RECORD.relative_to(_REPO)),
+    The basis is ``narrow_basis``'s, so the precedence rule lives in ONE place: the machine
+    manifest's frozen pre-apply snapshot once the ALTER has landed, the R0 record before it. The
+    certificate is whatever THAT source stores -- ``backup.catalog_hash`` recomputed with
+    ``catalog.hash_table``, or the record's own ``glue.catalog_hash_sha256`` under the recipe it
+    stamps. A basis that does not verify yields NO backup and says why: a backup that might not be
+    the state the apply overwrote is worse than an absent one, because it would be restored.
+
+    ``migrations_dir`` defaults to the REPOSITORY's migrations directory, never the one a mode
+    happens to be writing into: the narrow basis is a fact about this TABLE's history, not about
+    where this run files its record."""
+    out = {"source": None, "field": None, "table_input": None, "catalog_hash": None,
+           "verified": False, "expected": None, "got": None, "reason": None, "record": None,
            "planned_desired_hash": None}
     try:
-        table, cert = r0_record_table()
+        table, cert = narrow_basis(migrations_dir)
     except Refused as exc:
         out["reason"] = str(exc)
         return out
-    out.update({"source": cert["source"], "expected": cert["expected"], "got": cert["got"]})
+    out.update({"source": cert["source"], "field": cert["field"], "record": cert["record"],
+                "expected": cert["expected"], "got": cert["got"]})
     if live_shape(table, five) != AT_SOURCE:
-        out["reason"] = (f"the R0 record is not the pre-ALTER shape ({describe_shape(table, five)})"
-                         " -- it cannot be the state the apply overwrote")
+        out["reason"] = (f"the narrow basis is not the pre-ALTER shape "
+                         f"({describe_shape(table, five)}) -- it cannot be the state the apply "
+                         "overwrote")
         return out
     out["verified"] = True
+    # raw_snapshot_to_table_input IS the migrator's own drop list for the nine read-only fields
+    # Glue rejects on input; this file never carries a second copy of that list.
     out["table_input"] = raw_snapshot_to_table_input(table)
     out["catalog_hash"] = catalog.hash_table(table)
     out["planned_desired_hash"] = catalog.hash_table(widen_table_input(table, five))
@@ -1084,8 +1494,15 @@ def write_applied_manifest(*, after: dict, five: list[tuple[str, str]], database
         "registered_partitions_note": (
             "ADD COLUMNS updates the TABLE descriptor only. The registered partition "
             "StorageDescriptors are repaired by the next canonical --vintage-mode all promote "
-            "(PartitionPublisher._repair under reconcile_schema_widen=True); until then the five "
-            "read NULL through Athena."),
+            "(PartitionPublisher._repair under reconcile_schema_widen=True); until then they keep "
+            f"{MEASURED['live_columns']} columns -- MEASURED "
+            f"{MEASURED['measured_post_alter_on']}, "
+            f"{MEASURED['registered_partitions_at_12_columns_post_alter']} of "
+            f"{MEASURED['registered_partitions']} still do. That is partition work owed, NOT a "
+            "prediction of NULLs: MEASURED 2026-09-10 the --verify-read probe returned "
+            f"{MEASURED['verify_read_rows']} rows with all "
+            f"{MEASURED['verify_read_non_null_of_five']} of the five NON-NULL over a 12-column "
+            "partition descriptor."),
         "backup": backup,
         "plan": plan.to_dict() if plan is not None else None,
         "written_by": "scripts/ops/esr_f030_compact_alter_runbook.py",
@@ -1302,7 +1719,8 @@ def apply(*, region: str, database: str, bucket: str, lease_prefix: str, lease_i
                     "it and carried no applied machine manifest, so the ALTER landed in some "
                     "earlier run whose record was never written. applied_at is the LIVE "
                     "UpdateTime, post_apply is a read of the live table, and the backup is the "
-                    "pre-apply TableInput certified by the tracked R0 record."))
+                    "pre-apply TableInput certified by the source named in backup.source (the "
+                    "narrow-basis precedence: the tracked machine manifest, else the R0 record)."))
             print(f"    applied record RECONSTRUCTED: {path}")
             if not basis["verified"]:
                 print(f"    WARNING: the pre-apply backup could not be certified -- "
@@ -1505,11 +1923,20 @@ def verify_read(*, region: str, database: str, client=None, runner=None,
     print()
     print(f"  of the five, {len(populated)} read non-NULL in this sample: "
           f"{populated if populated else '(none)'}")
-    print("  READ THAT CAREFULLY -- it is NOT a verdict on the data. Athena resolves a registered")
-    print("  partition's columns from the PARTITION descriptor, and all "
-          f"{MEASURED['registered_partitions']} of them still")
-    print("  declare 12 columns until the next canonical promote repairs them. All-NULL here is")
-    print("  EXPECTED between the ALTER and that promote; it is the descriptor talking.")
+    print("  READ THAT CAREFULLY -- IT IS NOT A VERDICT ON THE DATA, IN EITHER DIRECTION. This")
+    print("  runbook predicted all-NULL between the ALTER and the promote, on the reasoning that")
+    print("  Athena resolves a registered partition's columns from the PARTITION descriptor and")
+    print(f"  all {MEASURED['registered_partitions']} of them still declare "
+          f"{MEASURED['live_columns']} columns. THE DESCRIPTORS DO -- MEASURED")
+    print(f"  {MEASURED['measured_post_alter_on']} by glue.get_partitions, "
+          f"{MEASURED['registered_partitions_at_12_columns_post_alter']} of "
+          f"{MEASURED['registered_partitions']}, this probe's partition included. THE")
+    print(f"  PREDICTION DOES NOT: MEASURED 2026-09-10 this probe returned "
+          f"{MEASURED['verify_read_rows']} rows, and")
+    print(f"  {MEASURED['verify_read_non_null_of_five']} of the five read NON-NULL over that "
+          "12-column descriptor. So all-NULL would not mean the")
+    print("  ALTER failed, and non-NULL does not mean the promote has run. What this probe proves")
+    print("  is that the objects READ; the partition repair is still owed until step [5].")
     return 0
 
 
@@ -1566,7 +1993,11 @@ def record_applied(*, region: str, database: str, glue_client=None,
     live_hash = catalog.hash_table(live)
     print()
     print("  PRE-APPLY BASIS (what a rollback would restore, and what certifies it)")
+    print("    precedence       :")
+    for line in NARROW_BASIS_PRECEDENCE:
+        print(f"      {line}")
     print(f"    record           : {basis['record']}")
+    print(f"    source           : {basis['source']}")
     print(f"    certifying field : {basis['field']}")
     print(f"    that field says  : {basis['expected']}")
     print(f"    recomputed       : {basis['got']}")
@@ -1594,7 +2025,9 @@ def record_applied(*, region: str, database: str, glue_client=None,
             "RECONSTRUCTED BY --record-applied, not written by the mutation. applied_at is the "
             "LIVE UpdateTime -- when the catalog actually moved, not when this record was made. "
             "post_apply is a fresh read of live Glue; the backup is the pre-apply TableInput "
-            "certified by the tracked R0 record's own recipe-v1 digest."))
+            "certified by its own source's stored digest -- the tracked machine manifest's "
+            "backup.catalog_hash, or (before the ALTER) the R0 record's digest under the recipe "
+            "it stamps."))
     print()
     print(f"  RECORD WRITTEN: {path}")
     print("    applied      : true")
@@ -1648,11 +2081,12 @@ def main(argv=None) -> int:
                          "was never recorded. READ-ONLY on AWS -- one get_table plus a local file "
                          "write; refuses unless the table is provably at the planned wide state")
     ap.add_argument("--offline", action="store_true",
-                    help="dry-run against the tracked R0 record (its digest is re-verified) "
-                         "instead of live Glue")
+                    help="dry-run AWS-free, against the tracked machine manifest for this table "
+                         "(or, before the ALTER lands, the R0 record) -- the source's own digest "
+                         "is RE-VERIFIED before anything is planned")
     ap.add_argument("--offline-dir", default=None, dest="offline_dir",
                     help="with --offline: read <dir>/silver_esr_compact.get-table.json instead of "
-                         "the tracked R0 record. A DRY-RUN SOURCE ONLY (it cannot back a "
+                         "the resolved offline source. A DRY-RUN SOURCE ONLY (it cannot back a "
                          "mutation) -- it exists so the reverse plan can be exercised against a "
                          "simulated post-apply catalog without touching AWS")
     ap.add_argument("--database", default=DATABASE)

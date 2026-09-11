@@ -10,18 +10,23 @@
 -- locations (MSCK cannot repair them). After a DROP+CREATE from this DDL, re-register:
 --     python jobs/utils/deproject_glue_table.py --register --tables silver_esr_compact
 CREATE EXTERNAL TABLE IF NOT EXISTS silver_esr_compact (
-    commodity_code           smallint,
-    commodity_name           string,
-    market_year              smallint,
-    country_code             smallint,
-    week_ending_date         date,
-    outstanding_sales_1000mt float,
-    weekly_exports_1000mt    float,
-    gross_new_sales_1000mt   float,
-    changes_1000mt           float,
-    source_unit_id           smallint,
-    ingest_date              string,
-    source                   string
+    commodity_code                     smallint,
+    commodity_name                     string,
+    market_year                        smallint,
+    country_code                       smallint,
+    week_ending_date                   date,
+    outstanding_sales_1000mt           float,
+    weekly_exports_1000mt              float,
+    gross_new_sales_1000mt             float,
+    changes_1000mt                     float,
+    source_unit_id                     smallint,
+    ingest_date                        string,
+    source                             string,
+    accumulated_exports_1000mt         double,
+    current_my_net_sales_1000mt        double,
+    current_my_total_commitment_1000mt double,
+    next_my_outstanding_sales_1000mt   double,
+    next_my_net_sales_1000mt           double
 )
 PARTITIONED BY (commodity string, as_of_date string)
 STORED AS PARQUET

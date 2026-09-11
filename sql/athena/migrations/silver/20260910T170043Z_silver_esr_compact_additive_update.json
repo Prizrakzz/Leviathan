@@ -1,0 +1,227 @@
+{
+  "applied_at": "2026-09-10T17:00:43.925617+00:00",
+  "backup": {
+    "captured_at": "2026-09-10T17:00:43.191255+00:00",
+    "catalog_hash": "c1cfd5e87d4ba821b55e308dc01185b88c26329bc0a84c9487dd1587b18d8abd",
+    "table": "silver_esr_compact",
+    "table_input": {
+      "CatalogId": "668891723125",
+      "CreateTime": "2026-07-04 17:39:11+03:00",
+      "CreatedBy": "arn:aws:iam::668891723125:user/leviathan-dev",
+      "DatabaseName": "leviathan_dev",
+      "Description": "USDA ESR compact serving table (BF-W2 option-b: one object per (commodity, as_of_date) weekly vintage, written by bronze_to_silver_esr_task --vintage-mode all). REGISTERED partitions, NO projection - the Jul-2026 S3 LIST-storm fix stands. as_of_date is a PARTITION key (string YYYYMMDD); it also exists inside the parquet bodies for the pg mirror.",
+      "IsMaterializedView": false,
+      "IsMultiDialectView": false,
+      "IsRegisteredWithLakeFormation": false,
+      "Name": "silver_esr_compact",
+      "Parameters": {
+        "EXTERNAL": "TRUE",
+        "classification": "parquet",
+        "parquet.compression": "SNAPPY"
+      },
+      "PartitionKeys": [
+        {
+          "Name": "commodity",
+          "Type": "string"
+        },
+        {
+          "Name": "as_of_date",
+          "Type": "string"
+        }
+      ],
+      "Retention": 0,
+      "StorageDescriptor": {
+        "Columns": [
+          {
+            "Name": "commodity_code",
+            "Type": "smallint"
+          },
+          {
+            "Name": "commodity_name",
+            "Type": "string"
+          },
+          {
+            "Name": "market_year",
+            "Type": "smallint"
+          },
+          {
+            "Name": "country_code",
+            "Type": "smallint"
+          },
+          {
+            "Name": "week_ending_date",
+            "Type": "date"
+          },
+          {
+            "Name": "outstanding_sales_1000mt",
+            "Type": "float"
+          },
+          {
+            "Name": "weekly_exports_1000mt",
+            "Type": "float"
+          },
+          {
+            "Name": "gross_new_sales_1000mt",
+            "Type": "float"
+          },
+          {
+            "Name": "changes_1000mt",
+            "Type": "float"
+          },
+          {
+            "Name": "source_unit_id",
+            "Type": "smallint"
+          },
+          {
+            "Name": "ingest_date",
+            "Type": "string"
+          },
+          {
+            "Name": "source",
+            "Type": "string"
+          }
+        ],
+        "Compressed": true,
+        "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+        "Location": "s3://leviathan-dev-shahem-001/silver/esr",
+        "NumberOfBuckets": 0,
+        "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+        "SerdeInfo": {
+          "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+        },
+        "SortColumns": [],
+        "StoredAsSubDirectories": false
+      },
+      "TableType": "EXTERNAL_TABLE",
+      "UpdateTime": "2026-07-15 02:58:03+03:00",
+      "VersionId": "1"
+    }
+  },
+  "change_type": "additive_update",
+  "database": "leviathan_dev",
+  "fencing_token": 1,
+  "guard_mode": "canonical",
+  "plan": {
+    "change_type": "additive_update",
+    "database": "leviathan_dev",
+    "desired_hash": "70294ffacf556b5bad9c7aab4543e12d7123b7bf282ef38988a6dfd3b5457d3f",
+    "diffs": [
+      "columns: [{'name': 'commodity_code', 'type': 'smallint'}, {'name': 'commodity_name', 'type': 'string'}, {'name': 'market_year', 'type': 'smallint'}, {'name': 'country_code', 'type': 'smallint'}, {'name': 'week_ending_date', 'type': 'date'}, {'name': 'outstanding_sales_1000mt', 'type': 'float'}, {'name': 'weekly_exports_1000mt', 'type': 'float'}, {'name': 'gross_new_sales_1000mt', 'type': 'float'}, {'name': 'changes_1000mt', 'type': 'float'}, {'name': 'source_unit_id', 'type': 'smallint'}, {'name': 'ingest_date', 'type': 'string'}, {'name': 'source', 'type': 'string'}] != [{'name': 'commodity_code', 'type': 'smallint'}, {'name': 'commodity_name', 'type': 'string'}, {'name': 'market_year', 'type': 'smallint'}, {'name': 'country_code', 'type': 'smallint'}, {'name': 'week_ending_date', 'type': 'date'}, {'name': 'outstanding_sales_1000mt', 'type': 'float'}, {'name': 'weekly_exports_1000mt', 'type': 'float'}, {'name': 'gross_new_sales_1000mt', 'type': 'float'}, {'name': 'changes_1000mt', 'type': 'float'}, {'name': 'source_unit_id', 'type': 'smallint'}, {'name': 'ingest_date', 'type': 'string'}, {'name': 'source', 'type': 'string'}, {'name': 'accumulated_exports_1000mt', 'type': 'double'}, {'name': 'current_my_net_sales_1000mt', 'type': 'double'}, {'name': 'current_my_total_commitment_1000mt', 'type': 'double'}, {'name': 'next_my_outstanding_sales_1000mt', 'type': 'double'}, {'name': 'next_my_net_sales_1000mt', 'type': 'double'}]"
+    ],
+    "glue_call": "glue.update_table(DatabaseName='leviathan_dev', TableInput=<live silver_esr_compact with the five columns appended>)  # additive; live hash re-checked",
+    "live_hash": "c1cfd5e87d4ba821b55e308dc01185b88c26329bc0a84c9487dd1587b18d8abd",
+    "registered_partition_audit": {
+      "action": "partitions need controlled repair via SILVER-F013 PartitionPublisher (this tool updates the table SD only, not partition SDs)",
+      "registered": true,
+      "table_sd_changes": [
+        "columns: [{'name': 'commodity_code', 'type': 'smallint'}, {'name': 'commodity_name', 'type': 'string'}, {'name': 'market_year', 'type': 'smallint'}, {'name': 'country_code', 'type': 'smallint'}, {'name': 'week_ending_date', 'type': 'date'}, {'name': 'outstanding_sales_1000mt', 'type': 'float'}, {'name': 'weekly_exports_1000mt', 'type': 'float'}, {'name': 'gross_new_sales_1000mt', 'type': 'float'}, {'name': 'changes_1000mt', 'type': 'float'}, {'name': 'source_unit_id', 'type': 'smallint'}, {'name': 'ingest_date', 'type': 'string'}, {'name': 'source', 'type': 'string'}] != [{'name': 'commodity_code', 'type': 'smallint'}, {'name': 'commodity_name', 'type': 'string'}, {'name': 'market_year', 'type': 'smallint'}, {'name': 'country_code', 'type': 'smallint'}, {'name': 'week_ending_date', 'type': 'date'}, {'name': 'outstanding_sales_1000mt', 'type': 'float'}, {'name': 'weekly_exports_1000mt', 'type': 'float'}, {'name': 'gross_new_sales_1000mt', 'type': 'float'}, {'name': 'changes_1000mt', 'type': 'float'}, {'name': 'source_unit_id', 'type': 'smallint'}, {'name': 'ingest_date', 'type': 'string'}, {'name': 'source', 'type': 'string'}, {'name': 'accumulated_exports_1000mt', 'type': 'double'}, {'name': 'current_my_net_sales_1000mt', 'type': 'double'}, {'name': 'current_my_total_commitment_1000mt', 'type': 'double'}, {'name': 'next_my_outstanding_sales_1000mt', 'type': 'double'}, {'name': 'next_my_net_sales_1000mt', 'type': 'double'}]"
+      ]
+    },
+    "table": "silver_esr_compact",
+    "table_input": {
+      "Description": "USDA ESR compact serving table (BF-W2 option-b: one object per (commodity, as_of_date) weekly vintage, written by bronze_to_silver_esr_task --vintage-mode all). REGISTERED partitions, NO projection - the Jul-2026 S3 LIST-storm fix stands. as_of_date is a PARTITION key (string YYYYMMDD); it also exists inside the parquet bodies for the pg mirror.",
+      "Name": "silver_esr_compact",
+      "Parameters": {
+        "EXTERNAL": "TRUE",
+        "classification": "parquet",
+        "parquet.compression": "SNAPPY"
+      },
+      "PartitionKeys": [
+        {
+          "Name": "commodity",
+          "Type": "string"
+        },
+        {
+          "Name": "as_of_date",
+          "Type": "string"
+        }
+      ],
+      "Retention": 0,
+      "StorageDescriptor": {
+        "Columns": [
+          {
+            "Name": "commodity_code",
+            "Type": "smallint"
+          },
+          {
+            "Name": "commodity_name",
+            "Type": "string"
+          },
+          {
+            "Name": "market_year",
+            "Type": "smallint"
+          },
+          {
+            "Name": "country_code",
+            "Type": "smallint"
+          },
+          {
+            "Name": "week_ending_date",
+            "Type": "date"
+          },
+          {
+            "Name": "outstanding_sales_1000mt",
+            "Type": "float"
+          },
+          {
+            "Name": "weekly_exports_1000mt",
+            "Type": "float"
+          },
+          {
+            "Name": "gross_new_sales_1000mt",
+            "Type": "float"
+          },
+          {
+            "Name": "changes_1000mt",
+            "Type": "float"
+          },
+          {
+            "Name": "source_unit_id",
+            "Type": "smallint"
+          },
+          {
+            "Name": "ingest_date",
+            "Type": "string"
+          },
+          {
+            "Name": "source",
+            "Type": "string"
+          },
+          {
+            "Name": "accumulated_exports_1000mt",
+            "Type": "double"
+          },
+          {
+            "Name": "current_my_net_sales_1000mt",
+            "Type": "double"
+          },
+          {
+            "Name": "current_my_total_commitment_1000mt",
+            "Type": "double"
+          },
+          {
+            "Name": "next_my_outstanding_sales_1000mt",
+            "Type": "double"
+          },
+          {
+            "Name": "next_my_net_sales_1000mt",
+            "Type": "double"
+          }
+        ],
+        "Compressed": true,
+        "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+        "Location": "s3://leviathan-dev-shahem-001/silver/esr",
+        "NumberOfBuckets": 0,
+        "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+        "SerdeInfo": {
+          "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+        },
+        "SortColumns": [],
+        "StoredAsSubDirectories": false
+      },
+      "TableType": "EXTERNAL_TABLE"
+    },
+    "unsafe": []
+  },
+  "table": "silver_esr_compact"
+}

@@ -110,27 +110,33 @@ class TestAdditiveNetCommitmentColumns:
         assert names[-5:] == _FIVE
         assert names[-6] == "source"
 
-    def test_the_five_are_physical_only_until_the_gated_alter(self, reg):
-        """THE REGISTRY NEVER LEADS LIVE GLUE. `glue_type: null` is the estate's own name for
-        "the writer emits it, the catalog has not registered it" (ddl.py excludes such a column
-        from the DDL; the F011 report records it as an R2 add). Live leviathan_dev
-        .silver_esr_compact still carries 12 columns, so declaring 17 here before the ALTER puts
-        the checked-in registry ahead of the catalog -- measured: the registered variant reds
+    def test_the_five_are_registered_catalog_columns_since_the_gated_alter(self, reg):
+        """THE REGISTRY NEVER LEADS LIVE GLUE -- and since 2026-09-10 it no longer trails it
+        either. `glue_type: null` is the estate's own name for "the writer emits it, the catalog
+        has not registered it" (ddl.py excludes such a column from the DDL; the F011 report records
+        it as an R2 add), and the five stood that way while live leviathan_dev.silver_esr_compact
+        carried 12 columns. Declaring 17 before the ALTER would have put the checked-in registry
+        ahead of the catalog -- measured then: the registered variant reds
         test_ddl_generation.test_generated_matches_live_glue_for_every_table with
         `columns extra: [the five]`.
 
-        THE FLIP, in ONE commit at rollout step 5: apply the silver_esr_compact half of
-        sql/athena/migrations/silver/silver_esr_f030_additive.sql under lease (only AFTER the image
-        carrying reconcile_schema_widen=True is live on esr-bronze-to-silver AND
-        silver-publisher-runner), refresh
-        reports/silver_readiness/20260712_p65impl/tables/silver_esr_compact.json, rename
-        `additive_columns_hidden` to `additive_columns` + `additive_columns_registered: True` in
-        gen_registry_from_baseline.CURATION_OVERRIDES, and regenerate. This test then flips to
-        asserting glue_type == "double"."""
+        THE FLIP HAPPENED, in ONE commit: the ALTER was applied by hand (live table now VersionId
+        2, UpdateTime 2026-09-10T20:00:43+03:00, 17 columns with the five LAST as double),
+        reports/silver_readiness/20260712_p65impl/tables/silver_esr_compact.json was refreshed from
+        the post-ALTER live table, `additive_columns_hidden` was renamed to `additive_columns` +
+        `additive_columns_registered: True` in gen_registry_from_baseline.CURATION_OVERRIDES, and
+        the tree was regenerated. So this now asserts the post-ALTER form: nothing physical-only,
+        and all five carrying glue_type == "double".
+
+        What is still owed is the CANONICAL PROMOTE (esr_netcommitment_runbook.py --step S7), which
+        repairs the partition descriptors. That is a read-path fact about Athena, not a contract
+        fact, so no assertion here depends on it."""
         from leviathan.silver import ddl as D
         contract = reg.table("silver_esr_compact")
-        assert D.physical_only_columns(contract) == _FIVE
-        assert not (set(_FIVE) & {n for n, _ in D.catalog_columns(contract)})
+        cols = {c["name"]: c for c in contract["physical_columns"]}
+        assert D.physical_only_columns(contract) == []
+        assert all(cols[n]["glue_type"] == "double" for n in _FIVE)
+        assert set(_FIVE) <= {n for n, _ in D.catalog_columns(contract)}
 
     def test_the_five_are_not_governed_value_columns_yet(self, reg):
         """UNGOVERNED ON PURPOSE, and the exclusion is AUTOMATIC rather than a suppression list.
