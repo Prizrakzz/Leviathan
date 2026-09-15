@@ -157,7 +157,54 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # present in BOTH cards' commodity_values (contract slugs, not base names -- the
                     # gold_weather_z weather-R3 trap).
                     "silver_nass_annual": "corn_cbot",
-                    "silver_nass_crop_progress": "corn_cbot"}
+                    "silver_nass_crop_progress": "corn_cbot",
+                    # USDA WAP GATE RCA (2026-09-15) -- the NEXT CHAPTER OF THE SAME RCA, and the
+                    # first time the SPEC-INVALID-PANEL guard above caught one instead of letting
+                    # it pass. silver_wap_table01_revisions is served AND mirrored (P1_TABLES since
+                    # D-LD, 2026-08-18) but had no entry, and all THREE of its metrics carry
+                    # `unit_overrides` -- value_mmt and prior_value_mmt are MMT for five groups and
+                    # 'million 480-lb bales' for cotton, revision_mmt the same in change units --
+                    # so query.py's DP-1 guard ("carries unit_overrides but the query has no
+                    # commodity") raised on every commodity-less leg. MEASURED 2026-09-15 through
+                    # the real build_sql: 18 of 18 raise with commodity=None, 18 of 18 compile with
+                    # this sample. The gate FAILED on it three fires running (09-12/09-13/09-14,
+                    # 'SPEC-INVALID-PANEL ... all 18 legs unbuildable' -> verdict FAIL), so the WAP
+                    # canonical promote never ran and silver sat frozen at release_month 2026-07.
+                    # NOT A SLUG CHOICE AT ALL, which is what makes this entry different from every
+                    # one above it: commodity_col is `commodity` and it holds WAP AGGREGATE GROUPS,
+                    # not contract slugs. The six values in the canonical object are EXACTLY the six
+                    # the card declares -- coarse_grains, cotton, oilseeds, rice, total_grains,
+                    # wheat (measured on silver/wap_table01_revisions/part-000.parquet, 96,410
+                    # rows). There is no corn_cbot here, and a contract slug would match zero rows.
+                    # WHEAT IS CHOSEN FOR MEANING, NOT AVAILABILITY. All six groups are non-vacuous
+                    # at all three ASOFS, measured at the guard's own cutoffs (asof minus
+                    # publication_lag_days 12) on the vintage_type='year' half: wheat 6,070 / 7,150
+                    # / 7,978 rows, the thinnest group being cotton at 5,957 / 7,097 / 7,971. World
+                    # wheat -- the card's own worked example -- carries 348 / 408 / 454 rows and a
+                    # real revision at the newest release of each (2021-08: 763.6 against a prior
+                    # 763.5; 2026-06: 844.4 against 843.8), so the panel compares the quantity this
+                    # table EXISTS for rather than a group that merely happens to be populated.
+                    # PERIOD STAYS FREE, and this is the trap worth naming: the card declares
+                    # `period_required: true`, but that is enforced in agent._check_period_required,
+                    # never in the compiler, so the grid legitimately compiles period-less SQL. A
+                    # builder who "helpfully" pinned a marketing_year would emit
+                    # `marketing_year = '2026/27'` under a `<= '2021-08-03'` guard -- two of three
+                    # as-ofs returning zero rows, and an EMPTY leg is a MATCH on both backends that
+                    # passes while proving nothing (the PSD_ATTR_VINTAGE_CELLS lesson verbatim).
+                    # NULLS ARE SAFE HERE: prior_value_mmt and revision_mmt are NULL on 42 of 456
+                    # world-wheat year rows and on BOTH marketing years at the 2024-05 release, so
+                    # two `latest` legs compare a NULL -- legally, on both backends, because
+                    # _total_order is all-ASC and Presto and Postgres both default NULLS LAST on
+                    # ASC, and the `latest` arm's only DESC term is knowledge_date, which is never
+                    # NULL.
+                    # THE DEFERRAL HAS EXPIRED: load_pg_numbers.py's note ("choosing the
+                    # commodity/as-of pair is worth doing against the first real mirror") was
+                    # written before the mirror existed. It was hand-loaded 2026-09-10 13:29Z, and
+                    # stage_pg_reload reloads this very table immediately BEFORE stage_parity on
+                    # every Branch-A gate run -- so the futures_eod "sampled but unmirrored reds the
+                    # whole gate" hazard is closed twice over here. That note in load_pg_numbers.py
+                    # is now stale; it is another lane's file and is left alone, not edited.
+                    "silver_wap_table01_revisions": "wheat"}
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]

@@ -366,3 +366,202 @@ def test_main_feeds_the_guard_and_books_every_spec_invalid_skip():
     # arm that emits the SKIP line -- not after the compare.
     skip_at = src.index("spec invalid ({e})")
     assert 0 < src.index("spec_invalid[tid]") - skip_at < 200
+
+
+# ---- USDA WAP GATE RCA (2026-09-15): the same defect, caught by the guard the NASS RCA built ----
+#
+# THE MEASURED FINDING. `usda_wap-gate` FAILED on three consecutive fires (2026-09-12 18:22Z,
+# 09-13 18:12Z, 09-14 18:23Z) with `SPEC-INVALID-PANEL silver_wap_table01_revisions: all 18 legs
+# unbuildable` -> verdict FAIL -> no reconcile job in the window -> the WAP canonical promote never
+# ran, and canonical silver/wap_table01_revisions sat at max release_month 2026-07, last written
+# 2026-08-14 18:28Z. Cause: no SAMPLE_COMMODITY entry, and ALL THREE of this card's metrics carry
+# `unit_overrides` (MMT for five commodity groups, 'million 480-lb bales' for cotton), so query.py's
+# DP-1 guard raised on every commodity-less leg.
+#
+# This is the NASS defect one family over, with one difference worth stating: the estate-wide
+# SPEC-INVALID-PANEL guard pinned above WORKED. The gate went RED and said exactly why, instead of
+# printing `## verdict: 0/0 exact-match` and passing. The pins below are for the entry that clears
+# it -- and for the two ways a well-meaning fix would re-vacuate the panel (pinning a period;
+# reading the sample as a contract slug).
+
+_WAP = "silver_wap_table01_revisions"
+
+
+def _wap_grid(ts):
+    """main()'s OWN leg grid for this table, through parity.metric_plan -- NOT the stale `[:4]` of
+    `_leg_grid` above, which predates the width rule and would under-count a wide card of 3."""
+    metrics, dropped = parity.metric_plan(ts.shape, ts.metrics)
+    return [(m, asof, agg) for m in metrics for asof in parity.ASOFS for agg in parity.AGGS], dropped
+
+
+def test_wap_revisions_sample_is_a_wap_aggregate_group_not_a_contract_slug():
+    """The sample is `wheat`, and the reason it is NOT `wheat_cbot`-shaped is the whole point: this
+    card's commodity axis is the WAP AGGREGATE GROUP, not an exchange contract. Every other entry in
+    SAMPLE_COMMODITY that carries a value carries a slug, so the habit is the hazard here."""
+    reg = load_registry()
+    assert _WAP in parity.SAMPLE_COMMODITY, (
+        "no entry -> every leg raises the DP-1 unit_overrides guard and the panel is SPEC-INVALID; "
+        "that is the state the gate FAILED in on 2026-09-12/13/14")
+    commodity = parity.SAMPLE_COMMODITY[_WAP]
+    assert commodity == "wheat"
+    assert _WAP in reg.tables, "fenced out of the registry -> the leg would SKIP-FENCED, not compare"
+    ts = reg.get(_WAP)
+    assert commodity in ts.commodity_values, "the sample must be a value the CARD declares"
+    # MEASURED 2026-09-15 on canonical silver/wap_table01_revisions/part-000.parquet (96,410 rows):
+    # the stored `commodity` values are EXACTLY the six the card declares. A contract slug would
+    # match zero rows -- the gold_weather_z weather-R3 vacuous-panel trap, arrived at from the
+    # opposite direction.
+    assert sorted(ts.commodity_values) == ["coarse_grains", "cotton", "oilseeds", "rice",
+                                           "total_grains", "wheat"]
+    assert _WAP in parity.PG_MIRROR_TABLES, (
+        "served but unmirrored -> pgnumbers.pg_query raises 'relation does not exist' per leg, _cmp "
+        "books each as a PG-ERR MISMATCH (not a skip), and the WHOLE parity gate goes red for one "
+        "table; SKIP-UNMIRRORED would instead pass this panel vacuously, which is worse than red")
+
+
+def test_wap_revisions_grid_is_18_legs_with_no_metric_hidden():
+    """The card is WIDE at 3 metrics, under FULL_METRIC_MAX 8, so the width rule compares it IN FULL
+    and drops nothing. Pinned because the RCA's leg count is only meaningful if no metric is being
+    silently sampled away -- the pct_harvested defect, one table over."""
+    ts = load_registry().get(_WAP)
+    assert ts.shape == "wide" and len(ts.metrics) == 3
+    grid, dropped = _wap_grid(ts)
+    assert dropped == [], "a dropped metric here would be a cap nobody asked for"
+    assert len(grid) == 18                      # 3 metrics x 3 ASOFS x 2 AGGS
+    assert list(ts.metrics) == ["value_mmt", "prior_value_mmt", "revision_mmt"]
+    # ALL THREE carry unit_overrides -- this is why the defect hit every leg rather than one metric.
+    for m in ts.metrics.values():
+        assert getattr(m, "unit_overrides", None), (
+            "if a metric ever stops carrying unit_overrides the DP-1 guard stops firing for it, and "
+            "this table's panel could go half-vacuous without the gate noticing")
+
+
+def test_wap_revisions_legs_raise_without_the_sample_and_build_with_it():
+    """THE DEFECT AND THE FIX, both driven through the REAL build_sql. No Athena, no pg."""
+    from leviathan.graphrag.numbers import query as Q
+
+    ts = load_registry().get(_WAP)
+    grid, _ = _wap_grid(ts)
+    commodity = parity.SAMPLE_COMMODITY[_WAP]
+
+    # THE DEFECT: with no sample, all 18 raise -- and with the exact message the gate log carried.
+    for metric, asof, agg in grid:
+        with pytest.raises(ValueError, match="unit_overrides"):
+            Q.build_sql(Q.NumberQuery(table=_WAP, metric=metric, asof=asof, commodity=None,
+                                      agg=agg, limit=50))
+    # ...and with the sample, all 18 compile to real SQL that filters the commodity, holds the
+    # card's served subset, and reads the right relation.
+    for metric, asof, agg in grid:
+        sql = Q.build_sql(Q.NumberQuery(table=_WAP, metric=metric, asof=asof, commodity=commodity,
+                                        agg=agg, limit=50))
+        assert f"commodity = '{commodity}'" in sql
+        assert "vintage_type IN ('year')" in sql      # the month-comparison block is a different quantity
+        assert f"leviathan_dev.{_WAP}" in sql
+    # The as-of guard applies the card's publication_lag_days 12 -- 2021-08-15 reads as 2021-08-03.
+    # MEASURED on the canonical object at that exact cutoff: 348 world-wheat vintage_type='year'
+    # rows, newest release 2021-08, so the leg is NOT vacuous (408 at 2024-05-20, 454 at 2026-06-19).
+    sql = Q.build_sql(Q.NumberQuery(table=_WAP, metric="value_mmt", asof="2021-08-15",
+                                    commodity=commodity, agg="latest", limit=50))
+    assert "CAST(release_month AS varchar) <= '2021-08-03'" in sql
+
+
+def test_wap_revisions_grid_leaves_period_free_because_pinning_one_is_the_vacuity_trap():
+    """`period_required: true` is a SERVING-AGENT fence (agent._check_period_required), NOT a
+    compiler fence: it never reaches build_sql. So a builder reading the card can 'helpfully' pin a
+    marketing_year into the grid, watch all 18 legs still compile, and never notice that two of the
+    three as-ofs now return zero rows -- an EMPTY leg is an exact MATCH on both backends, and the
+    table-wide EMPTY-PANEL guard cannot see it because the other as-of is full."""
+    from leviathan.graphrag.numbers import query as Q
+
+    commodity = parity.SAMPLE_COMMODITY[_WAP]
+    # It COMPILES -- that is the trap, not the safety.
+    sql = Q.build_sql(Q.NumberQuery(table=_WAP, metric="value_mmt", asof="2021-08-15",
+                                    commodity=commodity, country="world", period="2026/27",
+                                    agg="latest", limit=50))
+    assert "marketing_year = '2026/27'" in sql
+    assert "CAST(release_month AS varchar) <= '2021-08-03'" in sql, (
+        "a 2026/27 marketing-year label under a 2021 as-of guard: real SQL, zero rows, clean pass")
+    # ...and the grid the gate actually runs carries no period term at all.
+    free = Q.build_sql(Q.NumberQuery(table=_WAP, metric="value_mmt", asof="2021-08-15",
+                                     commodity=commodity, agg="latest", limit=50))
+    assert "marketing_year = " not in free
+
+
+def test_wap_revisions_all_skip_panel_is_a_mismatch_not_a_pass():
+    """The gate's own three-fire verdict, reproduced from the REAL build_sql and fed to the pure
+    guard: 18 unbuildable legs, nothing compared -> SPEC-INVALID-PANEL -> 'FAIL - do NOT flip'."""
+    from leviathan.graphrag.numbers import query as Q
+
+    ts = load_registry().get(_WAP)
+    grid, _ = _wap_grid(ts)
+    spec_invalid: dict[str, int] = {}
+    for metric, asof, agg in grid:
+        try:                                    # _cmp's own try/except, verbatim in shape
+            Q.build_sql(Q.NumberQuery(table=_WAP, metric=metric, asof=asof, commodity=None,
+                                      agg=agg, limit=50))
+        except Exception:                       # noqa: BLE001 - the SKIP arm
+            spec_invalid[_WAP] = spec_invalid.get(_WAP, 0) + 1
+    assert spec_invalid == {_WAP: 18}
+    out = parity.vacuity_mismatches(compared={}, nonempty={}, spec_invalid=spec_invalid)
+    assert len(out) == 1 and out[0].startswith(
+        f"SPEC-INVALID-PANEL {_WAP}: all 18 legs unbuildable (spec invalid)")
+
+
+def test_the_wap_entry_changes_nothing_for_any_other_table():
+    """BYTE-IDENTICAL SET, item 4. The fix is ONE dict key. Every pre-existing entry, and every
+    constant the leg grid is built from, is pinned here so a future 'while I am in this file' edit
+    to another table's sample has to be a deliberate change to this list."""
+    pre_existing = (
+        ("silver_psd", "corn_cbot"), ("silver_wasde", "corn"), ("silver_production", "corn_cbot"),
+        ("silver_esr", "corn_cbot"), ("silver_fred_fx", None), ("silver_noaa_oni", None),
+        ("silver_pink_sheet", None), ("gold_weather_z", "corn_cbot"), ("silver_icco_cocoa", None),
+        ("silver_mpob", "malaysian_crude_palm_oil_cme"), ("silver_sagis_cec", "total_maize"),
+        ("silver_cot", "corn_cbot"), ("silver_noaa_iod", None),
+        ("silver_conab_coffee", "arabica_coffee"), ("silver_sagis_weekly_exports", "maize"),
+        ("silver_futures_prices", "corn_cbot"), ("gold_pattern_records", "corn_cbot"),
+        ("silver_futures_eod", "corn_cbot"), ("silver_psd_attributes", "soybeans_cbot"),
+        ("silver_nass_annual", "corn_cbot"), ("silver_nass_crop_progress", "corn_cbot"),
+    )
+    assert tuple((k, v) for k, v in parity.SAMPLE_COMMODITY.items() if k != _WAP) == pre_existing
+    assert len(parity.SAMPLE_COMMODITY) == len(pre_existing) + 1 == 22
+    # ...and the grid's own dimensions, which every table's leg count is a product of.
+    assert parity.ASOFS == ["2021-08-15", "2024-06-01", "2026-07-01"]
+    assert parity.AGGS == ["latest", "series"]
+    assert parity.WIDE_METRIC_CAP == 4 and parity.FULL_METRIC_MAX == 8
+
+
+def test_the_default_table_set_is_the_sample_commodity_keys_and_this_entry_widens_it():
+    """REVIEW MINOR: the line this replaces read ``assert _WAP in set(parity.SAMPLE_COMMODITY)``
+    under a comment about the DEFAULT TABLE SET. It restated the line above it and proved nothing --
+    membership in the dict is not membership in the default set unless the two are the same thing.
+
+    They are, at ``numbers_parity.py`` main(): ``PARITY_TABLES`` env or, failing that, the
+    SAMPLE_COMMODITY keys joined by commas. That is the mechanism, so it is exercised here rather
+    than described, in both directions -- and the COST it implies is stated as a measured number,
+    because adding a dict key is also adding legs to every unscoped run."""
+    import inspect
+    import os
+
+    src = inspect.getsource(parity.main)
+    expr = 'os.environ.get("PARITY_TABLES") or ",".join(SAMPLE_COMMODITY)'
+    assert expr in src, "the default-table-set mechanism moved; re-point this pin at it"
+
+    def _tables(env):                       # the expression itself, evaluated the way main does
+        return [t.strip() for t in
+                (env or ",".join(parity.SAMPLE_COMMODITY)).split(",") if t.strip()]
+
+    unscoped = _tables(os.environ.get("PARITY_TABLES_NOT_SET"))
+    assert unscoped == list(parity.SAMPLE_COMMODITY) and _WAP in unscoped
+    # ...and the gate is NOT an unscoped run: it sets PARITY_TABLES to ONE table per stage_parity
+    # call, so this entry cannot lengthen any gate stage but its own.
+    assert _tables(_WAP) == [_WAP]
+    gate = importlib.import_module("jobs.audit.silver_rebuild_gate")
+    assert 'os.environ["PARITY_TABLES"] = table' in inspect.getsource(gate.stage_parity)
+
+    # THE COST, measured 2026-09-15 through the real registry: this card is WIDE with 3 metrics, and
+    # ASOFS x AGGS is 6, so it adds exactly 18 legs / 36 backend queries to an unscoped run
+    # (jobs/submit/submit_batch_load_numbers_pg.py --parity is the one that pays it). 642 -> 660.
+    from jobs.utils.numbers_parity import metric_plan
+    ts = load_registry().get(_WAP)
+    assert ts.shape == "wide" and len(metric_plan(ts.shape, ts.metrics)[0]) == 3
+    assert len(parity.ASOFS) * len(parity.AGGS) == 6

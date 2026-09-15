@@ -866,3 +866,18 @@ releases:
   - release_month: "2026-07"
     url: "https://www.fas.usda.gov/sites/default/files/2026-07/production.pdf"
 
+# APPENDED BY HAND 2026-09-15, not by --discover: the FAS search pagination and the report
+# home page both return Akamai 403 to this estate's laptop, so the manifest cannot be rebuilt
+# from here. These two URLs were HEAD-verified instead -- 2026-08 -> HTTP 200, 1,645,992 bytes,
+# Last-Modified Wed 12 Aug 2026 16:19:39 GMT; 2026-09 -> HTTP 200, 21,431,027 bytes,
+# Last-Modified Fri 11 Sep 2026 16:17:10 GMT -- and they are the two circulars the manifest-only
+# fetch loop never enumerated, which froze silver_wap_table01_revisions at 2026-07 for 42 days.
+# Hygiene, not a dependency: the fetcher's incremental tail re-probes forward from this file's
+# newest entry on every run and would find them anyway.
+
+  - release_month: "2026-08"
+    url: "https://www.fas.usda.gov/sites/default/files/2026-08/production.pdf"
+
+  - release_month: "2026-09"
+    url: "https://www.fas.usda.gov/sites/default/files/2026-09/production.pdf"
+
