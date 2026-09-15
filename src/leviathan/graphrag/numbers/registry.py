@@ -500,7 +500,8 @@ def metric_lag_override(table: str, metric: str, *, default=None) -> Optional[in
 def check_metric_lags(reg: Optional[NumbersRegistry] = None) -> list[str]:
     """Every per-metric ``ym_publication_lag_days`` is legal, reachable, and not silently missing.
 
-    **NOT YET WIRED INTO THE BUILD (standing item, opened 2026-09-11).** As it ships, this function's
+    **WIRED INTO THE BUILD 2026-09-16** (``config_check.main``'s ``metric_lags`` roster entry, appended at
+    the tail). Until that entry this function's
     only caller is its own deck (``tests/unit/test_state_registry_ym_lag.py::TestPerMetricLag``), so it
     is a lint that grades a registry nobody asked it about: a CI run that never loads that deck, or an
     image built from a config edit alone, passes with the estate red. The wiring is one tuple entry in

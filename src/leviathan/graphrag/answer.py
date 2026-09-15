@@ -2182,6 +2182,42 @@ def _recency_stamp_on() -> bool:
     return os.environ.get("GRAPHRAG_RECENCY_STAMP", "").strip().lower() in ("on", "1", "true")
 
 
+def _bridge_query_on() -> bool:
+    """V2-RETRIEVAL SLICE 1 -- THE BRIDGE QUERY's kill-switch (GRAPHRAG_BRIDGE_QUERY), BUILT DARK.
+
+    THE DEFECT, read from planner.py:1747 (2026-09-11): the walk admits a far node by cos(question,
+    THE ADMITTING MECHANISM) -- the GRAPH decides WHICH nodes -- but inside that node the propositions
+    are ordered by hybrid BM25 + cosine + rerank against the USER'S QUESTION. A corn question therefore
+    ranks a soybean node's sentences by their likeness to 'corn', and a dated event inside that node's
+    window that never resembles the question is never surfaced. Measured on the real bge embedder over
+    the real stored slices: for contract:soybeans_cbot reached from corn_cbot via competes_with, the
+    shipped question-ranked top-8 overlaps the mechanism-ranked top-8 in 1 of 8.
+
+    WHEN ON: `planner.ground` sends THE TEXT THE WALK SCORED TO ADMIT EACH NON-SEED RETRIEVING NODE, as
+    that node's retrieval query, to all three legs at once (vector, tsquery/BM25, rerank) --
+    `n.via_edge['mechanism']` for a hop CONTRACT, and `graph.driver(n.contract, n.id).mechanism` for a
+    DRIVER at depth 1 or 2 (a driver is enqueued with via=None and carries no edge, so its own
+    mechanism IS its admitting text; the depth-2 drivers OF a hop contract are the multi-hop chain in
+    this graph, since the hop fence keeps contract depth at 0 or 1). The seed keeps the question, and
+    NOTHING ELSE DOES except a named, COUNTED fallback (a blank admitting text, an unreadable driver, an
+    unknown node kind, or a rerank lane that is not the native key). EVERY DRIVER IS BRIDGED,
+    REGIME-REQUIRED OR NOT, ON AS-OF TURNS TOO (R-13, 2026-09-15): the firing leg reuses a driver node's
+    kept rows as its receipt, so a bridged driver's receipt is its BRIDGE-RANKED rows and n_probes /
+    regime_basis / silver_veto / fired_regimes MAY MOVE with the flag on. They are reported off vs on
+    (bridge_query MEASURED.md section 8.3), never pinned equal, and the arm's JUDGE decides whether the
+    bridged receipt is better. The owner accepted the price (2026-09-15): ~+9 s on deep / ~+13 s on max
+    with GRAPHRAG_RERANK_GROUP_WORKERS=16 (rankers reads that knob itself; it is NOT part of this seam),
+    and a Cohere bill per turn about 2x at constant documents.
+    WHEN OFF: the kwarg is ABSENT from the ground() call, `_fill` passes `query` exactly as HEAD does,
+    the EC-2 prefetch plan is unchanged, no extra embed is issued, the rerank coalescer still sees one
+    query, and no `bridge_query` key reaches the trace. Byte-identical, and pinned as such in
+    tests/unit/test_bridge_query.py and by test_dam_modes' exact ground-kwarg set.
+
+    THE GRAMMAR IS `_ec2_enabled`'s, DELIBERATELY, not `_state_board_on`'s: this ships OFF and a typo
+    must not silently ARM an unmeasured retrieval change on the serving lane."""
+    return str(os.environ.get("GRAPHRAG_BRIDGE_QUERY") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def _recency_facts_on() -> bool:
     """STATE-ENGINE PHASE 0s's kill-switch (GRAPHRAG_RECENCY_FACTS), BUILT DARK.
     Design docs/private/STATE_ENGINE_DESIGN_2026-09-07.md sec 6.5 (2)(3), sec 9.2 row 0s.
@@ -4165,6 +4201,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # branch. `state/`'s own law #1 is "IT NEVER RAISES" -- and the two lazy imports sat OUTSIDE that
     # belt, so an unimportable `state/` package (its configs ride the image tar as force-added files)
     # would have taken a flag-on turn down instead of declining it (S6 review).
+    # V2-RETRIEVAL SLICE 1: ONE READ PER TURN, THREADED -- the `_state_board_on` idiom. `planner`
+    # reads no environment for this; the bool is the whole of the lever's reach into the walk.
+    # OMIT-WHEN-EMPTY, like `_fk` and `_fd` above: off -> the ground() call below is byte-identical.
+    _bq = {"bridge_query": True} if _bridge_query_on() else {}
     _sb_on, _dsp, _sbs = _state_board_on(), None, None
     if _sb_on:
         try:
@@ -4221,6 +4261,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _n_seeds = len(getattr(sg, "seeds", None) or [])
     pl.ground(sg, query, graph, retrieve=retr, silver_lookup=silver_lookup, asof=asof, near=near,
               probe_retrieve=probe_retr, on_stage=on_stage,       # probes = cheap existence checks, no reranker
+              **_bq,                                              # V2-RETRIEVAL SLICE 1: {} when the flag is off
               **_rm.scaled_ground_kwargs(mode_knobs, n_seeds=_n_seeds))   # D-AM-10: {} unless a mode is honored
     _gm = sg.trace.get("ground_ms") or {}
     _emit(on_stage, "walking", nodes=len(sg.nodes), regimes=len(sg.fired_regimes),

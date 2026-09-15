@@ -3291,6 +3291,19 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # resolves False, and with it `watch.watch_rows` returns HEAD's five-kind interleave byte for byte.
     # Independently revertable for the same MINOR-3 reason, so it is its own group.
     _S7B_WATCH = ["_watch_nonobvious_on"]
+    # RE-ANCHORED 2026-09-16 BY THE BRIDGE QUERY SEAM (V2-retrieval slice 1, ba5fbcf6 + the hand-landed
+    # answer.py seam), same census, same construction, same DARK default: the producer enumerates every
+    # zero-arg `_*_on` callable on `answer`, so `_bridge_query_on` (GRAPHRAG_BRIDGE_QUERY -- every
+    # non-seed retrieving node ranks and reranks its text by the mechanism the walk scored to admit it)
+    # appears here BY CONSTRUCTION. Measured cause (scratchpad/bridge_query/MEASURED.md, real bge-m3
+    # over the real stored slices, 26 far nodes): the question-ranked top-8 overlaps the mechanism-
+    # ranked top-8 in 1 of 8 on the corn->soybeans hop; with the bridge on, mean cosine of the top-8
+    # to the admitting mechanism rises on every node class (FAR +0.111, D2 +0.061, D1 +0.057) with 0
+    # nodes worse, and the flag-OFF arm is IDENTICAL to HEAD on every retrieve call, row, order, trace
+    # and embed count (identity_fail: []). Unset resolves False; the seam is omit-when-empty, so the
+    # ground() kwarg set is untouched (test_dam_modes pins the exact set) and no key reaches the trace.
+    # Independently revertable for the same MINOR-3 reason, so it is its own group.
+    _BRIDGE_ONE = ["_bridge_query_on"]
     # THE ACCEPTED SET IS THE BASE PLUS ANY SUBSET OF THE THREE INDEPENDENTLY-REVERTABLE DARK ITEMS, and
     # that is a WIDENING OF THE ENUMERATION, never a loosening of the pin: the previous six-state list
     # was the same subset rule written out by hand for two items (MINOR-3's "each item is independently
@@ -3300,7 +3313,7 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # so a default flipping in either direction still reds. `[]` (the pre-D-XL state) stays accepted.
     import itertools as _it
     _optional = (_K96_ONE, _K94_ONE, _S5_ONE, _S5_TWO, _S6_ONE, _S7B_LICENCE, _S7B_DESK,
-                 _S7B_WATCH)
+                 _S7B_WATCH, _BRIDGE_ONE)
     _accepted = [[], _XL_SIX] + [
         sorted(_XL_SIX + _DCL_ONE + [n for grp in combo for n in grp])
         for r in range(len(_optional) + 1) for combo in _it.combinations(_optional, r)]

@@ -6144,6 +6144,16 @@ def check_cascade_notch() -> list[str]:
     return errs
 
 
+def check_metric_lags() -> list[str]:
+    """PER-METRIC PUBLICATION LAGS (29de55eb, 2026-09-11), WIRED 2026-09-16. The lint itself lives with the
+    registry (``numbers.registry.check_metric_lags``): every per-metric ``ym_publication_lag_days`` is
+    legal, reachable and not silently inherited (clause 5: any card carrying an override declares every
+    metric's lag explicitly). Until this entry the lint's only caller was its own deck, so an image built
+    from a config edit alone could ship with the estate red. A pure read of the registry; no store."""
+    from leviathan.graphrag.numbers.registry import check_metric_lags as _cml
+    return list(_cml())
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -6190,7 +6200,11 @@ def main() -> int:
                         # SUBJECT RESOLVER: APPENDED AT THE TAIL, the same append-never-insert
                         # law this roster keeps for itself. A pure read: module source, the
                         # frozen block, the artifact sidecar and the live graph hash.
-                        ("subject_resolver", check_subject_resolver())):
+                        ("subject_resolver", check_subject_resolver()),
+                        # PER-METRIC LAGS (29de55eb): APPENDED AT THE TAIL, the same append-never-insert
+                        # law. The orchestrator's owed tuple entry, landed 2026-09-16 after S7b released
+                        # this file. A pure read of the numbers registry.
+                        ("metric_lags", check_metric_lags())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")
