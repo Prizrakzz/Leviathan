@@ -57,6 +57,7 @@ import datetime as _dt
 import functools
 import pathlib
 import re
+import types as _types
 from typing import Optional
 
 import yaml
@@ -333,6 +334,48 @@ def _check_conventions() -> list[str]:
     if pos and pos.get("history_window") != 156:
         errs.append("state_conventions cot_mm_positioning: history_window must be 156 weeks, got %r"
                     % (pos.get("history_window"),))
+
+    # ── THE WATCH-ONLY OVERLAY (S7b) ────────────────────────────────────────────────────────────────
+    # It is graded by exactly the same clauses as `conventions:` -- a ref the estate names, a kind in
+    # the enum, bands strictly ascending and unique, labels the same length, a declared window, and
+    # every LABEL register-clean. The file's own header records "crowded" / "stretched" failing that
+    # last one, which is why it is a clause and not a habit.
+    # IT MUST NOT SHADOW A LIVE CONVENTION. An overlay entry for a ref `conventions:` already carries
+    # would be a second, unrankable opinion about one series -- and `watch.nonobvious_candidates`
+    # merges with the base winning, so the shadow would be dead config that a reader would still
+    # believe. The clause makes it a red instead.
+    overlay = doc.get("watch_overlay") or {}
+    for ref, row in overlay.items():
+        row = row or {}
+        if ref in convs:
+            errs.append("state_conventions watch_overlay %r: the `conventions:` block already declares "
+                        "this ref -- the base always wins, so this entry is dead config" % (ref,))
+        if ref not in known_refs:
+            errs.append("state_conventions watch_overlay %r: not a live cascade_map ref, a board_read "
+                        "row, or a DAG silver_ref" % (ref,))
+        kind = row.get("kind")
+        if kind not in CONVENTION_KINDS:
+            errs.append("state_conventions watch_overlay %r: kind %r not in %s"
+                        % (ref, kind, list(CONVENTION_KINDS)))
+        bands, labels = row.get("bands"), row.get("labels")
+        if not isinstance(bands, list) or not bands or not all(isinstance(b, (int, float))
+                                                               for b in bands):
+            errs.append("state_conventions watch_overlay %r: bands must be a non-empty list of "
+                        "numbers, got %r" % (ref, bands))
+        elif list(bands) != sorted(bands) or len(set(bands)) != len(bands):
+            errs.append("state_conventions watch_overlay %r: bands must be strictly ascending, got %r"
+                        % (ref, bands))
+        if not isinstance(labels, list) or (isinstance(bands, list) and len(labels or []) != len(bands)):
+            errs.append("state_conventions watch_overlay %r: len(labels) must equal len(bands) "
+                        "(%r vs %r)" % (ref, labels, bands))
+        if row.get("history_window_key") not in windows:
+            errs.append("state_conventions watch_overlay %r: history_window_key %r is not a declared "
+                        "window" % (ref, row.get("history_window_key")))
+        for lbl in (labels or []):
+            hits = _register_hits(str(lbl))
+            if hits:
+                errs.append("state_conventions watch_overlay %r: label %r is NOT register-safe (%s)"
+                            % (ref, lbl, "; ".join(hits)))
     return errs
 
 
@@ -804,6 +847,421 @@ def check_state_board() -> list[str]:
     errs += _check_absence_vocabulary()
     errs += _check_row_classes()
     errs += _check_narration_and_calendar()
+    errs += _check_nonobvious_watch()
+    return errs
+
+
+# ── clause 12 (S7b): the non-obvious watch vocabulary, its bans and its ceilings ─────────────────────
+def _check_nonobvious_watch() -> list[str]:
+    """The 09-11 watch ruling's own contracts, graded on the CODE rather than argued about in prose.
+
+    THE CALENDAR BAN IS THE CLAUSE THAT MATTERS and it is keyed on the CLOSED MAP rather than on a
+    regex. "Never release-calendar items" cannot be enforced by banning the word "report" -- every
+    SB-W row ends in an ISO date by design and the expiry kind prints two, so a regex over
+    ``report|release|print|scheduled`` would strike honest rows. The ban is: no non-obvious kind is a
+    calendar kind, and no non-obvious kind's WORDS come from ``calendar.KIND_WORDS`` /
+    ``calendar.RULE_WORDS``, whose eleven-of-thirty DECLINED release forms ("the venue calendar is not
+    read here, so no day is named") are then covered by construction."""
+    errs: list[str] = []
+    from leviathan.graphrag.state import calendar as CAL
+    from leviathan.graphrag.state import watch as WA
+
+    # THE COVERAGE IS A SUPERSET CHECK BECAUSE A KIND MAY CARRY VARIANT SENTENCES (review round 3),
+    # and the variants are graded as their own clause below -- every key here is still a phrase a
+    # reader meets, and every one is graded for calendar vocabulary, register and ASCII by the loop.
+    _missing = set(WA.NONOBVIOUS_KINDS) - set(WA.NONOBVIOUS_KIND_WORDS)
+    if _missing:
+        errs.append("watch.NONOBVIOUS_KIND_WORDS %r does not cover watch.NONOBVIOUS_KINDS %r -- a kind "
+                    "with no words renders a code token to a reader"
+                    % (sorted(WA.NONOBVIOUS_KIND_WORDS), list(WA.NONOBVIOUS_KINDS)))
+    _stray = (set(WA.NONOBVIOUS_KIND_WORDS) - set(WA.NONOBVIOUS_KINDS)
+              - set(getattr(WA, "NONOBVIOUS_VARIANTS", {}) or {}))
+    if _stray:
+        errs.append("watch.NONOBVIOUS_KIND_WORDS carries %r, which is neither a kind nor a declared "
+                    "variant" % (sorted(_stray),))
+    overlap = set(WA.NONOBVIOUS_KINDS) & set(WA.WATCH_KINDS)
+    if overlap:
+        errs.append("watch: %r is declared as BOTH a shipped watch kind and a non-obvious kind -- the "
+                    "non-obvious list REPLACES the shipped one and a shared name makes the two "
+                    "indistinguishable on the trace" % (sorted(overlap),))
+    cal_words = {str(w).lower() for w in
+                 (list(CAL.KIND_WORDS.values()) + list(CAL.RULE_WORDS.values()))}
+    for kind, words in sorted(WA.NONOBVIOUS_KIND_WORDS.items()):
+        low = str(words).lower()
+        if low in cal_words or any(low in cw for cw in cal_words):
+            errs.append("watch.NONOBVIOUS_KIND_WORDS[%r] = %r is release-calendar vocabulary; the "
+                        "09-11 ruling bans a calendar item as a watch item outright" % (kind, words))
+        for bad in ("met", "fires", "the regime is"):
+            if bad in low.split() or (" " in bad and bad in low):
+                errs.append("watch.NONOBVIOUS_KIND_WORDS[%r] carries %r -- walk.CONVERGENCE_BANNED_WORDS "
+                            "bars it on a row that narrates a declared pattern" % (kind, bad))
+        hits = _register_hits(str(words))
+        if hits:
+            errs.append("watch.NONOBVIOUS_KIND_WORDS[%r] is NOT register-safe (%s)"
+                        % (kind, "; ".join(hits)))
+        if not str(words).isascii():
+            errs.append("watch.NONOBVIOUS_KIND_WORDS[%r] is not ASCII" % (kind,))
+    if "next_release" in WA.NONOBVIOUS_KINDS:
+        errs.append("watch.NONOBVIOUS_KINDS declares `next_release` -- a scheduled print is banned as a "
+                    "nominated item and rides the one-line footnote instead")
+    want = {"quick": 3, "deep": 5, "max": 7}
+    if dict(WA.WATCH_NONOBVIOUS_K) != want:
+        errs.append("watch.WATCH_NONOBVIOUS_K %r != the owner's 2026-09-11 ceilings %r"
+                    % (dict(WA.WATCH_NONOBVIOUS_K), want))
+    if dict(WA.WATCH_RENDER_K) != {"quick": 3, "deep": 6, "max": 8}:
+        errs.append("watch.WATCH_RENDER_K moved to %r -- it is the SHIPPED cap, it is pinned against "
+                    "reasoning_modes' knob table by two decks, and the non-obvious ceiling is a "
+                    "SEPARATE constant" % (dict(WA.WATCH_RENDER_K),))
+    # THE RANK IS THE 09-11 RULING'S SEVEN TERMS IN THE RULING'S ORDER, and the ORDER is what this
+    # grades: the first cut declared eight with T_NOVELTY leading, which demoted T_AMPLIFIER behind a
+    # term the ruling names as a measurement clause rather than a rank position. Novelty is the
+    # tie-break and is graded as one.
+    want_terms = ("T_AMPLIFIER", "T_NONLINEAR", "T_TAIL", "T_RUN", "T_PATHS", "T_BREADTH", "T_WINDOW")
+    if tuple(WA.RANK_TERMS) != want_terms:
+        errs.append("watch.RANK_TERMS is %r; the 09-11 ruling's order is %r"
+                    % (tuple(WA.RANK_TERMS), want_terms))
+    # THE RULING'S NAMES AND THE STAMPED KEYS ARE TWO LISTS (review round 3, minor). `T_PATHS` is the
+    # ruling's one word for the pair the record stamps as `T_PATHS_DEPTH` / `T_PATHS_N`, so indexing
+    # `cand['terms']` by RANK_TERMS is a KeyError; RANK_TERM_KEYS is the set that is safe to index and
+    # it is graded against what `rank_terms` actually stamps rather than against a comment.
+    _stamped = set(WA.rank_terms({"kind": "tail_reading"}, frozenset()))
+    if set(getattr(WA, "RANK_TERM_KEYS", ())) != _stamped:
+        errs.append("watch.RANK_TERM_KEYS %r is not the key set watch.rank_terms stamps %r"
+                    % (sorted(getattr(WA, "RANK_TERM_KEYS", ())), sorted(_stamped)))
+    for _name in tuple(WA.RANK_TERMS):
+        if _name not in _stamped and _name != "T_PATHS":
+            errs.append("watch.RANK_TERMS names %r, which watch.rank_terms does not stamp and which is "
+                        "not the declared T_PATHS pair -- a reader indexing the record by this tuple "
+                        "would raise" % (_name,))
+    if tuple(WA.RANK_TIEBREAK)[:1] != ("T_NOVELTY",):
+        errs.append("watch.RANK_TIEBREAK %r does not lead with T_NOVELTY -- the ruling computes novelty "
+                    "on the rendered sentence and places the eight terms above ahead of it"
+                    % (tuple(WA.RANK_TIEBREAK),))
+    # THE TUPLE ITSELF, not only the declaration: a rank_key whose first element is not T_AMPLIFIER is
+    # the defect this clause exists to catch, and a comment cannot be graded.
+    _hi = {"terms": {"T_AMPLIFIER": 0, "T_NONLINEAR": 3, "T_NOVELTY": 0}, "driver_id": "", "kind": ""}
+    _lo = {"terms": {"T_AMPLIFIER": 2, "T_NONLINEAR": 0, "T_NOVELTY": 99}, "driver_id": "", "kind": ""}
+    if not WA.rank_key(_hi) < WA.rank_key(_lo):
+        errs.append("watch.rank_key does not sort T_AMPLIFIER ahead of T_NONLINEAR and T_NOVELTY -- "
+                    "the 09-11 rank order is not the one the tuple implements")
+    # ── T_AMPLIFIER'S VALUE DOMAIN (review round 2, MAJOR 3) ─────────────────────────────────────────
+    # THE TERM LEADS THE TUPLE AND SORTS ASCENDING, so a value the ruling does not name is not a
+    # rounding error -- it is a rank. The shipped term carried a FOURTH value (3, "in no pattern at
+    # all"), which put membership of an UNMET pattern ahead of past-the-line, the tail, the run and
+    # path depth on every board. This clause grades the domain itself: exactly the three levels the
+    # ruling names, a no-pattern row landing on the neutral one, and the tuple's own default agreeing
+    # with it. A fourth value can come back only by naming itself here first.
+    want_levels = {"met_with_amplifier": 0, "met": 1, "neutral": 2}
+    if dict(getattr(WA, "AMPLIFIER_LEVELS", {})) != want_levels:
+        errs.append("watch.AMPLIFIER_LEVELS is %r; the 09-11 ruling names exactly three levels %r -- a "
+                    "pattern at its threshold with a declared amplifier line, a pattern at its "
+                    "threshold, and neutral (a pattern SHORT of its threshold and no pattern at all "
+                    "are the same statement about asymmetry)"
+                    % (dict(getattr(WA, "AMPLIFIER_LEVELS", {})), want_levels))
+    else:
+        _none = WA._pattern_facts(None, None, ())
+        if int(_none.get("rank")) != want_levels["neutral"]:
+            errs.append("watch._pattern_facts returns rank %r for a row in NO declared pattern; the "
+                        "term's leading position makes that a rank ahead of every other term -- it "
+                        "must be AMPLIFIER_LEVELS['neutral'] (%d)"
+                        % (_none.get("rank"), want_levels["neutral"]))
+        _default = WA.rank_key({"terms": {}, "driver_id": "", "kind": ""})[0]
+        if int(_default) != want_levels["neutral"]:
+            errs.append("watch.rank_key defaults T_AMPLIFIER to %r rather than the neutral level %d -- "
+                        "a candidate with no stamped term would sort behind an unmet pattern"
+                        % (_default, want_levels["neutral"]))
+    # ── THE TAIL SENTENCE MAY NOT ASSERT A LINE FACT IT HAS NOT READ (review round 2, MAJOR 1) ───────
+    # The body ended unconditionally "no desk line is declared for this series" on a kind that fires for
+    # every decile row whose floor is not `past_a_declared_line` -- which includes every one of the
+    # fifteen overlay refs (their bands are [10, 90] and TAIL_DECILE is 10.0, so clearing `record_tail`
+    # IS crossing the overlay's own line). The clause is now chosen from the row's fact, and the four
+    # choices are graded here so a future edit cannot fold them back into the body.
+    _tail_body = str(WA.NONOBVIOUS_BODIES.get("tail_reading") or "")
+    if "no desk line is declared" in _tail_body:
+        errs.append("watch.NONOBVIOUS_BODIES['tail_reading'] asserts `no desk line is declared` in the "
+                    "BODY -- the kind fires on rows whose ref DOES carry a declared line, so the clause "
+                    "has to be chosen from watch._declared_line and the crossed line NAMED")
+    if "{line}" not in _tail_body:
+        errs.append("watch.NONOBVIOUS_BODIES['tail_reading'] has no {line} slot -- the line fact is a "
+                    "property of the row and cannot be a fixed sentence")
+    for _c in ("tail_no_line", "tail_past_line", "tail_line_uncrossed", "tail_line_unplaced"):
+        if _c not in WA.NONOBVIOUS_CLAUSES:
+            errs.append("watch.NONOBVIOUS_CLAUSES is missing %r -- the tail sentence's line fact is "
+                        "tri-state plus the no-line case, and every state needs its own sentence"
+                        % (_c,))
+    if "{label}" not in str(WA.NONOBVIOUS_CLAUSES.get("tail_past_line") or ""):
+        errs.append("watch.NONOBVIOUS_CLAUSES['tail_past_line'] does not NAME the crossed line")
+    # ── A LINE FROM THIS LANE'S OWN BOOK SAYS SO (review round 3, minor) ─────────────────────────────
+    # Every `watch_overlay` entry is `percentile_bands [10, 90]` against a TAIL_DECILE of 10.0, so a
+    # tail row whose line comes from the overlay has crossed that line BY CONSTRUCTION -- 180 of the 196
+    # past-the-line tail sentences on the 108-seat replay. The served clause reads as a second,
+    # independent desk fact; the overlay's own must name its book and disclose the arithmetic.
+    _ov = str(WA.NONOBVIOUS_CLAUSES.get("tail_past_overlay_line") or "")
+    if not _ov:
+        errs.append("watch.NONOBVIOUS_CLAUSES has no `tail_past_overlay_line` -- a line taken from the "
+                    "watch-only overlay would be narrated as a served desk line")
+    else:
+        if "{label}" not in _ov:
+            errs.append("watch.NONOBVIOUS_CLAUSES['tail_past_overlay_line'] does not NAME the band")
+        if "watch book" not in _ov:
+            errs.append("watch.NONOBVIOUS_CLAUSES['tail_past_overlay_line'] does not name the BOOK the "
+                        "line came from, which is the whole correction")
+        if "the desk convention calls" in _ov:
+            errs.append("watch.NONOBVIOUS_CLAUSES['tail_past_overlay_line'] calls this lane's own "
+                        "overlay a desk convention")
+        if "same decile" not in _ov:
+            errs.append("watch.NONOBVIOUS_CLAUSES['tail_past_overlay_line'] does not disclose that the "
+                        "overlay band and the tail are one measurement")
+    # THE THRESHOLD-ONE PATTERN IS NOT A CONVERGENCE, and the body has to be able to say so.
+    if "{alone}" not in str(WA.NONOBVIOUS_BODIES.get("convergence_amplified") or ""):
+        errs.append("watch.NONOBVIOUS_BODIES['convergence_amplified'] has no {alone} slot -- a pattern "
+                    "whose declared threshold is ONE is satisfied by a single driver and may not be "
+                    "narrated in the same words as a three-driver pattern at its threshold")
+    _one = str(WA.NONOBVIOUS_CLAUSES.get("threshold_one") or "")
+    if not _one or "on its own" not in _one:
+        errs.append("watch.NONOBVIOUS_CLAUSES['threshold_one'] does not say that one reading satisfies "
+                    "the threshold on its own")
+    for _bad in ("met", "fires", "regime is"):
+        if _bad in _one.lower().split() or (" " in _bad and _bad in _one.lower()):
+            errs.append("watch.NONOBVIOUS_CLAUSES['threshold_one'] carries %r -- "
+                        "walk.CONVERGENCE_BANNED_WORDS bars it on a pattern sentence" % (_bad,))
+    # ── A KIND'S VARIANT SENTENCES ARE DECLARED, COMPLETE, AND NOT KINDS (review round 3, MAJOR 1) ───
+    # A variant owns four reader-facing strings and nothing else. It may never enter NONOBVIOUS_KINDS
+    # (the draw's per-kind cap, `T_NONLINEAR` and the trace all key on the kind), it may never be
+    # missing one of the four (a KeyError inside a render, or a sentence introduced by another
+    # sentence's words), and it may never be a body no builder can reach.
+    _variants = dict(getattr(WA, "NONOBVIOUS_VARIANTS", {}) or {})
+    for _v, _parent in sorted(_variants.items()):
+        if _parent not in WA.NONOBVIOUS_KINDS:
+            errs.append("watch.NONOBVIOUS_VARIANTS[%r] = %r is not a non-obvious kind" % (_v, _parent))
+        if _v in WA.NONOBVIOUS_KINDS:
+            errs.append("watch.NONOBVIOUS_VARIANTS declares %r, which is ALSO a non-obvious kind -- a "
+                        "variant is a second sentence of one kind and never an eighth kind" % (_v,))
+        for _map, _name in ((WA.NONOBVIOUS_BODIES, "NONOBVIOUS_BODIES"),
+                            (WA.NONOBVIOUS_KIND_WORDS, "NONOBVIOUS_KIND_WORDS"),
+                            (WA.NONOBVIOUS_MECHANISMS, "NONOBVIOUS_MECHANISMS"),
+                            (WA.NONOBVIOUS_FALSIFIERS, "NONOBVIOUS_FALSIFIERS")):
+            if _v not in _map:
+                errs.append("watch.%s has no entry for the declared variant %r" % (_name, _v))
+    _bodies = set(WA.NONOBVIOUS_BODIES) - set(WA.NONOBVIOUS_KINDS) - set(_variants)
+    if _bodies:
+        errs.append("watch.NONOBVIOUS_BODIES carries %r, which is neither a kind nor a declared "
+                    "variant -- an unreachable sentence is a sentence nothing grades"
+                    % (sorted(_bodies),))
+    # ── THE RUN-DIRECTION CLAIM IS TESTED, NOT ASSERTED (review round 3, MAJOR 1) ────────────────────
+    # `approaching_line` says "its run points at it" and the builder gated on the run's LENGTH: 10 of
+    # 42 drawn rows on the 144 banked seats ran AWAY from the line they named, 10 of 10 in a core slot.
+    # The three sentences, the function that chooses between them, the floor clause that made the same
+    # mistake in the other direction, and the rank credit are all graded here.
+    _appr = str(WA.NONOBVIOUS_BODIES.get("approaching_line") or "")
+    _away = str(WA.NONOBVIOUS_BODIES.get("approaching_line_away") or "")
+    _unpl = str(WA.NONOBVIOUS_BODIES.get("approaching_line_unplaced") or "")
+    if "points at it" not in _appr:
+        errs.append("watch.NONOBVIOUS_BODIES['approaching_line'] no longer makes the run claim the "
+                    "09-11 ruling's kind rests on")
+    if "points AWAY from it" not in _away:
+        errs.append("watch.NONOBVIOUS_BODIES['approaching_line_away'] does not say the run points AWAY "
+                    "from the line it names -- which is the whole correction")
+    if "cannot place its run" not in _unpl:
+        errs.append("watch.NONOBVIOUS_BODIES['approaching_line_unplaced'] does not say that the run "
+                    "cannot be placed against the line")
+    for _k, _t in (("approaching_line_away", _away), ("approaching_line_unplaced", _unpl)):
+        if "points at it" in _t:
+            errs.append("watch.NONOBVIOUS_BODIES[%r] still asserts that the run points AT the line"
+                        % (_k,))
+    if "running at" in str(WA.NONOBVIOUS_KIND_WORDS.get("approaching_line_away") or ""):
+        errs.append("watch.NONOBVIOUS_KIND_WORDS['approaching_line_away'] introduces the row as one "
+                    "RUNNING AT the line its own sentence says it runs away from")
+    # THE FUNCTION ITSELF, on the two shapes the census reproduced.
+    if WA._run_with_the_line("percentile_bands", 25.0, 20.1, "up") is not False:
+        errs.append("watch._run_with_the_line calls a RISING run on a reading at the 20.1st percentile "
+                    "a move further past a `tight` line at the 25th -- a band under 50 is a LOW line")
+    if WA._run_with_the_line("percentile_bands", 25.0, 20.1, "down") is not True:
+        errs.append("watch._run_with_the_line does not credit a FALLING run under a low percentile line")
+    if WA._run_with_the_line("z_bands", 1.5, -0.617, "up") is not False:
+        errs.append("watch._run_with_the_line calls a RISING run on a NEGATIVE z a move toward a "
+                    "magnitude band -- a magnitude line's side is the reading's own sign")
+    if WA._run_with_the_line("z_bands", 1.5, None, "up") is not None:
+        errs.append("watch._run_with_the_line decides a magnitude band with NO signed reading -- an "
+                    "unplaceable run is a third state and may not be guessed")
+    # THE FLOOR CLAUSE, on the row the census drew (ICE arabica stocks-to-use, 20.1st percentile, past
+    # a `tight` line at the 25th, RISING): a run pointing back at the line is not "still going deeper".
+    _st = _types.SimpleNamespace(
+        convention={"kind": "percentile_bands", "band": 25.0, "label": "tight", "matched": True,
+                    "reading": 20.1}, z=None, percentile={"value": 20.1, "declined": None},
+        run={"length": 2, "direction": "up", "declined": None}, level=None)
+    _row = _types.SimpleNamespace(state=_st, driver_id="d", contract="c", sign="+")
+    if "past_a_declared_line" in WA._floor_of(_row):
+        errs.append("watch._floor_of admits `past_a_declared_line` for a reading RISING out of a low "
+                    "percentile band -- the floor's own words are `and the run is still going deeper`")
+    _st.run = {"length": 2, "direction": "down", "declined": None}
+    if "past_a_declared_line" not in WA._floor_of(_row):
+        errs.append("watch._floor_of refuses `past_a_declared_line` for a reading FALLING further "
+                    "under a low percentile band -- the convex state the 09-11 ruling names first")
+    # THE RANK CREDIT.
+    if WA.rank_terms({"kind": "approaching_line", "run_n": 4, "run_toward": False}, frozenset())["T_RUN"]:
+        errs.append("watch.rank_terms credits T_RUN to a run MEASURED to point away from the line the "
+                    "sentence names -- the 09-15 ruling withholds it")
+    if WA.rank_terms({"kind": "approaching_line", "run_n": 4, "run_toward": True},
+                     frozenset())["T_RUN"] != 4:
+        errs.append("watch.rank_terms no longer credits T_RUN to a run pointing at its own line")
+    # ── THE SPILLOVER SPLIT MAY NOT FOLD AN AMBIGUOUS EDGE (review round 3, MAJOR 2) ─────────────────
+    # `rows.SIGN_WORDS` declares THREE signs and the split had two buckets, so every `0` edge went into
+    # one of them: 88 edges narrated "in the same direction" on 11 of 430 drawn rows, against a block
+    # whose own edge line calls them "with no committed direction" two lines away.
+    _sp = str(WA.NONOBVIOUS_BODIES.get("spillover_reach") or "")
+    if "{n_undirected}" not in _sp:
+        errs.append("watch.NONOBVIOUS_BODIES['spillover_reach'] has no {n_undirected} slot -- a "
+                    "two-way split has to put every declared-ambiguous edge into a direction")
+    if "no committed direction" not in _sp:
+        errs.append("watch.NONOBVIOUS_BODIES['spillover_reach'] does not carry the estate's own third "
+                    "sign word (rows.SIGN_WORDS['0'])")
+    _spu = str(WA.NONOBVIOUS_BODIES.get("spillover_reach_unplaced") or "")
+    for _slot in ("{n_far}", "{n_directed}", "{n_undirected}"):
+        if _slot not in _spu:
+            errs.append("watch.NONOBVIOUS_BODIES['spillover_reach_unplaced'] has no %s slot -- its "
+                        "arithmetic has to close on the page too" % (_slot,))
+    # AND THE PRODUCER, on the two shapes the census reproduced.
+    _far = [{"sign": "0", "contract": "x", "confidence": "low", "lag_band": None},
+            {"sign": "+", "contract": "y", "confidence": "low", "lag_band": None}]
+    _bd = _types.SimpleNamespace(fan=[{"contract": "c", "driver_id": "d", "far": _far}])
+    _fa = WA._fan_facts(_bd, _types.SimpleNamespace(contract="c", driver_id="d", sign="+"))
+    if _fa["same"] != 1 or _fa["opposite"] != 0 or _fa.get("undirected") != 1:
+        errs.append("watch._fan_facts folds a `0` edge into a direction for a SIGNED near row (%r)"
+                    % (_fa,))
+    _fa0 = WA._fan_facts(_bd, _types.SimpleNamespace(contract="c", driver_id="d", sign="0"))
+    if _fa0["same"] or _fa0["opposite"] or _fa0.get("unplaced") != 1 or _fa0.get("near_signed"):
+        errs.append("watch._fan_facts places far edges against a near row whose OWN edge carries no "
+                    "committed direction (%r)" % (_fa0,))
+    for _f in (_fa, _fa0):
+        if _f["same"] + _f["opposite"] + int(_f.get("undirected") or 0) + int(_f.get("unplaced") or 0) \
+                != _f["n"]:
+            errs.append("watch._fan_facts' four counts do not sum to the fan (%r)" % (_f,))
+    # ── NO WATCH SENTENCE CARRIES RELEASE-CALENDAR VOCABULARY (review round 3, minor) ────────────────
+    # The ban above is graded on the KIND WORDS only; the ruling's words are that a calendar item is
+    # never a watch item, and the sentences are where that could come back. The fixed fragments of the
+    # calendar's own two maps are the test, taken from those maps rather than from a hand list.
+    _cal_frag = set()
+    for _phrase in (list(CAL.KIND_WORDS.values()) + list(CAL.RULE_WORDS.values())):
+        for _piece in re.split(r"\{[a-z_]+\}", str(_phrase)):
+            _piece = _piece.strip().lower()
+            if len(_piece) >= 12:
+                _cal_frag.add(_piece)
+    for _name, _map in (("NONOBVIOUS_BODIES", WA.NONOBVIOUS_BODIES),
+                        ("NONOBVIOUS_CLAUSES", WA.NONOBVIOUS_CLAUSES),
+                        ("NONOBVIOUS_MECHANISMS", WA.NONOBVIOUS_MECHANISMS),
+                        ("NONOBVIOUS_FALSIFIERS", WA.NONOBVIOUS_FALSIFIERS),
+                        ("FLOOR_WORDS", WA.FLOOR_WORDS)):
+        for _k, _text in sorted(_map.items()):
+            _low = str(_text).lower()
+            for _frag in sorted(_cal_frag):
+                if _frag in _low:
+                    errs.append("watch.%s[%r] carries release-calendar vocabulary %r -- the 09-11 "
+                                "ruling bans a calendar item as a watch item" % (_name, _k, _frag))
+    # ── THE FLOOR FACT RIDES THE SENTENCE (review round 2, minor a) ──────────────────────────────────
+    if set(WA.FLOOR_WORDS) != set(WA.FLOOR_CLAUSES):
+        errs.append("watch.FLOOR_WORDS %r does not cover watch.FLOOR_CLAUSES %r -- a row admitted by a "
+                    "clause with no reader words cannot state what admitted it"
+                    % (sorted(WA.FLOOR_WORDS), list(WA.FLOOR_CLAUSES)))
+    for _k, _clause in sorted(WA.FLOOR_STATED_BY_KIND.items()):
+        if _k not in WA.NONOBVIOUS_KINDS:
+            errs.append("watch.FLOOR_STATED_BY_KIND names %r, which is not a non-obvious kind" % (_k,))
+        if _clause not in WA.FLOOR_CLAUSES:
+            errs.append("watch.FLOOR_STATED_BY_KIND[%r] = %r is not an admission-floor clause"
+                        % (_k, _clause))
+    for _text in list(WA.FLOOR_WORDS.values()):
+        hits = _register_hits(_text)
+        if hits:
+            errs.append("watch.FLOOR_WORDS %r is NOT register-safe (%s)" % (_text, "; ".join(hits)))
+    # ── THE CEILING REACHES THE WRITER (review round 2, MAJOR 2) ─────────────────────────────────────
+    if "core item" not in WA.WATCH_SELECTION_CLAUSE:
+        errs.append("watch.WATCH_SELECTION_CLAUSE does not bind the writer to the block's own CORE "
+                    "marks -- a 2N list with no named ceiling is 2N items to the writer")
+    # THE NUMBER THE LICENCE NAMES IS A BOUND AND NOT A COUNT (review round 3, minor). 36 of 108
+    # replayed seats drew a core SHORTER than the tier's ceiling -- two of seven at Cascade on barley --
+    # so a flat "the core is seven items" is false of the very block the writer is holding. Both forms
+    # must carry "at most", and both must point the writer at the block's own marks for the true count.
+    for _form in (WA.WATCH_SELECTION_CLAUSE, WA.selection_clause("max")):
+        if "at most" not in _form:
+            errs.append("watch's selection licence states the core size without a bound -- an "
+                        "under-filled block makes that sentence false")
+        if "how many this list actually drew" not in _form:
+            errs.append("watch's selection licence does not point the writer at the block's own core "
+                        "marks, which are the only true count of THIS list")
+    from leviathan.graphrag.state import render as _RW
+    for _mode, _n in sorted(WA.WATCH_NONOBVIOUS_K.items()):
+        _c = WA.selection_clause(_mode)
+        if _RW.words_for_int(_n) not in _c:
+            errs.append("watch.selection_clause(%r) does not name the tier's ceiling %d" % (_mode, _n))
+        if "at most %s items" % (_RW.words_for_int(_n),) not in _c:
+            errs.append("watch.selection_clause(%r) does not state its ceiling as a BOUND" % (_mode,))
+        # AND THE SWAP HAS TO HAVE HAPPENED (review round 3, minor). `selection_clause` is a literal
+        # `.replace()` of one exact sentence, so a reworded constant turns it into a no-op -- and the
+        # two clauses above pass VACUOUSLY at quick, because the UNREPLACED three-tier sentence already
+        # contains "at most three items" inside "at most three items on a Scan". Proved by mutation:
+        # `selection_clause -> lambda mode, cap=None: WATCH_SELECTION_CLAUSE` reddened at deep and max
+        # and stayed green at quick. The tier's own sentence is what is graded now.
+        if _c == WA.WATCH_SELECTION_CLAUSE:
+            errs.append("watch.selection_clause(%r) returns the three-tier constant UNCHANGED -- the "
+                        "swap is a literal replace and this one matched nothing" % (_mode,))
+        if ("The core of this list is at most %s items" % (_RW.words_for_int(_n),)) not in _c:
+            errs.append("watch.selection_clause(%r) does not carry the tier's own core sentence -- the "
+                        "writer is holding ONE list and the licence has to name ITS bound" % (_mode,))
+        if _register_hits(_c) or not _c.isascii():
+            errs.append("watch.selection_clause(%r) is not prompt-clean" % (_mode,))
+    hits = _register_hits(WA.WATCH_SELECTION_CLAUSE)
+    if hits:
+        errs.append("watch.WATCH_SELECTION_CLAUSE is NOT register-safe (%s) -- it reaches a prompt"
+                    % ("; ".join(hits),))
+    if not WA.WATCH_SELECTION_CLAUSE.isascii():
+        errs.append("watch.WATCH_SELECTION_CLAUSE is not ASCII")
+    from leviathan.graphrag.state import board as B
+    from leviathan.graphrag.state import render as _R
+    for word in ("watch_floor_unmet", "watch_nothing_further", "watch_core_capped",
+                 "release_dates_only"):
+        if word not in B.WATCH_REASONS:
+            errs.append("board.WATCH_REASONS does not declare %r, which the non-obvious producer "
+                        "stamps" % (word,))
+        # A CLOSED WORD WITH NO SENTENCE RENDERS THE WORD ITSELF TO A READER, and the partial-fill case
+        # is why this clause exists: the first cut reused `watch_floor_unmet`'s sentence under a list
+        # that HAD rows, so the two cases need two sentences and both need grading.
+        if word not in (_R.ABSENCE_WHY or {}):
+            errs.append("render.ABSENCE_WHY has no sentence for %r -- the reason word would render "
+                        "raw" % (word,))
+    # THE TWO ABSENCE SENTENCES MUST NOT AGREE. One says nothing cleared the bar, the other says
+    # nothing FURTHER did; identical text is the contradiction review reproduced.
+    if (_R.ABSENCE_WHY or {}).get("watch_floor_unmet") == (_R.ABSENCE_WHY or {}).get(
+            "watch_nothing_further"):
+        errs.append("render.ABSENCE_WHY gives `watch_floor_unmet` and `watch_nothing_further` the same "
+                    "sentence -- a partial fill would then deny the rows printed above it")
+    # ── THE CAPPED CORE'S NOTE MAY NOT DENY THE ALTERNATES IT SITS OVER (review round 3, MAJOR) ──────
+    # The three watch-list notes are three different facts and need three different sentences; and the
+    # capped one, which is the ONLY one that prints on a page carrying alternates, may not make the
+    # exhausted note's claim about the admission bar. Measured before the repair: 36 of 108 replayed
+    # seats printed "nothing further ... clears the bar this list sets" directly under alternates.
+    _capped = str((_R.ABSENCE_WHY or {}).get("watch_core_capped") or "")
+    _three = {str((_R.ABSENCE_WHY or {}).get(w) or "")
+              for w in ("watch_floor_unmet", "watch_nothing_further", "watch_core_capped")}
+    if len(_three) != 3:
+        errs.append("render.ABSENCE_WHY does not give the three watch-list notes three distinct "
+                    "sentences -- nothing cleared the bar, nothing FURTHER cleared it, and the core "
+                    "was bounded by this list's own caps are three facts")
+    if "clears the bar" in _capped or "nothing further" in _capped:
+        errs.append("render.ABSENCE_WHY['watch_core_capped'] makes the admission-bar claim -- the note "
+                    "prints over alternates that cleared that bar, and the caps are what bounded the "
+                    "core")
+    for _need in ("alternates", "cap"):
+        if _need not in _capped:
+            errs.append("render.ABSENCE_WHY['watch_core_capped'] does not name %r -- the note has to "
+                        "state the true reason and point at the items it holds back" % (_need,))
+    # AND THE PRODUCER HAS TO CHOOSE BETWEEN THEM. A partial fill WITH alternates takes the capped word
+    # and one WITHOUT takes the exhausted word; graded on the function rather than on its comment.
+    if WA.absence_row(partial=True, alternates=True)["reason"] != "watch_core_capped":
+        errs.append("watch.absence_row(partial=True, alternates=True) does not stamp "
+                    "`watch_core_capped` -- a page offering alternates would deny them")
+    if WA.absence_row(partial=True)["reason"] != "watch_nothing_further":
+        errs.append("watch.absence_row(partial=True) no longer stamps `watch_nothing_further` for an "
+                    "exhausted list")
     return errs
 
 

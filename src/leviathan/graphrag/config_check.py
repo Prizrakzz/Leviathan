@@ -4486,6 +4486,800 @@ def check_state_seam() -> list[str]:
         errs.append("state_seam: the orchestrator's board EMF block does not call "
                     "seam.coverage_counters -- Board.coverage is filled after the verifier returns "
                     "(answer.py:4701) and that block is the one place holding both halves of the turn")
+    # (xiv) S7b: NO NEW EMF COUNTER. The two register instruments ride the coverage ARTIFACT, which is
+    #       exactly the population `coverage_counters`' own docstring keeps out of EMF. A register key
+    #       that reached `_COVERAGE_GROUPS` would mint a counter pair per turn for a split one deck's
+    #       own analysis answers -- and would break clause (xiii)'s "twelve" in the same commit.
+    _s7b_cov = ("register_lingo_hits", "register_lingo_rewritten", "register_adjectives_licensed",
+                "register_adjectives_corrected", "register_adjectives_struck",
+                "register_adjectives_unbacked")   # ROUND 4 ruling (4): the counter rides the artifact
+    for _k in _s7b_cov:
+        if _k in _cov_keys:
+            errs.append(f"state_seam: {_k!r} reached seam._COVERAGE_GROUPS -- S7b's register numbers "
+                        f"ride the coverage ARTIFACT and mint no EMF counter")
+    return errs
+
+
+def check_register_seam() -> list[str]:
+    """S7b: THE TWO REGISTER INSTRUMENTS' seam grammar -- the properties that make the LICENSED-ADJECTIVE
+    fence and the DESK REGISTER dark, reversible and correcting rather than deleting, graded in CI.
+
+    PURE READS: the modules' SOURCE, their own closed tables, and the shipped conventions registry. No
+    S3, no pg, no Athena, no LLM, and NO environment read -- both flags' default-off state is asserted
+    from SOURCE TEXT, so a CI runner with either flag set cannot green it.
+
+    (a) THE FLAG GRAMMAR, both flags, in the estate's exact on/1/true spelling, read at `answer.py` and
+        nowhere else. `GRAPHRAG_REGISTER_LICENCE` KEEPS ITS NAME AND ITS MEANING IS "WORDS ARE FREE"
+        (owner ruling 2026-09-15 16:30Z, superseding the closed-world ruling): it RETIRES the valuation
+        / flow-WORD strike rather than buying a sentence back with a figure. What it may not touch is
+        clause (d)'s list, and the per-rule classification behind it is `register.licence_kept_charge`
+        plus `scratchpad/s7b/fix4/RULE_CLASSIFICATION.md`. `register.py` reads NO environment at all (its own module comment: "the mode is
+        decided at the answer.py seam and passed DOWN as an argument, so a mis-plumbed enable can never
+        relax the suggester chip guard or the numbers/news/live bodies"), and neither does `verify.py`
+        for these -- a flag read inside either would put the licence beyond the reach of the one seam
+        that owns it.
+    (b) THE LICENCE IS AN ARGUMENT, THREADED, AND IT REACHES BOTH STRIP PASSES. `_humanize_structured`
+        is the FIRST `reg.sanitize` on the prose and the body-wide pass at the render seam is the
+        second; a licence threaded to only one of them licenses a sentence the other has already
+        deleted. Both serving bodies are graded, because `GRAPHRAG_PLANNER=onehop` is a documented
+        rollback and a fence that behaves differently on the two bodies is the same defect with a flag
+        in front of it.
+    (c) THE FENCE NEVER STRIKES, AND THE ONE CLAUSE IT APPENDS COPIES ITS DIGITS RATHER THAN COMPUTING
+        THEM. Under the owner's WORDS-ARE-FREE ruling (2026-09-15 16:30Z) `answer._BAR_BAND_CLAUSE` is
+        the ONLY correction: it fires where a sentence's own served percentile sits INSIDE the band its
+        adjective claims to be outside of, and it names that figure and that band. Every digit in it is
+        the served row's own value or `state_conventions.yaml`'s own band bound -- no arithmetic, which
+        is cycle-10's rule ("the fence must never rewrite a numeral") honoured by copying. It is
+        register-clean under all four shipped detectors AND under the desk lint, so the two S7b
+        instruments cannot charge each other. Where no figure is served, NOTHING is appended (words are
+        free) and the `adjectives_unbacked` counter states how often that happened.
+    (d) THE LICENCE CANNOT REACH THE UNRELAXABLE LANES. `register_leaks`, `internal_leaks`,
+        `market_leaks`, `count_valuation_words`, `count_flow_words` and `lane_b_hits` take no
+        `bar_licence` argument at all, and every A2 execution idiom and both structural class rules are
+        decided ABOVE the licence clause in `_is_banned_sentence`. Graded on the SOURCE and on live
+        probes.
+    (e) THE BARS HAVE ONE PRODUCER. Every ref in `verify.BAR_FAMILY_REFS` exists in
+        `state_conventions.yaml` with `kind: percentile_bands` and a two-ended band pair, and the
+        arithmetic reads THAT file -- no band is written into `verify.py`. A ref curated away, or a
+        band narrowed, must move the licence rather than leave it quoting a number the registry no
+        longer declares.
+    (f) THE DESK LINT'S EXEMPTIONS COVER THE ESTATE'S OWN LITERALS. `narration.RECENCY_LEDGER_SENTENCE`'s
+        tape clause and `render.py`'s "past the line the desk convention calls X" are text the writer is
+        INSTRUCTED to produce; a lint charging them would fine the writer for obeying the mandate. Both
+        are probed as sentences, not asserted as intentions. `driver` is asserted ABSENT from the token
+        table for the same reason in reverse: `register._JARGON_SUBS` MINTS the word.
+    (g) THE MANDATE IS FLAG-SCOPED AND REGISTER-SAFE. `narration.desk_register_mandate()` is graded by
+        `check_literals` (all four register detectors, ASCII, `pace_register_ok`, the banned recency
+        phrase), it is appended on its OWN `_system` leg, and `_system()` with the leg off is
+        byte-identical to `_system()` without the argument at all.
+    (h) THE REWRITE IS BOUNDED AND FAIL-OPEN. The three caps are declared constants; the call is made at
+        most once per turn; and every rejection path leaves the ORIGINAL sentence standing. Graded on
+        the SOURCE of `_desk_register_lint` -- every `continue` in its acceptance loop is a refusal that
+        keeps the writer's own sentence.
+
+    THE FIVE CLAUSES THE 2026-09-11 REVIEW ADDED, each one a defect that was MEASURED rather than a
+    property that was feared:
+    (i) THE BAR IS A SERIES' BAR. (table, metric) names a FAMILY -- the board emits one percentile call
+        per commodity on `silver_cot/mm_net` -- so an unscoped join let CORN's 3rd-percentile reading
+        license "ICE cocoa positioning is crowded". Probed on both scope dimensions and on TIME,
+        through `state.render.sb_call`, the real producer.
+    (j) THE DECLINE CLAUSE NAMES WHAT IS MISSING. " -- no served figure is cited for that reading" was
+        appended to sentences that visibly cite a figure, so the correcting fence minted a FALSE
+        statement into reader prose -- on the RO-9 corpus sentence the instrument exists to rescue.
+    (k) THE CHARGE AND THE REMEDY ANSWER TO ONE PREDICATE. With `GRAPHRAG_VERIFY=off` the licence was
+        threaded into both strip passes while its remedy sat inside the verifier gate: the strike
+        relieved, no correction run, a bare unbacked verdict shipped unqualified.
+    (l) THE REWRITE'S GUARDS BIND ON PROSE THAT CARRIES NO NUMERAL. The five shipped refusals are
+        digit-and-handle only and were vacuous on 52.2% of the sentences offered -- the estate's
+        honest-absence prose. Four more, and they are probed with real rejected replies.
+    (m) THE POST-SANITIZE INVARIANT IS NAMED RATHER THAN BROKEN IN SILENCE. `register_leaks(sanitize(x))
+        == []` stops holding under the licence (measured 2/97), which is the instrument working; the
+        counters still take no licence and a second, declared producer carries the subtraction that the
+        eval gate and the headline metric now read."""
+    errs: list[str] = []
+    import inspect as _insp
+
+    from leviathan.graphrag import answer as _an
+    from leviathan.graphrag import register as _rg
+    from leviathan.graphrag import verify as _vf
+    from leviathan.graphrag.state import narration as _sn
+
+    # (a) the flag grammar, read from SOURCE
+    for _fn, _env in ((_an._register_licence_on, "GRAPHRAG_REGISTER_LICENCE"),
+                      (_an._desk_register_on, "GRAPHRAG_DESK_REGISTER")):
+        _read = f'os.environ.get("{_env}", "").strip().lower() in ("on", "1", "true")'
+        if _read not in _insp.getsource(_fn):
+            errs.append(f"register_seam: answer.{_fn.__name__} does not carry the estate's exact flag "
+                        f"read -- expected {_read!r}")
+    import re as _re
+    for _mod, _name in ((_rg, "register"), (_vf, "verify")):
+        _src = _insp.getsource(_mod)
+        _bad = sorted(n for n in set(_re.findall(r"os\.environ\.get\(\s*[\"']([A-Za-z0-9_]+)", _src))
+                      if n.startswith("GRAPHRAG_REGISTER") or n.startswith("GRAPHRAG_DESK"))
+        if _bad:
+            errs.append(f"register_seam: {_name}.py reads {_bad!r} from the environment -- both S7b "
+                        f"flags are read ONCE at the answer seam and threaded down as arguments")
+    # THE TEST IS THE ACCESSOR, NOT THE WORD -- `check_state_seam` clause (i)'s own lesson, one module
+    # over: `register.py`'s module comment SAYS "There is deliberately NO os.environ read in this
+    # module", so a substring ban on `os.environ` reds the BUILD on the sentence that states the rule.
+    _rgs = _insp.getsource(_rg)
+    if "os.environ.get(" in _rgs or "os.environ[" in _rgs:
+        errs.append("register_seam: register.py READS the environment -- its own module comment forbids "
+                    "it, and a mis-plumbed enable would relax the suggester chip guard")
+
+    # (b) the licence is threaded to BOTH strip passes, on BOTH serving bodies
+    # THE TWO SERVING BODIES: the L2 planner path and the one-hop legacy path, which `answer()` itself
+    # is (`GRAPHRAG_PLANNER=onehop` falls through to its own tail rather than to a second function).
+    for _body, _label in ((_an._answer_l2, "_answer_l2"), (_an.answer, "answer")):
+        try:
+            _bs = _insp.getsource(_body)
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"register_seam: could not read answer.{_label} ({e!r})")
+            continue
+        if "_register_licence_on()" not in _bs:
+            errs.append(f"register_seam: answer.{_label} does not read GRAPHRAG_REGISTER_LICENCE at "
+                        f"its own seam -- the licence must be resolved once per body and threaded")
+        if _bs.count("bar_licence=_bar_licence") < 2:
+            errs.append(f"register_seam: answer.{_label} threads bar_licence to fewer than BOTH strip "
+                        f"passes (_humanize_structured is the FIRST sanitize on the prose; the body "
+                        f"render seam is the second) -- a licence that reaches only one licenses a "
+                        f"sentence the other has already deleted")
+        if "_desk_register_lint(" not in _bs:
+            errs.append(f"register_seam: answer.{_label} does not run the desk-register lint -- an "
+                        f"instrument that fires on one of the two bodies is the same defect with a "
+                        f"documented rollback in front of it")
+        if "_bind_bar_adjectives(" not in _bs:
+            errs.append(f"register_seam: answer.{_label} does not run the bar-adjective remedy")
+    for _fn in (_rg.sanitize, _rg._strip_banned_sentences, _rg._is_banned_sentence,
+                _an._humanize_structured):
+        if "bar_licence" not in str(_insp.signature(_fn)):
+            errs.append(f"register_seam: {_fn.__qualname__} takes no bar_licence argument -- the "
+                        f"licence is threaded, never read")
+
+    # (c) THE ONE CORRECTION: register-clean under both instruments, and every digit in it COPIED.
+    _clause = _an._BAR_BAND_CLAUSE.format(pct="42", lo="10", hi="90")
+    if _re.search(r"\d", _an._BAR_BAND_CLAUSE):
+        errs.append("register_seam: answer._BAR_BAND_CLAUSE carries a digit of its OWN -- every numeral "
+                    "in this clause must arrive through the template, from the served row or the "
+                    "convention's own band, and never be written into the fence")
+    _probe = "Positioning is crowded [N1]" + _clause + "."
+    if _rg.register_leaks(_clause) or _rg.count_flow_words(_clause) \
+            or _rg.count_valuation_words(_clause) or _rg._LANE_B_ADJ.search(_clause):
+        errs.append("register_seam: answer._BAR_BAND_CLAUSE trips a shipped register detector")
+    if _rg.count_desk_register(_clause):
+        errs.append(f"register_seam: answer._BAR_BAND_CLAUSE trips the S7b desk-register lint "
+                    f"({_rg.desk_register_hits(_clause)!r}) -- the two instruments in this sitting "
+                    f"must not charge each other")
+    if _probe not in _rg.sanitize(_probe, bar_licence=lambda s: "licensed"):
+        errs.append("register_seam: a sentence carrying answer._BAR_BAND_CLAUSE is still struck")
+    if sorted(_re.findall(r"\d", _clause)) != sorted("421090"):
+        errs.append(f"register_seam: the clause's digits are not exactly the figure and the band it was "
+                    f"handed -- {_clause!r}")
+
+    # (d) the unrelaxable lanes take no licence, and the A2 / class rules are decided above it
+    for _fn in (_rg.register_leaks, _rg.internal_leaks, _rg.market_leaks, _rg.count_valuation_words,
+                _rg.count_flow_words, _rg.lane_b_hits, _rg.exec_leaks):
+        if "bar_licence" in str(_insp.signature(_fn)):
+            errs.append(f"register_seam: {_fn.__qualname__} accepts a bar_licence -- the chip guard and "
+                        f"the eval metrics CANNOT be relaxed, and the licence touches the strip alone")
+    import datetime as _dt
+
+    _always = lambda _s: "licensed"   # noqa: E731 -- the most permissive licence there can be
+    # THE KEPT COLUMN, probed through the real strip. Each row is a RULE, not a sentence: A2 execution,
+    # the two forecast class rules, the reversion idiom, and the two Lane-A members that name a FIGURE.
+    for _probe, _why, _class in (
+            ("Positioning is crowded, so go long here.", "A2 execution", "a2_execution"),
+            ("The premium is rich and should narrow from here.", "forward convergence",
+             "forecast_convergence"),
+            ("The spread is rich and that discount cannot last.", "persistence denial",
+             "forecast_persistence"),
+            ("The crush is rich and due for a correction.", "the reversion idiom", "forecast_reversion"),
+            ("Positioning is crowded and the price target is unchanged.", "an unbacked price target",
+             "unbacked_figure_claim"),
+            ("Positioning is crowded and fair value is unchanged.", "an unbacked fair-value claim",
+             "unbacked_figure_claim")):
+        if not _rg._is_banned_sentence(_probe, bar_licence=_always):
+            errs.append(f"register_seam: the most permissive licence released {_why} -- {_probe!r}")
+        if _rg.licence_kept_charge(_probe) != _class:
+            errs.append(f"register_seam: licence_kept_charge({_probe!r}) reads "
+                        f"{_rg.licence_kept_charge(_probe)!r}, not {_class!r} -- the strip and the "
+                        f"classification must never disagree about WHY a sentence is still struck")
+    # THE RETIRED COLUMN: words, and the ruling says they are free -- with ANY truthy licence, and
+    # whatever verdict it returns, because the strike no longer asks the verdict anything.
+    for _probe, _why in (("Positioning is crowded here.", "the Lane-B positioning triad"),
+                         ("The crush spread is rich.", "the Lane-B valuation triad"),
+                         ("The spread screens cheap.", "a Lane-A bar shape"),
+                         ("Managed money is crowded long.", "the Lane-A flow shape"),
+                         ("This is a pain trade.", "a Lane-A flow noun"),
+                         ("Positioning is vulnerable to a squeeze.", "the Lane-A squeeze family"),
+                         ("The spread is overdone.", "a Lane-A valuation adjective")):
+        for _lic in (_always, lambda _s: None, lambda _s: "unbound_adjective"):
+            if _rg._is_banned_sentence(_probe, bar_licence=_lic):
+                errs.append(f"register_seam: the licence still strikes {_why} -- {_probe!r}: the "
+                            f"owner's ruling retires the WORD strike, figure or no figure")
+        if _rg.licence_kept_charge(_probe):
+            errs.append(f"register_seam: licence_kept_charge({_probe!r}) keeps a WORDS-ONLY charge "
+                        f"({_rg.licence_kept_charge(_probe)!r})")
+        if not _rg._is_banned_sentence(_probe):
+            errs.append(f"register_seam: the fence is quiet with NO licence on {_probe!r} -- the "
+                        f"flag-off arm must be HEAD's decision byte for byte")
+
+    # (e) the bars have ONE producer, and it is the shipped registry
+    _conv = _vf._bar_conventions()
+    if not _conv:
+        errs.append("register_seam: verify._bar_conventions() is empty -- the licence would call every "
+                    "adjective unbound and the bar table would be unreadable")
+    for _fam, _refs in _vf.BAR_FAMILY_REFS.items():
+        for _ref in _refs:
+            _row = _conv.get(_ref) or {}
+            if _row.get("kind") != "percentile_bands" or len(_row.get("bands") or []) < 2:
+                errs.append(f"register_seam: verify.BAR_FAMILY_REFS[{_fam!r}] names {_ref!r}, which "
+                            f"state_conventions.yaml does not declare as a two-ended percentile_bands "
+                            f"row -- the bar would quote a band the registry no longer carries")
+        if not _vf._bar_bands(_fam, _conv):
+            errs.append(f"register_seam: family {_fam!r} has no unanimous band pair -- an ambiguous "
+                        f"family licenses nothing, so the words in it can never be licensed")
+    for _w, _fam, _side in _vf.BAR_ADJECTIVES:
+        if _fam not in _vf.BAR_FAMILY_REFS:
+            errs.append(f"register_seam: bar adjective {_w!r} names family {_fam!r}, which has no refs")
+        if _side not in ("low", "high", "tail"):
+            errs.append(f"register_seam: bar adjective {_w!r} declares side {_side!r}")
+        if not (_rg._LANE_B_ADJ.search(_w) or _rg._FLOW_PHRASES.search(_w + " risk")):
+            errs.append(f"register_seam: bar adjective {_w!r} is not a word the shipped fence charges "
+                        f"-- the licence may only ever reach the population the fence already deletes")
+
+    # (f) the desk lint's exemptions cover the estate's own literals
+    # THE TAPE LINE IS THE EXEMPT ONE, AND IT IS THE ONLY ONE. `narration.recency_rows` is the SB-L
+    # producer and its THIRD line -- "the board price tape runs through <date>" -- is the mandate's own
+    # movement-(2) instruction word for word, so a lint charging it would fine the writer for obeying
+    # the mandate that ships beside it. Its two SIBLINGS are deliberately NOT exempt: "the newest
+    # knowledge date on a number row is ..." is exactly the instrument phrasing the desk mandate exists
+    # to replace ("the newest date on these numbers is ..."), and exempting it would make the whole
+    # recency movement unreachable by the instrument. The mandate carries the replacement clause for it,
+    # asserted at (g) below, so the writer is never left with two instructions and no way to obey both.
+    _tape = "the board price tape runs through 2026-09-04"
+    for _probe, _why in (
+            (_tape, "narration.recency_rows' tape line -- the writer is INSTRUCTED to write it"),
+            ("It sits past the line the desk convention calls tight.", "render.py's own block sentence"),
+            ("A wide board crush means processors bid for beans.", "a CBOT spread"),
+            ("The CBOT soybean board tilts higher.", "'<exchange> board' is desk English"),
+            ("Row crops went in late.", "corn and soybeans ARE row crops"),
+            ("Registered receipts fell again.", "a deliverable-supply term")):
+        if _rg.count_desk_register(_probe):
+            errs.append(f"register_seam: the desk lint charges {_why}: "
+                        f"{_rg.desk_register_hits(_probe)!r} :: {_probe[:70]!r}")
+    if not _rg.count_desk_register("Reading the board at 2026-09-07, the loudest row is weather."):
+        errs.append("register_seam: the desk lint is quiet on the measured opening sentence of a "
+                    "banked prod-seat answer -- the instrument does not reach its own population")
+    if any(_n == "driver" for _n, _p, _r in _rg.DESK_REGISTER_TOKENS):
+        errs.append("register_seam: 'driver' is a desk-register token -- register._JARGON_SUBS MINTS "
+                    "that word ('the node' -> 'the driver'), so the lint would charge the estate's own "
+                    "repair")
+    for _n, _p, _repl in _rg.DESK_REGISTER_TOKENS:
+        if _rg._LANE_B_ADJ.search(_repl) or _rg.count_flow_words(_repl) \
+                or _rg.count_valuation_words(_repl) or _rg.register_leaks(_repl):
+            errs.append(f"register_seam: the replacement words for {_n!r} trip a shipped register "
+                        f"detector -- the mandate would teach a fenced word")
+
+    # (g) the mandate is flag-scoped, register-safe, and off-arm byte-identical
+    for _e in _sn.check_literals():
+        errs.append(f"register_seam: {_e}")
+    _m = _sn.desk_register_mandate()
+    if "{" in _m or "}" in _m:
+        errs.append("register_seam: desk_register_mandate() left a format slot unfilled")
+    if _rg.desk_register_table() not in _m:
+        errs.append("register_seam: desk_register_mandate() does not carry register.desk_register_table"
+                    "() -- the prompt that teaches the vocabulary and the lint that counts it must have "
+                    "ONE producer")
+    # THE RECENCY MOVEMENT MUST HAVE A REPLACEMENT CLAUSE, or the mandate bans a word the board mandate
+    # instructs ("the newest knowledge date the number rows carry", movement (2)) and leaves the writer
+    # with two orders and no way to obey both. Graded on the literal's own words, not on intent.
+    # REVIEW MAJOR 4: the replacement clause is graded on the BOARD-GATED half, which is where it now
+    # lives, AND the ban half is graded for its ABSENCE -- an instruction to state three dated facts is
+    # a defect on a turn whose block carries none of them.
+    _mb = _sn.desk_register_mandate(state_board=True)
+    for _need in ("RECENCY", "board price tape"):
+        if _need not in _mb:
+            errs.append(f"register_seam: the desk-register mandate does not name {_need!r} on a BOARD "
+                        f"turn -- the board mandate's movement (2) instructs the instrument phrasing, "
+                        f"so this literal must say what to write instead or the two contradict")
+        if _need in _m:
+            errs.append(f"register_seam: the TURN-WIDE half of the desk-register mandate names "
+                        f"{_need!r} -- that instruction's three facts come from the board block, so it "
+                        f"may not ship on a turn that carries no board (review MAJOR 4)")
+    if _mb == _m:
+        errs.append("register_seam: desk_register_mandate(state_board=True) is not wider than the "
+                    "turn-wide half -- the split is what keeps the recency instruction on the leg that "
+                    "supplies its facts")
+    if _mb not in _an._system(desk_register=True, state_board=True):
+        errs.append("register_seam: the board-gated half of the desk-register mandate does not reach "
+                    "_system(desk_register=True, state_board=True)")
+    if _an._system() != _an._system(desk_register=False):
+        errs.append("register_seam: _system(desk_register=False) is not the default -- the OFF arm's "
+                    "prompt must be byte-identical")
+    if _m not in _an._system(desk_register=True) or _m in _an._system(state_board=True):
+        errs.append("register_seam: the desk-register mandate is not gated on its own _system leg -- it "
+                    "must ship iff the flag is on, and never ride the board's leg")
+
+    # (h) the rewrite is bounded and fail-open
+    _ls = _insp.getsource(_an._desk_register_lint)
+    for _cap in ("_DESK_REWRITE_MAX_SENTENCES", "_DESK_REWRITE_MAX_CHARS", "_DESK_REWRITE_MAX_TOKENS"):
+        if _cap not in _ls:
+            errs.append(f"register_seam: _desk_register_lint does not honour {_cap} -- the one bounded "
+                        f"rewrite's cost ceiling is a number in the source or it is not a ceiling")
+    if _ls.count("call(") != 1:
+        errs.append("register_seam: _desk_register_lint makes more than one model call -- the ruling is "
+                    "ONE bounded rewrite call per turn, and a lint that loops is a lint that bills")
+    # THE FIVE REFUSALS, NAMED. `body` is the offered text with its structural marker cut off (the
+    # marker is re-attached verbatim and the model is never asked about it), so the invariants are
+    # checked against what was actually sent.
+    for _guard in ("_desk_handles(cand) != _desk_handles(body)",
+                   "_desk_digits(cand) != _desk_digits(body)",
+                   "reg.count_desk_register(cand) >= reg.count_desk_register(body)",
+                   "split[f][i] = head + cand",
+                   "except Exception as exc:"):
+        if _guard not in _ls:
+            errs.append(f"register_seam: _desk_register_lint is missing its {_guard!r} refusal -- on "
+                        f"ANY failure the ORIGINAL sentence must stand")
+    if _an._DESK_REWRITE_MAX_SENTENCES > 20 or _an._DESK_REWRITE_MAX_CHARS > 6000 \
+            or _an._DESK_REWRITE_MAX_TOKENS > 2000:
+        errs.append("register_seam: the rewrite's caps exceed the owner's <= 0.05 USD ceiling at the "
+                    "production seat's price (providers.SERVING_PRICES claude-opus-5: $5/MTok in, "
+                    "$25/MTok out)")
+
+    # ══ (i) THE BAR IS A SERIES' BAR (review MAJOR 1). The family join is (table, metric), and the
+    # board emits ONE percentile call per commodity on `silver_cot/mm_net`, so an unscoped join lets a
+    # DIFFERENT market's reading license the adjective. Probed through `state.render.sb_call`, the real
+    # producer, on both scope dimensions and on TIME.
+    try:
+        from leviathan.graphrag.state import render as _rd
+
+        def _sb(**kw):
+            return _rd.sb_call(period="2026-09", asof="2026-09-07", **kw)
+
+        _corn = _sb(table="silver_cot", metric="mm_net", commodity="corn_cbot",
+                    country="United States", value=3, unit="percentile", knowledge_date="2026-09-05")
+        _coco = _sb(table="silver_cot", metric="mm_net", commodity="cocoa_ice",
+                    country="United States", value=52, unit="percentile", knowledge_date="2026-09-05")
+        _S = "ICE cocoa managed-money positioning is crowded [N%d]."
+        if _vf.bar_adjective_verdict(_S % 1, [_corn, _coco]) == "licensed":
+            errs.append("register_seam: a DIFFERENT series' percentile licensed the adjective -- the "
+                        "bar joins on (table, metric), which is a FAMILY of series, so the row's own "
+                        "query.commodity / query.country must be read too (review MAJOR 1)")
+        if _vf.bar_adjective_verdict(_S % 2, [_corn, _coco]) != "weak_adjective":
+            errs.append("register_seam: the sentence's OWN row no longer reaches its bar -- the series "
+                        "scope may only refuse a foreign row, never the row the sentence cites")
+        _us = _sb(table="silver_cot", metric="mm_net", commodity="wheat_cbot",
+                  country="United States", value=95, unit="percentile", knowledge_date="2026-09-05")
+        _br = _sb(table="silver_cot", metric="mm_net", commodity="wheat_cbot", country="Brazil",
+                  value=50, unit="percentile", knowledge_date="2026-09-05")
+        if _vf.bar_adjective_verdict("Brazil wheat positioning is crowded [N1].",
+                                     [_us, _br]) == "licensed":
+            errs.append("register_seam: a DIFFERENT country's row licensed the adjective -- the two "
+                        "scope dimensions are asked separately for exactly this shape")
+        _stale = {"query": dict(_coco["query"]),
+                  "rows": [{"value": 55, "unit": "percentile", "knowledge_date": "2026-09-05"},
+                           {"value": 3, "unit": "percentile", "knowledge_date": "2019-04-02"}],
+                  "status": "ok"}
+        if _vf.bar_adjective_verdict(_S % 1, [_stale]) == "licensed":
+            errs.append("register_seam: a row OLDER than its own call's newest knowledge date licensed "
+                        "a PRESENT verdict -- row selection is scoped in time (review MAJOR 1)")
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"register_seam: could not probe the bar's series scope ({e!r})")
+
+    # ══ (j) THE DECLINE CLAUSE IS RETIRED BY THE RULING, AND THE COUNTER TAKES ITS PLACE. Rounds 1-3
+    # appended " -- no served percentile for that market is cited beside the word" to an unbound
+    # adjective; the owner's ruling says a word with no figure beside it is simply a word, so NOTHING is
+    # appended and `adjectives_unbacked` measures the population instead. The property graded here is
+    # the one that replaced it: the census carries the number, and the clause that used to carry the
+    # apology is gone from the module rather than left dead.
+    if hasattr(_an, "_BAR_UNBOUND_CLAUSE") or hasattr(_an, "_BAR_STALE_CLAUSE"):
+        errs.append("register_seam: a retired correcting clause is still defined in answer.py -- the "
+                    "ruling removed it, and dead text pretending to be a fence is how a later reader "
+                    "believes a correction still ships")
+    _cen = _an._bind_bar_adjectives({"tldr": "Positioning is crowded here.", "mechanism": ""}, [])
+    if _cen.get("adjectives_unbacked") != 1 or _cen.get("corrected"):
+        errs.append(f"register_seam: an adjective with no served figure was not COUNTED and left alone "
+                    f"-- {_cen!r}")
+
+    # ══ (k) THE CHARGE AND THE REMEDY ANSWER TO ONE PREDICATE (review MINOR). `GRAPHRAG_VERIFY=off` is
+    # a documented rollback; on that lane the remedy does not run, so the licence must not relieve the
+    # strike either -- otherwise a bare unbacked verdict ships unqualified, worse than either arm.
+    if _an._bar_licence_for(lambda _s: "licensed", {"enabled": False}) is not None:
+        errs.append("register_seam: the licence survives a DISABLED verifier -- `_bind_bar_adjectives` "
+                    "is inside that gate, so the strip would be relieved with no correction at all")
+    if _an._bar_licence_for("L", {"enabled": True}) != "L":
+        errs.append("register_seam: the licence does not survive an ENABLED verifier")
+    for _body, _label in ((_insp.getsource(_an._answer_l2), "_answer_l2"),
+                          (_insp.getsource(_an.answer), "answer")):
+        if "_bar_licence_for(" not in _body:
+            errs.append(f"register_seam: answer.{_label} does not re-anchor the licence on the "
+                        f"verifier's own predicate")
+
+    # ══ (l) THE REWRITE'S GUARDS BIND ON PROSE THAT CARRIES NO NUMERAL (review MAJOR 5/6). MEASURED
+    # over the nine banked answers: 59 of 113 offerable offending sentences (52.2%) carry NEITHER a
+    # digit NOR a handle, so the digit-and-handle refusals are vacuous on half the population -- which
+    # is the half the estate's honest-absence prose lives in.
+    for _guard in ("_desk_normalise_reply(cand, body)", "_desk_allowed_stems()",
+                   "_desk_content_ex_instrument(body)", "_desk_negations(cand) != _desk_negations(body)",
+                   "_DESK_REWRITE_MIN_WORDS * _desk_words(body)"):
+        if _guard not in _ls:
+            errs.append(f"register_seam: _desk_register_lint is missing its {_guard!r} refusal -- the "
+                        f"five shipped guards are digit-and-handle only and bind on 48% of the "
+                        f"sentences they are asked about")
+    _reply = {"structure": "The market is two-sided [N1]\nand a second line.",
+              "vocabulary": "Argentine rain has already broken the drought and prices will fall [N1].",
+              "polarity": "Drought and heat stress names series [N1]."}
+    for _why, _cand in _reply.items():
+        _d = {"tldr": "", "mechanism": ("The graph names no served series for drought or heat stress, "
+                                        "and the board reads two-sided [N1].")}
+        _c = _an._desk_register_lint(_d, call=lambda _s, _u, **_k: {"sentences": [_cand]})
+        if _c.get("rewritten"):
+            errs.append(f"register_seam: the rewrite ACCEPTED a {_why} violation -- {_cand[:60]!r}")
+    if _an._desk_normalise_reply("- The market is two-sided [N1].", "The board reads here [N1]") \
+            != "The market is two-sided [N1]":
+        errs.append("register_seam: _desk_normalise_reply does not strip a re-added marker and match "
+                    "the offered chunk's own terminator -- the marker rides back from `head`")
+    if _an._desk_normalise_reply("a\nb", "a") is not None:
+        errs.append("register_seam: _desk_normalise_reply accepts a multi-line reply -- splicing one "
+                    "into a single segmenter chunk is how a page stops being a list")
+
+    # ══ (m) THE POST-SANITIZE INVARIANT IS NAMED, NOT BROKEN IN SILENCE (review MAJOR 2). Under the
+    # licence `register_leaks(sanitize(x)) == []` no longer holds -- that is the instrument working --
+    # so the SECOND producer exists, the counters still take no licence, and it relaxes nothing the
+    # fence decides above its licence clause.
+    _keep = "A crowded long here unwinds sharply if the catalyst pauses."
+    _on = _rg.sanitize(_keep, bar_licence=lambda _s: "unbound_adjective")
+    if _keep not in _on:
+        errs.append("register_seam: the licence no longer keeps a bar-adjective sentence")
+    if _rg.register_leaks_excluding_bar(_on):
+        errs.append("register_seam: register_leaks_excluding_bar charges a sentence the licence is "
+                    "permitted to keep -- the eval gate and the metric rest on that subtraction")
+    if "bar_licence" in str(_insp.signature(_rg.register_leaks_excluding_bar)):
+        errs.append("register_seam: register_leaks_excluding_bar accepts a bar_licence -- it is a "
+                    "declared POPULATION, never a switch")
+    for _probe, _why in (
+            ("Positioning is crowded, so go long here.", "A2 execution"),
+            ("The spread is rich and that discount cannot last.", "the persistence class rule"),
+            ("Positioning is crowded and fair value is unchanged.", "an unbacked fair-value claim"),
+            ("The node fired with conf=high.", "an internal leak")):
+        if not _rg.register_leaks_excluding_bar(_probe):
+            errs.append(f"register_seam: register_leaks_excluding_bar released {_why} -- {_probe!r}")
+    # ...and it follows the RULING rather than the old bar-adjective screen: a retired WORD is not a
+    # leak of the population the eval gate reads on a lit turn (round 4). The counters still charge it
+    # -- `register_leaks` is unmoved on both arms -- which is what keeps the arm measurable.
+    if _rg.register_leaks_excluding_bar("This is a pain trade."):
+        errs.append("register_seam: register_leaks_excluding_bar still charges a retired flow WORD -- "
+                    "the subtraction and the strip must name the same population")
+    if not _rg.register_leaks("This is a pain trade."):
+        errs.append("register_seam: register_leaks stopped charging a retired word -- the COUNTERS take "
+                    "no licence and must be numerically unchanged on both arms")
+    _words = sorted({w for w, _f, _s in _vf.BAR_ADJECTIVES})
+    _mirror = sorted({("squeeze" if w.startswith("squeez") else w) for w
+                      in _rg._BAR_ADJ_WORDS_RX.findall(" ".join(_words))})
+    if _words != _mirror:
+        errs.append(f"register_seam: register._BAR_ADJ_WORDS_RX and verify.BAR_ADJECTIVES disagree "
+                    f"({_mirror!r} vs {_words!r}) -- the copy exists because register imports nothing "
+                    f"at module scope, and it is graded rather than trusted")
+
+    # ══ (n) ROUND-3, RE-CUT AS SWEEPS (2026-09-15). The round-3 clauses graded exactly the sentences
+    # that motivated them -- seven RO-8 probes and three scope probes -- and the round-3 review then
+    # found 76 advisory escapes and seven bare-noun market escapes that a fully green deck and a green
+    # `check_register_seam` could not see. That is this estate's own standing law read from the review
+    # side (feedback_threat_model_before_any_gate_or_fence: "the resolver gate took five rounds because
+    # checks were added one at a time"), so every clause below now GENERATES its population: the
+    # advisory shapes as lead x tail, the scope test as the estate's whole declared roster, and the
+    # freshness bound as a day offset either side of the card's own promise.
+    #
+    # (n1) WORDS ARE FREE, AND THE TWO COLUMNS ARE SWEPT AS A PRODUCT (owner ruling 2026-09-15 16:30Z).
+    # The population is GENERATED -- 6 leads x 12 tails -- and each cell is graded on a criterion that
+    # is independent of the fence's own grammar: what the licensed output IS, character for character.
+    # EVERY LEAD IS A SENTENCE HEAD ACTUALLY STRIKES, and the `_kept_off` half below proves it rather
+    # than assuming it. MEASURED, and worth stating because the ruling's own examples say otherwise:
+    # of the owner's three ("Positioning looks crowded here.", "The crush is rich.", "Stocks are tight
+    # into the new crop."), only the FIRST is charged at HEAD -- `tight` is in no pattern this module
+    # ships, and Lane B needs a window noun or a relative-value marker beside `rich`, which "The crush
+    # is rich." has neither of. The freedom this ruling returns is therefore narrower than its examples
+    # suggest, and a sweep built on the examples would have graded sentences the fence never touched.
+    _leads = ("Positioning is crowded [N1]", "The spread screens cheap [N1]",
+              "Managed money is crowded long [N1]", "The basis screens rich [N1]",
+              "The crush spread is rich [N1]", "Valuation is cheap relative to the record [N1]")
+    # THE RETIRED COLUMN: every tail is ordinary desk English carrying no figure claim, no forecast and
+    # no instruction. Nothing here may be struck under the licence, and every one of them IS struck at
+    # HEAD -- which is the freedom the ruling returns.
+    _free = (".", " here.", " into the report.", " against its own five-year record.",
+             " and the market knows it.", " on this morning's print.", " for the second week.",
+             " while the basis stays quiet.", " -- the tape says so.", ", which is the reading.",
+             " in the front month.", " by any honest read of the record.")
+    _struck, _kept_off = [], []
+    for _lead in _leads:
+        for _tail in _free:
+            _s = _lead + _tail
+            if _rg.sanitize(_s, bar_licence=_always).strip() != _s.strip():
+                _struck.append(_s)
+            if _rg.sanitize(_s).strip() == _s.strip():
+                _kept_off.append(_s)
+    if _struck:
+        errs.append(f"register_seam: {len(_struck)} of {len(_leads) * len(_free)} generated WORDS-ONLY "
+                    f"sentences are still struck under the licence -- e.g. {_struck[0]!r}")
+    if _kept_off:
+        errs.append(f"register_seam: {len(_kept_off)} of {len(_leads) * len(_free)} generated sentences "
+                    f"are NOT struck with the flag off -- this sweep would measure nothing "
+                    f"(e.g. {_kept_off[0]!r})")
+    # THE KEPT COLUMN, over the same leads: A2 execution, a forecast, and a figure claim. Every cell
+    # must still be struck WITH the most permissive licence there can be.
+    _kept_tails = ((", so go long here.", "a2_execution"), (", so buy the dip.", "a2_execution"),
+                   (" and I'd be a buyer.", "a2_execution"),
+                   (" and the premium should narrow from here.", "forecast_convergence"),
+                   (" and that discount cannot last.", "forecast_persistence"),
+                   (" and due for a correction.", "forecast_reversion"),
+                   (" and the price target is unchanged.", "unbacked_figure_claim"),
+                   (" against fair value.", "unbacked_figure_claim"))
+    _shipped = []
+    for _lead in _leads:
+        for _tail, _class in _kept_tails:
+            _s = _lead + _tail
+            if _rg.sanitize(_s, bar_licence=_always).strip():
+                _shipped.append(_s)
+            if _rg.licence_kept_charge(_s) != _class:
+                errs.append(f"register_seam: {_s!r} is classified {_rg.licence_kept_charge(_s)!r}, "
+                            f"not {_class!r}")
+    if _shipped:
+        errs.append(f"register_seam: {len(_shipped)} of {len(_leads) * len(_kept_tails)} KEPT-column "
+                    f"sentences ship under the licence -- e.g. {_shipped[0]!r}")
+    # ...AND THE A2 HOLE IS NAMED AND PROVED PRE-EXISTING RATHER THAN ASSERTED TO BE. The round-3 and
+    # round-4 reviews both measured advice shapes the A2 detector cannot see ("so hold the length into
+    # the report", "so a long here risks one to make three"). Two rounds of frame lists inside the
+    # licence failed in BOTH directions at once -- advice still shipping AND honest readings deleted --
+    # so the ruling stopped trying and NAMED the hole instead. What is graded here is that it is HEAD's
+    # hole and not the licence's: the identical tail on a sentence carrying NO retired word ships at
+    # HEAD today, with no flag set anywhere.
+    for _tail in (", so hold the length into the report.", ", so a long here risks one to make three.",
+                  ", so the right side here is the long side.", ", so nibble at the front month.",
+                  ", so it is worth being long the July."):
+        _head_probe = "Rain is forecast in Mato Grosso" + _tail
+        if _rg.sanitize(_head_probe).strip() != _head_probe.strip():
+            errs.append(f"register_seam: {_tail!r} is NOT a pre-existing A2 hole -- HEAD strikes it "
+                        f"without any licence, so the header's claim is wrong and the licence is "
+                        f"widening a fence rather than naming one")
+        if _rg.exec_leaks(_head_probe) or _rg.count_exec_words(_head_probe):
+            errs.append(f"register_seam: {_tail!r} IS visible to the A2 detector -- it belongs in the "
+                        f"kept column, not in the named hole")
+    # (n2) THE SERIES SCOPE, SWEPT OVER THE ESTATE'S WHOLE DECLARED ROSTER rather than over three
+    # probes. Every market the hierarchy declares -- 31 contracts and the commodity universe behind
+    # them -- is named in a one-market sentence against a CORN row, and none of them may license it.
+    try:
+        from leviathan.graphrag.state import render as _rd2
+
+        _only = _rd2.sb_call(period="2026-09", asof="2026-09-07", table="silver_cot", metric="mm_net",
+                             commodity="corn_cbot", country="United States", value=3,
+                             unit="percentile", knowledge_date="2026-09-05")
+        _mine = {"corn", "corn cbot", "campinas corn reference bmf", "french maize matif",
+                 "yellow maize", "white maize", "maize"}
+        _leaked = []
+        for _ident, _words in _vf._bar_market_vocab():
+            if _ident in _mine:
+                continue
+            _word = sorted(_words, key=lambda w: (-len(w), w))[0]
+            if _vf.bar_adjective_verdict(f"{_word.title()} positioning is crowded [N1].",
+                                         [_only]) == "licensed":
+                _leaked.append(_word)
+        if _leaked:
+            errs.append(f"register_seam: {len(_leaked)} declared markets license the adjective off "
+                        f"CORN's row -- e.g. {_leaked[:6]!r}")
+        for _probe in ("CBOT corn managed-money positioning is crowded at the 3rd percentile [N1].",
+                       "Managed money positioning is crowded [N1].",
+                       "Corn positioning is crowded [N1].",
+                       "Maize positioning is crowded [N1]."):
+            if _vf.bar_adjective_verdict(_probe, [_only]) != "licensed":
+                errs.append(f"register_seam: the standing market roster refuses the row's OWN market "
+                            f"(or a sentence naming none at all) -- {_probe!r}")
+        if len(_vf._bar_contract_vocab()) < 20 or len(_vf._bar_commodity_vocab()) < 20:
+            errs.append("register_seam: the standing market roster is nearly empty "
+                        f"({len(_vf._bar_contract_vocab())} contracts, "
+                        f"{len(_vf._bar_commodity_vocab())} commodities) -- it would contribute "
+                        "nothing on every turn")
+        # THE GEO HALF, both directions, and the empty-scope rows the renderer really emits.
+        _noc = _rd2.sb_call(period="2026-09", asof="2026-09-07", table="silver_cot", metric="mm_net",
+                            commodity="corn_cbot", country=None, value=3, unit="percentile",
+                            knowledge_date="2026-09-05")
+        for _probe in ("Brazil positioning is crowded [N1].",
+                       "Argentine corn positioning is crowded [N1].",
+                       "Ukrainian positioning is crowded [N1]."):
+            if _vf.bar_adjective_verdict(_probe, [_noc]) == "licensed":
+                errs.append(f"register_seam: a row carrying NO country licensed a sentence that names "
+                            f"one -- {_probe!r}")
+        if _vf.bar_adjective_verdict("Corn positioning is crowded [N1].", [_noc]) != "licensed":
+            errs.append("register_seam: a row carrying no country lost its licence on a sentence that "
+                        "names no country either")
+        if _vf.bar_adjective_verdict("Global positioning is crowded [N1].", [_only]) != "licensed":
+            errs.append("register_seam: the geo AGGREGATE sentinel is read as a competing country")
+        # (n2b) THE ABSOLUTE FRESHNESS BOUND, swept either side of the card's own promise.
+        _bound = _vf._bar_freshness_bound(_only)
+        if not (7 <= _bound <= 60):
+            errs.append(f"register_seam: silver_cot's freshness bound is {_bound} days -- outside the "
+                        f"range a weekly card with a measured six-day publication lag can justify")
+        for _off, _want in ((0, "licensed"), (_bound, "licensed"), (_bound + 1, "weak_adjective"),
+                            (4000, "weak_adjective")):
+            _d = _dt.date(2026, 9, 7) - _dt.timedelta(days=_off)
+            _c = _rd2.sb_call(period="2026-09", asof="2026-09-07", table="silver_cot",
+                              metric="mm_net", commodity="corn_cbot", country="United States",
+                              value=3, unit="percentile", knowledge_date=_d.isoformat())
+            _got = _vf.bar_adjective_report("Corn positioning is crowded [N1].", [_c])
+            if _got.get("verdict") != _want:
+                errs.append(f"register_seam: a row {_off} days behind the turn's as-of reads "
+                            f"{_got.get('verdict')!r}, not {_want!r} (bound {_bound})")
+            if _want == "weak_adjective" and _got.get("stale") != _d.isoformat():
+                errs.append(f"register_seam: the stale verdict does not carry the row's own date "
+                            f"({_got.get('stale')!r} vs {_d.isoformat()!r})")
+        # A STALE ROW CANNOT LICENSE AND CANNOT CONTRADICT (ruling (3)): it is still `weak_adjective`,
+        # so the census counts it and the trace carries its date, but NOTHING is appended to the page --
+        # a fifteen-year-old percentile is not the figure a correcting clause may quote.
+        _st = {"tldr": "Corn positioning is crowded [N1].", "mechanism": ""}
+        _cst = _rd2.sb_call(period="2011-01", asof="2026-09-07", table="silver_cot", metric="mm_net",
+                            commodity="corn_cbot", country="United States", value=55,
+                            unit="percentile", knowledge_date="2011-01-04")
+        _cen2 = _an._bind_bar_adjectives(_st, [_cst])
+        if _st["tldr"] != "Corn positioning is crowded [N1].":
+            errs.append(f"register_seam: a STALE row still moved the page -- {_st['tldr']!r}")
+        if _cen2.get("weak") != 1 or _cen2.get("corrected"):
+            errs.append(f"register_seam: a stale row is not counted as a weak verdict with no "
+                        f"correction -- {_cen2!r}")
+        if _vf.bar_adjective_report("Corn positioning is crowded [N1].",
+                                    [_cst]).get("stale") != "2011-01-04":
+            errs.append("register_seam: the report no longer carries the stale row's own date for the "
+                        "trace")
+        # ...and the ONE clause that does fire names the figure and the band, on the page.
+        _fig = {"tldr": "Corn positioning is crowded [N1].", "mechanism": ""}
+        _cfg2 = _rd2.sb_call(period="2026-09", asof="2026-09-07", table="silver_cot", metric="mm_net",
+                             commodity="corn_cbot", country="United States", value=42,
+                             unit="percentile", knowledge_date="2026-09-05")
+        _cen3 = _an._bind_bar_adjectives(_fig, [_cfg2])
+        _lo, _hi = _vf._bar_bands("positioning")
+        _want = ("Corn positioning is crowded [N1]"
+                 + _an._BAR_BAND_CLAUSE.format(pct=_an._bar_num(42.0), lo=_an._bar_num(_lo),
+                                               hi=_an._bar_num(_hi)) + ".")
+        if _fig["tldr"] != _want or _cen3.get("corrected") != 1:
+            errs.append(f"register_seam: the figure-contradiction clause is not the ruling's -- "
+                        f"{_fig['tldr']!r}")
+        if _rg.desk_register_hits(_fig["tldr"]) or _rg.register_leaks(_fig["tldr"]):
+            errs.append(f"register_seam: the correcting clause is charged by this sitting's own "
+                        f"instruments -- {_fig['tldr']!r}")
+        if sorted(_re.findall(r"\d", _fig["tldr"])) != sorted("1" + "42"
+                                                              + _an._bar_num(_lo) + _an._bar_num(_hi)):
+            errs.append(f"register_seam: the clause moved the sentence's digit multiset by something "
+                        f"other than the served figure and the convention's own band -- "
+                        f"{_fig['tldr']!r}")
+        # (n2c) A COMPARISON RESOLVES ITS ADJECTIVE AGAINST ITS OWN SUBJECT, never by OR over handles.
+        _coco = _rd2.sb_call(period="2026-09", asof="2026-09-07", table="silver_cot", metric="mm_net",
+                             commodity="cocoa", country="Ghana", value=52, unit="percentile",
+                             knowledge_date="2026-09-05")
+        if _vf.bar_adjective_verdict("Cocoa positioning is crowded [N2] while corn is quiet [N1].",
+                                     [_only, _coco]) == "licensed":
+            errs.append("register_seam: a comparison naming two markets licensed its subject's "
+                        "adjective off the OTHER market's row")
+        if _vf._bar_subject_market("Cocoa positioning is crowded [N2] while corn is quiet [N1].",
+                                   "positioning") != "cocoa":
+            errs.append("register_seam: the two-market subject rule does not read the market nearest "
+                        "the adjective's left as its subject")
+        if _vf._bar_subject_market("CBOT corn managed-money positioning is crowded [N1].",
+                                   "positioning") != "corn":
+            errs.append("register_seam: 'CBOT corn ...' does not resolve its subject to CORN -- the "
+                        "venue half must never take a sentence away from the market it names")
+        # ROUND 4: A TWO-VENUE COMPARISON IS A COMPARISON, and it FAILS CLOSED. `_bar_named_markets`
+        # excluded exchange codes ("a venue is not a market"), so a comparison naming only venues
+        # resolved to NO subject and the percentile test went back to OR-ing every handle: measured,
+        # 'ICE positioning is crowded [N2] while CBOT is quiet [N1].' read CORN's 3rd percentile and
+        # licensed. A venue is still not a market, so no call can claim it and the verdict is unbound --
+        # which under the ruling appends NOTHING, the fail-closed direction.
+        for _probe in ("ICE positioning is crowded [N2] while CBOT is quiet [N1].",
+                       "The ICE book is crowded [N2] and the CBOT book is quiet [N1].",
+                       "Positioning on ICE is crowded [N2] and on CBOT it is quiet [N1]."):
+            if _vf.bar_adjective_verdict(_probe, [_only, _coco]) == "licensed":
+                errs.append(f"register_seam: a two-VENUE comparison licensed off the other venue's "
+                            f"row -- {_probe!r}")
+        if _vf.bar_adjective_verdict("ICE cocoa positioning is crowded [N2] while CBOT corn is quiet "
+                                     "[N1].", [_only, _coco]) != "weak_adjective":
+            errs.append("register_seam: the NAMED two-market comparison stopped resolving against its "
+                        "own subject once venues joined the count")
+        # THE SUB-NATIONAL GEO HALF (round-4 review MAJOR): a region resolves through regions.yaml to
+        # its country and is then read exactly as the country word would be.
+        for _probe in ("Positioning in Mato Grosso is crowded [N1].",
+                       "Parana positioning is crowded [N1].",
+                       "Positioning in Sabah is crowded [N1]."):
+            if _vf.bar_adjective_verdict(_probe, [_only]) == "licensed":
+                errs.append(f"register_seam: a SUB-NATIONAL region licensed off a united_states row -- "
+                            f"{_probe!r}")
+        # ...and the roster's third half, the estate's OTHER market-word file.
+        for _probe in ("Pork positioning is crowded [N1].", "Whey positioning is crowded [N1].",
+                       "Rye positioning is crowded [N1].", "Urea positioning is crowded [N1]."):
+            if _vf.bar_adjective_verdict(_probe, [_only]) == "licensed":
+                errs.append(f"register_seam: an ENTITY-VOCABULARY market licensed off a corn row -- "
+                            f"{_probe!r}")
+        if len(_vf._bar_entity_vocab()) < 20:
+            errs.append(f"register_seam: the entity-vocabulary roster half is nearly empty "
+                        f"({len(_vf._bar_entity_vocab())}) -- it would contribute nothing on every turn")
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"register_seam: could not probe the standing market roster ({e!r})")
+    # (n3) THE REWRITE'S ONE-WORD BUDGET IS NOT A ONE-WORD CLAIM EDIT.
+    for _guard in ("_desk_claim_terms(cand) != _desk_claim_terms(body)", "_desk_losable_stems(body)"):
+        if _guard not in _ls:
+            errs.append(f"register_seam: _desk_register_lint is missing its {_guard!r} refusal -- a "
+                        f"budget of one new content word is exactly what one claim edit costs")
+    for _why, _body, _cand in (
+            ("direction", "The graph carries this in the same direction as price at high confidence.",
+             "The mechanism carries this in the opposite direction as price at high confidence."),
+            ("confidence", "The graph carries this in the same direction as price at high confidence.",
+             "The mechanism carries this in the same direction as price at low confidence."),
+            ("reading", "The board reads two-sided here.", "The market reads bullish here."),
+            ("magnitude", "The board is the loudest driver on cocoa here.",
+             "The market is the weakest driver on cocoa here."),
+            ("hedge", "The board may be two-sided here.", "The market is two-sided here."),
+            ("date", "The board is read through the knowledge date of September 2026.",
+             "The market is read through the date of October 2026."),
+            ("a deleted driver", "The board reads two-sided here and drought risk is rising.",
+             "The market reads two-sided here and risk is rising."),
+            ("a deleted market", "The board is the loudest driver on corn and on wheat and on cocoa "
+                                 "here.", "The market is the largest move on corn and on wheat here.")):
+        _c = _an._desk_register_lint({"tldr": _body, "mechanism": ""},
+                                     call=lambda _s, _u, _r=_cand, **_k: {"sentences": [_r]})
+        if int(_c.get("offered") or 0) != 1:
+            errs.append(f"register_seam: the {_why} probe was never OFFERED to the rewrite -- it "
+                        f"grades a guard that did not run ({_c!r})")
+        if _c.get("rewritten"):
+            errs.append(f"register_seam: the rewrite ACCEPTED a {_why} edit after verify_citations "
+                        f"closed -- {_cand[:70]!r}")
+    for _why, _body, _cand in (
+            ("the table's own replacement", "The board is the loudest driver on cocoa here.",
+             "The market is the largest move on cocoa here."),
+            ("a table phrase used in part", "The board dates the receipt before the harvest.",
+             "The market dates the report before the harvest."),
+            ("two tokens in one sentence", "The graph says the node is drier than its own record.",
+             "The mechanism says the driver is drier than its own record.")):
+        _c = _an._desk_register_lint({"tldr": _body, "mechanism": ""},
+                                     call=lambda _s, _u, _r=_cand, **_k: {"sentences": [_r]})
+        if not _c.get("rewritten"):
+            errs.append(f"register_seam: the rewrite REFUSED {_why} ({(_c.get('refused') or {})!r}) -- "
+                        f"the guards must cost no honest SUBSTITUTION: {_cand[:60]!r}")
+    # ══ (n5) RULING (5): THE REWRITE IS SUBSTITUTION-ONLY, and this is the clause that says so. The
+    # four one-word inversions the round-4 review spliced onto the page passed all eleven budget guards
+    # -- an inversion spends nothing -- so the rule is no longer a budget: a reply is the offered
+    # sentence with its BANNED TOKENS replaced by the TABLE's own phrases, and anything else is
+    # `edit_outside_table`. Each row below is the honest rewrite with ONE word inverted.
+    for _why, _body, _cand in (
+            ("before -> after", "The board dates the receipt before the harvest.",
+             "The market dates the report after the harvest."),
+            ("agree -> disagree", "The board says the two rows agree on the direction.",
+             "The market says the two series disagree on the direction."),
+            ("inside -> outside", "The board puts the reading inside the convention band.",
+             "The market puts the reading outside the desk convention band."),
+            ("with -> against", "The board says the node moves with the price.",
+             "The market says the driver moves against the price."),
+            ("older -> newer", "Two rows have spent their knowledge date.",
+             "Two series are read through newer dates.")):
+        _c = _an._desk_register_lint({"tldr": _body, "mechanism": ""},
+                                     call=lambda _s, _u, _r=_cand, **_k: {"sentences": [_r]})
+        if int(_c.get("offered") or 0) != 1:
+            errs.append(f"register_seam: the {_why} probe was never OFFERED to the rewrite ({_c!r})")
+        if _c.get("rewritten"):
+            errs.append(f"register_seam: the rewrite ACCEPTED a {_why} inversion after verify_citations "
+                        f"closed -- {_cand[:70]!r}")
+    if _an._desk_substitution_only("The board is the loudest driver on cocoa here.",
+                                   "The market is the largest move on cocoa there."):
+        errs.append("register_seam: _desk_substitution_only accepted a word changed OUTSIDE a charged "
+                    "span (here -> there)")
+    if not _an._desk_substitution_only("The board reads two-sided here [N2].",
+                                       "The market reads two-sided here [N2]."):
+        errs.append("register_seam: _desk_substitution_only refused the table's own one-word "
+                    "substitution")
+    # (n4) an exemption is an argument about a WORD, never about the characters near it.
+    for _e in _rg.check_desk_exempt_table():
+        errs.append(f"register_seam: {_e}")
+    for _probe, _tok in (("On the CME, the loudest thing on the board is the crush.", "loud"),
+                         ("Against the MATIF curve, the loudest row on the board is drought.", "row")):
+        if not any(_n == _tok for _n, _c in _rg.desk_register_hits(_probe)):
+            errs.append(f"register_seam: the exemption span swallowed the {_tok!r} charge lying inside "
+                        f"it -- {_probe!r}")
     return errs
 
 
@@ -5392,6 +6186,7 @@ def main() -> int:
                         # wiring's own grammar. Both are pure reads; neither needs a store.
                         ("state_board", check_state_board()),
                         ("state_seam", check_state_seam()),
+                        ("register_seam", check_register_seam()),      # S7b: the two dark instruments
                         # SUBJECT RESOLVER: APPENDED AT THE TAIL, the same append-never-insert
                         # law this roster keeps for itself. A pure read: module source, the
                         # frozen block, the artifact sidecar and the live graph hash.

@@ -1941,7 +1941,21 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
             continue
         near = ((st.run or {}).get("since_date") if st.run and not st.run.get("declined") else None) \
             or st.level_date
-        bd.windows[r.key] = {"near": near, "state_date": st.level_date,
+        # ``reading`` IS A THIRD ANCHOR AND ``near`` IS NOT TOUCHED (S7b, critique R6). The two answer
+        # DIFFERENT questions and the design declares both. SB-J asks "when does the effect of this
+        # STATE land", and :func:`projection_window`'s own docstring fixes its anchor at the run's
+        # start -- "a lag runs from the state to the effect" (Judge 2) -- so ``near`` stays the run
+        # start and every SB-J line on every board-on turn is byte-identical.
+        # A WATCH ROW ASKS "from the reading I am looking at, when does the window close", and counting
+        # that from a run start that began in 1997 produces a window that closed in 1998 for a 2026
+        # reading: MEASURED at 10 of the 60 rows of the 09-11 non-obvious prototype (palm "China food
+        # demand" rendered 1997-12..1998-06). So the reading's OWN date is banked beside the run start,
+        # and the watch producer reads it under its own flag.
+        # IT IS ADDITIVE AND NEVER A REPLACEMENT: a consumer that wants the run start reads ``near``,
+        # a consumer that wants the observation reads ``reading``, and neither has to know which one
+        # the other took. ``state_date`` already carried the same value and is left alone because it is
+        # the recency ledger's field, not the projection's -- two readers, two names, no aliasing.
+        bd.windows[r.key] = {"near": near, "state_date": st.level_date, "reading": st.level_date,
                              "knowledge_date": st.knowledge_date, "analog_dates": ()}
     # sec 3.9 item 1 again -- and it is NOT a re-rank of stage 1. The numeric head reads the tuple stage
     # 1 stamped (`stored_rank`); only the TEXT-ONLY tail moves, and sec 3.2 says in so many words that

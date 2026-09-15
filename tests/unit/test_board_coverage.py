@@ -860,3 +860,179 @@ def test_S7r2_the_CROSSED_control_is_DEGENERATE_for_recency_because_the_LAYER_FA
     # ...so any answer that transcribes one board's layer fact transcribes all three
     shared = lines[names[0]]["RECENCY numbers"]
     assert "2026-09-04" in shared and "newest knowledge date" in shared, shared
+
+
+# === 6. THE NOMINATION READ IS PER BULLET (S7b round 4, orchestrator ruling (7)) ==================
+# THE DEFECT THIS SECTION CLOSES, measured: `_nomination_coverage`'s first cut asked `board_coverage`'s
+# own `_verdict` -- a ONE-SENTENCE window carrying every one of the row's token groups -- and read 5 of
+# 37 nominations used on the three S7b real-seat draws, where a human read of the same three pages
+# found every one of the 13 shipped watch bullets resting on a nomination (13 of 13). The rule is now:
+# A NOMINATION IS USED when its own [N] handle, or its own series key, appears in a shipped WATCH
+# BULLET; A BULLET THAT MATCHES NO NOMINATION IS WRITER-ADDED; per bullet, never per sentence.
+NOM_ASOF = "2026-09-07"
+
+#: the EIGHT keys the nomination read adds, and the twenty it may never disturb (the flag-off proof).
+NOMINATION_KEYS = ("watch_candidates", "watch_candidates_used", "watch_candidates_cited",
+                   "watch_bullets", "watch_writer_added", "watch_admitted_zero",
+                   "watch_nomination_groups", "watch_instrument_baseline")
+
+
+def _nom(kind, driver, handle, *, board="CBOT soybeans", slot="ceiling", i=1, n=3, dates="",
+         tokens=None, what="the reading is past the line the desk convention calls behind"):
+    """ONE nomination row's MANIFEST, its line minted through THE SHIPPED BUILDER.
+
+    `render.sb_watch` renders the line the reader meets and `_nomination_coverage` keys on that line
+    and on nothing else -- the row's `handles` are EMPTY, because the backing citation is PRINTED by
+    the builder rather than minted as a call. A deck that hand-typed the string would be grading its
+    own typing."""
+    from leviathan.graphrag.state import watch as WA
+    line = R.sb_watch({"kind_words": WA.NONOBVIOUS_KIND_WORDS[kind],
+                       "label": f"{driver} on {board}", "backing_handle": handle, "slot": slot,
+                       "slot_size": n, "slot_index": i, "what": what, "dates": dates})
+    return {"role": "watch", "line": line, "handles": (),
+            "tokens": tokens if tokens is not None else ((driver,),)}
+
+
+def _nom_cov(rows, page):
+    """The producer, called EXACTLY as `board_coverage` calls it: positionally, page by keyword."""
+    return R._nomination_coverage(rows, vf.sentences(page), lambda m: False, NOM_ASOF, text=page)
+
+
+def test_S7b4_a_PARAPHRASED_bullet_that_CITES_its_row_is_USED_where_the_name_test_missed_it():
+    """THE HANDLE IS THE IDENTITY THE WRITER ACTUALLY CARRIED. All three draws paraphrased the label --
+    "Weekly US export sales" for `export pace lag`, "Brent" for `crude oil`, "The Pacific reading" for
+    `El Nino` -- while citing the row's handle in the same breath. The estate already binds every
+    printed figure to that handle (`verify._check_number_handle`); this counter now reads the same
+    name, and the second assert is the RETIRED read failing on the very same bullet."""
+    rows = [_nom("past_the_line", "export pace lag", 7, i=1, n=2),
+            _nom("approaching_line", "board crush", 19, i=2, n=2)]
+    page = ("## Mechanism\n"
+            "- **Crush pull.** The board reads 1.06 USD per bushel [N19].\n"
+            "## What to watch\n"
+            "- **Weekly US export sales** -- already past the line the desk calls behind [N7].\n"
+            "- **Board crush margin** -- running at, not through, the high line [N19].\n")
+    cov = _nom_cov(rows, page)
+    assert cov["watch_bullets"] == 2, "the Mechanism bullet is not a watch bullet"
+    assert cov["watch_candidates"] == 2 and cov["watch_candidates_used"] == 2
+    assert cov["watch_candidates_cited"] == 2 and cov["watch_writer_added"] == 0
+    # THE RETIRED READ ON THE SAME BULLET: no sentence of it carries the row's own name words
+    watch_bullet = R._nom_watch_bullets(page)[0]
+    assert not R._tokens_referenced(rows[0]["tokens"], vf.sentences(watch_bullet))
+
+
+def test_S7b4_the_identity_may_be_spread_across_the_bullet_which_no_SENTENCE_read_can_reach():
+    """THE GRANULARITY, ON ITS OWN. The name is in the head of the item and the window in its tail, so
+    NO single sentence carries both token groups -- the first assert is that miss, reproduced -- and
+    the bullet read finds the row because the handle is somewhere in the item it is scoring."""
+    rows = [_nom("approaching_line", "crude oil", 31, dates="2026-08-31 to 2027-02-28",
+                 tokens=(("2027-02-28",), ("crude oil",)))]
+    page = ("## What to watch\n"
+            "- **Crude oil** -- below the elevated line, three months rising, about thirty-nine\n"
+            "  percent of the way from zero [N31]. Its window runs to 2027-02-28.\n")
+    assert not R._tokens_referenced(rows[0]["tokens"], vf.sentences(page))
+    cov = _nom_cov(rows, page)
+    assert cov["watch_bullets"] == 1 and cov["watch_candidates_used"] == 1
+    assert cov["watch_candidates_cited"] == 1 and cov["watch_writer_added"] == 0
+
+
+def test_S7b4_the_ZERO_WRITER_read_is_ALL_USED_and_NONE_ADDED_exactly():
+    """THE BASELINE THE RULING ASKED FOR. The block handed back VERBATIM is the writer that added
+    nothing, dropped nothing and reproduced everything, and on that input the counter reads all-used
+    and none-added EXACTLY -- not approximately, which is what the retired per-sentence read could
+    only manage (three to seven "added", nought to two "unused" on the nine armed cells). The banked
+    constant carries BOTH floors, because the round-2 and round-3 traces were produced by the other
+    one and a banked number whose floor has been deleted is a number nobody can read."""
+    rows = [_nom(k, d, h, i=i, n=4) for i, (k, d, h) in enumerate(
+        (("past_the_line", "export pace lag", 7), ("approaching_line", "board crush", 19),
+         ("spillover_reach", "crude oil", 31),
+         ("recurrence", "Argentina export registration", 10)), 1)]
+    page = "\n".join(m["line"] for m in rows)        # no heading: the block writes none
+    cov = _nom_cov(rows, page)
+    assert cov["watch_bullets"] == 4 and cov["watch_writer_added"] == 0
+    assert cov["watch_candidates"] == 4 == cov["watch_candidates_used"] == cov["watch_candidates_cited"]
+    base = R.NOMINATION_ZERO_WRITER_BASELINE
+    assert base["bullet_added_at_zero_writer"] == 0
+    assert base["bullet_used_short_at_zero_writer"] == 0
+    assert base["bullet_exact"] is True
+    assert cov["watch_instrument_baseline"] == dict(base)
+    # the RETIRED read's four keys are kept, unchanged, and are NOT the shipped read's
+    assert base["added_at_zero_writer_max"] == 7 and base["cells"] == 9
+
+
+def test_S7b4_a_bullet_resting_on_NO_nomination_is_WRITER_ADDED_against_its_own_denominator():
+    """THE ONE THING THE SELECTION LICENCE BOUNDS is the writer's OWN item, and "1 added" is a fact
+    about a page only beside the number of bullets that page shipped -- which is why `watch_bullets`
+    ships beside it and the first cut, which had no denominator at all, could not be read as a rate."""
+    rows = [_nom("past_the_line", "export pace lag", 7)]
+    page = ("## What to watch\n"
+            "- **Weekly US export sales** [N7]: past the line the desk calls behind.\n"
+            "- **The Gulf basis**: the writer's own item, on no row this board printed.\n")
+    cov = _nom_cov(rows, page)
+    assert cov["watch_bullets"] == 2 and cov["watch_writer_added"] == 1
+    assert cov["watch_candidates_used"] == 1 and cov["watch_candidates"] == 1
+
+
+def test_S7b4_the_SERIES_KEY_leg_is_the_LOOSE_half_and_is_reported_APART():
+    """`watch_candidates_cited` IS THE TIGHT READ and is <= `watch_candidates_used` by construction.
+    The key leg carries `_name_words`' one relaxation -- the last word alone at five characters or
+    more -- so "the drought reading" finds `flash drought`; a reader who wants the count that rests on
+    a citation alone is given it rather than having to guess which half is which. MEASURED on the three
+    real-seat draws the two are EQUAL (25 and 25): every match those pages made was a citation."""
+    rows = [_nom("approaching_line", "flash drought", 28)]
+    page = "## What to watch\n- The drought reading has not crossed its line.\n"
+    cov = _nom_cov(rows, page)
+    assert cov["watch_candidates_used"] == 1
+    assert cov["watch_candidates_cited"] == 0
+    assert cov["watch_writer_added"] == 0
+    assert cov["watch_candidates_cited"] <= cov["watch_candidates_used"] <= cov["watch_candidates"]
+
+
+def test_S7b4_a_CORE_and_its_ALTERNATE_share_one_backing_row_and_ONE_bullet_marks_BOTH_used():
+    """THE OVER-CLAIM, DECLARED. The draw hands 2N candidates and the core and the alternate on one
+    reading share one backing [N], so one bullet citing that handle marks BOTH used -- MEASURED 25 of
+    37 on the three draws against 13 bullets. That is the honest reading of "the writer kept this
+    READING"; which KIND it kept is not recoverable from a paraphrased bullet, and a counter that
+    guessed would be measuring the guess. The BULLET side stays exact: one bullet, none added."""
+    rows = [_nom("past_the_line", "export pace lag", 7, slot="ceiling", i=1, n=1),
+            _nom("spillover_reach", "export pace lag", 7, slot="nomination", i=1, n=1)]
+    page = "## What to watch\n- **Weekly US export sales** [N7]: past the line.\n"
+    cov = _nom_cov(rows, page)
+    assert cov["watch_candidates"] == 2 and cov["watch_candidates_used"] == 2
+    assert cov["watch_bullets"] == 1 and cov["watch_writer_added"] == 0
+
+
+def test_S7b4_board_coverage_hands_the_PAGE_to_the_nomination_read_and_not_its_sentences():
+    """THE SEAM ITSELF. A bullet is a LIST ITEM and only the un-split text carries one, so
+    `board_coverage` threads `text=` and not `sents`. If a later edit reverted that, every counter
+    below would read zero on a page whose watch list is plainly there -- which is what this pin
+    catches. The key count is the other half: twenty from the board, eight from the nomination."""
+    import types
+    rows = [_nom("past_the_line", "export pace lag", 7)]
+    bd = types.SimpleNamespace(rendered_rows=rows, asof=NOM_ASOF, knobs=None, calls=())
+    page = "## What to watch\n- **Weekly US export sales** [N7]: past the line.\n"
+    cov = R.board_coverage(bd, page, n_start=1, calls=())
+    assert set(NOMINATION_KEYS) <= set(cov) and len(cov) == 28
+    assert cov["watch_bullets"] == 1 and cov["watch_candidates_used"] == 1
+    assert cov["watch_writer_added"] == 0
+
+
+def test_S7b4_the_flag_off_coverage_keeps_HEADS_TWENTY_KEYS_on_every_banked_page(boards):
+    """FLAG-OFF BYTE IDENTITY, the contract this whole lane ships under. With the non-obvious flag OFF
+    the block carries HEAD's five watch kinds, `_nomination_coverage` returns `{}` BEFORE it reads the
+    page, and `board_coverage` returns HEAD's twenty keys -- on the empty page, on a page of prose, and
+    on each of the SIXTEEN banked census blocks handed to each of the three acceptance fixtures. A
+    zero-filled block of eight keys would have failed this on every turn and would have fabricated a
+    `0 of 0` inside the arm's own new dimension."""
+    import pathlib as _pl
+    banked = (_pl.Path(__file__).resolve().parents[2] / "data" / "board_census" / "2026-09-07"
+              / "blocks")
+    pages = ["", "nothing in particular"]
+    if banked.exists():
+        pages += [p.read_text(encoding="utf-8") for p in sorted(banked.glob("*.md"))]
+        assert len(pages) == 18, len(pages)
+    for name in H.SCENARIOS:
+        ctx = boards[name]
+        for page in pages:
+            cov = R.board_coverage(ctx["board"], page, n_start=1, calls=ctx["block"].calls)
+            assert len(cov) == 20, (name, sorted(cov))
+            assert not [k for k in NOMINATION_KEYS if k in cov], (name, sorted(cov))

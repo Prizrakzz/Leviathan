@@ -1386,6 +1386,108 @@ def _state_board_on() -> bool:
     return os.environ.get("GRAPHRAG_STATE_BOARD", "").strip().lower() in ("on", "1", "true")
 
 
+def _watch_nonobvious_on() -> bool:
+    """S7b LANE W's kill-switch (GRAPHRAG_WATCH_NONOBVIOUS), BUILT DARK.
+
+    LANDED HERE BY THE TWO-LANE SEAM PROTOCOL (S7b threat model sec 6.1, and
+    `scratchpad/s7b/SEAM_PATCH_W.txt` line by line): the watch re-ranker lives entirely in `state/`,
+    and `state/` READS NO ENVIRONMENT -- two live doctrine tests assert it on the module source and
+    `config_check.check_state_seam` clause (i) grades the whole package's allowlist. So the watch
+    lane's flag is read at THIS seam, exactly as `GRAPHRAG_STATE_BOARD` and `GRAPHRAG_RECENCY_FACTS`
+    are, and threaded down as a kwarg. This function and the two kwargs at `fill_stage2` are the ONLY
+    lines of lane W's spec this lane lands; every other byte of the re-ranker is lane W's own.
+
+    ZERO-ARG, AND THE SPEC'S `(vp)` IS NOT FOLLOWED, with the reason stated rather than assumed: the
+    state-board gate takes a volatile prompt because the MANDATE must ship iff the BLOCK's marker is
+    already in it. There is no such marker to inspect here -- `fill_stage2` is the function that
+    RENDERS the block, so at the moment this is read the prompt does not yet carry one. A second leg
+    that can only ever be vacuous is a gate that reads as stronger than it is. The flag alone is the
+    gate, and the board's own two-leg gate still fences the whole board above it.
+
+    Read PER CALL, never memoized, so the env-flip rollback is live without a redeploy."""
+    return os.environ.get("GRAPHRAG_WATCH_NONOBVIOUS", "").strip().lower() in ("on", "1", "true")
+
+
+def _register_licence_on() -> bool:
+    """S7b R1's kill-switch (GRAPHRAG_REGISTER_LICENCE), BUILT DARK.
+
+    THE MEASURED TRIGGER is `scratchpad/recon_s8/REGISTER_CENSUS.md` (2026-09-10, 22 documents,
+    1,051 sentences): the market-register fence charged 11 sentences and STRUCK 11 of 11, and on a
+    speech-act re-read exactly ONE of those eleven is a present-tense valuation or positioning verdict
+    -- 4 are conditional/mechanism rules, 4 are receipted dated history, and 2 are explicit DENIALS
+    backed by their own rows. Precision 1/11, and the strike deletes 2,302 characters and 11 bound
+    citation handles (3 [N], 8 [E]) getting it. The estate already ships three remedy kinds --
+    correct-in-place (`verify`'s date correction, `register._JARGON_SUBS`), charge-here/remedy-there
+    (`bare_digit`), and strike -- and the market register is the only lane with no correcting arm.
+
+    THE FLAG KEEPS ITS NAME AND ITS MEANING IS NOW "WORDS ARE FREE" (owner ruling 2026-09-15 16:30Z).
+    The owner read HEAD's fence striking sentences for the WORDS `crowded`, `rich` and `tight` and
+    ruled that the writer should talk like that -- which is the estate's own standing doctrine
+    (`feedback_fences_correct_never_delete`: words are free, only printed FIGURES must be backed). So
+    the flag no longer buys a sentence back by proving a figure behind its adjective; it RETIRES the
+    valuation / flow-word strike. `register.licence_kept_charge` carries the classification -- which
+    rule is retired, which stays, and why each is in the column it is in.
+
+    WHEN ON: `bar_licence` is threaded to `register.sanitize` / `_humanize_structured`, where it is
+    read as a FLAG and no longer called, so a sentence whose every market-lane charge is a WORDS-ONLY
+    one keeps its words, its figure and its handle -- "Positioning looks crowded here.", "The crush is
+    rich.", "Stocks are tight into the new crop." all ship, figure or no figure. `_bind_bar_adjectives`
+    still runs in the handle stack, BEFORE any value splice, and it has exactly ONE job left: where the
+    sentence cites a served percentile that sits INSIDE the band the adjective claims to be outside of,
+    it APPENDS a clause naming that figure and that band. Where no figure is served it appends NOTHING
+    -- words are free -- and the `adjectives_unbacked` counter states how often that happened instead.
+    WHEN OFF: `bar_licence` is never built, the kwarg defaults to None at every call site, and every
+    strip decision, every counter and every rendered byte is HEAD's.
+
+    WHAT THIS RULING DID NOT TOUCH, flag on or off: the A2 EXECUTION fence (the owner's ratified
+    decision -- no buy/sell instructions, no stops, no entries, no sizing), `bare_digit_verdict` and
+    every printed-figure fence, the two structural class rules, the reversion idioms, and the two
+    Lane-A members that name a figure (`price target`, `fair value`).
+
+    WHAT IT CANNOT REACH, BY CONSTRUCTION: `register_leaks` (the suggester's chip guard and the eval
+    metric), `internal_leaks`, `market_leaks`, `count_valuation_words`, `count_flow_words`,
+    `lane_b_hits`, every A2 execution idiom, both structural class rules, and the OUTLOOK derivation
+    gate. The licence is asked about ONE decision -- the strike -- and about nothing else.
+
+    AND THE THREE SEAMS IT IS DELIBERATELY NOT THREADED TO, stated rather than discovered later:
+    `_source_row_snippet` (a footer row's provenance snippet, cleared at ROW scope where it carries no
+    served rows to license against), `_maybe_scaffold_episodes`' mint-time sanitize (which reconciles
+    against what the body pass will produce and must therefore see the same text either way), and
+    `orchestrator.py`'s numbers-only lane (which has no board, no cascade seam and no `[N]` menu of the
+    kind the bar joins on). All three keep HEAD's strip with the flag ON, which is the narrowest blast
+    radius the instrument can have while still reaching the reader's own argument.
+
+    Read at THIS seam and threaded DOWN: `register.py` reads no environment (its own module comment at
+    :318-322, and `config_check`'s source clause), so a mis-plumbed enable can never relax a lint, a
+    chip guard or the numbers/news/live bodies. Read PER CALL, never memoized."""
+    return os.environ.get("GRAPHRAG_REGISTER_LICENCE", "").strip().lower() in ("on", "1", "true")
+
+
+def _desk_register_on() -> bool:
+    """S7b R2's kill-switch (GRAPHRAG_DESK_REGISTER), BUILT DARK.
+
+    THE MEASURED TRIGGER is `scratchpad/lingo_leaks.py` over the NINE banked real-seat answers
+    (2026-09-11): 195 internal-vocabulary hits, 21.7 per answer -- `board` 64, `row`/`rows` 54,
+    "the graph" 40, `loud` 13, "knowledge date" 10, `convention` 6, "state read" 2, `receipt` 2,
+    `node` 1. One prod-seat answer opens "Reading the board at 2026-09-07, the loudest thing on ICE
+    cocoa is...". The writer copies the block's vocabulary, and no shipped detector charges a word of
+    it, because every one of those tokens is ordinary English.
+
+    WHEN ON: the flag-scoped `narration.desk_register_mandate()` ships beside the board mandate with
+    the banned words AND their plain replacements; `_desk_register_lint` counts the instrument words in
+    the post-verify body outside its [N] handles; above zero it runs ONE bounded rewrite call on the
+    OFFENDING SENTENCES ONLY and re-counts. WHEN OFF: no literal is appended, no lint runs, no call is
+    made, no trace key is stamped and no coverage key is minted.
+
+    THE LINT NEVER DELETES. Its remedy is a rewrite that must return every citation handle and every
+    digit the input carried; on ANY failure -- an exception, an empty return, a lost handle, a changed
+    digit, a wrong sentence count -- the ORIGINAL sentences stand and the failure word is counted.
+
+    Read at THIS seam and threaded DOWN, the `_state_board_on` idiom: `state/` reads no environment and
+    two live doctrine tests assert it on the source. Read PER CALL, never memoized."""
+    return os.environ.get("GRAPHRAG_DESK_REGISTER", "").strip().lower() in ("on", "1", "true")
+
+
 def _vintage_role_on() -> bool:
     """K9-4 VINTAGE ROLE's kill-switch (GRAPHRAG_VINTAGE_ROLE), BUILT DARK.
 
@@ -3185,7 +3287,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             cascade_walk: bool = False, cascade_context: bool = False,
             cascade_deep: bool = False, cascade_xccy: bool = False,
             extreme_locator: bool = False, extreme_hop: bool = False,
-            numbers_budget: bool = False, state_board: bool = False) -> str:
+            numbers_budget: bool = False, state_board: bool = False,
+            desk_register: bool = False, watch_selection: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -3350,6 +3453,24 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         # not sit under the leg that supersedes four number spans.
         from leviathan.graphrag.state import narration as _sn      # lazy: phase-2 only, gate-guarded
         base = base + _sn.SYSTEM_STATE_BOARD_MANDATE
+    if watch_selection:                                            # S7b LANE W: the fifth movement's
+        # SELECTION LICENCE, landed by the sec 6.1 seam protocol and appended as ONE constant lane W
+        # owns (`state.watch.WATCH_SELECTION_CLAUSE`). It rides the SAME gate the board's mandate
+        # does, so a writer is never told to select from candidates the board did not nominate --
+        # which is the `_cascade_walk_block_on` failure the estate already measured, one lane over.
+        from leviathan.graphrag.state import narration as _sn3  # lazy: flag-guarded
+        base = base + _sn3.watch_selection_mandate()
+    if desk_register:                                              # S7b R2: the DESK REGISTER, its own
+        # flag-scoped literal appended BESIDE the board mandate and never an edit to it -- the
+        # `_SYSTEM_CASCADE_WALK_MANDATE` idiom. It ships on its own leg rather than inside the
+        # `state_board` branch because the vocabulary it fences is the ANSWER's, not the block's: "the
+        # graph" leaks on a cascade-walk turn that carries no board at all. With the flag off this
+        # branch is never taken and the assembled prompt is HEAD's byte for byte.
+        # REVIEW MAJOR 4: the BAN half is turn-wide, the RECENCY half rides `state_board` -- the same
+        # bool the board's own mandate is gated on, so the writer is never told to state three dated
+        # facts off a block this turn does not carry.
+        from leviathan.graphrag.state import narration as _sn2  # lazy: flag-guarded
+        base = base + _sn2.desk_register_mandate(state_board=bool(state_board))
     if handles:                                                    # D-HP-7/8: LAST of the legs, because it
         base = base + _SYSTEM_HANDLES                              #   NARROWS every number rule above it
     base = base + _rc.directive(response_contract, census=census)  # D-RC Phase B: emphasis LAST ('' for
@@ -4193,6 +4314,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         _sb = _sbs.fill_stage2(_board, graph=graph, sg=sg,
                                record_through=_record_through(_evidence) or "",
                                n_start=_board_n_start,
+                               # S7b LANE W, landed by the sec 6.1 seam protocol: ONE boolean, read
+                               # once above and threaded down, because `state/` reads no environment.
+                               # False -> `watch_rows` returns HEAD's five-kind interleave byte for
+                               # byte, which is what makes the whole re-ranker dark.
+                               watch_nonobvious=_watch_nonobvious_on(),
                                e_start=len(_uniq) + 1)
         if _sb.get("block") and _quant_on:
             volatile_blocks = volatile_blocks + [_sb["block"]]
@@ -4544,6 +4670,19 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # the same decision). `_mr` is the ONLY thing that ever relaxes the register, and it is passed DOWN as
     # an argument -- register.py reads no environment.
     _mr = reg.OUTLOOK if _outlook else reg.FENCED
+    # S7b R1: THE BOUND-FIGURE LICENCE, resolved ONCE beside `_mr` -- the same seam, the same
+    # threading discipline, the same reason (`register.py` reads no environment). It is a CLOSURE over
+    # this turn's served rows, because the verdict is "does the sentence's own [N] handle resolve to a
+    # row that clears the adjective's declared bar", and the rows are what make that answerable.
+    # `extra_number_calls` is the CASCADE-EXTENDED list the model's GROUNDING LEDGER was numbered
+    # against -- the same list `_drop_bare_digit_sentences` and `_resolve_number_handles` read, never
+    # the orchestrator's shorter `number_calls`, which stops at the agent's own lookups.
+    # None when the flag is off -> every downstream kwarg defaults -> HEAD's strip, byte for byte.
+    _bar_licence = None
+    _badj = _dreg = None                    # the two S7b censuses; None on every dark turn, never {}
+    if _register_licence_on():
+        from leviathan.graphrag import verify as _vfl  # lazy: flag-guarded
+        _bar_licence = (lambda _s, _c=extra_number_calls: _vfl.bar_adjective_verdict(_s, _c))
     # D-RC Phase B: the caller's selection re-ANDed with the allowlist AT THE SEAM (the _outlook_on
     # idiom) -- env-flip rollback live per turn, no redeploy. None -> default -> zero rewrite.
     _rc_active = response_contract if response_contract in _response_contracts_enabled() else None
@@ -4587,6 +4726,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                               extreme_hop=_extreme_hop_block_on(vp),           # D-XL: separately gated
                               numbers_budget=_numbers_budget_note_on(vp),      # LANE S: marker-gated
                               state_board=_state_board_block_on(vp),           # STATE ENGINE 6.4:
+                              desk_register=_desk_register_on(),               # S7b R2: flag-only,
+                              #                                                  the vocabulary it fences
+                              #                                                  is the ANSWER's
+                              watch_selection=(_watch_nonobvious_on()          # S7b LANE W: the flag
+                                               and _state_board_block_on(vp)),  # AND the block's marker
                               #                                                  the flag AND the block's
                               #                                                  own marker in `vp`
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
@@ -4647,6 +4791,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                    foreign_names=_foreign_regime_names(
                                        graph, sorted({n.contract for n in sg.nodes})),
                                    handle_prose=_handles)         # D-HP-9/12: the SAME one resolution
+    _bar_licence = _bar_licence_for(_bar_licence, verifier)        # S7b R1 review MINOR: one predicate
     # ══ CYCLE-9 (2026-08-08) FIX 4 -- THE MISSING ATTRIBUTION BOUNDARY, ADDITIVE ONLY ═══════════════
     # The gate-6 adjudicator (p4.py) could not attribute a draft-vs-page numeral diff to the repair path:
     # `raw_draft` is captured at the top of this function and the next capture (`verified_*`) is taken
@@ -4763,6 +4908,30 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             _bdrop = _drop_bare_digit_sentences(structured, extra_number_calls, verifier, uniq=uniq)
             if any(_bdrop.values()):
                 sg.trace["bare_digit_dropped"] = _bdrop
+        # S7b R1's REMEDY, in the SAME gate and the SAME stack position and for the SAME reason: it
+        # runs BEFORE `_resolve_number_handles`' splice, so it reads the MODEL's sentence rather than
+        # the engine's filled-in one. Flag off -> not called, no key, byte-identical.
+        if _bar_licence is not None:
+            _badj = _bind_bar_adjectives(structured, extra_number_calls)
+            # STAMPED IFF THE CENSUS FOUND SOMETHING, never merely because the licence was threaded:
+            # `eval._convo_mechanics` reads the key's PRESENCE as "the licence acted on this turn" and
+            # selects `register_leaks_excluding_bar` off it, and a key stamped on a turn with nothing
+            # to report would move an eval column for no measured reason (round-3 MINOR, 2026-09-15).
+            if any(v for v in _badj.values()):
+                sg.trace["bar_adjectives"] = _badj
+        # S7b R2's LINT + its ONE bounded rewrite, in the SAME gate and immediately after -- the last
+        # pass that may touch the MODEL's own words, and still before any splice. Flag off -> not
+        # called, no call, no key, byte-identical.
+        if _desk_register_on():
+            # THE CALLER IS THREADED ONLY WHEN IT IS THE REAL SERVING CALL. `call` is `_call_opus`
+            # whenever nobody injected one (`call = call or _call_opus` at the entry seam), so
+            # production and the smoke harness get the rewrite; every injected fake -- the suite's,
+            # the eval harness's, an offline replay's -- gets `None`, which makes the lint a pure
+            # COUNT that spends nothing. A lint that tried to rewrite through a fake would either
+            # raise on a signature it does not have or silently measure the fake.
+            _dreg = _desk_register_lint(structured, call=(call if call is _call_opus else None),
+                                        model=model)
+            sg.trace["desk_register"] = _dreg
         sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls,
                                                              handle_prose=_handles)
         # H1 FIX Z1/Z6: the three D-HP-native render classes join the ONE strip ledger, so the class scan,
@@ -4827,6 +4996,44 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         # changed something -- the OFF-arm-clean rule, again.
         if _tidy_strip_orphans(structured, verifier):
             sg.trace["prose_orphans_tidied"] = True
+    # S7b: THE TWO REGISTER INSTRUMENTS REACH THE JUDGE AND THE ARM THROUGH THE COVERAGE DICT, and
+    # through nothing else. `eval._judge_state_panel` and the orchestrator's board EMF block both
+    # already read `sg.trace['state_board']['coverage']`, so riding it costs NO `tracekeys`
+    # registration and re-anchors no artifact tail pin. NO NEW EMF COUNTER SHIPS IN S7b:
+    # `seam.COVERAGE_COUNTERS` and `_COVERAGE_GROUPS` are untouched, and these keys are exactly the
+    # population `coverage_counters`' own docstring keeps out of EMF ("they ride the artifact, where
+    # the arm reads them off the trace").
+    #
+    # AN EMPTY OR DECLINED COVERAGE DICT IS LEFT ALONE. `board_coverage` returns `{}` when the board
+    # rendered no row at all (the subject-ambiguity branch ships a one-line block without calling
+    # `render_board`), and `{'declined': ...}` when the instrument itself broke. Writing a register
+    # number into either would fabricate a 0-of-0 inside the arm's own dimension -- "absent is never
+    # zero", read from the other end. A turn with no board still reports both numbers: they are on the
+    # answer trace keys `bar_adjectives` and `desk_register`.
+    _sbcov = ((sg.trace.get("state_board") or {}).get("coverage")
+              if isinstance(sg.trace.get("state_board"), dict) else None)
+    if isinstance(_sbcov, dict) and _sbcov and not _sbcov.get("declined"):
+        if _bar_licence is not None:
+            _b = _badj or {}
+            _sbcov["register_adjectives_licensed"] = int(_b.get("licensed") or 0)
+            _sbcov["register_adjectives_corrected"] = int(_b.get("corrected") or 0)
+            _sbcov["register_adjectives_struck"] = 0      # the licence never strikes; stated, not implied
+            # RULING (4): THE COUNTER, NOT A FENCE. It rides the artifact beside the other three and
+            # mints no EMF counter (`check_state_seam`'s own clause), so the arm can read whether the
+            # writer backs its words now that the strike no longer makes it.
+            _sbcov["register_adjectives_unbacked"] = int(_b.get("adjectives_unbacked") or 0)
+        # ROUND-3 REVIEW MINOR (2026-09-15): `_dreg is not None`, NOT `_desk_register_on()`. The lint
+        # sits inside `if verifier.get("enabled")`, so on the DOCUMENTED `GRAPHRAG_VERIFY=off` rollback
+        # the flag reads ON, `_dreg` stays None and this block stamped `register_lingo_hits = 0` for an
+        # instrument that never ran -- `eval._judge_state_panel` then printed "instrument words left in
+        # the answer: 0" and `judge()` appended `_JUDGE_STATE_REGISTER` off it. That is the fabricated
+        # 0-of-0 the note above forbids ("absent is never zero"), arriving from the other end. The
+        # sibling bar-adjective block was already correct because `_bar_licence_for` nulls the licence
+        # when the verifier is off; this is the same predicate, asked of the thing that actually ran.
+        if _dreg is not None:
+            _d = _dreg or {}
+            _sbcov["register_lingo_hits"] = int(_d.get("hits_after") or 0)
+            _sbcov["register_lingo_rewritten"] = int(_d.get("rewritten") or 0)
     # A4b SEAM 1: `_humanize_structured` is the FIRST reg.sanitize pass on the prose (per field). Capture
     # its INPUT -- post-verify, pre-sanitize -- because that is the last state in which a banned sentence
     # is still attributable to sanitize rather than to the verifier's strips.
@@ -4841,7 +5048,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         structured, verifier, injected=sg.trace.get("episodes_injected"), nodes=sg.nodes,
         evidence=evidence, n_positional=len(uniq), market_register=_mr, relevant=_ep_rel,
         **_scaffold_cap_kwargs(mode_knobs)))                      # D-AM-10: {} unless a mode is honored
-    _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
+    _humanize_structured(structured, market_register=_mr,         # clean the fields the UI renders directly (6.1)
+                         bar_licence=_bar_licence)                # S7b R1: the FIRST strip pass on the
+    #                                                               prose, so the licence must reach it
+    #                                                               or the body-wide pass below has
+    #                                                               nothing left to license
     # D-RC-12: the tldr-vs-basis reconcile reads the FINAL tldr (post-verify, post-humanize = what the
     # reader sees) against the pre-model driver-sign basis. {} when the flag is off; stamp-only always.
     sg.trace.update(_tldr_direction_trace(structured, graph, contracts))
@@ -4883,7 +5094,7 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # every footer figure read as newly minted at the seam. What changed is only which SLICE of it the
     # register consumes -- the footer crosses this seam unchanged, which is the property being fixed.
     _pre_sanitize = _sanitize_in + _footer
-    body = reg.sanitize(_sanitize_in, market_register=_mr) + _footer
+    body = reg.sanitize(_sanitize_in, market_register=_mr, bar_licence=_bar_licence) + _footer
     _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(body_pre_sanitize=_pre_sanitize))
     if degraded:
         body = _DEGRADED_BANNER.format(m=degraded) + body
@@ -5361,7 +5572,7 @@ def _attach_provenance(structured: dict, verifier: dict) -> None:
                     s[k] = r[k]
 
 
-def _humanize_structured(d: dict, *, market_register: str = reg.FENCED) -> None:
+def _humanize_structured(d: dict, *, market_register: str = reg.FENCED, bar_licence=None) -> None:
     """Sanitize the structured fields the UI renders DIRECTLY into reader register (6.1). The frontend
     shows `structured.{tldr,mechanism,sources}`, NOT the flattened body, so this is where leaked internal
     tokens, raw regime ids, and internal source ids are removed for the live AND persisted note. Runs
@@ -5371,13 +5582,19 @@ def _humanize_structured(d: dict, *, market_register: str = reg.FENCED) -> None:
     W5-D3: `market_register` is keyword-only and DEFAULTS TO FENCED. This function is SHARED by both answer
     bodies (the L2 planner path and the one-hop legacy path), so a default of anything else would relax the
     one-hop path for free -- the default is the fence. `sources[].note` stays FENCED unconditionally: a
-    ledger note is provenance metadata, never the outlook argument, so it has no derivation to show."""
+    ledger note is provenance metadata, never the outlook argument, so it has no derivation to show.
+
+    S7b R1: `bar_licence` rides the SAME discipline and DEFAULTS TO None -- and it must reach HERE, not
+    only the body-wide pass at the render seam, because THIS is the first strip the prose meets. A
+    licence threaded only downstream would have nothing left to license: the sentence would already be
+    gone from `structured['mechanism']`, which is also the field the FE renders directly. `sources[].note`
+    is deliberately NOT licensed: a provenance note carries no row and makes no verdict."""
     if not isinstance(d, dict):
         return
     for fld in ("tldr", "mechanism"):
         v = d.get(fld)
         if isinstance(v, str) and v:
-            d[fld] = reg.sanitize(v, market_register=market_register)
+            d[fld] = reg.sanitize(v, market_register=market_register, bar_licence=bar_licence)
     srcs = d.get("sources")
     if isinstance(srcs, list):
         from leviathan.graphrag import display as dp
@@ -9394,6 +9611,889 @@ def _drop_bare_digit_sentences(structured: dict | None, number_calls: list | Non
     return census
 
 
+# ══ S7b R1 -- THE CORRECTING FENCE'S REMEDY. THE CHARGE IS verify's; THIS IS THE CORRECTION. ═════════
+# It is the `bare_digit` split exactly: `verify.bar_adjective_verdict` decides what is flagged, this
+# decides what the reader gets, and both call ONE producer so the count and the page cannot disagree.
+#
+# IT RUNS FIRST IN THE HANDLE STACK, BEFORE ANY VALUE SPLICE, and the reason is the one written at
+# `_drop_bare_digit_sentences`: `_resolve_number_handles` WRITES row values into the prose, so a pass
+# that read the sentence after it would be reading the ENGINE's digits as the MODEL's.
+#
+# NEITHER REMEDY CARRIES A DIGIT, and that is a stronger rule than the census asked for. CYCLE-10 deleted
+# `verify`'s rewrite arm because a fence comparing unit labels cannot see semantics ("roughly 0.6 z
+# higher [N3]" -> "roughly -0.6267 z higher [N3]"). The census' remedy -- "bind the figure in (the row's
+# own percentile/z/value beside the word)" -- would mint a numeral into prose the verifier has already
+# finished with, and an engine-minted numeral in a post-verify sentence is UNVERIFIED by construction
+# even when it is correct. So both clauses below are LETTERS ONLY: they state WHERE the cited reading
+# sits relative to the desk's own lines, or that no figure is served for the reading at all. The reader
+# gets the honest qualification, the numbers all still come from the handles the sentence already
+# carries, and the invariant a test can hold is absolute -- THE DIGIT MULTISET OF EVERY FIELD IS
+# UNCHANGED BY THIS PASS.
+#
+# NOTHING HERE DELETES. A fence that strikes a sentence is the suppress-not-correct failure the house
+# calls FATAL, and it is the whole reason this instrument exists.
+#: THE ONE CORRECTING CLAUSE (owner ruling (3), 2026-09-15 16:30Z), and it NAMES THE FIGURE AND THE
+#: BAND. Rounds 1-3 shipped three clauses -- weak, unbound, stale -- and two of them are retired by the
+#: ruling rather than by a defect: an adjective with NO served figure beside it is a word, and words are
+#: free, so nothing is appended (the `adjectives_unbacked` counter states how often that happens); a row
+#: PAST its card's own freshness bound cannot license and cannot contradict either, so it too appends
+#: nothing. What is left is the one case where the page contradicts itself -- the sentence calls
+#: positioning crowded AND cites a served percentile that sits inside the desk's own band -- and there
+#: the reader is owed the figure and the lines it sits inside.
+#:
+#: IT CARRIES DIGITS, AND EVERY ONE IS COPIED RATHER THAN COMPUTED. Cycle-10's rule is that a fence must
+#: never MINT or REWRITE a numeral, and the two letters-only clauses were how rounds 1-2 honoured it;
+#: this clause honours it a different way, which the ruling asks for by name: `{pct}` is the served
+#: row's own value, character for character out of the call the sentence already cites, and `{lo}` /
+#: `{hi}` are `state_conventions.yaml`'s own band bounds for that family. No arithmetic is performed on
+#: any of them -- an integral float prints as an integer and nothing else moves -- and the deck asserts
+#: the digit multiset moves by EXACTLY those three numbers.
+#:
+#: REGISTER-CLEAN UNDER BOTH OF THIS SITTING'S INSTRUMENTS: "desk convention" is a declared exemption of
+#: the desk lint (ordinary market English for a trade practice), and the clause carries no Lane-A
+#: phrase, no Lane-B adjective and no bar word of its own.
+_BAR_BAND_CLAUSE = " -- the served figure is {pct}, inside the {lo} to {hi} band the desk convention draws"
+_BAR_TERMINATORS = ".!?;"
+
+
+def _bar_licence_for(licence, verifier: dict | None):
+    """The licence, or None when the VERIFIER IS OFF -- review MINOR (2026-09-11), and it is one line
+    because the defect was a split predicate.
+
+    `GRAPHRAG_VERIFY=off` is a DOCUMENTED ROLLBACK. On that lane the licence was still threaded into
+    both strip passes (`_humanize_structured` and the body-wide `reg.sanitize`) while its REMEDY --
+    `_bind_bar_adjectives` -- sat inside `if verifier.get('enabled')`. So the strike was relieved and no
+    correction ran at all, and a bare unbacked valuation verdict shipped UNQUALIFIED: strictly worse
+    than either arm. The charge and the remedy now answer to ONE predicate. With the verifier off the
+    licence is None everywhere, which is HEAD's strip byte for byte -- the safe half of the pair."""
+    return licence if (verifier or {}).get("enabled") else None
+
+
+def _bar_num(x) -> str:
+    """A served number as the page should print it: an integral float loses its ".0" and nothing else
+    changes. NOT a rounding, NOT a unit conversion -- the one formatting this clause is allowed."""
+    try:
+        f = float(x)
+    except (TypeError, ValueError):
+        return str(x)
+    return str(int(f)) if f == int(f) else ("%g" % f)
+
+
+#: A PRINTED RANK FIGURE -- a numeral standing beside the vocabulary a bar is read in. It is the
+#: `adjectives_unbacked` counter's "is there a figure here at all" test, and it is deliberately NARROW:
+#: a year ("crowded since 2014") and a tonnage ("12.4 mmt") are numerals that say nothing about where a
+#: reading sits in its own record, so counting them as backing would make the counter read high for
+#: free. The vocabulary is `verify._PCTILE_WORD`'s plus the two distance units this estate writes.
+_BAR_RANK_FIGURE = re.compile(
+    r"\d[\d.,]*\s*(?:st|nd|rd|th)?\s*(?:%|percentile|pctile|pctl|quantile|quartile|decile"
+    r"|z|z-score|sigma|sd|standard deviations?)\b"
+    r"|\b(?:percentile|pctile|pctl|quantile|quartile|decile|z-score|sigma)\b[^.]{0,16}?\d", re.I)
+
+
+def _bind_bar_adjectives(structured: dict | None, number_calls: list | None) -> dict:
+    """S7b R1's REMEDY under WORDS ARE FREE. Returns
+    `{licensed, not_a_verdict, weak, unbound, corrected, adjectives_unbacked}`; mutates in place;
+    never raises.
+
+    SEGMENTATION IS `register._SENT_KEEP`'s, not this module's, because the licence that keeps these
+    sentences alive is applied at `register._strip_banned_sentences` over the SAME split -- two passes
+    that disagreed about where a sentence ends would correct one unit and license another.
+
+    IT APPENDS AND IT COUNTS, AND THAT IS ALL IT DOES. The ruling left exactly one correction standing
+    (a served figure that CONTRADICTS the adjective it sits beside) and asked for one number instead of
+    the rest (`adjectives_unbacked`), so the round-3 ADVICE CUT and its five frames are gone from this
+    function and from `register.py` -- removed with their pins rather than narrowed, because two rounds
+    of measurement said a clause-edge frame list cannot tell an instruction from a reading: the round-4
+    review found 28 of 192 generated instructions still shipping AND 12 of 13 honest nominal sentences
+    deleted, and the smoke then found two more false-positive classes in 149 sentences of prose nobody
+    in the lane had seen. The A2 hole those frames were reaching for is HEAD's, it is named at
+    `register.licence_kept_charge`, and it is measured at 0 in the 729 + 148 + 149 real-seat sentences.
+
+    THE COUNTER IS NOT A FENCE (ruling (4)). `adjectives_unbacked` counts the bar adjectives shipping
+    with no rank figure anywhere near them -- no served row of their own family behind the sentence's
+    handles, and no printed percentile / z / band in the sentence itself. Nothing is struck, nothing is
+    appended and no page byte moves because of it: it exists so the arm can measure whether the writer
+    backs its own words now that the fence no longer makes it. A `not_a_verdict` sentence is NOT counted
+    -- a denial, a conditional and a dated receipted fact are not claims about the present state."""
+    from leviathan.graphrag import verify as _vf
+    census = {"licensed": 0, "not_a_verdict": 0, "weak": 0, "unbound": 0, "corrected": 0,
+              "adjectives_unbacked": 0}
+    if not isinstance(structured, dict):
+        return census
+    calls = list(number_calls or [])
+    try:
+        for field in ("tldr", "mechanism"):
+            text = structured.get(field)
+            if not isinstance(text, str) or not text.strip():
+                continue
+            toks = reg._SENT_KEEP.split(text)
+            changed = False
+            for i in range(0, len(toks), 2):
+                sent = toks[i]
+                if not sent.strip():
+                    continue
+                report = _vf.bar_adjective_report(sent, calls)
+                verdict = report.get("verdict")
+                if verdict is None:
+                    continue
+                key = {"licensed": "licensed", "not_a_verdict": "not_a_verdict",
+                       "weak_adjective": "weak", "unbound_adjective": "unbound"}.get(verdict)
+                if key:
+                    census[key] += 1
+                # UNBACKED IS THE RULING'S OWN TEST, READ LITERALLY: "no percentile / z / band figure
+                # in the same sentence OR ITS [N] ROW". `unbound_adjective` is exactly "no row of this
+                # adjective's own family resolved through this sentence's handles", so a `weak` verdict
+                # -- the STALE one included -- has a served figure behind it and is not counted here.
+                if verdict == "unbound_adjective" and not _BAR_RANK_FIGURE.search(sent):
+                    census["adjectives_unbacked"] += len(_vf.bar_adjective_hits(sent))
+                band = tuple(report.get("band") or ())
+                if verdict != "weak_adjective" or report.get("pct") is None or len(band) != 2:
+                    continue                      # words are free: no served figure, no clause
+                clause = _BAR_BAND_CLAUSE.format(pct=_bar_num(report.get("pct")),
+                                                 lo=_bar_num(band[0]), hi=_bar_num(band[1]))
+                if clause in sent:                # IDEMPOTENT: a re-run appends nothing twice
+                    continue
+                body = sent.rstrip()
+                tail = sent[len(body):]
+                end = ""
+                while body and body[-1] in _BAR_TERMINATORS:
+                    end, body = body[-1] + end, body[:-1]
+                toks[i] = body + clause + end + tail
+                census["corrected"] += 1
+                changed = True
+            if changed:
+                structured[field] = "".join(toks)
+    except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
+        return census
+    return census
+
+
+# ══ S7b R2 -- THE DESK-REGISTER LINT AND ITS ONE BOUNDED REWRITE. ════════════════════════════════════
+# THE LINT IS PURE AND LIVES IN `register.py` (`desk_register_hits`); what lives HERE is the REMEDY and
+# the call that performs it -- the same charge-here / remedy-there split every other correcting pass in
+# this stack keeps.
+#
+# THE CALL IS FAIL-OPEN AND BOUNDED THREE WAYS, and every bound is a number rather than an intention:
+# at most `_DESK_REWRITE_MAX_SENTENCES` offending sentences, at most `_DESK_REWRITE_MAX_CHARS` of them,
+# and at most `_DESK_REWRITE_MAX_TOKENS` of output. At the production seat's price (claude-opus-5,
+# providers.SERVING_PRICES, $5/MTok in and $25/MTok out) the ceiling prices at roughly
+# 1,600 input tokens ($0.008) + 1,200 output tokens ($0.030) = $0.038, inside the owner's $0.05 cap with
+# the margin stated rather than assumed.
+#
+# THAT ARITHMETIC ASSUMES A PLAIN CALL, AND THE REAL ONE IS NOT PLAIN (review MINOR, 2026-09-11). This
+# rewrite goes through `_call_opus`, which applies THREE seams to every call it makes, this one
+# included, and none of them is excluded here:
+#   * `pv.synth_thinking()` (GRAPHRAG_SYNTH_THINKING=adaptive) adds a THINKING budget. On a turn where
+#     that budget is at or above `_DESK_REWRITE_MAX_TOKENS` the call is rejected by the provider and the
+#     lint stamps `call_failed:<ExceptionName>` -- fail-open on the page, and NOT silent, but it does
+#     mean the instrument can be inert under an env nobody set for it.
+#   * `pv.synth_effort()` likewise rides the same call.
+#   * the system block ships with `cache_control: ephemeral`, so a SECOND system block is written to
+#     cache at the 1.25x premium each turn and read back by nothing (this prompt is short -- ~300
+#     tokens -- so the premium is cents of a cent, but it is a premium and not a discount).
+# The measured cost of every fired rewrite is recorded on the trace, so the smoke reads the real number
+# against `_DESK_REWRITE_USD_CEILING` rather than trusting this arithmetic; a measured cost ABOVE the
+# ceiling stamps `over_ceiling` on the census, which is the number the owner's cap is about.
+#
+# AND `over_ceiling` IS A STAMP, NOT A REFUSAL -- stated because the acceptance line was read the other
+# way (round-3 review MINOR, 2026-09-15). The cost is only knowable after the call RETURNS, so refusing
+# the reply cannot refund it, and throwing away a paid-for correction to protect a number that has
+# already been spent would leave the charged sentence on the page for nothing. What the three
+# STRUCTURAL bounds guarantee is the SPEND (10 sentences / 3000 chars / 1200 output tokens ~ $0.038);
+# what `over_ceiling` reports is that some seam outside those bounds -- a thinking budget, a provider
+# price change -- made a call cost more than the owner's cap, and that is a fact for the smoke to read
+# and the owner to rule on, not a page decision. Driven: with an injected usage of 2M in / 2M out the
+# census reads usd=60.0, over_ceiling=True, outcome='rewritten', and the sentence IS replaced.
+#
+# IT REWRITES THE OFFENDING SENTENCES AND NOTHING ELSE. The whole answer is never handed back to a
+# model after the verifier has finished with it -- that would re-open every claim the verifier closed.
+#
+# EIGHT WAYS IT REFUSES ITS OWN OUTPUT, per sentence, and on every one of them the ORIGINAL STANDS:
+#   (1) the call raised, timed out, degraded to an unusable shape, or returned nothing;
+#   (2) the returned list is not the same length as the input list;
+#   (3) a returned sentence dropped or altered a citation handle the input carried (DR-4: a model asked
+#       to rewrite N sentences can return N-1, and a lost `[N]` is a lost receipt);
+#   (4) a returned sentence's DIGIT MULTISET differs from the input's (DR-5 / cycle-10: `verify_citations`
+#       has already run, so any numeral a rewrite invents is UNVERIFIED -- this pass is forbidden to
+#       touch a numeral and the forbiddance is enforced, not requested);
+#   (5) the rewrite did not actually reduce this sentence's instrument-word count;
+#   (6) the reply carries a line break, or more than `_DESK_REWRITE_NEW_WORDS` content words that are
+#       neither in the offered sentence nor in the replacement table the mandate teaches (REVIEW
+#       MAJOR 5/6 -- see the two block notes at `_desk_content` and `_desk_normalise_reply`);
+#   (7) the reply kept under `_DESK_REWRITE_KEEP_FRACTION` of the offered sentence's non-instrument
+#       content -- it is a different sentence, not a re-registered one;
+#   (8) the reply's negation / absence token count moved;
+#   (9) the reply keeps under `_DESK_REWRITE_MIN_WORDS` of the offered sentence's words.
+# (3), (4) bind only where a sentence carries a numeral or a handle -- MEASURED, 52.2% of the offerable
+# population carries neither -- so (6) through (9) are the ones that bind on ordinary prose, which is
+# where the estate's honest-absence sentences live. Each refusal is counted BY NAME in `census['refused']`.
+# EXACTLY ONCE PER TURN: the lint counts, trips at most one call, and re-counts. It never loops.
+_DESK_REWRITE_MAX_SENTENCES = 10
+_DESK_REWRITE_MAX_CHARS = 3000
+_DESK_REWRITE_MAX_TOKENS = 1200
+#: The owner's per-turn cap on this one call, as a NUMBER the census is graded against rather than an
+#: arithmetic claim in a comment. `usd` above it stamps `over_ceiling` -- it never refuses the answer,
+#: because the money is already spent by the time the cost is known.
+_DESK_REWRITE_USD_CEILING = 0.05
+_DESK_REWRITE_TOOL = {
+    "name": "emit_desk_rewrite",
+    "description": "Return each given sentence rewritten in a desk register, in the same order.",
+    "input_schema": {"type": "object", "properties": {"sentences": {
+        "type": "array", "items": {"type": "string"},
+        "description": "One rewritten sentence per input sentence, same order, same count."}},
+        "required": ["sentences"]},
+}
+_DESK_REWRITE_SYSTEM = (
+    "You are copy-editing sentences from a commodity-desk note. Each sentence names the INSTRUMENT that "
+    "produced a reading instead of naming the market. Rewrite each one so it says the same thing to a "
+    "desk reader without naming the instrument. Replace the word, never the fact: {table}. "
+    "RULES, all of them hard. Return exactly as many sentences as you are given, in the same order. "
+    "Keep every citation handle -- every [N] and [E] token -- exactly as it appears, in the same "
+    "sentence. Keep every number exactly as it appears: do not add a number, do not remove one, do not "
+    "re-round one, do not change a date. Keep the claim, its direction, its hedge and its unit. Do not "
+    "merge sentences, do not split them, do not add a new claim, and do not drop a clause. If a sentence "
+    "cannot be rewritten under these rules, return it unchanged."
+)
+_DESK_HANDLE_RX = re.compile(r"\[\s*[NE]?\d+[a-z]?(?:\s*[,;&/]\s*[NE]?\d+[a-z]?)*\s*\]", re.I)
+_DESK_DIGIT_RX = re.compile(r"\d+")
+# THE STRUCTURAL LEAD A REWRITE MUST NEVER BE HANDED AND CAN THEREFORE NEVER LOSE. `register._SENT_KEEP`
+# splits on a terminator plus whitespace, so the whitespace rides the DELIMITER and a bullet or heading
+# marker stays glued to the front of the sentence text. Offering "- The board is loud [N1]" as item 3 of
+# a numbered list invites a reply that drops the dash, and no digit or handle check can see that: the
+# page silently stops being a list. So the marker is CUT BEFORE THE OFFER and RE-ATTACHED VERBATIM on
+# acceptance -- it is not prose, and the model is never asked about it.
+# NB an ORDERED marker ("3. ") never reaches here: the segmenter already severs it into a text chunk of
+# its own, which carries no instrument word and is never offered (the same shape D-HP-12's own note
+# records for the digit lint).
+# ROUND-3 REVIEW MINOR (2026-09-15): AN ORDERED MARKER IS A MARKER. The set held the three UNORDERED
+# shapes, so a reply of "a) The market reads ..." passed every guard and spliced to
+# "- a) The market reads two-sided here [N2]." -- a corrupted list item on the served page. (A "1. "
+# reply is refused by the digit guard, which is how the class was found rather than how it is closed.)
+# Single letters and roman numerals only, each followed by '.' or ')' and a space: that is a list
+# marker in every style guide and a sentence opening in none.
+_DESK_MARKER_RX = re.compile(
+    r"^\s*(?:[-*+]\s+|#{1,6}\s+|>\s+|\d+[.)]\s+|[A-Za-z][.)]\s+|[ivxIVX]{1,4}[.)]\s+)?")
+
+
+def _desk_digits(sent: str) -> list:
+    """The DIGIT MULTISET of a sentence with its citation handles masked out -- the invariant a rewrite
+    may not move. Handles are masked because a handle's index is an ADDRESS, not a magnitude, and it is
+    checked separately and more strictly (the token itself must survive verbatim)."""
+    return sorted(_DESK_DIGIT_RX.findall(_DESK_HANDLE_RX.sub(" ", str(sent or ""))))
+
+
+# ══ REVIEW MAJOR 5 (2026-09-11) -- THE GUARDS MUST BIND ON THE SENTENCES THAT CARRY NO DIGIT. ════════
+# The shipped five refusals are DIGIT-AND-HANDLE ONLY, and MEASURED over the nine banked real-seat
+# answers that leaves them vacuous on 59 of 113 offerable offending sentences (52.2%) -- the ones
+# carrying neither a numeral nor a `[N]`/`[E]` token -- where the only surviving acceptance test was
+# "fewer instrument words". Proved with an injected caller: "The graph carries this in the same
+# direction as price at high confidence." was accepted as "Argentine rain has already broken the drought
+# and prices will fall." and spliced into `mechanism` AFTER `verify_citations` had closed. The unguarded
+# 59 are overwhelmingly the estate's HONEST-ABSENCE prose ("the graph names no served series for
+# drought, heat stress, flowering stress...", "so there is no current-state price read available on this
+# turn -- only the driver ROWS"), so the unguarded class was precisely the class where a model can turn a
+# declared absence into a claim. THE SECOND QUOTE CARRIES ITS TAIL CLAUSE FOR A REASON, measured
+# 2026-09-15: the charged word in it is `rows`, and a reader who trims the quote at "on this turn" is
+# holding a sentence this lint never charges, never offers and therefore never guards -- which is exactly
+# the vacuous probe the first pin for guard (8) shipped (`tests/unit/test_state_narration.py`).
+#
+# THREE MORE REFUSALS, EACH A PROPERTY OF LETTERS RATHER THAN OF NUMERALS:
+#   (6) VOCABULARY BUDGET -- at most `_DESK_REWRITE_NEW_WORDS` content words of the reply may be
+#       neither in the sentence that was offered nor in the replacement table the mandate itself
+#       teaches. A new CLAIM needs new content words; a register substitution needs the table's. The
+#       budget is ONE rather than ZERO, and the number is measured rather than chosen: at zero the deck's
+#       own honest rewrites are refused ("two rows have spent their knowledge date" -> "two series are
+#       read through OLDER dates"), and at one the Argentine-rain probe still fails 6 words over.
+#   (7) OVERLAP -- the reply must keep at least `_DESK_REWRITE_KEEP_FRACTION` of the content the offered
+#       sentence carried APART FROM ITS INSTRUMENT WORDS. Those words are exactly what the rewrite is
+#       asked to lose; everything else is the FACT, and a reply that keeps one word of it in seven is
+#       not a rewrite of that sentence. Measured by SPAN (`register.desk_register_masked`) and never by
+#       a stem list, because the `loud` pattern charges "loudest", whose stem is not "loud".
+#   (8) POLARITY -- the count of negation / absence tokens may not move. Neither budget nor overlap can
+#       see "the graph names no served series for drought" -> "drought stress names series", which
+#       asserts the opposite of the input using none but the input's own words.
+#   (9) MASS -- the reply keeps at least `_DESK_REWRITE_MIN_WORDS` of the offered sentence's words. A
+#       substitution is a substitution; "The market." is a deletion wearing one.
+# ...and ROUND-3 adds (10) CLAIM and (11) LOSS, which are the same argument one step further: see the
+# block above `_DESK_CLAIM_RX`. All eleven are counted by name in the census' `refused` map, so a guard
+# that fires often is visible rather than inferred, and every one of them leaves the WRITER'S OWN
+# SENTENCE standing.
+_DESK_REWRITE_MIN_WORDS = 0.6
+_DESK_REWRITE_NEW_WORDS = 1
+_DESK_REWRITE_KEEP_FRACTION = 0.5
+#: Ordinary function words carry no claim, so they are outside the vocabulary test in both directions.
+_DESK_STOPWORDS = frozenset("""
+a an and are as at be been being but by can could did do does for from had has have her his how
+if in into is it its may might more most must nor not now of off on once only or other our out
+over own she should since so some such than that the their them then there these they this those
+through to too under until up upon was were what when where which while who whom why will with
+within would you your
+""".split())
+#: The negation / absence vocabulary guard (7) counts. `n't` is matched separately.
+_DESK_NEGATION_RX = re.compile(
+    r"\b(?:no|not|never|none|nor|neither|without|nothing|cannot|lacks?|lacking|absent|absence|"
+    r"unavailable|unserved|undeclared)\b|n[’']t\b", re.I)
+_DESK_WORD_RX = re.compile(r"[a-z]+")
+# ══ ROUND-3 REVIEW MAJOR (2026-09-15) -- A ONE-WORD BUDGET IS A ONE-WORD CLAIM EDIT. ═════════════════
+# MEASURED with an injected caller: 11 of 13 adversarial replies were ACCEPTED and spliced into
+# `mechanism` AFTER `verify_citations` had closed, every one passing all nine refusals. The budget of
+# ONE is exactly what a claim needs -- one word.
+#   DIRECTION   'in the SAME direction as price'      -> 'in the OPPOSITE direction as price'
+#   CONFIDENCE  '... at HIGH confidence.'             -> '... at LOW confidence.'
+#   READING     'The board reads TWO-SIDED here.'     -> 'The market reads BULLISH here.'
+#   MAGNITUDE   'the LOUDEST driver on cocoa'         -> 'the WEAKEST driver on cocoa'
+#   HEDGE       'The board MAY BE two-sided here.'    -> 'The market IS two-sided here.'
+#   DATE        'the knowledge date of SEPTEMBER 2026'-> 'the date of OCTOBER 2026'
+#   CONTENT     '... here and DROUGHT risk is rising' -> '... here and risk is rising'
+#               '... on corn and on wheat and on COCOA here' -> '... on corn and on wheat here'
+# The modal cases are invisible to guards (6) and (7) because modals are `_DESK_STOPWORDS`; the date case
+# is invisible to (4) because `_desk_digits` compares NUMERALS and a month is a word; the deletions are
+# invisible to (7) because dropping one content word in seven passes a HALF-of-content floor.
+# `_DESK_REWRITE_SYSTEM` asks for every one of these to be kept ("Keep the claim, its direction, its
+# hedge and its unit", "do not change a date") -- and this module's own cycle-10 standard is that such a
+# rule must be ENFORCED, NOT REQUESTED. Guard (8) closed the NEGATION half of MAJOR 5's class; these two
+# close the rest of it.
+#
+# (10) CLAIM CLASS -- a CLOSED vocabulary of claim-bearing surfaces (sign, hedge, degree, extremity,
+#      reading, month) whose MULTISET may not move. It is a multiset of WORDS and never of classes: a
+#      per-class count would read 'high' -> 'low' as one degree word for one degree word. Two
+#      exemptions, and both are the instrument's own: the body's CHARGED spans are masked first (the
+#      rewrite exists to lose those words -- "the LOUDEST thing" is charged and must be replaceable),
+#      and any term the MANDATE'S OWN TABLE teaches is dropped from both sides, so the licensed
+#      replacement 'the largest move, the reading furthest from its own record' is not read as a
+#      magnitude edit. ONE producer with the prompt, again: `_desk_allowed_stems` is the same table.
+# (11) LOSS -- every content word the offered sentence carried OUTSIDE its instrument words must survive,
+#      unless it sits within `_DESK_LOSS_WINDOW` words of a charged span (it is then part of the phrase
+#      being replaced) or the table teaches it. A BUDGET COULD NOT SEPARATE THESE TWO: the deck's honest
+#      rewrite drops 2 words ("two rows have SPENT their knowledge date" -> "two series are read through
+#      older dates") and the adversarial deletion drops 1 -- so the test is WHERE the word sat, not how
+#      many were lost. The window is 2, measured: 'spent' sits 2 words from `rows` and 1 from
+#      `knowledge date`, while the deleted 'drought' sits 6 from `board` and the deleted 'cocoa' 9 from
+#      `loudest`. It is a STRICT STRENGTHENING of (7), which stays for its own reason -- (7) bounds how
+#      much of the sentence a reply may rephrase, (11) bounds what it may silently drop.
+_DESK_LOSS_WINDOW = 2
+_DESK_CLAIM_RX = re.compile(
+    # SIGN / DIRECTION
+    r"\b(?:same|opposite|higher|lower|upside|downside|rising|falling|rise|rises|fall|falls|rose|fell"
+    r"|stronger|weaker|tighter|looser|wider|narrower|above|below|positive|negative|bullish|bearish"
+    r"|more|less|faster|slower|up|down)\b"
+    # ROUND-3 REVIEW MAJOR (2026-09-15) -- THE COMPARATIVE CLASS, WHICH IS THE SAME ARGUMENT THE LIST
+    # ABOVE MAKES AND WAS HALF-MADE. Driven through the real `_desk_register_lint` with an injected
+    # caller, 2 of 8 adversarial one-word inversions were ACCEPTED and spliced in after
+    # `verify_citations` had closed: "read through OLDER dates" -> "read through NEWER dates", and
+    # "the node is DRIER than its own record" -> "the driver is WETTER". Both sat inside
+    # `_DESK_LOSS_WINDOW` of a charged span, so guard (11) could not see them either. The rule is the
+    # one the sign list already states -- an ANTONYM FLIP IS A CLAIM EDIT -- so the class is completed
+    # rather than extended: every pair here is a polarity, and the refusal it earns is `polarity`.
+    r"|\b(?:older|newer|earlier|later|drier|dryer|wetter|warmer|cooler|colder|hotter"
+    r"|larger|smaller|bigger|better|worse|longer|shorter|heavier|lighter|deeper|shallower"
+    r"|cheaper|richer|firmer|softer|steeper|flatter)\b"
+    # HEDGE / MODALITY -- the half `_DESK_STOPWORDS` hides from every other guard
+    r"|\b(?:may|might|could|would|should|will|likely|unlikely|possibly|probably|seems?|appears?"
+    r"|expected|unexpected|must|cannot)\b"
+    # DEGREE / CONFIDENCE
+    r"|\b(?:high|low|medium|moderate|strong|weak|modest|slight|severe|mild|extreme|marginal"
+    r"|material|significant)\b"
+    # EXTREMITY. `largest` / `furthest` / `loudest` are here and are dropped again by the table test --
+    # named rather than omitted, so the exemption is visible where the word is.
+    r"|\b(?:largest|smallest|biggest|greatest|weakest|strongest|highest|lowest|tightest|loosest"
+    r"|widest|narrowest|nearest|furthest|most|least|loudest)\b"
+    # THE READING ITSELF
+    r"|\btwo[- ]sided\b|\bone[- ]sided\b"
+    r"|\b(?:neutral|balanced|tight|loose|crowded|stretched|vulnerable|thin|elevated|depressed|flat)\b"
+    # THE CALENDAR -- a month is a DATE that carries no numeral, which is the whole of (4)'s blind spot
+    r"|\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\b",
+    re.I)
+
+
+def _desk_stem(word: str) -> str:
+    """A crude plural fold, and crude is the point: the guard must not refuse 'the latest print' for
+    'the latest prints'. Nothing here is linguistics -- it is one trailing 's' on a word long enough
+    that dropping it cannot collide with a different word ('gas', 'less', 'stress' keep theirs)."""
+    w = str(word or "").lower()
+    return w[:-1] if (len(w) > 3 and w.endswith("s") and not w.endswith("ss")) else w
+
+
+@functools.lru_cache(maxsize=1)
+def _desk_allowed_stems() -> frozenset:
+    """The replacement vocabulary the mandate TEACHES, stemmed -- the only content words a rewrite may
+    introduce that the offered sentence did not already carry. ONE producer with the prompt and the
+    lint: it is read off `register.DESK_REGISTER_TOKENS`' own replacement column, so a word the mandate
+    starts teaching is a word the guard starts allowing on the same commit."""
+    out: set = set()
+    for _n, _p, repl in reg.DESK_REGISTER_TOKENS:
+        for w in _DESK_WORD_RX.findall(str(repl or "").lower()):
+            out.add(_desk_stem(w))
+    return frozenset(out)
+
+
+def _desk_content(sent: str) -> set:
+    """The CONTENT stems of a sentence: alphabetic words of three or more letters, citation handles
+    masked, function words dropped."""
+    body = _DESK_HANDLE_RX.sub(" ", str(sent or "")).lower()
+    return {_desk_stem(w) for w in _DESK_WORD_RX.findall(body)
+            if len(w) >= 3 and w not in _DESK_STOPWORDS}
+
+
+def _desk_content_ex_instrument(sent: str) -> set:
+    """The CONTENT stems of a sentence with its CHARGED instrument words blanked -- the FACT the rewrite
+    must keep, measured by span through `register.desk_register_masked` so an inflection the lint
+    charges ("loudest") is not counted against a reply that correctly dropped it."""
+    try:
+        return _desk_content(reg.desk_register_masked(sent))
+    except Exception:  # noqa: BLE001 -- an unmaskable sentence falls back to its whole content
+        return _desk_content(sent)
+
+
+def _desk_negations(sent: str) -> int:
+    """How many negation / absence tokens a sentence carries, handles masked."""
+    return len(_DESK_NEGATION_RX.findall(_DESK_HANDLE_RX.sub(" ", str(sent or ""))))
+
+
+def _desk_claim_terms(sent: str) -> list:
+    """The CLAIM-BEARING closed-class surfaces of a sentence, as a sorted MULTISET (guard 10).
+
+    Charged instrument words are masked first -- they are exactly what the rewrite is asked to lose --
+    and any surface the mandate's own replacement table teaches is dropped, so 'the loudest thing' ->
+    'the largest move' moves nothing here while 'the loudest thing' -> 'the weakest thing' moves a word
+    from nowhere. `two sided` and `two-sided` fold onto one surface."""
+    try:
+        body = reg.desk_register_masked(sent)
+    except Exception:  # noqa: BLE001 -- an unmaskable sentence is read whole; the guard only tightens
+        body = _DESK_HANDLE_RX.sub(" ", str(sent or ""))
+    allowed = _desk_allowed_stems()
+    return sorted(t for t in (re.sub(r"\s+", "-", m.group(0).strip().lower())
+                              for m in _DESK_CLAIM_RX.finditer(body))
+                  if _desk_stem(t) not in allowed)
+
+
+#: The POLARITY PAIRS of the claim class -- the flips guard (10) refuses and guard (8) has always
+#: refused for the negation half. Each pair is written ONCE and read in both directions; the table is
+#: closed, and a class member with no antonym (a month, a hedge) simply has no row here.
+_DESK_CLAIM_ANTONYMS: tuple = (
+    ("same", "opposite"), ("higher", "lower"), ("upside", "downside"), ("rising", "falling"),
+    ("rise", "fall"), ("rises", "falls"), ("rose", "fell"), ("stronger", "weaker"),
+    ("tighter", "looser"), ("wider", "narrower"), ("above", "below"), ("positive", "negative"),
+    ("bullish", "bearish"), ("more", "less"), ("faster", "slower"), ("up", "down"),
+    ("high", "low"), ("strong", "weak"), ("two-sided", "one-sided"), ("tight", "loose"),
+    ("elevated", "depressed"), ("largest", "smallest"), ("biggest", "smallest"),
+    ("greatest", "least"), ("strongest", "weakest"), ("highest", "lowest"),
+    ("tightest", "loosest"), ("widest", "narrowest"), ("nearest", "furthest"), ("most", "least"),
+    ("older", "newer"), ("earlier", "later"), ("drier", "wetter"), ("dryer", "wetter"),
+    ("warmer", "cooler"), ("warmer", "colder"), ("hotter", "cooler"), ("larger", "smaller"),
+    ("bigger", "smaller"), ("better", "worse"), ("longer", "shorter"), ("heavier", "lighter"),
+    ("deeper", "shallower"), ("cheaper", "richer"), ("firmer", "softer"), ("steeper", "flatter"),
+)
+
+
+def _desk_claim_flip(body: str, cand: str) -> bool:
+    """Did the reply swap a claim word for its ANTONYM? (guard 10's label, never its decision)."""
+    b, c = _desk_claim_terms(body), _desk_claim_terms(cand)
+    removed = [t for t in b if t not in c or b.count(t) > c.count(t)]
+    added = [t for t in c if t not in b or c.count(t) > b.count(t)]
+    pairs = {(x, y) for x, y in _DESK_CLAIM_ANTONYMS}
+    pairs |= {(y, x) for x, y in _DESK_CLAIM_ANTONYMS}
+    return any((r, a) in pairs for r in removed for a in added)
+
+
+def _desk_losable_stems(body: str) -> frozenset:
+    """The content stems of `body` a reply MAY drop (guard 11): everything within `_DESK_LOSS_WINDOW`
+    words of a CHARGED instrument span, which is the phrase the rewrite is replacing.
+
+    The charged words are located by OFFSET rather than by a stem list -- `reg.desk_register_masked`
+    blanks them in place and keeps every offset, which is the same reason `_desk_content_ex_instrument`
+    reads spans ("loudest" has no stem "loud"). A masked string whose length does not match the input
+    (a mermaid block was stripped; no single-sentence body has one) returns the EMPTY set, so the guard
+    refuses every loss rather than permitting one it could not place."""
+    base = str(body or "").lower()
+    try:
+        masked = reg.desk_register_masked(body)
+    except Exception:  # noqa: BLE001 -- unplaceable -> nothing is losable
+        return frozenset()
+    if len(masked) != len(base):
+        return frozenset()
+    words = [(m.group(0), m.start(), m.end()) for m in _DESK_WORD_RX.finditer(base)]
+    anchors = [i for i, (w, a, b) in enumerate(words) if len(w) >= 3 and not masked[a:b].strip()]
+    if not anchors:
+        return frozenset()
+    return frozenset(_desk_stem(w) for i, (w, _a, _b) in enumerate(words)
+                     if any(abs(i - c) <= _DESK_LOSS_WINDOW for c in anchors))
+
+
+def _desk_words(sent: str) -> int:
+    return len(_DESK_WORD_RX.findall(_DESK_HANDLE_RX.sub(" ", str(sent or "")).lower()))
+
+
+# ══ REVIEW MAJOR 6 (2026-09-11) -- THE CUT-AND-REATTACH CLOSED THE MARKER IN ONE DIRECTION ONLY. ═════
+# `split[f][i] = head + cand` accepted the model's reply with no structural check on `cand` itself, so
+# three probes all shipped: (a) a reply carrying a newline split one bullet into a bullet plus an orphan
+# line ("- The board reads two-sided [N1]." -> "- The market is two-sided [N1]" + "and a second line."),
+# which is exactly the "the page silently stops being a list" failure `_DESK_MARKER_RX` exists to
+# prevent, arriving from the other side; (b) a reply that re-added its own marker yielded "- - The
+# market is two-sided [N1]."; (c) a reply carrying a second sentence yielded a double terminator,
+# "... It also rained..", because the offered chunk's terminator lives in the `_SENT_KEEP` DELIMITER and
+# the reply brings its own. So a reply is now normalised before it is judged: a line break is a
+# REFUSAL, a re-added marker is stripped (the marker rides back from `head`, verbatim, exactly once),
+# and the trailing terminator run is set to the one the offered chunk actually had.
+def _desk_normalise_reply(cand: str, body: str) -> str | None:
+    """The model's reply, made structurally substitutable for `body`, or None when it cannot be.
+
+    None on a line break -- a multi-line reply cannot be spliced into one segmenter chunk without
+    reflowing the writer's own list, which is the one failure the marker cut was built to stop."""
+    s = str(cand or "").strip()
+    if not s or "\n" in s or "\r" in s:
+        return None
+    s = s[_DESK_MARKER_RX.match(s).end():].strip()        # a re-added bullet / heading marker
+    if not s:
+        return None
+
+    def _term(t: str) -> tuple:
+        t = t.rstrip()
+        n = 0
+        while n < len(t) and t[len(t) - 1 - n] in _BAR_TERMINATORS:
+            n += 1
+        return (t[len(t) - n:] if n else ""), (t[:len(t) - n] if n else t)
+
+    _ct, stem = _term(s)
+    bt, _bstem = _term(body)
+    return (stem.rstrip() + bt) or None
+
+
+# ══ RULING (5), 2026-09-15 16:30Z -- THE REWRITE IS SUBSTITUTION-ONLY. ═══════════════════════════════
+# THE MEASURED REASON: driven through the real `_desk_register_lint` with an injected caller, 12
+# adversarial pairs on realistic charged sentences -- each the HONEST rewrite with ONE word inverted --
+# and four were ACCEPTED and spliced onto the page after `verify_citations` had closed: "dates the
+# report BEFORE the harvest" -> "AFTER the harvest"; "the two series AGREE on the direction" ->
+# "DISAGREE"; "puts the reading INSIDE the convention band" -> "OUTSIDE"; "the driver moves WITH the
+# price" -> "AGAINST". Eleven guards and none of them could see it, because every one of them is a
+# BUDGET (a new content word, a lost stem, a moved digit) and a one-word inversion spends nothing.
+#
+# SO THE RULE IS NO LONGER A BUDGET. A reply is accepted ONLY if it IS the offered sentence with its
+# BANNED TOKENS REPLACED BY THE TABLE'S OWN REPLACEMENT PHRASES -- token for token, everything else
+# character-identical, case and terminal punctuation preserved. Anything else is `edit_outside_table`
+# and the writer's own sentence stands. The inversions die because `after`, `disagree`, `outside`,
+# `against` and `newer` are not words the table offers for any token; they never have to be guessed at.
+#
+# TWO POINTS OF LEEWAY, AND BOTH ARE MEASURED RATHER THAN GENEROUS:
+#   (i)  THE REGION MAY TAKE ONE ADJACENT TOKEN ON EACH SIDE. The ruling says "one adjacent determiner
+#        may be added or dropped"; the table's own replacements need exactly one word more than that,
+#        and the measured case is the canonical one: `loud` is an ADJECTIVE ("the loudest driver") and
+#        its replacement is a NOUN PHRASE ("the largest move"), so the honest substitution must also
+#        absorb the noun it modified. One token, each side, is that rule generalised by one word class
+#        -- and the extra token still has to be replaced by table words, so nothing outside the table
+#        can enter through it.
+#   (ii) THE REPLACEMENT MAY BE A PREFIX / SUBSEQUENCE OF THE TABLE PHRASE, in order: "the dated
+#        report" offered for `receipt` is accepted as "the report", and "this series" for `row` as
+#        "series". It can only ever DROP table words, never add one -- and the shipped `loss` and
+#        `claim` guards still grade what a drop costs.
+# `<date>` in the table's `knowledge date` row is a PLACEHOLDER: its angle brackets are dropped here so
+# the phrase reads as words, and a reply that filled it with a real date would be refused two guards
+# earlier by `_desk_digits` (a numeral from nowhere).
+_DESK_SUBST_TOKEN = re.compile(r"[A-Za-z0-9']+|[^\sA-Za-z0-9']")
+_DESK_SUBST_DET = frozenset({"a", "an", "the", "this", "that", "these", "those", "its", "their",
+                             "our", "his", "her"})
+
+
+def _desk_subst_tokens(s: str) -> list:
+    """(text, start, end) for every token of `s` -- words (apostrophes kept) and single punctuation."""
+    return [(m.group(0), m.start(), m.end()) for m in _DESK_SUBST_TOKEN.finditer(str(s or ""))]
+
+
+def _desk_replacement_phrases() -> dict:
+    """{banned token name -> [phrase as a token list, ...]}, off `register.DESK_REGISTER_TOKENS`' own
+    replacement column. ONE PRODUCER with the mandate and the rewrite prompt: the writer is TAUGHT
+    these words (`register.desk_register_table()`), so these are the words it is allowed to use."""
+    out: dict = {}
+    for name, _pat, repl in reg.DESK_REGISTER_TOKENS:
+        phrases = []
+        for part in re.split(r",| or ", str(repl or "")):
+            toks = [t for t, _a, _b in _desk_subst_tokens(part.strip().strip("'\""))
+                    if t not in ("<", ">")]
+            if toks:
+                phrases.append([t.lower() for t in toks])
+        out[name] = phrases
+    return out
+
+
+def _desk_number_fold(w: str) -> set:
+    """A table word and its crude singular/plural partner. GRAMMAR, never vocabulary: the offered
+    sentence may be plural ("two rows") where the table spells its replacement singular ("the record"),
+    and refusing "the records" for that would make the table unusable on half the estate's own prose.
+    Crude on purpose, exactly as `verify._bar_fold` is, and it can only ever match a TABLE word in
+    another number -- never admit a word the table does not carry."""
+    w = str(w or "").lower()
+    out = {w}
+    if len(w) >= 4 and w.endswith("s") and not w.endswith(("ss", "us", "is")):
+        out.add(w[:-1])
+    elif len(w) >= 3 and not w.endswith("s"):
+        out.add(w + "s")
+    return out
+
+
+def _desk_subseq(want: list, got: list) -> bool:
+    """Is `got` an ORDERED SUBSEQUENCE of `want`, allowing one leading determiner that `want` lacks and
+    the crude number fold above?"""
+    if not got:
+        return False
+    i = 0
+    for k, g in enumerate(got):
+        if k == 0 and g in _DESK_SUBST_DET and (not want or want[0] != g):
+            continue                              # a determiner the phrase did not spell
+        fold = _desk_number_fold(g)
+        while i < len(want) and want[i] not in fold:
+            i += 1
+        if i >= len(want):
+            return False
+        i += 1
+    return any(g not in _DESK_SUBST_DET for g in got)     # never a bare determiner
+
+
+def _desk_substitution_only(body: str, cand: str) -> bool:
+    """Is `cand` the offered sentence with its BANNED TOKENS replaced by the table's own phrases, and
+    nothing else changed? (ruling (5)). PURE, and it never raises: an unparsable pair is False, which
+    keeps the writer's sentence."""
+    try:
+        bt = _desk_subst_tokens(body)
+        ct = _desk_subst_tokens(cand)
+        spans = reg.desk_register_spans(body)
+        if not spans:
+            return False                          # nothing to replace -> nothing to accept
+        # charged CHAR spans -> token index ranges, adjacent spans merged into ONE region (the
+        # measured shape is "the loudest row", two banned tokens side by side and one phrase over both)
+        regions: list = []
+        for a, b, name in spans:
+            i0 = next((k for k, (_t, s, e) in enumerate(bt) if e > a), None)
+            i1 = next((k + 1 for k, (_t, s, e) in reversed(list(enumerate(bt))) if s < b), None)
+            if i0 is None or i1 is None or i1 <= i0:
+                return False
+            if regions and i0 <= regions[-1][1]:
+                regions[-1] = (regions[-1][0], max(regions[-1][1], i1), regions[-1][2] + [name])
+            else:
+                regions.append((i0, i1, [name]))
+        table = _desk_replacement_phrases()
+        starts: dict = {}
+        for i0, i1, names in regions:
+            for s in {i0, max(0, i0 - 1)}:
+                starts.setdefault(s, []).append((i0, i1, names))
+        seen: set = set()
+
+        def _phrases(names: list) -> list:
+            out = [[]]
+            for n in names:
+                nxt = []
+                for head in out:
+                    for p in table.get(n) or [[]]:
+                        nxt.append(head + p)
+                out = nxt or out
+            return [p for p in out if p]
+
+        def walk(bi: int, ci: int) -> bool:
+            if (bi, ci) in seen:
+                return False
+            seen.add((bi, ci))
+            if bi >= len(bt) and ci >= len(ct):
+                return True
+            for i0, i1, names in starts.get(bi, ()):
+                for end in (i1, min(len(bt), i1 + 1)):
+                    if end <= bi:
+                        continue
+                    upper = bt[bi][0][:1].isupper()
+                    for phrase in _phrases(names):
+                        for take in range(1, min(len(ct) - ci, len(phrase) + 2) + 1):
+                            got = [t for t, _a, _b in ct[ci:ci + take]]
+                            if upper != got[0][:1].isupper():
+                                continue          # case is preserved, both directions
+                            if not _desk_subseq(phrase, [g.lower() for g in got]):
+                                continue
+                            if walk(end, ci + take):
+                                return True
+            if bi < len(bt) and ci < len(ct) and bt[bi][0] == ct[ci][0]:
+                # UNCHANGED TEXT: identical, token for token. A CHARGED token may be left alone too --
+                # a reply that replaces one of two banned words and touches nothing else is a partial
+                # substitution, not an edit, and the shipped `no_improvement` guard still requires the
+                # count to fall. Refusing it would keep BOTH words on the page.
+                return walk(bi + 1, ci + 1)
+            return False
+
+        return walk(0, 0)
+    except Exception:  # noqa: BLE001 -- an unparsable pair is a refusal, never an acceptance
+        return False
+
+
+def _desk_handles(sent: str) -> list:
+    """The citation-handle TOKENS a sentence carries, normalised for whitespace, as a multiset."""
+    return sorted(re.sub(r"\s+", "", t) for t in _DESK_HANDLE_RX.findall(str(sent or "")))
+
+
+def _desk_register_lint(structured: dict | None, *, call=None, model: str = "",
+                        max_tokens: int | None = None) -> dict:
+    """S7b R2's COUNT + its ONE bounded rewrite. Returns the census; mutates in place; never raises.
+
+    `{hits_before, hits_after, sentences, offered, rewritten, outcome, usd}` plus
+    `multiline_skipped` when any was and `refused` (reason -> count) when any reply was rejected.
+    THE LINT'S FIELD SCOPE IS `tldr` + `mechanism` -- the MODEL's own two prose fields, which is the
+    only text a rewrite may touch. It is NOT the served body: `render()` also emits the mermaid block
+    and the sources list, and `_footer` is appended OUTSIDE the sanitize input entirely, so a
+    source-ledger line is never linted and never rewritten. The 195/9 and 192/9 baselines are measured
+    over the WHOLE banked answer, so the two numbers are not the same population and a report that
+    quotes one against the other must say which is which. `outcome` is a CLOSED WORD: `clean` (nothing charged),
+    `rewritten`, `unchanged` (the call returned, nothing was accepted), `nothing_offerable` (every
+    charged sentence spans lines), `no_caller` (the flag is on but no caller was threaded -- the lint
+    still counts), or `call_failed:<ExceptionName>` / `bad_shape` / `lint_failed`. A failure NEVER costs
+    the reader a sentence."""
+    census = {"hits_before": 0, "hits_after": 0, "sentences": 0, "offered": 0, "rewritten": 0,
+              "outcome": "clean", "usd": None}
+    if not isinstance(structured, dict):
+        return census
+    try:
+        fields = [(f, structured.get(f)) for f in ("tldr", "mechanism")]
+        fields = [(f, v) for f, v in fields if isinstance(v, str) and v.strip()]
+        census["hits_before"] = sum(reg.count_desk_register(v) for _f, v in fields)
+        census["hits_after"] = census["hits_before"]
+        if not census["hits_before"]:
+            return census
+        # THE UNIT IS THE OFFENDING SENTENCE, addressed by (field, index) rather than by its text: two
+        # identical sentences in one answer must not have one rewrite spliced over both.
+        split = {f: reg._SENT_KEEP.split(v) for f, v in fields}
+        offending: list = []
+        for f, toks in split.items():
+            for i in range(0, len(toks), 2):
+                if toks[i].strip() and reg.desk_register_hits(toks[i]):
+                    offending.append((f, i, toks[i]))
+        census["sentences"] = len(offending)
+        take, used = [], 0
+        for f, i, s in offending:                       # DOCUMENT ORDER, then the cap. A cap that chose
+            if len(take) >= _DESK_REWRITE_MAX_SENTENCES:  # by yield would make the remedy depend on the
+                break                                     # order the lint happened to score.
+            # A SENTENCE CARRYING A LINE BREAK IS NEVER OFFERED, and the restriction is declared and
+            # counted rather than worked around. `_SENT_ITER` splits on `[.!?;]\s+` and deliberately
+            # does NOT break on a bare newline (S1.F2/W0-1: the strip and the scanner must segment
+            # identically), so a markdown heading or an unterminated bullet welds to its successor and
+            # the unit spans lines. MEASURED on the nine banked answers: 16 of 129 offending sentences
+            # (12%). Offering one to a numbered-list prompt makes the reply ambiguous -- the model
+            # cannot say which line belongs to which item -- and splicing a one-line reply back would
+            # silently reflow the writer's own bullets. Skipped, stamped, and left exactly as written.
+            if "\n" in s:
+                census["multiline_skipped"] = census.get("multiline_skipped", 0) + 1
+                continue
+            _lead = _DESK_MARKER_RX.match(s)
+            head, body = s[:_lead.end()], s[_lead.end():]
+            if not body.strip():
+                continue
+            if used + len(body) > _DESK_REWRITE_MAX_CHARS and take:
+                break
+            take.append((f, i, head, body))
+            used += len(body)
+        if not take:                                    # nothing offerable -> no call, and say so
+            census["outcome"] = "nothing_offerable"
+            return census
+        census["offered"] = len(take)
+        if call is None:
+            census["outcome"] = "no_caller"
+            return census
+        try:
+            out = call(_DESK_REWRITE_SYSTEM.format(table=reg.desk_register_table()),
+                       "\n".join(f"{n + 1}. {b.strip()}" for n, (_f, _i, _h, b) in enumerate(take)),
+                       model=model, tool=_DESK_REWRITE_TOOL,
+                       max_tokens=int(max_tokens or _DESK_REWRITE_MAX_TOKENS))
+        except Exception as exc:  # noqa: BLE001 -- NAMED and counted; the original sentences stand
+            census["outcome"] = "call_failed:%s" % type(exc).__name__
+            return census
+        _u = (out or {}).pop("_usage", None) if isinstance(out, dict) else None
+        (out or {}).pop("_degraded_model", None) if isinstance(out, dict) else None
+        if isinstance(_u, dict):
+            try:
+                from leviathan.graphrag import providers as _pv
+                census["usd"] = _pv.serving_cost_usd(str(_u.get("model") or ""),
+                                                     int(_u.get("in") or 0), int(_u.get("out") or 0),
+                                                     cache_read=int(_u.get("cache_read") or 0),
+                                                     cache_write=int(_u.get("cache_write") or 0))
+                if census["usd"] is not None and float(census["usd"]) > _DESK_REWRITE_USD_CEILING:
+                    census["over_ceiling"] = True    # the owner's cap, measured -- never inferred
+            except Exception:  # noqa: BLE001 -- an unpriced model reports no cost, never a wrong one
+                census["usd"] = None
+        new = (out or {}).get("sentences") if isinstance(out, dict) else None
+        if not isinstance(new, list) or len(new) != len(take):
+            census["outcome"] = "bad_shape"
+            return census
+        _refused: dict = {}
+
+        def _refuse(why: str) -> None:
+            _refused[why] = _refused.get(why, 0) + 1
+
+        for (f, i, head, body), cand in zip(take, new):
+            if not isinstance(cand, str) or not cand.strip():
+                _refuse("empty")
+                continue                                            # (1) empty -> the original stands
+            cand = _desk_normalise_reply(cand, body)                # (6) structure: line break / marker
+            if cand is None:                                        #     / terminator -- MAJOR 6
+                _refuse("structure")
+                continue
+            if _desk_handles(cand) != _desk_handles(body):
+                _refuse("handle")
+                continue                                            # (3) a lost or altered handle
+            if _desk_digits(cand) != _desk_digits(body):
+                _refuse("digit")
+                continue                                            # (4) a moved numeral
+            if len(_desk_content(cand) - _desk_content(body)
+                   - _desk_allowed_stems()) > _DESK_REWRITE_NEW_WORDS:
+                _refuse("vocabulary")
+                continue                                            # (6) content words from nowhere
+            _keep = _desk_content_ex_instrument(body)
+            if len(_keep & _desk_content(cand)) < math.ceil(_DESK_REWRITE_KEEP_FRACTION * len(_keep)):
+                _refuse("overlap")
+                continue                                            # (7) not a rewrite of THIS sentence
+            if _desk_negations(cand) != _desk_negations(body):
+                _refuse("polarity")
+                continue                                            # (8) an absence turned into a claim
+            if _desk_words(cand) < _DESK_REWRITE_MIN_WORDS * _desk_words(body):
+                _refuse("mass")
+                continue                                            # (9) a deletion wearing a rewrite
+            # ROUND-3'S TWO, AND THEY ARE ASKED LAST ON PURPOSE. Every guard above names a COARSER
+            # failure of the same reply -- a reply that is a deletion ("The mechanism.") also moves a
+            # claim word, and a reply that inverts an absence also drops one -- and the census' `refused`
+            # map is read by a human deciding what the rewrite is doing wrong. Reporting the coarse
+            # reason first keeps that map legible; the reply is refused either way, which is the only
+            # thing the page sees.
+            if _desk_claim_terms(cand) != _desk_claim_terms(body):
+                # ...AND AN ANTONYM FLIP IS NAMED FOR WHAT IT IS. The census' `refused` map is read by
+                # a human deciding what the rewrite is doing wrong, and "the reply said WETTER where
+                # the sentence said DRIER" is a different fault from "the reply invented a degree
+                # word": the first is the ruling's `polarity` class, which guard (8) already names for
+                # the negation half of it. Same refusal, honest label.
+                _refuse("polarity" if _desk_claim_flip(body, cand) else "claim")
+                continue                                            # (10) direction / hedge / degree /
+            if _keep - _desk_content(cand) - _desk_losable_stems(body) - _desk_allowed_stems():
+                _refuse("loss")                                     #      extremity / reading / month
+                continue                                            # (11) a clause quietly dropped
+            # (12) RULING (5): AND IT IS A SUBSTITUTION, not a rewrite that happens to fit eleven
+            # budgets. Asked LAST of the judging guards for this module's own stated reason -- every
+            # guard above names a COARSER failure of the same reply, and the `refused` map is read by a
+            # human deciding what the rewrite is doing wrong -- but it is the guard that DECIDES: the
+            # four one-word inversions that reached the page passed all eleven and fail this one.
+            if not _desk_substitution_only(body, cand):
+                _refuse("edit_outside_table")
+                continue
+            if reg.count_desk_register(cand) >= reg.count_desk_register(body):
+                _refuse("no_improvement")
+                continue                                            # (5) no improvement -> no change
+            split[f][i] = head + cand                               # the marker rides back VERBATIM
+            census["rewritten"] += 1
+        if _refused:
+            census["refused"] = _refused
+        if census["rewritten"]:
+            for f, toks in split.items():
+                structured[f] = "".join(toks)
+            census["hits_after"] = sum(reg.count_desk_register(structured.get(f) or "")
+                                       for f, _v in fields)
+            census["outcome"] = "rewritten"
+        else:
+            census["outcome"] = "unchanged"
+    except Exception:  # noqa: BLE001 -- an instrument must never be the thing that breaks an answer
+        census["outcome"] = "lint_failed"
+    return census
+
+
 def _sentence_keeps_other_receipt(text: str, s0: int, s1: int, skips, n_uniq: int) -> bool:
     """True when the sentence `[s0, s1)` still carries a citation the reader KEEPS, outside `skips`.
 
@@ -11014,6 +12114,19 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # rollback cannot silently leave outlook turns on a different register from the L2 default.
     _outlook = bool(outlook) and _outlook_on()
     _mr = reg.OUTLOOK if _outlook else reg.FENCED
+    # S7b R1: THE BOUND-FIGURE LICENCE, resolved ONCE beside `_mr` -- the same seam, the same
+    # threading discipline, the same reason (`register.py` reads no environment). It is a CLOSURE over
+    # this turn's served rows, because the verdict is "does the sentence's own [N] handle resolve to a
+    # row that clears the adjective's declared bar", and the rows are what make that answerable.
+    # `extra_number_calls` is the CASCADE-EXTENDED list the model's GROUNDING LEDGER was numbered
+    # against -- the same list `_drop_bare_digit_sentences` and `_resolve_number_handles` read, never
+    # the orchestrator's shorter `number_calls`, which stops at the agent's own lookups.
+    # None when the flag is off -> every downstream kwarg defaults -> HEAD's strip, byte for byte.
+    _bar_licence = None
+    _badj = _dreg = None                    # the two S7b censuses; None on every dark turn, never {}
+    if _register_licence_on():
+        from leviathan.graphrag import verify as _vfl  # lazy: flag-guarded
+        _bar_licence = (lambda _s, _c=extra_number_calls: _vfl.bar_adjective_verdict(_s, _c))
     # W4-D3 (verifier blocker 2): the IDENTICAL two-gate expression as the L2 body. It is not hard-coded
     # False even though this body has no episode producer today -- `tl.render_line` has exactly ONE call
     # site (_l2_blocks) -- because the invariant being enforced is "the paragraph ships iff the prompt
@@ -11065,6 +12178,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                               response_contract=_rc_active,
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
                               census=_census,                                 # D-CC-1, both bodies
+                              desk_register=_desk_register_on(),              # S7b R2, both bodies
                               handles=_handles),                              # D-HP-7/8, both bodies
                       _pack(sp, vp, use_blocks), model=model,
                       tool=_answer_tool(handles=_handles), **_oh_kw)
@@ -11100,6 +12214,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     verifier = vf.verify_citations(structured, uniq, extra_number_calls,   # D-HP-1 (iii), both bodies
                                    foreign_names=_foreign_regime_names(graph, contracts),
                                    handle_prose=_handles)                  # D-HP-9/12, both bodies
+    _bar_licence = _bar_licence_for(_bar_licence, verifier)        # S7b R1 review MINOR: one predicate
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         postverify_tldr=structured.get("tldr"), postverify_mechanism=structured.get("mechanism")))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
@@ -11135,6 +12250,13 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # a lint that only deletes on one of the two bodies is the same defect with a flag in front of it.
     _bdrop = (_drop_bare_digit_sentences(structured, extra_number_calls, verifier, uniq=uniq)
               if (verifier.get("enabled") and _handles) else None)   # T1-6: same `uniq`, both bodies
+    # S7b R1 + R2 on the SECOND synthesis path, in the SAME position and for the same stated reason:
+    # both must run before any value splice, and an instrument that only fires on one of the two bodies
+    # is the same defect with a documented rollback in front of it.
+    _badj = (_bind_bar_adjectives(structured, extra_number_calls)
+             if (verifier.get("enabled") and _bar_licence is not None) else None)
+    _dreg = (_desk_register_lint(structured, call=(call if call is _call_opus else None), model=model)
+             if (verifier.get("enabled") and _desk_register_on()) else None)
     _nhandles = (_resolve_number_handles(structured, extra_number_calls,   # D-PQ HANDLE-1, both bodies
                                          handle_prose=_handles)
                  if verifier.get("enabled") else None)                    # ...and the same verifier gate
@@ -11176,7 +12298,11 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                                            evidence=evidence, n_positional=len(uniq),
                                            market_register=_mr, relevant=_ep_rel,
                                            **_scaffold_cap_kwargs(mode_knobs))   # D-AM-10, both bodies
-    _humanize_structured(structured, market_register=_mr)         # clean the fields the UI renders directly (6.1)
+    _humanize_structured(structured, market_register=_mr,         # clean the fields the UI renders directly (6.1)
+                         bar_licence=_bar_licence)                # S7b R1: the FIRST strip pass on the
+    #                                                               prose, so the licence must reach it
+    #                                                               or the body-wide pass below has
+    #                                                               nothing left to license
     # D-RC-12 on the one-hop body: identical reconcile, identical position (post-verify, post-humanize).
     _tldr_dir = _tldr_direction_trace(structured, graph, contracts)
     if os.environ.get("GRAPHRAG_ANSWER_V2", "off") == "on":       # P9-C typed sections -- the one-hop twin of
@@ -11195,7 +12321,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
         _sanitize_in = render(structured) + footer
     _pre_sanitize = _sanitize_in + _footer                        # A4b SEAM 2: the WHOLE page, as before
-    body = reg.sanitize(_sanitize_in, market_register=_mr) + _footer   # strips leaked internal tokens
+    body = (reg.sanitize(_sanitize_in, market_register=_mr, bar_licence=_bar_licence)
+            + _footer)                                            # strips leaked internal tokens
     _raw_draft = _fold_draft(_raw_draft, sanitize_input_snapshot(body_pre_sanitize=_pre_sanitize))
     if degraded:
         body = _DEGRADED_BANNER.format(m=degraded) + body
@@ -11224,6 +12351,10 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                       **({"wrong_slot_audit": _wslot} if _wslot is not None else {}),   # D-HP-14, ditto
                       **({"bare_digit_dropped": _bdrop}            # D-HP-12's remedy, both bodies
                          if (_bdrop and any(_bdrop.values())) else {}),
+                      **({"bar_adjectives": _badj}                 # S7b R1, both bodies
+                         if (_badj and any(_badj.values())) else {}),   # ...absent on every dark row
+                      **({"desk_register": _dreg}                  # S7b R2, both bodies
+                         if _dreg is not None else {}),            # ...absent on every dark row
                       **({"slot_orphan_dropped": _sorph}           # H1 FIX Z4's remedy, both bodies
                          if (_sorph and any(_sorph.values())) else {}),
                       **({"episode_spans_validated": _trace_espan}  # D-HP-15 SELECT, both bodies

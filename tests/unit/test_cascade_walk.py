@@ -3261,6 +3261,36 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # fourteen renders are byte-identical because the mandate is gated on a default-False kwarg;
     # and `seam_kwarg_keys_off` gains nothing, because `_sb_kw` is omit-when-off.
     _S6_ONE = ["_state_board_on"]
+    # RE-ANCHORED 2026-09-11 BY S7b, THE TWO REGISTER INSTRUMENTS -- same census, same construction,
+    # same DARK default, and re-anchored ON A NAMED MEASUREMENT exactly as this pin's own docstring
+    # demands. The producer enumerates every zero-arg `_*_on` callable on `answer`, so both of S7b's
+    # kill-switches appear here BY CONSTRUCTION:
+    #   `_register_licence_on`  GRAPHRAG_REGISTER_LICENCE -- the BOUND-FIGURE LICENCE. Measured cause
+    #       (scratchpad/recon_s8/REGISTER_CENSUS.md, 22 documents / 1,051 sentences): the market
+    #       register charged 11 sentences and STRUCK 11 of 11, and exactly ONE of the eleven is a
+    #       present-tense verdict -- precision 1/11, with 2,302 characters and 11 bound citation
+    #       handles deleted. Unset resolves False, and with it False every strip decision, every
+    #       counter and every rendered byte is HEAD's.
+    #   `_desk_register_on`     GRAPHRAG_DESK_REGISTER -- the DESK REGISTER. Measured cause
+    #       (scratchpad/lingo_leaks.py over the nine banked real-seat answers, 2026-09-11): 195
+    #       internal-vocabulary hits, 21.7 per answer. Unset resolves False, and with it no literal is
+    #       appended, no lint runs and no model call is made.
+    # S7b's OTHER surfaces are checked above and did NOT move: `_system` gains ONE default-False kwarg
+    # (`desk_register`) whose branch is never taken in the producer's stripped env, so the 14
+    # `system_deck` renders are byte-identical; `cq.quantify` gains nothing, so `signatures` and
+    # `seam_kwarg_keys_off` are untouched; and the planner constitution, `plan_tool` and `plan_fields`
+    # are not surfaces this lane edits at all. INDEPENDENTLY REVERTABLE, and therefore TWO groups
+    # rather than one pair: the licence and the desk register carry their own flags and either may
+    # ship or be reverted without the other, so a one-item state must not red a golden for no cause of
+    # its own (MINOR-3's rule, applied to a second sitting).
+    _S7B_LICENCE = ["_register_licence_on"]
+    _S7B_DESK = ["_desk_register_on"]
+    # ...and S7b's WATCH lane mints the third, landed at this seam by the two-lane protocol (threat
+    # model sec 6.1) for the reason `state/` always forces: that package reads NO environment, and
+    # `config_check.check_state_seam` clause (i) grades the whole allowlist on its source. DARK: unset
+    # resolves False, and with it `watch.watch_rows` returns HEAD's five-kind interleave byte for byte.
+    # Independently revertable for the same MINOR-3 reason, so it is its own group.
+    _S7B_WATCH = ["_watch_nonobvious_on"]
     # THE ACCEPTED SET IS THE BASE PLUS ANY SUBSET OF THE THREE INDEPENDENTLY-REVERTABLE DARK ITEMS, and
     # that is a WIDENING OF THE ENUMERATION, never a loosening of the pin: the previous six-state list
     # was the same subset rule written out by hand for two items (MINOR-3's "each item is independently
@@ -3269,7 +3299,8 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # item ships, no unnamed helper may appear, and every value is still checked False one by one below,
     # so a default flipping in either direction still reds. `[]` (the pre-D-XL state) stays accepted.
     import itertools as _it
-    _optional = (_K96_ONE, _K94_ONE, _S5_ONE, _S5_TWO, _S6_ONE)
+    _optional = (_K96_ONE, _K94_ONE, _S5_ONE, _S5_TWO, _S6_ONE, _S7B_LICENCE, _S7B_DESK,
+                 _S7B_WATCH)
     _accepted = [[], _XL_SIX] + [
         sorted(_XL_SIX + _DCL_ONE + [n for grp in combo for n in grp])
         for r in range(len(_optional) + 1) for combo in _it.combinations(_optional, r)]

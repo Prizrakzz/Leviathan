@@ -363,8 +363,34 @@ ANALOG_REASONS: tuple[str, ...] = (
     "no_like_state", "horizon_open", "span_out_of_band", "pre_coverage", "no_tape_rows",
     "read_truncated", "budget_cap", "no_receipt", "no_numeric_event_history", "near_unreachable",
 )
+#: ``watch_floor_unmet``, ``watch_nothing_further`` AND ``release_dates_only`` ARE THE 09-11
+#: NON-OBVIOUS RULING'S THREE WORDS, and each names a STATE of the watch list rather than an outage of
+#: a producer.
+#: ``watch_floor_unmet`` is the honest absence line: no forward item on this board cleared the
+#: admission floor, so the section prints ONE line saying so rather than padding a ceiling. The ruling
+#: is explicit that the ceilings are ceilings -- "four backed items and one honest absence line beat
+#: five rows where two are noise" -- and a vocabulary with no word for the zero case would have made
+#: that unrenderable.
+#: ``watch_nothing_further`` is the PARTIAL fill's word, and it is a separate one because the sentence
+#: is a separate fact. A tier whose ceiling is five and whose board cleared the bar with four says
+#: "nothing FURTHER cleared it"; reusing ``watch_floor_unmet`` there printed "nothing forward on this
+#: page clears the bar this list sets" underneath four rows that had just cleared it -- a note
+#: contradicting the rows above it, which review reproduced on el_nino_fanout at a cap of nine.
+#: ``release_dates_only`` is the dated-releases FOOTNOTE's word. A scheduled print is on every desk's
+#: calendar and is banned as a watch ITEM (22 of 68 rows on the shipped page were exactly that); the
+#: dates are still true, so they ride one line outside the ceiling, stamped with a reason that can
+#: never be read as a fired fact by ``watch.watch_leg``.
+#: NEITHER IS REACHABLE WITH THE FLAG OFF: ``watch.watch_rows``' HEAD path stamps none of them, so the
+#: 144-turn replay's ``leg_declines['watch:*']`` histogram is unchanged.
+#: ``watch_core_capped`` IS THE FOURTH, AND IT SPLITS THE PARTIAL FILL IN TWO (review round 3, MAJOR).
+#: ``watch_nothing_further`` says nothing FURTHER cleared the admission bar; the producer emitted it
+#: whenever the ceiling's own DISTINCTNESS caps -- one item per reading, one per source, a third of the
+#: core per kind -- bounded the draw, which is a different fact and was false on every seat that
+#: measured it (36 of 108 replayed seats printed it over alternates that had cleared the same bar).
+#: The caps now carry their own word and their own sentence; the exhausted case keeps the old one.
 WATCH_REASONS: tuple[str, ...] = (
     "no_calendar_rule", "rule_unverified", "no_convention", "no_open_window", "no_policy_date",
+    "watch_floor_unmet", "watch_nothing_further", "watch_core_capped", "release_dates_only",
 )
 RENDER_REASONS: tuple[str, ...] = ("template_register_trip",)
 #: ``recency_facts_off`` IS THE S6-REVIEW ADDITION, and it names a COUPLING rather than an outage. The

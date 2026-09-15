@@ -1731,3 +1731,108 @@ def test_S7r3_shown_value_is_the_ONE_producer_and_the_state_row_reads_it():
     assert ROWS.shown_value(None, 100) is None
     assert ROWS.shown_value(1.0, None) == 1.0          # an undeclared scale is not a scale of nothing
     assert ROWS.shown_value("not a number", 100) is None
+
+
+# === S7b ROUND 4: THE WATCH-BULLET READER (orchestrator ruling (7)) ================================
+# `render._nomination_coverage` counted a nomination USED when one SENTENCE carried every one of its
+# token groups. MEASURED on the three S7b real-seat draws that read 5 of 37 where a human read of the
+# same pages found all 13 shipped watch bullets resting on a nomination. The rule is now PER BULLET,
+# and these are the pins on the two producers that make a bullet a bullet: `_nom_watch_bullets` says
+# WHICH list items are watch items, `_nom_identity` says what a nomination is CALLED.
+def _nom_line(kind, driver, handle, *, board="CBOT soybeans", slot="ceiling", i=1, n=3, dates="",
+              what="the reading is past the line the desk convention calls behind"):
+    """ONE nomination line, minted through THE SHIPPED BUILDER.
+
+    `sb_watch` renders the line the reader meets and both producers key on that line and on nothing
+    else, so a deck that hand-typed the string would be grading its own typing rather than the render."""
+    from leviathan.graphrag.state import watch as WA
+    return R.sb_watch({"kind_words": WA.NONOBVIOUS_KIND_WORDS[kind],
+                       "label": f"{driver} on {board}", "backing_handle": handle, "slot": slot,
+                       "slot_size": n, "slot_index": i, "what": what, "dates": dates})
+
+
+def test_S7b4_a_WRAPPED_bullet_is_ONE_item_and_a_blank_line_a_marker_or_a_heading_ends_it():
+    """A BULLET IS THE WHOLE LIST ITEM. The real-seat draws wrapped their watch items across lines and
+    across sentences -- the name in the head, the window in the tail -- and a reader that stopped at
+    the newline would ask each fragment to carry the whole identity, which is the defect this landing
+    closes. Three things end an item and nothing else does: a blank line, the next marker, a heading."""
+    page = ("## What to watch\n"
+            "- **Crude oil** -- below the elevated line, three months rising,\n"
+            "  about thirty-nine percent of the way from zero [N31].\n"
+            "  Its window runs to 2027-02-28.\n"
+            "- **Board crush margin** -- running at, not through, the high line [N19].\n"
+            "\n"
+            "A closing paragraph that is not a bullet at all.\n")
+    buls = R._nom_watch_bullets(page)
+    assert len(buls) == 2, buls
+    assert "[N31]" in buls[0] and "2027-02-28" in buls[0], buls[0]
+    assert "crush" in buls[1] and "2027-02-28" not in buls[1]
+    assert "closing paragraph" not in " ".join(buls)
+
+
+def test_S7b4_the_watch_section_is_HEADING_SCOPED_and_the_mechanism_bullets_stay_out():
+    """THE SECTION IS WHAT KEEPS THE MECHANISM MOVEMENT OUT. `soybeans_now` shipped ten list items,
+    five of them under `## Mechanism` citing [N19], [N7], [N1] and [N34]; a rule that counted every
+    bullet on the page would have credited the watch list with the mechanism's citations."""
+    page = ("## Mechanism\n"
+            "- **Crush pull.** The board reads 1.06 USD per bushel [N19].\n"
+            "- **Export pace.** Weekly sales 664.8 thousand MT [N7].\n"
+            "## Cross-commodity\n"
+            "- **CME palm oil** -- the same reading is declared there.\n"
+            "## What to watch\n"
+            "- **Weekly US export sales** [N7]: past the line the desk calls behind.\n")
+    buls = R._nom_watch_bullets(page)
+    assert len(buls) == 1 and buls[0].startswith("**Weekly US export sales**"), buls
+    # ...and the section closes at the NEXT heading of any level, not at the end of the page
+    assert R._nom_watch_bullets(page + "## The record\n- a record bullet after the watch list\n") \
+        == buls
+    # THE HEADING IS THE CONTRACT'S, NOT THE WRITER'S: `response_contracts` declares the four and
+    # `narration.MANDATE_MOVEMENTS` maps the WATCH movement onto one of them. The rule keys on the
+    # WORD, so the declared heading opens a section and so does the same heading with a word added.
+    declared = dict((m[0], m[1]) for m in N.MANDATE_MOVEMENTS)["WATCH"]
+    assert "watch" in declared.lower()
+    assert R._nom_watch_bullets(declared + "\n- an item under the declared heading\n") \
+        == ["an item under the declared heading"]
+    assert R._nom_watch_bullets(declared + " for\n- an item under a widened heading\n") \
+        == ["an item under a widened heading"]
+
+
+def test_S7b4_the_BLOCK_MARKER_needs_no_heading_which_is_what_makes_the_ZERO_WRITER_read_exact():
+    """THE ZERO-WRITER INPUT IS THE BLOCK HANDED BACK VERBATIM, and the block writes no headings. Its
+    nomination rows open with `- WATCH {kind words}`, so they are read as the watch list they are --
+    while the block's OTHER sixty-odd list items (SB-1 rows, path rows, receipts) are correctly left
+    out, which is why the baseline can be all-used / none-added EXACTLY rather than approximately."""
+    lines = [_nom_line("past_the_line", "export pace lag", 7, i=1, n=2),
+             "- [N1] El Nino on CBOT soybeans, NOAA ONI for 2026-08-31: +0.98 degC",
+             "- El Nino is declared to move CBOT soybeans in the opposite direction",
+             _nom_line("spillover_reach", "crude oil", 31, slot="nomination", i=1, n=2)]
+    buls = R._nom_watch_bullets("\n".join(lines))
+    assert len(buls) == 2, buls
+    assert all(b.upper().startswith("WATCH ") for b in buls)
+
+
+def test_S7b4_a_page_with_NO_watch_heading_and_NO_marker_has_NO_watch_bullets():
+    """FAIL CLOSED. A writer that shipped no watch list is credited with nothing rather than charged
+    for a list nobody can find -- and no bullet of some other movement is pressed into the count."""
+    assert R._nom_watch_bullets("") == []
+    assert R._nom_watch_bullets("## Mechanism\n- a bullet under another heading [N7]\n") == []
+    assert R._nom_watch_bullets("just prose, no list at all, watch or otherwise") == []
+
+
+def test_S7b4_the_identity_is_the_HANDLE_and_the_DRIVER_HALF_of_the_label():
+    """A NOMINATION'S TWO NAMES, read off its own rendered line. `sb_watch` prints
+    `{kind words} {driver} on {board}{citation}{slot mark}: {claim}`, so the label is cut at the first
+    of the three and split at its last " on " -- the BOARD half is not the series key and must not be,
+    or every nomination on one board would answer to every bullet that named the board."""
+    from leviathan.graphrag.state import watch as WA
+    words = tuple(f"- WATCH {w} " for w in WA.NONOBVIOUS_KIND_WORDS.values())
+    hs, key = R._nom_identity(_nom_line("past_the_line", "export pace lag", 7, i=1, n=7), words)
+    assert hs == frozenset({7})
+    assert key == ("export pace lag",), key
+    # the estate's ONE relaxation (`_name_words`): the last word alone, at five characters or more
+    _hs, key2 = R._nom_identity(_nom_line("approaching_line", "flash drought", 28), words)
+    assert key2 == ("flash drought", "drought"), key2
+    # a nomination whose backing row never rendered carries NO citation, and the series key is all it
+    # has -- which is why the key leg exists at all
+    hs3, key3 = R._nom_identity(_nom_line("recurrence", "Argentina export registration", 0), words)
+    assert hs3 == frozenset() and key3[0] == "Argentina export registration"

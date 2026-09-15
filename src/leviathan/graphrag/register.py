@@ -749,13 +749,132 @@ def lane_b_hits(text: str) -> int:
     return n
 
 
-def _is_banned_sentence(sent: str, *, market_register: str = FENCED, derivation_ok: bool = False) -> bool:
+# ══ S7b R1 -- WORDS ARE FREE (owner ruling 2026-09-15 16:30Z, superseding the closed-world ruling). ══
+# THE FLAG KEEPS ITS NAME AND CHANGES ITS MEANING. `GRAPHRAG_REGISTER_LICENCE` no longer buys a
+# sentence its words back by proving a figure behind them; it RETIRES THE VALUATION / FLOW-WORD STRIKE
+# outright. The owner read HEAD's fence striking sentences for the words `crowded`, `rich` and
+# `tight` and ruled: the writer should talk like that. The estate's own doctrine already said it --
+# `feedback_fences_correct_never_delete`: WORDS ARE FREE, ONLY PRINTED FIGURES MUST BE BACKED -- and two
+# rounds of "licence" were spent earning back a freedom the writer should simply have had.
+#
+# SO THE CLASSIFICATION IS THE INSTRUMENT. Every rule the FENCED strip can convict a sentence on was
+# read and put in one of two columns; the column decides what the flag does to it, and nothing else
+# does. The full table with its corpus exemplars is `scratchpad/s7b/fix4/RULE_CLASSIFICATION.md`; the
+# short form is here, because a reader of this file must not have to go and find it.
+#
+#   RETIRED UNDER THE FLAG -- a rule that strikes on WORDS ALONE:
+#     * Lane B, both triads (`cheap|rich|expensive` / `stretched|vulnerable|crowded` beside a window
+#       noun)                     -- "Positioning looks crowded here."
+#     * the Lane-A BAR shapes     -- "The spread screens cheap." / "Managed money is crowded long."
+#     * the Lane-A SQUEEZE family, all eighteen alternations -- "vulnerable to a squeeze", "a squeeze
+#       is coming", "expect a squeeze": a positioning OPINION, printing no figure and dating nothing
+#     * the Lane-A flow nouns     -- "pain trade", "forced covering", "capitulation", "offside",
+#       "coiled spring", "dry powder", "one-sided positioning", "if funds cover"
+#     * the Lane-A valuation ADJECTIVES that name no figure -- "undervalued", "overvalued",
+#       "mispriced", "dislocated", "overdone", "overshot", "screens cheap"
+#   KEPT, FLAG ON OR OFF, BYTE FOR BYTE:
+#     * A2 EXECUTION (`_EXEC_PHRASES` / `_EXEC_EXTRA` / `_EXEC_AMBIG` / `_POSITION_SIZING`) -- the
+#       owner's ratified decision, neither widened nor relieved by this ruling
+#     * the two structural CLASS rules: forward convergence (a spread noun + a convergence verb + a
+#       futurity marker) and persistence denial ("that premium cannot last") -- both are FORECASTS
+#     * the C-family REVERSION idioms ("due for a correction", "mean-reversion") -- forecasts again
+#     * the two Lane-A members that name a FIGURE the platform cannot back: `price target` /
+#       `price objective` and `fair value` (the ruling names both)
+#     * every printed-figure fence outside this module's word lanes: `bare_digit_verdict`, the OUTLOOK
+#       derivation gate, `unbacked_levels` -- none of them is asked about a word at all
+#
+# THE PRE-EXISTING A2 HOLE IS NAMED, NOT WIDENED (ruling (2a)). A sentence that hangs an instruction
+# off a clause edge in a shape the A2 detector never carried -- "..., so hold the length into the
+# report" -- ships at HEAD today, because `_EXEC_PHRASES` and `_EXEC_EXTRA` do not see it and nothing
+# else charges it. Rounds 3 and 4 tried to close that hole with a frame list inside the licence and the
+# review measured both attempts failing in both directions at once (advice still shipping, readings
+# deleted). This round does not try again: the hole is HEAD's, it is stated here, and it is MEASURED BOTH
+# WAYS. Real-seat: 0 true execution instructions in the 729 + 148 + 149 sentences (fix4/ACCEPTANCE.txt).
+# Constructed (vr5/v3_a2hole.py, 40 instruction tails x 5 retired-word carriers): 80 of 200 sentences
+# that HEAD struck -- for the WORD they carried, never for the instruction -- SHIP under the flag
+# ('Positioning is crowded, so trim the position.'), because the word fence was HEAD's only INCIDENTAL
+# screen over instruction shapes the A2 detector never saw; the same instruction on a neutral carrier
+# ('The ending-stocks row moved, so buy at 240.') ships at HEAD with no flag anywhere. The A2 regexes are
+# byte-identical to HEAD, `licence_kept_charge` asks them FIRST, and the licence is monotone (0 strikes
+# added over 992 sentences). The instrument that watches this class is `exec_leaks` on the judge read. What
+# closes it, when the estate decides to close it, is a widening of the A2 detector on BOTH arms, which
+# is a blast-radius decision and not a licence's to take.
+#
+# WHAT THE FLAG MAY NOT DO, RESTATED AS CODE: the licence is an ARGUMENT (this module reads no
+# environment), it is asked LAST, and it can only ever turn a `True` into a `False` on a sentence whose
+# every charge is in the retired column. `register_leaks`, `internal_leaks`, `market_leaks`,
+# `count_valuation_words`, `count_flow_words`, `lane_b_hits` and `exec_leaks` take no licence argument
+# and are numerically unchanged on both arms: the COUNTERS keep counting the words the STRIKE now lets
+# through, which is what makes the arm measurable.
+#: The KEPT half of Lane A -- the two alternations that name a FIGURE rather than a mood. Copied
+#: VERBATIM out of `_VALUATION_PHRASES` (same words, same order), so a phrase can be in this set only
+#: by being in that one. `take-profit`, `stop-loss`, `go long`, `buy the dip`, `worth fading`,
+#: `relative value trade`, `at attractive levels`, `entry point`, `is a buy`, `load up` and
+#: `accumulate here` are absent NOT because they are free but because `_EXEC_PHRASES` -- a strict
+#: subset of the same pattern -- has already convicted them two screens up, on every register and
+#: under every licence.
+_LICENCE_KEPT_VAL = re.compile(
+    r"\bprice (target|objective)s?\b"
+    r"|\bfair value\b", re.I)
+
+
+def licence_kept_charge(sent: str) -> str:
+    """The reason this sentence is STILL struck with the licence on, or "" when words-are-free keeps it.
+
+    ONE PRODUCER, FOUR READERS: `_is_banned_sentence`'s licence clause, `bar_shaped_spans` (and through
+    it `register_leaks_excluding_bar`, the declared population the eval gate reads), `config_check`
+    clause (n1) and the deck. The round-2 lesson is why it is public: a pin that infers the predicate
+    from a strip decision grades a guard that may never have run.
+
+    PURE, and it names the FIRST column the sentence falls in -- the same order `_is_banned_sentence`
+    decides in, so the two can never disagree about why."""
+    s = str(sent or "")
+    if _EXEC_PHRASES.search(s) or _exec_extra_hits(s):
+        return "a2_execution"
+    if _REVERSION_PHRASES.search(s):
+        return "forecast_reversion"
+    if _SPREAD_NOUN.search(s) and _CONVERGE_VERB.search(s) and _FUTURITY.search(s):
+        return "forecast_convergence"
+    if _PERSISTENCE.search(s) and _PRICE_SPREAD_NOUN.search(s):
+        return "forecast_persistence"
+    if _LICENCE_KEPT_VAL.search(s):
+        return "unbacked_figure_claim"
+    return ""
+
+
+def _is_banned_sentence(sent: str, *, market_register: str = FENCED, derivation_ok: bool = False,
+                        bar_licence=None) -> bool:
     """Is this ONE sentence banned under `market_register`?
 
     FENCED (the default, today's behaviour byte-for-byte): A or B or C or D or E.
     OUTLOOK (W5.0): A2 execution idioms, the C-family reversion idioms and the C forward-convergence class
     rule stay banned; A1 / B / D / E are PERMITTED and the DERIVATION GATE takes over -- a sentence stating
-    an uncited price level is banned unless the unit's arithmetic is shown and its inputs cited."""
+    an uncited price level is banned unless the unit's arithmetic is shown and its inputs cited.
+
+    `bar_licence` (S7b R1) is the WORDS-ARE-FREE LICENCE, and it is an ARGUMENT for the reason every
+    other scope here is: this module reads no environment, so a mis-plumbed enable can never relax the
+    suggester chip guard, the numbers/news/live bodies or a lint. DEFAULT None = today's decision byte
+    for byte on every input.
+
+    IT IS READ AS A FLAG AND NO LONGER CALLED, and that is the owner's 2026-09-15 16:30Z ruling in one
+    line. Rounds 1-3 threaded a callable `sentence -> verify.bar_adjective_verdict` and asked it whether
+    a FIGURE backed the sentence's adjective; the strike is now retired for the WORD regardless of the
+    verdict, so the verdict has exactly one job left and it is not this one -- it decides the CORRECTING
+    CLAUSE at `answer._bind_bar_adjectives`, where a served figure that CONTRADICTS the adjective earns
+    an appended clause. The seam still threads the same callable, so the signature, the plumbing and the
+    dark contract are unchanged and any truthy licence reads the same.
+
+    WHAT THE LICENCE MAY DO, AND ONLY THIS: relieve the STRIKE on a sentence whose every market-lane
+    charge is a WORDS-ONLY one (`licence_kept_charge` returns "" -- the classification block above says
+    which rules those are, and why each is in the column it is in).
+
+    WHAT IT MAY NOT DO: it is not consulted for A2 execution, for the reversion idioms, for the
+    forward-convergence or persistence-denial class rules, for the two Lane-A members that name a figure
+    (`price target`, `fair value`), or anywhere on the OUTLOOK derivation gate -- an unbacked price level
+    is a refusal no register ruling speaks to. And it never touches `register_leaks` / `internal_leaks` /
+    `market_leaks` / `count_valuation_words` / `count_flow_words` / `lane_b_hits`: the chip guard and the
+    eval metrics are numerically unchanged, which is the same blast-radius line `_EXEC_EXTRA` /
+    `_EXEC_AMBIG` already draw two screens up."""
     outlook = (market_register == OUTLOOK)
     # A2 EXECUTION / ADVICE -- unconditional, no register scope permits it (W5.0 + the user's ratified
     # decision: no entry/exit levels, no stops, no sizing, no risk/reward framing, no buy/sell/long/short
@@ -774,11 +893,27 @@ def _is_banned_sentence(sent: str, *, market_register: str = FENCED, derivation_
     if _SPREAD_NOUN.search(sent) and _CONVERGE_VERB.search(sent) and _FUTURITY.search(sent):
         return True
     if not outlook:
-        if _VALUATION_PHRASES.search(sent) or _FLOW_PHRASES.search(sent):
-            return True
+        # THE DECISION IS HEAD'S, TRUTH TABLE FOR TRUTH TABLE, and the shape changed only so the
+        # licence has one place to be asked. HEAD read: `if LaneA: True` / `if persistence: True` /
+        # `return bool(LaneB)`. Over the three independent predicates the two agree on all eight
+        # rows -- LaneA true still returns True (through the tail below), persistence still returns
+        # True on its own, LaneB alone still returns True, and nothing matching still returns False.
+        # Lane B stays LAZY behind the `or`, exactly as HEAD's ordering made it, so a sentence a Lane-A
+        # phrase already convicted does not pay for the window-noun scan.
         if _PERSISTENCE.search(sent) and _PRICE_SPREAD_NOUN.search(sent):
-            return True
-        return bool(_lane_b_in_sentence(sent, _LANE_B_VAL_RX) or _lane_b_in_sentence(sent, _LANE_B_FLOW_RX))
+            return True                     # the persistence-denial CLASS rule: structural, never licensed
+        if not (_VALUATION_PHRASES.search(sent) or _FLOW_PHRASES.search(sent)
+                or _lane_b_in_sentence(sent, _LANE_B_VAL_RX)
+                or _lane_b_in_sentence(sent, _LANE_B_FLOW_RX)):
+            return False
+        # WORDS ARE FREE, and the clause is asked LAST -- after every unconditional clause above has
+        # had its say, so the only charges left to retire are the words-only ones. `licence_kept_charge`
+        # re-asks the three clauses above (they cannot fire here, having returned True already) because
+        # ONE producer answering "why is this still struck" is worth three redundant searches on a LIT
+        # turn and costs a dark one nothing.
+        if bar_licence is not None:
+            return bool(licence_kept_charge(sent))
+        return True
     # OUTLOOK: the vocabulary ban is replaced by the derivation gate. A BARE number is a refusal, and so is
     # a DERIVED output whose anchor was never cited -- see unbacked_levels for why a handle is not enough.
     if derivation_ok:
@@ -790,9 +925,20 @@ def _is_banned_sentence(sent: str, *, market_register: str = FENCED, derivation_
 
 def _strip_banned_sentences(seg: str, *, market_register: str = FENCED,
                             derivation_ok: bool | None = None,
-                            unit_span: tuple[int, int] | None = None) -> str:
+                            unit_span: tuple[int, int] | None = None,
+                            bar_licence=None) -> str:
     """Drop each sentence carrying a Lane A / class-rule / Lane B leak (the verify.py strip precedent). Never
-    a paraphrase. Superset of register_leaks' new-lane conditions, so register_leaks(sanitize(x)) == [] holds.
+    a paraphrase. Superset of register_leaks' new-lane conditions, so register_leaks(sanitize(x)) == [] holds
+    WITH `bar_licence=None` -- which is every flag-off turn, and the invariant HEAD ships.
+
+    UNDER A LICENCE THE INVARIANT IS `register_leaks_excluding_bar(sanitize(x, bar_licence=...)) == []`,
+    and the difference is the point of the instrument rather than a hole in it: a bar-adjective sentence
+    the licence keeps is a sentence `market_leaks` still charges, because the counters take no licence
+    (`check_register_seam` clause (d), the suggester chip guard rests on it). MEASURED on the 97-case
+    corpus: licence OFF 0/97 violations of the old form, licence ON 2/97 -- and 0/97 of the new form on
+    both arms. A consumer that must not charge the instrument's own output calls the second producer and
+    says which population it means; see the block note above `bar_shaped_spans`.
+
     Under `market_register=OUTLOOK` the fast path is skipped (the derivation gate fires on plain numbers that
     carry no fence vocabulary at all) and `derivation_ok` is computed once for the segment when not supplied.
 
@@ -800,6 +946,10 @@ def _strip_banned_sentences(seg: str, *, market_register: str = FENCED,
     sentences whose offset falls inside it. Default: computed from `seg` (whole seg when no '## Outlook'
     heading is rendered, so single-section prose is unchanged)."""
     outlook = (market_register == OUTLOOK)
+    # THE FAST PATH IS HEAD'S ON BOTH ARMS AGAIN. Round 3 skipped it under a licence because the advice
+    # CUT had to walk every sentence of a lit turn; the cut is gone (the ruling removed it), and the
+    # licence can only ever RELIEVE a charge -- so a segment carrying none of this vocabulary has
+    # nothing to relieve and the screen is exact on either arm.
     if not outlook and not (_VALUATION_PHRASES.search(seg) or _FLOW_PHRASES.search(seg) or _LANE_B_ADJ.search(seg)
                             or _PERSISTENCE.search(seg) or _EXEC_EXTRA.search(seg) or _EXEC_AMBIG.search(seg)
                             or _POSITION_SIZING.search(seg)
@@ -816,7 +966,8 @@ def _strip_banned_sentences(seg: str, *, market_register: str = FENCED,
         delim = toks[i + 1] if i + 1 < len(toks) else ""
         start, pos = pos, pos + len(text) + len(delim)
         if text and _is_banned_sentence(text, market_register=market_register,
-                                        derivation_ok=bool(derivation_ok) and lo <= start < hi):
+                                        derivation_ok=bool(derivation_ok) and lo <= start < hi,
+                                        bar_licence=bar_licence):
             # CYCLE-10 (2026-08-08): THE DROPPED UNIT LEAVES ITS LINE BREAKS BEHIND. `_SENT_KEEP` captures
             # `[.!?;]\s+`, so a unit that ended a LINE owned the terminating "\n" -- dropping it welded the
             # next line onto the previous one. Measured on the gate-7 covenant footer, byte-exact:
@@ -861,6 +1012,246 @@ def internal_leaks(text: str) -> list[tuple[str, str]]:
     return hits
 
 
+# ══ S7b R2 -- THE DESK REGISTER. A THIRD POPULATION, AND IT IS NOT `internal_leaks`. ═══════════════════
+# `internal_leaks` catches a BUG: a slug, a `conf=`, a graph token -- text that is not English at all.
+# This catches something else entirely: ordinary, well-formed English that names THE INSTRUMENT instead
+# of the market. "Reading the board at 2026-09-07, the loudest thing on ICE cocoa is..." is grammatical,
+# register-clean by every shipped detector, and tells a desk reader about our machinery.
+#
+# MEASURED, 2026-09-11, over the NINE banked real-seat answers (`scratchpad/lingo_leaks.py`,
+# re-runnable): 195 internal-vocabulary hits -- board 64, row/rows 54, "the graph" 40, loud 13,
+# knowledge date 10, convention 6, driver 3, state read 2, receipt 2, node 1. 21.7 per answer. The
+# writer COPIES THE BLOCK'S VOCABULARY, which is the predictable cost of handing it a block.
+#
+# AND 20 OF THE 195 ARE ORDINARY MARKET ENGLISH (`scratchpad/s7b/lingo_context.py`: INSTRUMENT 175 /
+# MARKET 20, 10.3%). A BARE TOKEN COUNT WOULD CHARGE THE WRITER FOR OBEYING THE MANDATE:
+#   * "the board price tape runs through 2026-09-04" is `narration.RECENCY_LEDGER_SENTENCE`'s own words
+#     AND the mandate's movement (2) instruction AND `render._RECENCY_LAYER_WORDS`' `tape` group;
+#   * "past the line the desk convention calls tight" is `state/render.py:703` VERBATIM -- block text the
+#     writer is supposed to copy;
+#   * "board crush" is a real CBOT spread and the convention ref `cbot_board_crush_margin`;
+#   * "the CBOT soybean board" is how a desk says it.
+# So the ban is BY PHRASE WITH A DECLARED EXEMPTION TABLE, and NO `render.py` or `narration.py` literal is
+# reworded to suit it: rewording either would change the flag-on block and the flag-on prompt for every
+# board turn, which is the byte-identity this whole sitting rests on. EXEMPT, never reword.
+#
+# `driver` IS DELIBERATELY NOT A MEMBER. `_JARGON_SUBS` REWRITES "the node" INTO "the driver" (:893-898):
+# a lint charging the word would charge the estate's own repair. The context census agrees -- 0
+# INSTRUMENT / 3 MARKET on all three occurrences.
+#
+# NOT SHIPPED, and stated rather than silently omitted: `cascade`, `spillover`, `fan-out`, `the walk` and
+# `series key` are in the measurement's vocabulary and scored ZERO on all nine answers. The estate's own
+# "one specific example, one fix, one pin" law says a word with no measured hit earns no clause, and the
+# first three are ordinary desk English besides.
+#: (name, pattern, the plain words that replace it). The replacements are the mandate's own table, so the
+#: lint and the prompt teach ONE vocabulary.
+DESK_REGISTER_TOKENS: tuple = (
+    ("board", r"\bboards?\b", "the market, or 'the data as of <date>'"),
+    ("row", r"\brows?\b", "the record, this series, the latest print"),
+    ("the graph", r"\bthe graph\b", "the mechanism, the driver model"),
+    # THE REPLACEMENT WORDS ARE THEMSELVES REGISTER-GRADED. "the most stretched reading" was the first
+    # draft here and it reds `narration.check_literals` on `lane_b_adjective`: `stretched` is one of
+    # `_LANE_B_ADJ`'s six. A prompt that taught a fenced word would be the convention registry's own
+    # 2026-09-11 collision (yaml:15-21) re-enacted in the mandate.
+    ("loud", r"\bloud(?:est|er|ness)?\b", "the largest move, the reading furthest from its own record"),
+    # ROUND-3 (2026-09-15): `an older reading` IS PART OF THE REPLACEMENT, and it is here because the
+    # claim guard gained the comparative class on the same commit. The measured honest rewrite of this
+    # row's own charge is "Two rows have spent their knowledge date." -> "Two series are read through
+    # OLDER dates.", and a guard that froze the comparative multiset would have refused it while the
+    # adversarial inversion ("NEWER dates") is refused for the reason it should be -- a claim word from
+    # nowhere. ONE PRODUCER, again: `answer._desk_allowed_stems` reads this column, so teaching the
+    # word and permitting it are the same edit.
+    ("knowledge date", r"\bknowledge dates?\b",
+     "read through <date>, as of <date>, an older reading when it is one"),
+    ("convention", r"\bconventions?\b", "the desk's own line for this series"),
+    ("state read", r"\bstate reads?\b", "the latest print"),
+    ("receipt", r"\breceipts?\b", "the dated report"),
+    ("node", r"\bnodes?\b", "the driver"),
+    ("series key", r"\bseries keys?\b", "this series"),
+    ("the walk", r"\bthe walk\b", "the chain"),
+)
+#: The EXEMPTIONS, each with (a) the TOKENS it exempts and (b) the measured reason it is here. A token
+#: hit whose span falls inside one of these AND whose name this row names is ordinary market English and
+#: is never charged.
+#:
+#: ROUND-3 REVIEW MINOR (2026-09-15): THE SECOND FIELD IS NEW AND IT CLOSES A LATENT SWALLOW. The rows
+#: were applied as pure SPAN CONTAINMENT across all eleven tokens, so an exemption written for `board`
+#: silently dropped every `loud` / `row` / `convention` charge lying inside its own window --
+#: 'On the CME, the loudest thing on the board is the crush.' and 'Against the MATIF curve, the loudest
+#: row on the board is drought.' both scored ZERO under the 40-character exchange window, and
+#: 'The Current Board reads two-sided.' / '## State Of The World Board' scored zero under the
+#: proper-name rule. MEASURED ZERO on the nine banked answers (15 `board` and 3 `convention` swallows,
+#: every one legitimately about its own token, 0 foreign), so this is a latent hole closed rather than a
+#: loss recovered -- and every row here exempts exactly ONE token, which is the whole point: an
+#: exemption is an argument about a WORD, never about the characters near it.
+DESK_REGISTER_EXEMPT: tuple = (
+    (r"\bthe board price tape\b", ("board",),
+     "narration.RECENCY_LEDGER_SENTENCE and the mandate's movement (2): the writer is TOLD to write it"),
+    (r"\bboard (?:price|prices|margin|margins|spread|spreads|crush|lot|lots)\b", ("board",),
+     "a futures board's own price / margin / spread; 'board crush' is a CBOT spread and the convention "
+     "ref cbot_board_crush_margin"),
+    (r"\b(?:CBOT|CME|ICE|DCE|BMD|Bursa|MATIF|Euronext|JSE|B3|KCBT|MGEX|NYBOT|LIFFE|ZCE|CZCE|SHFE|MDEX)"
+     r"\b[^.\n]{0,40}?\bboards?\b", ("board",), "'<exchange> ... board' -- the CBOT soybean board"),
+    (r"\b(?:soybean|soyabean|soy|corn|maize|wheat|palm|cocoa|coffee|sugar|cotton|rice|canola|rapeseed"
+     r"|oat|barley|sorghum|hog|cattle)s?\s+boards?\b", ("board",),
+     "'<commodity> board' -- desk English"),
+    # REVIEW MAJOR 7 (2026-09-11): A NAMED INSTITUTION IS NOT THE INSTRUMENT. The commodity rule above
+    # requires the crop token ADJACENT to `board`, so "Ghana Cocoa Board" and "Canadian Wheat Board"
+    # were exempt while "Malaysian Palm Oil Board" was CHARGED -- in prose, in an abbreviation gloss and
+    # in a "Source: Malaysian Palm Oil Board - Monthly Palm Oil Statistics, 2026-09-10." line (3 of 3
+    # probes). MPOB is a SERVED SOURCE FAMILY in this estate -- `silver_mpob` is a board table and
+    # `mpob_ending_stocks` is one of the four `verify.BAR_FAMILY_REFS` level-decile refs the licence
+    # itself reads -- so the lint was charging a document title the brief's own requirement names, and
+    # then handing that sentence to a rewrite told not to say "board". CASE IS THE DISCRIMINATOR and it
+    # is spelled with a scoped flag reset, because the whole table compiles case-insensitively: TWO OR
+    # MORE capitalised words before a capital "Board" is a proper name ("Malaysian Palm Oil Board"), one
+    # is not ("The Board"), and the instrument's own leak is always lower case ("reading the board").
+    # ROUND-3 REVIEW MINOR (2026-09-15): A CASE TEST IS NOT A NAME TEST. The rule scored ZERO on
+    # 'The Current Board reads two-sided.', 'The State Board is two-sided.', 'Our Internal Driver
+    # Board reads two-sided.', 'The Leviathan State Board reads two-sided.', 'On The Cocoa Board the
+    # reading is two-sided.' and the heading '## State Of The World Board' -- while the identical
+    # lower-case "the board reads two-sided" is charged. Title Case is a STYLE, and a headline, a
+    # heading and a capitalised determiner all wear it; the lint's own note says an exemption is "an
+    # argument about a WORD, never about the characters near it", and this one had become an argument
+    # about capitalisation. So the capitalised run must now be made of NAME words: a leading
+    # determiner or pronoun cannot be one (it is grammar, not a name), and neither can any of this
+    # instrument's OWN self-reference words, which is what every measured false exemption was built
+    # out of. MEASURED COST ON THE NINE BANKED ANSWERS: ZERO -- all 18 exemptions there are
+    # legitimate and all 18 survive.
+    (r"(?-i:\b(?:(?!(?:The|A|An|This|That|These|Those|Our|Its|Their|My|Your|His|Her|Each|Every"
+     r"|Some|Any|No|Of|On|In|At|For|State|Current|Latest|World|Internal|External|Driver|Drivers"
+     r"|Board|Reading|Readings|Graph|Walk|Cascade|Leviathan)\b)[A-Z][A-Za-z&.'’-]+\s+){2,5}"
+     r"Board\b)", ("board",),
+     "a NAMED institution: '<Proper Name> Board' -- Malaysian Palm Oil Board, Ghana Cocoa Board, "
+     "Canadian Wheat Board. MPOB is a served source family (silver_mpob / mpob_ending_stocks). The "
+     "run may not be built out of determiners or of this instrument's own words"),
+    (r"(?-i:\bBoard\s+of\s+(?:Trade|Directors|Governors)\b)", ("board",),
+     "'Board of Trade' -- the Chicago Board of Trade's own name, and the two corporate-body idioms"),
+    (r"\bthe desk convention calls\b", ("convention",),
+     "state/render.py:703 VERBATIM -- the block's own sentence"),
+    (r"\b(?:market|desk|trade|trading|industry|reporting|delivery|contract)\s+conventions?\b",
+     ("convention",), "ordinary market English for a trade practice"),
+    (r"\brow\s+crops?\b", ("row",), "corn and soybeans ARE row crops"),
+    (r"\b(?:registered|warehouse|delivery|shipping|exchange|depositary)\s+receipts?\b",
+     ("receipt",), "a deliverable-supply term"),
+    (r"\breceipts?\s+of\b", ("receipt",),
+     "REVIEW MAJOR 7: 'receipt of X' is the ordinary English RECEIVING, not the instrument's dated "
+     "report -- measured on 'the USDA Agricultural Marketing Service Livestock Mandatory Reporting "
+     "receipt of bids'"),
+    (r"\bdeath\s+cross\b|\bnode\s+of\s+the\s+(?:port|terminal)\b", ("node",),
+     "reserved: named market idioms"),
+)
+_DESK_TOKEN_RX = tuple((n, re.compile(p, re.I), r) for n, p, r in DESK_REGISTER_TOKENS)
+#: (compiled, the frozen set of token names it exempts, why). An EMPTY name set would exempt every
+#: token; no row declares one today and the lint below refuses one that names a token off the table.
+_DESK_EXEMPT_RX = tuple((re.compile(p, re.I), frozenset(names), why)
+                        for p, names, why in DESK_REGISTER_EXEMPT)
+
+
+def check_desk_exempt_table() -> list[str]:
+    """Every exemption names at least one token, and every token it names is on the ban table. Read by
+    `config_check` -- an exemption for a word the table does not carry is dead text pretending to be a
+    fence, and one naming NOTHING is the span-containment swallow this round closed."""
+    known = {n for n, _p, _r in DESK_REGISTER_TOKENS}
+    errs: list[str] = []
+    for pat, names, _why in DESK_REGISTER_EXEMPT:
+        if not names:
+            errs.append(f"desk_register_exempt: {pat!r} names no token -- it would exempt all eleven")
+        for n in names:
+            if n not in known:
+                errs.append(f"desk_register_exempt: {pat!r} names {n!r}, which is not a banned token")
+    return errs
+
+
+def _desk_exempt_spans(prose: str) -> list[tuple[int, int, frozenset]]:
+    """(start, end, the token names this span exempts) for every exemption match in ``prose``."""
+    return [(m.start(), m.end(), names)
+            for rx, names, _why in _DESK_EXEMPT_RX for m in rx.finditer(prose)]
+
+
+def desk_register_spans(text: str) -> list[tuple[int, int, str]]:
+    """(start, end, token) for each charged INSTRUMENT word, as offsets into ``_strip_mermaid(text)``.
+
+    THE PRODUCER `desk_register_hits` IS BUILT ON, so the count and the span can never disagree about
+    which words are charged. It exists because a consumer needs the SPANS and not the labels: the
+    rewrite's overlap guard (answer.`_desk_content_ex_instrument`) measures how much of a sentence
+    SURVIVED a rewrite, and the instrument words are exactly the part it is allowed to lose. Masking by
+    span is right where a stem list would be wrong -- the `loud` pattern charges "loudest", whose stem
+    is not "loud"."""
+    prose = _CIT_HANDLE.sub(lambda m: " " * len(m.group(0)), _strip_mermaid(text))
+    exempt = _desk_exempt_spans(prose)
+    out: list[tuple[int, int, str]] = []
+    for name, rx, _repl in _DESK_TOKEN_RX:
+        for m in rx.finditer(prose):
+            if any(a <= m.start() and m.end() <= b and name in names for a, b, names in exempt):
+                continue
+            out.append((m.start(), m.end(), name))
+    return sorted(out)
+
+
+def desk_register_masked(text: str) -> str:
+    """``text`` with every CHARGED instrument word blanked out, same length, same offsets. The unit a
+    caller means when it asks "what did this sentence say APART from naming the instrument"."""
+    prose = _CIT_HANDLE.sub(lambda m: " " * len(m.group(0)), _strip_mermaid(text))
+    chars = list(prose)
+    for a, b, _n in desk_register_spans(text):
+        for i in range(a, min(b, len(chars))):
+            chars[i] = " "
+    return "".join(chars)
+
+
+def desk_register_hits(text: str) -> list[tuple[str, str]]:
+    """(token, short-context) for each INSTRUMENT word in reader prose, exemptions applied. Empty = clean.
+
+    CITATION HANDLES ARE MASKED FIRST -- the ruling's own scope ("outside [N] handles"): a handle is an
+    address the reader clicks, not prose, and `[N13]`-shaped text carries none of these words anyway.
+    Masking rather than deleting keeps every offset, so a context window still reads as written.
+
+    A SEPARATE PRODUCER FROM `internal_leaks`, AND IT MUST STAY ONE. That detector is NEVER RELAXABLE and
+    is the suggester's chip guard; this one is a REGISTER question with a CORRECTING remedy, and folding
+    a correctable population into an uncorrectable one would make the guard relaxable by the back door."""
+    prose = _CIT_HANDLE.sub(lambda m: " " * len(m.group(0)), _strip_mermaid(text))
+    spans = _desk_exempt_spans(prose)
+    hits: list[tuple[str, str]] = []
+    for name, rx, _repl in _DESK_TOKEN_RX:
+        for m in rx.finditer(prose):
+            if any(a <= m.start() and m.end() <= b and name in names for a, b, names in spans):
+                continue
+            hits.append((name, _ctx(prose, m)))
+    return hits
+
+
+def count_desk_register(text: str) -> int:
+    """RAW instrument-word count (the DP-6 counter idiom): measured wherever it is asked, enforced only
+    where the answer seam threaded the flag."""
+    return len(desk_register_hits(text))
+
+
+def desk_register_sentences(text: str) -> list[str]:
+    """The OFFENDING SENTENCES, as a MEASUREMENT of the charged population -- `scratchpad/lingo_leaks.py`
+    and the deck read it; the SERVING remedy does not.
+
+    REVIEW MINOR (2026-09-11), corrected: this used to claim "same segmentation as every other pass
+    here (`_SENT_ITER`), so the rewrite's unit and the lint's unit can never disagree about where a
+    sentence ends". The rewrite (`answer._desk_register_lint`) splits on `_SENT_KEEP`, not `_SENT_ITER`.
+    THE BOUNDARIES AGREE -- both are `[.!?;]\\s+` -- but the CHUNKS do not: `_SENT_ITER` keeps the
+    terminator on the sentence and `_SENT_KEEP` moves it into the delimiter, so the two producers return
+    unequal strings for the same text. The rewrite needs the offsets `_SENT_KEEP` gives it (it splices
+    back by index), which is why it does not call this function, and why this function has no serving
+    caller to disagree with."""
+    out: list[str] = []
+    for sent in _SENT_ITER.split(_strip_mermaid(text or "")):
+        if sent.strip() and desk_register_hits(sent):
+            out.append(sent)
+    return out
+
+
+def desk_register_table() -> str:
+    """The banned-word table as the mandate and the rewrite prompt both print it. ONE producer, so the
+    prompt the writer is given and the prompt the rewrite is given teach the same replacements."""
+    return "; ".join(f"{n} -> {r}" for n, _p, r in DESK_REGISTER_TOKENS)
+
+
 def market_leaks(text: str) -> list[tuple[str, str]]:
     """MARKET-REGISTER leaks: Lane A valuation (A1+A2) + Lane A flow, plus the two structural class rules
     (forward convergence, persistence denial). This is the RELAXABLE subset -- on an outlook turn A1/B/D are
@@ -882,6 +1273,78 @@ def register_leaks(text: str) -> list[tuple[str, str]]:
     -- eval takes len(), the chip guard and the lints take truthiness. Kept as the single public entry point
     so the suggester chip guard (server.py) and the config lints need no edit and CANNOT be relaxed."""
     return internal_leaks(text) + market_leaks(text)
+
+
+# ══ S7b R1 REVIEW MAJOR 2 (2026-09-11) -- THE LICENCE BREAKS THIS MODULE'S OWN POST-SANITIZE INVARIANT,
+# AND THE HONEST FIX IS TO NAME THE RESIDUAL RATHER THAN TO HIDE IT. ══════════════════════════════════
+# `_strip_banned_sentences`' docstring states "register_leaks(sanitize(x)) == [] holds". MEASURED on the
+# 97-case corpus: licence OFF 0/97 violations, licence ON 2/97 -- "A crowded long here unwinds sharply
+# if the catalyst pauses." and "With managed money crowded long on the report date...". That is the
+# instrument WORKING (the ruling is categorical: never strike the sentence), but two consumers read the
+# invariant as a PASS/FAIL and were never told:
+#   * `eval.follow_up_fenced_ok` ends `and not reg.register_leaks(ans)`, so a flag-on turn that KEPT a
+#     licensed sentence failed a conversation gate about carrying the PRIOR turn's vocabulary forward;
+#   * the headline `register_leaks` eval metric rises on the treatment arm for the same reason.
+# THE COUNTERS THEMSELVES DO NOT MOVE AND TAKE NO LICENCE -- that is `check_register_seam` clause (d)
+# and the chip guard rests on it. What ships instead is a SECOND, PURE reading that names the residual
+# by shape, so a consumer that must not charge the instrument's own output can subtract it and say so.
+#: The seven bar adjectives, as REGISTER's own copy of `verify.BAR_ADJECTIVES`' words. It is a copy
+#: because this module imports nothing at module scope and `verify` is the heavier leaf; the two are
+#: asserted EQUAL by `config_check.check_register_seam` clause (d), so a word added to one and not the
+#: other is a build failure rather than a silent divergence.
+_BAR_ADJ_WORDS_RX = re.compile(r"\b(cheap|rich|expensive|stretched|vulnerable|crowded|squeez\w*)\b", re.I)
+
+
+def bar_shaped_spans(prose: str) -> list[tuple[int, int]]:
+    """The (start, end) spans of the sentences the words-are-free licence is PERMITTED to keep: a
+    market-lane charge, and every one of those charges in the RETIRED column (`licence_kept_charge`
+    returns ""). PURE -- no rows, no verdict, no flag: it answers "could the licence have kept this
+    sentence", never "did it".
+
+    ROUND 4 WIDENED THE POPULATION WITH THE RULING, and the NAME is kept because the eval selector, the
+    seam check and the deck all address it: the licence no longer needs a BAR ADJECTIVE to keep a
+    sentence ("this is a pain trade" is a flow word like any other), so the bar-adjective screen that
+    stood here is gone and the one producer decides alone. The subtraction and the strip therefore still
+    agree sentence for sentence, which is the only property `register_leaks_excluding_bar` rests on."""
+    spans: list[tuple[int, int]] = []
+    toks = _SENT_KEEP.split(str(prose or ""))
+    pos = 0
+    for i in range(0, len(toks), 2):
+        text = toks[i]
+        delim = toks[i + 1] if i + 1 < len(toks) else ""
+        start, pos = pos, pos + len(text) + len(delim)
+        if not text.strip():
+            continue
+        if not (_VALUATION_PHRASES.search(text) or _FLOW_PHRASES.search(text)
+                or _lane_b_in_sentence(text, _LANE_B_VAL_RX)
+                or _lane_b_in_sentence(text, _LANE_B_FLOW_RX)):
+            continue
+        if not licence_kept_charge(text):
+            spans.append((start, start + len(text)))
+    return spans
+
+
+def register_leaks_excluding_bar(text: str) -> list[tuple[str, str]]:
+    """`register_leaks` MINUS the Lane-A hits that belong to a sentence the words-are-free licence may
+    keep. Equal to `register_leaks` on every text carrying no such sentence, which is every flag-off
+    turn ever served.
+
+    WHAT IT DOES NOT RELAX, and the list is the same one `_is_banned_sentence` decides ABOVE its licence
+    clause: `internal_leaks` in full (never relaxable, the suggester's chip guard), both structural
+    class rules, every A2 execution idiom, and any sentence carrying a hard Lane-A phrase beside its
+    charge beside its words (`licence_kept_charge` names it, so the span is never exempt). It takes NO
+    licence
+    argument and reads no environment: a consumer choosing it is making a declared statement about
+    which population it means, not turning a fence off."""
+    prose = _strip_mermaid(text)
+    spans = bar_shaped_spans(prose)
+    hits: list[tuple[str, str]] = list(internal_leaks(text))
+    for rx in (_VALUATION_PHRASES, _FLOW_PHRASES):
+        for m in rx.finditer(prose):
+            if any(a <= m.start() < b for a, b in spans):
+                continue
+            hits.append((m.group(0).strip(), _ctx(prose, m)))
+    return hits + _class_rule_hits(prose)
 
 
 # ── sanitizer: rewrite the internal tokens into reader register (prompt discipline alone did not hold) ─────────
@@ -958,7 +1421,7 @@ def _display_map() -> dict[str, str]:
     return out
 
 
-def sanitize(text: str, *, market_register: str = FENCED) -> str:
+def sanitize(text: str, *, market_register: str = FENCED, bar_licence=None) -> str:
     """Rewrite internal tokens into a commodity researcher's register: `conf=high`->"high confidence",
     `sign=+`->"points to higher prices", `(+)`->"(upward price pressure)", any residual "bullish"/"bearish"
     ->"price-supportive"/"price-pressuring", raw contract slugs->spelled-out names, structural markers stripped.
@@ -974,7 +1437,15 @@ def sanitize(text: str, *, market_register: str = FENCED) -> str:
     `market_register` is KEYWORD-ONLY and defaults to FENCED, so the twelve existing call sites are
     byte-identical and the relaxation reaches only a seam that opted in by name. On OUTLOOK the mood words
     (bullish/bearish) also survive, per W5.0 -- they are a directional read, and the derivation gate, not
-    the lexicon, is what keeps that read honest."""
+    the lexicon, is what keeps that read honest.
+
+    `bar_licence` (S7b R1) rides the SAME discipline for the same reason and reaches exactly ONE decision
+    -- `_is_banned_sentence`'s strike -- so the four invariants above hold with it on and off, with one
+    stated exception which is the whole point of it: `market_leaks(sanitize(x, FENCED))` may now return a
+    BAR-ADJECTIVE pair that the strip used to delete. The adjective is still COUNTED everywhere it was
+    (the counters are untouched); what changed is that the reader keeps the sentence, its figure and its
+    handle. IDEMPOTENT with the licence on: the licence is a pure function of the sentence, and the
+    remedy that binds a figure runs upstream at the answer seam, never here."""
     if not text:
         return text
     outlook = (market_register == OUTLOOK)
@@ -1017,6 +1488,6 @@ def sanitize(text: str, *, market_register: str = FENCED) -> str:
             _span = _outlook_span(seg) if (not _has_unit or _OUTLOOK_HEADING.search(seg)) else (0, 0)
         seg = _strip_banned_sentences(seg, market_register=market_register,   # LAST: strip valuation/flow/
                                       derivation_ok=deriv_ok,                 #  Lane-B / A2 / unbacked-level
-                                      unit_span=_span)
+                                      unit_span=_span, bar_licence=bar_licence)
         parts[i] = seg                                                   #   (never a paraphrase -- DP-6 strip)
     return "".join(parts)

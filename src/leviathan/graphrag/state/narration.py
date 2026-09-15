@@ -79,6 +79,69 @@ SYSTEM_STATE_BOARD_MANDATE = (
     "whole. Use no heading called then or now."
 )
 
+#: S7b R2 -- THE DESK REGISTER. A SECOND, FLAG-SCOPED LITERAL, appended under `GRAPHRAG_DESK_REGISTER`
+#: and NEVER an edit to the mandate above, which is the `_SYSTEM_CASCADE_WALK_MANDATE` idiom
+#: ``answer.py`` already uses. Editing :data:`SYSTEM_STATE_BOARD_MANDATE` in place would change the
+#: system prompt on EVERY board-on turn with the new flag off, and the prompt is the first row of this
+#: sitting's byte-identity set.
+#:
+#: WHY IT EXISTS, MEASURED (2026-09-11, ``scratchpad/lingo_leaks.py`` over the NINE banked real-seat
+#: answers): 195 internal-vocabulary hits, 21.7 per answer -- ``board`` 64, ``row``/``rows`` 54,
+#: "the graph" 40, ``loud`` 13, "knowledge date" 10, ``convention`` 6, "state read" 2, ``receipt`` 2,
+#: ``node`` 1. The opening sentence of one prod-seat answer reads "Reading the board at 2026-09-07, the
+#: loudest thing on ICE cocoa is...". THE WRITER COPIES THE BLOCK'S VOCABULARY, which is the predictable
+#: price of handing it a block, and no shipped detector charges a word of it: every one of those tokens
+#: is ordinary English, so ``register_leaks`` -- which catches slugs and ``conf=`` -- is blind by design.
+#:
+#: IT NAMES THE REPLACEMENTS RATHER THAN ONLY THE BAN, and the table comes from
+#: ``register.desk_register_table()`` so the prompt that teaches the vocabulary and the lint that counts
+#: it can never disagree about which words are meant. A ban with no replacement is how a writer loses a
+#: fact rather than a word.
+#:
+#: THE ONE EXCEPTION IS STATED IN THE LITERAL ITSELF, because it is the mandate's own required sentence:
+#: movement (2) above instructs the writer to write "the session the board price tape runs through", and
+#: :data:`RECENCY_LEDGER_SENTENCE` prints "The board price tape runs through {tape_edge}". A rule that
+#: banned ``board`` without naming that phrase would order the writer to disobey the mandate it ships
+#: beside. The lint carries the same exemption as DATA (``register.DESK_REGISTER_EXEMPT``), and neither
+#: this literal nor ``render.py``'s "past the line the desk convention calls X" is reworded to suit it.
+#: REVIEW MAJOR 4 (2026-09-11): THE BAN IS TURN-WIDE, THE RECENCY INSTRUCTION IS NOT.
+#: The mandate shipped as ONE literal on a FLAG-ONLY gate, so its last movement -- "say the newest and
+#: oldest dates the numbers on this page carry, the date of the newest document behind it, and the
+#: session the board price tape runs through" -- rode every flag-on turn, including turns with no board
+#: and no recency leg. Measured: ``_system(desk_register=True)`` carried "board price tape" and "The
+#: RECENCY movement" while :data:`SYSTEM_STATE_BOARD_MANDATE` and :data:`SYSTEM_RECENCY_CLAUSE` were
+#: both absent -- an unconditional instruction whose three facts come from a block that is not there.
+#: That is the exact failure the lane guarded ONE LINE ABOVE at ``answer._system``'s ``watch_selection``
+#: leg ("a writer is never told to select from candidates the board did not nominate"), not applied
+#: here. The BAN half is legitimately turn-wide -- "the graph" leaks on a cascade-walk turn that carries
+#: no board at all, which is why the leg is not folded into ``state_board`` -- so the literal SPLITS and
+#: only the half whose facts the board supplies rides the board's own gate.
+SYSTEM_DESK_REGISTER_MANDATE = (
+    "REGISTER: you are writing for a commodity desk, so write about the MARKET and never about the "
+    "instrument that produced the reading. The blocks above are working notes to you; their words are "
+    "not the reader's words. Do not tell the reader what you are reading from -- no naming of the "
+    "board, the graph, a state read, a series key, a node, a knowledge date, a convention, a receipt, "
+    "a row or a walk, and no calling a reading loud. Say the market thing instead: {table}. A named "
+    "exchange, institution or commodity board is the market's own name and stays exactly as written -- "
+    "the CBOT soybean board, the board crush, the Malaysian Palm Oil Board. Everything else the blocks "
+    "name, name in the reader's words: give the "
+    "figure, its unit, the market it belongs to and the date it was read through, and let those stand "
+    "as the reason. Keep every citation "
+    "handle exactly where it is; changing a word never changes a figure."
+)
+
+#: The RECENCY half, appended by :func:`desk_register_mandate` ONLY when the board's own mandate ships
+#: on the same turn -- the leg that supplies the three dated facts it instructs about, and the only leg
+#: on which :data:`RECENCY_LEDGER_SENTENCE`'s tape line is a sentence the writer has been told to write.
+DESK_REGISTER_RECENCY_CLAUSE = (
+    " One more phrase is the market's own and stays exactly as the blocks give it: the board price "
+    "tape, which is the sentence you are told to write for the tape layer. The RECENCY movement keeps "
+    "every one of its three facts and changes only their "
+    "words: say the newest and oldest dates the numbers on this page carry, the date of the newest "
+    "document behind it, and the session the board price tape runs through -- three dated facts, each "
+    "about the layer it names, and none of them dating the answer as a whole."
+)
+
 #: The four movements, the heading each lands under, and the FALLBACK where that heading is a licensed
 #: one rather than a canonical one (D-RC-3). It is a TABLE rather than prose so a reviewer can check the
 #: claim "no new heading" mechanically against ``response_contracts``' own two sets.
@@ -135,6 +198,39 @@ MANDATE_MOVEMENTS: tuple = (
     ("SPILLOVERS", "## Cross-commodity", "## Mechanism"),
     ("WATCH", "## What to watch", ""),
 )
+
+
+def watch_selection_mandate() -> str:
+    """S7b LANE W's SELECTION CLAUSE, appended to the board mandate under its own flag.
+
+    LANDED BY THE TWO-LANE SEAM PROTOCOL (threat model sec 6.1): the constant is lane W's and lives in
+    ``state/watch.py``; this lane appends it and nothing else. It belongs in the MANDATE and not in the
+    block because the block's rows are SB-W lines -- a licence sentence rendered as a row would need a
+    class of its own in ``render.ROW_CLASSES``, which is in this sitting's byte-identical set, and
+    would red ``lint._check_row_classes`` (every class needs a sample).
+
+    ONE PRODUCER, never a second copy of the text: a mandate that quoted the clause would drift from
+    the one ``test_state_watch.py`` grades for register-cleanliness."""
+    from leviathan.graphrag.state.watch import WATCH_SELECTION_CLAUSE
+    return WATCH_SELECTION_CLAUSE
+
+
+def desk_register_mandate(state_board: bool = False) -> str:
+    """:data:`SYSTEM_DESK_REGISTER_MANDATE` with its replacement table filled from
+    ``register.desk_register_table()`` -- ONE producer for the words the prompt teaches and the words
+    the lint counts, so a token added to the lint cannot silently leave the prompt behind.
+
+    THE SLOT IS FILLED HERE AND NOT AT THE SEAM for the reason the ledger sentence's is: a caller that
+    formatted its own copy would be a second producer of a shipped literal, and ``check_literals`` grades
+    THIS function's output, not the raw template.
+
+    ``state_board`` APPENDS :data:`DESK_REGISTER_RECENCY_CLAUSE` (review MAJOR 4). Default False, which
+    is the turn-wide ban alone: the recency instruction names three facts only the board block carries,
+    so it ships iff that block does. The caller passes ``answer._system``'s own ``state_board`` bool --
+    the flag AND the block's marker -- never a second reading of anything."""
+    from leviathan.graphrag.register import desk_register_table
+    base = SYSTEM_DESK_REGISTER_MANDATE.format(table=desk_register_table())
+    return base + DESK_REGISTER_RECENCY_CLAUSE if state_board else base
 
 
 def mandate_for(volatile_prompt: Optional[str]) -> str:
@@ -264,9 +360,23 @@ def check_literals() -> list:
     the mandate is a shipped literal and a build failure is the only acceptable place to find one."""
     from leviathan.graphrag.state.render import register_hits
     errs: list = []
+    # S7b R2: the desk-register literal is graded as its FORMATTED output (`desk_register_mandate()`),
+    # because that is what ships; the raw template carries a slot and would red the slot clause below.
+    # It is graded by the SAME four register detectors, the SAME ASCII rule and the SAME banned recency
+    # phrase as the mandate it rides beside -- a shipped literal's register trip is a BUILD failure here
+    # and never a stripped answer at serve time.
+    try:
+        # BOTH HALVES, graded together: `state_board=True` is the widest text that can ship, so a
+        # register trip in the flag-scoped RECENCY clause is a build failure exactly as one in the ban
+        # half is (review MAJOR 4 split the literal; it did not split the grading).
+        _desk = ("SYSTEM_DESK_REGISTER_MANDATE", desk_register_mandate(state_board=True))
+    except Exception as exc:                        # noqa: BLE001 -- named, never raised onward
+        errs.append(f"narration: could not render desk_register_mandate: {exc}")
+        _desk = ("SYSTEM_DESK_REGISTER_MANDATE", "")
     for name, text in (("SYSTEM_STATE_BOARD_MANDATE", SYSTEM_STATE_BOARD_MANDATE),
                        ("RECENCY_LEDGER_SENTENCE", RECENCY_LEDGER_SENTENCE),
-                       ("SYSTEM_RECENCY_CLAUSE", SYSTEM_RECENCY_CLAUSE)):
+                       ("SYSTEM_RECENCY_CLAUSE", SYSTEM_RECENCY_CLAUSE),
+                       _desk):
         hits = register_hits(text)
         if hits:
             errs.append(f"narration.{name}: {', '.join(hits)}")
@@ -286,10 +396,12 @@ def check_literals() -> list:
             errs.append(f"narration.{name}: carries a format slot; only the ledger sentence has one")
     try:
         from leviathan.graphrag.numbers.cascade import pace_register_ok
-        if not pace_register_ok(SYSTEM_STATE_BOARD_MANDATE):
-            errs.append("narration.SYSTEM_STATE_BOARD_MANDATE: pace_register_ok is False")
+        for _n, _t in (("SYSTEM_STATE_BOARD_MANDATE", SYSTEM_STATE_BOARD_MANDATE), _desk):
+            if _t and not pace_register_ok(_t):
+                errs.append(f"narration.{_n}: pace_register_ok is False")
     except Exception as exc:                        # noqa: BLE001 -- named, never raised onward
         errs.append(f"narration: could not run pace_register_ok: {exc}")
-    if BANNED_RECENCY_PHRASE in SYSTEM_STATE_BOARD_MANDATE:
-        errs.append("narration.SYSTEM_STATE_BOARD_MANDATE: carries the banned recency phrase")
+    for _n, _t in (("SYSTEM_STATE_BOARD_MANDATE", SYSTEM_STATE_BOARD_MANDATE), _desk):
+        if BANNED_RECENCY_PHRASE in _t:
+            errs.append(f"narration.{_n}: carries the banned recency phrase")
     return errs

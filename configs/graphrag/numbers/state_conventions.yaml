@@ -169,3 +169,70 @@ conventions:
 retired_from_params:
   pink_sheet_input_costs: {kind: z, window_years: 5,  z: 1.5, note: "no silverleg handler, no cascade_map ref; its 1.5 lives on above as the pink-sheet family's ordering cut"}
   psd_sd_level:           {kind: z, window_years: 10, z: 1.0, note: "no silverleg handler, no cascade_map ref; the export/import/consumption/stock vintage levels are read by the board as their own percentile rows"}
+
+# ═════════════════════════════════════════════════════════════════════════════════════════════════════
+# THE WATCH-ONLY OVERLAY (S7b, the owner's 2026-09-11 non-obvious watch ruling)
+# ═════════════════════════════════════════════════════════════════════════════════════════════════════
+# WHY IT IS A SEPARATE TOP-LEVEL KEY AND NOT FIFTEEN MORE ROWS UNDER `conventions:`.
+# `conventions:` is read by feeders._convention_label -> StateRow.convention -> walk._convention_hit,
+# and `_convention_hit` is a TERM OF walk.rank_key. A ref curated into that block therefore changes
+# bd.order, and through it every rendered line of every board-on turn, WITH EVERY FLAG OFF. A config
+# curation is the one change in this sitting that cannot be dark behind a code flag, so these entries
+# live under their own key: `lint.load_conventions()`'s consumers read `conventions` and never this,
+# and watch.watch_overlay() is the ONE reader. SB-1's "past the line the desk convention calls X"
+# clause, the loud cut, the rank tuple and analogs.crossings are all untouched by construction.
+#
+# A LIVE CURATION IS A SEPARATE, DECLARED, NON-BYTE-IDENTICAL CHANGE with its own 144-turn census. If
+# the owner wants these on the rank, that is the change to make -- not this one.
+#
+# "OVERLAY" IS ABOUT THE KEY, NOT ABOUT THE FILE (review round 2, minor g). This file is TRACKED and
+# committed by path -- it is not a gitignored private config and it is not a local-only sidecar, and
+# these fifteen entries ship in the same commit as the producer that reads them. What "overlay" names
+# is the SEPARATE TOP-LEVEL KEY: an additive second book that `watch.nonobvious_candidates` merges
+# UNDER the base (`merged.setdefault`, so a `conventions:` entry always wins), reached by
+# `watch.watch_overlay()` alone.
+#
+# WHAT THEY ARE FOR. MEASURED over scratchpad/board_census_run5's 144 board x mode traces: fifteen
+# distinct silver_refs carry 463 of the banked d2 order rows and have NO entry in `conventions:` at
+# all, so every band-keyed watch term is structurally blind to the balance sheet, the trade flows and
+# the cattle herd. (The brief's "sixteen refs / 491 rows" counts a sixteenth "ref" that is the EMPTY
+# series key -- 68 rows with no series at all, which can never take a convention. Fifteen is the
+# curatable number and 463 is its row count; both are re-measurable from the traces.)
+#
+# EVERY ENTRY IS THE SAME SHAPE AND THE SAME BASIS: own-history deciles, `low` / `high` and nothing
+# stronger -- the file's own "levels and spreads with no desk band" family (mpob_ending_stocks,
+# cbot_board_crush_margin, kc_chi_spread, white_yellow_spread) extended to the refs the census says are
+# uncovered. Owner decision 5 REFUSES invented absolute bands and this curation invents none: a decile
+# says only where a reading sits in its own record, which is a computed fact, not desk knowledge nobody
+# in this estate has measured. `verified: null` on all fifteen -- they are DECLARED, and each names
+# below the count that earned it a place.
+#
+# THE WINDOW IS THE CADENCE'S OWN. Fourteen of the fifteen are PSD / PSD-attribute / livestock cards on
+# the ANNUAL marketing-year grain (silverleg's own window_years: 10, `windows.annual`), which is what
+# `retired_from_params.psd_sd_level`'s own note already says these refs are read as: "the
+# export/import/consumption/stock vintage levels are read by the board as their own percentile rows".
+# This block is that sentence, made machine-readable.
+watch_overlay:
+
+  # -- PSD trade and supply/demand levels (silver_psd, annual marketing years) ------------------------
+  export:                  {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 107 banked order rows, 75 of 144 seats
+  import:                  {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 62 rows, 55 seats
+  area:                    {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 51 rows, 48 seats -- planted / harvested area
+  consumption:             {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 44 rows, 40 seats
+  production:              {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 35 rows, 23 seats
+  beginning_stock_region:  {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 28 rows, 28 seats
+  stock:                   {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 24 rows, 24 seats
+  sunflower_oil_supply:    {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 20 rows, 16 seats
+  production_region:       {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 12 rows, 4 seats
+
+  # -- PSD ATTRIBUTE use columns (silver_psd_attributes, annual marketing years) ----------------------
+  psd_feed_use:            {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 24 rows, 20 seats
+  psd_fsi_use:             {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 12 rows, 12 seats
+  psd_food_use:            {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 12 rows, 12 seats
+  psd_meal_feed_waste_use: {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 12 rows, 8 seats
+  psd_crush:               {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 8 rows, 8 seats
+
+  # -- livestock (silver_production_livestock, annual) ------------------------------------------------
+  # THE ONE FAMILY NO OTHER TERM CAN SEE. The herd is a stock with a multi-year turnover: a reading in
+  # its own record's tail is the whole fact about it, and there is no published desk band to borrow.
+  herd_size_cattle:        {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 12 rows, 12 seats

@@ -1022,7 +1022,19 @@ def test_the_walk_produces_the_board_request_shape_S6_will_thread(real):
     assert req["budget"]["spent"] == bd.net_reads() <= req["budget"]["cap"]
     assert req["windows"], "the state-chosen anchor windows `_derive_windows` will take as its `near`"
     for key, win in req["windows"].items():
-        assert set(win) == {"near", "state_date", "knowledge_date", "analog_dates"}
+        # `reading` IS THE S7b R6 ADDITION AND `near` IS THE PIN THAT MATTERS. The window a WATCH row
+        # counts from is the READING's own date; the window SB-J counts from is the RUN's start, and
+        # `projection_window`'s own docstring declares that ("a lag runs from the state to the effect",
+        # Judge 2). MEASURED on the 09-11 non-obvious prototype: 10 of its 60 rows rendered a
+        # 1997-12..1998-06 window for a 2026 reading because the watch row took the run start. The two
+        # questions get two fields; `near` is asserted UNMOVED below, which is the tripwire -- if `near`
+        # ever changes, every SB-J line on every board-on turn changes with it.
+        assert set(win) == {"near", "reading", "state_date", "knowledge_date", "analog_dates"}
+        st = bd.row(*key).state
+        near_want = ((st.run or {}).get("since_date")
+                     if st.run and not st.run.get("declined") else None) or st.level_date
+        assert win["near"] == near_want, "SB-J's anchor moved; the whole projection class moves with it"
+        assert win["reading"] == st.level_date
 
 
 def test_board_ORDER_is_the_RANK_order_and_never_the_DAGs_insertion_order(real):

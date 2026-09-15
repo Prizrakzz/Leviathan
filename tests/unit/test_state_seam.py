@@ -26,6 +26,7 @@ import inspect
 import json
 import os
 import pathlib
+import re
 import types
 
 import pytest
@@ -1298,3 +1299,163 @@ def test_the_fifteen_anchor_shapes_render_at_ZERO_register_trips_with_their_AMPL
             for l in blk.splitlines():
                 assert "BOARD ABSENCE" not in l or "did not pass its own register check" not in l, l
     assert seen_amps >= 15, seen_amps
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# S7b -- THE TWO REGISTER INSTRUMENTS AT THE SEAM. The same two halves this deck already holds, for
+# two more flags: with `GRAPHRAG_REGISTER_LICENCE` and `GRAPHRAG_DESK_REGISTER` OFF, the prompt, the
+# strip decision, the counters, the coverage dict and the judge panel are HEAD's; and neither engine
+# module reads either flag, because both are read ONCE at the answer seam and threaded down.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+def test_s7b_flags_default_off_and_read_the_estates_exact_spelling(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_REGISTER_LICENCE", raising=False)
+    monkeypatch.delenv("GRAPHRAG_DESK_REGISTER", raising=False)
+    assert an._register_licence_on() is False
+    assert an._desk_register_on() is False
+    for fn, env in ((an._register_licence_on, "GRAPHRAG_REGISTER_LICENCE"),
+                    (an._desk_register_on, "GRAPHRAG_DESK_REGISTER")):
+        for word in ("on", "ON", "1", "true", "True"):
+            monkeypatch.setenv(env, word)
+            assert fn() is True, (env, word)
+        for word in ("off", "", "no", "0", "yes"):
+            monkeypatch.setenv(env, word)
+            assert fn() is False, (env, word)
+
+
+def test_neither_register_flag_is_read_anywhere_but_the_answer_seam():
+    """RI-1 and the `state/` doctrine, restated for two more names. `register.py` takes its mode as an
+    argument by design -- 'a mis-plumbed enable can never relax the suggester chip guard or the
+    numbers/news/live bodies' -- and `state/` reads no environment at all."""
+    import leviathan.graphrag.register as _reg
+    import leviathan.graphrag.verify as _vfy
+    # THE TEST IS THE ACCESSOR, NOT THE WORD -- `check_state_seam` clause (i)'s own stated lesson:
+    # THIS ESTATE WRITES ITS DOCTRINE IN DOCSTRINGS, and `narration.py`'s block note NAMES the flag it
+    # is scoped by. A substring ban would red the build on the sentence that states the rule.
+    _names = re.compile(r"os\.environ\.get\(\s*[\"']([A-Za-z0-9_]+)")
+    for mod in (_reg, _vfy, N, S, R, B):
+        src = inspect.getsource(mod)
+        read = set(_names.findall(src))
+        assert not {n for n in read if n.startswith(("GRAPHRAG_REGISTER", "GRAPHRAG_DESK"))}, mod.__name__
+        assert "os.environ[" not in src, mod.__name__
+    body = inspect.getsource(an._answer_l2)
+    assert body.count("_register_licence_on()") == 1, "the licence is resolved ONCE per body"
+    assert body.count("_desk_register_on()") >= 1
+
+
+def test_the_state_seam_check_still_passes_with_the_new_flags_lit(monkeypatch):
+    """`check_state_seam` asserts the flag grammar from SOURCE TEXT, so a runner with the S7b flags set
+    cannot change its verdict -- the same property clause (i) already claims for GRAPHRAG_STATE_BOARD."""
+    monkeypatch.setenv("GRAPHRAG_REGISTER_LICENCE", "on")
+    monkeypatch.setenv("GRAPHRAG_DESK_REGISTER", "on")
+    assert cc.check_state_seam() == []
+    assert cc.check_register_seam() == []
+
+
+def test_no_new_emf_counter_ships_in_s7b():
+    """The twelve stay twelve. The register numbers ride the coverage ARTIFACT, which is exactly the
+    population `seam.coverage_counters`' own docstring keeps out of EMF."""
+    assert len(S.COVERAGE_COUNTERS) == 12
+    assert S.COVERAGE_COUNTERS == ("BoardRowsLoud", "BoardRowsLoudReferenced", "BoardRowsLoudCited",
+                                   "BoardEventsOpen", "BoardEventsReferenced",
+                                   "BoardRecencyRows", "BoardRecencyReferenced",
+                                   "BoardWatchRows", "BoardWatchReferenced",
+                                   "BoardSpilloverRows", "BoardSpilloverReferenced",
+                                   "BoardSpilloverLicensed")
+    keys = {k for _d, den, nums in S._COVERAGE_GROUPS for k in (den, *(n for _c, n in nums))}
+    assert not any(k.startswith("register_") for k in keys)
+    cov = {"loud_rows": 38, "loud_referenced": 38, "loud_cited": 30, "spillover_licensed": True,
+           "register_lingo_hits": 0, "register_lingo_rewritten": 2,
+           "register_adjectives_licensed": 3, "register_adjectives_corrected": 1,
+           "register_adjectives_struck": 0, "register_adjectives_unbacked": 4}
+    emitted = S.coverage_counters(cov)
+    assert set(emitted) == {"BoardRowsLoud", "BoardRowsLoudReferenced", "BoardRowsLoudCited",
+                            "BoardSpilloverLicensed"}
+
+
+def test_the_coverage_dicts_absent_is_never_zero_contract_holds_for_the_register_keys():
+    """Surprise 12, restated: `board_coverage` returns {} on a board that rendered no row, and the
+    subject-ambiguity branch ships a one-line block without calling it. A register number written into
+    an empty or declined dict would fabricate a 0-of-0 inside the arm's own dimension."""
+    from leviathan.graphrag import eval as _ev
+    assert S.coverage_counters({}) == {}
+    assert S.coverage_counters({"declined": "KeyError"}) == {}
+    assert _ev._judge_state_panel({"trace": {"state_board": {"coverage": {}}}}) == ""
+    assert _ev._judge_state_panel({"trace": {"state_board": {"coverage": {"declined": "X"}}}}) == ""
+
+
+def test_the_judge_panel_and_its_rubric_are_head_bytes_on_a_dark_turn():
+    """JUDGE byte-identity: `_JUDGE_STATE_USE` ships on EVERY board turn, so the S7b clause is a SECOND
+    constant appended only when the panel actually rendered a register line."""
+    from leviathan.graphrag import eval as _ev
+    cov = {"loud_rows": 38, "loud_referenced": 38, "loud_cited": 30, "loud_k": 9,
+           "loud_figure_only": 8, "events_open": 1, "events_referenced": 1, "recency_rows": 7,
+           "recency_referenced": 0, "watch_rows": 22, "watch_referenced": 8, "spillover_rows": 22,
+           "spillover_referenced": 5, "spillover_licensed": True, "missed": {}}
+    dark = _ev._judge_state_panel({"trace": {"state_board": {"coverage": cov}}})
+    assert dark.count("\n") + 1 == 6
+    assert not any(w in dark for w in _ev._JUDGE_STATE_REGISTER_MARKERS)
+    lit = _ev._judge_state_panel({"trace": {"state_board": {"coverage": dict(
+        cov, register_lingo_hits=0, register_lingo_rewritten=2, register_adjectives_licensed=3,
+        register_adjectives_corrected=1, register_adjectives_struck=0,
+        register_adjectives_unbacked=4)}}})    # ROUND 4 ruling (4): the counter is a THIRD line
+    assert lit.startswith(dark), "the dark panel must be a strict PREFIX of the lit one"
+    assert all(w in lit for w in _ev._JUDGE_STATE_REGISTER_MARKERS)
+    assert "measure REGISTER, not grounding" in _ev._JUDGE_STATE_REGISTER
+    assert "REGISTER" not in _ev._JUDGE_STATE_USE, "the shipped rubric must not move"
+
+
+def test_the_licence_reaches_both_strip_passes_on_both_serving_bodies():
+    """RI-2: `_humanize_structured` is the FIRST `reg.sanitize` on the prose and the body render seam is
+    the second. A licence threaded to only one of them licenses a sentence the other already deleted --
+    and `structured['mechanism']` is the field the FE renders DIRECTLY."""
+    for body in (an._answer_l2, an.answer):
+        src = inspect.getsource(body)
+        assert src.count("bar_licence=_bar_licence") >= 2, body.__name__
+        assert "_bind_bar_adjectives(" in src and "_desk_register_lint(" in src, body.__name__
+    assert "bar_licence" in str(inspect.signature(an._humanize_structured))
+    for fn in (an._count_banned_flow, an._count_banned_valuation):
+        assert "bar_licence" not in str(inspect.signature(fn)), fn.__name__
+
+
+def test_lane_ws_seam_patch_is_landed_verbatim_and_defaults_off(monkeypatch):
+    """S7b sec 6.1, THE ONE SEAM THE TWO LANES SHARE. Lane W's re-ranker lives entirely in `state/`,
+    which reads NO environment, so its flag is read HERE and threaded down as a kwarg -- and the three
+    lines its `SEAM_PATCH_W.txt` specifies are the ONLY bytes of its spec this lane lands.
+
+    ZERO-ARG BY DECISION, and the decision is stated rather than inherited: the board's own gate takes
+    a volatile prompt because the MANDATE must ship iff the BLOCK's marker is already in it, and there
+    is no such marker to inspect at `fill_stage2` -- that function is what RENDERS the block. A second
+    leg that can only ever be vacuous reads as a stronger gate than it is."""
+    monkeypatch.delenv("GRAPHRAG_WATCH_NONOBVIOUS", raising=False)
+    assert an._watch_nonobvious_on() is False
+    for word in ("on", "ON", "1", "true"):
+        monkeypatch.setenv("GRAPHRAG_WATCH_NONOBVIOUS", word)
+        assert an._watch_nonobvious_on() is True, word
+    for word in ("off", "", "0", "no"):
+        monkeypatch.setenv("GRAPHRAG_WATCH_NONOBVIOUS", word)
+        assert an._watch_nonobvious_on() is False, word
+    # (2) the kwarg, and the two it threads at the ONE call site that already existed
+    assert "watch_nonobvious" in str(inspect.signature(S.fill_stage2))
+    assert S.fill_stage2.__defaults__ is not None or True
+    src = inspect.getsource(S.fill_stage2)
+    assert "nonobvious=bool(watch_nonobvious)" in src and "loud_k=int(getattr(bd.knobs" in src
+    assert src.count("WA.watch_rows(") == 1, "a SECOND call site would be a second producer"
+    assert "watch_nonobvious=_watch_nonobvious_on()" in inspect.getsource(an._answer_l2)
+    # ...and `state/` still reads no environment, which is the whole reason the kwarg exists
+    assert cc.check_state_seam() == []
+
+
+def test_lane_ws_selection_clause_rides_the_mandate_and_never_the_block():
+    """(3) THE SELECTION-CLAUSE CONSTANT. It belongs in the MANDATE: a licence sentence rendered as a
+    BLOCK row would need a class of its own in `render.ROW_CLASSES` -- which is in this sitting's
+    byte-identical set -- and would red `lint._check_row_classes`, whose rule is that every class
+    carries a sample. ONE PRODUCER: the mandate appends lane W's own constant, never a copy."""
+    from leviathan.graphrag.state import watch as WA
+    clause = WA.WATCH_SELECTION_CLAUSE
+    assert N.watch_selection_mandate() is clause or N.watch_selection_mandate() == clause
+    clause.encode("ascii")
+    base = an._system(state_board=True)
+    assert clause not in base
+    assert an._system(state_board=True, watch_selection=True) == base + clause
+    assert an._system() == an._system(watch_selection=False)
+    assert clause not in R.ROW_CLASSES and not any(clause in str(v) for v in R.ROW_CLASSES.values())

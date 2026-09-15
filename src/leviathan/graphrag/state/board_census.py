@@ -550,6 +550,16 @@ def _row_rank_record(bd, row, seat: int) -> dict:
             "event_open": bool(row.event_open),
             "window_note": (st.window_note if st is not None else ""),
             "n_obs": ((st.coverage or {}).get("n_obs") if st is not None else None),
+            # R14 (S7b): THE RAW LEVEL, AND WHY IT WAS THE LARGEST SINGLE GAP IN THE BANK. The
+            # 09-11 non-obvious prototype could not evaluate an `abs_bands` convention on 320 of the
+            # seats it read, because `abs_bands` is measured on the RAW value in the series' own unit
+            # (ONI's "z" is a degC anomaly, never a sigma -- which is exactly why the config keeps that
+            # kind separate) and this record banked z and percentile and nothing else. Three fields,
+            # already in memory, zero reads.
+            "level": (st.level if st is not None else None),
+            "level_date": (st.level_date if st is not None else None),
+            "unit": (st.narrate_unit or st.unit if st is not None else None),
+            "offset_months": (int(getattr(st, "offset_months", 0) or 0) if st is not None else 0),
             "loud": bool(row.legs.get("loud"))}
 
 
@@ -571,6 +581,14 @@ def _loud_census(bd, *, alternative: bool) -> dict:
         loud_keys = {r.key for r in loud}
         out[rule] = {
             "order": [_row_rank_record(bd, r, i) for i, r in enumerate(order[:P1_TOP_N])],
+            # R14 (S7b): THE FULL LOUD SET, not the top ten. MEASURED on run #5: `order` banked
+            # `P1_TOP_N` records per seat, which is 1,440 of the 2,557 loud rows the 144 seats actually
+            # carried -- 56.3%. A rank graded on that bank is graded on the half of the loud set the
+            # OLD rank already put first, which is the one bias an alternative rank must not be
+            # measured under. Every loud row's card, in rank order, at zero reads: the rows are in
+            # memory and the record is arithmetic.
+            "order_loud": [_row_rank_record(bd, r, i) for i, r in enumerate(order)
+                           if r.key in loud_keys],
             "loud_n": len(loud),
             "loud": [{"contract": r.contract, "driver_id": r.driver_id,
                       "table": (r.state.table if r.state is not None else None)}
@@ -695,11 +713,32 @@ def _analog_census(bd, ana) -> dict:
             except Exception as e:                      # noqa: BLE001 -- a probe never breaks a census
                 per_band.setdefault("errors", []).append(
                     {"driver_id": r.driver_id, "error": f"{type(e).__name__}: {e}"[:200]})
+    # R14 (S7b): THE OUTCOME MAGNITUDES, which existed NOWHERE in the bank. Run #5 banked the stanza
+    # COUNT and the per-band candidate counts and nothing about what the record actually did after a
+    # like state -- so 50 seats' worth of fired stanzas could not be graded on the one thing an analog
+    # is for, and the only place the figures survived was the 16 rendered blocks (11% of the seats).
+    # `outcome_over_band`'s row is already on the stanza; this copies the six fields that carry the
+    # magnitude and its two dates, at zero reads and no second calculator.
+    outcomes: list = []
+    for a in ana:
+        for o in (a.get("outcomes") or ()):
+            outcomes.append({
+                "contract": a.get("contract"), "driver_id": a.get("driver_id"),
+                "state_date": a.get("date"), "label": o.get("label"), "unit": o.get("unit"),
+                "table": o.get("table"), "metric": o.get("metric"),
+                "declined": o.get("declined"),
+                "from_value": o.get("from_value"), "from_date": o.get("from_date"),
+                "near_value": o.get("near_value"), "near_date": o.get("near_date"),
+                "far_value": o.get("far_value"), "far_date": o.get("far_date")})
     return {"stanzas": len(ana),
             "fired": sum(1 for a in ana if not a.get("declined")),
             "declined": dict(collections.Counter(
                 str(a.get("declined")) for a in ana if a.get("declined")).most_common()),
             "seeds_measured": seeds_measured,
+            "n_candidates": [{"contract": a.get("contract"), "driver_id": a.get("driver_id"),
+                              "n_candidates": a.get("n_candidates"),
+                              "declined": a.get("declined")} for a in ana],
+            "outcomes": outcomes,
             "candidates_by_sigma_band": per_band}
 
 

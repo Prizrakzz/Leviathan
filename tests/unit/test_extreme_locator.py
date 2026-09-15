@@ -1045,8 +1045,24 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # in `state/narration.py`. Each named append is checked ON ITS OWN TERMS below, so any one of
     # them staying reverted is still accepted and the banked PRE-D-XL tail is still asserted where
     # it always was, one rung further in.
+    # RE-ANCHORED 2026-09-11 BY S7b's DESK REGISTER, on its ONE named cause and by the SAME
+    # optional-and-ordered rule LANE S established here: the desk register appends exactly one
+    # KEYWORD_ONLY name, `desk_register` (default False), which ships the flag-scoped literal
+    # `state.narration.desk_register_mandate()`. MEASURED CAUSE (`scratchpad/lingo_leaks.py` over the
+    # nine banked real-seat answers, 2026-09-11): 195 internal-vocabulary hits, 21.7 per answer --
+    # `board` 64, `row`/`rows` 54, "the graph" 40 -- none of which any shipped detector charges, because
+    # every one of those tokens is ordinary English. THE OTHER S7b FLAG APPENDS NOTHING HERE:
+    # `GRAPHRAG_REGISTER_LICENCE` threads a callable to `register.sanitize`, not a persona leg, so
+    # `_system`'s tail grows by exactly one. Checked on its own terms below, so the desk register
+    # staying reverted is still accepted.
+    # ...and S7b's WATCH lane appends the second and last: `watch_selection` (default False), which
+    # ships `state.watch.WATCH_SELECTION_CLAUSE` -- the fifth movement's selection licence, landed at
+    # this seam by the two-lane protocol (threat model sec 6.1) because `state/` reads no environment.
+    # It rides the SAME two-leg gate the board's mandate does (the flag AND the block's own marker), so
+    # a writer can never be told to select from candidates the board did not nominate.
     _tail = list(params)
-    _APPENDS = [n for n in ("numbers_budget", "state_board") if n in _tail]
+    _APPENDS = [n for n in ("numbers_budget", "state_board", "desk_register", "watch_selection")
+                if n in _tail]
     assert _tail[len(_tail) - 2 - len(_APPENDS):len(_tail) - len(_APPENDS)] == \
         ["extreme_locator", "extreme_hop"], _tail
     assert _tail[len(_tail) - len(_APPENDS):] == _APPENDS, _tail   # appended, in order added
@@ -1066,6 +1082,29 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
         # every number rule while the board's mandate only demands a narration order.
         _both = an._system(state_board=True, handles=True)
         assert _both.index(_sn.SYSTEM_STATE_BOARD_MANDATE) < _both.index(an._SYSTEM_HANDLES)
+    if "desk_register" in _tail:                          # S7b's ONE named append
+        assert params["desk_register"].default is False
+        assert params["desk_register"].kind is inspect.Parameter.KEYWORD_ONLY
+        assert an._system(desk_register=False) == base    # the default-off VALUE, not just the default
+        from leviathan.graphrag.state import narration as _sn2
+        _desk = _sn2.desk_register_mandate()
+        assert _desk not in base and _desk in an._system(desk_register=True)
+        # ...and it rides its OWN leg rather than the board's, because the vocabulary it fences is the
+        # ANSWER's: "the graph" leaks on a cascade-walk turn that carries no board at all.
+        assert _desk not in an._system(state_board=True)
+        # ...and it sits ABOVE `_SYSTEM_HANDLES` for the same reason the board's mandate does: it
+        # demands a register, it narrows no number rule.
+        _dboth = an._system(desk_register=True, handles=True)
+        assert _dboth.index(_desk) < _dboth.index(an._SYSTEM_HANDLES)
+    if "watch_selection" in _tail:                        # S7b LANE W's ONE named append
+        assert params["watch_selection"].default is False
+        assert params["watch_selection"].kind is inspect.Parameter.KEYWORD_ONLY
+        assert an._system(watch_selection=False) == base  # the default-off VALUE, not just the default
+        from leviathan.graphrag.state import watch as _sw
+        assert _sw.WATCH_SELECTION_CLAUSE not in base
+        # ONE PRODUCER: the mandate appends lane W's own constant and never a copy of its text.
+        assert an._system(state_board=True, watch_selection=True) == \
+            an._system(state_board=True) + _sw.WATCH_SELECTION_CLAUSE
     qs = inspect.signature(cq.quantify).parameters
     assert qs["extreme_locator"].default is None
     # the locator kwarg and the extrema rider are the LAST TWO, in the order they were added -- so

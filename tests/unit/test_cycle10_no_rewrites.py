@@ -511,9 +511,25 @@ def test_amend_minor3_the_second_walk_is_still_FRESH_and_that_is_why_it_is_a_wal
 def test_amend_the_off_arm_footer_still_rides_INSIDE_the_body_pass():
     """CONTAINMENT, on BOTH synthesis paths. Only the validated, row-cleared block moved out of the
     sanitize input. The legacy two-list footer (GRAPHRAG_VERIFY=off) is not row-cleared, so it must keep
-    its body-wide pass -- and the OFF arm's bytes must not move at all."""
+    its body-wide pass -- and the OFF arm's bytes must not move at all.
+
+    THE PIN MOVED ONCE, 2026-09-11 (S7b R1), AND THE PROPERTY DID NOT. It was a byte-exact substring on
+    one line of source, and S7b threads the BOUND-FIGURE LICENCE through that call
+    (`bar_licence=_bar_licence`, None on every dark turn) -- so the line acquired a keyword and the
+    one-hop body's copy wrapped across two lines. What this test is FOR is containment: the assembled
+    body goes through ONE register pass whose input is `_sanitize_in`, and `_footer` is concatenated
+    OUTSIDE it, because the footer is assembled from rows each already cleared at row scope (where the
+    row's own `[10]` marker is not part of the text being judged). That property is now asserted as a
+    SHAPE over whitespace-normalised source rather than as one line's bytes, so a future kwarg cannot
+    red it while a footer moved back INSIDE the call still does."""
     import inspect
+    import re as _re
+    shape = _re.compile(r"body = \(?reg\.sanitize\(_sanitize_in, market_register=_mr"
+                        r"(?:, bar_licence=_bar_licence)?\) \+ _footer")
     for fn in (an._answer_l2, an.answer):
         src = inspect.getsource(fn)
         assert "_sanitize_in = render(structured) + footer" in src
-        assert "body = reg.sanitize(_sanitize_in, market_register=_mr) + _footer" in src
+        norm = " ".join(src.split())
+        assert shape.search(norm), fn.__name__
+        # ...and the footer is never handed to the register as part of the body's own input.
+        assert "reg.sanitize(_sanitize_in + _footer" not in norm, fn.__name__

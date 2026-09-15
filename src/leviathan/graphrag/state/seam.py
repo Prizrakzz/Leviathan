@@ -326,7 +326,8 @@ def fill_stage1(*, graph, sg, asof: str, mode: str, query: str = "", lane: str =
 # ---------------------------------------------------------------------------------------------------
 def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, legb_on: bool = False,
                 width: int = 2, complexes=(), chains=(), benchmark_fn=None, receipt_fn=None,
-                record_through: str = "", n_start: int = 1, e_start: int = 1) -> dict:
+                record_through: str = "", n_start: int = 1, e_start: int = 1,
+                watch_nonobvious: bool = False) -> dict:
     """Run STAGE 2, then the analogs, the watch rows and the RENDER. Returns the seam payload:
 
     ``{"block": str, "request": dict, "trace": dict, "counters": dict, "recency": dict}``
@@ -373,7 +374,15 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
             _attach_tape(bd, qfn=qfn, width=width)
             ana = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=benchmark_fn, receipt_fn=receipt_fn)
             A.analog_leg(bd, ana)
-            wr = WA.watch_rows(bd, analogs=ana)
+            # S7b LANE W's re-ranker, threaded by the sec 6.1 seam protocol. `nonobvious` is the flag
+            # `answer._watch_nonobvious_on()` read ONCE at the seam -- this module reads no
+            # environment, and `config_check.check_state_seam` clause (i) grades that on the source.
+            # `loud_k` is the TIER'S OWN loud cut and is not optional: the NOVELTY term is computed
+            # against the SB-1 rows the same block will carry, and a board built from a nine-field
+            # knob tuple (the S2 fixtures, the census) would otherwise pass 0 and rank every candidate
+            # alike. DEFAULT FALSE -> HEAD's five-kind interleave, byte for byte.
+            wr = WA.watch_rows(bd, analogs=ana, nonobvious=bool(watch_nonobvious),
+                               loud_k=int(getattr(bd.knobs, "loud_k", 0) or 0))
             WA.watch_leg(bd, wr)
             ages = {}
             for r in bd.rows:

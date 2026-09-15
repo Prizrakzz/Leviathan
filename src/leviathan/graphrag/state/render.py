@@ -297,6 +297,28 @@ ABSENCE_WHY: dict = {
     "no_convention": "no desk line is declared for this series",
     "no_open_window": "no declared lag window is open on this row",
     "no_policy_date": "the record holds no forward date for this driver",
+    # THE 09-11 NON-OBVIOUS RULING'S TWO WORDS. The first is the honest absence line -- a board that
+    # cleared the admission floor with nothing says so in one sentence instead of padding a ceiling
+    # with rows nobody would act on. The second is the dated-releases footnote, which is why its
+    # sentence says the dates are ELSEWHERE ON THE LINE: `sb_absence` interpolates the label before
+    # this sentence, and the label is where the ISO dates ride.
+    "watch_floor_unmet": "nothing forward on this page clears the bar this list sets, so none is "
+                         "named rather than a weaker one being offered",
+    # THE PARTIAL FILL IS ITS OWN SENTENCE. The full-absence words underneath a list that HAS rows
+    # read as a contradiction of them -- reproduced on el_nino_fanout at a cap of nine, where six
+    # nominations were followed by "nothing forward on this page clears the bar this list sets".
+    "watch_nothing_further": "nothing further on this page clears the bar this list sets, so no "
+                             "weaker item is offered to fill the space",
+    # AND THE CAPPED CORE IS A THIRD SENTENCE (review round 3, MAJOR). The word above is a statement
+    # about the ADMISSION BAR and was emitted whenever the DISTINCTNESS CAPS bound the core -- which is
+    # a different fact, and on 36 of 108 replayed seats it was printed under alternates that had cleared
+    # that very bar. Where the held-back items are on the page, the note names the caps and points at
+    # them; where the list was genuinely exhausted, the word above still says so.
+    "watch_core_capped": "the core stops short of this tier's ceiling because this list takes one item "
+                         "per reading and caps any one kind at a third of the core, so the items above "
+                         "marked alternates cleared the same bar and were held back by those caps",
+    "release_dates_only": "these are scheduled publication dates the publishers set, named once here "
+                          "rather than as items to watch",
     # render / board
     "template_register_trip": "a line this board composed did not pass its own register check and was "
                               "replaced by this note",
@@ -1318,10 +1340,36 @@ def sb_watch(w: dict) -> str:
 
     KIND 2 IS THE ONE WATCH ROW THAT CARRIES A FIGURE and it renders through :func:`sb_convention`
     instead, under its own class, so this builder can never take a handle: an unhandled magnitude on a
-    watch row is exactly the digit ``verify._claim_number_spans`` charges."""
+    watch row is exactly the digit ``verify._claim_number_spans`` charges.
+
+    ``backing_handle`` IS A CITATION AND NOT A MAGNITUDE (S7b). A non-obvious nomination has to name
+    the row it rests on -- the ruling's own words, "its backing row" -- and the estate's way of naming
+    a row is its ``[N]``. It mints NOTHING: the handle already belongs to the SB-1 line that printed
+    that row's level, exactly as :func:`sb_path` cites the handles of the rows its chain passes
+    through, and ``verify._claim_number_spans`` rule (d) exempts a handle from the digit charge. HEAD's
+    five kinds carry no such key, so every HEAD row renders byte for byte.
+
+    **THE SLOT MARK IS THE TIER'S CEILING, MADE VISIBLE** (review round 2, MAJOR 2). ``watch.nonobvious_k``
+    sized the draw 3 / 5 / 7 and ``watch.nonobvious_rows`` stamped ``slot`` -- and this builder printed
+    the SAME line for a ceiling row and a nomination row, so the writer met 6 / 10 / 12-14 equal-looking
+    items under a ceiling it could not see (MEASURED, ``scratchpad/s7b_verify/ARMED.txt``). The mark
+    names the pass, the row's place in it and that pass's size, IN WORDS -- SB-W is a letters-only class
+    and "core item one of five" is letters, where "1 of 5" would be two charged digits on a row that
+    asserts no magnitude. It sits after the citation and before the colon, so ``_nomination_coverage``'s
+    "- WATCH {kind words} " discriminator, ``classify``'s ``^- WATCH`` and every token group are
+    untouched. HEAD's five kinds carry no ``slot``, so they render byte for byte."""
     dates = w.get("dates") or ""
     tail = f" -- {dates}" if dates else ""
-    return f"- WATCH {w['kind_words']} {w['label']}: {w['what']}{tail}"
+    h = w.get("backing_handle")
+    # THE HANDLE SITS ON THE LABEL, which is the ROW it names -- not at the end of the body, where it
+    # would interrupt the sentence that ends "on these dates" immediately before the ISO tail.
+    cite = f" [N{int(h)}]" if h else ""
+    mark = ""
+    if w.get("slot") and w.get("slot_size"):
+        word = "core item" if w.get("slot") == "ceiling" else "alternate"
+        mark = (f" ({word} {words_for_int(int(w['slot_index']))} of "
+                f"{words_for_int(int(w['slot_size']))})")
+    return f"- WATCH {w['kind_words']} {w['label']}{cite}{mark}: {w['what']}{tail}"
 
 
 def sb_recency(layer: str, text: str) -> str:
@@ -1873,13 +1921,23 @@ def _watch_tokens(w: dict) -> tuple:
 
     A DATE ALONE IS NOT ENOUGH AND A NAME ALONE IS NOT EITHER. The block carries thirty-odd ISO dates
     and a `## What to watch` section that repeats one of them proves nothing about WHICH row it came
-    from; the pair is what makes the count a count of rows rather than of dates."""
+    from; the pair is what makes the count a count of rows rather than of dates.
+
+    **THE THIRD GROUP IS THE FAR BOARD, AND WITHOUT IT A SPILLOVER ROW IS SCORED BY THE WRONG
+    SENTENCE** (S7b, threat P-5). A spillover or recurrence nomination is ABOUT SOMEWHERE ELSE -- "this
+    same reading is declared on thirty-four other boards, and the nearest of them is ICE robusta
+    coffee" -- so the two groups above are satisfied by any sentence naming the NEAR board's driver on
+    its own date, which is a sentence about the row the reader was already reading. The numerator would
+    rise on answers drawn before the rows existed, and a numerator that rises without a fresh draw
+    measures the instrument. ``far_words`` is minted by the producer that knows what the row is about
+    and is ABSENT on every one of HEAD's five kinds, so their token tuples are unchanged."""
     dates = _date_group(w.get("dates") or "")
     who = ()
     row = w.get("row") or ()
     if isinstance(row, (tuple, list)) and len(row) == 2 and row[1]:
         who = _name_words(humanise(row[1]))
-    groups = [g for g in (dates, who) if g]
+    far = tuple(str(x) for x in (w.get("far_words") or ()) if str(x).strip())
+    groups = [g for g in (dates, who, far) if g]
     return tuple(groups)
 
 
@@ -2357,6 +2415,26 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     #    WATCH word, which cost the writer the row: the mandate's fourth movement tells it to close with
     #    the WATCH rows, and a bare distance line is not one of them.
     for w in watch:
+        # THE NON-OBVIOUS PRODUCER'S TWO NOTE ROWS (S7b). Both are SB-X, because both are the block
+        # saying what it is NOT printing: the honest absence line when nothing cleared the admission
+        # floor, and the dated-releases footnote that keeps the scheduled prints off the list without
+        # losing their dates. Neither spends a ceiling slot and neither is a fired fact.
+        # THEY ARE DRIVEN BY THE ROW DICT AND NOT BY A FLAG READ HERE: HEAD's five kinds carry no
+        # `form` key, so this branch is unreachable on a HEAD board and the loop below is byte for byte
+        # what it was.
+        if w.get("form") == "absence":
+            b.add(sb_absence(w.get("label") or "a forward item on this page",
+                             w.get("reason") or "watch_floor_unmet"),
+                  label=f"watch {w['kind']}", role="watch", tokens=())
+            continue
+        # A NOMINATION NAMES THE ROW IT RESTS ON, through the handle that row's own SB-1 line minted.
+        # `handles_by_row` is the render's own map and is complete by here; a row whose state was not
+        # rendered simply carries no citation, which is the honest form -- a nomination pointing at a
+        # handle the block never printed would be a citation to nothing.
+        if w.get("nonobvious") and not w.get("backing_handle"):
+            _bh = handles_by_row.get(tuple(w.get("row") or ()))
+            if _bh:
+                w = {**w, "backing_handle": _bh}
         if w.get("call") is not None and w.get("row_obj") is not None:
             line, calls = sb_convention(b.next_handle, w["row_obj"], distance=w["distance"],
                                         band=w["band"], label=w["conv_label"],
@@ -2979,4 +3057,245 @@ def board_coverage(bd, prose: str, *, n_start: int = 1, loud_k=None, calls=None)
         "missed": {"loud": tuple(loud_missed), "events": tuple(ev_missed),
                    "recency": tuple(rec_missed), "watch": tuple(w_missed),
                    "spillover": tuple(sp_missed)},
+        # THE PAGE ITSELF, and not its sentences: the nomination read is a PER-BULLET read
+        # (ruling (7)) and a bullet is a list item, which only the un-split text carries.
+        **_nomination_coverage(rows, sents, _verdict, str(getattr(bd, "asof", "") or ""),
+                               text=text),
     }
+
+
+#: THE NOMINATION INSTRUMENT'S TWO ERROR FLOORS -- the RETIRED per-sentence read's, and the SHIPPED
+#: per-bullet read's (S7b round 4, orchestrator ruling (7): "yes, fix it").
+#:
+#: BOTH ARE MEASURED ON THE SAME NINE ARMED CELLS (three acceptance fixtures x three tiers) AND BY THE
+#: SAME METHOD: score each block AGAINST ITS OWN RENDERED TEXT -- the writer that added nothing,
+#: dropped nothing and reproduced everything. A perfect instrument reads ``watch_writer_added`` 0 and
+#: ``watch_candidates - watch_candidates_used`` 0 on that input.
+#:
+#: THE ``bullet_*`` KEYS ARE THE SHIPPED RULE'S FLOOR AND THEY ARE EXACTLY ZERO. That is not a claim of
+#: a perfect counter; it is what the rule is FOR. A nomination is used when its own ``[N]`` or its own
+#: series key reaches a shipped watch bullet, and a block's nomination line carries its own ``[N]``, so
+#: scoring the block against itself can only read all-used and none-added. The floor that MATTERS for
+#: this read is therefore not this constant but the two directions of error named in
+#: :func:`_nomination_coverage`'s own docstring, which no self-scoring input can exercise.
+#:
+#: THE FOUR ORIGINAL KEYS ARE KEPT, UNCHANGED, AND THEY ARE NOT THE SHIPPED READ'S. They are the floor
+#: of the PER-SENTENCE counter this landing retired -- three to seven "added" and nought to two
+#: "unused" at zero writer -- and they are kept because the S7b round-2 and round-3 traces carry
+#: numbers produced by THAT counter, and a banked number whose floor has been deleted is a number
+#: nobody can read. Correct or compute, never delete.
+#:
+#: RE-MEASURE WHEN THE SENTENCES MOVE. Both are properties of the rendered block and of the tests
+#: above; the decks assert the shape and the report carries the number.
+NOMINATION_ZERO_WRITER_BASELINE: dict = {
+    "added_at_zero_writer_min": 3, "added_at_zero_writer_max": 7,
+    "used_short_at_zero_writer_min": 0, "used_short_at_zero_writer_max": 2,
+    "cells": 9,
+    "bullet_added_at_zero_writer": 0, "bullet_used_short_at_zero_writer": 0,
+    "bullet_exact": True,
+    "measured": ("the four per-sentence keys: S7b review round 2 landing, the armed fixtures, three "
+                 "scenarios x three tiers (RETIRED read); the bullet keys: S7b round 4, the same nine "
+                 "cells, each block scored against its own rendered text"),
+}
+
+#: A MARKDOWN HEADING, and the WATCH SECTION is the span a heading whose words include "watch" opens.
+_NOM_HEAD_RX = re.compile(r"^[ \t]{0,3}#{1,6}[ \t]+(.*)$", re.M)
+#: A MARKDOWN LIST ITEM -- "bullet" in the ruling's own word. Dash, star, plus or a small ordinal.
+_NOM_BULLET_RX = re.compile(r"^[ \t]{0,3}(?:[-*+]|\d{1,2}[.)])[ \t]+(.*)$")
+_NOM_WATCH_WORD_RX = re.compile(r"\bwatch\b", re.I)
+#: THE BLOCK'S OWN WATCH ROW (:func:`sb_watch`'s line, marker already stripped), which is what makes
+#: the zero-writer read -- the block handed back verbatim -- readable without a heading it never wrote.
+_NOM_BLOCK_MARK_RX = re.compile(r"^[*_\s]*WATCH\s", re.I)
+#: WHERE A NOMINATION'S LABEL ENDS: its citation, its slot mark, or the colon that opens its claim.
+_NOM_LABEL_CUT_RX = re.compile(r"\s*\[N|\s*\(|:")
+
+
+def _nom_watch_bullets(text: str) -> list:
+    """EVERY SHIPPED WATCH BULLET of ``text``, in page order. A BULLET IS THE WHOLE LIST ITEM.
+
+    THAT IS THE WHOLE POINT OF THIS FUNCTION AND IT IS WHY THE PER-SENTENCE READ WAS WRONG. The
+    mandate asks the writer to close with a LIST, and a list item is one item however many sentences it
+    takes: the S7b smoke shipped ``- **Crude oil** -- below the elevated line, three months rising,
+    about thirty-nine percent of the way from zero [N31]; window 2026-08-31 to 2027-02-28. Wrong if
+    ...`` as ONE claim about ONE row, and a counter that graded its sentences separately asked each
+    fragment to carry the whole identity. A CONTINUATION LINE RIDES ITS OWN ITEM for the same reason: a
+    wrapped bullet is not two bullets. A blank line, a new marker or a heading ends the item.
+
+    TWO SHAPES COUNT AS A WATCH BULLET, and the second is not a convenience:
+
+      * a list item inside a WATCH SECTION -- the span opened by a heading whose words include
+        "watch", closed by the next heading of any level. The section is what keeps the MECHANISM
+        movement's bullets out: ``soybeans_now`` shipped ten list items, five of them under
+        ``## Mechanism`` citing ``[N19]``, ``[N7]``, ``[N1]`` and ``[N34]``, and a rule that counted
+        every bullet on the page would have credited the watch list with the mechanism's citations.
+        THE HEADING IS NOT THE WRITER'S CHOICE: ``response_contracts`` declares the four and forbids
+        a new one, and ``narration.MANDATE_MOVEMENTS`` maps the WATCH movement onto
+        ``## What to watch``. The rule keys on the WORD rather than on that literal so a writer that
+        wrote "## What to watch for" is still read -- one letter of slack, no second vocabulary;
+      * a list item that opens with the block's OWN watch marker. :func:`sb_watch` renders
+        ``- WATCH {kind words} ...``, so the zero-writer input -- the block handed back verbatim -- is
+        read as the watch list it is, under no heading and with the block's other sixty-odd list items
+        (SB-1 rows, path rows, receipts) correctly left out.
+
+    A PAGE WITH NO WATCH HEADING AND NO MARKER HAS NO WATCH BULLETS, and the counters then read 0 used
+    and 0 added. That is the fail-closed direction: a writer that shipped no watch list is credited
+    with nothing rather than charged for a list nobody can find."""
+    t = str(text or "")
+    heads = list(_NOM_HEAD_RX.finditer(t))
+    spans = [(h.end(), (heads[i + 1].start() if i + 1 < len(heads) else len(t)))
+             for i, h in enumerate(heads) if _NOM_WATCH_WORD_RX.search(h.group(1))]
+    items: list = []
+    cur = None
+    pos = 0
+    for line in t.split("\n"):
+        start, pos = pos, pos + len(line) + 1
+        m = _NOM_BULLET_RX.match(line)
+        if m:
+            cur = [m.group(1), start]
+            items.append(cur)
+        elif cur is not None:
+            if not line.strip() or _NOM_HEAD_RX.match(line):
+                cur = None
+            else:
+                cur[0] += " " + line.strip()
+    return [b for b, at in items
+            if _NOM_BLOCK_MARK_RX.match(b) or any(a <= at < z for a, z in spans)]
+
+
+def _nom_identity(line: str, words: tuple) -> tuple:
+    """A NOMINATION'S TWO NAMES, READ OFF ITS OWN RENDERED LINE: the ``[N]`` it cites, and its SERIES
+    KEY in the words the reader met.
+
+    THE LINE AND NOT THE MANIFEST, for the reason the discriminator above it gives: ``Block.add``
+    carries role / handles / tokens / line and NOT the caller's internal ``label``, and the
+    nomination's backing citation is PRINTED by :func:`sb_watch` rather than minted as a call, so
+    ``handles`` is empty on every one of these rows. What the reader met is the only place both names
+    exist together.
+
+    THE SERIES KEY IS THE DRIVER HALF OF THE LABEL. :func:`sb_watch` prints
+    ``{kind words} {driver} on {board}{citation}{slot mark}: {claim}``, so the label is cut at the
+    first of those three and split at its last `` on ``. :func:`_name_words` then applies the estate's
+    ONE relaxation -- the last word alone, at five characters or more -- which is why ``flash drought``
+    is also found as ``drought``. That relaxation is the loose half of this read and it is reported
+    apart: see ``watch_candidates_cited``."""
+    from leviathan.graphrag import verify as _vf
+    s = str(line or "")
+    body = s
+    for w in words:
+        if body.startswith(w):
+            body = body[len(w):]
+            break
+    head = _NOM_LABEL_CUT_RX.split(body, maxsplit=1)[0].strip()
+    who = head.rsplit(" on ", 1)[0].strip() if " on " in head else head
+    return frozenset(_vf.cited_number_handles(s)), _name_words(who)
+
+
+def _nomination_coverage(rows, sents, verdict_fn, asof: str = "", *, text: str = "") -> dict:
+    """THE 2N NOMINATION'S OWN EIGHT NUMBERS -- and ``{}`` on every board that nominated nothing.
+
+    THE RULE, AND IT IS A PER-BULLET RULE (S7b round 4, orchestrator ruling (7)). A NOMINATION IS USED
+    when its own ``[N]`` handle, or its own series key, appears in a shipped WATCH BULLET. A SHIPPED
+    WATCH BULLET THAT MATCHES NO NOMINATION IS WRITER-ADDED -- which is the one thing the selection
+    licence bounds. Both are counted against :func:`_nom_watch_bullets`'s list items and never against
+    sentences.
+
+    WHAT IT REPLACES, AND WHY. The first cut asked ``board_coverage``'s own ``_verdict`` -- a
+    ONE-SENTENCE window carrying every one of the row's token groups (its ISO dates AND its driver name
+    AND, on a spillover, its far board). MEASURED on the three S7b real-seat draws: it read 5 of 37
+    nominations used, where a human read of the same pages found every one of the 13 shipped watch
+    bullets resting on a nomination, 13 of 13. Two causes, both granularity and neither a writer fault:
+    a bullet is not a sentence (the identity is spread across the item -- name in the head, date in the
+    tail), and a writer that PARAPHRASES the label ("Brent" for ``crude oil``, "The Pacific reading"
+    for ``El Nino``, "Weekly US export sales" for ``export pace lag``) fails a name test while citing
+    the row's handle in the same breath. The handle is the identity the writer actually carried, and
+    the estate already binds every printed figure to it (``verify._check_number_handle``); this counter
+    now reads the same name.
+
+    THE TWO DIRECTIONS OF ERROR, NAMED, because no fence can check "is about this row":
+
+      * ``watch_candidates_used`` OVER-CLAIMS ON PURPOSE when one row backs two nominations. The draw
+        hands 2N candidates and the core and the alternate on one reading share one backing ``[N]``,
+        so one bullet citing that handle marks BOTH used -- MEASURED 25 of 37 on the three draws
+        against 13 bullets. That is the honest reading of "the writer kept this reading", not of "the
+        writer kept this kind": which KIND it kept is not recoverable from a paraphrased bullet, and a
+        counter that guessed would be measuring the guess.
+      * THE SERIES-KEY LEG IS THE LOOSE HALF and is reported apart. ``watch_candidates_cited`` counts
+        only the nominations whose own ``[N]`` reached a bullet and is <= ``watch_candidates_used`` by
+        construction. MEASURED on the three draws the two are EQUAL (25 and 25): every match the
+        shipped pages made was a citation, and the name leg earned nothing it did not already have.
+
+    THE EIGHT KEYS: ``watch_candidates``, ``watch_candidates_used``, ``watch_candidates_cited``,
+    ``watch_bullets``, ``watch_writer_added``, ``watch_admitted_zero``, ``watch_nomination_groups`` and
+    ``watch_instrument_baseline``. ``watch_bullets`` is the DENOMINATOR ``watch_writer_added`` needs and
+    the first cut did not have: "3 added" is a fact about a page only beside the number of bullets that
+    page shipped.
+
+    THE EMPTY DICT IS THE CONTRACT (threat: "absent is never zero"). With the non-obvious flag OFF the
+    block carries HEAD's five watch kinds, this function returns ``{}`` BEFORE it reads ``text``, and
+    ``board_coverage``'s returned dict is byte-identical to HEAD's twenty keys -- which is what the
+    flag-off proof asserts on the three S6b fixtures, the sixteen banked census blocks and the 144
+    banked board traces. A zero-filled block of eight keys would have made that proof fail on every
+    turn and would have fabricated a ``0 of 0`` inside the arm's own dimension on turns that never ran
+    the instrument.
+
+    THE DISCRIMINATOR COVERS A KIND'S VARIANT SENTENCES TOO, because it is built from
+    ``watch.NONOBVIOUS_KIND_WORDS`` itself: a variant carries its own phrase in that map (MAJOR 1's
+    "running away from it"), so a variant row is counted by construction rather than by a second list
+    that could fall behind.
+
+    NO NEW EMF COUNTER SHIPS. These ride ``sg.trace['state_board']['coverage']``, which is where
+    ``eval._judge_state_panel`` and the orchestrator's emitter already read, and which is
+    ``seam.coverage_counters``' own declared home for the population it keeps out of EMF.
+
+    ``sents``, ``verdict_fn`` AND ``asof`` ARE THE RETIRED READ'S INPUTS AND ARE STILL IN THE SIGNATURE.
+    They are not read. They stay because this function is called POSITIONALLY by
+    :func:`board_coverage` and pinned POSITIONALLY by a deck this lane may not open
+    (``test_state_watch.py``'s "absent is never zero" pin), and because a signature is a contract:
+    breaking it to tidy three names would be a deletion dressed as hygiene. The page itself arrives as
+    the keyword-only ``text``, and a caller that hands none is read as a page with no bullets on it --
+    0 used, 0 added -- rather than as a writer who dropped everything."""
+    from leviathan.graphrag import verify as _vf
+    from leviathan.graphrag.state import watch as _wa
+    # THE DISCRIMINATOR IS THE RENDERED LINE AND NOT A LABEL, because `Block.add`'s manifest carries
+    # role / rank / class / handles / tokens / line and NOT the caller's internal `label` -- `label` is
+    # trip telemetry and stops at `self.trips`. The closed seven-phrase map is what a reader meets, so
+    # it is also what the instrument keys on: one vocabulary, and a kind that renamed its words would
+    # fail this read loudly rather than silently emptying the numerator.
+    words = tuple(f"- WATCH {w} " for w in _wa.NONOBVIOUS_KIND_WORDS.values())
+    noms = [m for m in rows
+            if m.get("role") == "watch" and str(m.get("line") or "").startswith(words)]
+    if not noms:
+        return {}
+    bullets = _nom_watch_bullets(text)
+    low = [b.lower() for b in bullets]
+    # ONE HANDLE PARSER IN THE ESTATE. `verify.cited_number_handles` reads a GROUPED token
+    # (`[N41,42]`, `[N41-43]`) that the naive `"[N41]" in bullet` cannot see, so a writer that grouped
+    # its citations is credited with all of them rather than with none.
+    cites = [_vf.cited_number_handles(b) for b in bullets]
+    matched = [False] * len(bullets)
+    used = cited = 0
+    for m in noms:
+        hs, key = _nom_identity(str(m.get("line") or ""), words)
+        hit_any = hit_cite = False
+        for i, lb in enumerate(low):
+            by_handle = bool(hs & cites[i])
+            if by_handle or any(_token_hit(t, lb) for t in key):
+                hit_any = True
+                matched[i] = True
+            hit_cite = hit_cite or by_handle
+        used += int(hit_any)
+        cited += int(hit_cite)
+    return {"watch_candidates": len(noms), "watch_candidates_used": used,
+            "watch_candidates_cited": cited,
+            "watch_bullets": len(bullets),
+            "watch_writer_added": sum(1 for ok in matched if not ok),
+            "watch_admitted_zero": any(str(m.get("line") or "").startswith(
+                "BOARD ABSENCE a forward item on this page") for m in rows),
+            "watch_nomination_groups": len([g for m in noms for g in (m.get("tokens") or ())]),
+            # THE INSTRUMENT'S OWN ERROR FLOOR, CARRIED WITH ITS NUMBERS (review round 2, minor c; the
+            # bullet keys added round 4). An arm reading a RATE off these counters needs to know what
+            # they return when the writer added nothing and dropped nothing: see
+            # `NOMINATION_ZERO_WRITER_BASELINE`, which now carries BOTH the shipped read's floor and
+            # the retired read's, because the banked round-2 and round-3 traces were produced by the
+            # latter.
+            "watch_instrument_baseline": dict(NOMINATION_ZERO_WRITER_BASELINE)}

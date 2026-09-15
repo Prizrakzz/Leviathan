@@ -46,8 +46,10 @@ working and gate-to-gate comparability is preserved.
 """
 from __future__ import annotations
 
+import datetime as _dt
 import os
 import re
+import unicodedata
 
 # The optional trailing letter consumes model-minted variants like [E1b]: unmatched they LEAK to the
 # reader as literal text (Stage-1 RCA q7); matched they resolve by idx and strip like any other handle.
@@ -1014,6 +1016,1574 @@ def bare_digit_verdict(sent: str) -> str | None:
         if any(k == "E" for k, _i in _handle_members(m.group(0))):
             return "e_cited"
     return "bare_digit"
+
+
+# ══ S7b R1 -- THE LICENSED-ADJECTIVE VERDICT. THE CHARGE LIVES HERE; THE REMEDY LIVES IN answer.py ═══
+# THE FIFTH SANCTIONED AMENDMENT on this module's charge rules (cycle-6 reader precision, cycle-8
+# ordinal/duration, cycle-9 grouped handles, cycle-10 the termination of the rewrite arm, D-DA rule (g),
+# K9-5 `unspanned_superlative` -- and this). It is authored on `bare_digit_verdict`'s shape above,
+# VERBATIM in split and in spirit: this module decides WHAT IS FLAGGED, the renderer decides what the
+# reader gets, and both call ONE producer so the count and the page cannot disagree.
+#
+# WHAT IT IS FOR, MEASURED (scratchpad/recon_s8/REGISTER_CENSUS.md, 2026-09-10, 22 documents / 1,051
+# sentences / 11 charged by the shipped market-register fence): `register._is_banned_sentence` scores the
+# LICENSED sentence and the BARE sentence IDENTICALLY and deletes both --
+#     "Managed-money positioning is crowded -- funds hold 31584 contracts [N25], -2.4 sigma on 156
+#      weeks [N26], 4th percentile of its own record [N27]."   val=0 flow=1 laneB=1 struck=True
+#     "Positioning looks crowded here."                        val=0 flow=1 laneB=1 struck=True
+# Three handles, a value in its own unit, a z on a named window and a 4th-percentile tail buy NOTHING.
+# Re-read for SPEECH ACT, 1 of the 11 charged sentences is a present-tense valuation/positioning verdict:
+# 4 are conditional/mechanism rules, 4 are receipted dated history, and 2 are explicit DENIALS backed by
+# their own rows. The fence charges eleven sentences to catch one -- and deletes 2,302 characters and 11
+# bound citation handles (3 [N], 8 [E]) doing it. Precision 1/11 is the ratio K9-5 itself ruled
+# unshippable, on the same corpus, for the same reason.
+#
+# THE RULE: BIND THE FIGURE, NEVER STRIKE THE WORD. A bar adjective is a CLAIM ABOUT A ROW, so it is
+# verified like every other claim about a row.
+#
+# WHY THE BARS ARE READ FROM `state_conventions.yaml` AND NOT WRITTEN HERE. That file is the board's own
+# band registry and its header states the law this producer inherits: "EVERY VALUE IS AN OWNER-CURATED
+# DESK CONVENTION, and each row says whether it is VERIFIED ... or DECLARED". Copying a band into this
+# module would mint a SECOND producer of a desk number, which is the drift class the estate has measured
+# three times. So the roster below names REFS and the ARITHMETIC reads their bands.
+#
+# ONLY THE BARS THE FILE ALREADY DECLARES SHIP. `cheap` / `rich` / `expensive` / `overbought` /
+# `oversold` / `squeeze` / `vulnerable` have no convention of their own; the census drew PROPOSAL bands
+# for them from the nearest shipped family and the yaml's own owner decision 5 refuses an invented
+# absolute band ("an invented one would rank 63 commodities against a number curated for one of them").
+# So the licence rests on exactly two shipped families and every other proposal is OWED TO THE OWNER,
+# listed in the commit and shipped by nobody:
+#   * POSITIONING -- `cot_mm_positioning`, bands [10, 90], VERIFIED ("own-history percentiles over 156
+#     weeks"). It licenses `crowded` / `stretched` / `vulnerable` / `squeeze` on a TAIL reading.
+#   * THE LEVEL/SPREAD DECILE FAMILY -- `mpob_ending_stocks`, `cbot_board_crush_margin`, `kc_chi_spread`,
+#     `white_yellow_spread`, all `percentile_bands` [10, 90] with labels [low, high]. It licenses `cheap`
+#     from BELOW and `rich` / `expensive` from ABOVE, on a row IN that family and nowhere else.
+#
+# THE SQUEEZE LICENCE IS POSITIONING-ONLY BY CONSTRUCTION, and that is not a promise, it is where the
+# word is read from: the only `squeez\w*` shapes this verdict is ever ASKED about are the ones
+# `register._FLOW_PHRASES` already matched, and that pattern's own block note records why it can never
+# carry a bare stem -- the display registry humanises ~24 regime ids INTO "drought / supply / China
+# demand / delivery / crush / feedstock / premium squeeze" prose. A fundamental-regime label is not a
+# member of the charged population, so no licence can move it.
+#
+# `not_a_verdict` IS DELIBERATELY GENEROUS, on this module's own stated law one screen up: "a generous
+# exemption costs a COUNT, never a false deletion; the reverse would delete correct prose".
+#: The adjective -> (family, side) table. `side`: "low" reads the bottom band, "high" the top band,
+#: "tail" either. Every member is one of `register._LANE_B_ADJ`'s six words or the positioning-squeeze
+#: family -- i.e. exactly the population the shipped fence charges, and not one word wider.
+BAR_ADJECTIVES: tuple = (
+    ("crowded", "positioning", "tail"),
+    ("stretched", "positioning", "tail"),
+    ("vulnerable", "positioning", "tail"),
+    ("squeeze", "positioning", "tail"),
+    ("cheap", "level_decile", "low"),
+    ("rich", "level_decile", "high"),
+    ("expensive", "level_decile", "high"),
+)
+#: The two families, as CONVENTION REFS. The bands are never written here -- `_bar_bands` reads them from
+#: `state_conventions.yaml` through the board's own ONE loader.
+BAR_FAMILY_REFS: dict = {
+    "positioning": ("cot_mm_positioning",),
+    "level_decile": ("mpob_ending_stocks", "cbot_board_crush_margin", "kc_chi_spread",
+                     "white_yellow_spread"),
+}
+_BAR_ADJ_RX = re.compile(r"\b(" + "|".join(
+    (w + r"\w*" if w == "squeeze" else w) for w, _f, _s in BAR_ADJECTIVES) + r")\b", re.I)
+# THE THREE EXEMPTING SPEECH ACTS. NEGATION is CLAUSE-scoped and the other two are SENTENCE-scoped, and
+# the asymmetry is measured: the census' one genuine present verdict -- "A governed spread series is not
+# yet served, so I will characterise the gap only in words: soyoil prints above palm, and soyoil is the
+# more stretched of the two against its own five-year mean." -- carries a `not` NINETY characters and two
+# clause boundaries before its adjective. A sentence-wide negation test would read that sentence as a
+# denial and the licence would exempt the one sentence the fence exists for.
+# ROUND-6 REVIEW MINOR 1 (2026-09-15): `un\w+ed` READ CASE-BLIND MATCHES THE WORD 'United'. "United
+# States corn positioning is crowded [N1]." -- one of the estate's most common surfaces -- came back
+# `not_a_verdict` on a plainly honest PRESENT verdict, so no clause was appended AND the sentence never
+# reached `adjectives_unbacked`: the generosity cost the COUNTER rather than the page, which is the one
+# direction this module's own law does not license. The negation now has to be a REAL negator. The
+# un-prefixed past participles this estate's prose actually uses as denials are NAMED, and they may be
+# shouted or sentence-initial; the open `un...ed` branch is LOWER-CASE ONLY, which is the mark that
+# separates a denial from a proper noun -- and 'united', 'unified' and 'unimproved' are refused in
+# either case, because they are the three the review measured and not one of them denies anything in
+# any spelling. Compiled WITHOUT re.I so the lower-case branch can MEAN lower-case; the closed
+# vocabularies carry their own scoped (?i:).
+_BAR_UN_DENIALS = ("changed", "moved", "supported", "backed", "confirmed")
+_BAR_NEGATOR = re.compile(
+    r"(?i:\b(?:not|never|no|nor|neither|without|hardly|barely|scarcely"
+    r"|un(?:" + "|".join(_BAR_UN_DENIALS) + r"))\b|n[’']t\b)"
+    r"|\bun(?!ited\b|ified\b|improved\b)[a-z]+ed\b")
+_BAR_CLAUSE_EDGE = re.compile(r"[,;:]|--|—|–")
+# CONDITIONAL / MECHANISM. `will` is DELIBERATELY ABSENT: it is bare futurity, and the present verdict
+# above carries "I will characterise". Every word here introduces a HYPOTHETICAL or a rule.
+_BAR_CONDITIONAL = re.compile(
+    r"\b(when|whenever|if|unless|whether|were|would|could|should|might|provided that|"
+    r"as long as|in the event)\b", re.I)
+# DATED HISTORY: a receipted past fact. BOTH legs are required -- a date alone is not a receipt, and a
+# handle alone is not a date.
+_BAR_DATE = re.compile(
+    r"\b\d{4}-\d{2}(?:-\d{2})?\b|\bMY\s?\d{4}(?:/\d{2,4})?\b"
+    r"|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
+    r"|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{4}\b", re.I)
+
+
+#: The two bar memos, KEYED BY THE RESOLVED CONFIG PATH rather than by a constant -- `evidence._hier`'s
+#: own re-keying (evidence.py:689), and it is here for the identical measured reason. Both reads go
+#: through `extract._CFG`, a module-level SINGLETON that six unit files repoint at a tmp dir, and a
+#: one-entry memo keyed on a constant makes that repointing INVISIBLE in one direction (a test pointing
+#: `_CFG` at a fixture registry silently reads the real one) and POISONS the process in the other (a
+#: read taken while `_CFG` pointed at a directory that does not exist caches `{}` for every later
+#: reader, which would make every adjective unbound for the rest of the run). Keying on `str(path)`
+#: makes each memo follow the config it actually parsed. Serving never repoints `_CFG`, so serving holds
+#: exactly one entry per memo, as a `maxsize=1` cache did.
+_BAR_CONV_CACHE: dict = {}
+_BAR_REF_CACHE: dict = {}
+#: ROUND-3: the THIRD memo, same key, same reason -- the estate's contract roster is read from
+#: `commodity_hierarchy.yaml` through `evidence._hier`, which resolves off the same `extract._CFG`
+#: singleton -- and the three that joined it when the roster grew a COMMODITY half (the commodity
+#: vocabulary, the one compiled alternation over both halves, and the numbers registry the freshness
+#: bound reads). Same key, same reason, same one-entry-per-config shape.
+_BAR_MKT_CACHE: dict = {}
+_BAR_CMD_CACHE: dict = {}
+_BAR_RX_CACHE: dict = {}
+_BAR_CANON_CACHE: dict = {}
+_BAR_REG_CACHE: dict = {}
+#: ROUND 4: the entity-vocabulary roster half and the sub-national region -> country map, same key,
+#: same reason -- both resolve off the `extract._CFG` singleton six unit files repoint.
+_BAR_ENT_CACHE: dict = {}
+_BAR_RGN_CACHE: dict = {}
+_BAR_NONPLACE_CACHE: dict = {}
+
+
+def _bar_cfg_key() -> str:
+    """The resolved config root the two bar memos are keyed on."""
+    try:
+        from leviathan.graphrag import extract as _ex
+        return str(getattr(_ex, "_CFG", ""))
+    except Exception:  # noqa: BLE001 -- an unreadable root is one key like any other
+        return ""
+
+
+def _bar_conventions() -> dict:
+    """`state_conventions.yaml`'s `conventions` block, through the board's ONE loader.
+
+    Cached because a verdict is asked per SENTENCE and the file is a build-time constant. A missing or
+    unreadable file returns `{}`, which makes every bar UNRESOLVABLE and every verdict fall to
+    `unbound_adjective` -- fail-closed on the CHARGE and, because the remedy for that class is a DECLINE
+    CLAUSE and never a deletion, fail-open on the reader's page."""
+    key = _bar_cfg_key()
+    if key in _BAR_CONV_CACHE:
+        return _BAR_CONV_CACHE[key]
+    try:
+        from leviathan.graphrag.state.lint import load_conventions
+        out = dict((load_conventions() or {}).get("conventions") or {})
+    except Exception:  # noqa: BLE001 -- no registry is not an error here; it is an unresolvable bar
+        out = {}
+    _BAR_CONV_CACHE[key] = out
+    return out
+
+
+def _bar_bands(family: str, conventions: dict | None = None) -> tuple:
+    """(low_cut, high_cut) for a family, read off the yaml's own `bands`, or () when the family's refs
+    do not agree on one pair.
+
+    AN AMBIGUOUS FAMILY LICENSES NOTHING -- `register._metric_labels`' own refusal, restated: two refs
+    of one family declaring different cuts would make the licence depend on which row the sentence
+    happened to cite, so the pair must be unanimous or there is no bar."""
+    conv = _bar_conventions() if conventions is None else conventions
+    pairs = set()
+    for ref in BAR_FAMILY_REFS.get(family, ()):
+        row = (conv or {}).get(ref) or {}
+        bands = row.get("bands")
+        if row.get("kind") != "percentile_bands" or not isinstance(bands, list) or len(bands) < 2:
+            continue
+        try:
+            pairs.add((float(bands[0]), float(bands[-1])))
+        except (TypeError, ValueError):
+            continue
+    return tuple(pairs.pop()) if len(pairs) == 1 else ()
+
+
+def _bar_ref_index() -> dict:
+    """(table, metric) -> the ONE family the pair names, or absent when two families claim it.
+
+    The board's served calls carry `query.table` / `query.metric` (`state.render.sb_call`), never the
+    convention ref, so the join is made through the board's own roster (`state.feeders.board_map`).
+    MEASURED at authoring time: `kc_chi_spread` and `white_yellow_spread` share
+    ('gold_futures_spreads', 'spread_value') -- the same FAMILY, so the pair resolves; a pair claimed by
+    two DIFFERENT families would resolve to nothing rather than to a guess.
+
+    THE JOIN IS THE FAMILY'S, NEVER THE SERIES'. (table, metric) names a FAMILY of series -- the board
+    emits one `unit='percentile'` call per commodity on `silver_cot/mm_net` -- so this index answers
+    "which bar table governs this pair" and nothing at all about WHICH series a row belongs to. That
+    second question is `_bar_scope`'s, and `_bar_percentiles` must ask both."""
+    key = _bar_cfg_key()
+    if key in _BAR_REF_CACHE:
+        return _BAR_REF_CACHE[key]
+    try:
+        from leviathan.graphrag.state.feeders import board_map
+        rows = board_map() or {}
+    except Exception:  # noqa: BLE001 -- no roster -> no join -> every bar unresolvable
+        _BAR_REF_CACHE[key] = {}
+        return {}
+    out: dict = {}
+    # ROUND-3 REVIEW MINOR (2026-09-15): `pair`, NOT `key`. This loop rebound the MEMO KEY, so the
+    # store two lines down wrote the index under the LAST (table, metric) tuple and `_bar_cfg_key()`
+    # was never in the cache at all -- measured: one call left `_BAR_REF_CACHE` holding the single key
+    # ('gold_futures_spreads', 'spread_value'), and 25 verdicts drove 25 `feeders.board_map()` reads.
+    # No serving regression (board_map is itself lru_cached, 0.006 ms/call), but the FAILURE branch at
+    # the except above DOES store under the config key, so one transient failure pinned `{}` for the
+    # process while a success could never pin anything -- the memo was one-way, in the wrong direction.
+    for fam, refs in BAR_FAMILY_REFS.items():
+        for ref in refs:
+            row = rows.get(ref) or {}
+            pair = (str(row.get("table") or ""), str(row.get("metric") or ""))
+            if not pair[0] or not pair[1]:
+                continue
+            if out.get(pair, fam) != fam:
+                out[pair] = None                    # two families claim it -> nobody may use it
+            else:
+                out.setdefault(pair, fam)
+    out = {k: v for k, v in out.items() if v}
+    _BAR_REF_CACHE[key] = out
+    return out
+
+
+# ── S7b R1 REVIEW MAJOR 1 (2026-09-11): THE BAR IS A SERIES' BAR, NOT A FAMILY'S. ────────────────────
+# MEASURED THROUGH THE REAL PRODUCER. `state/render.py:703` emits one `unit='percentile'` call PER
+# COMMODITY on `silver_cot/mm_net`, so a family join on (table, metric) alone puts every board's
+# positioning row in one bucket: with corn at the 3rd percentile as [N1] and cocoa at the 52nd as [N2]
+# in ONE turn, "ICE cocoa managed-money positioning is crowded [N1]" resolved `licensed` off CORN's
+# reading while the same sentence citing cocoa's own [N2] resolved `weak_adjective` and was corrected.
+# `query.commodity` and `query.country` are on every board call (`render.sb_call`) and were read by
+# nothing. Two dimensions, and they are asked SEPARATELY rather than as one tuple, because a wheat
+# sentence naming Brazil while citing the United States row names its own COMMODITY correctly -- a
+# single-tuple test would be satisfied by the commodity half and license the wrong country.
+#
+# THE RULE IS A CONTRADICTION TEST, NOT AN ATTRIBUTION TEST, and the asymmetry is deliberate. Asking
+# "does the sentence NAME this row's series" would refuse every honest sentence whose subject is set by
+# its heading or its neighbour; asking "does the sentence name a COMPETING series of this same family
+# while naming nothing of this row's own" refuses exactly the shape measured and leaves a comparison
+# sentence ("cocoa positioning is crowded [N2] while corn is not") licensed, because it names both.
+# THE COMPETING VOCABULARY IS THE TURN'S OWN -- the scopes of the other calls in this family on this
+# answer -- so no lexicon is invented and a word shared by two scopes (the exchange token in
+# `corn_cbot` / `soybeans_cbot`) subtracts itself.
+#
+# AND ROW SELECTION IS SCOPED IN TIME. A call whose rows are [55th pct @2026-09-05, 3rd pct @2019-04-02]
+# licensed `crowded` off the 2019 row: the bar is a PRESENT verdict's bar, so only the call's newest
+# knowledge date participates. Rows carrying no knowledge date at all are used only when NO row on that
+# call carries one, which is the board's own single-row shape and leaves it unchanged.
+#
+# EVERY CLAUSE HERE FAILS CLOSED ON THE LICENCE AND OPEN ON THE PAGE: a refusal returns
+# `unbound_adjective`, which is still a verdict, so `register._is_banned_sentence` still relieves the
+# STRIKE and the reader keeps the sentence with the decline clause beside it. Nothing here can delete.
+def _bar_scope(call: dict | None) -> tuple:
+    """One call's SERIES SCOPE -- (commodity, country), lower-cased, off its own query."""
+    q = ((call or {}).get("query") or {})
+    return (str(q.get("commodity") or "").strip().lower(),
+            str(q.get("country") or "").strip().lower())
+
+
+def _bar_scope_words(seg: str) -> set:
+    """The reader words ONE scope segment is named by: the whole de-underscored phrase plus each of its
+    tokens of three or more characters (so `corn_cbot` contributes "corn cbot", "corn", "cbot" and
+    "United States" contributes "united states", "united", "states" but never the ambiguous "us")."""
+    s = str(seg or "").strip().lower().replace("_", " ").replace("-", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+    if not s:
+        return set()
+    return {s} | {w for w in s.split(" ") if len(w) >= 3}
+
+
+def _bar_sent_words(sent: str) -> str:
+    """The sentence as a space-delimited lower-case word stream, padded, for whole-word containment.
+    ASCII-FOLDED through `_bar_ascii`, so an accented surface is the word it is and not two."""
+    return " " + re.sub(r"[^a-z0-9]+", " ", _bar_ascii(sent).lower()).strip() + " "
+
+
+# ── ROUND-3 REVIEW MAJOR (2026-09-15): THE COMPETING VOCABULARY WAS THE TURN'S, AND THE TURN IS OFTEN
+# ONE MARKET WIDE. `others` is the OTHER calls of this family on this answer, so on the modal
+# single-commodity board `foreign` is EMPTY and the contradiction test cannot fire at all. MEASURED, with
+# NO call of the named market on the turn: "ICE cocoa managed-money positioning is crowded [N1]" citing
+# CORN at the 3rd percentile -> `licensed`; "Malaysian palm oil positioning is crowded [N1]" citing the
+# same corn row -> `licensed`; "Brazil wheat positioning is crowded [N1]" citing the United States row ->
+# `licensed`. All three are the threat direction the brief names ("a figure from a DIFFERENT series, a
+# different country"), all three return `unbound_adjective` the moment the competing market IS on the
+# turn, and on a `licensed` verdict `_bind_bar_adjectives` appends no clause at all -- so the cross-market
+# reading shipped UNQUALIFIED, worse than HEAD (which struck it).
+#
+# SO THE VOCABULARY GETS A SECOND, STANDING HALF, AND NEITHER HALF IS INVENTED HERE.
+#   * COMMODITY -- `display._contracts_hier()`, the estate's 31 declared contracts, read through the same
+#     hierarchy `state/render.board_label` prints from. PHRASES ONLY (the de-underscored slug, the node,
+#     the exchange code) and never the token split `_bar_scope_words` does for the turn's own scopes:
+#     splitting would mint 'oil', 'crude', 'red', 'white' and 'no' as competing MARKETS and refuse
+#     honest prose. The one exchange code that is also an English word, ICE, is dropped by name.
+#   * COUNTRY -- `geo_lexicon`, which this estate already calls "the binding verifier's ONE geography
+#     vocabulary": 34 canonical slugs with their name surfaces and demonyms, the decoy suppression
+#     ('South Africa' does not mint 'africa'), the not-a-scope follower blacklist ('the Malaysian
+#     ringgit' mints nothing) and the L2 closure (France sits inside the European Union). Its AGGREGATE
+#     SENTINEL is honoured as the lexicon's own L1 rule says: a sentence reading 'world'/'global' names a
+#     container, and a container is not a disagreement with its contents, so the country dimension
+#     stands down.
+# THE ASYMMETRY IS UNCHANGED -- this is still a CONTRADICTION test, not an attribution test: a sentence
+# naming nothing keeps its licence (its subject is its heading's), and a comparison naming BOTH markets
+# keeps it too. What changes is that "names a competing market" no longer requires that market to have
+# bought a seat on this turn.
+#
+# THE MEASURED COST, STATED: a sentence that cites its own market's percentile and mentions a foreign
+# country in passing ("CBOT corn positioning is crowded [N1] as Brazilian rain returns") now resolves
+# `unbound_adjective` and carries the decline clause. That is the same verdict the TURN half already
+# returned whenever a Brazil call happened to be on the answer -- the rule is not new, its reach is --
+# and it fails closed on the LICENCE and open on the PAGE: the sentence and its figure both stand.
+_BAR_EXCHANGE_HOMONYMS = frozenset({"ice"})     # ...and it is a word: 'ice storm', 'ice damage'
+#: ...and the two ways a reader marks that word as the VENUE it also is. An exchange code is
+#: spelled in CAPITALS and the English word is not, which is the discriminator round 4 shipped;
+#: ROUND-5's ruling (a) adds the other -- the LOCATIVE that can only govern a place or a venue
+#: ("positioning is crowded ON ice") -- because the drop must not remove a venue used as a venue.
+#: Both admissions cost the same thing when they are wrong: a clause not appended (fail closed).
+_BAR_VENUE_USE = re.compile(r"\b(?:on|at)\s+(?:the\s+)?$", re.I)
+# ── ROUND-3 REVIEW MAJOR 1 (2026-09-15): THE STANDING ROSTER WAS PHRASES-ONLY, SO IT HELD EVERY WORD A
+# DESK DOES NOT USE. Measured with ONLY a corn call on the turn (corn_cbot / united_states @ 3rd pct),
+# seven bare market nouns licensed `crowded` off CORN's figure and shipped with no clause at all:
+# "Soybean positioning is crowded [N1].", and the same sentence for Wheat, Sugar, Coffee, Palm,
+# Soymeal and Cattle. The roster held 'soybeans' but not 'soybean', 'raw sugar' / 'white sugar' but not
+# 'sugar', 'arabica coffee' / 'robusta coffee' but not 'coffee', 'hrw wheat' / 'srw wheat' but not
+# 'wheat', and NOTHING AT ALL for a COT-universe market with no declared contract (cattle, hogs,
+# soymeal as one word). The three probes the round-3 fix was built on -- cocoa, 'Malaysian palm oil',
+# 'Brazil wheat' -- are all phrases, which is exactly why a phrase-only vocabulary passed its own gate.
+#
+# SO THE VOCABULARY READS THE ESTATE'S WHOLE COMMODITY HIERARCHY, AND STILL INVENTS NOTHING. One
+# producer, `commodity_hierarchy.yaml` through `evidence._hier()`: the 31 declared CONTRACTS as before,
+# and now its `groups` / `complexes` / `context_commodities` members too -- 63 commodity names, which is
+# the same universe the COT roster, the transmission chain and the board's own labels are drawn from.
+# Each name contributes its de-underscored PHRASE, its tokens, and the two folds a reader actually
+# writes: the singular/plural pair ('soybeans' -> 'soybean', 'hogs' -> 'hog') and the desk's own
+# contraction of a `soybean X` compound ('soybean meal' -> 'soy meal', 'soymeal').
+#
+# A TOKEN LIST NEEDS A HOMONYM DROP AND THIS ONE IS NAMED RATHER THAN GUESSED. The roster is 31
+# contracts + 51 commodities = 213 reader words, of which 104 are single tokens, and the drop table was
+# written by DUMPING THOSE TOKENS AND READING THEM: 37 words name no market on their own and are listed
+# below by name in three classes -- the modifiers and categories ('oil', 'meal', 'feed', 'grains'), the
+# GRADE words off the slugs ('hard', 'red', 'winter', 'rough', 'frozen', 'crude'), and the PLACE words
+# the geo lexicon owns better ('south', 'french', 'malaysian') -- plus 'reference' and 'ice'. Same
+# discipline `_BAR_EXCHANGE_HOMONYMS` already applies to ICE; every token that survives is a market
+# word in this estate's own prose.
+#
+# THE ASYMMETRY IS UNCHANGED, AND IT IS WHY A BROAD VOCABULARY IS SAFE HERE: a contradicted scope
+# returns `unbound_adjective`, which is still a VERDICT -- `register._is_banned_sentence` still relieves
+# HEAD's strike, the sentence and its figure both stand, and the reader gets the decline clause beside
+# the word. A false foreign hit costs the LICENCE. A missing one costs a cross-market call on the page.
+#: The 22 generic tokens, dropped by name. Each is a MODIFIER or a CATEGORY that names no market alone:
+#: a sentence saying "oil" may be about palm, soy, rapeseed, sunflower or crude, and one saying "feed"
+#: or "grains" is naming a group the hierarchy itself declares as a container.
+_BAR_MARKET_STOP = frozenset({
+    # (a) MODIFIERS and CATEGORY words -- a sentence saying "oil" may be about palm, soy, rapeseed,
+    #     sunflower or crude, and one saying "feed" or "grains" names a container the file itself fills.
+    "oil", "oils", "meal", "meals", "feed", "grains", "cereals", "complex", "demand", "compound",
+    "coarse", "minor", "raw", "white", "yellow", "fresh", "used", "cooking", "veg", "vegetable",
+    "juice",
+    # (b) GRADE words off the contract slugs: hard/soft red winter wheat, rough rice, frozen orange
+    #     juice, crude palm oil. Every one is ordinary weather and quality English.
+    "crude", "hard", "soft", "red", "rough", "frozen", "winter", "spring",
+    # (c) PLACE words -- the COUNTRY dimension owns geography, through `geo_lexicon`, which carries the
+    #     demonyms, the decoy suppression and the L2 closure this token split has none of.
+    "south", "french", "malaysian", "brazilian", "african", "campinas",
+    # (d) and two structural leftovers: `reference` (campinas_corn_reference_bmf) and `ice`, which the
+    #     exchange field drops by name and the SLUG token split had quietly put back.
+    "reference", "ice",
+    # (e) ROUND 4, read off the ENTITY-VOCABULARY dump the same way: three of its alias phrases are
+    #     ordinary English before they are markets -- `fame` (the FAME biodiesel spec), `lime` (the
+    #     citrus, and also the soil amendment every ag page writes) and `mop` (muriate of potash).
+    #     Each is dropped by NAME, and each is still reachable by its full alias ("muriate of potash").
+    "fame", "fames", "lime", "limes", "mop", "mops",
+})
+
+
+def _bar_ascii(s: str) -> str:
+    """`s` ASCII-FOLDED -- 'azucar' for 'azúcar', 'mais' for 'maïs'.
+
+    ROUND 4, MEASURED: the roster's third half carries the estate's Portuguese, Spanish and French
+    alias surfaces, and `_bar_sent_words` builds its word stream with `[^a-z0-9]+ -> ' '`, which does
+    not fold an accent -- it SPLITS on it ('az car'). So every accented alias was unreachable from the
+    sentence side: 2 of the 137 roster entries could not be named at all. Both sides fold through this
+    one function now, which is `extract._normalize`'s own NFKD-and-drop rule, so a word spelled with an
+    accent and a word spelled without one are the same word here."""
+    return unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode()
+
+
+def _bar_phrase(seg: str) -> str:
+    """One scope segment as a single de-underscored, ASCII-folded lower-case phrase (no token split)."""
+    return re.sub(r"\s+", " ",
+                  _bar_ascii(seg).strip().lower().replace("_", " ").replace("-", " ")).strip()
+
+
+def _bar_fold(word: str) -> set:
+    """A word and its crude singular/plural partner -- 'soybeans'/'soybean', 'hogs'/'hog'. Crude on
+    purpose: a reader writes both, and a fold that collided with a different word would be worse than
+    none, so it takes a trailing 's' only off a word long enough that dropping it cannot collide
+    ('gas', 'less') and adds one only to a word that does not already end in one."""
+    w = str(word or "").strip().lower()
+    out = {w} if w else set()
+    if len(w) >= 4 and w.endswith("s") and not w.endswith(("ss", "us", "is")):
+        out.add(w[:-1])
+    elif len(w) >= 3 and not w.endswith("s"):
+        out.add(w + "s")
+    return out
+
+
+def _bar_name_words(name: str, *, contraction: bool = True) -> set:
+    """Every reader surface ONE declared name is written by: the phrase, its folds, its non-generic
+    tokens with their folds, and the `soybean X` -> `soy X` / `soyX` contraction the desk actually
+    writes ('soymeal', 'soyoil') -- which is a MORPHOLOGY over the estate's own name, never a synonym
+    list of this module's invention."""
+    ph = _bar_phrase(name)
+    if not ph:
+        return set()
+    out = set(_bar_fold(ph))
+    toks = ph.split(" ")
+    for t in toks:
+        if len(t) >= 3 and t not in _BAR_MARKET_STOP:
+            out |= _bar_fold(t)
+    if contraction and len(toks) > 1 and toks[0] in ("soybean", "soybeans"):
+        tail = " ".join(toks[1:])
+        out |= _bar_fold("soy " + tail) | _bar_fold("soy" + tail.replace(" ", ""))
+        out |= _bar_fold("soy")
+    return {w for w in out if len(w) >= 3}
+
+
+def _bar_hier() -> dict:
+    """`commodity_hierarchy.yaml`, through the one reader `display` already uses. {} when unreadable --
+    the standing half then contributes nothing and the turn's own scopes decide alone, which is the
+    shipped behaviour, so a missing config NARROWS this guard and never widens it."""
+    try:
+        from leviathan.graphrag import evidence as _ev
+        return _ev._hier() or {}
+    except Exception:  # noqa: BLE001 -- no hierarchy -> no standing vocabulary, never a wrong one
+        return {}
+
+
+def _bar_contract_vocab() -> tuple:
+    """(slug phrase, the reader words that name it) for every CONTRACT the estate declares.
+
+    Memoised on the resolved config path like the other bar reads. ROUND-3: the words are no longer
+    phrases only -- see the block note above -- but the ENTRY is still one contract, so
+    `_bar_scope_contradicted` can still tell a row's own market from its neighbours."""
+    key = _bar_cfg_key()
+    if key in _BAR_MKT_CACHE:
+        return _BAR_MKT_CACHE[key]
+    hier = _bar_hier()
+    out: list = []
+    for slug, meta in ((hier.get("contracts") or {}) or {}).items():
+        words = set(_bar_name_words(slug, contraction=False))
+        node = _bar_phrase((meta or {}).get("node") if isinstance(meta, dict) else "")
+        if node:
+            words |= _bar_name_words(node, contraction=False)
+        exch = _bar_phrase((meta or {}).get("exchange") if isinstance(meta, dict) else "")
+        if exch and exch not in _BAR_EXCHANGE_HOMONYMS:
+            words.add(exch)
+        out.append((_bar_phrase(slug), frozenset(w for w in words if w)))
+    _BAR_MKT_CACHE[key] = tuple(out)
+    return _BAR_MKT_CACHE[key]
+
+
+#: The hierarchy blocks that declare CONTAINERS rather than markets. `groups` KEYS ('grains',
+#: 'oilseeds', 'tropicals') and the `_complex` / `_grains` keys of `complexes` name a basket the file
+#: itself fills with members; minting them as competing MARKETS would refuse "the oilseed complex is
+#: bid" on every turn. Their MEMBERS are markets and are read.
+_BAR_HIER_CONTAINER = re.compile(r"_complex$|_grains$|^oilseeds?$|^vegetable_oils$|^oilseed_meals$"
+                                 r"|^coarse_grains$|^soft_commodities$|^tropicals$|^food_grains$"
+                                 r"|^grains$", re.I)
+
+
+def _bar_commodity_vocab() -> tuple:
+    """(commodity phrase, the reader words that name it) for the estate's whole declared commodity
+    universe -- `groups` members, `complexes` keys and members, `context_commodities`."""
+    key = _bar_cfg_key()
+    if key in _BAR_CMD_CACHE:
+        return _BAR_CMD_CACHE[key]
+    hier = _bar_hier()
+    names: set = set()
+    for members in (hier.get("groups") or {}).values():
+        names |= {str(m) for m in (members or [])}
+    for ckey, members in (hier.get("complexes") or {}).items():
+        names |= {str(m) for m in (members or [])}
+        if not _BAR_HIER_CONTAINER.search(str(ckey)):
+            names.add(str(ckey))
+    names |= {str(m) for m in (hier.get("context_commodities") or [])}
+    out = []
+    for n in sorted(names):
+        if _BAR_HIER_CONTAINER.search(n):
+            continue
+        words = _bar_name_words(n)
+        if words:
+            out.append((_bar_phrase(n), frozenset(words)))
+    _BAR_CMD_CACHE[key] = tuple(out)
+    return _BAR_CMD_CACHE[key]
+
+
+#: The entity-vocabulary node classes that are MARKETS. `commodity` is the board's and the walk's own
+#: node vocabulary; `fertilizer` is a priced input the estate narrates as its own market (urea, potash).
+#: Deliberately absent: `region`, `country_origin`, `organization`, `hazard`, `climate_driver`,
+#: `state_marker`, `policy_event` (not markets), and `instrument` (a spread is a SERIES of a market
+#: already on the roster, and minting "board crush" as a competing market would refuse the estate's own
+#: crush prose).
+_BAR_ENTITY_CLASSES = ("commodity", "fertilizer")
+
+
+def _bar_entity_vocab() -> tuple:
+    """(node phrase, reader words) for every MARKET the entity vocabulary declares -- the estate's
+    OTHER market-word file, and the one the board and the walk narrate from.
+
+    ROUND-4 REVIEW MAJOR (2026-09-15): the roster read `commodity_hierarchy.yaml` alone, so 17 words
+    this estate writes in its own prose licensed a corn row on a one-market sentence -- pork, swine,
+    pigs (while `hog`/`hogs` were caught: the same market, two surfaces), milk, cheese, whey, butterfat
+    (while `dairy` was caught), rye, oats, millet, triticale, buckwheat, urea, potash, lard, groundnut,
+    copra. The two files are read by ONE producer here, exactly as the hierarchy's two halves are, so a
+    word can enter the roster only by being declared somewhere the estate already maintains.
+
+    ALIASES COUNT. `entity_vocabulary.aliases` is where 'pork' and 'whey' actually live (the NODE is
+    `hogs` / `dairy`), and an alias is what a reader writes.
+
+    PHRASES ONLY, AND THAT IS THE CONTRACT HALF'S OWN MEASURED RULE, not a caution. Running the token
+    split over these aliases mints 553 words, and reading the dump is what settles it: `all` (from "all
+    wheat"), `bean` and `black` (from "black gram"), `broad`, `animal`, `based`, `bio`, `blend`,
+    `crop` -- and `crop` alone read "Ice damage to the crop leaves positioning crowded [N1]" as a
+    sentence naming the HOG market. So each alias contributes its whole phrase and the crude
+    singular/plural fold of it, exactly as `_bar_contract_vocab` shipped before the roster grew a
+    commodity half. The 17 words the review measured are single-token aliases (pork, swine, whey, rye,
+    oats, urea, potash, lard, copra...), so phrases-only catches every one of them."""
+    key = _bar_cfg_key()
+    if key in _BAR_ENT_CACHE:
+        return _BAR_ENT_CACHE[key]
+    out: list = []
+    try:
+        import yaml as _yaml
+
+        from leviathan.graphrag import extract as _ex
+        data = _yaml.safe_load((_ex._CFG / "entity_vocabulary.yaml").read_text(encoding="utf-8")) or {}
+        nodes = (data.get("nodes") or {})
+        aliases = (data.get("aliases") or {})
+        for cls in _BAR_ENTITY_CLASSES:
+            for node in (nodes.get(cls) or []):
+                words: set = set()
+                for surface in [str(node)] + [str(a) for a in (aliases.get(str(node)) or [])]:
+                    ph = _bar_phrase(surface)
+                    if ph and ph not in _BAR_MARKET_STOP and len(ph) >= 3:
+                        words |= {w for w in _bar_fold(ph) if w not in _BAR_MARKET_STOP}
+                if words:
+                    out.append((_bar_phrase(str(node)), frozenset(words)))
+    except Exception:  # noqa: BLE001 -- no vocabulary -> no third half, never a wrong one
+        out = []
+    _BAR_ENT_CACHE[key] = tuple(out)
+    return _BAR_ENT_CACHE[key]
+
+
+def _bar_market_vocab() -> tuple:
+    """The standing market roster: every declared CONTRACT, every declared COMMODITY, and every MARKET
+    node the entity vocabulary declares, as (identity phrase, reader words)."""
+    return tuple(_bar_contract_vocab()) + tuple(_bar_commodity_vocab()) + tuple(_bar_entity_vocab())
+
+
+def _bar_canon_map() -> dict:
+    """{identity phrase -> canonical market}, memoised: `_bar_canon` is asked once per roster ENTRY per
+    verdict now that `mine` folds by canon, and a linear scan of the contracts dict inside that loop is
+    the `_bar_ref_index` memo bug in a different costume."""
+    key = _bar_cfg_key()
+    if key in _BAR_CANON_CACHE:
+        return _BAR_CANON_CACHE[key]
+    out: dict = {}
+    for slug, meta in ((_bar_hier().get("contracts") or {}) or {}).items():
+        node = _bar_phrase((meta or {}).get("node") if isinstance(meta, dict) else "")
+        out[_bar_phrase(slug)] = node or _bar_phrase(slug)
+    _BAR_CANON_CACHE[key] = out
+    return out
+
+
+def _bar_canon(identity: str) -> str:
+    """The MARKET a roster identity belongs to: a contract folds onto its hierarchy NODE
+    ('corn_cbot' -> 'corn', 'french_maize_matif' -> 'corn'), a commodity is its own market. Used only
+    by the two-market SUBJECT rule, where 'the same market said twice' must not read as a comparison."""
+    return _bar_canon_map().get(identity, identity)
+
+
+def _bar_market_rx() -> tuple:
+    """(one compiled alternation over every roster word, {word: canonical market}). LONGEST FIRST, so
+    'hrw wheat' is one market mention and not two -- `finditer` resumes after a match, so the 'wheat'
+    inside it is never counted as a second, competing market."""
+    key = _bar_cfg_key()
+    if key in _BAR_RX_CACHE:
+        return _BAR_RX_CACHE[key]
+    words: dict = {}
+    for ident, ws in _bar_market_vocab():
+        canon = _bar_canon(ident)
+        for w in ws:
+            words.setdefault(w, canon)
+    if not words:
+        _BAR_RX_CACHE[key] = (None, {})
+        return _BAR_RX_CACHE[key]
+    alt = "|".join(re.escape(w) for w in sorted(words, key=lambda x: (-len(x), x)))
+    _BAR_RX_CACHE[key] = (re.compile(r"\b(?:" + alt + r")\b", re.I), words)
+    return _BAR_RX_CACHE[key]
+
+
+def _bar_exchange_words() -> frozenset:
+    """Every EXCHANGE code the hierarchy declares, as reader words. They stay in the contradiction
+    vocabulary (naming MATIF while citing a CBOT row names a competing series) and are kept OUT of the
+    two-market subject count: a venue lists many crops and is not one of them."""
+    out: set = set()
+    for _slug, meta in ((_bar_hier().get("contracts") or {}) or {}).items():
+        exch = _bar_phrase((meta or {}).get("exchange") if isinstance(meta, dict) else "")
+        if exch:
+            out |= _bar_fold(exch)
+    return frozenset(out)
+
+
+def _bar_venue_rx():
+    """One alternation over every declared EXCHANGE code, longest first. Memoised on the roster's own
+    key; None when the hierarchy is unreadable."""
+    key = "venues:" + _bar_cfg_key()
+    if key in _BAR_RX_CACHE:
+        return _BAR_RX_CACHE[key]
+    ws = sorted(_bar_exchange_words(), key=lambda x: (-len(x), x))
+    _BAR_RX_CACHE[key] = (re.compile(r"\b(?:" + "|".join(re.escape(w) for w in ws) + r")\b", re.I)
+                          if ws else None)
+    return _BAR_RX_CACHE[key]
+
+
+def _bar_named_markets(sent: str, *, venues: bool = False) -> list:
+    """[(offset, canonical market)] for every market this sentence NAMES, left to right, longest match
+    first and never overlapping. Exchange codes are not markets and do not appear.
+
+    `venues=True` counts them anyway, each under its OWN identity (`venue:cbot`), and that is the
+    round-4 review MAJOR's remedy rather than a change of mind about what a venue is. A comparison that
+    names only the two EXCHANGES -- "ICE positioning is crowded [N2] while CBOT is quiet [N1]." --
+    resolved to no subject at all, so the percentile test went back to OR-ing every handle and read the
+    adjective off the OTHER market's row. A venue is still not a market, so `venue:ice` matches no
+    call's canons and the comparison FAILS CLOSED: no row resolves, the verdict is `unbound_adjective`
+    and the correcting clause appends NOTHING (ruling (3)). The default is False, so every other
+    caller -- `_bar_call_canons` included -- reads exactly what it read before."""
+    rx, words = _bar_market_rx()
+    if rx is None:
+        return []
+    exch = _bar_exchange_words()
+    raw = str(sent or "")
+    body = re.sub(r"[_-]", " ", _bar_ascii(raw).lower())
+    out = []
+    for m in rx.finditer(body):
+        w = m.group(0).strip()
+        if w in exch:
+            if venues:
+                out.append((m.start(), "venue:" + w))
+            continue
+        out.append((m.start(), words.get(w, w)))
+    if venues:
+        # THE VENUE SCAN IS ITS OWN, and it has to be: `_bar_contract_vocab` drops ICE from the market
+        # words BY NAME (it is 'ice storm', 'ice damage'), so the loop above can never see the exact
+        # code the review's escape was written in. The homonym is admitted here only in UPPER CASE --
+        # an exchange code is spelled that way and the English word is not, which is the same
+        # discriminator the desk lint's proper-name rule uses, and it costs a false venue mention
+        # nothing worse than a clause not appended (fail closed).
+        vrx = _bar_venue_rx()
+        if vrx is not None:
+            taken = [(p, p + 1) for p, _c in out]
+            for m in vrx.finditer(body):
+                w = m.group(0).strip()
+                if w in _BAR_EXCHANGE_HOMONYMS \
+                        and not raw[m.start():m.end()].isupper() \
+                        and not _BAR_VENUE_USE.search(body[:m.start()]):
+                    continue
+                if any(a <= m.start() < b for a, b in taken):
+                    continue
+                out.append((m.start(), "venue:" + w))
+            out.sort(key=lambda t: t[0])
+    return out
+
+
+def _bar_call_canons(call: dict | None) -> set:
+    """The markets ONE call's own row belongs to, read through the SAME roster the sentence is read
+    through -- so a call scoped on a declared contract (`corn_cbot`), on an undeclared one
+    (`cocoa_ice`) and on the bare commodity (`cocoa`) all answer the same market."""
+    own = _bar_scope(call)[0]
+    if not own:
+        return set()
+    ph = _bar_phrase(own)
+    out = {ph, _bar_canon(ph)}
+    out |= {c for _p, c in _bar_named_markets(ph)}
+    return {c for c in out if c}
+
+
+def _bar_region_country() -> dict:
+    """{normalised region surface -> the country it belongs to}, from `configs/graphrag/regions.yaml`.
+
+    ROUND-4 REVIEW MAJOR (2026-09-15): `geo_lexicon.slugs_in` resolves COUNTRIES and nothing below
+    them, so every place word this estate actually writes stood the geo dimension down -- 'Mato
+    Grosso', 'Parana', 'Rio Grande do Sul', 'Sao Paulo', 'Bahia', 'Sabah', 'Johor' all returned the
+    empty set, and 8 of 8 sub-national probes licensed off a united_states row.
+
+    ROUND-5 REVIEW MAJOR 2 (b): SIX OF THOSE SEVEN RESOLVED AND THE SEVENTH DID NOT, so the
+    paragraph above claimed a fix it did not have, and the paragraph that replaced it claimed one
+    this file cannot keep. WHAT THIS MAP RESOLVES IS WHATEVER THE HARVESTER WROTE, and nothing else:
+    `configs/graphrag/regions.yaml` is GIT-IGNORED (.gitignore:75) and REGENERATED by
+    `scripts/harvest_geographies.py` out of `configs/geographies/`, so a surface hand-added here
+    lives in ONE working tree, cannot be committed by path, and is silently reverted by the next
+    harvest -- a deck pinned to such a surface is green as a property of a machine rather than of the
+    repo. Round 5 added 43 bare surfaces as aliases on 27 entries; round 6 REVERTED them and the file
+    is byte-identical to what `harvest_geographies.main()` writes (267 keys, 0 entries differing).
+
+    SO 'Rio Grande do Sul' DOES NOT RESOLVE HERE, AND THAT IS THE SAFE OUTCOME. The cause is
+    mechanical: `harvest_geographies._region_name` drops the country-code token and any token of the
+    COMMODITY SLUG, so `br_soy_rio_grande_do_sul` under commodity `soybeans_cbot` keeps its `soy`
+    (the slug spells 'soybeans', the key spells 'soy') and the region is reachable only as 'soy rio
+    grande do sul', which no reader writes. The same shape hides 'Heilongjiang', 'Jilin', 'Inner
+    Mongolia', 'Liaoning', 'North Dakota', 'Oklahoma', 'Tennessee', 'Montana' and the rest of the
+    commodity-prefix class (`Soy_` / `Hrs_` / `Hrw_` / `Srw_` / `canola_`). A surface that resolves to
+    nothing FAILS THE SENTENCE CLOSED -- `_bar_unresolved_place` for the adjunct, `_bar_subject_place`
+    for the subject -- which costs a CORRECTION NOT PRINTED and never a wrong figure printed: the
+    sentence ships as the writer wrote it. WIDENING THE SURFACES IS THE HARVESTER'S JOB (it should
+    emit the bare surface as an alias whenever it strips a commodity prefix), never a hand edit of
+    this overlay; that file is outside this lane's declared scope and is DOCKETED for the owner.
+
+    What the map does resolve it resolves through the estate's own harvested file (the one
+    `extract._canon_region` reads), with `extract._normalize`'s SURFACE NORMALISATION: one producer
+    for "is this word that region", so a region spelled with an underscore, an accent or a space
+    resolves the same way here as it does in extraction. Measured on the harvested file: 'Iowa',
+    'Illinois', 'Nebraska', 'Kansas', 'Mato Grosso', 'Parana', 'Sao Paulo', 'Bahia', 'Sabah',
+    'Johor', 'Uttar Pradesh' and 'Buenos Aires' all resolve, and the country half then judges them."""
+    key = _bar_cfg_key()
+    if key in _BAR_RGN_CACHE:
+        return _BAR_RGN_CACHE[key]
+    out: dict = {}
+    try:
+        import yaml as _yaml
+
+        from leviathan.graphrag import extract as _ex
+        data = _yaml.safe_load((_ex._CFG / "regions.yaml").read_text(encoding="utf-8")) or {}
+        for canon, meta in (data.get("regions") or {}).items():
+            country = str((meta or {}).get("country") or "").strip()
+            if not country:
+                continue
+            for surface in [str(canon)] + [str(a) for a in ((meta or {}).get("aliases") or [])]:
+                s = _ex._normalize(surface)
+                if len(s) >= 4:                 # a two-letter region code is an English word too often
+                    out.setdefault(s, country)
+    except Exception:  # noqa: BLE001 -- no map -> the sub-national half stands down, never a guess
+        out = {}
+    _BAR_RGN_CACHE[key] = out
+    return out
+
+
+def _bar_geo(text: str) -> tuple:
+    """(the country slugs `text` names, closed over the lexicon's ancestors; whether it names an
+    AGGREGATE sentinel). ((), False) when the lexicon is unreadable -- silence, never a guess.
+
+    A SUB-NATIONAL REGION NAMES ITS COUNTRY (round-4 review MAJOR): 'Mato Grosso' is resolved through
+    `regions.yaml` to Brazil and then through the SAME lexicon as the word 'Brazil' would be, so the two
+    spellings of one geography cannot disagree."""
+    try:
+        from leviathan.graphrag import geo_lexicon as _gl
+        s = str(text or "")
+        found = set(_gl.slugs_in(s))
+        rgn = _bar_region_country()
+        if rgn:
+            words = " " + re.sub(r"[^a-z0-9]+", " ", _bar_ascii(s).lower()).strip() + " "
+            for surface, country in rgn.items():
+                if (" " + surface + " ") in words:
+                    found |= set(_gl.slugs_in(country))
+        return frozenset(_gl.closure_of(found)), bool(_gl.sentinel_hit(s))
+    except Exception:  # noqa: BLE001 -- no lexicon -> the standing country half stands down
+        return frozenset(), False
+
+
+def _bar_scope_contradicted(sent: str, sent_words: str, own: tuple, others: list) -> bool:
+    """Does the sentence name a COMPETING series while naming nothing of this row's own? Asked per
+    dimension (commodity, then country); either one contradicted refuses the licence.
+
+    Each dimension asks TWO vocabularies -- the TURN's other calls of this family, and the estate's own
+    standing roster (see the block note above) -- and either one may convict.
+
+    ROUND-3 REVIEW MAJOR 2 (2026-09-15): A ROW THAT CARRIES NO SCOPE CANNOT CLAIM ONE. Both halves used
+    to run only `if own[dim]`, so a row whose own country is None stood the WHOLE geo dimension down --
+    and `state/render.py:671` emits `"country": st.key.country or None`, which is a shape the renderer
+    produces every day. Measured on a corn_cbot / country=None call @ 3rd pct: "Brazil positioning is
+    crowded [N1].", "Argentine corn positioning is crowded [N1]." and "Ukrainian positioning is crowded
+    [N1]." all returned `licensed`, and all three return `unbound_adjective` the moment the row carries
+    united_states -- the guard was present and simply un-entered. So an EMPTY own scope now contradicts
+    whenever the sentence names ANY market (or any country) at all: the row has nothing to claim it
+    with, and the licence fails closed exactly as it does for a wrong one."""
+    for dim in (0, 1):
+        mine = _bar_scope_words(own[dim])
+        foreign: set = set()
+        for sc in others:
+            if sc[dim] and sc[dim] != own[dim]:
+                foreign |= _bar_scope_words(sc[dim])
+        if dim == 0:
+            # THE TWO SIDES READ THE SAME ROSTER, and they must: `mine` is the SLUG's own tokens, so a
+            # row whose slug spells its market differently from its node ('french_maize_matif' -> node
+            # `corn`, 'brazilian_arabica_coffee' -> exchange BMF) would find its OWN market's word in
+            # the foreign set and refuse a sentence that named it correctly. Measured: 2 of the 31
+            # declared contracts before this line, 0 after.
+            here = _bar_phrase(own[dim])
+            node = _bar_canon(here) if here else ""
+            for slug, words in _bar_market_vocab():
+                if here and (slug in (here, node) or (node and _bar_canon(slug) == node)):
+                    mine |= set(words)          # every SURFACE of this row's own market, node included
+                else:
+                    foreign |= set(words)
+        elif not own[dim]:
+            named, aggregate = _bar_geo(sent)
+            if named and not aggregate:
+                return True                     # a row with no country cannot claim one
+        foreign -= mine
+        # THE SECOND HALF ASKS WHETHER THE SENTENCE NAMES THIS ROW'S MARKET, and an EXCHANGE CODE does
+        # not: CBOT lists corn, soybeans, wheat, rice and two meals, so "Soybeans CBOT positioning is
+        # crowded [N1]" citing a CORN row was naming corn's venue and reading as if it had named corn.
+        # The code stays in `mine` (so it is not foreign to its own row) and leaves this half.
+        named_mine = (mine - _bar_exchange_words()) if dim == 0 else mine
+        if foreign and any((" " + w + " ") in sent_words for w in foreign) \
+                and not any((" " + w + " ") in sent_words for w in named_mine):
+            return True
+        if dim == 1 and own[dim]:
+            named, aggregate = _bar_geo(sent)
+            ours, _ = _bar_geo(own[dim])
+            if named and ours and not aggregate and not (named & ours):
+                return True
+    return False
+
+
+# ── ROUND-5 REVIEW MAJOR 2 (2026-09-15): THE CORRECTING CLAUSE IS THE LANE'S ONE PRINTED FIGURE, SO A
+# CLAUSE BOUND TO THE WRONG SUBJECT IS THE BACKED-FIGURE CLASS. Round 4 closed the two-market and the
+# two-VENUE comparisons and left three residual ways a corn row's percentile printed itself beside a
+# sentence about something else. All three are fixed the same way -- the row simply does not resolve,
+# which is the verdict this module has always returned for "the sentence's market is not this row's"
+# -- and all three fail CLOSED: when the subject is not the row's own market beyond doubt, NOTHING is
+# appended and the sentence ships exactly as the writer wrote it. Words are free; only the figure the
+# clause would print has to be backed.
+#
+#   (a) ONE VENUE NAMED ALONE. "Positioning is crowded on MATIF [N1]." and "...on ICE [N1]." both
+#       printed corn_cbot's 42 -- `_bar_subject_market` asks its question only when TWO distinct
+#       markets are named, so a single venue was never tested as a subject at all, and `matif` lands
+#       in `mine` rather than `foreign` because `french_maize_matif` canonicalises onto node `corn`.
+#       A venue named ALONE is a market mention: if it is not one of the ROW'S OWN venues, the subject
+#       is foreign. The vocabulary is the estate's own declared exchange codes (`_bar_exchange_words`,
+#       read off `commodity_hierarchy.yaml`'s contracts), never a hand list -- and the ICE homonym drop
+#       now keeps a venue USED as a venue.
+#   (b) A PLACE THE GEO LEXICON CANNOT RESOLVE. "Positioning in Rio Grande do Sul is crowded [N1]."
+#       and "...in Heilongjiang..." took the united_states row because `regions.yaml` carried neither
+#       surface (both hide behind the harvester's commodity prefix, `Soy_Rio_Grande_Do_Sul`), and
+#       "...on Euronext [N1]." took it because Euronext is a venue this estate declares no contract on.
+#       An UNRESOLVED capitalised phrase after a locative preposition, inside the adjective's own
+#       clause, means the subject is not the row's market beyond doubt -> no clause. The 43 missing
+#       bare surfaces are added to `regions.yaml` in the same sitting, so the docstring above is true.
+#   (c) TWO MARKETS, BOTH RESOLVED. "Cocoa positioning is crowded [N2] and corn positioning is crowded
+#       [N1]." appended COCOA's 52 at the END of a sentence whose last clause is about corn, whose own
+#       row reads 42. The clause is appended at the sentence end, so it binds to the LAST clause: it
+#       may be printed only when that clause carries the adjective, names this row's market, and names
+#       no other. Never the first contradicting row.
+def _bar_adj_word(m) -> str:
+    """The BAR_ADJECTIVES table's own word for one `_BAR_ADJ_RX` match -- `squeeze` folds its
+    inflections. One producer; `bar_adjective_hits` states the same fold inline and predates it."""
+    w = m.group(1).lower()
+    return "squeeze" if w.startswith("squeez") else w
+
+
+def _bar_family_adj(sent: str, family: str) -> list:
+    """Every bar-adjective match in `sent` belonging to `family`, in written order."""
+    return [m for m in _BAR_ADJ_RX.finditer(str(sent or ""))
+            if next((f for a, f, _d in BAR_ADJECTIVES if a == _bar_adj_word(m)), "") == family]
+
+
+def _bar_clause_spans(sent: str) -> list:
+    """(start, end) for each CLAUSE of the sentence, split on `_BAR_CLAUSE_EDGE` -- the same edges
+    `_bar_speech_act` scopes a negation by, so "which clause is this word in" has one answer here."""
+    s = str(sent or "")
+    spans, start = [], 0
+    for m in _BAR_CLAUSE_EDGE.finditer(s):
+        spans.append((start, m.start()))
+        start = m.end()
+    spans.append((start, len(s)))
+    return [(a, b) for a, b in spans if s[a:b].strip()]
+
+
+def _bar_clause_at(sent: str, pos: int) -> tuple:
+    """The clause span containing `pos`, or the whole sentence when the split finds none."""
+    for a, b in _bar_clause_spans(sent):
+        if a <= pos < b:
+            return (a, b)
+    return (0, len(str(sent or "")))
+
+
+def _bar_call_venues(call: dict | None) -> frozenset:
+    """The VENUE words this row's own market is listed on, read off the same declared contracts the
+    market roster is.
+
+    EXACT FIRST. A row scoped on a DECLARED contract (`corn_cbot`) has ONE venue -- its own exchange
+    -- which is what makes "Positioning is crowded on MATIF [N1]." foreign to it even though
+    `french_maize_matif` canonicalises onto the same node.
+
+    OTHERWISE THE SET WIDENS to every exchange listing a contract this row's own scope NAMES -- such
+    a row could be any of them, so naming one is no evidence of a foreign subject. The match is on
+    the scope's own WORDS against the contract roster's words, which is `_bar_scope_contradicted`'s
+    `mine` and not a second idea of identity.
+
+    TWO MEASUREMENTS BEHIND THOSE TWO LINES, both taken off the estate's own decks, and neither of
+    them a hypothetical. (i) The decks drive `cocoa_ice` and `wheat_cbot`, which are NOT contract
+    KEYS (the declarations are `cocoa` and `soft_red_winter_wheat_cbot`), so keying the `contracts`
+    dict gave them an EMPTY venue set and read their own exchange as foreign -- four round-3/4 pins
+    red in one run. (ii) Reading the row's market through `_bar_call_canons` instead fixed cocoa and
+    broke wheat, because `_bar_market_rx` assigns ONE canon per word and the first roster entry
+    wins: the bare word 'wheat' canonicalises to `french wheat`, so a `wheat_cbot` row claimed MATIF
+    as its venue and read CBOT as foreign. A scope that names no contract at all still resolves to
+    the empty set, and an empty set claims no venue: every venue the sentence names is then foreign
+    to it, which is the fail-closed half and the shape `_bar_scope_contradicted` already takes for a
+    row carrying no country."""
+    own = _bar_phrase(_bar_scope(call)[0])
+    if not own:
+        return frozenset()
+    mine = _bar_scope_words(own)
+    vocab = dict(_bar_contract_vocab())
+    exact, wide = set(), set()
+    for slug, meta in ((_bar_hier().get("contracts") or {}) or {}).items():
+        exch = _bar_phrase((meta or {}).get("exchange") if isinstance(meta, dict) else "")
+        if not exch:
+            continue
+        ph = _bar_phrase(slug)
+        if ph == own:
+            exact |= _bar_fold(exch)
+        elif set(vocab.get(ph) or ()) & mine:
+            wide |= _bar_fold(exch)
+    return frozenset(exact or wide)
+
+
+def _bar_foreign_venue(sent: str, call: dict | None) -> bool:
+    """Does the sentence name a VENUE, AND NO MARKET FOR IT TO BELONG TO, that is not one of this
+    row's own? (review MAJOR 2 (a).)
+
+    ASKED AT ONE VENUE, NOT TWO. The two-venue comparison was round 4's fix and it reads the SUBJECT
+    rule; this reads the ROW, so it fires on the single venue that rule can never see. A venue this
+    row IS listed on is not foreign and changes nothing -- "Positioning is crowded on CBOT [N1]." off
+    a corn_cbot row still earns its clause.
+
+    ALONE IS LOAD-BEARING, and the estate's own seam check is what says so. The ruling's words are "a
+    VENUE token named ALONE is a market mention" -- a venue NEXT TO ITS OWN MARKET is not a subject
+    claim of its own, it is the market's address, and the two-market subject rule already owns that
+    sentence. `config_check`'s register_seam probe drives exactly it: "ICE cocoa positioning is
+    crowded [N2] while CBOT corn is quiet [N1]." must resolve weak_adjective against COCOA, and a
+    venue test reading the whole sentence made it unbound by calling CBOT foreign to the cocoa row.
+    So this half stands down the moment the sentence names any market at all -- and nothing is lost
+    by that, because a sentence naming a market AND a foreign venue is a TWO-MARKET sentence to
+    `_bar_clause_bound`, which refuses to place a clause beside a venue the row is not listed on.
+    Measured: "Corn positioning is crowded on MATIF [N1]." appends nothing, by (c) rather than by
+    this line."""
+    named = _bar_named_markets(sent, venues=True)
+    if any(not c.startswith("venue:") for _p, c in named):
+        return False                        # the venue has a market beside it; (c) decides
+    venues = {c[len("venue:"):] for _p, c in named}
+    return bool(venues - set(_bar_call_venues(call))) if venues else False
+
+
+#: A LOCATIVE and the capitalised phrase it governs. The connectives are the ones a place name carries
+#: inside itself ('Rio Grande do Sul', 'Free State of Bavaria'); every other token of the phrase must
+#: itself be capitalised, so an ordinary lower-case noun ends the phrase and is never read as a place.
+_BAR_PLACE_PREP = re.compile(
+    r"\b(?:in|on|at|from|across)\s+(?:the\s+)?"
+    r"([A-ZÀ-Þ][\w'’.-]*"
+    r"(?:\s+(?:de|do|da|dos|das|del|du|des|of|the|and)\s+[A-ZÀ-Þ][\w'’.-]*"
+    r"|\s+[A-ZÀ-Þ][\w'’.-]*)*)")
+#: The capitalised words after a locative that are NOT places and must not fail the sentence closed.
+#: THE CALENDAR IS THE ONLY HAND LIST, and it has to be one -- a month is not an entity this
+#: estate declares anywhere. Everything else that is not a place is read off the ESTATE'S OWN
+#: entity vocabulary below, the same file the market roster's third half comes from.
+_BAR_NOT_A_PLACE = re.compile(
+    r"^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+    r"|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?"
+    r"|q[1-4]|h[12]|fy|cy|my|ytd)\b", re.I)
+#: The entity-vocabulary node classes that name something which is NOT A GEOGRAPHY: a phenomenon,
+#: an institution, a rule or a derived series. `region` and `country_origin` are deliberately
+#: ABSENT -- a place must resolve through the GEO LEXICON, where the country half of the
+#: contradiction test can then judge it, and admitting a region here would let a foreign
+#: geography past the guard rather than through it. `commodity` / `fertilizer` / `energy` /
+#: `metal` / `freight` are absent too: the market roster already reads them.
+_BAR_NON_PLACE_CLASSES = ("climate_driver", "hazard", "beneficial_weather", "organization",
+                          "state_marker", "policy_event", "instrument")
+
+
+def _bar_non_place_vocab() -> frozenset:
+    """Every surface the entity vocabulary declares for a thing that is not a geography -- nodes
+    and ALIASES, as whole phrases.
+
+    MEASURED (round 5): 'El Nino' and 'La Nina' stood 3 of the 878 real-seat sentences down on the
+    (b) rule -- 'on the El Nino edge', 'on the La Nina edge' -- and both are declared
+    `climate_driver` nodes. A phase of the ocean is not a place, and the estate says so in its own
+    file; the alternative was a second hand list beside the calendar."""
+    key = _bar_cfg_key()
+    if key in _BAR_NONPLACE_CACHE:
+        return _BAR_NONPLACE_CACHE[key]
+    out: set = set()
+    try:
+        import yaml as _yaml
+
+        from leviathan.graphrag import extract as _ex
+        data = _yaml.safe_load((_ex._CFG / "entity_vocabulary.yaml").read_text(encoding="utf-8")) or {}
+        nodes, aliases = (data.get("nodes") or {}), (data.get("aliases") or {})
+        for cls in _BAR_NON_PLACE_CLASSES:
+            for node in (nodes.get(cls) or []):
+                for surface in [str(node)] + [str(a) for a in (aliases.get(str(node)) or [])]:
+                    ph = _bar_phrase(surface)
+                    if len(ph) >= 3:
+                        out.add(ph)
+    except Exception:  # noqa: BLE001 -- no vocabulary -> the half stands down and (b) fails closed
+        out = set()
+    _BAR_NONPLACE_CACHE[key] = frozenset(out)
+    return _BAR_NONPLACE_CACHE[key]
+
+
+def _bar_place_resolves(phrase: str) -> bool:
+    """Can this estate say what the phrase NAMES -- the calendar, a declared non-geography (a
+    climate phase, an institution, a rule, a derived series), a country, a sub-national region, one
+    of its own markets, or one of its declared venues? Nothing else resolves, and a phrase that
+    resolves to nothing is the fail-closed case.
+
+    THE RESIDUAL, NAMED RATHER THAN HIDDEN. Over the 878 real-seat sentences three surfaces resolve
+    to nothing: 'Dalian' (the CITY the DCE is named for, which this estate declares only as the
+    exchange code `DCE`), 'US' (the geo lexicon carries 'U.S.' and 'USA' and not the bare two-letter
+    form, which `_bar_scope_words` drops by name as too ambiguous to read case-blind) and 'SAME' (an
+    ordinary English word shouted for emphasis); the ENSO phases were a fourth until the
+    entity-vocabulary leg above. NONE of the three sits in the clause of a bar adjective anywhere in
+    the corpus, so the measured cost today is ZERO sentences -- and when one does arrive the cost is
+    a CORRECTION NOT PRINTED, never a wrong figure printed: words are free, and the sentence ships as
+    written.
+
+    ROUND 6 ADDS A NAMED CLASS TO THAT RESIDUAL rather than a hand edit: every region whose harvested
+    key carries a COMMODITY PREFIX is reachable only through that prefix ('soy rio grande do sul'),
+    so 'Rio Grande do Sul', 'Heilongjiang', 'Jilin', 'Inner Mongolia', 'Liaoning', 'North Dakota',
+    'Oklahoma', 'Tennessee' and 'Montana' resolve to nothing and fail their sentences CLOSED. The
+    cure is `scripts/harvest_geographies.py` emitting the bare surface, which is an OWNER DOCKET and
+    not this lane's file -- see `_bar_region_country` above."""
+    ph = str(phrase or "").strip()
+    if not ph or _BAR_NOT_A_PLACE.match(ph):
+        return True
+    if _bar_phrase(ph) in _bar_non_place_vocab():
+        return True
+    named, aggregate = _bar_geo(ph)
+    if named or aggregate:
+        return True
+    words = _bar_sent_words(ph)
+    rx, _w = _bar_market_rx()
+    if rx is not None and rx.search(words):
+        return True
+    return any((" " + v + " ") in words for v in _bar_exchange_words())
+
+
+def _bar_unresolved_place(text: str) -> str:
+    """The first capitalised phrase `text` places with a locative and cannot resolve, or ""."""
+    for m in _BAR_PLACE_PREP.finditer(str(text or "")):
+        ph = m.group(1).strip()
+        if ph and not _bar_place_resolves(ph):
+            return ph
+    return ""
+
+
+# == ROUND-6 REVIEW MAJOR (2026-09-15): (b) WAS GRAMMAR-GATED, AND THE SUBJECT SLOT IS THE HALF IT ==
+# MISSED. `_BAR_PLACE_PREP` reads a capitalised place only AFTER in/on/at/from/across, so the very
+# same unresolved place refused the clause as an ADJUNCT and TOOK it as the sentence's SUBJECT.
+# Measured on the shipped tree, corn_cbot / united_states @ 42nd percentile: "Positioning in Dalian is
+# crowded [N1]." appended nothing and "Dalian positioning is crowded [N1]." appended the US board's
+# own 42 -- a CBOT percentile printed beside a sentence about the DCE's home city. TEN of twenty
+# probed surfaces did it (Dalian, Zhengzhou, Rosario, Paranagua, Santos, Rotterdam, Sinaloa, Midwest,
+# Black Sea, Pampas) and five of those are ordinary desk vocabulary in this estate's own prose, so it
+# is reachable writing rather than a constructed shape.
+#
+# THE SUBJECT SLOT IS A GRAMMAR CLAIM THIS MODULE CAN MAKE, and it is the one `_bar_subject_market`
+# already makes: English puts the subject before its predicate. A capitalised phrase that HEADS the
+# adjective's own clause and is followed IMMEDIATELY by a DESK NOUN ("Dalian positioning", "Black Sea
+# basis", "Inner Mongolia net length") is claiming to be the subject of that reading; when this estate
+# cannot name it, the sentence stands down exactly as the locative half stands it down.
+#
+# ADJACENCY IS LOAD-BEARING, and so is ALONE -- the second for the reason round 5 gave the venue half.
+#   * IMMEDIATELY: "US corn positioning is crowded [N1]." is an honest positive and 'US' is a NAMED
+#     RESIDUAL of `_bar_place_resolves` (the geo lexicon carries 'U.S.' and 'USA', never the bare
+#     two-letter form). Letting a market word sit between the phrase and the desk noun would refuse
+#     it. So "Dalian corn positioning is crowded [N1]." is NOT read here -- it is a market mention
+#     with a place beside it, and the geo dimension owns it.
+#   * NOT ALONE (round-6 close-out): an earlier cut stood this half down whenever the clause named a
+#     market, on the argument that "Managed-money length in corn is crowded [N1]." needed it. It did
+#     not -- 'Managed-money' is a desk qualifier the numbers registry DECLARES (`_bar_desk_words`) --
+#     and the bound fail-opened the class this half exists to close ("Dalian positioning in corn is
+#     crowded [N1]." printed the CBOT figure). A foreign subject stays foreign however many of the
+#     row's own market words follow it; the cost, measured, is two constructed sentences that lose a
+#     correction and fail closed.
+#
+# AND THE HEAD MAY NOT BE A DESK WORD ITSELF: "Net length is crowded [N1].", "Spread is rich [N1]." and
+# "Board crush is rich [N1]." are desk readings whose own noun phrase opens with the desk vocabulary,
+# not places; the leading article / conjunction words are skipped for the same reason ("The positioning
+# is crowded [N1].", "..., while corn positioning is crowded [N1].").
+#: The desk nouns a reading is claimed OF -- the ruling's own list. The multi-word entries come FIRST
+#: in the alternation so 'net length' is read whole rather than as the name 'Net'.
+_BAR_DESK_NOUN = (r"(?i:net\s+length|open\s+interest|positioning|length|basis|crush|spread|board"
+                  r"|reading)")
+#: The function words that may stand before the subject without BEING it.
+_BAR_HEAD_STOP = r"(?i:the|a|an|and|but|so|yet|while|as|which|that|though|although|because)\b"
+#: One capitalised token, and the phrase built from them -- the same shape `_BAR_PLACE_PREP` reads
+#: after a locative, with the same internal connectives ('Rio Grande do Sul').
+_BAR_NAME_TOK = r"[A-ZÀ-Þ][\w'’.-]*"
+_BAR_SUBJECT_HEAD = re.compile(
+    r"^[\s\"'“‘(\[*_]*(?:" + _BAR_HEAD_STOP + r"\s+)*"
+    r"((?!" + _BAR_HEAD_STOP + r")(?!" + _BAR_DESK_NOUN + r"\b)" + _BAR_NAME_TOK +
+    r"(?:\s+(?:(?i:de|do|da|dos|das|del|du|des|of|the|and)\s+)?"
+    r"(?!" + _BAR_DESK_NOUN + r"\b)" + _BAR_NAME_TOK + r")*)"
+    r"\s+" + _BAR_DESK_NOUN + r"\b")
+
+
+#: One more one-entry-per-config memo, same key, same reason as the four above it.
+_BAR_DESKW_CACHE: dict = {}
+#: A HYPHEN FOLLOWED BY A LOWER-CASE LETTER is English's own mark of a COMPOUND MODIFIER --
+#: 'Managed-money', 'Reporting-fund', 'Non-commercial' -- and never of a proper name: a hyphenated
+#: place carries a capital or a connective on the far side ('Guinea-Bissau', 'Rhone-Alpes').
+_BAR_COMPOUND_MOD = re.compile(r"-[a-zà-þ]")
+
+
+def _bar_desk_words() -> frozenset:
+    """Every word this estate itself spells in the METRIC LABELS (and metric names) of the tables the
+    BAR FAMILIES read -- silver_cot, silver_mpob, gold_board_crush, gold_futures_spreads, taken off
+    `_bar_ref_index` so the vocabulary follows the families rather than a constant.
+
+    THE REGISTRY IS THE PRODUCER, not a hand list, and it is the RIGHT producer: these are the words
+    the estate uses for the readings a desk noun refers to -- 'managed-money net position', 'open
+    interest', 'board crush margin', 'front-month spread', 'palm oil closing stocks'. Scoped to the
+    four tables and not to the whole registry, because a wide vocabulary would start exempting the
+    place words the guard exists to catch. Unreadable registry -> empty set -> the exemption stands
+    down and the guard fails closed, which is this module's rule everywhere."""
+    key = _bar_cfg_key()
+    if key in _BAR_DESKW_CACHE:
+        return _BAR_DESKW_CACHE[key]
+    out: set = set()
+    reg = _bar_registry()
+    if reg is not None:
+        for table in {t for t, _m in _bar_ref_index()}:
+            try:
+                metrics = getattr(reg.get(str(table)), "metrics", None) or {}
+                for name, meta in dict(metrics).items():
+                    text = "%s %s" % (getattr(meta, "label", "") or "", name)
+                    out |= {w for w in re.split(r"[^a-z0-9]+", _bar_ascii(text).lower()) if w}
+            except Exception:  # noqa: BLE001,PERF203 -- an unreadable card exempts nothing
+                continue
+    _BAR_DESKW_CACHE[key] = frozenset(out)
+    return _BAR_DESKW_CACHE[key]
+
+
+def _bar_desk_subject(phrase: str) -> bool:
+    """Is this clause head a DESK QUALIFIER rather than a name? (round-6, measured.)
+
+    A capital at the head of a clause is FORCED by position, so 'Managed-money' and 'Dalian' are
+    spelled identically and no case test can tell them apart. Two marks can, and both were measured on
+    the estate's own 1,021 real-seat sentences, where the subject-claim heads are exactly
+    'Managed-money', 'Reporting-fund', 'Pacific', 'ONI' and 'Dalian':
+      * the phrase is spelled out of the READING'S OWN VOCABULARY ('Managed-money', 'Managed money',
+        'Net', 'Open', 'Board'), which the numbers registry declares; or
+      * it is a COMPOUND MODIFIER by its own hyphen ('Reporting-fund', 'Non-commercial').
+    THE RESIDUAL IS NAMED: an unhyphenated desk qualifier outside the registry's own words
+    ('Speculative positioning is crowded [N1].') is read as a subject claim and stands its sentence
+    down -- a correction not printed, and the D-EC decline clause in its place. 0 such sentences in
+    the 1,021, and the cure is a LABEL in the registry rather than a list here."""
+    ph = str(phrase or "").strip()
+    if not ph:
+        return False
+    if _BAR_COMPOUND_MOD.search(ph):
+        return True
+    words = [w for w in re.split(r"[^a-z0-9]+", _bar_ascii(ph).lower()) if w]
+    desk = _bar_desk_words()
+    return bool(words) and bool(desk) and all(w in desk for w in words)
+
+def _bar_subject_place(clause: str) -> str:
+    """The capitalised phrase that HEADS `clause`, claims to be the subject of a desk reading, and
+    names something this estate cannot resolve -- or "" when there is no such claim.
+
+    A DESK QUALIFIER IS NOT A CLAIM ABOUT A SUBJECT AT ALL -- 'Managed-money positioning',
+    'Reporting-fund length' -- and `_bar_desk_subject` above says so out of the registry's own metric
+    labels. That half is load-bearing and was measured the hard way: without it this guard refused
+    the estate's own flagship LICENSED sentence (the census line this fence was built for) and turned
+    a `licensed` verdict into a CHARGE, which is a worse move than the one it was closing.
+
+    OTHERWISE THE PREDICATE IS `_bar_place_resolves`, UNCHANGED: the calendar, a declared
+    non-geography, a country, a sub-national region, one of the estate's own markets or one of its
+    declared venues. A phrase that RESOLVES is left to the machinery that can judge it -- the geo
+    dimension refuses a foreign country or region and the market half refuses a foreign market --
+    and only a phrase the estate cannot name at all reaches the fail-closed branch, because no row
+    can claim a subject nobody can name. Nothing here strikes: the sentence ships as written,
+    without the correction."""
+    m = _BAR_SUBJECT_HEAD.match(str(clause or ""))
+    if not m:
+        return ""
+    ph = m.group(1).strip()
+    if not ph or _bar_desk_subject(ph) or _bar_place_resolves(ph):
+        return ""
+    # NO "alone" bound (round-6 close-out): standing this half down whenever the clause names a
+    # market re-admitted the exact class it exists to close -- "Dalian positioning in corn is
+    # crowded [N1]." printed the CBOT row's figure beside a DCE claim (8 of 8 probed shapes). The
+    # desk qualifiers the bound was written for ("Managed-money length in corn") are exempted by
+    # _bar_desk_subject's registry producer, so the bound bought nothing real: measured, 0 of 105
+    # deck literals and 0 of 1,021 real-seat sentences change; two constructed sentences ("US
+    # positioning in corn", "Speculative positioning in corn") lose a correction and fail CLOSED.
+    return ph
+
+
+def _bar_clause_bound(sent: str, word: str, canons, venues) -> bool:
+    """May a correcting clause printed at the SENTENCE END be read as belonging to THIS row?
+    (review MAJOR 2 (c).)
+
+    A sentence naming ONE market or none is unchanged: the per-row contradiction test, the subject
+    rule and the two guards above have already decided it, and the clause lands beside the only
+    market there is. When TWO are named the clause has to be PLACED, and this module cannot place it
+    -- `answer._bind_bar_adjectives` appends at the sentence END, where a reader binds it to the LAST
+    clause. So the last clause must carry the adjective, must name this row's market, and must name
+    no other. Anything else appends nothing at all."""
+    named = _bar_named_markets(sent, venues=True)
+    if len({c for _p, c in named}) < 2:
+        return True
+    spans = _bar_clause_spans(sent)
+    if not spans:
+        return False
+    lo, hi = spans[-1]
+    if not any(lo <= m.start() < hi for m in _BAR_ADJ_RX.finditer(str(sent or ""))
+               if _bar_adj_word(m) == word):
+        return False                            # the word this clause corrects is in another clause
+    here = {c for p, c in named if lo <= p < hi}
+    if not here:
+        return False                            # ...and a clause naming no market names no subject
+    return all((c[len("venue:"):] in set(venues)) if c.startswith("venue:") else (c in set(canons))
+               for c in here)
+
+
+def _bar_current_rows(call: dict | None) -> list:
+    """The rows of one call at its NEWEST knowledge date -- the only rows a PRESENT verdict's bar may
+    read. When no row on the call carries a knowledge date, every row participates (the board's own
+    single-row `sb_call` shape, unchanged)."""
+    rows = [r for r in ((call or {}).get("rows") or []) if isinstance(r, dict)]
+    kds = [str(r.get("knowledge_date") or "").strip() for r in rows]
+    kds = [k for k in kds if k]
+    if not kds:
+        return rows
+    top = max(kds)
+    return [r for r in rows if str(r.get("knowledge_date") or "").strip() == top]
+
+
+# ── ROUND-3 REVIEW MAJOR 3 (2026-09-15): THE ROW WAS SCOPED IN TIME ONLY AGAINST ITS OWN SIBLINGS.
+# `_bar_current_rows` keeps the call's NEWEST knowledge date, which closed the mixed-row probe
+# ([55th @2026-09-05, 3rd @2019-04-02] -> weak_adjective). But a call whose newest row is ITSELF
+# ancient was not bounded at all: rows=[{3rd pct, knowledge_date 2011-01-04}] with query.asof
+# 2026-09-05 returned `licensed` for the present-tense "Corn positioning is crowded [N1]." -- a
+# fifteen-year-old reading licensing a present verdict. The estate has live precedent for exactly this
+# (the 42-day gold_weather_z freeze, 70fa5828, served and reported healthy the whole time).
+#
+# THE BOUND IS THE CARD'S OWN PROMISE, READ THROUGH THE ONE FUNCTION THAT OWNS IT. `registry
+# .lag_days_for(table, metric)` landed at 29de55eb precisely to answer "is this served", and the bound
+# is that lag + the card's own PERIOD (its `cadence`) + a stated MARGIN:
+#     daily 1 | weekly 7 | biweekly 14 | monthly 31 | annual 366, and an unreadable cadence takes the
+#     MODAL card's 31 rather than a guess of its own;
+#     the margin is 7 days, and it is the same kind of margin 29de55eb's own per-metric lags carry
+#     ("plus a two-day margin", "plus a three-day margin") -- a licence is a question about whether
+#     this is the CURRENT reading, not about a publisher's SLA, and a weekend plus a public holiday
+#     must not turn Friday's settle into a stale one.
+# MEASURED on the three cards the licence can actually reach: silver_cot (weekly, publication lag 6)
+# bounds at 20 days; gold_futures_spreads (daily, lag 1) at 9; silver_mpob (monthly, lag 43) at 81.
+#
+# IT FAILS CLOSED ON THE LICENCE AND OPEN -- AND HONEST -- ON THE PAGE. A row past the bound resolves
+# `weak_adjective`, whose remedy NAMES THE ROW'S OWN DATE ("the newest served reading for that market
+# is dated 2011-01-04"): the sentence stands, its handle stands, and the one fact the reader was
+# missing is put beside the word. A row carrying NO knowledge date, or a turn carrying no `asof`, is
+# not measurable and is not charged -- silence, never a fabricated staleness.
+_BAR_CADENCE_DAYS = {"daily": 1, "weekly": 7, "biweekly": 14, "monthly": 31, "annual": 366}
+_BAR_STALE_PERIOD_DEFAULT = 31                  # the modal card's cadence, used when none is declared
+_BAR_STALE_MARGIN_DAYS = 7
+_BAR_DATE_ONLY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _bar_registry():
+    """The numbers registry, memoised on the resolved config path (the other three bar reads' rule).
+    None when unreadable -- the freshness bound then falls back to its stated default."""
+    key = _bar_cfg_key()
+    if key in _BAR_REG_CACHE:
+        return _BAR_REG_CACHE[key]
+    try:
+        from leviathan.graphrag.numbers import registry as _nr
+        _BAR_REG_CACHE[key] = _nr.load_registry()
+    except Exception:  # noqa: BLE001 -- no registry is not an error here; it is an unmeasurable bound
+        _BAR_REG_CACHE[key] = None
+    return _BAR_REG_CACHE[key]
+
+
+def _bar_freshness_bound(call: dict | None) -> int:
+    """How many days past the turn's `asof` this call's newest row may sit and still be CURRENT."""
+    q = ((call or {}).get("query") or {})
+    lag, cadence = None, ""
+    reg = _bar_registry()
+    if reg is not None:
+        try:
+            from leviathan.graphrag.numbers import registry as _nr
+            ts = reg.get(str(q.get("table") or ""))
+            lag = _nr.lag_days_for(ts, str(q.get("metric") or ""))
+            if lag is None:
+                lag = getattr(ts, "publication_lag_days", None)
+            cadence = str(getattr(ts, "cadence", "") or "").strip().lower()
+        except Exception:  # noqa: BLE001 -- an unknown card takes the default, never a guess
+            lag, cadence = None, ""
+    period = _BAR_CADENCE_DAYS.get(cadence, _BAR_STALE_PERIOD_DEFAULT)
+    try:
+        lag = int(lag or 0)
+    except (TypeError, ValueError):
+        lag = 0
+    return max(0, lag) + period + _BAR_STALE_MARGIN_DAYS
+
+
+def _bar_row_stale(call: dict | None, row: dict | None) -> str:
+    """The row's own knowledge date when it sits PAST the call's freshness bound, else "". Pure: the
+    comparison is against the TURN's `asof` and never against a clock."""
+    q = ((call or {}).get("query") or {})
+    asof = str(q.get("asof") or "").strip()
+    kd = str((row or {}).get("knowledge_date") or "").strip()
+    if not _BAR_DATE_ONLY.match(asof) or not _BAR_DATE_ONLY.match(kd):
+        return ""
+    try:
+        a = _dt.date(int(asof[:4]), int(asof[5:7]), int(asof[8:10]))
+        k = _dt.date(int(kd[:4]), int(kd[5:7]), int(kd[8:10]))
+    except ValueError:
+        return ""
+    # TWO-SIDED (round-4 review MINOR): a row dated AFTER the turn's own as-of is not "current", it is
+    # a point-in-time defect -- the estate has live precedent for it (`_pub_date` wrong-early 28.9%,
+    # the X2 precondition) -- and this is the guard asking "is this the CURRENT reading". It is charged
+    # like any other unusable row: no licence to contradict, so no clause (ruling (3)'s fail-closed).
+    if (k - a).days > 0:
+        return kd
+    return kd if (a - k).days > _bar_freshness_bound(call) else ""
+
+
+def _bar_readings(sent: str, number_calls: list | None, family: str) -> list:
+    """Every percentile reading the sentence's own [N] handles resolve to INSIDE `family`, as
+    {"pct", "stale"}: scoped to the row's own SERIES, to that call's newest knowledge date, to the
+    freshness bound above, and -- when the sentence names two markets -- to the market its adjective's
+    own SUBJECT is (review MAJOR 4).
+
+    SAME-SENTENCE ONLY, which is `bare_digit_verdict`'s scope and `_check_number_handle`'s. The census
+    read "same-or-adjacent"; widening the scope here would let a neighbour's row license a word this
+    sentence never bound, and on the censused corpus it changes no verdict (every adjacent-bound row in
+    it belongs to a sentence the speech-act clauses already exempt)."""
+    calls = list(number_calls or [])
+    idx = _bar_ref_index()
+
+    def _in_family(c) -> bool:
+        q = ((c or {}).get("query") or {})
+        return idx.get((str(q.get("table") or ""), str(q.get("metric") or ""))) == family
+
+    # THE TURN'S OWN COMPETING SCOPES, computed once: every OTHER series of this family on this answer.
+    fam_scopes: list = []
+    for c in calls:
+        if _in_family(c):
+            sc = _bar_scope(c)
+            if sc not in fam_scopes:
+                fam_scopes.append(sc)
+    words = _bar_sent_words(sent)
+    subject = _bar_subject_market(sent, family)
+    # (b) AN UNRESOLVED PLACE IN THE ADJECTIVE'S OWN CLAUSE STANDS THE WHOLE SENTENCE DOWN, whether
+    # the writer PLACES it with a locative or makes it the SUBJECT (round-6 review MAJOR). It is
+    # asked of the sentence rather than of a row because NO row can claim a place this estate
+    # cannot name: 'Rio Grande do Sul', 'Heilongjiang' and 'Euronext' all took a united_states corn
+    # row as ADJUNCTS, and 'Dalian', 'Black Sea', 'Midwest' and 'Pampas' all took one as SUBJECTS.
+    # Scoped to the clause the adjective sits in, so a foreign place mentioned in a LATER clause
+    # ('...as Brazilian rain returns') is left to the geo dimension it belongs to.
+    for _m in _bar_family_adj(sent, family):
+        _a, _b = _bar_clause_at(str(sent or ""), _m.start())
+        _clause = str(sent or "")[_a:_b]
+        if _bar_unresolved_place(_clause) or _bar_subject_place(_clause):
+            return []
+    out: list = []
+    for m in _HANDLE.finditer(str(sent or "")):
+        for kind, i in _handle_members(m.group(0)):
+            if kind != "N" or not (1 <= i <= len(calls)):
+                continue
+            call = calls[i - 1] or {}
+            if not _in_family(call):
+                continue
+            own = _bar_scope(call)
+            if _bar_scope_contradicted(str(sent or ""), words, own,
+                                       [s for s in fam_scopes if s != own]):
+                continue                        # the sentence's market is not this row's market
+            if subject is not None and subject not in _bar_call_canons(call):
+                continue                        # ...and this row is not the SUBJECT's market
+            if _bar_foreign_venue(str(sent or ""), call):
+                continue                        # (a) ...nor is it listed on the venue it names
+            for r in _bar_current_rows(call):
+                if str((r or {}).get("unit") or "").strip().lower() != "percentile":
+                    continue
+                try:
+                    pct = float(str(r.get("value")).replace(",", ""))
+                except (TypeError, ValueError):
+                    continue
+                out.append({"pct": pct, "stale": _bar_row_stale(call, r),
+                            "canons": frozenset(_bar_call_canons(call)),
+                            "venues": _bar_call_venues(call)})
+    return out
+
+
+# ── ROUND-3 REVIEW MAJOR 4 (2026-09-15): A COMPARISON NAMES TWO MARKETS AND THE OLD RULE OR-ED OVER
+# EVERY HANDLE. `_bar_scope_contradicted` asks only whether the sentence names a competing market while
+# naming NOTHING of the row's own -- so a sentence naming BOTH satisfies it for BOTH rows, and the
+# first handle that cleared the bar won. Measured with calls [corn_cbot @3rd, cocoa @52nd]: "Cocoa
+# positioning is crowded [N2] while corn is not [N1]." resolved `licensed` OFF CORN'S 3rd PERCENTILE
+# while the cocoa row its own subject cites reads 52 (weak_adjective on its own) -- and a `licensed`
+# verdict appends no clause, so an unqualified cross-market crowding call shipped.
+#
+# THE SUBJECT IS THE NEAREST MARKET TO THE ADJECTIVE'S LEFT, and that is a grammar claim this module can
+# actually make: English puts the subject before its predicate, and every shape in the census reads that
+# way ("Cocoa positioning is crowded", "CBOT corn managed-money positioning is crowded"). It is asked
+# ONLY when the sentence names two DISTINCT markets -- one market named once or five times is not a
+# comparison, and a sentence naming none keeps the heading's subject exactly as before. When two are
+# named and none sits to the adjective's left, the subject is UNRESOLVED and the licence fails closed
+# (`_BAR_NO_SUBJECT`, which no call can ever match) -- the ruling's own "if it cannot resolve the
+# subject, unbound".
+_BAR_NO_SUBJECT = "\x00unresolved"
+
+
+def _bar_subject_market(sent: str, family: str) -> str | None:
+    """The canonical market this sentence's bar adjective is ABOUT, or None when the sentence is not a
+    comparison (and the per-row contradiction test decides alone)."""
+    named = _bar_named_markets(sent, venues=True)
+    if len({c for _p, c in named}) < 2:
+        return None
+    s = str(sent or "")
+    heads = [m.start() for m in _bar_family_adj(s, family)]
+    if not heads:
+        return None
+    left = [(p, c) for p, c in named if p < heads[0]]
+    return left[-1][1] if left else _BAR_NO_SUBJECT
+
+
+def _bar_percentiles(sent: str, number_calls: list | None, family: str) -> list[float]:
+    """The bare percentile readings of `_bar_readings` -- the shape the probes and the deck read."""
+    return [r["pct"] for r in _bar_readings(sent, number_calls, family)]
+
+
+def bar_adjective_hits(sent: str) -> list[str]:
+    """The bar adjectives one sentence carries, lower-cased, in written order. `squeeze` folds its own
+    inflections (`squeezes` / `squeezed` / `squeezing`) onto the table's word."""
+    out: list[str] = []
+    for m in _BAR_ADJ_RX.finditer(str(sent or "")):
+        w = m.group(1).lower()
+        w = "squeeze" if w.startswith("squeez") else w
+        if w not in out:
+            out.append(w)
+    return out
+
+
+#: The report's shape, so every return carries every key and a reader never has to ask whether a key
+#: is absent or false. `pct` / `band` / `word` are the FIGURE-CONTRADICTION facts the owner's ruling
+#: (3) asks the clause to name; they are present only when a row of the adjective's own family
+#: resolved and was fresh.
+_BAR_NO_REPORT: dict = {"verdict": None, "stale": "", "pct": None, "band": (), "word": ""}
+
+
+def bar_adjective_report(sent: str, number_calls: list | None = None, *,
+                         conventions: dict | None = None) -> dict:
+    """S7b R1's per-SENTENCE verdict AND the facts its remedy needs beside it, as
+    ``{"verdict", "stale", "pct", "band", "word"}``.
+
+    ROUND 4 (WORDS ARE FREE): the verdict no longer decides a STRIKE -- nothing here ever did, and now
+    nothing downstream does either. Its one remaining job is the CORRECTING CLAUSE, which is why the
+    report carries the served figure (`pct`), the desk convention's own band (`band`) and the adjective
+    it belongs to (`word`): the ruling asks the clause to NAME the figure and the band, and a clause
+    that names them must be handed them rather than recomputing them beside the producer that knew.
+
+    ONE PRODUCER, TWO READERS. `bar_adjective_verdict` is this function's verdict and nothing else, so
+    `register._is_banned_sentence`'s licence clause keeps its exact signature; `answer
+    ._bind_bar_adjectives` calls THIS one, because the freshness clause (review MAJOR 3) has to name a
+    date and a verdict string cannot carry one. A second producer of "which row licensed this" is the
+    F-L drift class this estate names by hand, so there is not one."""
+    s = str(sent or "")
+    words = bar_adjective_hits(s)
+    if not words:
+        return dict(_BAR_NO_REPORT, verdict=None)
+    if _bar_speech_act(s, words):
+        return dict(_BAR_NO_REPORT, verdict="not_a_verdict")
+    resolved, stale, inside = False, "", None
+    for w in words:
+        fam, side = next(((f, d) for a, f, d in BAR_ADJECTIVES if a == w), ("", ""))
+        bands = _bar_bands(fam, conventions)
+        if not bands:
+            continue
+        lo, hi = bands
+        for r in _bar_readings(s, number_calls, fam):
+            resolved = True
+            if r["stale"]:
+                # A STALE ROW CHARGES AND NEVER LICENSES -- AND NEVER CONTRADICTS (ruling (3)): the
+                # reading resolved, so this is not `unbound`, but a row past its own card's promise
+                # cannot be the figure a correcting clause names. The date rides the report for the
+                # trace and the census; no clause is appended off it.
+                stale = stale or r["stale"]
+                continue
+            pct = r["pct"]
+            if (side in ("low", "tail") and pct <= lo) or (side in ("high", "tail") and pct >= hi):
+                return dict(_BAR_NO_REPORT, verdict="licensed", pct=pct, band=(lo, hi), word=w)
+            if inside is None and _bar_clause_bound(s, w, r.get("canons") or frozenset(),
+                                                   r.get("venues") or frozenset()):
+                inside = (pct, (lo, hi), w)      # (c) the first contradicting row THE CLAUSE CAN
+                                                 # BE READ AGAINST -- never simply the first
+    if resolved:
+        out = dict(_BAR_NO_REPORT, verdict="weak_adjective", stale=stale)
+        if inside is not None:
+            out.update(pct=inside[0], band=inside[1], word=inside[2])
+        return out
+    return dict(_BAR_NO_REPORT, verdict="unbound_adjective")
+
+
+def bar_adjective_verdict(sent: str, number_calls: list | None = None, *,
+                          conventions: dict | None = None) -> str | None:
+    """S7b R1's per-SENTENCE verdict (`register._is_banned_sentence`'s licence clause calls exactly
+    this; the REMEDY calls `bar_adjective_report`, which returns this verdict and the stale row's date
+    beside it).
+
+      None                 -- the sentence carries no bar adjective. Nothing to charge, nothing to
+                              license: the shipped fence keeps every decision it has today.
+      "not_a_verdict"      -- the adjective is DENIED in its own clause, sits under a conditional or
+                              mechanism frame, or belongs to a dated receipted fact. Counted, never
+                              charged. On the census corpus that is 10 of the 11 charged sentences.
+      "licensed"           -- a present verdict whose own [N] handle resolves to a row that CLEARS the
+                              adjective's declared bar. Counted, never charged; the word stands as
+                              written.
+      "weak_adjective"     -- a present verdict whose row resolves and does NOT clear the bar, OR whose
+                              row is PAST ITS CARD'S OWN FRESHNESS BOUND (review MAJOR 3). Charged. The
+                              remedy BINDS THE ROW'S OWN FIGURE beside the word, or names its date.
+      "unbound_adjective"  -- a present verdict with no percentile row of the right family THAT THE
+                              SENTENCE'S OWN MARKET CAN CLAIM: no handle, no row of that family, a row
+                              whose series the sentence contradicts (review MAJOR 1/2), a row that is
+                              not the market its adjective's SUBJECT names (review MAJOR 4), or only
+                              rows older than the call's own newest knowledge date. Charged. The remedy
+                              is the D-EC DECLINE clause, which keeps the sentence and its own honest
+                              words and states what is missing rather than denying the citation.
+
+    NOTHING HERE STRIKES A SENTENCE, and no verdict this function returns may be used to. The correcting
+    fence's only moves are APPEND and word-for-word SUBSTITUTE -- the `_JARGON_SUBS` capability -- never
+    the cycle-10 capability (numeral for numeral), which was deleted because a fence comparing unit
+    labels cannot see semantics ("roughly 0.6 z higher [N3]" -> "roughly -0.6267 z higher [N3]").
+
+    PURE: no environment, no clock, no network. The freshness bound compares the row's knowledge date
+    to the TURN'S OWN `asof` for exactly that reason. `conventions` is threaded when the caller holds
+    the block already; None reads the board's own cached loader."""
+    return bar_adjective_report(sent, number_calls, conventions=conventions)["verdict"]
+
+
+def _bar_speech_act(sent: str, words: list[str]) -> bool:
+    """Is every bar adjective in this sentence something OTHER than a present verdict? (negation in its
+    own clause, a conditional/mechanism frame, or a dated receipted fact)."""
+    s = str(sent or "")
+    if _BAR_CONDITIONAL.search(s):
+        return True
+    if _BAR_DATE.search(s) and _HANDLE.search(s):
+        return True
+    for m in _BAR_ADJ_RX.finditer(s):
+        head = s[:m.start()]
+        edges = [e.end() for e in _BAR_CLAUSE_EDGE.finditer(head)]
+        clause = head[edges[-1]:] if edges else head
+        if not _BAR_NEGATOR.search(clause):
+            return False
+    return bool(words)
 
 
 # == D-DA UNIT-VOCABULARY GATE (2026-09-06) -- RULE (g)'s STATED RESIDUAL, CAUGHT AT THE CHARGE SITE ====

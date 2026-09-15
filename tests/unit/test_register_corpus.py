@@ -1076,3 +1076,147 @@ def test_corpus_has_no_duplicate_texts() -> None:
             f"duplicate corpus text {case.text!r}: {prior.label}/{prior.gate} vs "
             f"{case.label}/{case.gate}")
         seen[case.text] = case
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# S7b R1 -- THE CORPUS-WIDE BLAST RADIUS OF THE BOUND-FIGURE LICENCE.
+#
+# This corpus is the one place the estate grades EVERY shipped market-register surface at once, so it
+# is the one place the licence's "it touches the STRIP and nothing else" claim can be measured rather
+# than asserted. Two facts are pinned here and nowhere else:
+#   (1) with NO licence threaded, every counter, every leak list and every strip verdict over all 97
+#       cases is what it is at HEAD -- the default IS the fence;
+#   (2) with the MOST PERMISSIVE licence a caller could write, the seven counters do not move by a
+#       single unit, and the only verdicts that flip are the ones a BAR ADJECTIVE explains.
+#
+# THE MUST_FLAG PIN AT :347-352 DOES NOT MOVE, and it does not move because the licence cannot reach
+# it: `test_must_flag_flow_is_counted_everywhere_but_stripped_only_when_fenced` calls
+# `register.sanitize(...)` with no `bar_licence`, which is the shipped default. The census reads that
+# sentence ("corn_cbot managed-money net length is stretched at +1.8 sigma vs the 3-yr mean") as
+# BOUND-BUT-WEAK -- +1.8 sigma does not reach a decile tail -- so under a THREADED licence its verdict
+# is a correction rather than a deletion, and that reading is pinned below rather than by editing a
+# shipped pin whose own measurement has not been re-run.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+from leviathan.graphrag import verify as _s7b_vf  # noqa: E402
+
+
+def _s7b_counters(text):
+    return (len(register.register_leaks(text)), len(register.internal_leaks(text)),
+            len(register.market_leaks(text)), len(register.exec_leaks(text)),
+            register.count_valuation_words(text), register.count_flow_words(text),
+            register.lane_b_hits(text), register.unbacked_level_count(text))
+
+
+def test_s7b_the_licence_moves_no_counter_on_the_whole_corpus():
+    """RO-7 at corpus scale. `register_leaks` is the suggester's chip guard AND the eval metric; the
+    module fences Lane B and the exec lanes out of it so it CANNOT be relaxed, and this is the pin that
+    says a licence did not quietly widen it."""
+    def always(_s):
+        return "licensed"
+    for case in CORPUS:
+        before = _s7b_counters(case.text)
+        register.sanitize(case.text, bar_licence=always)
+        register.sanitize(case.text, market_register=register.OUTLOOK, bar_licence=always)
+        assert _s7b_counters(case.text) == before, case.text[:60]
+
+
+def test_s7b_the_default_is_the_fence_on_every_case_and_every_register():
+    """The dark contract, case by case: with no licence threaded the strip verdict is HEAD's."""
+    for case in CORPUS:
+        for mr in (register.FENCED, register.OUTLOOK):
+            plain = register.sanitize(case.text, market_register=mr)
+            assert register.sanitize(case.text, market_register=mr, bar_licence=None) == plain
+            for sent in register._SENT_ITER.split(case.text):
+                assert (register._is_banned_sentence(sent, market_register=mr)
+                        == register._is_banned_sentence(sent, market_register=mr, bar_licence=None))
+
+
+def test_s7b_only_words_only_sentences_can_flip_under_the_most_permissive_licence():
+    """The licence's REACH, measured on the corpus rather than argued. ROUND 4 (owner ruling
+    2026-09-15 16:30Z, WORDS ARE FREE): a sentence whose verdict flips must carry NO charge outside the
+    retired column -- `licence_kept_charge` must read "" for it, and the flip must always be from
+    struck to shipped. A sentence flipping the other way, or one flipping while an A2 / forecast /
+    figure charge stands, is a licence that escaped its own lane.
+
+    The bar-adjective screen that stood here is GONE with the ruling: the licence no longer needs an
+    adjective to keep a sentence, so this corpus's flow-noun cases ("a crowded export lineup", "if
+    funds liquidate") flip too, and that is the freedom the owner returned rather than a hole."""
+    def always(_s):
+        return "licensed"
+    flipped = 0
+    for case in CORPUS:
+        for sent in register._SENT_ITER.split(case.text):
+            off = register._is_banned_sentence(sent)
+            on = register._is_banned_sentence(sent, bar_licence=always)
+            if off == on:
+                continue
+            flipped += 1
+            assert off is True and on is False, sent
+            assert register.licence_kept_charge(sent) == "", sent
+            assert (register.count_valuation_words(sent) or register.count_flow_words(sent)), sent
+    assert flipped >= 3, "the corpus carries no words-only sentence -- this pin measures nothing"
+    # ...and the A2 / forecast / figure column does not move, case by case, on the same corpus.
+    for case in CORPUS:
+        for sent in register._SENT_ITER.split(case.text):
+            if register.licence_kept_charge(sent):
+                assert register._is_banned_sentence(sent, bar_licence=always) is True, sent
+
+
+def test_s7b_the_outlook_derivation_gate_is_untouched_by_the_licence():
+    """RO-8 / (d): an unbacked price LEVEL is a refusal no adjective bar can speak to, and the OUTLOOK
+    gate is where that refusal lives. The licence clause sits inside `if not outlook:` by construction;
+    this is the pin that says so."""
+    def always(_s):
+        return "licensed"
+    for case in [c for c in LEVEL_CASES if c.label == MUST_FLAG]:
+        served = register.sanitize(case.text, market_register=register.OUTLOOK, bar_licence=always)
+        for tok in case.expect:
+            assert tok not in served, case.text
+
+
+def test_s7b_a2_execution_is_refused_under_every_register_and_every_licence():
+    """RO-8: nothing backs 'go long here' -- the platform holds no position, no sizing and no risk
+    model -- so no bar can license it, on any register, under any licence."""
+    def always(_s):
+        return "licensed"
+    for case in [c for c in EXEC_CASES if c.label == MUST_FLAG]:
+        for mr in (register.FENCED, register.OUTLOOK):
+            served = register.sanitize(case.text + " Ending stocks fell [N1].", market_register=mr,
+                                       bar_licence=always)
+            assert case.text not in served, (mr, case.text)
+
+
+def test_s7b_the_shipped_must_flag_stretched_pin_is_out_of_the_licences_reach():
+    """The pin at :347-352 charges an ALREADY-BOUND sentence, and the census reads it as BOUND-BUT-WEAK
+    (+1.8 sigma does not reach a decile tail). It stays green because the shipped test calls `sanitize`
+    with the DEFAULT (no licence); what changes under a threaded licence is recorded HERE, so the
+    reading is in the tree rather than in a plan."""
+    pinned = [c for c in FLOW_CASES if c.label == MUST_FLAG and "stretched" in c.expect]
+    assert pinned, "the +1.8 sigma stretched pin is no longer in this corpus"
+    text = pinned[0].text
+    assert register._is_banned_sentence(text) is True                       # the shipped pin's world
+    assert text not in register.sanitize(text, market_register=register.FENCED)
+    # Under a THREADED licence with no served rows behind the handle, the verdict is a correction, never
+    # a deletion -- the D-EC decline shape, which keeps the sentence and its own words.
+    v = _s7b_vf.bar_adjective_verdict(text, [])
+    assert v == "unbound_adjective"
+    # Asserted on the SURFACE, not the whole string -- the shipped flow test's own idiom, and for its
+    # own reason: `sanitize` also humanises internal slugs (corn_cbot -> 'CBOT corn'), so a whole-text
+    # compare would read a display rewrite as a strip.
+    licensed = register.sanitize(text, bar_licence=lambda s: _s7b_vf.bar_adjective_verdict(s, []))
+    assert "stretched" in licensed and "+1.8 sigma" in licensed and "[N5]" in licensed
+
+
+def test_s7b_the_desk_register_lint_is_a_third_population_on_this_corpus():
+    """DR-11: the desk lint must not fold into `internal_leaks` (never relaxable) and must not be a
+    rename of `market_leaks`. Over the whole corpus it charges a DIFFERENT set of cases from both."""
+    desk = {c.text for c in CORPUS if register.count_desk_register(c.text)}
+    internal = {c.text for c in CORPUS if register.internal_leaks(c.text)}
+    market = {c.text for c in CORPUS if register.market_leaks(c.text)}
+    assert desk, "the desk lint charges nothing on this corpus -- it measures nothing here"
+    assert desk != internal and desk != market
+    # and it moves NO shipped counter, because it is its own producer
+    for case in CORPUS:
+        before = _s7b_counters(case.text)
+        register.count_desk_register(case.text)
+        assert _s7b_counters(case.text) == before, case.text[:60]

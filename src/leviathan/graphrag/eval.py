@@ -2120,6 +2120,23 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "shape_metric_states": (out.get("trace") or {}).get("shape_metric_states"),
             "shape_decline_guard": (out.get("trace") or {}).get("shape_decline_guard"),
             "register_leaks": len(reg.register_leaks(str(out.get("answer") or ""))),
+            # S7b R1 REVIEW MAJOR 2: the RAW headline stays exactly as it is -- arm A lights the licence
+            # in BOTH cells, so it cannot confound the arm, and a metric that silently changed meaning
+            # under a flag is worse than one that moves. What is ADDED is the second population, so a
+            # rise can be read: `register_leaks_ex_bar` subtracts the Lane-A hits belonging to sentences
+            # the bound-figure licence is permitted to keep. On every flag-off turn the two are equal
+            # (sanitize struck those sentences), so this column is new information only on a licence arm.
+            #
+            # ROUND-3 REVIEW MINOR (2026-09-15): AND IT IS NOW ABSENT ON A DARK ROW RATHER THAN EQUAL ON
+            # ONE. It was computed unconditionally, so the eval artifact's KEY SET moved on the flag-off
+            # arm too -- numerically harmless (the two columns agree on a sanitized answer) but outside
+            # the byte-identical set THREAT_MODEL sec 5.4 declares, and enough to re-anchor any
+            # artifact-tail pin keyed on that set. The gate at `_convo_mechanics` already reads
+            # `trace['bar_adjectives']` as "the licence ran on this turn"; this is the same predicate,
+            # and the conditional-splat idiom is `numbers_budget`'s three screens down.
+            **({"register_leaks_ex_bar":
+                len(reg.register_leaks_excluding_bar(str(out.get("answer") or "")))}
+               if (out.get("trace") or {}).get("bar_adjectives") else {}),
             "banned_mood_words": (out.get("trace") or {}).get("banned_mood_words", 0),
             "mechanism_scaffold_ok": _scaffold_ok(out),
             "n_sections": len((out.get("structured") or {}).get("sections") or []),   # P9-C derived view
@@ -2834,6 +2851,35 @@ def _judge_state_panel(out: dict) -> str:
         + ("; the block minted the cross-commodity licence line"
            if cov.get("spillover_licensed") else "; the block minted no licence line"),
     ]
+    # S7b: THE TWO REGISTER INSTRUMENTS, and they are ABSENT-WHEN-INAPPLICABLE like every other key in
+    # this dict. Keyed on the key's PRESENCE, never on the dict being truthy: a 0 here means "the
+    # instrument ran and found none", and a turn whose flag was off ran no instrument at all -- printing
+    # `0 of 0` for it would invite a score on a dimension that did not exist. Same rule
+    # `BoardSpilloverLicensed` keeps one function over.
+    if "register_lingo_hits" in cov:
+        lines.append(
+            f"- instrument words left in the answer: {int(cov.get('register_lingo_hits') or 0)} "
+            f"(the desk-register lint's count AFTER its one bounded rewrite, which rewrote "
+            f"{int(cov.get('register_lingo_rewritten') or 0)} sentence(s)). This measures REGISTER, "
+            f"not grounding: a word named the instrument instead of the market, and no figure moved")
+    if "register_adjectives_licensed" in cov:
+        lines.append(
+            f"- bar adjectives whose own cited figure clears the desk's band: "
+            f"{int(cov.get('register_adjectives_licensed') or 0)}; corrected with the figure and the "
+            f"band named beside the word: {int(cov.get('register_adjectives_corrected') or 0)}; "
+            f"struck: {int(cov.get('register_adjectives_struck') or 0)} (the correcting fence never "
+            f"strikes)")
+    # RULING (4), 2026-09-15: A COUNTER, NOT A FENCE -- and it is a SEPARATE line because it is a
+    # separate question. The line above says what the fence DID; this one says what the WRITER did:
+    # how many valuation adjectives shipped with no percentile, z or band figure anywhere near them.
+    # Under WORDS ARE FREE nothing is struck or appended for it, so this number is the only way the arm
+    # can see whether the writer backs its own words now that the fence no longer makes it.
+    if "register_adjectives_unbacked" in cov:
+        lines.append(
+            f"- valuation adjectives shipped with NO figure beside them: "
+            f"{int(cov.get('register_adjectives_unbacked') or 0)} (no served percentile row behind the "
+            f"sentence's handles and no rank figure printed in it). Words are permitted here -- this "
+            f"counts them, it does not judge them")
     for name, key in (("loud", "loud"), ("event", "events"), ("recency", "recency"),
                       ("watch", "watch"), ("spillover", "spillover")):
         ids = list(missed.get(key) or ())
@@ -2861,6 +2907,32 @@ _JUDGE_STATE_USE = (
     "use of the board, not a miss. Do NOT reward a board-shaped answer for its shape -- an answer "
     "that recites rows without a mechanism scores LOW here and low on usefulness.\n"
 )
+
+#: S7b: the REGISTER clause, and it is a SECOND constant appended CONDITIONALLY rather than a sentence
+#: added to the one above. ``_JUDGE_STATE_USE`` ships on EVERY turn that carries a board panel, so a
+#: sentence inside it would change the judged prompt of every board row in the estate with both S7b
+#: flags off -- and the judged prompt is the first row of this sitting's byte-identity set. This rides
+#: the PANEL's own lines instead: the coverage dict carries the register keys only on a turn whose flag
+#: was on, so the clause reaches a judge exactly when there is something for it to read.
+#:
+#: IT SAYS WHAT THE NUMBERS ARE NOT. That is the same warning the panel already carries about coverage
+#: ("it says which board rows the answer referenced, never whether it referenced the right ones"), and
+#: it is here for the same measured reason: a count printed beside a rubric gets read as a score.
+_JUDGE_STATE_REGISTER = (
+    "- the panel's INSTRUMENT-WORDS line and BAR-ADJECTIVE line measure REGISTER, not grounding. The "
+    "first counts words that named our machinery instead of the market; the second and third count "
+    "adjectives that name a state and whether a served figure sat beside them. NONE of them says "
+    "whether a claim is true, and a valuation word with no figure is PERMITTED here. "
+    "Do not raise or lower grounding, point_in_time or usefulness on them, do not re-score them as "
+    "their own axis, and do not reward a low count on its own -- a register number is about how the "
+    "answer reads, and this rubric is about whether it used the board.\n"
+)
+#: The panel lines that license the clause above, as a TUPLE rather than one substring: the two
+#: instruments carry their own flags and either may ship without the other, so a test keyed on one
+#: line's words would silently drop the rubric on the turn where only the other ran.
+_JUDGE_STATE_REGISTER_MARKERS: tuple = ("- instrument words left in the answer:",
+                                        "- bar adjectives whose own cited figure clears",
+                                        "- valuation adjectives shipped with NO figure")
 
 
 def _judge_tool(continuity: bool = False, state_use: bool = False) -> dict:
@@ -3097,7 +3169,13 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
             + (f"=== STATE BOARD USE ON THIS TURN (deterministic COVERAGE counts against the STATE OF "
                f"THE WORLD block the tool was shown; these say WHICH rows were referenced, NEVER "
                f"whether they were referenced correctly) ===\n{sb_text}\n\n"
-               f"Also score `state_use` (1-5):\n{_JUDGE_STATE_USE}\n" if sb_text else "")
+               f"Also score `state_use` (1-5):\n{_JUDGE_STATE_USE}"
+               # S7b: appended ONLY when the panel actually RENDERED a register line, so a dark turn's
+               # judged prompt is HEAD's byte for byte. The test is the panel's own words, which is the
+               # `sb_text`-is-truthy idiom one line up read at one more level of detail.
+               + (_JUDGE_STATE_REGISTER if any(w in sb_text for w in _JUDGE_STATE_REGISTER_MARKERS)
+                  else "")
+               + "\n" if sb_text else "")
             + f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
     sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # judge calls share it
     scores, _ = call(client, sys_blocks, user, model=model, max_tokens=3200,
@@ -3546,6 +3624,12 @@ def _baseline_json(rows: list[dict], *, run_kind: str, model: str, judged: bool,
             "strip_rate": round(total_strips / max(1, total_claims), 6),
             "handle_strip_rate": round(total_strips / max(1, total_handles), 6),
             "register_leaks_total": sum(p["register_leaks"] for p in per),
+            # S7b R1 review MAJOR 2: the second read -- and ROUND-3, the same absence rule as its
+            # per-answer half. The total ships only when at least one row of the run carried the column,
+            # so a flag-off baseline json keeps HEAD's key set exactly.
+            **({"register_leaks_ex_bar_total": sum(p.get("register_leaks_ex_bar", p["register_leaks"])
+                                                   for p in per)}
+               if any("register_leaks_ex_bar" in p for p in per) else {}),
             "banned_mood_words_total": sum(p.get("banned_mood_words", 0) for p in per),
             "scaffold_violations": sum(1 for p in per if not p.get("mechanism_scaffold_ok", True)),
             "intent_ok": sum(1 for p in per if p["intent_ok"]),
@@ -4062,7 +4146,11 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
                          f"asserts={'PASS' if all(ca.values()) else 'FAIL'} {ca}")
         leaks = reg.register_leaks(out.get("answer") or "")
         if leaks:                                                      # surface the exact leaked tokens + context
-            lines.append(f"- **register leaks ({len(leaks)}):** "
+            # S7b R1 review MAJOR 2: when a licence ran, the two populations differ and the report says
+            # so on the same line rather than leaving a reader to infer which one the count means.
+            _exb = len(reg.register_leaks_excluding_bar(out.get("answer") or ""))
+            _sfx = f" ({_exb} outside the bar-adjective licence)" if _exb != len(leaks) else ""
+            lines.append(f"- **register leaks ({len(leaks)}){_sfx}:** "
                          + "; ".join(f"`{t}` (…{c}…)" for t, c in leaks[:6]))
         if r.get("judge"):
             j = r["judge"]
@@ -4179,12 +4267,24 @@ def _convo_mechanics(spec: dict, out: dict, prev_out: dict | None) -> dict:
         checks["outlook_mode_ok"] = bool(tr.get("outlook_mode")) == bool(spec["outlook_rendered"])
     if spec.get("fenced_follow_up"):
         ans = out.get("answer") or ""
+        # S7b R1 REVIEW MAJOR 2 -- THE GATE IS RE-ANCHORED ON THE POPULATION IT ALWAYS MEANT, and only
+        # on a turn whose own trace says the licence ran. MEASURED: under GRAPHRAG_REGISTER_LICENCE the
+        # sanitize pass STOPS STRIKING a bar-adjective sentence and CORRECTS it instead, so
+        # `register_leaks(ans)` rises from 0 to 2 on the 97-case corpus and this gate -- which asks
+        # whether the PRIOR turn's permitted vocabulary was carried forward -- flipped False on the
+        # instrument working as ruled. `bar_adjectives` is stamped by `answer` iff the licence was
+        # threaded AND ITS CENSUS CAME BACK NON-ZERO -- a verdict of any of the four classes, a
+        # correcting clause, or (round 3) an advice clause cut off a reading. A licence-on turn that
+        # found none of those carries NO key and reads `register_leaks`, which is the same number
+        # `register_leaks_excluding_bar` would have returned on it, so the selector is exact rather
+        # than merely close. A flag-off turn reads the identical counter it always did.
+        _leaks = (reg.register_leaks_excluding_bar if tr.get("bar_adjectives") else reg.register_leaks)
         checks["follow_up_fenced_ok"] = (
             not tr.get("outlook_mode")                                # this turn did NOT relax, and ...
             and int(tr.get("banned_flow_words") or 0) == 0            # ... carried none of the prior turn's
             and int(tr.get("banned_valuation_words") or 0) == 0       #     permitted vocabulary forward,
             and int(tr.get("banned_exec_words") or 0) == 0            #     nor any execution idiom,
-            and not reg.register_leaks(ans))                          #     nor any register leak.
+            and not _leaks(ans))                                      #     nor any register leak.
     if spec.get("banned_exec_zero"):                                  # assertable on ANY turn, outlook or not
         checks["banned_exec_ok"] = int(tr.get("banned_exec_words") or 0) == 0
     return checks
