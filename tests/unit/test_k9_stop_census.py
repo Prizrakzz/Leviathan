@@ -1258,14 +1258,26 @@ def test_k9_3_red_a_metric_and_its_own_change_never_split_whichever_fence_stops_
 
 def test_k9_3_green_a_sibling_that_is_not_its_parent_rescaled_never_moves():
     """THE UNIT-EQUALITY TERM IS WHAT FENCES THE DELTA RULE, and it is measured on the LIVE registry, not
-    asserted: 67 prefix-sibling metric pairs exist and exactly 4 pass -- all four on silver_psd, all four
-    ABSOLUTE changes in the parent's own units. The 63 refused are refused by unit inequality alone (38
-    `_zscore_5yr` at 'sigma vs 5-yr mean' against 'USD/mt', 14 `_pct_change_90d` at 'pct', 5 `_cells`, 4
-    `_tail_share`, 2 `_z_3yr`): a z-score is NOT its parent rescaled, and the card says so in the one
-    place a producer may read. A name-derived rule would have moved all 67.
+    asserted: 71 prefix-sibling metric pairs exist and exactly 4 pass -- all four on silver_psd, all four
+    ABSOLUTE changes in the parent's own units. The 67 refused are refused by unit inequality alone (38
+    `_zscore_5yr` at 'sigma vs 5-yr mean' against 'USD/mt', 14 `_pct_change_90d` at 'pct', 6 `_cells`, 4
+    `_tail_share`, 2 `_z_3yr`, and the CHIRPS preliminary stamp's three: `_is_preliminary` at '0/1',
+    `_preliminary_share` at 'share of basin cells' and `_is_preliminary_cells` at 'cells', each against
+    drought_z's 'z'): a z-score is NOT its parent rescaled, and the card says so in the one
+    place a producer may read. A name-derived rule would have moved all 71.
+
+    RE-MEASURED 2026-09-15, the CHIRPS PRELIM lane: 67 -> 71 pairs, +4 and no more, all on
+    gold_weather_z and all enumerated above -- (drought_z_is_preliminary, drought_z),
+    (drought_z_preliminary_share, drought_z), (drought_z_is_preliminary_cells, drought_z) and
+    (drought_z_is_preliminary_cells, drought_z_is_preliminary), the exact combinations three new
+    prefix-sibling metrics on one stem create. THE COUNT IS THE ONLY THING THAT MOVED: `co_unit` and
+    `moved` below are re-measured UNCHANGED (still the four silver_psd entries and
+    consumption_mt_revision), because every one of the three declares a unit that is NOT drought_z's
+    'z' -- so the new stamps open no rescale or narration hazard, and the pin is a population count,
+    never a safety claim.
 
     THE UNIT-EQUALITY CENSUS IS UNCHANGED BY THE TABLE FENCE, and both halves are measured here so the
-    two fences stay separable: 4 of the 67 pairs pass the CARD's unit-equality test beside a map-scaled
+    two fences stay separable: 4 of the 71 pairs pass the CARD's unit-equality test beside a map-scaled
     parent (the derivation's own rule, unchanged), and 3 of those 4 are then refused end to end because
     their PARENT is refused on the table axis (verify FATAL). What survives both is
     consumption_mt_revision."""
@@ -1284,7 +1296,7 @@ def test_k9_3_green_a_sibling_that_is_not_its_parent_rescaled_never_moves():
                     co_unit.append(f"{tid}.{d}")                 # the CARD's rule, before any fence
                 if cit.narrate_scale(tid, p) and cit.narrate_scale(tid, d):
                     moved.append(f"{tid}.{d}")                   # ...and what survives every fence
-    assert pairs == 67, pairs
+    assert pairs == 71, pairs
     assert sorted(co_unit) == ["silver_psd.consumption_mt_revision",
                                "silver_psd.ending_stocks_mt_revision",
                                "silver_psd.production_mt_revision",

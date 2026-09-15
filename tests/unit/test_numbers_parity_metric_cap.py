@@ -115,7 +115,32 @@ def test_the_floor_calibrated_columns_of_the_nass_cards_are_all_compared():
 # ---------------------------------------------------------------------------
 def test_the_measured_cost_of_the_width_rule_stays_bounded():
     """The number that justified the rule, re-derived here so a card growing wide enough to double
-    the gate's runtime trips a test instead of a Tuesday. HEAD 582 legs -> 624 (+42, +7.2%)."""
+    the gate's runtime trips a test instead of a Tuesday. HEAD 618 legs -> 660 (+42, +6.8%).
+
+    RE-PINNED 2026-09-15, 582 -> 618 and 624 -> 660, and the +36 is TWO LANES' and neither is this
+    rule's. Measured two-tree with this test's own arithmetic over a `git archive HEAD` export and
+    over the working tree (scratchpad chirps_prelim/paritycost.py). THE WAP LANE HAS SINCE LANDED
+    (5ca2b785), so it is part of the baseline and the two exports below are the ones that matter:
+
+        HEAD export   head 100 -> 600 legs | head 107 -> 642 legs  == 5ca2b785, WAP included
+        working tree  head 103 -> 618      | new  110 -> 660       == the pins below
+
+    i.e. the +18 that separates them is THIS lane's three metrics alone. (The pre-WAP export, HEAD
+    29de55eb, read 97 -> 582 and 104 -> 624, which is where the numbers this pin replaces came from.)
+
+    and the per-table counts say WHICH cards moved, so the two contributions are separable rather
+    than a remembered total:
+      +3 metrics x 6 legs = +18 -- gold_weather_z 15 -> 18 (CHIRPS PRELIM lane): the tall card gains
+        drought_z_is_preliminary, drought_z_preliminary_share and drought_z_is_preliminary_cells, and
+        a TALL card compares every metric, so all three enter both totals.
+      +3 metrics x 6 legs = +18 -- silver_wap_table01_revisions None -> 3 (the WAP GATE RCA lane):
+        the card did not enter this sum at all at HEAD because it had no SAMPLE_COMMODITY entry; it
+        now has one, so its three metrics enter.
+    THE RULE'S OWN COST IS UNCHANGED at +42 legs (7 metrics), which is the thing this test exists to
+    watch: 660 / 618 = 1.068, further BELOW the 1.25 ceiling than the 1.072 it was cut at, because
+    the population grew on the tall side where the width rule does nothing. 618 and 660 are the
+    MEASURED values with BOTH lanes in the tree and they are what this test pins -- there is no
+    remaining conditional on the WAP entry, which landed at 5ca2b785 before this pin was cut."""
     from leviathan.graphrag.numbers.registry import load_registry
     from jobs.utils.numbers_parity import PG_MIRROR_TABLES
 
@@ -128,8 +153,8 @@ def test_the_measured_cost_of_the_width_rule_stays_bounded():
         head += len(_head_metric_list(ts.shape, ts.metrics))
         new += len(metric_plan(ts.shape, ts.metrics)[0])
     legs = len(ASOFS) * len(AGGS)
-    assert head * legs == 582
-    assert new * legs == 624
+    assert head * legs == 618
+    assert new * legs == 660
     assert new * legs <= head * legs * 1.25, (
         "the width rule must stay a trim, not a doubling; if a card grew, re-measure and decide "
         "deliberately rather than letting the gate's runtime drift")

@@ -47,16 +47,37 @@ YM_BOARD_CARDS = {"silver_noaa_oni": 36, "silver_noaa_iod": 45, "gold_weather_z"
 #: short is a leak). THE 45 THIS REPLACES WAS A MISREADING of the same two numbers, reached by analogy
 #: to the slow monthly ``silver_noaa_iod`` sibling while the measurement in hand already bounded the
 #: lag at 22. Nothing new was measured to correct it; the arithmetic was re-read.
-#: AND A FASTER PRODUCT EXISTS, unread here (found 2026-09-11): CHIRPS v2.0 also publishes a PRELIM
-#: daily series at .../CHIRPS-2.0/prelim/global_daily/tifs/p05/2026/ , current to 2026-09-05 with all
-#: 31 August days present. A follow-up fetcher lane reads it; after that this metric's lag is ~5 and
-#: the 25 becomes the FINAL product's revision horizon rather than its first print.
+#: THE FASTER PRODUCT IS NOW FETCHED, AND THE 25 HAS NOT MOVED (2026-09-15). The prelim lane shipped:
+#: CHIRPS v2.0 PRELIM (.../CHIRPS-2.0/prelim/global_daily/tifs/p05/) is read for any day of the current
+#: or previous month whose FINAL block has not landed, and the product is carried to gold as
+#: ``drought_z_is_preliminary``. MEASURED 2026-09-11 over every day of 2026-08 and 2026-09-01..12: the
+#: prelim publishes in PENTAD BLOCKS ~+2 days past each pentad (worst observed slip +4), so a COMPLETE
+#: month of prelim exists +2 days past month-end -- reproduced twice (2026-07-31 -> Aug 02; 2026-08-31
+#: -> Sep 02). The reachable lag is therefore 7 = worst observed month-completion (+4) + a 3-day margin,
+#: and NOT "5 prelim + margin": a single day's prelim lag is 2-8 days and what gold needs is the
+#: MONTH-COMPLETION lag, because ``_complete_months_only`` emits a month only when every day is present.
+#: THE FLIP TO 7 IS NOT TAKEN HERE. Its precondition is a CENSUS read -- ``--step CENSUS`` printing
+#: ``drought_z tip = 202608`` -- and on 2026-09-15 the live tip is 202607. THE REASON IS THE DEPLOY,
+#: NOT THE SOURCE: the August FINAL block DID land at +11 (Last-Modified 2026-09-11 21:10Z, measured
+#: 2026-09-15), but the 09-11 weather fixes are not deployed, so the live producer still carries the
+#: existence-only write skip 70fa5828 closed and August bronze is still the 2026-08-22 all-null
+#: skeleton -- which is why a gold rewrite at 2026-09-14 09:19Z, three days after the block landed,
+#: left drought_z at 202607 while the four NASA metrics moved to 202608. Moving the lag before the
+#: bytes hold the month
+#: makes the guard admit a month that does not exist, which is the defect 29de55eb closed. When it
+#: moves, all SIX drought_z* entries move together.
 #: EVERY metric the card declares is listed, not just the interesting ones: the failure mode of a
 #: per-metric lag is an ABSENT declaration on a metric nobody enumerated, so a pin that named only
 #: drought_z would grade the half that cannot go wrong silently.
 WEATHER_METRIC_LAGS = {
     # CHIRPS -- the reading and its two aggregates, one source, one promise
     "drought_z": 25, "drought_z_tail_share": 25, "drought_z_cells": 25,
+    # CHIRPS again -- the PRELIMINARY STAMP (2026-09-15): which product fed the reading, at cell grain
+    # (0/1), renamed to a SHARE at basin/member-country grain, plus the _cells provenance sibling.
+    # Same source, same producer, same print day as the stem: clause 4 forces the value and clause 5
+    # forbids taking it by silence, and all three move WITH drought_z whenever it moves.
+    "drought_z_is_preliminary": 25, "drought_z_preliminary_share": 25,
+    "drought_z_is_preliminary_cells": 25,
     # NASA POWER -- four readings and their aggregates
     "tmax_anomaly": 5, "tmax_anomaly_tail_share": 5, "tmax_anomaly_cells": 5,
     "gdd_z": 5, "gdd_z_tail_share": 5, "gdd_z_cells": 5,

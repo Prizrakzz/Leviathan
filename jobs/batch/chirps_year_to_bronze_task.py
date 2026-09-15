@@ -37,7 +37,13 @@ import pandas as pd
 from leviathan.common.constants import ALL_COMMODITIES
 from leviathan.common.logging import get_logger
 from leviathan.common.types import Region
-from leviathan.ingestion.weather.chirps import fetch_chirps_daily_values
+from leviathan.ingestion.weather.chirps import (
+    PRODUCT_ABSENT,
+    PRODUCT_FINAL,
+    PRODUCT_PRELIM,
+    day_url_template,
+    fetch_chirps_daily_values_with_product,
+)
 from leviathan.storage.configs import load_commodity_regions
 from leviathan.storage.paths import bronze_weather_key
 from leviathan.storage.s3 import get_thread_local_s3_client
@@ -77,44 +83,78 @@ def _nonnull_day_count(rows: list[dict]) -> int:
     return n
 
 
-def _rewrite_admitted(new_nonnull: int, stored_nonnull: int | None) -> bool:
+def _rewrite_admitted(new_nonnull: int, stored_nonnull: int | None,
+                      new_final: int | None = None, stored_final: int | None = None) -> bool:
     """May this run REPLACE an existing bronze month with what it just fetched?
 
-    STRICTLY MONOTONE: admitted only when this run holds MORE observed days than the stored partition.
-    EQUAL is the ordinary rerun and stays a no-op; FEWER is the shrink an anti-shrink floor exists to
-    refuse; UNKNOWN (``None``) is not grounds to act, because a rewrite REPLACES and a run that cannot
-    see what it is replacing cannot prove it would not shrink.  ``--force_overwrite true`` is the
-    operator naming the overwrite."""
+    A LEXICOGRAPHIC PAIR (2026-09-15, the prelim lane): ``(observed_days, final_days)`` must strictly
+    increase in EITHER component and decrease in NEITHER.  ``observed_days`` keeps the strictly-monotone
+    anti-shrink floor exactly as it was; ``final_days`` is the SUPERSESSION axis, because a landed FINAL
+    block over a month already complete on PRELIM is EQUAL on the observed axis (31 -> 31) and the
+    scalar rule refuses EQUAL by design -- so the prelim vintage would stand forever.  A DECREASE on the
+    final axis is a vintage regression and is refused like any other shrink.  Both new axes default to
+    ``None`` = NOT STATED, and with the final axis unstated the verdict is the pre-lane scalar rule byte
+    for byte.  UNKNOWN stored (``None``) is not grounds to act, because a rewrite REPLACES and a run
+    that cannot see what it is replacing cannot prove it would not shrink.  ``--force_overwrite true``
+    is the operator naming the overwrite.  Byte-equivalent to ``chirps_to_bronze_task``'s -- see that
+    module's fuller note and ``tests/unit/test_chirps_bronze_completeness_skip.py``."""
     if stored_nonnull is None:
         return False
+    if new_nonnull < stored_nonnull:
+        return False
+    if new_final is not None and stored_final is not None:
+        if new_final < stored_final:
+            return False                              # a vintage regression is a shrink too
+        return new_nonnull > stored_nonnull or new_final > stored_final
     return new_nonnull > stored_nonnull
+
+
+def _stored_day_counts(s3_client, bucket: str, bronze_key: str) -> tuple[int | None, int | None]:
+    """``(observed days, FINAL-product days)`` of the bronze month at ``bronze_key``; None where unknown.
+
+    Companion ``_meta.json``'s ``nonnull_count`` / ``final_days`` first (one small GET); the partition
+    itself as the fallback for every object minted before those fields existed -- reading the
+    ``precipitation_mm`` column ONLY.  It must never ask pyarrow for ``is_preliminary``: that raises on
+    a pre-lane partition, and the ``except`` would book the failure as UNKNOWN, which DECLINES the
+    rewrite -- switching off the self-heal for every legacy month of 1981-2025.  A partition whose meta
+    declares no ``final_days`` is a PRE-LANE OBJECT and its observed days are all FINAL by construction
+    (prelim was unreachable when those bytes were written), which is why the fallback is
+    ``final = nonnull`` and not an unknown.  Any failure to READ is an UNKNOWN, never a decline in
+    itself -- ``_rewrite_admitted`` owns what an unknown means."""
+    meta_key = bronze_key.replace("part-000.parquet", "_meta.json")
+    nonnull: int | None = None
+    final: int | None = None
+    try:
+        meta = json.loads(s3_client.get_object(Bucket=bucket, Key=meta_key)["Body"].read())
+        value = meta.get("nonnull_count")
+        if isinstance(value, int) and not isinstance(value, bool):
+            nonnull = value
+        stated_final = meta.get("final_days")
+        if isinstance(stated_final, int) and not isinstance(stated_final, bool):
+            final = stated_final
+    except Exception as exc:  # noqa: BLE001 -- no/unreadable meta is ordinary for a pre-2026-09-11 object
+        logger.debug("No readable nonnull_count in %s (%s) -- reading the partition", meta_key, exc)
+    if nonnull is None:
+        try:
+            body = s3_client.get_object(Bucket=bucket, Key=bronze_key)["Body"].read()
+            col = pd.read_parquet(io.BytesIO(body), columns=["precipitation_mm"])["precipitation_mm"]
+            nonnull = int(col.notna().sum())
+        except Exception as exc:  # noqa: BLE001 -- an unreadable partition is an UNKNOWN, never a decline
+            logger.warning(
+                "Could not read the stored observation count of %s (%s: %s) -- treating it as UNKNOWN, "
+                "which declines the rewrite; --force_overwrite true names the overwrite",
+                bronze_key, type(exc).__name__, str(exc)[:200],
+            )
+    if final is None and nonnull is not None:
+        final = nonnull                     # a pre-lane partition is all-final by construction
+    return nonnull, final
 
 
 def _stored_nonnull_days(s3_client, bucket: str, bronze_key: str) -> int | None:
     """Observed (non-null) days in the bronze month already at ``bronze_key``; None when unknowable.
 
-    Companion ``_meta.json``'s ``nonnull_count`` first (one small GET); the partition itself as the
-    fallback for every object minted before that field existed.  Any failure to READ is an UNKNOWN,
-    never a decline in itself -- ``_rewrite_admitted`` owns what an unknown means."""
-    meta_key = bronze_key.replace("part-000.parquet", "_meta.json")
-    try:
-        meta = json.loads(s3_client.get_object(Bucket=bucket, Key=meta_key)["Body"].read())
-        value = meta.get("nonnull_count")
-        if isinstance(value, int) and not isinstance(value, bool):
-            return value
-    except Exception as exc:  # noqa: BLE001 -- no/unreadable meta is ordinary for a pre-2026-09-11 object
-        logger.debug("No readable nonnull_count in %s (%s) -- reading the partition", meta_key, exc)
-    try:
-        body = s3_client.get_object(Bucket=bucket, Key=bronze_key)["Body"].read()
-        col = pd.read_parquet(io.BytesIO(body), columns=["precipitation_mm"])["precipitation_mm"]
-        return int(col.notna().sum())
-    except Exception as exc:  # noqa: BLE001 -- an unreadable partition is an UNKNOWN, never a decline
-        logger.warning(
-            "Could not read the stored observation count of %s (%s: %s) -- treating it as UNKNOWN, "
-            "which declines the rewrite; --force_overwrite true names the overwrite",
-            bronze_key, type(exc).__name__, str(exc)[:200],
-        )
-        return None
+    The observed half of :func:`_stored_day_counts`."""
+    return _stored_day_counts(s3_client, bucket, bronze_key)[0]
 
 
 def _build_location_index(
@@ -177,8 +217,15 @@ def _process_month(
     region_to_entries: dict[str, list[dict]],
     ingest_date: str,
     force_overwrite: bool,
+    today: "date | None" = None,
 ) -> int:
     """Fetch all days in *month*, write bronze per (commodity, country, region).
+
+    ``today`` is the run's calendar day, passed to the fetcher's PRELIM reach test
+    (``chirps.PRELIM_MONTH_REACH``): a historical backfill year is outside the reach, so the fetcher is
+    the pre-prelim function request for request and a 1981 run can never read the prelim archive --
+    which is live back to at least 2020 and would otherwise REWRITE history through the monotone rewrite
+    rule, moving the PIT drought baseline of years this task never touched.
 
     Returns number of parquet files written.
     """
@@ -188,24 +235,41 @@ def _process_month(
     all_rows: dict[str, dict[tuple[str, str], list[dict]]] = defaultdict(
         lambda: defaultdict(list)
     )
+    # The DAY -> PRODUCT map, filled from the FETCH result and never from the rows (T-B3), plus the
+    # transport-failure tally that distinguishes "the source has not published" from "the host refused
+    # us N times" (T-C2). Both ride into _meta.json below.
+    day_product: dict[int, str] = {}
+    fetch_failures: dict[str, int] = {}
+    # A raising day is booked PRODUCT_ABSENT below (there are no values to hand back), so absent_days
+    # must subtract it or a throttled day reads as "the source has not published" -- the exact
+    # inference T-C2 exists to forbid. Failed days live in fetch_failures and NOWHERE else, so
+    # final + prelim + absent need not sum to the calendar month; the shortfall is the failure count.
+    failed_days: set[int] = set()
 
-    def _fetch_day(day: int) -> tuple[int, dict[str, float | None]]:
+    def _fetch_day(day: int) -> tuple[int, dict[str, float | None], str, str | None]:
         try:
-            return day, fetch_chirps_daily_values(year, month, day, flat_locations)
-        except Exception:
+            values, product = fetch_chirps_daily_values_with_product(
+                year, month, day, flat_locations, today=today)
+            return day, values, product, None
+        except Exception as exc:  # noqa: BLE001 -- one day's transport failure must not kill the month
             logger.warning(
                 "Failed to fetch %d-%02d-%02d — skipping day",
                 year, month, day, exc_info=True,
             )
-            return day, {}
+            return day, {}, PRODUCT_ABSENT, type(exc).__name__
 
     with ThreadPoolExecutor(max_workers=5) as pool:
         futures = {pool.submit(_fetch_day, d): d for d in range(1, days_in_month + 1)}
         for fut in as_completed(futures):
-            day, values = fut.result()
+            day, values, product, failure = fut.result()
+            if failure is not None:
+                fetch_failures[failure] = fetch_failures.get(failure, 0) + 1
+                failed_days.add(day)
+            day_product[day] = product
             if not values:
                 continue
             day_str = date(year, month, day).isoformat()
+            is_prelim = product == PRODUCT_PRELIM
             for canonical_region, precip in values.items():
                 for entry in region_to_entries.get(canonical_region, []):
                     all_rows[entry["commodity"]][(entry["country"], entry["region"])].append({
@@ -220,15 +284,25 @@ def _process_month(
                         "latitude":         entry["latitude"],
                         "longitude":        entry["longitude"],
                         "precipitation_mm": precip,
+                        # Native bool at bronze (no pinned schema here); the bronze->silver seam casts
+                        # it to the '0'/'1' string the pinned silver schema declares.
+                        "is_preliminary":   is_prelim,
                         "ingest_date":      ingest_date,
                     })
 
+    final_days  = sum(1 for p in day_product.values() if p == PRODUCT_FINAL)
+    prelim_days = sum(1 for p in day_product.values() if p == PRODUCT_PRELIM)
+    # SOURCE ABSENCE ONLY -- a 404 on BOTH products. A raising day is in fetch_failures alone (T-C2).
+    absent_days = sum(1 for d, p in day_product.items()
+                      if p == PRODUCT_ABSENT and d not in failed_days)
+
     s3_client = get_thread_local_s3_client(aws_region)
     access_timestamp = datetime.now(timezone.utc).isoformat()
-    source_url_template = (
-        f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/tifs/p05"
-        f"/{year}/chirps-v2.0.{year}.{month:02d}.{{DD}}.tif.gz"
-    )
+    # PROVENANCE COMES FROM THE FETCHER, NOT FROM A LITERAL HERE (the sibling task says the same):
+    # day_url_template is the function the day builders format, so the recorded URL and the fetched
+    # bytes cannot drift apart.
+    source_url_template = day_url_template(year, month)
+    prelim_source_url_template = day_url_template(year, month, preliminary=True)
     written = 0
 
     for commodity, region_rows in all_rows.items():
@@ -260,25 +334,31 @@ def _process_month(
                     # absent -> write it
                 else:
                     # EXISTENCE-ONLY -> COMPLETENESS-AWARE (2026-09-11), see _rewrite_admitted.
-                    stored = _stored_nonnull_days(s3_client, bucket, bkey)
-                    if not _rewrite_admitted(new_nonnull, stored):
+                    # THE SECOND AXIS (2026-09-15): a landed FINAL block over a complete PRELIM month
+                    # is EQUAL on the observed axis, so final_days is what admits the supersession.
+                    stored, stored_final = _stored_day_counts(s3_client, bucket, bkey)
+                    if not _rewrite_admitted(new_nonnull, stored, final_days, stored_final):
                         logger.info(
-                            "Skipping fresh: %s (this run observed %d of %d days; stored holds %s -- "
-                            "a rewrite may only ADD observed days)",
-                            bkey, new_nonnull, len(rows),
+                            "Skipping fresh: %s (this run observed %d of %d days, %d of them FINAL; "
+                            "stored holds %s observed / %s final -- a rewrite may only ADD observed "
+                            "days or ADD final days)",
+                            bkey, new_nonnull, len(rows), final_days,
                             "an unreadable count" if stored is None else f"{stored}",
+                            "an unreadable count" if stored_final is None else f"{stored_final}",
                         )
                         continue
                     logger.info(
-                        "Refreshing INCOMPLETE bronze: %s (observed days %d -> %d of %d)",
-                        bkey, stored, new_nonnull, len(rows),
+                        "Refreshing bronze: %s (observed days %d -> %d of %d; FINAL days %s -> %d)",
+                        bkey, stored, new_nonnull, len(rows), stored_final, final_days,
                     )
 
             df = pd.DataFrame(rows)
             buf = io.BytesIO()
             df.to_parquet(buf, index=False, engine="pyarrow", compression="snappy")
             s3_client.put_object(Bucket=bucket, Key=bkey, Body=buf.getvalue())
-            logger.info("Wrote bronze: %s (%d rows)", bkey, len(df))
+            logger.info("Wrote bronze: %s (%d rows; final=%d prelim=%d absent=%d%s)",
+                        bkey, len(df), final_days, prelim_days, absent_days,
+                        "  PRELIMINARY MONTH" if prelim_days else "")
             written += 1
 
             meta_key = bkey.replace("part-000.parquet", "_meta.json")
@@ -296,7 +376,17 @@ def _process_month(
                     # The yardstick the NEXT run measures against (see _stored_nonnull_days):
                     # row_count is the calendar length of the month either way.
                     "nonnull_count":       new_nonnull,
+                    # The PRODUCT counts, from the FETCH and never from the rows (T-B3). ANY prelim day
+                    # makes the month preliminary; only ALL final days make it final. absent_days is
+                    # SOURCE ABSENCE ONLY -- a raising day is in fetch_failures and not here, so the
+                    # three counts need not sum to the month and the shortfall is the failures.
+                    "final_days":          final_days,
+                    "prelim_days":         prelim_days,
+                    "absent_days":         absent_days,
+                    "is_preliminary":      prelim_days > 0,
+                    "fetch_failures":      fetch_failures,
                     "source_url_template": source_url_template,
+                    "prelim_source_url_template": prelim_source_url_template,
                     "access_timestamp":    access_timestamp,
                 }, indent=2).encode("utf-8"),
                 ContentType="application/json",
@@ -361,6 +451,7 @@ def main() -> None:
                 region_to_entries=region_to_entries,
                 ingest_date=args.ingest_date,
                 force_overwrite=force_overwrite,
+                today=date.today(),
             ): month
             for month in range(1, 13)
         }

@@ -42,6 +42,10 @@ class TestChirpsBronzeToSilver:
         expected = {
             "date", "year", "month", "day", "country", "region",
             "commodity", "source", "ingest_date", "variable", "value",
+            # the 12th column, 2026-09-15: which CHIRPS product fed the day. ALWAYS emitted -- the
+            # pinned writer schema RAISES on a missing column, so a conditional emit would fail the
+            # writer closed on every legacy (commodity, month) the b2s job re-reads.
+            "is_preliminary",
         }
         assert set(silver.columns) == expected
 

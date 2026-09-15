@@ -39,13 +39,53 @@ sources:
   # leak). The 45 this replaces was a MISREADING of these same two numbers -- an analogy to the
   # slow monthly `silver_noaa_iod` sibling, made while the measurement in hand already bounded the
   # lag at 22. Nothing new was measured to correct it; the arithmetic was re-read.
-  # A FASTER PRODUCT EXISTS AND IS NOT YET FETCHED (found 2026-09-11): CHIRPS v2.0 also publishes a
-  # PRELIM daily series at .../CHIRPS-2.0/prelim/global_daily/tifs/p05/2026/ , current to 2026-09-05
-  # with all 31 August days present. A follow-up fetcher lane reads it; after that the served lag is
-  # ~5 days and the 25 here becomes the FINAL product's REVISION HORIZON rather than its first print.
-  # This block is DOCUMENTATION of the source, read by no code: the point-in-time promise the serving
-  # stack keeps is the numbers card's per-metric `ym_publication_lag_days` on gold_weather_z's
-  # `drought_z` (configs/graphrag/numbers/tables.yaml), and this file is where the measurement lives.
+  # THE FINAL'S PUBLICATION DATE, NOW DIRECTLY MEASURED (2026-09-11, Last-Modified on the blocks
+  # themselves, four years sampled): 2026-07 -> +14 days past month-end (the WHOLE July block carries
+  # one timestamp to the second-range, confirming the month-block model directly rather than by
+  # inference), 2025-08 -> +12, 2024-08 -> +14, 2020-08 -> +16.
+  # A FIFTH OBSERVATION, 2026-09-15: the 2026-08 block LANDED, all 31 days Last-Modified
+  # "Fri, 11 Sep 2026 21:10:09 GMT" .. "21:10:59 GMT" -- ONE block write at +11 days past August's
+  # month-end, HOURS AFTER the 09-11 probe that recorded it absent. That tightens the band at the fast
+  # end: the observed range over five blocks is now +11..+16.
+  # So the FINAL's revision horizon is
+  # +11..+16 over five sampled blocks and the 25 above carries 9 days of margin. 25 DOES NOT MOVE; what changed
+  # on 2026-09-11 is the reason beside it -- it stops being "an upper bound of 22 plus 3" and becomes
+  # "+11..+16 observed over five blocks, plus margin". A fence CORRECTED, not deleted. CAVEAT, stated
+  # rather than hidden: Last-Modified is a file mtime, so it is the LAST write and not provably the
+  # first; the 2020 file still carrying a 2020 mtime is the evidence the archive is not rewritten,
+  # which is also the evidence that a landed final is terminal.
+  #
+  # THE SECOND CADENCE: CHIRPS v2.0 PRELIM (2026-09-15, and the reason drought_z can be served faster).
+  # Same grid, same product family, different release schedule:
+  #   url      https://data.chc.ucsb.edu/products/CHIRPS-2.0/prelim/global_daily/tifs/p05/<year>/
+  #            chirps-v2.0.YYYY.MM.DD.tif.gz
+  #   cadence  PENTAD BLOCKS, not daily. MEASURED by HTTP HEAD Last-Modified on every day of 2026-08
+  #            and 2026-09-01..12, and reproduced exactly on 2026-07:
+  #              2026-08-01..05 -> Fri 07 Aug 13:55Z   (+2 past the block's last day)
+  #              2026-08-06..10 -> Wed 12 Aug 14:03Z   (+2)
+  #              2026-08-11..15 -> Mon 17 Aug 13:57Z   (+2)
+  #              2026-08-16..20 -> Mon 24 Aug 23:03Z   (+4  <- the worst observed slip)
+  #              2026-08-21..25 -> Thu 27 Aug 14:02Z   (+2)
+  #              2026-08-26..31 -> Wed 02 Sep 14:03Z   (+2)
+  #              2026-09-01..05 -> Mon 07 Sep 14:00Z   (+2)
+  #              2026-09-06..12 -> 404 on 2026-09-11   (not yet published)
+  #   per-day lag        2 to 8 days (day 05 waits 2; day 01 waits 6; day 16 waited 8 once).
+  #   MONTH-COMPLETION   +2 days past month-end, measured twice (2026-07-31 -> Aug 02;
+  #                      2026-08-31 -> Sep 02), worst observed block slip +4.
+  # THE MONTH-COMPLETION LAG IS THE ONE THAT MATTERS, because gold_weather_z emits a month only when
+  # EVERY calendar day is present (weather_z._complete_months_only). So the reachable served lag is
+  # 7 = worst observed month-completion (+4) plus a 3-day margin -- NOT "5 prelim + margin", which
+  # would be a right number from a wrong premise and would invite the next reader to tighten to 5.
+  # The prelim archive is LIVE back to at least 2020 (2020-08-15 / 2024-08-15 / 2025-08-15 all HTTP 200
+  # with their original mtimes) and a prelim day SURVIVES the final's arrival, which is why the fetcher
+  # bounds its prelim reach to the current and previous month: unbounded, "final else prelim" would
+  # reach the prelim archive for any historical day whose final 404s and rewrite history.
+  # BOTH CADENCES ABOVE ARE DOCUMENTATION OF THE SOURCE, READ BY NO CODE, and this file is where the
+  # measurement lives. The point-in-time promise the serving stack actually keeps is the numbers card's
+  # per-metric `ym_publication_lag_days` on gold_weather_z's `drought_z`
+  # (configs/graphrag/numbers/tables.yaml) -- still 25 on 2026-09-15, with the flip to 7 gated on a
+  # CENSUS read and not on this measurement -- and the product a served figure actually came from is
+  # the gold metric `drought_z_is_preliminary`.
   # It is deliberately NOT written into configs/silver/tables/silver_chirps.yaml, where
   # `publication_lag_days` is consumed as GRACE on a WRITE-RECENCY alarm and would loosen it -- the
   # category error dag_catalog.FRESHNESS_LAG_OVERRIDES exists to cancel.

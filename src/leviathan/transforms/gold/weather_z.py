@@ -138,18 +138,48 @@ METRIC_HEAT_STRESS_Z = "heat_stress_z"
 METRIC_DROUGHT_Z = "drought_z"
 METRIC_FROST_FLAG = "frost_event_flag"
 METRIC_FROST_SHARE = "frost_event_share"   # basin grain only — a share must never wear the flag's name
+
+# THE PRELIMINARY STAMP (2026-09-15, the CHIRPS prelim lane) -- an OBSERVATION, not a prediction.
+# ``drought_z`` may now be computed from CHIRPS v2.0 PRELIM days, about eighteen days before the
+# authoritative FINAL block lands, and when that block lands the month is RECOMPUTED and the served z
+# CHANGES after it has been served. Nothing in the estate recorded that a row was preliminary when it
+# was read, so ``state/analogs.state_history``'s knowledge axis and ``state/feeders._recency``'s stamp
+# had no way to say so and a banked analog ranking was not reproducible from today's bytes.
+#
+# It is a TALL METRIC ROW and not an eighth gold column, and the difference is the blast radius:
+# ``GOLD_COLUMNS`` is a fixed 7-column contract mirrored into pg (``load_pg_numbers.P1_TABLES``) behind
+# a Branch-A parity stage, with a generated Glue contract and a hand DDL. A column touches five files
+# this lane may not open; a metric row touches none of them -- no DDL, no Glue, no pg schema, no parity.
+#
+# TWO NAMES, NOT ONE, and the reason is the estate's own ``frost_event_share`` precedent: at CELL grain
+# this is a 0/1 flag (that cell-month was fed by prelim bytes, or it was not), but ``_basin_rows``
+# averages every metric it finds, so at BASIN and COUNTRY grain the same number is a SHARE OF CELLS.
+# A fraction wearing a flag's name is exactly the misreading ``frost_event_share`` was renamed to
+# prevent, so the aggregate grains rename it here too.
+METRIC_DROUGHT_PRELIM = "drought_z_is_preliminary"        # CELL grain: 1.0 = built from prelim bytes
+METRIC_DROUGHT_PRELIM_SHARE = "drought_z_preliminary_share"   # aggregate grain: share of member cells
+
 Z_METRICS = (METRIC_TMAX_ANOMALY, METRIC_GDD_Z, METRIC_HEAT_STRESS_Z, METRIC_DROUGHT_Z)
-ALL_METRICS = Z_METRICS + (METRIC_FROST_FLAG,)
+# The stamp is a CELL-grain metric (it is emitted beside each drought_z cell row), so it belongs here
+# and not in DERIVED_METRICS -- but it is NOT a z, so it gets no ``_tail_share`` and is never winsorized.
+ALL_METRICS = Z_METRICS + (METRIC_FROST_FLAG, METRIC_DROUGHT_PRELIM)
 TAIL_SHARE_SUFFIX = "_tail_share"
 CELLS_SUFFIX = "_cells"                    # W-3 provenance: how many member cells this row was built from
 COUNTRY_TIER_SUFFIX = "_country"           # region token for the per-member tier (cf. ``_basin``)
+
+# Metrics whose aggregate-grain row is a SHARE and must therefore be RENAMED, so a fraction can never
+# be read as the flag it averages. One map, read at BOTH aggregate grains.
+AGGREGATE_RENAMES: dict[str, str] = {
+    METRIC_FROST_FLAG: METRIC_FROST_SHARE,
+    METRIC_DROUGHT_PRELIM: METRIC_DROUGHT_PRELIM_SHARE,
+}
 
 # Everything the aggregate post-pass can emit that a per-cell row never carries -- the vocabulary the
 # numbers card must declare and the only names legal at a basin OR country-tier surface. ALL_METRICS
 # stays the CELL-grain contract (the registry fence asserts it is a subset of the card's metrics).
 DERIVED_METRICS: tuple[str, ...] = (
     tuple(f"{m}{TAIL_SHARE_SUFFIX}" for m in Z_METRICS)
-    + (METRIC_FROST_SHARE,)
+    + (METRIC_FROST_SHARE, METRIC_DROUGHT_PRELIM_SHARE)
     + tuple(f"{m}{CELLS_SUFFIX}" for m in ALL_METRICS)
 )
 
@@ -226,6 +256,12 @@ _TMAX = "temperature_2m_max_c"
 _TMIN = "temperature_2m_min_c"
 _PRECIP = "precipitation_mm"
 _KEYS = ["country", "region", "year", "month"]
+# The silver_chirps provenance column, carried as a '0'/'1' STRING (the gold_board_crush
+# is_roll_boundary precedent) and coerced to a 0.0/1.0 float here. ABSENT is a real and permanent case:
+# every silver object written before 2026-09-15 lacks the column and is never rewritten, so a concat of
+# legacy and current objects yields NaN for the legacy rows. Absent and NaN both mean FINAL, and that is
+# a statement about those bytes -- the prelim product was unreachable when they were written.
+_PRELIM_COL = "is_preliminary"
 
 
 def to_psd_surface(country: str) -> str:
@@ -239,11 +275,18 @@ def to_psd_surface(country: str) -> str:
 
 
 def _slice(long_df: pd.DataFrame | None, variable: str) -> pd.DataFrame | None:
-    """One weather variable as a clean daily long frame (country, region, year, month, day, value)."""
+    """One weather variable as a clean daily long frame (country, region, year, month, day, value).
+
+    ``is_preliminary`` rides along WHEN THE FRAME CARRIES IT, coerced to 0.0/1.0. When it does not --
+    every pre-2026-09-15 silver object, and every nasa_power frame -- the projection is the pre-lane
+    one, column for column, which is what makes the whole historical corpus byte-identical through this
+    seam. Nothing downstream keys on it except :func:`_month_prelim_flags`."""
     if long_df is None or long_df.empty or "variable" not in long_df.columns:
         return None
-    df = long_df.loc[long_df["variable"] == variable,
-                     ["country", "region", "year", "month", "day", "value"]].copy()
+    cols = ["country", "region", "year", "month", "day", "value"]
+    if _PRELIM_COL in long_df.columns:
+        cols.append(_PRELIM_COL)
+    df = long_df.loc[long_df["variable"] == variable, cols].copy()
     if df.empty:
         return None
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
@@ -253,6 +296,10 @@ def _slice(long_df: pd.DataFrame | None, variable: str) -> pd.DataFrame | None:
     if df.empty:
         return None
     df[["year", "month", "day"]] = df[["year", "month", "day"]].astype(int)
+    if _PRELIM_COL in df.columns:
+        # A row the merge could not match, or a legacy object concatenated beside a current one, is
+        # NaN here -- and NaN is FINAL, for the same reason the column's absence is.
+        df[_PRELIM_COL] = pd.to_numeric(df[_PRELIM_COL], errors="coerce").fillna(0.0).astype(float)
     return df
 
 
@@ -381,6 +428,23 @@ def _drought_runs(precip: pd.DataFrame, *, window_years, min_years, dry_percenti
     return pd.DataFrame(rows, columns=["country", "region", "year", "month", "scalar"])
 
 
+def _month_prelim_flags(precip: pd.DataFrame) -> dict[tuple, float]:
+    """``(psd_country, region, year, month) -> 1.0 if ANY day of that month came from PRELIM bytes``.
+
+    THE ASYMMETRY, the same one bronze states: ANY preliminary day makes the month preliminary; only
+    ALL final days make it final. Hence ``max`` over the month's days and never a mean -- a month that
+    is 20 days final and 11 days prelim is a PRELIMINARY month, because the figure the board prints was
+    built from bytes that will be revised.
+
+    Empty when the frame carries no provenance column at all, which is the signal :func:`_drought_z`
+    uses to emit NO stamp rows whatsoever and stay byte-identical to the pre-lane transform."""
+    if precip is None or precip.empty or _PRELIM_COL not in precip.columns:
+        return {}
+    grouped = precip.groupby(_KEYS)[_PRELIM_COL].max()
+    return {(to_psd_surface(country), region, int(year), int(month)): float(flag)
+            for (country, region, year, month), flag in grouped.items()}
+
+
 def _drought_z(chirps: pd.DataFrame, *, commodity, window_years, min_years, dry_percentile,
                complete_months) -> list[tuple]:
     precip = _slice(chirps, _PRECIP)
@@ -392,8 +456,26 @@ def _drought_z(chirps: pd.DataFrame, *, commodity, window_years, min_years, dry_
                          dry_percentile=dry_percentile)
     if runs.empty:
         return []
-    return _same_month_z(runs, commodity=commodity, metric=METRIC_DROUGHT_Z,
+    rows = _same_month_z(runs, commodity=commodity, metric=METRIC_DROUGHT_Z,
                          window_years=window_years, min_years=min_years)
+    flags = _month_prelim_flags(precip)
+    if not flags:
+        return rows
+    # ONE STAMP PER EMITTED drought_z ROW, keyed off the z rows themselves rather than off the precip
+    # frame, so the two can never be emitted for different (country, region, year, month) sets: a stamp
+    # with no z would be a provenance claim about a figure that was never served, and a z with no stamp
+    # is the silence this metric exists to end. A NaN z is dropped by ``_emit`` (thin baseline), so its
+    # stamp is skipped here for the same reason.
+    stamps: list[tuple] = []
+    for commodity_, surface, region, year, month, _metric, zval in rows:
+        if zval is None or zval != zval:      # NaN -- the z row will be dropped, so no stamp either
+            continue
+        flag = flags.get((surface, region, int(year), int(month)))
+        if flag is None:
+            continue
+        stamps.append((commodity_, surface, region, int(year), int(month),
+                       METRIC_DROUGHT_PRELIM, float(flag)))
+    return rows + stamps
 
 
 def _frost_flag(nasa: pd.DataFrame, *, commodity, threshold, complete_months) -> list[tuple]:
@@ -466,7 +548,10 @@ def _basin_rows(gold: pd.DataFrame, basins: dict[str, dict]) -> pd.DataFrame:
             if int(r.n_cells) < BASIN_MIN_CELLS:
                 continue
             key = (r.commodity, surface, region, int(r.year), int(r.month))
-            out_metric = METRIC_FROST_SHARE if r.metric == METRIC_FROST_FLAG else r.metric
+            # A MEAN OF FLAGS IS A SHARE, and a share may never wear the flag's name: frost_event_flag
+            # -> frost_event_share, drought_z_is_preliminary -> drought_z_preliminary_share. One map,
+            # read at this grain and at the country grain below.
+            out_metric = AGGREGATE_RENAMES.get(r.metric, r.metric)
             rows.append((*key, out_metric, float(r.basin_mean)))
             if r.metric in Z_METRICS:
                 rows.append((*key, f"{r.metric}{TAIL_SHARE_SUFFIX}", float(r.tail_share)))
@@ -485,8 +570,10 @@ def _basin_rows(gold: pd.DataFrame, basins: dict[str, dict]) -> pd.DataFrame:
             seen_country.add((key, r.metric))
             if r.metric in Z_METRICS:
                 rows.append((*key, f"{r.metric}{TAIL_SHARE_SUFFIX}", float(r.tail_share)))
-            elif r.metric == METRIC_FROST_FLAG:
-                rows.append((*key, METRIC_FROST_SHARE, float(r.country_mean)))
+            elif r.metric in AGGREGATE_RENAMES:
+                # The flag families carry their SHARE at this grain (never a ``<metric>`` mean, which
+                # would double-count the country against its own per-cell rows).
+                rows.append((*key, AGGREGATE_RENAMES[r.metric], float(r.country_mean)))
             rows.append((*key, f"{r.metric}{CELLS_SUFFIX}", float(r.n_cells)))
     return _emit(rows)
 

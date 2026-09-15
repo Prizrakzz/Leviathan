@@ -114,15 +114,26 @@ class TestNonNullDayCount:
 # the gate itself, through _process_month
 # ---------------------------------------------------------------------------
 def _run_month(monkeypatch, s3: _FakeS3, day_values: dict, *, force: bool = False,
-               year: int = 2026, month: int = 8):
-    """Drive ``daily._process_month`` with a stubbed fetcher. ``day_values`` maps day -> precip|None."""
+               year: int = 2026, month: int = 8, product: str = "final",
+               raising_days: set | None = None):
+    """Drive ``daily._process_month`` with a stubbed fetcher. ``day_values`` maps day -> precip|None.
+
+    The stub is the PRODUCT-returning fetcher (2026-09-15): the task reads which product answered so it
+    can stamp the rows and persist the final/prelim counts, and a values-only stub would no longer be
+    the function the task calls.
+
+    ``raising_days`` makes those days' fetches RAISE, which is a transport failure and NOT an absence
+    -- the distinction the close-out pin below exists to hold."""
     locations = [{"country": "united_states", "region": "us_corn_ohio",
                   "latitude": 40.0, "longitude": -83.0}]
+    raising = set(raising_days or ())
 
-    def _fetch(y, m, d, locs):
-        return {loc["region"]: day_values.get(d) for loc in locs}
+    def _fetch(y, m, d, locs, today=None):
+        if d in raising:
+            raise RuntimeError("HTTP 503 from the host")
+        return {loc["region"]: day_values.get(d) for loc in locs}, product
 
-    monkeypatch.setattr(daily, "fetch_chirps_daily_values", _fetch)
+    monkeypatch.setattr(daily, "fetch_chirps_daily_values_with_product", _fetch)
     monkeypatch.setattr(daily, "get_thread_local_s3_client", lambda region: s3)
     daily._process_month(
         aws_region="us-east-1", bucket="b", commodity="corn_cbot", year=year, month=month,
@@ -159,6 +170,112 @@ class TestAllNullWriteGate:
         meta = json.loads(s3.existing[meta_key])
         assert meta["row_count"] == 31
         assert meta["nonnull_count"] == 2
+
+    def test_the_meta_also_records_the_PRODUCT_counts_from_the_fetch(self, monkeypatch):
+        """``final_days`` is the SUPERSESSION axis the next run reads (``_rewrite_admitted``), and it is
+        counted over the days FETCHED, not over the rows: a region whose one prelim day lands on a
+        nodata pixel has no prelim-valued row, and a row-derived count would call that month all-final.
+        Here all 31 days answered from PRELIM while only two carried a value at this pixel."""
+        import json
+        s3 = _run_month(monkeypatch, _FakeS3(), {5: 1.0, 6: 2.0}, product="prelim")
+        meta = json.loads(s3.existing[next(k for k in s3.puts if k.endswith("_meta.json"))])
+        assert meta["nonnull_count"] == 2
+        assert meta["final_days"] == 0
+        assert meta["prelim_days"] == 31
+        assert meta["absent_days"] == 0
+        assert meta["is_preliminary"] is True
+
+    def test_an_ALL_FINAL_month_declares_itself_final_and_stamps_no_row_preliminary(self, monkeypatch):
+        import io
+        import json
+
+        import pandas as pd
+        s3 = _run_month(monkeypatch, _FakeS3(), {d: 1.0 for d in range(1, 32)}, product="final")
+        meta = json.loads(s3.existing[next(k for k in s3.puts if k.endswith("_meta.json"))])
+        assert (meta["final_days"], meta["prelim_days"], meta["is_preliminary"]) == (31, 0, False)
+        body = s3.existing[next(k for k in s3.puts if k.endswith("part-000.parquet"))]
+        df = pd.read_parquet(io.BytesIO(body))
+        assert set(df["is_preliminary"].unique()) == {False}
+
+
+# ---------------------------------------------------------------------------
+# T-C2 / R-6 (close-out 2026-09-15) -- absent_days IS SOURCE ABSENCE, NOTHING ELSE
+# ---------------------------------------------------------------------------
+# _DayRasterCache books a raising fetch as PRODUCT_ABSENT because it has no values to return, so the
+# pre-close code counted a THROTTLED day as "CHIRPS has not published this day" in the one field an
+# operator reaches for. Driven before the fix: 3 raising days -> absent=3, fails={'RuntimeError': 3};
+# the SAME fact counted twice, under two names, one of which is wrong. The lane's whole T-C2 point is
+# that a short month from transport failures and a short month from an unpublished source are
+# DIFFERENT facts, and they are only different if exactly one field carries each.
+class TestATransportFailureIsNotAnAbsence:
+    def _meta(self, s3):
+        import json
+        return json.loads(s3.existing[next(k for k in s3.puts if k.endswith("_meta.json"))])
+
+    def test_three_raising_days_are_THREE_FAILURES_AND_ZERO_ABSENCES(self, monkeypatch):
+        s3 = _run_month(monkeypatch, _FakeS3(), {d: 1.0 for d in range(1, 32)},
+                        product="final", raising_days={7, 8, 9})
+        meta = self._meta(s3)
+        assert meta["fetch_failures"] == {"RuntimeError": 3}
+        assert meta["absent_days"] == 0, "a throttled day read as 'the source has not published'"
+        assert meta["final_days"] == 28
+
+    def test_the_three_counts_NEED_NOT_SUM_TO_THE_MONTH_AND_THE_SHORTFALL_IS_THE_FAILURES(
+            self, monkeypatch):
+        """Stated as its own case because it is the invariant a reader would otherwise assume. The
+        month is 31 days; 28 answered, 3 raised, 0 were absent."""
+        s3 = _run_month(monkeypatch, _FakeS3(), {d: 1.0 for d in range(1, 32)},
+                        product="final", raising_days={7, 8, 9})
+        meta = self._meta(s3)
+        counted = meta["final_days"] + meta["prelim_days"] + meta["absent_days"]
+        assert counted == 28
+        assert 31 - counted == sum(meta["fetch_failures"].values()) == 3
+
+    def test_A_REAL_ABSENCE_IS_STILL_COUNTED(self, monkeypatch):
+        """The fence CORRECTS, it does not delete: a day the source genuinely has not published --
+        a 404 on BOTH products, which the fetcher reports as the 'absent' PRODUCT rather than by
+        raising -- still lands in absent_days with an EMPTY failure map."""
+        def _mixed(y, m, d, locs, today=None):
+            if d > 20:
+                return {loc["region"]: None for loc in locs}, "absent"
+            return {loc["region"]: 1.0 for loc in locs}, "final"
+
+        monkeypatch.setattr(daily, "fetch_chirps_daily_values_with_product", _mixed)
+        s3 = _FakeS3()
+        monkeypatch.setattr(daily, "get_thread_local_s3_client", lambda region: s3)
+        daily._process_month(
+            aws_region="us-east-1", bucket="b", commodity="corn_cbot", year=2026, month=8,
+            locations=[{"country": "united_states", "region": "us_corn_ohio",
+                        "latitude": 40.0, "longitude": -83.0}],
+            ingest_date="2026-09-15", force_overwrite=False,
+        )
+        meta = self._meta(s3)
+        assert (meta["final_days"], meta["absent_days"], meta["fetch_failures"]) == (20, 11, {})
+
+    def test_BOTH_TASKS_WRITE_THE_SAME_RULE(self, monkeypatch):
+        """The helper is duplicated across the two entrypoints (they are invoked BY PATH), so this is
+        the drift pin: the year task's _process_month must book a raising day the same way."""
+        s3 = _FakeS3()
+        raising = {7, 8, 9}
+
+        def _fetch(y, m, d, locs, today=None):
+            if d in raising:
+                raise RuntimeError("HTTP 503 from the host")
+            return {loc["region"]: 1.0 for loc in locs}, "final"
+
+        monkeypatch.setattr(yearly, "fetch_chirps_daily_values_with_product", _fetch)
+        monkeypatch.setattr(yearly, "get_thread_local_s3_client", lambda region: s3)
+        loc = {"country": "united_states", "region": "us_corn_ohio",
+               "latitude": 40.0, "longitude": -83.0}
+        flat, index = yearly._build_location_index({"corn_cbot": [loc]})
+        yearly._process_month(
+            aws_region="us-east-1", bucket="b", year=2026, month=8, flat_locations=flat,
+            region_to_entries=index, ingest_date="2026-09-15", force_overwrite=False,
+        )
+        meta = self._meta(s3)
+        assert meta["fetch_failures"] == {"RuntimeError": 3}
+        assert meta["absent_days"] == 0
+        assert meta["final_days"] == 28
 
 
 class TestSiblingGateUnchanged:

@@ -69,6 +69,9 @@ def _parquet_footer(value_col_values):
         "country": ["brazil"] * 3, "region": ["r1"] * 3, "commodity": ["corn_cbot"] * 3,
         "source": ["chirps"] * 3, "ingest_date": ["2026-06-16"] * 3,
         "variable": ["precipitation_mm"] * 3, "value": value_col_values,
+        # the 12th pinned column (2026-09-15): which CHIRPS product fed the day, a '0'/'1' STRING.
+        # '0' here == FINAL, which is what every object written before the prelim lane carries.
+        "is_preliminary": ["0"] * 3,
     })
     table = pa.Table.from_pandas(df, schema=CHIRPS_LONG_SCHEMA, preserve_index=False)
     buf = io.BytesIO()

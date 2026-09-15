@@ -33,6 +33,7 @@ import pandas as pd
 import pyarrow as pa
 
 from leviathan.transforms.bronze_to_silver._weather_schema import (
+    CHIRPS_IS_PRELIMINARY,
     NASA_POWER_COMPACTED_SCHEMA,
     schema_for,
     to_parquet_bytes,
@@ -44,6 +45,19 @@ COMPACTED_PARTITION_KEYS = ["commodity", "year"]
 # Natural key each compacted object dedups on (within its commodity+year). WIDE has no ``variable``;
 # LONG carries it. We include both and intersect with present columns at runtime.
 _NATURAL_KEY_CANDIDATES = ["country", "region", "date", "variable"]
+
+# Producer-additive columns a HISTORICAL frame may simply not have, and the value that is TRUE of those
+# bytes when it does not. ``'0'`` (final) for ``is_preliminary``: the CHIRPS prelim product was
+# unreachable when every pre-2026-09-15 silver object was written, so defaulting a missing column to
+# "final" states a fact about the parquet rather than filling a hole.
+_ADDITIVE_BACKFILL: dict[str, str] = {CHIRPS_IS_PRELIMINARY: "0"}
+
+# The preliminary flag's POLARITY, stated because the NAME IS INVERTED relative to the winner:
+# ``is_preliminary`` TRUE ('1') is the row that must LOSE to its final ('0') sibling. Sorting ascending
+# on the flag and taking ``keep="last"`` therefore keeps... the PRELIM row. So the sort is DESCENDING:
+# '1' first, '0' last, keep-last keeps the FINAL. '0'/'1' strings order the same way lexicographically
+# as numerically, which is part of why the string surface was chosen.
+_PRELIM_WINS_LAST_ASCENDING = False
 
 _YEAR_SEGMENT_RE = re.compile(r"(?:^|/)year=(\d{4})(?:/|$)")
 
@@ -81,15 +95,45 @@ def compact_partition(frames: list[pd.DataFrame], table_name: str) -> pd.DataFra
     ``frames`` are the per-month projected silver frames (already the correct long/wide shape).
     Returns a frame with the SAME columns as the pinned schema for ``table_name`` (a strict superset
     of the natural key), sorted, with exact natural-key duplicates collapsed (keep-last). Raises on an
-    empty input (an empty year is never written -- F044 existence rule carried into compaction)."""
+    empty input (an empty year is never written -- F044 existence rule carried into compaction).
+
+    THE ADDITIVE BACKFILL IS LOAD-BEARING, NOT TIDINESS (2026-09-15). ``enforce_arrow_schema`` RAISES on
+    a missing column -- "fails closed rather than writing an inference-typed object" -- and ``reindex``
+    below inserts NaN for a column a frame lacks. So the moment ``CHIRPS_LONG_SCHEMA`` gained
+    ``is_preliminary``, EVERY compaction of a pre-existing (commodity, year) would have raised, because
+    no 1981-2026 canonical object carries it: silver_chirps would have stopped advancing entirely, which
+    is the freeze class this whole arc exists to end. The backfill happens BEFORE the reindex precisely
+    so that no NaN is ever handed to a schema with no boolean branch to cast it.
+
+    AND THE SUPERSESSION IS EXPLICIT, NOT POSITIONAL. A fresh FINAL row beating a stale PRELIM row used
+    to depend on list-concatenation order alone (the caller passes canonical frames before staging
+    frames, and ``keep="last"`` happens to favour the later one); ``is_preliminary`` is not in the
+    natural key and could not break the tie. One ``sorted()`` added for determinism, or a parallel read
+    that returned frames in a different order, would have flipped it and let a PRELIM row overwrite a
+    FINAL one -- silently, with no error and no census signal. The flag is now part of the pre-dedup
+    sort, so the final wins regardless of frame order."""
     non_empty = [f for f in frames if f is not None and not f.empty]
     if not non_empty:
         raise ValueError("compact_partition: no non-empty monthly frames to compact")
     df = pd.concat(non_empty, ignore_index=True)
     schema = schema_for(table_name)
     cols = [f.name for f in schema]
+    for name, default in _ADDITIVE_BACKFILL.items():
+        if name in cols:
+            if name not in df.columns:
+                df[name] = default
+            else:
+                df[name] = df[name].where(df[name].notna(), default)
     key = [c for c in _NATURAL_KEY_CANDIDATES if c in df.columns]
     if key:
+        prelim_col = CHIRPS_IS_PRELIMINARY if CHIRPS_IS_PRELIMINARY in df.columns else None
+        if prelim_col is not None:
+            # DESCENDING on the flag: '1' (preliminary) first, '0' (final) LAST, so keep-last keeps the
+            # FINAL row whatever order the frames arrived in. kind="stable" so rows that tie on the flag
+            # keep their incoming order and the pre-lane keep-last behaviour is otherwise untouched.
+            df = df.sort_values(key + [prelim_col],
+                                ascending=[True] * len(key) + [_PRELIM_WINS_LAST_ASCENDING],
+                                kind="stable")
         df = df.drop_duplicates(subset=key, keep="last")
     sort_cols = [c for c in ("country", "region", "date", "variable") if c in df.columns]
     if sort_cols:

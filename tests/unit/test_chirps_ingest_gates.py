@@ -78,9 +78,12 @@ class TestAllNullWriteGate:
                 written[Key] = Body
 
         monkeypatch.setattr(task, "get_thread_local_s3_client", lambda region: FakeS3())
+        # The PRODUCT-returning fetcher (2026-09-15): the task reads which product answered so it can
+        # stamp the rows and persist the final/prelim counts a later run's supersession axis reads.
         monkeypatch.setattr(
-            task, "fetch_chirps_daily_values",
-            lambda y, m, d, locs: {loc["region"]: precip_value for loc in locs})
+            task, "fetch_chirps_daily_values_with_product",
+            lambda y, m, d, locs, today=None: (
+                {loc["region"]: precip_value for loc in locs}, "final"))
 
         flat, mapping = task._build_location_index(
             {"cocoa": [_region("ghana", "gh_main", 6.5, -1.6)]})

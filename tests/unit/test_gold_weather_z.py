@@ -737,4 +737,16 @@ def test_derived_metric_vocabulary_is_exactly_what_the_post_pass_emits() -> None
     emitted = set(out["metric"].unique())
     assert emitted == set(DERIVED_METRICS) | set(Z_METRICS)    # z means ride at BASIN grain only
     assert set(DERIVED_METRICS).isdisjoint(set(ALL_METRICS))
-    assert len(DERIVED_METRICS) == len(set(DERIVED_METRICS)) == 10
+    # 10 -> 12 (2026-09-15, the CHIRPS prelim lane). The preliminary stamp is a CELL-grain metric, so it
+    # joins ALL_METRICS and brings its own ``_cells`` sibling (5 -> 6 cells rows); and because
+    # ``_basin_rows`` MEANS every metric it finds, the aggregate grains get the flag's mean under a
+    # DIFFERENT name -- ``drought_z_preliminary_share`` -- for exactly the reason ``frost_event_share``
+    # exists: a fraction of member cells may never wear a 0/1 flag's name.
+    assert len(DERIVED_METRICS) == len(set(DERIVED_METRICS)) == 12
+    from leviathan.transforms.gold.weather_z import (
+        METRIC_DROUGHT_PRELIM,
+        METRIC_DROUGHT_PRELIM_SHARE,
+    )
+    assert METRIC_DROUGHT_PRELIM in ALL_METRICS and METRIC_DROUGHT_PRELIM not in DERIVED_METRICS
+    assert METRIC_DROUGHT_PRELIM_SHARE in DERIVED_METRICS
+    assert f"{METRIC_DROUGHT_PRELIM}_cells" in DERIVED_METRICS

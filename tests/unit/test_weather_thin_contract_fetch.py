@@ -142,9 +142,15 @@ def test_chirps_main_thin_contract_resolves_all_and_current_year(monkeypatch):
                         lambda k: {"LEVIATHAN_BUCKET": "B", "AWS_REGION": "R"}[k])
     monkeypatch.setattr(chirps, "_discover_commodities", lambda *a, **k: ["arabica_coffee", "corn_cbot"])
     seen = []
+    # ``**kw`` since 2026-09-15: main() now pre-loads every commodity's regions ONCE and hands both the
+    # location list and the shared per-run day-raster cache down, so a stub pinned to the old positional
+    # signature would fail on the new keywords rather than on the behaviour under test.
     monkeypatch.setattr(chirps, "_process_commodity",
-                        lambda bucket, aws_region, commodity, year, ingest_date, force, today:
+                        lambda bucket, aws_region, commodity, year, ingest_date, force, today, **kw:
                         seen.append((commodity, year, bucket)))
+    # the pre-load is best-effort and defers a failure to the run loop; stub it so this stays offline
+    monkeypatch.setattr(chirps, "load_commodity_regions", lambda *a, **k: [])
+    monkeypatch.setattr(chirps, "get_thread_local_s3_client", lambda region: object())
     monkeypatch.setattr(sys, "argv", ["chirps_to_bronze_task.py"])
     chirps.main()
     assert [s[0] for s in seen] == ["arabica_coffee", "corn_cbot"]

@@ -1059,12 +1059,41 @@ tables:
       # read "absent at 11, present at 22" as evidence of a ~45-day lag by analogy to the
       # `silver_noaa_iod` sibling, when the measurement in hand already bounded it at 22. Nothing new
       # was measured to correct it; the arithmetic was re-read.
-      # AND THERE IS A FASTER PRODUCT, found 2026-09-11 and NOT yet read by anything here: CHIRPS v2.0
-      # also publishes a PRELIM daily series at .../CHIRPS-2.0/prelim/global_daily/tifs/p05/2026/ ,
-      # current to 2026-09-05 with all 31 August days present. A follow-up fetcher lane reads it; when
-      # it does, this metric's lag becomes ~5 (the prelim's own cadence) and 25 survives as the FINAL
-      # product's REVISION HORIZON -- the date by which the authoritative block replaces the prelim.
-      # Until that lane lands, the served figure is the final block's and 25 is its promise.
+      # THE FASTER PRODUCT IS NOW FETCHED, AND 25 STILL STANDS HERE (2026-09-15). The prelim fetcher
+      # lane shipped: CHIRPS v2.0 PRELIM (.../CHIRPS-2.0/prelim/global_daily/tifs/p05/) is read for any
+      # day of the current or previous month whose FINAL block has not landed, the product is carried
+      # to gold as `drought_z_is_preliminary`, and the final SUPERSEDES the prelim when it arrives.
+      # WHAT THAT BUYS, MEASURED 2026-09-11 by HTTP HEAD Last-Modified over every day of 2026-08 and
+      # 2026-09-01..12: the prelim publishes in PENTAD BLOCKS, each landing ~+2 days after its pentad
+      # closes (worst observed slip +4, the 2026-08-16..20 block). A COMPLETE month of prelim therefore
+      # exists +2 days past month-end -- reproduced twice (2026-07-31 -> published Aug 02; 2026-08-31 ->
+      # published Sep 02) -- against the FINAL block's +11..+16 (2026-07 -> +14, 2025-08 -> +12,
+      # 2024-08 -> +14, 2020-08 -> +16, four years sampled 2026-09-11; and 2026-08 -> +11, ONE block
+      # write at Last-Modified 2026-09-11 21:10Z, measured 2026-09-15 -- hours after the 09-11 probe
+      # that recorded it absent, which is why the lower bound moved from ">11" to "=11 observed").
+      # 25 is unaffected: it still carries 9 days of margin over the slowest block seen in five years.
+      # So the reachable lag is 7 = the worst
+      # observed month-completion slip (+4) plus a 3-day margin. NOT "5 prelim + margin": a SINGLE DAY's
+      # prelim lag is 2-8 days, and the number this card needs is the MONTH-COMPLETION lag, because
+      # `weather_z._complete_months_only` emits a month only when every calendar day is present. Writing
+      # the wrong derivation beside a right number invites the next lane to tighten 7 to 5 on a false
+      # premise.
+      # AND THE FLIP TO 7 IS NOT TAKEN HERE, ON PURPOSE. `_ym_lagged_asof_ym` admits month M when
+      # asof >= month_end(M) + lag, so 25 -> 7 would admit 2026-08 from 2026-09-07 instead of 09-25 --
+      # and on 2026-09-15 the live `gold_weather_z` drought_z tip is 202607. THE REASON IS THE DEPLOY,
+      # NOT THE SOURCE, and the two must not be confused by whoever moves this next: the August FINAL
+      # block DID land (+11, Last-Modified 2026-09-11 21:10Z, measured above), but the 09-11 weather
+      # fixes are NOT DEPLOYED, so the live producer still carries the existence-only write skip that
+      # 70fa5828 closed and August bronze is still the 2026-08-22 all-null skeleton -- which is why a
+      # gold rewrite at 2026-09-14 09:19Z, three days AFTER the block landed, left drought_z at 202607
+      # while the four NASA metrics moved to 202608. Moving the lag
+      # before the bytes hold the month re-introduces, byte for byte, the defect 29de55eb was written to
+      # close: the guard admits a month that does not exist. THE PRECONDITION IS A CENSUS READ, not a
+      # calendar date -- `scripts/ops/weather_z_freshness_runbook.py --step CENSUS` must print
+      # `drought_z tip = 202608` BEFORE this moves, and then all SIX drought_z* entries move together
+      # (clause 4 forces the siblings; clause 5 forbids silent inheritance). 25 then survives in this
+      # prose as the FINAL product's REVISION HORIZON -- the date by which the authoritative block
+      # replaces the prelim -- rather than as the first print.
       drought_z:        {label: "drought z-score", unit: "z", desc: "longest consecutive dry-day run in the month, z vs prior-year same months (CHIRPS)", ym_publication_lag_days: 25}
       # The four NASA POWER readings. Each declares the card default EXPLICITLY (check_metric_lags
       # clause 5): on a card carrying any override, silence is not "the default" but an unstated claim
@@ -1073,6 +1102,35 @@ tables:
       gdd_z:            {label: "growing-degree-day z-score", unit: "z", desc: "growing-degree-days accumulated in the month, z vs prior-year same months", ym_publication_lag_days: 5}
       tmax_anomaly:     {label: "max-temperature anomaly", unit: "z", desc: "mean daily max temperature in the month, z vs prior-year same months", ym_publication_lag_days: 5}
       frost_event_flag: {label: "frost occurrence", unit: "0/1", desc: "1 if the monthly minimum temperature fell below the frost threshold", ym_publication_lag_days: 5}
+      # -- THE PRELIMINARY STAMP (2026-09-15, the CHIRPS prelim lane). An OBSERVATION of which PRODUCT
+      # fed the drought reading, not a prediction from the calendar. It exists because a prelim month's
+      # drought_z is RECOMPUTED when the authoritative FINAL block lands, so a served figure can CHANGE
+      # after it has been served -- and nothing in the estate recorded that a row was preliminary when
+      # it was read, which made a banked analog ranking non-reproducible from today's bytes. A derived
+      # stamp (data month vs today vs the two lags) would over-label a month preliminary between the
+      # final's real landing (+12..+16) and the declared horizon (25) -- safe -- but past 25 it would
+      # label a PERMANENTLY-prelim month "final", which is a leak; only the observation cannot.
+      # TWO NAMES FOR ONE FACT, the frost_event_share precedent exactly: at CELL grain this is a 0/1
+      # flag, but `weather_z._basin_rows` averages every metric it finds, so at BASIN and member-COUNTRY
+      # grain the same number is a SHARE OF CELLS and is renamed rather than left wearing a flag's name.
+      # ALL THREE CARRY drought_z's OWN 25, explicitly: same source, same producer, same print day
+      # (check_metric_lags clause 4 forces it, clause 5 forbids taking it by silence), and they move
+      # with the stem to 7 in the same edit, never before it.
+      # AND THESE THREE LINES OPEN A DECLARED-BUT-ZERO-ROW WINDOW ON PURPOSE -- read this before
+      # reading a red gate as a defect. numbers/contract_check.check_metric_vocabulary asserts, for a
+      # TALL table, that every declared metric appears in DISTINCT(metric_col) ON THE PG MIRROR, and
+      # jobs/audit/feature_readiness.py runs it in-VPC with gold_weather_z in its probed set. The
+      # mirror is HAND-LOADED (no schedule), so from the moment this card edit lands until the
+      # producer deploys, silver is re-minted, gold recomputes AND the mirror is reloaded, that check
+      # prints EXACTLY THREE errors -- one per name below, each reading "declared-but-zero-row -- the
+      # drought_z class". The sequence that closes it, including the trap that the LOADER's own image
+      # must carry this card (its tall filter is ts.metrics), is W6 step 6 of
+      # scripts/ops/weather_z_freshness_runbook.py. The card is edited HERE rather than after the
+      # reload because the producer, the card and the mirror must ship as one change; the honest
+      # carry is to NAME the window, not to leave the metric undeclared while rows exist for it.
+      drought_z_is_preliminary:     {label: "drought reading is preliminary", unit: "0/1", desc: "1 if ANY day of that month's CHIRPS precipitation was read from the PRELIM product rather than the authoritative FINAL block, so the drought_z beside it will be RECOMPUTED when the final lands (any prelim day makes the month preliminary; only ALL final days make it final)", ym_publication_lag_days: 25}
+      drought_z_preliminary_share:  {label: "share of basin cells on preliminary data", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells whose drought_z that month was built from PRELIM CHIRPS days (0-1; the flag renamed at aggregate grain so a fraction is never misread as a flag)", ym_publication_lag_days: 25}
+      drought_z_is_preliminary_cells: {label: "member cells behind the preliminary stamp", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country preliminary share that month", ym_publication_lag_days: 25}
       # -- AGGREGATE rows only (GN-2 W1.1 + W-2/W-3/W-4, 2026-08-25; weather_z._basin_rows): rows whose
       # country is a BASIN surface ('West Africa', 'EU Belt', 'SE Asia Palm Belt', 'Northern Plains')
       # at region <basin>_basin, or a MEMBER country at region <member>_country -- the per-country tail

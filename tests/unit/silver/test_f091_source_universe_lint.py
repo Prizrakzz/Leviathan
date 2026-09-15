@@ -228,11 +228,48 @@ _LINT = _REPO / "scripts" / "silver" / "f091_source_universe_lint.py"
 #   The lane's other two files -- tests/unit/silver/test_esr_vintage_stream.py (new) and this deck
 #     -- sit outside SCAN_ROOTS ("src/leviathan/transforms", "jobs/ingest", "jobs/batch",
 #     "jobs/glue") and never enter the census at all.
-PIN_RAW_LITERALS = 356          # 351 = HEAD aa14046c, measured off a `git archive HEAD` export
-                                # + 5 ESR vintage-stream (2 in bronze_to_silver_esr_task.py's
-                                # EMITTED_COLUMNS / _ON_VALUES, 3 in esr_task.py's code groups)
-PIN_RAW_FILES = 132             # 131 HEAD, measured + 1 ESR vintage-stream (esr_task.py declares a
-                                # module-level collection for the first time)
+# RE-MEASURED 2026-09-15 by the CHIRPS PRELIM lane, on the MOVED HEAD 29de55eb (the ESR
+# vintage-stream lane above has LANDED, so its +5 / +1 is part of the baseline this measures
+# against, not a concurrent claim). Two-tree, same method as the 09-10 block -- the lint's own
+# scan_tree over a clean `git archive HEAD` export and over the working tree, both filtered by
+# `git ls-files` exactly as _pinned_population does (scratchpad chirps_prelim/f091_measure.py):
+#   HEAD (git archive)  -> 356 / 132 / 175 / 97 / 13 / 84 / 145   == the pins replaced here
+#   the WORKING TREE    -> 358 / 133 / 175 / 97 / 13 / 84 / 145   == the pins below
+# RE-MEASURED AGAIN at the lane's CLOSE-OUT (2026-09-15, HEAD now 5ca2b785 -- the USDA WAP lane
+# landed mid-review and its files carry no module-level collection, so the 356 baseline is unmoved),
+# after the close-out fix added a SECOND module-level collection to the same file. 357 -> 358.
+# ATTRIBUTION IS STRUCTURAL AND THE MEASUREMENT IS THE WHOLE TREE, not this lane's files in
+# isolation: the tree carries TWO co-tenant lanes' uncommitted work (state/**, planner.py) and the
+# per-file delta over all 133 census files is EXACTLY ONE line --
+#   src/leviathan/transforms/bronze_to_silver/chirps_weather.py   0 -> 2
+# -- so nothing else can be folded into this delta, and no co-tenant is being counted for this lane.
+#   +2 raw literals, and the FILE enters the raw census for the first time (which is the whole of
+#     PIN_RAW_FILES' +1):
+#       `_MERGE_KEYS` (4), the melt's own dedup key, on which the preliminary flag is re-attached by
+#         a left merge after melt_weather_to_long has dropped every non-id column; and
+#       `_MELT_DROPNA_SUBSET` (6), added at close-out -- ``melt_weather_to_long``'s OWN dropna subset,
+#         quoted so the flags frame and the melt discard the SAME rows. Dropping on three of the six
+#         let a row the melt threw away (a null ``year``) win ``keep='last'`` here and flip the
+#         surviving row's flag.
+#     (The coercion loop's ("year", "month", "day") is deliberately INSIDE the function and so is not
+#     a module-level collection: one named constant carries the contract, the other was a local.)
+#   NOTHING enters the UNIVERSE census: the universe rule is name-shaped (`columns?` / `codes?` /
+#     the source-universe families), and a MERGE KEY is a join axis, not a declared universe of
+#     source members -- so covered/docket do not move either, and 84/145 stand.
+#   The lane's other producer files contribute NOTHING, which the per-file diff above proves rather
+#     than claims, and each for its own reason: chirps.py sits outside SCAN_ROOTS
+#     ("src/leviathan/ingestion"); the two jobs/batch chirps tasks add a scalar int constant and a
+#     class, neither a collection literal; and transforms/gold/weather_z.py's new `AGGREGATE_RENAMES`
+#     is a 2-member dict, which the raw census FLOORS OUT at MIN_CARDINALITY = 3 -- a 2-member map is
+#     a pair of renames, not a universe (the same reading the 09-10 block gave `_CGROUP_PEAK_FILES`).
+PIN_RAW_LITERALS = 358          # 356 = HEAD (29de55eb, and still 356 at 5ca2b785), measured off a
+                                # `git archive HEAD` export + 2 CHIRPS PRELIM
+                                # (chirps_weather._MERGE_KEYS and ._MELT_DROPNA_SUBSET); the ESR
+                                # vintage-stream +5 that this pin used to carry has LANDED and is
+                                # part of the 356 baseline
+PIN_RAW_FILES = 133             # 132 HEAD, measured + 1 CHIRPS PRELIM (chirps_weather.py declares a
+                                # module-level collection for the first time and so ENTERS the raw
+                                # census)
 PIN_UNIVERSE_LITERALS = 175     # 171 HEAD, measured + 4 ESR vintage-stream
 PIN_UNIVERSE_FILES = 97         # 95 HEAD, measured + 2 ESR vintage-stream (both batch files enter
                                 # the universe census)

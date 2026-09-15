@@ -13,8 +13,14 @@ parquet the producers actually write carries the partition-redundant id columns 
 (``country``/``region``/``year``/``month`` -- and, for the LONG tables, ``commodity``) because the
 downstream gold_weather_z ``_to_long`` seam and the feature extractor melt read those id columns out
 of the FRAME, not the S3 path. So the pinned writer schema is the FULL physical parquet schema
-(15 cols WIDE, 11 cols LONG), a strict superset of the registry-declared columns. This module
-asserts that superset relationship against the loaded registry so the two authorities cannot diverge.
+(15 cols WIDE, 11 cols LONG -- 12 for chirps since the prelim lane), a strict superset of the
+registry-declared columns. This module asserts that superset relationship against the loaded registry
+so the two authorities cannot diverge.
+
+THE SIX LENGTHS, PINNED (2026-09-15): chirps long 12, chirps compacted 12, cpc_soil long 11, cpc_soil
+compacted 11, nasa_power wide 15, nasa_power compacted 15. Six and not two, because the compacted
+schemas are the SAME OBJECTS as their long/wide siblings (``IS``, not a copy) and a split made anywhere
+but the field list would widen them by aliasing.
 
 The R0 baseline (``reports/silver_readiness/20260712_p65impl/tables/silver_nasa_power.json``
 ``physical_sample.arrow_columns``) is the ground truth these schemas mirror EXACTLY -- same names,
@@ -68,7 +74,30 @@ _WEATHER_LONG_FIELDS = [
     ("variable", pa.string()),
     ("value", pa.float64()),
 ]
-CHIRPS_LONG_SCHEMA = pa.schema(_WEATHER_LONG_FIELDS)
+
+# THE CHIRPS-ONLY WIDENING (2026-09-15, the prelim lane) -- and WHY IT IS A SEPARATE LIST.
+# ``CHIRPS_LONG_SCHEMA`` and ``CPC_SOIL_LONG_SCHEMA`` were both built from the SAME Python list object,
+# so appending a field to ``_WEATHER_LONG_FIELDS`` would have silently widened silver_cpc_soil too: a
+# meaningless column in its parquet, a contract out of sync with its writer, and a pinned-schema deck
+# red for a table this lane has no business touching. The list is therefore SPLIT at the field level,
+# with cpc_soil keeping ``_WEATHER_LONG_FIELDS`` unchanged at ELEVEN fields.
+#
+# AND THE SPLIT MUST BE AT THE FIELD LIST, NOT AT THE SCHEMA: ``CHIRPS_COMPACTED_SCHEMA IS
+# CHIRPS_LONG_SCHEMA`` and ``CPC_SOIL_COMPACTED_SCHEMA IS CPC_SOIL_LONG_SCHEMA`` below are the SAME
+# objects, not copies, so a split anywhere else would widen the compacted schemas by aliasing.
+#
+# ``is_preliminary`` IS A ``'0'``/``'1'`` STRING, not a boolean, and the reason is mechanical:
+# ``enforce_arrow_schema`` coerces date / integer / floating / string and has NO boolean branch, while
+# ``weather_compaction.compact_partition``'s ``reindex`` inserts NaN for a column a historical frame
+# lacks -- and NaN cannot be cast into ``pa.bool_()``. The estate's own precedent for a boolean that
+# must survive parquet, Athena and the pg mirror identically is
+# ``gold_board_crush.is_roll_boundary``, a ``'0'``/``'1'`` STRING. '1' = preliminary, '0' = final.
+# Bronze has no pinned schema and carries a native bool; the cast happens once, at the bronze->silver
+# seam in ``chirps_weather.py``.
+CHIRPS_IS_PRELIMINARY = "is_preliminary"
+_CHIRPS_LONG_FIELDS = _WEATHER_LONG_FIELDS + [(CHIRPS_IS_PRELIMINARY, pa.string())]
+
+CHIRPS_LONG_SCHEMA = pa.schema(_CHIRPS_LONG_FIELDS)
 CPC_SOIL_LONG_SCHEMA = pa.schema(_WEATHER_LONG_FIELDS)
 
 # The compacted year-grain LONG layout (SILVER-F047). Identical columns to the projected LONG schema:

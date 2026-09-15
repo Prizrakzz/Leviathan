@@ -977,8 +977,58 @@ _PINK_SHEET_VINTAGE_VALUE_COLUMNS: list[str] = [
     "tsp_usd_mt_zscore_5yr", "copper_usd_mt_zscore_5yr",
 ]
 
+# THE CHIRPS PRELIM COLUMN (2026-09-15) -- and why it is its own dict rather than a line added to
+# _F047_WEATHER_NOTE. That note is the SAME dict object for chirps, nasa_power AND cpc_soil, so an
+# additive column written into it would have widened all three contracts; nasa_power's 15-field and
+# cpc_soil's 11-field pinned schemas and their generated contracts must stay byte-identical, so chirps
+# gets its own entry that INHERITS the shared note and adds to it.
+#
+# HIDDEN (additive_columns_hidden -> glue_type: None), deliberately, and the choice is the difference
+# between this lane needing a gated Glue migration and not:
+#   * the DDL renderer skips a glue_type=None column (silver/ddl.py), so the generated
+#     sql/athena/ddl_generated/silver_chirps.sql is UNCHANGED and the live catalog stays 9 declared
+#     non-partition columns == the registry -- no ALTER, no drift, nothing to apply;
+#   * the writer arrow schema keys on target_arrow_type, so the producer still emits the column into
+#     the parquet (the WASDE value_low/value_high and SILVER-F059 sagis precedents); and
+#   * the ONE consumer that must read it -- jobs/batch/gold_weather_z_task -- reads the S3 parquet
+#     directly with pyarrow and never touches Athena, so a hidden column reaches gold anyway.
+# Registering it is a separate, later sitting with its own gated ADD COLUMNS (and, for the fingerprint
+# below, a baseline re-capture); nothing in this lane needs it.
+#
+# THE FINGERPRINT IS LEFT DESCRIBING THE BASELINE, AND THAT IS STATED RATHER THAN HIDDEN.
+# `fingerprint.physical_parquet_cols: 11` / `schema_fingerprint_sha256` come from the frozen R0
+# baseline JSON and are NOT recomputed by additive_columns_hidden. They therefore keep describing the
+# 11-column layout that every object on S3 still has, beside a 12-column WRITER -- which is the truth
+# today, because no canonical object carries the column until the producer ships and the compaction
+# re-mints each (commodity, year). Refreshing the fingerprint would require re-censusing live objects
+# that already carry it, i.e. strictly AFTER this lane. The notes_append below says so in the contract
+# itself, so the next reader meets the discrepancy as a declared state and not as a lie.
+_CHIRPS_PRELIM_NOTE: dict = {
+    "notes_append": (
+        _F047_WEATHER_NOTE["notes_append"]
+        + " CHIRPS PRELIM PROVENANCE (2026-09-15): the producer emits a 12th physical column, "
+        "is_preliminary, a '0'/'1' STRING (the gold_board_crush.is_roll_boundary precedent -- "
+        "enforce_arrow_schema has no boolean branch and compaction's reindex inserts NaN, which cannot "
+        "cast to pa.bool_). '1' means the day was read from the CHIRPS v2.0 PRELIM product, which "
+        "publishes in pentad blocks ~2 days past each pentad (worst observed slip +4) instead of the "
+        "FINAL block's +11..+16 days past month-end (five blocks over five years; the +11 is 2026-08, "
+        "ONE block write measured 2026-09-15 at Last-Modified 2026-09-11 21:10Z, which moved the lower "
+        "bound down from the 12 an earlier cut of this note carried); the final SUPERSEDES the prelim "
+        "when it lands and the month is recomputed. HIDDEN SCHEMA (glue_type null): excluded from the generated DDL, so the "
+        "live catalog keeps its 9 declared non-partition columns and no Glue ALTER is required -- the "
+        "one consumer that reads the column (jobs/batch/gold_weather_z_task) reads S3 parquet directly "
+        "with pyarrow and never Athena. DELIBERATELY NOT a value_column: every historical row is "
+        "'0', so a censused constant would trip the HARD KIND_ALL_CONSTANT gate row table-wide. AND "
+        "THE FINGERPRINT BELOW IS STALE BY DESIGN: physical_parquet_cols 11 and "
+        "schema_fingerprint_sha256 describe the R0 baseline layout, which is still what every object "
+        "on S3 carries; they are refreshed by a baseline re-capture AFTER the producer ships and the "
+        "compaction re-mints the objects, not by declaring the column."
+    ),
+    "additive_columns_hidden": [("is_preliminary", "string")],
+}
+
 CURATION_OVERRIDES: dict = {
-    "silver_chirps": _F047_WEATHER_NOTE,
+    "silver_chirps": _CHIRPS_PRELIM_NOTE,
     "silver_nasa_power": _F047_WEATHER_NOTE,
     "silver_cpc_soil": _F047_WEATHER_NOTE,
     # D-LD TRANCHE 2 (2026-08-18): the derived PIT anchor year_ending_date. Was staged HIDDEN

@@ -41,6 +41,7 @@ from leviathan.storage.s3 import (
 )
 from leviathan.transforms.gold.weather_z import (
     _PRECIP,
+    _PRELIM_COL,
     _TMAX,
     _TMIN,
     compute_weather_z,
@@ -68,13 +69,20 @@ def _to_long(frame: pd.DataFrame) -> pd.DataFrame | None:
     The two silver weather sources ship DIFFERENT shapes (probed 2026-07-12): nasa_power is WIDE (one
     column per variable, e.g. temperature_2m_max_c) and MUST be melted; chirps is ALREADY LONG
     (variable='precipitation_mm' + value). Run 2's drought blackout (34 DARK census legs, zero drought_z
-    gold rows) was this function refusing the long chirps frame because it demanded wide value_vars."""
+    gold rows) was this function refusing the long chirps frame because it demanded wide value_vars.
+
+    AND IT DROPPED EVERY OTHER COLUMN (fixed 2026-09-15). The long branch returned ``ids + [variable,
+    value]`` and nothing else, so silver_chirps' ``is_preliminary`` -- the whole point of the prelim
+    lane -- would have died HERE, one seam before the transform that needs it, silently and with no
+    error. The provenance column is carried through when the frame has it; a frame without it
+    (nasa_power, and every pre-lane chirps object) projects exactly as before."""
     ids = [c for c in _MELT_IDS if c in frame.columns]
     if len(ids) != len(_MELT_IDS):
         logger.error("unexpected silver schema: ids=%s cols=%s", ids, sorted(frame.columns)[:20])
         return None
     if "variable" in frame.columns and "value" in frame.columns:     # already long (chirps)
-        out = frame[ids + ["variable", "value"]]
+        carried = ["variable", "value"] + ([_PRELIM_COL] if _PRELIM_COL in frame.columns else [])
+        out = frame[ids + carried]
         return out if not out.empty else None
     value_vars = [c for c in _MELT_VARS if c in frame.columns]       # wide (nasa_power) -> melt
     if not value_vars:

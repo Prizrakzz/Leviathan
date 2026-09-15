@@ -77,6 +77,12 @@ physical_columns:
   parquet_physical_type: INT64
   target_arrow_type: int64
   nullable: false
+- name: is_preliminary
+  glue_type: null
+  arrow_type: null
+  parquet_physical_type: null
+  target_arrow_type: string
+  nullable: true
 writer_schema_pinned: true
 drift_summary: []
 natural_key:
@@ -143,4 +149,18 @@ notes: 'min_nonnull_frac is PROVISIONAL (uniform 0.5) pending per-source calibra
   REGISTERED [commodity, year]; country/region/month declared in-file (non-null natural-key members; the
   in-file year -- and commodity where present -- stay undeclared to avoid partition-key collisions); write_mode
   registered-partition (the F047 compaction writer publishes via the F015 shadow + F013 registered path).
-  Projection grid removed; INV-3 stands: recovery never starts an Athena query.'
+  Projection grid removed; INV-3 stands: recovery never starts an Athena query. CHIRPS PRELIM PROVENANCE
+  (2026-09-15): the producer emits a 12th physical column, is_preliminary, a ''0''/''1'' STRING (the gold_board_crush.is_roll_boundary
+  precedent -- enforce_arrow_schema has no boolean branch and compaction''s reindex inserts NaN, which
+  cannot cast to pa.bool_). ''1'' means the day was read from the CHIRPS v2.0 PRELIM product, which publishes
+  in pentad blocks ~2 days past each pentad (worst observed slip +4) instead of the FINAL block''s +11..+16
+  days past month-end (five blocks over five years; the +11 is 2026-08, ONE block write measured 2026-09-15
+  at Last-Modified 2026-09-11 21:10Z, which moved the lower bound down from the 12 an earlier cut of this
+  note carried); the final SUPERSEDES the prelim when it lands and the month is recomputed. HIDDEN SCHEMA
+  (glue_type null): excluded from the generated DDL, so the live catalog keeps its 9 declared non-partition
+  columns and no Glue ALTER is required -- the one consumer that reads the column (jobs/batch/gold_weather_z_task)
+  reads S3 parquet directly with pyarrow and never Athena. DELIBERATELY NOT a value_column: every historical
+  row is ''0'', so a censused constant would trip the HARD KIND_ALL_CONSTANT gate row table-wide. AND
+  THE FINGERPRINT BELOW IS STALE BY DESIGN: physical_parquet_cols 11 and schema_fingerprint_sha256 describe
+  the R0 baseline layout, which is still what every object on S3 carries; they are refreshed by a baseline
+  re-capture AFTER the producer ships and the compaction re-mints the objects, not by declaring the column.'
