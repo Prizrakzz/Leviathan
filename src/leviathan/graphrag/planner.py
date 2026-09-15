@@ -1244,7 +1244,12 @@ def _dedup_and_cap(sg: Subgraph, cap: int, *, cap_policy: str | None = None, k_b
     WHY THE QUOTA IS NODE-RELEVANCE-PROPORTIONAL AND NOT ROW-SCORE-THRESHOLDED: verified against
     rankers._fire (grouped PER DISTINCT QUERY, and the walk sends the same query string for every node,
     then packed at caller boundaries into <= _COALESCE_MAX_DOCS requests -- D-MW-9) -- so on the happy
-    path all nodes' docs are scored in ONE request and their scores share a normalization. But that is
+    path all nodes' docs are scored in ONE request and their scores share a normalization.
+    [V2-RETRIEVAL SLICE 1: `ground(bridge_query=True)` FALSIFIES the "same query string for every node"
+    premise -- 1 -> 148 distinct query strings on a max walk -- which only STRENGTHENS the conclusion
+    below: cross-node raw scores become comparable even less often, and this function never reads one.
+    The quota is node-relevance-proportional and row order is kept WITHIN a node, so nothing here moves
+    with the flag; no consumer of a row's `score` compares across nodes anywhere in `src/`.] But that is
     NOT guaranteed: past the doc cap the packing splits nodes ACROSS requests (whole nodes, never a node
     in half), _parallel_fill's pool can be narrower than the hinted batch (measured floor
     ceil(n_arrivals/workers) requests per turn), the quiescence closer can split a batch, and the
@@ -1369,13 +1374,23 @@ def _adopt_parent(lane_rk, parent_lane, pat_pg, parent_deadline, parent_ledger=N
         yield
 
 
-def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> None:
+def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None, bridges=()) -> None:
     """Run the per-node evidence fetch concurrently (overlaps the slow managed-rerank round-trips). Falls back
     to sequential when workers<=1 or a single node. On the REAL serving retriever we pre-warm the shared query
     embedding once — else N parallel workers each recompute the same embedding (the old 26%-of-wall waste);
     injected test fakes are not ev.retrieve, so the pre-warm (and any bge load) is skipped, keeping tests
     hermetic + deterministic. `expected` = the EXACT count of nodes that will retrieve (skip-predicate applied
-    by the caller) — the rerank coalescer fires the single Bedrock request the moment they've all arrived."""
+    by the caller) — the rerank coalescer fires the single Bedrock request the moment they've all arrived.
+
+    `bridges` (V2-RETRIEVAL SLICE 1) = the DISTINCT bridge texts this fill will send in place of the query,
+    deduped by the caller. `()` — the default and the whole flag-off path — leaves the loop body unreached
+    and this function byte-identical. The warm is the SAME warm the query gets and for the same reason: N
+    workers would otherwise each recompute one bridge's embedding. In the normal case it is FREE, because
+    `_relevance` already pushed that exact mechanism string through `ev.embed` during the walk and
+    `ev._Q_CACHE` memoizes single-text calls on `(backend, text)` — which is why the bridge text must be
+    the mechanism VERBATIM: any strip/prefix/normalisation here turns N memo reads into N paid embeds,
+    silently (`ev._Q_CACHE` is also clear-on-full at 4096, so a long-lived serving process CAN drop the
+    walk's entry before the fill — hence a real warm, not an assumption)."""
     nodes = list(nodes)
     if _WALK_WORKERS <= 1 or len(nodes) <= 1:
         for n in nodes:
@@ -1385,6 +1400,8 @@ def _parallel_fill(nodes, fn, query, retrieve, expected: int | None = None) -> N
     if getattr(retrieve, "func", retrieve) is ev.retrieve:
         try:
             ev.embed([query])
+            for _b in bridges:                 # V2-RETRIEVAL SLICE 1: usually a _Q_CACHE HIT (see above)
+                ev.embed([_b])
         except Exception:  # noqa: BLE001 — a warmup miss must never break the walk
             pass
         try:                                       # managed-rerank quota is ~3 req/MIN: hint the coalescer so
@@ -1597,7 +1614,7 @@ class _Prefetch:
             self._cv.notify_all()
 
 
-def _ec2_prefetch(sg, query, asof, retrieve, fill_slice):
+def _ec2_prefetch(sg, query, asof, retrieve, fill_slice, bridged=frozenset()):
     """EC-2: the batched read plan for every distinct slice this fill is about to ask for, or None.
 
     THREE GATES, ALL OF WHICH MUST HOLD, and any one short returns None -- at which point `_fill` omits
@@ -1636,6 +1653,15 @@ def _ec2_prefetch(sg, query, asof, retrieve, fill_slice):
     carry raw vectors or the scalar cosine. Absent keywords fall back to `ev.retrieve`'s own defaults --
     the same values the un-partialed function would have used.
 
+    `bridged` (V2-RETRIEVAL SLICE 1) = the node KEYS that will send a bridge query instead of the question.
+    THE CENSUS MUST COUNT THEM OUT, because this batch is fetched with the QUESTION's vector and the
+    QUESTION's tsquery: a bridge node never calls `take()` (it borrows its own candidate set with its own
+    query, see `_fill`), so counting it here would leave its slice's rows resident past their true last
+    consumer -- exactly the eager-map residency the `_Prefetch` docstring exists to bound, and the estate
+    has an OOM-tore-the-store precedent for it. Under-counting is the mirror failure and is what makes the
+    count come from the SAME predicate `_fill` reads, never a second copy of the rule. `frozenset()` -- the
+    default and the whole flag-off path -- makes the loop the shipped census's exact result.
+
     FAIL-OPEN END TO END: anything at all going wrong here returns None and the turn takes today's path."""
     if not _ec2_enabled():
         return None
@@ -1646,8 +1672,12 @@ def _ec2_prefetch(sg, query, asof, retrieve, fill_slice):
             return None
         from leviathan.graphrag import pgstore as _pg
         wants: dict[str, int] = {}
-        for sp in (fill_slice(n) for n in sg.nodes):            # consumption order, and the EXACT consumer
-            if sp is not None:                                 # count each slice's rows must survive for
+        # CONSUMPTION ORDER, and the EXACT consumer count each slice's rows must survive for.
+        for n in sg.nodes:
+            if n.key in bridged:                               # a bridge node takes its OWN borrow and
+                continue                                       # never calls `take()` — so it is not a consumer
+            sp = fill_slice(n)
+            if sp is not None:
                 wants[sp] = wants.get(sp, 0) + 1
         if not wants:
             return None
@@ -1687,9 +1717,90 @@ def _emit_stage(on_stage, stage: str, **info) -> None:
 def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, silver_lookup=None,
            asof=None, near=None, k_by_depth=_K_BY_DEPTH, evidence_cap: int = _EVIDENCE_CAP, driver_slices=None,
            probe_cap: int = _PROBE_CAP, recency_days: int = _RECENCY_DAYS, probe_retrieve=None,
-           on_stage=None, cap_policy: str | None = None) -> Subgraph:
+           on_stage=None, cap_policy: str | None = None, bridge_query: bool = False) -> Subgraph:
     """Fill the evidence + silver legs and fire convergence deterministically. `retrieve`/`silver_lookup` are
     injectable (tests pass fakes; serving passes the real hybrid+rerank+mmr retriever + numbers lookup).
+
+    ── V2-RETRIEVAL SLICE 1: `bridge_query` — THE GRAPH WRITES THE QUERY FOR THE FAR NODE ───────────────
+    THE DEFECT (read from this function's own `_fill`, 2026-09-11): the walk admits a far CONTRACT node by
+    cos(question, the ADMITTING EDGE'S MECHANISM) — the GRAPH decides WHICH nodes — but INSIDE that node
+    the propositions are ordered by cosine + BM25 + rerank against the USER'S QUESTION. A corn question
+    therefore ranks a soybean node's sentences by their likeness to 'corn', and a dated event inside that
+    node's window that never resembles the question is never surfaced. Measured on the real bge embedder
+    over the real stored slices: for `contract:soybeans_cbot` reached from `corn_cbot` via `competes_with`,
+    the shipped question-ranked top-8 overlaps the mechanism-ranked top-8 in 1 of 8.
+
+    WHEN TRUE: EVERY NON-SEED RETRIEVING NODE reads with THE TEXT THE WALK SCORED TO ADMIT IT — VERBATIM —
+    in place of the question, on all three legs at once (the vector leg, the tsquery/BM25 leg and the
+    rerank query), because `retrieve()`'s first positional feeds all three:
+
+      * a hop CONTRACT (depth 1; the D-MW-13 fence keeps contract depth at 0 or 1 on the seed-scaled
+        presets) reads with `n.via_edge["mechanism"]`, the admitting edge's own sentence;
+      * a DRIVER at depth 1 or 2 reads with `graph.driver(n.contract, n.id).mechanism`.
+
+    HOW A DRIVER IS BRIDGED, IN THE EXACT WORDS OF THE CODE (the widening ruling's literal predicate
+    selects ZERO drivers, so this is stated rather than left to be inferred). `grounded_subgraph` enqueues
+    a driver as `nxt.append((drv.id, d + 1, None, "driver", cid))` — `via=None`, on BOTH the contract
+    fan-in and the upstream-parent edge — so `n.via_edge` is None on EVERY driver node ever built and
+    `via_edge["mechanism"]` would have matched none of them. The text the walk actually SCORED to admit a
+    driver is one line above that in the same loop:
+
+        rel = _relevance(qv, graph.driver(cid, id_).mechanism, embed, mech)     # a driver
+        rel = _relevance(qv, (via or {}).get("mechanism", ""), embed, mech)     # a hop contract
+
+    so `_bridge_of` reads THE ADMITTING TEXT, not the field name: `cs.Driver.mechanism` as curated in the
+    DAG YAML for that (contract, driver) pair, and `via_edge["mechanism"]` for a hop. It is sent VERBATIM
+    — no strip into the returned value, no prefix, no normalisation — because `ev._Q_CACHE` keys on
+    `(backend, text)` and `_relevance` already pushed that exact string through `ev.embed` during the
+    walk: the warm is then a memo HIT and costs 0 NEW encoder calls (MEASURED 0 on all four tier shapes,
+    tier_census_bge.json). Any edit to the string would turn a free memo read into a paid embed per node,
+    silently.
+
+    The SEED keeps the question — it is the question's own market. The depth-2 DRIVERS OF A HOP CONTRACT
+    are the multi-hop chain in this graph, which is why the population is not contracts-only: the hop fence
+    means the LNG -> fertilizer -> corn -> wheat -> x -> y chain never exists in the contract layer at all.
+    MEASURED on the real bge-m3 embedder over the recon max walk (d2, 63/seed, 6 seeds, tau .05 —
+    scratchpad/bridge_query/tier_census_bge.json, reproduced from this function's own trace stamp): 26 of
+    the 149-node bridgeable population are depth-2 drivers, against 12 hop contracts and 111 depth-1
+    drivers. EVERY number in this docstring is from that file; none is an estimate.
+
+    THE HONEST CLAIM, in these words: THE QUESTION CHOOSES THE PATH, THE PATH WRITES THE QUERY. `visited`
+    is stamped at first encounter in a question-ranked wave order, so WHICH parent path a multiply-reachable
+    node records is still decided by the question. What V1 removes is the question from the RANKING INSIDE
+    the node. The composed multi-edge PATH query, the board's state words and the date window are V2.
+
+    EVERY DRIVER IN THE POPULATION IS BRIDGED, REGIME-REQUIRED OR NOT, ON AS-OF TURNS TOO. A REGIME_RECEIPT
+    FENCE STOOD HERE AND WAS REMOVED (orchestrator ruling R-13, 2026-09-15). It kept the question for any
+    driver named by its own contract's `convergence` structures whenever an as-of made the firing leg live,
+    on the claim that this held `n_probes` / `regime_basis` / `silver_veto` / `fired_regimes` EQUAL across
+    arms. IT DOES NOT HOLD THEM. The firing leg reuses a driver node's KEPT rows as its receipt
+    (`probe_cache[(cid, did)] = _recent(n.evidence)` below), and `_dedup_and_cap` sits BETWEEN the fill the
+    fence protected and the leg it protected for — attributing each prop to the SHALLOWEST node out of ONE
+    GLOBAL budget, so a BRIDGED SIBLING that now retrieves a different row set takes or releases rows the
+    fenced driver used to keep. MEASURED on the real graph topology with cross-node dedup live (3 questions
+    x {standard, deep, max} x 1-4 seeds): 13 OF 36 LANE SHAPES moved `regime_basis` anyway. The fence cost
+    33-42% of the bridgeable driver population — the multi-hop chain the widening was ordered for sat
+    inside it — and bought less than it advertised, so it is gone rather than patched.
+
+    THE HONEST CLAIM IN ITS PLACE: A BRIDGED DRIVER'S FIRING RECEIPT IS ITS BRIDGE-RANKED ROWS. The leg
+    below reads the driver's KEPT rows exactly as it always did — no second row set, no extra borrow, no
+    second retrieval — so `n_probes`, `regime_basis`, `silver_veto`, `fired_regimes`, `driver_legs` and
+    `active` MAY MOVE with the flag on. They are REPORTED off vs on as a measured table (MEASURED.md
+    section 8), never pinned equal, and the arm's JUDGE is what decides whether a mechanism-ranked receipt
+    is better than a question-ranked one. What stays pinned is the retrieval PLAN: the node count and the
+    per-node `(slice, k, asof, near)` at the EC-2 wants census and at `take` (see `_ec2_prefetch`).
+
+    WHAT KEEPS THE QUESTION, AND WHY (named, never silent — each is a COUNTED fallback on the trace):
+      * the BEDROCK rerank lane (`fallback.rerank_lane_bedrock`) — see the fence below.
+      * a missing/blank admitting text (`fallback.no_via_edge` / `no_driver_mechanism` / `empty_mechanism`),
+        and a node kind this predicate cannot read an admitting text for (`fallback.unknown_kind`; there
+        is no such kind today). The stamp's arithmetic is therefore CLOSED on every turn:
+        `nodes == applied + sum(fallback.values())`.
+
+    THE FLAG IS A KWARG, NEVER AN ENVIRONMENT READ HERE: `answer._answer_l2` reads
+    `GRAPHRAG_BRIDGE_QUERY` ONCE per turn and threads the bool, so a taskdef flip can never split a turn
+    between the walk and the fill. DEFAULT False, and `grounded_subgraph` never sees it — every walk-shape
+    number, the whole state block, and the entire OFF arm are byte-identical to the pre-bridge tree.
 
     Two things resolve the v1.1 A/B blockers (regimes fired 0.0, leg-grounding 0.2):
       * driver evidence now reads drivers/<SLICE> via the alias map (ev.slice_for_driver) — slice NAMES were
@@ -1729,6 +1840,108 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             return None
         return sp
 
+    # ── V2-RETRIEVAL SLICE 1: THE BRIDGE QUERY — ONE PREDICATE, FOUR READERS ─────────────────────────
+    # The `_fill_slice` discipline, for the same reason it was extracted: `_fill`, the EC-2 wants census,
+    # the embed warm and the trace tally all need "does this node send a bridge, and which text", and four
+    # copies of that rule would drift into either un-batched nodes (silent) or paid fetches nothing asks
+    # for (invisible).
+    #
+    # THE LANE FENCE, FAIL-CLOSED. The rerank coalescer groups a drained batch BY QUERY STRING
+    # (`rankers._fire`), so per-node bridges turn ONE query group into `1 + distinct bridges` — MEASURED on
+    # the real embedder: 1 -> 80 distinct query strings on a deep walk, 1 -> 148 on max (tier_census_bge,
+    # re-measured after the regime fence was removed; the fenced figures were 1 -> 54 and 1 -> 96).
+    #
+    # THE REAL PER-DRAIN BOUND, CORRECTED (review round 2; the earlier comment said "8 callers per drain"
+    # and was 8x too small on the exact lane this fence permits). `_parallel_fill` starts at
+    # `min(_WALK_WORKERS, len(nodes))` but WIDENS to `max(workers, min(hinted, len(nodes), MAX_FILL_POOL))`
+    # — and `hinted` is non-zero ONLY when `rk._rerank_backend()` is `bedrock` or `cohere`, i.e. the
+    # widening is armed EXACTLY on the managed lane the coalescer serves. MEASURED by driving
+    # `_parallel_fill` with the cohere backend: 82 eligible nodes -> 64 concurrent fill workers, 152 -> 64.
+    # So one drain holds up to `MAX_FILL_POOL` = 64 callers, not 8:
+    #   flag OFF  1 query string  -> the drain's ~64 x 60 = 3,840 docs pack into ceil(3840/1000) = 4 groups
+    #   flag ON   up to 64 DISTINCT query strings -> up to 64 groups (packing never merges two queries)
+    # dispatched `rankers._coalesce_group_workers()` at a time = ceil(groups / GROUP_WORKERS) waves per
+    # drain. At the shipped default 4 that is ceil(64/4) = 16 sequential waves on a deep/max drain against
+    # `_COALESCE_MEMBER_WAIT` = 90 s, with one live cohere request already measured at 19,900 ms; at the
+    # arm's 16 it is ceil(64/16) = 4. That is what `GRAPHRAG_RERANK_GROUP_WORKERS` exists for (R-14), and
+    # the wave arithmetic at both settings is in THREAT_MODEL 8.4.
+    #
+    # On the native cohere lane (1,000 req/min) that is
+    # latency, and quality beats latency here. On the BEDROCK rollback lane it is a cliff: 3 req/min,
+    # L-11512E58, Adjustable=FALSE, and `_fire` dispatches groups SEQUENTIALLY there because packing is
+    # cohere-only — ~5.7 minutes of serialized requests, every member blowing `_COALESCE_MEMBER_WAIT` and
+    # falling back to bge at 13.88 s per 60-doc pool. So the bridge REFUSES TO ARM on that lane, in code,
+    # where an operator rule cannot forget it at a taskdef edit.
+    _bq_lane_ok = True
+    if bridge_query:
+        try:
+            from leviathan.graphrag import rankers as _rk_lane
+            _bq_lane_ok = _rk_lane._rerank_backend() != "bedrock"
+        except Exception:  # noqa: BLE001 — an unreadable lane must not fail the walk; it takes the question
+            _bq_lane_ok = True
+    _bq_fallback: dict = {}
+
+    def _bump(d, k):
+        d[k] = d.get(k, 0) + 1
+
+    def _bridge_of(n):
+        """THE BRIDGE TEXT for this node, or None meaning 'rank this node with the question'.
+
+        THE POPULATION is every NON-SEED node that RETRIEVES: depth 0 is the question's own market, and a
+        prior-only node (no backing id, no slice) issues no fetch to re-rank. A node outside the population
+        is not a fallback and is never counted as one; every None INSIDE it is counted, by reason, so "fail
+        open" stays a measured word rather than a silent one.
+
+        THE TEXT IS THE ADMITTING MECHANISM, VERBATIM. For a hop CONTRACT that is the admitting edge's
+        sentence (`via_edge["mechanism"]`); for a DRIVER it is the driver's OWN mechanism — the same string
+        the walk's `_relevance` scored to admit it, since a driver is enqueued with `via=None` and carries
+        no edge at all. `ev._Q_CACHE` keys on `(backend, text)` and `_relevance` already embedded these
+        exact strings during the walk, so a `.strip()`-into-the-returned-value, a prefix, or any
+        normalisation would turn a free memo read into a paid embed per node, silently. The strip below is
+        the EMPTINESS TEST only — `m` is discarded on failure, never returned."""
+        if not bridge_query or n.depth <= 0:
+            return None                                            # outside the population: not a fallback
+        if not _bq_lane_ok:
+            _bump(_bq_fallback, "rerank_lane_bedrock")
+            return None
+        if n.kind == "contract":
+            via = n.via_edge or {}
+            if not via:
+                _bump(_bq_fallback, "no_via_edge")                 # defensive: every admission path builds
+                return None                                        # a `via` dict today
+            m = via.get("mechanism") or ""
+        elif n.kind == "driver":
+            # NO REGIME FENCE HERE (R-13). A driver whose contract's `convergence` structures name it is
+            # bridged like any other: the firing leg below reuses its KEPT rows as the receipt, so that
+            # receipt becomes bridge-ranked, and the regime outcomes are REPORTED off vs on rather than
+            # pinned equal. See the ruling in this function's docstring for the 13-of-36 measurement that
+            # showed the fence did not hold those counts anyway.
+            try:
+                m = graph.driver(n.contract, n.id).mechanism or ""
+            except Exception:  # noqa: BLE001 — an unindexed driver takes the question, counted
+                _bump(_bq_fallback, "no_driver_mechanism")
+                return None
+        else:
+            # A THIRD `GroundedNode.kind` does not exist today ("contract" | "driver"), and if one is ever
+            # added it arrives with no admitting text this predicate knows how to read — so it takes the
+            # question. IT IS COUNTED, because it is INSIDE the population (`_fill_slice` gave it a slice):
+            # an uncounted None here would leave `nodes == applied + sum(fallback.values())` — the whole
+            # arithmetic of the closed word — true only by accident of today's enum.
+            _bump(_bq_fallback, "unknown_kind")
+            return None
+        if not m.strip():
+            # Reachable on the cascade-slot arm for a CONTRACT: `_relevance` returns 0.0 WITHOUT embedding
+            # on empty text, so a cosine-admitted hop with a blank mechanism is pruned by tau — but a
+            # cascade-slot hop is tau-exempt and is bought at score 0.0 if a slot remains.
+            _bump(_bq_fallback, "empty_mechanism")
+            return None
+        return m
+
+    # THE FROZEN MAP ITSELF IS BUILT BELOW, OUT OF THE `eligible` CENSUS (review MINOR, round 2): the map
+    # used to run its OWN full `_fill_slice` pass over `sg.nodes`, and the eligibility census twenty lines
+    # later walked the identical predicate a second time. One census, two readers.
+    _bridges: dict = {}
+
     def _fill(n, prefetch=None):                                   # per-node evidence, k decays with depth
         sp = _fill_slice(n)
         if sp is None:
@@ -1742,9 +1955,18 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
         # concurrency and the EC-3 deadline it has adopted) when this node is the first to need the chunk,
         # and it DROPS the rows once the last node that wants them has them. `[]` is a served slice with no
         # rows and still means "do not borrow"; None means "not served" and is the only omit case.
-        _rows = prefetch.take(sp) if prefetch is not None else None
+        # V2-RETRIEVAL SLICE 1: the frozen map decides this node's QUERY TEXT, and nothing else about it.
+        # `None` (the whole flag-off path, every seed, every driver) is the shipped question.
+        _b = _bridges.get(n.key)
+        # A BRIDGE NODE NEVER TAKES THE BATCH'S ROWS. The EC-2 batch was fetched with the QUESTION's
+        # vector and the QUESTION's tsquery, so taking from it would re-score a candidate set the QUESTION
+        # selected — demoting the bridge to a re-ORDER inside the question's top-`fetch_k`, which is the
+        # defect ("it only orders sentences inside a node the graph has already chosen"), not the fix. It
+        # takes its own borrow; the wants census counted it out so the map still drops each slice at its
+        # true last consumer. The price is +1 pool borrow per bridge node, visible in `pool_borrows.fill`.
+        _rows = prefetch.take(sp) if (prefetch is not None and _b is None) else None
         _kw = {} if _rows is None else {"candidates": _rows}
-        n.evidence = list(retrieve(query, sp, k=k, asof=asof, near=near, **_kw))
+        n.evidence = list(retrieve(_b or query, sp, k=k, asof=asof, near=near, **_kw))
         # NOTE: episodes are NOT stamped here -- see the episodes_for loop AFTER _dedup_and_cap below.
 
     # The per-node retrieves are INDEPENDENT — each closure mutates only its own node. On pg the fetch is a fast
@@ -1758,12 +1980,28 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
     # off the same [timing] line.
     _borrows: dict = {"fill": None, "rest": None}
     _ledger_open("fill")
-    eligible = sum(1 for n in sg.nodes if _fill_slice(n) is not None)
+    # ONE ELIGIBILITY CENSUS, TWO READERS: `eligible` (the progress total and the EC-2/coalescer hint) and
+    # the bridge map. `_fill_slice` is the same predicate `_fill` reads; walking it twice was the round-2
+    # review's minor, and the second pass is gone rather than memoised — a memo would have moved WHERE the
+    # predicate's work is attributed between the two arms.
+    _eligible_nodes = [n for n in sg.nodes if _fill_slice(n) is not None]
+    eligible = len(_eligible_nodes)
+    # RESOLVED ONCE, ON THE CALLER'S THREAD, INTO A FROZEN MAP. `_fill` runs on pool workers; a predicate
+    # that bumped a counter from four threads would need a lock to be honest. Resolving here means the
+    # four readers read the same immutable object and the tally is complete before the first worker starts.
+    # THE DENOMINATOR IS THE RETRIEVING POPULATION, not the kept one: warming and tallying a bridge for a
+    # prior-only node (MEASURED 37 of the 189 kept on the recon max walk — 189 kept, 152 retrieving) would
+    # be paid work for a fetch that never happens.
+    _bq_pop = [n for n in _eligible_nodes if n.depth > 0] if bridge_query else []
+    for _n in _bq_pop:
+        _b = _bridge_of(_n)
+        if _b is not None:
+            _bridges[_n.key] = _b
     # EC-2 THE PREFETCH PLAN, built on the CALLER's thread and FETCHING NOTHING here: the batched reads are
     # pulled chunk-by-chunk by the fill workers themselves (see `_Prefetch` -- bounded live heap, and no
     # serialized SQL on the turn thread). Gated three ways inside `_ec2_prefetch` and returning None
     # whenever any gate is short -- and `_fill`'s omit-when-absent then makes the whole item vanish.
-    _prefetch = _ec2_prefetch(sg, query, asof, retrieve, _fill_slice)
+    _prefetch = _ec2_prefetch(sg, query, asof, retrieve, _fill_slice, bridged=frozenset(_bridges))
     fill_fn = _fill if _prefetch is None else functools.partial(_fill, prefetch=_prefetch)
     if on_stage is not None:                                       # progress ticks (5.6 W5); the None path runs the
         import threading as _th  # exact same closure as before — byte-identical
@@ -1784,7 +2022,8 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
             # document prose). A dark leg returns above, so a 0 here means "asked, kept nothing".
             _emit_stage(on_stage, "evidence", node=":".join(str(p) for p in n.key), kept=len(n.evidence or []))
     try:
-        _parallel_fill(sg.nodes, fill_fn, query, retrieve, expected=eligible)
+        _parallel_fill(sg.nodes, fill_fn, query, retrieve, expected=eligible,
+                       bridges=tuple(dict.fromkeys(_bridges.values())))   # DISTINCT, in consumption order
     finally:
         # EC-2 RESIDENCY: the prefetch dies WITH THE FILL, on the success path and on the raising one.
         # `take` already drops each slice's rows at its last consumer, so by here the map is normally
@@ -1798,6 +2037,30 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
     # borrows and milliseconds are attributed to identical regions. The probes are the bulk of `rest`.
     _borrows["fill"] = _ledger_close()
     _ledger_open("rest")
+    # THE STAMP IS WRITTEN AFTER THE FILL, NOT BEFORE IT (review MINOR, round 2). It used to be written
+    # where the map was built, so a turn whose fill RAISED still reported `applied: N` for retrievals that
+    # never happened — and this stamp is the arm's own instrument, so it has to say what happened rather
+    # than what was planned. Every node in `_bq_pop` has had `_fill` called by the time this line runs
+    # (`_parallel_fill` covers `sg.nodes`, and a bridge node always has a slice), so `applied` is now a
+    # count of calls that were made; a raising fill propagates past this line and stamps nothing.
+    #
+    # THE ARITHMETIC OF THE CLOSED WORD: `nodes == applied + sum(fallback.values())` on every turn,
+    # because `_bridge_of` counts EVERY None it returns from inside the population — `unknown_kind`
+    # included, which is the branch that used to make this identity depend on `GroundedNode.kind` never
+    # gaining a third value. NOT asserted here: a stamp that stopped adding up must not be able to kill a
+    # turn the bridge is only allowed to re-ORDER. It is pinned instead, over every fixture case and both
+    # arms, by `test_the_stamp_arithmetic_is_closed_on_every_shape_of_this_deck`.
+    if bridge_query:
+        # ON-ARM ONLY, DELIBERATELY. D-GD-1's precedent stamps its record on both polarities so the arms
+        # compare; here the OFF arm's byte-identity requirement wins, and the OFF arm can RECONSTRUCT this
+        # denominator from what every walk already stamps — `eligible` minus the seeds' own legs, with
+        # `walk_shape.hop_contracts` naming the contract half of it.
+        # UNREGISTERED in `tracekeys.TRACE_RECORD_KEYS` on purpose: `answer._answer_l2` spreads `sg.trace`
+        # wholesale into the result, so this reaches the serving result, the SSE and the harness without
+        # touching a registry whose tail another lane pins.
+        sg.trace["bridge_query"] = {"nodes": len(_bq_pop), "applied": len(_bridges),
+                                    "distinct": len(set(_bridges.values())),
+                                    "fallback": dict(_bq_fallback)}
     # P7-P0.2: per-driver-leg evidence report — the E0/E3 sparsity-attribution instrumentation. Purely
     # additive to the trace (the trace is never persisted to durable turns — PIT firewall intact). A leg is
     # `dark` when it was dropped as prior-only; dark_reason separates the two OR'd sub-conditions at the
@@ -1946,6 +2209,15 @@ def ground(sg: Subgraph, query: str, graph: gph.CausalGraph, *, retrieve=None, s
         except ValueError:
             asof_s = None                                          # unparseable as-of -> treat as none
 
+    # V2-RETRIEVAL SLICE 1, STATED WHERE IT BITES (R-13): the pre-seed below reads each driver node's KEPT
+    # rows, and with `bridge_query=True` those rows were retrieved with the driver's OWN MECHANISM rather
+    # than the question. So a bridged driver's firing receipt is its BRIDGE-RANKED rows — same rows the
+    # prompt shows, one retrieval, no second row set and no extra borrow. `n_probes`, `regime_basis`,
+    # `silver_veto` and `fired_regimes` may therefore MOVE between the arms; they are reported off vs on
+    # (MEASURED.md section 8), never pinned equal. A fence that kept regime-required drivers on the
+    # question stood here until 2026-09-15 and was removed: `_dedup_and_cap` sits between the fill and this
+    # leg, so a bridged SIBLING moved these counts anyway on 13 of 36 measured lane shapes, and the fence
+    # was deleting the bridge from 33-42% of the driver population for it.
     if asof_s and floor:
         def _recent(props):
             """Newest prop dated within [asof - recency_days, asof], as a receipt — or None."""

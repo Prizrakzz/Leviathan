@@ -216,6 +216,11 @@ _COHERE_BACKOFF = (1.0, 2.0)
 # fill pool — the bound exists so a wide walk cannot turn one turn into a burst against the shared key
 # (1,000/min is generous, not infinite), not because the API needs protecting from 5.
 _COALESCE_GROUP_WORKERS = 4
+# The widest value `_coalesce_group_workers()` will resolve to. 32 is a CEILING, not a recommendation: a
+# turn dispatching 32 concurrent searches at a measured ~1.5 s median is ~1,280 req/min if it never
+# paused, which already overruns the native lane's 1,000/min — so the knob can reach the cap but a
+# taskdef cannot climb past it by typing a bigger number.
+_COALESCE_GROUP_WORKERS_MAX = 32
 
 
 def _coalesce_window() -> float:
@@ -236,6 +241,34 @@ def _rerank_max_attempts() -> int:
     same resolution order as every other serving knob, so the ladder is tunable without a rebuild."""
     return max(1, int(os.environ.get("GRAPHRAG_RERANK_MAX_ATTEMPTS")
                       or _pr.get("serving.retrieval.rerank_max_attempts", _RERANK_MAX_ATTEMPTS)))
+
+
+def _coalesce_group_workers() -> int:
+    """How many packed groups `_fire_concurrent` may hold in flight. Env > params > `_COALESCE_GROUP_WORKERS`
+    (4, the HEAD value), clamped to [1, `_COALESCE_GROUP_WORKERS_MAX`] — the same env > params > default
+    order as every other serving knob, so a taskdef can widen the dispatch without a rebuild.
+
+    WHY IT BECAME A KNOB (V2-RETRIEVAL SLICE 1, R-14). `_fire` groups a drained batch BY QUERY STRING
+    before packing, so a walk that sends ONE query per node turns a drain of `k` callers into up to `k`
+    groups instead of `ceil(k * pool / _COALESCE_MAX_DOCS)`. `planner._parallel_fill` widens its pool to
+    `MAX_FILL_POOL` (64) exactly when this managed lane is live, so a deep/max drain can hold 64 callers:
+    at 4 that is `ceil(64/4)` = 16 SEQUENTIAL dispatch waves inside one `_COALESCE_MEMBER_WAIT` (90 s),
+    with one live cohere request measured at 19,900 ms. At 16 it is 4 waves, ~640 req/min at the measured
+    ~1.5 s median — under the native lane's 1,000/min.
+
+    THE DEFAULT IS THE HEAD VALUE AND IT IS NOT A BEHAVIOUR CHANGE: with nothing set this returns 4, so
+    every existing deck and the whole OFF arm dispatch exactly as they did. Widening changes WHEN requests
+    are made, never WHICH documents are in them — `_fire_concurrent` reassembles in GROUP ORDER and each
+    group writes only its own callers' slices, so the returned scores are identical at any width. A
+    non-numeric value falls back to the default rather than raising: a typo in a taskdef must cost the
+    default dispatch, never a broken turn."""
+    raw = (os.environ.get("GRAPHRAG_RERANK_GROUP_WORKERS")
+           or _pr.get("serving.retrieval.rerank_group_workers", _COALESCE_GROUP_WORKERS))
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        n = _COALESCE_GROUP_WORKERS
+    return max(1, min(_COALESCE_GROUP_WORKERS_MAX, n))
 
 
 # ── D-MW-10: the cohere ladder knobs, resolvable AND budget-clamped ───────────────────────────────────
@@ -761,7 +794,7 @@ class _RerankCoalescer:
 
         (It read "one request" until D-MW-9, and on the bedrock lane that is still literally true. On the
         cohere lane a drain may dispatch several packed requests concurrently — but they are still ONE
-        leader's, from ONE drain, bounded by `_COALESCE_GROUP_WORKERS`. The property the corrections below
+        leader's, from ONE drain, bounded by `_coalesce_group_workers()`. The property the corrections below
         defend is that no SECOND leader elects mid-flight, and that is untouched.)
 
         Two Phase-2 corrections, both measured (in-VPC jobs 52e131bb / 44e96fc1):
@@ -770,7 +803,7 @@ class _RerankCoalescer:
             reproduced at 4 concurrent requests from a single turn when the call was slow (i.e. exactly when
             it was throttled). That is a positive feedback loop against a 3-req/min ceiling, and it is the
             mechanism behind the 410 s worst turn on record. Holding leadership caps in-flight at ONE DRAIN
-            (one request on bedrock; up to `_COALESCE_GROUP_WORKERS` packed requests on cohere, deliberately
+            (one request on bedrock; up to `_coalesce_group_workers()` packed requests on cohere, deliberately
             and boundedly) and turns late arrivals into a coalesced follow-up batch, not a competing request.
           * `_expect` is DECREMENTED by what the batch actually took, never zeroed. Zeroing pinned every batch
             after the first to the hardcoded _COALESCE_IDLE_WINDOW (0.25 s) that no env var can reach —
@@ -880,7 +913,11 @@ class _RerankCoalescer:
             self._fire_group(call, q, entries)
 
     def _fire_concurrent(self, call, groups: list[tuple[str, list[dict]]]) -> None:
-        """The cohere lane's multi-group dispatch: up to `_COALESCE_GROUP_WORKERS` requests in flight.
+        """The cohere lane's multi-group dispatch: up to `_coalesce_group_workers()` requests in flight.
+
+        THE WIDTH IS READ ONCE, HERE, AND NOWHERE ELSE (R-14): `_COALESCE_GROUP_WORKERS` is the code
+        default behind `_coalesce_group_workers()`, and this is the only site that reads either, so an env
+        flip mid-run can never split one dispatch across two widths.
 
         THE LANE STAMP IS THE SUBTLE PART. `_fire` runs on the LEADER's thread, which carries the turn's
         collector; a worker thread carries nothing, and `_lane_record_request` is a thread-local read, so
@@ -896,7 +933,7 @@ class _RerankCoalescer:
         never observe a half-dispatched batch."""
         from concurrent.futures import ThreadPoolExecutor
         lane = lane_collector()
-        with ThreadPoolExecutor(max_workers=min(_COALESCE_GROUP_WORKERS, len(groups)),
+        with ThreadPoolExecutor(max_workers=min(_coalesce_group_workers(), len(groups)),
                                 thread_name_prefix="rerank-grp") as pool:
             futures = [pool.submit(self._fire_group_in_lane, call, q, entries, lane)
                        for q, entries in groups]
