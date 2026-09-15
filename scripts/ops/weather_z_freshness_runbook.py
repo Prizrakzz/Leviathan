@@ -605,19 +605,18 @@ STEPS = [
         "          404 on both products -- and a raising day is booked in fetch_failures and nowhere",
         "          else, so the three product counts need not sum to the calendar month.)",
         "",
-        "     (iii) DO NOT SMOKE bronze_to_silver_chirps_task.py WITH --help. MEASURED 2026-09-15: that",
-        "           entrypoint has no argparse at all -- BaseBronzeToSilverJob.run_thin_contract scans",
-        "           raw argv, so `--help` is an UNRECOGNISED TOKEN, not a request. commodity falls back",
-        "           to 'all', bucket/aws_region fall back to $LEVIATHAN_BUCKET/$AWS_REGION from .env,",
-        "           and the process goes straight into _discover_commodities and RUNS THE REAL",
-        "           BRONZE->SILVER JOB against the real bucket. Driven with _discover_commodities",
-        "           stubbed: it was reached in 0.02 s with ('leviathan-dev-shahem-001', 'us-east-1');",
-        "           the module IMPORT is only 1.6 s, so a `--help` that appears to hang is not a slow",
-        "           import, it is a producer running. jobs/batch/cpc_bronze_to_silver_task.py is the",
-        "           same shape. The fix belongs in src/leviathan/storage/base_jobs.py (one help guard in",
-        "           run_thin_contract covers every thin-contract entrypoint) and is OUTSIDE this lane's",
-        "           file set; until it lands, submit that job to Batch (step 5 / --parameters) and never",
-        "           probe it locally. This is the 09-11 breach class arriving through a SMOKE.",
+        "     (iii) --help ON A THIN-CONTRACT ENTRYPOINT -- CLOSED 2026-09-15. Before the guard,",
+        "           `python jobs/batch/bronze_to_silver_chirps_task.py --help` was NOT a help request:",
+        "           run_thin_contract scanned raw argv, commodity fell back to 'all', bucket/region to",
+        "           .env, and the process went straight into _discover_commodities and RAN THE REAL",
+        "           BRONZE->SILVER JOB against the real bucket (measured: reached in 0.02 s; the import",
+        "           is 1.6 s, so a hanging --help was a producer, not a slow import; the cpc twin was",
+        "           the same shape). base_jobs.run_thin_contract now checks -h/--help FIRST -- before",
+        "           any env read, any AWS client, any listing -- prints the flag table it scans by and",
+        "           returns 0 (marker THIN_CONTRACT_HELP on stdout), for all four thin-contract callers.",
+        "           The two nasa_power Glue scripts still run their bootstrap (an S3 GET) at import,",
+        "           so only the two Batch entrypoints are smoke-safe. This runbook's CHECK smokes the",
+        "           b2s entrypoint and keys its PASS on the printed marker, never on a source string.",
     ]),
 ]
 
@@ -861,25 +860,31 @@ def _run_check() -> int:
     for entry in ("jobs/batch/chirps_to_bronze_task.py",
                   "jobs/batch/chirps_year_to_bronze_task.py",
                   "jobs/batch/gold_weather_z_task.py",
-                  "jobs/batch/compact_weather_silver_task.py"):
-        # A thin-contract entrypoint has NO argparse: its --help falls through to the producer and
-        # runs against the real bucket (W6 step 8 (iii); bronze_to_silver_chirps_task.py measured
-        # 2026-09-15). Refuse to smoke such a file, and bound every smoke so PREFLIGHT can never
-        # become an unbounded producer run.
+                  "jobs/batch/compact_weather_silver_task.py",
+                  "jobs/batch/bronze_to_silver_chirps_task.py"):
+        # A --help that reaches a producer runs against the real bucket (the 09-11 breach class
+        # arriving through a smoke; bronze_to_silver_chirps_task.py measured so on 2026-09-15 before
+        # base_jobs.run_thin_contract gained its guard). Two fences: (1) only a file that carries a
+        # real argparse OR the thin-contract runner (whose base now prints usage and returns before
+        # any env read or AWS client) is smoked at all; (2) the PASS keys on what the smoke PRINTS --
+        # an argparse usage or the thin-contract marker -- never on a source string, because a file
+        # that merely mentions 'argparse' in a comment would otherwise be smoked into a producer run.
         src = (REPO / entry).read_text(encoding="utf-8", errors="replace")
-        if "argparse" not in src:
-            print(f"      {entry} has no argparse -- NOT smoked (--help would run the producer)")
-            failures.append(f"{entry}: no argparse; --help is a producer run, not a smoke")
+        if "argparse" not in src and "run_thin_contract" not in src:
+            print(f"      {entry} has neither argparse nor the thin-contract runner -- NOT smoked")
+            failures.append(f"{entry}: no help path known; --help could be a producer run")
             continue
         try:
-            rc = subprocess.run([sys.executable, str(REPO / entry), "--help"], cwd=REPO,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                timeout=60).returncode
+            proc = subprocess.run([sys.executable, str(REPO / entry), "--help"], cwd=REPO,
+                                  capture_output=True, timeout=60)
+            rc = proc.returncode
+            out = proc.stdout or b""
+            printed_help = (b"usage" in out.lower()) or (b"THIN_CONTRACT_HELP" in out)
         except subprocess.TimeoutExpired:
-            rc = "TIMEOUT(60s)"
-        print(f"      {entry} --help exit={rc}")
-        if rc != 0:
-            failures.append(f"{entry} --help exit={rc}")
+            rc, printed_help = "TIMEOUT(60s)", False
+        print(f"      {entry} --help exit={rc} printed_help={printed_help}")
+        if rc != 0 or not printed_help:
+            failures.append(f"{entry} --help exit={rc} printed_help={printed_help}")
 
     print("[4/5] the decks")
     rc = subprocess.run([sys.executable, "-m", "pytest", *DECKS, "-q"], cwd=REPO).returncode

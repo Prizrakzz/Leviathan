@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import io
 import sys
+import textwrap
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import ClassVar, Iterable
+from typing import Callable, ClassVar, Iterable, NamedTuple
 
 import pandas as pd
 import yaml
@@ -56,6 +57,198 @@ def _extract_cli_opt(argv: list[str], name: str, default: str | None = None) -> 
         if tok.startswith(eq_prefix):
             return tok[len(eq_prefix):]
     return default
+
+
+# ---------------------------------------------------------------------------
+# THE thin-contract argv contract (ONE table) + the -h/--help guard
+# ---------------------------------------------------------------------------
+# WHY A GUARD AT ALL: ``run_thin_contract`` scans raw argv (above) and there is no argparse
+# anywhere on this path, so before this guard ``-h``/``--help`` was an UNRECOGNISED TOKEN, not a
+# request. Every argument is defaulted, so the scan simply ignored it: ``--commodity`` fell back to
+# ``all``, ``--bucket``/``--aws_region`` fell back to ``$LEVIATHAN_BUCKET``/``$AWS_REGION`` out of
+# ``.env``, and the process walked straight into ``_discover_commodities`` and RAN THE REAL PRODUCER
+# against the real bucket. Measured 2026-09-15 on jobs/batch/bronze_to_silver_chirps_task.py: the
+# producer was reached in 0.02 s with ('leviathan-dev-shahem-001', 'us-east-1'), and an operator
+# probe ran it for ~7 minutes, twice, reading a `--help` that appeared to hang as a slow import.
+#
+# WHY A TABLE AND NOT A PRINTED STRING: a hand-typed usage drifts from the scanner the first time a
+# flag is added, and the operator who reads it at 2am cannot tell. The tuples below are what the
+# SCANNER iterates (``_thin_contract_opts``), what the passthrough strip is derived from
+# (``_thin_contract_consumed``) and what ``--help`` prints (``thin_contract_usage``) -- one table,
+# three readers, so a flag cannot be recognised without being documented or vice versa.
+
+THIN_CONTRACT_HELP_MARKER = "THIN_CONTRACT_HELP"
+"""Literal printed at the top of every thin-contract usage block.
+
+A tool deciding whether an entrypoint is SAFE to smoke with ``--help`` should look for this marker
+(reachable from the entrypoint), NOT for the string ``argparse``: the thin-contract path has no
+argparse and never will, yet after this guard its ``--help`` is a help request like any other."""
+
+THIN_CONTRACT_HELP_TOKENS: tuple[str, ...] = ("-h", "--help")
+"""Tokens that mean "print usage and do nothing else". Matched by EQUALITY against whole argv
+tokens only -- never by prefix or substring, because a commodity LIST is a single token
+(``--commodity a,-h,b``) and ``--helpful``/``--help=1`` must not silently no-op a producer run."""
+
+_READ_BY_RUNNER = "run_thin_contract"
+_READ_BY_JOB = "the per-commodity job constructor"
+
+
+class ThinContractFlag(NamedTuple):
+    """One flag the thin-contract path recognises, with the text ``--help`` prints for it.
+
+    ``default`` is the SCAN default (``None`` = resolved from ``env`` when the flag is absent or
+    empty); ``read_by`` decides both the accepted forms and whether the flag is consumed by the
+    runner (stripped from the passthrough remainder) or merely passed through to the job."""
+
+    name: str
+    metavar: str
+    default: str | None
+    env: str | None
+    read_by: str
+    meaning: str
+
+
+_THIN_CONTRACT_ADDRESSING: tuple[ThinContractFlag, ...] = (
+    ThinContractFlag(
+        "commodity", "SLUG[,SLUG...]|all", "all", None, _READ_BY_RUNNER,
+        "Which commodities to process. 'all' (the default, and what the weather_daily DAG's "
+        "zero-argument command array produces) DISCOVERS every commodity under this source's own "
+        "prefix and self-windows each run to the CURRENT calendar year. One or more named slugs, "
+        "comma separated, process ALL years -- the preserved backfill form.",
+    ),
+    ThinContractFlag(
+        "bucket", "NAME", None, "LEVIATHAN_BUCKET", _READ_BY_RUNNER,
+        "S3 bucket holding every tier. Falls back to $LEVIATHAN_BUCKET (loaded from .env).",
+    ),
+    ThinContractFlag(
+        "aws_region", "REGION", None, "AWS_REGION", _READ_BY_RUNNER,
+        "AWS region for every S3 call. Falls back to $AWS_REGION (loaded from .env).",
+    ),
+)
+
+RAW_TO_BRONZE_THIN_CONTRACT_FLAGS: tuple[ThinContractFlag, ...] = (
+    *_THIN_CONTRACT_ADDRESSING,
+    ThinContractFlag(
+        "force_overwrite", "true|false", "false", None, _READ_BY_JOB,
+        "Reprocess every raw file instead of skipping keys that already have a bronze object. "
+        "Read by the job constructor (_parse_optional_bool over sys.argv), not by the runner, so "
+        "it rides the passthrough remainder and only the space form is recognised.",
+    ),
+)
+
+BRONZE_TO_SILVER_THIN_CONTRACT_FLAGS: tuple[ThinContractFlag, ...] = (
+    *_THIN_CONTRACT_ADDRESSING,
+    ThinContractFlag(
+        "force_overwrite", "true|false", "false", None, _READ_BY_RUNNER,
+        "Rewrite every silver partition instead of applying the SILVER-V002 freshness skip. Any "
+        "value other than 'true' (including the unresolved Batch token 'Ref::force_overwrite') "
+        "is false.",
+    ),
+)
+
+
+def _thin_contract_consumed(flags: tuple[ThinContractFlag, ...]) -> tuple[str, ...]:
+    """Flag names the runner itself consumes (and must therefore strip before passthrough)."""
+    return tuple(f.name for f in flags if f.read_by == _READ_BY_RUNNER)
+
+
+def _thin_contract_opts(
+    args: list[str],
+    flags: tuple[ThinContractFlag, ...],
+    get_required_env: Callable[[str], str],
+) -> dict[str, str]:
+    """Scan ``args`` for every runner-read flag in ``flags`` -- the table ``--help`` prints.
+
+    Preserves the pre-table semantics exactly: an absent OR EMPTY value falls back to the flag's
+    env var when it has one (``get_required_env`` raises when that is unset) and to its literal
+    default otherwise."""
+    out: dict[str, str] = {}
+    for f in flags:
+        if f.read_by != _READ_BY_RUNNER:
+            continue
+        val = _extract_cli_opt(args, f.name, f.default)
+        if not val:
+            val = get_required_env(f.env) if f.env is not None else f.default
+        out[f.name] = val or ""
+    return out
+
+
+def thin_contract_usage(
+    flags: tuple[ThinContractFlag, ...],
+    *,
+    script: str,
+    kind: str,
+    source: str,
+    passthrough: bool,
+) -> str:
+    """Render the usage block for a thin-contract entrypoint FROM the scanner's own flag table."""
+    head = " ".join(f"[--{f.name} {f.metavar}]" for f in flags)
+    lines = [f"usage: {script}"]
+    lines += ["           " + chunk for chunk in textwrap.wrap(head, 86)]
+    lines.append("")
+    lines += textwrap.wrap(
+        f"{THIN_CONTRACT_HELP_MARKER} -- leviathan thin-contract entrypoint: {source} {kind}. "
+        "Every argument has a default, so the scheduled DAG invokes this script with NO arguments "
+        "at all and it processes every discovered commodity.", 96,
+    )
+    lines.append("")
+    lines += textwrap.wrap(
+        "There is no argparse here: run_thin_contract scans raw argv, so an unrecognised token is "
+        "IGNORED rather than rejected -- which, with every argument defaulted, means a stray token "
+        f"starts the REAL {kind} producer against the real bucket. -h/--help is the one token that "
+        "never does: it prints this text and returns 0 before any environment read, any AWS client "
+        "and any S3 listing.", 96,
+    )
+    lines += ["", "flags (this list IS the table the scanner reads -- base_jobs.ThinContractFlag):"]
+    for f in flags:
+        default = f.default if f.default is not None else (f"${f.env}" if f.env else "(none)")
+        forms = (f"--{f.name} VALUE or --{f.name}=VALUE" if f.read_by == _READ_BY_RUNNER
+                 else f"--{f.name} VALUE")
+        lines.append(f"  --{f.name} {f.metavar}".ljust(40) + f"[default: {default}]")
+        lines += ["      " + chunk for chunk in textwrap.wrap(f.meaning, 90)]
+        lines.append(f"      (read by {f.read_by}; accepted form: {forms})")
+    lines.append("")
+    if passthrough:
+        lines += textwrap.wrap(
+            "Every other token is PASSED THROUGH unchanged to each per-commodity job -- this is "
+            "how --ingest_date and the Glue system arguments ride. The runner-read flags above are "
+            "stripped from the remainder and re-supplied exactly once per commodity.", 96,
+        )
+    else:
+        lines += textwrap.wrap(
+            "Every other token is IGNORED: this runner constructs each per-commodity job from the "
+            "flags above with explicit parameters, it does not rebuild argv.", 96,
+        )
+    lines += [
+        "",
+        "exit status: 0 on success (and for this help text); 1 if any commodity failed.",
+    ]
+    return "\n".join(lines)
+
+
+def _thin_contract_help_guard(
+    args: list[str],
+    flags: tuple[ThinContractFlag, ...],
+    *,
+    kind: str,
+    source: str,
+    passthrough: bool,
+) -> bool:
+    """Print usage and return True when ``args`` asks for help; return False otherwise.
+
+    Deliberately the FIRST thing run_thin_contract does with argv: before ``load_env``, before
+    ``get_required_env``, before ``_discover_commodities`` -- so ``--help`` answers on a box with
+    no bucket, no region and no credentials instead of raising or listing S3. Returns rather than
+    raising SystemExit: both Batch entrypoints' ``main()`` discard the return value and fall off
+    the end (exit 0), and the two Glue scripts call this at MODULE level, where a raised SystemExit
+    would change the script's exit path."""
+    if not any(tok in THIN_CONTRACT_HELP_TOKENS for tok in args):
+        return False
+    script = sys.argv[0] if sys.argv and sys.argv[0] else f"<{source} {kind} thin contract>"
+    print(thin_contract_usage(
+        flags, script=script, kind=kind, source=source, passthrough=passthrough,
+    ))
+    return True
 
 
 def filter_keys_by_year(keys: list[str], year: int | None) -> list[str]:
@@ -231,17 +424,25 @@ class BaseRawToBronzeJob(_BaseGlueJob, ABC):
         ``--aws_region`` default to ``$LEVIATHAN_BUCKET`` / ``$AWS_REGION``. Remaining argv tokens
         (``--ingest_date``, ``--force_overwrite``, Glue system args) pass through to each
         per-commodity run unchanged. One commodity's failure is logged and the loop continues; a
-        nonzero exit is raised iff any commodity failed."""
+        nonzero exit is raised iff any commodity failed.
+
+        ``-h``/``--help`` prints the flag table above and returns 0 without reading the environment
+        or touching AWS (see _thin_contract_help_guard)."""
         import datetime as _dt  # noqa: PLC0415
         import sys as _sys  # noqa: PLC0415
+
+        args = list(_sys.argv[1:] if argv is None else argv)
+        if _thin_contract_help_guard(args, RAW_TO_BRONZE_THIN_CONTRACT_FLAGS,
+                                     kind="raw->bronze", source=cls.source, passthrough=True):
+            return
 
         from leviathan.common.config import get_required_env, load_env  # noqa: PLC0415
 
         load_env()
-        args = list(_sys.argv[1:] if argv is None else argv)
-        commodity = _extract_cli_opt(args, "commodity", "all") or "all"
-        bucket = _extract_cli_opt(args, "bucket") or get_required_env("LEVIATHAN_BUCKET")
-        aws_region = _extract_cli_opt(args, "aws_region") or get_required_env("AWS_REGION")
+        opts = _thin_contract_opts(args, RAW_TO_BRONZE_THIN_CONTRACT_FLAGS, get_required_env)
+        commodity = opts["commodity"]
+        bucket = opts["bucket"]
+        aws_region = opts["aws_region"]
 
         if commodity.strip().lower() == "all":
             commodities = cls._discover_commodities(bucket, aws_region)
@@ -268,7 +469,7 @@ class BaseRawToBronzeJob(_BaseGlueJob, ABC):
                     i += 1
             return out
 
-        passthrough = _without(args, ("commodity", "bucket", "aws_region"))
+        passthrough = _without(args, _thin_contract_consumed(RAW_TO_BRONZE_THIN_CONTRACT_FLAGS))
         script = _sys.argv[0] if _sys.argv else cls.source
         logger.info(
             "thin-contract %s raw->bronze: %d commodities, year_window=%s",
@@ -468,18 +669,26 @@ class BaseBronzeToSilverJob(_BaseGlueJob, ABC):
         prefix and self-windows each to the CURRENT calendar year; a single named ``--commodity`` (the
         preserved backfill invocation) processes that commodity across ALL years. ``--bucket`` /
         ``--aws_region`` default to ``$LEVIATHAN_BUCKET`` / ``$AWS_REGION``. One commodity's failure is
-        logged and the loop continues; a nonzero exit is raised iff any commodity failed."""
+        logged and the loop continues; a nonzero exit is raised iff any commodity failed.
+
+        ``-h``/``--help`` prints the flag table above and returns 0 without reading the environment
+        or touching AWS (see _thin_contract_help_guard)."""
         import datetime as _dt  # noqa: PLC0415
         import sys as _sys  # noqa: PLC0415
+
+        args = list(_sys.argv[1:] if argv is None else argv)
+        if _thin_contract_help_guard(args, BRONZE_TO_SILVER_THIN_CONTRACT_FLAGS,
+                                     kind="bronze->silver", source=cls.source, passthrough=False):
+            return
 
         from leviathan.common.config import get_required_env, load_env  # noqa: PLC0415
 
         load_env()
-        args = list(_sys.argv[1:] if argv is None else argv)
-        commodity = _extract_cli_opt(args, "commodity", "all") or "all"
-        bucket = _extract_cli_opt(args, "bucket") or get_required_env("LEVIATHAN_BUCKET")
-        aws_region = _extract_cli_opt(args, "aws_region") or get_required_env("AWS_REGION")
-        force = (_extract_cli_opt(args, "force_overwrite", "false") or "false").lower() == "true"
+        opts = _thin_contract_opts(args, BRONZE_TO_SILVER_THIN_CONTRACT_FLAGS, get_required_env)
+        commodity = opts["commodity"]
+        bucket = opts["bucket"]
+        aws_region = opts["aws_region"]
+        force = opts["force_overwrite"].lower() == "true"
 
         if commodity.strip().lower() == "all":
             commodities = cls._discover_commodities(bucket, aws_region)
