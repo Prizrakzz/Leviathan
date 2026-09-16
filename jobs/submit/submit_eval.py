@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 from pathlib import Path
 
 import boto3
@@ -84,6 +85,40 @@ def load_env_base(path: str | Path) -> dict:
     if both:
         raise ValueError(f"{p}: {sorted(both)!r} are in BOTH copy_from_taskdef and never_copy -- the "
                          f"base would both demand and forbid the same key")
+    # DECISION A3: `arm_flags` IS A LIST, AND A MAPPING THERE IS A HALF-EDIT, NOT A SHAPE. A dict would
+    # iterate as its KEYS and silently submit a cell whose suffix came from nowhere the author meant --
+    # the class this loader exists to refuse. A bare string is accepted (`arm_flag_names` reads it as a
+    # one-item list): that is a typo with an unambiguous reading, not a base with no parity.
+    _af = doc.get("arm_flags")
+    if _af is not None and not isinstance(_af, (list, tuple, str)):
+        raise ValueError(f"{p}: `arm_flags` is {type(_af).__name__}, not a list -- it names the "
+                         f"TREATMENT flags a cell may light, in order, and the job-name suffix is "
+                         f"built from it")
+    # ...AND A LIST **OF MAPPINGS** IS THE LIKELIER HALF-EDIT, WHICH ROUND 1 LET THROUGH (ruling R2 /
+    # R5). `arm_flags:\n  - GRAPHRAG_X: 'on'` is the `arm_only` spelling copied one section down: it
+    # parses, `arm_flag_names` stringifies the dict to "{'GRAPHRAG_X': 'on'}" and `arm_cell_suffix`
+    # renders the Batch-ILLEGAL token `{'x': 'on'}-on` -- so the refusal this loader advertises arrived
+    # at AWS as an InvalidParameterException instead of at the prompt. A flag NAME is a string.
+    if isinstance(_af, (list, tuple)):
+        _bad = [x for x in _af if not isinstance(x, str)]
+        if _bad:
+            raise ValueError(f"{p}: `arm_flags` holds {len(_bad)} non-string entr(y/ies) "
+                             f"({', '.join(f'{type(x).__name__}: {x!r}' for x in _bad[:3])}) -- it is a "
+                             f"LIST OF ENV VAR NAMES, not a mapping of name to value. The values are "
+                             f"what a CELL lights with --env; writing them here renders a job-name "
+                             f"token Batch refuses at submit.")
+    # AND NO TWO DECLARED FLAGS MAY RENDER THE SAME NAME TOKEN (ruling R2). Checked at LOAD so a CONTROL
+    # cell -- which lights nothing and therefore never calls `arm_cell_suffix` -- cannot submit against
+    # a base whose treatment cells would collide. Same sentence, one step earlier.
+    _col = arm_flag_collisions(arm_flag_names(doc))
+    if _col:
+        raise ValueError(f"{p}: {'; '.join(_col)}")
+    # THE TWO SPELLINGS MUST NOT DISAGREE. A base carrying both `arm_flags` and an `arm_flag` the list
+    # does not contain has been half-edited, and `arm_flag_names` would drop the scalar silently.
+    _scalar = str(doc.get("arm_flag") or "").strip()
+    if _scalar and _af is not None and _scalar not in arm_flag_names(doc):
+        raise ValueError(f"{p}: `arm_flag: {_scalar}` is absent from `arm_flags` -- the base declares "
+                         f"two different treatments and the suffix would be built from only one")
     return doc
 
 
@@ -143,6 +178,149 @@ def base_new_in_serving(doc: dict, serving_env: dict[str, str]) -> list[str]:
     return sorted(k for k in serving_env if k not in known)
 
 
+def arm_flag_names(doc: dict) -> list[str]:
+    """The base's declared TREATMENT flags, IN FILE ORDER -- `arm_flags`, a LIST (decision A3).
+
+    WHY IT IS A LIST NOW. The job-name suffix exists for a MEASURED reason (`job_name` below records
+    it): before 2026-09-11 an arm's treatment cell and its control both rendered
+    `eval-eval-queries-state-arm-a-v1-claude-opus-5-deep`, and the Batch console is where a human kills
+    the wrong job. The first fix keyed that suffix on ONE scalar, `arm_flag` -- which closed the
+    ambiguity for `GRAPHRAG_STATE_BOARD` and re-opened it one flag over: after `5c45f3e6` and
+    `08252c6a` the treatment is a SET of five, and two cells differing only by
+    `GRAPHRAG_WATCH_NONOBVIOUS` rendered two identical names again.
+
+    THE OLD SCALAR STILL PARSES, IN ONE LINE. A base banked before today carries `arm_flag:` and no
+    list; reading it here means such a base submits exactly as it did, rather than losing its suffix
+    silently -- which would be the same defect a third time. `arm_flags` WINS when both are present:
+    the list is the newer claim, and a base carrying both has been half-edited.
+
+    A STRING IS ACCEPTED AS A ONE-ITEM LIST for the same reason -- a hand edit that writes
+    `arm_flags: GRAPHRAG_STATE_BOARD` is a typo, not a submission worth refusing at the prompt."""
+    raw = (doc or {}).get("arm_flags")
+    if raw is None:
+        scalar = str((doc or {}).get("arm_flag") or "").strip()      # COMPAT: the pre-A3 scalar
+        return [scalar] if scalar else []
+    if isinstance(raw, str):
+        return [raw.strip()] if raw.strip() else []
+    return [str(k).strip() for k in raw if str(k or "").strip()]
+
+
+#: A NAME TOKEN MUST BE BATCH-LEGAL: `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`. The FIRST lit flag keeps the
+#: pre-A3 spelling verbatim (see `arm_cell_suffix`), so only the initials half is sanitized here.
+_NAME_SAFE_RX = re.compile(r"[^A-Za-z0-9-]+")
+
+
+def arm_flag_initials(name: str) -> str:
+    """`GRAPHRAG_WATCH_NONOBVIOUS` -> `wn`. The compact token the 2nd..Nth lit flag renders as."""
+    return "".join(w[0] for w in name.replace("GRAPHRAG_", "").lower().split("_") if w)
+
+
+def arm_flag_head(name: str, value: str = "on") -> str:
+    """The FULL-spelling head token the FIRST lit flag renders as, truncated exactly as the name is."""
+    return (str(name).replace("GRAPHRAG_", "").replace("_", "-").lower() + "-" + str(value).lower())[:24]
+
+
+def arm_flag_collisions(names) -> list[str]:
+    """DECLARED flags whose job-name tokens cannot be told apart -- the refusal sentences, or [].
+
+    ROUND-2 RULING R2. `arm_cell_suffix`'s docstring ASSERTED two properties it did not enforce: that
+    the initials are pairwise distinct, and that the 24-character head truncation cannot collide.
+    MEASURED: `GRAPHRAG_STATE_BOARD` and a hypothetical `GRAPHRAG_STATE_BLOCK` both render `sb`, and
+    two flags sharing a 24-char prefix render one head -- either of which re-opens the
+    two-cells-one-name ambiguity A3 exists to close, at the Batch console, after the spend. Today's
+    five are distinct (`sb`/`wn`/`bq`/`dr`/`rl`); the point is that a SIXTH is now refused at the
+    prompt instead of trusted. The head is probed at the `on` spelling because that is the only value
+    a declared flag may carry (see `arm_value_refusal`)."""
+    import collections as _c
+    out: list[str] = []
+    seen = [str(n) for n in (names or []) if str(n or "").strip()]
+    for label, fn in (("initials", arm_flag_initials), ("24-char head", arm_flag_head)):
+        by: dict = _c.defaultdict(list)
+        for n in seen:
+            by[fn(n)].append(n)
+        for tok, group in sorted(by.items()):
+            if len(group) > 1:
+                out.append(f"declared arm flags {', '.join(sorted(group))} all render the same "
+                           f"job-name {label} {tok!r} -- two cells of this arm could share a name, "
+                           f"which is the exact ambiguity the suffix exists to close. Rename the flag "
+                           f"or give the suffix a rule that separates them.")
+    return out
+
+
+#: THE ONLY VALUES A DECLARED TREATMENT FLAG MAY CARRY. Four of the five board-side readers
+#: (`answer.py:1455 / 1477 / 1532 / 1557`) accept exactly `on|1|true`; only `GRAPHRAG_BRIDGE_QUERY`
+#: (`answer.py:2287`) also accepts `yes`, by its own deliberate deviation. The INTERSECTION is the rule,
+#: because a cell is one env and a value that lights one reader and not the others is not a cell.
+_ARM_FLAG_VALUES = ("on", "1", "true")
+
+
+def arm_value_refusal(lit: list[tuple[str, str]]) -> str | None:
+    """The refusal sentence when a DECLARED flag is lit at a value its readers do not agree on, else None.
+
+    ROUND-2 RULING R2, AND IT CLOSES A TRAP THE PREVIOUS ROUND ONLY NAMED. The seam's own comment said
+    a silent control "is indistinguishable in a terminal from a treatment whose `--env` was mistyped
+    (`=yes` ...)" and offered a LOG LINE as the difference. The cell partition keys on TRUTHINESS, so a
+    value is "lit" whatever it says: MEASURED against `leviathan-dev-graphrag-eval:14`, the six-submit
+    line with every `=on` replaced by `=yes` EXITS 0, logs `ARM CELL: 5 of 5 declared treatment flag(s)
+    lit` and renders `...-state-board-yes-wnyes-bqyes-dryes-rlyes`. In the container four of the five
+    readers reject it, so a $30-55 run would be a CONTROL board turn with the bridge alone lit, named
+    and logged as a full treatment -- and only section 5's `BoardFired == 1` catches it, after the
+    spend. A prose paragraph telling the operator to SPELL EVERY VALUE `on` is the same class of remedy
+    that failed before; this is the check.
+
+    A CONTROL CELL LIGHTS NOTHING AND IS NEVER REFUSED HERE -- `lit` is empty and this returns None.
+    `--env GRAPHRAG_STATE_BOARD=off` IS refused, and the sentence says both ways out: a control cell
+    DROPS the pair, it does not spell it `off` (every flag defaults off, which is what makes the
+    control byte-identical by construction)."""
+    bad = [(k, v) for k, v in (lit or []) if str(v).strip().lower() not in _ARM_FLAG_VALUES]
+    if not bad:
+        return None
+    return ("refusing to submit: " + "; ".join(f"--env {k}={v}" for k, v in bad) +
+            f" -- a declared treatment flag may only be spelled {'|'.join(_ARM_FLAG_VALUES)}. Four of "
+            f"the five board-side readers accept nothing else (only GRAPHRAG_BRIDGE_QUERY also takes "
+            f"`yes`), so this env would run a PARTIAL treatment at full price while the job name, the "
+            f"ARM CELL line and the run record all called it a full one. Spell the value `on`; for a "
+            f"CONTROL cell DROP the --env pair entirely rather than passing a falsy-looking value -- "
+            f"every one of these flags defaults off, which is what makes the control byte-identical.")
+
+
+def arm_cell_suffix(lit: list[tuple[str, str]], *, declared=None) -> str:
+    """The job-name suffix for ONE CELL, given the (flag, value) pairs it actually LIT, in base order.
+
+    THE FIRST LIT FLAG RENDERS IN FULL AND THE REST AS INITIALS, and that shape is not cosmetic. A cell
+    lighting `GRAPHRAG_STATE_BOARD` ALONE renders `state-board-on` -- byte for byte what shipped before
+    decision A3 -- so every banked S7 job name stays readable against the console and no prior run
+    record has to be re-read. Spelling all five in full would render 87 characters of suffix on top of a
+    50-character stem and breach Batch's 128-character `jobName` limit, which is a submission-time
+    error and not a naming preference; the initials are distinct across the declared set
+    (`sb` / `wn` / `bq` / `dr` / `rl`) and the run record carries the full env either way.
+
+    A VALUE THAT IS NOT `on` RIDES ITS OWN TOKEN. Two cells lighting the SAME set at DIFFERENT values
+    are two cells, and a suffix that could not tell them apart would be this function's own defect.
+    (`arm_value_refusal` means no such value reaches a submission today; the token stays because this
+    function is also called by hand and by the deck.)
+
+    AND IT NOW **REFUSES** RATHER THAN TRUSTING (ruling R2). The two distinctness properties above used
+    to be an assertion in this docstring and nothing else. `declared` is the base's whole declared list
+    when the caller has it (the seam passes `arm_flag_names(base_doc)`), so a SIXTH flag colliding with
+    one of today's five is refused here even on the cell that does not light it; with `declared`
+    omitted the check falls back to the lit set, which is the most this function can see on its own."""
+    if not lit:
+        return ""
+    _col = arm_flag_collisions(list(declared) if declared is not None else [k for k, _v in lit])
+    if _col:
+        raise ValueError("refusing to build a job-name suffix: " + "; ".join(_col))
+    k0, v0 = lit[0]
+    head = arm_flag_head(k0, v0)
+    rest = []
+    for k, v in lit[1:]:
+        tok = arm_flag_initials(k)
+        if str(v).lower() != "on":
+            tok += _NAME_SAFE_RX.sub("", str(v).lower())[:6]
+        rest.append(tok)
+    return "-".join([head] + rest)
+
+
 def open_decision_keys(doc: dict) -> list[str]:
     """The base's own UNDECIDED keys, in file order -- `open_decisions[].key`.
 
@@ -152,9 +330,14 @@ def open_decision_keys(doc: dict) -> list[str]:
     never walks, and `base_new_in_serving` counts as CLASSIFIED. MEASURED 2026-09-11: a `--dry-run`
     with `--env-base` + `--from-taskdef leviathan-dev-serving:133` printed ZERO lines about it, so a
     $30-55 paid arm would have submitted in total silence on the one key the base says nobody has
-    decided. The resolution is not to unfile it (the never_copy reason is correct: the eval jobdef
-    carries no `COHERE_API_KEY`, so copying it blind degrades or fails) -- it is to make the UNMADE
-    DECISION LOUD at every submission, and to require the operator to name it out loud."""
+    decided. The resolution was not to unfile it -- it was to make the UNMADE DECISION LOUD at every
+    submission and require the operator to name it out loud.
+
+    THAT KEY IS NO LONGER OPEN (ruling R3, 2026-09-16): `GRAPHRAG_RERANK_BACKEND` moved into
+    `copy_from_taskdef` at `cohere` for SEAT PARITY with serving:133, guarded by the env-conditional
+    secret precondition (`env_conditional_secrets`), so the base ships with an EMPTY `open_decisions`
+    and this function returns []. The machinery stays because the next unmade decision will want it,
+    and because it is what makes `--accept-open-decision` mean something when one exists."""
     out: list[str] = []
     for item in doc.get("open_decisions") or ():
         key = (item or {}).get("key") if isinstance(item, dict) else None
@@ -163,10 +346,10 @@ def open_decision_keys(doc: dict) -> list[str]:
     return out
 
 
-# ── THE BASE'S THREE PRECONDITIONS (S7 round 2) ─────────────────────────────────────────────────────
-# The base's `job_definition:` block states THREE facts about the venue an arm must run in -- the job
-# definition, the queue, and the secrets that definition must carry -- and until this round NOTHING READ
-# THEM. They were prose in a file the submitter parsed for its env sections only, which is the same
+# ── THE BASE'S VENUE PRECONDITIONS (S7 round 2; the CONDITIONAL secret added 2026-09-16) ───────────────────────────────────
+# The base's `job_definition:` block states FOUR facts about the venue an arm must run in -- the job
+# definition, the queue, the secrets that definition must carry ALWAYS, and (since ruling R3) the
+# secrets ONE VALUE OF ONE KEY makes mandatory -- and until S7 round 2 NOTHING READ THEM. They were prose in a file the submitter parsed for its env sections only, which is the same
 # shape as the failure the file was written to close: a record nobody grades is a record that drifts.
 # Each is enforced below as a PURE function (no AWS), so the deck can grade the rule itself.
 #
@@ -183,14 +366,22 @@ def open_decision_keys(doc: dict) -> list[str]:
 #              or `EVIDENCE_PG_DSN` cannot be repaired at submission time by any flag. It dies at
 #              container start (`ResourceInitializationError`) or serves a board that declines
 #              `pg_not_live` on every turn -- the artifact class with three prior instances.
+#   secrets, -- the same refusal, CONDITIONED ON THE ENV THIS SUBMISSION WILL SEND
+#   by env      (`secrets_required_by_env` -> `env_conditional_secrets`). It exists because R3 moved
+#               `GRAPHRAG_RERANK_BACKEND` into `copy_from_taskdef` at `cohere` for SEAT PARITY with
+#               serving:133: a key whose value decides whether a secret is needed cannot be graded by
+#               an unconditional list, and the alternative -- leaving the key parked as an open
+#               decision -- is what made the arm's own A2 rationale unreachable in the first place.
+#               It names the KEY in its refusal, because there are two honest ways out and the
+#               operator must see both.
 #
-# ALL THREE ARE INERT WITHOUT `--env-base`: no base, no `job_definition:` block, no preconditions, and
+# ALL OF THEM ARE INERT WITHOUT `--env-base`: no base, no `job_definition:` block, no preconditions, and
 # every submission that predates S7 is byte-identical to what shipped.
 #
 # `job_definition` IS A RESERVED TOKEN NAME. `--accept-open-decision` now carries two namespaces at
 # once -- the base's `open_decisions` KEYS and this one non-key token -- so a base that ever parked an
 # open decision under the literal key `job_definition` would make one token mean two things at the same
-# prompt. Nothing does today (measured: `open_decision_keys(base) == ['GRAPHRAG_RERANK_BACKEND']`), and
+# prompt. Nothing does today (measured after R3: `open_decision_keys(base) == []`), and
 # the rule is written here rather than enforced because a base is a hand-written record: the place a
 # future author reads before naming a key is this comment and the flag's own help text, both of which
 # now say it. If a base ever needs that key, rename the key -- the token is the older claim.
@@ -217,6 +408,33 @@ def required_secrets(doc: dict) -> list[str]:
     """`job_definition.secrets_required_on_jobdef` -- the secrets that CANNOT be supplied at submit."""
     got = ((doc or {}).get("job_definition") or {}).get("secrets_required_on_jobdef") or []
     return [str(s) for s in got if s]
+
+
+def env_conditional_secrets(doc: dict, job_env: dict[str, str]) -> list[dict]:
+    """`job_definition.secrets_required_by_env` rows that THIS env actually triggers.
+
+    ROUND-2 RULING R3'S GUARD. `secrets_required_on_jobdef` is unconditional -- those two secrets are
+    needed whatever the arm sets. This section is the other shape: a secret that ONE VALUE of ONE KEY
+    makes mandatory. `GRAPHRAG_RERANK_BACKEND=cohere` is the instance -- it moved into
+    `copy_from_taskdef` for SEAT PARITY with serving:133, and without `COHERE_API_KEY` on the job
+    definition the arm reranks on nothing it can reach. A Batch `containerOverrides` cannot set secrets
+    at all, so this can only ever be a REFUSAL at the prompt, never a repair.
+
+    A ROW APPLIES WHEN THE EFFECTIVE JOB ENV CARRIES `key` AT `value` (case-insensitively). The env is
+    the one the submission will actually send -- DEFAULT_JOB_ENV, then the base, then `--env` -- so an
+    operator who overrides the key back to `bge` at the prompt is not refused for a secret that env no
+    longer needs."""
+    rows = ((doc or {}).get("job_definition") or {}).get("secrets_required_by_env") or []
+    out: list[dict] = []
+    for r in rows:
+        if not isinstance(r, dict) or not r.get("key") or not r.get("secret"):
+            continue
+        want = str(r.get("value") or "").strip().lower()
+        have = str((job_env or {}).get(str(r["key"])) or "").strip().lower()
+        if want and have == want:
+            out.append({"key": str(r["key"]), "value": str(r.get("value")),
+                        "secret": str(r["secret"]), "why": str(r.get("why") or "")})
+    return out
 
 
 def jobdef_refusal(doc: dict, *, job_definition: str, explicit: bool, accepted=()) -> str | None:
@@ -661,12 +879,13 @@ def main() -> None:
         _td = base_doc.get("taskdef") or {}
         logger.info("env base: %s  (from %s:%s read %s)", args.env_base, _td.get("family"),
                     _td.get("revision"), _td.get("read_utc"))
-        # THE UNDECIDED KEYS, LOUD, AND BEFORE ANY SPEND. They are filed under `never_copy` (correctly
-        # -- the eval jobdef has no COHERE_API_KEY), and `never_copy` is the ONE section the parity
-        # warning suppresses, `base_drift` never walks and `base_new_in_serving` counts as classified.
-        # The net effect measured on 2026-09-11 was a dry run that printed nothing at all about
-        # GRAPHRAG_RERANK_BACKEND while the base's own text called it "a GENUINE parity var" and
-        # "unresolved". A key nobody decided must not be a key nobody SEES.
+        # THE UNDECIDED KEYS, LOUD, AND BEFORE ANY SPEND. An undecided key is filed under `never_copy`,
+        # and `never_copy` is the ONE section the parity warning suppresses, `base_drift` never walks
+        # and `base_new_in_serving` counts as classified. The net effect measured on 2026-09-11 was a
+        # dry run that printed nothing at all about GRAPHRAG_RERANK_BACKEND while the base's own text
+        # called it "a GENUINE parity var" and "unresolved". A key nobody decided must not be a key
+        # nobody SEES. Today's base parks NOTHING (ruling R3 decided that key), so this block is inert;
+        # it is the machinery the next one rides.
         _open = open_decision_keys(base_doc)
         _accepted = {str(a).strip() for a in (args.accept_open_decisions or [])}
         _unaccepted = [k for k in _open if k not in _accepted and "ALL" not in _accepted]
@@ -686,7 +905,7 @@ def main() -> None:
                 f"({', '.join(_unaccepted)}). Resolve them in the base, or acknowledge each with "
                 f"--accept-open-decision <KEY> (or --accept-open-decision ALL) and state in the arm "
                 f"report what the arm actually measured.")
-        # ── THE BASE'S THREE PRECONDITIONS, ENFORCED BEFORE ANY SPEND ───────────────────────────────
+        # ── THE BASE'S VENUE PRECONDITIONS, ENFORCED BEFORE ANY SPEND ───────────────────────────────
         # The `job_definition:` block was PROSE THE SUBMITTER NEVER READ until this round: it names the
         # job definition, the queue and the two secrets an arm's venue must carry, and the submitter
         # parsed the file for its env sections only. A record nobody grades is a record that drifts --
@@ -714,7 +933,16 @@ def main() -> None:
         # at container start with ResourceInitializationError, or -- worse, because it looks like a
         # result -- serves a board that declines `pg_not_live` on every single turn.
         _req_secrets = required_secrets(base_doc)
-        if _req_secrets:
+        # ROUND-2 RULING R3: THE CONDITIONAL HALF, GRADED IN THE SAME BLOCK AND AGAINST THE SAME FETCH.
+        # The env the submission will SEND is built here rather than read from `job_env` (which is
+        # assembled below, after this block) so the precondition runs where the other three do --
+        # before the dry-run return -- and the two constructions are the same three lines in the same
+        # order, so they cannot disagree.
+        _eff_env = dict(DEFAULT_JOB_ENV)
+        _eff_env.update(env_from_base(base_doc))
+        _eff_env.update({k: v for k, v in env_pairs})
+        _cond_secrets = env_conditional_secrets(base_doc, _eff_env)
+        if _req_secrets or _cond_secrets:
             if ":" not in str(job_definition):
                 logger.warning("JOB DEFINITION IS NOT PINNED: %r names a family, so Batch resolves the "
                                "highest ACTIVE revision AT FIRE TIME and the arm's identity can move "
@@ -733,8 +961,24 @@ def main() -> None:
                     f"GetSecretValue grant on each FIRST, or the container dies at start with "
                     f"ResourceInitializationError). Present today: "
                     f"{', '.join(_jd_secrets) or '(none)'}.")
+            # THE ENV-CONDITIONAL SECRETS, SAME FETCH, SAME REFUSAL CLASS. This one names the KEY that
+            # made the secret mandatory, because the operator has two honest ways out and must be able
+            # to see both: register the revision that carries the secret, or change the key.
+            _c_missing = [c for c in _cond_secrets if c["secret"] not in set(_jd_secrets)]
+            if _c_missing:
+                raise SystemExit(
+                    "refusing to submit: this env demands " + ", ".join(
+                        f"{c['secret']} (because {c['key']}={c['value']})" for c in _c_missing) +
+                    f", and job definition {job_definition} (revision {_jd_rev}) carries it not. A "
+                    f"Batch containerOverrides CANNOT set secrets, so no flag at this prompt can "
+                    f"repair it. Either register a revision carrying the secret (and confirm the "
+                    f"execution role's GetSecretValue grant on it FIRST), or change the key that "
+                    f"demands it in the stored base -- and re-bank the base so the record says which. "
+                    + " ".join(c["why"] for c in _c_missing if c["why"]) +
+                    f" Present today: {', '.join(_jd_secrets) or '(none)'}.")
             logger.info("jobdef precondition: %s (revision %s) carries every required secret (%s).",
-                        job_definition, _jd_rev, ", ".join(_req_secrets))
+                        job_definition, _jd_rev,
+                        ", ".join(_req_secrets + [c["secret"] for c in _cond_secrets]) or "(none)")
     job_env: dict[str, str] = dict(DEFAULT_JOB_ENV)
     if base_doc:
         job_env.update(env_from_base(base_doc))
@@ -810,14 +1054,40 @@ def main() -> None:
     # bare control both rendered `eval-eval-queries-state-arm-a-v1-claude-opus-5-deep` -- MEASURED in a
     # dry run. That is the exact ambiguity `--mode` and `--only-ids` were given suffixes to fix, one
     # flag over. The run record's `job_env` recovers it after the fact; the Batch console does not, and
-    # the console is where a human kills the wrong job. Keyed on the BASE's own `arm_flag`, so this is
-    # byte-identical for every submission without a base (i.e. everything that shipped before S7).
-    _arm_flag = str((base_doc or {}).get("arm_flag") or "")
-    if _arm_flag:
-        _armv = dict(env_pairs).get(_arm_flag)
-        if _armv:
-            job_name += "-" + (_arm_flag.replace("GRAPHRAG_", "").replace("_", "-").lower()
-                               + "-" + str(_armv).lower())[:24]
+    # the console is where a human kills the wrong job. Keyed on the BASE's own declared treatment
+    # flags, so this is byte-identical for every submission without a base (i.e. everything that
+    # shipped before S7).
+    #
+    # DECISION A3, 2026-09-16: THE SUFFIX ENCODES THE **SET** A CELL LIT, NOT ONE FLAG. The scalar
+    # closed the ambiguity for `GRAPHRAG_STATE_BOARD` and left it open for the four flags that have
+    # since grown readers -- a cell pair differing only by `GRAPHRAG_WATCH_NONOBVIOUS` rendered two
+    # IDENTICAL names, which is the same defect the scalar was added to fix. `arm_flag_names` reads
+    # `arm_flags` (a list) and falls back to the old scalar, and `arm_cell_suffix` renders the FIRST lit
+    # flag in full so a board-only cell's name is unchanged from what shipped.
+    _arm_env = dict(env_pairs)
+    # PRESENCE, not truthiness (round-2 verify minor): `--env GRAPHRAG_STATE_BOARD=` parses to an empty
+    # string, is falsy, and would otherwise never reach `arm_value_refusal` -- a mistyped treatment logged
+    # as a CONTROL. An empty value is a declared flag spelled wrong, and the refusal sees it.
+    _lit = [(k, str(_arm_env[k])) for k in arm_flag_names(base_doc) if k in _arm_env]
+    if _lit:
+        # ROUND-2 RULING R2: THE MISTYPED VALUE IS REFUSED, NOT NARRATED. The cell partition one line
+        # up keys on TRUTHINESS, so `=yes` is "lit" here and dead in four of the five containers --
+        # a partial treatment at full price, named and logged as a full one. Refused BEFORE the name is
+        # built (a name is a claim about a cell) and before the dry-run return, so a $0 rehearsal
+        # exercises it. See `arm_value_refusal` for the measurement.
+        _v_err = arm_value_refusal(_lit)
+        if _v_err:
+            raise SystemExit(_v_err)
+        job_name += "-" + arm_cell_suffix(_lit, declared=arm_flag_names(base_doc))
+        logger.info("ARM CELL: %d of %d declared treatment flag(s) lit -- %s", len(_lit),
+                    len(arm_flag_names(base_doc)), ", ".join(f"{k}={v}" for k, v in _lit))
+    elif arm_flag_names(base_doc):
+        # THE CONTROL CELL SAYS SO OUT LOUD. A control is a cell that lit NONE of the declared
+        # treatment flags, and a silent control is one line of terminal an operator can scroll past.
+        # It is no longer the only thing standing between the arm and a mistyped treatment -- that is
+        # `arm_value_refusal` above, which exits rather than logging.
+        logger.info("ARM CELL: CONTROL -- none of the %d declared treatment flag(s) is lit (%s)",
+                    len(arm_flag_names(base_doc)), ", ".join(arm_flag_names(base_doc)))
 
     logger.info("queue=%s  job_def=%s  mem=%dMiB vcpu=%d", job_queue, job_definition, args.memory, args.vcpu)
     logger.info("command: python %s", " ".join(command))
@@ -826,11 +1096,13 @@ def main() -> None:
     # THE OPEN DECISIONS, IN THE RUN HEADER, AT EVERY SUBMISSION -- not only in the warning block that
     # fires once when the base is loaded. The header is what an operator reads back off a terminal and
     # what gets pasted into an arm report, and the undecided key is the one sentence that report OWES.
-    # It is printed with BOTH values because the answer is the difference between them: MEASURED on
-    # `leviathan-dev-serving:133`, serving carries GRAPHRAG_RERANK_BACKEND=cohere and the job env
-    # carries it not at all, so the arm reranks with local bge. No other guard in this file says that
-    # out loud -- `never_copy` suppresses the absence warning, and `_is_flag_on("cohere")` is False, so
-    # even the widened skip set has no opinion. This line does not depend on the value being flag-ish.
+    # It is printed with BOTH values because the answer is the difference between them. The key that
+    # made this line necessary -- GRAPHRAG_RERANK_BACKEND, which serving:133 sets to `cohere` and the
+    # job env did not carry at all -- is DECIDED as of ruling R3 (it is a `copy_from_taskdef` key now,
+    # guarded by the conditional-secret precondition), so the loop below is inert against today's base
+    # and prints nothing. It stays because the next unmade decision will need exactly this: no other
+    # guard in this file speaks about a `never_copy` key, and `_is_flag_on("cohere")` is False, so even
+    # the widened skip set had no opinion. This line does not depend on the value being flag-ish.
     _open_effective: dict[str, str | None] = {}
     for _k in open_decision_keys(base_doc or {}):
         _jv, _sv = job_env.get(_k), (_serving_env or {}).get(_k)

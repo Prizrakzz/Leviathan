@@ -71,3 +71,45 @@ def test_cascade_citation_merge_dedups_by_locator():
     panel = _judge_numbers_panel(out)
     assert "[N7]" in panel and "0.29" in panel
     assert "[N9]" not in panel
+
+
+# --- PRE-ARM D4 (2026-09-16, coherence audit JP-H): THE MERGED CITATION'S KNOWLEDGE DATE ------------
+# The agent branch appends `[known {kd}]` off `row['knowledge_date']`; the MERGE branch dropped
+# `Citation.date`, which citations.py:24 documents as "when it was KNOWN". Every board row and every
+# cascade-injected row reaches the judge through that branch, the board is the producer that now mints
+# a knowledge date PER ROW off the per-metric publication lags (29de55eb), and `point_in_time` graded
+# the answer's correct "known 2026-08-29" against a panel line carrying no date at all.
+#
+# IT IS DECLARED, NOT DARK: no flag sits over the branch, so this moves the judged prompt on BOTH arms
+# of every deck carrying a dated merged citation. Shipped as a pure correction of an omission under the
+# S7 `scale`-fix precedent, named in the commit body and again in the arm report.
+
+def test_merged_citation_renders_the_knowledge_date_like_the_agent_row_does():
+    """ONE PANEL, ONE SPELLING. The `[known ...]` token and its two leading spaces are the AGENT
+    branch's, verbatim, so a judge reading both halves of this panel reads one fact one way."""
+    out = {"number_calls": [{"query": {"table": "t", "metric": "m", "commodity": "c",
+                                       "period": "2026-09", "asof": "2026-09-08"},
+                             "rows": [{"value": 0.0013, "knowledge_date": "2026-08-12"}]}],
+           "citations": [{"kind": "number", "id": "N31", "value": 31584, "unit": "contracts",
+                          "date": "2026-09-05",
+                          "locator": {"table": "silver_cot", "metric": "net_noncomm",
+                                      "commodity": "corn", "period": "2026-09-01",
+                                      "asof": "2026-09-08"}}]}
+    panel = _judge_numbers_panel(out)
+    assert "= 0.0013  [known 2026-08-12]" in panel                     # the agent row, unchanged
+    assert "= 31584 contracts  [known 2026-09-05]" in panel            # the merged row, corrected
+    assert panel.count("[known ") == 2
+
+
+def test_a_merged_citation_with_no_date_is_byte_identical_to_what_shipped():
+    """ABSENT IS NEVER ZERO, AND NEVER A GUESSED DATE EITHER. A citation carrying no `date` renders
+    exactly the line HEAD rendered -- the correction reaches only rows that HAVE a knowledge date."""
+    loc = {"table": "silver_psd", "metric": "ending_stocks", "commodity": "corn",
+           "period": "2025/26", "asof": "2026-09-08"}
+    dated = {"kind": "number", "id": "N32", "value": 1899, "unit": "kt", "locator": loc}
+    panel = _judge_numbers_panel({"citations": [dated]})
+    assert panel == "- [N32] silver_psd.ending_stocks corn 2025/26 asof 2026-09-08 = 1899 kt\n"
+    assert "[known" not in panel
+    # and an EMPTY-STRING date is an absent one, not a rendered blank
+    panel2 = _judge_numbers_panel({"citations": [dict(dated, date="")]})
+    assert panel2 == panel

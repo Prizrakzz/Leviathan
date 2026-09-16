@@ -3014,6 +3014,60 @@ _JUDGE_STATE_WATCH = (
     "cut, merge and reorder the nominations and to add ONE of its own when it names the mechanism and "
     "the row it rests on, so a shipped list shorter than the ceiling is not a miss.\n"
 )
+#: PRE-ARM D5, 2026-09-16 (coherence audit JP-N): THE BOARD'S LIKE-STATE STANZA, WHICH REACHES NO
+#: PANEL AND WAS THEREFORE A HALLUCINATION BY CONSTRUCTION.
+#:
+#: WHAT IT CORRECTS, MEASURED. ``_judge_episodes_panel`` reads ``trace['episodes_injected']`` and that
+#: key is written SOLELY by the timeline leg (``answer.py:4042``, ``:4060``), so on a board turn the
+#: episodes panel renders "(none -- no dated-episode lines were injected on this turn)" while the block
+#: handed the writer dated LIKE-STATE windows -- and ``_JUDGE_SYS``'s own hallucination clause reads "A
+#: dated window in NONE of the four sources IS a hallucination". The analog OUTCOME rows escape (their
+#: ``[N]`` locator carries ``period="{near_date}..{far_date}"``, ``state/render.py:1276``, and the merge
+#: branch of ``_judge_numbers_panel`` prints ``period``); the STANZA HEADER does not. It is minted by
+#: ``render.sb_analog_header`` with NO calls (``state/render.py:2320-2321``) and names its date IN WORDS
+#: -- "in August two thousand twelve", "since 1990" -- so it appears in none of the four panels in any
+#: spelling. THIS RE-MINTS W4-N1 EXACTLY: a feature that RAISES the hallucination count mechanically, on
+#: the metric arm A's acceptance rule reads.
+#:
+#: WHY IT IS A RUBRIC CLAUSE AND NOT A PANEL LINE, AND THIS IS THE HONEST HALF. The decision asked for
+#: the stanza header LINES listed in the panel. THE EVAL RECORD DOES NOT CARRY THEM, and that is by
+#: design rather than by omission: ``tracekeys``' own entry for ``state_board`` ends "NO RENDERED LINE
+#: AND NO PROMPT BYTE RIDES THIS KEY", ``Board.trace()`` emits ``rows`` as a COUNT, and
+#: ``render.board_coverage`` returns twenty keys of which none is an analog. Deriving the stanzas from
+#: the ``near..far`` period shape was tried and REFUSED as a false attribution: that spelling is NOT a
+#: board discriminator -- ``numbers/cascade.py:9552`` mints it for a J6 event window and eight further
+#: sites in ``cascade.py`` / ``derived.py`` mint ``t1..t2`` for ordinary windowed calls -- so a panel
+#: line built on it would name cascade rows as like-state stanzas on turns that rendered none. A count
+#: that cannot tell its own population apart is the (1b) lesson arriving through a new door. So this
+#: states the CONSTRUCTION FACT, which is true on every board turn and needs no per-turn datum, and the
+#: producer half -- a ``state/`` key carrying the stanza lines -- is DOCKETED, not guessed here.
+#:
+#: ITS CONDITION IS **THE BOARD**, NOT THE PANEL, AND ROUND 2 CORRECTED THE DIFFERENCE. The two
+#: constants above are keyed on a panel LINE because their instruments carry their own flags; this one
+#: has no instrument and no flag of its own -- the stanza is part of the board itself. Round 1 keyed it
+#: on ``sb_text``, which is empty for TWO turns: the no-board turn (correctly -- nothing rendered) and
+#: the turn whose board rendered and whose COVERAGE INSTRUMENT DECLINED. On that second turn the writer
+#: was shown the stanzas and only the counter broke, so it is precisely the turn this clause exists to
+#: cover, and ``judge()`` now emits it there too (ruling R5, 2026-09-16) -- alone, with no coverage
+#: header and no ``state_use``. A turn with NO board is still byte-identical to HEAD, and a board turn
+#: only exists under ``GRAPHRAG_STATE_BOARD``, so no flag-off row in the estate moves.
+#:
+#: IT DOES NOT WIDEN THE STANDARD, AND SAYS SO IN ITS OWN LAST SENTENCE. ``_JUDGE_SYS`` still charges a
+#: narrated severity or magnitude hung on a window the record shows only as a span, and a dated window
+#: with no stanza and no ``[N]`` row behind it is still a hallucination.
+_JUDGE_STATE_ANALOG = (
+    "- the block's LIKE-STATE stanzas are a FIFTH source on this turn, and they are the one part of it "
+    "that reaches no panel above. A stanza opens with a header that names -- IN WORDS, with no [N] "
+    "handle -- the month and year this state last sat like this, how many such dates the record "
+    "carries and the coverage floor year it is read from; only the OUTCOME rows underneath it carry "
+    "handles, and those are the '{near}..{far}' periods you can see in OBSERVED NUMBERS. So a "
+    "month-and-year the answer states as a LIKE-STATE date, and the count of such dates, came from the "
+    "block even though no panel here spells them in digits: do NOT list them under hallucinations for "
+    "being absent above, exactly as the DATED EPISODES block's own clause instructs. What is unchanged: "
+    "a dated window with no outcome row and no like-state stanza behind it IS still a hallucination, "
+    "and so is a severity, outcome or magnitude NARRATED over a window the record shows only as a "
+    "span.\n"
+)
 #: The panel lines that license the clause above, as a TUPLE rather than one substring: the two
 #: instruments carry their own flags and either may ship without the other, so a test keyed on one
 #: line's words would silently drop the rubric on the turn where only the other ran.
@@ -3184,9 +3238,25 @@ def _judge_numbers_panel(out: dict, max_rows_per_call: int = 8) -> str:
         loc = c.get("locator") or {}
         if (loc.get("table"), loc.get("metric"), loc.get("period"), loc.get("asof")) in seen_num:
             continue
+        # PRE-ARM D4, 2026-09-16 (coherence audit JP-H) -- THE KNOWLEDGE DATE, WHICH THIS BRANCH DROPPED.
+        # The agent branch fifteen lines up appends `[known {kd}]` off `row['knowledge_date']`; this one
+        # rendered `= 31584 contracts` and stopped, although `citations.py:24` documents `Citation.date`
+        # as "when it was KNOWN (knowledge_date for numbers, doc date for evidence)" and EVERY board row
+        # and every cascade-injected row reaches the judge through here. The board is precisely the
+        # producer that now mints a knowledge date PER ROW off the per-metric publication lags
+        # (`29de55eb`) and the mandate tells the writer to state it as a fact -- graded by
+        # `point_in_time` against a panel line that carried no date at all.
+        #
+        # IT IS NOT FREE AND IT IS NOT DARK, WHICH IS WHY IT IS DECLARED. No flag sits over this branch,
+        # so the judged prompt moves on BOTH arms of every deck carrying a merged citation that has a
+        # date. It ships as a PURE CORRECTION of an omission under the S7 `scale`-fix precedent: the
+        # commit body says so and the arm report says so again. The `[known ...]` spelling and its two
+        # leading spaces are the AGENT branch's, verbatim, so one panel speaks one way about one fact.
+        # A citation with no `date` renders byte-identically to HEAD.
         lines.append(f"- [{c.get('id')}] {loc.get('table', '')}.{loc.get('metric', '')} "
                      f"{loc.get('commodity', '')} {loc.get('period', '')} asof {loc.get('asof', '')} "
-                     f"= {c.get('value')} {c.get('unit') or ''}")
+                     f"= {c.get('value')} {c.get('unit') or ''}"
+                     + (f"  [known {c.get('date')}]" if c.get("date") else ""))
     return "\n".join(lines) + ("\n" if lines else "")
 
 
@@ -3230,6 +3300,16 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
     num_text = _judge_numbers_panel(out)
     ep_text = _judge_episodes_panel(out)                              # W4-N1: the injected episode ground truth
     sb_text = _judge_state_panel(out)                                 # S7: absent unless the turn carried a board
+    # PRE-ARM D5, ROUND-2 RULING R5: `sb_text` IS EMPTY FOR TWO VERY DIFFERENT TURNS AND THE LIKE-STATE
+    # CLAUSE BELONGS ON ONE OF THEM. `_judge_state_panel` returns "" when the turn carried NO BOARD
+    # AT ALL -- nothing rendered, nothing to score, and HEAD's prompt byte for byte -- and ALSO when a
+    # board DID render and its coverage instrument DECLINED. On that second turn the writer was shown
+    # the block, like-state stanzas included, and only the counter broke: it is exactly the turn whose
+    # stanza month-and-year a judge would otherwise charge as a hallucination for being absent from all
+    # four panels. Round 1 shipped the clause on `sb_text` alone and left that turn uncovered.
+    _sb_tr = (out.get("trace") or {}).get("state_board")
+    _sb_cov = (_sb_tr.get("coverage") if isinstance(_sb_tr, dict) else None) or {}
+    sb_declined = bool(isinstance(_sb_cov, dict) and _sb_cov.get("declined"))
     convo = ""
     if convo_history is not None:
         convo = (f"=== CONVERSATION SO FAR (prior turns; the current question may be vague/pronoun-based and "
@@ -3262,6 +3342,11 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
                f"THE WORLD block the tool was shown; these say WHICH rows were referenced, NEVER "
                f"whether they were referenced correctly) ===\n{sb_text}\n\n"
                f"Also score `state_use` (1-5):\n{_JUDGE_STATE_USE}"
+               # PRE-ARM D5 (JP-N): appended on EVERY board turn, beside `_JUDGE_STATE_USE` and for the
+               # same reason -- its subject is the BOARD, not an instrument with a flag of its own, so
+               # the condition is `sb_text` and there is nothing narrower to key on. See the constant's
+               # own note for why it states a construction fact instead of listing the stanza lines.
+               + _JUDGE_STATE_ANALOG
                # S7b: appended ONLY when the panel actually RENDERED a register line, so a dark turn's
                # judged prompt is HEAD's byte for byte. The test is the panel's own words, which is the
                # `sb_text`-is-truthy idiom one line up read at one more level of detail.
@@ -3272,6 +3357,16 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
                # turn's judged prompt stays HEAD's byte for byte.
                + (_JUDGE_STATE_WATCH if _JUDGE_STATE_WATCH_MARKER in sb_text else "")
                + "\n" if sb_text else "")
+            # PRE-ARM D5 / ROUND-2 R5: THE DECLINED BOARD. No counts to show (that is what declining
+            # means) and NO `state_use` -- scoring a dimension off a broken instrument is the fabricated
+            # zero `_judge_state_panel` exists to refuse, and `_judge_tool`'s own `state_use=bool(sb_text)`
+            # is left exactly as it was. What the judge still needs is the SCOPE fact, because the
+            # stanzas reached the writer whatever the counter did. Unreachable on a no-board turn, so
+            # every flag-off row in the estate is still byte-identical.
+            + (("=== STATE BOARD ON THIS TURN (the block WAS rendered and shown to the tool; its "
+                "coverage instrument DECLINED, so there are no reference counts to show and "
+                "`state_use` is not scored -- score the rest of this turn normally) ===\n"
+                + _JUDGE_STATE_ANALOG + "\n") if (sb_declined and not sb_text) else "")
             + f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
     sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # judge calls share it
     scores, _ = call(client, sys_blocks, user, model=model, max_tokens=3200,
@@ -3486,7 +3581,17 @@ def closure_panel(rows: list[dict]) -> list[str]:
 
 def register_report(rows: list[dict]) -> list[str]:
     """Output-register panel: how many answers leaked internal tokens (slugs, conf=, (+)/(-), 'the node fired')
-    into reader-facing prose — the deterministic complement to the judge's register read."""
+    into reader-facing prose.
+
+    IT READS THE PRE-S7b LEAK LIST AND NOTHING ELSE, AND THE DOCSTRING NOW SAYS SO (pre-arm E7,
+    coherence audit JP-G). It used to call itself "the deterministic complement to the judge's register
+    read", which stopped being true the day S7b shipped a SECOND register instrument: the DESK-REGISTER
+    lint counts a different population (instrument words in reader prose, `register.desk_register_hits`)
+    with a different remedy (one bounded rewrite) and is stamped on a different trace key
+    (`trace['desk_register']`), and neither the count nor the rewrite appears anywhere in this panel.
+    The complement to the judge's register read is THIS panel plus :func:`state_report`'s desk-register
+    block; a reader who takes this one for the whole of it reads a licence-lit arm's headline number as
+    absent."""
     import collections
     m = [_metrics(r) for r in rows]
     n = len(m) or 1
@@ -3510,6 +3615,244 @@ def register_report(rows: list[dict]) -> list[str]:
                  f"(conciseness signal — compare vs the prior run)")
     return L
 
+
+def state_report(rows: list[dict]) -> list[str]:
+    """PRE-ARM E7 (coherence audit JP-G): THE REPORT SURFACE FOR WHAT S7 AND S7b ACTUALLY BUILT.
+
+    Before this panel, `_metrics` carried `state_use` and NOTHING read it; `routing_report` printed
+    convexity + point_in_time, `source_report` source_diversity + mechanism_voice, `report()`'s judge
+    line usefulness / convexity / point_in_time / grounding, `grounding_report` usefulness + grounding
+    -- and `desk_register` / `count_desk_register` appeared ZERO times in this module. So the S7b
+    headline result -- the SAME PURE LINT reading 51 hits on the no-mandate prompt arm and 5 on the
+    mandate-lit one, over three real-seat answers of the same length -- had NO aggregation surface, and
+    an arm could not report the thing it was run to measure. The arm report was silent on all three of
+    S7b's products.
+
+    THE MANDATE'S NUMBER IS A CROSS-CELL DIFFERENCE AND THIS PANEL BUILDS IT AS ONE (ruling R1,
+    2026-09-16). Round 1 printed the ONE BOUNDED REWRITE's `hits_before -> hits_after` and quoted the
+    S7b headline beside it in the same bolded sentence. They are not the same measurement and cannot be
+    made into one: `answer.py:5091` runs the lint ONLY under `_desk_register_on()` -- the same flag that
+    appends the mandate (`answer.py:3595`) -- so `hits_before` is never a no-mandate count, and a
+    CONTROL turn writes no `trace['desk_register']` key at all. The smoke's own 51 and 5 are BOTH
+    `hits_before`, on two PROMPT ARMS (S6B with the mandate absent, R4 with it lit), with no rewrite in
+    either. So the mandate line is built the way the smoke built it: `register.count_desk_register` --
+    no LLM, no flag, the pure lint -- run over EVERY row's banked body, with the rows partitioned by
+    whether the mandate was lit on that turn; and the rewrite's delta keeps its own line, its own label
+    and its own population.
+
+    ABSENT-WHEN-INAPPLICABLE, like every instrument it aggregates. A deck with no board and no lint
+    census returns `[]` and the report renders nothing -- not a panel of zeros, which would invite a
+    reader to compare a dimension that did not exist. Every LINE inside it is keyed on the presence of
+    its own key for the same reason: `watch_bullets` exists only under `GRAPHRAG_WATCH_NONOBVIOUS`,
+    the three register keys only under `GRAPHRAG_REGISTER_LICENCE`, and a turn whose flag was off ran
+    no instrument at all. ABSENT IS NEVER ZERO -- INCLUDING THE BOARD LINE ITSELF (ruling R5): a deck
+    that carries a desk-register census and no board prints no `0/N` board line and takes a header that
+    does not promise one.
+
+    IT CHANGES NO SCORE AND NO JUDGED BYTE. Nothing here is read by `judge()`, by a rubric, by
+    `_cascade_asserts` or by any deck pin: it is a READ of the artifact, which is the class the
+    threat model calls a new instrument. No bar is put on any number -- `watch_writer_added`,
+    `watch_candidates_used` and `register_adjectives_unbacked` are the owner's to bar, and the panel
+    prints them beside the words the panel that feeds the judge uses for them ("coverage, not
+    correctness").
+
+    THE POPULATIONS ARE NAMED WHERE THEY DIFFER, because they are not the same text. The coverage keys
+    are measured against the POST-VERIFY structured body (`render.board_coverage`'s own contract); both
+    desk-register reads are measured over the model's `tldr` + `mechanism` fields only -- not the served
+    page, which also carries the mermaid block and the `## Sources` footer. A report quoting one against
+    the other must say which is which, so this one does."""
+    import collections
+    import statistics
+    covs: list[dict] = []
+    declined: list[str] = []
+    boards = 0
+    malformed = 0
+    dregs: list[dict] = []
+    for r in rows:
+        out = r.get("out") if isinstance(r.get("out"), dict) else {}
+        tr = out.get("trace") if isinstance(out.get("trace"), dict) else {}
+        # R5 MINOR: `tr.get("state_board") or {}` then `.get("coverage")` RAISES AttributeError on any
+        # truthy non-dict, and this is the one new caller that is not per-row and not inside judge()'s
+        # own failure handling -- `report()` runs once per deck after a paid arm, so a raise here loses
+        # the whole artifact rather than one row. `answer.py:5178` already guards the same key with
+        # `isinstance`; a malformed shape is COUNTED and named below rather than swallowed.
+        sb_raw = tr.get("state_board")
+        sb = sb_raw if isinstance(sb_raw, dict) else {}
+        if sb_raw is not None and not isinstance(sb_raw, dict):
+            malformed += 1
+        if sb:
+            boards += 1
+            cov = sb.get("coverage") if isinstance(sb.get("coverage"), dict) else {}
+            if cov.get("declined"):
+                declined.append(str(cov.get("declined")))
+            elif cov:
+                covs.append(cov)
+        d = tr.get("desk_register")
+        if isinstance(d, dict) and d:
+            dregs.append(d)
+    if not (covs or declined or dregs):
+        return []
+    n = len(rows) or 1
+    # THE PURE LINT, PER ROW, ON BOTH SIDES OF THE ARM (ruling R1). `lint_ctl` = rows whose trace
+    # carries NO `desk_register` key, i.e. the mandate was dark on that turn; `lint_trt` = rows that
+    # carry one. That key IS the discriminator: the answer seam writes it under `_desk_register_on()`
+    # and nowhere else. It runs AFTER the absent-when-inapplicable gate, so a deck with no board and no
+    # census does not pay a regex scan per row to be told it has nothing to report.
+    lint_ctl: list[int] = []
+    lint_trt: list[int] = []
+    for r in rows:
+        out = r.get("out") if isinstance(r.get("out"), dict) else {}
+        st = out.get("structured") if isinstance(out.get("structured"), dict) else {}
+        _fields = [v for v in (st.get("tldr"), st.get("mechanism")) if isinstance(v, str) and v.strip()]
+        if _fields:                      # a numbers_only / live turn carries neither field: no row, no 0
+            _tr = out.get("trace") if isinstance(out.get("trace"), dict) else {}
+            _lit = isinstance(_tr.get("desk_register"), dict)
+            (lint_trt if _lit else lint_ctl).append(sum(reg.count_desk_register(v) for v in _fields))
+
+    def _with(key: str) -> list[dict]:
+        """The coverage dicts that CARRY the key -- the denominator of every line below."""
+        return [c for c in covs if key in c]
+
+    def _tot(key: str, pool: list[dict] | None = None) -> int:
+        return sum(int(c.get(key) or 0) for c in (covs if pool is None else pool))
+
+    # THE HEADER PROMISES ONLY WHAT THE DECK HAS (R5). A census-only deck is a real shape -- the desk
+    # register has its own flag and a turn can carry the mandate with the board dark -- and a
+    # board-titled header over it is "absent is never zero" read from the other end.
+    L = [("## State board use (S7 coverage + S7b watch draw + desk register)" if boards
+          else "## Desk register (S7b: the mandate's lint + its one bounded rewrite)"), ""]
+    if boards:
+        L.append(f"- board turns: **{boards}/{n}** (rows whose trace carries `state_board`); of those, "
+                 f"{len(covs)} rendered rows a coverage instrument could read")
+    if malformed:
+        L.append(f"- **rows whose `state_board` trace is not a mapping: {malformed}** -- counted and "
+                 f"named rather than scored: the shape carries no coverage this panel can read")
+    if declined:
+        L.append(f"- **boards that DECLINED: {len(declined)}** -- "
+                 f"{dict(collections.Counter(declined))} (a declined coverage dict scores nothing, by "
+                 f"design: the instrument stamps its own failure rather than reporting a fabricated 0)")
+    su = [(r.get("judge") or {}).get("state_use") for r in rows]
+    su = [float(x) for x in su if isinstance(x, (int, float))]
+    if su:
+        L.append(f"- judge **state_use avg {statistics.mean(su):.1f}/5** over {len(su)} scored row(s) "
+                 f"(None on every row whose turn carried no board -- the `dir_trace` idiom, never a 0)")
+    if covs:
+        L.append(f"- loud state rows **CITED by handle {_tot('loud_cited')}/{_tot('loud_rows')}** | "
+                 f"referenced {_tot('loud_referenced')}/{_tot('loud_rows')} (of which "
+                 f"{_tot('loud_figure_only')} matched on the row's own figure with NO handle -- a "
+                 f"looser read, reported apart and never blended into the tight one)")
+        L.append(f"- OPEN dated-event rows referenced: {_tot('events_referenced')}/"
+                 f"{_tot('events_open')} | per-layer RECENCY rows stated as layer facts: "
+                 f"{_tot('recency_referenced')}/{_tot('recency_rows')}")
+        L.append(f"- far SPILLOVER rows named: {_tot('spillover_referenced')}/"
+                 f"{_tot('spillover_rows')} | turns that minted the cross-commodity licence line: "
+                 f"{sum(1 for c in covs if c.get('spillover_licensed'))}/{len(covs)}")
+    # THE WATCH DRAW, AND THE TWO COUNTERS ARE NEVER ADDED TOGETHER. `watch_bullets` is the SHIPPED
+    # per-BULLET read (S7b round 4); `watch_referenced` is the RETIRED per-SENTENCE one, which scored
+    # 5 of 37 on three pages a hand read scored 13 of 13. A turn has exactly one of them, so the panel
+    # prints whichever population it has and NAMES which counter produced the number -- the handoff's
+    # closing instruction ("read BoardWatchReferenced against the NEW counter, not the old one") as a
+    # line of report rather than as a sentence someone has to remember.
+    wb = _with("watch_bullets")
+    if wb:
+        _bul = _tot("watch_bullets", wb)
+        L.append(f"- **WATCH bullets shipped: {_bul}** over {len(wb)} turn(s) "
+                 f"(mean {_bul / len(wb):.1f}; the tier ceilings are 3 / 5 / 7) | nominations used "
+                 f"{_tot('watch_candidates_used', wb)}/{_tot('watch_candidates', wb)} (the block "
+                 f"nominates 2N for a ceiling of N and the writer cuts, so a low ratio is the draw's "
+                 f"own design) | **bullets resting on NO nomination: {_tot('watch_writer_added', wb)}** "
+                 f"| turns that printed the honest-absence line: "
+                 f"{sum(1 for c in wb if c.get('watch_admitted_zero'))}")
+    ws = [c for c in _with("watch_rows") if "watch_bullets" not in c]
+    if ws:
+        L.append(f"- WATCH rows carried into the answer: {_tot('watch_referenced', ws)}/"
+                 f"{_tot('watch_rows', ws)} over {len(ws)} turn(s) -- the RETIRED per-SENTENCE read, "
+                 f"which is what a `GRAPHRAG_WATCH_NONOBVIOUS`-off turn still produces. NOT comparable "
+                 f"with the bullet line above and never summed with it")
+    rl = _with("register_lingo_hits")
+    if rl:
+        L.append(f"- instrument words left in the answer AFTER the bounded rewrite: "
+                 f"{_tot('register_lingo_hits', rl)} over {len(rl)} turn(s); sentences the rewrite "
+                 f"changed: {_tot('register_lingo_rewritten', rl)}. REGISTER, not grounding -- a word "
+                 f"named the instrument instead of the market and no figure moved")
+    ra = _with("register_adjectives_licensed")
+    if ra:
+        L.append(f"- bar adjectives whose own cited figure clears the desk's band: "
+                 f"{_tot('register_adjectives_licensed', ra)}; corrected with the figure and the band "
+                 f"named beside the word: {_tot('register_adjectives_corrected', ra)}; struck: "
+                 f"{_tot('register_adjectives_struck', ra)} (the correcting fence never strikes)")
+    ru = _with("register_adjectives_unbacked")
+    if ru:
+        L.append(f"- **valuation adjectives shipped with NO figure beside them: "
+                 f"{_tot('register_adjectives_unbacked', ru)}** over {len(ru)} turn(s) (banked "
+                 f"baseline 19 / 878 sentences). Words are free under the licence -- this counts them, "
+                 f"it does not judge them, and no bar is put on it here")
+    # ── THE DESK REGISTER: TWO LINES, TWO POPULATIONS, NEVER ONE SENTENCE (ruling R1) ────────────────
+    # ...and ONLY on a deck that carries the register dimension at all (round-2 verify minor): a
+    # board-only deck has no desk census on any row, and a control-side lint count over it would read
+    # as a mandate line about a mandate that was never in the arm. Absent is never zero.
+    if dregs and (lint_ctl or lint_trt):
+        _mc = statistics.mean(lint_ctl) if lint_ctl else None
+        _mt = statistics.mean(lint_trt) if lint_trt else None
+        if lint_ctl and lint_trt:
+            _mand = (f"control **{_mc:.1f}** -> treatment **{_mt:.1f}** "
+                     f"({len(lint_ctl)} / {len(lint_trt)} answer(s))")
+        elif lint_trt:
+            _mand = (f"treatment **{_mt:.1f}** over {len(lint_trt)} answer(s); NO mandate-dark answer "
+                     f"in these rows, so THE DIFFERENCE IS NOT IN THIS PANEL -- read it against the "
+                     f"control cell's own rows (this panel takes both cells' rows together) and never "
+                     f"against the rewrite's delta below")
+        else:
+            _mand = (f"control **{_mc:.1f}** over {len(lint_ctl)} answer(s); NO mandate-lit answer in "
+                     f"these rows, so THE DIFFERENCE IS NOT IN THIS PANEL -- read it against the "
+                     f"treatment cell's own rows (this panel takes both cells' rows together)")
+        L += ["",
+              f"- **DESK REGISTER -- THE MANDATE (a CROSS-CELL number): shipped lint hits per answer: "
+              f"{_mand}.** The PURE lint (`register.count_desk_register`: no model call, no flag) over "
+              f"each row's own banked `tldr` + `mechanism`, with the rows split by whether that turn "
+              f"carried the mandate (`trace['desk_register']`, which the answer seam writes under "
+              f"`GRAPHRAG_DESK_REGISTER`, inside the verifier gate, and nowhere else)",
+              f"- the S7b smoke measured THIS SAME PURE LINT at **51 with the mandate ABSENT (arm S6B) "
+              f"vs 5 with it LIT (arm R4)** over three real-seat answers of the same length "
+              f"(15.31 vs 1.47 per thousand words). TWO PROMPT ARMS, ONE CENSUS, no rewrite in either "
+              f"-- it is NOT a before -> after inside one cell, and it must never be quoted beside one",
+              f"- the lint's SCOPE is the model's own `tldr` + `mechanism` fields, NOT the served page "
+              f"(the mermaid block and the `## Sources` footer are outside it), so these numbers and "
+              f"the 195/9 whole-answer baselines are two populations and must not be quoted against "
+              f"each other"]
+    if dregs:
+        before = sum(int(d.get("hits_before") or 0) for d in dregs)
+        after = sum(int(d.get("hits_after") or 0) for d in dregs)
+        # THE TAIL CLAUSE POINTS AT A LINE ONLY WHEN THAT LINE EXISTS. A deck whose mandate-lit rows
+        # carry no `tldr`/`mechanism` at all (numbers_only / live turns) renders no mandate line, and
+        # a sentence referring a reader to a number that is not on the page is the defect R1 closed.
+        _tail = ("a decomposition of the treatment number above, never a substitute for it and never "
+                 "the mandate's own effect" if (lint_ctl or lint_trt) else
+                 "NOT the mandate's effect -- and no mandate line is on this page, because these rows "
+                 "carry no `tldr`/`mechanism` for the pure lint to read")
+        L.append(f"- **the bounded REWRITE: hits before -> after on the treatment turns that fired it: "
+                 f"{before} -> {after} over {len(dregs)} answer(s)** (mean {before / len(dregs):.2f} -> "
+                 f"{after / len(dregs):.2f} per answer). This is the REMEDY's own delta INSIDE the "
+                 f"mandate-lit cell -- {_tail}")
+        _out = collections.Counter(str(d.get("outcome") or "") for d in dregs)
+        L.append(f"- rewrite: charged sentences {sum(int(d.get('sentences') or 0) for d in dregs)}, "
+                 f"offered {sum(int(d.get('offered') or 0) for d in dregs)}, "
+                 f"**accepted {sum(int(d.get('rewritten') or 0) for d in dregs)}**; outcomes "
+                 f"{dict(_out)}")
+        _ref: collections.Counter = collections.Counter()
+        for d in dregs:
+            for k, c in (d.get("refused") or {}).items():
+                _ref[str(k)] += int(c or 0)
+        if _ref:
+            L.append(f"- rewrite REFUSALS by reason: {dict(_ref)} -- a refusal leaves the writer's "
+                     f"sentence intact, which is the fence correcting rather than deleting")
+        _usd = [float(d["usd"]) for d in dregs if isinstance(d.get("usd"), (int, float))]
+        if _usd:
+            L.append(f"- rewrite spend: **${sum(_usd):.4f}** over {len(_usd)} turn(s) that called")
+        _ml = sum(int(d.get("multiline_skipped") or 0) for d in dregs)
+        if _ml:
+            L.append(f"- charged sentences the rewrite could not offer (they span lines): {_ml}")
+    return L
 
 def _n_halluc(j: dict) -> int:
     """Judge hallucination ITEM count, type-safe: a string-typed field is ONE claim, never its
@@ -4225,6 +4568,12 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
     if any((r["out"].get("trace") or {}).get("planner") == "l2" for r in rows):
         lines += planner_report(rows) + [""]                           # L2 grounded-subgraph cascade panel
     lines += register_report(rows) + [""]                              # output-register discipline (leaked internal tokens)
+    # PRE-ARM E7: the S7 / S7b instruments. ABSENT on a deck with no board and no desk-register census,
+    # so every banked report of every flag-off deck is byte-identical -- `state_report` returns [] and
+    # the `if` never adds the blank line either.
+    _state_panel = state_report(rows)
+    if _state_panel:
+        lines += _state_panel + [""]
     lines += verifier_panel(  # CYCLE-8 FIX 4: ids name the turns the citation verifier never ran on
         [(r["out"].get("trace") or {}).get("citation_verifier") for r in rows],
         [(r.get("q") or {}).get("id") for r in rows]) + [""]

@@ -702,3 +702,300 @@ def test_write_baseline_honours_a_commit_the_caller_already_set(tmp_path, monkey
     monkeypatch.setattr(gev, "_baseline_git_commit", lambda: "should-not-be-used")
     gev._write_baseline(_baseline_doc(git_commit="1234abcd"))
     assert _written(tmp_path)["git_commit"] == "1234abcd"
+
+
+# --- PRE-ARM D5 (2026-09-16, coherence audit JP-N): THE BOARD'S LIKE-STATE STANZA ------------------
+# `_judge_episodes_panel` reads `trace['episodes_injected']`, written SOLELY by the timeline leg, so on
+# a board turn it renders "(none ...)" while the block handed the writer dated LIKE-STATE windows --
+# and `_JUDGE_SYS` says "A dated window in NONE of the four sources IS a hallucination". The analog
+# OUTCOME rows escape (their [N] locator carries `period="{near}..{far}"`); the stanza HEADER, minted
+# by `render.sb_analog_header` with NO calls and dated IN WORDS, reaches no panel in any spelling.
+# That is W4-N1 re-minted: a feature that RAISES the hallucination count mechanically, on arm A's own
+# acceptance metric.
+
+def _board_out(answer="## Mechanism\nx [N1]\n", coverage=None, desk=None):
+    """A judged record with (or without) a board. `coverage=None` means NO board at all."""
+    tr = {"planner": "l2", "kept": [], "active": []}
+    if coverage is not None:
+        tr["state_board"] = {"coverage": coverage, "anchors": ["corn_cbot"], "mode": "deep"}
+    if desk is not None:
+        tr["desk_register"] = desk
+    return {"answer": answer, "intent": "reasoning", "evidence": [], "citations": [],
+            "number_calls": [], "trace": tr,
+            "structured": {"tldr": "", "mechanism": answer, "sources": []}}
+
+
+_COV = {"loud_k": 3, "loud_rows": 5, "loud_cited": 4, "loud_referenced": 4, "loud_figure_only": 0,
+        "events_open": 2, "events_referenced": 1, "events_closed": 1, "events_unplaced": 0,
+        "recency_rows": 3, "recency_referenced": 2,
+        "watch_rows": 9, "watch_referenced": 5, "watch_cited": 3, "watch_figure_only": 1,
+        "spillover_rows": 4, "spillover_referenced": 2, "spillover_same_board_rows": 1,
+        "spillover_licensed": True,
+        "missed": {"loud": (), "events": (), "recency": (), "watch": (), "spillover": ()}}
+
+
+def _judged_prompt(out):
+    cap = {}
+
+    def fake_call(client, sys_blocks, user, model=None, max_tokens=None, tool=None):
+        cap["user"] = user
+        return ({"usefulness": 4, "convexity": 4, "point_in_time": 4, "grounding": 4,
+                 "source_diversity": 4, "mechanism_voice": 4, "gaps": [], "verdict": "ok"}, None)
+
+    gev.judge({"question": "q", "asof": "2026-09-08"}, out, call=fake_call)
+    return cap["user"]
+
+
+def test_a_board_turn_tells_the_judge_the_like_state_stanza_is_shown_ground_truth():
+    """THE CLAUSE IS THE FIX, AND IT NAMES THE CONSTRUCTION FACT. The stanza header carries no [N] and
+    names its date in WORDS, so it appears in none of the four panels by construction -- not because
+    the answer invented it. The clause says so, and says what is STILL a hallucination."""
+    user = _judged_prompt(_board_out(coverage=dict(_COV)))
+    assert "LIKE-STATE stanzas are a FIFTH source" in user
+    assert "IN WORDS, with no [N] handle" in user
+    assert "do NOT list them under hallucinations" in user
+    # IT DOES NOT WIDEN THE STANDARD -- both halves of the old rule are restated inside the clause.
+    assert "IS still a hallucination" in user
+    assert "NARRATED over a window the record shows only as a" in user
+    # it sits with the other state rubric and NEVER inside _JUDGE_SYS, the one shared cache-controlled
+    # prefix every judged row of every deck in the estate pays for
+    assert gev._JUDGE_STATE_ANALOG not in gev._JUDGE_SYS
+    assert user.index("STATE BOARD USE ON THIS TURN") < user.index("LIKE-STATE stanzas are a FIFTH")
+
+
+def test_a_turn_with_no_board_is_byte_identical_and_never_sees_the_like_state_clause():
+    """DARK BY THE SAME CONDITION `_JUDGE_STATE_USE` USES. No board -> no `sb_text` -> the whole
+    segment is omitted, so every flag-off row of every deck in the estate is unmoved."""
+    user = _judged_prompt(_board_out(coverage=None))
+    assert "LIKE-STATE stanzas" not in user
+    assert "STATE BOARD USE ON THIS TURN" not in user
+    assert gev._judge_state_panel(_board_out(coverage=None)) == ""
+    # a DECLINED coverage dict renders no COVERAGE panel either -- the instrument stamps its own
+    # failure, and a judge asked to score `state_use` off a broken instrument would be scoring a
+    # fabricated zero. That is about the COUNTS; the clause is about the stanzas, and rides separately.
+    assert gev._judge_state_panel(_board_out(coverage={"declined": "pg_not_live"})) == ""
+
+
+def test_a_declined_board_still_gets_the_like_state_clause_and_still_scores_no_state_use():
+    """ROUND-2 RULING R5. `_judge_state_panel` returns "" for TWO different turns and round 1 keyed the
+    clause on that emptiness. A DECLINED board RENDERED -- the writer saw the block, like-state stanzas
+    included -- and only the counter broke, so it is exactly the turn whose stanza month-and-year a
+    judge would otherwise charge as a hallucination. The clause ships there; the counts and the
+    `state_use` score do not, because there is nothing to count."""
+    out = _board_out(coverage={"declined": "pg_not_live"})
+    user = _judged_prompt(out)
+    assert gev._JUDGE_STATE_ANALOG in user
+    assert "coverage instrument DECLINED" in user
+    # NO counts, NO `state_use` rubric, and no register/watch clause: those are the panel's, not the board's
+    assert "STATE BOARD USE ON THIS TURN" not in user
+    assert gev._JUDGE_STATE_USE not in user
+    assert gev._JUDGE_STATE_WATCH not in user and gev._JUDGE_STATE_REGISTER not in user
+    # and the tool schema still omits `state_use`, which is keyed on the panel and not on the board
+    assert "state_use" not in str(gev._judge_tool(state_use=False))
+    # THE NO-BOARD TURN IS STILL BYTE-IDENTICAL: there is no board to have shown a stanza
+    assert gev._JUDGE_STATE_ANALOG not in _judged_prompt(_board_out(coverage=None))
+    assert "coverage instrument DECLINED" not in _judged_prompt(_board_out(coverage=None))
+
+
+def test_the_like_state_clause_ships_beside_the_watch_and_register_clauses_not_instead_of_them():
+    """THREE CONSTANTS, THREE CONDITIONS. The watch and register clauses ride their own panel LINES
+    (their instruments carry their own flags); this one rides the BOARD, because the stanza is part of
+    the board itself and has no flag of its own."""
+    cov = dict(_COV)
+    cov.update({"watch_candidates": 10, "watch_candidates_used": 4, "watch_candidates_cited": 3,
+                "watch_bullets": 5, "watch_writer_added": 1, "watch_admitted_zero": False,
+                "register_lingo_hits": 2, "register_lingo_rewritten": 1,
+                "register_adjectives_licensed": 3, "register_adjectives_corrected": 1,
+                "register_adjectives_struck": 0, "register_adjectives_unbacked": 1})
+    user = _judged_prompt(_board_out(coverage=cov))
+    for clause in (gev._JUDGE_STATE_USE, gev._JUDGE_STATE_ANALOG,
+                   gev._JUDGE_STATE_WATCH, gev._JUDGE_STATE_REGISTER):
+        assert clause in user
+    # the analog clause is unconditional-on-board; the other two are not
+    plain = _judged_prompt(_board_out(coverage=dict(_COV)))
+    assert gev._JUDGE_STATE_ANALOG in plain
+    assert gev._JUDGE_STATE_WATCH not in plain and gev._JUDGE_STATE_REGISTER not in plain
+
+
+# --- PRE-ARM E7 (2026-09-16, coherence audit JP-G): THE REPORT SURFACE FOR S7 AND S7b --------------
+# `_metrics` carried `state_use` and NOTHING read it; `desk_register` / `count_desk_register` appeared
+# ZERO times in eval.py, so the S7b headline -- the SAME PURE LINT reading 51 hits on the no-mandate
+# prompt arm (S6B) and 5 on the mandate-lit one (R4), over three real-seat answers of the same length
+# -- had no aggregation surface and the arm could not report what it was run to measure.
+#
+# ROUND-2 RULING R1: THE MANDATE'S NUMBER IS A CROSS-CELL DIFFERENCE AND THE ROWS BELOW FEED IT AS ONE.
+# Round 1 pinned a SYNTHETIC census (`{hits_before: 51, hits_after: 5}`) and asserted the panel rendered
+# "51 -> 5" -- a rendering no real trace can produce, because the lint runs only under the same flag
+# that appends the mandate, so `hits_before` is never a no-mandate count. These rows feed two CELLS'
+# ANSWER TEXTS through the pure lint instead, which is the measurement the smoke actually made.
+
+#: A real mandate-DARK body: nine desk-register hits, measured (`register.count_desk_register`).
+_LINT_CONTROL_BODY = ("The board is loud on corn: three rows have spent their knowledge date and the "
+                      "node fired late. The walk into soybeans is the loudest receipt on the board.")
+#: The same content written to the mandate: one hit, measured.
+_LINT_TREATMENT_BODY = ("Corn is the largest move on the market, read through 2026-09-05. Two series "
+                        "are read through older dates, and one row of the record still lags.")
+
+
+def _srow(out, judge=None):
+    return {"q": {"id": "q1", "contract": "corn_cbot", "question": "x"}, "out": out,
+            "rubric": {"routed_right": True, "needs_evidence": False}, "judge": judge or {}}
+
+
+def test_state_report_is_absent_on_a_deck_with_no_board_and_no_lint_census():
+    """ABSENT-WHEN-INAPPLICABLE, like every instrument it aggregates. A panel of zeros would invite a
+    reader to compare a dimension that did not exist."""
+    assert gev.state_report([]) == []
+    assert gev.state_report([_srow(_board_out(coverage=None))]) == []
+    # and the report() assembly adds nothing at all -- not even the blank line
+    body = gev.report([_srow(_board_out(coverage=None))], model="claude-opus-5")
+    assert "## State board use" not in body
+
+
+def test_state_report_aggregates_the_coverage_read_and_the_desk_register_census():
+    """THE THREE THINGS S7b BUILT, in one panel: the per-BULLET watch counter, the licence's unbacked
+    count, and the lint's before -> after."""
+    cov = dict(_COV)
+    cov.update({"watch_candidates": 10, "watch_candidates_used": 4, "watch_candidates_cited": 3,
+                "watch_bullets": 5, "watch_writer_added": 1, "watch_admitted_zero": True,
+                "register_lingo_hits": 2, "register_lingo_rewritten": 1,
+                "register_adjectives_licensed": 3, "register_adjectives_corrected": 1,
+                "register_adjectives_struck": 0, "register_adjectives_unbacked": 4})
+    desk = {"hits_before": 7, "hits_after": 1, "sentences": 9, "offered": 6, "rewritten": 4,
+            "outcome": "rewritten", "usd": 0.0123, "refused": {"edit_outside_table": 2}}
+    L = gev.state_report([_srow(_board_out(answer=_LINT_TREATMENT_BODY, coverage=cov, desk=desk),
+                                judge={"state_use": 4})])
+    body = "\n".join(L)
+    assert body.startswith("## State board use")
+    assert "state_use avg 4.0/5" in body
+    assert "CITED by handle 4/5" in body
+    assert "WATCH bullets shipped: 5" in body and "nominations used 4/10" in body
+    assert "bullets resting on NO nomination: 1" in body
+    assert "valuation adjectives shipped with NO figure beside them: 4" in body
+    # THE REWRITE'S DELTA IS ITS OWN LINE, WITH ITS OWN LABEL AND ITS OWN POPULATION (R1)
+    assert "the bounded REWRITE: hits before -> after on the treatment turns that fired it: 7 -> 1" in body
+    assert "accepted 4" in body and "edit_outside_table" in body
+    assert "$0.0123" in body
+    # THE TWO POPULATIONS ARE NAMED WHERE THEY DIFFER -- the census is tldr+mechanism, not the page
+    assert "`tldr` + `mechanism`" in body
+    # NO BAR IS PUT ON ANY NUMBER: the panel says what the counters are, never what they should be
+    assert "it does not judge them" in body
+
+
+def test_the_mandate_line_is_a_cross_cell_read_of_the_pure_lint_over_two_cells_answers():
+    """RULING R1. The mandate number is the PURE lint (no model call, no flag) over each cell's OWN
+    banked body, split by whether that turn carried the mandate -- never the rewrite's before -> after,
+    which is a delta INSIDE the treatment cell and cannot see the control at all."""
+    ctl = _srow(_board_out(answer=_LINT_CONTROL_BODY, coverage=dict(_COV)))
+    trt = _srow(_board_out(answer=_LINT_TREATMENT_BODY, coverage=dict(_COV),
+                           desk={"hits_before": 3, "hits_after": 1, "sentences": 2, "offered": 2,
+                                 "rewritten": 2, "outcome": "rewritten", "usd": 0.002}))
+    body = "\n".join(gev.state_report([ctl, trt]))
+    # 9 hits on the mandate-dark body, 1 on the mandate-lit one -- both measured by the real lint
+    assert "shipped lint hits per answer: control **9.0** -> treatment **1.0** (1 / 1 answer(s))" in body
+    # the two lines are never the same sentence, and the rewrite's line says whose delta it is
+    assert "the bounded REWRITE: hits before -> after on the treatment turns that fired it: 3 -> 1" in body
+    # THE SMOKE'S NUMBER IS RE-STATED AS WHAT IT WAS: two prompt arms, one census, no rewrite
+    assert "51 with the mandate ABSENT (arm S6B)" in body and "5 with it LIT (arm R4)" in body
+    assert "NOT a before -> after inside one cell" in body
+    # and it is never rendered as an X -> Y beside a same-census delta
+    assert "51 -> 5" not in body
+
+
+def test_a_single_cell_deck_says_the_difference_is_not_in_this_panel():
+    """ABSENT IS NEVER ZERO, applied to a DIFFERENCE. One cell's rows cannot produce a cross-cell
+    number, so the panel prints the side it has and says where the other one lives -- it never
+    borrows the rewrite's delta to fill the gap."""
+    trt = _srow(_board_out(answer=_LINT_TREATMENT_BODY, coverage=dict(_COV),
+                           desk={"hits_before": 3, "hits_after": 1, "outcome": "rewritten"}))
+    body = "\n".join(gev.state_report([trt]))
+    assert "treatment **1.0** over 1 answer(s)" in body
+    assert "NO mandate-dark answer in these rows" in body
+    assert "THE DIFFERENCE IS NOT IN THIS PANEL" in body
+    # a CONTROL-ONLY read carries no desk census on any row and is therefore indistinguishable from a
+    # board-only deck: the panel prints NO mandate line at all (absent is never zero; the control side
+    # appears only in a merged two-cell read -- round-2 verify minor).
+    ctl = _srow(_board_out(answer=_LINT_CONTROL_BODY, coverage=dict(_COV)))
+    cbody = "\n".join(gev.state_report([ctl]))
+    assert "control **9.0**" not in cbody and "mandate" not in cbody.lower()
+    # ...and the merged read prints both sides
+    mbody = "\n".join(gev.state_report([ctl, trt]))
+    assert "control **9.0** -> treatment **1.0** (1 / 1 answer(s))" in mbody
+
+
+def test_state_report_never_raises_on_a_non_dict_state_board_and_names_the_shape():
+    """R5 MINOR. `report()` runs ONCE per deck after a paid arm, so an AttributeError here loses the
+    whole artifact rather than one row. `answer.py:5178` guards the same key with `isinstance`; this
+    panel counts the malformed shape and names it rather than swallowing it."""
+    bad = _srow(_board_out(answer=_LINT_TREATMENT_BODY, coverage=dict(_COV)))
+    bad["out"]["trace"]["state_board"] = "pg_not_live"            # truthy, not a mapping
+    L = gev.state_report([bad, _srow(_board_out(coverage=dict(_COV)))])
+    body = "\n".join(L)
+    assert "`state_board` trace is not a mapping: 1" in body
+    assert "board turns: **1/2**" in body                          # the malformed row is not a board
+
+
+def test_a_census_only_deck_gets_no_board_line_and_no_board_titled_header():
+    """R5 MINOR, the other end of 'absent is never zero': a deck carrying ONLY a desk-register census
+    has no board, so a `0/N` board line under a board-titled header invents the dimension it denies."""
+    out = _board_out(answer=_LINT_TREATMENT_BODY, coverage=None,
+                     desk={"hits_before": 4, "hits_after": 2, "outcome": "rewritten"})
+    body = "\n".join(gev.state_report([_srow(out)]))
+    assert body.startswith("## Desk register (S7b")
+    assert "## State board use" not in body
+    assert "board turns:" not in body
+    assert "treatment **1.0** over 1 answer(s)" in body
+
+
+def test_state_report_never_sums_the_retired_watch_counter_with_the_shipped_one():
+    """`watch_bullets` is the per-BULLET read (S7b round 4); `watch_referenced` is the RETIRED
+    per-SENTENCE one that scored 5 of 37 on pages a hand read scored 13 of 13. A turn has exactly one
+    of them, and the panel names which counter produced its number."""
+    off = gev.state_report([_srow(_board_out(coverage=dict(_COV)))])          # flag off: retired read
+    assert any("RETIRED per-SENTENCE read" in ln for ln in off)
+    assert not any("WATCH bullets shipped" in ln for ln in off)
+    on_cov = dict(_COV)
+    on_cov.update({"watch_candidates": 8, "watch_candidates_used": 3, "watch_bullets": 3,
+                   "watch_writer_added": 0, "watch_admitted_zero": False})
+    on = gev.state_report([_srow(_board_out(coverage=on_cov))])
+    assert any("WATCH bullets shipped" in ln for ln in on)
+    assert not any("RETIRED per-SENTENCE read" in ln for ln in on)
+
+
+def test_state_report_counts_a_declined_board_and_never_scores_it():
+    """A declined coverage dict is a board that FAILED, not a board that scored 0. It is counted and
+    named, and it contributes to no numerator and no denominator."""
+    L = gev.state_report([_srow(_board_out(coverage={"declined": "pg_not_live"})),
+                          _srow(_board_out(coverage=dict(_COV)))])
+    body = "\n".join(L)
+    assert "boards that DECLINED: 1" in body and "pg_not_live" in body
+    assert "board turns: **2/2**" in body and "1 rendered rows" in body
+    assert "CITED by handle 4/5" in body                     # the declined row is not in the ratio
+
+
+def test_report_renders_the_state_panel_on_a_board_deck():
+    """The panel reaches the report a human reads, and only when there is something in it."""
+    body = gev.report([_srow(_board_out(coverage=dict(_COV)), judge={"state_use": 5})],
+                      model="claude-opus-5", judge_requested=True)
+    assert "## State board use" in body
+    assert "state_use avg 5.0/5" in body
+
+
+def test_register_report_no_longer_claims_to_be_the_whole_complement():
+    """It reads the pre-S7b leak list and nothing else; `desk_register` is a different population with
+    a different remedy on a different trace key. The docstring says so now, and names its partner."""
+    doc = gev.register_report.__doc__ or ""
+    assert "the deterministic complement to the judge\'s register read" not in doc
+    assert "state_report" in doc and "desk_register" in doc
+
+
+def test_state_report_prints_no_desk_register_lines_on_a_board_only_deck():
+    """A deck whose rows carry a board and no desk census has no register dimension: no mandate line, no
+    rewrite line, no smoke sentence (round-2 verify minor -- absent is never zero)."""
+    cov = dict(_COV)
+    cov.update({"watch_candidates": 10, "watch_candidates_used": 4, "watch_candidates_cited": 3,
+                "watch_bullets": 5, "watch_writer_added": 1, "watch_admitted_zero": True})
+    L = gev.state_report([_srow(_board_out(answer=_LINT_TREATMENT_BODY, coverage=cov), judge={"state_use": 4})])
+    body = "\n".join(L)
+    assert body.startswith("## State board use")
+    assert "shipped lint hits" not in body and "mandate" not in body.lower() and "51" not in body

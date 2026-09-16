@@ -19,12 +19,20 @@
 #                         submission under `--from-taskdef`. This is the parity half.
 #   never_copy         -- "serving sets this and the arm must NOT". Each carries its one-line reason.
 #                         The parity WARNING honours this list, so it stops crying about GRAPHRAG_AUTH.
+#                         NOTHING UNDECIDED LIVES HERE ANY MORE: an undecided key filed under
+#                         never_copy is silenced by construction (see `open_decisions` at the tail),
+#                         which is how GRAPHRAG_RERANK_BACKEND went five days without a single line of
+#                         output. It is a `copy_from_taskdef` key now.
 #   arm_only           -- "the arm sets this and serving does not". The dark legs lit in BOTH cells, the
-#                         strip audit, and the arm's own flag.
+#                         strip audit, and the rerank dispatch width. The arm's own TREATMENT flags are
+#                         NOT here: they are `arm_flags`, declared as a list and lit per cell.
 #
 # NOT AN ARM CONCERN, AND NAMED SO NOBODY ADDS IT: secrets and ports CANNOT be set through a Batch
 # `containerOverrides` at all. `ANTHROPIC_API_KEY` and `EVIDENCE_PG_DSN` must be ON THE JOB DEFINITION
-# (`leviathan-dev-graphrag-eval:14` already carries both). See `job_definition` below.
+# (`leviathan-dev-graphrag-eval:14` already carries both). `COHERE_API_KEY` must be there too as of
+# ruling R3 -- :14 does NOT carry it, so every submission REFUSES until the repin lands, which is the
+# correct outcome rather than a blocker: an arm that cannot reach the backend it declares is an arm
+# measuring a seat nobody serves. See `job_definition` below.
 
 schema: arm_env_base/v1
 
@@ -51,11 +59,26 @@ job_definition:
   secrets_required_on_jobdef:
     - ANTHROPIC_API_KEY
     - EVIDENCE_PG_DSN
+  # A SECRET THAT ONE VALUE OF ONE KEY MAKES MANDATORY (orchestrator decision R3, 2026-09-16). The list
+  # above is unconditional; this one is graded against the env THIS submission will send
+  # (`submit_eval.env_conditional_secrets`), and it REFUSES rather than warns for the same reason:
+  # a Batch containerOverrides cannot set secrets at all, so nothing at the prompt can repair it.
+  # `leviathan-dev-graphrag-eval:14` does NOT carry COHERE_API_KEY today, so until the orchestrator's
+  # repin lands the refusal IS the correct outcome -- an arm that reranks on a backend it cannot reach
+  # is worse than an arm that does not start.
+  secrets_required_by_env:
+    - key: GRAPHRAG_RERANK_BACKEND
+      value: cohere
+      secret: COHERE_API_KEY
+      why: >-
+        `rankers._rerank_backend()` defaults to bge and reaches the NATIVE Cohere client only with this
+        secret in the container env; there is no Bedrock fallback and there must not be one (owner law
+        2026-09-15). The secret lands on leviathan-dev-graphrag-eval at the next repin.
   # IN-VPC OR THE ARM MEASURES NOTHING (design 10.3, desk_cost F15): off-VPC the board declines
   # `pg_not_live` on every turn. `GRAPHRAG_NUMBERS_BACKEND=pg` + EVIDENCE_PG_DSN are the two halves.
   queue: leviathan-dev-queue-ondemand
 
-# ── COPY FROM THE TASKDEF (42) ──────────────────────────────────────────────────────────────────────
+# ── COPY FROM THE TASKDEF (43) ──────────────────────────────────────────────────────────────────────
 # Every one of these CHANGES THE MEASURED ANSWER. The five that decide an arm are called out; the rest
 # are the estate's shipped legs, copied so the board is measured against the estate it will live in.
 copy_from_taskdef:
@@ -121,8 +144,19 @@ copy_from_taskdef:
   GRAPHRAG_TIMELINE: 'on'
   GRAPHRAG_TLDR_COHERENCE: 'on'
   GRAPHRAG_TRIVIAL_ROUTER: 'on'
+  # -- SEAT PARITY ON THE RERANK BACKEND. ORCHESTRATOR DECISION R3, 2026-09-16: this key spent five
+  #    days parked in `never_copy` AND in `open_decisions`, which meant the arm silently reranked on
+  #    local bge while production reranks on Cohere -- the definition of "an arm measuring a seat
+  #    nobody serves", which is the first sentence of this file. It is a COPY now, at serving:133's own
+  #    value, and the one thing that made it hard is enforced rather than argued: the eval jobdef has
+  #    to carry COHERE_API_KEY, and `job_definition.secrets_required_by_env` above REFUSES the
+  #    submission until it does. NEVER BEDROCK (owner law 09-15) -- this is the NATIVE Cohere key
+  #    (1,000/min since D-MW P1), not the Bedrock rerank lane and not a Bedrock fallback.
+  #    IT IS CONSTANT ACROSS BOTH CELLS, so the judged delta is unaffected either way; what changes is
+  #    that the delta is now measured on the retrieval production actually runs.
+  GRAPHRAG_RERANK_BACKEND: cohere
 
-# ── NEVER COPY (25) ─────────────────────────────────────────────────────────────────────────────────
+# ── NEVER COPY (24) ─────────────────────────────────────────────────────────────────────────────────
 # Each reason is the one sentence that says what copying it would DO, not that it is "serving-only".
 never_copy:
   # auth / identity -- a Batch job has no HTTP surface
@@ -156,13 +190,12 @@ never_copy:
   GRAPHRAG_HF_S3_CACHE: an image concern -- the eval image bakes its own model cache
   EVIDENCE_PG_POOL: serving-shaped pool sizing; the eval's concurrency is --workers
   EVIDENCE_PG_STATEMENT_TIMEOUT_MS: serving-shaped timeout; the eval's own wall is the job timeout
-  # THE TRAP, AND IT MUST BE DECIDED RATHER THAN DEFAULTED (see `open_decisions` below)
-  GRAPHRAG_RERANK_BACKEND: a GENUINE parity var with NO COHERE_API_KEY on the eval jobdef -- copying it blind silently degrades or fails; decide it, do not default it
 
-# ── ARM ONLY (5, plus the arm's own flag named below) ───────────────────────────────────────────────
-# The mapping holds FIVE keys. The sixth thing this section is about -- `arm_flag` -- is deliberately
-# NOT one of them, because it is the treatment and must be passed per cell; the header read "(6)" over
-# a mapping of five, and every other count in this file (42 / 25) is exact and asserted.
+# ── ARM ONLY (6, plus the arm's own flags named below) ──────────────────────────────────────────────
+# The mapping holds SIX keys. The thing this section is NOT about -- `arm_flags` -- is deliberately not
+# among them, because those are the treatment and must be passed per cell; the header once read "(6)"
+# over a mapping of five, and every count in this file (43 / 24 / 6, since ruling R3 moved
+# GRAPHRAG_RERANK_BACKEND from never_copy into copy_from_taskdef) is exact and asserted.
 # None of these is on the serving taskdef, and that is correct rather than a gap.
 arm_only:
   # THE FOUR DARK LEGS, LIT IN **BOTH** CELLS (design 10.3): the board must be measured against the
@@ -174,29 +207,80 @@ arm_only:
   # A LEGITIMATE DIVERGENCE, STATED RATHER THAN "FIXED": serving runs STRIP_AUDIT off, both arms run it
   # ON. Strip count is the estate's primary judge-free quality metric and the design names it.
   GRAPHRAG_STRIP_AUDIT: 'on'
-# The arm's OWN flags are not listed above because they ARE the treatment and must be passed per cell,
-# on the command line. `arm_flag` below is a SCALAR AND THE TREATMENT IS A SET (coherence audit
-# 2026-09-16, OS-A11 -- these lines said "the two cells differ by exactly one `--env`", which was true
-# when only GRAPHRAG_STATE_BOARD had a reader and is not true now):
+  # ORCHESTRATOR DECISION A2, 2026-09-16 (coherence audit OS-A12) -- A DISPATCH WIDTH, DECLARED AS
+  # RIDING **BOTH** CELLS. It was classified NOWHERE until today: not here, not in `copy_from_taskdef`,
+  # not in `never_copy`, not in `container_env_on_jobdef` -- and all three guards are blind to a key
+  # that exists only in an operator's intention, so a $30-55 arm could run it at the default and
+  # nobody would know. `rankers.py:265` defaults to **4**, so a `max` cell runs sixteen SEQUENTIAL
+  # rerank waves and charges the wall clock to the board; the bridge query's own docstring prices
+  # itself at +9 s deep / +13 s max WITH 16.
+  # THE RECORD CORRECTED, 2026-09-16 (round-2 ruling R3): that harm and that price are BOTH
+  # COHERE-ONLY. `_coalesce_group_workers()` is read at exactly one site, `_RerankCoalescer.
+  # _fire_concurrent` (rankers.py:936), which `_fire` reaches only under
+  # `if backend == "cohere" and len(groups) > 1` (rankers.py:909) -- so while this arm ran on the bge
+  # default the width was INERT and the quoted price was not the price this arm would see. The arm now
+  # runs `GRAPHRAG_RERANK_BACKEND=cohere` (see copy_from_taskdef), which is exactly what makes the
+  # sentence above true: the knob bites, and the bridge's measured price applies.
+  # It is FREE IN MONEY (a dispatch width,
+  # not a model call) and NEUTRAL ON THE CONTROL ARM (no `--env GRAPHRAG_BRIDGE_QUERY` there, so the
+  # rerank groups are HEAD's), which is exactly why it belongs in BOTH cells rather than in the
+  # treatment: a knob that changed only the treatment's latency would put the bridge's price inside
+  # the number the arm is trying to read. NOT in `arm_flags` below for the same reason -- it is not a
+  # treatment and must not contribute a job-name token that only one cell carries.
+  GRAPHRAG_RERANK_GROUP_WORKERS: '16'
+# The arm's OWN flags are not listed in `arm_only` above because they ARE the treatment and must be
+# passed per cell, on the command line. `arm_flags` below is a LIST AND THE TREATMENT IS A SET
+# (coherence audit 2026-09-16, OS-A11 -- these lines said "the two cells differ by exactly one `--env`",
+# which was true when only GRAPHRAG_STATE_BOARD had a reader and is not true now):
 #   treatment: --env GRAPHRAG_STATE_BOARD=on
 #              --env GRAPHRAG_WATCH_NONOBVIOUS=on           (producer + seam, 5c45f3e6)
 #              --env GRAPHRAG_BRIDGE_QUERY=on               (seam, 08252c6a)
 #              --env GRAPHRAG_REGISTER_LICENCE=on           ) HELD until pre-arm gate (i)(a) and
 #              --env GRAPHRAG_DESK_REGISTER=on              ) (i)(b) close -- see ARM_A_HANDOFF.md
-#   both cells: --env GRAPHRAG_RERANK_GROUP_WORKERS=16      (a dispatch width, NOT a treatment; it is
-#                                                            classified nowhere in this file -- OS-A12)
+#   both cells: GRAPHRAG_RERANK_GROUP_WORKERS=16            (a dispatch width, NOT a treatment; it now
+#                                                            rides `arm_only` above -- decision A2 --
+#                                                            so NO cell passes it with `--env`)
 #   control:   (nothing -- every flag above defaults off, and flag-off is byte-identical by construction)
+#
+# SPELL EVERY VALUE `on` -- AND SINCE 2026-09-16 THE SUBMITTER ENFORCES IT RATHER THAN ASKING (ruling
+# R2). The readers do not agree and this file did not say so (OS-A14): four of the five board-side
+# flags accept exactly `on|1|true`, `GRAPHRAG_BRIDGE_QUERY` accepts `1|true|yes|on` by its own
+# deliberate deviation -- so `--env GRAPHRAG_STATE_BOARD=yes` ran a CONTROL turn at treatment price
+# with no error anywhere, named and logged as a full treatment, and only section 5's `BoardFired == 1`
+# precondition caught it AFTER the spend (measured end to end against :14: EXIT 0, "5 of 5 declared
+# treatment flag(s) lit", job name `...-state-board-yes-wnyes-bqyes-dryes-rlyes`).
+# `submit_eval.arm_value_refusal` now REFUSES any declared flag whose value is outside `on|1|true`,
+# naming the key and the value, before the job name is built and on `--dry-run` too. A paragraph
+# telling an operator to be careful is the class of remedy that failed here; this is the check.
+# A CONTROL CELL DROPS THE `--env` PAIR -- it does not spell it `off`.
 #
 # WHICH OF THEM A CELL CARRIES IS THE OWNER'S DECISION and lives in the handoff, not here.
 #
-# `arm_flag` STAYS A SCALAR FOR BACK-COMPAT and is still what `submit_eval.py:805` reads to build the
-# Batch job-name suffix. That suffix exists for a MEASURED reason its own comment records: before
-# 2026-09-11 the treatment and control cells both rendered
-# `eval-eval-queries-state-arm-a-v1-claude-opus-5-deep`, and the Batch console is where a human kills
-# the wrong job. SO: a cell pair that differs by a flag OTHER than this scalar re-opens that ambiguity.
-# Making the suffix read a LIST (`arm_flags:`) is a declared code edit owing its own row in
-# tests/unit/test_submit_eval_parity.py -- DOCKETED, not done in a coherence pass.
-arm_flag: GRAPHRAG_STATE_BOARD
+# ORCHESTRATOR DECISION A3, 2026-09-16: `arm_flag` (a SCALAR) BECOMES `arm_flags` (A LIST), AND THE
+# SUBMITTER ITERATES IT. The scalar was what `submit_eval.py` read to build the Batch job-name suffix,
+# and that suffix exists for a MEASURED reason its own comment records: before 2026-09-11 the treatment
+# and control cells both rendered `eval-eval-queries-state-arm-a-v1-claude-opus-5-deep`, and the Batch
+# console is where a human kills the wrong job. A SCALAR RE-OPENED THAT AMBIGUITY ONE FLAG OVER: two
+# cells differing by `GRAPHRAG_WATCH_NONOBVIOUS` alone -- the S7b half of the treatment -- rendered two
+# IDENTICAL names. The list closes it: the suffix encodes the SET a cell actually lit, so no two cells
+# of this arm can share a name. The row is in tests/unit/test_submit_eval_parity.py.
+#
+# THE ORDER IS LOAD-BEARING AND `GRAPHRAG_STATE_BOARD` LEADS. The FIRST lit flag renders in full
+# (`-state-board-on`) and the rest render as initials (`-wn-bq-dr-rl`), so a cell that lights the board
+# ALONE renders exactly the name that shipped before this edit -- every banked S7 job name stays
+# readable against the console -- while a Batch name stays inside its 128-character limit with all five
+# lit. `submit_eval.arm_flag_names` still reads the old scalar when a base carries no list, so an
+# arm_env_base from before today parses and submits unchanged.
+#
+# WHICH OF THEM A CELL CARRIES IS STILL THE OWNER'S DECISION and lives in the handoff, not here: this
+# list is what the base DECLARES as treatment, and `--env` is what a cell LIGHTS. A flag declared here
+# and not passed contributes nothing to the name.
+arm_flags:
+  - GRAPHRAG_STATE_BOARD           # it IS the arm (landed 8300ec81)
+  - GRAPHRAG_WATCH_NONOBVIOUS      # the non-obvious watch draw (producer + seam, 5c45f3e6)
+  - GRAPHRAG_BRIDGE_QUERY          # the V2-retrieval bridge (dark at ba5fbcf6, seam at 08252c6a)
+  - GRAPHRAG_DESK_REGISTER         # ) HELD until pre-arm gate (i)(a) and (i)(b) close --
+  - GRAPHRAG_REGISTER_LICENCE      # ) see ARM_A_HANDOFF.md; declared here, lit per cell
 
 # Serving does NOT set these; the JOBDEF bakes them and they must stay. Listed so a jobdef repin that
 # drops one is visible here rather than at a container that cannot import its own package.
@@ -222,7 +306,7 @@ prior_base:
   graphrag_names: 26
 
 diff_vs_prior_base:
-  # ADDED (17) -- every one changes the measured answer; the first five decide arm A
+  # ADDED (18) -- every one changes the measured answer; the first five decide arm A
   added:
     - GRAPHRAG_SYNTH_MODEL
     - GRAPHRAG_NUMBERS_MODEL
@@ -241,12 +325,21 @@ diff_vs_prior_base:
     - GRAPHRAG_PG_ANN_EF
     - GRAPHRAG_PG_ANN_MST
     - GRAPHRAG_PG_ANN_MANIFEST
-  # ADDED BY THE ARM ITSELF (4) -- the dark legs, lit in BOTH cells
+    # ADDED 2026-09-16 by orchestrator decision R3: it was in `never_copy` (and in `open_decisions`)
+    # until today, so the prior base did not set it and the arm reranked on the bge default. It is a
+    # COPY now -- seat parity with serving:133 -- and the record names the move rather than leaving it
+    # to be inferred from a section that no longer mentions the key.
+    - GRAPHRAG_RERANK_BACKEND
+  # ADDED BY THE ARM ITSELF (5) -- the dark legs and the dispatch width, all lit in BOTH cells
   added_arm_only:
     - GRAPHRAG_EXTREME_LOCATOR
     - GRAPHRAG_RV_REGIONAL
     - GRAPHRAG_COT_OUTCOMES
     - GRAPHRAG_CASCADE_CONTEXT
+    # ADDED 2026-09-16 by orchestrator decision A2, and recorded here rather than left to the next
+    # re-bank: this file's own header says "record what moved under `diff_vs_prior_base`", and a key
+    # the arm now sets that no record names is the exact class the file exists to close.
+    - GRAPHRAG_RERANK_GROUP_WORKERS
   # CHANGED (1)
   changed:
     GRAPHRAG_MODES:
@@ -264,21 +357,19 @@ diff_vs_prior_base:
 # section (`open_decision_keys`), prints each question and fact as a WARNING, and EXITS unless the
 # operator passes `--accept-open-decision <KEY>` (or `ALL`); the accepted list rides the run record.
 # THAT GUARD EXISTS BECAUSE THIS SECTION WAS SILENCED BY CONSTRUCTION: an undecided key is filed under
-# `never_copy` (correctly -- see the reason there), and `never_copy` is the ONE section the parity
-# warning suppresses, `base_drift` never walks and `base_new_in_serving` counts as CLASSIFIED. MEASURED
-# 2026-09-11: a dry run with `--env-base` + `--from-taskdef leviathan-dev-serving:133` printed ZERO
-# lines about GRAPHRAG_RERANK_BACKEND, so a $30-55 arm would have submitted in total silence on the one
-# key this file's own words call "a GENUINE parity var" and "unresolved".
-open_decisions:
-  - key: GRAPHRAG_RERANK_BACKEND
-    question: cohere (prod parity) or local bge (today's silent default)?
-    fact: 'prod reranks with Cohere; leviathan-dev-graphrag-eval:14 carries NO COHERE_API_KEY secret, so copying the key today degrades or fails'
-    options:
-      - add COHERE_API_KEY to the eval jobdef and move the key into copy_from_taskdef
-      - leave it off and SAY, in the arm report, that the arm measured bge retrieval
-    owner: unresolved as of 2026-09-11
-    note: 'if cohere is chosen, the Bedrock quota lane caps concurrency -- drop to --workers 1'
-    # THE A/B SURVIVES EITHER WAY and that is why this is a report obligation rather than a blocker:
-    # the key is CONSTANT across both cells, so the judged delta is unaffected. What is affected is the
-    # sentence the arm report owes about what retrieval it measured -- today, local bge, not prod Cohere.
-    constant_across_cells: true
+# `never_copy`, and `never_copy` is the ONE section the parity warning suppresses, `base_drift` never
+# walks and `base_new_in_serving` counts as CLASSIFIED. MEASURED 2026-09-11: a dry run with
+# `--env-base` + `--from-taskdef leviathan-dev-serving:133` printed ZERO lines about
+# GRAPHRAG_RERANK_BACKEND, so a $30-55 arm would have submitted in total silence on the one key this
+# file's own words called "a GENUINE parity var" and "unresolved".
+#
+# THE LIST IS EMPTY, AND THAT IS A DECISION RATHER THAN AN OVERSIGHT (orchestrator ruling R3,
+# 2026-09-16). The one key parked here -- GRAPHRAG_RERANK_BACKEND -- is DECIDED: `cohere`, in
+# `copy_from_taskdef`, SEAT PARITY with serving:133, guarded by `job_definition.secrets_required_by_env`
+# so a jobdef without COHERE_API_KEY is refused at the prompt instead of measured at the console. The
+# reason it could not simply stay open is that its own A2 rationale depended on it: the rerank dispatch
+# width is read ONLY on the cohere lane (`rankers.py:909`), so with the key undecided the arm's
+# `GRAPHRAG_RERANK_GROUP_WORKERS=16` was inert and the bridge's quoted +9s/+13s price was not the price
+# this arm would pay -- a record contradicting itself three sections apart, which is the class commit
+# 975398dd exists to close. The machinery stays for the NEXT unmade decision; today there is none.
+open_decisions: []
