@@ -4115,9 +4115,12 @@ def check_state_board() -> list[str]:
     board's configs are graded by the SAME build gate as every other config in this file.
 
     IT DELEGATES AND MINTS NO SECOND COPY. `state.lint.check_state_board` is the one producer of those
-    eleven clauses (the lag table, the summed-band ban, the conventions, the calendar rules, the
+    twelve clauses (the lag table, the summed-band ban, the conventions, the calendar rules, the
     `board_read` map rows, the year_month publication lag, the country-ref pairing, the NASS roster,
-    the absence vocabulary, the row-class regex disjointness, and the narration literals), it is what
+    the absence vocabulary, the row-class regex disjointness, the narration literals, and the
+    non-obvious watch vocabulary -- clause 12, `state/lint.py:_check_nonobvious_watch`, which is where
+    the owner's 2026-09-11 release-calendar BAN is graded at build, keyed on the closed KIND map rather
+    than on a regex), it is what
     `tests/unit/test_state_lint.py` has been running since S0, and a copy here would be a second
     opinion about thirty-six YAML files. What THIS function adds is the wiring: `main()` now fails the
     build on them, which is what "absorbed by config_check after K9" was owed.
@@ -6191,7 +6194,8 @@ def main() -> int:
                         ("cascade_notch", check_cascade_notch()),
                         # STATE ENGINE S6: APPENDED AT THE TAIL (the append-never-insert law
                         # this file keeps for its own roster too). `state_board` absorbs
-                        # `state/lint.py`'s eleven config clauses -- what "absorbed by
+                        # `state/lint.py`'s twelve config clauses (eleven at S6; the
+                        # non-obvious watch vocabulary joined at S7b) -- what "absorbed by
                         # config_check after K9" owed -- and `state_seam` grades the phase-2
                         # wiring's own grammar. Both are pure reads; neither needs a store.
                         ("state_board", check_state_board()),

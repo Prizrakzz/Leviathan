@@ -6,11 +6,27 @@
 # cells because the eval's `--model` WINS over env), with the FOUR dark legs lit in BOTH cells
 # (`GRAPHRAG_EXTREME_LOCATOR`, `GRAPHRAG_RV_REGIONAL`, `GRAPHRAG_COT_OUTCOMES`,
 # `GRAPHRAG_CASCADE_CONTEXT`) and `GRAPHRAG_STRIP_AUDIT=on` in both. The env for both cells is the
-# STORED base -- `configs/graphrag/arm_env_base.yaml`, refreshed from `leviathan-dev-serving:133` --
-# and the two cells differ by exactly ONE `--env`:
+# STORED base -- `configs/graphrag/arm_env_base.yaml`, refreshed from `leviathan-dev-serving:133`.
 #
-#   treatment:  --env-base configs/graphrag/arm_env_base.yaml --env GRAPHRAG_STATE_BOARD=on
-#   control:    --env-base configs/graphrag/arm_env_base.yaml           (the flag defaults off)
+# THE TREATMENT CELL IS A SET OF FLAGS, NOT ONE (coherence audit 2026-09-16, OS-A4 -- this header used
+# to read "the two cells differ by exactly ONE `--env`" and gave a board-only recipe; an operator who
+# followed it ran a board-only arm and reported it as arm A). The authority is
+# `scratchpad/s7_prearm/ARM_A_HANDOFF.md`'s flag table (and `ADDENDUM_R4.md`); as of HEAD `08252c6a`:
+#
+#   GRAPHRAG_STATE_BOARD           treatment only   -- it IS the arm
+#   GRAPHRAG_WATCH_NONOBVIOUS      treatment only   -- producer + seam landed at 5c45f3e6
+#   GRAPHRAG_REGISTER_LICENCE      treatment only   -- HELD until pre-arm gate (i)(a) and (i)(b) close
+#   GRAPHRAG_DESK_REGISTER         treatment only   -- HELD until pre-arm gate (i)(a) and (i)(b) close
+#   GRAPHRAG_BRIDGE_QUERY          treatment only   -- seam landed at 08252c6a
+#   GRAPHRAG_RERANK_GROUP_WORKERS  16, in BOTH cells -- a dispatch width, not a treatment
+#
+#   control:    --env-base configs/graphrag/arm_env_base.yaml   (every flag above unset)
+#
+# WHICH OF THEM A CELL ACTUALLY CARRIES IS THE OWNER'S DECISION and is recorded in the handoff, not
+# here. EVERY FLAG IS SPELT `on`: five of the six readers accept `on|1|true` only, and
+# `GRAPHRAG_BRIDGE_QUERY` also accepts `yes`, deliberately. `=yes` on any of the other five runs a
+# CONTROL turn at treatment price, and only the `BoardFired == 1` precondition catches it, after the
+# spend.
 #
 # VENUE: in-VPC on the ON-DEMAND Batch queue, `--job-definition leviathan-dev-graphrag-eval`. OFF-VPC
 # the board declines `pg_not_live` on EVERY turn and the arm measures a board that never fired --
@@ -32,8 +48,12 @@
 # EXPECTATIONS ARE MINIMAL (`needs_evidence` only), exactly as the rv deck's are: the arm's bars read
 # the artifact's DETERMINISTIC counters -- `timing_ms.{fill,rest,numbers,quantify,synth_llm}` p50/p90,
 # `ms_board`, `BoardPoolDeclined`, `BoardEvidenceBorrows`, `BoardReplayLabelled`, strips, `by_rule`,
-# register trips, `n_tool_uses`, and the TWELVE coverage counters the S7 seam now publishes -- never
-# per-row expect blocks.
+# register trips, `n_tool_uses`, the twelve EMF coverage counters the S7 seam publishes
+# (`state/seam.py`'s `COVERAGE_COUNTERS`) AND the coverage dict on `trace.state_board.coverage`, which
+# carries 20 keys flag-off and 28 flag-on (coherence audit 2026-09-16, OS-A5: this line read "the
+# TWELVE coverage counters", which is true of the EMF names and false of what the arm's own bars read
+# -- the eight nomination keys and the three register keys live in the dict and not in the EMF set)
+# -- never per-row expect blocks.
 #
 # ── THE SEVENTH ID: FOUND, FILLED, AND ATTRIBUTED TO THE OWNER'S OWN TURN ───────────────────────────
 # Design 10.3 and 10.4 both say SEVEN: "the six banked rv pairs + THE OWNER'S SOYBEAN QUESTION". This

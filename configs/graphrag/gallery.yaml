@@ -56,10 +56,15 @@ templates:
     rc_target: default
     template: "Walk me through the cascade from a supply shock in {contract} to the price signal."
 
+  # COHERENCE AUDIT 2026-09-16 (OS-A8): "nodes" -> "drivers", the desk-register token table's own
+  # declared replacement. This was the ONE row of the twelve that `register.count_desk_register` scores
+  # above zero, and it is the landing page's starter -- this file's header says an unreviewed edit here
+  # changes the FIRST thing every user reads. rc_target RE-MEASURED both ways over all three fill
+  # regimes the deck pins (authored, slot-neutralized, free-typed): `default` before and after.
   - id: cascade_load_bearing
     category: cascade
     rc_target: default
-    template: "Which nodes in the {contract} cascade are actually load-bearing for the {regime} regime?"
+    template: "Which drivers in the {contract} cascade are actually load-bearing for the {regime} regime?"
 
   # -- verification ---------------------------------------------------------------------------------
   - id: verify_premise

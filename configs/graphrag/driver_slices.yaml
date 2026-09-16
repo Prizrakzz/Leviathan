@@ -49,8 +49,12 @@
 # and the four numbers/*.yaml maps. Two consequences the false sentence was hiding: (1) a term edit DOES
 # leave a reviewable diff, so `git add -f configs/graphrag/driver_slices.yaml` must land in the SAME commit
 # as the mirror or the mirror moves while the source does not -- the precise drift the mirror law exists to
-# prevent; (2) the genuinely unreviewable half is configs/graphrag/causal/ -- 33 .yaml on disk, ZERO tracked,
+# prevent; (2) the genuinely unreviewable half is configs/graphrag/causal/ -- 36 .yaml on disk, ZERO tracked,
 # no manifest module -- which is where every DAG driver id this wave mints lands.
+# (Coherence audit 2026-09-16, GM-A12: "33 .yaml" was the count at the 2026-08-21 re-cut and is 36 today,
+# which is also `state/lint.py`'s own CAUSAL_DAG_FILES_AT_S0. The load-bearing half -- ZERO tracked -- is
+# unchanged and is why GM-4's "git diff --stat -- configs/graphrag/causal must be EMPTY" gate is
+# VACUOUSLY TRUE: git holds no copy of those 69 files, so a causal edit has no revert.)
 drivers:
   # --- climate (the weather triggers; tie to ONI / soil-moisture / heat silver) ---
   # D-EC completion wave 2026-08-21 (lane A) ENSO DIACRITIC HYGIENE, the driver_slices half of XC-2. Ledger
@@ -1428,8 +1432,10 @@ dag_alias:
   # partitioned grains+oilseeds from softs+coffee+canola and no id-keyed traversal could walk a corn ENSO
   # episode to a coffee one. MEASURED before the merge: 48.6% of El_Nino contract PAIRS were id-walkable
   # (241 of 496), 48.8% for La_Nina -- the "silent 50% cut to the highest-degree hub" of the desk-ontology
-  # diff, arithmetically. The 33 DAGs are now normalized to the ASCII MAJORITY spelling (the rename moved
-  # 110 id-reference lines across 18 files; driver ids 374 -> 371, driver INSTANCES unchanged at 1,152), so
+  # diff, arithmetically. The DAGs are now normalized to the ASCII MAJORITY spelling (the rename moved
+  # 110 id-reference lines across 18 files; driver ids 374 -> 371, driver INSTANCES unchanged at 1,152 --
+  # all four figures are AT THE XC-2 MERGE, over the 33 DAGs of that day; the tree carries 36 DAGs and
+  # 1,270 driver instances today, coherence audit 2026-09-16 GM-A12), so
   # these rows now reach 32 and 31 contracts respectively -- the union of both former partitions.
   # NOT the reason the rows kept resolving before: evidence.driver_alias()'s accent-fold pass already routed
   # the accented ids to these ASCII slice names, so SLICE resolution was never the casualty. What was cut is

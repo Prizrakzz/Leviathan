@@ -419,11 +419,83 @@ def apply(base: str, name: str | None, *, budget: str | None = None,
             .replace(NEEDLE_FIELDLIST, "structured under the '## ' headings above"))
 
 
-def directive(name: str | None, *, census: dict | None = None) -> str:
+# ══ COHERENCE AUDIT 2026-09-16 (WP-A3 / WP-A7) -- THE DIRECTIVE IS THE LAST THING THE WRITER READS ═══
+# `answer._system` appends this paragraph AFTER the state-board mandate and AFTER the watch selection
+# clause, so on a `horizon` turn it has the final word -- and three entries used it to deny what the
+# block had just bought:
+#
+#   horizon       "each block naming its trigger or release (scheduled reports and crop-calendar gates
+#                 for the near buckets, structural drivers for the far ones)" -- the RELEASE-CALENDAR
+#                 watch, which the owner's 2026-09-11 ruling struck and `state/watch.py:475-479` now
+#                 refuses to nominate. It also defeats the ceiling silently: four horizon buckets each
+#                 carrying a trigger is already past Scan's three (WATCH_NONOBVIOUS_K). On exactly the
+#                 question shape that most invites a watch list, the answer reverted to a release diary.
+#   context_node  "Nothing else; concision is the contract here." at a 60-120 word budget -- a flat
+#                 denial of three of the four movements, on a block the turn rendered and paid for.
+#   ranking       "No adjacent-driver padding" -- which reads as a ban on the SPILLOVERS movement by
+#                 name.
+#
+# THE ENTRIES THEMSELVES ARE NOT EDITED. `CONTRACTS` is a shipped constant read on every contract turn;
+# these are SUBSTITUTED VARIANTS chosen per turn by the two bools, which default False -- so a caller
+# that passes neither (every caller before this audit, and every flag-off turn today) gets the entry's
+# own bytes. The needles are asserted present for `apply()`'s stated reason: a reworded directive must
+# red loudly, never quietly stop being scoped.
+_DIRECTIVE_BOARD_SUBS: dict = {
+    "context_node": (
+        ("One note that it is not itself a tracked contract. Nothing else; "
+         "concision is the contract here.",
+         "One note that it is not itself a tracked contract. Nothing else beyond what the state block "
+         "itself raises -- its loud readings, the markets it says they reach, and what it puts on watch "
+         "-- and those in a clause each, not a section. Concision is still the contract here."),),
+    "ranking": (
+        ("No adjacent-driver padding; if the "
+         "data cannot rank (rows missing), say exactly which rows are absent.",
+         "No adjacent-driver padding the state block did not itself raise; if the "
+         "data cannot rank (rows missing), say exactly which rows are absent."),),
+}
+_DIRECTIVE_WATCH_SUBS: dict = {
+    "horizon": (
+        ("each block "
+         "naming its trigger or release (scheduled reports and crop-calendar gates for the near "
+         "buckets, structural drivers for the far ones) with the cited playbook precedent or its "
+         "absence stated plainly.",
+         "each block "
+         "naming the nominated watch item that BINDS FIRST in that horizon, with its mechanism and the "
+         "dated reading it rests on, and with the cited playbook precedent or its absence stated "
+         "plainly. The scheduled prints are NOT the watch items here: the block names them once, in its "
+         "own dated note, and they do not earn a bucket of their own. Keep the whole watch list at or "
+         "under the ceiling the selection clause names -- the buckets organise it, they do not multiply "
+         "it."),),
+}
+
+
+def _scoped_directive(name: str, text: str, *, state_board: bool, watch_selection: bool) -> str:
+    """`text` with this turn's flag-scoped substitutions applied. Neither flag -> `text` unchanged."""
+    subs: tuple = ()
+    if state_board:
+        subs = subs + _DIRECTIVE_BOARD_SUBS.get(name, ())
+    if watch_selection:
+        subs = subs + _DIRECTIVE_WATCH_SUBS.get(name, ())
+    for needle, repl in subs:
+        assert needle in text, f"directive needle missing for {name}: {needle[:60]}..."
+        text = text.replace(needle, repl)
+    return text
+
+
+def directive(name: str | None, *, census: dict | None = None,
+              state_board: bool = False, watch_selection: bool = False) -> str:
     """The emphasis paragraph appended LAST to the persona ('' for None/default/unknown/passthrough),
-    followed by this turn's composition mandates ('' unless a census is threaded in -- D-CC-1)."""
+    followed by this turn's composition mandates ('' unless a census is threaded in -- D-CC-1).
+
+    `state_board` / `watch_selection` (coherence audit 2026-09-16) SCOPE three entries that otherwise
+    contradict the state block this same turn rendered -- see the block comment above. BOTH DEFAULT
+    FALSE, so every call that does not pass them returns exactly what this function returned before."""
     c = CONTRACTS.get(name or DEFAULT)
-    return (c.directive if c else "") + composition(name, census)
+    _d = (c.directive if c else "")
+    if _d and (state_board or watch_selection):
+        _d = _scoped_directive(name or DEFAULT, _d, state_board=state_board,
+                               watch_selection=watch_selection)
+    return _d + composition(name, census)
 
 
 def licenses_episodes(name: str | None) -> bool:

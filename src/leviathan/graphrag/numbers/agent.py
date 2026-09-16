@@ -2215,8 +2215,8 @@ def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd
 
 # ── PA-1..PA-4 (PROMPT-AUDIT WAVE 1, 2026-08-25) -- THE CARD, RENDERED WHOLE ───────────────────────────
 # The card used to render FOUR things: id, description, identify-by, and a comma-joined list of
-# `key [unit]`. Everything else the registry knows was declared and never shown. `grain` is set on 39/39
-# cards and was rendered on 0. `publication_lag_days` is set on 19/39 and was rendered on 0. All 219
+# `key [unit]`. Everything else the registry knows was declared and never shown. `grain` is set on 41/41
+# cards and was rendered on 0. `publication_lag_days` is set on 19/41 and was rendered on 0. All 277
 # metrics carry a `label` AND a `desc` (registry.Metric) and the model saw NEITHER -- so `su_ratio [ratio]`
 # appeared on three cards meaning three different formulas, and the GN-2 label vocabulary (commit 9ede60ed)
 # reached the WRITER while never reaching the lane that CHOOSES the metric. The four coverage fields
@@ -2224,13 +2224,34 @@ def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd
 # inside the tool-schema enum, where a "walk me through the stocks month by month" question never looks.
 #
 # EVERY LINE BELOW IS A PURE FUNCTION OF THE REGISTRY -- no live date, no db probe, no per-turn text. The
-# numbers system block is ONE ephemeral-cached ~45k-token block byte-stable per (registry, flags)
-# (agent.py:2321-2322); anything turn-varying here re-writes 45k tokens EVERY turn, which is exactly why
-# the B1 routing hint lives on the USER turn instead.
+# numbers system block is ONE ephemeral-cached block, byte-stable per (registry, flags); its
+# `cache_control` site is the `system` list `answer_numbers` builds -- `system_prompt(reg,
+# stats_tool=stats_on)` with `{"type": "ephemeral"}` on the same block, at agent.py:2938-2939 -- and
+# anything turn-varying here re-writes THE WHOLE BLOCK EVERY TURN, which is exactly why the B1 routing
+# hint lives on the USER turn instead.
+#
+# ITS SIZE, RE-MEASURED 2026-09-16 (coherence audit, NC-A11 -- these comments said "~45k tokens" and
+# pointed at agent.py:2321-2322, which at 08252c6a is the PA-3 index comment and not the cache site;
+# the first cut of THIS comment then re-pointed it at 2909-2910, the LANE-S headroom block, and the
+# adversarial review caught it -- a cost note's whole authority is that its figures resolve):
+#   rendered system_prompt      247,358 chars  ~= 65k tokens at 3.8 chars/token, BEFORE the two tool
+#                                               schemas cached on the same turn (246,614 at 08252c6a;
+#                                               +744 for this audit's three prose corrections)
+#   the card wall itself        224,065 chars over the 39 cards `_visible_tables` shows (the registry
+#                                               holds 41: gold_pattern_records and silver_nasa_power
+#                                               are gated out of the enum, not whitelist-absent)
+#   agent.py's own record       "measured cache_read 98,174 tokens every round after the first" -- the
+#                               comment ON the breakpoint itself, one line below it, and 2.2x "~45k"
+# Re-derive with:
+#   python -c "import sys;sys.path.insert(0,'src');from leviathan.graphrag.numbers import agent as A,
+#   registry as RG;r=RG.load_registry();print(len(A.system_prompt(r)),len(r.tables))"
+# THIS IS THE LARGEST CACHED PREFIX IN THE ESTATE and every card edit pays one cache write against it,
+# so a cost note understating it by 2.2x is the wrong number to size an arm cell with.
 
 def _one_line(s: str) -> str:
-    """Collapse a folded-YAML scalar to a single line. A metric renders on ONE line BY CONTRACT: 219 of
-    them, and a multi-line desc would make the metric list unreadable as a list."""
+    """Collapse a folded-YAML scalar to a single line. A metric renders on ONE line BY CONTRACT: 277 of
+    them (271 on the 39 visible cards; re-measured 2026-09-16, coherence audit NC-A11 -- this docstring
+    read 219), and a multi-line desc would make the metric list unreadable as a list."""
     return " ".join((s or "").split())
 
 
@@ -2318,7 +2339,12 @@ def _table_card(ts: TableSpec) -> str:
 
 
 # ── PA-3: AN INDEX BEFORE THE WALL ─────────────────────────────────────────────────────────────────────
-# 37 cards, ~154k chars, `sorted(reg.tables)` alphabetical, no table of contents and no subject grouping.
+# 39 VISIBLE cards, 224,065 chars (re-measured 2026-09-16, coherence audit NC-A11; the comment read
+# "37 cards, ~154k chars"). The registry holds 41 and `_visible_tables` shows 39, and the two it drops
+# are gold_pattern_records (GRAPHRAG_PATTERN_RECORDS off) and the QUARANTINED silver_nasa_power -- NOT
+# `WHITELIST_ABSENT_DEFAULT`, which names three gold_*_outcomes ids that are not cards in this file at
+# all (the first cut of this line said otherwise; adversarial review MAJOR 3, same day).
+# `sorted(reg.tables)` alphabetical, no table of contents and no subject grouping.
 # The 12,761-char Conventions header names only 14 of them, so gold_board_crush, gold_futures_spreads, all
 # three MPOC cards, the three FNC cards, silver_fgis and silver_sagis_weekly_deliveries existed ONLY inside
 # the wall -- which is exactly the set the XMC rows need. The grouping is a DECLARED map rather than a
@@ -2506,9 +2532,12 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "palm_oil_cpo_usd_t, soybean_oil_usd_t, urea_usd_mt, brent_crude_usd_bbl). State the month + unit + "
         "'WB monthly average'; these are monthly averages, NOT exchange settles, and world benchmarks, NOT US "
         "farm-gate prices. Its input-cost series (fertilizers, natural gas, Brent) are "
-        "relevant context for ANY contract's cost side. It carries NO corn, coffee, cotton, rice or cocoa price "
-        "column -- if asked for one, say plainly it is not in the governed price series rather than substituting "
-        "a different one.\n"
+        "relevant context for ANY contract's cost side. Since the 2026-08-20 widening it DOES carry world cash "
+        "benchmarks for maize (i.e. corn), arabica and robusta coffee, cotton (the A Index), Thai 5% rice and "
+        "cocoa -- use them, and say 'WB monthly average' rather than declining. What it carries NO column for is "
+        "copra, olive oil, ethanol, rapeseed or canola SEED (only rapeseed oil), rapeseed meal, palm olein, "
+        "white (refined) sugar, hard red spring wheat and frozen orange juice -- if asked for one of those, say "
+        "plainly it is not in the governed price series rather than substituting a different one.\n"
         "- State prices, premiums, discounts, and spreads as an observed level + date + historical percentile, "
         "in PAST or PRESENT tense. NEVER characterize a level as cheap, rich, or attractive; never forecast that "
         "a spread narrows, normalizes, or corrects; never give timing.\n"

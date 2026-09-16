@@ -1,4 +1,8 @@
-# GraphRAG entity vocabulary — PRIVATE IP (git-ignored).
+# GraphRAG entity vocabulary — PRIVATE IP (the directory is gitignored; THIS FILE IS
+# FORCE-ADDED AND TRACKED, so every term edit leaves a reviewable diff and must be committed with
+# `git add -f`). Corrected by the coherence audit 2026-09-16 (GM-A8): line 1 read "(git-ignored)"
+# flatly, which is false -- `git ls-files` returns this path and `git check-ignore` does not match it
+# -- and it is the same false sentence driver_slices.yaml:44-50 already corrected for itself.
 # Phase 1 W3 SEED, grounded in the W1 corpus profile (real surface forms) + the 31-commodity
 # universe (leviathan.common.constants.ALL_COMMODITIES). This is a starting point for DOMAIN
 # REVIEW (Phase 1 exit gate), not a finished taxonomy. Every term should occur in the corpus

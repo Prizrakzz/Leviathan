@@ -745,6 +745,75 @@ _SYSTEM_CASCADE_B = (
     "'rose to fill the gap'), magnitude is the [N] row.\n")
 
 
+# ══ COHERENCE AUDIT 2026-09-16 -- THE THREE PERSONA SENTENCES THAT CONTRADICT THE STATE BOARD ════════
+# Each is a SUBSTITUTED SENTENCE on a leg that already has a flag, never an edit to `_SYSTEM_MENTOR`:
+# the persona is an unconditional module constant read on EVERY turn, three live suites assert
+# `_system() is _SYSTEM_MENTOR`, and the assembled prompt is the first row of the state engine's
+# byte-identity set. The mechanism is `response_contracts.apply`'s own -- a needle-verified `.replace`
+# on the COMPOSED base, with the needle ASSERTED PRESENT so a reworded persona reds loudly rather than
+# silently ceasing to be corrected. WITH THE FLAGS OFF NOT ONE BYTE MOVES, and `_system()` still
+# returns the constant ITSELF (identity, not equality).
+#
+# (WP-A1) BE-HONEST vs THE BOARD. The BE-HONEST bullet ends "a real-time current-state read isn't
+# available here" on EVERY turn. The board IS a current-state read at the as-of -- percentile, z, band,
+# run, side, one knowledge date per row -- and the sentence is the near-twin of
+# `narration.BANNED_RECENCY_PHRASE` ("not a current-state read"), the ONE sentence a rendered board may
+# never contain (B12, `render.sb_recency`). The block is barred from saying it and the persona
+# instructed it: a desk analyst met "28th percentile of its own record, read through 2026-09-04 [N27]"
+# and then a disclaimer that no current-state read was available. ON THE BOARD LEG the clause names
+# WHICH LAYER is thin instead of declaring the whole read unavailable -- which is what the board's own
+# per-layer recency rows are for. The needle falls OUTSIDE all three byte-pinned response_contracts
+# needles (NEEDLE_STRUCTURE / NEEDLE_BUDGET / NEEDLE_FIELDLIST).
+#
+# (WP-A6, the PROSE half) THE ANTI-PADDING SENTENCE TELLS THE WRITER TO CUT WHAT THE MANDATE DEMANDS.
+# "Do NOT pad with adjacent drivers, background, or watch-lists the user didn't ask for" -- and
+# SPILLOVERS and WATCH are, in those exact words, "adjacent drivers" and a "watch-list the user didn't
+# ask for". `state/narration.py` already records the cost: SPILLOVERS was the only movement of four
+# that broke on the prod-seat draws, "dropped entirely on soybeans_now (ten off-anchor fan rows, zero
+# named), parked after ## What to watch on el_nino_fanout". On the board leg the sentence is scoped to
+# what the BLOCK did not raise. THE BUDGET HALF OF WP-A6 IS NOT DONE HERE and is the owner's: a
+# MAX-tier board turn is still instructed at 150-220 words while owing four movements, a spillover per
+# market, three recency sentences and up to seven watch items -- widening it is a size decision with a
+# cost, not a coherence fix, and `NEEDLE_BUDGET` is byte-pinned by tests/unit/test_response_contracts.py
+# so the widening must go through `apply()`'s own needle rather than around it.
+#
+# (WP-A4) MENTOR VOICE BANS A WORD THE LICENCE FREED. "nor a valuation judgment (cheap/rich/attractive)"
+# is exactly the Lane-B triad `GRAPHRAG_REGISTER_LICENCE` RETIRES -- the owner's 2026-09-15 ruling,
+# recorded verbatim at register.py:752-757 ("the writer should talk like that"). With the licence lit
+# the persona spent a freedom the fence had just bought, one paragraph earlier: the J6 failure this same
+# file names. WHAT IS KEPT IS PRECISE: price target / price objective / fair value are the licence's own
+# KEPT column (`_LICENCE_KEPT_VAL`), "at attractive levels" is convicted by `_EXEC_PHRASES`, and the
+# spread-narrows clause is the KEPT forward-convergence class rule -- so the substitute keeps the
+# position/size clause and the convergence clause BYTE FOR BYTE and frees only cheap / rich.
+_MENTOR_BOARD_SUBS: tuple = (
+    ("say so in ONE sentence and give the framework + what to watch; a real-time current-state read "
+     "isn't available here.",
+     "say so in ONE sentence and give the framework + what to watch, and say WHICH layer is thin -- the "
+     "number rows, the dated documents, or the price tape -- rather than declaring the whole read "
+     "unavailable."),
+    ("Do NOT pad with adjacent drivers, background, or watch-lists the user didn't ask for",
+     "Do NOT pad with adjacent drivers the block did not raise, with background, or with watch items "
+     "neither the user nor the block asked for"),
+)
+_MENTOR_LICENCE_SUBS: tuple = (
+    ("nor a valuation judgment (cheap/rich/attractive) nor",
+     "nor a valuation judgment that names a figure this engine never read (a fair value, a price "
+     "objective) nor"),
+)
+
+
+def _substitute(base: str, subs: tuple) -> str:
+    """`response_contracts.apply`'s discipline, one level down: assert the needle, then replace it.
+
+    A missing needle is an ASSERTION and not a silent pass-through, for apply()'s own stated reason --
+    a reworded persona must red loudly, never quietly stop being corrected on the one lane that needs
+    the correction."""
+    for needle, repl in subs:
+        assert needle in base, f"persona needle missing for the coherence substitution: {needle[:60]}..."
+        base = base.replace(needle, repl)
+    return base
+
+
 # THE TWO COMPOSITIONS, and the first of them is a byte-identity claim rather than a refactor.
 # `_SYSTEM_CASCADE` keeps HEAD's exact value -- 7,034 characters, sha256
 # ec29629a4c115f4b2254a0af516768f0a252f04766a228fe6df341ab60ecbdff -- so every reader of the attribute
@@ -3324,7 +3393,8 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             cascade_deep: bool = False, cascade_xccy: bool = False,
             extreme_locator: bool = False, extreme_hop: bool = False,
             numbers_budget: bool = False, state_board: bool = False,
-            desk_register: bool = False, watch_selection: bool = False) -> str:
+            desk_register: bool = False, watch_selection: bool = False,
+            register_licence: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -3372,6 +3442,14 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     but vanishes on the `GRAPHRAG_PLANNER=onehop` rollback lane is the null-arm class, on exactly the
     path a rollback puts every turn on. This function reads no environment for it.
 
+    `register_licence` (COHERENCE AUDIT 2026-09-16, WP-A4) is the ONLY leg here that SUBSTITUTES rather
+    than appends, and it substitutes ONE parenthetical of the MENTOR VOICE sentence: with
+    GRAPHRAG_REGISTER_LICENCE lit the owner's 2026-09-15 ruling has retired the cheap/rich strike, and a
+    persona that still forbids the word spends the freedom the fence just bought. DEFAULT FALSE so every
+    existing caller is byte-identical, and it is THREADED from the bool each serving body already
+    resolved for its strip passes (`_bar_licence is not None`) rather than read a second time -- which
+    is what `check_register_seam` clause (b) means by "resolved once per body and threaded".
+
     Read PER CALL, never memoized: a serving process is long-lived, so a once-at-import read would
     make the env-flip rollback a silent no-op until a redeploy — defeating the gate's purpose."""
     if os.environ.get("GRAPHRAG_MENTOR_VOICE", "on") == "off":
@@ -3381,6 +3459,15 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
     # D-AM-10: `budget` is the reasoning mode's ALREADY-SCALED word range for this turn (None on
     # every standard/dark turn -> apply() uses the contract's own budget -> byte-identical).
     base = _rc.apply(_SYSTEM_MENTOR, response_contract, budget=budget, census=census)
+    # COHERENCE AUDIT 2026-09-16: the three substituted persona sentences (the block comment above
+    # `_MENTOR_BOARD_SUBS` carries the measurement for each). They ride flags that already exist and
+    # they run AFTER the contract's own rewrite, on needles that do not overlap its three. Both
+    # branches are False on every turn that ships today, so `base` is `_SYSTEM_MENTOR` ITSELF and every
+    # `_system() is _SYSTEM_MENTOR` pin holds by identity rather than by comparison.
+    if state_board:                                    # the board IS a current-state read; and the
+        base = _substitute(base, _MENTOR_BOARD_SUBS)   #   block's own movements are not "padding"
+    if register_licence:                               # the owner retired the cheap/rich strike; the
+        base = _substitute(base, _MENTOR_LICENCE_SUBS)  #  persona may not go on charging for the word
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         # K9-4 FIX PASS: the SEAM-B price paragraph is the assertion's FOURTH producer (the block note
         # above `_SYSTEM_CASCADE_PRICE_RESPONSE` measures why), so it branches on the SAME flag the
@@ -3487,8 +3574,17 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         # BELOW `numbers_budget` and ABOVE `_SYSTEM_HANDLES` for the reason `handles` keeps the last
         # word: this mandate DEMANDS a narration order, it does not narrow a number rule, so it must
         # not sit under the leg that supersedes four number spans.
+        # COHERENCE AUDIT 2026-09-16 (WP-A2): the mandate's movement (4) tells the writer to "close
+        # with the WATCH rows -- the next scheduled print, the level a convention names, the date a
+        # declared lag window opens". Under GRAPHRAG_WATCH_NONOBVIOUS the release-calendar kind is
+        # BANNED AT NOMINATION (watch.py:475-479) and the scheduled prints ride ONE dated footnote
+        # OUTSIDE the ceiling, so the mandate was asking for the one class the producer now refuses --
+        # and "close with THE WATCH ROWS" tells the writer to reproduce rows the SELECTION CLAUSE, on
+        # the same turn, opens by denying ("CANDIDATES nominated for you, not a list to reproduce").
+        # The variant rides `watch_selection`, which is already the flag AND the block's own marker, so
+        # a board turn with the watch flag off keeps HEAD's mandate byte for byte.
         from leviathan.graphrag.state import narration as _sn      # lazy: phase-2 only, gate-guarded
-        base = base + _sn.SYSTEM_STATE_BOARD_MANDATE
+        base = base + _sn.state_board_mandate(nonobvious=bool(watch_selection))
     if watch_selection:                                            # S7b LANE W: the fifth movement's
         # SELECTION LICENCE, landed by the sec 6.1 seam protocol and appended as ONE constant lane W
         # owns (`state.watch.WATCH_SELECTION_CLAUSE`). It rides the SAME gate the board's mandate
@@ -3509,8 +3605,17 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         base = base + _sn2.desk_register_mandate(state_board=bool(state_board))
     if handles:                                                    # D-HP-7/8: LAST of the legs, because it
         base = base + _SYSTEM_HANDLES                              #   NARROWS every number rule above it
-    base = base + _rc.directive(response_contract, census=census)  # D-RC Phase B: emphasis LAST ('' for
-    return base                                                    #   default/None -- the fail-open pin)
+    # COHERENCE AUDIT 2026-09-16 (WP-A3 / WP-A7): the directive is appended LAST of every leg -- after
+    # the board mandate and after the watch selection clause -- so on a `horizon` turn it is the FINAL
+    # instruction the writer reads, and it ordered exactly the release-calendar watch the 09-11 ruling
+    # struck. `context_node`'s "Nothing else" and `ranking`'s "No adjacent-driver padding" are the same
+    # collision, milder: a flat denial of three of the four movements on a block the turn paid for.
+    # The two bools SCOPE those three directives and nothing else; both default False inside
+    # `response_contracts`, so a turn that passes neither gets HEAD's directive byte for byte.
+    base = base + _rc.directive(response_contract, census=census,  # D-RC Phase B: emphasis LAST ('' for
+                                state_board=bool(state_board),     #   default/None -- the fail-open pin)
+                                watch_selection=bool(watch_selection))
+    return base
 
 
 _SYSTEM = _SYSTEM_MENTOR                                              # module-level default (importers/tests)
@@ -4719,9 +4824,21 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # against -- the same list `_drop_bare_digit_sentences` and `_resolve_number_handles` read, never
     # the orchestrator's shorter `number_calls`, which stops at the agent's own lookups.
     # None when the flag is off -> every downstream kwarg defaults -> HEAD's strip, byte for byte.
+    # AND NONE ON THE `GRAPHRAG_VERIFY=off` ROLLBACK (coherence audit 2026-09-16, adversarial review
+    # MAJOR 1). The licence's REMEDY -- `_bind_bar_adjectives` -- runs inside `if verifier.get(
+    # "enabled")`, which is the whole reason `_bar_licence_for` re-anchors the licence on the verifier's
+    # own dict below. That re-anchor happens AFTER the model call, so the THIRD consumer -- the
+    # persona's `register_licence` leg, composed BEFORE it -- read the un-anchored bool and freed the
+    # writer's vocabulary on the one lane where both fences still strike at full force: `reg.sanitize`
+    # then deletes the freed sentence AND its citation, which is suppress-not-correct arriving through
+    # the very change that exists to prevent it, and strictly worse than either arm. The lane is ANDed
+    # HERE, ONCE, in verify.py:2889's own spelling (`_verify_lane_enabled`), so the charge, the remedy and
+    # the PERSONA answer to ONE predicate -- `_handle_prose_active`'s lane (1), one instrument over.
+    # Nothing else moves: every other consumer of `_bar_licence` is BELOW `_bar_licence_for`, which
+    # returned None on this lane already, so on-lane behaviour is byte-identical to HEAD.
     _bar_licence = None
     _badj = _dreg = None                    # the two S7b censuses; None on every dark turn, never {}
-    if _register_licence_on():
+    if _register_licence_on() and _verify_lane_enabled():
         from leviathan.graphrag import verify as _vfl  # lazy: flag-guarded
         _bar_licence = (lambda _s, _c=extra_number_calls: _vfl.bar_adjective_verdict(_s, _c))
     # D-RC Phase B: the caller's selection re-ANDed with the allowlist AT THE SEAM (the _outlook_on
@@ -4770,6 +4887,14 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                               desk_register=_desk_register_on(),               # S7b R2: flag-only,
                               #                                                  the vocabulary it fences
                               #                                                  is the ANSWER's
+                              register_licence=(_bar_licence is not None),     # WP-A4: the SAME bool
+                              #                                                  this body already
+                              #                                                  resolved for both
+                              #                                                  strip passes -- the
+                              #                                                  licence AND the
+                              #                                                  verify lane, one
+                              #                                                  predicate, never a
+                              #                                                  second env read
                               watch_selection=(_watch_nonobvious_on()          # S7b LANE W: the flag
                                                and _state_board_block_on(vp)),  # AND the block's marker
                               #                                                  the flag AND the block's
@@ -9697,6 +9822,19 @@ _BAR_BAND_CLAUSE = " -- the served figure is {pct}, inside the {lo} to {hi} band
 _BAR_TERMINATORS = ".!?;"
 
 
+def _verify_lane_enabled() -> bool:
+    """`GRAPHRAG_VERIFY=off` -- verify.py:2889's own spelling of the documented rollback, read where a
+    PRE-SYNTHESIS decision needs it. `_handle_prose_active`'s lane (1) with no mode_knobs to consult.
+
+    THE VERIFIER'S OWN `enabled` IS THE AUTHORITY WHEREVER IT EXISTS, and `_bar_licence_for` below
+    re-anchors the licence on that dict. But the PERSONA is composed BEFORE the model is called, so on
+    that line the dict does not exist yet -- and a persona leg resolved off the un-anchored licence
+    frees a vocabulary the strip is still charging for. Same word, same default, same file it is
+    enforced in, read PER CALL for `_system`'s own stated reason: a once-at-import read would make the
+    rollback a silent no-op until a redeploy, which is exactly what the rollback exists to avoid."""
+    return os.environ.get("GRAPHRAG_VERIFY", "on") != "off"
+
+
 def _bar_licence_for(licence, verifier: dict | None):
     """The licence, or None when the VERIFIER IS OFF -- review MINOR (2026-09-11), and it is one line
     because the defect was a split predicate.
@@ -12163,9 +12301,21 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # against -- the same list `_drop_bare_digit_sentences` and `_resolve_number_handles` read, never
     # the orchestrator's shorter `number_calls`, which stops at the agent's own lookups.
     # None when the flag is off -> every downstream kwarg defaults -> HEAD's strip, byte for byte.
+    # AND NONE ON THE `GRAPHRAG_VERIFY=off` ROLLBACK (coherence audit 2026-09-16, adversarial review
+    # MAJOR 1). The licence's REMEDY -- `_bind_bar_adjectives` -- runs inside `if verifier.get(
+    # "enabled")`, which is the whole reason `_bar_licence_for` re-anchors the licence on the verifier's
+    # own dict below. That re-anchor happens AFTER the model call, so the THIRD consumer -- the
+    # persona's `register_licence` leg, composed BEFORE it -- read the un-anchored bool and freed the
+    # writer's vocabulary on the one lane where both fences still strike at full force: `reg.sanitize`
+    # then deletes the freed sentence AND its citation, which is suppress-not-correct arriving through
+    # the very change that exists to prevent it, and strictly worse than either arm. The lane is ANDed
+    # HERE, ONCE, in verify.py:2889's own spelling (`_verify_lane_enabled`), so the charge, the remedy and
+    # the PERSONA answer to ONE predicate -- `_handle_prose_active`'s lane (1), one instrument over.
+    # Nothing else moves: every other consumer of `_bar_licence` is BELOW `_bar_licence_for`, which
+    # returned None on this lane already, so on-lane behaviour is byte-identical to HEAD.
     _bar_licence = None
     _badj = _dreg = None                    # the two S7b censuses; None on every dark turn, never {}
-    if _register_licence_on():
+    if _register_licence_on() and _verify_lane_enabled():
         from leviathan.graphrag import verify as _vfl  # lazy: flag-guarded
         _bar_licence = (lambda _s, _c=extra_number_calls: _vfl.bar_adjective_verdict(_s, _c))
     # W4-D3 (verifier blocker 2): the IDENTICAL two-gate expression as the L2 body. It is not hard-coded
@@ -12220,6 +12370,7 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                               budget=_mode_budget(_rc_active, mode_knobs),    # D-AM-10, both bodies
                               census=_census,                                 # D-CC-1, both bodies
                               desk_register=_desk_register_on(),              # S7b R2, both bodies
+                              register_licence=(_bar_licence is not None),    # WP-A4, both bodies
                               handles=_handles),                              # D-HP-7/8, both bodies
                       _pack(sp, vp, use_blocks), model=model,
                       tool=_answer_tool(handles=_handles), **_oh_kw)

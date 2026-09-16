@@ -552,12 +552,17 @@ tables:
   # on the same card as `yield_per_animal [kg/An]`.
   #
   # WHITELIST-ABSENT ON ARRIVAL (registry.WHITELIST_ABSENT_DEFAULT, the Lane-3 arm-vs-flip doctrine).
-  # The item map is widened and the transforms map the five livestock elements, but THE LIVESTOCK
-  # ROWS DO NOT EXIST YET -- silver_production's live objects hold only the crop metrics -- and a
-  # served card would answer every herd question with 0 rows, which reads as "no cattle" rather than
-  # "not published". The PA-1 coverage fields are therefore ABSENT, not estimated: `_table_card`
-  # renders no coverage line at all when none is set, and an absent census is SILENCE. Measure
-  # row_count / first_obs on the produced objects in the flip change.
+  # WAS. THE FLIP HAPPENED: this card is SERVED today -- it is in the loaded registry and in the agent's
+  # table enum, and WHITELIST_ABSENT_DEFAULT is {gold_cot_outcomes, gold_futures_outcomes,
+  # gold_pattern_outcomes} and nothing else (re-measured 2026-09-16, coherence audit NC-A10; this header
+  # was still in the present tense and was contradicted by its own card 27 lines below).
+  # WHAT IT SAID ON ARRIVAL, kept as the record: the item map was widened and the transforms mapped the
+  # five livestock elements, but THE LIVESTOCK ROWS DID NOT EXIST YET -- silver_production's live objects
+  # held only the crop metrics -- and a served card would have answered every herd question with 0 rows,
+  # which reads as "no cattle" rather than "not published". The PA-1 coverage fields were therefore
+  # ABSENT, not estimated. THE FLIP'S OWN MEASUREMENT, taken 2026-08-26 and carried on the card below:
+  # row_count 80,654 / first_obs 1961 / last_obs 2024 / 4 slugs / 4 metrics, every figure landing exactly
+  # on the banked livestock census (data/dec_p0/faostat_livestock_census.md).
   silver_production_livestock:
     athena_table: silver_production            # ONE physical table, TWO cards (see the block above)
     description: >
@@ -988,6 +993,24 @@ tables:
       retired basis). A climate index in degC, never a price or a crop-outcome forecast; positive-IOD
       teleconnections (East-Africa/arabica, Australia) are qualitative context, not a served number.
 
+  # NC-A2 (coherence audit 2026-09-16). The description's first line said "Non-revising observational
+  # anomalies" flatly, while this same card's metric block 134 lines below says the opposite for the
+  # drought family -- `drought_z_is_preliminary` ("...so the drought_z beside it will be RECOMPUTED when
+  # the final lands", landed 2026-09-15 with the CHIRPS prelim lane) and its comment "a served figure can
+  # CHANGE after it has been served". BOTH strings ship in the rendered prompt, 134 lines apart on one
+  # card (measured: "preliminary" x11, "recompute" x8, "Non-revising" x1). A desk analyst was told the
+  # table never revises and then met a changed drought figure for a recent month under the same handle a
+  # week later, with no revision note anywhere. The description's clause is now SCOPED; nothing else on
+  # the card moved.
+  # AND IT IS A SCOPE, NOT A DUTY (adversarial review MAJOR 2, same day). The first cut of this line
+  # also read "and carry that stamp with any recent-month drought figure you state" -- an IMPERATIVE,
+  # shipped unconditionally, on the ONE surface this audit's threat model records as having no flag
+  # over it: the numbers card wall is read on every numbers turn of BOTH arms. Telling the seat to
+  # carry the preliminary stamp is precisely owner item 29 (`drought_z_is_preliminary` reaches no board
+  # surface -- not a cascade_map ref, not in _BASIN_TAIL_METRICS), which is filed there as a BUILD with
+  # two options, so shipping the instruction here would have decided it in a comment. What remains is a
+  # statement of fact that retires a false one: the table DOES revise for this family, and the card
+  # already declares the metric that says which months.
   gold_weather_z:
     description: >
       Gold weather z-table (Phase D-W4) — MONTHLY, per commodity growing region, point-in-time-safe
@@ -995,12 +1018,15 @@ tables:
       (NASA POWER temperatures + CHIRPS precipitation). Tall/long: one row per commodity x country x region
       x year x month x metric. Each z compares the month against the SAME MONTH in the trailing prior years
       (the baseline excludes the observation year), so a value for year Y never sees Y. Non-revising
-      observational anomalies — as-of a date = months whose (year, month) is on or before the as-of
-      year-month. Decoupled from BOTH the deferred MLOps gold.feature_spine (silverleg.py:16-20 bars the
-      cascade from it) AND the projected raw-observation weather layer upstream of it (the Jul-2026
-      LIST-storm class); this table is non-projected and mirror-friendly, and it is the ONLY weather table
-      you can look up -- there is no raw daily temperature or precipitation card here, so a raw-value
-      weather ask is answered as an ANOMALY (z) or declined, never routed to another weather table.
+      observational anomalies EXCEPT THE CHIRPS DROUGHT FAMILY, whose PRELIMINARY months are recomputed
+      when the authoritative FINAL block lands -- this same card's `drought_z_is_preliminary` metric
+      records which months those are. As-of a date = months whose (year, month) is on or before the
+      as-of year-month. Decoupled from BOTH the deferred MLOps gold.feature_spine (silverleg.py:16-20
+      bars the cascade from it) AND the projected raw-observation weather layer upstream of it (the
+      Jul-2026 LIST-storm class); this table is non-projected and mirror-friendly, and it is the ONLY
+      weather table you can look up -- there is no raw daily temperature or precipitation card here, so
+      a raw-value weather ask is answered as an ANOMALY (z) or declined, never routed to another
+      weather table.
     grain: "one row per commodity x country x region x year x month x metric"
     # COVERAGE (PA-1, W0-5 projection wave 2026-08-25): MEASURED across the 31 live gold parquets
     # (footer census). NO last_obs -- the table refreshes on the weather cycle. Lane 2's basin work
@@ -2581,10 +2607,15 @@ tables:
   # SEAM C (ENGINE SEAMS rev-52): futures v1.5-lite (Option A, LEVELS-ONLY). Daily CONTINUOUS FRONT-MONTH
   # close prices (yfinance Yahoo quotes) for 12 US/NY exchange contracts. Flat, projection forbidden. NONE enters
   # cascade_map/complex_map (no engine leg). The card is REGISTERED + linted (config_check.check_futures_lite)
-  # but WHITELIST-ABSENT from serving by DEFAULT (registry.WHITELIST_ABSENT_DEFAULT drops it from the loaded
-  # registry, exactly like a GRAPHRAG_NUMBERS_DISABLE entry) until the SEAM-C no-judge gate AND the yfinance
-  # freshness-stall fix (chain wrote nothing since 2026-06-05: worker image lacked yfinance) BOTH pass;
-  # whitelisting = removing it from that set. Post-whitelist kill-switch = GRAPHRAG_NUMBERS_DISABLE.
+  # and IS SERVED TODAY -- it is in the loaded registry and in the agent's table enum
+  # (re-measured 2026-09-16, coherence audit NC-A10). Its kill-switch is the ordinary
+  # GRAPHRAG_NUMBERS_DISABLE=silver_futures_prices env idiom.
+  # WHAT THIS HEADER SAID ON ARRIVAL, kept as the record: WHITELIST-ABSENT from serving by DEFAULT
+  # (registry.WHITELIST_ABSENT_DEFAULT dropped it from the loaded registry, exactly like a
+  # GRAPHRAG_NUMBERS_DISABLE entry) until the SEAM-C no-judge gate AND the yfinance freshness-stall fix
+  # (chain wrote nothing since 2026-06-05: worker image lacked yfinance) BOTH passed; whitelisting =
+  # removing it from that set. WHITELIST_ABSENT_DEFAULT is {gold_cot_outcomes, gold_futures_outcomes,
+  # gold_pattern_outcomes} and nothing else today.
   # LEVELS-ONLY: a roll-spliced continuous series has NO true vintage and NO PIT-safe cross-date delta, so
   # the agent serves agg=latest single-date levels ONLY (levels_only=true -> build_sql RAISES on any other
   # agg / any window) and DECLINES change / window / series / curve / spread / named-contract asks with honest
@@ -2664,12 +2695,15 @@ tables:
   # PRICE_AND_PLAYBOOKS W1.0 (ratified 2026-07-28): the PER-DELIVERY-MONTH futures EOD table. ADDITIVE to
   # silver_futures_prices above, which stays untouched and served throughout W1/W2 and W3's soak -- the flat
   # table has natural_key [leviathan_slug, date] and no room for a delivery month without breaking it.
-  # The card is REGISTERED + linted (config_check.check_futures_eod) but WHITELIST-ABSENT from serving by
-  # DEFAULT (registry.WHITELIST_ABSENT_DEFAULT drops it at load, exactly like a GRAPHRAG_NUMBERS_DISABLE
-  # entry) for ALL of W1.0 / W1 / W2: the table vanishes from the agent tool enum + its system-prompt card,
-  # and every build_sql lookup raises KeyError -- fail-closed while nothing has been produced yet.
-  # Whitelisting = removing it from that set (W3, after the producers and their gates land); the
-  # post-whitelist rollback lever is the ordinary GRAPHRAG_NUMBERS_DISABLE=silver_futures_eod env idiom.
+  # The card is REGISTERED + linted (config_check.check_futures_eod) and IS SERVED TODAY -- it is in the
+  # loaded registry and in the agent's table enum (re-measured 2026-09-16, coherence audit NC-A10; this
+  # header was still in the present tense). Its rollback lever is the ordinary
+  # GRAPHRAG_NUMBERS_DISABLE=silver_futures_eod env idiom.
+  # WHAT THIS HEADER SAID ON ARRIVAL, kept as the record: WHITELIST-ABSENT from serving by DEFAULT
+  # (registry.WHITELIST_ABSENT_DEFAULT dropped it at load, exactly like a GRAPHRAG_NUMBERS_DISABLE entry)
+  # for ALL of W1.0 / W1 / W2: the table vanished from the agent tool enum + its system-prompt card, and
+  # every build_sql lookup raised KeyError -- fail-closed while nothing had been produced yet.
+  # Whitelisting = removing it from that set (W3, after the producers and their gates landed).
   # NOT levels_only, unlike the flat sibling: these are REAL per-expiry series with no roll splice, so a
   # cross-date delta on one delivery month is legitimate. What is NOT here is roll/continuous -- no
   # is_front_month, no log_return, no adjusted series; roll policy is a QUERY-TIME decision, never a column.
@@ -3329,6 +3363,13 @@ tables:
   # commodity_col, because filtering the partition is what prunes.
   #
   # NO CASCADE / COMPLEX / CHAIN / TRANSMISSION MAP ENTRY. This is a direct-lookup card only.
+  # NC-A5 (coherence audit 2026-09-16). This card's `notes` taught the ex-dock price as "NOT a World
+  # Bank monthly average (the Pink Sheet carries no coffee series at all)" -- FALSE since the 2026-08-20
+  # F063 widening: coffee_arabica_usd_t and coffee_robusta_usd_t are declared silver_pink_sheet metrics.
+  # It was a second, independent copy of the retired fact NC-A1 corrects in the Conventions block, and
+  # `notes` IS a shipped prompt byte, so a Colombian coffee answer asserted the estate holds no world
+  # coffee benchmark on a turn where that benchmark is one lookup away and is the natural cross-check on
+  # the origin differential. The do-not-confuse job is kept; the asserted ABSENCE is gone.
   silver_fnc_colombia_monthly:
     description: >
       FNC (Federacion Nacional de Cafeteros de Colombia) MONTHLY Colombian coffee statistics -- national
@@ -3414,7 +3455,9 @@ tables:
       ex_dock_price_usd_cents_per_lb is the FNC ex-dock (Colombian port) reference for physical green
       coffee in US cents per pound: it embeds the Colombian quality differential and it is NOT the ICE
       arabica 'C' settle, NOT the continuous front-month close, and NOT a World Bank monthly average (the
-      Pink Sheet carries no coffee series at all). Label it "the FNC ex-dock price" every time.
+      Pink Sheet's coffee series -- coffee_arabica_usd_t and coffee_robusta_usd_t -- are WORLD benchmarks,
+      not this origin price; they are the natural cross-check on the Colombian differential, never a
+      substitute for it). Label it "the FNC ex-dock price" every time.
       internal_price_cop_per_125kg is the FNC internal grower price in NOMINAL Colombian pesos per 125-kg
       carga -- a DIFFERENT physical unit from the 60-kg green bag the volume metrics use, so never convert
       between them by ratio. Its decade medians run 92 COP in the 1940s to 1.91 million COP in the 2020s;

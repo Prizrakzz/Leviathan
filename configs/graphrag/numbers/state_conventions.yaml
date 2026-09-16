@@ -235,4 +235,15 @@ watch_overlay:
   # -- livestock (silver_production_livestock, annual) ------------------------------------------------
   # THE ONE FAMILY NO OTHER TERM CAN SEE. The herd is a stock with a multi-year turnover: a reading in
   # its own record's tail is the whole fact about it, and there is no published desk band to borrow.
+  # HALF THE FAMILY IS UNCOVERED, DELIBERATELY AND MEASURABLY (coherence audit 2026-09-16, NC-A9).
+  # `herd_size_hogs` is a live cascade_map ref (cascade_map.yaml:617) on the SAME card, the same annual
+  # grain and the same scale/narrate_unit as `herd_size_cattle`, and it is in NEITHER this block NOR the
+  # watch_overlay. The reason is the curation method and not carelessness: this overlay was cut by
+  # BANKED ROW COUNT from the 144-trace run5 census (every entry carries its count) and hogs scored ZERO
+  # banked rows, so there was nothing to size a band against. The sentence above is about the FAMILY, so
+  # say it plainly: a Chinese-hog-herd row renders today with no band word beside a US-cattle row that
+  # has one. ADDING THE ENTRY IS A LIVE CURATION -- this file's own header says such a change is
+  # "SEPARATE, DECLARED, NON-BYTE-IDENTICAL, with its own 144-turn census", because the terms here feed
+  # `watch.nonobvious_candidates` -- so it is DOCKETED for the next census, never slipped in beside a
+  # comment fix.
   herd_size_cattle:        {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 12 rows, 12 seats

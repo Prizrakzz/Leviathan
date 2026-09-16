@@ -16,7 +16,10 @@ bge-reranker-v2-m3 cross-encoder, so we override the job-def's 16 GB up to 32 GB
     # Gated: submit the v2 eval (Sonnet serving + Opus judge) — billed (~$2 of Anthropic API)
     python jobs/submit/submit_eval.py --queries configs/graphrag/eval_queries_v2.yaml --judge
 
-    # Gated: the Bedrock-serving parity arm (convo eval; serving tokens bill to AWS, judge to Anthropic)
+    # Gated: the Bedrock-serving parity arm (convo eval; serving tokens bill to AWS, judge to Anthropic).
+    # THIS IS THE ONLY LANE THAT WANTS `bedrock`. It disarms adaptive thinking on the numbers seat
+    # (numbers/agent.py:2881) and the stored arm base pins GRAPHRAG_PROVIDER: anthropic -- never copy
+    # this --env onto a state/board arm cell (coherence audit 2026-09-16, OS-A6).
     python jobs/submit/submit_eval.py --convos configs/graphrag/eval_convos_v1.yaml --judge \
         --env GRAPHRAG_PROVIDER=bedrock
 """
@@ -553,9 +556,12 @@ def main() -> None:
                          "serving path; required for intent-accuracy baselines (22/30 lives here)")
     ap.add_argument("--workers", type=int, default=None,
                     help="eval concurrency inside the container (forwarded to eval --workers). FAST-EVAL "
-                         "RECIPE: pair --workers 4 with --env GRAPHRAG_PROVIDER=bedrock so LLM calls use the "
-                         "Bedrock quota lane (the Anthropic API throttles a serial eval into 40-50min "
-                         "single-turn stalls, worse now serving also runs on Anthropic). Eval rerank defaults "
+                         "RECIPE: --workers 4 on the ANTHROPIC API lane (a serial eval throttles into "
+                         "40-50min single-turn stalls; four workers is what the estate runs). NEVER pair it "
+                         "with GRAPHRAG_PROVIDER=bedrock on an arm: bedrock DISARMS adaptive thinking at "
+                         "numbers/agent.py:2881 (a hard provider()==anthropic AND supports_adaptive() gate), "
+                         "the stored base pins GRAPHRAG_PROVIDER: anthropic for exactly that reason, and "
+                         "tests/unit/test_submit_eval_parity.py:236 asserts it. Eval rerank defaults "
                          "to LOCAL bge (rankers._rerank_backend), so workers is NOT capped by the Cohere "
                          "3-req/min quota — that cap ONLY bites if you also pass GRAPHRAG_RERANK_BACKEND=bedrock, "
                          "in which case drop to --workers 1.")
@@ -570,8 +576,12 @@ def main() -> None:
     ap.add_argument("--queue", default=None,
                     help="override the Batch queue (e.g. leviathan-dev-queue-ondemand to dodge Spot interrupts)")
     ap.add_argument("--env", action="append", default=[], metavar="KEY=VAL", dest="env_overrides",
-                    help="extra container env var (repeatable) — e.g. GRAPHRAG_PROVIDER=bedrock for the "
-                         "Bedrock-serving arm, GRAPHRAG_TIMELINE=on for a timeline arm")
+                    help="extra container env var (repeatable) — e.g. GRAPHRAG_TIMELINE=on for a timeline "
+                         "arm. THE USER ALWAYS WINS over the stored base (the precedence note below), so an "
+                         "--env copied off an example overrides a pin that was written down for a reason: "
+                         "GRAPHRAG_PROVIDER=bedrock belongs ONLY to a deliberate Bedrock-serving parity arm "
+                         "and NEVER to a state/board arm -- it disarms adaptive thinking at "
+                         "numbers/agent.py:2881 and the stored base pins anthropic")
     ap.add_argument("--job-definition", default=None, dest="job_definition",
                     help="Batch job definition (family or family:revision). DEFAULTS to "
                          "<project>-<env>-evidence-build, which is what every prior submission used — "

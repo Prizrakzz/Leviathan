@@ -174,10 +174,28 @@ arm_only:
   # A LEGITIMATE DIVERGENCE, STATED RATHER THAN "FIXED": serving runs STRIP_AUDIT off, both arms run it
   # ON. Strip count is the estate's primary judge-free quality metric and the design names it.
   GRAPHRAG_STRIP_AUDIT: 'on'
-# The arm's OWN flag is not listed above because it is the treatment itself and must be passed per
-# cell, on the command line, so the two cells differ by exactly one `--env`:
+# The arm's OWN flags are not listed above because they ARE the treatment and must be passed per cell,
+# on the command line. `arm_flag` below is a SCALAR AND THE TREATMENT IS A SET (coherence audit
+# 2026-09-16, OS-A11 -- these lines said "the two cells differ by exactly one `--env`", which was true
+# when only GRAPHRAG_STATE_BOARD had a reader and is not true now):
 #   treatment: --env GRAPHRAG_STATE_BOARD=on
-#   control:   (nothing -- the flag defaults off, and flag-off is byte-identical by construction)
+#              --env GRAPHRAG_WATCH_NONOBVIOUS=on           (producer + seam, 5c45f3e6)
+#              --env GRAPHRAG_BRIDGE_QUERY=on               (seam, 08252c6a)
+#              --env GRAPHRAG_REGISTER_LICENCE=on           ) HELD until pre-arm gate (i)(a) and
+#              --env GRAPHRAG_DESK_REGISTER=on              ) (i)(b) close -- see ARM_A_HANDOFF.md
+#   both cells: --env GRAPHRAG_RERANK_GROUP_WORKERS=16      (a dispatch width, NOT a treatment; it is
+#                                                            classified nowhere in this file -- OS-A12)
+#   control:   (nothing -- every flag above defaults off, and flag-off is byte-identical by construction)
+#
+# WHICH OF THEM A CELL CARRIES IS THE OWNER'S DECISION and lives in the handoff, not here.
+#
+# `arm_flag` STAYS A SCALAR FOR BACK-COMPAT and is still what `submit_eval.py:805` reads to build the
+# Batch job-name suffix. That suffix exists for a MEASURED reason its own comment records: before
+# 2026-09-11 the treatment and control cells both rendered
+# `eval-eval-queries-state-arm-a-v1-claude-opus-5-deep`, and the Batch console is where a human kills
+# the wrong job. SO: a cell pair that differs by a flag OTHER than this scalar re-opens that ambiguity.
+# Making the suffix read a LIST (`arm_flags:`) is a declared code edit owing its own row in
+# tests/unit/test_submit_eval_parity.py -- DOCKETED, not done in a coherence pass.
 arm_flag: GRAPHRAG_STATE_BOARD
 
 # Serving does NOT set these; the JOBDEF bakes them and they must stay. Listed so a jobdef repin that

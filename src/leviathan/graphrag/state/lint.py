@@ -828,13 +828,18 @@ def _check_narration_and_calendar() -> list[str]:
 
 # ── entry points ─────────────────────────────────────────────────────────────────────────────────────
 def check_state_board() -> list[str]:
-    """Every S0 clause plus S3's three. Empty list = green. Absorbed by
+    """Every S0 clause plus S3's three plus S7b's one -- TWELVE. Empty list = green. Absorbed by
     ``config_check.check_state_board`` after K9.
 
     S3 ADDS THREE CLAUSES, each grading a CONTRACT BETWEEN MODULES that prose alone was carrying: every
     closed decline word has a reader sentence (9), the row-class regexes are pairwise disjoint and
     disjoint from the walk's own line classes (10), and the mandate, the two recency sentences and the
-    calendar's rule kinds are clean (11)."""
+    calendar's rule kinds are clean (11).
+
+    S7b ADDS THE TWELFTH, :func:`_check_nonobvious_watch` -- the non-obvious watch vocabulary, its
+    ceilings and the owner's 2026-09-11 release-calendar ban, graded on the closed KIND map. It is
+    named here because `config_check.check_state_board`'s docstring is where a reviewer looks to answer
+    "is the calendar ban enforced at build", and a roster that stops at eleven answers no."""
     errs: list[str] = []
     errs += _check_lag_table()
     errs += _check_no_summed_band()

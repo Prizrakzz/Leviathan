@@ -467,10 +467,21 @@ def coverage_tier(*, map_row: Optional[dict], silver_status: str, status: str,
 
     THAT EXCLUSION IS THE WHOLE POINT, and it is measured: the predicate is ``silver_ref in self._silver``
     with ``_silver = validate.available_silver()`` = features.yaml FAMILIES + node_silver_map metrics +
-    live map refs, so it returns True for the 125 available-but-UNMAPPED instances (``stage_precip_z``,
+    live map refs, so it returns True for the 122 available-but-UNMAPPED instances (``stage_precip_z``,
     ``crush_margin_z``, ``nass_crop_progress_ge_z`` are features.yaml families). It is a DISPLAY fact
     about what the feature layer knows about, not a claim that a served series carries the ref. Reading
-    a tier off it would put "measured" on 125 rows nothing measures.
+    a tier off it would put "measured" on 122 rows nothing measures.
+
+    THE NUMBER IS THROUGH ``state.feeders.board_map_row``, WHICH IS THE ACCESSOR THIS CODE USES
+    (coherence audit 2026-09-16, GM-A13: it read 125, which is the count through the RAW
+    ``numbers.cascade.load_map()`` -- the wrong producer for the code this docstring documents).
+    RE-MEASURED today over ``graph.CausalGraph.load()`` and its own ``_silver``: **126** instances are
+    unmapped through ``cascade.load_map()`` and **122** through ``feeders.board_map_row``. The whole
+    difference is ONE ref, ``oni_lag_climate`` -- ``board_map()`` carries it (``deferred: true`` PLUS
+    ``board_read: true``) and the raw map filters it by construction -- on FOUR driver rows: ``El_Nino``
+    and ``La_Nina`` on ``malaysian_crude_palm_oil_cme`` and on ``palm_olein_dce``. Reproduce by walking
+    ``load_contracts()``' drivers, keeping ``silver_ref in available_silver()``, and counting the rows
+    each of the two accessors returns ``None`` for.
 
     THE SPLIT, in order:
       * NO map row at all -> the row is TEXT-ONLY, and WHICH text-only tier is the DAG's own declaration:

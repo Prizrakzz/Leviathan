@@ -3,9 +3,15 @@
 # ONE table, read by state/lagbands.py, over the ENTIRE lag vocabulary of the 36 curated causal DAGs.
 # Owned by the reasoning layer; the DAGs keep the prose, this file keeps the arithmetic.
 #
-# MEASURED 2026-09-08 over configs/graphrag/causal/*.yaml (36 files, schema 5): 1,267 driver instances
-# and 146 inter_commodity edges carry 1,413 lag declarations in 18 DISTINCT node strings and 8 edge
-# strings, and every edge string is one of the 18 -- so the vocabulary is 18 strings, plus the schema
+# RE-BANKED 2026-09-16 (coherence audit, GM-A11) over configs/graphrag/causal/*.yaml (36 files,
+# schema 5): 1,270 driver instances and 146 inter_commodity edges carry 1,416 lag declarations in 18
+# DISTINCT node strings and 8 edge strings, and every edge string is one of the 18 -- so the vocabulary
+# is 18 strings, plus the schema
+# (The S0 landing read 1,267 / 146 / 1,413. The three added declarations are the D-10 sitting-9
+# reserve-level driver rows, all carrying "0-2 quarters" -- the ONE `counts` value below that moved, and
+# the delta `tests/unit/test_state_lagbands.py` had been carrying as `TABLE_REBANK_PENDING` while the
+# re-bank stayed open. THE VOCABULARY ITSELF DID NOT CHANGE: 18 node strings, 8 edge strings, 19 keys,
+# all unmoved.)
 # default "" (schema.py:44, `lag: str = ""`) which ZERO declarations use today. 19 keys, fail-closed:
 # a string outside this table parses to kind `unspecified` with NO band and is COUNTED (`lag_unparsed`),
 # never silently zero.
@@ -34,7 +40,18 @@ schema_default: ""                 # causal/schema.py:44 -- an absent `lag` is t
 bands:
   "0 quarters":    {min_q: 0, max_q: 0,    kind: point,       counts: {nodes: 6,   edges: 0}}
   "0-1 quarters":  {min_q: 0, max_q: 1,    kind: band,        counts: {nodes: 410, edges: 35}}
-  "0-2 quarters":  {min_q: 0, max_q: 2,    kind: band,        counts: {nodes: 484, edges: 76}}
+  # 487 nodes, not the 484 banked at S0 -- the RE-BANK the estate's own deck asked for (coherence audit
+  # 2026-09-16, GM-A11). The three D-10 sitting-9 reserve-level driver rows all declare this string.
+  # Every other key in this table re-measured EXACT.
+  # THE DRIFT WAS NEVER SILENT, and the audit's stated reason for this edit was wrong:
+  # `state/lint.py:_check_lag_table` reads min_q/max_q/kind and the file count only and never `counts`,
+  # but `tests/unit/test_state_lagbands.py` carried `TABLE_REBANK_PENDING = {"0-2 quarters": (3, 0)}`,
+  # which named the delta exactly, bound every other key exactly, and declared the re-bank an
+  # OWNER-APPLY item -- "when it lands this dict goes back to empty and the pin tightens itself with no
+  # other edit". Both halves of that recipe landed together; the pin now binds all 19 keys with no
+  # declared delta at all. (A `counts` clause in `_check_lag_table` is still docketed: the DECK caught
+  # this, the BUILD did not.)
+  "0-2 quarters":  {min_q: 0, max_q: 2,    kind: band,        counts: {nodes: 487, edges: 76}}
   "0-3 quarters":  {min_q: 0, max_q: 3,    kind: band,        counts: {nodes: 14,  edges: 3}}
   "0-4 quarters":  {min_q: 0, max_q: 4,    kind: band,        counts: {nodes: 3,   edges: 1}}
   "1-2 quarters":  {min_q: 1, max_q: 2,    kind: band,        counts: {nodes: 42,  edges: 4}}

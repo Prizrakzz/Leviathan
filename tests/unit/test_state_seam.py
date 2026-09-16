@@ -1456,6 +1456,16 @@ def test_lane_ws_selection_clause_rides_the_mandate_and_never_the_block():
     clause.encode("ascii")
     base = an._system(state_board=True)
     assert clause not in base
-    assert an._system(state_board=True, watch_selection=True) == base + clause
+    # COHERENCE AUDIT 2026-09-16 (WP-A2): this line read `== base + clause` -- the watch flag's only
+    # effect on the persona was a pure APPEND. It is no longer: the same bool now also restates the
+    # board mandate's movement (4), because that movement told the writer to close with "the next
+    # scheduled print, the level a convention names, the date a declared lag window opens" -- the
+    # release-calendar kind `state/watch.py:475-479` BANS AT NOMINATION under this very flag -- and to
+    # "close with THE WATCH ROWS", which `clause` opens by denying on the same turn. The equality now
+    # NAMES the substitution, so an edit to either half reds here with a cause instead of silently
+    # decoupling the mandate from the clause it ships beside.
+    assert (an._system(state_board=True, watch_selection=True)
+            == base.replace(N.MANDATE_WATCH_HEAD_RX, N.MANDATE_WATCH_NONOBVIOUS) + clause)
+    assert N.MANDATE_WATCH_HEAD_RX in base and N.MANDATE_WATCH_NONOBVIOUS not in base
     assert an._system() == an._system(watch_selection=False)
     assert clause not in R.ROW_CLASSES and not any(clause in str(v) for v in R.ROW_CLASSES.values())

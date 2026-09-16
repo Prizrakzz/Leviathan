@@ -574,6 +574,34 @@ def test_the_verifier_off_lane_relieves_no_strike_it_cannot_correct():
     assert an._bar_licence_for(sentinel, {"enabled": True}) is sentinel
 
 
+def test_the_persona_is_not_freed_on_a_lane_where_both_fences_still_strike(monkeypatch):
+    """COHERENCE AUDIT 2026-09-16, adversarial review MAJOR 1 -- THE SAME DEFECT AS THE TEST ABOVE, IN
+    THE THIRD CONSUMER.
+
+    `_bar_licence_for` re-anchors the licence on the verifier's own dict, but it runs AFTER the model
+    call; the persona's `register_licence` leg (WP-A4, which retires the cheap/rich strike the owner
+    freed) is resolved BEFORE it. So on the documented `GRAPHRAG_VERIFY=off` rollback the writer was
+    told the word was free while BOTH strip passes still struck at full force, and `reg.sanitize`
+    deletes such a sentence together with its citation: suppress-not-correct, arriving through the one
+    change written to prevent it. The lane is now ANDed at the licence's own seam, ONCE per body, in
+    verify.py's own spelling -- so the charge, the remedy and the PROMPT answer to one predicate."""
+    import inspect as _insp
+
+    monkeypatch.delenv("GRAPHRAG_VERIFY", raising=False)
+    assert an._verify_lane_enabled() is True                  # unset = on, verify.py's own default
+    monkeypatch.setenv("GRAPHRAG_VERIFY", "on")
+    assert an._verify_lane_enabled() is True
+    monkeypatch.setenv("GRAPHRAG_VERIFY", "off")
+    assert an._verify_lane_enabled() is False
+    assert 'os.environ.get("GRAPHRAG_VERIFY", "on")' in _insp.getsource(an._verify_lane_enabled)
+    assert 'os.environ.get("GRAPHRAG_VERIFY", "on") == "off"' in _insp.getsource(vf.verify_citations)
+    for body in (an._answer_l2, an.answer):
+        src = _insp.getsource(body)
+        assert "if _register_licence_on() and _verify_lane_enabled():" in src, body.__name__
+        assert src.count("register_licence=(_bar_licence is not None)") == 1, body.__name__
+        assert "_bar_licence_for(" in src, body.__name__      # the re-anchor is KEPT, never replaced
+
+
 def test_the_rewrite_s_cost_ceiling_is_a_number_the_census_is_graded_against():
     """REVIEW MINOR: the $0.038 arithmetic assumes a plain call, and `_call_opus` applies
     `synth_thinking`, `synth_effort` and an ephemeral cache breakpoint to every call it makes. So the

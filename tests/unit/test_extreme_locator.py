@@ -1061,7 +1061,8 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # It rides the SAME two-leg gate the board's mandate does (the flag AND the block's own marker), so
     # a writer can never be told to select from candidates the board did not nominate.
     _tail = list(params)
-    _APPENDS = [n for n in ("numbers_budget", "state_board", "desk_register", "watch_selection")
+    _APPENDS = [n for n in ("numbers_budget", "state_board", "desk_register", "watch_selection",
+                            "register_licence")
                 if n in _tail]
     assert _tail[len(_tail) - 2 - len(_APPENDS):len(_tail) - len(_APPENDS)] == \
         ["extreme_locator", "extreme_hop"], _tail
@@ -1071,6 +1072,18 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
         assert params["numbers_budget"].kind is inspect.Parameter.KEYWORD_ONLY
         assert an._system(numbers_budget=False) == base   # the default-off VALUE, not just the default
         assert an._SYSTEM_NUMBERS_BUDGET_MANDATE not in base
+    if "register_licence" in _tail:                       # COHERENCE AUDIT WP-A4 (2026-09-16): one named
+        # append -- the ONLY `_system` leg that SUBSTITUTES rather than appends: with the owner's
+        # words-are-free ruling lit, ONE parenthetical of the MENTOR VOICE sentence stops forbidding
+        # cheap/rich/attractive (the fence no longer charges for the word, so the persona may not).
+        # Threaded from the bool each serving body resolves for its strip passes, default False.
+        assert params["register_licence"].default is False
+        assert params["register_licence"].kind is inspect.Parameter.KEYWORD_ONLY
+        assert an._system(register_licence=False) == base   # the default-off VALUE, not just the default
+        _lic = an._system(register_licence=True)
+        assert _lic != base and len(_lic) != len(base)
+        for _old, _new in an._MENTOR_LICENCE_SUBS:               # the table is the ONE producer
+            assert _old in base and _old not in _lic and _new in _lic and _new not in base
     if "state_board" in _tail:                            # STATE ENGINE's ONE named append
         assert params["state_board"].default is False
         assert params["state_board"].kind is inspect.Parameter.KEYWORD_ONLY
@@ -1103,8 +1116,16 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
         from leviathan.graphrag.state import watch as _sw
         assert _sw.WATCH_SELECTION_CLAUSE not in base
         # ONE PRODUCER: the mandate appends lane W's own constant and never a copy of its text.
+        # COHERENCE AUDIT 2026-09-16 (WP-A2): on the LIT watch turn the mandate's movement (4) is
+        # RESTATED for the non-obvious draw (a substituted sentence riding `watch_selection`, the flag
+        # AND the block's marker), so the lit render is the board render with that ONE sentence
+        # swapped plus the selection clause; a board turn with the watch flag off keeps HEAD's bytes.
+        from leviathan.graphrag.state import narration as _sn_w
+        assert _sn_w.MANDATE_WATCH_HEAD_RX in an._system(state_board=True)
+        assert _sn_w.MANDATE_WATCH_NONOBVIOUS not in an._system(state_board=True)
         assert an._system(state_board=True, watch_selection=True) == \
-            an._system(state_board=True) + _sw.WATCH_SELECTION_CLAUSE
+            an._system(state_board=True).replace(_sn_w.MANDATE_WATCH_HEAD_RX, _sn_w.MANDATE_WATCH_NONOBVIOUS) \
+            + _sw.WATCH_SELECTION_CLAUSE
     qs = inspect.signature(cq.quantify).parameters
     assert qs["extreme_locator"].default is None
     # the locator kwarg and the extrema rider are the LAST TWO, in the order they were added -- so

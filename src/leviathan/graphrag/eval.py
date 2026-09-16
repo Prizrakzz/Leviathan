@@ -2120,12 +2120,23 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             "shape_metric_states": (out.get("trace") or {}).get("shape_metric_states"),
             "shape_decline_guard": (out.get("trace") or {}).get("shape_decline_guard"),
             "register_leaks": len(reg.register_leaks(str(out.get("answer") or ""))),
-            # S7b R1 REVIEW MAJOR 2: the RAW headline stays exactly as it is -- arm A lights the licence
-            # in BOTH cells, so it cannot confound the arm, and a metric that silently changed meaning
-            # under a flag is worse than one that moves. What is ADDED is the second population, so a
-            # rise can be read: `register_leaks_ex_bar` subtracts the Lane-A hits belonging to sentences
-            # the bound-figure licence is permitted to keep. On every flag-off turn the two are equal
-            # (sanitize struck those sentences), so this column is new information only on a licence arm.
+            # S7b R1 REVIEW MAJOR 2: the RAW headline stays exactly as it is, and a metric that silently
+            # changed meaning under a flag is worse than one that moves. What is ADDED is the second
+            # population, so a rise can be read: `register_leaks_ex_bar` subtracts the Lane-A hits
+            # belonging to sentences the bound-figure licence is permitted to keep. On every flag-off turn
+            # the two are equal (sanitize struck those sentences), so this column is new information only
+            # on a licence arm.
+            #
+            # COHERENCE AUDIT 2026-09-16 (JP-A4) -- THE SENTENCE THAT STOOD HERE SAID "arm A lights the
+            # licence in BOTH cells, so it cannot confound the arm". THAT IS FALSE, and it is the reason
+            # this counter was left un-anchored: ARM_A_HANDOFF.md:396 lists GRAPHRAG_REGISTER_LICENCE as
+            # "treatment only, AFTER gate (i)" and :401 says "THE CONTROL CELL CARRIES NONE OF THEM"
+            # (ADDENDUM_R4.md:53,:58 repeat both). So on arm A the RAW `register_leaks` AND `strip_rate`
+            # -- the estate's primary judge-free quality metric, GRAPHRAG_STRIP_AUDIT=on in BOTH cells --
+            # ARE confounded between the cells: the licence stops the strip from striking, so the
+            # treatment's strip count falls for a reason that is not quality. THE COLUMN THE ARM READS IS
+            # `register_leaks_ex_bar_total`, and the arm report must say in words that the treatment's
+            # strip count carries the licence's relief.
             #
             # ROUND-3 REVIEW MINOR (2026-09-15): AND IT IS NOW ABSENT ON A DARK ROW RATHER THAN EQUAL ON
             # ONE. It was computed unconditionally, so the eval artifact's KEY SET moved on the flag-off
@@ -2323,9 +2334,16 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # W5-D6: `directional_traceability` MUST be listed here -- this projection is a hard whitelist,
             # so an axis absent from the tuple is silently dropped from every baseline JSON and the deck
             # scores an axis nobody can read back.
+            # COHERENCE AUDIT 2026-09-16 (JP-A6): `state_use` joins the tuple for exactly the reason
+            # W5-D6 states above -- arm A pays a judge call for it on every treatment board turn and,
+            # absent here, that score reached neither `_baseline_json` nor the partial JSONL, so the arm's
+            # own headline dimension could not be tabulated without re-running the judge. The key is
+            # minted only when the judge RETURNED it (board turns), so a flag-off baseline's key set is
+            # byte-identical.
             "judge": {k: j[k] for k in ("usefulness", "convexity", "point_in_time", "grounding",
                                         "source_diversity", "continuity", "mechanism_voice",
-                                        "directional_traceability", "episode_enumeration")
+                                        "directional_traceability", "episode_enumeration",
+                                        "state_use")
                       if k in j} or None,
             # CYCLE-5 ARTIFACT-1 -- APPENDED, never interleaved: the two audit columns that make a stated
             # figure checkable after the run. `numbers_verifier` is stamped by run_numbers_only ONLY
@@ -2837,6 +2855,36 @@ def _judge_state_panel(out: dict) -> str:
         return f"{int(cov.get(hit) or 0)} of {int(cov.get(tot) or 0)}"
 
     missed = cov.get("missed") or {}
+    # COHERENCE AUDIT 2026-09-16 (JP-A1 / JP-A8) -- THE WATCH LINE RAN THE COUNTER S7b ROUND 4 RETIRED.
+    # With GRAPHRAG_WATCH_NONOBVIOUS on, `watch.watch_rows(nonobvious=True)` REPLACES the five-kind
+    # interleave with the ranked 2N nomination draw ("replaced and not appended", state/watch.py:255),
+    # so `watch_rows` IS the nomination population and `watch_referenced` is `board_coverage._bucket`'s
+    # per-SENTENCE read over it -- the read the round-4 ruling replaced with the per-BULLET counter.
+    # MEASURED (ARM_A_HANDOFF.md:427-430): the per-sentence read scored `5 of 37` on three pages a hand
+    # read scored 13 of 13, and the per-bullet counter reads those same pages 13 bullets / 13 matched /
+    # 0 writer-added. The panel was printing "5 of 37" and the missed loop below then NAMED ~32
+    # nomination ids to the judge as rows the answer never referenced -- on pages whose every bullet
+    # rested on a nomination. The handoff's own closing instruction is "Read BoardWatchReferenced
+    # against the NEW counter, not the old one", which is an instruction a judge cannot be given.
+    #
+    # DARK BY CONSTRUCTION: the eight nomination keys exist only with the flag on
+    # (`render._nomination_coverage` returns {} otherwise), so a flag-off panel takes the `else` branch
+    # and is byte-identical to HEAD, six lines and all. NO BAR IS PUT ON ANY OF THESE NUMBERS: the
+    # handoff's standing rule is "a bar MAY now be put on `watch_writer_added` and on `watch_bullets`;
+    # DO NOT YET PUT ONE ON `watch_candidates_used`", and a rubric clause about them is the owner's call.
+    if "watch_bullets" in cov:
+        _watch_line = (
+            f"- WATCH bullets shipped: {int(cov.get('watch_bullets') or 0)}; nominations used: "
+            f"{_pair('watch_candidates_used', 'watch_candidates')} (the block NOMINATES 2N candidates "
+            f"for a ceiling of N and the writer cuts, so a low ratio here is the draw's own design and "
+            f"not a miss; a core reading and its alternate can share one backing row, so this count "
+            f"over-claims rather than under-claims); bullets resting on no nomination: "
+            f"{int(cov.get('watch_writer_added') or 0)}")
+        if cov.get("watch_admitted_zero"):
+            _watch_line += ("; and the block printed its honest-absence line -- a forward item it "
+                            "could not clear the floor for is a stated gap, not a dropped row")
+    else:
+        _watch_line = f"- WATCH rows carried into the answer: {_pair('watch_referenced', 'watch_rows')}"
     lines = [
         f"- loud state rows CITED by handle: {_pair('loud_cited', 'loud_rows')} "
         f"(the tier's loudness cut is {int(cov.get('loud_k') or 0)}; two rows the block declares one "
@@ -2846,7 +2894,7 @@ def _judge_state_panel(out: dict) -> str:
         f"with no handle -- a looser read, not a tighter one)",
         f"- OPEN dated-event rows referenced: {_pair('events_referenced', 'events_open')}",
         f"- per-layer RECENCY rows stated as layer facts: {_pair('recency_referenced', 'recency_rows')}",
-        f"- WATCH rows carried into the answer: {_pair('watch_referenced', 'watch_rows')}",
+        _watch_line,
         f"- far spillover rows named: {_pair('spillover_referenced', 'spillover_rows')}"
         + ("; the block minted the cross-commodity licence line"
            if cov.get("spillover_licensed") else "; the block minted no licence line"),
@@ -2882,6 +2930,12 @@ def _judge_state_panel(out: dict) -> str:
             f"counts them, it does not judge them")
     for name, key in (("loud", "loud"), ("event", "events"), ("recency", "recency"),
                       ("watch", "watch"), ("spillover", "spillover")):
+        # JP-A1's second half: `missed['watch']` is the RETIRED per-sentence read's complement, so on a
+        # nomination turn it names the ~2N-minus-used candidates the writer was SUPPOSED to cut. Naming
+        # them to the judge as "rows the answer never referenced" is the same false claim the line above
+        # made, in a louder voice. Skipped on exactly the turns that carry the per-bullet counter.
+        if key == "watch" and "watch_bullets" in cov:
+            continue
         ids = list(missed.get(key) or ())
         if ids:
             lines.append(f"- rows of class {name} the answer never referenced: {', '.join(ids[:12])}"
@@ -2923,9 +2977,42 @@ _JUDGE_STATE_REGISTER = (
     "first counts words that named our machinery instead of the market; the second and third count "
     "adjectives that name a state and whether a served figure sat beside them. NONE of them says "
     "whether a claim is true, and a valuation word with no figure is PERMITTED here. "
-    "Do not raise or lower grounding, point_in_time or usefulness on them, do not re-score them as "
-    "their own axis, and do not reward a low count on its own -- a register number is about how the "
-    "answer reads, and this rubric is about whether it used the board.\n"
+    "Do not raise or lower grounding, point_in_time, usefulness or MECHANISM_VOICE on them, do not "
+    "re-score them as their own axis, and do not reward a low count on its own -- a register number is "
+    "about how the answer reads, and this rubric is about whether it used the board. "
+    "AND ON THIS TURN A VALUATION OR FLOW WORD IN THE WRITER'S OWN VOICE IS PERMITTED PROSE, NOT A MOOD "
+    "LABEL. Crowded, tight, rich, cheap and their kin are how a desk says what a reading means; they are "
+    "not the sign or mood labels mechanism_voice exists to charge, and an answer is not marked down for "
+    "writing them -- a sentence that DENIES one (\'there is no crowded long to unwind here\') is a "
+    "finding, not a lapse. What mechanism_voice still charges is unchanged: a bare directional verdict "
+    "standing in for a mechanism, and an execution instruction.\n"
+)
+#: S7b / COHERENCE AUDIT 2026-09-16 (JP-A2): THE WATCH CLAUSE, and it is a THIRD constant for exactly
+#: the reason the SECOND one is a constant. ``_JUDGE_STATE_USE`` ships on EVERY turn that carries a
+#: board panel, so restating its 5-criterion in place would change the judged prompt of every board row
+#: in the estate with GRAPHRAG_WATCH_NONOBVIOUS OFF -- and the judged prompt is the first row of the
+#: byte-identity set. This rides the panel's own nomination line instead (``watch_bullets`` is a
+#: flag-on-only coverage key), so it reaches a judge exactly when there is a non-obvious draw to read.
+#:
+#: WHAT IT CORRECTS. ``_JUDGE_STATE_USE``'s 5-criterion says "the watch items are the block's own dated
+#: rows" -- the pre-ruling calendar watch. The owner's 2026-09-11 ruling makes WATCH the top-N
+#: NON-OBVIOUS convex draw, BANS release-calendar rows at nomination (state/watch.py:475-479) and grades
+#: each bullet on its mechanism, its backing row and a FALSIFIER under a tier CEILING with an honest
+#: absence line. Left alone, the rubric rewarded the row class the producer now refuses to nominate.
+#:
+#: IT DESCRIBES, IT DOES NOT SCORE A COUNTER. No bar on ``watch_writer_added``, ``watch_bullets`` or
+#: ``watch_candidates_used``: the handoff reserves those and the panel says in its own words that the
+#: numbers are coverage, not correctness.
+_JUDGE_STATE_WATCH = (
+    "- the WATCH movement on THIS turn is the non-obvious draw, not a release diary: read the 5 "
+    "criterion's watch half as 'the watch items are the board's own nominations, each carrying its "
+    "mechanism, the row it rests on, and a falsifier -- the reading that would prove it wrong -- at or "
+    "under the tier's ceiling, with an honest absence line where nothing cleared the floor'. A "
+    "scheduled report or crop-calendar date is NOT a watch item here and does not earn credit; the "
+    "block names the scheduled prints once, in its own dated note, and an answer that repeats them "
+    "instead of the nominations has narrated the calendar, not the state. The writer is licensed to "
+    "cut, merge and reorder the nominations and to add ONE of its own when it names the mechanism and "
+    "the row it rests on, so a shipped list shorter than the ceiling is not a miss.\n"
 )
 #: The panel lines that license the clause above, as a TUPLE rather than one substring: the two
 #: instruments carry their own flags and either may ship without the other, so a test keyed on one
@@ -2933,6 +3020,11 @@ _JUDGE_STATE_REGISTER = (
 _JUDGE_STATE_REGISTER_MARKERS: tuple = ("- instrument words left in the answer:",
                                         "- bar adjectives whose own cited figure clears",
                                         "- valuation adjectives shipped with NO figure")
+#: JP-A2's marker, the same idiom read one level down: the WATCH clause above is licensed by the
+#: panel's own nomination line, which only a GRAPHRAG_WATCH_NONOBVIOUS turn can render. ONE substring
+#: and not a tuple, because the nomination line has ONE producer (_judge_state_panel's
+#: ``watch_bullets`` branch) and either it ran or it did not.
+_JUDGE_STATE_WATCH_MARKER: str = "- WATCH bullets shipped:"
 
 
 def _judge_tool(continuity: bool = False, state_use: bool = False) -> dict:
@@ -3175,6 +3267,10 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
                # `sb_text`-is-truthy idiom one line up read at one more level of detail.
                + (_JUDGE_STATE_REGISTER if any(w in sb_text for w in _JUDGE_STATE_REGISTER_MARKERS)
                   else "")
+               # COHERENCE AUDIT 2026-09-16 (JP-A2): same idiom, same discipline -- keyed on the panel's
+               # own nomination line, which only a GRAPHRAG_WATCH_NONOBVIOUS turn can render, so a dark
+               # turn's judged prompt stays HEAD's byte for byte.
+               + (_JUDGE_STATE_WATCH if _JUDGE_STATE_WATCH_MARKER in sb_text else "")
                + "\n" if sb_text else "")
             + f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
     sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # judge calls share it
@@ -3206,9 +3302,18 @@ def _metrics(r: dict) -> dict:
     ev_srcs = {e.get("source") for e in (out.get("evidence") or []) if e.get("source")}   # actual corpus sources
     ev_tiers = {an.source_tier(s) for s in ev_srcs}
     ans_l = (out.get("answer") or "").lower()
-    leaks = reg.register_leaks(out.get("answer") or "")               # internal tokens that leaked into reader prose
     rb = r["rubric"]
     tr = out.get("trace") or {}                                       # L2 planner traversal trace (when planner=l2)
+    # COHERENCE AUDIT 2026-09-16 (JP-A5): the S7b R1 review re-anchored THREE readers of register_leaks on
+    # `trace['bar_adjectives']` -- `_per_answer_record`, `_convo_mechanics` and report()'s per-row line --
+    # and missed THIS one, which is what `register_report` aggregates. MEASURED on a licence-lit answer
+    # ("There is no crowded long to unwind here; funds sit at the 28th percentile [N27]."):
+    # `_metrics()['register_leaks'] == 1` (token "crowded long") while `register_leaks_excluding_bar`
+    # reads 0 -- so the aggregate headline reported the licence WORKING AS RULED as a register regression,
+    # on the same page whose per-row line said the opposite. Same selector as `_convo_mechanics`: on a
+    # flag-off turn the two producers return the same number by construction, so no banked baseline moves.
+    leaks = (reg.register_leaks_excluding_bar if tr.get("bar_adjectives")
+             else reg.register_leaks)(out.get("answer") or "")        # internal tokens that leaked into reader prose
     kept = tr.get("kept") or []
     dkept = [k for k in kept if k and k[0] == "driver"]
     active = tr.get("active") or []
@@ -4278,11 +4383,23 @@ def _convo_mechanics(spec: dict, out: dict, prev_out: dict | None) -> dict:
         # found none of those carries NO key and reads `register_leaks`, which is the same number
         # `register_leaks_excluding_bar` would have returned on it, so the selector is exact rather
         # than merely close. A flag-off turn reads the identical counter it always did.
-        _leaks = (reg.register_leaks_excluding_bar if tr.get("bar_adjectives") else reg.register_leaks)
+        #
+        # COHERENCE AUDIT 2026-09-16 (JP-A7): the R1 note above re-anchored the LEAK read and left the two
+        # RAW counters in the same boolean un-anchored. `register.py:876-879` says in its own words that
+        # the licence "never touches ... count_valuation_words / count_flow_words", so on the two sentences
+        # the licence KEEPS ("no crowded long to unwind", "the basis is rich") count_valuation_words == 1
+        # and count_flow_words == 1, and this gate flipped False on the instrument working as ruled -- the
+        # identical defect, one line below its own description. THE POPULATION THIS CHECK MEANS is "the
+        # prior turn's permitted vocabulary carried forward WITHOUT the licence", so on a turn whose trace
+        # says the licence ran the two word counters are not evidence and are not read. `banned_exec_words`
+        # is NOT relaxed: the execution fence is KEPT by the ruling (register.py A2) and stays absolute.
+        # A flag-off turn carries no `bar_adjectives` key and reads exactly the boolean it always did.
+        _lic = bool(tr.get("bar_adjectives"))                         # the licence ran on THIS turn
+        _leaks = (reg.register_leaks_excluding_bar if _lic else reg.register_leaks)
         checks["follow_up_fenced_ok"] = (
             not tr.get("outlook_mode")                                # this turn did NOT relax, and ...
-            and int(tr.get("banned_flow_words") or 0) == 0            # ... carried none of the prior turn's
-            and int(tr.get("banned_valuation_words") or 0) == 0       #     permitted vocabulary forward,
+            and (_lic or int(tr.get("banned_flow_words") or 0) == 0)  # ... carried none of the prior turn's
+            and (_lic or int(tr.get("banned_valuation_words") or 0) == 0)  # permitted vocabulary forward,
             and int(tr.get("banned_exec_words") or 0) == 0            #     nor any execution idiom,
             and not _leaks(ans))                                      #     nor any register leak.
     if spec.get("banned_exec_zero"):                                  # assertable on ANY turn, outlook or not

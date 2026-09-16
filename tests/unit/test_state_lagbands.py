@@ -29,14 +29,20 @@ N_EDGE_STRINGS = 8               # every one of them is also one of the 18
 N_TABLE_KEYS = 19                # the 18 strings + the schema default ""
 
 #: WHAT THE BANKED TABLE HAS NOT BEEN RE-MEASURED FOR, per key, as ``(node delta, edge delta)``.
-#: ``configs/graphrag/numbers/lag_bands.yaml`` carries per-key declaration counts measured at S0, and
-#: the three sitting-9 nodes all declare ``0-2 quarters`` -- so the table reads 484 nodes there and the
-#: DAGs now declare 487. The table is NOT edited here (this sitting's allowlist is the state package and
-#: its decks; the YAML is a curated config with its own sitting), so the delta is DECLARED, and the
-#: assertion below still binds every other key exactly. RE-BANKING lag_bands.yaml -- 484 -> 487 on
+#: **EMPTY, AND THAT IS THE POINT** -- the pin below now binds all 19 keys with no declared delta at all.
+#:
+#: WHAT IT CARRIED, AND WHY IT IS GONE (coherence audit 2026-09-16, GM-A11). It held
+#: ``{"0-2 quarters": (3, 0)}``: ``lag_bands.yaml``'s per-key counts were measured at S0, the three
+#: D-10 sitting-9 nodes all declare ``0-2 quarters``, so the table read 484 nodes there while the DAGs
+#: declared 487. The YAML was outside that sitting's allowlist, so the delta was DECLARED here instead
+#: of quietly swapped -- and this note said: "RE-BANKING lag_bands.yaml -- 484 -> 487 on
 #: ``0-2 quarters`` -- is an OWNER-APPLY item; when it lands this dict goes back to empty and the pin
-#: below tightens itself with no other edit.
-TABLE_REBANK_PENDING: dict = {"0-2 quarters": (3, 0)}
+#: below tightens itself with no other edit." The re-bank landed in the coherence pass and both halves
+#: moved together, which is the whole of the change: 484 -> 487 in the YAML, this dict -> ``{}``.
+#: THE FENCE IS UNCHANGED AND IS NOW STRICTLY TIGHTER. A future curation that moves any key reds here
+#: exactly as this one did; the correct response is a re-bank plus, if the YAML is out of the sitting's
+#: reach, one named entry in this dict -- never a loosened assertion.
+TABLE_REBANK_PENDING: dict = {}
 
 
 def _docs():
