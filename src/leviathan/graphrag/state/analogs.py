@@ -40,7 +40,6 @@ callables whose seats wave 2 already priced (``walk.price_wave2``'s ``analog_ben
 """
 from __future__ import annotations
 
-import math
 from typing import Optional
 
 from leviathan.graphrag.state import transforms as TR
@@ -66,7 +65,8 @@ def check_cascade_analog_imports() -> list:
 # ---------------------------------------------------------------------------------------------------
 def state_history(st, *, window: Optional[int] = None, lag_days: int = 0,
                   want_pct: bool = False) -> dict:
-    """``{'dates', 'values', 'z', 'pct', 'window', 'lag_days'}`` -- the state AS KNOWABLE AT EACH date.
+    """``{'dates', 'values', 'z', 'pct', 'window', 'lag_days', 'knowable'}`` -- the state AS KNOWABLE AT
+    EACH date.
 
     ONE registered transform (``rolling_zscore``) over the row's OWN input bundle, so the vector this
     selector ranks against is the same arithmetic the row's printed z came from. ``None`` at a position
@@ -81,6 +81,14 @@ def state_history(st, *, window: Optional[int] = None, lag_days: int = 0,
     closes it by re-indexing the vector onto the knowledge axis -- position ``i`` carries the state of
     the newest observation whose own date is ``<= dates[i] - lag_days``. With ``lag_days == 0`` the map
     is the identity and this function is exactly what it was.
+
+    **THE MAP ITSELF RIDES ON THE RESULT AS ``knowable`` (round 3, MAJOR B).** ``z`` and ``pct`` are
+    re-indexed here; ``values`` is NOT, deliberately -- it is the series' own observations and the run
+    and direction components are computed off it by :func:`_direction_at` / :func:`_run_at`. Those two
+    read POSITIONS, so unless they are handed the map they read the move INTO observation ``i`` while
+    the z beside them is the state knowable at ``dates[i]`` -- one position, two vintages, which is the
+    exact defect round 2 closed on the "now" half. Publishing the map closes it on the "then" half at
+    one O(n) walk per history instead of one per candidate (:func:`_knowable_map`).
 
     THE ASYMMETRY IS STATED RATHER THAN HIDDEN: ``z_now`` on the caller's ``dims`` is the ROW's own
     printed z, computed over every observation already published at the as-of, and a past position here
@@ -111,8 +119,17 @@ def state_history(st, *, window: Optional[int] = None, lag_days: int = 0,
     # meaning (every position this history could not carry); `dropped` says WHICH -- a declared NULL, a
     # cell that did not parse (a DEFECT), a flag column, or a reading whose period label could not be
     # placed. `transforms.cell_kind` holds the reason the three are not one number.
+    # THE KNOWLEDGE-AXIS MAP RIDES ON THE HISTORY (round 3, MAJOR B). It was a local of this function,
+    # so the two components that are NOT re-indexed here -- direction and run, which are read off
+    # ``values`` -- had no way to reach it and were read on the OBSERVATION axis at a position whose z
+    # and percentile were read on the KNOWLEDGE axis. MEASURED on the one lagged fixture card
+    # (``b40_event / drought``, 25 days declared): the direction differed from the one knowable at that
+    # position on 292 of 440 positions and the run length on 257. Carrying the map means every reader
+    # of this history places a component on the same axis, ONCE, without an O(n) walk per candidate.
+    idx = _knowable_indices(dates, lag)
     out = {"dates": dates, "values": values, "z": [None] * len(values), "pct": [None] * len(values),
            "window": win, "lag_days": lag, "n_dropped_null": int(n_dropped),
+           "knowable": idx,
            "dropped": {k: int(v) for k, v in drops.items()}}
     if not values:
         return out
@@ -127,7 +144,6 @@ def state_history(st, *, window: Optional[int] = None, lag_days: int = 0,
         res, _rec = TR.run_transform("rolling_zscore", clean, key=key, params={"window": win})
         if not res.get("declined"):
             z_raw = list(res.get("series") or [])
-    idx = _knowable_indices(dates, lag)
     out["z"] = [(None if j is None or j >= len(z_raw) else z_raw[j]) for j in idx]
     if want_pct:
         pct_raw = _prefix_percentiles(values)
@@ -196,6 +212,44 @@ def _knowable_indices(dates, lag_days: int) -> list:
     return out
 
 
+def _knowable_map(hist: dict) -> list:
+    """The history's knowledge-axis index map, read off the dict or computed ONCE and cached on it.
+
+    THE CACHE IS THE POINT AND NOT AN OPTIMISATION DETAIL. :func:`likeness` runs once per CANDIDATE and
+    the relaxed pool is the record itself, so deriving the map inside it would be an O(n) walk per
+    candidate per dimension -- O(n^2) on a 440-month card, which is the cost the widening must not buy.
+    :func:`state_history` already publishes it as ``knowable``; this function exists for the histories
+    the decks, the census and :func:`_price_dimensions` state BY HAND, where the map is absent and the
+    honest answer is to derive it from the dict's own ``dates`` and ``lag_days`` rather than to assume
+    the identity. With ``lag_days == 0`` it IS the identity, so a hand-stated vector keeps the exact
+    arithmetic it stated."""
+    dates = hist.get("dates") or ()
+    idx = hist.get("knowable")
+    lag = int(hist.get("lag_days") or 0)
+    # ROUND-3 REVIEW MINOR 4: the cache guard keys on the lag as well as the length, so a history whose
+    # ``lag_days`` moved in place can never serve a stale map (unreachable today; the class is closed).
+    if isinstance(idx, list) and len(idx) == len(dates) and hist.get("knowable_lag") == lag:
+        return idx
+    idx = _knowable_indices(dates, lag)
+    hist["knowable"] = idx
+    hist["knowable_lag"] = lag
+    return idx
+
+
+def _knowable_at(hist: dict, i: Optional[int]) -> Optional[int]:
+    """The index of the newest observation KNOWABLE at position ``i`` -- ``None`` where there is none.
+
+    ``None`` is a HOLE and is never silently replaced by ``i``: a position earlier than the card's own
+    publication lag had NO reading behind it, and answering with the observation dated there is the
+    anachronism this map exists to refuse."""
+    if i is None:
+        return None
+    idx = _knowable_map(hist)
+    if i < 0 or i >= len(idx):
+        return None
+    return idx[i]
+
+
 def _prefix_percentiles(values) -> list:
     """``stats.percentile`` at EVERY prefix, in one sorted pass -- ``None`` below the module's own floor.
 
@@ -213,6 +267,7 @@ def _prefix_percentiles(values) -> list:
     besides: only a row whose convention is ``percentile_bands``, and the co-loud decile test, ever ask
     for it."""
     import bisect
+
     from leviathan.graphrag.numbers import stats as _st
     floor = int(getattr(_st, "MIN_PERCENTILE_N", 8))
     out: list = []
@@ -252,7 +307,7 @@ def percentile_vector(hist: dict) -> list:
     if any(p is not None for p in (hist.get("pct") or ())):
         return hist["pct"]
     raw = _prefix_percentiles(hist.get("values") or [])
-    idx = _knowable_indices(hist.get("dates") or [], int(hist.get("lag_days") or 0))
+    idx = _knowable_map(hist)
     hist["pct"] = [(None if j is None else raw[j]) for j in idx]
     return hist["pct"]
 
@@ -317,7 +372,8 @@ def _add_months(iso, months: int) -> Optional[str]:
 # ---------------------------------------------------------------------------------------------------
 # 4.2 CANDIDATES -- crossings, so one episode yields ONE candidate
 # ---------------------------------------------------------------------------------------------------
-def crossings(hist: dict, *, convention: Optional[dict] = None, min_run: int = 1) -> list:
+def crossings(hist: dict, *, convention: Optional[dict] = None, min_run: int = 1,
+              any_month: bool = False, min_separation_months: int = 0) -> list:
     """Every CROSSING on this series: the start of a run, or the first observation past a declared desk
     line. Returns ``[{index, date, kind, band}]`` oldest first.
 
@@ -325,13 +381,32 @@ def crossings(hist: dict, *, convention: Optional[dict] = None, min_run: int = 1
     month the state was high" (Draft B): a twelve-month El Nino would otherwise contribute twelve
     near-identical candidates and crowd out every other episode in the pool.
 
-    ``min_run`` IS THE RUN-START RULE AND IT IS A COMPARISON TO NOW, NEVER A THRESHOLD. A bare "start of
-    a run" on a real monthly series fires every two or three months -- MEASURED at this landing as one
-    hundred and ninety-five candidates on a four-hundred-and-forty-month ONI fixture, which is not "one
-    episode, one candidate" by any reading. The rule that restores it without curating anything is the
-    PRESENT STATE'S OWN run length: a past run counts as a candidate when it ran at least as long as the
-    run the series is in NOW. That is a statement about likeness (the thing being selected for), not a
-    number somebody chose, and it moves with the board rather than with a config."""
+    **``any_month`` IS THE R3a RELAXATION (DESIGN C.1) AND IT IS THE DEFAULT OF NOBODY BUT
+    :func:`select_analogs`.** The owner's rule is "candidates from ANY month, deduplicated per EPISODE",
+    and this branch is the SECOND half of that sentence made exact: **it does not admit every month, it
+    admits every EPISODE** -- one candidate at each maximal run's START, plus the first placeable
+    position, plus every declared band crossing. MEASURED on the fixture histories that is 222 of 440
+    positions on the ONI card and 338 of 440 on a white-noise one, which is the 2/3 a series that turns
+    direction at random offers and not the 440 the words "every month" would promise (round 2, minor 1).
+    The old
+    ``min_run`` rule is what goes with it: comparing a past run's length against the run the series is
+    in NOW is a FLOOR, and a floor denies the tail (house doctrine). The run length does not leave the
+    selection -- it stays the second term of :func:`select_analogs`' tie-break, where it GRADES instead
+    of gating. ``min_run`` survives as an explicit opt-in so the census and the null-boundary decks that
+    state a floor by hand keep the arithmetic they stated; nothing in the serving path passes one.
+
+    THE TWO BRANCHES DIFFER BY MORE THAN THE FLOOR, and the difference is the point. ``min_run`` mints a
+    candidate only where the DIRECTION changes, so a series that sat flat for thirty months contributes
+    nothing at all; ``any_month`` opens an episode at the first placeable position too, so a record whose
+    only structure is a flat stretch still offers the reader a date. The convention-band crossings are
+    UNTOUCHED in both branches -- a declared desk line is the one candidate rule the desk itself wrote.
+
+    ``min_separation_months`` IS OFF BY DEFAULT AND :func:`select_analogs` LEAVES IT OFF. Thinning the
+    pool here would walk the candidates in DATE order and drop the later member of every close pair --
+    which is a DELETION of the most-like candidate whenever likeness and recency disagree, i.e. exactly
+    the case bar B9 exists for. The same rule applied to the PICKED list runs in DISTANCE order and
+    keeps the most-like member of an episode, which is why it lives there and why this knob exists only
+    so a caller who wants the other shape can measure it rather than assume it."""
     values, dates = hist["values"], hist["dates"]
     out: list = []
     seen: set = set()
@@ -344,7 +419,11 @@ def crossings(hist: dict, *, convention: Optional[dict] = None, min_run: int = 1
         if i in seen or i <= 0 or i >= len(dates) or axis_date(dates[i]) is None:
             return
         seen.add(i)
-        out.append({"index": i, "date": dates[i], "kind": kind, "band": band})
+        # ``n_merged`` IS ALWAYS PRESENT AND IS ZERO WITH THE THINNING OFF (round 2, minor 5). It used to
+        # be minted only by :func:`_merge_close_candidates`, so ``c["n_merged"]`` RAISED on the default
+        # pool -- a key whose presence depended on a kwarg nobody passes. Zero is the true answer: no
+        # candidate was folded onto this one.
+        out.append({"index": i, "date": dates[i], "kind": kind, "band": band, "n_merged": 0})
 
     prev_sign = 0
     starts: list = []
@@ -355,11 +434,7 @@ def crossings(hist: dict, *, convention: Optional[dict] = None, min_run: int = 1
             starts.append(i)
         if sign:
             prev_sign = sign
-    floor = max(1, int(min_run))
-    for j, i in enumerate(starts):
-        end = (starts[j + 1] - 1) if j + 1 < len(starts) else (len(values) - 1)
-        if (end - i + 1) >= floor:
-            _add(i, "run_start")
+    band_hits: list = []
     if convention:
         kind = str(convention.get("kind") or "")
         bands = [b for b in (TR.num_or_none(x) for x in (convention.get("bands") or []))
@@ -373,9 +448,56 @@ def crossings(hist: dict, *, convention: Optional[dict] = None, min_run: int = 1
                     continue
                 now = _past_line(kind, rv, b, bands)
                 if was is False and now:
-                    _add(i, "band_crossing", b)
+                    band_hits.append((i, b))
                 was = now
+    if any_month:
+        # THE DECLARED DESK LINE IS ADDED FIRST, AND THAT IS "kept as they are" MADE TRUE. ``_add``
+        # refuses an index it has already minted, so with the episode starts first a crossing that lands
+        # ON a turn would silently lose its ``band_crossing`` kind and its band to an ``episode_start``
+        # -- MEASURED on the deck's own two-level fixture, where the one declared crossing vanished from
+        # the band list entirely. Under the OLD rule the collision could not arise in the direction that
+        # matters, so its order is left exactly where it was below.
+        for i, b in band_hits:
+            _add(i, "band_crossing", b)
+        # THE FIRST PLACEABLE POSITION OPENS THE FIRST EPISODE. ``starts`` records DIRECTION CHANGES, so
+        # without this line a record that opens with a flat or monotone stretch has no candidate until
+        # its first turn -- and "any month" would then exclude the oldest months in the record, which is
+        # the opposite of what the relaxation is for. ``_add``'s own guards still refuse index 0 (it has
+        # no preceding observation and therefore no direction, no run and no delta) and any position
+        # whose label this calendar cannot place.
+        _add(1, "episode_start")
+        for i in starts:
+            _add(i, "episode_start")
+    else:
+        floor = max(1, int(min_run))
+        for j, i in enumerate(starts):
+            end = (starts[j + 1] - 1) if j + 1 < len(starts) else (len(values) - 1)
+            if (end - i + 1) >= floor:
+                _add(i, "run_start")
+        for i, b in band_hits:
+            _add(i, "band_crossing", b)
     out.sort(key=lambda c: c["index"])
+    if int(min_separation_months or 0) > 0:
+        out = _merge_close_candidates(out, int(min_separation_months))
+    return out
+
+
+def _merge_close_candidates(cands: list, months: int) -> list:
+    """Candidates closer together than ``months`` COLLAPSE onto the older one, which carries the count.
+
+    It COMPUTES rather than deletes in the only sense available to a date-ordered pass: the survivor
+    stamps ``n_merged``, so a caller that thins the pool can still print how many months of one episode
+    stood behind the date it shows. :func:`crossings` leaves it off for the reason its docstring gives.
+    ``None`` from :func:`_months_between` is NO SEPARATION CONSTRAINT, as it is everywhere else here --
+    an exclusion has to be earned by a measurement."""
+    out: list = []
+    for c in cands:
+        if out:
+            m = _months_between(out[-1]["date"], c["date"])
+            if m is not None and abs(m) < int(months):
+                out[-1]["n_merged"] = int(out[-1].get("n_merged") or 0) + 1
+                continue
+        out.append({**c, "n_merged": int(c.get("n_merged") or 0)})
     return out
 
 
@@ -394,70 +516,452 @@ def _past_line(kind: str, reading: float, band: float, bands) -> bool:
 
 
 # ---------------------------------------------------------------------------------------------------
-# 4.2 LIKENESS -- an unweighted distance with a sign gate
+# 4.2 LIKENESS -- an unweighted distance over a WIDENED state vector, and every count a printed FACT
 # ---------------------------------------------------------------------------------------------------
-def _ceil_half(n: int) -> int:
-    return int(math.ceil(max(0, int(n)) / 2.0))
+#: THE FOUR COMPONENTS OF THE STATE VECTOR (DESIGN C.1), declared once so the coverage the stanza prints
+#: names the same four the distance reads, and so a fifth cannot arrive without moving this tuple.
+STATE_COMPONENTS: tuple = ("z", "percentile", "direction", "run")
+
+#: THE ONE THAT CARRIES A DISTANCE, and it is ONE because a distance compares a statistic against
+#: ITSELF at another date (orchestrator ruling, round 2, MAJOR 1). ``rolling_zscore`` is a FIXED window
+#: (sixty months on a monthly card), so ``z_t`` and ``z_now`` are the same statistic at every index and
+#: their difference is a distance. :func:`_prefix_percentiles` is a PREFIX midrank -- at index ``i`` the
+#: reading is "where this value sits among the first ``i + 1`` observations" -- so its reference
+#: population GROWS ALONG THE RECORD (8 at the module's own floor, 440 at the tail of a 440-month card).
+#: :func:`_pct_to_z` is the right UNIT conversion and carries no chosen constant, but no unit conversion
+#: makes a rank against 33 observations commensurable with a rank against 440, and the first cut MEASURED
+#: what that buys: on the ``b40_event`` fixture the flagship max stanza moved from 2020-10-31 to
+#: 1992-09-30 (index 32, population 33) on a candidate carrying NO z at all. The percentile stays in
+#: :data:`STATE_COMPONENTS`, it is still computed, it is still returned per dimension as ``pct_gap`` --
+#: a PRINTED FACT of the stanza -- and it no longer ranks. A DIRECTION and a RUN LENGTH never carried a
+#: distance for a different reason: turning "the two directions disagree" into a number of sigmas would
+#: require somebody to pick how many, which is the weight sec 14 refuses.
+DISTANCE_COMPONENTS: tuple = ("z",)
+
+#: WHICH VECTOR ON A STATE HISTORY EACH NAMED COMPONENT IS READ OFF, declared once so :func:`likeness`
+#: and :func:`_record_span` can never disagree about what "observable" means. The two positional
+#: components (direction, run) are computed from ``values`` rather than carried as a vector, which is why
+#: only the two RANKABLE names appear here.
+COMPONENT_VECTOR: dict = {"z": "z", "percentile": "pct"}
+
+#: WHAT AN UNREAD DIMENSION COSTS A CANDIDATE, in sigmas (orchestrator ruling, round 2, the EARLY-DATE
+#: RULE). UNKNOWN IS FAR. With the coverage filter struck, a candidate observable on two of five
+#: dimensions was averaged over the two it could be read on -- so the OLDEST stretch of every record,
+#: where the fewest dimensions have warmed up, won on a denominator rather than on likeness. The rule is
+#: a RANK RULE and never a filter: the unread dimensions are charged one sigma each, the denominator is
+#: the DECLARED count again, the candidate stays in the pool, and the count rides the row so the stanza
+#: can say "like on two of the five dimensions; the three unread count as a sigma apart". A gate deletes;
+#: this orders, and every number in it is printed.
+UNOBSERVED_SIGMA: float = 1.0
+
+#: The percentile is clamped off 0 and 100 before the quantile, because the normal quantile is infinite
+#: at both. ``_prefix_percentiles``' midrank never reaches either on ``n >= 2`` (its maximum is
+#: ``100 - 50/n``), so this is a guard on a hand-stated vector and not a correction of the producer.
+_PCT_EPS: float = 1e-3
+
+
+def _pct_to_z(p) -> Optional[float]:
+    """A PERCENTILE READ ON THE Z AXIS -- ``NormalDist().inv_cdf``, which is a UNIT CONVERSION and not a
+    weight. ``None`` on anything that is not a reading.
+
+    WHY A CONVERSION AT ALL, NOW THAT THE PERCENTILE DOES NOT RANK. The percentile gap is a FACT the
+    stanza prints beside the distance, and a fact printed in percentage points beside a figure in sigmas
+    invites the reader to add them. Carrying it onto the z axis states both on ONE axis, which is the
+    only honest way to print them together -- and it is the conversion that would be required if a
+    FIXED-WINDOW percentile ever joined :data:`DISTANCE_COMPONENTS`, so the arithmetic stays where it was
+    rather than being deleted and re-derived. Averaging percentage POINTS against sigmas would have let
+    the percentile term outweigh the z term by a factor of about twenty-five, which is a weight nobody
+    declared."""
+    v = TR.num_or_none(p)
+    if v is None:
+        return None
+    from statistics import NormalDist
+    q = min(max(float(v) / 100.0, _PCT_EPS), 1.0 - _PCT_EPS)
+    return float(NormalDist().inv_cdf(q))
+
+
+def _direction_at(hist: dict, i: Optional[int]) -> Optional[int]:
+    """``+1 / -1 / 0`` -- the series' own direction INTO position ``i``. ``None`` where there is no
+    preceding observation to take a direction from, which is an honest hole and never a zero: "it did
+    not move" and "there is nothing to have moved from" are different states of the record."""
+    vals = hist.get("values") or ()
+    if i is None or i <= 0 or i >= len(vals):
+        return None
+    a, b = TR.num_or_none(vals[i - 1]), TR.num_or_none(vals[i])
+    if a is None or b is None:
+        return None
+    return 1 if b > a else (-1 if b < a else 0)
+
+
+def _direction_word(d) -> Optional[int]:
+    """THE CALLER'S OWN "which way is it moving NOW", as ``+1 / -1 / 0``, or ``None``.
+
+    It reads both spellings the estate carries, because ``StateRow.run`` states a direction in WORDS
+    (``feeders``: ``{'direction': 'up'|'down', 'length': n}``) while this module's own
+    :func:`_direction_at` states it as a sign. ``None`` is a HOLE and never a zero -- a row whose streak
+    declined has no direction to compare, and calling that "flat" would invent an agreement.
+
+    THE HELPER EXISTS BECAUSE THE TAIL READ WENT (round 2, MAJOR 5). ``d_now`` used to be
+    ``_direction_at(hist, last)`` -- the last move of the KNOWLEDGE-AXIS vector, which on a lagged card
+    is an older print than the row the board is showing. The caller passes what its own row says."""
+    if d is None or isinstance(d, bool):
+        return None
+    if isinstance(d, str):
+        w = d.strip().lower()
+        return {"up": 1, "rising": 1, "down": -1, "falling": -1, "flat": 0}.get(w)
+    n = TR.num_or_none(d)
+    if n is None:
+        return None
+    return 1 if n > 0 else (-1 if n < 0 else 0)
 
 
 def likeness(candidate_date: str, dims: list) -> Optional[dict]:
-    """``sum over dims |z_t - z_now| / |dims|`` with a SIGN-AGREEMENT GATE on at least half the
-    dimensions (sec 4.2). ``None`` when the gate fails or no dimension is observable at ``t``.
+    """THE DISTANCE OVER THE WIDENED STATE VECTOR, and every count it produces is a FACT rather than a
+    gate (owner doctrine 2026-09-17: STATS GRADE, NEVER GATE). ``None`` ONLY when no dimension carries a
+    readable distance component at ``t`` -- existence, which is one of the two filters the doctrine
+    leaves hard.
+
+    **AND SINCE ROUND 2, "A READABLE DISTANCE COMPONENT" MEANS A READABLE Z, ON ONE DIMENSION OR MORE.**
+    That is a NARROWING of this function's own hard filter and it is stated here as the filter it is,
+    not left to be inferred from :data:`DISTANCE_COMPONENTS`. When the prefix percentile was in the
+    distance, a candidate inside every dimension's rolling warm-up was still rankable on its percentile;
+    with the distance back to the z alone it is not, and this function returns ``None`` for it. The
+    module's own rule would have SCORED that candidate at exactly :data:`UNOBSERVED_SIGMA` -- so the
+    decline is a CHOICE about comparability (a distance whose every term is the same constant ranks
+    nothing) and not an arithmetic necessity. It is COUNTED rather than silent: :func:`select_analogs`
+    returns ``n_dropped_unreadable`` -- ``n_candidates_pit`` minus ``n_candidates`` -- and the row
+    carries it. MEASURED on the fixture estate: 60, 91 and 91 candidates per 440-month card, the oldest
+    stretch of every record.
+
+    **THE DISTANCE IS THE ONE THAT SHIPPED.** Per dimension the gap is the mean of the DISTANCE
+    components readable at ``t`` (:data:`DISTANCE_COMPONENTS`, which is the z and only the z -- see that
+    tuple for the measurement that took the prefix percentile out of it), and the distance is the mean of
+    those per-dimension gaps over THE DECLARED dimensions, with each UNREAD dimension charged
+    :data:`UNOBSERVED_SIGMA`. On a pool where every dimension is observable -- which is every pool the
+    shipped selector could admit, because it required exactly that -- this is
+    ``sum |z_t - z_now| / |dims|`` unchanged, byte for byte.
+
+    **UNKNOWN IS FAR** (orchestrator ruling, round 2). The first cut divided by the OBSERVED count, which
+    made a candidate readable on two of five dimensions compete on a two-dimension average against one
+    readable on all five -- and since the oldest stretch of a record is where the fewest dimensions have
+    warmed up, that is an ANTIQUITY bias wearing a likeness name. Charging the unread dimensions a full
+    sigma each ranks them where the reader would: a 2-of-5 candidate whose two observed gaps average 0.04
+    scores ``(0.08 + 3.0) / 5 = 0.616`` and sits BELOW a 5-of-5 candidate at 0.3. It is a RANK RULE and
+    not a filter -- the candidate stays in the pool, keeps its distance, and the stanza prints both counts.
+
+    **EVERY "NOW" IS THE CALLER'S, AT THE AS-OF VINTAGE** (round 2, MAJOR 5). ``z_now`` was always passed
+    in; ``pct_now``, ``dir_now`` and ``run_now`` now are too, and NONE of them is taken from the tail of
+    the knowledge-axis vector. The first cut read ``pct_now`` off ``hist['pct'][-1]``, which on a lagged
+    card is an OLDER print than the row's own z: measured on ``b40_event / drought`` (a 25-day declared
+    lag) the row's ``z_now`` is 0.7581 and the vector's tail is 0.6351 -- 0.123 sigma of pure vintage
+    disagreement, against winning distances of 0.011 to 0.065. A dimension whose caller declares no
+    ``pct_now`` / ``dir_now`` / ``run_now`` is UNOBSERVED on that component; it never borrows a tail.
+
+    **AND EVERY "THEN" IS READ ON ONE AXIS -- THE KNOWLEDGE AXIS** (round 3, MAJOR B). Round 2 fixed the
+    vintage on the ``now`` half of all four components and on the ``then`` half of only two: ``z[i]`` and
+    ``pct[i]`` come off vectors ``state_history`` re-indexed, while ``_direction_at`` / ``_run_at`` read
+    ``values`` -- the OBSERVATION axis -- at the same ``i``. On a card with a declared publication lag
+    those are different observations, so one position carried a knowable z beside a direction into a
+    print nobody held at that date: MEASURED on ``b40_event / drought`` (25 days) at 292 of 440 positions
+    for the direction and 257 of 440 for the run. Both now read at ``_knowable_at(hist, i)``, which is
+    the identity on every zero-lag card and therefore moves no hand-stated vector.
+
+    **THE TWO RULES THAT WENT, and what replaced each.** The SIGN GATE (``agree < ceil(len(dims)/2)`` ->
+    ``None``) and the all-dimensions-observable skip in :func:`select_analogs` both DELETED a stanza; the
+    estate's own record is that this rule declined on five of five 2026-09-16 smoke turns and the reader
+    was handed "no past state on this series is like the present one" beside two rendered windows. Both
+    become NUMBERS the stanza prints: ``sign_agree of sign_seen`` ("the state agreed in sign on three of
+    five dimensions") and ``dims_seen of dims_declared`` ("like on three of the five dimensions this board
+    ranks; the other two have no reading at that date"). A fence that CORRECTS or COMPUTES, never deletes.
 
     NO WEIGHTS AND NO SCALAR LOUDNESS SCORE (sec 14). Drafts A and D wanted ``1.0/40/3`` and ``2/25/4``
     weightings; a weight is a threshold with a smooth edge, and the whole engine's answer to "which
-    driver matters" is that the writer decides, on figures the board prints.
+    driver matters" is that the writer decides, on figures the board prints. :data:`UNOBSERVED_SIGMA` is
+    not a weight on a component -- it is what an UNREAD dimension is worth, one sigma, stated and printed.
 
-    Each ``dims`` entry is ``{'id', 'hist', 'z_now'}``; a dimension whose z is missing at ``t`` (an
-    honest hole) is skipped for the DISTANCE and counts against the gate's denominator, so a candidate
-    observable on one dimension out of five cannot win on one number."""
+    Each ``dims`` entry is ``{'id', 'hist', 'z_now'}`` and may carry ``'pct_now'``, ``'dir_now'`` and
+    ``'run_now'`` -- the row's own readings at the as-of. THE PERCENTILE IS READ OFF ``hist['pct']`` AND
+    IS NEVER MINTED HERE: ``state_history``'s percentile vector is LAZY by design (``want_pct``) because
+    it is an O(n log n) pass per dimension, and a selector that built one behind its caller's back would
+    both spend that pass on every board and read a state the producer declined to compute. ``analog_rows``
+    is the producer that turns it on.
+
+    ``run_gap`` ON THE RESULT IS A MEAN OVER DIMENSIONS and is NOT the tie-break's own term (round 2,
+    minor 4): it is the mean of ``|run at t - the dimension's run now|`` over the dimensions that carry
+    both, while :func:`select_analogs`' second sort term is ``abs(run_length - run_now)`` on the SEED's
+    own run. Three similarly named numbers, two different subjects; a render that prints them as one
+    arithmetic prints a falsehood.
+
+    ``per_dim[].id``, like ``dims_order`` and ``record_span``, carries the RAW DRIVER ID. It is an
+    INTERNAL key for the lint and the census -- never a page word. ``register.internal_leaks`` is not
+    relaxable and :func:`_label` / ``render.humanise`` is the required door."""
     if not dims:
         return None
-    gaps: list = []
-    agree = 0
+    total = 0.0
     seen = 0
+    agree = sign_seen = 0
+    dir_agree = dir_seen = 0
+    run_gaps: list = []
+    per: list = []
     for dim in dims:
-        hist = dim["hist"]
-        i = _index_on_or_before(hist["dates"], candidate_date)
-        z_t = None if i is None else TR.num_or_none(hist["z"][i])
+        hist = dim.get("hist") or {}
+        # THE VECTORS ARE READ IN PLACE, NEVER COPIED. This function runs once per CANDIDATE and the
+        # relaxed pool is the record itself, so a list() of each vector per dimension per candidate is
+        # an O(n) copy on the hot path -- the cost the widening must not buy.
+        dates = hist.get("dates") or ()
+        i = _index_on_or_before(dates, candidate_date)
+        parts: list = []
+        obs: list = []
+        rec: dict = {"id": str(dim.get("id") or ""), "index": i}
+        zs = hist.get("z") or ()
+        z_t = None if (i is None or i >= len(zs)) else TR.num_or_none(zs[i])
         z_now = TR.num_or_none(dim.get("z_now"))
-        if z_t is None or z_now is None:
-            continue
-        seen += 1
-        gaps.append(abs(z_t - z_now))
-        if (z_t >= 0) == (z_now >= 0):
-            agree += 1
-    if not gaps or agree < _ceil_half(len(dims)):
+        if z_t is not None and z_now is not None:
+            parts.append(abs(z_t - z_now))
+            obs.append("z")
+            sign_seen += 1
+            if (z_t >= 0) == (z_now >= 0):
+                agree += 1
+                rec["sign_agree"] = True
+            else:
+                rec["sign_agree"] = False
+        # THE PERCENTILE IS OBSERVED AND PRINTED AND DOES NOT RANK (round 2, MAJOR 1). ``parts`` is the
+        # DISTANCE and this gap is not in it; it rides ``per_dim`` as ``pct_gap`` so the stanza can say
+        # where the two readings sat in their own records without the rank being decided by a statistic
+        # whose reference population grows along the record.
+        pcts = hist.get("pct") or ()
+        p_t = None if (i is None or i >= len(pcts)) else _pct_to_z(pcts[i])
+        p_now = _pct_to_z(dim.get("pct_now"))
+        if p_t is not None and p_now is not None:
+            obs.append("percentile")
+            rec["pct_gap"] = abs(p_t - p_now)
+        # THE DIRECTION AND THE RUN ARE READ ON THE KNOWLEDGE AXIS, LIKE THE Z AND THE PERCENTILE
+        # (round 3, MAJOR B). ``state_history`` re-indexes only ``z`` and ``pct``; ``values`` stays on
+        # the observation axis, so ``_direction_at(hist, i)`` is the move INTO observation ``i`` -- on a
+        # lagged card, a move nobody could read on the day position ``i`` is dated by. MEASURED on
+        # ``b40_event / drought`` (25 days declared): 292 of 440 positions carried a direction that is
+        # not the knowable one and 257 a run length that is not. ``j`` is that position's newest
+        # KNOWABLE observation and ``None`` where the record has none, which is a hole and not a zero.
+        j = _knowable_at(hist, i)
+        d_t, d_now = _direction_at(hist, j), _direction_word(dim.get("dir_now"))
+        if d_t is not None and d_now is not None:
+            dir_seen += 1
+            obs.append("direction")
+            if d_t == d_now:
+                dir_agree += 1
+                rec["dir_agree"] = True
+            else:
+                rec["dir_agree"] = False
+        r_now = TR.num_or_none(dim.get("run_now"))
+        if j is not None and r_now is not None:
+            gap_run = abs(_run_at(hist, j) - int(r_now))
+            run_gaps.append(gap_run)
+            obs.append("run")
+            rec["run_gap"] = int(gap_run)
+        if parts:
+            gap = sum(parts) / float(len(parts))
+            total += gap
+            seen += 1
+            rec["gap"] = gap
+        rec["observed"] = tuple(obs)
+        per.append(rec)
+    if seen == 0:
         return None
-    # THE DENOMINATOR IS ``|dims|``, WHICH IS SEC 4.2'S OWN (``sum over dims |z_t - z_now| / |dims|``).
-    # Dividing by the OBSERVED count instead made a candidate observable on two of five dimensions
-    # arithmetically closer than one observable on all five with the same total gap -- harmless under
-    # :func:`select_analogs`, which additionally requires every dimension to be observable, and wrong
-    # for any other caller. One rule, one denominator.
-    return {"distance": sum(gaps) / float(len(dims)), "dims_seen": seen, "sign_agree": agree,
-            "dims_declared": len(dims)}
+    declared = max(1, len(dims))
+    unread = max(0, len(dims) - seen)
+    return {"distance": (total + UNOBSERVED_SIGMA * unread) / float(declared),
+            "dims_seen": seen, "dims_declared": len(dims), "dims_unread": unread,
+            "unread_sigma": UNOBSERVED_SIGMA,
+            "dims_any_seen": sum(1 for r in per if r["observed"]),
+            "sign_agree": agree, "sign_seen": sign_seen,
+            "dir_agree": dir_agree, "dir_seen": dir_seen,
+            "run_gap": (sum(run_gaps) / float(len(run_gaps)) if run_gaps else None),
+            "per_dim": tuple(per)}
+
+
+def _dims_first(dims: list, first_dim: Optional[str]) -> list:
+    """``dims`` with the dimension named by ``first_dim`` moved to the front, order otherwise preserved.
+
+    THE CHAIN-FIRST ORDER (DESIGN C.2). The stanza is the THEN for the TOP CHAIN, so the dimension the
+    chain's RECEIPT HOP names leads the vector the coverage line enumerates and the header can say which
+    dimension the chain is read on. It CANNOT move the distance, and that is deliberate: the distance is
+    an unweighted mean, so a reorder is a statement about what the reader is shown FIRST and never about
+    what ranks. A ``first_dim`` no dimension carries is a no-op -- the caller is the render half and a
+    chain whose hop this board does not rank must not cost the stanza its selection."""
+    want = str(first_dim or "")
+    if not want:
+        return list(dims or ())
+    head = [d for d in (dims or ()) if str(d.get("id") or "") == want]
+    if not head:
+        return list(dims or ())
+    return head + [d for d in (dims or ()) if str(d.get("id") or "") != want]
+
+
+def _record_span(dims: list) -> tuple:
+    """Per dimension, the FIRST DATE its own record could be read on -- ``{'id', 'first_date'}``.
+
+    "First observable" means the first position carrying a DISTANCE component (:data:`DISTANCE_COMPONENTS`),
+    which is the same readability :func:`likeness` grades a candidate on, so the span and the coverage can
+    never disagree about what a dimension could see. **IT MOVED WITH THE DISTANCE** (round 2, MAJOR 1):
+    while the prefix percentile ranked, this read "z or percentile" and a 440-month card was first
+    observable at its EIGHTH month; with the z alone it is first observable where the rolling window
+    fills, which is the same date the coverage count is computed on. Two readings of one word would have
+    let the header print a span the distance never used.
+
+    It is the input to the header's correction: a picked date OLDER than some dimensions' records prints
+    "this date precedes the record of <n> of the dimensions" rather than being removed -- the measured
+    May-2001-under-a-2006-floor defect answered by a SENTENCE instead of a deletion (DESIGN C.4).
+
+    ``id`` IS THE RAW DRIVER ID and is internal (round 2, minor 2): ``register.internal_leaks`` is never
+    relaxable, so a render enumerating this tuple goes through :func:`_label` / ``render.humanise``."""
+    out: list = []
+    for d in (dims or ()):
+        hist = d.get("hist") or {}
+        dates = hist.get("dates") or ()
+        vecs = [(hist.get(COMPONENT_VECTOR[k]) or ()) for k in DISTANCE_COMPONENTS]
+        first = None
+        for i, dt in enumerate(dates):
+            ok = any(i < len(v) and TR.num_or_none(v[i]) is not None for v in vecs)
+            if ok and axis_date(dt) is not None:
+                first = str(dt)[:10]
+                break
+        out.append({"id": str(d.get("id") or ""), "first_date": first})
+    return tuple(out)
+
+
+def _precedes_count(span: tuple, date) -> int:
+    """How many dimensions' records this date PRECEDES -- the header's correction, as an integer.
+
+    BOTH SIDES GO THROUGH :func:`axis_date`, which is this module's one calendar and its one standing
+    lesson: a raw ``year_month`` label sorts as the month's FIRST instant, so a bare string comparison of
+    ``"2016-12"`` against ``"2016-12-31"`` calls two names for the same month-end a difference. A
+    dimension whose first date cannot be placed is not counted -- a correction has to be earned by a
+    measurement, exactly as the separation rule is."""
+    t = axis_date(date)
+    if t is None:
+        return 0
+    n = 0
+    for r in (span or ()):
+        first = axis_date(r.get("first_date"))
+        if first is not None and first > t:
+            n += 1
+    return n
 
 
 def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, analog_k: int,
                    convention: Optional[dict] = None, min_separation_months: int = 12,
-                   lag_days: int = 0, min_run: Optional[int] = None) -> dict:
-    """THE SELECTION (sec 4.2). Returns ``{'picked', 'n_candidates', 'declined'}``.
+                   lag_days: int = 0, min_run: Optional[int] = None,
+                   first_dim: Optional[str] = None,
+                   crossing_separation_months: int = 0,
+                   run_now: Optional[int] = None) -> dict:
+    """THE SELECTION (sec 4.2, relaxed per DESIGN C.1). Returns ``{'picked', 'n_candidates', 'declined',
+    'detail', 'n_candidates_raw', 'n_candidates_pit', 'n_candidates_head', 'n_dropped_unreadable',
+    'dims_order', 'first_dim', 'record_span'}``.
 
-    THE FILTERS, in order and each with its reason:
+    **THE FOUR COUNTS, AND THEY ARE FOUR BECAUSE THEY ANSWER FOUR QUESTIONS** (round 2, MAJOR 4):
+
+      ``n_candidates_raw``   what :func:`crossings` minted under the RELAXED rule, before any filter;
+      ``n_candidates_pit``   how many of those survived the two POINT-IN-TIME filters;
+      ``n_candidates``       how many of THOSE carry a readable state -- the pool this selector RANKS,
+                             and the number the stanza header describes;
+      ``n_candidates_head``  THE RARITY NUMERATOR, and it is HEAD's own: how many candidates the SHIPPED
+                             rule would have called like -- minted by its ``run >= <the TAIL of this
+                             seed's own vector>`` crossing rule, surviving the same two PIT filters,
+                             observable on EVERY declared dimension and agreeing in sign on at least
+                             half of them.
+
+    A FIFTH NUMBER RIDES BESIDE THEM AND IT IS A SUBTRACTION, NOT A POOL: ``n_dropped_unreadable`` is
+    ``n_candidates_pit - n_candidates``, the candidates the EXISTENCE filter declined because no declared
+    dimension carries a readable z at their date (see :func:`likeness` for why that filter narrowed in
+    round 2). It is stated so the census closes by arithmetic --
+    ``raw = (raw - pit) + n_dropped_unreadable + n_candidates`` -- and so a decline that used to be
+    inferable is COUNTED.
+
+    **THE RARITY NUMERATOR'S FLOOR IS HEAD'S OWN TAIL READ AND NOT THE ROW'S ``run_now``** (round 3,
+    MAJOR A). The two coincide wherever the row's streak and the vector's tail agree, which is 13 of 13
+    dimensions on the clean fixture estate and is NOT general: on the ``mirror_nulls`` estate, where a
+    served NULL date drops a position out of this history while the row's streak counted it, the printed
+    count moved 57 -> 33, 49 -> 5 and 30 -> 4. A number a PM reads as "N like states in M observations"
+    is HEAD's arithmetic END TO END or it is a different statistic wearing HEAD's name; ``run_now`` keeps
+    the seats where a "now" belongs -- the tie-break and :func:`likeness` -- and nothing else.
+
+    ``n_candidates_head`` IS A COUNT AND NEVER A FILTER, and that distinction is the whole of it: not one
+    candidate is removed by it, the ranking does not read it, and the pool it counts is a SUBSET of the
+    pool this selector picks from. It exists because ``watch.like_state_base_rate`` prints "N like states
+    in M observations" to a PM, and under the relaxation the ranked pool is 50%-79% of the record -- a
+    number that is a COVERAGE statement and reads as a 79% recurrence rate. The rarity question keeps the
+    rarity answer, measured the way the record's own reader measured it last week.
+
+    **THE ONLY HARD FILTERS ARE POINT-IN-TIME AND EXISTENCE** (owner doctrine 2026-09-17). Both PIT
+    filters are UNCHANGED, and each is the same arithmetic it was:
       * the candidate must be at least ``max_q`` quarters before the as-of, so its OUTCOME WINDOW HAS
         CLOSED -- a like state whose consequence has not happened yet is not evidence;
       * the candidate's own knowledge must have existed at ``t``: the prefix stops at ``t - lag_days``,
         which is why a crossing "at t" on a card published 43 days later is dated by when it was
-        KNOWABLE;
-      * the likeness gate of :func:`likeness`;
-      * at least ``min_separation_months`` between two SELECTED dates, so one long episode does not
-        occupy the whole stanza list.
+        KNOWABLE.
+    Beside them stands EXISTENCE -- :func:`likeness` returns ``None`` where no dimension carries a
+    readable state at ``t``, and a distance against nothing is not a distance. Since round 2 that reads
+    "no dimension carries a readable Z at ``t``", which is a NARROWER filter than it was, and the
+    candidates it declines are COUNTED on ``n_dropped_unreadable`` rather than quietly absent. Nothing
+    else removes a candidate.
 
-    TIES BREAK BY RUN-LENGTH DIFFERENCE, THEN BY DATE DESCENDING -- recency ONLY inside an already-like
-    pool (bar B9). A pool ordered by recency first would be a recency engine wearing a likeness name."""
-    run_now = _run_at(seed_hist, len(seed_hist["values"]) - 1)
-    cands = crossings(seed_hist, convention=convention,
-                      min_run=(run_now if min_run is None else int(min_run)))
+    **WHAT WENT, AND WHY IT IS THE SAME RULING TWICE.** The shipped selector added two more gates and
+    both DELETED: the sign gate inside :func:`likeness`, and ``like['dims_seen'] < len(dims)`` here. They
+    were measured declining on five of five 2026-09-16 smoke turns -- ``no_like_state`` on every one --
+    and the reader got a denial beside two windows the cascade leg printed anyway. Coverage and sign
+    agreement are now PRINTED FACTS on the picked row (``dims_seen``, ``dims_declared``, ``sign_agree``,
+    ``sign_seen``, ``dir_agree``, ``dir_seen``) and the candidate rule that floored on the present run
+    length is gone from :func:`crossings`. Frequency floors deny the tail.
+
+    **RECENCY STAYS THIRD** (bar B9, and DESIGN C.4's first threat). Ties break by RUN-LENGTH DIFFERENCE,
+    then by DATE DESCENDING. Widening the pool makes the tie-break matter more, not less, and a pool
+    ordered by recency first would be a recency engine wearing a likeness name -- so the order does not
+    move, the run length keeps the seat the dropped candidate rule used to hold, and every picked row
+    carries ``near_asof`` for the lint that asserts the chosen date is not inside ``min_separation_months``
+    of the as-of. ``near_asof`` IS A FLAG AND NEVER A FILTER: the selection states it and the render half
+    grades it.
+
+    ``min_separation_months`` between two SELECTED dates is kept exactly, and it is per EPISODE because a
+    candidate is now an episode's own start. It runs over the DISTANCE-ordered list, so the member of an
+    episode that survives is its most-like one.
+
+    A DECLINE ADDS NO WORD TO ``board.ANALOG_REASONS``. The one word is ``no_like_state`` as it always
+    was, and the finer reason rides ``detail`` -- ``no_candidates`` (the record offered none),
+    ``window_open`` (every candidate's outcome window is still open, or it was not knowable at t), or
+    ``unobservable`` (candidates survived PIT and no dimension could be read at any of their dates).
+    The render's closed vocabulary is untouched and ``detail`` is the render half's to spend.
+
+    ``run_now`` IS THE CALLER'S WHERE THE CALLER HAS ONE (round 2, MAJOR 5). ``analog_rows`` passes the
+    ROW's own trailing run at the as-of, the same vintage ``z_now`` comes from. Where no caller supplies
+    one -- the offline decks and the census, which state a vector by hand and have no row -- the tail of
+    the seed's own vector is used and this sentence is the statement of it: a SORT KEY cannot be a hole
+    the way an unread component can. THE TERM IT IS COMPARED AGAINST -- ``run_length``, the candidate's
+    own run -- IS READ ON THE KNOWLEDGE AXIS (round 3, MAJOR B): it ranks, so it is the run KNOWABLE at
+    the candidate's date, and a candidate with nothing knowable behind it scores ``_run_at``'s own
+    answer for that, 0."""
+    dims = _dims_first(dims, first_dim)
+    # HEAD'S OWN FLOOR, DERIVED HEAD'S OWN WAY, AND IT IS NOT THE ROW'S (round 3, MAJOR A). The rarity
+    # numerator below is a claim about what the SHIPPED rule admitted, so every term of it must be the
+    # shipped rule's -- including the ``min_run`` it minted candidates with, which HEAD took from the
+    # TAIL of the seed's own vector and never from a ``StateRow``. Round 2 gave the tie-break the row's
+    # run (rightly: it is a "now" and every "now" is the row's) and the head count inherited it by
+    # sharing the variable. The clean fixture estate could not see the difference -- row run == tail run
+    # on 13 of 13 dimensions -- but the count is hypersensitive to that floor, and on the ``mirror_nulls``
+    # estate (the offline stand-in for the shape the pg mirror serves, where a NULL DATE drops a position
+    # out of this history while the row's streak still counted it) the two disagree on 3 of 13 and the
+    # printed number moved 57 -> 33, 49 -> 5 and 30 -> 4. The two floors are now two names.
+    head_run = _run_at(seed_hist, len(seed_hist.get("values") or ()) - 1)
+    if run_now is None:
+        run_now = head_run
+    run_now = int(run_now)
+    if min_run is None:
+        # ANY MONTH, DEDUPLICATED PER EPISODE. The ``run >= run_now`` rule is the one DESIGN C.1 drops;
+        # ``run_now`` survives as the tie-break input below, where it grades instead of gating.
+        cands = crossings(seed_hist, convention=convention, any_month=True,
+                          min_separation_months=int(crossing_separation_months or 0))
+    else:
+        cands = crossings(seed_hist, convention=convention, min_run=int(min_run))
+    n_raw = len(cands)
     if band.max_q is None:
         horizon = None
     else:
@@ -480,26 +984,65 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
             if knowable is None or knowable > str(asof)[:10]:
                 continue
         closed.append(c)
-    # "ALL DIMENSIONS OBSERVABLE AT t" IS ONE OF SEC 4.2'S OWN CANDIDATE FILTERS, and it is what makes
-    # the header's coverage floor TRUE rather than decorative. MEASURED at this landing: the scenario-3
-    # stanza printed "the series sat like this in May 2001" one line under "the loud set reaches back to
-    # 2006" -- the sign gate needs only half the dimensions to AGREE, so a date before the newest
-    # dimension's first observation could still be selected and the two sentences contradicted each
-    # other. Observability is a different question from agreement and gets its own filter.
+    n_pit = len(closed)
+    # "ALL DIMENSIONS OBSERVABLE AT t" WAS SEC 4.2'S OWN CANDIDATE FILTER AND IT IS STRUCK HERE (DESIGN
+    # C.1). Its measured motivation stands -- the scenario-3 stanza printed "the series sat like this in
+    # May 2001" one line under "the loud set reaches back to 2006", and the two sentences contradicted
+    # each other -- but the remedy was a DELETION where a SENTENCE was owed. What answers it now is
+    # ``record_span`` and the ``precedes_dims`` count each picked row carries, so the header states "this
+    # date precedes the record of <n> of the dimensions ranked above" and the reader weighs it. A fence
+    # that corrects, never one that deletes.
+    span = _record_span(dims)
+    # THE RARITY NUMERATOR IS COUNTED HERE AND FILTERS NOTHING (round 2, MAJOR 4). ``head_idx`` is the
+    # candidate set the SHIPPED rule would have minted -- run starts at least as long as the present run,
+    # plus the declared band crossings -- and it is a SUBSET of the relaxed pool by construction (every
+    # run start is a direction change and both branches add the same band hits), so intersecting it with
+    # the already-scored candidates reproduces HEAD's own ``n_candidates`` exactly, without a second
+    # likeness pass and without one candidate leaving the ranking. One O(n) walk per seed. ITS FLOOR IS
+    # ``head_run`` AND NOT ``run_now`` (round 3, MAJOR A): HEAD's arithmetic end to end, the tail read
+    # included, because a rarity count measured at a different floor is a different number.
+    # ROUND-3 REVIEW MINOR 1: HEAD minted its pool at ``run_now if min_run is None else int(min_run)``, so an
+    # EXPLICIT floor is HEAD floor too -- only the default falls to the tail read.
+    _head_floor = head_run if min_run is None else int(min_run)
+    head_idx = {c["index"] for c in crossings(seed_hist, convention=convention, min_run=_head_floor)}
     scored: list = []
-    observable = 0
+    n_head = 0
     for c in closed:
         like = likeness(c["date"], dims)
         if like is None:
             continue
-        if like["dims_seen"] < len(dims):
-            continue
-        observable += 1
         i = c["index"]
-        run_t = _run_at(seed_hist, i)
-        scored.append({**c, **like, "run_length": run_t})
+        if (i in head_idx and like["dims_seen"] == len(dims)
+                and like["sign_agree"] * 2 >= len(dims)):
+            # HEAD's own admission, restated as ARITHMETIC over facts already computed: observable on
+            # every declared dimension, and agreeing in sign on at least half (``agree >= ceil(n/2)``,
+            # which for integers is ``2 * agree >= n``). It grades nothing and removes nothing.
+            n_head += 1
+        # THE TIE-BREAK'S OWN "THEN" IS ON THE KNOWLEDGE AXIS TOO (round 3, MAJOR B). ``run_length`` is
+        # a RANKING INPUT -- the second sort term below -- and the doctrine is absolute: a state used to
+        # rank a candidate at ``t`` is the state KNOWABLE at ``t`` on every component. A position with
+        # nothing knowable behind it has no run, and ``_run_at``'s own answer for that is 0.
+        j_t = _knowable_at(seed_hist, i)
+        run_t = 0 if j_t is None else _run_at(seed_hist, j_t)
+        scored.append({**c, **like, "run_length": run_t, "run_now": run_now})
+    # ``n_dropped_unreadable`` IS THE EXISTENCE FILTER'S OWN COUNT (round 3, minor). The fifth exit --
+    # candidates that survived both PIT filters and carry no readable z on any declared dimension -- was
+    # derivable but never stated, and a decline nobody counts is a decline nobody audits. It is the one
+    # subtraction between ``n_candidates_pit`` and ``n_candidates``, so the census closes by arithmetic.
+    n_unreadable = n_pit - len(scored)
+    base = {"n_candidates_raw": n_raw, "n_candidates_pit": n_pit, "n_candidates_head": n_head,
+            "n_dropped_unreadable": n_unreadable,
+            "dims_declared": len(dims), "first_dim": (str(first_dim) if first_dim else None),
+            "dims_order": tuple(str(d.get("id") or "") for d in (dims or ())),
+            "record_span": span}
     if not scored:
-        return {"picked": (), "n_candidates": observable, "declined": "no_like_state"}
+        # ONE WORD, A FINER REASON BESIDE IT. ``board.ANALOG_REASONS`` gains nothing; ``detail`` is a
+        # field on the row and never a colon tail on the stamp, so ``board.DETAIL_REASONS`` is untouched
+        # too and the render half owes exactly the sentence it already owes.
+        detail = ("no_candidates" if n_raw == 0 else
+                  ("window_open" if n_pit == 0 else "unobservable"))
+        return {**base, "picked": (), "n_candidates": 0, "declined": "no_like_state",
+                "detail": detail}
     scored.sort(key=lambda s: (round(s["distance"], 9), abs(s["run_length"] - run_now),
                                _desc_date(s["date"])))
     picked: list = []
@@ -514,8 +1057,17 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
         seps = [_months_between(p["date"], s["date"]) for p in picked]
         if any(m is not None and abs(m) < int(min_separation_months) for m in seps):
             continue
-        picked.append(s)
-    return {"picked": tuple(picked), "n_candidates": observable, "declined": None}
+        # THE TWO FACTS THE HEADER NEEDS AND THE LINT READS, computed once per PICKED row so no consumer
+        # re-derives them from a span it would have to rebuild. ``near_asof`` is bar B9's own tripwire
+        # (DESIGN C.4) and it is a FLAG: a widened pool whose tie fell to ``_desc_date`` could otherwise
+        # hand the reader "the series sat like this" about a date inside the separation window of today,
+        # which is the present state described as its own precedent.
+        m_asof = _months_between(s["date"], asof)
+        picked.append({**s, "precedes_dims": _precedes_count(span, s["date"]),
+                       "near_asof": bool(m_asof is not None
+                                         and abs(m_asof) < int(min_separation_months))})
+    return {**base, "picked": tuple(picked), "n_candidates": len(scored), "declined": None,
+            "detail": None}
 
 
 def _add_days(iso: str, days: int) -> Optional[str]:
@@ -553,8 +1105,13 @@ def _months_between(a, b) -> Optional[int]:
 
 
 def _run_at(hist: dict, i: int) -> int:
-    """The run length ending at index ``i`` -- the tie-break input, computed on the same array."""
-    vals = hist["values"]
+    """The run length ending at index ``i`` -- the tie-break input, computed on the same array.
+
+    IT READS ``values`` THE WAY ITS CALLERS GUARD IT (round 2, minor 8): :func:`likeness` takes the
+    history as ``dim.get('hist') or {}`` and then asked this function to index ``hist['values']``
+    directly. Unreachable today -- the run branch needs a placed index, which needs non-empty ``dates``
+    -- and written the same way as every other reader here so a future caller cannot make it a KeyError."""
+    vals = hist.get("values") or ()
     if i <= 0 or i >= len(vals):
         return 0
     direction = 1 if vals[i] > vals[i - 1] else (-1 if vals[i] < vals[i - 1] else 0)
@@ -861,7 +1418,8 @@ def _lag_days_of(row) -> int:
 # THE PRODUCER -- what the render is handed
 # ---------------------------------------------------------------------------------------------------
 def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
-                conventions: Optional[dict] = None, lag_days_fn=None) -> list:
+                conventions: Optional[dict] = None, lag_days_fn=None,
+                first_dim: Optional[str] = None) -> list:
     """EVERY analog stanza this board can carry, one per analog DIMENSION (sec 4.2 / 4.3 / 4.4).
 
     THE SHAPE MATCHES THE PRICER, and that is the join: ``walk._stage2`` reserves
@@ -875,7 +1433,22 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
     fetches.
 
     SCAN RUNS NO ANALOGS by budget, not by gap (``analog_dims`` and ``analog_k`` are both zero there),
-    and the empty list is the honest result."""
+    and the empty list is the honest result.
+
+    ``first_dim`` IS THE TOP CHAIN'S RECEIPT HOP and it is passed straight through to
+    :func:`select_analogs` (DESIGN C.2). It orders the vector the coverage line enumerates and nothing
+    else; the caller is the render half and the default is ``None``, so no wired path moves until one
+    passes it.
+
+    **THE PERCENTILE VECTOR IS BUILT FOR EVERY SEED NOW, and it is built for the STANZA rather than for
+    the RANK.** ``want_pct`` used to be lit only where a ``percentile_bands`` convention needed a band
+    crossing. The widened state vector reads it on every seed -- but as a PRINTED FACT: round 2 took the
+    prefix percentile out of :data:`DISTANCE_COMPONENTS` because its reference population grows along the
+    record (8 to 440) and a rank against 33 observations is not the same statistic as a rank against 440.
+    What the reader gets is "where it sat in its own record then, and where it sits now"; what the
+    SELECTOR ranks on is the fixed-window z alone. The cost is one ``_prefix_percentiles`` pass per seed
+    (O(n log n), ``analog_dims`` of them, measured in this lane's probe), and it is the one place the
+    relaxation spends anything at all."""
     if not knobs or int(knobs.analog_dims) <= 0 or int(knobs.analog_k) <= 0:
         return []
     conv_doc = _conventions() if conventions is None else conventions
@@ -891,19 +1464,34 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
 
     hists: dict = {}
     dims: list = []
+    row_runs: dict = {}
     for r in seeds:
         # THE KNOWLEDGE AXIS IS THE CARD'S OWN (sec 4.1). `lag_days_fn` is the injected override the
         # walk uses where it knows the card's declared lag better than the row does; the default reads
         # it off the row the producer already filled.
         lag_r = int(lag_days_fn(r) if lag_days_fn else _lag_days_of(r))
-        h = state_history(r.state, lag_days=lag_r,
-                          want_pct=(str((conv_doc.get(r.state.key.ref) or {}).get("kind") or "")
-                                    == "percentile_bands"))
+        h = state_history(r.state, lag_days=lag_r, want_pct=True)
         hists[r.key] = h
         z_now = None
         if r.state.z and not r.state.z.get("declined"):
             z_now = TR.num_or_none(r.state.z["value"])
-        dims.append({"id": r.driver_id, "hist": h, "z_now": z_now})
+        # EVERY "NOW" COMES OFF THE ROW, AT THE ROW'S OWN VINTAGE (round 2, MAJOR 5) -- not one of them
+        # off the tail of the knowledge-axis vector. ``z_now`` always did; ``pct_now``, ``dir_now`` and
+        # ``run_now`` now do too, from the three measures ``feeders`` stamped at the as-of. MEASURED on
+        # ``b40_event / drought`` (25-day declared lag): the row's z is 0.7581 and the vector's tail is
+        # 0.6351, so the two halves of one dimension's state were being read 0.123 sigma apart on
+        # distances that decide at 0.011. A measure the row DECLINED is a hole here and never a guess:
+        # ``likeness`` reads the component as unobserved rather than borrowing an older print.
+        pct_now = None
+        if r.state.percentile and not r.state.percentile.get("declined"):
+            pct_now = TR.num_or_none(r.state.percentile.get("value"))
+        dir_now = run_now_r = None
+        if r.state.run and not r.state.run.get("declined"):
+            dir_now = r.state.run.get("direction")
+            run_now_r = TR.num_or_none(r.state.run.get("length"))
+        row_runs[r.key] = run_now_r
+        dims.append({"id": r.driver_id, "hist": h, "z_now": z_now, "pct_now": pct_now,
+                     "dir_now": dir_now, "run_now": run_now_r})
     dims.extend(_price_dimensions(price_dims))
     price_admitted = len(dims) - len(seeds)
 
@@ -914,21 +1502,44 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
         conv = conv_doc.get(r.state.key.ref)
         lag_days = int(lag_days_fn(r) if lag_days_fn else _lag_days_of(r))
         sel = select_analogs(hists[r.key], dims=dims, asof=bd.asof, band=band,
-                             analog_k=int(knobs.analog_k), convention=conv, lag_days=lag_days)
+                             analog_k=int(knobs.analog_k), convention=conv, lag_days=lag_days,
+                             first_dim=first_dim,
+                             run_now=(None if row_runs.get(r.key) is None
+                                      else int(row_runs[r.key])))
         seat = order.get(r.key, len(order))
+        # THE SELECTION'S OWN COUNTS RIDE EVERY ROW, FIRED OR DECLINED, and they are DATA -- this
+        # producer renders nothing. ``dims_declared``/``dims_seen``, ``sign_agree``/``sign_seen``,
+        # ``record_span`` and ``precedes_dims`` are the clauses DESIGN C.1 promises the header, and
+        # ``n_candidates_raw``/``n_candidates_pit`` are the yield the probe and the arm report read.
+        counts = {"n_candidates": sel["n_candidates"],
+                  "n_candidates_raw": sel["n_candidates_raw"],
+                  "n_candidates_pit": sel["n_candidates_pit"],
+                  "n_candidates_head": sel["n_candidates_head"],
+                  # THE FIFTH EXIT IS A NUMBER ON THE ROW NOW (round 3, minor). It is
+                  # ``n_candidates_pit - n_candidates``: the candidates whose outcome window had closed
+                  # and whose print existed, declined because no declared dimension carried a readable z
+                  # at their date. Counted, so the decline is auditable rather than inferable.
+                  "n_dropped_unreadable": sel["n_dropped_unreadable"],
+                  "dims_declared": sel["dims_declared"], "dims_order": sel["dims_order"],
+                  "first_dim": sel["first_dim"], "record_span": sel["record_span"],
+                  "floor_year": floor_year, "price_dims": price_admitted}
         if sel["declined"]:
             out.append({"contract": r.contract, "driver_id": r.driver_id, "band": band,
                         "asof": bd.asof, "declined": sel["declined"], "seat": seat,
-                        "n_candidates": sel["n_candidates"], "floor_year": floor_year,
-                        "price_dims": price_admitted})
+                        "detail": sel.get("detail"), **counts})
             continue
         for pick in sel["picked"]:
             out.append({
                 "contract": r.contract, "driver_id": r.driver_id, "band": band, "asof": bd.asof,
                 "date": pick["date"], "distance": pick["distance"], "kind": pick["kind"],
-                "seat": seat,
-                "n_candidates": sel["n_candidates"], "floor_year": floor_year,
-                "price_dims": price_admitted, "declined": None,
+                "seat": seat, "declined": None, "detail": None, **counts,
+                "dims_seen": pick["dims_seen"], "dims_any_seen": pick["dims_any_seen"],
+                "dims_unread": pick["dims_unread"], "unread_sigma": pick["unread_sigma"],
+                "sign_agree": pick["sign_agree"], "sign_seen": pick["sign_seen"],
+                "dir_agree": pick["dir_agree"], "dir_seen": pick["dir_seen"],
+                "run_length": pick["run_length"], "run_now": pick["run_now"],
+                "run_gap": pick["run_gap"], "per_dim": pick["per_dim"],
+                "precedes_dims": pick["precedes_dims"], "near_asof": pick["near_asof"],
                 "outcomes": tuple(_outcomes_for(bd, r, pick["date"], benchmark_fn=benchmark_fn)),
                 "receipts": tuple(_receipts_for(bd, r, pick["date"], receipt_fn=receipt_fn,
                                                 cap=int(knobs.receipt_cap))),
@@ -973,9 +1584,25 @@ def _price_dimensions(price_dims) -> list:
         if res.get("declined"):
             continue
         series = list(res.get("series") or [])
-        out.append({"id": key, "z_now": series[-1] if series else None,
-                    "hist": {"dates": ds, "values": vals, "z": series,
-                             "pct": [None] * len(vals), "window": win}})
+        # THE PRICE DIMENSION CARRIES ITS PERCENTILE TOO, for the reason the seed rows do: it is read by
+        # the same prefix arithmetic and it is the component that makes the dimension OBSERVABLE across
+        # the stretch where its rolling window is still filling. ``_prefix_percentiles`` is applied
+        # directly rather than through :func:`percentile_vector` because a price dimension declares no
+        # publication lag -- the knowledge axis is the identity here and re-indexing by zero would be the
+        # same vector at one more pass.
+        pcts = _prefix_percentiles(vals)
+        hist = {"dates": ds, "values": vals, "z": series, "pct": pcts, "window": win, "lag_days": 0}
+        last = len(ds) - 1
+        # THE THREE OTHER "NOW" READINGS ARE DECLARED HERE AND THEY COME OFF THE TAIL -- which on this
+        # dimension IS the as-of vintage, and that is why it is allowed here and refused everywhere else
+        # (round 2, MAJOR 5). A price dimension declares NO publication lag, so ``_knowable_indices`` is
+        # the identity, the vector's last position is the reading of the as-of itself, and there is no
+        # row carrying a second opinion. A seed dimension has both -- a lag and a row -- and takes the
+        # row's.
+        out.append({"id": key, "z_now": series[-1] if series else None, "hist": hist,
+                    "pct_now": next((p for p in reversed(pcts) if p is not None), None),
+                    "dir_now": _direction_at(hist, last),
+                    "run_now": _run_at(hist, last)})
     return out
 
 

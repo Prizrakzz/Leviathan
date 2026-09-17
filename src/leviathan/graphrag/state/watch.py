@@ -1267,12 +1267,32 @@ def like_state_base_rate(stanza: dict, row) -> dict:
     ``except Exception``. It is a CENSUS fact ("banked 144/144"), not a live one, and wiring it into an
     answer would put an O(history x seeds x bands) loop in the answer path to print two integers.
 
-    BOTH INTEGERS ARE ALREADY IN MEMORY. ``analogs.select_analogs`` returns ``n_candidates`` -- the
-    count of crossings that passed the likeness gate AND whose outcome window has already closed AND
-    that were observable on every declared dimension -- and ``analogs.analog_rows`` copies it onto every
-    stanza, fired or declined. The denominator is the seed row's own ``coverage['n_obs']``, which
-    ``feeders.series_state`` stamped when it read the series. So the base rate is two field reads and a
-    bounds check, and the recurrence item can state its denominator without the board paying for it.
+    BOTH INTEGERS ARE ALREADY IN MEMORY. ``analogs.select_analogs`` returns ``n_candidates_head`` and
+    ``analogs.analog_rows`` copies it onto every stanza, fired or declined. The denominator is the seed
+    row's own ``coverage['n_obs']``, which ``feeders.series_state`` stamped when it read the series. So
+    the base rate is two field reads and a bounds check, and the recurrence item can state its
+    denominator without the board paying for it.
+
+    **THE NUMERATOR IS ``n_candidates_head`` AND NOT ``n_candidates``, AND THAT IS THE R3a ROUND-2
+    RULING** (orchestrator, 2026-09-17, MAJOR 4). THE MEANING THIS READER CONSUMES DID NOT MOVE ONE
+    INCH -- it is the count the SHIPPED selector admitted: a crossing minted at the HEAD floor -- the
+    series own tail run (``run >= head_run``), not the row streak -- surviving both point-in-time filters, observable on every declared dimension and agreeing in
+    sign on at least half. Only the FIELD NAME moved, because the R3a relaxation re-pointed
+    ``n_candidates`` at the pool it now RANKS, which is 50%-79% of the record (measured: 329 of 440 on
+    ``b40_event / ending_stocks``, 346 of 440 on ``drought``). Read as a base rate that is a 75%
+    recurrence claim handed to a PM about a state the record was in three times, and this row had never
+    reached a reader before -- kind 7 fires only on a FIRED analog and the leg declined on five of five
+    2026-09-16 smoke turns, so R3a is exactly the change that lights it.
+
+    ``n_candidates`` COULD NOT SIMPLY BE LEFT AT ITS OLD MEANING, and the reason is measurable rather
+    than stylistic: on a board where the shipped rule declined and the relaxed one picks -- the five
+    smoke turns, by construction -- HEAD's count is ZERO, so a header printing it would say "the record
+    carries zero such crossings" directly above a dated stanza. The two numbers answer two questions and
+    they now have two names.
+
+    THE READ IS FAIL-CLOSED. A stanza carrying no ``n_candidates_head`` declines by name rather than
+    falling back to ``n_candidates``: a silent fallback is exactly how the ranked pool would arrive here
+    wearing the rarity number's name.
 
     WHAT THE TWO NUMBERS MEAN, said exactly, because a base rate whose population is vague is worse
     than none: ``n`` is like states the selector ADMITTED -- past crossings of this series' own
@@ -1286,9 +1306,9 @@ def like_state_base_rate(stanza: dict, row) -> dict:
     would print a base rate over a denominator from another series -- a silently wrong figure, and the
     only failure of this producer that a reader could not see."""
     n = None
-    if isinstance(stanza, dict) and stanza.get("n_candidates") is not None:
+    if isinstance(stanza, dict) and stanza.get("n_candidates_head") is not None:
         try:
-            n = int(stanza["n_candidates"])
+            n = int(stanza["n_candidates_head"])
         except (TypeError, ValueError):
             n = None
     if n is None or n < 0:
@@ -1451,8 +1471,14 @@ def _floor_of(row, *, pattern_rows=(), path_n: int = 0, base_rate=None, dist=Non
     # (4) a node where TWO OR MORE declared upstream paths meet
     if int(path_n or 0) >= 2:
         out.append("two_upstream_paths")
-    # (5) an analog episode carrying a STATED base rate -- a recurrence with no denominator is not one
-    if base_rate is not None and not base_rate.get("declined"):
+    # (5) an analog episode carrying a STATED base rate -- a recurrence with no denominator is not one,
+    #     and NEITHER IS A RATE OF ZERO. The `>= 1` keeps this clause's HEAD threshold semantics under
+    #     the R3a relaxation (round-2 ruling, MAJOR 4): at HEAD the numerator and the stanza were the
+    #     same object, so a stanza existing PROVED `n >= 1` and the floor never had to say it. The
+    #     relaxed selector can pick a date the shipped rule would not have admitted, and then `n` is 0 --
+    #     "no like states in four hundred and forty observations" is not a recurrence, it is the
+    #     opposite of one, and it must not clear an admission floor named `base_rated_episode`.
+    if base_rate is not None and not base_rate.get("declined") and int(base_rate.get("n") or 0) >= 1:
         out.append("base_rated_episode")
     return tuple(out)
 
@@ -1930,7 +1956,13 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
         # A RECURRENCE WITH NO DATED LIKE STATE IS NOT A RECURRENCE. The base rate says how often, and
         # the sentence has to say WHEN the nearest one was -- a rate with no exemplar is a number the
         # reader cannot check against the record it claims to summarise.
-        if base is not None and not base.get("declined") and stanza is not None and stanza.get("date"):
+        # IT READS THE FLOOR CLAUSE RATHER THAN RE-DERIVING IT (round-2 ruling, MAJOR 4). The two
+        # conditions were the same sentence written twice, and only one of them gained the `n >= 1` the
+        # relaxed selector made necessary -- so a row clearing the floor on a DIFFERENT clause could
+        # still have printed "no like states in four hundred and forty observations". One reader, one
+        # rule, and `_floor_of`'s clause 5 is where the rule lives.
+        if ("base_rated_episode" in floor and base is not None
+                and stanza is not None and stanza.get("date")):
             out.append(_cand(
                 "recurrence", row,
                 what=NONOBVIOUS_BODIES["recurrence"].format(

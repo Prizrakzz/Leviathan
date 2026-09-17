@@ -565,14 +565,16 @@ def test_the_base_rate_is_two_field_reads_and_declines_BY_NAME():
     from leviathan.graphrag.state import analogs as A
     r = _row(values=[0.1] * 60 + [2.2], conv=ONI_CONV)
     r.state.coverage = {"n_obs": 131}
-    assert WA.like_state_base_rate({"n_candidates": 7}, r) == {"n": 7, "m": 131, "declined": None}
+    assert WA.like_state_base_rate({"n_candidates_head": 7}, r) == {"n": 7, "m": 131,
+                                                                   "declined": None}
     assert WA.like_state_base_rate({}, r)["declined"] == "no_candidate_count"
     r2 = _row(values=[0.1] * 60 + [2.2], conv=ONI_CONV)
     r2.state.coverage = {}
-    assert WA.like_state_base_rate({"n_candidates": 7}, r2)["declined"] == "no_observation_count"
+    assert (WA.like_state_base_rate({"n_candidates_head": 7}, r2)["declined"]
+            == "no_observation_count")
     r3 = _row(values=[0.1] * 60 + [2.2], conv=ONI_CONV)
     r3.state.coverage = {"n_obs": 3}
-    assert (WA.like_state_base_rate({"n_candidates": 7}, r3)["declined"]
+    assert (WA.like_state_base_rate({"n_candidates_head": 7}, r3)["declined"]
             == "candidates_exceed_observations")
     for word in WA.BASE_RATE_DECLINES:
         assert word.isascii() and not any(ch.isdigit() for ch in word)
@@ -582,6 +584,35 @@ def test_the_base_rate_is_two_field_reads_and_declines_BY_NAME():
     assert not hasattr(A, "like_state_base_rate")
     assert not hasattr(A, "BASE_RATE_DECLINES")
 
+
+def test_R2_the_base_rate_reads_the_RARITY_count_and_NEVER_the_relaxed_pool():
+    """**THE WOKEN WATCH ROW** (R3a review round 2, MAJOR 4). Kind 7 fires only on a FIRED analog, and
+    the analog declined on five of five 2026-09-16 smoke turns -- so this sentence has never reached a
+    reader, and the R3a relaxation is exactly the change that lights it. Had it read the field it used
+    to, its FIRST live appearance would have been "three hundred and forty-six like states in four
+    hundred and forty observations": a seventy-nine per cent recurrence rate offered to a PM about a
+    state the record has actually been in eighteen times.
+
+    THE MEANING THIS READER CONSUMES DID NOT MOVE -- only the field name did. ``n_candidates`` is now the
+    pool the selector RANKS (a coverage statement); ``n_candidates_head`` is the count the SHIPPED rule
+    admitted (the rarity one), and ``analogs.select_analogs`` computes it as a COUNT that filters
+    nothing. The read is FAIL-CLOSED: a stanza carrying only the relaxed pool declines by name rather
+    than quietly printing it."""
+    r = _row(values=[0.1] * 60 + [2.2], conv=ONI_CONV)
+    r.state.coverage = {"n_obs": 440}
+    relaxed = {"n_candidates": 346, "n_candidates_raw": 358, "n_candidates_pit": 349,
+               "n_candidates_head": 18, "date": "1997-03-31"}
+    got = WA.like_state_base_rate(relaxed, r)
+    assert got == {"n": 18, "m": 440, "declined": None}
+    assert got["n"] / got["m"] < 0.05, "a rarity, not the 79% the ranked pool would have printed"
+    # FAIL-CLOSED: the relaxed pool alone is NOT a numerator, and there is no silent fallback.
+    no_head = {k: v for k, v in relaxed.items() if k != "n_candidates_head"}
+    assert WA.like_state_base_rate(no_head, r)["declined"] == "no_candidate_count"
+    # AND A BASE RATE OF ZERO IS NOT A RECURRENCE: the floor clause keeps its HEAD threshold semantics.
+    zero = WA.like_state_base_rate({**relaxed, "n_candidates_head": 0}, r)
+    assert zero == {"n": 0, "m": 440, "declined": None}
+    assert "base_rated_episode" not in WA._floor_of(r, pattern_rows=(), path_n=0, base_rate=zero)
+    assert "base_rated_episode" in WA._floor_of(r, pattern_rows=(), path_n=0, base_rate=got)
 
 # -- the 2N nomination and the writer licence ---------------------------------------------------------
 def test_every_nomination_carries_a_mechanism_a_backing_row_and_a_falsifier():
