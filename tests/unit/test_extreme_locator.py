@@ -307,9 +307,9 @@ def test_p50_p91_the_trace_keys_are_the_last_two_and_the_decision_is_the_last_on
     # THIS pair is no longer the last two -- it is the two before the last. The pair's ORDER and its
     # ADJACENCY, which is what P50/P91 actually claim, are unchanged and still asserted. The DECISION
     # tuple is untouched by that append and keeps its `[-1]`.
-    assert tk.TRACE_RECORD_KEYS[-4:-2] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert tk.TRACE_RECORD_KEYS[-1] == "state_board"
-    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert tk.TRACE_RECORD_KEYS[-8:-6] == ("quantify_extreme_locator", "extreme_second_hop")
+    assert tk.TRACE_RECORD_KEYS[-5] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
+    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every

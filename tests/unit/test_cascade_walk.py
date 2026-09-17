@@ -1309,15 +1309,15 @@ def test_context_constants_and_map_pins():
     # by two and every value below it is unchanged. Both are NAMED here, not left as "whatever is
     # last", for the reason the note above gives: an unnamed tail pin cannot tell an append from a
     # sort. TWO appends in ONE commit is doctrine M-8: the tail pins re-anchor once, not twice.
-    assert tk.TRACE_RECORD_KEYS[-1] == "state_board"
-    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert tk.TRACE_RECORD_KEYS[-5] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
+    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
     #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
-    assert tk.TRACE_RECORD_KEYS[-4:-2] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert tk.TRACE_RECORD_KEYS[-5] == "quantify_wave_reads"
-    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_cascade_walk"
+    assert tk.TRACE_RECORD_KEYS[-8:-6] == ("quantify_extreme_locator", "extreme_second_hop")
+    assert tk.TRACE_RECORD_KEYS[-9] == "quantify_wave_reads"
+    assert tk.TRACE_RECORD_KEYS[-10] == "quantify_cascade_walk"
     assert not any("context" in k for k in tk.TRACE_RECORD_KEYS)   # NO new trace key: the ledger rides inside
     assert not any("deep" in k for k in tk.TRACE_RECORD_KEYS)      # V2-5: same law, same ledger
     src = open(cq.__file__, encoding="utf-8").read()
@@ -4100,15 +4100,15 @@ def test_v23_registers_one_trace_key_and_the_ledger_rides_inside_it():
     # by two and every value below it is unchanged. Both are NAMED here, not left as "whatever is
     # last", for the reason the note above gives: an unnamed tail pin cannot tell an append from a
     # sort. TWO appends in ONE commit is doctrine M-8: the tail pins re-anchor once, not twice.
-    assert tk.TRACE_RECORD_KEYS[-1] == "state_board"
-    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert tk.TRACE_RECORD_KEYS[-5] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
+    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
     #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
-    assert tk.TRACE_RECORD_KEYS[-4:-2] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert tk.TRACE_RECORD_KEYS[-5] == "quantify_wave_reads"
-    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_cascade_walk"
+    assert tk.TRACE_RECORD_KEYS[-8:-6] == ("quantify_extreme_locator", "extreme_second_hop")
+    assert tk.TRACE_RECORD_KEYS[-9] == "quantify_wave_reads"
+    assert tk.TRACE_RECORD_KEYS[-10] == "quantify_cascade_walk"
     assert not any("xccy" in k or "fx" in k or "deep" in k for k in tk.TRACE_RECORD_KEYS)
 
 
@@ -5286,6 +5286,18 @@ def test_s5_phase0s_the_ledger_suffix_is_head_bytes_off_and_per_layer_on(monkeyp
     assert asrc.count("**_board_ledger_kwargs(_board))") == 1
     assert asrc.count("def _board_ledger_kwargs(") == 1
     assert an._board_ledger_kwargs(None) == {}
+    # ROUND-3 RE-ANCHOR (census BLOCKER-1): the L2 seam also threads the turn's own NUMBER CALLS, and
+    # that kwarg is GATED ON THE BOARD. It is read inside the producer behind `GRAPHRAG_RECENCY_FACTS`
+    # -- a DIFFERENT name, set to `on` for BOTH arm-A cells in `arm_env_base.yaml`'s `copy_from_taskdef`
+    # and live in serving rev 133 -- so ungated it supplied `kd_max` / `kd_min` on the board-OFF lane
+    # and the assertion four lines above (`"the newest is" not in s`) held for the producer while the
+    # SEAM violated it: measured, the ledger sentence moved on 112 of 112 banked turns with the board
+    # deleted from the environment, and on 0 of 112 with this gate. The ledger rides `volatile_blocks`,
+    # which is why the `_system` census cannot see this seam at all.
+    assert asrc.count("number_calls=(extra_number_calls if _board is not None else None),") == 1
+    _lblk = asrc[asrc.index("_ledger_line += _recency_ledger_suffix("):][:400]
+    assert "number_calls=(extra_number_calls if _board is not None else None)," in _lblk
+    assert "number_calls=extra_number_calls," not in _lblk     # the ungated spelling is GONE
     assert asrc.count("n_rows=_served_rows(extra_number_calls))") == 2   # the ledger line + the suffix
     # ...and the count they thread is the SAME producer the ledger line already states -- one
     # `_served_rows` per body, never a second count of the same rows.
@@ -5298,8 +5310,8 @@ def test_s5_phase0s_state_board_is_registered_at_the_tail_before_its_writer():
     Until S6 writes it the column lifts as None, which is the same absent-as-None shape every
     registered key has on a turn that does not stamp it."""
     from leviathan.graphrag import tracekeys as tk
-    assert tk.TRACE_RECORD_KEYS[-1] == "state_board"
-    assert tk.TRACE_RECORD_KEYS[-2] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert tk.TRACE_RECORD_KEYS[-5] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
+    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every

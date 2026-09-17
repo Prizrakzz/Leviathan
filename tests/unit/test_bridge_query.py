@@ -1088,13 +1088,86 @@ def test_widening_the_group_dispatch_changes_no_output_row(monkeypatch):
 
 
 def test_the_trace_key_is_unregistered_so_another_lanes_tail_pin_is_untouched():
-    """SURPRISE 5 / I-7. `tests/unit/test_cascade_walk.py` pins
-    `tracekeys.TRACE_RECORD_KEYS[-1] == 'state_board'`, and that file is open in the S7b lane right now.
-    An UNREGISTERED `sg.trace` key is sufficient for everything this lane needs: `answer._answer_l2`
-    spreads `sg.trace` wholesale into the result, so it reaches the serving result, the SSE and the $0
-    harness. The eval COLUMN, if ever wanted, is a later commit that moves the `[-1]` pin with it."""
+    """SURPRISE 5 / I-7. `tests/unit/test_cascade_walk.py` pins the registry's TAIL, and an UNREGISTERED
+    `sg.trace` key is sufficient for everything this lane needs: `answer._answer_l2` spreads `sg.trace`
+    wholesale into the result, so it reaches the serving result, the SSE and the $0 harness.
+
+    LANE F, 2026-09-17 -- THE COLUMN LANDED AND THIS PIN DID NOT MOVE, WHICH IS THE POINT. The original
+    docstring said "the eval COLUMN, if ever wanted, is a later commit that moves the `[-1]` pin with
+    it". It was wanted (BRIDGE_VERDICT.md: the 09-16 in-VPC smoke lit the flag on all five turns and no
+    artefact carried one number about it), and the column was built on the `numbers_budget`
+    ABSENT-WHEN-OFF SPLAT instead of on the registry -- so this key is still unregistered, an OFF row
+    still has no `bridge_query` key at all, and registering it would still have put a permanent
+    `"bridge_query": null` column on every control row of every deck forever. The `[-1]` ANCHOR moved
+    for other commits in the same sitting (the cost census appended three keys and lane E's writer
+    seam a fourth), so the tail is
+    asserted here by NAME rather than by index: what this test defends is the ABSENCE, not the
+    neighbour.
+
+    ROUND-2 REVIEW m5 -- AND NOW IT REALLY IS. The sentence above said "by NAME rather than by index"
+    and the line beneath it was `TRACE_RECORD_KEYS[-1] == "writer_seam"`: a NEW negative-index tail pin
+    in the one file whose stated remedy was to stop keeping one, which the NEXT append would red
+    exactly as the last append red the seven files before it. The three assertions below are what this
+    test means -- the ABSENCE of `bridge_query`, and the presence of the two keys that DID land -- and
+    no append, anywhere, can move any of them."""
     from leviathan.graphrag import tracekeys
     assert "bridge_query" not in tracekeys.TRACE_RECORD_KEYS
-    assert tracekeys.TRACE_RECORD_KEYS[-1] == "state_board"
+    assert "writer_seam" in tracekeys.TRACE_RECORD_KEYS            # lane E's key DID land, by NAME
+    assert "state_board" in tracekeys.TRACE_RECORD_KEYS            # ...and the old anchor is still there
     sg, _ = _run(bridge=True)
     assert "bridge_query" in sg.trace                              # and it is on the trace regardless
+
+
+def test_the_stamp_reaches_the_per_answer_record_on_the_on_arm_and_the_off_row_is_unchanged():
+    """LANE F (2026-09-17) -- THE RECEIPT THE ARM READS, AND THE BYTE-IDENTITY PIN BESIDE IT.
+
+    THE DEFECT (BRIDGE_VERDICT.md, measured on the 2026-09-16 in-VPC pre-arm smoke): every submit
+    logged `5 of 5 declared treatment flag(s) lit` including `GRAPHRAG_BRIDGE_QUERY=on`, the bridge
+    PROVABLY ran on the deep turn (a 2,405 ms fill cannot contain 6,999 ms of rerank latency at the
+    concurrency ONE query string permits), and `'bridge_query' in row` was False on 5 of 5 baseline
+    rows -- no `applied`, no `distinct`, no `fallback` breakdown, and no way to tell whether one of the
+    max turn's twenty depth-2 drivers was bridged at all.
+
+    THE SECOND HALF IS THE ASSERTION THAT WOULD HAVE FAILED UNDER REGISTRATION, and it is the whole
+    reason the splat was chosen: a registered key emits `None`, a splat emits nothing."""
+    from leviathan.graphrag import eval as ev_mod
+    stamp = {"nodes": 31, "applied": 29, "distinct": 27, "fallback": {"empty_mechanism": 2}}
+    on = ev_mod._per_answer_record({"q": {"id": "x"}, "out": {"trace": {"bridge_query": stamp}}}, "single")
+    assert on["bridge_query"] == stamp
+    off = ev_mod._per_answer_record({"q": {"id": "x"}, "out": {"trace": {}}}, "single")
+    assert "bridge_query" not in off                               # ABSENT, not None -- the byte pin
+    assert "bridge_query" not in ev_mod._per_answer_record({"q": {"id": "x"}, "out": {}}, "single")
+
+
+def test_the_state_report_prints_one_bridge_line_and_a_deck_with_no_stamp_prints_nothing():
+    """LANE F (2026-09-17). ABSENT IS NEVER ZERO, in the panel too: a deck where no turn stamped the key
+    renders NO bridge line, because "0 bridged nodes" and "the flag was off" are different facts and
+    only one of them is a result. `fallback` is merged BY REASON rather than summed -- the reasons are a
+    closed set and one total would hide a lane-parity failure (`rerank_lane_bedrock`) inside a data gap
+    (`empty_mechanism`)."""
+    from leviathan.graphrag import eval as ev_mod
+    rows = [{"out": {"trace": {"bridge_query": {"nodes": 31, "applied": 29, "distinct": 27,
+                                                "fallback": {"empty_mechanism": 2}}}}},
+            {"out": {"trace": {"bridge_query": {"nodes": 51, "applied": 51, "distinct": 44,
+                                                "fallback": {}}}}}]
+    L = ev_mod.state_report(rows)
+    bl = [x for x in L if "BRIDGE QUERY" in x]
+    assert len(bl) == 1
+    assert "non-seed retrieving nodes 82" in bl[0] and "BRIDGED 80" in bl[0]
+    assert "distinct admitting texts 71" in bl[0] and "empty_mechanism" in bl[0]
+    assert "over 2 of 2 turn(s)" in bl[0]
+    # a deck with a bridge and NO board takes a header that does not promise a board line (ruling R5)
+    assert L[0].startswith("## Bridge query")
+    assert not any("board turns" in x for x in L)
+    # NO STAMP ANYWHERE -> the panel does not exist at all, so a banked flag-off report is HEAD's
+    assert ev_mod.state_report([{"out": {"trace": {}}}, {"out": {}}]) == []
+    # ...and a turn that fell back on EVERY node still prints, with the reasons named
+    only = [x for x in ev_mod.state_report([{"out": {"trace": {"bridge_query": {
+        "nodes": 4, "applied": 0, "distinct": 0,
+        "fallback": {"no_driver_mechanism": 3, "rerank_lane_bedrock": 1}}}}}]) if "BRIDGED" in x]
+    assert len(only) == 1
+    assert "BRIDGED 0 (0%)" in only[0] and "rerank_lane_bedrock" in only[0]
+    # a turn that bridged EVERY node says so in words rather than printing an empty fallback dict
+    _all = [x for x in ev_mod.state_report([{"out": {"trace": {"bridge_query": {
+        "nodes": 9, "applied": 9, "distinct": 9, "fallback": {}}}}}]) if "BRIDGED" in x]
+    assert "NO fallback on any turn" in _all[0] and "BRIDGED 9 (100%)" in _all[0]

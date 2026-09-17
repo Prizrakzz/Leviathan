@@ -422,3 +422,820 @@ def test_a_non_required_field_error_still_surfaces_its_own_cause():
     # exception, so no failure class is ever swallowed by the friendlier message.
     err = _reject({"table": "silver_psd", "metric": "ending_stocks_mt", "agg": "not_an_agg"})["error"]
     assert "REJECTED" not in err and "agg" in err
+
+
+# ══ LANE C (prearm fix r1, 2026-09-17) ═══════════════════════════════════════════════════════════════
+# Three instruments, three kill-switches, all default OFF, and the OFF state of each is pinned:
+#   GRAPHRAG_STAT_WINDOW       -- the window a computed CHANGE was taken over, on the row that carries it
+#   GRAPHRAG_COST_CENSUS       -- the per-round spend census this lane's seat never stamped
+#   GRAPHRAG_RV_PAIR_SPREAD    -- the cross-series spread, COMPUTED instead of described
+import pytest as _pytest
+from leviathan.graphrag.numbers import stats as _ST
+from leviathan.graphrag.numbers.registry import load_registry as _load_registry
+
+
+def _vrow(value, **extra):
+    return {"value": value, **extra}
+
+
+def _usage(i=1, o=2, r=3, w=4):
+    return types.SimpleNamespace(input_tokens=i, output_tokens=o,
+                                 cache_read_input_tokens=r, cache_creation_input_tokens=w)
+
+
+def _resp_u(content, stop, usage=None):
+    return types.SimpleNamespace(content=content, stop_reason=stop, usage=usage)
+
+
+# ── the shared drop rule ─────────────────────────────────────────────────────────────────────────────
+def test_the_date_axis_drops_exactly_the_rows_the_series_axis_drops():
+    """`_series_axis`'s own docstring is the reason this pin exists: a parallel axis built by a second
+    loop "would silently misalign the moment the two loops disagreed about a droppable cell". Both now
+    read `_cell_float`, so the alignment is structural -- this asserts it on every droppable shape at
+    once (None, a bool, a non-numeric string, a comma'd number, and a real 0.0)."""
+    rows = [_vrow("1,000", data_date="2026-01-01"), _vrow(None, data_date="2026-02-01"),
+            _vrow(True, data_date="2026-03-01"), _vrow("n/a", data_date="2026-04-01"),
+            _vrow("2.5", data_date="2026-05-01"), _vrow(0, data_date="2026-06-01")]
+    vals, _exps = A._series_axis(rows)
+    dates = A._date_axis(rows)
+    assert vals == [1000.0, 2.5, 0.0]
+    assert dates == ["2026-01-01", "2026-05-01", "2026-06-01"]
+    assert len(vals) == len(dates)
+    # a row with no date at all contributes "" -- present (so the axes stay aligned) and falsy
+    assert A._date_axis([_vrow("1"), _vrow("2", period="2025")]) == ["", "2025"]
+
+
+# ── the stat window ──────────────────────────────────────────────────────────────────────────────────
+def test_the_stat_window_is_off_by_default_and_the_synthetic_query_is_head(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_STAT_WINDOW", raising=False)
+    res = {"stat": "window_change", "declined": False, "value": -0.317, "n": 3, "t1": 0, "t2": -1}
+    calls = A._stat_calls("window_change", res, {}, "1000 MT", "20260904",
+                          dates=["2026-07-08", "2026-08-01", "2026-09-16"])
+    assert calls[0]["query"] == {"table": A.STATS_TOOL_NAME, "metric": "window_change"}
+
+
+def test_the_stat_window_rides_the_period_slot_verbatim(monkeypatch):
+    """The measured defect: a window_change over 2026-07-08..2026-09-16 reached the reader as
+    'week-on-week'. The row now carries its own window, in the estate's ONE spelling for one (the
+    cascade's `..` period token, which `citations._period_label` passes through untouched)."""
+    monkeypatch.setenv("GRAPHRAG_STAT_WINDOW", "on")
+    res = {"stat": "window_change", "declined": False, "value": -0.317, "n": 3, "t1": 0, "t2": -1}
+    q = A._stat_calls("window_change", res, {}, "1000 MT", "20260904",
+                      dates=["2026-07-08", "2026-08-01", "2026-09-16"])[0]["query"]
+    assert q["period"] == "2026-07-08..2026-09-16"
+    from leviathan.graphrag import citations as cit
+    assert cit._period_label(q["period"]) == "2026-07-08..2026-09-16"      # never re-prefixed "MY"
+    # yoy_delta names the two observations it differenced, not the whole series
+    yoy = {"stat": "yoy_delta", "declined": False, "value": 1.0, "n": 3, "periods": 1}
+    assert A._stat_calls("yoy_delta", yoy, {}, "%", None,
+                         dates=["2024", "2025", "2026"])[0]["query"]["period"] == "2025..2026"
+    # streak spans the run's first move to the latest
+    stk = {"stat": "streak", "declined": False, "value": 2, "n": 4}
+    assert A._stat_calls("streak", stk, {}, "MT", None,
+                         dates=["a", "b", "c", "d"])[0]["query"]["period"] == "b..d"
+
+
+@_pytest.mark.parametrize("dates", [None, [], ["", "", ""], ["2026-01-01", "2026-02-01"]])
+def test_an_undated_or_misaligned_axis_mints_no_window_ever(monkeypatch, dates):
+    """SILENCE, NEVER A GUESSED SPAN. The `year_month` cards carry no date alias at all (the J3 residue
+    pinned earlier in this deck), and a misaligned axis cannot name a window -- both must leave the row
+    exactly as HEAD mints it rather than inventing a span."""
+    monkeypatch.setenv("GRAPHRAG_STAT_WINDOW", "on")
+    res = {"stat": "window_change", "declined": False, "value": 1.0, "n": 3, "t1": 0, "t2": -1}
+    assert "period" not in A._stat_calls("window_change", res, {}, "MT", None, dates=dates)[0]["query"]
+
+
+def test_the_rank_stats_keep_their_own_declared_basis_and_gain_no_window(monkeypatch):
+    """`zscore` has declared `z_window` since G4c(iii) and `percentile`/`extrema` are order-independent
+    reads of a whole history. The scope is the POSITIONAL stats and the exclusion is deliberate."""
+    monkeypatch.setenv("GRAPHRAG_STAT_WINDOW", "on")
+    for stat, res in (("percentile", {"stat": "percentile", "declined": False, "value": 6.25, "n": 8}),
+                      ("zscore", {"stat": "zscore", "declined": False, "value": -1.2, "n": 10,
+                                  "window": 10})):
+        rows = A._stat_calls(stat, res, {}, "%", None, dates=[str(i) for i in range(res["n"])])
+        assert "period" not in rows[0]["query"], stat
+
+
+# ── the cost census ──────────────────────────────────────────────────────────────────────────────────
+def test_the_cost_census_is_off_by_default_and_writes_no_key(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_COST_CENSUS", raising=False)
+    client = FakeClient([_resp_u([_tool_use({"table": "silver_psd", "metric": "ending_stocks_mt",
+                                             "commodity": "corn_cbot"})], "tool_use", _usage()),
+                         _resp_u([_text("done")], "end_turn", _usage())])
+    out = A.answer_numbers("q", asof="2026-08-07", client=client,
+                           query_fn=lambda sql: [{"value": "1", "knowledge_date": "2026-01-01"}])
+    assert "numbers_usage" not in out
+
+
+def test_the_cost_census_records_one_row_per_round_with_cache_write(monkeypatch):
+    """COST_LATENCY's STEP 1. The five-turn smoke priced at $2.56 against a provable floor of $3.93 and
+    THIS seat was the missing $1.30; `cache_creation_input_tokens` -- section 1.4's "single largest
+    blind spot" -- is measured nowhere in the estate. One row per ROUND, because the bill is dominated
+    by re-reading one 99,207-token prefix once per round."""
+    monkeypatch.setenv("GRAPHRAG_COST_CENSUS", "on")
+    client = FakeClient([
+        _resp_u([_tool_use({"table": "silver_psd", "metric": "ending_stocks_mt",
+                            "commodity": "corn_cbot"})], "tool_use", _usage(137, 200, 0, 99207)),
+        _resp_u([_text("done")], "end_turn", _usage(12, 340, 99207, 1500))])
+    out = A.answer_numbers("q", asof="2026-08-07", client=client, model="claude-sonnet-5",
+                           query_fn=lambda sql: [{"value": "1", "knowledge_date": "2026-01-01"}])
+    rows = out["numbers_usage"]
+    assert len(rows) == 2
+    assert rows[0] == {"model": "claude-sonnet-5", "in": 137, "out": 200,
+                       "cache_read": 0, "cache_write": 99207}
+    assert rows[1]["cache_read"] == 99207 and rows[1]["cache_write"] == 1500
+
+
+def test_a_usage_object_that_raises_costs_the_census_a_row_and_never_the_turn(monkeypatch):
+    """This file's standing law: an instrument never breaks an answer."""
+    monkeypatch.setenv("GRAPHRAG_COST_CENSUS", "on")
+
+    class _Boom:
+        content = [_text("done")]
+        stop_reason = "end_turn"
+
+        @property
+        def usage(self):
+            raise RuntimeError("no usage on this provider")
+
+    client = FakeClient([_Boom()])
+    out = A.answer_numbers("q", asof="2026-08-07", client=client, query_fn=lambda sql: [])
+    assert out["answer"] == "done"
+    assert "numbers_usage" not in out                      # one row lost, the turn intact
+
+
+# ── the RV pair spread ───────────────────────────────────────────────────────────────────────────────
+_RV_Q = ("Palm oil's supply picture has been shifting. How does that reach soybean oil, and where does "
+         "the balance between the two sheets stand this marketing year?")
+
+
+def _price_rows(vals, unit="USD/mt"):
+    return [{"value": str(v), "unit": unit, "data_date": "2026-%02d-01" % (i + 1),
+             "knowledge_date": "2026-%02d-01" % (i + 1)} for i, v in enumerate(vals)]
+
+
+def _pink(metric, agg):
+    return {"table": "silver_pink_sheet", "metric": metric, "agg": agg}
+
+
+def _two_leg_client(agg):
+    return FakeClient([
+        _resp_u([_tool_use(_pink("palm_oil_cpo_usd_t", agg), "a"),
+                 _tool_use(_pink("soybean_oil_usd_t", agg), "b")], "tool_use"),
+        _resp_u([_text("read both legs.")], "end_turn")])
+
+
+def _two_leg_query_fn(palm, soy):
+    def qf(sql):
+        if "palm_oil_cpo_usd_t" in sql:
+            return _price_rows(palm)
+        if "soybean_oil_usd_t" in sql:
+            return _price_rows(soy)
+        return []
+    return qf
+
+
+def test_the_rv_pair_lane_is_off_by_default_everywhere(monkeypatch):
+    """OFF: no scope is resolved, no leg runs, no key is written -- and the 247 kB cached system prefix
+    does not move by a byte, which is the property that lets this land before an arm cell."""
+    monkeypatch.delenv("GRAPHRAG_RV_PAIR_SPREAD", raising=False)
+    reg = _load_registry()
+    off = A.system_prompt(reg)
+    monkeypatch.setenv("GRAPHRAG_RV_PAIR_SPREAD", "on")
+    assert len(A.system_prompt(reg)) > len(off)
+    monkeypatch.delenv("GRAPHRAG_RV_PAIR_SPREAD", raising=False)
+    assert A.system_prompt(reg) == off
+    out = A.answer_numbers(_RV_Q, asof="2026-09-16", client=_two_leg_client("latest"),
+                           query_fn=_two_leg_query_fn([1117.0], [1638.0]))
+    assert "rv_pair_uncomputed" not in out and "rv_pair_spread" not in out
+    assert [c["query"]["table"] for c in out["calls"]] == ["silver_pink_sheet"] * 2
+
+
+def test_two_markets_are_recognised_from_the_questions_own_words():
+    assert A.rv_pair_scope(_RV_Q) == ("malaysian_crude_palm_oil_cme", "soybean_oil_cbot")
+    assert A.rv_pair_scope("How do corn and wheat balance sheets compare?") == (
+        "corn_cbot", "soft_red_winter_wheat_cbot")
+    assert A.rv_pair_scope("What are US corn ending stocks?") is None
+    assert A.rv_pair_scope("") is None
+
+
+def test_two_single_date_reads_are_stamped_uncomputed_and_deny_the_reader_nothing(monkeypatch):
+    """THE SMOKE'S OWN SHAPE. The page printed palm 1,117 and soyoil 1,638 USD/mt from one source and
+    month and then said "the gap itself is not a served series". Two `agg='latest'` reads are ONE joined
+    observation apiece, so `stats.pair_spread` refuses at its own floor -- and the turn records the miss
+    instead of denying anything to the reader."""
+    monkeypatch.setenv("GRAPHRAG_RV_PAIR_SPREAD", "on")
+    out = A.answer_numbers(_RV_Q, asof="2026-09-16", client=_two_leg_client("latest"),
+                           query_fn=_two_leg_query_fn([1117.0], [1638.0]))
+    stamp = out[A.RV_PAIR_UNCOMPUTED_KEY]
+    assert stamp["markets"] == ["malaysian_crude_palm_oil_cme", "soybean_oil_cbot"]
+    assert "2 shared observations" in stamp["reason"]
+    assert out["answer"] == "read both legs."          # NOT a refusal, NOT a preface, NOT a deletion
+    assert "rv_pair_spread" not in out
+    assert all(c["query"]["table"] == "silver_pink_sheet" for c in out["calls"])
+
+
+def test_two_series_reads_mint_the_spread_and_its_rank_as_observed_rows(monkeypatch):
+    """THE FIGURE THE TURN OWED: 1,638 - 1,117 = 521 USD/mt, computed by the calculator and minted as a
+    citable [N] row that names BOTH legs and the window it was joined over -- never arithmetic in the
+    model's head, and never a sentence saying the gap is not served."""
+    monkeypatch.setenv("GRAPHRAG_RV_PAIR_SPREAD", "on")
+    palm = [1050, 1062, 1071, 1088, 1094, 1101, 1110, 1117]
+    soy = [1480, 1502, 1533, 1561, 1580, 1601, 1620, 1638]
+    out = A.answer_numbers(_RV_Q, asof="2026-09-16", client=_two_leg_client("series"),
+                           query_fn=_two_leg_query_fn(palm, soy))
+    assert out["rv_pair_spread"]["legs"] == 2 and A.RV_PAIR_UNCOMPUTED_KEY not in out
+    minted = [c for c in out["calls"] if c["query"]["table"] == A.STATS_TOOL_NAME]
+    assert [c["query"]["metric"] for c in minted] == ["pair_spread", "percentile"]
+    spread, rank = minted[0]["rows"][0], minted[1]["rows"][0]
+    assert spread["value"] == float(palm[-1] - soy[-1]) == -521.0   # A minus B, and the legs say which
+    assert spread["unit"] == "USD/mt" and spread["leg_a"].endswith("palm_oil_cpo_usd_t")
+    assert spread["leg_b"].endswith("soybean_oil_usd_t") and spread["pair_form"] == "difference"
+    assert minted[0]["query"]["period"] == "2026-01-01..2026-08-01"
+    assert rank["unit"] == "percentile" and 0 <= rank["value"] <= 100
+    assert spread["knowledge_date"] == "2026-08-01"       # the LATER leg: the pair is not known before
+    # the figures are the calculator's own, never a second derivation at this seam
+    dates = [r["data_date"] for r in _price_rows(palm)]
+    ref = _ST.pair_spread([float(v) for v in palm], dates, "USD/mt",
+                          [float(v) for v in soy], dates, "USD/mt", label_a="a", label_b="b")
+    assert spread["value"] == ref["value"]
+    assert rank["value"] == _ST.percentile(ref["value"], ref["series"])["value"]
+
+
+def test_the_pair_leg_refuses_two_tonnage_legs_and_mismatched_units(monkeypatch):
+    """A spread is a fact about two PRICE series in one unit. Two stock series are not a spread, and two
+    prices in different units are refused by `stats.unit_compatible` -- the module's one policy."""
+    monkeypatch.setenv("GRAPHRAG_RV_PAIR_SPREAD", "on")
+    tonnes = FakeClient([
+        _resp_u([_tool_use({"table": "silver_psd", "metric": "ending_stocks_mt",
+                            "commodity": "soybeans_cbot"}, "a"),
+                 _tool_use({"table": "silver_psd", "metric": "ending_stocks_mt",
+                            "commodity": "corn_cbot"}, "b")], "tool_use"),
+        _resp_u([_text("stocks")], "end_turn")])
+    out = A.answer_numbers("How do corn and soybean stocks compare?", asof="2026-09-16", client=tonnes,
+                           query_fn=lambda sql: [{"value": "100", "unit": "MT",
+                                                  "knowledge_date": "2026-01-01"}])
+    assert "rv_pair_spread" not in out
+    # RE-BANKED (round 2, review M-3): the decline now NAMES THE MARKETS with no price level behind
+    # them, in the reader's words, because "served N price leg(s)" counted the wrong thing -- a turn
+    # could serve four price legs and be about neither of the markets the question named.
+    reason = out[A.RV_PAIR_UNCOMPUTED_KEY]["reason"]
+    assert "price LEVEL" in reason and "CBOT corn" in reason and "CBOT soybeans" in reason
+
+    mixed = FakeClient([
+        _resp_u([_tool_use(_pink("palm_oil_cpo_usd_t", "series"), "a"),
+                 _tool_use(_pink("soybean_oil_usd_t", "series"), "b")], "tool_use"),
+        _resp_u([_text("mixed")], "end_turn")])
+
+    def qf(sql):
+        if "palm_oil_cpo_usd_t" in sql:
+            return _price_rows([1, 2, 3], unit="USD/mt")
+        return _price_rows([4, 5, 6], unit="US cents/lb")
+    out2 = A.answer_numbers(_RV_Q, asof="2026-09-16", client=mixed, query_fn=qf)
+    assert "rv_pair_spread" not in out2 and A.RV_PAIR_UNCOMPUTED_KEY in out2
+
+
+def test_a_one_market_question_takes_no_branch_even_with_the_flag_lit(monkeypatch):
+    monkeypatch.setenv("GRAPHRAG_RV_PAIR_SPREAD", "on")
+    out = A.answer_numbers("What is the palm oil price?", asof="2026-09-16",
+                           client=FakeClient([_resp_u([_tool_use(_pink("palm_oil_cpo_usd_t", "series"))],
+                                                      "tool_use"),
+                                              _resp_u([_text("ok")], "end_turn")]),
+                           query_fn=lambda sql: _price_rows([1, 2, 3]))
+    assert "rv_pair_spread" not in out and A.RV_PAIR_UNCOMPUTED_KEY not in out
+
+
+def test_the_rv_mandate_asks_for_a_read_shape_and_never_for_a_tool_that_does_not_exist(monkeypatch):
+    """`pair_spread` is in `stats.ENGINE_STAT_NAMES`, deliberately outside `STAT_REGISTRY` -- which IS
+    the agent's tool enum. A mandate telling the model to CALL it would mint an `unknown stat` error
+    round at real cost, so the bullet asks for the read shape the engine leg needs instead."""
+    monkeypatch.setenv("GRAPHRAG_RV_PAIR_SPREAD", "on")
+    assert "pair_spread" not in _ST.STAT_NAMES and "pair_spread" in _ST.ENGINE_STAT_NAMES
+    sp = A.system_prompt(_load_registry())
+    assert "TWO MARKETS IS A SPREAD QUESTION" in sp
+    assert "pair_spread" not in sp
+    assert "agg='series'" in sp
+
+
+# ══ LANE C (prearm fix ROUND 2, 2026-09-17) ══════════════════════════════════════════════════════════
+# The review's FATAL and five MAJORs, each pinned with the measurement that condemned round 1 written
+# into the docstring, so a future reader can tell a rule from a preference.
+import re as _re
+
+
+class _NS:
+    """A minimal spec stand-in for the two predicates that read attributes off one."""
+
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
+
+
+_HEAD_METRIC_RX = _re.compile(r"(?:^|_)(?:price|prices|usd|settle|close)(?:_|$)|_usd_[a-z]+$|price")
+_R2_UNIT_RX = _re.compile(
+    r"^\s*(?:us\s*cents?|usd|us\$|\$|eur|gbp|jpy|cad|aud|cny|rmb|myr|zar|brl|inr|ars)\b.*/", _re.I)
+_R2_DERIVED_RX = _re.compile(
+    r"(?:^|_)(?:z|zscore|z_score|sigma|pct|percent|pctile|percentile|rank|delta|change|diff|spread|"
+    r"ratio|share|index|ma|sma|ema|vol|volatility|stdev|yoy|mom|wow|margin|cost|value|premium|basis)"
+    r"(?:_|$)|_zscore_|_pct_change")
+
+
+def _head_is_price_call(call):
+    """HEAD's / round-1's `_rv_is_price_call`, re-implemented HERE -- both refuted rules live in this
+    file and NEITHER in `agent.py` any more (round 3), so the shipped rule is pinned against the things
+    it replaced rather than against a paraphrase of them, and src carries only what ships."""
+    if str((call or {}).get("status") or "") != "ok" or not ((call or {}).get("rows") or []):
+        return False
+    metric = str(((call or {}).get("query") or {}).get("metric") or "").lower()
+    unit = str(((call or {}).get("rows") or [{}])[0].get("unit") or "")
+    return bool(_HEAD_METRIC_RX.search(metric) or _R2_UNIT_RX.search(unit))
+
+
+def _r2_is_price_call(call):
+    """ROUND 2's rule, re-implemented HERE for the same reason: the ROW's own unit against a
+    currency-per-unit regex, with derived metric SPELLINGS refused."""
+    if str((call or {}).get("status") or "") != "ok" or not ((call or {}).get("rows") or []):
+        return False
+    metric = str(((call or {}).get("query") or {}).get("metric") or "").lower()
+    if _R2_DERIVED_RX.search(metric):
+        return False
+    unit = str(((call or {}).get("rows") or [{}])[0].get("unit") or "")
+    return bool(_R2_UNIT_RX.search(unit))
+
+
+def _leg(table, metric, vals, unit, commodity=None, dates=None):
+    ds = dates or ["2026-%02d-01" % (i + 1) for i in range(len(vals))]
+    rows = [{"value": v, "unit": unit, "data_date": d, "knowledge_date": d}
+            for v, d in zip(vals, ds)]
+    q = {"table": table, "metric": metric}
+    if commodity:
+        q["commodity"] = commodity
+    return {"query": q, "rows": rows, "status": "ok"}
+
+
+_R2_SCOPE = ("soybean_oil_cbot", "malaysian_crude_palm_oil_cme")
+_R2_PALM = [1050.0, 1062.0, 1071.0, 1088.0, 1094.0, 1101.0, 1110.0, 1117.0]
+_R2_SOY = [1480.0, 1502.0, 1533.0, 1561.0, 1580.0, 1601.0, 1620.0, 1638.0]
+
+
+# ── M-3: THE TWO LEGS ARE THE TWO MARKETS THE QUESTION NAMES ────────────────────────────────────────
+def test_a_derived_row_is_not_a_price_leg_and_the_two_measured_mints_are_unproducible():
+    """THE TWO FIGURES THE REVIEW RENDERED OUT OF ROUND 1, REPRODUCED AND REFUSED.
+
+      (a) the two z-scores the soyoil turn actually served ([N13] palm 0.269096 sigma, [N14] soyoil
+          1.21357 sigma) read as series -> HEAD's rule mints `pair_spread = -0.944474 sigma vs 5-yr
+          mean`: a DIFFERENCE OF TWO Z-SCORES served as an observed value with a unit, because
+          `_RV_PRICE_METRIC_RX` matched `palm_oil_cpo_usd_t_zscore_5yr` through its `_usd_`;
+      (b) two CRUDE OIL legs on the palm/soyoil question -> HEAD's rule mints `2 USD/bbl` while the
+          lane's own record names `['malaysian_crude_palm_oil_cme', 'soybean_oil_cbot']`.
+
+    Both are refused now, and for two independent reasons: (a) is not a metric the estate DECLARES to
+    be any market's price (round 3 -- round 2 refused it on its unit spelling instead) and (b) fails
+    the MARKET test (neither leg prices either of the two markets the question named)."""
+    zs = [_leg("silver_pink_sheet", "palm_oil_cpo_usd_t_zscore_5yr",
+               [0.10, 0.12, 0.15, 0.18, 0.20, 0.22, 0.25, 0.269096], "sigma vs 5-yr mean"),
+          _leg("silver_pink_sheet", "soybean_oil_usd_t_zscore_5yr",
+               [0.80, 0.90, 1.00, 1.05, 1.10, 1.15, 1.18, 1.21357], "sigma vs 5-yr mean")]
+    assert [_head_is_price_call(c) for c in zs] == [True, True]          # HEAD took them
+    assert [A._rv_is_price_call(c) for c in zs] == [False, False]        # ...and this rule does not
+    rows, why = A.rv_pair_spread_legs(_R2_SCOPE, zs)
+    assert rows == [] and "price LEVEL" in why
+
+    # ROUND 3: brent crude is a PRINTED price on the same card and the estate declares it nobody's RV
+    # benchmark, so it is refused ONE STEP EARLIER than round 2 refused it -- by the declaration, not
+    # by the market matcher. `cocoa_usd_t` IS a declared benchmark and is still a price of neither
+    # market, so the market test keeps a live subject.
+    crude = [_leg("silver_pink_sheet", "brent_crude_usd_bbl", [70.0, 71.0, 72.0, 73.0], "USD/bbl"),
+             _leg("silver_pink_sheet", "brent_crude_usd_bbl", [68.0, 69.0, 70.0, 71.0], "USD/bbl",
+                  commodity="other")]
+    assert [_head_is_price_call(c) for c in crude] == [True, True]
+    assert [_r2_is_price_call(c) for c in crude] == [True, True]         # round 2 took them...
+    assert [A._rv_is_price_call(c) for c in crude] == [False, False]     # ...nobody declares them
+    assert [A.rv_leg_market(c, _R2_SCOPE) for c in crude] == [None, None]
+    rows, why = A.rv_pair_spread_legs(_R2_SCOPE, crude)
+    assert rows == [] and "CBOT soybean oil" in why and "CME palm oil" in why
+
+    off = [_leg("silver_pink_sheet", "cocoa_usd_t", [7000.0, 7100.0, 7200.0, 7300.0], "USD/mt")]
+    assert A._rv_is_price_call(off[0]) is True                           # a DECLARED price...
+    assert A.rv_leg_market(off[0], _R2_SCOPE) is None                    # ...of neither market
+    rows, why = A.rv_pair_spread_legs(_R2_SCOPE, off)
+    assert rows == [] and "CBOT soybean oil" in why and "CME palm oil" in why
+
+
+def test_call_order_selects_nothing_and_the_question_order_fixes_the_sign():
+    """THE MIXED TURN: two crude legs arrive FIRST in call order, the two market legs after. Round 1
+    would have differenced the crude pair; the market matcher takes the palm and soyoil legs wherever
+    they sit, and `leg_a` is the market the QUESTION named first, so the sign is the reader's."""
+    calls = [_leg("silver_pink_sheet", "cocoa_usd_t", [7000.0, 7100.0, 7200.0, 7300.0], "USD/mt"),
+             _leg("silver_pink_sheet", "brent_crude_usd_bbl", [70.0, 71.0, 72.0, 73.0], "USD/bbl"),
+             _leg("silver_pink_sheet", "palm_oil_cpo_usd_t", _R2_PALM, "USD/mt"),
+             _leg("silver_pink_sheet", "soybean_oil_usd_t", _R2_SOY, "USD/mt")]
+    # THREE declared price levels served (round 3: brent is nobody's declared benchmark and never
+    # becomes a candidate at all), and the cocoa leg arrives FIRST in call order.
+    assert len(A.rv_pair_candidates(calls)) == 3
+    picked = A.rv_pair_candidates(calls, _R2_SCOPE)                   # ...two of them are the markets
+    assert [A.rv_leg_market(c, _R2_SCOPE) for c in picked] == list(_R2_SCOPE)
+    rows, why = A.rv_pair_spread_legs(_R2_SCOPE, calls)
+    assert why is None and rows
+    spread = rows[0]["rows"][0]
+    assert spread["value"] == _R2_SOY[-1] - _R2_PALM[-1] == 521.0     # soyoil FIRST -> soyoil minus palm
+    assert spread["leg_a"].endswith("soybean_oil_usd_t")
+    assert spread["leg_b"].endswith("palm_oil_cpo_usd_t")
+    # and the reversed question reverses the sign, because the question owns the order
+    rev = ("malaysian_crude_palm_oil_cme", "soybean_oil_cbot")
+    rows2, _ = A.rv_pair_spread_legs(rev, calls)
+    assert rows2[0]["rows"][0]["value"] == -521.0
+
+
+def test_the_leg_market_is_read_from_the_call_and_never_guessed():
+    """Two declared reads and nothing else: the call's own `commodity`, then the METRIC NAME for the
+    cards where the market IS the metric (silver_pink_sheet's card says so in those words). A leg that
+    answers neither is UNASSIGNED."""
+    assert A.rv_leg_market(_leg("silver_pink_sheet", "palm_oil_cpo_usd_t", [1.0], "USD/mt"),
+                           _R2_SCOPE) == "malaysian_crude_palm_oil_cme"
+    assert A.rv_leg_market(_leg("silver_futures_eod", "settle", [1.0], "US cents/bushel",
+                                commodity="soybean_oil_cbot"), _R2_SCOPE) == "soybean_oil_cbot"
+    assert A.rv_leg_market(_leg("silver_pink_sheet", "barley_usd_t", [1.0], "USD/mt"),
+                           _R2_SCOPE) is None
+    assert A.rv_leg_market(_leg("silver_pink_sheet", "palm_oil_cpo_usd_t", [1.0], "USD/mt"),
+                           None) is None
+
+
+def test_the_crush_components_are_never_price_legs():
+    """`gold_board_crush` declares four USD/bushel metrics that pass a currency-per-unit unit test. The
+    MARGIN is a spread already (a spread of a spread is not a reading) and the three components are
+    board constructions, not the market's own printed price -- all four are refused by the property
+    that makes them wrong, not by a table whitelist."""
+    for m in ("crush_margin_usd_bu", "bean_cost_usd_bu", "oil_value_usd_bu", "meal_value_usd_bu"):
+        c = _leg("gold_board_crush", m, [2.5, 2.6, 2.7], "USD/bushel", commodity="soybeans_cbot")
+        assert _head_is_price_call(c) is True, m        # HEAD took all four
+        assert A._rv_is_price_call(c) is False, m       # ...and this rule takes none
+
+
+# ── ROUND 3, REVIEW MAJOR-1: THE PRICE-LEG RULE IS PINNED ON THE CORPUS, NOT ON THE REGISTRY ────────
+# THE CORPUS ITSELF, banked: every DISTINCT (table, metric, the unit the ROW carried) shape among the
+# 372 ok reads of the 2026-09-16 pre-arm smoke that ANY of the three candidate rules classified as a
+# price leg, with how many of the 372 reads had that shape. 44 shapes; the 328 reads no rule ever took
+# are not here because no rule's count can move on them. Generated from the three
+# `prearm_smoke_0916/s3/baseline_*.json` artifacts, which record what each lookup returned at the same
+# as-of. `''` is a row that carried NO unit at all -- the shape round 2 could not see.
+_R3_CORPUS = [
+    ('gold_board_crush', 'crush_margin_usd_bu', '', 2),
+    ('gold_board_crush', 'crush_margin_usd_bu', 'USD/bu', 6),
+    ('gold_board_crush', 'crush_margin_usd_bu', 'percentile', 6),
+    ('gold_board_crush', 'crush_margin_usd_bu', 'sigma', 6),
+    ('silver_fred_fx', 'eur_usd', 'local currency per USD', 1),
+    ('silver_fred_fx', 'eur_usd', 'percentile', 1),
+    ('silver_fred_fx', 'eur_usd', 'sigma', 1),
+    ('silver_fred_fx', 'idr_usd', 'local currency per USD', 2),
+    ('silver_fred_fx', 'idr_usd', 'percentile', 2),
+    ('silver_fred_fx', 'idr_usd', 'sigma', 2),
+    ('silver_fred_fx', 'inr_usd', 'local currency per USD', 2),
+    ('silver_fred_fx', 'inr_usd', 'percentile', 2),
+    ('silver_fred_fx', 'inr_usd', 'sigma', 2),
+    ('silver_fred_fx', 'mxn_usd', 'local currency per USD', 1),
+    ('silver_fred_fx', 'mxn_usd', 'percentile', 1),
+    ('silver_fred_fx', 'mxn_usd', 'sigma', 1),
+    ('silver_futures_eod', 'settle', 'EUR/t', 1),
+    ('silver_futures_eod', 'settle', 'US cents/bushel', 2),
+    ('silver_futures_eod', 'settle change over 1 session', 'EUR/t', 1),
+    ('silver_futures_eod', 'settle change over 21 sessions', 'EUR/t', 1),
+    ('silver_futures_eod', 'settle change over 5 sessions', 'EUR/t', 1),
+    ('silver_futures_eod', 'settle_change_pct', '%', 16),
+    ('silver_pink_sheet', 'brent_crude_usd_bbl_zscore_5yr', 'percentile', 2),
+    ('silver_pink_sheet', 'brent_crude_usd_bbl_zscore_5yr', 'sigma', 2),
+    ('silver_pink_sheet', 'brent_crude_usd_bbl_zscore_5yr', 'z', 6),
+    ('silver_pink_sheet', 'brent_crude_usd_bbl_zscore_5yr_pace_change', 'z', 4),
+    ('silver_pink_sheet', 'natural_gas_us_usd_mmbtu_zscore_5yr', 'percentile', 1),
+    ('silver_pink_sheet', 'natural_gas_us_usd_mmbtu_zscore_5yr', 'sigma', 1),
+    ('silver_pink_sheet', 'natural_gas_us_usd_mmbtu_zscore_5yr', 'z', 1),
+    ('silver_pink_sheet', 'palm_oil_cpo_usd_t', '', 1),
+    ('silver_pink_sheet', 'palm_oil_cpo_usd_t_zscore_5yr', '', 1),
+    ('silver_pink_sheet', 'potassium_usd_mt_zscore_5yr', 'z', 1),
+    ('silver_pink_sheet', 'potassium_usd_mt_zscore_5yr_pace_change', 'z', 1),
+    ('silver_pink_sheet', 'potassium_usd_mt_zscore_5yr_pace_streak', 'months', 1),
+    ('silver_pink_sheet', 'soybean_oil_usd_t', '', 2),
+    ('silver_pink_sheet', 'soybean_oil_usd_t_zscore_5yr', '', 1),
+    ('silver_pink_sheet', 'soybeans_usd_t', '', 2),
+    ('silver_pink_sheet', 'soybeans_usd_t_zscore_5yr', '', 1),
+    ('silver_pink_sheet', 'urea_usd_mt_zscore_5yr', 'percentile', 1),
+    ('silver_pink_sheet', 'urea_usd_mt_zscore_5yr', 'sigma', 1),
+    ('silver_pink_sheet', 'urea_usd_mt_zscore_5yr', 'z', 3),
+    ('silver_pink_sheet', 'urea_usd_mt_zscore_5yr_pace_change', 'z', 2),
+    ('silver_pink_sheet', 'urea_usd_mt_zscore_5yr_pace_streak', 'months', 2),
+    ('silver_wasde', 'avg_farm_price', '$/bu', 9),
+]
+
+
+def test_the_price_leg_rule_is_measured_on_the_corpus_and_the_round_2_rule_took_none_of_it():
+    """THE DEFECT MAJOR-1 RE-OPENED: round 2's rule was CLOSED ON FIXTURES AND BROKEN ON THE CORPUS.
+    It read `rows[0]['unit']` against a currency-per-unit regex, and the number pinned for it (a
+    113 -> 37 census over the CARD's declared unit) measured a different field over a set DISJOINT
+    from the one the rule could admit: all 37 survivors sit on cards with no `unit_col` and no
+    `unit_overrides`, so `query.py` stamps no row unit for any of them and the rule refuses every one.
+
+    MEASURED HERE, over the corpus's own 372 ok reads:
+      HEAD/round-1  106  -- every z-score, every pace change, every FX rate
+      ROUND 2         6  -- and ZERO on rv_soyoil_palm, the turn this lane exists to fix
+      ROUND 3         8  -- the declared benchmarks, and on rv_soyoil_palm exactly the two legs
+
+    Round 2 also took three DERIVED rows it could not see: a windowed change is served under a metric
+    name spelled in WORDS ('settle change over 5 sessions'), never in the underscore form its
+    derived-spelling belt was written against."""
+    head = r2 = r3 = 0
+    for tid, metric, unit, n in _R3_CORPUS:
+        c = _leg(tid, metric, [1.0], unit)
+        head += n if _head_is_price_call(c) else 0
+        r2 += n if _r2_is_price_call(c) else 0
+        r3 += n if A._rv_is_price_call(c) else 0
+    assert (head, r2, r3) == (106, 6, 8), (head, r2, r3)
+    # the three derived rows round 2 took on rv_palm_rapeoil, by address
+    for m in ("settle change over 1 session", "settle change over 5 sessions",
+              "settle change over 21 sessions"):
+        c = _leg("silver_futures_eod", m, [1.0], "EUR/t")
+        assert _r2_is_price_call(c) is True and A._rv_is_price_call(c) is False, m
+
+
+def test_the_motivating_turns_two_price_legs_are_found_and_the_false_record_is_gone():
+    """rv_soyoil_palm served `silver_pink_sheet.palm_oil_cpo_usd_t = 1117.0` and
+    `soybean_oil_usd_t = 1638.0` -- ONE card, ONE month, ONE declared unit (USD/mt), each recorded
+    with `unit: null` because the pink sheet stamps no row unit. Round 2 found NEITHER and wrote
+    "the turn names two markets and no served read is a price LEVEL for CME palm oil, CBOT soybean
+    oil", which is FALSE about that page. The rule now finds both, and the record written instead is
+    the CALCULATOR's own -- two `agg='latest'` reads share one observation, which is below
+    `MIN_PAIR_SPREAD_N`."""
+    palm = _leg("silver_pink_sheet", "palm_oil_cpo_usd_t", [1117.0], "")
+    soy = _leg("silver_pink_sheet", "soybean_oil_usd_t", [1638.0], "")
+    assert [c["rows"][0]["unit"] for c in (palm, soy)] == ["", ""]      # as the corpus recorded them
+    assert [_r2_is_price_call(c) for c in (palm, soy)] == [False, False]
+    assert [A._rv_is_price_call(c) for c in (palm, soy)] == [True, True]
+    scope = ("malaysian_crude_palm_oil_cme", "soybean_oil_cbot")
+    assert [A.rv_leg_market(c, scope) for c in (palm, soy)] == list(scope)
+    rows, why = A.rv_pair_spread_legs(scope, [palm, soy])
+    assert rows == []                                                  # still uncomputed...
+    assert "price LEVEL" not in why                                    # ...and NOT for a false reason
+    assert "shared observations" in why                                # the calculator's own sentence
+
+
+def test_the_card_declares_the_unit_when_the_row_does_not_and_the_spread_then_computes():
+    """MAJOR-1's second half. `citations._card_unit` is the fallback `citations.from_number` already
+    uses, so the unit this seam hands the calculator and the unit the reader's `## Sources` line
+    renders are one fact. Without it both legs arrive with `unit=None` and `stats.pair_spread` refuses
+    on BOTH_UNITS_REQUIRED -- correct of the calculator, and a refusal of a spread whose unit the card
+    states plainly."""
+    from leviathan.graphrag.numbers import stats as _ST
+    palm = _leg("silver_pink_sheet", "palm_oil_cpo_usd_t", _R2_PALM, "")
+    soy = _leg("silver_pink_sheet", "soybean_oil_usd_t", _R2_SOY, "")
+    assert A._rv_leg_unit(palm) == A._rv_leg_unit(soy) == "USD/mt"      # off the CARD, not the row
+    # the row's OWN unit still wins where a card stamps one, and an unreadable card knows nothing
+    assert A._rv_leg_unit(_leg("silver_futures_eod", "settle", [1.0], "US cents/bushel")) == \
+        "US cents/bushel"
+    assert A._rv_leg_unit(_leg("no_such_card", "no_such_metric", [1.0], "")) is None
+    rows, why = A.rv_pair_spread_legs(_R2_SCOPE, [palm, soy])
+    assert why is None and rows
+    assert rows[0]["rows"][0]["unit"] == "USD/mt"                       # and the mint is NOT unitless
+    assert rows[0]["rows"][0]["value"] == _R2_SOY[-1] - _R2_PALM[-1] == 521.0
+    # WHY THE FALLBACK IS LOAD-BEARING, through the calculator itself
+    bare = _ST.pair_spread([1.0, 2.0], ["a", "b"], None, [3.0, 4.0], ["a", "b"], None,
+                           label_a="x", label_b="y")
+    assert bare.get("declined") is True
+
+
+def test_the_declared_price_register_is_the_estates_own_and_narrows_the_registry_to_sixteen():
+    """113 (round 1, the metric name) -> 37 (round 2, the row-unit regex) -> 16 metrics, and the 16
+    are not a list this lane keeps: they are `cascade._RV_PRICE_SERIES` and `cascade._RV_EOD_LEVEL`,
+    read and never re-typed, both bound to `config_check.SYNTHESIZED_PRICE_LEG_ALLOW` by
+    `_check_synthesized_price_legs` -- so a new price surface is adjudicated at build time rather than
+    admitted by a spelling at serve time."""
+    from leviathan.graphrag.numbers import cascade as _csc
+    reg = _load_registry()
+    head = r2 = r3 = 0
+    for tid, spec in reg.tables.items():
+        for m, ms in (getattr(spec, "metrics", {}) or {}).items():
+            c = _leg(tid, m, [1.0], str(getattr(ms, "unit", "") or ""))
+            head += 1 if _head_is_price_call(c) else 0
+            r2 += 1 if _r2_is_price_call(c) else 0
+            r3 += 1 if A._rv_is_price_call(c) else 0
+    assert (head, r2, r3) == (113, 37, 16), (head, r2, r3)
+    assert A._rv_declared_price_legs() == (
+        frozenset((_csc._RV_PRICE_TABLE, m) for m, _l in _csc._RV_PRICE_SERIES.values())
+        | frozenset((_csc._RV_EOD_TABLE, m) for m, _l in _csc._RV_EOD_LEVEL.values()))
+    # THE CASE THAT CONDEMNS A SPELLING BELT: the Cotton A Index IS the estate's declared cotton
+    # benchmark, and round 2's derived-metric regex refused it through its `index` token.
+    cotton = _leg("silver_pink_sheet", "cotton_a_index_usd_t", [1.0], "USD/mt")
+    assert _r2_is_price_call(cotton) is False and A._rv_is_price_call(cotton) is True
+    # ...and a real price the estate registers for NO market's RV leg stays out (SEAM B's farm price)
+    assert A._rv_is_price_call(_leg("silver_wasde", "avg_farm_price", [1.0], "$/bu")) is False
+
+
+# ── M-4: THE MINTED ROW NAMES ITS TWO MARKETS ON THE READER'S PAGE ──────────────────────────────────
+def test_every_minted_rv_row_names_both_markets_through_the_real_citation_producer():
+    """ROUND 1 RENDERED "computed statistic pair_spread 2026-01-01..2026-08-01 = -521 USD/mt" --
+    `leg_a`/`leg_b` rode the ROW and nothing on a citation reads them, so a signed magnitude reached
+    the reader's `## Sources` belonging to nobody (K9-5's own ruled defect, reintroduced by a new
+    mint). The subject now rides `query.commodity`, the one scope slot `citations.from_number` already
+    renders for a computed row, resolved through the estate's ONE display producer so no slug leaks."""
+    from leviathan.graphrag import citations as cit
+    calls = [_leg("silver_pink_sheet", "palm_oil_cpo_usd_t", _R2_PALM, "USD/mt"),
+             _leg("silver_pink_sheet", "soybean_oil_usd_t", _R2_SOY, "USD/mt")]
+    rows, why = A.rv_pair_spread_legs(("malaysian_crude_palm_oil_cme", "soybean_oil_cbot"), calls)
+    assert why is None and len(rows) == 2
+    labels = [cit.from_number(r, i + 1).label for i, r in enumerate(rows)]
+    for lab in labels:
+        assert "CME palm oil minus CBOT soybean oil" in lab, lab
+        for slug in ("malaysian_crude_palm_oil_cme", "soybean_oil_cbot", "silver_pink_sheet"):
+            assert slug not in lab, lab                   # no machine id reaches the reader's page
+    assert labels[0].endswith("= -521 USD/mt")
+    assert "2026-01-01..2026-08-01" in labels[0]
+    # ONE PRODUCER for the subject: the row carries it too, so a second reader cannot word it twice
+    assert rows[0]["rows"][0]["pair_markets"] == A.rv_pair_subject(
+        ("malaysian_crude_palm_oil_cme", "soybean_oil_cbot")) == "CME palm oil minus CBOT soybean oil"
+    # ...and the MACHINE identity is untouched on the row, exactly as T1-4 requires of a spread
+    assert rows[0]["rows"][0]["leg_a"].endswith("palm_oil_cpo_usd_t")
+    assert rows[0]["rows"][0]["leg_b"].endswith("soybean_oil_usd_t")
+    # the source card is DELIBERATELY not stamped: this row was computed over TWO cards and naming one
+    # would attribute a cross-market difference to one market's source (`cascade._stat_display`'s rule)
+    assert "source_table" not in rows[0]["rows"][0] and "source_metric" not in rows[0]["rows"][0]
+
+
+# ── F-1 / ROUND-2 DOCKET #5: AN EMPTY COUNTRY READ SAYS WHICH AXIS TO RULE OUT ──────────────────────
+def test_an_empty_country_read_names_the_spelling_axis_and_a_served_read_does_not():
+    """THE MEASUREMENT (pre-arm smoke `served_rows`, 419 reads): every silver_psd / silver_psd_attributes
+    read spelled `country='united_states'` returned ZERO rows -- 21 of 21 -- while `country='United
+    States'` returned a row on 41 of 41, same metrics, same as-of, several minutes apart on one turn.
+    There is no refusal site for this: `query.py` compiles a plain equality and Athena answers it
+    honestly with nothing, so a wrong spelling and a real absence are indistinguishable from here.
+
+    This CORRECTS rather than deletes: the NO ROWS marker still says there is no number, and one
+    sentence behind it names the one axis to rule out. It never re-spells, never re-runs, and never
+    serves a figure."""
+    empty = FakeClient([
+        _resp_u([_tool_use({"table": "silver_psd", "metric": "su_ratio",
+                            "commodity": "corn_cbot", "country": "united_states",
+                            "period": "2026"}, "a")], "tool_use"),
+        _resp_u([_text("nothing came back.")], "end_turn")])
+    out = A.answer_numbers("US corn stocks to use?", asof="2026-09-16", client=empty,
+                           query_fn=lambda sql: [])
+    note = out["calls"][0]["scope_note"]
+    assert note.startswith(A._no_rows_note(out["calls"][0]["status"]))     # the marker still leads
+    assert "THE COUNTRY SPELLING IS THE FIRST THING TO RULE OUT" in note
+    assert "'united_states'" in note
+    assert "never as a fact about whether the source publishes the figure" in note
+    assert out["calls"][0]["rows"] == []                                   # and NO figure is served
+    # a read that RETURNED a row carries no such note...
+    served = FakeClient([
+        _resp_u([_tool_use({"table": "silver_psd", "metric": "su_ratio", "commodity": "corn_cbot",
+                            "country": "United States", "period": "2026"}, "a")], "tool_use"),
+        _resp_u([_text("ok")], "end_turn")])
+    out2 = A.answer_numbers("US corn stocks to use?", asof="2026-09-16", client=served,
+                            query_fn=lambda sql: [{"value": "0.12", "knowledge_date": "2026-09-04"}])
+    assert "THE COUNTRY SPELLING" not in str(out2["calls"][0].get("scope_note") or "")
+    # ...and neither does an empty read that named NO country, or one on a card with no country axis
+    reg = _load_registry()
+    assert A._country_axis_empty(_NS(table="silver_psd", country=""), reg) is False
+    assert A._country_axis_empty(_NS(table="silver_mpob", country="Malaysia"), reg) is False
+    assert A._country_axis_empty(_NS(table="silver_psd", country="world"), reg) is True
+
+
+# ── ROUND 3, REVIEW MAJOR-4: THE NOTE'S FIRING IS CENSUSED, AND IT FIRES ONLY WHERE MEASURED ────────
+# The pre-arm smoke's 47 empty reads, by class, exactly as `prearm_fix_r3/C_census_country_note.py`
+# counts them: (table, metric, the country the call named, how many of the 47).
+_R3_EMPTY_CORPUS = [
+    ("silver_nass_crop_progress", "pct_harvested", "US", 3),
+    ("silver_psd", "ending_stocks_mt", "World", 2),
+    ("silver_psd", "ending_stocks_mt", "world", 4),
+    ("silver_psd", "production_mt", "World", 3),
+    ("silver_psd", "production_mt", "united_states", 1),
+    ("silver_psd", "production_mt", "world", 6),
+    ("silver_psd", "su_ratio", "World", 2),
+    ("silver_psd", "su_ratio", "united_states", 10),
+    ("silver_psd", "su_ratio", "world", 4),
+    ("silver_psd_attributes", "Feed Dom. Consumption", "united_states", 10),
+]
+
+
+def test_the_empty_country_note_fires_only_on_the_cards_its_hazard_was_measured_on():
+    """THE DEFECT (round 2): the note fired on THREE terms -- empty read, a country was named, the
+    card has a `country_col` -- and its firing was never censused. Measured over the smoke's own 47
+    empty reads it fired on 45, and 3 of those 45 are
+    `silver_nass_crop_progress.pct_harvested country='US'` where the SAME corpus shows that card
+    returning `ok` TWICE on `country='US'`: the spelling is right, the absence is real and seasonal
+    (harvest had not started at the 2026-09-07 as-of), and the note told the model to doubt it. A
+    correction firing against a TRUE absence is the class this lane exists to remove, pointed the
+    other way -- and it is the only misfire the census found.
+
+    THE FOURTH TERM is `_is_fanout_card` (`cascade.PSD_TABLES`): exactly the cards the hazard was
+    measured on, and exactly the cards whose NOTES now spell the country values, so the note's own
+    remedy is readable wherever it fires. 45 -> 42, the three misfires gone, 42 of 42 on a card that
+    answers the re-read the note asks for. The blast radius falls from the 21 cards with a
+    `country_col` to 2."""
+    reg = _load_registry()
+    fired = sum(n for t, _m, c, n in _R3_EMPTY_CORPUS
+                if A._country_axis_empty(_NS(table=t, country=c), reg))
+    assert sum(n for _t, _m, _c, n in _R3_EMPTY_CORPUS) == 47 - 2      # 45 fired under round 2
+    assert fired == 42
+    # THE MISFIRE CLASS, by address: gone, and gone for the right reason
+    assert A._country_axis_empty(_NS(table="silver_nass_crop_progress", country="US"), reg) is False
+    assert getattr(reg.get("silver_nass_crop_progress"), "country_col", None)   # it HAS a country axis
+    assert A._is_fanout_card("silver_nass_crop_progress") is False              # ...and is not measured
+    # the 21 `united_states` reads where the note is RIGHT still carry it, on BOTH cards
+    for tid in ("silver_psd", "silver_psd_attributes"):
+        assert A._country_axis_empty(_NS(table=tid, country="united_states"), reg) is True
+
+
+def test_the_note_points_at_the_card_line_that_actually_exists():
+    """The round-2 wording sent the model to "this card's COUNTRY line in the table list above".
+    MEASURED: `country_values` -- the field a card wall would print a country enum from -- is EMPTY on
+    ALL 41 cards, so no card wall carries such a line; the two cards this note now reaches state their
+    spellings in their NOTES, and those notes are what it names."""
+    reg = _load_registry()
+    assert not any((getattr(s, "country_values", []) or []) for s in reg.tables.values())
+    note = A._country_spelling_note("united_states")
+    assert "COUNTRY line" not in note
+    assert "Re-read this card's NOTES in the table list above" in note
+    for tid in ("silver_psd", "silver_psd_attributes"):
+        assert "COUNTRY IS THE SOURCE'S OWN TITLE-CASE NAME HERE" in str(reg.get(tid).notes or "")
+
+
+# ── THE CENSUS FLAG HAS ONE GRAMMAR (lane F review M1) ──────────────────────────────────────────────
+@_pytest.mark.parametrize("spelling", ["on", "ON", "1", "true", "TRUE", "yes", "YES", "off", "0", "",
+                                       " on ", "no", "y"])
+def test_the_cost_census_reader_agrees_with_dispatch_spelling_for_spelling(monkeypatch, spelling):
+    """MEASURED BY LANE F: `GRAPHRAG_COST_CENSUS=yes` was TRUE here and FALSE in `dispatch`, so the
+    numbers seat -- the largest -- was stamped while the planner's pop and the judge's usage stayed
+    dark, and the Spend panel printed a "total" with two seats silently missing. Half-armed is the
+    exact class the pre-arm seams commit exists to close. The pin asserts AGREEMENT, not merely a
+    shared default."""
+    from leviathan.graphrag import dispatch as _dp
+    monkeypatch.setenv("GRAPHRAG_COST_CENSUS", spelling)
+    assert A._cost_census_on() is _dp._cost_census_on(), spelling
+    assert A._cost_census_on() is (spelling.strip().lower() in ("on", "1", "true"))
+
+
+def test_the_cost_census_is_off_with_the_name_deleted(monkeypatch):
+    monkeypatch.delenv("GRAPHRAG_COST_CENSUS", raising=False)
+    from leviathan.graphrag import dispatch as _dp
+    assert A._cost_census_on() is False and _dp._cost_census_on() is False
+
+
+# ── ROUND-2 DOCKET #6: THE PSD su_ratio CARD STATES SCOPE AND DENOMINATOR ───────────────────────────
+def test_the_psd_su_ratio_card_states_its_denominator_and_the_row_label_carries_the_marketing_year():
+    """THE DEFECT (ANSWER_QUALITY.md / docket #6): the max page's 10.72% could not be reconciled by a
+    reader with the WASDE 310 / 4,535 balance sheet printed beside it. THE CAUSE IS THE DENOMINATOR --
+    `transforms/bronze_to_silver/usda_psd.py:1334` computes `ending_stocks_mt / consumption_mt`, so
+    EXPORTS ARE NOT IN IT: 310 / 0.1072 = 2,892 M bu is US DOMESTIC use, not total use. The same fact
+    explains the corn/wheat page's 0.652178 for SRW wheat, which is not a readable stocks-to-use number
+    beside a WASDE sheet and IS the right ratio of stocks to domestic consumption."""
+    from leviathan.graphrag import citations as cit
+    desc = str(_load_registry().get("silver_psd").metrics["su_ratio"].desc or "")
+    assert "ending_stocks_mt / consumption_mt" in desc              # the producer's own expression
+    assert "EXPORTS ARE NOT IN THE DENOMINATOR" in desc             # ...and what that means, in capitals
+    assert "FRACTION OF ONE" in desc and "0.1072 is 10.7%" in desc  # the scale, stated
+    assert "SCOPE IS THE COUNTRY AND MARKETING YEAR" in desc        # the scope, stated
+    assert "WASDE" in desc
+    # ROUND 3, REVIEW MAJOR-2: THE WORKED EXAMPLE PUT THE MISLABEL BACK. The round-2 desc read "US SRW
+    # wheat reads 0.652 here" -- and 0.652178 is USDA's ALL-CLASS US wheat sheet read under the SRW
+    # key, which is the producer fact this whole lane is built on and exactly the sentence
+    # `alias_resolution_note` had just stopped teaching ("never quote one as if it were that class's
+    # own balance sheet", nine lines away in the same card's own notes). It shipped ungated, on every
+    # PSD su_ratio serve, as the CARD's own example.
+    assert "SRW wheat reads" not in desc and "SRW" not in desc
+    assert "US ALL-CLASS wheat reads 0.652 here" in desc
+    # the class name survives ONLY inside the denial, exactly once: the figure is not that class's
+    assert desc.lower().count("soft red winter") == 1
+    assert "never soft red winter's own" in desc
+    # ...and nothing on this card calls months-of-export-cover a stocks-to-use ratio
+    mpob = _load_registry().get("silver_mpob")
+    assert str(mpob.metrics["su_ratio"].label or "") == "months of export cover"
+    assert "It is NOT a stocks-to-use ratio" in str(mpob.metrics["su_ratio"].desc or "")
+    # ...and the ROW LABEL carries the marketing year, through the real citation producer
+    call = {"query": {"table": "silver_psd", "metric": "su_ratio", "commodity": "corn_cbot",
+                      "country": "United States", "period": "2026", "asof": "2026-09-06"},
+            "rows": [{"value": 0.1072, "unit": "ratio", "knowledge_date": "2026-09-04"}],
+            "status": "ok"}
+    assert cit.from_number(call, 1).label.startswith(
+        "USDA PSD stocks-to-use ratio CBOT corn United States MY2026 = ")
+
+
+def test_the_psd_country_paragraph_does_not_ask_the_model_to_add_the_countries_up():
+    """ROUND 3, REVIEW MAJOR-3. The round-2 country paragraph closed with "Name the countries you need
+    and add them up", in the FIRST thing the seat reads, and three things were wrong with it, all
+    measured in the shipped files:
+      (1) the same system prompt forbids it three times ("never invent or recall a figure", "do NOT do
+          the arithmetic yourself -- REQUEST it with the compute_stat tool", "you do NOT do the
+          arithmetic"), and the card is read ~250 kB earlier;
+      (2) THERE IS NO STAT TO REQUEST -- `stats.STAT_NAMES` is extrema, percentile, revision_count,
+          spread, streak, window_change, yoy_delta, zscore and nothing there is a cross-series sum, so
+          the instruction can only be satisfied by the model's own arithmetic, which mints a figure
+          with no handle;
+      (3) the sum it invites is the one the estate DE-DUPLICATES -- `cascade` carries
+          `eu_member_deduped` because "a naive cross-country World SUM would double-count such a
+          member", and 'European Union' is second in this card's own spelling list.
+    The honest half of the same sentence survives; the hand sum does not."""
+    from leviathan.graphrag.numbers import stats as _ST
+    notes = str(_load_registry().get("silver_psd").notes or "")
+    assert "add them up" not in notes
+    assert "never a sum you add up here" in notes
+    assert "say plainly that the world basis is not served" in notes
+    assert "do not write \"the world balance sheet carries no figure at this as-of\"" in notes
+    # the measurement behind (2), re-run: no stat the model can request sums two series
+    assert not ({"sum", "total", "aggregate", "share", "ratio"} & set(_ST.STAT_NAMES))

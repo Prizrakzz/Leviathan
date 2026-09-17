@@ -372,11 +372,20 @@ def test_the_strip_audit_numbers_list_carries_the_re_admitted_scale(monkeypatch)
 def test_the_control_arm_replay_is_unmoved_by_the_gate():
     """The arm rule (g) was measured on, replayed end to end through `verify_citations` (the artifact is
     gitignored, so this pin is skipped in a clean clone). The gate must not re-open the 33-of-35 class:
-    number_unbacked 3, number_mismatch 6, undeclared_unsupported 41 -- and the census that explains why
+    number_unbacked 1, number_mismatch 6, undeclared_unsupported 41 -- and the census that explains why
     (17 rule-(g) scale tokens across 10 sentences, 4 printed by a served row of their own sentence, 13
     standing the gate down because the cited call recorded no unit or recorded one with no numeral in
     it, 0 re-admitted). THE GATE'S HONEST REACH ON TODAY'S CORPUS IS 4 OF 17, and that is the stated
-    price of the two fail-open fences above, not a miss to be quietly widened."""
+    price of the two fail-open fences above, not a miss to be quietly widened.
+
+    D-EC PRE-ARM ROUND 2 (2026-09-17) -- THE RE-BANK, AND THE TWO CHARGES IT REMOVED, NAMED.
+    `number_unbacked` 3 -> 1 and `stripped` 50 -> 48 because rule (h-iii) stopped charging a RECORD
+    LENGTH. Both were the same sentence on `rv_meal_oil`: "- The window series shows meal at 7.1236
+    USD/bushel [N5] and oil at 7.8452 USD/bushel [N6] as the newest of 53 rows covering
+    2026-06-01..2026-08-20." Both printed figures ARE backed by their own cited rows; only `53` -- the
+    number of rows in the window -- was not, and it stripped BOTH handles and served all three figures
+    bare. The surviving charge is a real one (`rv_soyoil_palm`, a PSD production figure). Rule (g) is
+    untouched: the gate census below is asserted unchanged, on the same artifact, in the same run."""
     if not _ARTIFACT.exists():
         pytest.skip("da_baseline_control artifact is gitignored and absent from this tree")
     doc = json.load(io.open(_ARTIFACT, encoding="utf-8"))
@@ -388,8 +397,8 @@ def test_the_control_arm_replay_is_unmoved_by_the_gate():
         rep = vf.verify_citations(st, [], copy.deepcopy(a.get("served_rows") or []))
         by_rule.update(rep.get("by_rule") or {})
         stripped += rep.get("stripped", 0)
-    assert dict(by_rule) == {"undeclared_unsupported": 41, "number_unbacked": 3, "number_mismatch": 6}
-    assert stripped == 50
+    assert dict(by_rule) == {"undeclared_unsupported": 41, "number_unbacked": 1, "number_mismatch": 6}
+    assert stripped == 48
 
     exempted = printed = stand_down = readmitted = 0
     bound = re.compile(r"[.!?;](?=\s|$)|\n")

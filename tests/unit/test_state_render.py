@@ -306,9 +306,9 @@ _SPLICE_INTER = {"when": ("board_crush_spread", "crude_oil_price"), "effect": "a
 
 #: The four things the row asserts and the fence must never take from it.
 _AMP_SURVIVORS = ("board crush spread, crude oil price",            # the PAIR
-                  "all sit among this board's loudest rows",        # the LOUD CLAIM
+                  "are all among the largest moves here",          # the LOUD CLAIM
                   "records the effect as amplifies",                # the EFFECT WORD
-                  "carries no series this board could read")        # the READ SPLIT
+                  "carries no series read here")                    # the READ SPLIT
 
 
 def test_a_note_CLEAN_ALONE_and_DIRTY_WHEN_SPLICED_loses_ITS_CLAUSE_and_never_the_WHOLE_ROW():
@@ -787,14 +787,14 @@ def test_a_singular_count_takes_a_SINGULAR_NOUN_in_every_template(scenarios):
         for phrase in _SINGULAR_MISMATCHES:
             assert phrase not in text, (name, phrase)
         for line, hit in zip(ctx["block"].lines, ctx["block"].classes):
-            if hit[0] != "SB-C" or " one of its " not in line:
+            if hit[0] != "SB-C" or " one of the " not in line:
                 continue
-            assert "declared drivers sits among" in line, line
+            assert "condition" in line and " is showing here " in line, line
     # and the builders themselves, on a stated row rather than on whatever the fixtures happen to make
     one = dict(name="p", contract="soybeans_cbot", direction="", threshold=1, drivers=("a",),
                matched=("a",), n_matched=1, matched_measured=("a",), matched_unmeasured=(),
                n_declared=1, loud_k=8, n_with_band=1, note="", interactions=())
-    assert "declared drivers sits among" in R.sb_convergence(one)
+    assert "one of the one condition it names is showing here" in R.sb_convergence(one)
     assert "with its own [N] z" in R.sb_convergence(one)
     assert "each with its own [N] z" not in R.sb_convergence(one)
 
@@ -931,13 +931,26 @@ def test_a_convergence_row_names_ONLY_the_rows_that_CARRY_AN_N_z(scenarios):
             line = R.sb_convergence(c)
             for d in c["matched_unmeasured"]:
                 assert R.humanise(d) in line, (name, d)   # named, never deleted
-                assert "no series this board could read" in line
+                assert "no series read here" in line
     ctx = scenarios["soybeans_now"]
     trade = [l for l in ctx["block"].lines if l.startswith("- trade-war demand loss")]
     assert trade and "with its own [N] z" in trade[0]
-    assert "four of its four declared drivers sit among" in trade[0], "the COUNT is unchanged"
+    # RE-ANCHORED, review round 2 MAJOR 9. "four of the four conditions it names ARE SHOWING HERE" was
+    # an observation claim the next clause denied for three of the four. The verb now covers only the
+    # rows that were READ, the unread ones are named as NAMED BY THE PATTERN, and the TOTAL -- which is
+    # the number the threshold comparison uses -- is stated: no count changed and no name was deleted.
+    assert "one of the four conditions it names is showing here" in trade[0], "the READ count"
+    # RE-ANCHORED (review round 3, NEW-2): the total is the COUNTED one, not "on this page".
+    assert "so four of the four are counted here" in trade[0], "the TOTAL still stands"
     assert "(export pace lag, with its own [N] z)" in trade[0], "only the READ row carries a z"
-    assert "China import tariff" in trade[0] and "no series this board could read" in trade[0]
+    assert "China import tariff" in trade[0] and "no series read here" in trade[0]
+    # THE QUORUM ROW CARRIES NO FIRING CLAIM AND NO INTERNAL VOCABULARY (lane D, 2026-09-17).
+    # `walk.CONVERGENCE_BANNED_WORDS` puts firing with `firing.fire_contract`, so the row states the
+    # count and the number the pattern asks for and leaves the verdict to the reader.
+    assert "it asks for two, so the count here is at or past that number" in trade[0]
+    for banned in ("loudest rows", "declared drivers", "the pattern's own threshold",
+                   " met", "fires", "regime is", "in force"):
+        assert banned not in trade[0], banned
 
 
 def test_scenario_3_renders_the_EVENT_the_upstream_levy_and_the_convergence_ordering(scenarios):
@@ -947,7 +960,10 @@ def test_scenario_3_renders_the_EVENT_the_upstream_levy_and_the_convergence_orde
     assert any(l.startswith("UPSTREAM CPO export levy -> biodiesel mandate") for l in lines)
     conv = [c for c in ctx["board"].convergence if c["name"] == "biodiesel_energy_floor"]
     assert conv and conv[0]["n_matched"] == 2 and conv[0]["threshold"] == 2
-    assert any("two of its three declared drivers sit among" in l for l in lines)
+    # RE-ANCHORED (review round 2, MAJOR 9): one of the two matched drivers carries no series read, so
+    # the leading count is ONE and the total is stated beside it.
+    assert any("one of the three conditions it names is showing here" in l for l in lines)
+    assert any("so two of the three are counted here" in l for l in lines)
     amp = [l for l in lines if l.startswith("  amplifier") and "crude oil price, biodiesel mandate" in l]
     assert amp, "B16's own fixture: the (crude_oil_price, biodiesel_mandate) amplifier must render"
 
@@ -1002,7 +1018,7 @@ def test_the_render_caps_are_the_tiers_own_and_a_capped_section_NAMES_what_it_cu
     assert R.render_caps("quick")["analog"] == 0            # Scan runs no analogs, by budget
     ctx = scenarios["soybeans_now"]
     cut = [l for l in ctx["block"].lines
-           if l.startswith("BOARD ABSENCE the far boards past this tier's spillover cut")]
+           if l.startswith("BOARD ABSENCE the further markets past this tier's spillover cut")]
     assert cut and "(" in cut[0], "the names are never cut, only the sentences are shared"
 
 
@@ -1054,10 +1070,10 @@ def test_the_ANALOG_OUTCOME_cut_NAMES_what_it_dropped_and_says_nothing_when_it_d
 #: Every cut line whose sentence CLAIMS a naming. Sec 3.8's law is "the tail it cannot afford is
 #: NAMED"; four of these claimed it and named the rows nowhere.
 _CUT_PREFIXES = (
-    "BOARD ABSENCE the far boards past this tier's spillover cut",
+    "BOARD ABSENCE the further markets past this tier's spillover cut",
     "BOARD ABSENCE the like states past this tier's stanza cut",
     "BOARD ABSENCE the upstream paths past this tier's render cut",
-    "BOARD ABSENCE the far states of the rows past this tier's cut",
+    "BOARD ABSENCE the far states of the readings past this tier's cut",
     "BOARD ABSENCE the keys this turn's budget did not reach",
 )
 
@@ -1105,7 +1121,7 @@ def test_the_budget_cut_names_ONE_ROW_PER_DEFERRED_KEY_and_never_a_raw_series_la
         for label in shown:
             assert label in line, (name, label)
         if len(shown) < len(named):
-            assert "further rows this line does not name" in line, (name, line[:200])
+            assert "further readings this line does not name" in line, (name, line[:200])
         assert "|" not in line, "a series-key label reached the reader"
 
 
@@ -1229,9 +1245,13 @@ def test_the_CO_LOUD_stanza_REACHES_the_render_and_wears_the_classes_6_2_ALREADY
     # at the class itself: nothing in 6.2 can say "these two rows are one reading", which is what a
     # mutually-exclusive phase pair on one global series needs said. It is letters-only and mints no
     # handle, so the [N] address space and the verifier are untouched.
+    # SB-LEAD IS THE SECOND SUCH CLASS (ROUND-2 DOCKET item 12): the three largest moves, one line
+    # each, FIRST in the block. Like SB-JOIN it describes the block's own shape rather than a row's
+    # content, it is letters-only and it mints no handle, so the [N] address space is untouched.
     assert set(R.ROW_CLASSES) == {"SB-H", "SB-1", "SB-V", "SB-T", "SB-O", "SB-W", "SB-R", "SB-E",
                                   "SB-J", "SB-D", "SB-F", "SB-C", "SB-M", "SB-P", "SB-A", "SB-L",
-                                  "SB-X", "SB-JOIN"}
+                                  "SB-X", "SB-JOIN", "SB-LEAD"}
+    assert "SB-LEAD" not in R.FIGURE_CLASSES and "SB-LEAD" not in R.DATE_ONLY_CLASSES
 
 
 def test_the_CO_LOUD_header_names_the_CO_OCCURRENCE_and_never_the_ordinary_SELECTORS_sentence():
@@ -1294,7 +1314,7 @@ def test_a_DECLINED_CO_LOUD_result_is_a_ROW_and_never_a_silent_empty_stanza_list
     stanzas = A.co_loud_stanzas(bd, co)
     assert len(stanzas) == 1 and stanzas[0]["declined"] == "no_like_state"
     blk = R.render_board(bd, analogs=stanzas)
-    said = [l for l in blk.lines if l.startswith("BOARD ABSENCE a like state on this board")]
+    said = [l for l in blk.lines if l.startswith("BOARD ABSENCE a like state on this market")]
     assert said, blk.lines
 
 
@@ -1448,7 +1468,7 @@ def test_S7_every_new_cut_NAMES_what_it_cut_in_the_boards_own_RANK_order():
     proj = [x for x in blk.lines if x.startswith("- conditional on the lag the graph states")]
     assert len(proj) == 1, proj
     cut = [x for x in blk.lines
-           if x.startswith("BOARD ABSENCE the effect windows of the rows past this tier's "
+           if x.startswith("BOARD ABSENCE the effect windows of the readings past this tier's "
                            "projection cut")]
     assert cut, "the projection cut dropped rows and said nothing"
     assert cut[0].split(":")[0].rstrip().endswith(")")
@@ -1459,7 +1479,7 @@ def test_S7_every_new_cut_NAMES_what_it_cut_in_the_boards_own_RANK_order():
     blk2 = R.render_board(bd, caps=dict(caps, edge=1))
     assert len([x for x in blk2.lines if " is declared to move " in x]) == 1
     assert [x for x in blk2.lines
-            if x.startswith("BOARD ABSENCE the declared links of the rows past this tier's link cut")]
+            if x.startswith("BOARD ABSENCE the declared links of the readings past this tier's link cut")]
 
 
 def test_S7_the_absence_GROUPS_render_in_the_CLOSED_VOCABULARYS_declared_order():
@@ -1486,10 +1506,19 @@ def test_S7_the_FAN_INDEX_caps_its_ENUMERATION_and_never_its_COUNT():
     entry = {"contract": "soybeans_cbot", "driver_id": "El_Nino", "far": far}
     wide = R.sb_fan(entry, names_cap=0)
     tight = R.sb_fan(entry, names_cap=8)
-    assert "thirty other boards" in wide and "thirty other boards" in tight, "the COUNT was cut"
+    # THE POPULATION IS NAMED IN THE READER'S WORD (lane D, 2026-09-17): the fan enumerates MARKETS,
+    # and `board` is the instrument's own word, which the PM lens read as system vocabulary and which
+    # collides with the Canadian Wheat Board for anyone with grey hair. The COUNT rule is unchanged and
+    # is what this pin is for.
+    assert "thirty other markets" in wide and "thirty other markets" in tight, "the COUNT was cut"
     assert len(tight) <= len(wide)
-    assert "further boards this line does not name" in tight
-    assert "further rows this line does not name" not in tight, "a board is not a row"
+    assert "further markets this line does not name" in tight
+    assert "further rows this line does not name" not in tight, "a market is not a row"
+    assert " boards" not in wide and " boards" not in tight, "the instrument's own word"
+    # ...and the line names its SUBJECT and points at the nearest markets (finding (j)): a bare count
+    # with no driver and no market to look at next reads as scoring machinery.
+    assert wide.startswith("- El Nino is a shared driver across thirty other markets"), wide
+    assert "The nearest two to this question are " in wide
 
 
 # === S7 POLISH (a): THE BARE-YEAR ANCHOR ===========================================================
@@ -1577,37 +1606,88 @@ def test_S7b_the_level_is_printed_in_ANALYST_UNITS_and_the_CALL_carries_the_same
     assert "no level was read" in R._level_words(st2)
 
 
-# === S7 POLISH (c): WITHDRAWN IN ROUND 2, BOTH HALVES, AND BOTH DOCKETED FOR S8 ====================
-def test_S7c_is_WITHDRAWN_and_the_two_docketed_defects_are_pinned_as_STILL_PRESENT():
-    """A WITHDRAWAL IS A CLAIM AND IS PINNED LIKE ANY OTHER. Two halves were built at round 1 and both
-    are reverted to HEAD's bytes; this asserts the revert is complete, so a later sitting cannot half-
-    land one of them by accident, and it names what is still owed.
+# === S7 POLISH (c): THE TWO DOCKETED DEFECTS, LANDED 2026-09-17 BY LANE D ===========================
+def test_S7c_the_two_docketed_defects_are_LANDED_and_neither_repeats_the_S7_failure():
+    """THE DOCKET IS CLOSED AND THE CLOSURE IS PINNED AS TIGHTLY AS THE WITHDRAWAL WAS.
 
-    (i) THE SOURCE-AND-METRIC CLAUSE. It was measured on the real rows and it never fired on the two
-    policy rows it was written for -- their metric words fold away against the driver label -- while it
-    made 28 of 43 rows worse by appending a storage-column word to a line that already read correctly.
-    The mechanism that would work is a METRIC CARD on the `cascade_map` row, which is a config change.
+    (i) THE READING CLAUSE. S7's cut folded ``display.metric_label`` into the SB-1 head, never fired on
+    the two POLICY rows it was written for (their metric words fold away against the driver label) and
+    made 28 of 43 real rows worse by appending a storage-column word. The 2026-09-16 pre-arm smoke then
+    served the defect to a fund PM -- "Argentine export tax sits at 6.65 MMT" over a PSD EXPORTS row --
+    so the docket's OWN remedy is taken: reader words DECLARED beside the ref, never derived from a
+    column name. The declaration is ``state_conventions.reading_words`` (``cascade_map.yaml`` is
+    gitignored and generator-owned, the 09-15 law), :func:`render.reading_words` is the one reader, and
+    an UNDECLARED metric renders NO clause -- so S7's failure mode is unreachable by construction.
 
-    (ii) THE SAME-SIGN JOIN SENTENCE. HEAD's non-opposed branch says "They are phases of one series and
-    not separate readings", which is FALSE of both non-opposed joins the banked blocks carry:
-    `China_import_tariff` (`policy_event`) with `China_import_pace` (`state_marker`) on one PSD import
-    metric, and `board_crush` with `soybean_crush_margin`, both `type: instrument` on one margin series
-    with the SAME declared sign. The repair is withdrawn not because it is wrong but because SB-JOIN
-    renders on EVERY tier: keeping it would reword a line inside arm A's CONTROL cells and add a second
-    flag to its treatment. MEASURED at +140 chars on a one-join board and +280 on a two-join board --
-    the only line on deep and max that was not byte-identical to HEAD."""
+    (ii) THE SAME-SIGN JOIN SENTENCE. HEAD's non-opposed branch said "They are phases of one series and
+    not separate readings", which is FALSE of both non-opposed joins the banked blocks carry. The
+    served deep answer repeated it and then COUNTED BOTH NAMES into a two-driver pattern quorum. The
+    withdrawal's reason was that SB-JOIN renders on every tier and would have reworded arm A's CONTROL
+    cells -- and arm A's control runs with ``GRAPHRAG_STATE_BOARD`` OFF, where this class does not
+    render at all, so the blocker is gone.
+
+    AND THE OPPOSED BRANCH GAINS A THIRD STATE THAT HEAD DID NOT HAVE. "Opposite signs ... which is what
+    two phases of one series means" is only true where a phase pair is DECLARED; on the b40 fixture it
+    rendered over `IDR USD` / `INR USD` / `MYR USD`, three currency rows folded onto one series key. The
+    phase sentence now requires a declared pair and the undeclared case names the contradiction."""
+    # (i) the clause exists, is DECLARED, and an unknown metric says nothing at all
+    assert R.reading_words("silver_psd", "exports_mt") == "exports"
+    assert R.reading_words("silver_psd", "su_ratio") == "the stocks-to-use ratio"
+    assert R.reading_words("silver_fred_fx", "cny_usd")           # the card-wide default
+    assert R.reading_words("silver_nothing", "no_such_metric") == ""
     assert not hasattr(R, "source_words") and not hasattr(R, "metric_words")
     from leviathan.graphrag import display as D
-    assert not hasattr(D, "metric_label"), "display.py is reverted to HEAD with (c)"
-    opp = R.sb_phase_pair(["El Nino", "La Nina"], "CBOT soybeans", opposed=True)
-    same = R.sb_phase_pair(["China import pace", "China import tariff"], "CME palm oil", opposed=False)
+    assert not hasattr(D, "metric_label"), "the words are DECLARED, never derived from a column name"
+    # (ii) the three join branches, each on its own state
+    opp = R.sb_phase_pair(["El Nino", "La Nina"], "CBOT soybeans", opposed=True,
+                          phase={"words": "the warm phase", "other_words": "the cool phase",
+                                 "in_force": True, "live_name": "El Nino",
+                                 "live_sign": "in the opposite direction", "other_name": "La Nina",
+                                 "other_sign": "in the same direction"})
+    same = R.sb_phase_pair(["China import pace", "China import tariff"], "CME palm oil", opposed=False,
+                           keep="China import tariff", alias=("China import pace",))
+    bare = R.sb_phase_pair(["IDR USD", "INR USD", "MYR USD"], "CME palm oil", opposed=True,
+                           keep="IDR USD", alias=("INR USD", "MYR USD"))
     assert "two phases of one series" in opp
-    assert same.endswith(" They are phases of one series and not separate readings."), same
-    assert "proxy" not in same, "the S8 repair must not be half-landed"
+    assert "The phase in force at this reading is the warm phase" in opp
+    assert "that is this market's declared sign for the phase now in force" in opp
+    assert "phases of one series and not separate readings" not in same, "the FALSE sentence is gone"
+    assert "one piece of evidence and not two" in same
+    assert "read it under China import tariff" in same and "China import pace" in same
+    # the undeclared-pair branch must NOT claim a phase pair
+    assert "two phases of one series" not in bare
+    assert "cannot reconcile them" in bare
     # BOTH forms keep the sentence the coverage fold rests on, so a join is ONE denominator entry
-    for line in (opp, same):
-        assert "print the SAME reading under each name" in line
+    for line in (opp, same, bare):
+        assert "print the SAME figure under each name" in line
         assert R.classify(line) == ("SB-JOIN",)
+        # SB-JOIN is letters-only: no phase clause may mint a digit
+        assert not any(ch.isdigit() for ch in line), line
+
+
+def test_S7c_the_phase_verdict_is_computed_from_the_CONVENTIONS_OWN_first_band():
+    """The threshold is never re-typed: ONI's 0.5 degC is ``silverleg._ONI_INTENSITY_BANDS[0]`` and the
+    lint already pins those two identical, so a phase sentence can never disagree with the band word on
+    the row above it. A reading INSIDE the line puts NEITHER phase in force, which is its own fact."""
+    warm = R.phase_in_force("silver_noaa_oni", "oni_anom", 0.98)
+    cool = R.phase_in_force("silver_noaa_oni", "oni_anom", -0.67)
+    inside = R.phase_in_force("silver_noaa_oni", "oni_anom", 0.2)
+    assert warm["driver"] == "El_Nino" and warm["words"] == "the warm phase" and warm["in_force"]
+    assert cool["driver"] == "La_Nina" and cool["words"] == "the cool phase" and cool["in_force"]
+    assert inside["driver"] == "El_Nino" and inside["in_force"] is False
+    assert warm["band"] == 0.5 == cool["band"]
+    # an undeclared series never guesses which way it signs
+    assert R.phase_in_force("silver_psd", "exports_mt", 1.0) == {}
+    assert R.phase_in_force("silver_noaa_oni", "oni_anom", None) == {}
+    # ...and the INSIDE-the-line sentence says so rather than picking the nearer side
+    line = R.sb_phase_pair(["El Nino", "La Nina"], "CBOT soybeans", opposed=True,
+                           phase={"words": "the warm phase", "other_words": "the cool phase",
+                                  "in_force": False, "live_name": "El Nino",
+                                  "live_sign": "in the opposite direction",
+                                  "other_name": "La Nina", "other_sign": "in the same direction"})
+    assert "sits INSIDE the line" in line and "not a sign it carries now" in line
+    assert "phase in force at this reading is" not in line
+
 
 # === S7 ROUND 2: THE PAID TIERS ARE THE CONTROL AND CARRY NO S7 CAP AND NO S7 ORDERING =============
 def test_S7r2_no_cap_and_no_RANK_ordering_reaches_deep_or_max():

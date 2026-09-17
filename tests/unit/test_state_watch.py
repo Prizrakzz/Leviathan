@@ -895,11 +895,15 @@ def test_T_AMPLIFIER_has_THREE_levels_and_an_UNMET_pattern_outranks_nothing():
     assert set(WA.AMPLIFIER_LEVELS.values()) == {0, 1, 2}
     r = B.NodeRow(contract="soybeans_cbot", driver_id="El_Nino", lag_band=parse_lag("1-2 quarters"))
     none_at_all = WA._pattern_facts(None, r, ())
+    # `matched` AND `n_matched` AGREE HERE (review round 2, MAJOR 5): the threshold test counts the
+    # NAMES, through `render.pattern_count`, and no longer the scalar beside them -- so a fixture whose
+    # two halves disagreed (one name, `n_matched: 3`) was grading a shape `walk` never emits.
+    _three = ("El_Nino", "filler_1", "filler_2")
     short = WA._pattern_facts(None, r, [{"contract": "soybeans_cbot", "matched": ("El_Nino",),
                                          "n_matched": 1, "threshold": 3, "interactions": ()}])
-    met = WA._pattern_facts(None, r, [{"contract": "soybeans_cbot", "matched": ("El_Nino",),
+    met = WA._pattern_facts(None, r, [{"contract": "soybeans_cbot", "matched": _three,
                                        "n_matched": 3, "threshold": 3, "interactions": ()}])
-    amp = WA._pattern_facts(None, r, [{"contract": "soybeans_cbot", "matched": ("El_Nino",),
+    amp = WA._pattern_facts(None, r, [{"contract": "soybeans_cbot", "matched": _three,
                                        "n_matched": 3, "threshold": 3,
                                        "interactions": ({"rendered": True, "effect": "amplifies"},)}])
     assert none_at_all["rank"] == short["rank"] == WA.AMPLIFIER_LEVELS["neutral"]
@@ -1058,9 +1062,15 @@ def test_a_DRAWN_tail_row_RENDERS_and_NAMES_the_book_its_line_came_from():
 
 # -- REVIEW ROUND 3, minor: a threshold of one is not a convergence ------------------------------------
 def _pattern_board(threshold, n_matched, mode="deep"):
+    """THE MATCHED TUPLE AND ``n_matched`` AGREE (review round 2, MAJOR 5). The first cut set
+    ``matched=(r.driver_id,)`` beside ``n_matched=3`` -- a shape ``walk`` never emits, harmless only
+    while the threshold test read the SCALAR. It reads the NAMES now, through ``render.pattern_count``,
+    so a fixture whose two halves disagree would be grading nothing."""
     bd, r = _nb_board(mode=mode)
+    matched = (r.driver_id,) + tuple(f"filler_{i}" for i in range(1, int(n_matched)))
     bd.convergence = [{"contract": r.contract, "name": "policy_shock_spike",
-                       "matched": (r.driver_id,), "n_matched": n_matched, "n_declared": 2,
+                       "matched": matched, "n_matched": len(matched),
+                       "n_declared": max(2, len(matched)),
                        "threshold": threshold, "interactions": ()}]
     return bd, r
 

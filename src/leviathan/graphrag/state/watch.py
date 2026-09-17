@@ -41,6 +41,7 @@ from typing import Optional
 from leviathan.graphrag.state import render as R
 from leviathan.graphrag.state import transforms as TR
 from leviathan.graphrag.state.calendar import next_release
+from leviathan.graphrag.state.feeders import CADENCE_DAYS
 from leviathan.graphrag.state.rows import status_word
 
 #: The ONE closed kind enum (sec 5.1). Order is the design's own numbering, and it is also the
@@ -543,6 +544,11 @@ NONOBVIOUS_KIND_WORDS: dict = {
     "tail_reading": "a reading in its own record's tail",
     "approaching_line": "a reading running at a line it has not crossed",
     "convergence_amplified": "a declared pattern at its own threshold",
+    # The SINGULAR variant (review round 2, MAJOR 5): the fold can leave one reading carrying a
+    # pattern on its own, and "one of one of the two drivers" is not a sentence. Same kind, same
+    # mechanism, same falsifier and the same words to the reader -- a second SENTENCE of one kind,
+    # which is exactly what `NONOBVIOUS_VARIANTS` is for.
+    "convergence_amplified_alone": "a declared pattern at its own threshold",
     "upstream_convergence": "declared upstream paths landing on one price",
     "spillover_reach": "one reading declared on several other markets",
     "recurrence": "a state the record has been in before",
@@ -589,6 +595,7 @@ NONOBVIOUS_VARIANTS: dict = {
     "approaching_line_away": "approaching_line",
     "approaching_line_unplaced": "approaching_line",
     "spillover_reach_unplaced": "spillover_reach",
+    "convergence_amplified_alone": "convergence_amplified",
 }
 
 #: The MECHANISM each kind rests on -- one sentence, the ruling's own "its mechanism".
@@ -605,6 +612,9 @@ NONOBVIOUS_MECHANISMS: dict = {
                                  "with"),
     "convergence_amplified": ("several declared drivers of one pattern moving at once, which is not "
                               "additive"),
+    "convergence_amplified_alone": ("the one driver of a declared pattern that is moving furthest "
+                                    "from its own record, on a pattern whose own threshold one "
+                                    "reading can carry"),
     "upstream_convergence": "one cause reaching the price down more than one declared path",
     "spillover_reach": "one reading the declared model carries onto several markets at once",
     "recurrence": "a like state whose consequence window has already closed on the record",
@@ -621,6 +631,8 @@ NONOBVIOUS_FALSIFIERS: dict = {
                                   "which leaves the reading where it is"),
     "convergence_amplified": ("one of the drivers that pattern names turns, which puts the count back "
                               "under its own threshold"),
+    "convergence_amplified_alone": ("that driver turns, which puts the count back under the "
+                                    "pattern's own threshold"),
     "upstream_convergence": ("the paths share a single upstream cause, in which case they are one "
                              "route counted twice"),
     "spillover_reach": ("that market's own declared edge carries no sign, in which case the reach is "
@@ -667,10 +679,23 @@ NONOBVIOUS_BODIES: dict = {
                                   "{label} and this page cannot place its run against that line: "
                                   "{run_n} consecutive {periods} {run_words}, {side}{progress}"
                                   "{figure}"),
+    # {fold} IS THE QUORUM ROW'S OWN CLAUSE, in the quorum row's own spelling (`render.fold_clause`) --
+    # review round 2, MAJOR 5. {n_matched} is `render.pattern_count`'s DISTINCT count, never
+    # `pr['n_matched']`, so this sentence and the SB-C line on the same page state one number.
+    # {n_matched} IS THE READ COUNT AND NOTHING ELSE (review round 2, MAJORS 5 and 9). "moving furthest
+    # from their own records here" is a claim about OBSERVATION and it may not be said of a driver the
+    # pattern names that this page read no series for; those are counted in {unread}, in the same two
+    # numbers the SB-C quorum row prints, so one page states one count for one pattern.
     "convergence_amplified": ("this reading is one of {n_matched} of the {n_declared} drivers the "
                               "pattern {pattern} declares that are moving furthest from their own "
-                              "records here, and that pattern's own threshold is {threshold}{alone}"
-                              "{amplifier}"),
+                              "records here{unread}, and that pattern's own threshold is {threshold}"
+                              "{alone}{amplifier}{fold}"),
+    # AND WHERE THE FOLD LEAVES ONE, "one of one of the two drivers" is not a sentence. The singular is
+    # a different claim and gets its own words (review round 2, MAJOR 5's own arithmetic).
+    "convergence_amplified_alone": ("this reading is the ONLY one of the {n_declared} drivers the "
+                                    "pattern {pattern} declares that is moving furthest from its own "
+                                    "record here{unread}, and that pattern's own threshold is "
+                                    "{threshold}{alone}{amplifier}{fold}"),
     "upstream_convergence": ("{n_paths} declared upstream paths run through this reading onto this "
                              "price, the deepest {depth} hops up ({causes}), so one cause reaches the "
                              "price by more than one route"),
@@ -1123,8 +1148,17 @@ def _metric_words(st) -> str:
     # `area_harvested_1000ha`). A token whose FIRST character is a digit is a scale token and the
     # scale is already on the row's own SB-1 line; a digit GLUED to letters (`section301`, `zscore_5yr`)
     # is part of a name, is exempt from `verify._claim_number_spans` by rule (c), and is kept.
-    metric = R.humanise(str(getattr(st, "metric", "") or ""))
-    metric = " ".join(t for t in metric.split() if not t[:1].isdigit()).strip()
+    # THE DECLARED READING WORDS FIRST (lane D, 2026-09-17). ``R.humanise`` de-underscores a STORAGE
+    # COLUMN, so this sentence shipped "the figure is oni anom in degC", "the figure is drought z in
+    # sigma" and "the figure is crush margin usd bu in USD per bushel" -- a slug wearing reader
+    # spacing, which is the same defect the SB-1 reading clause closes one class over. One book, two
+    # consumers; the humanised column stays as the fallback for a metric the book does not declare, so
+    # nothing that reads correctly today loses its words.
+    metric = R.reading_words(str(getattr(st, "table", "") or ""),
+                             str(getattr(st, "metric", "") or ""))
+    if not metric:
+        metric = R.humanise(str(getattr(st, "metric", "") or ""))
+        metric = " ".join(t for t in metric.split() if not t[:1].isdigit()).strip()
     if not metric:
         return ""
     unit = str(getattr(st, "narrate_unit", "") or getattr(st, "unit", "") or "").strip()
@@ -1423,7 +1457,7 @@ def _floor_of(row, *, pattern_rows=(), path_n: int = 0, base_rate=None, dist=Non
     return tuple(out)
 
 
-def _pattern_facts(bd, row, pattern_rows) -> dict:
+def _pattern_facts(bd, row, pattern_rows, series_of: Optional[dict] = None) -> dict:
     """The best declared pattern this row is a member of, and whether it carries an amplifier line.
 
     **THE VALUE DOMAIN IS :data:`AMPLIFIER_LEVELS` AND IT HAS THREE LEVELS, NOT FOUR** (review round 2,
@@ -1434,21 +1468,48 @@ def _pattern_facts(bd, row, pattern_rows) -> dict:
     the same statement about asymmetry, and they now tie at ``neutral``. The term lifts a MET pattern
     (with a declared amplifier line first) and is neutral otherwise, which is the 09-11 ruling's own
     sentence with its fourth, unnamed value removed."""
+    # THE COUNT IS THE PAGE'S, NOT THIS MODULE'S (review round 2, MAJOR 5). `n_matched` counts NAMES;
+    # the quorum row counts DISTINCT SERIES, drops a member read in the opposite declared phase, and
+    # says so in its own sentence. Both the THRESHOLD TEST and the rendered sentence take
+    # `render.pattern_count` so the two lines on one page cannot print two counts for one pattern --
+    # and a pattern that only reaches its own threshold by counting one reading twice is no longer
+    # nominated as being at it.
     best = None
+    rank_floor = AMPLIFIER_LEVELS["neutral"]
     for r in (pattern_rows or ()):
         if r.get("contract") != row.contract or row.driver_id not in (r.get("matched") or ()):
             continue
-        at_threshold = int(r.get("n_matched") or 0) >= int(r.get("threshold") or 10 ** 6)
+        cnt = R.pattern_count(r, series_of)
+        at_threshold = int(cnt["n_distinct"]) >= int(r.get("threshold") or 10 ** 6)
         amplified = any(i.get("rendered") for i in (r.get("interactions") or ()))
         rank = (AMPLIFIER_LEVELS["met_with_amplifier"] if (at_threshold and amplified)
                 else (AMPLIFIER_LEVELS["met"] if at_threshold else AMPLIFIER_LEVELS["neutral"]))
+        # A ROW WHOSE OWN READING IS THE OPPOSITE DECLARED PHASE IS NOT A MEMBER OF THIS PATTERN HERE
+        # (review round 2, MAJOR 10). Without this the b40 draw nominated `El_Nino` as a member of the
+        # palm supply squeeze and then printed, in its own sentence, that El Nino is the phase opposite
+        # the one in force -- a nomination that contradicts itself in one line.
+        # ── WHAT IT LOSES IS THE MEMBERSHIP AND NOT THE RANK (review round 3, NEW-5) ─────────────────
+        # The first cut `continue`d over the whole row, and the comment beside it promised the row
+        # "keeps every other claim it can make (it is still loud, still past its line, still a
+        # spillover source)". IT DID NOT. `rank` is `T_AMPLIFIER`, the FIRST term of `rank_key`, and it
+        # is stamped on EVERY candidate the row produces, so refusing membership demoted the row's
+        # SPILLOVER, TAIL and LINE candidates too -- MEASURED on b40 as an exact set difference of the
+        # drawn (kind, row) pairs: `spillover_reach El_Nino` left the draw entirely, and "this same
+        # reading is declared on N other markets" is true of El Nino whichever phase is in force. The
+        # refusal is now scoped to what it is about: `best` -- the MEMBERSHIP, the pattern row and the
+        # count the convergence sentence reads -- is chosen among the patterns this row is a live
+        # member of, and the RANK TERM is the floor over every pattern that NAMES the row.
+        if rank < rank_floor:
+            rank_floor = rank
+        if row.driver_id in (cnt["fold"].get("phase_opposed") or ()):
+            continue
         if best is None or rank < best[0]:
-            best = (rank, r, at_threshold, amplified)
+            best = (rank, r, at_threshold, amplified, cnt)
     if best is None:
-        return {"rank": AMPLIFIER_LEVELS["neutral"], "row": None, "at_threshold": False,
-                "amplified": False, "member": False}
-    return {"rank": best[0], "row": best[1], "at_threshold": best[2], "amplified": best[3],
-            "member": True}
+        return {"rank": rank_floor, "row": None, "at_threshold": False,
+                "amplified": False, "member": False, "count": None}
+    return {"rank": min(best[0], rank_floor), "row": best[1], "at_threshold": best[2],
+            "amplified": best[3], "member": True, "count": best[4]}
 
 
 def _declared_line(st, conventions: dict, *, overlay_refs: frozenset = frozenset()) -> dict:
@@ -1623,7 +1684,7 @@ def _nearest_far(fan: dict):
 
 
 def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
-                          overlay: Optional[dict] = None) -> list:
+                          overlay: Optional[dict] = None, series_of: Optional[dict] = None) -> list:
     """EVERY non-obvious candidate this board can name, UNRANKED and already past the bans.
 
     NOTHING HERE READS. Every input is a field the walk already filled: the loud rows and their states,
@@ -1638,6 +1699,10 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
     fifteen new entries therefore live under their own top-level key, which ``lint.load_conventions``'s
     consumers never read, and reach this producer as an ADDITIVE overlay: the base entry always wins."""
     asof = str(getattr(bd, "asof", "") or "")
+    # THE PAGE'S OWN FOLD MAP, built by the SAME producer `render_board` reads (review round 2, MAJOR 5).
+    # Passing it is for the DECK; on the served path the default is the only sane value, because two
+    # maps is exactly the defect.
+    series_of = R.series_by_driver(bd) if series_of is None else series_of
     order = {key: i for i, key in enumerate(bd.order)}
     loud = sorted((r for r in bd.rows if r.legs.get("loud")),
                   key=lambda r: order.get(r.key, len(order)))
@@ -1683,7 +1748,7 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
         dates = ("" if not open_win else
                  (str(win["opens"]) if win.get("closes") is None
                   else f"{win['opens']} to {win['closes']}"))
-        pat = _pattern_facts(bd, row, patterns)
+        pat = _pattern_facts(bd, row, patterns, series_of)
         paths = _paths_on(bd, row)
         fan = _fan_facts(bd, row)
         stanza = stanza_by_row.get(row.key)
@@ -1778,14 +1843,29 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
             # three and holding one, and only the first is what this row is narrating.
             alone = (NONOBVIOUS_CLAUSES["threshold_one"]
                      if int(pr.get("threshold") or 0) == 1 else "")
+            # ONE PAGE, ONE PATTERN, ONE COUNT (review round 2, MAJOR 5).
+            _cnt = pat.get("count") or R.pattern_count(pr, series_of)
+            _alias_cl, _opp_cl = R.fold_clause(_cnt["fold"])
+            _body = ("convergence_amplified_alone" if int(_cnt["n_measured"]) == 1
+                     else "convergence_amplified")
+            _n_un = int(_cnt["n_unread"])
+            # ONE PAGE, ONE PATTERN, ONE COUNT -- AND THE SAME VERB AS THE BLOCK'S (review round 3,
+            # NEW-2). `n_distinct` leaves out a member read in the opposite declared phase, so "N of the
+            # M IN ALL" was false of a page whose quorum row prints that member's own reading two lines
+            # up. The number is the quorum's and does not move; both surfaces now say which number it is.
+            _unread_cl = ("" if not _n_un else
+                          f", with {R.words_for_int(_n_un)} more that pattern names and this page "
+                          f"reads no series for, {R.words_for_int(int(_cnt['n_distinct']))} of the "
+                          f"{R.words_for_int(int(pr.get('n_declared') or 0))} counted here")
             out.append(_cand(
                 "convergence_amplified", row,
-                what=NONOBVIOUS_BODIES["convergence_amplified"].format(
-                    n_matched=R.words_for_int(int(pr.get("n_matched") or 0)),
+                variant=(_body if _body != "convergence_amplified" else None),
+                what=NONOBVIOUS_BODIES[_body].format(
+                    n_matched=R.words_for_int(int(_cnt["n_measured"])),
                     n_declared=R.words_for_int(int(pr.get("n_declared") or 0)),
                     pattern=R.pattern_label(pr.get("name")),
                     threshold=R.words_for_int(int(pr.get("threshold") or 0)), alone=alone,
-                    amplifier=amp),
+                    amplifier=amp, fold=f"{_alias_cl}{_opp_cl}", unread=_unread_cl),
                 dates=dates, win=win, asof=asof,
                 # THE IDENTITY OF A PATTERN CANDIDATE IS THE PATTERN, NOT THE ROW, and that is the
                 # single largest correction this producer took at its own landing. MEASURED on the
@@ -2026,6 +2106,216 @@ def rank_key(cand: dict) -> tuple:
 # ---------------------------------------------------------------------------------------------------
 # THE DRAW -- a CEILING and never a quota, 2N nominated, one honest absence line
 # ---------------------------------------------------------------------------------------------------
+#: THE WORDS A NOMINATION WEARS WHEN ITS FALSIFIER CANNOT RESOLVE INSIDE THE TURN'S HORIZON, one per
+#: CAUSE -- they are two different facts and a reader acts on them differently. Letters only: the DATE
+#: rides the row's own ``next_print`` field, which SB-W prints after its dash.
+#:
+#: ``cadence`` IS THE ONE THE SMOKE FOUND. The deep turn's watch item ONE was PSD beginning stocks
+#: MY2026 -- an ANNUAL series -- carrying "this reads wrong if the next print returns the series to the
+#: middle of its own record" on a THREE-MONTH question. Its publisher's next window was inside the
+#: horizon (the card re-prints monthly); the SERIES cannot move until the next marketing year, so the
+#: falsifier was unresolvable whatever the calendar said.
+#: ── REVIEW ROUND 2, MAJOR 6: THE ``cadence`` SENTENCE WAS FALSE OF THE ESTATE'S MOST-REVISED CARD ──
+#: Round 1's clause said an annual series "cannot turn inside that horizon whatever the publisher's
+#: calendar says". The predicate behind it is ``CADENCE_DAYS[st.cadence]``, the series' PERIOD grain --
+#: and ``silver_psd`` is a marketing-year VINTAGE card that USDA RE-ESTIMATES every month (the smoke's
+#: own deep turn carries PSD rows at knowledge date 2026-09-11 against a 2026-09-16 as-of, and the
+#: corn/wheat turn's ``su_ratio`` is a live MY2026 estimate). The ESTIMATE can absolutely turn inside a
+#: three-month horizon; the PERIOD cannot. MEASURED on ``soybeans_now`` at horizon three: 3 of 13
+#: nominations carried the mark and ALL THREE were annual PSD rows, so the false half was the whole of
+#: what a reader met. The clause now states the two facts that are TRUE and are the two a PM acts on:
+#: the next SCHEDULED PRINT, from ``release_calendar.yaml`` and not from a cadence table, and what that
+#: print does to the number (it restates the period already reported). And it NAMES THE FASTER SERIES
+#: on this page rather than gesturing at one -- see :func:`_faster_series_words`.
+HORIZON_MISS_CLAUSES: dict = {
+    "print": ("{print_words}, which falls outside the horizon asked about: nothing on this series can "
+              "be checked inside that horizon, so read it as standing context; {faster}"),
+    "cadence": ("{print_words}, and on a series whose own period is longer than the horizon asked "
+                "about that print RESTATES the period already reported rather than opening a new one: "
+                "the figure can be revised inside the horizon and the period cannot turn inside it, so "
+                "read it as standing context; {faster}"),
+}
+
+#: What the clause says where the calendar gave a date and where it gave none. Both are facts; a missing
+#: date is not a silence.
+HORIZON_PRINT_WORDS: dict = {
+    "dated": "its next scheduled print is {date}",
+    "undated": "no print of this series is scheduled inside the horizon asked about",
+}
+
+#: What the clause says where this board carries NO reading fast enough to turn inside the horizon. It
+#: is a FACT about the page, not a gesture at a series nobody named: "watch a faster series on the same
+#: mechanism" is advice a PM cannot act on.
+HORIZON_FASTER_FALLBACK = ("no reading on this page prints on a grain shorter than the horizon asked "
+                           "about")
+
+
+#: ONE READER, so the render cannot spell a cause this module does not declare.
+def horizon_miss_clause(cause: str = "print", *, next_print: str = "", faster: str = "") -> str:
+    """The horizon clause, with the row's OWN scheduled print in it (MAJOR 6) and the faster series it
+    points at NAMED where the board carries one (MAJOR 6's second half).
+
+    The DATE rides the sentence rather than a second ``; next print`` tail, which is what closes MAJOR 7:
+    a note that denies any checkable print inside the horizon can no longer be followed by a bare print
+    date two days after the as-of."""
+    tpl = HORIZON_MISS_CLAUSES.get(str(cause or "print"), HORIZON_MISS_CLAUSES["print"])
+    words = (HORIZON_PRINT_WORDS["dated"].format(date=str(next_print))
+             if next_print else HORIZON_PRINT_WORDS["undated"])
+    return tpl.format(print_words=words, faster=str(faster or HORIZON_FASTER_FALLBACK))
+
+
+#: Mean days in a calendar month -- the ONE place the horizon's months become days. It IS
+#: ``feeders.CADENCE_DAYS['monthly']``, READ FROM THAT TABLE (review round 2, minor 2: the first cut
+#: re-typed the value as a literal under a comment saying it did not, and mis-stated it as 30.44).
+_MONTH_DAYS = float(CADENCE_DAYS["monthly"])
+
+
+def _faster_series_words(bd, row, horizon_days: float, *, series_of: Optional[dict] = None) -> str:
+    """THE FASTER READING ON THIS PAGE THAT CAN TURN INSIDE THE HORIZON, named (review round 2, MAJOR 6).
+
+    "Watch a faster series on the same mechanism instead" is advice a PM cannot act on: it names no
+    series, and the page it sits on is the only place that knows which of its own readings prints inside
+    the horizon. The rule is the board's own and is falsifiable from the block: a row on the SAME
+    market, read on its own series, whose cadence period fits inside the horizon, PREFERRING one that
+    shares a declared pattern with this row (that is what "the same mechanism" means here) and breaking
+    ties on the board's own rank. Where the board carries none, the caller's fallback stands and no
+    series is invented.
+
+    ── REVIEW ROUND 3 ────────────────────────────────────────────────────────────────────────────────
+    NEW-6: THE NOTE NAMED THE ALIAS THE SAME PAGE FORBIDS. This was a THIRD name-picker -- it picked a
+    ROW, never a READING -- so on ``soybeans_now`` it said "the reading on this page that can turn
+    inside the horizon is BOARD CRUSH" while the block's own SB-JOIN line twelve lines up said "read it
+    under SOYBEAN CRUSH MARGIN and treat BOARD CRUSH as that name's alias, counted once wherever this
+    page counts". The chosen row now goes through :func:`render.group_keep` -- the ONE producer the
+    JOIN, the lead and the quorum read -- and the row that CARRIES the kept name supplies the cadence,
+    so the printed name and the printed grain are the same reading's.
+
+    NEW-1: AND THE SENTENCE NO LONGER NAMES THE INSTRUMENT. ``the graph`` is a shipped
+    ``register.DESK_REGISTER_TOKENS`` row, and this clause put THREE fresh charges on the arm's own
+    watch draw (0 -> 3, measured with ``register.desk_register_hits`` over the 37 non-obvious lines of
+    the three scenarios). The replacement is that table's OWN column for the token -- "the mechanism,
+    the driver model" -- so the lint and the block teach one vocabulary."""
+    if not horizon_days or bd is None:
+        return ""
+    order = {key: i for i, key in enumerate(getattr(bd, "order", ()) or ())}
+    mech = set() if row is None else {
+        d for p in (getattr(bd, "convergence", ()) or ())
+        if p.get("contract") == row.contract and row.driver_id in (p.get("matched") or ())
+        for d in (p.get("matched") or ())}
+    best = None
+    for r in (getattr(bd, "rows", ()) or ()):
+        st = getattr(r, "state", None)
+        if st is None or status_word(getattr(st, "status", "") or "") != "ok":
+            continue
+        if row is not None and (r.key == row.key or r.contract != row.contract):
+            continue
+        per = CADENCE_DAYS.get(str(getattr(st, "cadence", "") or ""))
+        if not per or float(per) > float(horizon_days):
+            continue
+        rank = (0 if r.driver_id in mech else 1, float(per), order.get(r.key, len(order)))
+        if best is None or rank < best[0]:
+            best = (rank, r, st)
+    if best is None:
+        return ""
+    _r, _st = best[1], best[2]
+    same = (best[0][0] == 0)
+    # THE NAME IS THE PAGE'S KEPT NAME AND THE GRAIN IS THAT NAME'S OWN ROW (review round 3, NEW-6).
+    smap = R.series_by_driver(bd) if series_of is None else series_of
+    _kept = R.group_keep(smap, (smap.get(str(_r.driver_id)) or {}).get("key") or "")
+    if _kept and _kept != str(_r.driver_id):
+        _swap = next((r for r in (getattr(bd, "rows", ()) or ())
+                      if str(r.driver_id) == _kept and r.contract == _r.contract
+                      and getattr(r, "state", None) is not None), None)
+        if _swap is not None:
+            _r, _st = _swap, _swap.state
+    return (f"the reading on this page that can turn inside the horizon is "
+            f"{R.row_words(_r.contract, _r.driver_id)}, which prints every "
+            f"{R.period_noun(str(getattr(_st, 'cadence', '') or ''), 1)}"
+            + ("; the driver model names it a condition of the same declared pattern" if same else
+               "; it is the shortest grain this page carries and the driver model does not name it a "
+               "condition of the same pattern"))
+
+
+def _add_months_iso(iso: str, months: int) -> Optional[str]:
+    """ISO date plus N calendar months, clamped to the month end. ``walk._add_months``' arithmetic,
+    restated here for the same reason :func:`render.nearest_far_names` restates ``_nearest_far``: this
+    module is imported BY the walk's renderer and must not import back into it at module scope."""
+    from leviathan.graphrag.state.walk import _add_months
+    try:
+        return _add_months(str(iso), int(months))
+    except Exception:                                   # noqa: BLE001 -- an unplaceable label is no bound
+        return None
+
+
+def stamp_release_clock(bd, cands, *, calendar_doc: Optional[dict] = None) -> None:
+    """ATTACH THE CLOCK TO EVERY NOMINATION THAT HAS ONE, in place (the 09-11 ruling's own doctrine
+    read against the 2026-09-16 smoke).
+
+    THE BAN ON CALENDAR-ONLY ROWS STAYS EXACTLY WHERE IT IS. ``next_release`` is still not a
+    non-obvious KIND, still nominates nothing, and the scheduled prints are still named once in the
+    dated footnote. What this adds is a FIELD on a nomination that earned its slot on its own floor --
+    "next print 2026-09-30" -- because the PM graders found no scheduled catalyst anywhere on five
+    served answers ("the nearest scheduled release per loud driver" is the owner's own doctrine) while
+    the footnote sat at the foot of the section and the writer read it as boilerplate: two of five
+    answers said in as many words that the dates "are not watch items".
+
+    AND THE HORIZON DECIDES WHETHER THE FALSIFIER CAN RESOLVE. MEASURED on the deep turn: an ANNUAL
+    series (PSD beginning stocks MY2026, known 2026-09-11) was watch item ONE with a "reads wrong if
+    the next print ..." falsifier that cannot resolve inside a three-month horizon. A nomination whose
+    next scheduled print lands past the horizon is MARKED, never struck -- correcting, not deleting --
+    and the writer is told what to do instead.
+
+    A turn with NO horizon (the question asked for none) marks nothing: there is no bound to miss."""
+    by_key = {r.key: r for r in (getattr(bd, "rows", ()) or ())}
+    horizon_end, horizon_days = None, 0.0
+    _smap: dict = {}
+    if getattr(bd, "horizon_months", None):
+        horizon_end = _add_months_iso(str(bd.asof), int(bd.horizon_months))
+        horizon_days = float(int(bd.horizon_months)) * _MONTH_DAYS
+        # ONE FOLD MAP FOR THE WHOLE STAMP (review round 3, NEW-6): the horizon note names a READING,
+        # and the name a reading is read under is `render.group_keep`'s, off this map.
+        _smap = R.series_by_driver(bd)
+    for c in cands:
+        if c.get("declined") or c.get("form") == "absence":
+            continue
+        row = by_key.get(c.get("row"))
+        st = getattr(row, "state", None) if row is not None else None
+        # THE CADENCE ARM RUNS FIRST AND NEEDS NO CALENDAR: a series whose own PERIOD is longer than the
+        # horizon cannot open a new period inside it. It says nothing about REVISION -- see
+        # `HORIZON_MISS_CLAUSES`' own note for the measured correction (review round 2, MAJOR 6) -- and
+        # the faster reading the clause points at is named off this board.
+        if horizon_days and st is not None:
+            per = CADENCE_DAYS.get(str(getattr(st, "cadence", "") or ""))
+            if per and float(per) > float(horizon_days):
+                c["horizon_miss"] = "cadence"
+                c["horizon_faster"] = _faster_series_words(bd, row, horizon_days, series_of=_smap)
+        table = str(getattr(st, "table", "") or "")
+        if not table:
+            continue
+        rel = next_release(table, bd.asof, doc=calendar_doc)
+        if rel.declined:
+            continue
+        # THE DATE A READER CAN DIARISE is the one the window OPENS on where the rule gives a window,
+        # and the day itself where it gives a day. `daily_sessions` gives neither and is left alone --
+        # "on the next session" is not a diary entry and the row already says the cadence.
+        when = rel.date or rel.opens or rel.week_of
+        if not when:
+            continue
+        c["next_print"] = str(when)
+        # THE RULE BEHIND THE DATE, kept as a TRACE field and deliberately not rendered (review round 2,
+        # minor 3 -- "written and never read"). A date computed from a monthly WINDOW and a date a
+        # publisher states outright are two different confidences, and a trace reader who cannot tell
+        # them apart cannot audit a "next print" the writer printed. It reaches no rendered byte.
+        c["next_print_words"] = str(rel.rule_words or rel.words or "")
+        # THE STRONGER CAUSE WINS (review round 2, minor 4). The first cut assigned `print`
+        # unconditionally and so OVERWROTE a `cadence` mark on a row that misses on both, reporting the
+        # weaker fact. `cadence` is strictly the more informative of the two now that its own clause
+        # names the scheduled print as well, so a row that misses on both keeps it.
+        if horizon_end and str(when) > str(horizon_end) and not c.get("horizon_miss"):
+            c["horizon_miss"] = "print"
+            c["horizon_faster"] = _faster_series_words(bd, row, horizon_days, series_of=_smap)
+
+
 def release_footnote(bd, *, calendar_doc: Optional[dict] = None) -> Optional[dict]:
     """THE ONE-LINE DATED-RELEASES FOOTNOTE -- outside the ceiling, never a row of it.
 
@@ -2037,7 +2327,8 @@ def release_footnote(bd, *, calendar_doc: Optional[dict] = None) -> Optional[dic
 
     IT CARRIES NO DIGIT BUT ITS ISO DATES. SB-X is a date-only class and the label is where the dates
     ride; the sentence itself is letters."""
-    from leviathan.graphrag.state.calendar import next_release
+    # (Review round 2, minor 1: both names are already module-level imports; the local re-imports
+    # shadowed them and one of the two was unused outright.)
     order = {key: i for i, key in enumerate(bd.order)}
     loud = sorted((r for r in bd.rows if r.legs.get("loud")),
                   key=lambda r: order.get(r.key, len(order)))
@@ -2229,6 +2520,10 @@ def nonobvious_rows(bd, *, analogs=(), cap: Optional[int] = None,
     # one. MEASURED before this repair: 36 of 108 replay seats printed the note and 36 of 36 printed it
     # over alternates.
     rows = list(out)
+    # THE CLOCK RIDES EVERY DRAWN NOMINATION (lane D, the 2026-09-16 smoke): the ban on calendar-ONLY
+    # rows is untouched and nothing new is nominated -- what each admitted row gains is its own next
+    # scheduled print, and a MARK where that print cannot land inside the turn's horizon.
+    stamp_release_clock(bd, rows, calendar_doc=calendar_doc)
     if taken < ceiling:
         rows.append(absence_row(partial=True, alternates=len(out) > taken))
     foot = release_footnote(bd, calendar_doc=calendar_doc)

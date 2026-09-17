@@ -913,6 +913,19 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
             # numbers_only, and the lane error remains its own signal.
             holder["tables_queried"] = []
         holder["ms_numbers"] = nums.get("_ms_numbers")            # W6.1-0: numbers-agent duration (MsNumbers)
+        # THE COST CENSUS (lane F, 2026-09-17): the numbers agent's PER-ROUND usage, carried on the
+        # SAME seam and in the SAME guarded idiom as `ms_numbers` one line up. IT IS THE LARGEST
+        # UNSTAMPED SEAT IN THE ESTATE -- claude-sonnet-5, 5-6 rounds a turn, $0.24-0.28/turn measured
+        # on the 2026-09-16 smoke against a `turn_cost_usd` column that priced ONLY the writer
+        # (COST_LATENCY.md sec 1.2). The producer is `numbers.agent`, which stamps this key ONLY under
+        # `GRAPHRAG_COST_CENSUS`, so the guard below is what keeps every flag-off trace byte-identical:
+        # absent the key, `nums.get` returns None, `holder` never gains it and the caller's own guarded
+        # copy never fires. It rides its OWN guarded line and NOT the `_sk` tuple above for the reason
+        # `numbers_budget` records three screens down: that loop is a bare, unguarded copy over a fixed
+        # tuple, and a key placed in it lands on EVERY hybrid turn with the flag off.
+        _nu = nums.get("numbers_usage")
+        if _nu is not None:
+            holder["numbers_usage"] = _nu
         # LANE S (2026-09-06). TWO GATES, both required: the NOTE flag, and `bool(_nc)` -- i.e. this turn
         # actually ran under a threaded budget. `agent.answer_numbers` stamps `numbers_budget` on EVERY
         # turn-ending return UNCONDITIONALLY (no flag there; consumption is decided here), so without the
@@ -1028,6 +1041,14 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
             out.setdefault("trace", {})[_sk] = holder[_sk]
     if holder.get("ms_numbers") is not None:
         out.setdefault("trace", {})["ms_numbers"] = holder["ms_numbers"]   # W6.1-0: surface for the EMF block
+    # THE COST CENSUS (lane F, 2026-09-17): the mirror of the `_resolve` carry, in the same guarded
+    # idiom as `ms_numbers` directly above and for the same reason as `numbers_budget` directly below
+    # -- `holder` never gains the key unless the agent stamped it under `GRAPHRAG_COST_CENSUS`, so a
+    # flag-off trace has no `numbers_usage` key at all rather than a null one. REGISTERED in
+    # `tracekeys.TRACE_RECORD_KEYS` (APPENDED at the tail -- the 12f column-shift lesson), so the
+    # per-answer record gains the column with no eval edit; absent-as-None on every row that is dark.
+    if holder.get("numbers_usage") is not None:
+        out.setdefault("trace", {})["numbers_usage"] = holder["numbers_usage"]
     # LANE S (2026-09-06): its OWN guarded stamp, modelled on the ms_numbers stamp directly above, for the
     # reason spelled at the single write in `_resolve`: the `_sk` copy loop two blocks up is unguarded, so
     # this key must never join it. `holder["numbers_budget"]` is None on every turn either gate declines,
@@ -3554,6 +3575,15 @@ def _respond_walk(query: str, *, graph, asof: Optional[str] = None, call=None, r
             res.setdefault("trace", {})["rerank_lane"] = _lane.snapshot()
     except Exception:  # noqa: BLE001 — telemetry must never break a turn
         pass
+    # THE COST CENSUS (lane F, 2026-09-17): the DISPATCH PLANNER's own tokens. `dispatch.plan_turn`
+    # pops them off the reply and hangs them on the plan it returns, ONLY under `GRAPHRAG_COST_CENSUS`
+    # and NEVER on the `_FALLBACK` singleton; `getattr(..., None)` is therefore the whole carry, and
+    # with the flag off no attribute exists, no key is stamped and this trace is HEAD's byte for byte.
+    # STAMPED HERE, beside `rerank_lane`, because this is the one seam holding both the plan and the
+    # trace -- `_session_writeback` (which carries `ms_dispatch`) never sees the Plan object.
+    _plan_usage = getattr(plan, "plan_usage", None)
+    if isinstance(_plan_usage, dict):
+        res.setdefault("trace", {})["plan_usage"] = _plan_usage
     res["intent_decision"] = decided
     return _session_writeback(res, query, asof, session_id, store, state, graph, call,
                               ms_dispatch=_ms_dispatch)

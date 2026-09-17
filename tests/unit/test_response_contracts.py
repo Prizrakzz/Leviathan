@@ -162,3 +162,31 @@ def test_exempt_lanes_have_no_response_contract_param():
     assert "response_contract" not in inspect.signature(orch.run_numbers_only).parameters
     assert "response_contract" in inspect.signature(orch.run_reasoning).parameters
     assert "response_contract" in inspect.signature(orch.run_hybrid).parameters
+
+
+def test_the_prose_ceiling_is_a_second_instrument_and_never_the_contracts_own_budget():
+    """LANE E (2026-09-17). `Contract.budget` is the TARGET RANGE the LENGTH DISCIPLINE needle states
+    and the thing `widen_budget` / `reasoning_modes.scale_budget` compose over; the PROSE CEILING is a
+    different instrument -- one number, stated once in the writer-seam mandate that only ships on a
+    state-board turn, and read again at the answer seam as a STAMP. They must not be confused, so this
+    pins that the ceiling moved NOTHING the budget lane reads."""
+    assert rc.CONTRACTS[rc.DEFAULT].budget == "150-220"
+    assert rc.NEEDLE_BUDGET == "target 150-220 words across the four sections"
+    assert rc.widen_budget("150-220", 10) == "248-318"
+    assert (rc.PROSE_CEILING_QUICK, rc.PROSE_CEILING_DEEP, rc.PROSE_CEILING_MAX) == (450, 900, 1200)
+
+
+def test_the_prose_ceiling_is_resolved_by_mode_FAMILY_and_fails_to_the_widest():
+    """A prefix table rather than an enumeration, so a new preset in a known family is priced by
+    construction instead of silently falling to the default -- and an UNKNOWN name takes the widest
+    reasonable ceiling, because a ceiling that binds a tier nobody measured is how a mandate starts
+    losing figures."""
+    from leviathan.graphrag import reasoning_modes as rm
+    for name, want in ((rm.QUICK, 450), (rm.QUICK_HP, 450), (rm.QUICK_N3, 450), (rm.QUICK_S, 450),
+                       (rm.QUICK_R0, 450), (rm.DEEP, 900), (rm.DEEP_V2, 900), (rm.DEEP_HP, 900),
+                       (rm.DEEP_CC1, 900), (rm.ESC, 900), (rm.ESC_R, 900), (rm.ESC_HP, 900),
+                       (rm.MAX, 1200), (rm.MAX_C0, 1200), (rm.MAX_CC1, 1200), (rm.MAX_CC2, 1200)):
+        assert rc.prose_ceiling(name) == want, name
+    for name in (rm.STANDARD, "", None, "nonsense", "  ", "QUICKLY_INVENTED"):
+        assert rc.prose_ceiling(name) == rc.PROSE_CEILING_DEEP, name
+    assert rc.prose_ceiling("QUICK") == 450 and rc.prose_ceiling(" Max ") == 1200   # case / whitespace

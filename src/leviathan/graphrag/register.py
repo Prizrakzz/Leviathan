@@ -1046,14 +1046,57 @@ def internal_leaks(text: str) -> list[tuple[str, str]]:
 #: (name, pattern, the plain words that replace it). The replacements are the mandate's own table, so the
 #: lint and the prompt teach ONE vocabulary.
 DESK_REGISTER_TOKENS: tuple = (
-    ("board", r"\bboards?\b", "the market, or 'the data as of <date>'"),
-    ("row", r"\brows?\b", "the record, this series, the latest print"),
+    # PRE-ARM ROUND 1 (2026-09-17) -- THE REPLACEMENT COLUMN IS WHERE THE RESIDUE ACTUALLY LIVES, and
+    # the in-VPC smoke measured it. "the market" alone cannot carry a sentence about TWO listings, so
+    # the writer reached past the table for the instrument's own word and wrote "read on each board's
+    # own-currency move" (three times across two turns), "opposite signs on each board by phase", "on
+    # either board this session" and "high confidence on BOTH boards" -- SEVEN of the ten `board`
+    # charges on the five served bodies. The PM lens refused the obvious exemption and named the cost
+    # of the missing word instead: "'the wheat board' is not how a trader refers to Chicago wheat, and
+    # for anyone with grey hair it collides with the Canadian Wheat Board, a marketing monopoly that
+    # ceased to exist in 2012." SO THE BAN STANDS AND THE TABLE LEARNS THE WORDS A DESK ACTUALLY USES:
+    # the exchange, the contract, the exchange's own name, and "in its own currency" for the sentence
+    # that has to distinguish two listings. "the market" is KEPT rather than replaced -- it is the word
+    # the rewrite already spends successfully ("not just its own board" -> "not just its own market",
+    # accepted on the palm/rape turn) and `answer._desk_allowed_stems` reads this column, so dropping a
+    # word here would withdraw it from the remedy on the same commit.
+    # THE COLUMN IS A LIST OF PHRASES AND NOTHING ELSE. `answer._desk_replacement_phrases` splits it on
+    # `,` and ` or ` alone, so a clause joined with a SEMICOLON parses as ONE fourteen-token phrase that
+    # can never match a substitution -- measured on this row's own first draft, where "in its own
+    # currency" was swallowed whole. A RULE belongs in the mandate prose; only WORDS belong here.
+    # AND NOTHING HEAD TAUGHT IS WITHDRAWN. "the data as of <date>" trails the new words rather than
+    # being replaced by them: `_desk_allowed_stems` reads this column, so deleting a phrase would make
+    # a rewrite HEAD accepts refusable on this commit -- the exact failure this row exists to avoid.
+    ("board", r"\bboards?\b",
+     "the market, the exchange, the contract, the exchange's own name, in its own currency, "
+     "the data as of <date>"),
+    ("row", r"\brows?\b", "the reading, the record, this series, the latest print"),
     ("the graph", r"\bthe graph\b", "the mechanism, the driver model"),
     # THE REPLACEMENT WORDS ARE THEMSELVES REGISTER-GRADED. "the most stretched reading" was the first
     # draft here and it reds `narration.check_literals` on `lane_b_adjective`: `stretched` is one of
     # `_LANE_B_ADJ`'s six. A prompt that taught a fenced word would be the convention registry's own
     # 2026-09-11 collision (yaml:15-21) re-enacted in the mandate.
-    ("loud", r"\bloud(?:est|er|ness)?\b", "the largest move, the reading furthest from its own record"),
+    # PRE-ARM ROUND 1: `the strongest signal` was added here as the PM lens' own replacement, quoted --
+    # "'loud' and 'rows' are the system talking about its own internals. A desk says 'the two strongest
+    # signals point opposite ways'." -- with the safety note "it is a superlative and NOT a member of
+    # `answer._DESK_CLAIM_RX`'s comparative class, so teaching it does not license a polarity flip".
+    # ROUND 2: THAT NOTE WAS FALSE AND THE PHRASE IS WITHDRAWN. `strongest` is named BY HAND in
+    # `_DESK_CLAIM_RX`'s EXTREMITY alternation (answer.py:10336) and `("strongest", "weakest")` is a
+    # declared row of `_DESK_CLAIM_ANTONYMS` (answer.py:10419). MEASURED on a real-seat shape
+    # ("...the weakest of them is soybeans." -> "...the strongest of them is soybeans."): with the
+    # phrase taught, `_desk_claim_terms(cand)` falls from `['strongest']` to `[]`, so the rewrite
+    # census logs the refusal as `claim` where HEAD logs `polarity` -- and `answer.py:10786` says that
+    # map "is read by a human deciding what the rewrite is doing wrong". The reply is refused either
+    # way (guard 10 refuses on any multiset difference), so no flip ever reached a page; what was at
+    # stake is the DIAGNOSTIC and guard (11)'s LOSS set, which subtracts `_desk_allowed_stems()` and
+    # would have let a reply drop the word `strongest` from an offered sentence with no charge.
+    # `the signal` REPLACES IT AND KEEPS THE PM'S NOUN: it teaches the word the lens asked for, adds
+    # the stem `signal` -- which is in NO claim class -- and leaves `strongest` fully charged. The
+    # writer was never barred from writing "the strongest signal": `loud` is the banned token, not
+    # `strongest`, and this column is what the writer is TAUGHT and what the REWRITE is allowed to
+    # spend, which are not the same licence.
+    ("loud", r"\bloud(?:est|er|ness)?\b",
+     "the largest move, the signal, the reading furthest from its own record"),
     # ROUND-3 (2026-09-15): `an older reading` IS PART OF THE REPLACEMENT, and it is here because the
     # claim guard gained the comparative class on the same commit. The measured honest rewrite of this
     # row's own charge is "Two rows have spent their knowledge date." -> "Two series are read through
@@ -1061,8 +1104,23 @@ DESK_REGISTER_TOKENS: tuple = (
     # adversarial inversion ("NEWER dates") is refused for the reason it should be -- a claim word from
     # nowhere. ONE PRODUCER, again: `answer._desk_allowed_stems` reads this column, so teaching the
     # word and permitting it are the same edit.
+    # PRE-ARM ROUND 1 (2026-09-17): THE NOUN-PHRASE REPLACEMENT, WHICH THIS ROW OWED AND THE DECK
+    # DOCKETED IN SO MANY WORDS -- `test_state_narration.py:175-181`: "the `knowledge date` row of the
+    # table offers no NOUN-PHRASE replacement ('read through <date>' is a verb phrase), so a
+    # `knowledge date` charge in a noun slot has no accepted rewrite at all. The one-line remedy is a
+    # TABLE edit". `the date it was known` is that noun phrase. `known <date>` joins it because the
+    # served footer already stamps rows `[known 2026-09-11]`, so the reader meets one spelling.
+    # THE SPELLING RULE ("an ISO date or the month spelled, never bare digits") is NOT in this column
+    # and that is deliberate: it is a RULE, and a rule joined on here with a semicolon would be parsed
+    # by `answer._desk_replacement_phrases` as part of the PHRASE beside it -- measured, it swallowed
+    # HEAD's own working `an older reading when it is one` into a fifteen-token string. The rule ships
+    # in `SYSTEM_DESK_REGISTER_MANDATE` instead, where it is prose and binds the whole answer, which is
+    # what the smoke needed: `20260904` reached reader prose on three turns, and the PM lens refused it
+    # -- "'20260904' is an unformatted integer sitting beside two ISO dates in the same clause. A desk
+    # writes 'our data runs through 4 September'."
     ("knowledge date", r"\bknowledge dates?\b",
-     "read through <date>, as of <date>, an older reading when it is one"),
+     "known <date>, read through <date>, as of <date>, the date it was known, an older reading when "
+     "it is one"),
     ("convention", r"\bconventions?\b", "the desk's own line for this series"),
     ("state read", r"\bstate reads?\b", "the latest print"),
     ("receipt", r"\breceipts?\b", "the dated report"),
@@ -1084,6 +1142,29 @@ DESK_REGISTER_TOKENS: tuple = (
 #: every one legitimately about its own token, 0 foreign), so this is a latent hole closed rather than a
 #: loss recovered -- and every row here exempts exactly ONE token, which is the whole point: an
 #: exemption is an argument about a WORD, never about the characters near it.
+#:
+#: PRE-ARM ROUND 1 (2026-09-17) -- TWO EXEMPTION DECISIONS, BOTH MEASURED, BOTH RECORDED HERE BECAUSE A
+#: DECISION NOT TO ADD A ROW IS STILL A DECISION.
+#:
+#: (1) NO ROW IS ADDED FOR THE NON-UNIQUE `board` (`\bboards\b`, `each|either|both|every board`), which
+#: `THREAT_MODEL_FIXES.md` A.8 recommended and which would have exempted 7 of the 24 charges on the
+#: five in-VPC smoke bodies. THE OWNER'S RULING IS THAT THE BAN IS RIGHT AND THE REPLACEMENT WAS WRONG:
+#: "each board's own currency" is not market English, it is the instrument's own self-word wearing a
+#: quantifier, and the fix is to teach "each exchange's own currency" -- which is what
+#: `DESK_REGISTER_TOKENS`' `board` row now does. MEASURED SUPPORT: re-read by hand, 0 of the 24 charges
+#: on the case list is a false charge, so there is nothing for an exemption to recover.
+#:
+#: (2) ROW 4 (`<commodity> boards?`) IS LEFT IN PLACE AND DOCKETED, not removed. MEASURED with rows 3
+#: (`<exchange> ... board`) and 5 (`<Proper Name> Board`) still standing, row 4's UNIQUE licence is
+#: +2 charges on the case list and +1 on the fourteen banked answers -- and the two on the case list
+#: are both "the wheat board", which the PM lens called a MAJOR register leak on the corn/wheat turn
+#: ("not how a trader refers to Chicago wheat ... it collides with the Canadian Wheat Board"). So the
+#: lint is measurably blind to a leak a reader catches. IT IS NOT REMOVED ON THE EVE OF THE ARM: it
+#: raises the reported number on BOTH cells for a reason that is not the treatment, which is exactly
+#: the metric-redefinition threat A.5(1) names, and the third recovered span ("the two South African
+#: maize boards") is a defensible exchange usage. The MANDATE is corrected instead -- it now says a
+#: board name is the market's own only when the exchange or the institution is named with it -- which
+#: costs zero lint charges on either cell. DOCKET: revisit row 4 after arm A.
 DESK_REGISTER_EXEMPT: tuple = (
     (r"\bthe board price tape\b", ("board",),
      "narration.RECENCY_LEDGER_SENTENCE and the mandate's movement (2): the writer is TOLD to write it"),

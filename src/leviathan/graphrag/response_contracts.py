@@ -519,6 +519,74 @@ def spine_ok(name: str) -> bool:
     return canon == [s for s in CANONICAL if s in canon] and set(c.sections) <= SECTIONS
 
 
+# ── LANE E (2026-09-17): THE PER-TIER PROSE CEILING, ONE PRODUCER ────────────────────────────────────
+# THE MEASURED TRIGGER is the 2026-09-16 in-VPC pre-arm smoke, read end to end. Reader PROSE per turn
+# (TL;DR + every heading, handles and the mermaid block excluded) was 1,070 / 1,087 / 1,389 on the three
+# SCAN turns, 1,715 on ANALYSIS and 1,406 on CASCADE -- against a `default` contract that prices the
+# whole answer at 150-220 words and a Scan tier that SCALES that to 110-150 (`reasoning_modes` quick,
+# `budget_scale=0.7`). The overrun is 7-9x on Scan, and the smoke's own read of it is the honest one:
+# "the mandate is over-funded by the writer, not starved -- nothing is being cut for length." A budget
+# nobody obeys is not a budget, and the Cascade tier shipped LESS prose than the Analysis tier on the
+# same question, which is the tell that the number in the prompt is carrying no weight at all.
+#
+# WHY A SECOND NUMBER RATHER THAN A WIDER `budget`. `Contract.budget` is the TARGET RANGE the LENGTH
+# DISCIPLINE needle states ("target 150-220 words across the four sections") and it is the thing
+# `widen_budget` and `reasoning_modes.scale_budget` compose over; moving it would move every non-board
+# turn in the estate and would re-price the composition mandates' own arithmetic
+# (BUDGET_WORDS_PER_ENTITY et al.), which are a fraction OF that range. This is a different instrument:
+# a CEILING, stated once, in the writer-seam mandate that only ships on a state-board turn, and read
+# again at the seam as a STAMP (`prose_words` / `prose_over_budget`). Nothing is cut for it, ever.
+#
+# WHERE THE THREE NUMBERS COME FROM -- the MANDATE'S own arithmetic, never a percentile of the overrun.
+# A ceiling below what the instructions demand is a mandate that loses (`apply()`'s own note), so each
+# tier's number is built from what that tier is ORDERED to write, at the smoke's own measured rates:
+#   * the watch section: the tier's nomination ceiling (3 / 5 / 7) x the MEASURED median bullet, 55
+#     words over the 19 bullets this smoke shipped  ->  165 / 275 / 385
+#   * the board mandate's movements: DIRECTION + EVIDENCE + WATCH on Scan, + SPILLOVERS on the two
+#     wider tiers, at the measured 100 / 130 / 150 words a movement  ->  200 / 520 / 600
+#   * the TL;DR at the measured median 104 words on Scan, 67-119 above it  ->  60 / 80 / 90
+#   * Cascade alone also pays for the cross-market paragraph the tier exists for  ->  + 120
+#   totals 425 / 875 / 1,195, rounded UP to the nearest fifty.
+# MEASURED AGAINST THE SMOKE, so the ceiling is neither dead nor unpayable: it BINDS on 5 of 5 turns
+# (Scan 2.4x / 2.4x / 3.1x over, Analysis 1.9x, Cascade 1.17x) and it sits ABOVE every tier's own
+# instruction arithmetic. Re-measure it when the movements or the nomination ceiling move.
+PROSE_CEILING_QUICK = 450
+PROSE_CEILING_DEEP = 900
+PROSE_CEILING_MAX = 1200
+
+#: Mode-name PREFIX -> ceiling, longest prefix wins. The prefixes are `reasoning_modes`' own families
+#: (`quick`, `quick_hp`, `quick_n3`, `quick_s`, `quick_r0`; `deep`, `deep_v2`, `deep_hp`, `deep_cc1`;
+#: `max`, `max_c0`, `max_cc1`, `max_cc2`; `esc` / `esc_r` are DEEP's priced envelope by their own
+#: table note, so they take deep's number). A prefix table rather than an enumeration so a new preset
+#: in a known family is priced by construction instead of silently falling to the default.
+_PROSE_CEILING_PREFIXES: tuple = (
+    ("quick", PROSE_CEILING_QUICK),
+    ("scan", PROSE_CEILING_QUICK),
+    ("deep", PROSE_CEILING_DEEP),
+    ("esc", PROSE_CEILING_DEEP),
+    ("max", PROSE_CEILING_MAX),
+)
+
+
+def prose_ceiling(mode: str | None) -> int:
+    """The tier's PROSE WORD CEILING (see the block note above). One producer for the mandate sentence
+    the writer reads and for the `prose_over_budget` stamp the arm reads -- two derivations of one
+    number is how a ceiling comes to mean two things.
+
+    UNKNOWN / `standard` / None -> :data:`PROSE_CEILING_DEEP`, deliberately: `standard` is the all-None
+    preset that leaves the contract's own unscaled range in place, so it is the DEEP envelope by the
+    table's own reading, and an unknown name must fail to the WIDEST reasonable ceiling rather than to
+    the tightest -- a ceiling that binds a tier nobody measured is how a mandate starts losing figures.
+
+    THE PREFIX IS A FAMILY AND NOT A SPELLING: it matches the whole name or the name up to its first
+    underscore, so `quick_hp` / `max_cc1` / `esc_r` are priced by construction while an invented
+    `quickly_something` is NOT silently read as Scan and falls to the same wide default."""
+    m = str(mode or "").strip().lower()
+    hit = [(len(p), v) for p, v in _PROSE_CEILING_PREFIXES
+           if m == p or m.startswith(p + "_")]
+    return max(hit)[1] if hit else PROSE_CEILING_DEEP
+
+
 # == D-DR-1: the DOSSIER contract -- ONE document composed from sub-answer NOTES =======================
 # DELIBERATELY NOT AN ENTRY IN `CONTRACTS`, and that is a design decision, not an omission:
 #   * `valid_names()` IS the turn-path allowlist -- answer._response_contracts_enabled() returns exactly

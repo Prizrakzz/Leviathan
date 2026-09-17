@@ -88,6 +88,115 @@ def _turn_cost_usd(su: dict | None):
                                 su.get("cache_read") or 0, su.get("cache_write") or 0)
 
 
+def _seat_cost_usd(u) -> float | None:
+    """One stamped seat, priced by the ONE arithmetic (`providers.serving_cost_usd`). None for an
+    unpriced model or a shape that is not a usage dict -- never zero, the CostUsd 0-semantics idiom.
+    A SECOND SPELLING OF THE PRICING CALL IS HOW TWO READERS OF ONE BILL DRIFT APART, so every seat
+    below goes through this function and `_turn_cost_usd` keeps its own call untouched."""
+    if not isinstance(u, dict):
+        return None
+    from leviathan.graphrag import providers as _pv
+    return _pv.serving_cost_usd(str(u.get("model") or ""), int(u.get("in") or 0),
+                                int(u.get("out") or 0), int(u.get("cache_read") or 0),
+                                int(u.get("cache_write") or 0))
+
+
+# THE THREE SEATS NOTHING BUT `GRAPHRAG_COST_CENSUS` CAN STAMP (round-2 review M2). `writer` is
+# stamped on EVERY turn (D-AM-4) and `desk_rewrite` by a TREATMENT flag (`GRAPHRAG_DESK_REGISTER`),
+# so neither is evidence that the census ran. These three are, and their presence in a priced seat
+# map is the ONLY census receipt that survives into a banked row -- which is why the gate below reads
+# the ROW and never the environment.
+_CENSUS_ONLY_SEATS = ("numbers", "dispatch_planner", "judge")
+
+
+def _tc_second_seat(seats: dict | None) -> bool:
+    """ONE TEST, TWO READERS. `_per_answer_record`'s two conditional columns and `spend_report`'s own
+    `continue` must agree EXACTLY, or a deck renders a spend panel over rows whose columns it does not
+    carry. True when the row priced a seat BEYOND the writer -- i.e. when `turn_cost_usd` is not
+    already the whole stamped cost. `_turn_cost_total_usd` has already dropped a treatment-only
+    `desk_rewrite` by then, so this cannot fire on a census-dark row."""
+    return bool(seats) and set(seats) != {"writer"}
+
+
+def _turn_cost_total_usd(tr: dict | None, judge_usage: dict | None = None):
+    """THE COST CENSUS (lane F, 2026-09-17). EVERY STAMPED SEAT ON THE TURN, priced by the ONE
+    arithmetic, returned as `(total_usd, {seat: usd})`. `(None, None)` when no seat is stamped --
+    never zero, never a fabricated 0 (the CostUsd 0-semantics idiom `_turn_cost_usd` already runs).
+
+    WHY IT EXISTS, MEASURED (COST_LATENCY.md sec 0, the 2026-09-16 in-VPC pre-arm smoke): the five
+    smoke turns priced **$2.5643** in `turn_cost_usd` against a PROVEN floor of **$3.9251** and a
+    modelled **$5.6656**. `turn_cost_usd` is not the turn's cost -- it is the WRITER's cost, and its
+    own docstring says so. Of six Anthropic seats on a hybrid turn, exactly one was stamped. The
+    owner read "~$4 on the console" against a column that said $2.56 and the column was not wrong,
+    it was answering a narrower question than the one being asked of it.
+
+    `_turn_cost_usd` (defined above in THIS module -- by symbol, never by line) IS DELIBERATELY
+    UNTOUCHED, name, arithmetic and scope: it is in
+    banked baselines across the estate and redefining it would silently re-scale every prior arm's
+    $/turn. This is a NEW column beside it, and on a row where only `synth_usage` is stamped the two
+    are EQUAL BY CONSTRUCTION (same seat, same function, same inputs) -- which is the pin.
+
+    A PER-SEAT MAP AND NOT ONLY A SCALAR, because a single number that moves for six reasons is
+    exactly the thing this investigation had to reverse-engineer from logs. The seats, and what
+    stamps each:
+      writer            `trace.synth_usage`   -- `answer._pop_usage`, both bodies, every turn (D-AM-4)
+      numbers           `trace.numbers_usage` -- a LIST, one entry per agent round, under
+                                                 GRAPHRAG_COST_CENSUS. Summed here: the per-round
+                                                 shape is kept in the artifact so a COLD cache write
+                                                 stays readable, but the MONEY is one seat's money.
+      dispatch_planner  `trace.plan_usage`    -- dispatch.plan_turn, under GRAPHRAG_COST_CENSUS
+      desk_rewrite      `trace.desk_register['usd']` -- ALREADY PRICED in `answer._desk_register_lint`
+                                                 same `providers.serving_cost_usd`, so it is taken
+                                                 verbatim rather than re-priced from tokens it does
+                                                 not carry
+      judge             the eval-side usage, passed in: it is not a trace key because the judge is
+                                                 not part of the turn -- it is what MEASURING the
+                                                 turn costs, and conflating the two is how a
+                                                 measurement instrument gets billed to a product.
+    AN UNPRICED SEAT IS OMITTED FROM THE MAP, NOT ZEROED: a model missing from
+    `providers.SERVING_PRICES` returns None there and the map simply has no row, so a total can never
+    silently under-report by counting an unknown seat as free. The row count in the map IS the
+    disclosure of how many seats the number covers."""
+    tr = tr if isinstance(tr, dict) else {}
+    seats: dict[str, float] = {}
+    w = _seat_cost_usd(tr.get("synth_usage"))
+    if w is not None:
+        seats["writer"] = w
+    _nu = tr.get("numbers_usage")
+    if isinstance(_nu, list) and _nu:
+        _priced = [c for c in (_seat_cost_usd(u) for u in _nu) if c is not None]
+        if _priced:
+            seats["numbers"] = sum(_priced)
+    p = _seat_cost_usd(tr.get("plan_usage"))
+    if p is not None:
+        seats["dispatch_planner"] = p
+    d = tr.get("desk_register")
+    if isinstance(d, dict) and isinstance(d.get("usd"), (int, float)) and not isinstance(d.get("usd"), bool):
+        seats["desk_rewrite"] = float(d["usd"])
+    j = _seat_cost_usd(judge_usage)
+    if j is not None:
+        seats["judge"] = j
+    # THE CENSUS's KILL-SWITCH GATES THE CENSUS's OUTPUT (round-2 review M2, PROVEN before the fix).
+    # `desk_rewrite` is stamped under `GRAPHRAG_DESK_REGISTER` -- an `arm_flags` TREATMENT flag with
+    # NO relation to this census -- so a row carrying only `synth_usage` + `desk_register` grew
+    # `turn_cost_total_usd`, `turn_cost_by_seat_usd` AND the whole Spend panel with
+    # `GRAPHRAG_COST_CENSUS` UNSET ENTIRELY. A TREATMENT FLAG MUST NOT CHANGE A FLAG-OFF ARTIFACT,
+    # and turning the census off must put the artifact back on HEAD's shape or it is not a rollback:
+    # a census-dark S7b re-run of the 2026-09-16 smoke would have grown two columns and a panel that
+    # nobody asked for.
+    # THE GATE IS A PROPERTY OF THE ROW AND NEVER AN ENV READ HERE. `_CENSUS_ONLY_SEATS` is the set
+    # nothing but the census can stamp, so its presence IS the receipt that the census ran on the turn
+    # this row records -- which keeps a `--from-baseline` replay honest, where reading the environment
+    # at report time would drop a column the run really stamped. The desk rewrite's own money is not
+    # lost by this: on a census-dark row the two columns are absent anyway, so nothing that would have
+    # been printed is dropped, and `state_report`'s desk-register lines are untouched.
+    if not any(k in seats for k in _CENSUS_ONLY_SEATS):
+        seats.pop("desk_rewrite", None)
+    if not seats:
+        return None, None
+    return sum(seats.values()), seats
+
+
 def _row_filter_record(queries: list[dict]) -> dict:
     """The artifact's `row_filter` block, computed from the rows that SURVIVED the filter (never from the
     argument), so it cannot describe a selection the run did not make."""
@@ -2073,9 +2182,50 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
     # every row of every artifact with the flags off (measured: `question_shape` and
     # `shape_decline_guard` are present-with-None on row 0 of
     # data/batch_runs/da_baseline_control_20260904T141206Z.json). The splat below is what gives an
-    # explicit column the same ABSENT-WHEN-OFF shape that `**{k: ... for k in tk.TRACE_RECORD_KEYS}`
-    # gives a registered key for free.
+    # explicit column its ABSENT-WHEN-OFF shape.
+    #
+    # CORRECTION (lane F, 2026-09-17) -- THIS COMMENT USED TO END "...the same ABSENT-WHEN-OFF shape
+    # that `**{k: ... for k in tk.TRACE_RECORD_KEYS}` gives a registered key for free". THAT IS FALSE,
+    # and it matters because the registry is what a later lane reaches for when it wants a column to
+    # vanish on the OFF arm. The registry splat below is a dict comprehension over a FIXED tuple: it
+    # ALWAYS emits the key, with `None` when the trace has none. PRESENT-WITH-NULL, not absent. Two
+    # proofs, one measured and one pinned: every row of the 2026-09-16 smoke carries
+    # `"composition_census": null` (a registered key no smoke turn stamped), and
+    # `tests/unit/test_dmw_eval_instruments.py::test_wrong_slot_audit_is_a_registered_column_at_the_tail`
+    # asserts `_per_answer_record(...)["wrong_slot_audit"] is None  # absent-as-None`. CITED BY SYMBOL,
+    # NEVER BY LINE: this citation was written as `:830`, and by the time the round-2 reviewer read it
+    # the assertion had moved to `:845` (round-2 review MAJOR-1). THE TWO IDIOMS ARE DIFFERENT AND THE
+    # CHOICE IS A REAL ONE: a
+    # registered key is a permanent column on every deck forever (and appending one re-anchors the
+    # negative-index tail pins in seven test files); a conditional splat like the two below is a column
+    # only on the rows that have the thing. Use the registry for a key the estate should always carry;
+    # use a splat when a flag-off artifact must stay byte-identical.
     _nbud = (out.get("trace") or {}).get("numbers_budget")
+    # THE BRIDGE QUERY's RECEIPT (lane F, 2026-09-17), on the `numbers_budget` splat idiom rather than
+    # on the registry, DELIBERATELY. `planner.ground` stamps `{nodes, applied, distinct,
+    # fallback}` on the ON ARM ONLY (BY SYMBOL, never by line -- round-2 review MAJOR-1), and
+    # `tests/unit/test_bridge_query.py::test_the_trace_key_is_unregistered_so_another_lanes_tail_pin_is_untouched`
+    # pins that the key is NOT registered so another lane's `[-1]` tail pin does not move.
+    # Registering it would have put
+    # `"bridge_query": null` on every control row of every deck forever for a column the arm reads
+    # once. THE DEFECT IT CLOSES (BRIDGE_VERDICT.md): on the 2026-09-16 in-VPC smoke the bridge ran --
+    # provably, on the deep turn, from the `rerank_lane` arithmetic -- and NOTHING in any artefact said
+    # how many nodes it applied to, whether any fell back, or whether a single depth-2 driver was
+    # bridged. Arming a $30-42 A/B whose treatment cannot report whether its treatment applied is the
+    # defect the pre-arm seams commit was written to close, standing in its own subject matter.
+    _bq = (out.get("trace") or {}).get("bridge_query")
+    # THE JUDGE's OWN USAGE (lane F): `judge()` binds it under GRAPHRAG_COST_CENSUS and hangs it on the
+    # returned scores under a PRIVATE `_usage` key -- the `answer._pop_usage` pop-tag idiom.
+    # It is NOT a trace key: the judge is not part of the turn, it is what MEASURING the turn costs.
+    # The `"judge"` column below is a hard whitelist of AXES, so `_usage` can never leak into it.
+    _judge_usage = (r.get("judge") or {}).get("_usage") if isinstance(r.get("judge"), dict) else None
+    _tc_total, _tc_seats = _turn_cost_total_usd((out.get("trace") or {}), _judge_usage)
+    # ABSENT WHEN `turn_cost_usd` IS ALREADY THE WHOLE STAMPED COST. On a writer-only row -- every
+    # flag-off row, every banked replay, every non-orchestrator row -- `turn_cost_total_usd` would
+    # equal `turn_cost_usd` exactly, so emitting it would add two columns that say nothing and move
+    # every flag-off artifact off HEAD's byte. The columns' PRESENCE is therefore itself the fact that
+    # a second seat was stamped, and their ABSENCE means "the writer is all anyone measured".
+    _tc_show = _tc_second_seat(_tc_seats)
     return {"id": rid,
             "strips": v.get("stripped", 0),
             "claim_count": v.get("claim_count", 0),
@@ -2180,6 +2330,17 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # `numbers_budget` in `tracekeys.TRACE_RECORD_KEYS` and delete this splat, which then becomes
             # a duplicate of what the registry emits.
             **({"numbers_budget": _nbud} if _nbud is not None else {}),
+            # THE BRIDGE QUERY's four numbers, ON THE ARM THAT RAN IT AND NOWHERE ELSE (lane F): an OFF
+            # row has no key, so every flag-off row of every deck is byte-identical to HEAD.
+            **({"bridge_query": _bq} if _bq is not None else {}),
+            # THE COST CENSUS's two columns, absent when the writer is the only stamped seat (see the
+            # `_tc_second_seat` note above) AND absent on any row the census did not run on, however
+            # many treatment flags that row lit. `turn_cost_usd` directly above is UNTOUCHED.
+            **({"turn_cost_total_usd": _tc_total, "turn_cost_by_seat_usd": _tc_seats}
+               if _tc_show else {}),
+            # The judge's own usage, absent unless GRAPHRAG_COST_CENSUS bound it. A MEASUREMENT cost,
+            # carried beside the turn's seats and never folded into `turn_cost_usd`.
+            **({"judge_usage": _judge_usage} if isinstance(_judge_usage, dict) else {}),
             **{col: (out.get("intent_decision") or {}).get(dk) for dk, col in tk.DECISION_RECORD_KEYS},
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
@@ -3369,9 +3530,31 @@ def judge(query: dict, out: dict, *, graph=None, client=None, model: str = "clau
                 + _JUDGE_STATE_ANALOG + "\n") if (sb_declined and not sb_text) else "")
             + f"=== THE TOOL'S ANSWER ===\n{out.get('answer')}")
     sys_blocks = [{"type": "text", "text": _JUDGE_SYS, "cache_control": {"type": "ephemeral"}}]  # judge calls share it
-    scores, _ = call(client, sys_blocks, user, model=model, max_tokens=3200,
-                     tool=_judge_tool(continuity=convo_history is not None,
-                                      state_use=bool(sb_text)))  # headroom for adaptive thinking
+    # THE COST CENSUS (lane F, 2026-09-17). `call` is `ex.call_opus`, whose contract is
+    # `(tool_input, usage)` -- and this line discarded the second element into `_` on EVERY judged row
+    # the estate has ever run, so the judge's own spend (opus-4-8, ~$0.08-0.09 a turn, ~$2.90 of a
+    # 34-turn arm A) was recorded NOWHERE. THE JUDGED PROMPT DOES NOT MOVE A BYTE: the same system
+    # blocks, the same user block, the same tool, the same max_tokens. Only the value that was already
+    # being returned stops being thrown away.
+    scores, _jusage = call(client, sys_blocks, user, model=model, max_tokens=3200,
+                           tool=_judge_tool(continuity=convo_history is not None,
+                                            state_use=bool(sb_text)))  # headroom for adaptive thinking
+    # Hung on the scores under a PRIVATE key -- the `answer._pop_usage` pop-tag idiom -- and
+    # ONLY under the census flag, so a dark run's `scores` dict is HEAD's exactly. It cannot reach the
+    # `"judge"` record column, which is a hard whitelist of AXES; `_per_answer_record` reads it by name
+    # into its own `judge_usage` column. `ex.Usage` is a dataclass, so it is normalised HERE into the
+    # {model, in, out, cache_read, cache_write} shape every other seat already speaks -- one shape for
+    # `providers.serving_cost_usd`, never a second spelling of a usage record.
+    try:
+        from leviathan.graphrag.tracekeys import cost_census_on as _census_on
+        if _census_on() and _jusage is not None:
+            scores["_usage"] = {"model": model,
+                                "in": int(getattr(_jusage, "input_tokens", 0) or 0),
+                                "out": int(getattr(_jusage, "output_tokens", 0) or 0),
+                                "cache_read": int(getattr(_jusage, "cache_read", 0) or 0),
+                                "cache_write": int(getattr(_jusage, "cache_creation", 0) or 0)}
+    except Exception:  # noqa: BLE001 -- an instrument is never worth a judged row
+        pass
     # PARSE-TIME normalization (RCA-561): the model occasionally emits a list field as one prose
     # string; unvalidated, len() downstream counted its CHARACTERS (the 561 spike). Coerce at the
     # source so no consumer can ever see a degenerate shape: string -> [string], clip at 16 items.
@@ -3631,7 +3814,7 @@ def state_report(rows: list[dict]) -> list[str]:
     THE MANDATE'S NUMBER IS A CROSS-CELL DIFFERENCE AND THIS PANEL BUILDS IT AS ONE (ruling R1,
     2026-09-16). Round 1 printed the ONE BOUNDED REWRITE's `hits_before -> hits_after` and quoted the
     S7b headline beside it in the same bolded sentence. They are not the same measurement and cannot be
-    made into one: `answer.py:5091` runs the lint ONLY under `_desk_register_on()` -- the same flag that
+    made into one: the answer seam runs the lint ONLY under `_desk_register_on()` -- the same flag that
     appends the mandate (`answer.py:3595`) -- so `hits_before` is never a no-mandate count, and a
     CONTROL turn writes no `trace['desk_register']` key at all. The smoke's own 51 and 5 are BOTH
     `hits_before`, on two PROMPT ARMS (S6B with the mandate absent, R4 with it lit), with no rewrite in
@@ -3668,13 +3851,15 @@ def state_report(rows: list[dict]) -> list[str]:
     boards = 0
     malformed = 0
     dregs: list[dict] = []
+    bqs: list[dict] = []
+    wseams: list[dict] = []
     for r in rows:
         out = r.get("out") if isinstance(r.get("out"), dict) else {}
         tr = out.get("trace") if isinstance(out.get("trace"), dict) else {}
         # R5 MINOR: `tr.get("state_board") or {}` then `.get("coverage")` RAISES AttributeError on any
         # truthy non-dict, and this is the one new caller that is not per-row and not inside judge()'s
         # own failure handling -- `report()` runs once per deck after a paid arm, so a raise here loses
-        # the whole artifact rather than one row. `answer.py:5178` already guards the same key with
+        # the whole artifact rather than one row. The answer seam already guards the same key with
         # `isinstance`; a malformed shape is COUNTED and named below rather than swallowed.
         sb_raw = tr.get("state_board")
         sb = sb_raw if isinstance(sb_raw, dict) else {}
@@ -3690,7 +3875,21 @@ def state_report(rows: list[dict]) -> list[str]:
         d = tr.get("desk_register")
         if isinstance(d, dict) and d:
             dregs.append(d)
-    if not (covs or declined or dregs):
+        # THE BRIDGE QUERY's RECEIPT (lane F, 2026-09-17), read straight off the trace -- this function
+        # already holds `tr`, so the line needs no per-answer column and the key stays unregistered
+        # (`test_bridge_query.py::test_the_trace_key_is_unregistered_so_another_lanes_tail_pin_is_untouched`
+        # keeps its tail pin -- BY SYMBOL, never by line). ON-ARM ONLY by construction:
+        # `planner.ground` stamps it under `if bridge_query:` and nowhere else.
+        bq = tr.get("bridge_query")
+        if isinstance(bq, dict) and bq:
+            bqs.append(bq)
+        # LANE E's writer seam, same read, same absent-is-never-zero rule: the key is present only on a
+        # turn where GRAPHRAG_STATE_BOARD was lit AND the citation verifier ran, so on the documented
+        # `GRAPHRAG_VERIFY=off` rollback it is absent and the lane DID NOT RUN.
+        ws = tr.get("writer_seam")
+        if isinstance(ws, dict) and ws:
+            wseams.append(ws)
+    if not (covs or declined or dregs or bqs or wseams):
         return []
     n = len(rows) or 1
     # THE PURE LINT, PER ROW, ON BOTH SIDES OF THE ARM (ruling R1). `lint_ctl` = rows whose trace
@@ -3719,8 +3918,14 @@ def state_report(rows: list[dict]) -> list[str]:
     # THE HEADER PROMISES ONLY WHAT THE DECK HAS (R5). A census-only deck is a real shape -- the desk
     # register has its own flag and a turn can carry the mandate with the board dark -- and a
     # board-titled header over it is "absent is never zero" read from the other end.
+    # LANE F (2026-09-17) adds the THIRD shape for the SAME R5 reason: a deck can carry the bridge
+    # query's receipt with no board and no desk census at all (the bridge has its own flag and its own
+    # producer), and a board- or register-titled header over it would be "absent is never zero" read
+    # from the other end -- a reader would look for a board line that no row could produce.
     L = [("## State board use (S7 coverage + S7b watch draw + desk register)" if boards
-          else "## Desk register (S7b: the mandate's lint + its one bounded rewrite)"), ""]
+          else "## Desk register (S7b: the mandate's lint + its one bounded rewrite)" if dregs
+          else "## Bridge query (V2 retrieval: the path writes the query)" if bqs
+          else "## Writer seam (the prose contract the writer's own rows corrected)"), ""]
     if boards:
         L.append(f"- board turns: **{boards}/{n}** (rows whose trace carries `state_board`); of those, "
                  f"{len(covs)} rendered rows a coverage instrument could read")
@@ -3852,7 +4057,214 @@ def state_report(rows: list[dict]) -> list[str]:
         _ml = sum(int(d.get("multiline_skipped") or 0) for d in dregs)
         if _ml:
             L.append(f"- charged sentences the rewrite could not offer (they span lines): {_ml}")
+    # ── THE BRIDGE QUERY (lane F, 2026-09-17): THE TREATMENT'S ONE RECEIPT THAT IT APPLIED ──────────
+    # THE DEFECT (BRIDGE_VERDICT.md, read against the 2026-09-16 in-VPC smoke): `GRAPHRAG_BRIDGE_QUERY`
+    # was lit on all five turns and NO artefact -- baseline JSON, report, container log -- carried a
+    # single number about it. The bridge PROVABLY ran on the deep turn (a 2,405 ms fill cannot contain
+    # 6,999 ms of rerank latency at the concurrency one query string permits) and nothing said how many
+    # nodes it applied to, which text each used, whether any fell back, or whether ONE of the max
+    # turn's twenty depth-2 drivers was bridged -- the only turn on which the multi-hop half of the
+    # claim could be tested at all. These are the four numbers arm A is supposed to read.
+    # ABSENT, NEVER ZERO: a deck where no turn stamped the key prints no line, because "0 bridged
+    # nodes" and "the flag was off" are different facts and only one of them is a result.
+    # `fallback` is MERGED BY REASON rather than summed, because the reasons are a closed set
+    # (`no_via_edge` / `no_driver_mechanism` / `empty_mechanism` / `unknown_kind` /
+    # `rerank_lane_bedrock`) and a single total would hide a lane-parity failure inside a data gap.
+    if bqs:
+        _bn = sum(int(b.get("nodes") or 0) for b in bqs)
+        _ba = sum(int(b.get("applied") or 0) for b in bqs)
+        _bd = sum(int(b.get("distinct") or 0) for b in bqs)
+        _bf: collections.Counter = collections.Counter()
+        for b in bqs:
+            _fb = b.get("fallback")
+            if isinstance(_fb, dict):
+                for k, c in _fb.items():
+                    _bf[str(k)] += int(c or 0)
+            elif isinstance(_fb, (int, float)) and not isinstance(_fb, bool):
+                _bf["unnamed"] += int(_fb)
+        L += ["",
+              f"- **BRIDGE QUERY: non-seed retrieving nodes {_bn}, BRIDGED {_ba}"
+              + (f" ({_ba / _bn:.0%})" if _bn else "")
+              + f", distinct admitting texts {_bd}** over {len(bqs)} of {n} turn(s) that stamped one"
+              + (f"; fell back to the question: {dict(_bf)}" if _bf else "; NO fallback on any turn")
+              + ". The SEED keeps the question and nothing else does -- `applied` < `nodes` is the "
+                "named, counted fallback, and a deck with no line here ran no bridged turn"]
+    # ── THE WRITER SEAM (lane E, 2026-09-17) ────────────────────────────────────────────────────────
+    # A CORRECTION COUNT IS A DEFECT COUNT, NOT A FEATURE COUNT, and this panel says so in its own
+    # words: `superlatives_corrected = 3` means the writer made three claims its OWN cited rows
+    # denied, so a cell with a LOWER number wrote a better page. A report that prints "the lane fixed
+    # N things" without saying the writer made N errors has reported the wrong sign.
+    # TREATMENT-ONLY, AND THE CONTROL HAS NO DENOMINATOR: the corrections are made WITH the board's
+    # rows, so a control cell stamps nothing at all and there is no cross-cell delta to take here.
+    # Every sub-line is keyed on its OWN denominator (the `_with` discipline above), so a deck that
+    # ran the lane and found nothing to correct prints the outcome line and no correction lines.
+    if wseams:
+        _ws = lambda k: sum(int(w.get(k) or 0) for w in wseams)      # noqa: E731
+        _ok = sum(1 for w in wseams if str(w.get("outcome") or "") == "ok")
+        L += ["",
+              f"- **WRITER SEAM: ran on {len(wseams)} of {n} turn(s)**, {_ok} with outcome `ok` "
+              f"(anything else means the prose stands exactly as the writer wrote it); "
+              f"{dict(collections.Counter(str(w.get('outcome') or '') for w in wseams))}"]
+        if _ws("prose_ceiling"):
+            L.append(f"- prose: **{_ws('prose_words')} words** against a summed tier ceiling of "
+                     f"{_ws('prose_ceiling')}; **over budget by {_ws('prose_over_budget')}** "
+                     f"(0 means every turn obeyed). THE CONTROL WAS NEVER TOLD A CEILING -- the "
+                     f"sentence rides the board's own mandate -- so this is a measurement of the "
+                     f"mandate, not a like-for-like length comparison")
+        if _ws("superlatives_seen") or _ws("classes_corrected") or _ws("lag_windows_checked"):
+            L.append(f"- **claims the writer's OWN cited rows contradicted** (a DEFECT count): "
+                     f"superlatives {_ws('superlatives_corrected')}/{_ws('superlatives_seen')} | "
+                     f"crop classes {_ws('classes_corrected')} | lag windows "
+                     f"{_ws('lag_windows_corrected')}/{_ws('lag_windows_checked')} | decline wording "
+                     f"{_ws('decline_words_corrected')}")
+        if _ws("stale_sentences"):
+            L.append(f"- current-movement claims made on a STALE row with no date on the line: "
+                     f"{_ws('stale_sentences')}; date clauses appended "
+                     f"{_ws('stale_rows_dated')} (once per row per page, so <= distinct stale rows)")
+        if _ws("watch_bullets"):
+            L.append(f"- watch bullets seen by THIS counter: {_ws('watch_bullets')} -- NOT the same "
+                     f"population as `watch_bullets` in the board coverage line above (that one reads "
+                     f"the whole rendered page, this one the `## What to watch` section of the "
+                     f"MODEL's `mechanism` field, post-verify and pre-splice; measured 19 vs 16 on "
+                     f"the 2026-09-16 smoke). NEVER SUMMED. Of them: no printed figure "
+                     f"{_ws('watch_no_figure')} (figure appended {_ws('watch_figures_added')}), no "
+                     f"dated window {_ws('watch_no_window')}, no falsifier "
+                     f"{_ws('watch_no_falsifier')} -- the last two are STAMPED, never repaired -- and "
+                     f"**over the tier's own 3/5/7 ceiling: {_ws('watch_over_ceiling')}**")
     return L
+
+def spend_report(rows: list[dict]) -> list[str]:
+    """THE SPEND PANEL (lane F, 2026-09-17) -- WHAT THE RUN ACTUALLY COST, PER SEAT.
+
+    THERE WAS NO SUCH PANEL. The `--run` report printed no cache figure at all: the "Caching + speed"
+    panel at `eval.py`'s convo reporter lives in the CONVO report only, so an arm-A report carried one
+    money column (`turn_cost_usd`) that priced ONE of six Anthropic seats. MEASURED on the 2026-09-16
+    in-VPC pre-arm smoke (COST_LATENCY.md): five turns, `turn_cost_usd` **$2.5643**, PROVEN floor
+    **$3.9251**, modelled total **$5.6656**. Any budget built by scaling that column under-counts by
+    ~35% before the cache-write term.
+
+    ARM A, RE-PRICED FROM THE SMOKE (COST_LATENCY.md sec 2.3), REPLACING THE $33.5-56.6 / ~$45 MODEL
+    THAT `estimate_cost` AND THE HANDOFF CARRIED: **~$35 per cell, range $30-42, ~$1.03 per turn**
+    over 34 turns, judged. The six seats, measured or sized, are
+      writer $18.22 | numbers agent $8.84 (+$1.27 conversation cache-writes) | judge $2.90 |
+      desk rewrite $0.40 | dispatch planner $0.40 | numbers COLD PREFIX writes $1.49-$4.46.
+    Cohere rerank is ON TOP and is not derivable in this repo: ~1,000-1,700 rerank requests over
+    ~40,000-70,000 documents across 34 turns, on the native key, with no price table anywhere in
+    `src/leviathan/graphrag` (grepped). A PAIRED A/B doubles the answer seats and the judge: ~$67-84.
+
+    WHY A PANEL AND NOT A TAP. `_UsageTap` (this module's own convo instrument) monkeypatches
+    `Messages.create` and looks like a two-line fix -- and it would SILENTLY DROP THE BIGGEST SEAT: it
+    stores its ring in `threading.local()`, and `orchestrator.py` hands the numbers leg to its OWN
+    single-worker ThreadPoolExecutor, where the tap's ring is None and its `rec is not None` guard
+    drops every record on the floor. A tap would report a cost census confidently missing $8.8 of a
+    $35 arm. Per-seat stamping is the honest build.
+
+    ABSENT WHEN THE CENSUS IS DARK, like every instrument this module aggregates. The panel renders
+    only when at least one row carries a seat BEYOND the writer -- i.e. only when something measured
+    what `turn_cost_usd` cannot see -- so every banked report of every flag-off deck is byte-identical
+    and a reader is never shown a one-seat total wearing the word "spend".
+
+    IT CHANGES NO SCORE AND NO JUDGED BYTE: nothing here is read by `judge()`, by a rubric, by
+    `_cascade_asserts` or by any deck pin."""
+    import collections
+    seats: collections.Counter = collections.Counter()
+    seat_rows: collections.Counter = collections.Counter()
+    by_tier: dict[str, list[float]] = {}
+    # THE CACHE RATIO, PER SEAT: `cache_read / (cache_read + cache_write)` is the ONE ratio that would
+    # have shown the whole problem on the first arm. On the smoke the writer reads 0 on four of five
+    # rows while writing 39-58 k, and the numbers agent's 99,207-token prefix is written cold once per
+    # concurrent worker -- $0.3720 a time, 4 to 12 times an arm, in nobody's model.
+    cache: dict[str, list[int]] = {}
+    cold = 0
+    numbers_rounds = 0
+    # THE TWO DENOMINATORS, COUNTED SEPARATELY AND NAMED SEPARATELY (round-2 review M3, PROVEN before
+    # the fix). This loop SKIPS every writer-only row and the headline then reported over `len(rows)`
+    # -- ALL rows. Measured on 2 census rows beside 6 writer-only rows carrying the same banked
+    # `synth_usage`: the panel printed "total $1.5357 over 8 row(s) ... the writer is $1.0577 of it --
+    # 69%" while that deck's OWN `turn_cost_usd` column summed to $4.2309. A panel built to stop a
+    # money column UNDER-reporting printed a census total BELOW the column it corrects, over a row
+    # count that did not produce it, and a reader taking 69% as "the writer is 69% of the bill" was
+    # wrong twice. `census_rows` is the rows this panel actually summed; `col_total` / `col_rows` are
+    # the `turn_cost_usd` column over the WHOLE deck, and the line below says in words that the two
+    # denominators differ.
+    census_rows = 0
+    col_total = 0.0
+    col_rows = 0
+    for r in rows:
+        out = r.get("out") if isinstance(r.get("out"), dict) else {}
+        tr = out.get("trace") if isinstance(out.get("trace"), dict) else {}
+        ju = (r.get("judge") or {}).get("_usage") if isinstance(r.get("judge"), dict) else None
+        _w = _turn_cost_usd(tr.get("synth_usage"))
+        if _w is not None:
+            col_total += float(_w)
+            col_rows += 1
+        total, by_seat = _turn_cost_total_usd(tr, ju if isinstance(ju, dict) else None)
+        if not _tc_second_seat(by_seat):
+            continue
+        census_rows += 1
+        for k, v in by_seat.items():
+            seats[k] += float(v)
+            seat_rows[k] += 1
+        tier = str((((out.get("intent_decision") or {}).get("mode")) or {}).get("honored") or "(none)")
+        by_tier.setdefault(tier, []).append(float(total or 0.0))
+        for name, u in (("writer", tr.get("synth_usage")), ("dispatch_planner", tr.get("plan_usage"))):
+            if isinstance(u, dict):
+                acc = cache.setdefault(name, [0, 0])
+                acc[0] += int(u.get("cache_read") or 0)
+                acc[1] += int(u.get("cache_write") or 0)
+        if isinstance(tr.get("numbers_usage"), list):
+            acc = cache.setdefault("numbers", [0, 0])
+            for u in tr["numbers_usage"]:
+                if not isinstance(u, dict):
+                    continue
+                numbers_rounds += 1
+                acc[0] += int(u.get("cache_read") or 0)
+                acc[1] += int(u.get("cache_write") or 0)
+                if int(u.get("cache_read") or 0) == 0 and int(u.get("cache_write") or 0) > 0:
+                    cold += 1
+    if not seats:
+        return []
+    # `or None` AND NOT `or 1` (round-2 review m1): an EMPTY map is already guarded above, but a map
+    # that SUMS to exactly $0.00 is not -- measured, a row whose writer model is `(unavailable)`
+    # (unpriced, correctly omitted) beside one all-zero-token numbers round gives `{'numbers': 0.0}`
+    # and the share below raised ZeroDivisionError. `report()` runs ONCE per deck after a paid arm, so
+    # a raise here loses the ARTIFACT and not a row. A share of nothing is not printed; it is omitted.
+    tot = sum(seats.values()) or None
+    L = ["## Spend (the cost census: every STAMPED seat, priced by providers.serving_cost_usd)", ""]
+    _w_share = (f"; the writer is ${seats.get('writer', 0.0):.4f} of that "
+                f"-- {seats.get('writer', 0.0) / tot:.0%}") if tot else ""
+    L.append(f"- **total ${sum(seats.values()):.4f}** over the {census_rows} of {len(rows)} row(s) "
+             f"that stamped a seat BEYOND the writer{_w_share}")
+    L.append(f"- the `turn_cost_usd` column (the WRITER alone, unchanged and still the cross-wave "
+             f"column) sums to ${col_total:.4f} over all {col_rows} row(s) of this deck that stamped "
+             f"a writer. THAT IS A DIFFERENT DENOMINATOR: on a deck where most rows stamped no second "
+             f"seat the census total is the SMALLER number, and the difference between the two is not "
+             f"a saving, an overrun or a delta -- it is two populations. Compare per-seat lines.")
+    for k, v in sorted(seats.items(), key=lambda kv: -kv[1]):
+        L.append(f"  - {k}: **${v:.4f}** over {seat_rows[k]} row(s) (${v / seat_rows[k]:.4f}/row)")
+    for tier, vals in sorted(by_tier.items()):
+        # "(turn + judge)" AND NOT "(every stamped seat)" (round-2 review m2): the judge is not part of
+        # the turn, it is what MEASURING the turn costs, and `_turn_cost_total_usd`'s own docstring says
+        # conflating the two is how a measurement instrument gets billed to a product. The scalar keeps
+        # the judge so the map and the total agree, and the LABEL now says so -- a reader scaling this
+        # line to production over-counts by ~9% otherwise (judge $2.90 of a ~$35 cell).
+        L.append(f"- tier `{tier}`: ${sum(vals):.4f} over {len(vals)} turn(s), "
+                 f"mean **${sum(vals) / len(vals):.4f}/turn** (every stamped seat, turn + judge)")
+    for name, (rd, wr) in sorted(cache.items()):
+        if rd or wr:
+            L.append(f"- cache `{name}`: read {rd:,} / written {wr:,} tokens -- "
+                     f"**{rd / (rd + wr):.0%} of the prefix traffic was a READ** (a read costs 0.1x "
+                     f"input, a write 1.25x, so a low share here is money spent to buy nothing back)")
+    if numbers_rounds:
+        L.append(f"- numbers-agent rounds: {numbers_rounds}; **COLD prefix writes (cache_read == 0 on a "
+                 f"round that wrote): {cold}** -- each one is a full re-write of the agent's ~99 k-token "
+                 f"system prefix (~$0.37). Staggering concurrent submissions is the cheapest lever "
+                 f"measured on this arm (~$3, ~9%, for zero change to any measured byte)")
+    L.append("- NOT IN ANY FIGURE ABOVE: Cohere rerank (volume is in `rerank_lane`, dollars are on "
+             "Cohere's own invoice -- there is no Cohere price table in this repository), and any "
+             "seat that ran unpriced (an unknown model is OMITTED from the map, never zeroed)")
+    return L
+
 
 def _n_halluc(j: dict) -> int:
     """Judge hallucination ITEM count, type-safe: a string-typed field is ONE claim, never its
@@ -4574,6 +4986,12 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
     _state_panel = state_report(rows)
     if _state_panel:
         lines += _state_panel + [""]
+    # LANE F: the cost census. ABSENT unless a row carries a seat beyond the writer, so every banked
+    # report of every flag-off deck is byte-identical -- `spend_report` returns [] and the `if` never
+    # adds the blank line either (the `state_report` idiom one screen up, same reason).
+    _spend_panel = spend_report(rows)
+    if _spend_panel:
+        lines += _spend_panel + [""]
     lines += verifier_panel(  # CYCLE-8 FIX 4: ids name the turns the citation verifier never ran on
         [(r["out"].get("trace") or {}).get("citation_verifier") for r in rows],
         [(r.get("q") or {}).get("id") for r in rows]) + [""]
@@ -4630,6 +5048,24 @@ def estimate_cost(queries: list[dict], *, model: str, judge_model: str | None = 
     # ⚠ Q-0 S0 DEMOTION (refuter-measured): this 3.5k-token turn model is ~11x LOW on max-tier
     # cascade decks (~60k-token turns). It remains the dry-run printout ONLY -- it is NOT the
     # covenant/balance guard; pre-submit checks use the wave's own measured per-turn anchors.
+    #
+    # LANE F RE-PRICE, 2026-09-17, FROM THE IN-VPC PRE-ARM SMOKE (COST_LATENCY.md sec 2.3-2.4) --
+    # READ THIS BEFORE QUOTING THE PRINTOUT BELOW TO ANYONE. It is wrong in FOUR named ways, not one:
+    #   1. ~19x LOW ON INPUT, not 11x: measured 65,000-83,000 prompt tokens (in + cache_read +
+    #      cache_write) per turn and 2,840-7,504 out, against the 3,500 / 900 modelled here;
+    #   2. THE NUMBERS AGENT IS THE WRONG SEAT AND THE WRONG SHAPE: modelled below as Haiku, ~2 calls,
+    #      2,500 in / 400 out. MEASURED: claude-sonnet-5, 5-6 rounds a turn, 1,500-8,500 out tokens,
+    #      and a 99,207-token cached prefix re-read EVERY round -- $0.24-0.28/turn, not ~$0.01;
+    #   3. THE REWRITE, THE DISPATCH PLANNER AND THE JUDGE ARE ABSENT FROM `turn_cost_usd` ENTIRELY,
+    #      so scaling that column under-counts by ~35% before any cache-write term;
+    #   4. THE COLD PREFIX WRITE ($0.372 a time, 4 to 12 times an arm) was in nobody's model.
+    # ARM A AS IT NOW PRICES -- 34 turns, ONE CELL, judged: **~$35, range $30-42, ~$1.03/turn**,
+    # six seats: writer $18.22, numbers agent $8.84 (+$1.27 conversation cache-writes), judge $2.90,
+    # desk rewrite $0.40, dispatch planner $0.40, numbers COLD PREFIX writes $1.49-$4.46. A PAIRED
+    # A/B doubles the answer seats and the judge: ~$67-84. Cohere rerank is on top and unpriceable
+    # here. THE OLD $33.5-$56.6 / ~$45 BAND BRACKETED THE RIGHT ANSWER WITH A WRONG MODEL in both
+    # directions; the errors partly cancelled, which is why nobody caught it. `spend_report` prints
+    # the MEASURED version after a run; this function stays the dry-run printout it always was.
     ap = _PRICE.get(model, _PRICE["claude-sonnet-4-6"])
     usd = len(queries) * (3500 * ap[0] + 900 * ap[1])
     out = {"queries": len(queries), "model": model, "answer_usd": round(usd, 2), "est_usd": round(usd, 2)}

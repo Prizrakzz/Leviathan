@@ -194,6 +194,12 @@ def _fmt(v, places: int = 2) -> str:
 # ---------------------------------------------------------------------------------------------------
 CONFIDENCE_WORDS: dict = {"high": "high", "medium": "medium", "low": "low"}
 
+#: The SAME three words as an ORDER, strongest first. It is a separate constant because the map above
+#: is a VOCABULARY (what the reader is told) and this is a RULE (which of two names for one reading a
+#: page should be read under). One table, so a fourth confidence word cannot rank silently as "unknown"
+#: in one caller and print as itself in another. ``watch.rank_key``'s own ladder is the same order.
+CONFIDENCE_RANK: dict = {"high": 0, "medium": 1, "low": 2}
+
 #: A run's direction as a word. ``streak`` returns ``up``/``down``; the board never says "improving".
 RUN_DIRECTION_WORDS: dict = {"up": "rising", "down": "falling"}
 
@@ -262,21 +268,22 @@ ABSENCE_WHY: dict = {
     # edge
     "sign_undeclared": "the graph declares no direction on this link",
     "lag_unparsed": "the graph declares a lag the table does not carry",
-    "far_series_other_table": "that board reads this driver from a different card, which is a different "
+    "far_series_other_table": "that market reads this driver from a different card, which is a different "
                               "series and not this one",
     "lag_undeclared_between_nodes": "the graph declares no lag between these two nodes, only each "
                                     "node's own lag onto the price",
     # fan / path / convergence
-    "fan_cap": "the far boards past this tier's fan are named here; their own states were not read",
-    "board_unlabeled": "that board carries this driver with no series label",
-    "child_uncovered": "that board does not carry this driver",
-    "render_cap": "the rows past this tier's render cut are named here",
+    "fan_cap": "the further markets past this tier's fan are named here; their own readings were not "
+               "taken",
+    "board_unlabeled": "that market carries this driver with no series label",
+    "child_uncovered": "that market does not carry this driver",
+    "render_cap": "the readings past this tier's render cut are named here",
     "edge_hop_cap": "this tier walks the links in one direction only",
-    "when_not_all_loud": "the drivers this amplifier names do not all sit among this board's loudest "
-                         "rows",
+    "when_not_all_loud": "the drivers this amplifier names are not all among the largest moves on this "
+                         "page",
     # tape
-    "no_tape_slug": "no per-contract tape is served for this board",
-    "pre_coverage": "the as-of sits before this board's own tape coverage begins",
+    "no_tape_slug": "no per-contract price history is served for this market",
+    "pre_coverage": "the as-of sits before this market's own price history begins",
     "front_decline": "the front delivery month could not be named by the roll rule on this session",
     "changes_thin": "the same-contract series is shorter than the changes this row would print",
     "percentile_thin": "there are too few sessions on this contract for a standing",
@@ -292,7 +299,7 @@ ABSENCE_WHY: dict = {
     "near_unreachable": "the date named in the question has a band that has not closed",
     # watch
     "no_calendar_rule": "no release rule is declared for this series",
-    "rule_unverified": "the publisher states its next date rather than following a rule this board can "
+    "rule_unverified": "the publisher states its next date rather than following a rule this page can "
                        "compute",
     "no_convention": "no desk line is declared for this series",
     "no_open_window": "no declared lag window is open on this row",
@@ -320,9 +327,9 @@ ABSENCE_WHY: dict = {
     "release_dates_only": "these are scheduled publication dates the publishers set, named once here "
                           "rather than as items to watch",
     # render / board
-    "template_register_trip": "a line this board composed did not pass its own register check and was "
+    "template_register_trip": "a line this page composed did not pass its own register check and was "
                               "replaced by this note",
-    "pg_not_live": "the reader this board uses is not available on this turn",
+    "pg_not_live": "the reader behind these readings is not available on this turn",
     "anchor_none": "the question named no market this estate tracks",
     "turn_spend_unknown": "this turn's own read count is not available to the board",
     "lane_off": "this turn does not run the board",
@@ -479,7 +486,7 @@ def table_words(table: str) -> str:
     return ascii_text(_display.table_label(str(table or "")))
 
 
-#: ── S8 DOCKET, POLISH (c): A STATE ROW NAMES ITS SOURCE AND NEVER ITS METRIC ─────────────────────
+#: ── S8 DOCKET, POLISH (c): A STATE ROW NAMES ITS SOURCE AND NEVER ITS METRIC ── CLOSED 2026-09-17 ──
 #: MEASURED AND WITHDRAWN AT S7 ROUND 2. The defect is real and is verbatim from the banked S4 blocks:
 #: ``soybeans_cbot__quick`` printed ``Brazil export tax on CBOT soybeans, USDA PSD for 2026: ...`` --
 #: the DAG node is ``Brazil_export_tax`` (``type: policy_event``, ``silver_ref: export`` ->
@@ -492,6 +499,176 @@ def table_words(table: str) -> str:
 #: WORSE by appending a storage-column word to a line that already read correctly. The mechanism that
 #: would work is a METRIC CARD on the ``cascade_map`` row -- reader words declared beside the ref, not
 #: derived from a column name -- and that is a config change, so it is S8's and not this sitting's.
+#:
+#: **CLOSED BY THE 2026-09-16 PRE-ARM SMOKE, WHICH SERVED THE DEFECT TO A FUND PM.** The lens read
+#: "Argentine export tax sits at 6.65 MMT" (a tax rate in a tonnage unit), "Brazilian supply 118 MMT"
+#: over a PSD EXPORTS row and "Flash-drought reading 0.6 z" over ``gold_weather_z.drought_z``. The
+#: docket's own remedy is taken exactly as it is written -- reader words DECLARED, never derived -- and
+#: the declaration lives in ``state_conventions.yaml``'s own ``reading_words:`` key because
+#: ``cascade_map.yaml`` is gitignored and generator-owned (the 09-15 law). :func:`reading_words` is the
+#: ONE reader; an undeclared metric renders no clause at all, so the S7 failure mode -- a storage token
+#: appended to a line that read correctly -- is unreachable by construction.
+@lru_cache(maxsize=1)
+def _reading_word_table() -> dict:
+    """The declared ``reading_words`` book. Lazily imported: ``state/lint.py`` reads THIS module's
+    :data:`ROW_CLASSES`, so a module-level import here would close a cycle."""
+    try:
+        from leviathan.graphrag.state import lint as _lint
+        return dict((_lint.load_conventions() or {}).get("reading_words") or {})
+    except Exception:                                   # noqa: BLE001 -- no book is no clause, never a raise
+        return {}
+
+
+def cache_clear() -> None:
+    """Drop the two DECLARED BOOKS this module memoises (review round 2, minor 10).
+
+    :func:`_reading_word_table` and :func:`_phase_pair_table` are ``lru_cache(maxsize=1)`` over
+    ``lint.load_conventions()``, which the conventions file's own reload can move. ``feeders.cache_clear``
+    calls this, so one call clears the whole state lane's memo -- a deck or a process that re-read the
+    conventions can no longer keep grading the book it read first."""
+    for fn in (_reading_word_table, _phase_pair_table):
+        try:
+            fn.cache_clear()
+        except Exception:                               # noqa: BLE001
+            pass
+
+
+def reading_words(table: str, metric: str) -> str:
+    """WHAT THE NUMBER IS, in reader words, from the DECLARED table -- or ``''``.
+
+    The exact ``{table}.{metric}`` key wins; ``{table}.*`` is the card-wide default and exists for the
+    one measured case a static table cannot enumerate (``silver_fred_fx``, whose metric is swapped for
+    the resolved region's currency by ``cascade._region_row``). EMPTY IS A REAL ANSWER and is the whole
+    fail-closed property: an undeclared metric prints nothing rather than a storage column name, which
+    is the S7 revert's measured failure mode. ``state/lint.py`` clause 13 fails the build when any
+    ``(table, metric)`` pair on the board map has no entry, so 'nothing' can only ever mean a card the
+    board does not read."""
+    t, m = str(table or ""), str(metric or "")
+    book = _reading_word_table()
+    return ascii_text(book.get(f"{t}.{m}") or book.get(f"{t}.*") or "")
+
+
+#: THE PHASE-PAIR BOOK (see ``state_conventions.yaml``'s own ``phase_pairs:`` header for the defect).
+@lru_cache(maxsize=1)
+def _phase_pair_table() -> dict:
+    try:
+        from leviathan.graphrag.state import lint as _lint
+        doc = _lint.load_conventions() or {}
+        return {"pairs": dict(doc.get("phase_pairs") or {}),
+                "conventions": dict(doc.get("conventions") or {})}
+    except Exception:                                   # noqa: BLE001
+        return {"pairs": {}, "conventions": {}}
+
+
+def phase_in_force(table: str, metric: str, level) -> dict:
+    """WHICH PHASE OF A SIGNED CLIMATE INDEX THE READING ACTUALLY IS -- ``{}`` when the ref declares no
+    pair, when the level is unreadable, or when the ``conventions:`` entry it names is not ``abs_bands``.
+
+    THE THRESHOLD IS THE CONVENTION'S OWN FIRST BAND and is never re-typed here: ONI's 0.5 degC is
+    ``silverleg._ONI_INTENSITY_BANDS[0]`` (lint-pinned identical), IOD's 0.4 degC is the BoM/JMA event
+    cut. One number, one owner -- a phase sentence can never disagree with the band word the SB-1 row
+    above it printed.
+
+    Returns ``{driver, words, other_driver, other_words, in_force, band}``. ``in_force`` is False when
+    the magnitude sits inside the line: NEITHER phase is declared, which is itself the fact the writer
+    needs, and the caller renders it as such rather than picking the nearer side."""
+    book = _phase_pair_table()
+    pair = (book["pairs"] or {}).get(f"{table}.{metric}")
+    if not pair:
+        return {}
+    conv = (book["conventions"] or {}).get(str(pair.get("convention") or ""))
+    if not conv or str(conv.get("kind")) != "abs_bands" or not (conv.get("bands") or []):
+        return {}
+    try:
+        v = float(level)
+        band = float((conv.get("bands") or [])[0])
+    except (TypeError, ValueError, IndexError):
+        return {}
+    hot = v >= 0
+    side, other = (pair.get("positive") or {}), (pair.get("negative") or {})
+    if not hot:
+        side, other = other, side
+    return {"driver": str(side.get("driver") or ""), "words": str(side.get("words") or ""),
+            "other_driver": str(other.get("driver") or ""),
+            "other_words": str(other.get("words") or ""),
+            "in_force": abs(v) >= band, "band": band}
+
+
+def phase_reading(st) -> tuple:
+    """``(level, is_current)`` -- THE LEVEL A PHASE VERDICT IS READ OFF, and it is not always the row's.
+
+    REVIEW ROUND 2, MAJOR 10. The first cut read :func:`phase_in_force` off ``_rows[0].state.level`` --
+    which on a row carrying a DECLARED SAME-SERIES OFFSET is the SHIFTED reading, six months back on the
+    palm board. The line then said "the phase in force at this reading is the cool phase" while the very
+    same row minted "[N] the newest knowable reading of the same series is +0.98 degC" one line above:
+    the page stated a phase that its own newest figure contradicts, which is the smoke's charge ("the
+    writer built a palm supply-squeeze story on a cool number") re-created by the fix for it.
+
+    THE PHASE IN FORCE IS A FACT ABOUT NOW, so it is read off the NEWEST KNOWABLE reading wherever the
+    producer banked one (``feeders.series_state``'s ``recency['current_level']``), and off the row's own
+    level everywhere else. The second element says WHICH, and :func:`_phase_clause` prints it -- a
+    verdict read off a different figure from the one above it must say so."""
+    cur = getattr(st, "recency", None) or {}
+    if _offset_applied(st) and cur.get("current_level") is not None:
+        return cur["current_level"], True
+    return getattr(st, "level", None), False
+
+
+def phase_for_state(st) -> dict:
+    """:func:`phase_in_force` over :func:`phase_reading`'s level -- the ONE phase producer.
+
+    Both consumers read it: the SB-JOIN line (which states the phase in words) and the quorum row
+    (which must not count a pattern condition that is the OPPOSITE phase of the one in force). Two
+    readers, one verdict, so a page can never declare the cool phase on one line and count the warm
+    phase's driver as showing on another."""
+    if st is None:
+        return {}
+    lvl, current = phase_reading(st)
+    pf = phase_in_force(getattr(st, "table", ""), getattr(st, "metric", ""), lvl)
+    if not pf:
+        return {}
+    cur = getattr(st, "recency", None) or {}
+    return dict(pf, current=bool(current),
+                current_date=str(cur.get("current_level_date") or "") if current else "",
+                offset_periods=int(cur.get("offset_periods") or 0) if current else 0,
+                cadence=str(getattr(st, "cadence", "") or ""))
+
+
+def series_by_driver(bd) -> dict:
+    """``{driver_id: {key, confidence, sign, phase}}`` FOR THE WHOLE BOARD -- the ONE fold map.
+
+    REVIEW ROUND 2, MAJORS 4 AND 5. Round 1 built this map inline in :func:`render_board` from the
+    RENDERED rows and handed it to :func:`sb_convergence` alone, so (a) the quorum's fold applied
+    neither the declared-pair nor the sign guard the SB-JOIN fold applies -- two lines on one page could
+    call one group "aliases" and "a contradiction the page cannot reconcile" -- and (b) the WATCH
+    producer, which narrates the same pattern's count in its own sentence, never saw it at all: the b40
+    quorum read "one of the two conditions ... export ban and DMO are one reading and count once here"
+    while the watch row read "one of TWO of the two drivers" for the same pattern on the same page.
+
+    ONE PAGE, ONE PATTERN, ONE COUNT: every consumer takes this map, and it is built off ``bd.rows`` --
+    the rows the page READ -- because that is the population ``bd.convergence``'s own ``matched_measured``
+    was computed over. A driver the render cut still read its series; a driver with no state is absent
+    and is therefore distinct by construction."""
+    out: dict = {}
+    for row in getattr(bd, "rows", ()) or ():
+        st = getattr(row, "state", None)
+        # THE STATUS IS READ THE SAME DEFENSIVE WAY THE STATE IS, one line up (review round 3). This map
+        # is now built inside `watch.stamp_release_clock` as well, which runs on every drawn nomination,
+        # and a producer that RAISES there takes the whole watch draw with it: an object carrying no
+        # status word is not a measured reading, which is exactly what this loop already skips.
+        if st is None or status_word(getattr(st, "status", "") or "") != "ok":
+            continue
+        try:
+            key = st.key.label()
+        except Exception:                               # noqa: BLE001 -- an unlabelled key folds alone
+            continue
+        out.setdefault(str(row.driver_id), {"key": str(key),
+                                            "confidence": str(row.confidence or ""),
+                                            "sign": str(row.sign or ""),
+                                            "phase": phase_for_state(st)})
+    return out
+
+
 def pattern_label(name: str) -> str:
     """A convergence pattern id as reader words (``display.regime_label``), which also appends the
     declared direction in words. A raw regime id in prose is an ``internal_leaks`` hit by construction."""
@@ -589,9 +766,15 @@ ROW_CLASSES: dict = {
     # on `set(ROW_CLASSES)` and reds a class with no sample, and lint.py is outside this sitting's
     # allowlist -- so a new key would have shipped a red `config_check`. The alternation keeps the
     # existing SB-F sample classifying as exactly ("SB-F",) and adds no unsampled key.
-    "SB-F": re.compile(r"^(?:- the same reading is declared on |"
+    # THE FAN INDEX'S OPENING MOVED WITH ITS WORDS (lane D, 2026-09-17): "the same reading is declared
+    # on twenty-three other boards" named no SUBJECT and no market a reader could look at next, and the
+    # PM lens read it as scoring machinery. The class token is still the line's own opening and still
+    # letters-only; what changed is that the DRIVER leads it.
+    "SB-F": re.compile(r"^(?:- .+ is a shared driver across |"
                        + SB_CROSS_COMMODITY_PREFIX + r"[ :])"),
-    "SB-C": re.compile(r"^- .+ on .+: .+ of its .+ declared drivers sits? among "),
+    # ...and the quorum row's token likewise: "declared drivers sit among this board's loudest rows" is
+    # three internal words in one clause, and the row now says CONDITIONS MET and states the verdict.
+    "SB-C": re.compile(r"^- .+ on .+: .+ of the .+ conditions? it names (?:is|are) showing here "),
     "SB-M": re.compile(r"^  amplifier on "),
     "SB-P": re.compile(r"^UPSTREAM "),
     "SB-A": re.compile(r"^LIKE STATE "),
@@ -605,6 +788,13 @@ ROW_CLASSES: dict = {
     # must bind. The alternative -- dropping one member of a phase pair -- is a fence that DELETES,
     # which doctrine forbids: fences correct or compute.
     "SB-JOIN": re.compile(r"^BOARD JOIN "),
+    # SB-LEAD IS THE SECOND CLASS BEYOND SEC 6.2's TABLE, AND FOR THE SAME REASON SB-JOIN IS: it says
+    # something about the BLOCK'S OWN ORDER rather than about a row's content. ROUND-2 DOCKET item 12
+    # asks for the three largest moves to be unmissable -- first in the block, one line each -- and no
+    # declared class can carry that, because SB-1 is a row's own figures and SB-X is an absence. It is
+    # letters-only, mints no handle and asserts no magnitude, so it adds nothing to the [N] address
+    # space and nothing the verifier must bind.
+    "SB-LEAD": re.compile(r"^LARGEST MOVE "),
 }
 
 #: The classes that may carry a charged digit. Every OTHER class is letters-plus-dates only, and
@@ -641,9 +831,17 @@ def sb_header(bd, *, anchor_label: str = "", n_series: Optional[int] = None,
                        if r.state is not None and status_word(r.state.status) == "ok")
     if n_receipts is None:
         n_receipts = sum(1 for r in bd.rows if (r.receipts or {}).get("n"))
+    # ONE SERIES, ONE CURRENT VALUE (lane D, the 2026-09-16 smoke). The deep page served the US drought
+    # anomaly TWICE and called both current: "0.6 z [N44]" -- the MY2026-07 monthly LEVEL, this block's
+    # own row -- and "2.24909 z [N82]", a statistic over a 2025-09..2026-09 WINDOW that reached the page
+    # from the cascade's episode leg, both footnoted "newest shown". The block cannot police a figure it
+    # did not mint, so it states its OWN contract instead, once, where the reader meets it first: every
+    # figure on a state line below is that reading's LEVEL on the date the line names.
     return (f"{SB_MARKER_PREFIX}{bd.asof} for {label}: {words_for_int(n_series)} drivers read on "
             f"their own series, {words_for_int(n_receipts)} carried as dated receipts; "
-            f"{rule_words}.")
+            f"{rule_words}. Every figure on a state line below is that reading's LEVEL on the date "
+            f"the line names; a figure read over a span of dates is a window statistic and is never a "
+            f"second current value of the same series.")
 
 
 def sb_state(n: int, row, *, asof: str, age_clause: str = "") -> tuple:
@@ -694,6 +892,16 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "") -> tuple:
         calls.append(sb_call(value=st.level_shown, unit=unit, knowledge_date=st.knowledge_date,
                              role=st.role, **q))
         parts.append(f"- [N{h}] {label} on {board_label(row.contract)}, {reader} for {period}: {lvl}")
+        # WHAT THE NUMBER ACTUALLY IS (lane D, the 2026-09-16 pre-arm smoke). The head names the DRIVER
+        # and the SOURCE CARD and never the QUANTITY, so a policy node sitting on a volume column
+        # reached the PM as a policy figure: "Argentine export tax sits at 6.65 MMT", "Brazilian supply
+        # 118 MMT" over a PSD EXPORTS row. The words are DECLARED (`state_conventions.reading_words`,
+        # the S8 docket's own remedy) and never derived from the column name, and the clause is printed
+        # only where it ADDS something -- a reading whose words already are the driver's name says
+        # nothing twice.
+        _rw = reading_words(q["table"], q["metric"])
+        if _rw and _norm_words(_rw) != _norm_words(label):
+            parts.append(f"the reading is {_rw}")
         if _ok(st.z):
             h += 1
             win = st.z.get("window_n") or st.z.get("window") or st.z.get("n")
@@ -734,6 +942,38 @@ def sb_state(n: int, row, *, asof: str, age_clause: str = "") -> tuple:
         parts.append(age_clause)
     if st.vintage_note:
         parts.append(st.vintage_note)
+    # THE NEWEST KNOWABLE READING OF THE SAME SERIES, BESIDE THE LAGGED ONE (lane D, the 2026-09-16
+    # pre-arm smoke). MEASURED on two served quick turns: the palm board printed
+    # "NOAA ONI ... MY2026-01 = -0.39 degC (latest available 2026-03-08)" -- a COOL-phase reading --
+    # while the soybean board at the SAME as-of printed MY2026-07 = 1.8 degC off this same table, and
+    # the writer built a palm supply-squeeze on the cool number. The shift is the palm author's own
+    # DECLARED EFFECT LAG and is not a defect; what WAS a defect is that the only words beside it read
+    # "latest available", which a reader takes for DATA LATENCY. The level does not move -- CORRECT or
+    # COMPUTE, never delete -- and the board now serves BOTH readings and says which is which, with the
+    # newest one carrying its own handle so the writer may print it.
+    _cur = getattr(st, "recency", None) or {}
+    if _offset_applied(st):
+        # (i) THE WORDS, on every row whose declared offset was actually performed.
+        _n_off = int(_cur.get("offset_periods") or st.offset_months or 0)
+        parts.append(f"the date above is {words_for_int(_n_off)} "
+                     f"{period_noun(st.cadence, _n_off)} back because that is this market's OWN "
+                     f"declared effect lag on this series, not a publication delay")
+        # (ii) THE FIGURE, where the producer banked the pre-shift newest row. It takes its own handle,
+        # so a writer that prints the current reading prints a BACKED one.
+        if not st.flag_state and _cur.get("current_level") is not None:
+            h += 1
+            _cv = shown_value(_cur["current_level"], getattr(st, "scale", 1.0) or 1.0)
+            _cd = str(_cur.get("current_level_date") or "")
+            _ckd = _cur.get("current_knowledge_date") or st.knowledge_date
+            calls.append(sb_call(value=_cv, unit=unit, knowledge_date=_ckd, **dict(q, period=_cd)))
+            _for = f" for {_cd}" if _cd else ""
+            # THE SAME SIGN RULE THE LEVEL ABOVE TOOK (review round 2, minor 6). The first cut formatted
+            # this one with `_fmt`, so on a two-sided `abs_bands` series the level printed "-0.67 degC"
+            # and the newest knowable reading printed "1.8 degC" -- the same series, one line apart, one
+            # of them stripped of the sign that says which PHASE it is.
+            _two_sided = bool(st.convention and st.convention.get("kind") == "abs_bands")
+            parts.append(f"[N{h}] the newest knowable reading of the same series is "
+                         f"{_signed_words(_cv, unit, _two_sided)}{_for}")
     if st.offset_note:
         parts.append(offset_words(st))
     line = "; ".join(parts) + series_tag(commodity=board_label(row.contract), country=q["country"],
@@ -788,12 +1028,55 @@ def _level_words(st) -> str:
     v = st.level_shown
     if v is None:
         return "no level was read"
+    return _signed_words(v, unit, two_sided)
+
+
+def _signed_words(v, unit: str, two_sided: bool) -> str:
+    """ONE value in analyst units under :func:`_level_words`' own sign rule -- extracted so a SECOND
+    figure of the same series (the newest knowable reading) cannot print under a different one."""
+    if v is None:
+        return "no level was read"
     body = f"{v:+.2f}".rstrip("0").rstrip(".") if (two_sided or v < 0) else _fmt(v)
     return f"{body} {unit}".strip()
 
 
 def _ok(measure) -> bool:
     return bool(measure) and not measure.get("declined") and measure.get("value") is not None
+
+
+def _offset_applied(st) -> bool:
+    """Was this row's DECLARED same-series offset actually performed on the array?
+
+    THE PRODUCER SAYS SO IN A BOOLEAN (review round 2, minor 5). ``feeders.series_state`` sets
+    ``recency['offset_applied']`` in the ONE branch that actually performs the shift. The first cut
+    instead searched ``offset_note`` for the literal :data:`feeders.OFFSET_NOT_APPLIED` and called that
+    a one-literal contract -- but FOUR writers set ``apply_offset=False``, and two of them (a ``_Fold``
+    refusal on an absent base ref, and one on a different table or native unit) write a note carrying
+    neither the literal nor a shift, so the row would have told a reader that its date is an effect lag
+    over an UNSHIFTED level. Unreachable on today's shipped map (exactly one ``same_series_as`` row,
+    same table, same native unit) and reachable the moment the generator adds a second. The literal
+    search survives as the FALLBACK, for a row banked before the flag existed. Imported lazily --
+    ``feeders`` imports this module for its display vocabulary."""
+    if not getattr(st, "offset_months", 0):
+        return False
+    _rec = getattr(st, "recency", None) or {}
+    if "offset_applied" in _rec:
+        return bool(_rec["offset_applied"])
+    try:
+        from leviathan.graphrag.state.feeders import OFFSET_NOT_APPLIED
+    except Exception:                                   # noqa: BLE001
+        return False
+    return OFFSET_NOT_APPLIED not in str(getattr(st, "offset_note", "") or "")
+
+
+_NORM_RX = re.compile(r"[^a-z0-9]+")
+
+
+def _norm_words(s: str) -> str:
+    """Two label spellings compared as WORDS: lower-cased, punctuation-folded, leading article dropped.
+    'the crush' and 'Crush' are one label; 'exports' and 'Argentina export tax' are not."""
+    t = _NORM_RX.sub(" ", str(s or "").lower()).strip()
+    return t[4:] if t.startswith("the ") else t
 
 
 def sb_convention(n: int, row, *, distance, band, label: str, unit_words: str, direction: str,
@@ -834,7 +1117,7 @@ def sb_edge(row, *, far: Optional[dict] = None) -> str:
     else:
         driver, board = humanise(far["driver_id"]), board_label(far["contract"])
         sign, band, conf = far["sign"], far["lag_band"], far["confidence"]
-        tail = (" -- the same reading this board carries, read on that graph's own edge"
+        tail = (" -- the same reading this page carries, read on that market's own edge"
                 if far.get("free") else "")
     return (f"- {driver} is declared to move {board} {sign_words(sign)} with a lag the graph states "
             f"as {band_words(band)}, at {CONFIDENCE_WORDS.get(conf, 'medium')} confidence{tail}")
@@ -903,9 +1186,9 @@ def sb_cross_commodity(names, *, anchor: str = "") -> str:
     :func:`board_label`, the count through :func:`words_for_int`, and no digit reaches the line."""
     named = sorted({str(n) for n in names if n})
     body = ", ".join(named)
-    seat = f"the loud readings on {anchor}" if anchor else "this board's loud readings"
+    seat = f"the largest moves on {anchor}" if anchor else "the largest moves on this page"
     return (f"{SB_CROSS_COMMODITY_PREFIX}: {seat} are declared on {words_for_int(len(named))} other "
-            f"{'market' if len(named) == 1 else 'markets'} -- {body} -- and each of the rows above "
+            f"{'market' if len(named) == 1 else 'markets'} -- {body} -- and each of the readings above "
             f"carries that market's own sign words and the lag words the graph states for it.")
 
 
@@ -932,7 +1215,8 @@ def sb_path(path: dict, *, anchor: str, handles=()) -> str:
     declared band onto the anchor price -- never a sum along the hops (doctrine M-4)."""
     chain = " -> ".join(humanise(h) for h in path["hops"])
     hs = "".join(f"[N{h}]" for h in handles)
-    tail = f"; the measured rows on it are {hs}" if hs else "; no row on it carries a measured state"
+    tail = (f"; the measured readings on it are {hs}" if hs
+            else "; no reading on it carries a measured state")
     lbl = board_label(anchor)
     hops_word = "hop" if int(path["depth"]) == 1 else "hops"
     return (f"UPSTREAM {chain} -> {lbl}: the graph places {humanise(path['hops'][0])} "
@@ -973,18 +1257,55 @@ def sb_fan(entry: dict, *, names_cap: int = 0) -> str:
     # printed a count and no name at all would state a split the reader cannot see.
     head_cap = min(len(head), max(1, cap - 1)) if (cap and rest) else (cap if cap else 0)
     rest_cap = max(0, cap - min(len(head), head_cap)) if cap else 0
-    body = (f"{sign_words(head_sign)} on {words_for_int(len(head))} "
-            f"({name_list(head, head_cap, noun='boards')})")
+    body = (f"declared {sign_words(head_sign)} on {words_for_int(len(head))} of them "
+            f"({name_list(head, head_cap, noun='markets')})")
     if rest:
         other_sign = sorted(s for s in by_sign if s != head_sign)[0]
         body += (f" and {sign_words(other_sign)} on the rest "
-                 f"({name_list(rest, max(1, rest_cap) if cap else 0, noun='boards')})")
+                 f"({name_list(rest, max(1, rest_cap) if cap else 0, noun='markets')})")
     n = len(far)
-    return (f"- the same reading is declared on {words_for_int(n)} other "
-            f"{'board' if n == 1 else 'boards'}: {body}")
+    # THE FAN IN WORDS A PM READS (lane D, the 2026-09-16 smoke). HEAD rendered "the same reading is
+    # declared on twenty-three other boards: ..." and the writer transcribed it as "declared on
+    # twenty-three other markets, twenty-two in the same direction" -- which the PM lens read as
+    # SCORING MACHINERY: a count with no subject and no market a reader could look at next. The count
+    # and the split are untouched (they are what "the graph decides relevance" makes visible); what is
+    # added is the SUBJECT -- the driver -- and the two markets nearest this question, taken from the
+    # fan payload itself by the same deterministic order the watch lane's `_nearest_far` uses.
+    who = humanise(entry.get("driver_id") or "") or "the same reading"
+    # THE POINTER IS ONLY WORTH PRINTING WHERE THE READER CANNOT PICK: on a two- or three-market fan
+    # the split above already names every one of them, and "the nearest two are A and B" under a list
+    # that reads "(A, B)" is the same sentence twice.
+    near = nearest_far_names(entry, k=2) if n >= 4 else []
+    tail = ""
+    if near:
+        tail = (f". The nearest {'one' if len(near) == 1 else 'two'} to this question "
+                f"{'is' if len(near) == 1 else 'are'} {_and_list(near)}")
+    return (f"- {who} is a shared driver across {words_for_int(n)} other "
+            f"{'market' if n == 1 else 'markets'} this estate tracks, {body}{tail}")
 
 
-def sb_convergence(row: dict) -> str:
+def nearest_far_names(entry: dict, k: int = 2) -> list:
+    """The far markets a reader should be pointed at FIRST: highest declared confidence, then soonest
+    declared band, then the market's own name.
+
+    IT IS ``watch._nearest_far``'s ORDER, RESTATED AND NOT IMPORTED -- ``watch`` imports this module for
+    its display vocabulary, so the arrow only goes one way. The deck pins the two against each other so
+    a change to either is a build failure rather than two lines on one page naming two different
+    "nearest" markets."""
+    rank = {"high": 0, "medium": 1, "low": 2}
+    scored = []
+    for f in (entry.get("far") or ()):
+        if not f.get("sign"):
+            continue
+        band = f.get("lag_band")
+        minq = 99 if (band is None or getattr(band, "min_q", None) is None) else int(band.min_q)
+        scored.append(((rank.get(str(f.get("confidence") or ""), 3), minq,
+                        str(f.get("contract") or "")), str(f.get("contract") or "")))
+    scored.sort(key=lambda t: t[0])
+    return [board_label(c) for _, c in scored[: max(0, int(k))]]
+
+
+def sb_convergence(row: dict, *, series_of: Optional[dict] = None) -> str:
     """SB-C (sec 6.2, 3.5, B16): PROXIMITY IN WORDS, counts in words, and never "met", "fires" or "the
     regime is". Firing stays with ``firing.fire_contract`` over declared bands; this row says how close
     a declared pattern sits on THIS board at THIS as-of, which is a different question.
@@ -997,26 +1318,282 @@ def sb_convergence(row: dict) -> str:
     appear as BOARD ABSENCE rows lower in the same block. The COUNT was true and the promise was not: a
     writer told that four of four demand drivers are loud will narrate a measured demand collapse
     standing on nothing. Nothing is deleted -- the count stands, every name still reaches the reader --
-    and the row now says which names carry a figure and which carry no series to read."""
-    measured = [humanise(d) for d in (row.get("matched_measured") or row["matched"])]
-    unread = [humanise(d) for d in (row.get("matched_unmeasured") or ())]
-    named = (f"({', '.join(measured)}, "
-             f"{'with its own [N] z' if len(measured) == 1 else 'each with its own [N] z'})"
-             if measured else "(none of those rows carries a state read on this board)")
+    and the row now says which names carry a figure and which carry no series to read.
+
+    **"ARE SHOWING HERE" IS NOW SAID ONLY OF THE ROWS THAT WERE READ** (review round 2, MAJOR 9). Round
+    1 kept HEAD's single leading count -- distinct series PLUS the text-only names -- under the verb
+    "are showing here", and rendered "four of the four conditions it names are showing here (export pace
+    lag, with its own [N] z); three of them carry no series read here (China import tariff, section301
+    tariffs and China state reserves)". HEAD's "sit among this board's loudest rows" was a claim about
+    RANK and survived that arithmetic; "are showing" is a claim about OBSERVATION and the next clause
+    denies it for three of the four. The sentence now leads with the READ count under that verb, states
+    the unread ones as NAMED BY THE PATTERN, and then states the total the two make -- which is the
+    number the threshold comparison uses, so nothing is deleted and no count changes.
+
+    **AND A CONDITION READ IN THE OPPOSITE PHASE IS NOT A CONDITION MET** (review round 2, MAJOR 10).
+    The b40 page declared the cool phase in force on its ONI reading and, fifteen lines below, counted
+    ``El_Nino`` into "five of the six conditions it names are showing here" -- the exact story the smoke
+    charged. Loudness ranks the UNSIGNED state and is phase-blind, so both members of a declared phase
+    pair land loud on one reading; a pattern that asks for the WARM phase is not met by a COOL reading.
+    The name is NEVER struck -- it is stated, with the reason -- and the count under-claims, which is the
+    only safe direction for a quorum."""
+    count = pattern_count(row, series_of)
+    fold = count["fold"]
+    measured = [humanise(d) for d in fold["keep"]]
+    opposed = [humanise(d) for d in fold["phase_opposed"]]
+    unread = [humanise(d) for d in count["unread"]]
+    n_measured = count["n_measured"]
+    n_distinct = count["n_distinct"]
+    n_declared = int(row["n_declared"])
+    cond = "condition" if n_declared == 1 else "conditions"
+    named = (f"({_and_list(measured)}, "
+             f"{'with its own [N] z' if n_measured == 1 else 'each with its own [N] z'})"
+             if measured else "")
+    if n_measured:
+        lead = (f"{words_for_int(n_measured)} of the {words_for_int(n_declared)} {cond} it names "
+                f"{'is' if n_measured == 1 else 'are'} showing here {named}")
+    else:
+        # THE PARENTHETICAL READS OFF `n_phase_opposed` AND NOT OFF `n_measured` (review round 3,
+        # NEW-3). After MAJOR 10 `n_measured == 0` stopped meaning "nothing was read": a pattern whose
+        # only series-bearing driver is the OUT-OF-FORCE member of a declared phase pair reads zero
+        # here, and this parenthetical then denied a reading the very next clause prints ("none of
+        # those drivers has a series read here; IOD negative names the phase opposite the one in force
+        # ON THAT READING"). Where a member WAS read, the opposed clause below states it by name and
+        # says why it is not counted, so the absence is stated once and never falsely.
+        lead = (f"none of the {words_for_int(n_declared)} {cond} it names is showing here "
+                f"(none of those drivers has a series read here"
+                + (" in the phase the pattern names)" if count["n_phase_opposed"] else ")"))
+    alias_clause, opposed_clause = fold_clause(fold)
     unread_clause = ""
-    if unread:
-        unread_clause = (f"; {words_for_int(len(unread))} of them "
-                         f"{'carries' if len(unread) == 1 else 'carry'} no series this board could "
-                         f"read ({', '.join(unread)})")
+    if unread and n_measured:
+        # "ARE COUNTED HERE", NOT "ARE ON THIS PAGE" (review round 3, NEW-2). `n_distinct` is the number
+        # the threshold comparison uses, and it is NOT the number of the pattern's names this page
+        # carries: a member read in the opposite declared phase is on the page, with its own [N] row and
+        # its own clause in this very sentence, and is deliberately left out of the count. The b40 board
+        # rendered "IOD negative names the phase opposite the one in force ..., so it is not counted
+        # here; ... so FOUR OF THE FIVE ARE ON THIS PAGE" over a page carrying five. The number did not
+        # move and must not: it is the quorum's, and it under-claims by construction. The VERB now says
+        # which number it is, and the two clauses add up -- four counted plus one not counted is five.
+        unread_clause = (f"; {words_for_int(len(unread))} more "
+                         f"{'is' if len(unread) == 1 else 'are'} named by the pattern with no series "
+                         f"read here ({_and_list(unread)}), so {words_for_int(n_distinct)} of the "
+                         f"{words_for_int(n_declared)} are counted here")
+    elif unread:
+        unread_clause = (f"; all {words_for_int(len(unread))} are named by the pattern with no series "
+                         f"read here ({_and_list(unread)})")
+    # THE COUNT AND THE NUMBER THE PATTERN ASKS FOR, IN PLAIN WORDS AND WITH NO FIRING CLAIM. Lane A's
+    # requested shape was a VERDICT ("the pattern is in force / NOT in force") with the threshold struck
+    # from prose. THE VERDICT IS REFUSED HERE AND THE REFUSAL IS THE ESTATE'S OWN: doctrine M-2 and
+    # `walk.CONVERGENCE_BANNED_WORDS` put FIRING with `firing.fire_contract` over declared bands and
+    # forbid this row the words "met", "fires" and "regime is" -- a board that says a pattern is in
+    # force has minted a verdict by arithmetic, which is the K9 class those words were banned for. What
+    # lane A's finding actually charges is the INTERNAL VOCABULARY ("declared drivers", "this board's
+    # twenty-four loudest rows", "the pattern's own threshold is two") and the unfalsifiable reading
+    # that came with it, and all of that goes: the row names the conditions, says how many are showing,
+    # says how many the pattern asks for, and does the comparison in words. The reader draws the verdict.
+    short = n_distinct < int(row["threshold"])
     return (f"- {pattern_label(row['name'])} on {board_label(row['contract'])}: "
-            f"{words_for_int(row['n_matched'])} of its "
-            f"{words_for_int(row['n_declared'])} declared drivers "
-            f"{'sits' if row['n_matched'] == 1 else 'sit'} among this board's "
-            f"{words_for_int(row['loud_k'])} loudest rows {named}{unread_clause}; the pattern's own "
-            f"threshold is {words_for_int(row['threshold'])}; "
+            f"{lead}{alias_clause}{opposed_clause}"
+            f"{unread_clause}; it asks for {words_for_int(row['threshold'])}, so the count here is "
+            f"{'short of that number' if short else 'at or past that number'}; "
             + ("none of them carries a declared desk band" if not row["n_with_band"] else
                f"{words_for_int(row['n_with_band'])} "
                f"{'carries' if row['n_with_band'] == 1 else 'carry'} a declared desk band"))
+
+
+def pattern_count(row: dict, series_of: Optional[dict] = None) -> dict:
+    """ONE PAGE, ONE PATTERN, ONE COUNT -- the only place a declared pattern's conditions are counted.
+
+    REVIEW ROUND 2, MAJOR 5. Round 1 put the series fold in :func:`sb_convergence` and NOWHERE ELSE, and
+    the WATCH producer narrates the same pattern on the same page out of ``pr['n_matched']``. MEASURED
+    on the b40 fixture, both lines reachable on arm A's treatment cell: the quorum row read "one of the
+    two conditions it names is showing here (export ban ...); export ban and DMO are one reading and
+    count once here" while the watch row read "this reading is one of TWO of the two drivers the pattern
+    policy-shock spike declares". One page, one pattern, two counts. Both callers now read this.
+
+    ``matched_measured`` WINS WHENEVER THE KEY IS PRESENT, EVEN EMPTY. Round 1's
+    ``row.get("matched_measured") or row["matched"]`` fell through to ``matched`` on a pattern whose
+    matched drivers were ALL text-only, and then added ``matched_unmeasured`` on top -- every name
+    counted twice. The walk writes the three keys together (``walk.py:941``), so their presence is the
+    test."""
+    _mm = row.get("matched_measured")
+    ids = list(_mm) if _mm is not None else list(row.get("matched") or ())
+    unread = list(row.get("matched_unmeasured") or ()) if _mm is not None else []
+    fold = _series_fold(ids, series_of)
+    return {"fold": fold, "unread": unread, "n_unread": len(unread),
+            "n_measured": len(fold["keep"]), "n_distinct": len(fold["keep"]) + len(unread),
+            "n_phase_opposed": len(fold["phase_opposed"])}
+
+
+def _phase_opposed(smap: dict, d) -> bool:
+    """Is this driver the member of a DECLARED phase pair whose phase is NOT the one in force?
+
+    ONE SPELLING of the test :func:`_series_fold`, :func:`_lead_name` and :func:`group_keep` all apply,
+    so a page cannot exclude a name from one line and keep it on another."""
+    pf = _smap_entry(smap, d).get("phase") or {}
+    return bool(pf.get("in_force")) and str(d) == str(pf.get("other_driver") or "")
+
+
+def group_keep(smap: dict, key: str, *, strict: bool = False) -> str:
+    """THE ONE NAME A SERIES GROUP IS READ UNDER ON THIS PAGE -- the driver id, or ``""`` where the map
+    holds no member of that key (and, under ``strict``, where this page has no ground for a name).
+
+    REVIEW ROUND 3, NEW-4. The claim that "the lead, the JOIN and the quorum can never name one reading
+    three ways" was a CONSTRUCTION claim and it did not hold: :func:`render_board`'s SB-JOIN chose its
+    kept name over the WHOLE series group and :func:`_series_fold` chose over the PATTERN'S MATCHED
+    SUBSET, so a group whose highest-confidence member the pattern did not match had the JOIN saying
+    "read it under export ban" and the quorum naming CPO levy, on one page, for one reading. The rule is
+    unchanged and is now written once: drop a member read in the phase that is NOT in force (the
+    quorum's own rule, :func:`_lead_name`'s first step), then take the highest declared confidence,
+    ties on the reader label. The POOL is this map -- the board's own read rows -- so every caller
+    chooses from the same population as well as by the same rule.
+
+    ``strict`` IS MAJOR 3's RULING, READ BY THE CALLER THAT SUBSTITUTES A NAME THE PATTERN DID NOT
+    MATCH. Where the best members TIE and the group's own signs DISAGREE, :func:`sb_phase_pair` prints,
+    in words, that "the graph declares them at the same confidence, so this page has no ground of its
+    own for preferring one of these names over another and does not offer one" -- and a quorum row that
+    then renamed a matched MYR USD to IDR USD would hand the writer the Indonesian rupiah as the reading
+    of a Malaysian palm board, which is the exact defect round 2 closed. MEASURED: without this clause
+    the b40 substitution-demand-pull row did precisely that. Under ``strict`` the producer returns
+    nothing there and the caller keeps the name it already had."""
+    pool = [d for d in sorted(smap or {}) if _smap_entry(smap, d)["key"] == str(key or "")]
+    live = [d for d in pool if not _phase_opposed(smap, d)]
+    pool = live or pool
+    if not pool:
+        return ""
+    ranks = sorted(CONFIDENCE_RANK.get(_smap_entry(smap, d)["confidence"], 3) for d in pool)
+    if (strict and len(ranks) > 1 and ranks[0] == ranks[1]
+            and len({_smap_entry(smap, d)["sign"] for d in pool}) > 1):
+        return ""
+    return min(pool, key=lambda d: (CONFIDENCE_RANK.get(_smap_entry(smap, d)["confidence"], 3),
+                                    humanise(d)))
+
+
+def _series_fold(driver_ids, series_of: Optional[dict]) -> dict:
+    """Fold a pattern's matched drivers onto DISTINCT SERIES, keeping ONE NAME PER SERIES.
+
+    THE DEFECT, FROM THE SERVED DEEP ANSWER (2026-09-16). The page said, correctly, "note these two are
+    one series read under two names -- one reading, not two" about ``board_crush`` and
+    ``soybean_crush_margin`` -- and then wrote "the crush-led demand-pull pattern has three of its
+    drivers among the loudest readings against a threshold of two", counting BOTH of them. One reading
+    cleared a two-driver quorum on its own.
+
+    THE THRESHOLD IS THE GRAPH'S AND IS NOT RE-CURATED. What changes is only that one SERIES can no
+    longer satisfy two of a pattern's conditions, which is the direction that under-claims: a pattern
+    reads NOT in force where HEAD read it in force, never the other way round.
+
+    THE NAME KEPT IS THE HIGHEST-CONFIDENCE ONE, ties broken on the reader label -- the same rule
+    ``render_board``'s phase-pair fold uses, so the two lines never disagree about which of two names a
+    page should be read under. A driver with no series key stands alone: a text-only row is not the
+    same reading as anything.
+
+    ``series_of`` is :func:`series_by_driver`'s map -- ``{driver_id: {key, confidence, sign, phase}}``,
+    the BOARD's own -- and a driver this page did not read is absent from it and therefore distinct. A
+    two-tuple ``(key, confidence)`` is still accepted so a caller that knows only those two facts keeps
+    working; it simply cannot declare a relation, and an undeclared relation folds as an alias.
+
+    **THE RELATION IS CLASSIFIED, AND THAT IS REVIEW ROUND 2's MAJOR 4.** Round 1 folded on the series
+    key ALONE while :func:`sb_phase_pair` required a DECLARED pair or SIGN AGREEMENT before it would say
+    "one reading", so on a board where a pattern matched two of a sign-contradictory group the JOIN line
+    said "this page cannot reconcile them" and the quorum said "X and Y are one reading and count once
+    here". Both folds now read the same two facts -- the declared phase pair and the declared sign -- and
+    the group's relation is stated in :data:`FOLD_RELATION_WORDS`' own words, so the two lines cannot
+    disagree. The COUNT is the same under all three relations: one series is one reading.
+
+    **AND A MEMBER READ IN THE OPPOSITE PHASE LEAVES THE COUNT** (``phase_opposed``, MAJOR 10). It is
+    returned, never dropped: the caller states it."""
+    ids = [str(d) for d in (driver_ids or ())]
+    smap = dict(series_of or {})
+    live, opposed = [], []
+    for d in ids:
+        if _phase_opposed(smap, d):
+            opposed.append(d)
+        else:
+            live.append(d)
+    groups: dict = {}
+    order: list = []
+    for d in live:
+        k = _smap_entry(smap, d)["key"] or f"#{d}"
+        if k not in groups:
+            groups[k] = []
+            order.append(k)
+        groups[k].append(d)
+    keep, out_groups = [], []
+    for k in order:
+        members = groups[k]
+        # THE NAME IS THE WHOLE GROUP'S AND NOT THE PATTERN'S SUBSET (review round 3, NEW-4). The SB-JOIN
+        # line chooses over every row on the series; this chose over the drivers THIS pattern matched, so
+        # a group whose highest-confidence member the pattern did not match had the two lines naming one
+        # reading two ways -- the JOIN "read it under export ban", the quorum "(CPO levy, with its own
+        # [N] z)". :func:`group_keep` is the one rule both now read.
+        first = group_keep(smap, k, strict=True) or min(members, key=lambda d: (
+            CONFIDENCE_RANK.get(_smap_entry(smap, d)["confidence"], 3), humanise(d)))
+        keep.append(first)
+        others = tuple(sorted((m for m in members if m != first), key=humanise))
+        if others:
+            out_groups.append((first, others, fold_relation([first] + list(others), smap)))
+    return {"keep": keep, "phase_opposed": opposed, "groups": out_groups,
+            # THE LEGACY SHAPE, kept because a banked caller reads it: (kept, aliases) with no relation.
+            "aliases": [(k, al) for k, al, _rel in out_groups]}
+
+
+def _smap_entry(smap: dict, d) -> dict:
+    """One driver's fold facts, from either map shape (see :func:`_series_fold`)."""
+    v = smap.get(d)
+    if isinstance(v, dict):
+        return {"key": str(v.get("key") or ""), "confidence": str(v.get("confidence") or ""),
+                "sign": str(v.get("sign") or ""), "phase": v.get("phase") or {}}
+    t = tuple(v or ())
+    return {"key": str(t[0]) if len(t) > 0 else "",
+            "confidence": str(t[1]) if len(t) > 1 else "",
+            "sign": str(t[2]) if len(t) > 2 else "",
+            "phase": (t[3] if len(t) > 3 else {}) or {}}
+
+
+#: WHAT TWO NAMES ON ONE SERIES ARE TO EACH OTHER -- the CLOSED vocabulary both folds print (MAJOR 4).
+#: The three relations are three different facts and a reader acts on them differently: an ALIAS is one
+#: claim under two labels; a PHASE PAIR is one index read in two directions, which the graph DECLARES;
+#: an UNRECONCILED group is two declared links that sign one figure differently, which this page states
+#: and does not resolve. The count is one under all three -- one series is one reading.
+FOLD_RELATION_WORDS: dict = {
+    "alias": "are one reading and count once here",
+    "phase": "are two phases of one reading and count once here",
+    "unreconciled": "are one reading the graph signs differently here, and count once",
+}
+
+
+def fold_clause(fold: dict) -> tuple:
+    """``(the folded-groups clause, the phase-opposed clause)`` -- the block's ONE spelling of both.
+
+    Two readers: the quorum row and the WATCH producer's ``convergence_amplified`` sentence (review
+    round 2, MAJOR 5). Each clause OPENS with its own ``; `` so a caller can splice it anywhere in a
+    sentence, and each is ``""`` when there is nothing to say."""
+    groups = (fold or {}).get("groups") or []
+    opposed = [humanise(d) for d in ((fold or {}).get("phase_opposed") or ())]
+    alias = ""
+    if groups:
+        alias = "; " + "; ".join(
+            f"{_and_list([humanise(k)] + [humanise(a) for a in al])} {FOLD_RELATION_WORDS[rel]}"
+            for k, al, rel in groups)
+    opp = ""
+    if opposed:
+        opp = (f"; {_and_list(opposed)} "
+               f"{'names' if len(opposed) == 1 else 'name'} the phase opposite the one in force on "
+               f"that reading, so {'it is' if len(opposed) == 1 else 'they are'} not counted here")
+    return alias, opp
+
+
+def fold_relation(members, smap: dict) -> str:
+    """Which of :data:`FOLD_RELATION_WORDS` a folded group is -- the SAME test :func:`render_board`'s
+    SB-JOIN loop applies, so the two lines can never call one group two things."""
+    ms = [str(m) for m in (members or ())]
+    signs = {_smap_entry(smap, m)["sign"] for m in ms}
+    for m in ms:
+        pf = _smap_entry(smap, m).get("phase") or {}
+        pair = {str(pf.get("driver") or ""), str(pf.get("other_driver") or "")}
+        if len(ms) == 2 and pair == set(ms):
+            return "phase"
+    return "alias" if len(signs) < 2 else "unreconciled"
 
 
 #: THE CLOSED ORDERING VOCABULARY for an ``Interaction``'s ``effect`` (sec 3.5, D24). The shipped graph
@@ -1030,7 +1607,7 @@ AMPLIFIER_EFFECT_WORDS: dict = {"amplifies": "amplifies", "dampens": "dampens"}
 
 #: The word for an effect the vocabulary above does not declare. LETTERS ONLY and register-clean, and
 #: it CORRECTS rather than deletes: the pair, the loud claim and the read split all still render.
-AMPLIFIER_EFFECT_UNKNOWN = ("an interaction this board has no word for")
+AMPLIFIER_EFFECT_UNKNOWN = ("an interaction this page has no word for")
 
 #: What the row says in place of a curated note that did not pass this block's own register check
 #: (sec 6.6; the doctrine's "fences correct or compute, never delete"). THE NOTE IS NOT DROPPED
@@ -1118,9 +1695,9 @@ def sb_amplifier(contract: str, inter: dict) -> str:
     # is an open EVENT row and enters the loud set by construction), and "all sit among this board's
     # loudest rows" invites a reader to hear a measured co-occurrence.
     unread = [humanise(i) for i in (inter.get("unmeasured") or ())]
-    tail = (f"; {', '.join(unread)} {'carries' if len(unread) == 1 else 'carry'} no series this "
-            f"board could read") if unread else ""
-    row = (f"  amplifier on {board_label(contract)}: {ids} all sit among this board's loudest rows; "
+    tail = (f"; {_and_list(unread)} {'carries' if len(unread) == 1 else 'carry'} no series read "
+            f"here") if unread else ""
+    row = (f"  amplifier on {board_label(contract)}: {ids} are all among the largest moves here; "
            f"the graph "
            f"records the effect as {amplifier_effect(inter['effect'])}{tail}")
     if note and note != AMPLIFIER_NOTE_REPLACED and register_hits(row + note):
@@ -1334,6 +1911,14 @@ def sb_receipt(e_handle: int, t_tier: int, r: dict, *, driver_id: str) -> str:
     return line if not register_hits(line) else _row(RECEIPT_SOURCE_REPLACED, RECEIPT_QUOTE_REPLACED)
 
 
+#: The words a nomination wears when its falsifier cannot resolve inside the turn's horizon. ONE
+#: PRODUCER (``watch.horizon_miss_clause``), reached through a lazy import because ``watch`` imports
+#: THIS module for its display vocabulary -- so the two spellings can never drift.
+def _horizon_miss_clause(cause: str, *, next_print: str = "", faster: str = "") -> str:
+    from leviathan.graphrag.state.watch import horizon_miss_clause
+    return horizon_miss_clause(cause, next_print=next_print, faster=faster)
+
+
 def sb_watch(w: dict) -> str:
     """SB-W (sec 6.2, 5.1): the UNHANDLED watch row -- letters and ISO dates and nothing else. Every row
     names a table, a level, a date or a document; nothing here produces "watch the weather".
@@ -1369,7 +1954,93 @@ def sb_watch(w: dict) -> str:
         word = "core item" if w.get("slot") == "ceiling" else "alternate"
         mark = (f" ({word} {words_for_int(int(w['slot_index']))} of "
                 f"{words_for_int(int(w['slot_size']))})")
-    return f"- WATCH {w['kind_words']} {w['label']}{cite}{mark}: {w['what']}{tail}"
+    # THE CLOCK (lane D, the 2026-09-16 smoke). The PM graders found NO scheduled catalyst anywhere on
+    # five served answers -- no 09-30 Grain Stocks, no 10-09 WASDE, no weekly export sales -- because
+    # the calendar was named once in a footnote the writer read as boilerplate ("the scheduled
+    # publication dates ... are not watch items"). The ban on calendar-ONLY nominations is untouched;
+    # what an admitted row now carries is the date its own series next prints, as a field the writer is
+    # told to print. And where that print cannot land inside the turn's horizon the row SAYS SO, in
+    # words, rather than offering a falsifier that can never resolve -- the deep turn's item one was an
+    # ANNUAL PSD series with a "reads wrong if the next print" clause on a three-month question.
+    #
+    # **THE NOTE FOLLOWS THE ROW'S OWN DATED TAIL, AND THE CLOCK RIDES INSIDE IT** (review round 2,
+    # MAJOR 7). Round 1 spliced the note into the BODY, before ``tail``, and the row rendered
+    # "... read it as standing context and watch a faster series on the same mechanism instead
+    # -- 2024-12-31; next print 2026-09-09": the like-state date orphaned onto the end of the NOTE's
+    # advice, reading as the date of the advice, and a bare "next print" offered two days after the
+    # as-of by a note that had just denied any checkable print inside the horizon. Both halves are the
+    # same defect -- an insertion that orphans a clause is the fence doctrine's fatal, produced by
+    # adding rather than deleting. The row is now ``{body}{tail}``, THEN the clock or the note; and the
+    # note NAMES the scheduled print itself (``watch.horizon_miss_clause``), so the two can never
+    # contradict each other because only one of them is ever printed.
+    body = str(w.get("what") or "")
+    clock = f"; next print {w['next_print']}" if w.get("next_print") else ""
+    note = ""
+    if w.get("horizon_miss"):
+        note = " NOTE: " + _horizon_miss_clause(str(w.get("horizon_miss")),
+                                                next_print=str(w.get("next_print") or ""),
+                                                faster=str(w.get("horizon_faster") or ""))
+        clock = ""                                      # the note carries the date; never twice
+    return f"- WATCH {w['kind_words']} {w['label']}{cite}{mark}: {body}{tail}{clock}{note}"
+
+
+#: AN ORDINAL IN WORDS, for the letters-only classes. :func:`ordinal` prints "1st", which is a CHARGED
+#: DIGIT on every class outside :data:`FIGURE_CLASSES`; this is the same rank said in letters. Small by
+#: design -- the only caller counts to three.
+ORDINAL_WORDS: tuple = ("", "first", "second", "third", "fourth", "fifth", "sixth", "seventh",
+                        "eighth", "ninth", "tenth")
+
+
+def ordinal_words(n) -> str:
+    try:
+        i = int(n)
+    except (TypeError, ValueError):
+        return ""
+    return ORDINAL_WORDS[i] if 0 < i < len(ORDINAL_WORDS) else f"number {words_for_int(i)}"
+
+
+#: HOW MANY ROWS THE LEAD NAMES. Three, from ROUND-2 DOCKET item 12's own words ("the top three loud
+#: rows are named or their omission explained"); it is the ONE place the number lives, so the block,
+#: :func:`board_coverage`'s ``missed.loud_top3`` and the mandate cannot drift to two different threes.
+LEAD_ROWS: int = 3
+
+
+def _lead_name(rows):
+    """WHICH ROW OF A FOLDED GROUP THE LEAD NAMES -- the two rules already on this page and no third.
+
+    A member read in the OPPOSITE declared phase is dropped first (the quorum's own rule), and what is
+    left is chosen by the fold's own rule: the highest-declared-confidence name, ties on the reader
+    label. So the lead, the SB-JOIN line and the quorum row can never name one reading three ways.
+
+    REVIEW ROUND 3, NEW-4: that sentence was a CONSTRUCTION CLAIM written beside THREE implementations
+    of the rule, and one of the three (:func:`_series_fold`) chose over a different population. All
+    three now call :func:`group_keep`, so the claim is a construction."""
+    _rs = {str(r.driver_id): r for r in rows}
+    _smap = {d: {"key": "-", "confidence": str(r.confidence or ""), "sign": str(r.sign or ""),
+                 "phase": phase_for_state(r.state) or {}} for d, r in _rs.items()}
+    return _rs.get(group_keep(_smap, "-")) or min(
+        rows, key=lambda r: (CONFIDENCE_RANK.get(str(r.confidence or ""), 3),
+                             humanise(r.driver_id)))
+
+
+def sb_lead(i: int, n: int, row) -> str:
+    """SB-LEAD: ONE of the board's largest moves, named in words, before the reader meets anything else.
+
+    LETTERS ONLY AND NO HANDLE (see the class note in :data:`ROW_CLASSES`). It asserts no magnitude: the
+    reading's level, z and percentile are on its OWN state line a few lines below under their own
+    handles, and minting a second address for one figure is what sec 6.3 forbids. What this row carries
+    is the RANK -- which the block had nowhere at all, measured on the utilisation census -- plus the one
+    word that says why the row leads, taken from the reading's own desk convention where it crossed one.
+
+    IT IS A SELECTION AND NOT AN ENUMERATION: three rows out of a loud set of eight to twenty-four."""
+    st = getattr(row, "state", None)
+    why = ""
+    conv = (getattr(st, "convention", None) or {}) if st is not None else {}
+    if conv.get("matched") and conv.get("label"):
+        why = f", past the line the desk convention calls {conv['label']}"
+    return (f"LARGEST MOVE {ordinal_words(i)} of {words_for_int(n)}: "
+            f"{row_words(row.contract, row.driver_id)}{why}; its figures are on its own state line "
+            f"below.")
 
 
 def sb_recency(layer: str, text: str) -> str:
@@ -1378,7 +2049,8 @@ def sb_recency(layer: str, text: str) -> str:
     return f"RECENCY {layer}: {text}"
 
 
-def sb_phase_pair(names, board: str, *, opposed: bool) -> str:
+def sb_phase_pair(names, board: str, *, opposed: bool, phase: Optional[dict] = None,
+                  keep: str = "", alias=(), keep_tied: bool = False) -> str:
     """SB-JOIN: TWO NAMES, ONE READING -- the row that stops a mutually-exclusive phase pair being
     narrated as a two-sided balance (S6 review, major 17). See the class's own note in ROW_CLASSES for
     why it is a class sec 6.2 does not declare.
@@ -1403,14 +2075,147 @@ def sb_phase_pair(names, board: str, *, opposed: bool) -> str:
     ONE change -- the Scan render caps -- and this class renders on EVERY tier, so keeping it would put
     a reworded sentence in arm A's CONTROL cells (deep and max, which the owner's 09-10 rule says run
     as S6 shipped them) and a SECOND flag in the treatment. Measured: it was the only line on the paid
-    tiers that was not byte-identical to HEAD. S8 takes it, with the judged delta already read."""
-    joined = " and ".join(names) if len(names) < 3 else (", ".join(names[:-1]) + " and " + names[-1])
-    tail = (" The graph declares them opposite signs on this board, which is what two phases of one "
-            "series means; they are not two readings that disagree."
-            if opposed else
-            " They are phases of one series and not separate readings.")
-    return (f"BOARD JOIN {joined} on {board}: these are read on ONE series and the rows above print "
-            f"the SAME reading under each name." + tail)
+    tiers that was not byte-identical to HEAD. S8 takes it, with the judged delta already read.
+
+    ── THE DOCKET IS TAKEN, 2026-09-17, AND ARM A'S CONTROL IS UNTOUCHED BY CONSTRUCTION ─────────────
+    Arm A's control runs with ``GRAPHRAG_STATE_BOARD`` OFF, so this class does not render in it at all
+    and the S7 blocker is gone. Both halves land, each on a MEASURED served defect:
+
+    * ``opposed`` GAINS THE PHASE IN FORCE. The line said the two rows are one reading and never said
+      WHICH PHASE that reading is, so the palm turn built a supply-squeeze story on "-0.39 degC" -- a
+      COOL-phase number -- and the corn page wrote "opposite signs on each board by phase" with no ENSO
+      driver admitted. ``phase`` carries :func:`phase_in_force`'s verdict plus each member's reader name
+      and this market's declared sign for it, in WORDS: SB-JOIN is letters-only, the magnitude is
+      already on the SB-1 row above with its handle, and nothing is minted here.
+    * ``not opposed`` LOSES A FALSE SENTENCE. "They are phases of one series and not separate readings"
+      is untrue of both non-opposed joins the banked blocks carry, and the served deep answer repeated
+      it and then COUNTED BOTH NAMES into a pattern quorum. The sentence now says what is true -- two
+      names for one reading, the same declared sign, ONE piece of evidence -- and names which to keep
+      and which is its alias, which is the same fold :func:`sb_convergence` now applies to the count.
+
+    ── REVIEW ROUND 2: THE COUNTS AGREE WITH THE LIST, AND NO NAME IS NOMINATED BY A TIE ─────────────
+    MAJOR 1 and MAJOR 2, both measured on round 1's OWN rendered artefact (``D/AFTER_blocks.txt``):
+    "BOARD JOIN CPO export levy, DMO and export ban ... They are TWO NAMES for ONE reading" over THREE
+    names, and "BOARD JOIN IDR USD, INR USD and MYR USD ... that is one reading TWO DECLARED LINKS
+    disagree about" over THREE rows and three declared edges. Round 1 hardcoded the numeral and
+    pluralised only the alias noun, and the sentence stated a count its own subject list contradicts one
+    clause later. Every count here is now :func:`words_for_int` over the list the line itself prints.
+
+    MAJOR 3: THE UNDECLARED FOLD NO LONGER ISSUES AN ARBITRARY INSTRUCTION. "Read it under IDR USD where
+    a direction is needed" was the ALPHABETICAL winner of a three-way tie at ``medium`` confidence -- the
+    page named the contradiction honestly and then handed the writer the Indonesian rupiah as the reading
+    of a Malaysian palm board. Where the members tie, the TIE IS THE FACT and it is said in words with no
+    instruction attached; where one member is strictly the highest-confidence link, it is named AS that
+    and not as a preference this page invented."""
+    joined = _and_list(names)
+    n_names = len([n for n in (names or ())])
+    n_words = words_for_int(n_names)
+    if opposed and phase and phase.get("live_name"):
+        # A DECLARED PHASE PAIR: opposite signs on one series is what a phase pair MEANS, and the
+        # clause below says which phase the reading actually is.
+        tail = (" The graph declares them opposite signs on this market, which is what two phases of "
+                "one series means; they are not two readings that disagree.")
+        tail += _phase_clause(phase, board)
+    elif opposed:
+        # OPPOSITE SIGNS ON ONE READING WITH NO DECLARED PAIR IS NOT A PHASE PAIR, AND HEAD SAID IT WAS.
+        # MEASURED on the b40 fixture: `IDR USD`, `INR USD` and `MYR USD` fold onto one series key and
+        # carry differing signs, and HEAD rendered "which is what two phases of one series means" over
+        # them -- a phase explanation for three currency rows. The honest sentence names the
+        # contradiction instead of explaining it away, and still deletes nothing.
+        tail = (f" The graph signs these names DIFFERENTLY on one and the same figure and this page "
+                f"cannot reconcile them: that is one reading {n_words} declared links disagree about, "
+                f"not {n_words} readings.")
+        if keep and not keep_tied:
+            tail += (f" Where a direction is needed, {keep} is the one of them the graph declares at "
+                     f"the highest confidence; the others are the same figure read the other way.")
+        else:
+            tail += (" The graph declares them at the same confidence, so this page has no ground of "
+                     "its own for preferring one of these names over another and does not offer one.")
+    elif keep and alias:
+        tail = (f" They are {n_words} names for ONE reading carrying the SAME declared sign here, so "
+                f"this page holds one piece of evidence and not {n_words}: read it under {keep} and "
+                f"treat {_and_list(list(alias))} as "
+                f"{'that name-s alias' if len(alias) == 1 else 'aliases of that name'}"
+                f", counted once wherever this page counts.".replace("name-s", "name's"))
+    else:
+        tail = (f" They are {n_words} names for ONE reading carrying the same declared sign here, so "
+                f"this page holds one piece of evidence and not {n_words}; count them once.")
+    return (f"BOARD JOIN {joined} on {board}: these are read on ONE series and the readings above "
+            f"print the SAME figure under each name." + tail)
+
+
+def _and_list(names) -> str:
+    """``a``, ``a and b``, ``a, b and c`` -- the block's ONE Oxford-free join, so two builders cannot
+    spell a three-name list two ways."""
+    ns = [str(n) for n in (names or ())]
+    if len(ns) < 2:
+        return ns[0] if ns else ""
+    return " and ".join(ns) if len(ns) == 2 else (", ".join(ns[:-1]) + " and " + ns[-1])
+
+
+def _phase_clause(phase: Optional[dict], board: str) -> str:
+    """The PHASE-IN-FORCE half of SB-JOIN, in words and with no digit (:func:`phase_in_force`).
+
+    THREE SENTENCES AND NOT ONE, because the three states are three different facts: a phase IS in
+    force and this market declares a sign for it; the reading sits INSIDE the convention's own line so
+    NEITHER phase is in force and both signs above are conditional; or the pair is undeclared, in which
+    case nothing is said at all (fail-closed: this module never guesses which way an index signs).
+
+    **AND IT SAYS WHICH READING IT READ THE PHASE OFF** (review round 2, MAJOR 10). On a row carrying a
+    declared same-series offset the level beside the line is the SHIFTED one, and round 1 computed the
+    verdict from it: the b40 line said "the phase in force AT THIS READING is the cool phase" while the
+    same row minted the newest knowable figure of the same series one line above. :func:`phase_reading`
+    now hands this clause the NEWEST KNOWABLE level wherever the producer banked one, and the subject of
+    the sentence changes with it -- a verdict about NOW that was read off a six-month-old number has to
+    say so, and one read off the newest number has to say that too."""
+    if not phase or not phase.get("live_name"):
+        return ""
+    live, other = str(phase.get("live_name")), str(phase.get("other_name") or "")
+    words, other_words = str(phase.get("words") or ""), str(phase.get("other_words") or "")
+    current = bool(phase.get("current"))
+    subject = "the newest knowable reading of this series" if current else "this reading"
+    lag = ""
+    if current and int(phase.get("offset_periods") or 0):
+        _n = int(phase["offset_periods"])
+        lag = (f" The dated reading above sits {words_for_int(_n)} "
+               f"{period_noun(str(phase.get('cadence') or 'monthly'), _n)} back on this market's own "
+               f"declared effect lag, so whichever phase IT sits in is not the phase in force now.")
+    if not phase.get("in_force"):
+        both = f"{words} nor {other_words}" if other_words else words
+        return (f" {subject[0].upper()}{subject[1:]} sits INSIDE the line this desk convention draws "
+                f"for a phase, so neither {both} is in force at it: the signs above are what {board} "
+                f"would carry in each phase, not a sign it carries now.{lag}")
+    sign = str(phase.get("live_sign") or "with no committed direction")
+    out = (f" The phase in force at {subject} is {words}, which this graph names {live}: on "
+           f"{board} the graph declares {live} {sign}, and that is this market's declared sign for "
+           f"the phase now in force.")
+    if other:
+        out += (f" {other} states what {board} would carry in {other_words}, which is not the phase "
+                f"{subject} is in.")
+    return out + lag
+
+
+def sb_analog_leg_absence(reason: str, *, not_reached: bool = False) -> str:
+    """THE LIKE-STATE ABSENCE AS A PM READS IT, and the word ``episode`` handed over with it.
+
+    TWO MEASURED DEFECTS, ONE ROW. (1) ``BoardAnalogs = 0`` on all five smoke turns, and where the LEG
+    declined before building a stanza the block said nothing at all -- a silence, which this block's
+    own law forbids. (2) The deep page declared two lines apart that no past state is like the present
+    one and then wrote "on the 2011 analogue window the ocean reading was -0.68 degC": the writer had
+    no other word for a DATED WINDOW, so it reused the one the likeness rule had just denied. The
+    cascade's dated window is an EPISODE -- a stretch of the record, chosen by its dates -- and an
+    ANALOGUE is a past state the likeness rule ADMITTED. This row gives the writer the second word so
+    it does not borrow the first.
+
+    IT DELETES NOTHING AND IT DOES NOT RE-OPEN THE SELECTION RULE (that is S8's): it is one letters-only
+    SB-X line saying what did not happen and what the right word for the other thing is."""
+    why = ("the like-state leg was not entered on this turn, so no past state was tested at all"
+           if not_reached and not reason else absence_why(reason or "no_like_state"))
+    return ("BOARD ABSENCE a like state on this page: " + why
+            + ". No past state on these readings was admitted as a LIKE STATE, so this page carries no "
+              "analogue and no base rate drawn from one. A dated window that reaches the page from "
+              "elsewhere is an EPISODE -- a stretch of the record named by its dates -- and calling it "
+              "an analogue would claim a likeness this page did not find.")
 
 
 def sb_absence(label: str, reason: str) -> str:
@@ -2034,6 +2839,43 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     loud = sorted((r for r in bd.rows if r.legs.get("loud")),
                   key=lambda r: order.get(r.key, len(order)))
     rendered = loud if loud_only else sorted(bd.rows, key=lambda r: order.get(r.key, len(order)))
+    # THE ONE FOLD MAP, built ONCE and read by BOTH the SB-JOIN loop and the quorum row
+    # (:func:`series_by_driver` -- review round 2, majors 4 and 5).
+    _series_by_driver = series_by_driver(bd)
+
+    # -- THE LEAD: THE THREE LARGEST MOVES, ONE LINE EACH, FIRST IN THE BLOCK -------------------------
+    # ROUND-2 DOCKET item 12. `coverage.missed.loud` named the loudest rows the writer never used on
+    # three of five served turns (max: N30/N45/N48; corn_wheat: the 100th-percentile managed-money
+    # print), and the reason is structural rather than a writer failure: the state rows ARE in rank
+    # order, but each is followed by its own edge line and its own projection line, so the top three
+    # reach the reader as nine interleaved lines with no mark saying which three lead. This row says it
+    # in words, one line per row, before anything else -- and it is LETTERS ONLY and mints NO handle,
+    # because the figures are on those rows' own state lines a few lines below and a second address for
+    # one magnitude is exactly what sec 6.3 forbids. `board_coverage` grades the same three under
+    # `missed.loud_top3`, so an omission is counted where the mandate can name it.
+    # AND IT LEADS WITH THREE READINGS, NOT THREE ROWS. Loudness ranks the UNSIGNED state, so both
+    # members of a phase pair land loud on ONE reading and an unfolded lead would spend two of its three
+    # lines on one ONI print -- the very double count the SB-JOIN line below corrects, and the one
+    # `board_coverage`'s own denominator folds. The group's name is chosen by the SAME rule the JOIN and
+    # the quorum use (`_lead_name`), so no two lines on this page can name one reading differently.
+    _lead_groups: dict = {}
+    _lead_order: list = []
+    for _r in rendered:
+        _st = _r.state
+        if _st is None or status_word(_st.status) != "ok":
+            continue
+        try:
+            _gk = (_r.contract, _st.key.label())
+        except Exception:                               # noqa: BLE001 -- an unlabelled key stands alone
+            _gk = (_r.contract, _r.driver_id)
+        if _gk not in _lead_groups:
+            _lead_groups[_gk] = []
+            _lead_order.append(_gk)
+        _lead_groups[_gk].append(_r)
+    _lead = [_lead_name(_lead_groups[g]) for g in _lead_order[:LEAD_ROWS]]
+    for _i, _r in enumerate(_lead):
+        b.add(sb_lead(_i + 1, len(_lead), _r), label=f"lead {_r.driver_id}",
+              display=f"the lead line for {row_words(_r.contract, _r.driver_id)}")
 
     from leviathan.graphrag.state.walk import horizon_sits, projection_window
 
@@ -2103,12 +2945,12 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # EVERY CUT NAMES WHAT IT CUT, and these two are no exception. The names are the ROWS whose clause
     # was dropped, in the board's own rank order, with the remainder stated in words.
     if proj_cut:
-        b.add(sb_absence("the effect windows of the rows past this tier's projection cut ("
+        b.add(sb_absence("the effect windows of the readings past this tier's projection cut ("
                          + name_list(_named_rows(proj_cut, rank),
                                      int(cap.get("absence_names") or 0)) + ")", "render_cap"),
               label="projection render cap")
     if edge_cut:
-        b.add(sb_absence("the declared links of the rows past this tier's link cut ("
+        b.add(sb_absence("the declared links of the readings past this tier's link cut ("
                          + name_list(_named_rows(edge_cut, rank),
                                      int(cap.get("absence_names") or 0)) + ")", "render_cap"),
               label="edge render cap")
@@ -2143,7 +2985,53 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
             continue
         _names = sorted({humanise(r.driver_id) for r in _rows})
         _signs = {str(r.sign or "") for r in _rows}
-        b.add(sb_phase_pair(_names, board_label(_c), opposed=len(_signs) > 1),
+        # THE PHASE IN FORCE (lane D, the 2026-09-16 smoke). The join said "one series, two names" and
+        # never said WHICH PHASE the reading is, so a cool ONI number carried a warm-phase story. The
+        # verdict is computed off the row's OWN level against the convention's own first band, and the
+        # two members are matched to it by the DECLARED driver id, never by position.
+        # THE PHASE IS READ THROUGH THE ONE PRODUCER (`phase_for_state`), so the verdict this line
+        # states and the exclusion the quorum applies are the SAME verdict -- and on an offset row it
+        # is read off the NEWEST KNOWABLE level, never off the shifted one (review round 2, MAJOR 10).
+        _st0 = _rows[0].state
+        _pf = phase_for_state(_st0)
+        _ph: dict = {}
+        # THE DECLARED-PAIR BRANCH REQUIRES THE GROUP TO **BE** THE DECLARED PAIR (review round 2,
+        # MAJOR 1). A third name folded onto the same series key is not a phase of anything, and the
+        # phase sentence is written for exactly two; a group of three falls to the undeclared branch,
+        # which names the contradiction and counts its own members.
+        if _pf and len(_rows) == 2 and {r.driver_id for r in _rows} == {_pf["driver"],
+                                                                       _pf["other_driver"]}:
+            _live = next((r for r in _rows if r.driver_id == _pf["driver"]), None)
+            _oth = next((r for r in _rows if r.driver_id == _pf["other_driver"]), None)
+            if _live is not None:
+                _ph = {"words": _pf["words"], "other_words": _pf["other_words"],
+                       "in_force": _pf["in_force"], "live_name": humanise(_live.driver_id),
+                       "live_sign": sign_words(_live.sign),
+                       "other_name": humanise(_oth.driver_id) if _oth is not None else "",
+                       "other_sign": sign_words(_oth.sign) if _oth is not None else "",
+                       "current": _pf.get("current"), "current_date": _pf.get("current_date"),
+                       "offset_periods": _pf.get("offset_periods"), "cadence": _pf.get("cadence")}
+        # THE ALIAS FOLD, for the non-opposed join: the name a reader should use is the one the graph
+        # declares at the HIGHEST confidence (ties break on the reader label, so the choice is
+        # deterministic and re-derivable from the block itself).
+        # AND WHERE THE CONFIDENCES TIE, THE TIE IS THE FACT (review round 2, MAJOR 3): the alphabetical
+        # winner of a three-way `medium` tie is not a reading a page may instruct a writer to take.
+        # AND IT IS CHOSEN BY THE ONE PRODUCER THE QUORUM READS (review round 3, NEW-4). This loop's own
+        # `min` over `_rows` and `_series_fold`'s `min` over the pattern's MATCHED SUBSET were two
+        # choosers over two populations, and where the group's best member was one the pattern did not
+        # match they named one reading two ways on one page. `group_keep` is that rule, written once and
+        # read from the SAME map -- so the claim in this file that the two lines cannot disagree is now a
+        # construction and not an observation.
+        _ranks = sorted(CONFIDENCE_RANK.get(str(r.confidence or ""), 3) for r in _rows)
+        _tied = len(_ranks) > 1 and _ranks[0] == _ranks[1]
+        _keep_id = group_keep(_series_by_driver, _k) or min(
+            (r.driver_id for r in _rows),
+            key=lambda d: (CONFIDENCE_RANK.get(
+                str(next(r.confidence for r in _rows if r.driver_id == d) or ""), 3), humanise(d)))
+        _keep = humanise(_keep_id)
+        _alias = tuple(n for n in _names if n != _keep)
+        b.add(sb_phase_pair(_names, board_label(_c), opposed=len(_signs) > 1, phase=_ph,
+                            keep=_keep, alias=_alias, keep_tied=_tied),
               label=f"phase pair {_c}",
               display=f"the phase-pair reading on {board_label(_c)}")
         # THE COVERAGE INSTRUMENT MUST COUNT WHAT THE READER WAS TOLD (S7 fix pass). The line above says
@@ -2247,7 +3135,7 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                 far_rendered.append(str(f["contract"]))
         cut_boards.extend(f["contract"] for f in far_named[far_per_entry:])
     if cut_boards:
-        b.add(sb_absence("the far boards past this tier's spillover cut ("
+        b.add(sb_absence("the further markets past this tier's spillover cut ("
                          + ", ".join(sorted({board_label(c) for c in cut_boards})) + ")", "fan_cap"),
               label="fan render cap")
     # -- THE SPILLOVER LICENCE (S7 item 2) -------------------------------------------------------------
@@ -2270,12 +3158,17 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # `(crude_oil_price, biodiesel_mandate) amplifies` line -- the scenario's whole convexity material,
     # and bar B16's fixture -- was the row that fell off. An amplifier is a SUB-LINE of a row already
     # admitted, digit-free, and bounded by the pattern count it hangs under.
+    # THE QUORUM COUNTS DISTINCT SERIES (lane D, the 2026-09-16 smoke): the served deep answer said
+    # board crush and the crush margin were one reading and then counted BOTH into a two-driver quorum.
+    # The map is `series_by_driver(bd)`, built ONCE at the top of this function and read by the SB-JOIN
+    # loop as well, so the two folds cannot disagree (review round 2, majors 4 and 5) and the WATCH
+    # producer takes the same map for the same pattern's own sentence.
     conv, conv_cut = 0, []
     for c in bd.convergence:
         if conv >= int(cap["convergence"]):
             conv_cut.append(c)
             continue
-        b.add(sb_convergence(c), label=f"pattern {c['name']}",
+        b.add(sb_convergence(c, series_of=_series_by_driver), label=f"pattern {c['name']}",
               display=f"the pattern row for {pattern_label(c['name'])} on "
                       f"{board_label(c['contract'])}")
         conv += 1
@@ -2383,8 +3276,20 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                              rank))
                          + ")", "render_cap"),
               label="analog render cap")
-    for word in sorted({str(a["declined"]) for a in analogs if a.get("declined")}):
-        b.add(sb_absence("a like state on this board", word), label="analog absence")
+    _declines = sorted({str(a["declined"]) for a in analogs if a.get("declined")})
+    for word in _declines:
+        b.add(sb_absence("a like state on this market", word), label="analog absence")
+    # THE HONEST ABSENCE THE PM COULD NOT FIND (lane D, the 2026-09-16 smoke). ``BoardAnalogs`` was 0 on
+    # all five served turns, and on the turns where the LEG declined before it built a single stanza --
+    # ``not_reached``, or a decline recorded on the leg rather than per candidate -- the section printed
+    # NOTHING AT ALL: a reader met a silence where the block's own law is that an absence is a row. The
+    # selection rule is untouched (that is S8's); what lands is the SENTENCE, in words a PM can read.
+    if not fired and not _declines:
+        _leg = (getattr(bd, "legs", None) or {}).get("analog") or {}
+        if str(_leg.get("outcome") or "") != "fired":
+            b.add(sb_analog_leg_absence(str(_leg.get("reason") or ""),
+                                        not_reached=str(_leg.get("outcome")) == "not_reached"),
+                  label="analog leg absence", display="the like-state absence on this page")
 
     # -- RECEIPTS on the loud rows ---------------------------------------------------------------------
     # EVERY CUT NAMES WHAT IT CUT (S6, the first of the two cuts this sitting swept). The receipts past
@@ -2401,7 +3306,7 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
         if len(rs) > int(cap["receipts"]):
             rcpt_cut.append(key)
     if rcpt_cut:
-        b.add(sb_absence("the further documents on the rows past this tier's receipt cut ("
+        b.add(sb_absence("the further documents on the readings past this tier's receipt cut ("
                          + ", ".join(_named_rows(rcpt_cut, rank)) + ")", "render_cap"),
               label="receipt render cap")
 
@@ -2562,7 +3467,7 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                   label="tape cap")
         elif note.get("kind") == "fan_states_unread":
             named = _named_rows(note.get("names") or (), rank)
-            b.add(sb_absence("the far states of the rows past this tier's cut"
+            b.add(sb_absence("the far states of the readings past this tier's cut"
                              + (" (" + name_list(named, _nm_cap) + ")" if named else ""), "fan_cap"),
                   label="fan states unread")
         elif note.get("kind") == "edge_hop_cap":
@@ -2650,7 +3555,7 @@ def count_words(n: int) -> str:
     return _COUNT_WORDS[n] if n < len(_COUNT_WORDS) else "many"
 
 
-def name_list(names, cap: int = 0, noun: str = "rows") -> str:
+def name_list(names, cap: int = 0, noun: str = "readings") -> str:
     """A cut's name list, bounded by ``cap`` (0 = uncapped) and CLOSING WITH THE REMAINDER IN WORDS.
 
     ``noun`` IS WHAT THE REMAINDER COUNTS, and it exists because S7 routes the FAN INDEX through this
@@ -2663,6 +3568,11 @@ def name_list(names, cap: int = 0, noun: str = "rows") -> str:
     ABSENCE` line of 23,871 characters, in a block of 171,852 -- against sec 7's ~1,100-token Scan
     budget, on the free tier. The names were never cut because "the NAMES are never cut" (sec 3.6), but
     that sentence is about the FAN INDEX, and a free index is not a free enumeration inside a line.
+
+    **THE DEFAULT NOUN IS ``readings`` AND NOT ``rows`` (lane D, 2026-09-17).** `row` is the block's
+    word for a served observation and a PM's word for it is a reading, a series, a print or the record;
+    the smoke's fact lens charged it seven times across five answers, the worst of them inside the
+    mechanism section. The cut still says exactly what it cut.
 
     THE REMAINDER IS STATED, so the row still says what it cut -- the whole law this sitting swept four
     other cuts to keep. It is stated in WORDS for the reason every count on this board is: the mandate
@@ -3029,6 +3939,22 @@ def board_coverage(bd, prose: str, *, n_start: int = 1, loud_k=None, calls=None)
     _state = [i for i, m in enumerate(rows) if m.get("role") == "state"]
     _top = set(_state[:k] if k else _state)
     loud_ref, loud_cit, loud_fig, loud_seen, loud_missed = _bucket(lambda i, m: i in _top)
+    # ROUND-2 DOCKET item 12: THE THREE THE BLOCK LEADS WITH GET THEIR OWN NUMERATOR. `missed.loud`
+    # names every uncited loud row and a reader cannot tell from it whether the writer skipped the
+    # board's LOUDEST reading or its twenty-fourth. These are the same three `sb_lead` names, graded by
+    # the same `_bucket` verdict, so "the top three are named or their omission is explained" is a
+    # number the arm can read rather than a sentence in a mandate nobody scores.
+    # The three READINGS, folded exactly as `_bucket` and `sb_lead` fold them (a phase twin is one
+    # entry), so `loud_lead_rows` reads three on a board whose two loudest rows are one ONI print.
+    _lead_entries: list = []
+    for _i in _state:
+        _ek = str(rows[_i].get("join") or "") or ("#%d" % _i)
+        if _ek not in _lead_entries:
+            _lead_entries.append(_ek)
+    _lead_keys = set(_lead_entries[:LEAD_ROWS])
+    _lead3 = {i for i in _state
+              if (str(rows[i].get("join") or "") or ("#%d" % i)) in _lead_keys}
+    l3_ref, _l3_cit, _l3_fig, l3_seen, l3_missed = _bucket(lambda i, m: i in _lead3)
     ev_ref, _ev_cit, _ev_fig, ev_seen, ev_missed = _bucket(lambda i, m: m.get("role") == "event_open")
     rec_ref, _rc_cit, _rc_fig, rec_seen, rec_missed = _bucket(lambda i, m: m.get("role") == "recency")
     w_ref, w_cit, w_fig, w_seen, w_missed = _bucket(lambda i, m: m.get("role") == "watch")
@@ -3039,6 +3965,7 @@ def board_coverage(bd, prose: str, *, n_start: int = 1, loud_k=None, calls=None)
         # can blend a loose count into a tight claim (the census's own four-tightness discipline).
         "loud_k": k, "loud_rows": loud_seen, "loud_cited": loud_cit, "loud_referenced": loud_ref,
         "loud_figure_only": loud_fig,
+        "loud_lead_rows": l3_seen, "loud_lead_referenced": l3_ref,
         "events_open": ev_seen, "events_referenced": ev_ref,
         # THE EVENT DENOMINATOR'S OWN SHAPE, so a reader can see what it is NOT counting. A closed
         # window is history and the mandate asks nothing of it; a row with NO window placed is neither
@@ -3056,7 +3983,10 @@ def board_coverage(bd, prose: str, *, n_start: int = 1, loud_k=None, calls=None)
         "spillover_licensed": any(m.get("role") == "spillover_licence" for m in rows),
         "missed": {"loud": tuple(loud_missed), "events": tuple(ev_missed),
                    "recency": tuple(rec_missed), "watch": tuple(w_missed),
-                   "spillover": tuple(sp_missed)},
+                   "spillover": tuple(sp_missed),
+                   # The three the block LEADS with. EMPTY is the bar (docket item 12); a name here is
+                   # an omission the mandate is told to explain.
+                   "loud_top3": tuple(l3_missed)},
         # THE PAGE ITSELF, and not its sentences: the nomination read is a PER-BULLET read
         # (ruling (7)) and a bullet is a list item, which only the un-split text carries.
         **_nomination_coverage(rows, sents, _verdict, str(getattr(bd, "asof", "") or ""),

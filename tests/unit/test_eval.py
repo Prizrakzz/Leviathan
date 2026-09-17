@@ -999,3 +999,283 @@ def test_state_report_prints_no_desk_register_lines_on_a_board_only_deck():
     body = "\n".join(L)
     assert body.startswith("## State board use")
     assert "shipped lint hits" not in body and "mandate" not in body.lower() and "51" not in body
+
+
+# ── LANE F (2026-09-17): THE COST CENSUS AND THE SPEND PANEL ──────────────────────────────────────
+# THE DEFECT, MEASURED (COST_LATENCY.md sec 0, the 2026-09-16 in-VPC pre-arm smoke): `turn_cost_usd`
+# is the estate's ONE money column and it prices ONE of six Anthropic seats -- the WRITER. Five smoke
+# turns priced $2.5643 in it against a PROVEN floor of $3.9251 and a modelled $5.6656, so every budget
+# built by scaling it under-counts a hybrid turn by 35-55%. The seats it never saw are the NUMBERS
+# AGENT (claude-sonnet-5, $8.84 of a $35 arm, the long pole at 46-73% of wall clock), the DISPATCH
+# PLANNER (stamped nowhere at all) and the DESK REWRITE (already priced, reaching the report only).
+_SU = {"model": "claude-opus-5", "in": 25486, "out": 3333, "cache_read": 0, "cache_write": 50897}
+
+
+def test_turn_cost_total_equals_turn_cost_usd_when_only_the_writer_is_stamped():
+    """THE BYTE-IDENTITY PIN FOR THE MONEY COLUMN. `_turn_cost_usd` is UNTOUCHED -- name, arithmetic
+    and scope -- because it sits in banked baselines across the estate and redefining it would silently
+    re-scale every prior arm's $/turn. On a writer-only row (every flag-off row, every banked replay,
+    every non-orchestrator row) the new column agrees with it EXACTLY: same seat, same function. The
+    banked value below is the max smoke turn's own: 25,486*5 + 50,897*5*1.25 + 3,333*25 = $0.52886125."""
+    total, seats = gev._turn_cost_total_usd({"synth_usage": _SU})
+    assert seats == {"writer": gev._turn_cost_usd(_SU)}
+    assert abs(total - gev._turn_cost_usd(_SU)) < 1e-12
+    assert abs(total - 0.52886125) < 1e-9
+
+
+def test_the_census_never_fabricates_a_zero_and_omits_an_unpriced_seat():
+    """THE CostUsd 0-SEMANTICS IDIOM, twice. A turn with NOTHING stamped returns (None, None) -- not
+    ($0.00, {}) -- because "nobody measured" and "it was free" are different facts. And a seat whose
+    model is absent from `providers.SERVING_PRICES` is OMITTED FROM THE MAP rather than counted as
+    free, so a total can never silently under-report by pricing an unknown model at zero. The row
+    count in the map IS the disclosure of how many seats the number covers."""
+    assert gev._turn_cost_total_usd({}) == (None, None)
+    assert gev._turn_cost_total_usd(None) == (None, None)
+    t, s = gev._turn_cost_total_usd({"synth_usage": _SU,
+                                     "plan_usage": {"model": "some-model-nobody-priced",
+                                                    "in": 9999, "out": 9999}})
+    assert set(s) == {"writer"} and "dispatch_planner" not in s
+    assert abs(t - gev._turn_cost_usd(_SU)) < 1e-12
+
+
+def test_the_numbers_seat_is_a_list_of_rounds_and_is_summed_as_one_seat():
+    """The agent's bill is dominated by ONE ~99 k-token cached prefix re-read once per round, so the
+    artifact keeps a PER-ROUND shape (a cold write is `cache_read == 0` on round 1, $0.3720 a time,
+    and it is the cheapest lever measured on arm A). The MONEY, though, is one seat's money."""
+    rounds = [{"model": "claude-sonnet-5", "in": 21, "out": 1383, "cache_read": 86668, "cache_write": 0},
+              {"model": "claude-sonnet-5", "in": 105, "out": 4312, "cache_read": 424002, "cache_write": 0}]
+    _t, s = gev._turn_cost_total_usd({"synth_usage": _SU, "numbers_usage": rounds})
+    assert set(s) == {"writer", "numbers"}
+    assert abs(s["numbers"] - sum(gev._seat_cost_usd(r) for r in rounds)) < 1e-12
+    # an EMPTY list is not a seat: the agent ran no round, which is not "the numbers cost $0"
+    _t2, s2 = gev._turn_cost_total_usd({"synth_usage": _SU, "numbers_usage": []})
+    assert set(s2) == {"writer"}
+
+
+def test_the_desk_rewrite_is_taken_verbatim_and_never_re_priced_from_tokens_it_lacks():
+    """`answer._desk_register_lint` already prices itself with THIS SAME `providers.serving_cost_usd`
+    and the census carries no tokens for it, so re-deriving here would be a second spelling of one
+    bill. A non-numeric `usd` (or the `over_ceiling` bool beside it) is not a price.
+
+    RE-BANKED, ROUND-2 REVIEW M2, AND THE CAUSE IS THE POINT: every trace here now carries a
+    CENSUS-ONLY seat beside the desk register, because `desk_register` is stamped by a TREATMENT flag
+    (`GRAPHRAG_DESK_REGISTER`) and a treatment flag must not change a flag-off artifact. Without a
+    census seat on the row the desk rewrite is no longer counted at all -- that is the fix, and
+    `test_a_treatment_flags_seat_alone_grows_no_column_and_renders_no_panel` below is its own pin. What
+    this test still owns is the VERBATIM rule: when the census DID run, the already-priced dollar is
+    taken as it stands and never re-derived."""
+    _pu = {"model": "claude-sonnet-4-6", "in": 80, "out": 600, "cache_read": 8800, "cache_write": 0}
+    _t, s = gev._turn_cost_total_usd({"synth_usage": _SU, "plan_usage": _pu,
+                                      "desk_register": {"usd": 0.0098, "over_ceiling": False}})
+    assert s["desk_rewrite"] == 0.0098
+    for bad in ({"usd": None}, {"usd": "0.01"}, {"usd": True}, {"outcome": "no_caller"}):
+        _t2, s2 = gev._turn_cost_total_usd({"synth_usage": _SU, "plan_usage": _pu,
+                                            "desk_register": bad})
+        assert "desk_rewrite" not in s2, bad
+
+
+def test_the_two_new_columns_are_absent_when_the_writer_is_the_only_stamped_seat():
+    """THE FLAG-OFF BYTE PIN ON THE RECORD. On a writer-only row the two columns would say exactly what
+    `turn_cost_usd` already says, so emitting them would move every flag-off artifact off HEAD's byte
+    for no information. Their PRESENCE is itself the fact that a second seat was stamped."""
+    off = gev._per_answer_record({"q": {"id": "q1"}, "out": {"trace": {"synth_usage": _SU}}}, "single")
+    assert "turn_cost_total_usd" not in off and "turn_cost_by_seat_usd" not in off
+    assert abs(off["turn_cost_usd"] - 0.52886125) < 1e-9
+    on = gev._per_answer_record(
+        {"q": {"id": "q1"},
+         "out": {"trace": {"synth_usage": _SU,
+                           "plan_usage": {"model": "claude-sonnet-4-6", "in": 80, "out": 600,
+                                          "cache_read": 8800, "cache_write": 0}}}}, "single")
+    assert on["turn_cost_usd"] == off["turn_cost_usd"]             # UNTOUCHED, both rows
+    assert set(on["turn_cost_by_seat_usd"]) == {"writer", "dispatch_planner"}
+    assert on["turn_cost_total_usd"] > on["turn_cost_usd"]
+    # the judge's usage is a MEASUREMENT cost, rides its own column, never folded into turn_cost_usd
+    jrow = gev._per_answer_record(
+        {"q": {"id": "q1"}, "out": {"trace": {"synth_usage": _SU}},
+         "judge": {"usefulness": 4, "_usage": {"model": "claude-opus-4-8", "in": 15342, "out": 700,
+                                               "cache_read": 0, "cache_write": 6269}}}, "single")
+    assert jrow["judge_usage"]["model"] == "claude-opus-4-8"
+    assert jrow["judge"] == {"usefulness": 4}                # the AXIS whitelist: _usage cannot leak
+    assert jrow["turn_cost_usd"] == off["turn_cost_usd"]
+    assert "judge" in jrow["turn_cost_by_seat_usd"]
+
+
+def _spend_row(trace, tier="deep"):
+    return {"q": {"id": "q1", "contract": "arabica_coffee", "question": "x"},
+            "out": {"answer": "x", "intent": "reasoning", "evidence": [], "number_calls": [],
+                    "structured": {"tldr": "", "mechanism": "x", "sources": []},
+                    "trace": trace, "intent_decision": {"mode": {"honored": tier}}},
+            "rubric": {"routed_right": True, "needs_evidence": False}}
+
+
+def test_the_spend_panel_is_absent_when_the_census_is_dark_and_names_every_seat_when_lit():
+    """ABSENT-WHEN-DARK, so every banked report of every flag-off deck is byte-identical: a one-seat
+    total wearing the word "spend" is exactly the misreading this panel exists to end."""
+    assert gev.spend_report([]) == []
+    assert gev.spend_report([_spend_row({"synth_usage": _SU})]) == []
+    body = gev.report([_spend_row({"synth_usage": _SU})], model="claude-opus-5")
+    assert "## Spend" not in body
+    lit = [_spend_row({"synth_usage": _SU,
+                       "numbers_usage": [{"model": "claude-sonnet-5", "in": 100, "out": 2000,
+                                          "cache_read": 0, "cache_write": 99207},
+                                         {"model": "claude-sonnet-5", "in": 100, "out": 2000,
+                                          "cache_read": 99207, "cache_write": 0}],
+                       "desk_register": {"usd": 0.0098}}, tier="max")]
+    L = gev.spend_report(lit)
+    t = "\n".join(L)
+    assert t.startswith("## Spend")
+    for seat in ("writer", "numbers", "desk_rewrite"):
+        assert ("- %s:" % seat) in t, seat
+    assert "tier `max`" in t
+    assert "COLD prefix writes (cache_read == 0 on a round that wrote): 1" in t
+    assert "Cohere rerank" in t                                    # what the number does NOT cover
+    assert "## Spend" in gev.report(lit, model="claude-opus-5")
+
+
+def test_the_judge_binds_its_own_usage_only_under_the_census_flag(monkeypatch):
+    """`eval.py`'s judge line was `scores, _ = call(...)` -- `ex.call_opus` returns `(tool_input,
+    usage)` and the second element was discarded on EVERY judged row the estate has ever run, so the
+    judge's own ~$2.90 of a 34-turn arm was recorded nowhere. THE JUDGED PROMPT DOES NOT MOVE A BYTE:
+    the same system blocks, user block, tool and max_tokens; only the discarded value is kept."""
+    import types
+
+    seen = {}
+
+    def fake_call(client, sys_blocks, user, model=None, max_tokens=None, tool=None):
+        seen["user"] = user
+        seen["max_tokens"] = max_tokens
+        seen["sys_blocks"] = sys_blocks                            # round-2 review m6: all four, not two
+        seen["tool"] = tool
+        seen["model"] = model
+        return ({"usefulness": 4, "convexity": 3, "point_in_time": 4, "grounding": 4,
+                 "source_diversity": 3, "mechanism_voice": 4, "hallucinations": []},
+                types.SimpleNamespace(input_tokens=15342, output_tokens=700,
+                                      cache_read=0, cache_creation=6269))
+
+    out = {"answer": "x", "intent": "reasoning", "evidence": [], "number_calls": [],
+           "structured": {"tldr": "", "mechanism": "x", "sources": []}, "trace": {}}
+    q = {"question": "why", "asof": "2026-09-16", "contract": "arabica_coffee"}
+    monkeypatch.delenv("GRAPHRAG_COST_CENSUS", raising=False)
+    dark = gev.judge(q, out, graph=_graph(), client=None, call=fake_call)
+    dark_call = (seen["user"], seen["sys_blocks"], seen["tool"], seen["max_tokens"], seen["model"])
+    assert "_usage" not in dark                                    # HEAD's scores dict exactly
+    monkeypatch.setenv("GRAPHRAG_COST_CENSUS", "on")
+    lit = gev.judge(q, out, graph=_graph(), client=None, call=fake_call)
+    # ROUND-2 REVIEW m6: the CLAIM was "same sys_blocks, same user, same tool, same max_tokens"; the
+    # pin captured `user` and `max_tokens` and asserted only `user`. All five arguments of the call are
+    # asserted now, so the claim and the pin are the same statement.
+    assert (seen["user"], seen["sys_blocks"], seen["tool"], seen["max_tokens"], seen["model"]) == \
+           dark_call                                               # THE PROMPT DID NOT MOVE
+    assert lit["_usage"] == {"model": "claude-opus-4-8", "in": 15342, "out": 700,
+                             "cache_read": 0, "cache_write": 6269}
+    assert gev._seat_cost_usd(lit["_usage"]) > 0
+
+
+def test_a_treatment_flags_seat_alone_grows_no_column_and_renders_no_panel():
+    """ROUND-2 REVIEW M2 -- THE CENSUS's KILL-SWITCH GATES THE CENSUS's OUTPUT. PROVEN BOTH WAYS.
+
+    `desk_register` is stamped under `GRAPHRAG_DESK_REGISTER`, an `arm_flags` TREATMENT flag with NO
+    relation to this census. BEFORE THE FIX, a row carrying only `synth_usage` + `desk_register` --
+    reachable on ANY S7b deck with `GRAPHRAG_COST_CENSUS` UNSET ENTIRELY -- grew both new columns and
+    rendered an eight-line Spend panel. Measured then: `turn_cost_total_usd` 0.53866125, seats
+    `{'writer': 0.5289, 'desk_rewrite': 0.0098}`, 8 panel lines, census flag off.
+
+    A TREATMENT FLAG MUST NOT CHANGE A FLAG-OFF ARTIFACT, and turning the census off must put the
+    artifact back on HEAD's shape or it is not a rollback. THE GATE IS A PROPERTY OF THE ROW, never an
+    environment read at report time: a `--from-baseline` replay of a run that DID stamp the census must
+    keep every column that run produced, and the second half of this test is that case."""
+    tr = {"synth_usage": _SU, "desk_register": {"usd": 0.0098, "over_ceiling": False}}
+    total, seats = gev._turn_cost_total_usd(tr)
+    assert seats == {"writer": gev._turn_cost_usd(_SU)}            # the TREATMENT seat is not counted
+    assert abs(total - 0.52886125) < 1e-9                          # ...so the total is the writer's
+    row = gev._per_answer_record({"q": {"id": "q1"}, "out": {"trace": tr}}, "single")
+    assert "turn_cost_total_usd" not in row and "turn_cost_by_seat_usd" not in row
+    assert row["desk_register"] == {"usd": 0.0098, "over_ceiling": False}   # the KEY still lifts
+    assert row["turn_cost_usd"] == gev._turn_cost_usd(_SU)         # ...and HEAD's money column is HEAD's
+    assert gev.spend_report([_spend_row(tr)]) == []
+    assert "## Spend" not in gev.report([_spend_row(tr)], model="claude-opus-5")
+    # ...AND THE MOMENT A CENSUS-ONLY SEAT RIDES BESIDE IT, the desk rewrite is counted again: the row
+    # itself is the receipt that the census ran, so a banked replay loses nothing.
+    lit = dict(tr)
+    lit["plan_usage"] = {"model": "claude-sonnet-4-6", "in": 80, "out": 600,
+                         "cache_read": 8800, "cache_write": 0}
+    _t2, s2 = gev._turn_cost_total_usd(lit)
+    assert set(s2) == {"writer", "dispatch_planner", "desk_rewrite"}
+    assert "desk_rewrite" in gev._per_answer_record(
+        {"q": {"id": "q1"}, "out": {"trace": lit}}, "single")["turn_cost_by_seat_usd"]
+
+
+def test_the_spend_panels_two_denominators_are_counted_and_named_separately():
+    """ROUND-2 REVIEW M3 -- THE MIXED DECK. PROVEN BEFORE AND AFTER.
+
+    The loop SKIPS writer-only rows and the headline then reported over `len(rows)` -- ALL of them.
+    MEASURED BEFORE THE FIX on 2 census rows beside 6 writer-only rows carrying the same banked
+    `synth_usage`:
+
+        - **total $1.5357** over 8 row(s); `turn_cost_usd` (the WRITER alone ...) is $1.0577 of it -- 69%
+
+    while that deck's OWN `turn_cost_usd` column summed to $4.2309. A panel built to stop a money
+    column UNDER-reporting printed a census total BELOW the column it corrects, over a row count that
+    did not produce it, and a reader taking "69%" as "the writer is 69% of the bill" was wrong twice.
+    Both denominators are counted now, both are named in the line that uses them, and the panel says in
+    words that the two are different populations rather than a delta."""
+    pu = {"model": "claude-sonnet-4-6", "in": 80, "out": 600, "cache_read": 8800, "cache_write": 0}
+    rows = ([_spend_row({"synth_usage": _SU, "plan_usage": pu}) for _ in range(2)]
+            + [_spend_row({"synth_usage": _SU}) for _ in range(6)])
+    t = "\n".join(gev.spend_report(rows))
+    assert "over the 2 of 8 row(s) that stamped a seat BEYOND the writer" in t
+    col = 8 * gev._turn_cost_usd(_SU)
+    assert ("sums to $%.4f over all 8 row(s)" % col) in t
+    assert "DIFFERENT DENOMINATOR" in t and "is not\na saving" not in t
+    # THE HEADLINE IS THE CENSUS ROWS' MONEY, never the eight-row column wearing the census's name
+    census = 2 * (gev._turn_cost_usd(_SU) + gev._seat_cost_usd(pu))
+    assert ("**total $%.4f**" % census) in t
+    assert ("**total $%.4f**" % col) not in t
+    assert census < col                                            # the exact misreading, with the sign
+    # ...and the writer's share is taken over the census total it is part of, not over the column
+    assert ("the writer is $%.4f of that" % (2 * gev._turn_cost_usd(_SU))) in t
+    # ROUND-2 REVIEW m2: the judge is not part of the turn, so the tier line says which it prices
+    assert "(every stamped seat, turn + judge)" in t
+
+
+def test_a_seat_map_that_sums_to_zero_prints_no_share_instead_of_losing_the_report():
+    """ROUND-2 REVIEW m1 -- `if not seats` guards an EMPTY map, NOT one that sums to exactly $0.00.
+
+    MEASURED: a row whose writer model is unpriced (correctly OMITTED from the map, the CostUsd
+    0-semantics idiom) beside one all-zero-token numbers round gives `{'numbers': 0.0}`, and the
+    writer-share division raised `ZeroDivisionError`. `report()` runs ONCE per deck AFTER a paid arm,
+    so a raise there loses the whole ARTIFACT rather than a row -- exactly the class `state_report`'s
+    own guard was written for. A share of nothing is not printed; it is omitted."""
+    tr = {"synth_usage": {"model": "(unavailable)", "in": 9, "out": 9, "cache_read": 0, "cache_write": 0},
+          "numbers_usage": [{"model": "claude-sonnet-5", "in": 0, "out": 0,
+                             "cache_read": 0, "cache_write": 0}]}
+    assert gev._turn_cost_usd(tr["synth_usage"]) is None           # unpriced -> omitted, never zeroed
+    _t, s = gev._turn_cost_total_usd(tr)
+    assert s == {"numbers": 0.0}
+    L = gev.spend_report([_spend_row(tr)])                         # NO RAISE
+    assert L and L[0].startswith("## Spend")
+    assert "the writer is" not in "\n".join(L)                     # a share of nothing is not printed
+    assert "## Spend" in gev.report([_spend_row(tr)], model="claude-opus-5")
+
+
+def test_the_writer_seam_panel_reports_a_correction_as_a_defect_and_names_the_two_watch_counters():
+    """LANE E's key, read by this lane. A correction count is a DEFECT count: `superlatives_corrected`
+    means the writer made claims its OWN cited rows denied. And `writer_seam.watch_bullets` is NOT
+    `state_board.coverage.watch_bullets` -- two counters over one object, measured 19 vs 16 on the
+    2026-09-16 smoke -- so the panel names which is which rather than letting a reader sum them."""
+    ws = {"outcome": "ok", "prose_words": 1833, "prose_ceiling": 900, "prose_over_budget": 933,
+          "superlatives_seen": 4, "superlatives_corrected": 2, "classes_corrected": 1,
+          "stale_sentences": 3, "stale_rows_dated": 2, "lag_windows_checked": 5,
+          "lag_windows_corrected": 1, "decline_words_corrected": 0, "watch_bullets": 4,
+          "watch_no_figure": 3, "watch_figures_added": 2, "watch_no_window": 2,
+          "watch_no_falsifier": 1, "watch_over_ceiling": 1}
+    L = gev.state_report([_srow({"answer": "x", "trace": {"writer_seam": ws},
+                                 "structured": {"tldr": "", "mechanism": "x"}})])
+    t = "\n".join(L)
+    assert t.startswith("## Writer seam")                          # a header that promises no board
+    assert "over budget by 933" in t and "THE CONTROL WAS NEVER TOLD A CEILING" in t
+    assert "a DEFECT count" in t and "superlatives 2/4" in t
+    assert "NOT the same population" in t and "NEVER SUMMED" in t
+    assert "over the tier's own 3/5/7 ceiling: 1" in t
+    # absent is never zero: a deck that ran no seam prints no seam line
+    assert not any("WRITER SEAM" in x for x in gev.state_report([_srow(_board_out(coverage=dict(_COV)))]))

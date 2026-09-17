@@ -859,7 +859,14 @@ def test_S7r2_the_CROSSED_control_is_DEGENERATE_for_recency_because_the_LAYER_FA
         assert len(vals) == 1 and None not in vals, (layer, vals)
     # ...so any answer that transcribes one board's layer fact transcribes all three
     shared = lines[names[0]]["RECENCY numbers"]
-    assert "2026-09-04" in shared and "newest knowledge date" in shared, shared
+    # RE-ANCHORED 2026-09-17 ON THE CONTRACT RATHER THAN ON ONE PHRASING. The pin read the literal
+    # "newest knowledge date", which is the exact wording lane A struck at the source ("'number rows'
+    # and 'knowledge date' are pipeline vocabulary" -- the PM lens, on two served answers that
+    # transcribed it, one of them as the bare integer 20260904). What this test is FOR is that the
+    # numbers layer prints ONE shared fact the coverage scorer can see, so it asserts the date and the
+    # scorer's own accepted vocabulary -- four of whose seven spellings were already desk-clean.
+    assert "2026-09-04" in shared, shared
+    assert any(w in shared for w in R._RECENCY_LAYER_WORDS["numbers"]), shared
 
 
 # === 6. THE NOMINATION READ IS PER BULLET (S7b round 4, orchestrator ruling (7)) ==================
@@ -1005,13 +1012,18 @@ def test_S7b4_board_coverage_hands_the_PAGE_to_the_nomination_read_and_not_its_s
     """THE SEAM ITSELF. A bullet is a LIST ITEM and only the un-split text carries one, so
     `board_coverage` threads `text=` and not `sents`. If a later edit reverted that, every counter
     below would read zero on a page whose watch list is plainly there -- which is what this pin
-    catches. The key count is the other half: twenty from the board, eight from the nomination."""
+    catches. The key count is the other half: TWENTY-TWO from the board and eight from the nomination
+    read -- HEAD's twenty plus ROUND-2 DOCKET item 12's two lead counters (review round 3: this line
+    said twenty over an assertion of thirty, and a stale count in a pin is the defect the pin is for)."""
     import types
     rows = [_nom("past_the_line", "export pace lag", 7)]
     bd = types.SimpleNamespace(rendered_rows=rows, asof=NOM_ASOF, knobs=None, calls=())
     page = "## What to watch\n- **Weekly US export sales** [N7]: past the line.\n"
     cov = R.board_coverage(bd, page, n_start=1, calls=())
-    assert set(NOMINATION_KEYS) <= set(cov) and len(cov) == 28
+    # TWENTY-TWO FROM THE BOARD AND EIGHT FROM THE NOMINATION READ (ROUND-2 DOCKET item 12 added
+    # `loud_lead_rows` and `loud_lead_referenced`: the three readings the block LEADS with, graded
+    # apart from the loud set so 'the top three are named or their omission explained' is a number).
+    assert set(NOMINATION_KEYS) <= set(cov) and len(cov) == 30
     assert cov["watch_bullets"] == 1 and cov["watch_candidates_used"] == 1
     assert cov["watch_writer_added"] == 0
 
@@ -1019,10 +1031,12 @@ def test_S7b4_board_coverage_hands_the_PAGE_to_the_nomination_read_and_not_its_s
 def test_S7b4_the_flag_off_coverage_keeps_HEADS_TWENTY_KEYS_on_every_banked_page(boards):
     """FLAG-OFF BYTE IDENTITY, the contract this whole lane ships under. With the non-obvious flag OFF
     the block carries HEAD's five watch kinds, `_nomination_coverage` returns `{}` BEFORE it reads the
-    page, and `board_coverage` returns HEAD's twenty keys -- on the empty page, on a page of prose, and
-    on each of the SIXTEEN banked census blocks handed to each of the three acceptance fixtures. A
-    zero-filled block of eight keys would have failed this on every turn and would have fabricated a
-    `0 of 0` inside the arm's own new dimension."""
+    page, and `board_coverage` returns TWENTY-TWO keys -- HEAD's twenty plus ROUND-2 DOCKET item 12's
+    two BOARD-SIDE lead counters, which are unconditional and are NOT the eight the flag adds -- on the
+    empty page, on a page of prose, and on each of the SIXTEEN banked census blocks handed to each of
+    the three acceptance fixtures. A zero-filled block of eight keys would have failed this on every
+    turn and would have fabricated a `0 of 0` inside the arm's own new dimension. (Review round 3: the
+    name and this sentence both still said TWENTY over an assertion of twenty-two.)"""
     import pathlib as _pl
     banked = (_pl.Path(__file__).resolve().parents[2] / "data" / "board_census" / "2026-09-07"
               / "blocks")
@@ -1034,5 +1048,10 @@ def test_S7b4_the_flag_off_coverage_keeps_HEADS_TWENTY_KEYS_on_every_banked_page
         ctx = boards[name]
         for page in pages:
             cov = R.board_coverage(ctx["board"], page, n_start=1, calls=ctx["block"].calls)
-            assert len(cov) == 20, (name, sorted(cov))
+            # 20 -> 22: the two DOCKET-12 lead counters. They are BOARD-side and unconditional, so
+            # the non-obvious flag still adds exactly its own eight keys and never a zero-filled
+            # block -- which is what this pin exists to catch.
+            assert len(cov) == 22, (name, sorted(cov))
+            assert {'loud_lead_rows', 'loud_lead_referenced'} <= set(cov)
+            assert 'loud_top3' in cov['missed']
             assert not [k for k in NOMINATION_KEYS if k in cov], (name, sorted(cov))

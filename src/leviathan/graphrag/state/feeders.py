@@ -266,6 +266,13 @@ TABLE_HISTORY_WINDOW: dict[str, int] = {"silver_pink_sheet": 60}
 #: has a number to compare against rather than a default it inherited.
 READ_LIMIT = 5000
 
+#: THE ONE LITERAL THAT SAYS A DECLARED OFFSET WAS **NOT** PERFORMED. Both refusal branches below
+#: write it and ``render.sb_state`` reads it to decide whether to tell a reader the shift is this
+#: market's own EFFECT LAG rather than a publication delay -- a sentence that would be false on a
+#: row whose offset was skipped. One literal, two writers and one reader, so the two halves cannot
+#: drift into a block that names a lag nobody applied (lane D, 2026-09-17).
+OFFSET_NOT_APPLIED = "is NOT applied"
+
 #: Periods per year, per cadence -- the ``pace_vs_prior`` parameter. REQUIRED by that leaf: a pace
 #: reading whose "prior year" was guessed from the row count is a quiet substitution.
 CADENCE_PERIODS_PER_YEAR: dict[str, int] = {
@@ -613,6 +620,15 @@ def cache_clear() -> None:
     with _LOCK:
         _SHARED.clear()
         _ORDER.clear()
+    # THE RENDER'S CONVENTION BOOKS GO WITH IT (review round 2, minor 10). ``render._reading_word_table``
+    # and ``render._phase_pair_table`` are ``lru_cache(maxsize=1)`` over ``lint.load_conventions()`` and
+    # had NO clear hook at all, so a process (or a deck) that re-read the conventions kept a stale book
+    # and graded the OLD one. One clear, one seam. Imported lazily: ``render`` imports this module.
+    try:
+        from leviathan.graphrag.state import render as _render
+        _render.cache_clear()
+    except Exception:                                   # noqa: BLE001 -- telemetry never fails a read
+        pass
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -1145,6 +1161,9 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
         out.coverage_tier = coverage_tier(map_row=row, silver_status=silver_status, status=out.status)
         return out
     level_row = dated_rows[-1]                         # the served row the LEVEL's own facts come from
+    #: THE NEWEST KNOWABLE READING, banked here and merged into ``out.recency`` after ``_recency``
+    #: builds it (that call REPLACES the dict, so the keys cannot be written straight onto the row).
+    _current_reading: dict = {}
     if plan.apply_offset and out.offset_months and cadence == "monthly":
         # THE DECLARED SAME-SERIES OFFSET (cascade_map `offset_months`), applied to the BASE series'
         # array at ZERO extra reads: the palm author's "state now" is ONI six months ago. The projection
@@ -1158,6 +1177,35 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
         # collapse ADMITTED, so a blank cell no longer makes a parallel frame look collapsed).
         parallel = len(dated_rows) == len(values)
         if len(values) > n:
+            # THE NEWEST KNOWABLE READING OF THE SAME SERIES IS BANKED BEFORE THE SHIFT (lane D, the
+            # 2026-09-16 pre-arm smoke). MEASURED on two served quick turns: the palm board printed
+            # "NOAA ONI ... MY2026-01 = -0.39 degC (latest available 2026-03-08)" -- a COOL-phase
+            # reading -- while the soybean board at the SAME as-of printed MY2026-07 = 1.8 degC off
+            # this same table, and the writer built a palm supply-squeeze story on the cool number.
+            # Neither figure is wrong and the shift is the palm author's own declared EFFECT LAG, but
+            # the row said only "latest available", which a reader takes for DATA LATENCY: nothing on
+            # the page said the world is in the warm phase today. So the pre-shift newest row rides
+            # the row's own `recency` dict -- an additive key, no new field on `StateRow` -- and
+            # `render.sb_state` mints it as its own handled figure beside the lagged level, with the
+            # lag named as an effect lag. THE LEVEL DOES NOT MOVE: the declared offset is the design
+            # (`_resolve_same_series`), and correcting-not-deleting means the board serves BOTH
+            # readings and says which is which, never one of them silently.
+            _current_reading["current_level"] = values[-1]
+            _current_reading["current_level_date"] = dates[-1] if dates else None
+            _current_reading["offset_periods"] = n
+            # THE SHIFT ITSELF, BANKED AS A BOOLEAN (review round 2, minor 5). `render._offset_applied`
+            # decided whether a row may say "the date above is a declared effect lag" by SEARCHING
+            # `offset_note` for the ONE literal `OFFSET_NOT_APPLIED` -- and that contract has FOUR
+            # writers, two of which (a `_Fold` refusal on an absent base ref, and a refusal on a
+            # different table or native unit) set `apply_offset=False` and write a note containing
+            # neither the literal nor a shift. The predicate is now this flag, set in the ONE branch
+            # that actually performs the shift, and the literal search survives only as the fallback
+            # for a row banked before it existed.
+            _current_reading["offset_applied"] = True
+            if parallel:
+                _cur_kd, _cur_basis = derive_knowledge_date(ts, dated_rows[-1])
+                _current_reading["current_knowledge_date"] = _cur_kd
+                _current_reading["current_knowledge_basis"] = _cur_basis
             values, dates = values[:-n], dates[:-n]
             if parallel:
                 # THE ROW-LEVEL FACTS MOVE WITH THE LEVEL. `knowledge_date` and the vintage `role` are
@@ -1177,13 +1225,13 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
             # skipping the shift would print an UNSHIFTED level under a note that claims a six-month one
             # -- a wrong figure wearing a right label. Stating the unapplied offset is the same shape the
             # non-monthly branch below already takes.
-            out.offset_note = (f"a declared {n}-month offset is NOT applied: the fetched history is "
+            out.offset_note = (f"a declared {n}-month offset {OFFSET_NOT_APPLIED}: the fetched history is "
                                f"{len(values)} monthly periods, no longer than the offset")
     elif out.offset_months and plan.apply_offset and cadence != "monthly":
         # `offset_months` is declared in MONTHS. On a non-monthly cadence the board cannot convert it to
         # the card's own periods without inventing a calendar rule, so it is NOT applied and the row
         # says so -- an unapplied offset stated is a fact; an offset quietly dropped is a wrong level.
-        out.offset_note = (f"a declared {int(out.offset_months)}-month offset is NOT applied on a "
+        out.offset_note = (f"a declared {int(out.offset_months)}-month offset {OFFSET_NOT_APPLIED} on a "
                            f"{cadence} card: the shift is declared in months")
 
     if out.alias_ref and reads == 0:
@@ -1284,6 +1332,10 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
             out.vintage_note = VINTAGE_NOTE.format(asof=asof, today=td)
 
     out.recency = _recency(out, asof, ts, cadence)
+    # THE NEWEST KNOWABLE READING RIDES THE RECENCY DICT, which is where "when could anyone have known
+    # this" already lives. It is ADDITIVE: on every row with no applied offset the dict is byte-for-byte
+    # `_recency`'s, and `render` prints the clause only where these keys exist.
+    out.recency.update(_current_reading)
     out.derivation = derivs
     out.inputs = bundle
     n_obs = len(values)

@@ -766,7 +766,18 @@ _K93_BANKED = {
                 "(latest available 2026-07-01; as-of 2026-09-06)"),
     "deep_N2": ("MPOB palm oil closing stocks CME palm oil = 2,628,325 MT "
                 "(latest available 2026-07-01; as-of 2026-09-06)"),
-    "deep_N3": ("MPOB stocks-to-use ratio CME palm oil = 1.88792 ratio "
+    # RE-BANKED 2026-09-17 (prearm fix round 2, census blocker B-1). THE CAUSE IS A PURE CORRECTION TO
+    # THE CARD, ruled by the orchestrator and shipped in this same commit: `silver_mpob.su_ratio` is
+    # closing stocks divided by THAT MONTH'S exports -- `transforms/bronze_to_silver/mpob.py:126` calls
+    # it "months of supply at current export pace" in the producer's own words -- so the card's label
+    # "stocks-to-use ratio" was FALSE about the quantity, and 1.88792 read as a stocks-to-use ratio is
+    # the factor-of-eleven class this whole deck exists to refuse (the 2026-09-16 pre-arm smoke served
+    # exactly that: 1.88792 set beside soyoil's 5.67 % "as the two halves of the central comparison").
+    # `configs/graphrag/numbers/tables.yaml` now labels it "months of export cover"; `Metric.label` IS
+    # the display producer (`citations._metric_display_name` -> `cascade._metric_display`), so the
+    # BANKED STRING MOVES AND THE MAGNITUDE DOES NOT -- 1.88792 is byte-identical, and so is the unit
+    # token, which stays the source column's own 'ratio' (docketed, not moved in this commit).
+    "deep_N3": ("MPOB months of export cover CME palm oil = 1.88792 ratio "
                 "(latest available 2026-07-01; as-of 2026-09-06)"),
     "deep_N10": ("World Bank Pink Sheet crude palm oil price  = 1,101 USD/mt "
                  "(latest available 2026-07-01; as-of 2026-09-06)"),
@@ -829,8 +840,24 @@ def test_k9_3_the_judged_stop_12_key_is_refused_by_the_table_fence_and_stays_at_
 
     THE PATH BACK IS A DECLARATION, NOT A CODE CHANGE, and the build says so: with
     GRAPHRAG_NARRATE_SCALE on, `config_check._check_narrate_scale_family` fails naming
-    silver_mpob.su_ratio and silver_icco_cocoa.su_ratio by address (pinned below). A cascade_map row
-    for each lifts the refusal and this pin goes back to asserting 11.7499 %."""
+    silver_icco_cocoa.su_ratio by address (pinned below). A cascade_map row for it lifts the refusal
+    and this pin goes back to asserting 11.7499 %.
+
+    RE-BANKED 2026-09-17 (prearm fix round 2, census blocker B-1) -- THE FAMILY LOSES MPOB, AND IT
+    LOSES IT FOR THE RIGHT REASON. The roster shrinks from [icco, mpob] to [icco] because
+    `silver_mpob.su_ratio` stopped CLAIMING to be a stocks-to-use ratio: its card label is now "months
+    of export cover" (closing stocks / that month's exports, the producer's own words at
+    `transforms/bronze_to_silver/mpob.py:126`), so it no longer prints under this family's name and
+    `_display_family_index` no longer files it here. THIS IS NOT THE FENCE WEAKENING. The fence still
+    REFUSES silver_psd.su_ratio -- asserted on the line below, unchanged -- because silver_icco_cocoa
+    still prints "stocks-to-use ratio" at card unit 'ratio' and the map is still silent about it. What
+    changed is that one member left the family by CORRECTION rather than by coincidence: mpob was in it
+    only because it was mislabelled, and a family that no longer contains a months-of-cover figure is a
+    family that measures one quantity. MEASURED, the same sitting: `narrate_scale` is None for BOTH
+    keys before and after, `len(moved)` is 13 before and after, `check_cascade_map()` is empty before
+    and after, and `_check_display_name_families` returns 4 errors with the flag on before and after --
+    so the only thing this correction moved is WHICH TABLE IS NAMED inside the 'stocks-to-use ratio'
+    error, and the pin below says so by address."""
     off, on = _k93_labels(monkeypatch, None), _k93_labels(monkeypatch, "on")
     for key in ("max_N19", "max_N20", "max_N21", "max_N22", "max_N30mint"):
         assert on[key] == off[key], key
@@ -838,7 +865,21 @@ def test_k9_3_the_judged_stop_12_key_is_refused_by_the_table_fence_and_stays_at_
     assert cit.narrate_scale("silver_psd", "su_ratio") is None
     assert cit._map_scale("silver_psd", "su_ratio") == (100.0, "%")        # the MAP still declares it
     assert cit._family_scale_conflict("silver_psd", "su_ratio", (100.0, "%")) == [
-        ("silver_icco_cocoa", "su_ratio"), ("silver_mpob", "su_ratio")]    # ...the family refuses it
+        ("silver_icco_cocoa", "su_ratio")]                                 # ...the family refuses it
+    # ...and MPOB is out of the family BY NAME, not by silence: it prints a different analyst name now,
+    # at the same card unit, so the index files it alone and nothing about it can collide with a share
+    # of a period's use. (The unit TOKEN is still the source column's 'ratio' -- docketed, see the
+    # re-bank note on `_K93_BANKED['deep_N3']`.)
+    assert cit._metric_display_name("silver_mpob", "su_ratio") == "months of export cover"
+    assert cit._metric_display_name("silver_psd", "su_ratio") == "stocks-to-use ratio"
+    assert cit._metric_display_name("silver_icco_cocoa", "su_ratio") == "stocks-to-use ratio"
+    _reg = cit._registry_or_none()
+    assert cit._card_unit(_reg, "silver_mpob", "su_ratio") == "ratio"
+    assert cit._display_family_index(_reg).get(("months of export cover", "ratio")) == [
+        ("silver_mpob", "su_ratio")]
+    assert cit._family_scale_conflict("silver_mpob", "su_ratio", (1.0, "ratio")) == []
+    # THE FENCE DID NOT LIFT ANYWHERE: the roster the design measured is otherwise byte-identical.
+    assert cit.narrate_scale("silver_mpob", "su_ratio") is None            # still unmapped, still None
     # and the change of a refused quantity is refused WITH it -- never a level and its delta apart
     assert cit.narrate_scale("silver_psd", "su_ratio_yoy_delta") is None
 
@@ -1483,13 +1524,26 @@ def test_k9_3_the_table_axis_refusal_has_a_lint_home_that_names_the_disagreeing_
 
     monkeypatch.setenv(FLAG_K93, "on")
     errs = cc._check_display_name_families(reg)
+    # RE-BANKED 2026-09-17 (prearm fix round 2, census blocker B-1): FOUR FAMILIES, and the count did
+    # NOT move. `silver_mpob.su_ratio` left the 'stocks-to-use ratio' family when its card label was
+    # corrected to "months of export cover" (it is closing stocks / that month's exports, not a share
+    # of a period's use -- `transforms/bronze_to_silver/mpob.py:126`), so the residual this deck prices
+    # in prose goes from "4 families across 6 silent tables" to 4 families across 5. That is a REAL
+    # improvement to the class the item is about (one printed name, one scale): mpob was in the family
+    # only because it was mislabelled, and the family it left still fails, still names its own silent
+    # table by address, and still refuses silver_psd.su_ratio whole. MEASURED before and after the
+    # correction: 4 errors both times.
     assert len(errs) == 4, errs
     joined = "\n".join(errs)
-    for table in ("silver_mpob.su_ratio", "silver_icco_cocoa.su_ratio",
+    for table in ("silver_icco_cocoa.su_ratio",
                   "silver_nass_annual.production_mt", "silver_mpoc_trade_stats_monthly.exports_mt",
                   "silver_mpoc_exports_by_country.exports_mt",
                   "silver_mpoc_stock_comparison.ending_stocks_mt"):
         assert f"{table}=UNMAPPED" in joined, table
+    # ...and the corrected key is NOT named anywhere in the lint, because it is in no family of two:
+    # its departure is a property of the printed NAME, which is what this lint is keyed on.
+    assert "silver_mpob.su_ratio" not in joined
+    assert len(cit._display_family_index(reg).get(("months of export cover", "ratio")) or []) == 1
     for name in ("'stocks-to-use ratio'", "'production'", "'exports'", "'ending stocks'"):
         assert name in joined, name
     assert "refuses the WHOLE family" in joined and cc.check_cascade_map() != []
@@ -1551,11 +1605,21 @@ def test_k9_3_the_head_residual_under_one_printed_name_is_flag_independent(monke
          "corn_cbot", "United States", "2025",
          "USDA PSD production CBOT corn United States MY2025 = 384 MMT",
          "NASS ANNUAL production CBOT corn United States MY2025 = 384,000,000 MT"),
+        # RE-BANKED 2026-09-17 (prearm fix round 2, census blocker B-1). THE su_ratio HALF OF THIS
+        # RESIDUAL IS NOW CARRIED BY silver_icco_cocoa, NOT silver_mpob, AND THE SWAP IS THE POINT.
+        # This case's whole premise is "two keys that share BOTH the analyst name AND the card unit",
+        # and `silver_mpob.su_ratio` stopped sharing the NAME when the card was corrected to "months
+        # of export cover" -- it is closing stocks / that month's exports (the producer's own words,
+        # `transforms/bronze_to_silver/mpob.py:126`), never a share of a period's use, so it was never
+        # a member of this family on the merits. The case is NOT dropped: silver_icco_cocoa.su_ratio
+        # prints the SAME analyst name at the SAME card unit 'ratio' and the map is still silent about
+        # it, so the residual reproduces here in the same shape, 36x apart instead of 8x, and the
+        # retired pair is asserted below as a NON-collision so the correction itself is pinned.
         (("silver_psd", "su_ratio", 0.1512),
-         ("silver_mpob", "su_ratio", 1.88792309604088),
-         "malaysian_crude_palm_oil_cme", "Malaysia", "2025",
-         "USDA PSD stocks-to-use ratio CME palm oil Malaysia MY2025 = 15.12 %",
-         "MPOB stocks-to-use ratio CME palm oil Malaysia MY2025 = 1.88792 ratio"),
+         ("silver_icco_cocoa", "su_ratio", 0.42),
+         "cocoa_ice", "Ivory Coast", "2025",
+         "USDA PSD stocks-to-use ratio cocoa ice Ivory Coast MY2025 = 15.12 %",
+         "ICCO COCOA stocks-to-use ratio cocoa ice Ivory Coast MY2025 = 0.42 ratio"),
     )
     for (mt, mm, mv), (st, sm, sv), commodity, country, period, want_mint, want_sib in cases:
         row = maprow(mt, mm)
@@ -1578,6 +1642,34 @@ def test_k9_3_the_head_residual_under_one_printed_name_is_flag_independent(monke
         assert cit.narrate_scale(mt, mm) is None
         assert cit._map_scale(mt, mm) is not None                 # the MAP still declares the scale
         assert (st, sm) in cit._family_scale_conflict(mt, mm, cit._map_scale(mt, mm))
+    # THE RETIRED PAIR, PINNED AS A NON-COLLISION (prearm fix round 2, census blocker B-1). The pair
+    # this case used to carry -- silver_psd.su_ratio beside silver_mpob.su_ratio -- is no longer a
+    # collision AT ALL, and that is the shipped correction rather than an attrition of the roster. The
+    # two keys still share the card unit 'ratio'; what they no longer share is the PRINTED NAME, which
+    # is the axis this whole item is keyed on. Pinning it here means the day anyone relabels MPOB back
+    # into the stocks-to-use family, THIS assertion fails and the roster question is re-opened
+    # deliberately instead of drifting.
+    assert cit._metric_display_name("silver_psd", "su_ratio") == "stocks-to-use ratio"
+    assert cit._metric_display_name("silver_mpob", "su_ratio") == "months of export cover"
+    _reg2 = cit._registry_or_none()
+    assert cit._card_unit(_reg2, "silver_psd", "su_ratio") == cit._card_unit(
+        _reg2, "silver_mpob", "su_ratio") == "ratio"              # same unit, DIFFERENT printed name
+    assert ("silver_mpob", "su_ratio") not in cit._family_scale_conflict(
+        "silver_psd", "su_ratio", cit._map_scale("silver_psd", "su_ratio"))
+    # ...and the retired pair renders on ONE scale at BOTH flag settings anyway: the fence still
+    # refuses the PSD key (icco is still silent), so nothing moved for the reader.
+    for setting in (None, "on"):
+        if setting is None:
+            monkeypatch.delenv(FLAG_K93, raising=False)
+        else:
+            monkeypatch.setenv(FLAG_K93, setting)
+        retired = cit.harmonise_declared_scale(
+            [rec("silver_psd", "su_ratio", "malaysian_crude_palm_oil_cme", "Malaysia", "2025", 0.1512),
+             rec("silver_mpob", "su_ratio", "malaysian_crude_palm_oil_cme", "Malaysia", "2025",
+                 1.88792309604088)])
+        assert [cit.from_number(c, i + 1).label for i, c in enumerate(retired)] == [
+            "USDA PSD stocks-to-use ratio CME palm oil Malaysia MY2025 = 0.1512 ratio",
+            "MPOB months of export cover CME palm oil Malaysia MY2025 = 1.88792 ratio"], setting
 
 
 # ── WHAT THE CONVERGENCE ARMS DOWNSTREAM (review MINOR) ────────────────────────────

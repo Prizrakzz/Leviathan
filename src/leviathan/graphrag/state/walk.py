@@ -1961,8 +1961,18 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
     # 1 stamped (`stored_rank`); only the TEXT-ONLY tail moves, and sec 3.2 says in so many words that
     # its order "is computed in STAGE 2", because `newest receipt date` does not exist before `ground()`.
     board_order(bd)
-    bd.recency["numbers"] = max((st.knowledge_date or "" for st in bd.series.values()), default="")
-    bd.recency["text"] = max(((r.receipts or {}).get("newest_date") or "" for r in bd.rows), default="")
+    # A LEXICAL `max` OVER MIXED DATE SPELLINGS PICKS THE WRONG DATE (lane A's measured defect, handed
+    # to this line in round 2's HANDOFF and taken here): the ESR rows stamp `20260904` and the PSD rows
+    # `2026-09-14`, and `"20260904" > "2026-09-14"` because `-` (0x2D) sorts below `0` (0x30) -- so a
+    # ten-day-old stamp won a comparison it should have lost, and the served ledger sentence stated it.
+    # NORMALISE BEFORE THE COMPARISON AND STORE THE NORMALISED VALUE: a print-side fix spells the WRONG
+    # date correctly. `narration.iso_date` is lane A's ONE producer and returns an unparseable value as
+    # given, so no date is invented and no second normaliser is written here.
+    from leviathan.graphrag.state.narration import iso_date as _iso_date
+    bd.recency["numbers"] = max((_iso_date(st.knowledge_date) or ""
+                                 for st in bd.series.values()), default="")
+    bd.recency["text"] = max((_iso_date((r.receipts or {}).get("newest_date")) or ""
+                              for r in bd.rows), default="")
     bd.recency["width_peak"] = max(bd.recency.get("width_peak", 0), guard.peak)
     bd.stage_ms[2] = (time.perf_counter() - t0) * 1000.0
     bd.stage_done[2] = True

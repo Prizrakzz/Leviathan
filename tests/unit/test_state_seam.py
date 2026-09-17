@@ -887,7 +887,7 @@ def test_the_render_caps_are_knobs_at_the_shipped_values_and_S7_decides(graph):
     long = [f"driver {i}" for i in range(40)]
     assert R.name_list(long, 0) == ", ".join(long)
     cut = R.name_list(long, 5)
-    assert cut.startswith(", ".join(long[:5])) and "further rows this line does not name" in cut
+    assert cut.startswith(", ".join(long[:5])) and "further readings this line does not name" in cut
     assert not any(ch.isdigit() for ch in cut[len(", ".join(long[:5])):])
     # ...and a nine-field tuple (the S2 fixtures, the census) still reads the shipped table
     nine = B.BoardKnobs(*tuple(B.board_knobs_of("deep"))[:9])
@@ -1288,13 +1288,16 @@ def test_the_fifteen_anchor_shapes_render_at_ZERO_register_trips_with_their_AMPL
             amps = [l for l in blk.splitlines() if l.lstrip().startswith("amplifier on ")]
             seen_amps += len(amps)
             for l in amps:
-                assert "all sit among this board's loudest rows" in l, (shape, mode, l)
+                # RE-ANCHORED 2026-09-17: the same CLAIM in the reader's words. `loud`/`loudest` ran
+                # 27 times and the instrument's own `board` 142 times per rendered block, and the PM
+                # lens charged both by name on the served answers.
+                assert "are all among the largest moves here" in l, (shape, mode, l)
                 assert "the graph records the effect as " in l, (shape, mode, l)
                 assert R.classify(l) == ("SB-M",), (shape, mode, R.classify(l), l)
                 # THE READ SPLIT, wherever the walk produced one: the clause is whole, never a
                 # truncated "carries no series" with the object of the sentence fenced away.
                 if "no series" in l:
-                    assert "no series this board could read" in l, (shape, mode, l)
+                    assert "no series read here" in l, (shape, mode, l)
             # (4) ...and no row on the board is the whole-row correction of one
             for l in blk.splitlines():
                 assert "BOARD ABSENCE" not in l or "did not pass its own register check" not in l, l

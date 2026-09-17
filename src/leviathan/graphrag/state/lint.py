@@ -748,25 +748,34 @@ def _check_row_classes() -> list[str]:
                 "October 2026",
         "SB-D": "- biodiesel mandate dated 2026-05-01 by [E1] (published 2026-05-02): the CME palm oil "
                 "graph records it in the same direction with a lag of zero to two quarters",
-        "SB-F": "- the same reading is declared on thirty-four other boards: in the opposite direction "
-                "on twenty-eight (CBOT corn) and in the same direction on the rest (CME palm oil)",
-        "SB-C": "- biodiesel energy-price floor (price-supportive) on CME palm oil: two of its three "
-                "declared drivers sit among this board's twenty-four loudest rows (crude oil price); "
-                "the pattern's own threshold is two",
-        "SB-M": "  amplifier on CME palm oil: crude oil price, biodiesel mandate all sit among this "
-                "board's loudest rows; the graph records the effect as amplifies",
+        "SB-F": "- El Nino is a shared driver across thirty-four other markets this estate tracks, "
+                "declared in the opposite direction on twenty-eight of them (CBOT corn) and in the "
+                "same direction on the rest (CME palm oil)",
+        "SB-C": "- biodiesel energy-price floor (price-supportive) on CME palm oil: two of the "
+                "three conditions it names are showing here (crude oil price); it asks for two, so "
+                "the count here is at or past that number",
+        "SB-M": "  amplifier on CME palm oil: crude oil price, biodiesel mandate are all among the "
+                "largest moves here; the graph records the effect as amplifies",
         "SB-P": "UPSTREAM crude oil -> soybean crush margin -> board crush -> CBOT soybeans: the graph "
                 "places crude oil two hops upstream of the CBOT soybeans price",
         "SB-A": "LIKE STATE El Nino on CBOT soybeans: the series sat like this in June 2013; the "
                 "record carries seventy-five such crossings since 2022",
-        "SB-L": "RECENCY numbers: read as of 2026-09-07; the newest knowledge date on a number row is "
-                "2026-09-04",
+        # SB-L's sample carried the RETIRED wording (review round 3): "the newest knowledge date on a
+        # number row is ..." is the phrasing `narration.recency_rows` replaced in pre-arm round 1 --
+        # the block's only source of `knowledge date` and of three `row` charges on the served bodies,
+        # and the wording the desk-register mandate beside it now bans. The sample is what the class
+        # ACTUALLY renders, taken verbatim off `soybeans_now`.
+        "SB-L": "RECENCY numbers: read as of 2026-09-07; the newest number here is known 2026-09-04 "
+                "and the oldest 2025-12-31",
         "SB-X": "BOARD ABSENCE crude oil on CBOT soybeans: the read returned no rows for this scope at "
                 "this as-of.",
         "SB-JOIN": "BOARD JOIN El Nino and La Nina on CBOT soybeans: these are read on ONE series and "
                    "the rows above print the SAME reading under each name. The graph declares them "
                    "opposite signs on this board, which is what two phases of one series means; they "
                    "are not two readings that disagree.",
+        # SB-LEAD, the block's own order made visible (ROUND-2 DOCKET item 12).
+        "SB-LEAD": "LARGEST MOVE first of three: export pace lag on CBOT soybeans, past the line the "
+                   "desk convention calls behind; its figures are on its own state line below.",
     }
     # ── S7 polish (a): NO RENDERED LINE MAY CARRY AN EMPTY ANCHOR ────────────────────────────────────
     # `month_words` returned "" for the bare-year form a marketing-year card writes, so `_anchor_words`
@@ -853,6 +862,110 @@ def check_state_board() -> list[str]:
     errs += _check_row_classes()
     errs += _check_narration_and_calendar()
     errs += _check_nonobvious_watch()
+    errs += _check_reading_words()
+    errs += _check_phase_pairs()
+    return errs
+
+
+# -- clauses 13 and 14 (lane D, 2026-09-17): the two declared reader-word books ---------------------
+def _check_reading_words() -> list[str]:
+    """CLAUSE 13. ``state_conventions.reading_words`` is COMPLETE over the board map, register-clean,
+    and carries no storage token.
+
+    IT FAILS CLOSED ON COMPLETENESS BECAUSE THE PRODUCER FAILS SOFT. ``render.reading_words`` returns
+    the empty string for an undeclared metric and the SB-1 clause is then not printed at all -- which
+    is exactly what keeps the S7 revert's failure mode unreachable, and exactly why a missing entry
+    would otherwise be invisible: the block would simply stop saying what a number is, on the one card
+    somebody forgot. The board map is 47 refs over 39 distinct (table, metric) pairs, so the table is
+    small enough to be complete and the completeness is the check.
+
+    NO DIGIT AND NO UNDERSCORE. A storage column wearing reader spacing ("exports mt", "su ratio",
+    "brent crude usd bbl zscore 5yr") is the defect this book replaces, and a numeral in a phrase that
+    lands on a FIGURE class would be a magnitude with no handle behind it."""
+    errs: list[str] = []
+    doc = load_conventions()
+    book = doc.get("reading_words")
+    if not isinstance(book, dict) or not book:
+        return ["state_conventions.yaml: `reading_words` is missing or empty -- every state line would "
+                "stop saying what its number is"]
+    for key, words in sorted(book.items()):
+        k = str(key)
+        if k.count(".") < 1:
+            errs.append("reading_words %r is not a `<table>.<metric>` key" % (k,))
+        w = str(words or "")
+        if not w.strip():
+            errs.append("reading_words %r has no words" % (k,))
+            continue
+        if any(ch.isdigit() for ch in w) or "_" in w:
+            errs.append("reading_words %r carries a digit or an underscore (%r) -- a storage token "
+                        "wearing reader spacing is what this book replaces" % (k, w))
+        if any(ord(ch) > 127 for ch in w):
+            errs.append("reading_words %r is not ASCII (%r)" % (k, w))
+        hits = _register_hits(w)
+        if hits:
+            errs.append("reading_words %r is not register-clean: %s" % (k, "; ".join(hits)))
+    # COMPLETENESS over the board map's own (table, metric) pairs
+    try:
+        from leviathan.graphrag.state.feeders import board_map as _bm
+        rows = _bm()
+    except Exception:                                   # noqa: BLE001 -- S0 ordering: fall back to ours
+        rows = board_map()
+    missing = sorted({(str((r or {}).get("table") or ""), str((r or {}).get("metric") or ""))
+                      for r in rows.values()
+                      if (str((r or {}).get("table") or "") + "." + str((r or {}).get("metric") or ""))
+                      not in book
+                      and (str((r or {}).get("table") or "") + ".*") not in book})
+    for t, m in missing:
+        if not t and not m:
+            continue
+        errs.append("reading_words has no entry for %r -- `render.reading_words` fails soft, so the "
+                    "block would silently stop naming what that number is" % (f"{t}.{m}",))
+    return errs
+
+
+def _check_phase_pairs() -> list[str]:
+    """CLAUSE 14. Every ``phase_pairs`` entry names a ``conventions:`` row that exists, is
+    ``abs_bands`` and declares at least one band -- because the THRESHOLD is that row's first band and
+    is never re-typed beside the pair. Its two sides name DIFFERENT drivers and carry ASCII,
+    register-clean, digit-free words.
+
+    The book may be EMPTY (nothing declares a phase and the join renders exactly as it did at HEAD);
+    what it may not be is INCONSISTENT with the band table the SB-1 row above it prints from."""
+    errs: list[str] = []
+    doc = load_conventions()
+    pairs = doc.get("phase_pairs") or {}
+    if not isinstance(pairs, dict):
+        return ["state_conventions.yaml: `phase_pairs` is not a mapping"]
+    convs = doc.get("conventions") or {}
+    for key, ent in sorted(pairs.items()):
+        ent = ent or {}
+        cname = str(ent.get("convention") or "")
+        conv = convs.get(cname)
+        if not conv:
+            errs.append("phase_pairs %r names convention %r, which this file does not declare"
+                        % (str(key), cname))
+        elif str(conv.get("kind")) != "abs_bands" or not (conv.get("bands") or []):
+            errs.append("phase_pairs %r names convention %r, which is not an `abs_bands` row with a "
+                        "band -- the phase threshold IS that row's first band" % (str(key), cname))
+        sides = [(side, ent.get(side) or {}) for side in ("positive", "negative")]
+        for side, val in sides:
+            if not str(val.get("driver") or "").strip():
+                errs.append("phase_pairs %r/%s names no driver" % (str(key), side))
+            w = str(val.get("words") or "")
+            if not w.strip():
+                errs.append("phase_pairs %r/%s has no words" % (str(key), side))
+                continue
+            if any(ch.isdigit() for ch in w) or any(ord(c) > 127 for c in w):
+                errs.append("phase_pairs %r/%s words %r carry a digit or non-ASCII -- SB-JOIN is "
+                            "letters-only" % (str(key), side, w))
+            hits = _register_hits(w)
+            if hits:
+                errs.append("phase_pairs %r/%s words are not register-clean: %s"
+                            % (str(key), side, "; ".join(hits)))
+        if (str((ent.get("positive") or {}).get("driver") or "")
+                == str((ent.get("negative") or {}).get("driver") or "")):
+            errs.append("phase_pairs %r names ONE driver on both sides -- a phase pair is two names"
+                        % (str(key),))
     return errs
 
 

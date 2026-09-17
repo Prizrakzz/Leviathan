@@ -228,6 +228,42 @@ arm_only:
   # the number the arm is trying to read. NOT in `arm_flags` below for the same reason -- it is not a
   # treatment and must not contribute a job-name token that only one cell carries.
   GRAPHRAG_RERANK_GROUP_WORKERS: '16'
+  # LANE F, 2026-09-17 -- THE COST CENSUS, AND IT IS `arm_only` FOR THE SAME REASON THE STRIP AUDIT IS.
+  # THE MEASURED DEFECT (COST_LATENCY.md sec 0, the 2026-09-16 in-VPC pre-arm smoke): `turn_cost_usd`
+  # is not the turn's cost, it is the WRITER's cost, and it is the only money column the estate has.
+  # Five smoke turns priced $2.5643 in it against a PROVEN floor of $3.9251 and a modelled $5.6656 --
+  # so every budget built by scaling that column under-counts a hybrid turn by 35-55%, and the owner's
+  # own "~$4 on the console" read against a report that said $2.56. Of six Anthropic seats on a hybrid
+  # turn exactly ONE was stamped; the largest unstamped one (the numbers agent, claude-sonnet-5, the
+  # long pole at 46-73% of wall clock) is $8.84 of a $35 arm.
+  # WITH THIS LIT the numbers agent stamps its per-round usage, `dispatch.plan_turn` keeps the planner
+  # usage it was already being handed and throwing away, the judge keeps the second element of its own
+  # `(scores, usage)` return, and the report grows a per-seat Spend panel. IT CHANGES NO REQUEST, NO
+  # PROMPT BYTE AND NO RENDERED BYTE IN EITHER CELL: it decides only whether a number the provider
+  # already returned is written down.
+  # IT IS `arm_only` AND NOT A TREATMENT, AND THAT DISTINCTION IS THE WHOLE POINT: it is CONSTANT
+  # ACROSS BOTH CELLS, so it cannot touch the judged delta, and it must NOT be in `arm_flags` -- a
+  # treatment flag contributes a job-name token that only one cell carries, and a cell named for its
+  # own instrument is a cell whose name lies about its treatment (the OS-A11 lesson, one section down).
+  # DEFAULT OFF IN SERVING, strict `on|1|true` grammar at every reader, so a typo can never arm a
+  # trace-key change on the serving lane.
+  # THAT SENTENCE WAS AN ASPIRATION WHEN IT WAS WRITTEN AND IT IS NOW A PIN (round-2 review M1).
+  # Round 1 shipped TWO readers of this ONE flag with DIFFERENT grammars -- `dispatch` strict,
+  # `numbers/agent` also accepting `yes` -- and measured in one process, `GRAPHRAG_COST_CENSUS=yes`
+  # HALF-ARMED the census: the largest seat stamped while the planner's pop and the judge's usage
+  # stayed dark, under a panel printing a "total" that looked complete. Nothing caught it, because
+  # `arm_value_refusal` inspects `arm_flags` and this is deliberately not one. The grammar now lives
+  # ONCE, in `tracekeys.cost_census_on`, and `tests/unit/test_cost_census.py` imports every reader in
+  # the estate and asserts them equal on thirteen spellings.
+  GRAPHRAG_COST_CENSUS: 'on'
+  # ORCHESTRATOR DECISION 1, 2026-09-17 (round-3 census, measured): the citation verifier's ORPHAN-REPAIR arm
+  # (`GRAPHRAG_VERIFY_ORPHAN_REPAIR`, default ON since the pre-arm fix) still carries an ORDINAL WELD on its
+  # substitution path -- '93rd percentile' against a 96 row serves '96rd' -- while with the arm OFF the same
+  # draft falls to the clean figure cut. Re-measured through the shipped verify_citations: the repair rule fires
+  # 0 times on 112 banked answers and 0 on the five smoke drafts, 0 of 112 answers differ with it off, by_rule
+  # totals identical both ways. So the arm runs it OFF in BOTH cells at ZERO measured cost, restoring CYCLE-10's
+  # absolute guarantee for the paid arm. arm_only, NEVER arm_flags: constant across cells, no job-name token.
+  GRAPHRAG_VERIFY_ORPHAN_REPAIR: 'off'
 # The arm's OWN flags are not listed in `arm_only` above because they ARE the treatment and must be
 # passed per cell, on the command line. `arm_flags` below is a LIST AND THE TREATMENT IS A SET
 # (coherence audit 2026-09-16, OS-A11 -- these lines said "the two cells differ by exactly one `--env`",
@@ -325,12 +361,14 @@ diff_vs_prior_base:
     - GRAPHRAG_PG_ANN_EF
     - GRAPHRAG_PG_ANN_MST
     - GRAPHRAG_PG_ANN_MANIFEST
+    - GRAPHRAG_VERIFY_ORPHAN_REPAIR
     # ADDED 2026-09-16 by orchestrator decision R3: it was in `never_copy` (and in `open_decisions`)
     # until today, so the prior base did not set it and the arm reranked on the bge default. It is a
     # COPY now -- seat parity with serving:133 -- and the record names the move rather than leaving it
     # to be inferred from a section that no longer mentions the key.
     - GRAPHRAG_RERANK_BACKEND
-  # ADDED BY THE ARM ITSELF (5) -- the dark legs and the dispatch width, all lit in BOTH cells
+  # ADDED BY THE ARM ITSELF (7) -- the dark legs, the dispatch width, the cost census and the orphan-repair OFF, all lit in
+  # BOTH cells
   added_arm_only:
     - GRAPHRAG_EXTREME_LOCATOR
     - GRAPHRAG_RV_REGIONAL
@@ -340,6 +378,11 @@ diff_vs_prior_base:
     # re-bank: this file's own header says "record what moved under `diff_vs_prior_base`", and a key
     # the arm now sets that no record names is the exact class the file exists to close.
     - GRAPHRAG_RERANK_GROUP_WORKERS
+    # ADDED 2026-09-17 by lane F, recorded here for the same reason: the arm now sets it, the prior
+    # base never carried it, and an unrecorded key the arm sets is what this section exists to close.
+    - GRAPHRAG_COST_CENSUS
+    # ADDED 2026-09-17 by orchestrator DECISION 1 (round-3 census): the verifier's orphan-repair arm runs OFF in both cells.
+    - GRAPHRAG_VERIFY_ORPHAN_REPAIR
   # CHANGED (1)
   changed:
     GRAPHRAG_MODES:

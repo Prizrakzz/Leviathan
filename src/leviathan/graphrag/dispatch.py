@@ -1612,6 +1612,33 @@ def _validate(out: dict, contract_ids: set[str], max_contracts: int = MAX_CONTRA
                 subject=subj, subject_hints_n=_hn)
 
 
+def _cost_census_on() -> bool:
+    """THE COST CENSUS kill-switch (`GRAPHRAG_COST_CENSUS`, default OFF, lane F 2026-09-17).
+
+    ONE FLAG FOR EVERY UNSTAMPED SEAT, because the four stamps it gates (the numbers agent's per-round
+    usage, this planner's usage, the judge's usage, and the summed `turn_cost_total_usd` column) would
+    otherwise add trace keys to EVERY turn INCLUDING SERVING's, which breaks the estate's "flag off =>
+    byte-identical trace" law. It is declared in `configs/graphrag/arm_env_base.yaml` under `arm_only`
+    -- the section that already holds the strip audit and the rerank dispatch width for exactly this
+    reason -- so it is CONSTANT ACROSS BOTH CELLS of arm A and cannot touch the judged delta. It
+    changes no request, no prompt byte and no rendered byte in either cell: it decides only whether a
+    number the provider already returned is written down.
+
+    THE GRAMMAR IS THE STRICT `on|1|true` FOUR-OF-FIVE BOARD-FLAG GRAMMAR, not `_stats_tool_on`'s
+    fail-safe-ON one: this ships OFF, and a typo must never silently arm a trace-key change on the
+    serving lane. Read at the seam on every call rather than cached, so a test can set it per-case.
+
+    ONE GRAMMAR, ONE READER (round-2 review M1, PROVEN before it was fixed). This function SPELLED
+    the grammar itself and `numbers/agent._cost_census_on` spelled a variant beside it that also
+    accepted `yes` -- measured in one process, `GRAPHRAG_COST_CENSUS=yes` read False here and True
+    there, half-arming the census on the largest seat in the arm while this planner's pop and the
+    judge's usage stayed dark. The grammar now lives in `tracekeys.cost_census_on`, the LEAF module
+    that already declares the three keys this flag gates; this name is KEPT because two producers and
+    three decks import it, and it is now a one-line delegation with no grammar of its own."""
+    from leviathan.graphrag.tracekeys import cost_census_on
+    return cost_census_on()
+
+
 def plan_turn(query: str, *, graph, state_block: str | None = None, today: str | None = None,
               state_contracts: list[str] | None = None, call=None, model: str | None = None,
               max_contracts: int = MAX_CONTRACTS, xc_open: bool = False,
@@ -1733,7 +1760,22 @@ def plan_turn(query: str, *, graph, state_block: str | None = None, today: str |
         if _sub:
             _nk.update(_sub)
             _nk["subject_hints"] = _hint
-        return (_validate(out, set(graph.contracts), n_contracts, xl_boards, xl_kinds, **_nk) if _xlk
-                else _validate(out, set(graph.contracts), n_contracts, **_nk))
+        # ── THE COST CENSUS (lane F, 2026-09-17), GATED AND OMIT-WHEN-OFF ───────────────────────────
+        # THE MEASURED HOLE (COST_LATENCY.md sec 1, row 4): `an._call_opus` tags `_usage` on the reply
+        # (answer.py:12068) and `_validate` reads only the plan's own keys, so the planner's tokens --
+        # one sonnet-4-6 call on EVERY turn, 4.0-4.9 s of wall clock, ~$0.012 warm / $0.042 cold --
+        # were recorded NOWHERE in the estate. `plan_tokens` is NOT this: it counts the SIZE of the
+        # WRITER's popped `plan` region (tracekeys.py:237) and was None on all five smoke rows.
+        # WITH THE FLAG OFF NOTHING HERE MOVES: `_usage` is not popped, so `out` reaches `_validate`
+        # with HEAD's exact keys; no attribute is set, so `Plan` is HEAD's dataclass with HEAD's fields
+        # and `_trace_head()` is untouched. `_FALLBACK` is a module-level SINGLETON and is EXCLUDED by
+        # identity -- stamping it would leak one turn's usage onto every later fallback plan in the
+        # process, which is the class of defect a shared default argument is.
+        _pu = out.pop("_usage", None) if _cost_census_on() else None
+        _plan = (_validate(out, set(graph.contracts), n_contracts, xl_boards, xl_kinds, **_nk) if _xlk
+                 else _validate(out, set(graph.contracts), n_contracts, **_nk))
+        if isinstance(_pu, dict) and _plan is not _FALLBACK:
+            _plan.plan_usage = _pu
+        return _plan
     except Exception:  # noqa: BLE001 — routing must never break an answer
         return _FALLBACK

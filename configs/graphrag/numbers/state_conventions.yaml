@@ -247,3 +247,112 @@ watch_overlay:
   # `watch.nonobvious_candidates` -- so it is DOCKETED for the next census, never slipped in beside a
   # comment fix.
   herd_size_cattle:        {kind: percentile_bands, bands: [10, 90], labels: [low, high], history_window_key: annual, history_window: 10, verified: null}   # 12 rows, 12 seats
+
+# =====================================================================================================
+# READING WORDS -- WHAT THE NUMBER ON A STATE LINE ACTUALLY IS (lane D, the 2026-09-16 pre-arm smoke)
+# =====================================================================================================
+# THE DEFECT, VERBATIM FROM THE SERVED ANSWERS. The block names a row by its DRIVER ID and its SOURCE
+# CARD and never by the QUANTITY it read, so a policy node sitting on a volume column reaches the writer
+# as a policy figure:
+#
+#   block   "- [N13] Argentina export tax on CBOT soybeans, USDA PSD for 2025-12-31: 27.45 MMT"
+#   served  "Argentine export tax sits at 6.65 MMT"           (a TAX RATE, in a TONNAGE unit)
+#   served  "Brazilian supply 118 MMT [N32]"                  (N32 is USDA PSD EXPORTS, Brazil)
+#   served  "Flash-drought reading 0.6 z [N44]"               (gold_weather_z.drought_z)
+#
+# WHY IT IS A DECLARED TABLE AND NOT A DERIVATION. The S8 docket in `render.py` (above `pattern_label`)
+# records the S7 attempt and the measurement that reverted it: folding `display.metric_label` into the
+# SB-1 head never fired on the two POLICY rows it was written for and made 28 of 43 real rows WORSE by
+# appending a storage-column word ("exports mt", "su ratio", "brent crude usd bbl zscore 5yr") to a line
+# that already read correctly. Its own conclusion is that the mechanism that works is "reader words
+# DECLARED beside the ref, not derived from a column name". `cascade_map.yaml` is GITIGNORED and
+# generator-owned, so the declaration lives here, in the board's own tracked vocabulary file, under its
+# own top-level key -- the `watch_overlay` precedent exactly: `lint.load_conventions()`'s consumers read
+# `conventions:` and never this, `render.reading_words()` is the ONE reader, and NOTHING about the rank,
+# the loud cut, the convention label or `analogs.crossings` can move because of an entry here.
+#
+# THE TABLE IS COMPLETE AND THE LINT SAYS SO. There are exactly 39 distinct (table, metric) pairs across
+# the whole 47-ref board map; `lint._check_reading_words` fails closed when any one of them has no entry,
+# when an entry is not register-clean on all four detectors, and when an entry carries a digit or an
+# underscore (a storage token wearing reader spacing is the very defect this table replaces). A metric
+# with no entry renders NO clause at all -- never a slug, never a guess.
+#
+# `<table>.*` IS A CARD-WIDE DEFAULT and exists for ONE measured case: `silver_fred_fx` declares
+# `brl_usd` on the map and `cascade._region_row` swaps in the resolved region's currency, so the metric
+# a board actually reads is `cny_usd`, `myr_usd`, `idr_usd` or `inr_usd` -- names no static table can
+# enumerate. An exact key always wins over the wildcard.
+reading_words:
+  gold_board_crush.crush_margin_usd_bu:                  "the board crush margin"
+  gold_futures_spreads.spread_value:                     "the spread between two delivery months"
+  gold_weather_z.drought_z:                              "the drought anomaly"
+  gold_weather_z.frost_event_flag:                       "frost events"
+  gold_weather_z.gdd_z:                                  "the growing-degree-day anomaly"
+  gold_weather_z.heat_stress_z:                          "the heat-stress anomaly"
+  gold_weather_z.tmax_anomaly:                           "the maximum-temperature anomaly"
+  silver_cot.mm_net:                                     "the managed-money net position"
+  silver_esr.weekly_exports_1000mt:                      "weekly export sales"
+  silver_fgis.exports_mt_weekly:                         "weekly export inspections"
+  silver_fred_fx.*:                                      "the local currency against the US dollar"
+  silver_mpob.closing_stocks_palm_oil_mt:                "Malaysian closing palm oil stocks"
+  silver_noaa_iod.dmi_value:                             "the Indian Ocean dipole index"
+  silver_noaa_oni.oni_anom:                              "the tropical Pacific sea-surface temperature anomaly"
+  silver_noaa_oni.oni_lag6:                              "the tropical Pacific sea-surface temperature anomaly"
+  silver_pink_sheet.blended_npk_index_zscore_5yr:        "the blended fertilizer price against its own five-year record"
+  silver_pink_sheet.brent_crude_usd_bbl_zscore_5yr:      "the Brent crude price against its own five-year record"
+  silver_pink_sheet.dap_usd_mt_zscore_5yr:               "the DAP fertilizer price against its own five-year record"
+  silver_pink_sheet.fish_meal_usd_t_zscore_5yr:          "the fishmeal price against its own five-year record"
+  silver_pink_sheet.natural_gas_eu_usd_mmbtu_zscore_5yr: "the European natural gas price against its own five-year record"
+  silver_pink_sheet.natural_gas_us_usd_mmbtu_zscore_5yr: "the US natural gas price against its own five-year record"
+  silver_pink_sheet.potassium_usd_mt_zscore_5yr:         "the potash price against its own five-year record"
+  silver_pink_sheet.urea_usd_mt_zscore_5yr:              "the urea price against its own five-year record"
+  silver_production_livestock.live_animals:              "the head count of live animals"
+  silver_psd.area_harvested_1000ha:                      "harvested area"
+  silver_psd.beginning_stocks_mt:                        "beginning stocks"
+  silver_psd.consumption_mt:                             "domestic consumption"
+  silver_psd.ending_stocks_mt:                           "ending stocks"
+  silver_psd.exports_mt:                                 "exports"
+  silver_psd.imports_mt:                                 "imports"
+  silver_psd.production_mt:                              "production"
+  silver_psd.su_ratio:                                   "the stocks-to-use ratio"
+  "silver_psd_attributes.Crush":                         "the crush"
+  "silver_psd_attributes.FSI Consumption":               "food, seed and industrial use"
+  "silver_psd_attributes.Feed Dom. Consumption":         "domestic feed use"
+  "silver_psd_attributes.Feed Waste Dom. Cons.":         "domestic feed and waste use"
+  "silver_psd_attributes.Food Use Dom. Cons.":           "domestic food use"
+  "silver_psd_attributes.Industrial Dom. Cons.":         "domestic industrial use"
+  silver_sagis_cec.current_estimate_t:                   "the South African crop estimate"
+
+# =====================================================================================================
+# PHASE PAIRS -- WHICH PHASE OF A SIGNED CLIMATE SERIES IS IN FORCE (lane D, the same smoke)
+# =====================================================================================================
+# THE DEFECT. The shipped graph puts `El_Nino` and `La_Nina` on ONE ONI ref with OPPOSITE declared signs
+# and loudness ranks the UNSIGNED reading, so BOTH members land loud on the SAME number and the block
+# prints two contradictory edges off one figure. `render.sb_phase_pair` already says they are one series
+# -- it does NOT say which of the two phases the reading actually IS. Measured cost on the served
+# answers: the palm turn built a supply-squeeze story on "-0.39 degC", a COOL-phase reading, and the
+# corn page wrote "opposite signs on each board by phase" with no ENSO driver admitted at all.
+#
+# WHAT THIS DECLARES, AND IT IS A FACT ABOUT THE INDEX, NOT A BAND. A positive ONI anomaly IS El Nino
+# and a negative one IS La Nina; a positive dipole-mode index IS the positive IOD phase. The THRESHOLD
+# is NOT declared here -- it is read from the `conventions:` entry named by `convention:`, whose first
+# `abs_bands` band is already the publisher's own phase cut (ONI 0.5 degC = silverleg's own
+# `_ONI_INTENSITY_BANDS[0]`, lint-pinned; IOD 0.4 degC = the BoM/JMA event convention). One number, one
+# owner: a phase line can never disagree with the label word on the row above it.
+#
+# ITS OWN TOP-LEVEL KEY, for the `watch_overlay` reason: `render.phase_in_force()` is the ONE reader and
+# nothing on the rank, the loud cut or the convention label can move because of an entry here. When a
+# ref has no entry the join line renders exactly as it does at HEAD -- fail-closed, never a guess about
+# which way an unfamiliar index signs.
+phase_pairs:
+  silver_noaa_oni.oni_anom:
+    convention: oni_climate
+    positive: {driver: El_Nino,      words: "the warm phase"}
+    negative: {driver: La_Nina,      words: "the cool phase"}
+  silver_noaa_oni.oni_lag6:
+    convention: oni_climate
+    positive: {driver: El_Nino,      words: "the warm phase"}
+    negative: {driver: La_Nina,      words: "the cool phase"}
+  silver_noaa_iod.dmi_value:
+    convention: iod_climate
+    positive: {driver: IOD_positive, words: "the positive phase"}
+    negative: {driver: IOD_negative, words: "the negative phase"}

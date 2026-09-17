@@ -20,6 +20,8 @@ CONTRACT:
   sites appears here.
 """
 
+import os
+
 # out["trace"] -> record[key], absent-as-None. ORDER IS THE ARTIFACT COLUMN ORDER — append, never sort.
 TRACE_RECORD_KEYS: tuple[str, ...] = (
     "fork_basis",                # D-DT-2 c1: the fork-licensing basis (both mint sites)
@@ -530,6 +532,116 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # fired rows and NAMED absences only; the trace gets every candidate's
                                  # tag -- the TRACE/PROMPT separation that answers `_reroute`'s standing
                                  # objection (design 6.7's closing paragraph).
+    # ── THE COST CENSUS (lane F, 2026-09-17). THREE KEYS, ONE COMMIT, APPENDED AT THE TAIL per the
+    # 12f law -- so the negative-index tail pins across the test files re-anchor ONCE, BY THREE
+    # (the `quantify_xc_fork` + `state_board` pair's own note four entries up, same arithmetic).
+    #
+    # WHAT THEY CLOSE, MEASURED ON THE 2026-09-16 IN-VPC PRE-ARM SMOKE (COST_LATENCY.md sec 0-1):
+    # `turn_cost_usd` is not the turn's cost, it is the WRITER's cost. Five smoke turns priced
+    # $2.5643 in that column against a PROVEN floor of $3.9251 and a modelled $5.6656 -- so the one
+    # $/turn column in the estate under-reports a hybrid turn by 35-55%, and every budget built by
+    # scaling it is wrong by that much. The three seats it never saw are exactly these three keys:
+    # the NUMBERS AGENT (claude-sonnet-5, 26 rounds over five turns, $1.2985 measured -- the LONG
+    # POLE at 46-73% of wall clock and the largest unstamped seat in the estate), the DISPATCH
+    # PLANNER (claude-sonnet-4-6, one call per turn, stamped NOWHERE: `_call_opus` tags `_usage` on
+    # the reply in `answer._call_opus` and `dispatch._validate` normalises it away), and the DESK
+    # REWRITE (claude-opus-5, ALREADY PRICED in `answer._desk_register_lint`, reaching the report
+    # panel only). CITED BY SYMBOL AND NOT BY LINE, deliberately: the round-2 review caught both of
+    # these as stale line numbers, and between that review and this fix the same two definitions
+    # moved AGAIN (12068 -> 13060 -> 12958, 5100 -> 10732 -> 10665) as the other lanes wrote. A line
+    # citation into a file six lanes are editing is a comment that is wrong by the time it is read.
+    #
+    # ALL THREE ARE ABSENT-WHEN-OFF AT THE STAMP, so a flag-off row's three new columns lift as None
+    # -- the registry's own absent-as-None contract, identical in shape to `composition_census` on a
+    # turn that stamps no census. NOTHING in `src/` writes `numbers_usage` or `plan_usage` unless
+    # `GRAPHRAG_COST_CENSUS` is lit (declared in `configs/graphrag/arm_env_base.yaml` under
+    # `arm_only`, CONSTANT ACROSS BOTH CELLS so it cannot touch a judged delta), and
+    # `desk_register` is written under `GRAPHRAG_DESK_REGISTER` in `answer._desk_register_lint` and
+    # nowhere else.
+    # NO PROMPT BYTE, NO REQUEST KWARG AND NO RENDERED LINE RIDES ANY OF THE THREE.
+    "numbers_usage",             # LANE C stamp, gated by GRAPHRAG_COST_CENSUS: a LIST, one entry per
+                                 # numbers-agent round, each {model, in, out, cache_read, cache_write}
+                                 # read with the same `getattr(..., 0)` grammar the existing
+                                 # `[numbers-thinking]` print uses (in `numbers/agent.answer_numbers`,
+                                 # CITED BY SYMBOL because a line number into another lane's file is
+                                 # wrong by the time it is read -- round-2 review MAJOR-1). A LIST
+                                 # and not a sum, deliberately: the agent's bill is dominated by ONE
+                                 # 99,207-token cached prefix re-read once per round, and a per-round
+                                 # shape is what makes a COLD write (cache_read == 0 on round 1,
+                                 # $0.3720 a time) distinguishable from a warm one -- the single
+                                 # cheapest lever found on arm A (~$3, ~9%, by staggering submits).
+                                 # It reaches the trace through orchestrator's own guarded copy seam,
+                                 # never the unguarded `_sk` tuple: see the `numbers_budget` note there.
+    "plan_usage",                # THE DISPATCH PLANNER's tokens, popped at `dispatch.plan_turn` before
+                                 # `_validate` drops them, gated by GRAPHRAG_COST_CENSUS. ~$0.012 warm /
+                                 # $0.042 cold per turn on a 26,595-char system prompt at sonnet-4-6,
+                                 # and 4.0-4.9 s of every turn's wall clock (dead flat across tiers).
+                                 # NOT `plan_tokens`, WHICH IS A DIFFERENT QUANTITY AND ALWAYS WILL BE:
+                                 # `answer._plan_tokens` counts the SIZE of the WRITER's own popped
+                                 # `plan` scratchpad region (this registry's own `plan_tokens` entry
+                                 # says so, a few dozen lines above) and was None on all five smoke
+                                 # rows. Two keys, two producers, two seats -- never summed.
+    "desk_register",             # S7b's REWRITE CENSUS, ALREADY STAMPED AND ALREADY PRICED
+                                 # (`answer._desk_register_lint`, under `_desk_register_on()`): {outcome, sentences,
+                                 # offered, rewritten, refused{}, hits_before, hits_after, usd,
+                                 # over_ceiling, multiline_skipped}. The CHEAPEST entry in this commit --
+                                 # one line here puts $0.40 of arm A's spend and the whole S7b remedy
+                                 # census into the per-answer row, which until now reached `state_report`
+                                 # and NO artifact column, so the arm's own remedy delta could not be
+                                 # re-derived from a baseline without re-reading every trace.
+                                 # IT IS ALSO THE DISCRIMINATOR `state_report` reads to split the
+                                 # mandate's cross-cell lint (a row that carries this key ran under the
+                                 # mandate), so registering it makes that split auditable from the
+                                 # artifact rather than only from the report's prose.
+    # ── THE WRITER SEAM (lane E, 2026-09-17), APPENDED IN THE SAME COMMIT as the three above, so the
+    # negative-index tail pins across the test files re-anchor ONCE, BY FOUR rather than twice.
+    "writer_seam",               # LANE E's ONE key, stamped identically on BOTH serving bodies
+                                 # (`answer._answer_l2` and `answer.answer`) and ABSENT -- never null --
+                                 # on any turn that did not run the lane. ITS GATE IS TWO THINGS AT ONCE:
+                                 # `GRAPHRAG_STATE_BOARD` lit AND the citation verifier enabled, so on
+                                 # the documented `GRAPHRAG_VERIFY=off` rollback the key is absent and
+                                 # the lane DID NOT RUN -- never report a zero for it.
+                                 # IT RIDES INSIDE ONE DICT, the `escalation_decision` idiom, in the
+                                 # order `answer._writer_seam_lints` builds it: `outcome` (closed word:
+                                 # ok | bad_shape | lint_failed:<Exc>), `prose_words`, `prose_ceiling`,
+                                 # `prose_over_budget`, `superlatives_corrected`, `classes_corrected`,
+                                 # `superlatives_seen`, `superlatives_unbound`, `classes_unbound`,
+                                 # `superlative_articles_fixed`, `superlatives_negated`,
+                                 # `stale_rows_dated`, `stale_sentences`, `lag_windows_checked`,
+                                 # `lag_windows_corrected`, `lag_windows_subject_bound`,
+                                 # `lag_windows_negated`, `watch_bullets`, `watch_figures_added`,
+                                 # `watch_no_figure`, `watch_no_window`, `watch_no_falsifier`,
+                                 # `watch_over_ceiling`, `watch_section_seen`, `watch_figures_rounded`,
+                                 # `decline_words_corrected`, `metric_labels_corrected`,
+                                 # `absence_claims_checked`, `absence_rows_appended`,
+                                 # `served_row_duplicate_groups`, `served_rows_duplicated`
+                                 # -- THIRTY-ONE fields for ONE column and NO further tail shift, which
+                                 # is why the idiom exists. It was EIGHTEEN when this entry was written
+                                 # and the enumeration above had gone stale by thirteen: lane E's round 2
+                                 # added eleven and its round 3 added `superlatives_negated` and
+                                 # `lag_windows_negated`, AND NO KEY MOVED -- which is the whole point of
+                                 # the idiom. DO NOT COPY THE COUNT, MEASURE IT: run the seam once and
+                                 # read `len(census)`. Measured 2026-09-17 07:12Z, `outcome == "ok"`: 31.
+                                 # On a `bad_shape` turn the dict is the FIRST FOUR only (measured), so a
+                                 # reader must check `outcome` before reading any counter as a zero.
+                                 # `watch_section_seen` is 0/1 and is the PRECONDITION on the other six
+                                 # watch fields: 0 means no `## What to watch` section was found, which
+                                 # is a different fact from "no defects".
+                                 # READ IT AS A DEFECT COUNT, NOT A FEATURE COUNT (lane E's own note):
+                                 # `superlatives_corrected = 3` means the writer made three claims its
+                                 # OWN cited rows denied. A cell with a LOWER number wrote a better
+                                 # page, and a report that says "the lane fixed N things" without
+                                 # saying the writer made N errors is reporting the wrong sign.
+                                 # IT IS A TREATMENT-ONLY COLUMN AND THE CONTROL HAS NO DENOMINATOR:
+                                 # the corrections are made WITH the board's rows, so the control cell
+                                 # stamps nothing and there is no cross-cell delta to take. The one
+                                 # exception is `prose_words`, computable from ANY cell's served body.
+                                 # AND `watch_bullets` HERE IS NOT `state_board.coverage.watch_bullets`:
+                                 # lane D's counter reads the whole rendered page, this one reads only
+                                 # the `## What to watch` section of the MODEL's `mechanism` field,
+                                 # post-verify and pre-splice. MEASURED on the 2026-09-16 smoke: 19
+                                 # bullets here against the ten-reads table's 16. TWO COUNTERS OVER ONE
+                                 # OBJECT -- never summed, and whichever a report prints, it must name.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].
@@ -557,3 +669,32 @@ DECISION_RECORD_KEYS: tuple[tuple[str, str], ...] = (
     # is never written on a dispatch decline.
     ("extreme_locator", "extreme_locator_decision"),
 )
+
+
+# --- THE COST CENSUS's ONE FLAG READER (lane F, 2026-09-17, round-2 review M1) --------------------
+# WHY A FLAG READER LIVES IN THE KEY REGISTRY. Three of the keys above -- `numbers_usage`,
+# `plan_usage`, and `desk_register`'s reach into the per-answer record -- exist only while
+# `GRAPHRAG_COST_CENSUS` is lit, and round 1 shipped TWO readers of that ONE flag with DIFFERENT
+# grammars: `dispatch._cost_census_on` took the strict `on|1|true`, `numbers/agent._cost_census_on`
+# also took `yes`. MEASURED, both readers in one process: `GRAPHRAG_COST_CENSUS=yes` read False in
+# dispatch and True in the numbers agent -- a HALF-ARMED census that stamps the LARGEST seat ($8.84
+# of a $35 arm) while the planner's pop and the judge's usage stay dark, and then prints a "total"
+# that looks complete. `arm_env_base.yaml` already records what one spelling mismatch costs:
+# `GRAPHRAG_STATE_BOARD=yes` ran a CONTROL turn at treatment price, named and logged as a full
+# treatment, and only a post-spend precondition caught it.
+# THIS MODULE IS THE ONE PLACE EVERY READER CAN REACH. It is the leaf -- it pulls in nothing from
+# this package, so it can never be the near end of a cycle -- and it is already read by answer.py,
+# orchestrator.py, planner.py, rankers.py, cascade.py, state/board.py, config_check.py, eval.py and
+# dispatch.py. The flag's KEYS are declared here; its GRAMMAR now is too, and a second spelling
+# anywhere is a test failure rather than a half-armed arm.
+COST_CENSUS_ENV = "GRAPHRAG_COST_CENSUS"
+
+
+def cost_census_on() -> bool:
+    """THE cost-census kill-switch: default OFF, STRICT `on|1|true`.
+
+    The four-of-five board-flag grammar, never `_stats_tool_on`'s fail-safe-ON one. `yes`, `YES`,
+    `y`, `enabled` and every other near-miss are FALSE, deliberately: this ships OFF, it gates a
+    trace-key change that reaches the serving lane, and a typo must never half-arm a measurement.
+    Read at the seam on every call rather than cached, so a deck can set it per case."""
+    return str(os.environ.get(COST_CENSUS_ENV) or "").strip().lower() in ("1", "true", "on")

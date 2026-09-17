@@ -806,22 +806,36 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     column -- was APPENDED after THAT. Tail moved by one more; the invariant is again unchanged.
     RE-ANCHORED AN EIGHTH TIME (2026-09-01): four keys APPENDED after THAT -- xc_open_pair +
     xc_open_decline (the D-XT build, 08-29), then xc_regional_decline + quantify_rv_reading_fenced
-    (the RV lane, 08-29). Tail moved by four; the invariant is again unchanged."""
-    assert tk.TRACE_RECORD_KEYS[-19] == "wrong_slot_audit"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-18] == "slot_orphan_dropped"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-17] == "episode_spans_validated"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-16] == "plan_tokens"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-15] == "evidence_slot_dropped"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-14] == "evidence_geo_dropped"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-13] == "tables_queried"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-12] == "timing_ms"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-11] == "xc_open_pair"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-10] == "xc_open_decline"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-9] == "xc_regional_decline"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-8] == "quantify_rv_reading_fenced"  # S5 re-pin: +state_board
-    assert tk.TRACE_RECORD_KEYS[-7] == "quantify_derived_fenced"    # D-DA append, 09-01; S5 re-pin +state_board
-    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application); S5 re-pin +state_board
-    assert tk.TRACE_RECORD_KEYS[-5] == "quantify_wave_reads"      # A2 wave counter, same commit; S5 re-pin +state_board
+    (the RV lane, 08-29). Tail moved by four; the invariant is again unchanged.
+
+    RE-ANCHORED A NINTH TIME (LANE F, 2026-09-17): FOUR keys APPENDED after THAT, in ONE commit --
+    `numbers_usage`, `plan_usage`, `desk_register` (the cost census) and `writer_seam` (lane E's one
+    key, landed in the same sitting). Tail moved by FOUR and every index below shifts by exactly four;
+    the invariant is again unchanged, and the "ONE commit so the tail re-anchors ONCE" law is exactly
+    why four producers' keys cost ONE re-anchor and not four. WHY THEY WERE WORTH A
+    RE-ANCHOR (COST_LATENCY.md, the 2026-09-16 in-VPC pre-arm smoke): `turn_cost_usd` prices the WRITER
+    ALONE -- $2.5643 over five turns against a PROVEN floor of $3.9251 -- and these three are the seats
+    it never saw, the largest of them ($8.84 of a $35 arm) being the numbers agent."""
+    assert tk.TRACE_RECORD_KEYS[-23] == "wrong_slot_audit"  # lane F re-pin: +4 (cost census x3 + writer seam)
+    assert tk.TRACE_RECORD_KEYS[-22] == "slot_orphan_dropped"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-21] == "episode_spans_validated"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-20] == "plan_tokens"  # lane F re-pin: +4. NOT `plan_usage`: the
+    #                                                  # SIZE of the writer's popped plan region,
+    #                                                  # never the dispatch planner's tokens
+    assert tk.TRACE_RECORD_KEYS[-19] == "evidence_slot_dropped"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-18] == "evidence_geo_dropped"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-17] == "tables_queried"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-16] == "timing_ms"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-15] == "xc_open_pair"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-14] == "xc_open_decline"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-13] == "xc_regional_decline"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_rv_reading_fenced"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-11] == "quantify_derived_fenced"   # D-DA append, 09-01; lane F re-pin +4
+    assert tk.TRACE_RECORD_KEYS[-10] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application); lane F re-pin +4
+    assert tk.TRACE_RECORD_KEYS[-9] == "quantify_wave_reads"      # A2 wave counter, same commit; lane F re-pin +4
+    # THE NEW TAIL, NAMED: four keys, one commit, appended (never sorted in)
+    assert tk.TRACE_RECORD_KEYS[-4:] == ("numbers_usage", "plan_usage", "desk_register", "writer_seam")
+    assert tk.TRACE_RECORD_KEYS[-5] == "state_board"              # the PRIOR tail, still in place
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
@@ -829,6 +843,13 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     assert rec["wrong_slot_audit"] == {"scope_checked": 10, "scope_mismatch": 2,
                                        "direction_checked": 4, "direction_mismatch": 1}
     assert ev._per_answer_record(_turn({}), "single")["wrong_slot_audit"] is None   # absent-as-None
+    # LANE F: the four new columns obey the SAME absent-as-None contract as every registered key --
+    # they are PRESENT WITH NULL on a turn that stamps none, which is exactly what makes them different
+    # from `bridge_query` / `numbers_budget` / `turn_cost_total_usd` (conditional splats, ABSENT when
+    # off). The two idioms are both in this record and the choice between them is a real one.
+    _off = ev._per_answer_record(_turn({}), "single")
+    for _k in ("numbers_usage", "plan_usage", "desk_register", "writer_seam"):
+        assert _k in _off and _off[_k] is None, _k
 
 
 def test_the_strip_class_tuples_are_the_verifiers_own_spellings():

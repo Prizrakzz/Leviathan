@@ -68,7 +68,14 @@ tables:
       consumption_mt:        {label: "consumption", unit: "MT", desc: "domestic consumption/use"}
       area_harvested_1000ha: {label: "area harvested", unit: "1000 ha", desc: "harvested area"}
       yield_mt_ha:           {label: "yield", unit: "MT/ha", desc: "yield"}
-      su_ratio:              {label: "stocks-to-use ratio", unit: "ratio", desc: "stocks-to-use ratio"}
+      # ROUND-2 DOCKET #6: the card states SCOPE and DENOMINATOR. The producer
+      # (transforms/bronze_to_silver/usda_psd.py:1334) computes `ending_stocks_mt / consumption_mt` and
+      # nothing else -- EXPORTS ARE NOT IN THE DENOMINATOR -- which is why the 2026-09-16 smoke's
+      # "soft red winter wheat's stocks-to-use reads 0.652178" is arithmetically right and unreadable
+      # beside a WASDE balance sheet, and why the max page's 10.72% could not be reconciled with
+      # WASDE's 310 / 4,535 (310 / 0.1072 = 2,892 M bu, which is US domestic use, not total use).
+      su_ratio:              {label: "stocks-to-use ratio", unit: "ratio",
+                              desc: "ending stocks divided by DOMESTIC CONSUMPTION for the same country and marketing year -- the producer computes ending_stocks_mt / consumption_mt and nothing else. EXPORTS ARE NOT IN THE DENOMINATOR, so this is stocks-to-DOMESTIC-use and it is NOT the trade's stocks-to-total-use and NOT WASDE's US stocks/use: for a large exporter the two differ by a lot (US ALL-CLASS wheat reads 0.652 here because most US wheat leaves the country and never enters this denominator -- that figure is USDA's all-class US wheat sheet whichever wheat slug keyed it, never soft red winter's own, and quoting it under one class's name is the mislabel this card's notes forbid). It is a FRACTION OF ONE, not a percent -- 0.1072 is 10.7%. SCOPE IS THE COUNTRY AND MARKETING YEAR THE CALL NAMES and nothing wider; no world row is served. Say the basis in the sentence that carries the figure, and never set it beside a WASDE balance sheet in million bushels as if a reader could reconcile the two"}
       # W0-2 (projection wave, 2026-08-25): four columns the producer has ALWAYS written, never advertised.
       # Coverage measured on the live object before authoring (the PA-1 law) -- see notes for the spans.
       # RE-AUTHORED 2026-09-04 (the honest-clock re-baseline). The line these four
@@ -88,6 +95,42 @@ tables:
       consumption_mt_revision:   {label: "consumption revision", unit: "MT",
                                   desc: "change in the consumption estimate from the PREVIOUS RELEASE of the same marketing year, taken in release-date order within one bulk snapshot; the first release of a marketing year has no prior estimate"}
     notes: >
+      COMMODITY IS A CONTRACT SLUG HERE, NEVER A CROP OR OIL NAME, AND THE FAMILIES ARE PUBLISHED SHEETS
+      FANNED OUT OVER SEVERAL KEYS. There is no `wheat`, `corn`, `maize`, `soybeans`, `soybean_oil`,
+      `soybean_meal` or `palm_oil` row on this card -- other cards take those names (silver_minagro_grain_exports
+      takes wheat and corn, gold_board_crush takes soybeans, the MPOC oil cards take palm_oil and soybean_oil),
+      and carrying one of them here is the measured way to waste a lookup. USDA publishes ONE sheet per
+      commodity code and the producer emits it once per slug in that code's list, so the members of a family
+      below are THE SAME ROWS under different keys: wheat is one of soft_red_winter_wheat_cbot |
+      hard_red_winter_wheat_kcbt | hard_red_spring_wheat_mgex | french_wheat_matif, and all four carry USDA's
+      ALL-CLASS wheat aggregate -- never quote one as if it were that class's own balance sheet. Corn (maize)
+      is one of corn_cbot | french_maize_matif | campinas_corn_reference_bmf | south_african_white_maize_jse |
+      south_african_yellow_maize_jse, all the global corn/maize aggregate. Soybeans is one of soybeans_cbot |
+      soybeans_no_1_dce | soybeans_no_2_dce; soybean oil is soybean_oil_cbot | soybean_oil_dce; soybean meal is
+      soybean_meal_cbot | soybean_meal_dce; palm is malaysian_crude_palm_oil_cme | palm_olein_dce. PICK THE
+      BOARD THE QUESTION IS ABOUT AND SAY WHICH ONE YOU PICKED. NINE family words are re-keyed: wheat, corn,
+      maize, soybeans, soybean_oil, soyoil, soybean_meal, soymeal, palm_oil (soyoil and soymeal are the desk's
+      own short forms and land on the same two sheets as the long ones). If you do send one of those nine the
+      engine re-keys it to the family's CBOT/CME member and tells you so on the result -- it is a keying
+      convenience, NOT a scope: the figure is USDA's sheet for that COMMODITY, country and marketing year, and
+      quoting it as the one contract class's own balance sheet is a mislabel. The convenience does NOT extend
+      to names that are two different subjects here: the
+      citrus pair (frozen_orange_juice is the JUICE, fresh_citrus the FRUIT), the rapeseed complex (canola_ice
+      is the SEED, rapeseed_oil_zce the OIL), sunflower vs sunflower_oil, and the raw/white sugar pair are all
+      REFUSED and must be named exactly.
+      COUNTRY IS THE SOURCE'S OWN TITLE-CASE NAME HERE, NOT A SNAKE_CASE SLUG, AND THERE IS NO WORLD ROW.
+      The values that serve are spelled as USDA spells them -- 'United States', 'European Union', 'Argentina',
+      'Brazil', 'China', 'Indonesia', 'Russia', 'Thailand', 'Ukraine' -- and the filter is an EXACT equality,
+      so a spelling this card does not use returns zero rows in exactly the way a genuine absence does.
+      'united_states' IS silver_wasde's spelling and it is WRONG here: measured on the 2026-09-16 pre-arm
+      smoke, country='united_states' returned 0 rows on 21 of 21 lookups across this card and
+      silver_psd_attributes, while country='United States' returned a row on 41 of 41 -- same metrics, same
+      as-of, several of them minutes apart on the same turn. AND THIS CARD SERVES NO WORLD OR GLOBAL
+      AGGREGATE: country='world' and country='World' each returned 0 rows on every one of 21 lookups in that
+      same smoke. An empty world read is a COVERAGE fact about this card, never a fact about whether USDA
+      published the figure -- do not write "the world balance sheet carries no figure at this as-of". Read the
+      countries you need as separate rows and cite each one, or say plainly that the world basis is not served
+      on this card; the world total is a cascade-side synthesis and never a sum you add up here.
       Values in `_mt` columns are RAW metric tonnes (verified: Argentina corn MY2023 ending stocks = 2,462,000
       = 2.46 MMT). period = the marketing year as an integer (e.g. 2023). Latest vintage <= asof = as-known.
       THE MONTH IS THE SOURCE'S OWN STAMP AND THE DAY IS A CONVENTION (2026-09-04). USDA prints a
@@ -266,6 +309,27 @@ tables:
       # -- THE HEAD COUNT, carried honestly because the unit column retires the hazard --------------
       "Cows In Milk":           {label: "cows in milk", unit: "1000 HEAD", desc: "milking herd size, a HEAD COUNT and not a tonnage -- 1,917 rows on milk_fluid, MY1964-2026. NEVER added to, differenced against or ratioed with any (1000 MT) row on this card"}
     notes: >
+      COMMODITY IS A CONTRACT SLUG HERE, NEVER A CROP OR OIL NAME -- this card shares ONE commodity
+      vocabulary with silver_psd (the same 63 slugs, from the same producer map), so its family rule is
+      silver_psd's, verbatim: there is no `wheat`, `corn`, `maize`, `soybeans`, `soybean_oil`, `soybean_meal`
+      or `palm_oil` row here. Wheat is one of soft_red_winter_wheat_cbot | hard_red_winter_wheat_kcbt |
+      hard_red_spring_wheat_mgex | french_wheat_matif and all four carry USDA's ALL-CLASS wheat aggregate;
+      corn (maize) is one of corn_cbot | french_maize_matif | campinas_corn_reference_bmf |
+      south_african_white_maize_jse | south_african_yellow_maize_jse; soybeans is one of soybeans_cbot |
+      soybeans_no_1_dce | soybeans_no_2_dce; soybean oil is soybean_oil_cbot | soybean_oil_dce; soybean meal is
+      soybean_meal_cbot | soybean_meal_dce; palm is malaysian_crude_palm_oil_cme | palm_olein_dce. One family
+      is ONE published sheet under several keys -- pick the board the question is about and SAY WHICH ONE YOU
+      PICKED. A family word you do send (nine of them: wheat, corn, maize, soybeans, soybean_oil, soyoil,
+      soybean_meal, soymeal, palm_oil) is re-keyed to the family's CBOT/CME member and stamped on the result,
+      and the figure stays USDA's sheet for that commodity -- never that one contract class's own balance
+      sheet; the citrus pair, the rapeseed seed/oil pair, sunflower vs sunflower_oil and the raw/white sugar
+      pair are two different subjects apiece and are REFUSED, never re-keyed.
+      COUNTRY IS THE SOURCE'S OWN TITLE-CASE NAME HERE, exactly as on silver_psd and for the same reason --
+      one producer, one country vocabulary: 'United States' and 'European Union' serve, 'united_states' (which
+      is silver_wasde's spelling) matches nothing. Measured on the 2026-09-16 pre-arm smoke, this card
+      returned 0 rows on 10 of 10 'united_states' lookups and a row on 9 of 9 'United States' lookups, same
+      metric, same as-of. A country spelled the wrong way looks exactly like an absence from here; re-issue
+      with the card's spelling before reporting a series as unpublished.
       THE MONTH IS THE SOURCE'S OWN STAMP AND THE DAY IS A CONVENTION (2026-09-04), on exactly the
       same rule as silver_psd -- one clock function serves both tables. USDA prints a release MONTH,
       not a release day, and release_date is that month's stamp resolved to a day: the registered
@@ -1259,12 +1323,20 @@ tables:
       closing_stocks_palm_oil_mt: {label: "palm oil closing stocks", unit: "MT", desc: "end-of-month palm oil stocks"}
       exports_palm_oil_mt:        {label: "exports palm oil", unit: "MT", desc: "palm oil exports in the month"}
       imports_palm_oil_mt:        {label: "imports palm oil", unit: "MT", desc: "palm oil imports in the month"}
-      su_ratio:                   {label: "stocks-to-use ratio", unit: "ratio", desc: "MONTHLY closing stocks / that-month exports (NOT the PSD annual stocks-to-use)"}
+      su_ratio:                   {label: "months of export cover", unit: "ratio", desc: "MONTHLY months of export cover: closing stocks divided by THAT MONTH'S exports. It is NOT a stocks-to-use ratio and NOT a percentage -- 1.89 means stocks cover about 1.9 months of exports at the current rate, where a stocks-to-use ratio of 1.89 would mean 1.89 percent of a year's use. THE UNIT TOKEN ON THIS ROW IS STILL 'ratio' BECAUSE THAT IS THE SOURCE COLUMN'S OWN DECLARED UNIT; the quantity is MONTHS, so quote it in months ('stocks cover about 1.9 months of exports') and never print the bare token as if it were the unit of the figure. NEVER set it beside the PSD annual stocks-to-use (or silver_icco_cocoa's) as the same quantity"}
     notes: >
       commodity = malaysian_crude_palm_oil_cme (the only value). date is the DATA month stamped
       first-of-month; window with period_start/period_end 'YYYY-MM-DD' or agg=latest for the newest
       published month. Values in metric tonnes. This is MONTHLY -- for the USDA ANNUAL palm balance
-      sheet use silver_psd. su_ratio here is a monthly stocks/exports ratio.
+      sheet use silver_psd.
+      su_ratio IS MONTHS OF EXPORT COVER, AND THE COLUMN NAME IS THE ONLY THING ABOUT IT THAT SAYS
+      "STOCKS-TO-USE". It is closing stocks / that month's exports, so its units are MONTHS and its
+      scale is around 1-3; a stocks-to-use ratio is a share of a whole year's use and its scale is a
+      few percent. Quote it as months of cover ("stocks cover about 1.9 months of exports"), never as a
+      stocks-to-use ratio, and NEVER put it beside soybean oil's or cocoa's stocks-to-use as the two
+      halves of one comparison -- that is two different quantities wearing one label, which is exactly
+      what the 2026-09-16 pre-arm smoke served. The comparable palm figure is silver_psd's own annual
+      su_ratio for malaysian_crude_palm_oil_cme.
       (ffb_price_myr_per_mt remains excluded: MYR-native with no MYR in fred_fx -- deferred to
       futures v1.5 under PRICE_OBSERVABILITY_DECISION; the price fence now lives in the REGISTER,
       not the data.)

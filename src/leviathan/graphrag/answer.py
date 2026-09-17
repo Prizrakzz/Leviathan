@@ -18,15 +18,23 @@ import time
 from leviathan.graphrag import citations as cit
 from leviathan.graphrag import evidence as ev
 from leviathan.graphrag import extract as ex
+from leviathan.graphrag import (
+    geo_lexicon as _geo,  # D-HP-25: LEAF module (pure data + regex, no cycle)
+)
 from leviathan.graphrag import graph as gph
 from leviathan.graphrag import harvest as hv
+from leviathan.graphrag import (
+    intent as _it,  # D-RC-11: is_episodic_explicit only (pure regex, no cycle)
+)
 from leviathan.graphrag import params as _prm
+from leviathan.graphrag import reasoning_modes as _rm  # D-AM-9: LEAF module (pure data, no cycle)
 from leviathan.graphrag import register as reg
-from leviathan.graphrag import intent as _it     # D-RC-11: is_episodic_explicit only (pure regex, no cycle)
-from leviathan.graphrag import response_contracts as _rc   # D-RC Phase B: LEAF module (pure data, no cycle)
-from leviathan.graphrag import reasoning_modes as _rm      # D-AM-9: LEAF module (pure data, no cycle)
-from leviathan.graphrag import timeline as _tl   # W4-D3: LINE_PREFIX only (module imports params alone -> no cycle)
-from leviathan.graphrag import geo_lexicon as _geo   # D-HP-25: LEAF module (pure data + regex, no cycle)
+from leviathan.graphrag import (
+    response_contracts as _rc,  # D-RC Phase B: LEAF module (pure data, no cycle)
+)
+from leviathan.graphrag import (
+    timeline as _tl,  # W4-D3: LINE_PREFIX only (module imports params alone -> no cycle)
+)
 
 # Production retrieval stack — the arm that won the free k=3 A/B (hybrid doubled exact-token recall 2/6->4/6;
 # rerank sharpened rank; MMR kept the best source-diversity, guarding against narrowing). Serving uses this by
@@ -2340,9 +2348,54 @@ def _record_from(evidence: list | None) -> str | None:
     return min(dates) if dates else None
 
 
+def _ledger_row_dates(number_calls) -> tuple:
+    """(kd_max, kd_min) over THE NUMBER ROWS THIS TURN SERVED, ISO-spelled, or ("", "").
+
+    ROUND2_DOCKET #8's ONE derivation, called from both entry points below so the ledger sentence and
+    the `## Sources` block can never come from two different row sets -- which is exactly the defect:
+    the max turn told the writer "the newest knowledge date on a number row 20260904" while its own
+    footer carried `[known 2026-09-14]`, seven days newer, because the sentence walked the BOARD'S
+    `series` dict and the footer walks the turn's number CALLS. This reads the calls, through
+    `cit.from_number` -- the same producer `_n_row`, `_seam_row_index` and the footer itself use.
+
+    ROUND 3, AND THE FIRST LINE OF THIS DOCSTRING USED TO SAY "THE ROWS THE FOOTER RENDERS". It is a
+    SUPERSET of them and cannot be anything else: `_cited_sources_block` renders one row per [N] index
+    THE PROSE STILL CARRIES (`kept_n = sorted(prose_n)`), and this runs at PROMPT-BUILD time, before
+    the model has written a word. MEASURED over the 112 banked answers against each turn's own
+    pre-verifier draft: on 67 of the 90 turns that cite an indexed row the served menu's oldest
+    knowledge date predates every row the footer would render (`rv_soyoil_palm`: served 1965-03-10 /
+    footer 2000-11-10, 52 calls, 22 cited; `rv_corn_sorghum`: 1961-03-10 / 2026-04-10), and 46 of 112
+    turns serve a menu whose oldest row predates 2010. THE GAP IS NOT CLOSABLE HERE, and that is
+    arithmetic rather than an excuse: the footer's set is any SUBSET of these calls, so the only value
+    that never predates it for every possible subset is `kd_max` itself -- measured, on 13 of those 90
+    turns the draft cited nothing older than the menu's newest row. Satisfying "never predates the
+    footer" therefore means DELETING the oldest end, and a fence here corrects or computes, never
+    deletes. So the range is named for what it is measured over -- the rows this turn SERVED, which is
+    exactly the menu the [N] handle range in the same ledger line is minted against -- and the reader's
+    own `## Sources` block dates itself, per row, in its own `[known ...]` stamps.
+
+    THE ISO NORMALISATION IS LOAD-BEARING, NOT COSMETIC. These are compared as STRINGS, and sorted
+    against `2026-09-11` the undashed `20260904` lands FIRST: that is precisely how the oldest-looking
+    stamp in the set came to be printed as the newest. Normalising before sorting is what makes both
+    ends true, and `_seam_iso_date` re-punctuates without deriving anything.
+
+    Fails closed per call and never raises: a malformed call names no layer."""
+    kds: list = []
+    for i, c in enumerate(list(number_calls or []), start=1):
+        try:
+            d = _seam_iso_date(getattr(cit.from_number(c, i), "date", "") or "")
+        except Exception:  # noqa: BLE001 -- a ledger layer is never worth an answer
+            continue
+        if d:
+            kds.append(d[:10])
+    kds = sorted(set(kds))
+    return (kds[-1], kds[0]) if kds else ("", "")
+
+
 def _recency_ledger_suffix(record_through: str | None, *, asof: str | None = None,
                            kd_max: str | None = None, kd_min: str | None = None,
-                           tape_edge: str | None = None, n_rows: int | None = None) -> str:
+                           tape_edge: str | None = None, n_rows: int | None = None,
+                           number_calls: list | None = None) -> str:
     """The per-turn VOLATILE record-edge sentence (flag-gated; '' when off or dateless -- the caller
     concatenates unconditionally so the seam stays one line). Rides the GROUNDING LEDGER, never the
     cached stable prefix.
@@ -2376,6 +2429,16 @@ def _recency_ledger_suffix(record_through: str | None, *, asof: str | None = Non
         return (f" The dated evidence record for this question runs through {record_through} (reported "
                 f"dates; observed [N] number rows carry their own knowledge dates; the as-of date is this "
                 f"question's 'today').")
+    # ROUND2_DOCKET #8: THE ROWS THE READER GETS WIN. `kd_max` / `kd_min` arrive from the board's own
+    # `series` dict, which is a DIFFERENT and smaller row set than the one the `## Sources` block
+    # renders -- so the sentence dated the page by a layer it did not name and was seven days stale on
+    # the max turn. When the caller hands the turn's own number calls, they decide both ends, through
+    # the ONE derivation (`_ledger_row_dates`). No calls, or no dated call, leaves the board's own
+    # answer exactly where it was: an absent layer is silent, never guessed.
+    if number_calls:
+        _rmax, _rmin = _ledger_row_dates(number_calls)
+        if _rmax and _rmin:
+            kd_max, kd_min = _rmax, _rmin
     parts: list[str] = []
     if n_rows is None or n_rows > 0:
         rows = (f"The number rows on this page are read as of {asof}, and each row carries its own "
@@ -2446,30 +2509,70 @@ def _state_board_lane_stamp(reason: str, mode: str | None = None) -> dict:
         return {}
 
 
-def _board_ledger_kwargs(board) -> dict:
+def _board_ledger_kwargs(board, number_calls: list | None = None) -> dict:
     """[S6] The three ledger layers only a board can measure (design 6.5 (2)), as OMIT-WHEN-ABSENT
     kwargs for :func:`_recency_ledger_suffix`.
 
-    `kd_max` / `kd_min` are the newest and oldest KNOWLEDGE DATE across the board's own number rows --
-    derived per card class (1.4), never the read as-of and never the series end. `tape_edge` is the
-    last session on the anchor board's price tape. EACH IS OMITTED WHEN THE BOARD DID NOT MEASURE IT:
-    an absent layer is silent, and the ledger's closing sentence ("none dates the others") is itself
-    gated on there being two layers to close. No board -> `{}` -> the suffix is phase 0s's own string.
+    `kd_max` / `kd_min` are the newest and oldest KNOWLEDGE DATE across the turn's number rows --
+    never the read as-of and never the series end. `tape_edge` is the last session on the anchor
+    board's price tape. EACH IS OMITTED WHEN THE TURN DID NOT MEASURE IT: an absent layer is silent,
+    and the ledger's closing sentence ("none dates the others") is itself gated on there being two
+    layers to close. No board -> `{}` -> the suffix is phase 0s's own string.
+
+    ══ ROUND2_DOCKET #8 -- THE SENTENCE IS ASSEMBLED FROM THE ROWS THE READER GETS, AND SPELLED ISO ══
+    Two defects, both measured on the max turn's own served page, both charged by graders under
+    `hallucinated_date` / `factual_error`:
+
+      (i) THE DATE WAS OLDER THAN THE FOOTER'S NEWEST ROW. The writer was handed "the newest knowledge
+          date on a number row 20260904" while the `## Sources` block under the same answer carried
+          `[N2] ... [known 2026-09-14]` and eight more at `[known 2026-09-11]` -- SEVEN DAYS NEWER. The
+          old derivation walked the BOARD'S `series` dict, which is a different, smaller row set than
+          the one the footer renders, so the sentence dated the page by a layer it did not name. It now
+          reads THE ROWS THIS TURN SERVED (`number_calls` through `cit.from_number`, the producer
+          `_n_row`, `_seam_row_index` and the footer already share), and falls back to the board's
+          series only when the turn has no number calls at all. THE SERVED MENU IS A SUPERSET OF THE
+          FOOTER'S SET and this docstring used to claim they were the same: see `_ledger_row_dates`
+          for why the footer's own set is unknowable at prompt-build time, for the 67-of-90 measurement
+          and for why closing that gap would mean deleting the oldest end rather than correcting it.
+      (ii) IT WAS SPELLED WITHOUT SEPARATORS. `20260904` reached the reader on two turns, beside a page
+          on which every other date -- including every `[known ...]` stamp -- is ISO. `_seam_iso_date`
+          re-punctuates it and derives nothing.
+
+    THE ORDERING IS THE STRING'S, NOT THE CALENDAR'S, AND THAT IS WHY THE ISO SPELLING IS LOAD-BEARING
+    rather than cosmetic: `min`/`max` over a mixed set of `20260904` and `2026-09-11` sorts the
+    undashed form FIRST on every comparison, which is precisely how the oldest-looking stamp in the set
+    became the "newest". Normalising before sorting is what makes the two ends true.
 
     IT IS A HELPER AND NOT THREE INLINE EXPRESSIONS because BOTH serving bodies own a ledger call site
-    and a second derivation would be the drift class the ledger exists to remove."""
+    and a second derivation would be the drift class the ledger exists to remove -- which is why the
+    row half is `_ledger_row_dates`, ONE function, reached from here and from
+    :func:`_recency_ledger_suffix`'s own `number_calls` kwarg alike.
+
+    WHY THE L2 SEAM PASSES THE ROWS TO THE SUFFIX AND NOT TO THIS FUNCTION, stated so the next author
+    does not "tidy" it: the L2 call's one-argument SPREAD is pinned BY SOURCE TEXT in
+    `test_cascade_walk.py::test_s5_phase0s_the_ledger_suffix_is_head_bytes_off_and_per_layer_on`, a
+    deck lane E does not own, and that pin COUNTS OCCURRENCES -- so the spread may neither change nor
+    be quoted a second time anywhere in this module, this docstring included. The board producer
+    therefore keeps its exact call and the rows ride beside it. `number_calls` stays a
+    POSITIONAL-OPTIONAL second argument here because it is the honest signature for this producer and
+    because the one-hop body may thread it the day that body grows a board."""
     if board is None:
         return {}
     try:
-        series = list((getattr(board, "series", None) or {}).values())
-        kds = sorted({str(getattr(st, "knowledge_date", "") or "") for st in series} - {""})
         out: dict = {}
+        r_max, r_min = _ledger_row_dates(number_calls)
+        if r_max and r_min:
+            kds = [r_min, r_max]
+        else:                                           # ...no rows: the board's own series, as before
+            series = list((getattr(board, "series", None) or {}).values())
+            kds = sorted({_seam_iso_date(str(getattr(st, "knowledge_date", "") or ""))
+                          for st in series} - {""})
         if kds:
             out["kd_max"], out["kd_min"] = kds[-1], kds[0]
         edge = max((str(getattr(t, "level_date", "") or "")
                     for t in (getattr(board, "tape", None) or {}).values()), default="")
         if edge:
-            out["tape_edge"] = edge
+            out["tape_edge"] = _seam_iso_date(edge)
         return out
     except Exception:  # noqa: BLE001 -- a ledger layer is never worth an answer
         return {}
@@ -2505,7 +2608,9 @@ def _cascade_walk_block_on(volatile_prompt: str | None) -> bool:
     conditional LICENSE alone the writer transcribed the walk on 1 of 3 -- a license is optional
     by construction; a mandate that ships only when the block exists is the W4-D3 shape that made
     the episodes section real without the +10-hallucination mode on walk-less turns."""
-    from leviathan.graphrag.numbers import cascade as _cq   # lazy: answer imports cascade at the seam
+    from leviathan.graphrag.numbers import (
+        cascade as _cq,  # lazy: answer imports cascade at the seam
+    )
     return _cascade_walk_on() and _cq.CW_MARKER_PREFIX in (volatile_prompt or "")
 
 
@@ -2535,7 +2640,7 @@ def _state_board_block_on(volatile_prompt: str | None) -> bool:
     figure of speech."""
     if not _state_board_on():
         return False
-    from leviathan.graphrag.state import render as _sr      # lazy: the state package is phase-2 only
+    from leviathan.graphrag.state import render as _sr  # lazy: the state package is phase-2 only
     return _sr.SB_MARKER_PREFIX in (volatile_prompt or "")
 
 
@@ -3386,11 +3491,87 @@ def _numbers_budget_note_on(volatile_prompt: str | None) -> bool:
             and NUMBERS_BUDGET_MARK in (volatile_prompt or ""))
 
 
+# ══ LANE E (2026-09-17): THE WRITER SEAM MANDATE -- the five rules the seam's lints then ENFORCE ════
+# IT SHIPS WITH ITS ENFORCEMENT AND NEVER A WEEK APART -- the estate's own M-7 doctrine, recorded at
+# `_cascade_walk_block_on`: under a conditional LICENSE alone the writer transcribed the walk on 1 of 3
+# fired rows. Every clause below has a correcting lint behind it at the answer seam
+# (`_writer_seam_lints`) and both ride ONE flag, so the writer is never told a rule the page does not
+# then keep, and the page never quietly keeps a rule the writer was not told.
+#
+# WHY EACH CLAUSE EXISTS, from the 2026-09-16 pre-arm smoke's own reads:
+#  (1) LENGTH -- 1,070-1,733 words of prose per turn against a contract that prices the answer at
+#      150-220 and a Scan tier that scales that to 110-150. The ceiling's arithmetic is in
+#      `response_contracts.prose_ceiling`'s block note; it is a CEILING and nothing is ever cut for it.
+#  (2) THE TL;DR -- "record-high harvested area" on a 91st-percentile row and "spring wheat area" on a
+#      soft-red-winter row, in the one line a PM forwards.
+#  (3) THE WATCH CONTRACT -- 5 of 16 bullets carried no figure, 8 of 16 no dated window, 2 no
+#      falsifier, and one Scan turn shipped four bullets on a ceiling of three.
+#  (4) THE CROSS-MARKET PARAGRAPH -- "the declared relation did not hold" printed as a verdict with no
+#      hypothesis in front of it, joint products called demand competitors, percentages to four
+#      decimals ("+28.7976 %"), and a 2015-16 episode window given 19% of the body and no conclusion.
+#  (5) THE DECLINE -- "that window predates that market's own price history", which is false about the
+#      world (MATIF rapeseed traded then) and true about our store.
+#
+# REGISTER-SAFE BY PIN, not by hope: `tests/unit/test_writer_seam_lints.py` grades this literal exactly
+# as `state/lint.check_literals` grades the board's -- ASCII, `register.register_leaks == []`,
+# `count_flow_words == 0`, `count_valuation_words == 0`, no `_LANE_B_ADJ`, and the banned recency
+# phrase absent -- so a register trip on the mandate is a BUILD failure and never a stripped answer.
+_SYSTEM_WRITER_SEAM = (
+    "\n\nTHE PAGE'S OWN CONTRACT (the state block above is live this turn, so these five bind):\n"
+    "(1) LENGTH. Write at most {ceiling} words of prose across the TL;DR and every heading together. "
+    "That is a CEILING and not a target: it is set above what the movements above demand and well "
+    "below an unbounded draft. Spend it on readings, mechanisms and falsifiers; take it back from "
+    "restatement, from a fact given twice under two names, and from history that reaches no "
+    "conclusion. Never drop a figure, a named disagreement or a falsifier to fit it.\n"
+    "(2) THE TL;DR IS THE ONLY LINE THAT TRAVELS, so it may not say anything its own cited readings "
+    "deny. "
+    "A superlative must be the word its own cited reading carries: if the reading sits at the 91st "
+    "percentile, write 'the 91st percentile of its own record' and not 'record' or 'record high'. Name "
+    "the class the reading names -- soft red winter wheat is not spring wheat, white maize is not "
+    "yellow. "
+    "If the body reads two-sided, the TL;DR says so and names BOTH legs; a summary that carries only "
+    "the legs you favour is the one failure here that cannot be repaired downstream.\n"
+    "(3) EVERY WATCH ITEM CARRIES FOUR THINGS: the figure in its own unit, the date it was read, the "
+    "window it acts in, and the one print that would show it wrong. An item missing any of the four is "
+    "not a watch item -- drop it and take the next nominated one instead. Do not exceed the number of "
+    "items this turn's selection clause names, and do not add an item that was not nominated to you.\n"
+    "(4) A CROSS-MARKET PARAGRAPH STATES ITS HYPOTHESIS BEFORE ITS VERDICT, per pair: the declared "
+    "relation in words, the co-movement that relation predicts, the moves actually observed, then the "
+    "verdict -- 'substitutes should move in opposite directions; both rose; the relation did not hold "
+    "on this window'. Never a verdict with no hypothesis in front of it, and never a relation asserted "
+    "in one direction here and the other direction three lines down. Print no percentage to more than "
+    "two decimals. An episode window more than five years old earns ONE sentence that says what it "
+    "settles, or it is left out.\n"
+    "(5) A DECLINE IS ABOUT OUR RECORD, NEVER ABOUT THE WORLD. When a figure is missing because our "
+    "series does not reach the window asked for, say 'our price history for that market does not reach "
+    "that window' -- never that the market had no price then, which is a claim about the world this "
+    "page cannot make. Say what we hold and from when, not what existed."
+)
+
+
+def _system_writer_seam_mandate(prose_mode: str | None = None) -> str:
+    """The writer-seam mandate for THIS TIER -- one producer for the sentence the writer reads and the
+    number `_writer_seam_lints` stamps (`response_contracts.prose_ceiling`), so the ceiling in the
+    prompt and the ceiling in `prose_over_budget` can never be two different numbers.
+
+    `prose_mode=None` renders the DEEP ceiling, which is `prose_ceiling`'s own documented fail-wide
+    default: a caller with no tier is not a caller whose answer should be squeezed."""
+    return _SYSTEM_WRITER_SEAM.format(ceiling=_rc.prose_ceiling(prose_mode))
+
+
 def _system(*, outlook: bool = False, episodes: bool | None = None, recency: bool = False,
             response_contract: str | None = None, budget: str | None = None,
             census: dict | None = None, provenance: bool = False, handles: bool = False,
             cascade_walk: bool = False, cascade_context: bool = False,
             cascade_deep: bool = False, cascade_xccy: bool = False,
+            # LANE E's ONE keyword, and ITS POSITION IS PINNED FROM BOTH SIDES -- it may sit HERE and
+            # nowhere else. `test_cascade_walk`'s g1x bank (`xl_golden_seam_off.json`, twelve params
+            # ending at `cascade_xccy`) asserts the banked list is a PREFIX of the fresh one, so a new
+            # keyword may not land before `extreme_locator`; `test_extreme_locator`'s parameter census
+            # asserts the LAST seven are `extreme_locator, extreme_hop` followed by the five named
+            # appends, so it may not land after `cascade_xccy` either -- except in the one slot between
+            # them. A first cut put it beside `budget` and red the g1x golden at index 5.
+            prose_mode: str | None = None,
             extreme_locator: bool = False, extreme_hop: bool = False,
             numbers_budget: bool = False, state_board: bool = False,
             desk_register: bool = False, watch_selection: bool = False,
@@ -3525,7 +3706,7 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
                 #                                                      locator-only turn must ship the
                 #                                                      locator clause ALONE
     if _pattern_records_on():
-        from leviathan.graphrag.numbers import pattern_records as _pr   # lazy: avoid an import cycle
+        from leviathan.graphrag.numbers import pattern_records as _pr  # lazy: avoid an import cycle
         base = base + _pr.RECORDED_HISTORY_ADDENDUM
     if episodes is None:                                           # no prompt to inspect -> the FLAG leg only
         episodes = _timeline_on()                                  #   (a floor, not the seam invariant)
@@ -3583,8 +3764,16 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         # the same turn, opens by denying ("CANDIDATES nominated for you, not a list to reproduce").
         # The variant rides `watch_selection`, which is already the flag AND the block's own marker, so
         # a board turn with the watch flag off keeps HEAD's mandate byte for byte.
-        from leviathan.graphrag.state import narration as _sn      # lazy: phase-2 only, gate-guarded
+        from leviathan.graphrag.state import narration as _sn  # lazy: phase-2 only, gate-guarded
         base = base + _sn.state_board_mandate(nonobvious=bool(watch_selection))
+        # LANE E (2026-09-17): THE WRITER SEAM MANDATE, appended IMMEDIATELY AFTER the board's own and
+        # INSIDE the same branch. The position is not cosmetic and it is pinned in three decks: the
+        # desk-register leg asserts `_system(state_board=True, desk_register=True) == _system(
+        # state_board=True) + desk_register_mandate(...)` and lane W's asserts the same shape for the
+        # selection clause, so a leg appended AFTER either of them would red both with no defect. It
+        # sits ABOVE `_SYSTEM_HANDLES` for the reason that leg keeps the last word: this mandate asks
+        # for a LENGTH, a hypothesis order and a decline's wording; it narrows no number rule.
+        base = base + _system_writer_seam_mandate(prose_mode)
     if watch_selection:                                            # S7b LANE W: the fifth movement's
         # SELECTION LICENCE, landed by the sec 6.1 seam protocol and appended as ONE constant lane W
         # owns (`state.watch.WATCH_SELECTION_CLAUSE`). It rides the SAME gate the board's mandate
@@ -4313,8 +4502,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     _sb_on, _dsp, _sbs = _state_board_on(), None, None
     if _sb_on:
         try:
-            from leviathan.graphrag import dispatch as _dsp      # lazy: dispatch imports answer back
-            from leviathan.graphrag.state import seam as _sbs    # lazy: phase-2 only, flag-guarded
+            from leviathan.graphrag import dispatch as _dsp  # lazy: dispatch imports answer back
+            from leviathan.graphrag.state import seam as _sbs  # lazy: phase-2 only, flag-guarded
         except Exception:  # noqa: BLE001 -- an unimportable package DECLINES the board, never the turn
             _dsp = _sbs = None
     if _sb_on and _sbs is not None:
@@ -4545,7 +4734,8 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # ENGINE reads no clock and no env (SKEPTIC F3), this seam may. A pinned historical asof
             # (evals, backtests, PIT repros) resolves True on every re-run -- deterministic by
             # construction; a live turn's asof is today and resolves False. Same omit-when-off idiom.
-            from datetime import datetime as _dtn, timezone as _tzu
+            from datetime import datetime as _dtn
+            from datetime import timezone as _tzu
             # A MISSING asof is NOT a historical one: `"" < today` is True, so an unguarded compare armed the
             # replay belt on every asof-less direct call (eval's non-orchestrator path, tests). The
             # orchestrator defaults asof to today before it reaches here; this seam now needs a REAL date
@@ -4788,7 +4978,30 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # They exist now: the board's own recency rows carry the newest and oldest KNOWLEDGE DATE across
     # its number rows and the last session on its price tape. Flag off (or a declined board) -> the
     # dict is empty -> the three kwargs are absent -> the suffix is byte-for-byte what phase 0s ships.
+    # ROUND2_DOCKET #8: the turn's OWN NUMBER CALLS are threaded, so `kd_max` / `kd_min` are the newest
+    # and oldest knowledge date across THE NUMBER ROWS THIS TURN SERVED -- the max turn told the writer
+    # "20260904" while its own `## Sources` carried `[known 2026-09-14]`. It rides as its OWN kwarg
+    # rather than through `_board_ledger_kwargs`'s spread, and that is not a style choice: the spread
+    # is pinned BY SOURCE TEXT in `test_cascade_walk.py` (a deck this lane does not own), so the board
+    # producer keeps its exact call and the rows arrive beside it.
+    # ══ ROUND 3, CENSUS BLOCKER-1: THE ROWS KWARG IS GATED ON THE BOARD, AND THE OLD COMMENT HERE WAS
+    # THE DEFECT. It read "Flag off, or a declined board, -> `_recency_facts_on()` is False and the
+    # suffix is HEAD's string with every kwarg passed" -- an inference about two INDEPENDENT names.
+    # `GRAPHRAG_RECENCY_FACTS` is not `GRAPHRAG_STATE_BOARD`: `configs/graphrag/arm_env_base.yaml`
+    # carries FACTS `on` inside `copy_from_taskdef`, the block BOTH arm-A cells inherit, and serving
+    # rev 133 runs the same pair with the board DARK. So with the kwarg passed unconditionally the
+    # rows supplied `kd_max` / `kd_min` on the lane where the board supplies nothing, and the CONTROL
+    # cell's writer was told something HEAD's control cell is not told. MEASURED on the 112 banked
+    # turns' own served rows, board deleted from the environment: the ledger sentence moved on 112 of
+    # 112 before this gate and on 0 of 112 after it. The ledger rides `volatile_blocks`, so the
+    # `_system` census -- the round's flag-off proof -- cannot see this seam by construction.
+    # THE GATE IS `_board`, NOT THE FLAG, which is one notch stricter and makes the sentence above
+    # true as written: a DECLINED board (the lazy `state/` import failed) leaves the layer silent
+    # exactly as an absent one does, which is this file's own law ("an absent layer is silent, never
+    # guessed"). It is also the one spelling available HERE -- the lane's `_wseam_on` is resolved at
+    # the verifier, hundreds of lines below, and this is prompt-build time.
     _ledger_line += _recency_ledger_suffix(_rec_through, asof=str(asof) if asof else None, n_rows=n_srv,
+                                           number_calls=(extra_number_calls if _board is not None else None),
                                            **_board_ledger_kwargs(_board))
     volatile_blocks = volatile_blocks + [_ledger_line]
     sp, vp = _prompt_parts(query, contracts, stable_blocks, volatile_blocks)
@@ -4900,6 +5113,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                               #                                                  the flag AND the block's
                               #                                                  own marker in `vp`
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
+                              prose_mode=mode_name,               # LANE E: the tier the CEILING is
+                              #                                     priced for; read ONLY inside the
+                              #                                     `state_board` branch, so a
+                              #                                     board-less turn is byte-identical
                               census=_census,                     # D-CC-1: None on every dark turn
                               provenance=_provenance,             # D-MW-30: False on every non-esc_r turn
                               handles=_handles),                  # D-HP-7/8: False on every non-_hp turn
@@ -4958,6 +5175,15 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                        graph, sorted({n.contract for n in sg.nodes})),
                                    handle_prose=_handles)         # D-HP-9/12: the SAME one resolution
     _bar_licence = _bar_licence_for(_bar_licence, verifier)        # S7b R1 review MINOR: one predicate
+    # LANE E (2026-09-17): THE WRITER SEAM's ONE RESOLVED BOOL, read HERE and threaded to all three of
+    # its consumers -- the lint pass, `render`'s scaffold kwarg and `_cited_sources_block`'s footer
+    # kwarg. ONE read per body, the `_bar_licence` discipline and for the same measured reason (WP-A4's
+    # own repair): a switch read twice is how a charge and its remedy come to disagree on the lane
+    # where one of the two reads is stale. It is ANDed with the verifier, because every correction here
+    # is made with a RESOLVED row and `GRAPHRAG_VERIFY=off` is the documented rollback for that whole
+    # chain -- on that lane the footer is the legacy two-list render and there is nothing to correct
+    # against. Flag off (or verify off) -> no call, no kwarg, no key, HEAD's bytes.
+    _wseam_on = bool(_state_board_on() and verifier.get("enabled"))
     # ══ CYCLE-9 (2026-08-08) FIX 4 -- THE MISSING ATTRIBUTION BOUNDARY, ADDITIVE ONLY ═══════════════
     # The gate-6 adjudicator (p4.py) could not attribute a draft-vs-page numeral diff to the repair path:
     # `raw_draft` is captured at the top of this function and the next capture (`verified_*`) is taken
@@ -5098,6 +5324,15 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             _dreg = _desk_register_lint(structured, call=(call if call is _call_opus else None),
                                         model=model)
             sg.trace["desk_register"] = _dreg
+        # LANE E: THE WRITER SEAM LINTS, in the SAME gate and immediately after the last pass that may
+        # touch the MODEL's own words, and still BEFORE any splice -- the `_bind_bar_adjectives` seat
+        # and for its reason: they read the sentence the writer wrote, not the engine's filled-in one.
+        # `_wseam_on` is the ONE resolved bool this body reads for the whole lane (see its note at the
+        # render seam). Flag off -> not called, no key, no kwarg, byte-identical.
+        if _wseam_on:
+            sg.trace["writer_seam"] = _writer_seam_lints(
+                structured, extra_number_calls, asof=asof, mode=(mode_name or ""),
+                horizon_months=getattr(_board, "horizon_months", None), handle_prose=_handles)
         sg.trace["number_handles"] = _resolve_number_handles(structured, extra_number_calls,
                                                              handle_prose=_handles)
         # H1 FIX Z1/Z6: the three D-HP-native render classes join the ONE strip ledger, so the class scan,
@@ -5247,8 +5482,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # sanitize input exactly as before -- `_footer` is empty on that branch and the append is a no-op.
     _footer = ""
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
-        _sanitize_in = render(structured, include_ledger=False)
-        _footer = _cited_sources_block(structured, verifier, extra_number_calls, market_register=_mr)
+        # LANE E: the two SCAFFOLD/FOOTER kwargs, both from the ONE bool resolved above and both
+        # DEFAULT FALSE in their own functions -- so a board-off turn passes them as False and the
+        # rendered page, including its footer, is HEAD's byte for byte.
+        _sanitize_in = render(structured, include_ledger=False, seam_lints=_wseam_on)
+        _footer = _cited_sources_block(structured, verifier, extra_number_calls, market_register=_mr,
+                                       seam_lints=_wseam_on)
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
         _sanitize_in = render(structured) + footer
@@ -5599,11 +5838,85 @@ def _valid_mermaid(s: str | None) -> bool:
         and s.count("[") == s.count("]") and s.count("(") == s.count(")")
 
 
-def render(d: dict, *, include_ledger: bool = True) -> str:
+_SEAM_HEADING_RX = re.compile(r"^(#{1,6})[ \t]+\S[^\n]*$", re.M)
+
+
+def _drop_empty_sections(mech: str) -> str:
+    """LANE E (2026-09-17): drop every heading that has NOTHING under it -- the CYCLE-5 TIDY-3 rule
+    applied to the model's own headings.
+
+    ROUND-2 FIX, AND IT WAS THE ROUND'S ONE FATAL. The first cut closed a section at the next heading
+    of ANY LEVEL, so a `##` heading whose body sits under a `###` sub-heading read as EMPTY and the
+    LABEL WAS DELETED WITH ITS CONTENT ORPHANED UNDER A PARENTLESS SUB-HEADING:
+
+        IN : "## Episodes\\n### The 2015-16 window\\n- it settled nothing [N1].\\n\\n## What to watch ..."
+        OUT: "### The 2015-16 window\\n- it settled nothing [N1].\\n\\n## What to watch ..."
+
+    A SECTION NOW CLOSES AT THE NEXT HEADING OF THE SAME OR A SHALLOWER LEVEL, and it is EMPTY only
+    when every line before that boundary is whitespace -- so a heading with CONTENT AT ANY DEPTH,
+    including a sub-heading line, is never removed. The walk is FENCE-AWARE (``` ... ```), like every
+    other heading walk in this file (`_episode_section_body`, `_cap_absence_bullets`,
+    `_episode_section_bounds`), because a `#` inside a mermaid or code fence is not a heading.
+
+    THE CASCADE IS DECIDED BOTTOM-UP AND IN ONE PASS: a heading is measured against the lines ALREADY
+    marked for removal, so `## A` followed by an empty `### B` followed by `## C` loses both A and B,
+    and a heading whose only content is a sub-heading that SURVIVES keeps its line.
+
+    IT IS A DELETION AND IT IS THE ONE THE DOCTRINE ASKS FOR. `feedback_fences_correct_never_delete`
+    forbids removing a SENTENCE -- a reading, a figure, a named disagreement. What is removed here is
+    a label with no reading under it at any depth, which is the same object CYCLE-5 TIDY-3 already
+    removes at the TL;DR and for the same stated reason: "a header with nothing under it is not a
+    summary, it is a promise the page cannot keep"."""
+    lines = (mech or "").split("\n")
+    heads: list[tuple[int, int]] = []                  # (line index, heading level)
+    in_fence = False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = _SEAM_HEADING_RX.match(line)
+        if m:
+            heads.append((i, len(m.group(1))))
+    drop: set[int] = set()
+    for k in range(len(heads) - 1, -1, -1):
+        i, lvl = heads[k]
+        end = len(lines)
+        for hi, hl in heads[k + 1:]:
+            if hl <= lvl:                              # ...the SAME OR SHALLOWER level closes it
+                end = hi
+                break
+        if any(lines[n].strip() and n not in drop for n in range(i + 1, end)):
+            continue                                   # content at ANY depth: the heading stays
+        drop.add(i)
+        drop.update(range(i + 1, end))                 # ...the heading line and its blank body
+    if not drop:
+        return mech.strip()
+    return "\n".join(ln for n, ln in enumerate(lines) if n not in drop).strip()
+
+
+def render(d: dict, *, include_ledger: bool = True, seam_lints: bool = False) -> str:
     """Structured fields -> reader-first markdown (drops the diagram if absent or malformed).
     `include_ledger=False` suppresses the model's own **Sources** lines — used when the verifier ran and
     the answer instead carries ONE validated `## Sources` block (two parallel lists with independent
-    numbering read as 'mismatched citations' and inflated the judge's hallucination tally 37->151)."""
+    numbering read as 'mismatched citations' and inflated the judge's hallucination tally 37->151).
+
+    `seam_lints` (LANE E, 2026-09-17) closes the TWO SCAFFOLD SEAMS the pre-arm smoke's graders read off
+    the page, and it is DEFAULT FALSE so every existing caller -- the FE render, the dossier lane, the
+    eval replays, both serving bodies with the board flag off -- is byte-identical:
+
+      (i) THE BOLDED LEAD COLLIDING WITH AN H2. `**Why.** ## Mechanism` shipped on 5 of 5 smoke turns
+          and a grader listed it under "formatting defects visible to the reader". It is not cosmetic:
+          an ATX heading is only a heading at the START of a line, so `## Mechanism` after `**Why.** `
+          is LITERAL TEXT to every markdown renderer -- the section the whole contract is built on is
+          not a section at all, and this sitting's own corpus splitter missed it for the same reason.
+          The label keeps its line and the heading gets its own.
+      (ii) A SECTION HEADER WITH NOTHING UNDER IT. The CYCLE-5 TIDY-3 rule above, applied to the
+          MODEL's own headings rather than only to the TL;DR label: a `## ` heading with no content
+          before the next heading or the end of the field is a promise the page cannot keep, and the
+          honest render drops the label rather than advertising a section that is not there. Scoped to
+          the EMPTY case exactly as TIDY-3 is, so a section with any content at all is untouched."""
     # CYCLE-5 TIDY-3: a header with nothing under it is not a summary, it is a promise the page cannot
     # keep. Measured on gate-2 pass 1 (`dcw_urea_zscore`): the verifier convicted the ONE sentence the
     # TL;DR contained, and the body shipped the literal line "**TL;DR.** " with the whole section empty.
@@ -5611,7 +5924,11 @@ def render(d: dict, *, include_ledger: bool = True) -> str:
     # advertise a summary that was removed. Scoped to the EMPTY case only: a TL;DR with any content at all
     # renders byte-identically, which is every turn that did not have its summary stripped to nothing.
     _tldr = (d.get("tldr") or "").strip()
-    parts = ([f"**TL;DR.** {_tldr}", ""] if _tldr else []) + [f"**Why.** {(d.get('mechanism') or '').strip()}"]
+    _mech = (d.get("mechanism") or "").strip()
+    if seam_lints:
+        _mech = _drop_empty_sections(_mech)
+    _why = (f"**Why.**\n\n{_mech}" if (seam_lints and _mech.startswith("#")) else f"**Why.** {_mech}")
+    parts = ([f"**TL;DR.** {_tldr}", ""] if _tldr else []) + [_why]
     if _valid_mermaid(d.get("diagram_mermaid")):
         parts += ["", "**Cascade / convergence**", "```mermaid", d["diagram_mermaid"].strip(), "```"]
     srcs = d.get("sources") or []
@@ -8582,8 +8899,13 @@ def _resolve_number_handles(structured: dict | None, number_calls: list | None, 
     allowlist, and the gate-7 op passed all four and still corrupted a correct sentence. D-HP SPLICES INTO
     A SLOT THAT IS EMPTY BY CONTRACT -- there is no model-written number to certify against, so the splice
     carries NO semantic judgement. Its only failure mode is a handle pointing at the wrong row, and its
-    only remedy is DELETION. `verify.report['repaired'] / ['repairs']` stay 0 / [] on every turn, both
-    arms, which is what test_cycle10_no_rewrites asserts and what this pass must never move."""
+    only remedy is DELETION. This pass writes nothing into `verify.report['repaired'] / ['repairs']` on
+    any turn, either arm, which is what test_cycle10_no_rewrites asserts and what this pass must never
+    move -- EXCEPT WHERE THE ORPHAN LINT REFUSES A FAIL-CLOSED DROP, which repairs or cuts the figure
+    and records the op in `repairs`. (Round 3, lane B's handoff: those two fields USED to be 0 / [] on
+    every turn and this note said so as a standing fact. They are no longer -- measured 13 `repaired`
+    and 18 `repairs` entries over the 112 banked answers, all eighteen figure cuts -- and the mover is
+    `verify.py`'s orphan ladder, not this pass. `GRAPHRAG_VERIFY_ORPHAN_REPAIR=off` is its rollback.)"""
     census = {"substituted": 0, "handles_dropped": 0, "sentences_dropped": 0, "unresolvable": 0}
     if handle_prose:                              # ADDED KEYS, treatment lane only (OFF-arm clean)
         census.update({"grouped_in_slot": 0, "direction_sign_mismatch": 0, "slot_scope_mismatch": 0,
@@ -10673,6 +10995,1382 @@ def _desk_register_lint(structured: dict | None, *, call=None, model: str = "",
     return census
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# LANE E (2026-09-17) -- THE WRITER SEAM LINTS: WHAT LEAVES THE WRITER IS CORRECTED, NEVER DELETED
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# THE MEASURED TRIGGER is the 2026-09-16 in-VPC pre-arm smoke, read end to end by two graders on five
+# real-seat turns (`prearm_smoke_0916/READS_ALL.json`): ALL FIVE forwardability reads scored 2/5 and
+# ALL FIVE figure-checking reads scored 1/5. The defects this region closes are the ones that live at
+# THIS seam -- between the writer's own two prose fields and the reader's page -- and every one of them
+# is a CORRECTION: a word replaced by the word the cited row itself carries, or a clause appended that
+# the row supplies. NOT ONE OF THESE PASSES REMOVES A SENTENCE. That is the estate's standing doctrine
+# (`feedback_fences_correct_never_delete`: "words are free, only printed FIGURES must be backed") and
+# it is also the lesson of THIS smoke, where the one pass that DID delete -- the citation verifier's
+# `number_mismatch` -- took four reading sentences and nine figures off the page, including the whole
+# counter-leg of the deep TL;DR.
+#
+# THE FIVE FINDINGS, in the graders' own words:
+#   (b) "record-high harvested area" where the row is the 91st percentile; "spring wheat area" where
+#       the row is soft red winter -- "and the TL;DR is the only line a PM forwards".
+#   (c) "5 of 16 [watch bullets] carry no figure, 8 of 16 no dated window, 2 no falsifier".
+#   (d) "Malaysian closing stocks are building" on a 2026-07-01 row; "falling on the week" on a
+#       2026-08-27 week.
+#   (e) line 4 renders "**Why.** ## Mechanism" (a bolded lead-in colliding with an H2); the Sources
+#       footer on the deep turn was eleven byte-identical copies of one 2021 WASDE sentence.
+#   (a) 1,145-1,833 words per answer on tiers the design prices at 150-220.
+# plus the lag-window arithmetic ("that acreage window sits inside the three-month horizon" on a row
+# known 2026-09-11, whose declared two-to-four-quarter window is March-September 2027) and the decline
+# that is a false statement about the WORLD rather than a true one about OUR RECORD.
+#
+# THE GATE IS `GRAPHRAG_STATE_BOARD`, resolved ONCE per serving body and threaded down -- the
+# `_bar_licence` idiom, and for its stated reason: two env reads of one switch is how a charge and its
+# remedy come to disagree. WITH THE FLAG OFF none of these functions is called, no trace key is
+# stamped, no kwarg is passed to `render` or `_cited_sources_block` (both default to HEAD's branch),
+# no mandate leg is appended, and EVERY RENDERED BYTE IS HEAD'S.
+#
+# WHY THE BOARD'S OWN FLAG AND NOT A NEW ONE. Every correction here is made WITH A ROW -- the cited
+# row's percentile, its class words, its knowledge date, its own figure -- and the rows are the state
+# engine's product. A lint that corrected prose against rows on a turn that carries no board would be
+# reading a menu the writer was never shown. It is the same argument `_state_board_block_on` already
+# makes for the mandate, applied to the mandate's enforcement.
+#
+# THE NEGATIVE CORPUS IS UNSEEN REAL-SEAT PROSE, never this author's own cases: the five served bodies
+# of the smoke and the `raw_draft` of each (ten documents, ~7,600 words of prose). Every rule below was
+# written against the graders' quoted defects and then RUN OVER ALL TEN, and the measured charge count
+# on each is recorded beside it. A rule that charged a clean sentence was narrowed until it did not.
+
+#: WHAT COUNTS AS A SUPERLATIVE IN THE TL;DR (finding (b)). Deliberately NARROW, and the narrowness is
+#: measured: the estate's own house phrasing says "record" constantly and correctly -- "the 91st
+#: percentile of its own record", "its own 250-session record", "the record carries no figure for those
+#: scopes" -- 38 occurrences across the ten smoke documents, and NOT ONE of them is a superlative claim.
+#: So a bare `record` is never charged. What is charged is the four shapes that can only be a claim
+#: about a maximum: the hyphen/space compound, the all-time compound, the -est adjective, and `record`
+#: standing as the ADJECTIVE of a noun phrase it opens (`a record harvested area`, `record Black Sea
+#: seed`). Measured over the ten documents: 3 charges, 3 of 3 real (max's TL;DR "a record-high harvested
+#: area of 34.76 M ha [N42]", palm/rape's draft "record Black Sea seed [N5][N14]", soyoil's draft
+#: "record Argentine crush"), 0 false.
+_SEAM_SUPERLATIVE_RX = re.compile(
+    r"(?<![\w-])("
+    r"record[-\s]high|record[-\s]low|all[-\s]time\s+(?:high|low)|"
+    r"highest|lowest|unprecedented|"
+    r"(?<!own\s)record(?=\s+[A-Za-z])"
+    r")(?![\w-])", re.I)
+#: The superlatives that claim a MINIMUM. Everything else claims a maximum.
+_SEAM_SUPERLATIVE_LOW = frozenset(("record low", "all time low", "lowest"))
+#: ...and the words that make a following `record` a NOUN and not an adjective, so the last alternative
+#: above cannot fire on "the record carries no figure" / "the record does not settle it".
+_SEAM_RECORD_NOUN_NEXT = frozenset((
+    "carries", "carry", "carried", "is", "are", "was", "were", "does", "do", "did", "shows", "show",
+    "showed", "says", "said", "holds", "hold", "held", "reads", "read", "of", "on", "and", "or",
+    "disagrees", "settles", "settle", "cannot", "has", "have", "had", "itself", "here", "this",
+))
+
+#: THE CROP-CLASS TABLE (finding (b), the "spring wheat" case). (canonical reader words, spellings) --
+#: the spellings are what a ROW LABEL or a TL;DR may carry, longest first inside each entry. A class is
+#: corrected ONLY when BOTH the prose's class and the cited row's class are members here: an unknown
+#: spelling on either side leaves the sentence exactly as written, which is the under-claiming
+#: direction and the only safe one for a fence that rewrites a noun.
+_SEAM_CROP_CLASSES: tuple = (
+    ("hard red spring wheat", ("hard red spring wheat", "hard red spring", "hrs wheat", "spring wheat")),
+    ("soft red winter wheat", ("soft red winter wheat", "soft red winter", "srw wheat")),
+    ("hard red winter wheat", ("hard red winter wheat", "hard red winter", "hrw wheat")),
+    ("durum wheat", ("durum wheat", "durum")),
+    ("white maize", ("white maize",)),
+    ("yellow maize", ("yellow maize",)),
+)
+#: ...and THE COMMODITY each class belongs to. ROUND-2 FIX (review MAJOR-2): the class rule is a
+#: correction of the CLASS WORD, never of the commodity. Measured on the recovered round-1 code, a
+#: spring-wheat sentence whose own handle was not in the row index reached two handles away to a white
+#: maize row and the TL;DR came back reading "A white maize area reading [N99]" -- a fence that renames
+#: the crop. A class is now substituted only when the bound row's class and the prose's class are the
+#: SAME COMMODITY, so a wheat claim can only ever be corrected to another wheat class.
+_SEAM_CLASS_COMMODITY = {
+    "hard red spring wheat": "wheat", "soft red winter wheat": "wheat",
+    "hard red winter wheat": "wheat", "durum wheat": "wheat",
+    "white maize": "maize", "yellow maize": "maize",
+}
+
+#: THE FRESHNESS WINDOW (finding (d)). 21 days for a weekly or monthly row, per the per-layer recency
+#: design; an ANNUAL / marketing-year row is never "current" in the present tense, so its window is
+#: zero -- but see `_seam_stale_figures` for why the charge ALSO requires a present-tense currency verb
+#: and the absence of any date in the sentence. The window alone would stamp every annual row on the
+#: page, which is noise, not a correction.
+_SEAM_FRESH_DAYS = 21
+#: A period spelling that makes the row ANNUAL -- A MARKETING YEAR WITH NO DAY IN IT, and nothing else.
+#:
+#: ROUND-2 FIX (review MAJOR-4), MEASURED. The first cut was `\bMY\s?\d{4}|...`, and the estate spells
+#: EVERY period with the same `MY` prefix: a COT week is `MY2026-09-01`, an ESR week is `MY2026-08-27`,
+#: a monthly ONI reading is `MY2026-07`. All three matched, all three took the ANNUAL clock (whose
+#: window is ZERO days), and so every row whose head carries an `MY` token was "stale" the moment its
+#: knowledge date was not today: **13 stale clauses over the five served bodies, 8 of them on rows LESS
+#: THAN 21 DAYS OLD and charged by this leg alone** (a 9-day COT print, a 12-day ESR week, two 5-day
+#: PSD reads). The function's own note had predicted exactly that failure and claimed to have avoided
+#: it. An annual row is now the PERIOD SHAPE: `MY2026/27`, or a bare `MY2026` with no month or day
+#: segment behind it, or the words themselves. `MY2026-09-01` and `MY2026-08-27` are WEEKS and
+#: `MY2026-07` is a MONTH -- the month form has its own clock in `_seam_row_age` and must never reach
+#: this one.
+_SEAM_ANNUAL_RX = re.compile(r"\bMY\s?\d{4}/\d{2}\b|\bMY\s?\d{4}(?![-/]?\d)|"
+                             r"\b(?:marketing|crop) year\b", re.I)
+#: ...and the CADENCE the CARD declares, when the call carries one (`_seam_row_index` threads it). A
+#: card that says it publishes annually is annual whatever its period token spells, which is the other
+#: half of the same ruling and the half a period regex can never see.
+_SEAM_ANNUAL_CADENCES = frozenset(("annual", "annually", "yearly", "marketing_year", "crop_year"))
+#: THE CURRENCY CLAIM -- the leg that turns a stale row into a claim about NOW, and it is deliberately
+#: NOT the copula. A first cut also charged `is|are|reads|sits|runs|stands|holds|remains`, which is
+#: ordinary English for stating a fact, and it charged 36 sentences over the five served bodies -- most
+#: of them perfectly dated facts in the past tense of their own row. The graders' two cases are both
+#: MOVEMENT verbs: "Malaysian closing stocks are BUILDING" on a 2026-07-01 row, and "FALLING on the
+#: week" on a 2026-08-27 week. A movement verb is the one construction that asserts the reading is
+#: still moving NOW. Narrowed to movement plus the explicit now-words; re-measured at 11 charges.
+_SEAM_PRESENT_RX = re.compile(
+    r"\b(?:building|rising|falling|climbing|tightening|loosening|widening|narrowing|drawing|"
+    r"rebuilding|easing|firming|softening|steepening|flattening)\b|"
+    r"\b(?:now|currently|today|so far)\b|"
+    r"\bon the (?:week|month|day|session)\b|"
+    r"\bthis (?:week|month|session)\b", re.I)
+#: HOW FAR A CLAIM MAY REACH FOR ITS OWN ROW (`_seam_bound`). Four candidates: the estate's citation
+#: grammar puts a claim's handle immediately after it, and the three following it cover the grouped
+#: token, the sibling rank and the trailing-citation shape. A wider reach is how a correction ends up
+#: naming a row sixty words away, which is the defect `_seam_bound`'s own note records.
+_SEAM_BIND_K = 4
+#: A MONTH-PERIOD row's own period, read off the label head (`... global MY2026-07`). ONLY the month
+#: form: an annual / marketing-year row is dated by its knowledge date, which is the WASDE vintage and
+#: IS the honest currency stamp for a forecast (`MY2026/27` known 2026-09-11 is a fresh figure about a
+#: future year, not a stale one). The month form is the case the graders named -- "the January ONI
+#: printed undated" -- where the row is fresh by vintage and two months old by reading.
+_SEAM_MONTH_PERIOD_RX = re.compile(r"\bMY\s?((?:19|20)\d\d)-(0[1-9]|1[0-2])\b")
+#: Anything that DATES a sentence, in which case there is nothing to correct.
+#:
+#: ROUND-2 WIDENING (review MAJOR-4's second half), and it is the SENTENCE'S OWN WORDS doing the work:
+#: three of the eight wrong charges landed on lines whose prose already scoped the movement to a period
+#: -- "falling three consecutive marketing years", "falling over the last marketing year". A movement
+#: scoped to a marketing year is not a present-tense currency claim at all, so the line is dated by its
+#: own words and there is nothing for the staleness leg to correct.
+_SEAM_DATED_RX = re.compile(
+    r"\b(?:19|20)\d\d-\d\d(?:-\d\d)?\b|\b(?:19|20)\d\d\b|\bMY\s?\d{4}|"
+    r"\b(?:marketing|crop)\s+years?\b|"
+    r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\b",
+    re.I)
+
+#: THE DECLARED LAG PHRASE (finding (8)). "a two-to-four-quarter lag", "a zero-to-two-quarter lag",
+#: "a four-to-eight-quarter forward channel". The estate's blocks spell the bound in WORDS, always.
+_SEAM_NUMBER_WORDS = {"zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+                      "seven": 7, "eight": 8, "nine": 9, "ten": 10, "twelve": 12}
+_SEAM_LAG_RX = re.compile(
+    r"\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|twelve)"
+    r"[-\s]to[-\s](zero|one|two|three|four|five|six|seven|eight|nine|ten|twelve)"
+    r"[-\s](quarter|month|week|year)s?\b", re.I)
+#: ...and the HORIZON ASSERTION it may contradict.
+_SEAM_HORIZON_RX = re.compile(
+    r"\b(inside|within|outside|beyond|past)\s+(?:the\s+|its\s+|that\s+)?"
+    r"(?:[a-z-]+[-\s])?horizon\b", re.I)
+
+#: ROUND-3 REVIEW NEW-3 -- THE ONE NEGATION GUARD THE TWO SUBSTITUTING FENCES SHARE. Both of them
+#: replace the reader's VERDICT WORD in place (`_seam_tldr_consistency`'s superlative -> the row's
+#: rank, `_seam_lag_windows`' direction word -> the arithmetic's), and both read the claim as if it
+#: were asserted. A NEGATED claim is the same words with the opposite truth value, so substituting
+#: into it turns a TRUE sentence into a FALSE one -- the reviewer's own four inputs:
+#:   "... and that window does not sit inside the three-month horizon."   (TRUE)  -> "... does not sit
+#:       outside ..."                                                     (FALSE)
+#:   "... is nowhere near inside the three-month horizon."                        -> "... nowhere near
+#:       outside ..."                                                     (FALSE)
+#:   "This is not a record-high harvested area [N1]."                     (TRUE)  -> "This is not a
+#:       23rd-percentile harvested area [N1]."                            (FALSE)
+#:   "Harvested area is nowhere near a record high [N1]."                         -> "... nowhere near
+#:       a 23rd-percentile [N1]."                                         (FALSE)
+#: Measured incidence on every corpus available to this lane (112 banked answers + 5 served bodies +
+#: 5 drafts): 0. It is guarded anyway because these two rules rewrite the TL;DR and the mechanism's
+#: verdict, the shapes above are ordinary English, and the safe direction for a rewrite nobody can
+#: check is to decline and SAY SO (`superlatives_negated` / `lag_windows_negated`).
+#: `inside` / `within` / `outside` / `beyond` / `past` ARE NOT NEGATIONS HERE, deliberately: they are
+#: the lag fence's own direction vocabulary -- the matched span itself -- and reading one as a negation
+#: would silence the fence on precisely the sentence it exists to correct.
+_SEAM_NEGATION_RX = re.compile(
+    # ROUND-3 REVIEW MAJOR-1 (2026-09-17): the `n't` branch used to sit UNDER the (?<![\w-]) lookbehind, which
+    # requires a non-word character before the `n` -- so isn't / doesn't / won't / can't / didn't could never
+    # match and the guard was green on a dead branch. The contraction is its own alternative now: a word
+    # ending in n't. (`cannot` is NOT here: 63 corpus occurrences, a new token = a new rule, docketed.)
+    r"(?:(?<![\w-])(?:not|never|no|none|neither|nor|hardly|scarcely|nowhere|"
+    r"far\s+from|rather\s+than)(?![\w-])|\w+n't(?![\w-]))", re.I)
+#: ...and the CLAUSE the guard is measured inside. A negation binds its own clause and not the one
+#: after it ("Stocks are not tight, and the lag window sits inside the horizon" is an assertion about
+#: the window), so the scan runs from the last clause break BEFORE the matched span, or from the start
+#: of the sentence when there is none.
+_SEAM_CLAUSE_BREAK_RX = re.compile(r"[,;:]|--|—|–")
+
+
+def _seam_negated(sent: str, at: int) -> bool:
+    """True when the clause ending at `sent[:at]` carries a negation -- see `_SEAM_NEGATION_RX`.
+
+    ONE helper for both substituting fences, for the reason the lane resolves `_wseam_on` once: a
+    guard spelled twice is two chances for the two rules to disagree about what a negated sentence is.
+    Fails OPEN on a bad input (no span, no sentence) in the only direction that matters -- it returns
+    False and the caller's own binding guards still have to pass before anything is rewritten."""
+    try:
+        head = sent[:max(0, int(at))]
+    except (TypeError, ValueError):
+        return False
+    if not head:
+        return False
+    breaks = list(_SEAM_CLAUSE_BREAK_RX.finditer(head))
+    clause = head[breaks[-1].end():] if breaks else head
+    return _SEAM_NEGATION_RX.search(clause) is not None
+_SEAM_MONTHS = ("January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December")
+#: quarters / months / weeks / years -> days, for the window arithmetic. A quarter is 3 calendar
+#: months and a month is added on the CALENDAR (`_seam_add_months`), never as 30 days.
+_SEAM_LAG_MONTHS = {"quarter": 3, "month": 1, "year": 12}
+
+#: A MARKDOWN LIST ITEM -- the same shape `state.render._nom_watch_bullets` reads, and for the same
+#: reason: the watch ruling's own unit is the BULLET, not the sentence (S7b round 4).
+_SEAM_BULLET_RX = re.compile(r"^[ \t]*(?:[-*+]|\d{1,2}[.)])\s+", re.M)
+#: A printed FIGURE inside a bullet: a magnitude outside every citation handle.
+_SEAM_FIGURE_RX = re.compile(r"(?<![\w.])-?\d[\d,]*(?:\.\d+)?")
+#: A dated WINDOW inside a bullet: two dates, or one date plus a direction word.
+_SEAM_WINDOW_RX = re.compile(
+    r"\b(?:19|20)\d\d-\d\d-\d\d\b.{0,40}?\b(?:to|through|until|-)\b.{0,10}?\b(?:19|20)\d\d-\d\d-\d\d\b|"
+    r"\bwindow\b[^.;]{0,80}?\b(?:19|20)\d\d-\d\d-\d\d\b|"
+    r"\bwindow\b[^.;]{0,60}?\b(?:%s)\b" % "|".join(_SEAM_MONTHS), re.I | re.S)
+#: A FALSIFIER inside a bullet: the block's own sentence shape ("this reads wrong if ..."), widened in
+#: round 2 for the real-seat wordings the first cut missed and OVER-REPORTED on (review MINOR-5): "A
+#: print above 3.0 MMT would refute it", "would show it wrong", "wrong if the next print ...". The
+#: counter is a STAMP, so a miss costs a false defect in the trace and never a rewritten sentence; the
+#: residual class -- a falsifier stated with no falsifying token at all ("a draw would start closing
+#: it") -- is named in the FIX report rather than guessed at here.
+_SEAM_FALSIFIER_RX = re.compile(r"\breads?\s+wrong\s+if\b|\bwould\s+show\s+it\s+wrong\b|"
+                                r"\bdisprove[sd]?\b|\bfalsifie[sd]\b|\brefut(?:e|es|ed|ing)\b|"
+                                r"\bwrong\s+if\b|\bwould\s+(?:show|prove|make)\b[^.;]{0,40}\bwrong\b|"
+                                r"\bcontradict(?:s|ed)?\b", re.I)
+#: An ISO date, erased from a bullet BEFORE the figure test: a bullet carrying only "read 2026-09-11"
+#: prints no FIGURE, and the first cut read its digits as one (review MINOR-4, the counter under-reported).
+_SEAM_ISO_DATE_RX = re.compile(r"\b(?:19|20)\d\d-\d\d(?:-\d\d)?\b")
+
+#: THE DECLINE THAT IS A STATEMENT ABOUT THE WORLD (finding (10)). `numbers/cascade.py:7425` hands the
+#: writer "this window predates that board's own price history" and the writer transcribes it: MATIF
+#: rapeseed DID trade in the windows all three answers declined. The phrase is replaced with the same
+#: fact stated about OUR RECORD, which is the only thing this engine can honestly assert. The DATE half
+#: ("our price history for that market begins <date>") needs the coverage start the decline reason does
+#: not carry -- that is docketed to the producer in `HANDOFF_E_writer.md`, and the claim is corrected
+#: here in the meantime rather than left standing as a falsehood.
+_SEAM_PRECOVERAGE_RX = re.compile(
+    r"\bpredates\s+(?:that|those|the|its|their)\s+"
+    r"(?:board'?s?|boards'|market'?s?|markets'|exchange'?s?)\s+own\s+price\s+history", re.I)
+
+#: ROUND 2 ────────────────────────────────────────────────────────────────────────────────────────
+#: THE WORDS A LAG CLAUSE MAY NOT BE BOUND BY (`_seam_subject_known`). The deep turn's own bullet --
+#: the sentence finding (8) was FILED ON -- carries NO handle at all, so the round-1 rule bound nothing
+#: and never fired on the turn it was built for. The claim still names its own series in words
+#: ("larger AREA loosens supply ... that ACREAGE window"), and the row it names is on the page. These
+#: are the words that carry no series: the lag/horizon furniture itself and ordinary English. A subject
+#: word must be four letters or more and outside this set, and the bind is refused unless exactly ONE
+#: row head wins the overlap and every row under that head agrees on its knowledge date.
+_SEAM_SUBJECT_STOP = frozenset((
+    "with", "that", "this", "from", "into", "over", "under", "when", "than", "then", "they", "them",
+    "their", "there", "here", "what", "which", "while", "would", "could", "should", "been", "have",
+    "has", "does", "also", "just", "very", "more", "most", "less", "least", "each", "both", "other",
+    "same", "such", "only", "still", "even", "about", "after", "before", "three", "four", "five",
+    "quarter", "quarters", "month", "months", "week", "weeks", "year", "years", "window", "windows",
+    "horizon", "inside", "outside", "within", "beyond", "past", "lags", "sits", "runs", "reads",
+    "read", "loosens", "tightens", "signals", "takes", "gives", "next", "last", "sits", "means",
+))
+#: A LABEL THE PROSE GOT WRONG AND THE CITED ROW GETS RIGHT (ROUND2_DOCKET #9). (prose phrase, the
+#: metric words the BOUND row's head must carry, the words the row's own label licences, the metric
+#: words that REFUSE it). The max turn wrote "Weekly export sales at 311.85 thousand MT [N27]" over
+#: `[N27] USDA FAS Export Sales (ESR) weekly exports CBOT soybeans MY2026-08-27` -- an ESR SHIPMENTS
+#: row sold as the SALES series, and the deep turn of the same run names the identical row correctly.
+#: Sales lead, shipments confirm, and the note called this leg decisive. The refusal column is
+#: load-bearing: the ESR SOURCE NAME is itself "Export Sales (ESR)", so the guard is on the METRIC
+#: words and a genuine weekly-sales row (whose head carries `weekly sales`) is never rewritten.
+_SEAM_METRIC_SWAPS: tuple = (
+    (re.compile(r"\bweekly export sales\b", re.I), "weekly exports", "weekly exports",
+     r"\bweekly\s+(?:export\s+)?sales\b"),
+    # ...and the ADJECTIVAL shape, which the same turn also shipped as a watch-bullet title
+    # ("**Export sales pace** [N27]"): the metric word is corrected in place and the writer's own
+    # noun keeps its line, because "Exports pace" would be this seam inventing a phrase.
+    (re.compile(r"\bexport sales(?=\s+(?:pace|run|rate|trend))", re.I), "weekly exports", "export",
+     r"\bweekly\s+(?:export\s+)?sales\b"),
+    (re.compile(r"\bexport sales\b", re.I), "weekly exports", "exports",
+     r"\bweekly\s+(?:export\s+)?sales\b"),
+)
+#: AN ASSERTED ABSENCE (ROUND2_DOCKET #10). The max turn wrote "two of its legs (Argentine selling
+#: incentives, the dollar) have no series this page could read" while `[N48] USDA PSD exports ...
+#: Argentina = 6.45 MMT` was SERVED and flagged LOUD -- and that absence is the arithmetic that keeps
+#: the price-pressuring pattern under its threshold and hands the read to the other side. The claim is
+#: never deleted: the row is APPENDED beside it so the reader can see what was read.
+_SEAM_ABSENCE_RX = re.compile(
+    r"\bno\s+(?:citable\s+|readable\s+|usable\s+)?(?:series|figure|reading|row|number|record)s?\b|"
+    r"\breturned\s+nothing\b|\bnothing\s+(?:to\s+)?read\b|\bno\s+data\b", re.I)
+#: ...and the SUBJECT a served row must name for the absence to be contradicted: a capitalised word
+#: the claim itself uses. Bound by a SIX-CHARACTER stem so the estate's demonym/geography split
+#: ("Argentine" in the prose, "Argentina" in the row head) joins, and nothing shorter, because a
+#: shorter stem joins words that share only a prefix. The SENTENCE'S FIRST WORD is never a subject
+#: (ordinary capitalisation is not a proper noun), the bind is refused unless exactly ONE row head
+#: carries the stem, and a row the sentence ALREADY cites is not an absence to correct.
+_SEAM_ABSENCE_SUBJECT_RX = re.compile(r"\b([A-Z][a-z]{5,})\b")
+_SEAM_STEM_CHARS = 6
+#: ORDINALS whose SPOKEN form opens on a vowel, for the article the superlative substitution leaves
+#: behind ("An unprecedented ..." -> "An 23rd-percentile ...", review MINOR-2). 8th/11th/18th and the
+#: eightieth decade; everything else takes "a".
+_SEAM_VOWEL_ORDINALS = ("8th", "11th", "18th")
+
+
+def _seam_row_index(number_calls) -> dict:
+    """{[N] index -> {label, head, value, unit, known}} for every call this turn can cite.
+
+    `head` IS THE LABEL MINUS ITS VALUE CLAUSE, and it is the join key every rule below uses. That is
+    not a convenience: a state row mints its LEVEL, its SIGMA and its PERCENTILE as separate `[N]`
+    rows off ONE series, and `cit.from_number` renders all three with a byte-identical head --
+    measured on this smoke, `[N42]` and `[N44]` both read "USDA PSD area harvested CBOT soybeans
+    United States MY2026". So "the percentile of the row this handle names" is a dictionary lookup on
+    text the reader can see, never a re-derivation from the query fields (which would be a SECOND
+    opinion about which rows are siblings, and the estate has one too many of those already).
+
+    Fails closed per call and never raises: a malformed call is simply not in the index, and a rule
+    that cannot find its row makes no correction."""
+    out: dict = {}
+    for i, c in enumerate(list(number_calls or []), start=1):
+        try:
+            cn = cit.from_number(c, i)
+        except Exception:  # noqa: BLE001 -- a lint must never be the thing that breaks an answer
+            continue
+        label = str(getattr(cn, "label", "") or "")
+        head, sep, tail = label.rpartition(" = ")
+        if not sep or not head.strip():
+            continue
+        val, _, rest = tail.partition(" ")
+        unit = rest.split("(")[0].split("[")[0].strip()
+        # ROUND 2: the CARD'S OWN CADENCE rides beside the period token when the call carries one, so
+        # `_seam_row_age` can read "this card publishes annually" instead of inferring it from a
+        # period spelling (review MAJOR-4's second leg). Absent on a call that does not declare it,
+        # which is the majority: the period shape then decides alone, as it did before.
+        cad = ""
+        if isinstance(c, dict):
+            _q = c.get("query")
+            cad = str(c.get("cadence")
+                      or (_q.get("cadence") if isinstance(_q, dict) else None)
+                      or "").strip().lower()
+        # ROUND 2: the knowledge date is NORMALISED ONCE, HERE, so every rule below (the staleness
+        # clause, the watch figure, the absence clause, the lag arithmetic) speaks the page's own ISO
+        # and not the `20260904` the ESR card hands up. `_seam_iso_date` re-punctuates and derives
+        # nothing; a stamp it cannot parse is carried through exactly as it came.
+        out[i] = {"label": label, "head": head.strip(), "value": val.strip(), "unit": unit,
+                  "known": _seam_iso_date(str(getattr(cn, "date", "") or ""))[:10], "cadence": cad}
+    return out
+
+
+def _seam_percentiles(rows: dict) -> dict:
+    """{label head -> percentile} for every row whose unit IS a percentile. The value is kept as a
+    float; a head carrying two DIFFERENT percentiles is dropped entirely (two ranks for one series is
+    not a fact this lint may pick between)."""
+    out: dict = {}
+    for r in rows.values():
+        if r["unit"].lower() != "percentile":
+            continue
+        try:
+            v = float(str(r["value"]).replace(",", ""))
+        except (TypeError, ValueError):
+            continue
+        head = r["head"]
+        # ROUND-2 FIX (review MINOR-1): `out[head]` is ALREADY None once a head has been ruled
+        # ambiguous, and `abs(None - v)` raised `TypeError` on the A/B/A shape -- which the belt caught
+        # as `outcome: "lint_failed:TypeError"`, silently disabling ALL SEVEN corrections for that turn
+        # while the page shipped every defect. An ambiguous head stays ambiguous and never re-parses.
+        if head in out and (out[head] is None or abs(out[head] - v) > 1e-9):
+            out[head] = None                                   # ambiguous: never correct from it
+        elif head not in out:
+            out[head] = v
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _seam_ordinal(v: float) -> str:
+    """"91st", "1st", "22nd" -- through the estate's ONE ordinal producer, never a second copy of the
+    st/nd/rd/th rule (`cit._stat_value_text`'s own discipline)."""
+    from leviathan.graphrag.numbers.cascade import _rv_ordinal
+    return str(_rv_ordinal(v))
+
+
+def _seam_cited(sent: str) -> list[int]:
+    """The `[N]` indices this sentence cites, in written order, through THE handle parser."""
+    out: list[int] = []
+    for m in _N_HANDLE_RX.finditer(sent):
+        for i in _n_handle_members(m.group(0)):
+            if i not in out:
+                out.append(i)
+    return out
+
+
+def _seam_bound(text: str, pos: int, *, forward: bool = True) -> list[int]:
+    """The `[N]` indices of `text`, ordered by how close their token is to `pos` -- FORWARD FIRST.
+
+    THIS FUNCTION IS THE FIX FOR A MEASURED FALSE CORRECTION, and it is recorded because the first cut
+    shipped it. `_seam_tldr_consistency`'s first version took "the first cited handle in the sentence"
+    and the max turn's TL;DR is ONE sentence carrying eight handles: it bound "a record-high harvested
+    area of 34.76 M ha [N42]" to [N33] -- the stocks-to-use buffer, sixty words earlier -- and printed
+    "a 23rd-percentile harvested area". A correction that names the wrong row is strictly worse than
+    the superlative it replaced.
+
+    FORWARD FIRST because that is the estate's own citation grammar: the handle follows the claim it
+    backs ("34.76 M ha [N42]"). A handle BEFORE the span is still offered, after every forward one, for
+    the trailing-citation shape ("[N42] -- the top decile ..."); the caller decides whether what it
+    finds there is usable, and every caller here refuses when it is not.
+
+    `forward=False` INVERTS THE PREFERENCE, and there is exactly one caller and one measured reason.
+    A DECLARED LAG is a property of a reading already named: "Harvested area of 34.76 M ha [N42], 91st
+    percentile of its own record [N44], loosens supply with a two-to-four-quarter lag". The lag's
+    subject is BEHIND it; forward-first bound that clause to the export-sales row two clauses later
+    and counted the window from the wrong knowledge date. So the lag rule asks backward first, and the
+    two directions are one function because a second proximity rule is a second opinion about which
+    row a claim belongs to."""
+    marks: list = []
+    for m in _N_HANDLE_RX.finditer(text):
+        for i in _n_handle_members(m.group(0)):
+            marks.append((m.start(), i))
+    marks.sort(key=lambda t: ((0 if t[0] >= pos else 1) if forward else (0 if t[0] <= pos else 1),
+                              abs(t[0] - pos)))
+    out: list[int] = []
+    for _p, i in marks:
+        if i not in out:
+            out.append(i)
+    return out
+
+
+def _seam_class_of(text: str) -> tuple:
+    """(canonical words, matched spelling, start, end) for the FIRST crop class named in `text`,
+    longest spelling first so "hard red spring wheat" is never read as "spring wheat"."""
+    best = None
+    low = text.lower()
+    for canon, spellings in _SEAM_CROP_CLASSES:
+        for sp in spellings:
+            k = low.find(sp)
+            if k < 0:
+                continue
+            if best is None or len(sp) > len(best[1]) or (len(sp) == len(best[1]) and k < best[2]):
+                best = (canon, sp, k, k + len(sp))
+    return best or ()
+
+
+def _seam_tldr_consistency(structured: dict, rows: dict, pcts: dict) -> dict:
+    """FINDING (b) -- THE TL;DR SAYS WHAT ITS OWN CITED ROW SAYS, or it is corrected to.
+
+    TWO CORRECTIONS, both in place, both with the row's own words, neither able to remove anything:
+
+      (i) SUPERLATIVE vs PERCENTILE. `a record-high harvested area of 34.76 M ha [N42]` -- and [N42]'s
+          own sibling row [N44] reads `= 91 percentile`. The word is replaced by the rank: `a
+          91st-percentile harvested area of 34.76 M ha [N42]`. A maximum claim is corrected only when
+          the rank is BELOW 100 and a minimum claim only when it is ABOVE 0, so a reading that really
+          IS at its record keeps its word (the max turn's own `100th percentile` fund length does).
+      (ii) CLASS WORD. `a spring wheat area reading at the 1st percentile of its own record [N42]` --
+          and [N42]'s head reads `... CBOT srw wheat ...`. The prose class is replaced by the row's:
+          `a soft red winter wheat area reading ...`. The body of that same answer had it right four
+          lines down; the TL;DR is the line that travels.
+
+    SCOPE IS THE TL;DR FIELD AND NOTHING ELSE, deliberately. The superlative rule is a claim about a
+    MAXIMUM and the body legitimately discusses maxima at length ("the 100th percentile of its own
+    three-year record"); the line a PM forwards is where the cost of getting it wrong is total. A
+    body-wide version of this rule is a separate decision with its own measurement.
+
+    A CORRECTION NEEDS THE RIGHT ROW, AND IT IS THE CLAIM'S OWN HANDLE OR IT IS NOTHING. ROUND-2 FIX
+    (review MAJOR-1 / MAJOR-2): the first cut walked up to `_SEAM_BIND_K = 4` bound handles and
+    `break`ed on the first candidate THAT HAD A PERCENTILE, not on the first candidate -- so a claim
+    whose own handle carries no rank reached PAST it for one that does, and re-shipped the very defect
+    `_seam_bound` was built to close:
+
+        IN : "A record-high harvested area of 34.76 M ha [N1] on a thin buffer [N2]."
+             [N1] = area harvested (no rank row)   [N2] = stocks-to-use percentile = 23
+        OUT: "A 23rd-percentile harvested area of 34.76 M ha [N1] ..."     <- a DIFFERENT SERIES' rank
+
+    and, worse, on the class leg, where the replacement is a NOUN:
+
+        IN : "A spring wheat area reading [N99] beside the maize sheet [N50]."   [N99] not indexed
+        OUT: "A white maize area reading [N99] ..."                       <- the fence renamed the crop
+
+    So exactly ONE candidate is consulted -- `_seam_bound`'s NEAREST, which is the estate's own
+    citation grammar (the handle follows the claim it backs) -- and the rank must sit on THAT handle's
+    OWN row head. When it does not, NOTHING IS APPENDED and the miss is STAMPED (`superlatives_unbound`
+    / `classes_unbound`), so the arm sees a defect the seam declined to guess at. The class leg carries
+    a second guard for the same reason: a class is substituted only within ONE COMMODITY
+    (`_SEAM_CLASS_COMMODITY`), so a wheat claim can be corrected to another wheat class and can never
+    become maize. If nothing binds, or the nearest handle's head carries no percentile, or the two
+    classes are not both in the closed table, or they are not the same commodity, NOTHING HAPPENS.
+    Under-claiming is the safe direction for a pass that rewrites the reader's headline."""
+    out = {"superlatives_corrected": 0, "classes_corrected": 0, "superlatives_seen": 0,
+           "superlatives_unbound": 0, "classes_unbound": 0, "superlative_articles_fixed": 0,
+           "superlatives_negated": 0}
+    tldr = structured.get("tldr")
+    if not isinstance(tldr, str) or not tldr.strip():
+        return out
+    toks = reg._SENT_KEEP.split(tldr)
+    for si in range(0, len(toks), 2):
+        sent = toks[si]
+        if not sent.strip():
+            continue
+        # ---- (i) the superlative ------------------------------------------------------------------
+        pieces, last = [], 0
+        for m in _SEAM_SUPERLATIVE_RX.finditer(sent):
+            word = m.group(1)
+            if word.lower() == "record":
+                nxt = sent[m.end():].strip().split(" ")[0].strip(",.;:").lower()
+                if nxt in _SEAM_RECORD_NOUN_NEXT:
+                    continue                                   # "the record carries no figure ..."
+            out["superlatives_seen"] += 1
+            # ROUND 3 (review NEW-3): A NEGATED CLAIM IS NOT THIS CLAIM. "This is not a record-high
+            # harvested area [N1]" is TRUE of a 23rd-percentile row, and substituting the rank into it
+            # ships "This is not a 23rd-percentile harvested area" -- a sentence the row refutes. The
+            # guard is shared with `_seam_lag_windows` (`_seam_negated`) and the miss is STAMPED, not
+            # silent, so the arm can count what the fence declined rather than infer it.
+            if _seam_negated(sent, m.start()):
+                out["superlatives_negated"] += 1
+                continue
+            # THE NEAREST HANDLE AND NOTHING ELSE (round-2 MAJOR-1). `[:1]`, not `[:_SEAM_BIND_K]`.
+            near = _seam_bound(sent, m.end())[:1]
+            r = rows.get(near[0]) if near else None
+            rank = pcts.get(r["head"]) if r is not None else None
+            if rank is None:
+                out["superlatives_unbound"] += 1
+                continue
+            flat = re.sub(r"[-\s]+", " ", word.lower())
+            low_claim = flat in _SEAM_SUPERLATIVE_LOW
+            contradicted = (rank > 0.5) if low_claim else (rank < 99.5)
+            if not contradicted:
+                continue                                       # the reading really is at its record
+            rep = f"{_seam_ordinal(rank)}-percentile"
+            head_txt = sent[last:m.start()]
+            # ...and the ARTICLE the substitution leaves behind (review MINOR-2): "An unprecedented"
+            # must not become "An 23rd-percentile". The article is a WORD of the writer's own sentence
+            # and correcting it is the same class of correction as the rank itself.
+            m_art = re.search(r"\b(a|an|A|An)(\s+)$", head_txt)
+            if m_art:
+                want = "an" if rep.startswith(_SEAM_VOWEL_ORDINALS) else "a"
+                if m_art.group(1)[0].isupper():
+                    want = want.capitalize()
+                if want != m_art.group(1):
+                    head_txt = head_txt[:m_art.start(1)] + want + m_art.group(2)
+                    out["superlative_articles_fixed"] += 1
+            pieces.append(head_txt)
+            pieces.append(rep)
+            last = m.end()
+            out["superlatives_corrected"] += 1
+        if pieces:
+            pieces.append(sent[last:])
+            sent = "".join(pieces)
+        # ---- (ii) the class word ------------------------------------------------------------------
+        said = _seam_class_of(sent)
+        if said:
+            near = _seam_bound(sent, said[3])[:1]               # ...the sentence's OWN handle, round 2
+            r = rows.get(near[0]) if near else None
+            row_cls = _seam_class_of(r["head"]) if r is not None else ()
+            same_cmdty = bool(row_cls) and (_SEAM_CLASS_COMMODITY.get(row_cls[0]) is not None
+                                            and _SEAM_CLASS_COMMODITY.get(row_cls[0])
+                                            == _SEAM_CLASS_COMMODITY.get(said[0]))
+            if row_cls and row_cls[0] != said[0] and same_cmdty:
+                sent = sent[:said[2]] + row_cls[0] + sent[said[3]:]
+                out["classes_corrected"] += 1
+            elif not row_cls or (row_cls[0] != said[0] and not same_cmdty):
+                out["classes_unbound"] += 1                     # named, never guessed at
+        toks[si] = sent
+    if out["superlatives_corrected"] or out["classes_corrected"]:
+        structured["tldr"] = "".join(toks)
+    return out
+
+
+def _seam_parse_iso(s) -> object:
+    import datetime as _dt
+    try:
+        return _dt.date.fromisoformat(str(s or "")[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _seam_add_months(d, n: int):
+    """Calendar-month arithmetic: a quarter is three MONTHS, never ninety days. Clamps the day so
+    2026-01-31 + 1 month is 2026-02-28 rather than an exception."""
+    import calendar as _cal
+    import datetime as _dt
+    y, m = d.year + (d.month - 1 + n) // 12, (d.month - 1 + n) % 12 + 1
+    return _dt.date(y, m, min(d.day, _cal.monthrange(y, m)[1]))
+
+
+def _seam_window_words(a, b) -> str:
+    """"March to September 2027", or "December 2026 to March 2027" across a year boundary."""
+    if a.year == b.year:
+        return f"{_SEAM_MONTHS[a.month - 1]} to {_SEAM_MONTHS[b.month - 1]} {b.year}"
+    return (f"{_SEAM_MONTHS[a.month - 1]} {a.year} to "
+            f"{_SEAM_MONTHS[b.month - 1]} {b.year}")
+
+
+def _seam_line_at(text: str, pos: int, end: int | None = None) -> str:
+    """The whole markdown LINE BLOCK the span `[pos, end)` sits in -- the unit a DATE is read over.
+
+    `register._SENT_KEEP` splits on `;` as well as `.!?`, which is right for a rewrite unit and wrong
+    for a date context, IN BOTH DIRECTIONS, and both were measured:
+      * TOO SHORT -- the deep page's "Board crush 2.6 USD/bu [N50], 92nd percentile [N52], read
+        through 2026-08-21, a 26-day span to this as-of; the same series under the crush-margin name
+        reads 2.6 USD/bu [N50]" is ONE dated bullet and TWO `_SENT_KEEP` units, and the second carries
+        no date. Charging it stamps a read date four words after the reader was given one.
+      * TOO NARROW -- a `_SENT_KEEP` unit can also SPAN lines (it does not break on a bare newline), so
+        a unit that opens on a heading line runs "## The record\\n- Corn stocks-to-use ... read as of
+        2026-09-11". Reading only the line the unit STARTS on returned "## The record", which carries
+        no date, and the first cut appended "(read 2026-09-11)" to a clause that had just said it.
+    So the block runs from the start of the line containing `pos` to the end of the line containing
+    `end` (defaulting to `pos`), which is exactly the text the reader sees around the claim."""
+    a = text.rfind("\n", 0, pos) + 1
+    b = text.find("\n", max(pos, end if end is not None else pos))
+    return text[a:(b if b >= 0 else len(text))]
+
+
+def _seam_row_age(r: dict, d_asof) -> tuple:
+    """(days stale, the clause words) for one row, or (None, "") when it is current.
+
+    TWO CLOCKS, and they answer two different questions the graders asked separately:
+      * the KNOWLEDGE DATE -- when this engine learned the figure. Stale past 21 days for a weekly or
+        monthly series, and past zero for an annual one, which is never "current" in a present-tense
+        sentence by construction. This is the MPOB case: closing stocks known 2026-07-01, spoken on
+        2026-09-16 as "rising in each of the last four months".
+      * the MONTH PERIOD -- what the figure is ABOUT. This is the ONI case: the reading is fresh by
+        vintage (known 2026-09-05) and is a JULY reading, and the page printed it undated. A row whose
+        period is a stale month is stamped with BOTH facts, in that order, because the reader needs
+        the reading's month more than its vintage and is owed neither silently.
+    The annual / marketing-year form is deliberately NOT given a period clock: `MY2026/27` known
+    2026-09-11 is a fresh forecast about a future year, and dating it by its period would call the
+    newest WASDE on the page stale."""
+    d_row = _seam_parse_iso(r.get("known"))
+    if d_row is None:
+        return (None, "")
+    head = r.get("head") or ""
+    m = _SEAM_MONTH_PERIOD_RX.search(head)
+    if m:
+        import calendar as _cal
+        import datetime as _dt
+        y, mo = int(m.group(1)), int(m.group(2))
+        p_end = _dt.date(y, mo, _cal.monthrange(y, mo)[1])
+        if (d_asof - p_end).days > _SEAM_FRESH_DAYS:
+            return ((d_asof - p_end).days,
+                    f"the {y}-{mo:02d} reading, read {d_row.isoformat()}")
+    # ROUND-2 FIX (review MAJOR-4): the annual test is now the PERIOD SHAPE (a marketing year with no
+    # month or day segment) OR the CADENCE THE CARD DECLARES -- never the bare `MY` prefix every period
+    # in the estate carries, which made a COT week and an ESR week annual and charged them at a
+    # ZERO-day window. A head the MONTH clock already answered for never reaches this leg.
+    annual = bool(_SEAM_ANNUAL_RX.search(head)) or (r.get("cadence") or "") in _SEAM_ANNUAL_CADENCES
+    if m:
+        annual = False                                 # the month period decided; one clock per row
+    age = (d_asof - d_row).days
+    if age > (0 if annual else _SEAM_FRESH_DAYS):
+        return (age, f"read {d_row.isoformat()}")
+    return (None, "")
+
+
+def _seam_stale_figures(structured: dict, rows: dict, asof: str) -> dict:
+    """FINDING (d) -- A STALE ROW SPOKEN AS A CURRENT MOVEMENT GETS ITS OWN DATE, once per row.
+
+    THE CHARGE HAS THREE LEGS AND ALL THREE ARE LOAD-BEARING, because any one alone is noise:
+      1. the sentence cites a row that is stale on either of `_seam_row_age`'s two clocks;
+      2. the sentence makes a CURRENCY claim about it -- a movement verb ("stocks are BUILDING",
+         "FALLING on the week") or an explicit now-word. Not the copula: see `_SEAM_PRESENT_RX`'s own
+         note for the 36-vs-11 measurement that narrowed it;
+      3. the LINE carries no date of its own -- no ISO date, no year, no month name, no marketing
+         year. A bullet that already says when it was read needs no correction and gets none, and the
+         unit is the LINE and not the `_SENT_KEEP` chunk (`_seam_line_at`).
+    Measured over the five served bodies: 11 charges, including both cases the graders named.
+
+    THE REMEDY IS A CLAUSE AT THE END OF THE SENTENCE, before its terminator. It is NOT spliced beside
+    the handle: `_resolve_number_handles` walks handle tokens immediately after this pass and writes
+    row values into value slots, and a parenthetical sitting against a handle is exactly the shape
+    that pass reads. The clause is appended ONCE PER ROW across the whole page, so a row discussed in
+    four sentences is dated in the first of them and the reader is not handed the same stamp four
+    times."""
+    out = {"stale_rows_dated": 0, "stale_sentences": 0}
+    d_asof = _seam_parse_iso(asof)
+    if d_asof is None:
+        return out
+    seen: set = set()
+    for field in ("tldr", "mechanism"):
+        text = structured.get(field)
+        if not isinstance(text, str) or not text.strip():
+            continue
+        toks = reg._SENT_KEEP.split(text)
+        touched, pos = False, 0
+        for si in range(0, len(toks), 2):
+            sent = toks[si]
+            here, pos = pos, pos + len(sent) + (len(toks[si + 1]) if si + 1 < len(toks) else 0)
+            if not sent.strip() or not _SEAM_PRESENT_RX.search(sent):
+                continue
+            if _SEAM_DATED_RX.search(_seam_line_at(text, here, here + len(sent))):
+                continue
+            # ROUND-2 FIX (review MAJOR-6): A DATE IS ATTACHED TO ITS HANDLE whenever the sentence
+            # carries more than one, because an unattributed date IS an attribution this seam invented.
+            # Measured shapes: "A reads 1 z [N1] and B reads 2 z [N2], both rising (the 2026-01
+            # reading, read 2026-05-01; read 2026-06-02)" -- the reader cannot tell which date belongs
+            # to which row -- and the palm/rape "What offsets" sentence, which carries FOUR handles and
+            # took ONE date that a PM reads as dating the whole claim. The grammar is the brief's:
+            # "(N1 read 2026-05-01; N2 read 2026-06-02)". A one-handle sentence has no ambiguity to
+            # resolve and keeps the bare form, which is what the MPOB and ONI pins read.
+            cited = _seam_cited(sent)
+            attribute = len(cited) > 1
+            by_clause: dict = {}
+            for i in cited:
+                r = rows.get(i)
+                if r is None or i in seen:
+                    continue
+                age, clause = _seam_row_age(r, d_asof)
+                if age is None:
+                    continue
+                seen.add(i)
+                by_clause.setdefault(clause, []).append(i)
+            if not by_clause:
+                continue
+            # ROWS THAT SHARE ONE CLAUSE SHARE ONE STAMP AND ARE NAMED TOGETHER, so the sentence gains
+            # "(N61, N66, N67 read 2026-07-01)" rather than the same date three times.
+            words = [(f"N{', N'.join(str(i) for i in idxs)} {clause}" if attribute else clause)
+                     for clause, idxs in by_clause.items()]
+            tail = re.search(r"[\s—–,;:.]*\Z", sent)
+            cut = tail.start() if tail else len(sent)
+            toks[si] = sent[:cut] + " (" + "; ".join(words) + ")" + sent[cut:]
+            out["stale_rows_dated"] += sum(len(v) for v in by_clause.values())
+            out["stale_sentences"] += 1
+            touched = True
+        if touched:
+            structured[field] = "".join(toks)
+    return out
+
+
+def _seam_bullet_at(text: str, pos: int, end: int | None = None) -> str:
+    """The whole markdown LIST ITEM the span `[pos, end)` sits in, or the line block when it is not in
+    one. ROUND 2: the lag rule's bind unit. `_SEAM_BULLET_RX` is the same item shape the watch rule
+    and `state.render._nom_watch_bullets` read, so the three passes agree on what a bullet is."""
+    starts = [m.start() for m in _SEAM_BULLET_RX.finditer(text)]
+    a = max((s for s in starts if s <= pos), default=None)
+    if a is None:
+        return _seam_line_at(text, pos, end)
+    b = min((s for s in starts if s > pos), default=len(text))
+    stop = text.find("\n\n", a)
+    if 0 <= stop < b:
+        b = stop
+    return text[a:b]
+
+
+def _seam_stem(w: str) -> str:
+    """The join key for a demonym/geography pair the estate spells two ways ("Argentine" in the prose,
+    "Argentina" in the row head): the first `_SEAM_STEM_CHARS` characters, lowercased. Nothing shorter
+    -- a four-character stem joins words that share only a prefix."""
+    return str(w or "").lower()[:_SEAM_STEM_CHARS]
+
+
+def _seam_subject_known(sent: str, rows: dict):
+    """The knowledge date of the row THE CLAIM'S OWN WORDS name, when the claim names no handle.
+
+    ROUND-2 FIX (review MAJOR-3), and it exists because the rule below did not fire on the sentence it
+    was BUILT FOR. The deep turn's bullet, verbatim:
+
+        "- **Export pace and acreage, price-pressuring.** A slow US sales pace signals weak demand and
+          rebuilds carryout (high confidence, zero to one quarter); larger area loosens supply with a
+          two-to-four-quarter lag, and that acreage window sits inside the three-month horizon."
+
+    carries NO `[N]` handle anywhere on its line, so the handle binder returned nothing, `d_row` was
+    None and the pass `continue`d: `lag_windows_checked: 0` on the served deep body. The claim still
+    NAMES ITS SERIES IN WORDS -- "larger AREA", "that ACREAGE window" -- and the row is on the page
+    (`[N59] USDA PSD area harvested ... = 34.755 M ha [known 2026-09-11]`).
+
+    THE BIND IS FAIL-CLOSED ON EVERY AXIS, because a date named from the wrong row is MAJOR-1 one rule
+    over: the claim's content words (four letters or more, outside `_SEAM_SUBJECT_STOP`) are overlapped
+    with each row head's, EXACTLY ONE head must win the overlap outright, and EVERY row under that head
+    must agree on one knowledge date. Anything else returns None and the pass stays silent."""
+    words = {w for w in re.findall(r"[a-z]{4,}", (sent or "").lower())
+             if w not in _SEAM_SUBJECT_STOP}
+    if not words:
+        return None
+    score: dict = {}
+    kds: dict = {}
+    for r in rows.values():
+        hw = {w for w in re.findall(r"[a-z]{4,}", str(r.get("head") or "").lower())
+              if w not in _SEAM_SUBJECT_STOP}
+        n = len(words & hw)
+        if not n:
+            continue
+        head = r["head"]
+        score[head] = max(score.get(head, 0), n)
+        kds.setdefault(head, set()).add(str(r.get("known") or ""))
+    if not score:
+        return None
+    top = max(score.values())
+    winners = [h for h, n in score.items() if n == top]
+    if len(winners) != 1:
+        return None                                    # ambiguous: the seam does not pick
+    dates = {k for k in kds[winners[0]] if k}
+    if len(dates) != 1:
+        return None                                    # one head, two vintages: refuse
+    return _seam_parse_iso(next(iter(dates)))
+
+
+def _seam_lag_windows(structured: dict, rows: dict, asof: str, horizon_months) -> dict:
+    """FINDING (8) -- THE DECLARED LAG WINDOW IS COMPUTED FROM THE ROW'S OWN DATE, and where the prose
+    places it on the wrong side of the horizon the computed window is APPENDED in words.
+
+    The deep page wrote, of a row known 2026-09-11: "larger area loosens supply with a two-to-four-
+    quarter lag, and that acreage window sits inside the three-month horizon". Two quarters from
+    2026-09-11 is 2027-03-11 and four is 2027-09-11, so the window opens three months AFTER the horizon
+    closes. The DIRECTION WORD is corrected ("inside" -> "outside") and the sentence gains "(the
+    declared two-to-four-quarter lag counted from 2026-09-11 runs March to September 2027, outside the
+    horizon)" as its receipt. Nothing is removed; one word is replaced by the word the arithmetic
+    earns, which is the correction the first cut owed and left as a contradiction on the page.
+
+    THE ROW IS BOUND OVER THE BULLET, and when the bullet names no handle at all, over the claim's own
+    SUBJECT WORDS (`_seam_subject_known`) -- see that function for why, and for the four refusals that
+    make it fail closed.
+
+    THE ARITHMETIC IS CALENDAR ARITHMETIC (`_seam_add_months`): a quarter is three months, never
+    ninety days, because the blocks that declare these lags declare them in quarters.
+
+    IT SPEAKS ONLY WHEN THE PROSE IS WRONG. An assertion the computation AGREES with is left silent --
+    a fence that annotated every correct sentence would be padding, and padding is the thing the
+    persona's own anti-padding rule exists to stop. Both directions are corrected: an "inside" that is
+    outside and an "outside" that is inside.
+
+    NO HORIZON, NO ROW DATE, NO CHARGE. `horizon_months` is the board's own parsed horizon (sec 3.1,
+    one closed regex); when the turn asked for none there is no assertion to check and this returns
+    zeros having changed nothing."""
+    out = {"lag_windows_checked": 0, "lag_windows_corrected": 0, "lag_windows_subject_bound": 0,
+           "lag_windows_negated": 0}
+    d_asof = _seam_parse_iso(asof)
+    try:
+        h = int(horizon_months) if horizon_months else 0
+    except (TypeError, ValueError):
+        h = 0
+    if d_asof is None or h <= 0:
+        return out
+    h_end = _seam_add_months(d_asof, h)
+    text = structured.get("mechanism")
+    if not isinstance(text, str) or not text.strip():
+        return out
+    toks = reg._SENT_KEEP.split(text)
+    touched, pos = False, 0
+    for si in range(0, len(toks), 2):
+        sent = toks[si]
+        here, pos = pos, pos + len(sent) + (len(toks[si + 1]) if si + 1 < len(toks) else 0)
+        m_lag = _SEAM_LAG_RX.search(sent)
+        m_hor = _SEAM_HORIZON_RX.search(sent)
+        if not m_lag or not m_hor:
+            continue
+        lo = _SEAM_NUMBER_WORDS.get(m_lag.group(1).lower())
+        hi = _SEAM_NUMBER_WORDS.get(m_lag.group(2).lower())
+        per = _SEAM_LAG_MONTHS.get(m_lag.group(3).lower())
+        if lo is None or hi is None or per is None or hi < lo:
+            continue
+        # ROUND 3 (review NEW-3): THE DIRECTION WORD IS NOT THE VERDICT WHEN THE CLAUSE DENIES IT.
+        # "... and that window does not sit inside the three-month horizon" is TRUE of a window that
+        # runs March to September 2027, and substituting the computed direction into it serves "does
+        # not sit outside" -- the fence would have written the falsehood the fence exists to prevent.
+        # Same guard, same helper, same stamp discipline as the superlative leg above: nothing is
+        # touched, `lag_windows_negated` records it, and the turn is not counted as CHECKED, because
+        # this pass never read the row.
+        if _seam_negated(sent, m_hor.start(1)):
+            out["lag_windows_negated"] += 1
+            continue
+        # THE ROW IS BOUND OVER THE WHOLE LINE, not over the `_SENT_KEEP` chunk. MEASURED, and it is
+        # why the finding's own sentence did not fire on the first cut: the deep page writes the lag
+        # and the horizon claim in a clause AFTER a semicolon -- "... (high confidence, zero to one
+        # quarter); larger area loosens supply with a two-to-four-quarter lag, and that acreage window
+        # sits inside the three-month horizon" -- and that chunk carries no handle at all. The line
+        # does, and the line is the reader's unit.
+        # ROUND 2: THE BIND UNIT IS THE BULLET, not the line -- the watch rule's own unit and the S7b
+        # round-4 ruling, so a lag stated in the second clause of a two-clause bullet reaches the
+        # handle the first clause carried.
+        line = _seam_bullet_at(text, here, here + len(sent))
+        base = line.find(sent)
+        d_row = None
+        for i in _seam_bound(line, (base if base >= 0 else 0) + m_lag.start(),
+                             forward=False)[:_SEAM_BIND_K]:
+            r = rows.get(i)
+            if r is None:
+                continue
+            d_row = _seam_parse_iso(r["known"])
+            if d_row is not None:
+                break
+        if d_row is None:
+            # ...and when the BULLET names no handle at all -- which is the shape finding (8) was
+            # filed on -- the claim's own SUBJECT WORDS bind it, fail-closed (`_seam_subject_known`).
+            d_row = _seam_subject_known(sent, rows)
+            if d_row is not None:
+                out["lag_windows_subject_bound"] += 1
+        if d_row is None:
+            continue
+        out["lag_windows_checked"] += 1
+        w0, w1 = _seam_add_months(d_row, lo * per), _seam_add_months(d_row, hi * per)
+        overlaps = w0 <= h_end and w1 >= d_asof
+        said_inside = m_hor.group(1).lower() in ("inside", "within")
+        if said_inside == overlaps:
+            continue                                            # the prose has it right; say nothing
+        lag_words = re.sub(r"\s+", " ", sent[m_lag.start():m_lag.end()])
+        # NO HANDLE IS MINTED INTO THE CLAUSE, and that is deliberate rather than an omission: this
+        # pass runs BEFORE `_resolve_number_handles`, which walks handle tokens and writes row values
+        # into value slots. A date standing next to a freshly-minted `[N]` is exactly the shape that
+        # pass reads. The sentence already carries the handle this date came from; the clause names
+        # the DATE, which is the fact the arithmetic turns on.
+        clause = (f" (the declared {lag_words} lag counted from {d_row.isoformat()} runs "
+                  f"{_seam_window_words(w0, w1)})")
+        # ROUND 2 (review MINOR-3): THE WORD IS CORRECTED AS WELL AS RECEIPTED. The first cut appended
+        # the computed window beside the writer's own verdict and left the served sentence asserting
+        # BOTH ("... is inside the horizon (the declared two-to-four-quarter lag counted from
+        # 2026-09-11 runs March to September 2027, outside the horizon)"). Substituting the direction
+        # word is a CORRECTION, not a deletion, and the appended clause is its receipt: the reader gets
+        # the right word and the arithmetic that earned it.
+        _want = "inside" if overlaps else "outside"
+        _said_word = sent[m_hor.start(1):m_hor.end(1)]
+        if _said_word[0].isupper():
+            _want = _want.capitalize()
+        sent = sent[:m_hor.start(1)] + _want + sent[m_hor.end(1):]
+        tail = re.search(r"[\s—–,;:.]*\Z", sent)
+        cut = tail.start() if tail else len(sent)
+        toks[si] = sent[:cut] + clause + sent[cut:]
+        out["lag_windows_corrected"] += 1
+        touched = True
+    if touched:
+        structured["mechanism"] = "".join(toks)
+    return out
+
+
+def _seam_precoverage_words(structured: dict) -> dict:
+    """FINDING (10) -- A DECLINE IS ABOUT OUR RECORD AND NEVER ABOUT THE WORLD.
+
+    Three of the five smoke answers transcribed `cascade._DECLINE_REASONS["pre_coverage"]` -- "this
+    window predates that board's own price history" -- and MATIF rapeseed traded in every one of those
+    windows. The statement is false about the world and true about our store, so the verb phrase is
+    replaced and nothing else moves: "that window predates that market's own price history" becomes
+    "that window reaches back before our own price history for that market".
+
+    A PURE CORRECTION OF A FALSE STATEMENT, and the narrowest one available: the sentence, its handles,
+    its figures and its surrounding clause ("-- a stated limit, not a zero") are untouched."""
+    out = {"decline_words_corrected": 0}
+
+    def _sub(m) -> str:
+        plural = bool(re.search(r"\b(?:those|their)\b", m.group(0), re.I)) or "boards'" in m.group(0)
+        return ("reaches back before our own price history for "
+                + ("those markets" if plural else "that market"))
+
+    for field in ("tldr", "mechanism"):
+        text = structured.get(field)
+        if not isinstance(text, str) or not text:
+            continue
+        new, n = _SEAM_PRECOVERAGE_RX.subn(_sub, text)
+        if n:
+            structured[field] = new
+            out["decline_words_corrected"] += n
+    return out
+
+
+_SEAM_WATCH_HEADING_TEXT = "what to watch"
+
+
+def _seam_watch_section(text: str) -> tuple:
+    """(start, end) of the '## What to watch' section BODY in `text`, or () when none was rendered.
+
+    ROUND-2 FIX (review MAJOR-7). The first cut matched `^##\\s+What to watch\\s*$` -- the ONE heading
+    walk in this file that was neither fence-aware nor normalised -- and FAILED SILENTLY TO ZERO on
+    every spelling the model actually varies. Measured:
+
+        '## What to watch'  -> 1 bullet     '### What to watch'    -> 0
+        '## What to watch ' -> 1 bullet     '## What to watch (3)' -> 0
+        '##  What to watch' -> 1 bullet     '## What To Watch'     -> 0
+
+    and the arm reads `watch_bullets` / `watch_no_figure` / `watch_over_ceiling` off it, so a zero from
+    "no section matched" is indistinguishable in the trace from a zero from "no defects found". This is
+    `_episode_section_body`'s walk, spelled the same way and for the same stated reason: fence-aware,
+    `##`..`######`, normalised heading PREFIX, the LAST matching section wins, the next heading of the
+    same or a shallower level closes it."""
+    lines = text.split("\n")
+    offs, at = [], 0
+    for ln in lines:
+        offs.append(at)
+        at += len(ln) + 1
+    lo = hi = lvl = None
+    in_fence = False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = _EPISODE_HEADING_RX.match(line)
+        if not m:
+            continue
+        depth = len(line.strip()) - len(line.strip().lstrip("#"))
+        if str(m.group(1)).strip().lower().startswith(_SEAM_WATCH_HEADING_TEXT):
+            lo, hi, lvl = i + 1, len(lines), depth     # entering (or re-entering): the LAST wins
+        elif lo is not None and hi == len(lines) and depth <= (lvl or 6):
+            hi = i                                     # ...the same or a shallower level closes it
+    if lo is None:
+        return ()
+    a = offs[lo] if lo < len(lines) else len(text)
+    b = offs[hi] if hi < len(lines) else len(text)
+    return (min(a, len(text)), min(b, len(text)))
+
+
+def _seam_body_figure(text: str, idx: int, value: str) -> str | None:
+    """The spelling the BODY already gave handle `[N{idx}]`'s figure, or None when it gave none.
+
+    ROUND-2 FIX (review MAJOR-5). The watch figure was appended at the ROW'S RAW PRECISION and
+    disagreed with the page's own rounding on a judged turn a fact-lens grader reads figure by figure:
+    the soyoil body prints `stocks-to-use 5.67 % [N41]` and the bullet came back
+    `- **Soyoil stocks-to-use** [N41] (5.66691 %, read 2026-09-11)` -- one handle, two spellings of one
+    figure, on one page. `answer.py`'s own rule is that the prose and the `## Sources` line for one
+    handle can never disagree; this made the prose disagree with itself.
+
+    THE FIGURE IS NOT RECOMPUTED AND NOTHING IS ROUNDED HERE: the body's OWN token is returned, and
+    only when it is the SAME NUMBER as the row's value read at that token's precision. So the seam can
+    never print a figure the page does not already carry, which is the CYCLE-8/CYCLE-10 laundering line
+    this lane does not cross."""
+    try:
+        v = float(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    for m in re.finditer(r"\[N%d(?=[\],\s-])" % idx, text):
+        before = text[max(0, m.start() - 80):m.start()]
+        toks = re.findall(r"(?<![\w.])-?\d[\d,]*(?:\.\d+)?", before)
+        if not toks:
+            continue
+        tok = toks[-1]
+        try:
+            tv = float(tok.replace(",", ""))
+        except (TypeError, ValueError):
+            continue
+        dp = len(tok.split(".", 1)[1]) if "." in tok else 0
+        if abs(round(tv, dp) - round(v, dp)) < (10 ** -(dp + 3)):
+            return tok
+    return None
+
+
+def _seam_watch_bullets(structured: dict, rows: dict, mode: str, *,
+                        handle_prose: bool = False) -> dict:
+    """FINDING (c) -- EVERY WATCH BULLET CARRIES ITS FIGURE, and the ones over the ceiling are stamped.
+
+    THE CONTRACT A WATCH ITEM OWES, in the mandate's own four terms: the figure in its own unit, the
+    date it was read, the window it acts in, and the print that would show it wrong. The smoke shipped
+    16 bullets of which 5 carried no figure at all, 8 no dated window and 2 no falsifier -- and one
+    Scan turn shipped FOUR on a ceiling of three.
+
+    WHAT IS CORRECTED: the FIGURE, from the bullet's OWN cited row. A bullet reading "**The crush
+    margin** [N36] -- top decile of its own record" gains "(2.6 USD/bu, read 2026-08-21)" -- the row's
+    value, the row's unit and the row's knowledge date, appended after the name. That is the one
+    element this seam can supply with certainty, because the bullet names the handle itself.
+
+    WHAT IS STAMPED AND NOT CORRECTED, with the reason stated rather than left to inference:
+      * the WINDOW and the NEXT PRINT come from the nomination and the release calendar, which are
+        `state/` products this seam is not handed (`watch.nonobvious_rows`' candidate dicts carry
+        `dates` and `what`; the release calendar rides ONE footnote outside the ceiling). Appending a
+        window from anything else would be inventing one. `watch_no_window` counts them; the mandate
+        leg now demands all four in the writer's own hand; the producer thread is docketed.
+      * the FALSIFIER, same reason: a falsifier this seam composed would be this seam's hypothesis,
+        not the board's.
+      * `watch_over_ceiling` is `bullets - the tier's own nomination ceiling`, read from
+        `state.watch.nonobvious_k` -- the SAME producer the selection clause states to the writer, so
+        the count and the instruction can never disagree. NOTHING IS DELETED for it: a bullet over the
+        ceiling is a bullet the reader keeps and the arm can see.
+
+    AND THE FIGURE IS NOT APPENDED WHEN `handle_prose` IS ACTIVE, for the ONE-PRODUCER reason rather
+    than a safety one: on a `*_hp` preset `_resolve_number_handles` runs immediately after this pass
+    and SUBSTITUTES the row's own value into the slot the bare handle is standing in, which is exactly
+    the figure this pass would otherwise add. Two producers filling one slot is how a bullet comes to
+    read "34.755 M ha [N42] (34.755 M ha, read 2026-09-11)". The COUNTERS still ride the trace on that
+    lane, so the arm can see the same defect on both presets.
+
+    THE UNIT IS THE BULLET, never the sentence (the S7b round-4 ruling in its own word), and the
+    section is the one under '## What to watch'."""
+    out = {"watch_bullets": 0, "watch_figures_added": 0, "watch_no_figure": 0,
+           "watch_no_window": 0, "watch_no_falsifier": 0, "watch_over_ceiling": 0,
+           "watch_section_seen": 0, "watch_figures_rounded": 0}
+    text = structured.get("mechanism")
+    if not isinstance(text, str) or not text.strip():
+        return out
+    bounds = _seam_watch_section(text)                 # round 2: the normalised, fence-aware walk
+    if not bounds:
+        return out
+    out["watch_section_seen"] = 1                      # ...so a zero SECTION never reads as zero DEFECTS
+    s0, s1 = bounds
+    sec = text[s0:s1]
+    starts = [m.start() for m in _SEAM_BULLET_RX.finditer(sec)]
+    if not starts:
+        return out
+    spans = [(a, b) for a, b in zip(starts, starts[1:] + [len(sec)])]
+    out["watch_bullets"] = len(spans)
+    try:
+        from leviathan.graphrag.state import watch as _sw
+        ceiling = int(_sw.nonobvious_k(str(mode or "")))
+    except Exception:  # noqa: BLE001 -- a stamp must never break an answer
+        ceiling = 0
+    if ceiling > 0 and len(spans) > ceiling:
+        out["watch_over_ceiling"] = len(spans) - ceiling
+    edits: list = []
+    for a, b in spans:
+        item = sec[a:b]
+        # ROUND 2 (review MINOR-4): A DATE IS NOT A FIGURE. `read 2026-09-11` scored as a printed
+        # magnitude and the counter under-reported the bullets that carry no reading at all.
+        bare = _SEAM_ISO_DATE_RX.sub(" ", _N_HANDLE_RX.sub(" ", _E_HANDLE_RX.sub(" ", item)))
+        if not _SEAM_WINDOW_RX.search(item):
+            out["watch_no_window"] += 1
+        if not _SEAM_FALSIFIER_RX.search(item):
+            out["watch_no_falsifier"] += 1
+        if _SEAM_FIGURE_RX.search(bare):
+            continue
+        out["watch_no_figure"] += 1
+        if handle_prose:
+            continue                                   # the handle pass fills this slot -- see above
+        fig, at = None, 0
+        for i in _seam_cited(item):
+            r = rows.get(i)
+            if r is None or not r["value"] or not r["unit"]:
+                continue
+            # ROUND 2 (review MAJOR-5): THE PAGE'S OWN SPELLING OF THIS HANDLE'S FIGURE WINS. The body
+            # printed "5.67 %"; the raw row carries 5.66691, and one handle may not read two ways on
+            # one page. `_seam_body_figure` returns the body's token only when it IS this row's value.
+            shown = _seam_body_figure(f"{structured.get('tldr') or ''}\n{text}", i, r["value"])
+            if shown is not None and shown != r["value"]:
+                out["watch_figures_rounded"] += 1
+            # ROUND 2 (review MINOR-8): a GROUPED token ("[N41, N42]") stands in for no single row, so
+            # the member whose figure this is gets NAMED -- the same grammar the staleness clause uses.
+            m_tok = next((m for m in _N_HANDLE_RX.finditer(item)
+                          if i in _n_handle_members(m.group(0))), None)
+            if m_tok is None:
+                continue
+            lead = f"N{i} " if len(_n_handle_members(m_tok.group(0))) > 1 else ""
+            fig = (f" ({lead}{shown if shown is not None else r['value']} {r['unit']}"
+                   + (f", read {r['known']}" if r["known"] else "") + ")")
+            at = m_tok.end()
+            break
+        if fig is None or at <= 0:
+            continue
+        edits.append((a + at, fig))
+        out["watch_figures_added"] += 1
+    if edits:
+        new = sec
+        for off, fig in sorted(edits, reverse=True):
+            new = new[:off] + fig + new[off:]
+        structured["mechanism"] = text[:s0] + new + text[s1:]
+    return out
+
+
+def _seam_metric_labels(structured: dict, rows: dict) -> dict:
+    """ROUND2_DOCKET #9 -- THE CITATION'S OWN LABEL WINS IN PROSE.
+
+    The max turn wrote "Weekly export sales at 311.85 thousand MT [N27]" over
+    `[N27] USDA FAS Export Sales (ESR) weekly exports CBOT soybeans MY2026-08-27 = 311.846` -- an ESR
+    SHIPMENTS row sold to the reader as the SALES series. Sales lead and shipments confirm, they are
+    different facts about the same trade, and the note called this leg decisive; the DEEP answer of the
+    same run names the identical row correctly, so the writer knows the difference and the TL;DR is
+    where it stopped mattering to it.
+
+    A CORRECTING SUBSTITUTION, bound to the sentence's OWN nearest handle and licensed by the row's own
+    metric words -- never by the SOURCE name, which is the trap here: the ESR source is itself called
+    "Export Sales (ESR)", so a guard that asked "does the head contain the phrase" would have refused
+    the one correction the docket asks for. The refusal column is the other half: a row whose head
+    carries a genuine weekly-SALES metric is never rewritten, so the rule cannot turn a sales row into
+    a shipments one. Capitalisation is carried over from the words being replaced."""
+    out = {"metric_labels_corrected": 0}
+    for field in ("tldr", "mechanism"):
+        text = structured.get(field)
+        if not isinstance(text, str) or not text.strip():
+            continue
+        toks = reg._SENT_KEEP.split(text)
+        touched = False
+        for si in range(0, len(toks), 2):
+            sent = toks[si]
+            if not sent.strip():
+                continue
+            for rx, needs, rep, refuse in _SEAM_METRIC_SWAPS:
+                m = rx.search(sent)
+                if not m:
+                    continue
+                near = _seam_bound(sent, m.end())[:1]
+                r = rows.get(near[0]) if near else None
+                if r is None:
+                    continue
+                head = str(r.get("head") or "")
+                if needs.lower() not in head.lower() or re.search(refuse, head, re.I):
+                    continue
+                word = rep.capitalize() if m.group(0)[0].isupper() else rep
+                sent = sent[:m.start()] + word + sent[m.end():]
+                out["metric_labels_corrected"] += 1
+                touched = True
+                break
+            toks[si] = sent
+        if touched:
+            structured[field] = "".join(toks)
+    return out
+
+
+def _seam_article(word: str) -> str:
+    """"a" / "an" for a word the seam is about to put behind an article of its own making."""
+    return "an" if str(word or "")[:1].lower() in "aeiou" else "a"
+
+
+def _seam_absence_claims(structured: dict, rows: dict, *, handle_prose: bool = False) -> dict:
+    """ROUND2_DOCKET #10 -- AN ASSERTED ABSENCE IS CHECKED AGAINST THE ROWS THE TURN ACTUALLY SERVED.
+
+    The max turn wrote, of the pattern that decides its recommendation:
+
+        "two of its legs (Argentine selling incentives, the dollar) have no series this page could read"
+
+    while `[N48] USDA PSD exports ... Argentina = 6.45 MMT ... [known 2026-09-11]` was SERVED on that
+    turn and carried by the board's own `coverage.missed.loud`. The asserted absence is the arithmetic
+    that keeps the price-pressuring pattern below its threshold and hands the read to the other side --
+    an honest-looking limit doing load-bearing work in the wrong direction.
+
+    NOTHING IS DELETED AND NO CLAIM IS CONTRADICTED IN THE SEAM'S OWN VOICE: the row is APPENDED beside
+    the sentence, with its handle, so the reader can see what was read and judge the absence for
+    themselves. That is the doctrine's own shape -- a fence CORRECTS or COMPUTES -- and it is also the
+    only honest one here, because whether `exports_mt` is the series the driver means is not provable
+    from the artifact; that an Argentine series was read IS.
+
+    FAIL-CLOSED ON FOUR AXES, because a row appended to the wrong absence is noise on a judged page:
+    the subject must be a CAPITALISED word the claim itself uses and not the sentence's first word;
+    exactly ONE row head may carry that subject's stem; the sentence must not already cite that row;
+    and the row must carry a value and a unit. Anything else and the sentence ships as written.
+
+    THE FIGURE IS OMITTED ON THE `handle_prose` LANE, for `_seam_watch_bullets`' ONE-PRODUCER reason:
+    `_resolve_number_handles` substitutes the row's own value into a solitary resolved handle there,
+    so the seam would be the second producer filling one slot."""
+    out = {"absence_claims_checked": 0, "absence_rows_appended": 0}
+    if not rows:
+        return out
+    for field in ("tldr", "mechanism"):
+        text = structured.get(field)
+        if not isinstance(text, str) or not text.strip():
+            continue
+        toks = reg._SENT_KEEP.split(text)
+        touched = False
+        for si in range(0, len(toks), 2):
+            sent = toks[si]
+            if not sent.strip() or not _SEAM_ABSENCE_RX.search(sent):
+                continue
+            out["absence_claims_checked"] += 1
+            cited = set(_seam_cited(sent))
+            # NEVER THE OPENING WORD, and "opening" means the first WORD OF THE LINE, not merely
+            # offset zero: measured over the nine absence claims the smoke shipped, the only two
+            # capitalised candidates were "Argentine" (the real one) and "Coverage" -- the latter
+            # opening the bullet "- Coverage gaps, stated plainly:", where the `- ` alone put it past
+            # offset zero. Ordinary sentence capitalisation is not a proper noun.
+            subjects = [m.group(1) for m in _SEAM_ABSENCE_SUBJECT_RX.finditer(sent)
+                        if re.search(r"[A-Za-z]", sent[:m.start()])]
+            picked = None
+            for sub in subjects:
+                stem = _seam_stem(sub)
+                hits = {i: r for i, r in rows.items()
+                        if any(_seam_stem(w) == stem for w in re.findall(r"[A-Za-z]{4,}", r["head"]))}
+                heads = {r["head"] for r in hits.values()}
+                if len(heads) != 1:
+                    continue                              # nothing, or ambiguous: the seam refuses
+                idx = min(i for i in hits if i not in cited) if set(hits) - cited else None
+                if idx is None:
+                    continue                              # the sentence already cites it
+                r = rows[idx]
+                if not r["value"] or not r["unit"]:
+                    continue
+                picked = (sub, idx, r)
+                break
+            if picked is None:
+                continue
+            sub, idx, r = picked
+            fig = "" if handle_prose else f" = {r['value']} {r['unit']}"
+            clause = (f" ({_seam_article(sub)} {sub} series was read: [N{idx}]{fig}"
+                      + (f", read {r['known']}" if r["known"] else "") + ")")
+            tail = re.search(r"[\s—–,;:.]*\Z", sent)
+            cut = tail.start() if tail else len(sent)
+            toks[si] = sent[:cut] + clause + sent[cut:]
+            out["absence_rows_appended"] += 1
+            touched = True
+        if touched:
+            structured[field] = "".join(toks)
+    return out
+
+
+def _seam_served_duplicates(rows: dict) -> dict:
+    """ROUND2_DOCKET #7 -- THE SAME ROW SERVED TWICE UNDER TWO HANDLE TRIPLETS, COUNTED.
+
+    Measured on the max turn: `gold_board_crush.crush_margin_usd_bu` reached the writer TWICE with
+    byte-identical payloads -- N36/N37/N38 = 2.6038 USD/bu / 0.6 sigma / 92 percentile [known
+    2026-08-21] and N39/N40/N41 = the same three values -- and the note then counted it as TWO legs of
+    a pattern quorum ("has both readable legs -- crush margin and board crush -- at their own tails. On
+    that count ..."), which is the arithmetic behind its recommendation.
+
+    THIS IS A COUNT, NOT A REMEDY, AND THE REASON IS A SCOPE BOUNDARY RATHER THAN A JUDGEMENT. The
+    duplicate is minted BEFORE this seam exists: the [N] index space is numbered inside
+    `numbers/cascade.quantify` off the board's own request, and the PROMPT BLOCK the writer read was
+    rendered against those indices. Deduping the list here would renumber every handle the model was
+    given. The root fix belongs to the producer and is handed over in `HANDOFF_E_writer.md`; until it
+    lands the arm can at least SEE the duplication, per turn, in the same key as every other seam
+    number. The identity is the docket's own tuple, read off the rendered row: head (which carries
+    table, metric and scope), value, unit and knowledge date."""
+    seen: dict = {}
+    dup_groups, dup_rows = 0, 0
+    for i in sorted(rows):
+        r = rows[i]
+        key = (r["head"], r["value"], r["unit"], r["known"])
+        if key in seen:
+            if len(seen[key]) == 1:
+                dup_groups += 1
+            seen[key].append(i)
+            dup_rows += 1
+        else:
+            seen[key] = [i]
+    return {"served_row_duplicate_groups": dup_groups, "served_rows_duplicated": dup_rows}
+
+
+def _seam_prose_words(structured: dict) -> int:
+    """The READER's prose word count: both model fields, with citation handles, the mermaid block and
+    the markdown furniture removed. It is the number the ceiling is stated in, so it is counted the
+    same way the ceiling was measured (`prearm_fix_r1/E/corpus.py`)."""
+    t = f"{structured.get('tldr') or ''}\n{structured.get('mechanism') or ''}"
+    t = re.sub(r"```.*?```", " ", t, flags=re.S)
+    t = _N_HANDLE_RX.sub(" ", _E_HANDLE_RX.sub(" ", t))
+    t = re.sub(r"[#*_`>|-]+", " ", t)
+    return len([w for w in t.split() if any(c.isalnum() for c in w)])
+
+
+def _writer_seam_lints(structured: dict | None, number_calls, *, asof: str = "",
+                       mode: str = "", horizon_months=None, handle_prose: bool = False) -> dict:
+    """LANE E's ONE entry point: every correcting lint, in one pass, returning one census.
+
+    ORDER IS DELIBERATE and each step is independent of the others' text: the TL;DR correction runs
+    first because it is the only one scoped to that field; the two APPENDING passes (staleness, lag
+    windows) run before the watch pass so a clause appended to a watch bullet's sentence cannot be
+    re-read as that bullet's missing figure; the decline correction is a pure substitution and is last.
+    `prose_words` is counted AFTER every edit, because it is the number the reader pays.
+
+    NOTHING HERE DELETES, and that is checkable rather than promised: every pass either substitutes a
+    span for the row's own words or inserts a clause, and `tests/unit/test_writer_seam_lints.py` pins
+    that no field ever gets shorter and no `[N]`/`[E]` handle and no digit is lost.
+
+    THE WHOLE FUNCTION IS BELTED, and the belt's promise is stated exactly. An instrument must never
+    be the thing that breaks the answer it measures, so a failure lands as `outcome` and is never
+    raised onward. Each pass writes its field ONLY after its own loop completes, so no field is ever
+    half-corrected: on a failure the passes that already returned stand and the rest did not run."""
+    census = {"outcome": "ok", "prose_words": 0, "prose_ceiling": 0, "prose_over_budget": 0}
+    if not isinstance(structured, dict):
+        census["outcome"] = "bad_shape"
+        return census
+    try:
+        rows = _seam_row_index(number_calls)
+        pcts = _seam_percentiles(rows)
+        census.update(_seam_tldr_consistency(structured, rows, pcts))
+        census.update(_seam_stale_figures(structured, rows, asof))
+        census.update(_seam_lag_windows(structured, rows, asof, horizon_months))
+        census.update(_seam_watch_bullets(structured, rows, mode, handle_prose=handle_prose))
+        census.update(_seam_precoverage_words(structured))
+        # ROUND 2 -- the three docket rules, seated AFTER the appending passes for the same reason the
+        # watch pass is: a clause appended by an earlier rule must never be re-read as a later rule's
+        # evidence. The label swap is a pure substitution; the absence check appends a handle the
+        # `[N]` pass will resolve; the duplicate count reads the served rows and touches no text.
+        census.update(_seam_metric_labels(structured, rows))
+        census.update(_seam_absence_claims(structured, rows, handle_prose=handle_prose))
+        census.update(_seam_served_duplicates(rows))
+        ceiling = _rc.prose_ceiling(mode)
+        words = _seam_prose_words(structured)
+        census["prose_words"] = words
+        census["prose_ceiling"] = ceiling
+        census["prose_over_budget"] = max(0, words - ceiling)
+    except Exception as exc:  # noqa: BLE001 -- named and stamped, never raised onward
+        census["outcome"] = f"lint_failed:{type(exc).__name__}"
+    return census
+
+
 def _sentence_keeps_other_receipt(text: str, s0: int, s1: int, skips, n_uniq: int) -> bool:
     """True when the sentence `[s0, s1)` still carries a citation the reader KEEPS, outside `skips`.
 
@@ -11011,7 +12709,9 @@ def _orphan_has_content(frag: str) -> bool:
     SAFE -- any doubt (an unavailable extractor, an unparseable fragment) reads as CONTENT PRESENT, so the
     pass keeps the prose and repairs only the seam."""
     try:
-        from leviathan.graphrag import verify as _vf   # module-local import: answer<->verify is lazy here
+        from leviathan.graphrag import (
+            verify as _vf,  # module-local import: answer<->verify is lazy here
+        )
         if _vf._HANDLE.search(frag or ""):
             return True
         return bool(_vf._claim_numbers_in(frag or ""))
@@ -11712,16 +13412,24 @@ def _source_row_snippet(text: object, *, market_register: str = reg.FENCED) -> s
 
 
 def _document_source_rows(d: dict, vreport: dict, *,
-                          market_register: str = reg.FENCED) -> list[tuple[str, str]]:
+                          market_register: str = reg.FENCED,
+                          keys: bool = False) -> list[tuple]:
     """(ref, rendered row) for every DOCUMENT ledger entry the `## Sources` block emits, in ledger order.
 
     ONE walk, TWO readers: `_cited_sources_block` renders these rows and
     `_prune_orphan_evidence_handles` asks which refs they cover. That is the whole of CYCLE-10 FIX 3 --
     the prune's authority stops being a parallel re-derivation of "which ledger rows resolved" and becomes
-    the emission decision itself, so "a marker with no row" is decided by the code that emits rows."""
+    the emission decision itself, so "a marker with no row" is decided by the code that emits rows.
+
+    `keys=True` (LANE E, 2026-09-17) yields `(ref, row, document_key, tail)` instead: the
+    `(source name, date, snippet)` triple that IDENTIFIES the document and the row's text after its own
+    marker. It exists so the footer's DEDUPLICATION reads the same walk the emission does rather than
+    re-deriving "which rows are the same document" from the rendered strings -- the third reader of one
+    walk, on CYCLE-10 FIX 3's own argument. DEFAULT FALSE keeps the 2-tuple every existing caller and
+    both existing decks unpack, byte for byte."""
     resolved = (vreport or {}).get("resolved") or {}
     from leviathan.graphrag import display as dp
-    out: list[tuple[str, str]] = []
+    out: list[tuple] = []
     seen: set[str] = set()
     for s in (d.get("sources") or []):
         ref = str(s.get("ref", "")).strip().strip("[]")
@@ -11734,7 +13442,8 @@ def _document_source_rows(d: dict, vreport: dict, *,
             continue
         r = resolved[ref]
         snip = _source_row_snippet(r.get("snippet"), market_register=market_register)
-        head = f"[{ref}] {dp.source_name(str(r.get('source') or ''))} ({r.get('date')})"
+        name, date = dp.source_name(str(r.get("source") or "")), r.get("date")
+        head = f"[{ref}] {name} ({date})"
         row = head + (f": {snip}" if snip else "")
         # CYCLE-10-AMEND (2026-08-08), REVIEW MINOR 4 -- EVERY ROW TERMINATES ITSELF. A head-only row
         # ("[5] USDA WASDE (2014-01-01)") carried no sentence terminator, so ANY sentence splitter of the
@@ -11745,7 +13454,7 @@ def _document_source_rows(d: dict, vreport: dict, *,
         # character, appended only when the row does not already end a sentence.
         if row[-1:] not in (".", "!", "?", ";"):
             row += "."
-        out.append((ref, row))
+        out.append((ref, row, (name, str(date), snip), row[len(f"[{ref}]"):]) if keys else (ref, row))
     return out
 
 
@@ -11763,11 +13472,73 @@ def _emitted_evidence_refs(d: dict, vreport: dict, *,
     return live
 
 
+#: LANE E (2026-09-17): a money figure printed as a bare number beside a currency-per-unit token.
+#: MEASURED on the deep turn: `[N21] USDA WASDE average farm price soybeans united_states MY2026/27 =
+#: 12 $/bu` and `[N9] ... = 10.5 $/bu` -- and the writer copied the footer's spelling into the body
+#: ("a projected season-average farm price of 12 $/bu [N21] against 10.5 $/bu [N9]"), which a grader
+#: filed under "unit formatting and undefined scope". `$` binds to its amount and a price carries its
+#: cents: `$12.00/bu`. THE NUMBER DOES NOT MOVE -- two decimals are a spelling of 12, not a rounding of
+#: it -- and the rule fires only on the `<amount> $|USD/<unit>` shape, which is the one the cards mint.
+_SEAM_MONEY_RX = re.compile(r"(?<![\w.])(-?\d[\d,]*(?:\.\d+)?)\s+(?:\$|USD)/(\w+)")
+
+
+def _seam_money_units(label: str) -> str:
+    """`12 $/bu` -> `$12.00/bu`, inside one rendered footer row. Value-preserving by construction: the
+    digits are re-formatted, never recomputed, and a value this cannot parse is returned untouched."""
+    def _fix(m) -> str:
+        try:
+            v = float(m.group(1).replace(",", ""))
+        except (TypeError, ValueError):
+            return m.group(0)
+        # ROUND 2 (review MINOR-7): the SIGN leads the currency, never sits inside it -- `-3 $/bu` was
+        # coming back as `$-3.00/bu`, which is not a spelling of a price any desk uses.
+        sign = "-" if v < 0 else ""
+        return f"{sign}${abs(v):,.2f}/{m.group(2)}"
+    return _SEAM_MONEY_RX.sub(_fix, label)
+
+
+#: A KNOWLEDGE STAMP THE SOURCE HANDED US UNDASHED. MEASURED, served: `[N27] ... = 311.846 1000 MT
+#: [known 20260904]` sits in the max turn's own footer beside twenty rows stamped `[known 2026-09-11]`,
+#: and the writer transcribed the raw form into client prose ("the newest knowledge date on a number
+#: row 20260904"), which two graders filed as a hallucinated date. It is a SPELLING correction and
+#: nothing else: the eight digits are re-punctuated, never re-derived, and anything this cannot parse
+#: is returned exactly as it came.
+_SEAM_BASIC_DATE_RX = re.compile(r"\A((?:19|20)\d\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\Z")
+
+
+def _seam_iso_date(s) -> str:
+    """`20260904` -> `2026-09-04`; every other string (including a correct ISO one) unchanged."""
+    t = str(s or "").strip()
+    m = _SEAM_BASIC_DATE_RX.match(t)
+    return f"{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else t
+
+
 def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None, *,
-                         market_register: str = reg.FENCED) -> str:
+                         market_register: str = reg.FENCED, seam_lints: bool = False) -> str:
     """The single reader-facing `## Sources` list: the model's OWN handles, every entry resolved by the
     verifier to a real item's true metadata. Cited-only — retrieved-but-uncited items stay machine-side
     (res['evidence'] / res['citations']).
+
+    ══ LANE E (2026-09-17): `seam_lints` -- THE FOOTER A READER CAN ACTUALLY USE ══════════════════════
+    DEFAULT FALSE, so every existing caller and both serving bodies with the board flag off render
+    HEAD's footer byte for byte. When on, three things change and nothing else does:
+
+      (i) ONE ROW PER DISTINCT DOCUMENT, carrying EVERY handle that cites it. The deep turn's footer
+          was ELEVEN BYTE-IDENTICAL COPIES of one 2021 WASDE sentence under eleven different refs --
+          a grader's words: "source footer is mostly eleven copies of one 2021 paragraph". The fold is
+          on the document's own identity (`_document_source_rows(keys=True)`'s `(name, date, snippet)`
+          triple), NOT on the rendered string, so two rows merge when they are the same document and
+          never merely because they read alike.
+      (ii) THE FOOTER SPELLS THE HANDLE THE BODY SPELLS. The ledger `ref` is a bare integer by tool
+          schema, so the footer printed `[4]` while the prose wrote `[E4]` -- the same grader: "the
+          handles do not match the body". A ref is re-spelled `[E4]` exactly when the PROSE carries
+          `[E4]`; a body that writes `[4]` keeps `[4]`, because the footer answers the page, not a
+          convention. NOTHING IS RENAMED IN THE PROSE and `_emitted_evidence_refs` is untouched, so
+          the orphan prune's two-key rule keeps deciding membership on the ledger's own key.
+      (iii) MONEY UNITS (`_seam_money_units`): `= 12 $/bu` becomes `= $12.00/bu`.
+
+    The [N] block's ORDER, its one-row-per-visible-index rule and the prose-authority law below are
+    untouched by all three.
 
     THE [N] ORPHAN PRUNE (cycle-3 review). This block reads `d['sources']`, which `_resolve_number_handles`
     does not touch: a handle whose sentence was dropped, or whose clause was severed, left the prose but
@@ -11826,9 +13597,27 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None, *,
             c = cit.from_number((number_calls or [])[idx - 1], idx)
         except (ValueError, IndexError, TypeError):
             return None
-        return f"[N{idx}] {c.label}" + (f"  [known {c.date}]" if c.date else "")
+        lab = _seam_money_units(c.label) if seam_lints else c.label
+        _kd = _seam_iso_date(c.date) if seam_lints else c.date
+        return f"[N{idx}] {lab}" + (f"  [known {_kd}]" if c.date else "")
 
-    lines = [row for _ref, row in _document_source_rows(d, vreport, market_register=market_register)]
+    if not seam_lints:
+        lines = [row for _ref, row in _document_source_rows(d, vreport,
+                                                            market_register=market_register)]
+    else:
+        # ONE ROW PER DOCUMENT, carrying every handle that cites it -- see clauses (i) and (ii) of this
+        # function's own note. Order is the LEDGER's, taken from each document's FIRST ref, so the block
+        # a reader scans is still the order the model declared its sources in.
+        folded: dict = {}
+        for _ref, _row, _key, _tail in _document_source_rows(d, vreport,
+                                                             market_register=market_register,
+                                                             keys=True):
+            spell = f"[E{_ref}]" if f"[E{_ref}]" in prose else f"[{_ref}]"
+            if _key in folded:
+                folded[_key][0].append(spell)
+            else:
+                folded[_key] = ([spell], _tail)
+        lines = ["".join(refs) + tail for refs, tail in folded.values()]
     # THE [N] BLOCK, off the PROSE and nothing else: ascending index, after the document rows, exactly one
     # row per index the reader can still see. Emitting it here rather than inside the ledger walk is what
     # makes the order DETERMINISTIC -- a ledger that declared N2 and not N1 used to interleave them 2,1,3
@@ -11853,7 +13642,9 @@ def _cited_sources_block(d: dict, vreport: dict, number_calls: list | None, *,
         row = _n_row(idx)
         if row is not None:
             lines.append(row)
-    lines += _prose_value_rows(prose, number_calls, kept_n)      # CYCLE-6 FIX-A
+    # ROUND 2 (review MINOR-6): CYCLE-6 FIX-A's rows are rendered from the SAME producer and must take
+    # the SAME two spellings, or one footer carries `$12.00/bu` on one line and `12 $/bu` on the next.
+    lines += _prose_value_rows(prose, number_calls, kept_n, seam_lints=seam_lints)   # CYCLE-6 FIX-A
     return ("\n\n## Sources\n" + "\n".join(lines)) if lines else ""
 
 
@@ -11881,7 +13672,8 @@ def _number_row_clones(prose_n: list[int], number_calls: list | None) -> dict[in
     return out
 
 
-def _prose_value_rows(prose: str, number_calls: list | None, cited_n: list[int]) -> list[str]:
+def _prose_value_rows(prose: str, number_calls: list | None, cited_n: list[int], *,
+                      seam_lints: bool = False) -> list[str]:
     """CYCLE-6 FIX-A -- the footer rows the FINAL prose earns by STATING a served value (see the long note
     at `citations.prose_completion_citations` for the measured failure and the four refusals).
 
@@ -11900,7 +13692,9 @@ def _prose_value_rows(prose: str, number_calls: list | None, cited_n: list[int])
     if not calls or not prose.strip():
         return []
     try:
-        from leviathan.graphrag.orchestrator import _stated_values      # lazy: orchestrator imports THIS
+        from leviathan.graphrag.orchestrator import (
+            _stated_values,  # lazy: orchestrator imports THIS
+        )
         stated = _stated_values(prose)
     except Exception:  # noqa: BLE001
         return []
@@ -11917,7 +13711,11 @@ def _prose_value_rows(prose: str, number_calls: list | None, cited_n: list[int])
         cits = cit.prose_completion_citations(calls, stated, seen=seen, cited=set(cited_n))
     except Exception:  # noqa: BLE001
         return []
-    return [f"[{c.id}] {c.label}" + (f"  [known {c.date}]" if c.date else "") for c in cits]
+    # LANE E round 2: `seam_lints` is keyword-only and DEFAULT FALSE, so every existing caller and both
+    # serving bodies with the board flag off render this list byte for byte as they do at HEAD.
+    return [f"[{c.id}] {_seam_money_units(c.label) if seam_lints else c.label}"
+            + (f"  [known {_seam_iso_date(c.date) if seam_lints else c.date}]" if c.date else "")
+            for c in cits]
 
 
 def _foreign_regime_names(graph: gph.CausalGraph, contracts: list[str]) -> set[str]:
@@ -12407,6 +14205,15 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                                    foreign_names=_foreign_regime_names(graph, contracts),
                                    handle_prose=_handles)                  # D-HP-9/12, both bodies
     _bar_licence = _bar_licence_for(_bar_licence, verifier)        # S7b R1 review MINOR: one predicate
+    # LANE E (2026-09-17): THE WRITER SEAM's ONE RESOLVED BOOL, read HERE and threaded to all three of
+    # its consumers -- the lint pass, `render`'s scaffold kwarg and `_cited_sources_block`'s footer
+    # kwarg. ONE read per body, the `_bar_licence` discipline and for the same measured reason (WP-A4's
+    # own repair): a switch read twice is how a charge and its remedy come to disagree on the lane
+    # where one of the two reads is stale. It is ANDed with the verifier, because every correction here
+    # is made with a RESOLVED row and `GRAPHRAG_VERIFY=off` is the documented rollback for that whole
+    # chain -- on that lane the footer is the legacy two-list render and there is nothing to correct
+    # against. Flag off (or verify off) -> no call, no kwarg, no key, HEAD's bytes.
+    _wseam_on = bool(_state_board_on() and verifier.get("enabled"))
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         postverify_tldr=structured.get("tldr"), postverify_mechanism=structured.get("mechanism")))
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
@@ -12449,6 +14256,24 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
              if (verifier.get("enabled") and _bar_licence is not None) else None)
     _dreg = (_desk_register_lint(structured, call=(call if call is _call_opus else None), model=model)
              if (verifier.get("enabled") and _desk_register_on()) else None)
+    # LANE E on the SECOND synthesis path, at the IDENTICAL stack position and spelled identically
+    # (D-HP-16's three-lane law). THIS BODY CARRIES NO BOARD -- `GRAPHRAG_PLANNER=onehop` has no
+    # `grounded_subgraph` at all -- so `horizon_months` is None and the lag rule returns zeros having
+    # changed nothing. Every OTHER rule reads the turn's own number calls and its own prose, which this
+    # body has, and a correcting lint that only fires on one of the two bodies is the same defect with a
+    # documented rollback in front of it.
+    #
+    # AND THE ASYMMETRY IS NAMED RATHER THAN DISCOVERED LATER: this lane gets the ENFORCEMENT without
+    # the MANDATE, because HEAD's one-hop `_system` call passes no `state_board` at all (there is no
+    # board to mandate a narration of) and the writer-seam leg rides that branch. That is the opposite
+    # of the `_cascade_walk_block_on` failure -- an instruction with no enforcement -- and it is safe in
+    # the direction that matters: every rule below is a CORRECTION of a statement the turn's own rows
+    # contradict, which is true whether or not the writer was told. Nothing here demands a shape the
+    # prompt did not ask for; the length rule is a STAMP on this lane and cuts nothing.
+    _wseam = (_writer_seam_lints(structured, extra_number_calls, asof=(asof or ""),
+                                 mode=(mode_name or ""), horizon_months=None,
+                                 handle_prose=_handles)
+              if _wseam_on else None)
     _nhandles = (_resolve_number_handles(structured, extra_number_calls,   # D-PQ HANDLE-1, both bodies
                                          handle_prose=_handles)
                  if verifier.get("enabled") else None)                    # ...and the same verifier gate
@@ -12507,8 +14332,12 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     # defect with a flag in front of it.
     _footer = ""
     if verifier.get("enabled"):                                   # ONE validated source list, model-numbered
-        _sanitize_in = render(structured, include_ledger=False)
-        _footer = _cited_sources_block(structured, verifier, extra_number_calls, market_register=_mr)
+        # LANE E: the two SCAFFOLD/FOOTER kwargs, both from the ONE bool resolved above and both
+        # DEFAULT FALSE in their own functions -- so a board-off turn passes them as False and the
+        # rendered page, including its footer, is HEAD's byte for byte.
+        _sanitize_in = render(structured, include_ledger=False, seam_lints=_wseam_on)
+        _footer = _cited_sources_block(structured, verifier, extra_number_calls, market_register=_mr,
+                                       seam_lints=_wseam_on)
     else:                                                         # verifier off -> legacy two-list rendering
         footer = ("\n\n## Sources\n" + cit.render(ev_cits)) if ev_cits else ""
         _sanitize_in = render(structured) + footer
@@ -12547,6 +14376,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                          if (_badj and any(_badj.values())) else {}),   # ...absent on every dark row
                       **({"desk_register": _dreg}                  # S7b R2, both bodies
                          if _dreg is not None else {}),            # ...absent on every dark row
+                      **({"writer_seam": _wseam}                   # LANE E, both bodies
+                         if _wseam is not None else {}),           # ...absent on every dark row
                       **({"slot_orphan_dropped": _sorph}           # H1 FIX Z4's remedy, both bodies
                          if (_sorph and any(_sorph.values())) else {}),
                       **({"episode_spans_validated": _trace_espan}  # D-HP-15 SELECT, both bodies

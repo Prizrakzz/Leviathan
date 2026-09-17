@@ -425,6 +425,114 @@ _PCTILE_WORD = r"(?:percentile|pctile|pctl|quantile|quartile|decile)"
 _ORDINAL_AFTER = re.compile(
     r"\A(?:st|nd|rd|th)\b(?!\s*" + _DUR_HYPH + r"?\s*" + _PCTILE_WORD + r")", re.I)
 
+# -- D-EC PRE-ARM (2026-09-17) -- THE FOURTH SANCTIONED AMENDMENT TO CLAIM EXTRACTION ----------------
+# SCOPE, AS RATIFIED: FALSE-POSITIVE REDUCTION IN CLAIM EXTRACTION ONLY, exactly the cycle-8 and D-DA
+# scope. ONE shape stops being a claim magnitude -- the LENGTH OF THE OBSERVATION WINDOW a statistic is
+# read against -- and nothing else in this module's rules moves. Cycle-6's reader-precision arm, cycle-8's
+# ordinal/duration arm and D-DA's unit-scale arm are frozen exactly as shipped.
+#
+# THE MEASURED DEFECT (the in-VPC pre-arm smoke, 2026-09-16, five real-seat turns at commit 17fed3e4;
+# `prearm_smoke_0916/answers/*.trace.json`, field `strip_audit`). FIVE of the smoke's fifteen charges --
+# every `number_unbacked` it made -- are a WINDOW LENGTH read as a claim figure:
+#     deep  "- Tropical Pacific +1.8 degC [N23], +2.4 sigma on 120 months [N24], 93rd percentile [N25]"
+#           claims [1.8, 2.4, 120.0, 93.0]; 120 matches no served row; ALL THREE handles stripped.
+#     max   "The board crush reads 2.6 USD/bu [N36], 92nd percentile of its own 250-session record [N38]"
+#           claims [2.6, 92.0, 250.0]; 250 matches no served row; BOTH handles stripped.
+# `120` and `250` are the SAME quantity the estate's own citation lines print as scope, never as value:
+# `[N44] NOAA ONI ONI anomaly global MY2026-07 vs 120 points of its own history = 2.4 sigma`. The row's
+# VALUE is 2.4; the 120 is the window it was computed over. No served row can equal it except by
+# coincidence, so charging it is a false positive by construction -- the identical argument cycle-8 made
+# for "5-year mean". The consequence measured on the smoke: SEVEN correct figures (1.8, 2.4, 93, 2.6, 92
+# and their handles) were served BARE, with every citation removed from two sentences whose every
+# statement was right.
+#
+# WHY CYCLE-8 RULE (f) MISSES THEM, read off its own definition -- two independent reasons:
+#   * the SPACE spelling requires the duration noun to be followed by a `_STAT_HEAD` word, and in this
+#     estate a duration noun is followed by a CITATION HANDLE ("on 120 months [N24]"). Rule (f)'s own note
+#     says so in terms: "Punctuation, a citation handle, or the end of the clause after the duration noun
+#     is still head position and still a claim."
+#   * `_DURATION_NOUN` carries no OBSERVATION-window unit at all -- `session` is not `season` -- so the
+#     hyphen spelling "250-session record" never reached rule (f) either.
+#
+# THE RULE IS TWO NARROW SHAPES, AND EACH EARNS ITS EXEMPTION FROM SOMETHING ORTHOGRAPHIC:
+#   (h-i)  HYPHEN + an observation-window unit + a WINDOW HEAD NOUN: "250-session record",
+#          "320-session window", "60-print history". The compound modifier is the writer declaring the
+#          numeral is a length, and the head noun says what it is the length OF.
+#   (h-ii) SPACE spelling, ONLY when the numeral is the object of a WINDOW PREPOSITION that itself
+#          follows a STATISTIC word -- "sigma on 120 months", "percentile of 320 sessions" -- and the
+#          head after the unit is punctuation, a citation handle or the clause end.
+# THE LEFT CONTEXT IN (h-ii) IS THE WHOLE FENCE, and it is what keeps the eight cycle-8 head-position
+# counter-examples claims: "prices have risen for 5 months in a row [N10]", "ending stocks cover 21 days
+# of use [N6]", "US corn is 12 days ahead of the pace [N4]", "the crush ran 3 weeks behind schedule [N5]",
+# "exports rose in each of the last 5 months of the marketing year [N1]", "10 days before the as-of date",
+# "within 6 days prior to the 2026-08-07 as-of", "stocks are 12 months of use [N8]". NONE has a statistic
+# word in front of its preposition, and six of the eight additionally fail the tail (a preposition, not a
+# terminator, follows their duration noun). Measured: 0 of 8 flip, and they stay pinned by
+# `test_cycle8_repair_integrity.py::test_fix1_duration_noun_in_HEAD_position_is_still_a_claim` and
+# `::test_b2_head_position_duration_quantities_are_still_claims`.
+#
+# DELIBERATELY TIGHTER THAN THE THREAT MODEL'S OWN PROPOSAL (`THREAT_MODEL_FIXES.md` B.4, B-i), AND THE
+# REASON IS MEASURED. That proposal put the observation-window units straight into `_DURATION_NOUN`, which
+# arms rule (f)'s HYPHEN branch for ANY following word -- and rule (f)'s hyphen branch takes any head that
+# is not a `_DUR_STOP`. That would de-charge "a 12-point drop [N3]" and "a 5-point move", where the numeral
+# IS the magnitude. Requiring a WINDOW HEAD NOUN in (h-i) keeps every measured flip (11 of 11 over the case
+# list and the 14-answer unseen corpus -- see the build report) and closes that class by construction.
+# `_DURATION_NOUN` DOES NOT MOVE, so every rule-(f) verdict in the estate is byte-identical.
+#
+# IT RIDES THE `cycle8` FLAG, like rule (g) and for the same reason (review MINOR-7, 2026-09-04): the
+# frozen pre-amendment view `_claim_number_spans(s, cycle8=False)` must stay exactly what HEAD extracted.
+# NOT COVERED, DELIBERATELY: a window length spelled with NO statistic and NO head noun ("over 120 months
+# the pace fell") stays a claim -- under-claiming the exemption is the safe direction, and no measured
+# sentence needs it.
+_WINDOW_UNIT = r"(?:session|print|observation|obs|reading|point|row|marketing[ ]year)s?"
+# The nouns a window length can be the length OF. Read off what the estate's own prose and citation lines
+# write ("of its own 250-session record", "the 320-session window", "vs 156 points of its own history").
+# ROUND-2 REVIEW, MINOR-1: `range` and `span` are REMOVED from this set. They read as window heads in
+# "a 320-session range", but they are also the heads of an ORTHOGRAPHIC MAGNITUDE -- "the front spread
+# traded in a 12-point range [N3]", "a 40-point span [N9]" -- where the numeral IS the quantity, and (h-i)
+# was exempting those. 0 window lengths in 85,133 unseen real-seat sentences are spelled with either head,
+# so the exemption cost nothing and the hole was real; `record|history|window|lookback|sample|series|
+# distribution` carry every measured one.
+_WINDOW_HEAD = r"(?:record|history|window|lookback|sample|series|distribution)"
+# The words that make the numeral after a window preposition a LENGTH rather than a quantity. Statistic
+# words only: `record` / `history` are deliberately ABSENT here (they are HEAD words in (h-i), and as
+# leads they also introduce ordinary quantities -- "a record of 12 months").
+# ROUND-2 REVIEW, MINOR-2: `mean`, `average`, `median` and `rank` are REMOVED. They are not DISPERSION
+# statistics read AGAINST a window, they are CENTRES read OVER one, and as leads they re-open exactly the
+# class CYCLE-8 BLOCKER 2 protects: "Stocks cover an average of 21 days [N6]", "Inventory turns at a
+# median of 45 days [N12]" and "Shipments lag by an average of 6 weeks [N7]" all stopped being claims
+# although the numeral IS the quantity. 0 measured window lengths are led by any of the four.
+_WINDOW_STAT = (r"(?:sigma|z|z-score|zscore|percentile|pctile|pctl|decile|quantile|quartile|"
+                r"window|lookback)")
+# (h-i) the hyphen spelling: '-session record', '-print history'. The exotic hyphens come from `_DUR_HYPH`.
+_WINDOW_HYPH = re.compile(r"\A" + _DUR_HYPH + _WINDOW_UNIT + _DUR_SEP + r"+" + _WINDOW_HEAD + r"\b", re.I)
+# (h-ii) the LEFT context: a statistic word, then a window preposition, then the numeral.
+_WINDOW_LEAD = re.compile(r"\b" + _WINDOW_STAT + r"[ ]*(?:" + _DUR_HYPH + r"|[ ])?[ ]*"
+                          r"(?:on|over|across|against|of)[ ]+\Z", re.I)
+# (h-ii) the RIGHT shape: one space, a duration OR observation-window unit, then HEAD POSITION -- a
+# citation handle, punctuation, a dash or the clause end. The handle is admitted in all three spellings a
+# caller can hand this extractor: written (`[N24]`), masked to spaces (`_mask_handles`) and removed
+# outright (`_HANDLE.sub("")`), which is why the terminator set carries the bracket, the blank-then-comma
+# and the bare end. Dashes as \u escapes to keep this source ASCII (`_RANGE_TAIL`'s discipline).
+_WINDOW_TAIL = re.compile(r"\A[ ]+(?:" + _DURATION_NOUN + r"|" + _WINDOW_UNIT + r")"
+                          r"[ ]*(?:\[[NE]?\d|[,;.:)\]]|-{2}|[" + "\u2013\u2014" + r"]|\n|\Z)", re.I)
+# ROUND-2 DOCKET item B-2 (2026-09-17) -- (h-iii), THE `of` SPELLING, and it needs NO left context
+# because its RIGHT context is the whole declaration. Two shapes, both read off the estate's own prose:
+#   "vs 120 points of its own history"   an OBSERVATION unit + `of` + a WINDOW HEAD noun
+#   "the newest of 53 rows covering 2026-06-01..2026-08-20"   an OBSERVATION unit + a window CONTINUATION
+# `row` joins `_WINDOW_UNIT` for the second, which is what the estate calls a record's members when it
+# counts them ("53 rows"). The units are OBSERVATION units only -- `_DURATION_NOUN` is deliberately NOT
+# admitted here, so "exports rose in each of the last 5 months of the marketing year [N1]" and "stocks are
+# 12 months of use [N8]" stay claims (neither `marketing year` nor `use` is a `_WINDOW_HEAD` noun, and
+# neither takes a continuation). MEASURED, the shape this closes: the banked
+# `da_baseline_control/rv_meal_oil` sentence "- The window series shows meal at 7.1236 USD/bushel [N5] and
+# oil at 7.8452 USD/bushel [N6] as the newest of 53 rows covering 2026-06-01..2026-08-20." -- both real
+# figures ARE backed, only the RECORD LENGTH 53 is not, and HEAD strips BOTH handles and serves all three
+# figures bare. It is the same false positive as `120` and `250`, one spelling further out.
+_WINDOW_OF = re.compile(r"\A[ ]+" + _WINDOW_UNIT + r"[ ]+"
+                        r"(?:of[ ]+(?:its[ ]+own[ ]+|the[ ]+|this[ ]+|our[ ]+)?" + _WINDOW_HEAD + r"\b"
+                        r"|(?:covering|spanning|back[ ]to)\b)", re.I)
+
 # -- D-DA UNIT-SCALE (2026-09-04) -- THE THIRD SANCTIONED AMENDMENT TO CLAIM EXTRACTION --------------
 # SCOPE, AS RATIFIED: FALSE-POSITIVE REDUCTION IN CLAIM EXTRACTION ONLY, exactly the cycle-8 scope. ONE
 # shape stops being a claim magnitude -- the SCALE PART of a UNIT LABEL that the sentence writes
@@ -548,12 +656,20 @@ def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, 
     written immediately after an already-accepted figure ('154,947 (1000 MT)', '-83.476 1000 MT',
     '12,345 60-kg bags'). The scale is the label, never a magnitude; see the block note above for the
     measured 33-of-35 false-positive class and for the left-context fence that keeps a bare 'about 1000
-    tonnes' a claim. A fabricated magnitude ('23.5 MMT' with no such row) is untouched by all seven rules
-    and still strips.
+    tonnes' a claim.
+    D-EC PRE-ARM (2026-09-17), the FOURTH SANCTIONED AMENDMENT -- (h) the LENGTH OF AN OBSERVATION WINDOW,
+    in exactly three shapes: a hyphenated observation-window unit in front of a window head noun
+    ('250-session record', '320-session window'), a window preposition governed by a STATISTIC word
+    ('+2.4 sigma on 120 months [N24]', 'the 29th percentile of 320 sessions') and -- ROUND-2 DOCKET B-2 --
+    an observation unit taking a possessive window head or a window continuation ('vs 120 points of its
+    own history', 'the newest of 53 rows covering 2026-06-01..'). A window length is what a
+    statistic was read AGAINST, never a figure a row can carry; see the block note for the measured
+    5-of-15 smoke class and for the eight head-position sentences the left context keeps as claims.
+    A fabricated magnitude ('23.5 MMT' with no such row) is untouched by all eight rules and still strips.
     The span ENDS at the token core, so the sentence punctuation _CLAIM_NUM sweeps up is never part of it.
 
     `cycle8=False` returns the PRE-AMENDMENT view -- rules (a)-(d) only, exactly as HEAD extracted before
-    cycle 8 -- and rule (g) rides under the SAME flag so that view stays what it was (review MINOR-7,
+    cycle 8 -- and rules (g) and (h) ride under the SAME flag so that view stays what it was (review MINOR-7,
     2026-09-04: a frozen extractor's off-view must not move either). Its one caller was `_num_repair`'s
     ambiguity gate (CYCLE-8 REVIEW MAJOR 4), which CYCLE-10 deleted along with the rest of the rewrite
     path, so the flag has NO caller in this module and none outside it. It is KEPT, deliberately: this
@@ -604,6 +720,15 @@ def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, 
             if _DURATION_MOD.match(after_core):
                 anchor = None
                 continue                                        # (f) a DURATION MODIFIER: '5-year mean'
+            # D-EC PRE-ARM (h) -- the LENGTH of the observation window a statistic is read against. Three
+            # shapes, and (h-ii) is the only rule here besides (g) with a LEFT context: see the block note
+            # for the measured 5-of-15 false-positive class and for the eight head-position
+            # counter-examples the left context keeps as claims. (h-iii) is the round-2 docket's `of`
+            # spelling ("vs 120 points of its own history", "the newest of 53 rows covering ...").
+            if (_WINDOW_HYPH.match(after_core) or _WINDOW_OF.match(after_core)
+                    or (_WINDOW_TAIL.match(after_core) and _WINDOW_LEAD.search(s[:m.start()]))):
+                anchor = None
+                continue                                        # (h) a WINDOW LENGTH: 'sigma on 120 months'
         if (re.fullmatch(r"\d{4}", core) and 1900 <= v <= 2099
                 and not _UNIT_AFTER.match(s[m.end():])):        # (a) year -- unless unit-suffixed
             anchor = None
@@ -701,8 +826,8 @@ def _mismatch_pool(call: dict, row_vals: list[float]) -> list[float]:
 
 
 def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
-    """True when the sentence carries EXACTLY ONE claim numeral and ANOTHER [N] handle in it BACKS that
-    numeral against its own mismatch pool.
+    """True when EVERY claim numeral in the sentence is BACKED by some OTHER [N] handle written in that
+    same sentence, against that handle's own mismatch pool.
 
     r5 RCA (2026-08-01). The verifier checks a handle against every numeral in its SENTENCE, so a handle
     cited for a qualitative clause is charged by a numeral it was never quoting: "the anomaly is at
@@ -713,28 +838,228 @@ def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
     contradicting itself across two rows of ONE deck.
     The number is NOT fabricated here -- a sibling handle materializes it -- so the fail-closed rationale
     ("a fabricated NUMBER survives the loss of its handle") does not apply, and the precise remedy is the
-    ORIGINAL one: strip the mis-citing HANDLE and leave the corroborated figure standing. Scoped to the
-    one-numeral shape on purpose: with two numerals nobody can say which one the charged handle meant, and
-    that ambiguity keeps the whole-sentence drop."""
+    ORIGINAL one: strip the mis-citing HANDLE and leave the corroborated figure standing.
+
+    ══ D-EC PRE-ARM (2026-09-17) -- THE ONE-NUMERAL SCOPE IS LIFTED: EVERY NUMERAL, NOT EXACTLY ONE ═════
+    THE MEASURED DEFECT (the in-VPC pre-arm smoke, 2026-09-16, five real-seat turns at commit 17fed3e4).
+    The rescue opened `if len(spans) != 1: return False`, and the four sentences this smoke DELETED carry
+    2, 2, 2 and 3 claim numerals -- so the rescue was unavailable by construction to every sentence rich
+    enough to be worth keeping. All four are the SAME false-positive shape as the r5 one above: a handle
+    cited for a WORDED restatement of its own row, convicted by its neighbours' digits.
+        deep tldr   "... a slack export program in the bottom decile of its own record [N40] and US area
+                     at 34.76 M ha [N59], and the ocean signal at +1.8 degC [N23] ..."
+                    [N40] = 6 percentile, cited for the WORDS 'bottom decile'; 34.76 is [N59]'s own row
+                    (34.755) and 1.8 is [N23]'s own row. The whole counter-leg of the TL;DR was deleted.
+        corn/wheat  "The tight stocks-to-use ratio [N79], at the 16th percentile of its own record [N81]
+                     ... and feed demand at the 95th percentile [N66] ..."   [N79] = the 0.121393 ratio,
+                    cited for the WORDS; 16 is [N81]'s row and 95 is [N66]'s. Its deletion left the
+                    lowercase orphan "... on confidence alone. planted area at the 98th percentile [N69]".
+        palm/rape   "... record Black Sea seed [N5][N14] and softening crush [N11] both loosen -- with the
+                     EU growing-season moisture reading, at -0.51 z [N32], 20th percentile [N31] ..."
+                    three handles cited for WORDS, and 0.51/20 are [N32]'s (-0.505799) and [N31]'s rows.
+        soyoil      "Indonesia's palm-belt drought reads 0.16 z [N62], +0.7 sigma [N63], and the ocean
+                     index reads -0.39 degC [N71], on the cool side of its record [N73] ..."
+                    [N73] cited for WORDS; every one of 0.16 / 0.7 / 0.39 is a sibling's own row.
+    THE ORIGINAL SCOPING ARGUMENT NO LONGER APPLIES TO ITS OWN REMEDY. "With two numerals nobody can say
+    which one the charged handle meant" was an argument about REWRITING a numeral -- the ambiguity mattered
+    because the repair path had to choose a value to splice. CYCLE-10 deleted that path: the only remedy
+    this rescue can reach is DROP THE HANDLE, which needs no such choice.
+    THE FAIL-CLOSED RATIONALE IS PRESERVED EXACTLY, AND THAT IS WHY THE TEST IS *EVERY*: a figure may only
+    lose its handle when the SENTENCE ITSELF still materializes it from another served row. If ANY claim
+    numeral in the sentence is backed by no sibling, this returns False and the sentence dies whole, as
+    today -- so a fabricated numeral can never ride out on a correct neighbour's rescue.
+    THE COST, STATED: a sentence that attributes the RIGHT figures to the WRONG handles ("stocks 10.72%
+    [N50], crush 2.6 [N47]") now keeps its figures and loses both handles, where it used to die. That is
+    HEAD's own precedent, not a new doctrine -- the one-numeral arm already accepted it, and
+    `number_unbacked` serves figures bare routinely (7 of them on two sentences in this same smoke)."""
     masked = _mask_handles(sent)
     spans = _claim_number_spans(masked)
-    if len(spans) != 1:
+    if not spans:
         return False
-    v = spans[0][2]
-    # CYCLE-6: the sibling rescue asks the SAME matching question, so it gets the same reader-precision arm
-    # -- a sibling that backs "-0.31" against its own -0.30632 row is backing it, and refusing to see that
-    # would send the sentence to the whole-drop path this rescue exists to avoid.
-    dec = [_token_decimals(masked[spans[0][0]:spans[0][1]])]
     # CYCLE-9 (2026-08-08) AMENDMENT 3a: every MEMBER of every handle token, not just the solitary ones.
     # The gate-6 covenant corruption is exactly this loop failing to see [N5] inside `[N5, N10, N12]`.
+    pools = []
     for m in _HANDLE.finditer(sent):
         for kind, j in _handle_members(m.group(0)):
             if kind != "N" or j == idx or not (1 <= j <= len(number_calls)):
                 continue
             sib = number_calls[j - 1]
-            if _num_matches([v], _mismatch_pool(sib, _row_vals(sib)), dec):
-                return True
-    return False
+            pools.append(_mismatch_pool(sib, _row_vals(sib)))
+    if not pools:
+        return False
+    # CYCLE-6: the sibling rescue asks the SAME matching question, so it gets the same reader-precision arm
+    # -- a sibling that backs "-0.31" against its own -0.30632 row is backing it, and refusing to see that
+    # would send the sentence to the whole-drop path this rescue exists to avoid.
+    for a, b, v in spans:
+        dec = [_token_decimals(masked[a:b])]
+        if not any(_num_matches([v], pool, dec) for pool in pools):
+            return False
+    return True
+
+
+# ══ D-EC PRE-ARM, ROUND 2 (2026-09-17) -- A SENTENCE THIS MODULE KEEPS NEVER SERVES A FIGURE WITH
+#    NOTHING BEHIND IT ══════════════════════════════════════════════════════════════════════════════
+# THE MEASURED DEFECT (round-1 adversarial review, MAJOR-1, reproduced by this lane on the 112 banked
+# answers). The round-1 orphan lint refuses a fail-closed whole-sentence drop and takes the handle
+# instead -- and on a SINGLE-HANDLE sentence that handle is the only one there is, so all SEVEN
+# sentences it saved shipped their figure with NO citation at all:
+#     "- Canadian canola production was last read at 22,500,000 MT;"      (draft: "... MT [N14];")
+#     "US soyoil ending stocks for MY2025 are 1,552,000 MT;"              "- Rapeseed oil: 18.75;"
+#     "- Soybean oil stocks-to-use: 7 ratio on the newest reading;"       "- Soybean oil: 7;"
+#     "The nearest served ending-stock rows are dated 2026-05-10 (palm 4,091,000 MT;"
+#     "... the Chinese rapeseed-oil stocks-to-use read stands at 0.1036 against ... -0.0451033 ..."
+# By this estate's own doctrine a served figure with no handle behind it is worse than a deleted one, so
+# the lint bought a broken page off at the price of an uncheckable number. THE ORCHESTRATOR'S RULING
+# (2026-09-17), implemented here in the order it states:
+#   (1) THE LAST BACKER IS NEVER DROPPED. A charged handle whose pool is the only thing in the sentence
+#       that materializes a printed numeral STAYS, whatever else it is charged for. This is the arm that
+#       protects the widened sibling rescue from the cost its own build report stated ("a sentence that
+#       attributes the RIGHT figures to the WRONG handles now keeps its figures and loses both handles").
+#   (2) REPAIR, when the slot is unambiguous: substitute THE CITED HANDLE'S OWN ROW FIGURE at the page's
+#       own precision and KEEP the handle, so the figure the reader sees is the row the handle carries.
+#   (3) THE FIGURE CUT, when no row figure can be established for that slot: the FIGURE comes off and the
+#       WORDS stay -- "was last read at a level this page could not back [N14]". Words are free; only a
+#       printed figure must be backed, and a figure nothing can back must stop being printed.
+# SCOPE, AND WHY IT IS NOT "EVERY number_mismatch". CYCLE-10 deleted the general rewrite after three
+# recorded ops corrupted three sentences, and the dispositive one -- "roughly 0.6 z higher [N3]" against
+# a -0.6267 row -- is a SINGLE-HANDLE number_mismatch, i.e. exactly what a general reading of (2) would
+# rewrite. It is out of reach here twice over: this ladder is entered ONLY where the alternative is a cut
+# that leaves wreckage (`_drop_orphans`), and inside it fences (d) and (f) below refuse that shape on its
+# sign and on its own word "higher". `test_cycle10_no_rewrites` keeps every one of its pins.
+# ROLLBACK: GRAPHRAG_VERIFY_ORPHAN_REPAIR=off disables (2) alone -- the figure cut then carries every
+# slot, and no row value can reach the page by any route.
+_FIGCUT_WORDS = "a level this page could not back"
+# The unit tail a cut figure takes WITH it: "1,552,000 MT" -> "a level this page could not back", never
+# "a level this page could not back MT". A closed vocabulary, read off the estate's own served units.
+_FIGCUT_UNIT = (r"(?:%|percent(?:age[ ]points?)?|pp|bps?|MMT|MT|KT|kt|tonnes?|tons?|MMbu|bu|bushels?|"
+                r"USD/bu|USD|EUR|cents?|ha|acres?|bales?|cwt|head|contracts?|lots?|z|sigma|"
+                r"deg[ ]?C|ratio|index|points?|sessions?|days?|weeks?|months?|years?)")
+_FIGCUT_SCALE = r"(?:MM|M|bn|k|K|thousand|million|billion)"
+_FIGCUT_TAIL = re.compile(r"\A[ ]?(?:" + _FIGCUT_SCALE + r"[ ]+)?" + _FIGCUT_UNIT + r"(?![A-Za-z])")
+# A sign or currency mark glued to the numeral goes with it ("of -0.0451033" must not leave "of -").
+_FIGCUT_SIGN = "+-" + "\u2212" + "$"
+# A comparative glued to the figure belongs to the figure: "roughly 0.6 z higher" must become "roughly a
+# level this page could not back", never "roughly a level this page could not back higher". A closed set
+# of one-word comparatives, taken only when it follows the unit immediately.
+_FIGCUT_COMP = re.compile(r"\A[ ]+(?:higher|lower|above|below|more|less|up|down|wider|tighter|"
+                          r"firmer|softer)\b", re.I)
+# SCIENTIFIC NOTATION IS ONE LITERAL, AND IT COST A CORRUPTION TO LEARN IT. `_claim_number_spans` reads
+# "-7.61887e-05" as TWO claim numerals (the mantissa and the exponent), and the first draft of this cut
+# took them as two figures: the banked `v25_baseline_control/rv_beans_meal` line came back as
+# "change a level this page could not backea level this page could not back [N20]". The exponent rides
+# with its mantissa here, and the span merge below closes the same class for a RANGE ("0.11-0.12").
+_FIGCUT_EXP = re.compile(r"\A[eE][-+" + "\u2212" + r"]?\d+")
+# AN ORDINAL SUFFIX IS PART OF THE NUMERAL, AND LEAVING IT BEHIND WRITES INSIDE A WORD. ROUND-2
+# REVIEW NEW-MAJOR-1, measured through the shipped `verify_citations`: `_claim_number_spans` ends a
+# span at the token CORE by contract, so "the 93rd percentile" hands the cut the span "93" and the
+# replacement words weld onto the live "rd" -- "the a level this page could not backrd percentile".
+# Same class as the `backea level` exponent corruption, one spelling out, and the ordinal percentile
+# is this estate's commonest claim shape (3.35% of writer-prose claim numerals; 2.8% of the ladder's
+# own candidate population). Taken BEFORE the unit tail, so "93rd %" still takes its percent sign.
+_FIGCUT_ORD = re.compile(r"\A(?:st|nd|rd|th)\b")
+# A NUMERAL GLUED INTO A WORD IS A NAME, NOT A FIGURE, AND IS NEVER CUT. `_CLAIM_NUM` already refuses a
+# numeral with a LETTER immediately in front of it, but not one behind a hyphen -- and the banked corpus
+# writes "the tier-1 material", "COVID-19", "top-3", every one of them a claim numeral that no row can
+# ever back. Cutting one would serve "the tier- a level this page could not back material". They are left
+# exactly as the writer wrote them: the remedy below is for FIGURES, and this is a name.
+_FIGCUT_COMPOUND = re.compile(r"[A-Za-z][-" + chr(0x2010) + chr(0x2011) + r"]\Z")
+# A TRANSITIVE COMPARATIVE KEEPS ITS OBJECT. ROUND-2 REVIEW NEW-MAJOR-2: `_FIGCUT_COMP` above took a
+# one-word comparative WHATEVER followed it, so verbatim writer prose came back stranded --
+# "soyoil sits 1.31603 sigma above its five-year mean [N1]" served as "soyoil sits a level this page
+# could not back its five-year mean [N1]", the direction word DELETED and its object left dangling.
+# That is the fatal shape at word scale by this estate's own doctrine. The comparative rides with the
+# figure only where nothing follows that it could govern -- a handle, punctuation, the end. Where a
+# WORD follows, the comparative and its object stay and only the numeral is cut. This arm can only
+# ever SHRINK the cut span, so it can mint no corruption of its own.
+_FIGCUT_COMP_OBJ = re.compile(r"\A[ ]+[A-Za-z]")
+# The words that mean the SLOT already carries the direction or the threshold, so a row value spliced into
+# it says something the row does not (the gate-7 "roughly 0.6 z HIGHER [N3]" corruption, and the gate-6
+# "rising toward the 1.5 degC THRESHOLD [N4]" one).
+_FIGCUT_SLOT_STOP = re.compile(r"\b(?:higher|lower|above|below|under|over|more|less|up|down|toward|"
+                               r"towards|threshold|exceed(?:s|ed|ing)?|cross(?:es|ed|ing)?|beyond|past|"
+                               r"at[ ]least|at[ ]most|no[ ]more[ ]than|if|when|unless|should|would|"
+                               r"were)\b", re.I)
+
+
+def _figure_span(sent: str, a: int, b: int) -> tuple[int, int]:
+    """The span a FIGURE CUT removes: the claim token, the sign or currency mark glued in front of it and
+    the exponent, ORDINAL SUFFIX and scale+unit written after it -- plus a comparative that governs
+    nothing. `_claim_number_spans` ends at the token CORE by contract, so the unit has to be taken here or
+    the page keeps a bare 'MT', the ordinal suffix or the page is written inside a word."""
+    while a > 0 and sent[a - 1] in _FIGCUT_SIGN and not (a > 1 and sent[a - 2].isdigit()):
+        a -= 1
+    e = _FIGCUT_EXP.match(sent[b:])
+    if e:
+        b += e.end()
+    o = _FIGCUT_ORD.match(sent[b:])
+    if o:                                                 # "93rd", never "93" and a live "rd"
+        b += o.end()
+    m = _FIGCUT_TAIL.match(sent[b:])
+    if m:
+        b += m.end()
+    c = _FIGCUT_COMP.match(sent[b:])
+    if c and _FIGCUT_COMP_OBJ.match(sent[b + c.end():]):
+        c = None                                          # it governs an object; both stay
+    return a, (b + c.end() if c else b)
+
+
+def _page_figure(tok: str, v: float) -> str:
+    """`v`'s MAGNITUDE written at the precision -- and in the thousands spelling -- the page used for
+    `tok`. The sign is NOT written: it stays the page's own character, which fence (d) has already made
+    agree with the row."""
+    out = ("%." + str(_token_decimals(tok)) + "f") % abs(v)
+    if "," in tok:
+        head, _dot, tail = out.partition(".")
+        out = "{:,}".format(int(head)) + (("." + tail) if tail else "")
+    return out
+
+
+def _orphan_repair_figure(sent: str, a: int, b: int, pool: list[float]) -> str | None:
+    """The row figure this slot may carry, written at the page's precision -- or None, and then the FIGURE
+    CUT takes the slot instead. SIX FENCES, every one of them the answer to a RECORDED corruption:
+
+      (a) SOLE ROW -- the cited handle's mismatch pool must hold exactly ONE distinct value at the page's
+          own precision. A window call carrying six rows cannot say which one this slot meant, and
+          choosing is what gate-6 COV1 did ("toward the 0 degC threshold" out of a multi-row call).
+      (b) LIVE ROW -- neither side may be zero while the other is not. A 0/1 FLAG row wrote "is at 1 degC"
+          over a correct 0.98 in gate-6 COV2, and 4 of the 7 measured orphan pools are all-zero rows.
+      (c) SAME ORDER OF MAGNITUDE -- |row| and |page| within a factor of ten. This is what refuses the
+          measured canola slot (22,500,000 written, a 300,000 row) and every scale confusion with it.
+      (d) SAME SIGN -- the sign the page wrote must be the sign the row carries. The gate-7 op that ended
+          the repair path spliced a -0.6267 row into a "+0.6" slot; it is refused here on this fence
+          alone, before any word is read.
+      (e) NOT A RANGE MEMBER -- a numeral glued to a dash or slash is half of a span, never a value.
+      (f) NO DIRECTION OR THRESHOLD WORD ANYWHERE IN THE SENTENCE -- the cycle-10 verdict, taken whole: a
+          fence over unit LABELS cannot see that the slot's own word already carries what the row's signed
+          value carries again, so the shape is refused outright rather than fenced.
+    The predicate is TOTAL and pure: it reads a sentence, a span and a list of floats, and returns a
+    string or None. It never chooses a pool, never reads the environment and never writes."""
+    tok = sent[a:b]
+    if not pool:
+        return None
+    seen = {(v < 0, _page_figure(tok, v)) for v in pool}
+    if len(seen) != 1:
+        return None                                       # (a) the call cannot say which row this slot is
+    v = pool[0]
+    try:
+        page = float(tok.replace(",", ""))
+    except ValueError:
+        return None
+    if (v == 0) != (page == 0):
+        return None                                       # (b) a flag row can never write over a reading
+    if v and page and max(abs(v), abs(page)) > 10.0 * min(abs(v), abs(page)):
+        return None                                       # (c) a scale apart is not a precision fix
+    _dash = a > 0 and sent[a - 1] in "-" + "\u2212"
+    _range_dash = _dash and a > 1 and sent[a - 2].isdigit()
+    if (_dash and not _range_dash) != (v < 0):
+        return None                                       # (d) the sign the page wrote is the page's claim
+    if _range_dash or (a > 1 and sent[a - 1] in "/" + "\u2013\u2014") or re.match(r"\A[-/]\d", sent[b:]):
+        return None                                       # (e) half of a range is not a value
+    if _FIGCUT_EXP.match(sent[b:]) or (a > 1 and sent[a - 1] in "eE" and sent[a - 2].isdigit()):
+        return None                                       # (e) ...and neither half of 7.6e-05 is one
+    if _FIGCUT_SLOT_STOP.search(sent):
+        return None                                       # (f) the slot's own words carry the direction
+    return _page_figure(tok, v)
 
 
 def _num_repair(sent: str, idx: int, number_calls: list[dict]) -> None:
@@ -898,6 +1223,43 @@ def _unbacked_quote(sent: str, pools: list[list[dict]]) -> str | None:
     return None
 
 
+_VINTAGE_WORD = re.compile(r"\b(?:date[sd]?|dating|vintage|newest|oldest|latest|recent|stale|old|"
+                           r"thin|published|publication|knowledge|as[ ]of|behind[ ]this[ ]answer)\b", re.I)
+_ISO_DATE = re.compile(r"\A\d{4}-\d{2}-\d{2}\Z")
+
+
+def _date_echo(sent: str, matched: list[dict]) -> bool:
+    """ROUND-2 DOCKET item B-3 (2026-09-17) -- A DATE THAT EQUALS THE CITATION'S OWN DATE IS LEXICAL
+    OVERLAP BY CONSTRUCTION, and `no_lexical_overlap` may not charge it.
+
+    THE MEASURED DEFECT (`prearm_smoke_0916`, quick_rv_palm_rapeoil, 3 of that turn's 15 charges and 3 of
+    3 outside the number lane). The sentence is ABOUT the documents' DATES:
+        "- Dated documents are thin and old for this pair: the newest behind this answer is 2026-03-31
+         [E3], and the substitution mechanics I lean on date to 2023 [E1] and 2022 [E11]."
+    `_check_evidence_handle` compares the sentence against each resolved item's TEXT, and a sentence that
+    quotes a document's VINTAGE shares no word with its PROSE by construction -- so all three handles were
+    stripped and the reader was told three dates with no way to check any of them. The dates are not the
+    model's invention: `citation_resolved` records E3 = 2026-03-31, E1 = 2023-03-13, E11 = 2022-03-15, and
+    the footer PRINTS them. The resolved item's own metadata is part of what a sentence may echo.
+
+    TWO SHAPES, AND THE SECOND IS FENCED:
+      * the FULL ISO date written verbatim ("2026-03-31") -- self-identifying, admitted unconditionally;
+      * the item's YEAR alone ("date to 2023") -- admitted ONLY when the sentence also carries a VINTAGE
+        word, because a bare year is the commonest numeral in this estate's prose and `2026` would
+        otherwise rescue any handle on any sentence mentioning the current marketing year.
+    Both arms sit INSIDE the zero-overlap branch, so nothing that already passes the overlap test can
+    change; this can only ever KEEP a handle, never charge one."""
+    for e in matched or []:
+        d = str((e or {}).get("date") or "")[:10]
+        if not _ISO_DATE.match(d):
+            continue
+        if d in (sent or ""):
+            return True
+        if _VINTAGE_WORD.search(sent or "") and re.search(r"(?<!\d)" + d[:4] + r"(?!\d)", sent or ""):
+            return True
+    return False
+
+
 def _check_evidence_handle(sent: str, matched: list[dict], *, quotes: bool = True) -> str | None:
     """Rule violated by an evidence handle in this sentence, or None. `quotes=False` defers the quoted-span
     verdict to the caller's SENTENCE-level pass (the co-citation rule above), which is what the declared-
@@ -909,6 +1271,8 @@ def _check_evidence_handle(sent: str, matched: list[dict], *, quotes: bool = Tru
     if quotes and _unbacked_quote(sent, [matched]):
         return "quote_mismatch"
     if not (_tokens(sent) & _tokens(texts)) and not (set(_NUM.findall(sent)) & set(_NUM.findall(texts))):
+        if _date_echo(sent, matched):
+            return None                                   # ROUND-2 B-3: the citation's OWN date, echoed
         # D-RC-15a script gate: a non-Latin sentence (non-Latin letters present AND zero usable
         # [a-z]{5,} tokens) can never share a lexical token with Latin evidence -- for it the overlap
         # test is VACUOUS, not failed, and the digit-STRING intersection above can never equate
@@ -2884,7 +3248,15 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
     """
     # CYCLE-8 FIX 2(c): `repaired` / `repairs` are ALWAYS present (0 / []), never gated. See the
     # no-laundering note in PASS 2.
-    report = _VerifyReport({"enabled": True, "checked": 0, "stripped": 0, "corrected": 0, "claim_count": 0,
+    # ROUND-2 DOCKET item B-4 (2026-09-17) -- `strip_sentences` JOINS THE ALWAYS-PRESENT COUNTERS.
+    # `stripped` counts OFFENDING HANDLES and `claim_count` counts SENTENCES, so every rate built from the
+    # pair mixes its units: the smoke's deep turn reported `strips = 5` over THREE distinct sentences, and
+    # the read panel read five findings. `stripped` does NOT move -- it is what every banked number in this
+    # estate is denominated in -- and this is the honest numerator beside it: distinct (rule, field,
+    # sentence) charges, the same key `strip_audit` de-duplicates on, and unlike `strip_audit` it is
+    # populated whether or not GRAPHRAG_STRIP_AUDIT is lit.
+    report = _VerifyReport({"enabled": True, "checked": 0, "stripped": 0, "strip_sentences": 0,
+                            "corrected": 0, "claim_count": 0,
                             "repaired": 0, "repairs": [], "by_rule": {}, "resolved": {}})
     if os.environ.get("GRAPHRAG_VERIFY", "on") == "off" or not structured:
         report["enabled"] = False
@@ -2919,6 +3291,10 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         # gone; see the module note and `_num_repair`). =handle restores the legacy handle-only strip byte
         # for byte; ANY other value (absent included) is the fail-closed drop.
         _failclosed = os.environ.get("GRAPHRAG_VERIFY_NUM_MODE", "") != "handle"
+        # ROUND-2 (2026-09-17): the documented rollback for step (2) of the orphan ladder ONLY. With it
+        # off the FIGURE CUT carries every slot the lint saves, and no row value can reach the page by any
+        # route -- CYCLE-10's guarantee, restored by one environment variable.
+        _orphan_repair = os.environ.get("GRAPHRAG_VERIFY_ORPHAN_REPAIR", "on") != "off"
 
         evidence = evidence or []
         number_calls = number_calls or []
@@ -3048,8 +3424,56 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     s1 += 1
             return s0, s1
 
+        def _drop_orphans(text: str, s0: int, s1: int) -> bool:
+            """D-EC PRE-ARM (2026-09-17), TWO-SIDED since the round-2 review (MAJOR-2). True when deleting
+            `text[s0:s1]` would leave a FRAGMENT of a reader's sentence behind, on either side of the cut.
+
+            THE ROOT CAUSE, NAMED AND CLOSED IN BOTH DIRECTIONS. `_BOUND` ends a unit on ';' as well as on
+            '.', so a semicolon-joined clause is a droppable "sentence" that is only HALF of what the
+            reader reads -- and a cut at a ';' boundary strands the other half whichever half it takes:
+              * PROMOTION (the successor side, the smoke's quick corn/wheat orphan). The dropped unit
+                itself OPENED a sentence -- nothing but a real terminator ('.', '!', '?'), a line break or
+                the field start in front of it -- and the first non-blank character after the span is a
+                lowercase letter, so the SECOND half of the reader's sentence is promoted to sentence-
+                initial position: "... on confidence alone. planted area at the 98th percentile [N69]".
+              * MIRROR (the predecessor side, round-2 review MAJOR-2, measured). The dropped unit is the
+                TAIL clause and the LEAD clause is left dangling on a bare semicolon: "Stocks are ample;
+                the index sat at -0.693675 z [N1]." served as "Stocks are ample;", and "Corn is tight; the
+                ratio reads 0.5 [N1]. Wheat is loose." served as "Corn is tight; Wheat is loose.". The
+                round-1 lint covered only the first direction and MADE FOUR MORE of the second than HEAD
+                (verifier-made dangling ';' lines, 112 banked answers: HEAD 1, round-1 build 5).
+            The mirror test is read off the ROOT and not off the symptom: the head, stripped of trailing
+            blanks, ENDS IN ';' -- i.e. the previous `_BOUND` was a semicolon, so this unit is not a
+            sentence the reader would recognize as one and no cut here can be clean.
+            PURE PREDICATE: it reads the text and takes no decision of its own; PASS 2 owns the remedy."""
+            head = text[:s0]
+            if head.rstrip().endswith(";"):
+                # MIRROR. The lead clause is only left WHOLE when a lowercase continuation follows on the
+                # same line ("A; B; c." -> "A; c." reads exactly as the writer punctuated it). An empty
+                # tail strands the lead on a bare ';' ("Stocks are ample;"), a line break does the same,
+                # and an uppercase successor welds a new sentence onto the semicolon ("Corn is tight;
+                # Wheat is loose."). Those three are the measured residue and the ONLY ones refused here.
+                return not text[s1:].lstrip(" \t")[:1].islower()
+            if head.strip() and not re.search(r"(?:[.!?][\"')\]]?[ \t]*|\n[ \t]*)\Z", head):
+                return False
+            tail = text[s1:].lstrip(" \t")
+            return bool(tail) and tail[0].islower()        # PROMOTION
+
         foreign = re.compile(r"\b(" + "|".join(re.escape(n) for n in sorted(foreign_names)) + r")\b") \
             if foreign_names else None
+
+        # D-EC PRE-ARM (2026-09-17) -- ONE SENTENCE, ONE AUDIT ENTRY. The audit is a CAPTURE, and every
+        # rule here is charged PER OFFENDING HANDLE, so a sentence whose three handles all fail the same
+        # rule wrote the SAME row three times. Measured on the 2026-09-16 smoke: 15 audit rows over five
+        # answers, 9 distinct (rule, field, sentence) -- deep's ENSO bullet x3, max's crush sentence x2,
+        # palm/rape's rapeseed sentence x3 and its dated-documents bullet x3. A reader counting rows read
+        # "15 charges" where the verifier touched nine sentences, and the SMOKE REPORT did exactly that.
+        # SCOPE, DELIBERATELY NARROW: this de-duplicates the AUDIT ONLY. `stripped` and `by_rule` keep
+        # their per-offending-handle semantics untouched, because they are the estate's standing strip
+        # counters and every banked number is denominated in them -- a counter redefinition on the eve of
+        # an arm is the first-order threat this sitting is fenced against. No strip decision reads this
+        # list (the capture-only contract above), so nothing downstream of a drop can move.
+        _audit_seen: set[tuple[str, str, str]] = set()
 
         def _audit(rule: str, field: str, sent: str) -> None:
             # offending magnitudes = the sentence's CLAIM numbers (citation-handle digits AND the
@@ -3059,7 +3483,13 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # D-DA UNIT-VOCABULARY GATE: a scale token the gate RE-ADMITS is one of this sentence's
             # claim magnitudes, so it rides the audit list too and the promise above holds. Empty on
             # every sentence the gate does not fire on, so no existing audit row moves.
-            if _audit_on:
+            # ROUND-2 B-4: the de-duplication key is minted whether or not the audit is lit, because
+            # `strip_sentences` is a COUNTER and must not depend on a capture flag.
+            _key = (rule, field, sent.strip())
+            _first = _key not in _audit_seen
+            _audit_seen.add(_key)
+            report["strip_sentences"] = len(_audit_seen)
+            if _audit_on and _first:                      # one sentence, one entry (see the note above)
                 report["strip_audit"].append(
                     {"rule": rule, "field": field, "text": sent.strip(),
                      "numbers": (_claim_numbers_in(_HANDLE.sub("", sent))
@@ -3070,6 +3500,14 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # nothing is applied until pass 3. A fail-closed number_mismatch is DEFERRED because its remedy
             # (repair vs whole-sentence drop) depends on the other handles sharing its sentence.
             drops: list[tuple[int, int]] = []
+            # ROUND-2 (2026-09-17): the SUBSTITUTIONS the orphan ladder makes -- (start, end, text) in
+            # FIELD coordinates, applied beside the deletions in PASS 3. Empty on every field the ladder
+            # does not reach, which is every field in the estate's banked corpus but seven sentences.
+            edits: list[tuple[int, int, str]] = []
+            # ...and the PASS-1 `number_unbacked` handle drops, kept so the ladder can un-take one that
+            # turns out to be a printed figure's last backer inside a sentence the orphan lint saves.
+            unbacked_drops: list[tuple[int, int, int, int, int]] = []
+            undrop: set[tuple[int, int]] = set()
             pending: list[tuple[int, int, str, int]] = []
             # sentence span -> every DECLARED handle in it that resolved, as (handle span, pool, per-handle
             # rule). Their verdict is deferred to PASS 1b because the quoted-span question is a SENTENCE
@@ -3110,6 +3548,13 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     continue
                 if rule:
                     drops.append((m.start(), m.end()))
+                    if rule == "number_unbacked":
+                        # ROUND-2 MAJOR-1: remembered, not re-decided. `number_unbacked` strips the handle
+                        # and leaves the figure -- HEAD's behaviour, untouched everywhere except inside a
+                        # sentence the orphan lint KEEPS, where the ladder below may find that this handle
+                        # is the last thing backing a figure the reader will still see. The CHARGE is
+                        # already counted above either way.
+                        unbacked_drops.append((m.start(), m.end(), s0, s1, int(m.group("idx"))))
                     report["stripped"] += 1
                     report["by_rule"][rule] = report["by_rule"].get(rule, 0) + 1
                     _audit(rule, field, sent)
@@ -3178,10 +3623,10 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
 
             # PASS 2 -- resolve the deferred mismatches. TWO outcomes per offending handle, since
             # CYCLE-10 (2026-08-08) deleted the third:
-            #   * SIBLING-BACKED (r5 RCA): another [N] in the sentence materializes the lone numeral, so the
-            #     figure is not a fabrication and only the mis-citing HANDLE goes -- the pre-fix remedy,
-            #     correctly scoped at last. Decided FIRST, and it is the ONLY way a charged sentence keeps
-            #     its figure.
+            #   * SIBLING-BACKED (r5 RCA, widened D-EC pre-arm): every claim numeral in the sentence is
+            #     materialized by another [N] written in it, so no figure here is a fabrication and only
+            #     the mis-citing HANDLE goes -- the pre-fix remedy, correctly scoped at last. Decided
+            #     FIRST, and it is the ONLY way a charged sentence keeps its figure.
             #   * KILLED: everything else. The sentence goes with its audit record.
             # THE THIRD OUTCOME IS GONE. "REPAIRABLE" used to mean "every mismatched handle in the sentence
             # agrees on the same one-numeral/one-row rewrite, and it survives the fences" -- the figure was
@@ -3189,24 +3634,163 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # sentences, the last of them through a clean pass of all four cycle-9 allowlist clauses. The
             # capability is deleted, not re-fenced (see `_num_repair`), so `per_sent` / `edits` / the
             # agreement test have no reason to exist: a pending handle is backed or its sentence dies.
+            # D-EC PRE-ARM (2026-09-17) CORRECTION TO THIS NOTE: the rescue is no longer scoped to "the
+            # lone numeral". It asks whether EVERY claim numeral in the sentence is backed by a sibling,
+            # which is the same fail-closed question asked of the whole sentence instead of of one token;
+            # see `_sibling_backed` for the four measured deletions that scope cost.
+            #
+            # ══ THE ORPHAN LINT -- A CUT MAY NEVER PROMOTE A LOWERCASE CONTINUATION ═══════════════════
+            # `_BOUND` terminates a "sentence" on ';' as well as on '.', so a whole-sentence drop can cut
+            # a semicolon-joined clause OUT OF THE MIDDLE of a reader's sentence. MEASURED, the smoke's
+            # quick corn/wheat turn shipped exactly that: the drop left
+            #     "... neither dominates on confidence alone. planted area at the 98th percentile [N69]
+            #      points toward lower."
+            # -- which a PM grader named "the tell that a fence deleted the bull half". A fence that
+            # leaves an orphan clause is FATAL by this estate's own doctrine, so the drop is REFUSED and
+            # the proportionate remedy is taken instead: the sentence is KEPT. The event is STAMPED
+            # (`report["orphan_kept"]`, minted only when it fires, and its own audit rule name) so a
+            # refused fail-closed drop is never silent.
+            # THE LINT IS TWO-SIDED (round-2 MAJOR-2): it refuses a cut that PROMOTES a lowercase
+            # continuation AND a cut that strands the lead clause of a ';'-joined sentence. See
+            # `_drop_orphans` for both arms and for the measured mirror residue it closes.
+            # ROUND-2 MAJOR-1 -- THE RESIDUAL ROUND 1 STATED IS NOW CLOSED, NOT STATED. "The sentence is
+            # kept and the mis-citing handle alone is removed" left SEVEN banked sentences printing a
+            # figure with NO citation at all, which this estate's doctrine calls worse than a deletion.
+            # A kept sentence now goes through the ladder below: the LAST BACKER is never dropped, an
+            # unambiguous slot is REPAIRED from the cited row at the page's own precision, and a slot no
+            # row figure can be established for loses its FIGURE and keeps its WORDS. Nothing this pass
+            # keeps serves a claim numeral that no surviving handle in its own sentence materializes.
             killed: set[tuple[int, int]] = set()
-            backed: list[tuple[int, int, int, int, str]] = []
+            orphaned: set[tuple[int, int]] = set()
+            kinds: dict[tuple[int, int], str] = {}        # handle span -> 'backed' | 'unbacked'
             for h0, h1, s0, s1, sent, idx in pending:
                 if _sibling_backed(sent, idx, number_calls):
-                    backed.append((h0, h1, s0, s1, sent))
+                    kinds[(h0, h1)] = "backed"
                     continue
-                killed.add((s0, s1))
+                kinds[(h0, h1)] = "unbacked"
+                # ROUND-2 MAJOR-2: the lint is a property of the SENTENCE SPAN, so it is asked BEFORE any
+                # handle can decide the sentence's fate. Round 1 asked it per handle and after the
+                # sibling test, so one un-rescuable handle in a ';'-joined clause still took the cut and
+                # still left the fragment the lint exists to refuse.
+                if _drop_orphans(text, s0, s1):
+                    orphaned.add((s0, s1))
+                else:
+                    killed.add((s0, s1))
+
+            # ══ THE KEPT SENTENCES -- THE LADDER (round-2 MAJOR-1). See the block note at
+            #    `_orphan_repair_figure`: last backer, then repair, then the figure cut. ═══════════════
+            spare: set[tuple[int, int]] = set()           # offending handles that SURVIVE their charge
+            remedy: dict[tuple[int, int], str] = {}       # ...and the audit rule each one earns
+            by_sent: dict[tuple[int, int], list] = {}
+            for h0, h1, s0, s1, sent, idx in pending:
+                if (s0, s1) not in killed:
+                    by_sent.setdefault((s0, s1), []).append((h0, h1, sent, idx))
+            for (s0, s1), items in sorted(by_sent.items()):
+                sent = items[0][2]
+                masked = _mask_handles(sent)
+                spans = _claim_number_spans(masked)
+                pools: dict[int, list[float]] = {}
+                for m in _HANDLE.finditer(sent):
+                    for _k, _j in _handle_members(m.group(0)):
+                        if _k == "N" and 1 <= _j <= len(number_calls):
+                            pools[_j] = _mismatch_pool(number_calls[_j - 1],
+                                                       _row_vals(number_calls[_j - 1]))
+                p1 = [(d0, d1, j) for d0, d1, ss0, ss1, j in unbacked_drops if (ss0, ss1) == (s0, s1)]
+                charged = {it[3] for it in items} | {j for _d0, _d1, j in p1}
+                live = {j: p for j, p in pools.items() if j not in charged}
+                # (1) THE LAST BACKER IS NEVER DROPPED. A handle whose own pool is the only thing in this
+                # sentence that materializes a printed numeral stays, whatever it is charged for and
+                # whichever pass charged it -- a `number_unbacked` drop from PASS 1 is un-taken here for
+                # the same reason, because what the reader receives is one sentence, not two passes.
+                for a, b, v in spans:
+                    dec = [_token_decimals(masked[a:b])]
+                    if any(_num_matches([v], p, dec) for p in live.values()):
+                        continue
+                    for h0, h1, _s, idx in items:
+                        if _num_matches([v], pools.get(idx) or [], dec):
+                            spare.add((h0, h1))
+                            remedy[(h0, h1)] = "number_mismatch_backer_kept"
+                            report["backer_kept"] = report.get("backer_kept", 0) + 1
+                            live[idx] = pools.get(idx) or []
+                            break
+                    else:
+                        for d0, d1, j in p1:
+                            if _num_matches([v], pools.get(j) or [], dec):
+                                undrop.add((d0, d1))
+                                report["backer_kept"] = report.get("backer_kept", 0) + 1
+                                live[j] = pools.get(j) or []
+                                break
+                # (2)/(3) whatever figure is STILL backed by no surviving handle in this sentence is
+                # repaired from the cited row, or -- when no row figure can be established for the slot --
+                # cut, with its sign and its unit, and replaced by words.
+                unbacked = []
+                for a, b, v in spans:
+                    dec = [_token_decimals(masked[a:b])]
+                    if _FIGCUT_COMPOUND.search(sent[:a]):
+                        continue                          # a name, never a figure (see `_FIGCUT_COMPOUND`)
+                    if not any(_num_matches([v], p, dec) for p in live.values()):
+                        unbacked.append((a, b))
+                if not unbacked:
+                    continue
+                _to = None
+                if _orphan_repair and len(items) == 1 and len(pools) == 1 and len(unbacked) == 1:
+                    _to = _orphan_repair_figure(sent, unbacked[0][0], unbacked[0][1],
+                                                pools.get(items[0][3]) or [])
+                if _to is not None:
+                    _rule = "number_mismatch_orphan_repaired"
+                    edits.append((s0 + unbacked[0][0], s0 + unbacked[0][1], _to))
+                    report["repairs"].append({"field": field, "rule": _rule,
+                                              "from": sent[unbacked[0][0]:unbacked[0][1]], "to": _to})
+                    live[items[0][3]] = pools.get(items[0][3]) or []
+                else:
+                    _rule = "number_mismatch_orphan_figure_cut"
+                    # ONE LITERAL, ONE CUT. Two claim spans separated by nothing but glue are two halves
+                    # of one written quantity -- a mantissa and its exponent, the ends of a range -- and
+                    # cutting them separately welds the replacement words together (see `_FIGCUT_EXP`).
+                    cuts: list[list[int]] = []
+                    for a, b in unbacked:
+                        fa, fb = _figure_span(sent, a, b)
+                        if cuts and fa <= cuts[-1][1] + 2 and not re.search(r"[A-Za-z0-9]",
+                                                                            sent[cuts[-1][1]:fa]):
+                            cuts[-1][1] = max(cuts[-1][1], fb)
+                        else:
+                            cuts.append([fa, fb])
+                    for fa, fb in cuts:
+                        edits.append((s0 + fa, s0 + fb, _FIGCUT_WORDS))
+                        report["repairs"].append({"field": field, "rule": _rule,
+                                                  "from": sent[fa:fb], "to": _FIGCUT_WORDS})
+                # THE HANDLE STAYS only where it cannot be MIS-READ: a sentence whose only [N] handle this
+                # is. Where the sentence carries others, a handle left beside a neighbour's backed figure
+                # would read as backing it -- the W4 A/B mis-attribution class -- so it goes, and the
+                # sentence still serves no figure with nothing behind it.
+                for h0, h1, _s, _idx in items:
+                    remedy.setdefault((h0, h1), _rule)
+                    if len(pools) == 1:
+                        spare.add((h0, h1))
+
             for h0, h1, s0, s1, sent, _idx in pending:    # counted per OFFENDING handle, as every rule is
+                report["stripped"] += 1
+                report["by_rule"]["number_mismatch"] = report["by_rule"].get("number_mismatch", 0) + 1
                 if (s0, s1) in killed:
                     drops.append(_drop_span(text, s0, s1))
-                    report["stripped"] += 1
-                    report["by_rule"]["number_mismatch"] = report["by_rule"].get("number_mismatch", 0) + 1
                     _audit("number_mismatch", field, sent)
-                else:                                     # sibling-backed: the FIGURE stands, the
-                    drops.append((h0, h1))                # mis-citation alone is removed
-                    report["stripped"] += 1
-                    report["by_rule"]["number_mismatch"] = report["by_rule"].get("number_mismatch", 0) + 1
-                    _audit("number_mismatch", field, sent)
+                    continue
+                if (h0, h1) in spare:                     # it survived its charge: eval.py's `repaired`
+                    report["repaired"] += 1
+                else:                                     # the mis-citation alone is removed
+                    drops.append((h0, h1))
+                _rule = remedy.get((h0, h1))
+                if _rule is None:                         # ROUND-2 MAJOR-4: labelled by the HANDLE's own
+                    _rule = ("number_mismatch_orphan_kept"  # verdict, never by its sentence's
+                             if kinds.get((h0, h1)) == "unbacked" else "number_mismatch")
+                _audit(_rule, field, sent)
+            if orphaned:                                  # ROUND-2 MAJOR-4: ORPHANS, never handles
+                # ROUND-3 NEW-MAJOR-3: ACCUMULATED, like `backer_kept` beside it. `_verify_field`
+                # runs once for `tldr` and once for `mechanism` and `orphaned` is its own local, so
+                # the plain assignment made the answer-level counter read the SECOND field alone --
+                # a deep turn carrying bulleted ";"-joined prose in both fields under-reported every
+                # time, and this is the number the handoff asks lane F to print per answer.
+                report["orphan_kept"] = report.get("orphan_kept", 0) + len(orphaned)
 
             # PASS 3 -- apply. Coalesce the drops first so a sentence span ABSORBS the handle spans inside it
             # (no double-drop, no corrupted slice), then rewrite in reverse position order.
@@ -3214,8 +3798,15 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             # record to emit -- `report["repairs"]` is the always-present field CYCLE-8 FIX 2(c) made
             # unconditional, and it stays present and stays EMPTY, so the artifact schema is unchanged and
             # `eval.verifier_panel` keeps printing its (now always 0) repair count.
-            spans = _coalesce(drops)
+            spans = _coalesce([d for d in drops if d not in undrop])
             ops = [(a, b, "") for a, b in spans]
+            # ROUND-2: the orphan ladder's substitutions ride the SAME apply pass, and a substitution
+            # inside a span this pass is deleting is discarded rather than spliced into a hole -- the
+            # ladder only ever edits KEPT sentences, so the guard is a structural impossibility made
+            # explicit, not a live branch.
+            for a, b, v in edits:
+                if not any(x <= a and b <= y for x, y in spans):
+                    ops.append((a, b, v))
             for a, b, v in sorted(ops, reverse=True):
                 text = text[:a] + v + text[b:]
             # CYCLE-5 (2026-08-07) TIDY-1 -- THE STRIP SEAMS, REPORTED. Purely ADDITIVE: this loop reads

@@ -77,6 +77,33 @@ def _stats_tool_on() -> bool:
 CACHE_CHECKPOINTS = 2                  # moving markers kept per request; + the system block = 3 of 4
 
 
+def _cost_census_on() -> bool:
+    """Kill-switch GRAPHRAG_COST_CENSUS (default OFF), `_stats_tool_on`'s grammar inverted to opt-IN.
+
+    THE MEASURED BLIND SPOT (COST_LATENCY.md, the 2026-09-16 in-VPC smoke). `eval._turn_cost_usd` prices
+    ONLY `trace.synth_usage` -- the writer -- so the five-turn smoke reported $2.56 against a PROVABLE
+    floor of $3.93, and THIS lane is the missing $1.30 of it: 26 rounds at claude-sonnet-5 re-reading a
+    99,207-token cached prefix. `cache_creation_input_tokens` is measured NOWHERE in the estate, which is
+    why section 2 of that report has to MODEL the largest single term in an arm-A price.
+
+    OFF is the byte-identical rollback IN BOTH DIRECTIONS: nothing is accumulated, no `numbers_usage`
+    key is written onto any return, and the REQUEST is untouched at every setting -- this reads a field
+    off the response the loop already holds, so it can move neither a prompt, nor a tool schema, nor a
+    cache breakpoint, nor an answer. It is CONSTANT ACROSS AN ARM'S CELLS by design (arm_env_base's
+    `arm_only` section), so it cannot touch a judged delta either.
+
+    ONE GRAMMAR FOR ONE FLAG (lane F review M1, round 2, MEASURED). The first cut of this reader
+    accepted a FIFTH spelling -- `yes` -- that `dispatch._cost_census_on` refuses, so
+    `GRAPHRAG_COST_CENSUS=yes` stamped the numbers agent (the largest seat) while the dispatch
+    planner's pop and the judge's usage stayed dark, and the Spend panel printed a "total" that
+    looked complete with two seats silently missing. That is the half-armed class the pre-arm seams
+    commit (17fed3e4) exists to close, and `test_cost_census.py`'s own docstring already quoted the
+    lesson ("which is why `yes` is FALSE here rather than quietly accepted") while this half ignored
+    it. The grammar here is now `on|1|true` and nothing else, and the pin asserts this reader and
+    dispatch's agree SPELLING FOR SPELLING rather than merely both being false by default."""
+    return os.environ.get("GRAPHRAG_COST_CENSUS", "off").strip().lower() in ("on", "1", "true")
+
+
 def _incremental_cache_on() -> bool:
     """Kill-switch GRAPHRAG_NUMBERS_INCREMENTAL_CACHE (default ON), the `_stats_tool_on` idiom verbatim.
     OFF sends the conversation with NO moving breakpoint -- byte-identical to the pre-D-CL request, the
@@ -348,6 +375,90 @@ _ESR_ZERO_AGG_NOTE = (
 
 def _no_rows_note(status: str) -> str:
     return _NO_ROWS_NOTE.format(why=_NO_ROWS_WHY.get(str(status or ""), "no value was returned"))
+
+
+# ── THE EMPTY COUNTRY READ SAYS WHICH AXIS TO CHECK (round 2, review F-1 / docket #5) ────────────────
+#
+# THE MEASUREMENT, off the pre-arm smoke's own `served_rows` (three baseline artifacts, 419 served
+# reads). Every silver_psd / silver_psd_attributes read spelled `country='united_states'` returned ZERO
+# rows -- 5 refused outright and 16 `not_known`, 21 of 21 -- while `country='United States'` returned a
+# row on 41 of 41, SAME table, SAME metric, SAME as-of, several of them on the same turn minutes apart.
+# `country='world'` and `country='World'` returned zero rows on 21 of 21: this card serves no world
+# aggregate under EITHER spelling. `silver_wasde` next door legally takes `united_states`, so the
+# vocabulary carries across cards exactly the way the commodity slug did -- and unlike the commodity
+# axis there is no refusal site to hook, because query.py compiles `country = 'united_states'` as a
+# plain equality and Athena answers it honestly with nothing.
+#
+# WHAT THIS DOES AND WHAT IT REFUSES TO DO. It does NOT re-spell the country and re-run: a silent retry
+# would move a flag-off served figure on 21 of the smoke's own reads, which is a treatment change and
+# not a correction, and it would spend a second query on every empty country read in the estate. It
+# does NOT tell the model what the right spelling is: this seam has no card-declared country enum to
+# read (`commodity_values` has a twin here, and it is empty on all 41 cards), and inventing one would
+# be the mis-INFERRED-floor class. What it does is name the ONE axis an empty country read must rule
+# out before the absence is reported as a fact about the world -- and point at the card, which is where
+# this lane's prose now states the spelling. It APPENDS to the NO ROWS marker (D-PQ EMPTY-1), serves no
+# figure, and deletes nothing: a read that was empty is still empty, and still says so.
+#
+# ROUND 3, REVIEW MAJOR-4 -- WHERE IT POINTS, CORRECTED. The round-2 wording said "re-read this card's
+# COUNTRY line in the table list above", and there is no such line on any card wall in the estate:
+# `country_values` -- the country twin of `commodity_values`, the field a card wall would print an enum
+# from -- is EMPTY on ALL 41 cards (measured), so the nearest thing a card prints is `country=<column>`,
+# the COLUMN and never a spelling. The two cards this note now reaches state their spellings in their
+# NOTES, which is what it names.
+_COUNTRY_SPELLING_NOTE = (
+    "THE COUNTRY SPELLING IS THE FIRST THING TO RULE OUT. This card's country axis is matched by EXACT "
+    "EQUALITY on {country!r}, so a country spelled in a form this card does not use returns zero rows "
+    "in exactly the way a genuine absence does, and the two are indistinguishable from here. Re-read "
+    "this card's NOTES in the table list above, which spell the country values it serves, and re-issue "
+    "ONCE with the spelling the card itself uses before reporting this series as unpublished or "
+    "absent. If the re-issue is also empty, the absence is real for this card and you may say so -- as "
+    "a fact about THIS CARD's coverage, never as a fact about whether the source publishes the "
+    "figure.")
+
+
+def _country_spelling_note(country) -> str:
+    """ONE producer for the empty-country-read correction, so the payload and the pin read one string."""
+    return _COUNTRY_SPELLING_NOTE.format(country=str(country))
+
+
+def _country_axis_empty(spec, reg: NumbersRegistry) -> bool:
+    """Did an EMPTY read carry a country on a card whose country axis this lane MEASURED? Four declared
+    terms, all fail-closed: a read that returned rows, a call that named no country, a card with no
+    `country_col` and a card outside the measured hazard all answer False, so the note cannot reach a
+    read it is not about. Never raises -- an unreadable card means no note, not a failed lookup.
+
+    ROUND 3, REVIEW MAJOR-4 -- THE FOURTH TERM, AND THE CENSUS THAT BOUGHT IT. Round 2 fired on three
+    terms and was never censused. Measured over the pre-arm smoke's own 47 empty reads
+    (`prearm_fix_r3/C_census_country_note.py`): the note fired on 45 of them --
+      * 21 x `country='united_states'` on the two PSD cards, where it is RIGHT (that same corpus served
+        41 of 41 `'United States'` reads on the same cards, same metrics, same as-of);
+      * 21 x `country='world'` / `'World'` on silver_psd, where the card serves no world row under
+        either spelling -- the note is true and its pointer now lands on the card note that says so;
+      * 3 x `silver_nass_crop_progress.pct_harvested country='US'`, where the SAME corpus shows that
+        card returning `ok` TWICE on `country='US'`. The spelling is right, the absence is real and
+        seasonal (harvest had not started at the 2026-09-07 as-of), and the note told the model to
+        doubt it. A correction firing against a TRUE absence is the class this lane exists to remove,
+        pointed the other way, and it is the ONLY misfire the census found.
+    `_is_fanout_card` (`cascade.PSD_TABLES`) is the gate because it is exactly the set the hazard was
+    measured on AND exactly the set whose notes now spell the country values -- so the note's own
+    remedy is readable wherever it fires. Measured after: 42 of 47, the three misfires gone, all 42 on
+    a card whose note answers the re-read it asks for.
+
+    THE OTHER CANDIDATE NARROWING IS REFUTED, WITH THE MEASUREMENT (`C_census_country_ordered.py`): the
+    review offered "the spelling differs in case/underscore form from one that served on the same
+    turn". Over the whole turn that separates the classes perfectly (21 hits, all of them the
+    `united_states` class, 0 on world, 0 on nass) -- but THIS SEAM RUNS IN CALL ORDER and can only know
+    the reads already made, and the wrong spelling came FIRST on every turn but one: in call order the
+    rule fires on 2 of 45, i.e. it would DELETE the note on 19 of the 21 reads where it is right."""
+    if not str(getattr(spec, "country", "") or "").strip():
+        return False
+    tid = str(getattr(spec, "table", "") or "")
+    if not _is_fanout_card(tid):
+        return False
+    try:
+        return bool(getattr(reg.get(tid), "country_col", None))
+    except Exception:  # noqa: BLE001 -- an unknown card declares no axis, and this is not its fence
+        return False
 
 
 # THE SIGNEDNESS + AGG FENCE (cycle-3 review). `_exec` drops NULL-valued rows BEFORE this check runs, so
@@ -1466,7 +1577,378 @@ def shape_decline(shape: Optional[str], calls: Optional[list]) -> tuple[str, lis
     return shape_decline_line(str(shape), subjects, scopes) + "\n\n", declined, states
 
 
-# -- F14 / R8: DECLINE-REGISTER SUPPRESS-ON-OVERLAP (ratified 2026-08-01, wave-plan addendum 2) ---------
+# ══ LANE C (2026-09-17) -- THE PAIR SPREAD IS COMPUTED, NOT DESCRIBED ════════════════════════════════
+#
+# THE MEASURED DEFECT (pre-arm smoke, quick rv_soyoil_palm). The page printed palm at 1,117 USD/mt [N11]
+# and soyoil at 1,638 USD/mt [N12] -- ONE source, ONE month, ONE unit -- and then told the reader "the
+# gap itself is not a served series". The gap between two served rows is the most basic figure a
+# relative-value question asks for, `stats.pair_spread` has existed since RV-READING (2026-08-29) to
+# construct exactly it, and nobody asked for it. The doctrine is not "the writer may subtract": it is
+# figures-must-be-backed -- the CALCULATOR does the arithmetic and mints a citable [N] row.
+#
+# WHY THIS IS AN ENGINE LEG AND NOT A PROMPT SENTENCE. `pair_spread` is in `stats.ENGINE_STAT_NAMES`,
+# DELIBERATELY outside `STAT_REGISTRY` -- and `STAT_REGISTRY` is the agent's tool enum
+# (`stats_tool_schema` enumerates `sorted(ST.STAT_NAMES)`), by the ruling `extreme_locator`'s docstring
+# states. So the model CANNOT call it today, and a mandate telling it to would mint an `unknown stat`
+# error round at real cost. The estate's own answer to "the model did not ask for what the turn needed"
+# is the DETERMINISTIC LEG -- the ESR aggregate legs and the pattern-records legs both append real [N]
+# provenance to `calls` after the model stops -- and that is the shape used here: no tool-schema change,
+# no system-prompt change, no extra model round, no extra Athena query, and therefore not one byte of
+# the 247 kB cached numbers prefix moves.
+#
+# WHAT IT REFUSES TO DO, because a spread is a fact about two series and not about two numbers:
+#   * it computes over what the turn ALREADY FETCHED and never issues a lookup of its own;
+#   * `stats.pair_spread` joins by observation-date STRING EQUALITY and floors at MIN_PAIR_SPREAD_N=2
+#     joined observations -- so two single-row `agg='latest'` reads (what the smoke's soyoil turn did)
+#     CANNOT mint a spread history, and the turn is stamped `rv_pair_uncomputed` instead. That stamp is a
+#     RECORD, never a reader-facing refusal: the answer is untouched and nothing is denied to the reader.
+#     It is the measurement that says whether the mandate below is being obeyed.
+#   * the units must agree (`stats.unit_compatible`, the module's one three-state policy) and both legs
+#     must be PRICE legs, so two tonnage series can never be differenced into a "spread".
+RV_PAIR_UNCOMPUTED_KEY = "rv_pair_uncomputed"
+
+
+def _rv_pair_on() -> bool:
+    """Kill-switch GRAPHRAG_RV_PAIR_SPREAD (default OFF), `_stats_tool_on`'s grammar inverted to opt-IN.
+    OFF: `rv_pair_scope` is never called, no leg runs, no [N] row is injected and no key is written, so
+    every call list, every citation and every served byte is HEAD's."""
+    return os.environ.get("GRAPHRAG_RV_PAIR_SPREAD", "off").strip().lower() in ("on", "1", "true", "yes")
+
+
+def rv_pair_scope(question: str) -> Optional[tuple]:
+    """The TWO distinct markets a question names, as contract slugs, or None when it names fewer.
+
+    The vocabulary is `complex_map.resolve_bare_commodity` -- the estate's OWN curated bare-name ->
+    slug table, built for precisely this job ("the detector hands over NATURAL-LANGUAGE spans ... the
+    trade says 'palm'/'soyoil'/'canola' far more often than the curated canonical names"). Longest span
+    first, so 'palm oil' resolves as palm oil and never as 'palm' followed by a stray 'oil'.
+
+    `loaded=frozenset()` is passed ON PURPOSE: it skips `_loaded_contract_ids`, which would load the
+    CAUSAL GRAPH on the numbers lane. A question asking about a market by its raw contract slug is not a
+    shape this detector needs to reach, and a graph load inside a lookup loop is a dependency this seam
+    must not acquire. First two distinct slugs win; order is the question's own."""
+    found = _slugs_in_text(question, cap=2)
+    return (found[0], found[1]) if len(found) == 2 else None
+
+
+def _slugs_in_text(text, cap: Optional[int] = None) -> list[str]:
+    """The distinct contract slugs a piece of text names, in its own order, through the estate's curated
+    bare-name table. Longest span first, so 'palm oil' resolves as palm oil and never as 'palm' followed
+    by a stray 'oil'. ONE scanner, read by the question detector above and by the LEG matcher below --
+    the two must never hold different opinions about which market a word names (round 2, review M-3)."""
+    try:
+        from leviathan.graphrag.complex_map import resolve_bare_commodity as _rbc
+    except Exception:  # noqa: BLE001 -- no resolver -> no slugs, and the turn is byte-identical
+        return []
+    toks = re.findall(r"[a-z]+", str(text or "").lower())
+    found: list[str] = []
+    i = 0
+    while i < len(toks) and (cap is None or len(found) < cap):
+        step = 1
+        for span in (2, 1):
+            if i + span > len(toks):
+                continue
+            try:
+                slug = _rbc("_".join(toks[i:i + span]), frozenset())
+            except Exception:  # noqa: BLE001
+                slug = None
+            if slug:
+                if slug not in found:
+                    found.append(slug)
+                step = span
+                break
+        i += step
+    return found
+
+
+def rv_leg_market(call: dict, scope: Optional[tuple]) -> Optional[str]:
+    """WHICH of the question's two markets this served price leg is a price OF, or None.
+
+    ROUND 2, REVIEW M-3 -- THE LEG IS CHOSEN BY THE MARKET IT PRICES, NEVER BY CALL ORDER. The first cut
+    took "the turn's first two served PRICE legs, in call order" and tied neither of them to `rv_scope`.
+    Measured on the smoke's own rows, that picked two CRUDE OIL legs on a palm/soyoil question and
+    recorded `markets: ['malaysian_crude_palm_oil_cme', 'soybean_oil_cbot']` beside them -- the lane's
+    own measurement key naming a pair the figure was not about, which is the D4 class in its purest
+    form: a real, cited, unit-clean number about the WRONG thing.
+
+    TWO DECLARED READS, in this order, and NOTHING ELSE:
+      (1) the call's OWN `commodity` argument, when it IS one of the two scoped slugs. This is the
+          card-keyed case (silver_futures_eod, silver_psd, gold_board_crush) and it is exact.
+      (2) the METRIC NAME, for the cards where the market IS the metric and there is no commodity axis
+          at all -- silver_pink_sheet's `palm_oil_cpo_usd_t`, whose card says so in those words ("it
+          has NO commodity/country arguments -- the METRIC NAME IS the series"). Resolved through the
+          SAME curated scanner the question used, and kept only when it lands on a scoped slug.
+    A leg that answers neither is UNASSIGNED and can never become a leg of this spread."""
+    if not scope:
+        return None
+    q = (call or {}).get("query") or {}
+    com = str(q.get("commodity") or "").strip()
+    if com and com in scope:
+        return com
+    for slug in _slugs_in_text(str(q.get("metric") or "")):
+        if slug in scope:
+            return slug
+    return None
+
+
+# ROUND 3, REVIEW MAJOR-1 -- A PRICE LEG IS ONE THE ESTATE HAS DECLARED TO BE A MARKET'S OWN PRICE.
+#
+# TWO SPELLING RULES WERE TRIED AND BOTH WERE MEASURED WRONG, in opposite directions, over the SAME
+# corpus: the 2026-09-16 pre-arm smoke's 419 served reads (`prearm_fix_r3/C_census_price_units.py`).
+#
+#   ROUND 1 READ THE METRIC NAME. The estate spells derived statistics with the price word inside them,
+#   so a census over the live registry classified 113 metrics as a "price leg" -- every
+#   `*_usd_zscore_5yr` on silver_pink_sheet (unit 'sigma vs 5-yr mean', matched through `_usd_`), every
+#   `*_usd_pct_change_90d`, every silver_fred_fx rate -- and on the corpus it took 106 of the 372 ok
+#   reads. Rendered, that shape mints "[N] pair_spread = -0.944474 sigma vs 5-yr mean": the DIFFERENCE
+#   OF TWO Z-SCORES served to a reader as an observed value with a unit.
+#
+#   ROUND 2 READ THE ROW'S OWN UNIT against a currency-per-unit regex. IT TOOK ZERO PRICE LEGS ON THE
+#   TURN THIS LANE EXISTS TO FIX. The pink sheet declares no `unit_col` and no `unit_overrides`, and
+#   `query.py` stamps `r["unit"]` from those two sources ONLY, so `palm_oil_cpo_usd_t = 1117.0` and
+#   `soybean_oil_usd_t = 1638.0` -- one card, one month, one DECLARED unit (USD/mt), the exact two legs
+#   the rv_soyoil_palm turn served -- arrive with `unit: null` and were refused, while the record
+#   written in their place said "no served read is a price LEVEL for CME palm oil, CBOT soybean oil",
+#   which is false about that page. ALL 37 survivors of its registry census have that same shape (no
+#   serve-time unit source at all), so the set it could PIN and the set it could ADMIT were DISJOINT.
+#   It also took three DERIVED rows on rv_palm_rapeoil, because a windowed change is served under a
+#   metric name spelled in WORDS ("settle change over 5 sessions") and never in the underscore form the
+#   derived-spelling belt was written against. Measured on the corpus: 6 of 372 ok reads, 0 of them on
+#   rv_soyoil_palm, 3 of the 4 on rv_palm_rapeoil derived.
+#
+# WHAT SHIPS IS A DECLARATION, NOT A SPELLING. The estate already curates, per market, WHICH series is
+# that market's own printed price: `cascade._RV_PRICE_SERIES` (slug -> the World Bank benchmark on
+# `cascade._RV_PRICE_TABLE`) and `cascade._RV_EOD_LEVEL` (slug -> the board's own front settle on
+# `cascade._RV_EOD_TABLE`). Both are bound to `config_check.SYNTHESIZED_PRICE_LEG_ALLOW` by
+# `_check_synthesized_price_legs`, so a new price surface is ADJUDICATED rather than merely un-linted
+# -- the property a spelling rule can never have, and the reason this is not the table whitelist the
+# round-2 note warned about: the register is the estate's own, read here and never re-typed, and it
+# goes stale loudly at build time rather than silently at serve time.
+#
+# A DERIVED ROW, A CONSTRUCTION AND A PRICE OF THE WRONG THING ARE NOW ALL REFUSED BY ONE PROPERTY --
+# the estate has not declared them anyone's price. The z-scores, the pace changes, the windowed settle
+# changes, the FX rates, `gold_board_crush`'s four USD/bushel metrics (the margin IS a spread already
+# and the three components are board constructions, not the market's own printed price) and
+# `silver_wasde.avg_farm_price` (a season-average farm price, registered for SEAM B and for no
+# market's RV leg) all fail it. And `cotton_a_index_usd_t` -- the DECLARED cotton benchmark, which
+# round 2's derived-spelling belt refused through its `index` token -- passes it.
+# MEASURED, same corpus: 8 of 372 ok reads, and on rv_soyoil_palm EXACTLY the two legs the review
+# named. Over the live registry: 113 (round 1) -> 37 (round 2) -> 16, all 16 declared benchmarks.
+
+
+def _rv_declared_price_legs() -> frozenset:
+    """The (table, metric) pairs the ESTATE DECLARES to be a market's own printed PRICE LEVEL.
+
+    ONE read of the two curated registers, never a second copy of them. Empty on any import failure,
+    which refuses every leg and leaves the turn byte-identical -- the fail-closed direction for a dark
+    instrument, and the same shape `_is_fanout_card` uses to read `cascade.PSD_TABLES`."""
+    try:
+        from leviathan.graphrag.numbers import cascade as _csc
+    except Exception:  # noqa: BLE001 -- no register -> no declared price leg, and no turn changes
+        return frozenset()
+    out: set = set()
+    for _reg, _tbl in ((getattr(_csc, "_RV_PRICE_SERIES", None), getattr(_csc, "_RV_PRICE_TABLE", "")),
+                       (getattr(_csc, "_RV_EOD_LEVEL", None), getattr(_csc, "_RV_EOD_TABLE", ""))):
+        for _entry in (_reg or {}).values():
+            _metric = str((_entry or ("",))[0] or "")
+            if _tbl and _metric:
+                out.add((str(_tbl), _metric))
+    return frozenset(out)
+
+
+def _rv_is_price_call(call: dict) -> bool:
+    """Is this served call a PRICE LEVEL leg? The estate must DECLARE that (table, metric) to be some
+    market's own printed price. Never a unit spelling and never a metric spelling -- both were measured
+    and both were wrong, in opposite directions (the block above)."""
+    if str((call or {}).get("status") or "") != "ok":
+        return False
+    if not ((call or {}).get("rows") or []):
+        return False
+    q = (call or {}).get("query") or {}
+    return (str(q.get("table") or ""), str(q.get("metric") or "")) in _rv_declared_price_legs()
+
+
+def _rv_leg_unit(call: dict):
+    """The unit of a price leg, READ THE WAY THE CITATION LAYER READS IT: the served row's own unit
+    when the card stamps one, else the unit the CARD DECLARES for that metric.
+
+    ROUND 3, REVIEW MAJOR-1, the second half. `citations._card_unit` is the estate's ONE reader of a
+    declared card unit and `citations.from_number` already falls back to it for exactly this reason --
+    a card with no `unit_col` and no `unit_overrides` serves rows with no unit, and the pink sheet,
+    which carries EVERY World Bank benchmark in the register above, is that card. Read through the
+    citation layer's own function on purpose: the unit this seam hands the calculator and the unit the
+    reader's `## Sources` line renders can then never disagree. Without it both legs of the motivating
+    turn reach `stats.pair_spread` with `unit=None` and it declines on BOTH_UNITS_REQUIRED -- correct
+    of the calculator, and a refusal of a spread whose unit the card states plainly. None when neither
+    source knows, which is the value the calculator refuses on."""
+    rows = (call or {}).get("rows") or []
+    unit = str((rows[0] or {}).get("unit") or "").strip()
+    if unit:
+        return unit
+    q = (call or {}).get("query") or {}
+    try:
+        from leviathan.graphrag import citations as _cit
+        return _cit._card_unit(load_registry(), str(q.get("table") or ""),
+                               str(q.get("metric") or "")) or None
+    except Exception:  # noqa: BLE001 -- an unreadable card declares no unit; the calculator refuses
+        return None
+
+
+def _rv_call_label(call: dict) -> str:
+    """The leg's own name for the decline and the row labels: `<table>.<metric>` plus the commodity when
+    the call carries one. Machine identity, and it stays OFF the reader's page -- it reaches the
+    `rv_pair_uncomputed` record and `stats.pair_spread`'s `label_a`/`label_b`, which this seam uses only
+    to make the two legs distinguishable to the calculator's same-series guard."""
+    q = (call or {}).get("query") or {}
+    base = f"{q.get('table')}.{q.get('metric')}"
+    com = str(q.get("commodity") or "").strip()
+    return f"{base}[{com}]" if com else base
+
+
+def rv_pair_candidates(calls: Optional[list], scope: Optional[tuple] = None) -> list:
+    """The served PRICE legs of a turn, de-duplicated by (table, metric, commodity).
+
+    WITH a `scope` (always, on the serving path) this returns AT MOST TWO calls -- the first served
+    price level for scope[0] and the first for scope[1], IN THE QUESTION'S OWN ORDER, so `leg_a` is
+    always the market the question named first and the SIGN of the difference is the sign the reader
+    expects. A market with no price leg contributes nothing and the caller declines naming it.
+    WITHOUT a scope this is the old call-order list, kept for the census probes that ask "what did this
+    turn serve that is a price at all" -- it is never the serving selector any more (review M-3)."""
+    seen, out = set(), []
+    for c in calls or []:
+        if not _rv_is_price_call(c):
+            continue
+        key = _rv_call_label(c)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(c)
+    if not scope:
+        return out
+    picked: list = []
+    for market in scope:
+        leg = next((c for c in out if rv_leg_market(c, scope) == market), None)
+        if leg is not None:
+            picked.append(leg)
+    return picked
+
+
+def rv_pair_subject(scope: Optional[tuple]) -> str:
+    """The two markets of an RV pair as ONE reader-facing subject -- "CBOT soybean oil minus CME
+    Malaysian crude palm oil". ONE producer: the minted row's citation scope and the pin both read this
+    string, so what the reader sees and what the test asserts can never drift. '' when the pair is not
+    two markets, which is the only value that renders nothing (round 2, review M-4)."""
+    if not scope or len(scope) != 2:
+        return ""
+    a, b = _reader_words(scope[0]), _reader_words(scope[1])
+    return f"{a} minus {b}" if (a and b) else ""
+
+
+def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list]) -> tuple[list, Optional[str]]:
+    """(injected [N] calls, uncomputed reason) for the RV pair leg. EXACTLY ONE of the two is ever
+    non-empty, and both are empty/None when the question names no pair at all -- so a turn that is not
+    an RV turn takes no branch and writes no key.
+
+    THE TWO LEGS ARE THE TWO MARKETS THE QUESTION NAMED (round 2, review M-3): `rv_pair_candidates`
+    is handed the scope and returns the first served price LEVEL for each of `scope[0]` and
+    `scope[1]`, in the question's own order, so `leg_a` is the market named first and the sign of the
+    difference is the sign the reader expects. Call order selects nothing. The injected row NAMES BOTH
+    under `leg_a` / `leg_b`, and ALSO in the reader's own words on the citation scope (M-4 below): the
+    sign of a difference is meaningless without them, exactly as `spread`'s near/far months are (T1-4's
+    ruling, applied to the cross-series axis).
+
+    THE UNIT IS THE PRICE UNIT ON THE DIFFERENCE FORM, which is a knowing departure from `_STAT_UNIT`'s
+    kind-label for `spread`, and the departure is safe for the reason that rule was written: its hazard
+    is a CHAINED stat ranking a difference inside a pool of LEVELS. Nothing can chain this row -- it is
+    minted after the model has stopped, no handle is registered for it, and the rank below is computed
+    HERE against the spread's OWN constructed history. `stats.pair_spread` already returns `unit=None`
+    for the ratio form under its own narration law, and that None is passed through untouched."""
+    if not scope:
+        return [], None
+    cands = rv_pair_candidates(calls, scope)
+    if len(cands) < 2:
+        # The decline NAMES the market that has no price level behind it, because "served 1 price
+        # leg(s)" was a count of the wrong thing: the first cut could serve four price legs and still
+        # be about neither market. `_rv_unpriced` is the question's own words for the gap.
+        missing = [m for m in scope
+                   if not any(rv_leg_market(c, scope) == m for c in cands)]
+        return [], (f"the turn names two markets and no served read is a price LEVEL for "
+                    f"{', '.join(_reader_words(m) for m in missing) or 'one of them'}; a spread needs "
+                    f"a price read on each of the two markets the question names")
+    a, b = cands[0], cands[1]
+    rows_a, rows_b = (a.get("rows") or []), (b.get("rows") or [])
+    la, lb = _rv_call_label(a), _rv_call_label(b)
+    res = ST.pair_spread(_series_axis(rows_a)[0], _date_axis(rows_a), _rv_leg_unit(a),
+                         _series_axis(rows_b)[0], _date_axis(rows_b), _rv_leg_unit(b),
+                         label_a=la, label_b=lb)
+    if res.get("declined"):
+        # The calculator's OWN refusal sentence, verbatim -- never a re-worded one. Two single-row
+        # `agg='latest'` reads land here (n=1 < MIN_PAIR_SPREAD_N), which is the smoke's measured case.
+        return [], str(res.get("reason") or "pair_spread declined")
+    if str(res.get("form") or "") != "difference":
+        # THE RATIO FORM IS COMPUTED AND NOT MINTED, and the calculator's own docstring is why: across
+        # two different physical units the level carries "an unrecoverable but constant positive
+        # conversion factor", so it is `unit: None` and rides a narration law -- "never printed with a
+        # unit, never called a price" -- that lives in the WRITER's prompt, not at this seam. Every
+        # STATISTIC of it would be honest; the LEVEL is not quotable, and this leg mints levels. Stamped
+        # as uncomputed so the miss is visible rather than silently dropped.
+        return [], (f"the two legs are quoted in different units ({res.get('units')}), so the pair "
+                    f"constructs as a ratio whose level is not quotable, not as a spread")
+    dates = list(res.get("dates") or [])
+    win = f"{dates[0]}..{dates[-1]}" if len(dates) >= 2 and dates[0] and dates[-1] else None
+    kd = _handle_kd(list(rows_a) + list(rows_b))
+    prov = {"stat": "pair_spread", "params": {"form": res.get("form"), "n": res.get("n")},
+            "input_legs": [la, lb]}
+    lab = {"leg_a": la, "leg_b": lb, "pair_form": res.get("form"),
+           # ROUND 2 (review M-4): the two markets in the READER's words, on the row, beside the
+           # machine labels. `leg_a`/`leg_b` are `<table>.<metric>[<slug>]` addresses -- correct for
+           # the calculator's same-series guard and unprintable on a page.
+           "pair_markets": rv_pair_subject(scope)}
+    # ROUND 2, REVIEW M-4 -- THE MINTED ROW NAMES ITS TWO MARKETS ON THE READER'S PAGE.
+    #
+    # WHAT THE FIRST CUT RENDERED, through the real producer: "computed statistic pair_spread
+    # 2026-01-01..2026-08-01 = -521 USD/mt". `leg_a`/`leg_b` rode the ROW payload and NOTHING reads
+    # them on a citation, so a signed magnitude reached `## Sources` belonging to nobody -- K9-5's own
+    # ruled defect ("seven magnitudes belonging to nobody") reintroduced by a new mint.
+    #
+    # THE SUBJECT RIDES `query.commodity`, WHICH IS THE ONE SCOPE SLOT `citations.from_number` ALREADY
+    # RENDERS FOR A COMPUTED ROW. That label joins `_contract_display(q['commodity'])`, the geo, the
+    # period, the delivery and the z-span; a synthetic `compute_stat` row carries no commodity today,
+    # so this slot is empty and free. `_contract_display` returns an unresolvable string UNCHANGED, so
+    # a value already rendered in the analyst's own words passes through verbatim -- which is why
+    # `rv_pair_subject` resolves BOTH slugs here, through the estate's ONE display producer, rather
+    # than handing the citation a raw slug to leak.
+    #
+    # `source_table` / `source_metric` ARE DELIBERATELY NOT SET, and that is not an omission. The K9-5
+    # rider exists so a computed row can headline the card it was computed over; this row was computed
+    # over TWO cards, and naming one would attribute a cross-market difference to one market's source.
+    # `cascade._stat_display`'s own rule agrees ("bare stat words when the source is absent"), so the
+    # line reads `computed statistic <stat words> <market A> minus <market B> <window> = ...`.
+    # THE STAT WORDS THEMSELVES ARE STILL cascade.py's: `_STAT_DISPLAY` has no `pair_spread` row, so
+    # today the slug renders there. That row is HANDOFF item 2 and this lane does not own the file --
+    # with it the line reads "spread between the two markets"; without it the SUBJECT is still named,
+    # which is what M-4 is about, and the flag stays dark until the handoff lands.
+    subject = lab["pair_markets"]
+
+    def _row(val, metric, unit):
+        q = {"table": STATS_TOOL_NAME, "metric": metric}
+        if subject:
+            q["commodity"] = subject          # the reader's name for the pair, in the scope slot
+        if win:
+            q["period"] = win                 # the window is the JOINED history, in the one spelling
+        return {"query": q, "rows": [{"value": val, "unit": unit, "knowledge_date": kd, **lab}],
+                "status": "ok", "stat_provenance": prov}
+
+    out = [_row(res.get("value"), "pair_spread", res.get("unit"))]
+    series = list(res.get("series") or [])
+    if len(series) >= ST.MIN_PERCENTILE_N:
+        # THE RANK OF THE LATEST SPREAD INSIDE ITS OWN CONSTRUCTED HISTORY -- `stats.percentile`, the
+        # estate's one ranking instrument, at its own unrelaxed floor (MIN_PAIR_SPREAD_N deliberately
+        # sits BELOW it so the level is servable on a thin pair while the RANK still refuses).
+        pr = ST.percentile(res.get("value"), series)
+        if not pr.get("declined"):
+            out.append(_row(pr.get("value"), "percentile", _STAT_UNIT["percentile"]))
+    return out, None
 # Two decline REGISTERS can co-occur in one answer preface: C2's question-shape line beside a legacy
 # template -- the R5 price-coverage decline (DECLINE_TEMPLATES), the SEAM-C futures levels-only decline
 # (FUTURES_DECLINE_TEMPLATES), the ESR destination decline, the W3.2 coverage decline. The reader then
@@ -1887,6 +2369,23 @@ def stats_tool_schema() -> dict:
     }
 
 
+def _cell_float(row) -> Optional[float]:
+    """THE ONE VALUE-CELL COERCION, and therefore THE ONE DROP RULE every parallel axis in this module
+    shares (LANE C 2026-09-17). It was previously inline in `_series_axis`, whose own docstring states
+    why a second copy is dangerous: an axis assembled by a second loop "would silently misalign the
+    moment the two loops disagreed about a droppable cell". `_date_axis` below is exactly such a second
+    axis, so the predicate is lifted here rather than re-typed -- `_series_axis` and `_date_axis` cannot
+    disagree about which rows survive, because there is only one function that decides.
+    None means "this row carries no numeric value" -- never 0.0, which is a real reading."""
+    v = (row or {}).get("value")
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        return float(str(v).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
 def _series_axis(rows: list) -> tuple[list[float], list[str]]:
     """D-AM-17: the handle's numeric series AND its parallel delivery-month label axis, built in ONE pass so
     the drop rule is written once. `stats.spread` selects its two legs BY NAME from the label axis, so a
@@ -1897,16 +2396,28 @@ def _series_axis(rows: list) -> tuple[list[float], list[str]]:
     vals: list[float] = []
     exps: list[str] = []
     for r in rows or []:
-        v = (r or {}).get("value")
-        if v is None or isinstance(v, bool):
-            continue
-        try:
-            f = float(str(v).replace(",", ""))
-        except (TypeError, ValueError):
+        f = _cell_float(r)
+        if f is None:
             continue
         vals.append(f)
         exps.append(str((r or {}).get("contract_month") or "").strip())
     return vals, exps
+
+
+def _date_axis(rows: list) -> list[str]:
+    """LANE C (2026-09-17): the OBSERVATION-DATE axis parallel to `_series_axis`'s numeric one, dropping
+    exactly the rows `_cell_float` drops so index i of one names index i of the other.
+
+    The values are the row's OWN bare date in PERIOD-semantics order (`row_date`: the period when the card
+    has one, else the data/knowledge date) -- never a label, never parsed, never re-ordered. Two readers,
+    both of which need a date the handle did not carry before this axis existed:
+      * the STAT WINDOW a difference was taken over (`_stat_calls`), which today is asserted nowhere on the
+        injected row, so "change over 2026-07-08..2026-09-16" reached a reader as "week-on-week";
+      * the RV PAIR leg's join key (`stats.pair_spread` joins two separately-read legs by observation-date
+        STRING EQUALITY, its docstring exception (3)).
+    A row that carries no date at all contributes "" -- present, so the axes stay aligned, and falsy, so
+    every consumer below can refuse rather than guess."""
+    return [str(row_date(r) or "") for r in (rows or []) if _cell_float(r) is not None]
 
 
 def _series_from_rows(rows: list) -> list[float]:
@@ -2162,9 +2673,63 @@ def _stat_unit(stat: str, series_unit: Optional[str], src_table: Optional[str] =
     return u
 
 
+def _stat_window_on() -> bool:
+    """Kill-switch GRAPHRAG_STAT_WINDOW (default OFF), the `_stats_tool_on` grammar inverted to opt-IN.
+    OFF -> `_stat_window` is never called and every injected stat row's synthetic query is byte-identical
+    to HEAD's `{table, metric}`, so no citation, no numbers-panel line and no `## Sources` row moves."""
+    return os.environ.get("GRAPHRAG_STAT_WINDOW", "off").strip().lower() in ("on", "1", "true", "yes")
+
+
+# LANE C (2026-09-17) -- THE WINDOW A CHANGE WAS TAKEN OVER, ON THE ROW THAT CARRIES THE CHANGE.
+#
+# THE MEASURED DEFECT (pre-arm smoke, quick rv_soyoil_palm and the Brent leg of rv_palm_rapeoil): a
+# `window_change` figure reached the reader as "changed -0.317 thousand MT WEEK-ON-WEEK" over a window
+# of 2026-07-08..2026-09-16, and a five-year-z change spanning seven months was called "on the month".
+# The cadence word is the writer's, but the row gave it nothing to contradict: `_stat_calls` mints
+# `{"table": compute_stat, "metric": "window_change"}` and the injected row asserts NO window at all,
+# while the `zscore` arm beside it has declared `z_window` since G4c(iii) for exactly this reason ("a
+# sigma with no WINDOW and no SERIES is unauditable and unreproducible"). A change is the same defect on
+# the same axis.
+#
+# IT RIDES THE `period` SLOT, WHICH IS NOT A NEW RENDERER: `citations._period_label` passes a token
+# containing '..' through verbatim (it is the cascade's own window spelling -- "MPOB
+# closing_stocks_palm_oil_mt_pace_change CME palm oil 2026-02-08..2026-09-16 = 0.0845 MMT" is a banked
+# footer line of this very smoke), so the window prints in the label the writer reads and the reader
+# checks, with no edit anywhere outside this function. ONE SPELLING for a window in this estate.
+#
+# SCOPE, AND THE EXCLUSIONS ARE DELIBERATE: the three POSITIONAL stats whose figure IS a change or a run
+# over a span of observations -- window_change (its own t1/t2 endpoints), yoy_delta (latest and
+# `periods` back) and streak (the run's first move to the latest). `zscore` already declares its window
+# under its own key and is left exactly as it is; `percentile` and `extrema` are order-independent reads
+# of a whole history, whose basis is the handle itself; `spread` spans two DELIVERY MONTHS, not two
+# observations, and already names both legs. A stat whose dates are absent, blank or misaligned with its
+# own series gets NO window -- silence, never a guessed span.
+def _stat_window(stat: str, res: dict, dates: Optional[list]) -> Optional[str]:
+    """`<first>..<last>` for the observations a positional stat's figure spans, or None."""
+    ds = [str(d or "") for d in (dates or [])]
+    n = int(res.get("n") or 0)
+    if not ds or len(ds) != n or not all(ds):
+        return None                      # a misaligned or part-dated axis cannot name a window
+    try:
+        if stat == "window_change":
+            a, b = ds[int(res["t1"])], ds[int(res["t2"])]
+        elif stat == "yoy_delta":
+            a, b = ds[-1 - int(res["periods"])], ds[-1]
+        elif stat == "streak":
+            run = int(res.get("value") or 0)
+            if run < 1 or run >= n:
+                return None              # a zero run spans no window; a full-series run has no first move
+            a, b = ds[-1 - run], ds[-1]
+        else:
+            return None
+    except (KeyError, TypeError, ValueError, IndexError):
+        return None
+    return None if (not a or not b or a == b) else f"{a}..{b}"
+
+
 def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd: Optional[str],
                 labels: Optional[dict] = None, src_table: Optional[str] = None,
-                src_metric: Optional[str] = None) -> list[dict]:
+                src_metric: Optional[str] = None, dates: Optional[list] = None) -> list[dict]:
     """Turn a SUCCESSFUL stats result into one (or, for extrema, two) synthetic lookup call(s) -- each an
     [N] row carrying the computed value so the all-numbers guard value-checks it. A decline injects nothing.
 
@@ -2204,8 +2769,11 @@ def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd
         # never into `contract_month`, which every downstream expiry reader parses as a month.
         lab["z_window"] = res.get("window")
         lab["z_series"] = ".".join(x for x in (src_table or "", src_metric or "") if x) or None
+    win = _stat_window(stat, res, dates) if _stat_window_on() else None
     def _row(val, metric):
         q = {"table": STATS_TOOL_NAME, "metric": metric}
+        if win:
+            q["period"] = win            # LANE C: the window, verbatim, in the estate's one spelling
         return {"query": q, "rows": [{"value": val, "unit": unit, "knowledge_date": kd, **lab}],
                 "status": "ok", "stat_provenance": prov}
     if stat == "extrema":
@@ -2481,6 +3049,21 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "there is no front month in this lookup (no front-month flag, no open interest), so a spread is "
         "refused rather than guessed, and a read spanning several sessions is refused too.\n"
         if stats_on else "")
+    # LANE C: the RV-PAIR mandate, on the SAME kill-switch as the engine leg that consumes it, so the
+    # model is never told about a leg it does not have and never has one it was not told how to feed.
+    # It asks for a READ SHAPE, not a tool: the cross-series spread is constructed deterministically
+    # after this loop (`rv_pair_spread_legs`), and what it needs is each leg read as a SERIES over a
+    # shared window -- two `agg='latest'` rows are one observation apiece and join to nothing.
+    rv_bullet = (
+        "- A QUESTION NAMING TWO MARKETS IS A SPREAD QUESTION, and the spread between them is a FIGURE "
+        "this desk owes the reader -- never a gap you describe in words and never one you subtract "
+        "yourself. Read EACH leg's price as a SERIES (agg='series') over the SAME window and in the SAME "
+        "unit, from the same source card where one serves both; the spread and its standing in its own "
+        "history are then computed for you and come back as observed [N] values. Two single-date reads "
+        "cannot be joined into a spread history, so do not settle for them on a two-market question. If "
+        "one leg's price is genuinely not served, say which leg and why -- that is an honest absence; "
+        "'the gap itself is not a served series' is not.\n"
+        if _rv_pair_on() else "")
     return (
         "You are a data-lookup agent for an agricultural-commodity desk. Answer ONLY with numbers you actually "
         "retrieve via the lookup_number tool from the tables below — never invent or recall a figure. Every value "
@@ -2512,8 +3095,11 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "grindings_kt) -- report it as 'cocoa stocks-to-use (ICCO annual)' and NEVER conflate it with the "
         "PSD-World su_ratio.\n"
         "- silver_mpob is MONTHLY Malaysian palm-oil fundamentals under commodity='malaysian_crude_palm_oil_cme' "
-        "(the only value); for the USDA ANNUAL palm balance sheet use silver_psd instead. Its su_ratio is a "
-        "MONTHLY closing-stocks/exports ratio, distinct from the PSD annual stocks-to-use.\n"
+        "(the only value); for the USDA ANNUAL palm balance sheet use silver_psd instead. Its su_ratio is "
+        "MONTHS OF EXPORT COVER -- closing stocks divided by that month's exports, so a value near 1.9 means "
+        "stocks cover about 1.9 months of exports. It is NOT a stocks-to-use ratio and NOT a percent: quote "
+        "it as months of cover, and never set it beside another commodity's stocks-to-use as the two halves "
+        "of one comparison (the comparable palm figure is silver_psd's own annual su_ratio).\n"
         "- silver_sagis_cec `commodity` is a SAGIS crop code -- total_maize, white_maize, yellow_maize, wheat, "
         "soybeans, sunflower_seed, sorghum, barley, canola, oats, dry_beans, groundnuts -- South Africa ONLY; "
         "`country` selects the reporting scope (total | commercial | developing), so pass country='total' for "
@@ -2549,7 +3135,7 @@ def system_prompt(reg: NumbersRegistry, stats_tool: Optional[bool] = None) -> st
         "say positioning will unwind or must revert, and never let it drive a price call or a cascade fork. It "
         "is lag-published (about 6 days) and can be several weeks stale, so ALWAYS cite the report date -- "
         "staleness must be visible, not hidden.\n"
-        + stats_bullet + pattern_bullet +
+        + stats_bullet + rv_bullet + pattern_bullet +
         # GENERAL month-grain rule (task #142). The IOD bullet below already carries it; this states it ONCE
         # for every month-grained card (oni + iod + gold_weather_z) so the named-month discipline is not a
         # per-card accident. It is prompt-side discipline only -- the deterministic period-mismatch guard
@@ -2755,28 +3341,272 @@ class CommodityOffCard(ValueError):
     """A lookup naming a commodity the card does not serve (D-PQ CLASS-1). Its message is the remedy."""
 
 
-def _check_commodity_class(spec, reg: NumbersRegistry) -> None:
+# ── LANE C (2026-09-17): THE ALIAS RESOLUTION AT THE REFUSAL SITE ────────────────────────────────────
+#
+# THE MEASURED DEFECT (in-VPC pre-arm smoke 2026-09-16, 5 turns): ELEVEN lookups came back
+# `silver_psd does not serve commodity 'wheat' / 'corn' / 'soybeans' / 'soybean_oil' / 'palm_oil'` --
+# the agent asking the balance-sheet card by SHORT NAME where it is keyed by CONTRACT SLUG. The model
+# did not invent that vocabulary: `silver_minagro_grain_exports` declares `wheat` and `corn`,
+# `gold_board_crush` declares `soybeans`, and the oil-stocks cards declare `palm_oil` / `soybean_oil`,
+# so a legal name was carried across a card boundary the PSD card never marked. The cost is a wasted
+# lookup ROUND of a six-round budget on three of five turns -- and on the soyoil turn the retry came
+# back `(not known)` and the answer told the reader "USDA's world palm and world soyoil balance sheets
+# carry NO figure at this as-of", a not-known the artefacts cannot distinguish from a second wrong ask.
+#
+# WHY RESOLVING IS SAFE HERE, AND IT IS A FACT ABOUT THE PRODUCER RATHER THAN A JUDGEMENT ABOUT NAMES.
+# `transforms/bronze_to_silver/usda_psd.py:_PSD_COMMODITY_TO_SLUGS` FANS ONE USDA SHEET OUT OVER
+# SEVERAL SLUGS -- code 410000 is the "all-class wheat aggregate" emitted once per wheat slug, 440000
+# the "corn / maize aggregate", 2222000 the soybeans aggregate, 4232000 soybean oil, 4243000 palm --
+# and its own R2 rule forbids a slug appearing under two codes. So the members of one family are the
+# SAME ROWS under different keys: picking one is a choice of KEY, not of scope, and the substitution the
+# fence exists to prevent (one commodity's number wearing another's label) is not what is happening.
+# The card prose says this in as many words so the model asks right the FIRST time; this seam is the
+# belt for the ask that still arrives short.
+#
+# THE RULE, and it is deliberately narrow:
+#   (a) ON A FAN-OUT CARD ONLY, the ESTATE'S OWN CURATED RESOLVER --
+#       `complex_map.resolve_bare_commodity`, which reroute v2 already uses to answer this exact
+#       question ("wheat -> 4 classes; soybean_oil -> cbot|dce; palm_oil -> mcpo|palm_olein_dce ... the
+#       v1 curation picks ONE") and which states that it MIRRORS `cascade.PSD_SLUG_ALIAS` and extends
+#       it. Imported, never re-typed. SCOPED to `_is_fanout_card` because the whole argument above is a
+#       property of the PSD producer: on silver_cot a slug is a SCOPE, and the same pick there would be
+#       a substitution;
+#   (b) on ANY fenced card, a TOKEN-CONTIGUITY read of its OWN declared set: 'palm_oil' -> the one
+#       declared value whose underscore tokens carry [palm, oil] adjacently (malaysian_crude_palm_oil_cme;
+#       palm_olein_dce and palm_kernel_oil do not), 'soybean_oil' -> two, 'wheat' -> four;
+#   (c) EXACTLY ONE candidate resolves. MORE THAN ONE IS STILL REFUSED, and the refusal now NAMES THE
+#       CANDIDATES so the re-ask is one token rather than a search of 63 values. Nothing is ever
+#       resolved silently: the resolution is stamped on the tool_result the model reads and on the
+#       served payload, so the writer sees "resolved 'palm_oil' -> malaysian_crude_palm_oil_cme" and
+#       can never narrate a false absence in its place.
+# ZERO candidates is HEAD, byte for byte -- the message below is unchanged on that path, which is every
+# genuinely off-card ask the estate's other fences were built on (cocoa on PSD, a NASS crop label, an
+# arabica slug on the FNC port card).
+_ALIAS_SPLIT = re.compile(r"[^a-z0-9]+")
+
+
+def _slug_tokens(s: str) -> list[str]:
+    """A commodity id as its underscore tokens, lowercased -- 'Soybean_Oil' -> ['soybean', 'oil']."""
+    return [t for t in _ALIAS_SPLIT.split(str(s or "").strip().lower()) if t]
+
+
+def _is_fanout_card(tid: str) -> bool:
+    """Is this card one whose PRODUCER emits ONE published sheet under SEVERAL slugs?
+
+    Today that is exactly the two PSD cards, and the authority is `cascade.PSD_TABLES` -- imported, never
+    re-typed, because that constant's own block note exists so "the declared-unserved fence and the World
+    synthesis ... mean the same two cards". The property it stands for is
+    `usda_psd._PSD_COMMODITY_TO_SLUGS`: code 410000 is the all-class WHEAT aggregate emitted once per
+    wheat slug, 440000 the corn/maize aggregate, 2222000 soybeans, 4232000 soybean oil, 4243000 palm --
+    with a producer rule (R2) forbidding any slug under two codes. On such a card the family members are
+    the SAME ROWS under different keys, so choosing one is choosing a KEY. On every OTHER card a slug is
+    a SCOPE (silver_cot's `soft_red_winter_wheat_cbot` is the SRW contract's own positioning report and
+    nothing else), and a curated one-of-four pick there would be the substitution the fence exists to
+    prevent -- which is why rule (a) below is scoped to this predicate and rule (b) is not."""
+    try:
+        from leviathan.graphrag.numbers import cascade as _csc
+        return str(tid) in _csc.PSD_TABLES
+    except Exception:  # noqa: BLE001 -- unknown -> NOT a fan-out card (fail closed: the token rule alone)
+        return False
+
+
+# THE RESOLVER'S WHOLE VOCABULARY, ONE ROW PER FAN-OUT FAMILY, EACH CARRYING ITS PRODUCER CODE.
+# Hand-declared rather than derived, and the reason is a MEASURED one: a rule that reads the card's
+# declared set alone cannot tell a family fan-out from two different subjects wearing one word. Run over
+# all 23 fenced cards while authoring this, a pure token-contiguity resolver resolved 41 names and TWO
+# of them were wrong in exactly that way -- `orange` -> `frozen_orange_juice` on a card whose own notes
+# read "THE CITRUS PAIR IS TWO SUBJECTS, NEVER ONE ... fresh_citrus is the ORANGE fruit", and
+# `sunflower` -> `sunflower_oil` on silver_esr, where the seed and the oil are separate export programs.
+# The estate's curated `complex_map._BARE_TO_SLUG` is not a drop-in either: it routes `canola` and
+# `rapeseed` at the OIL level "per the RV-W0 curation", which is right for a relative-value pair and
+# WRONG on a balance-sheet card that serves `canola_ice` (the SEED, USDA code 2226000) under its own key.
+#
+# So each row below names the USDA PSD commodity code whose slug list contains the target
+# (`usda_psd._PSD_COMMODITY_TO_SLUGS`), which is the whole justification: ONE sheet, emitted once per
+# slug, R2 forbidding a slug under two codes. `tests/unit/test_numbers_psd_alias.py` reads that producer
+# map and asserts it, so the claim in this comment is a pin rather than a sentence. Every target is also
+# asserted to agree with `complex_map._BARE_TO_SLUG` wherever that map carries the same key, so the two
+# vocabularies can never drift apart in silence.
+PSD_FANOUT_ALIAS: dict[str, str] = {
+    "wheat":        "soft_red_winter_wheat_cbot",      # 410000, the all-class wheat aggregate (4 slugs)
+    "corn":         "corn_cbot",                       # 440000, the corn / maize aggregate (5 slugs)
+    "maize":        "corn_cbot",                       # 440000, the same sheet under the other word
+    "soybeans":     "soybeans_cbot",                   # 2222000, the soybeans aggregate (3 slugs)
+    "soybean_oil":  "soybean_oil_cbot",                # 4232000 (2 slugs)
+    "soyoil":       "soybean_oil_cbot",                # 4232000
+    "soybean_meal": "soybean_meal_cbot",               # 813100 (2 slugs)
+    "soymeal":      "soybean_meal_cbot",               # 813100
+    "palm_oil":     "malaysian_crude_palm_oil_cme",    # 4243000 (2 slugs: mcpo + palm_olein_dce)
+}
+# TWO WORDS THE FIRST CUT OF THIS TABLE CARRIED AND THE PRODUCER PIN THREW OUT, kept here as the record
+# of why the pin is not decoration. `soybean` (singular) spans THREE sheets on this card -- the beans
+# (2222000), the meal (813100) and the oil (4232000) -- and `palm` spans the palm-oil code (4243000)
+# AND the whole palm-KERNEL complex (2232000 / 813800 / 4244000), which is a different oil with its own
+# market. Both were caught by `test_the_family_is_one_published_sheet_and_the_producer_map_says_so`
+# reading `_PSD_COMMODITY_TO_SLUGS`, not by review. They are REFUSED, and the refusal names candidates.
+
+
+def _psd_fanout_alias(cid: str, allowed: list, tid: str) -> Optional[str]:
+    """Rule (a): the ONE resolution this seam performs. A fan-out card, a declared family word, and a
+    target the card itself serves -- all three, or nothing."""
+    if not _is_fanout_card(tid):
+        return None
+    slug = PSD_FANOUT_ALIAS.get("_".join(_slug_tokens(cid)))
+    return slug if slug and slug in allowed else None
+
+
+def _alias_candidates(cid: str, allowed: list) -> list[str]:
+    """Rule (b): the declared values an off-card name COULD mean, by token contiguity, in the card's own
+    declared order. THIS NEVER RESOLVES ANYTHING -- it only names candidates inside a refusal, and only
+    when it finds two or more, so a single near-miss can never be read as a recommendation (the
+    orange/sunflower class above). 'wheat' on silver_fgis -> three; 'oil' on silver_psd -> ten."""
+    want = _slug_tokens(cid)
+    if not want:
+        return []
+    out = []
+    for v in allowed:
+        toks = _slug_tokens(v)
+        if any(toks[i:i + len(want)] == want for i in range(len(toks) - len(want) + 1)):
+            out.append(str(v))
+    return out
+
+
+# THE FAMILY, BY MEMBER AND NOT ONLY BY TARGET (round 2, review M-1). The note the model reads has to
+# say WHAT the figure is about, and "one of N contracts served" is the only honest way to say it -- so
+# the seam needs the family's MEMBERS, not just the key it re-writes to. Same producer fact as
+# `PSD_FANOUT_ALIAS` above and pinned the same way: `test_numbers_psd_alias` reads
+# `usda_psd._PSD_COMMODITY_TO_SLUGS` and asserts every tuple below IS that code's slug list, so this
+# table cannot drift from the producer in silence. N is counted against the CARD's own declared values
+# (`allowed`), never against this tuple, because a card that serves three of the four wheat keys must
+# say three.
+PSD_FANOUT_MEMBERS: dict[str, tuple[str, ...]] = {
+    "wheat":        ("hard_red_winter_wheat_kcbt", "soft_red_winter_wheat_cbot",
+                     "hard_red_spring_wheat_mgex", "french_wheat_matif"),          # 410000
+    "corn":         ("corn_cbot", "campinas_corn_reference_bmf", "french_maize_matif",
+                     "south_african_white_maize_jse", "south_african_yellow_maize_jse"),   # 440000
+    "maize":        ("corn_cbot", "campinas_corn_reference_bmf", "french_maize_matif",
+                     "south_african_white_maize_jse", "south_african_yellow_maize_jse"),   # 440000
+    "soybeans":     ("soybeans_cbot", "soybeans_no_1_dce", "soybeans_no_2_dce"),   # 2222000
+    "soybean_oil":  ("soybean_oil_cbot", "soybean_oil_dce"),                       # 4232000
+    "soyoil":       ("soybean_oil_cbot", "soybean_oil_dce"),                       # 4232000
+    "soybean_meal": ("soybean_meal_cbot", "soybean_meal_dce"),                     # 813100
+    "soymeal":      ("soybean_meal_cbot", "soybean_meal_dce"),                     # 813100
+    "palm_oil":     ("palm_olein_dce", "malaysian_crude_palm_oil_cme"),            # 4243000
+}
+
+
+def _fanout_family_size(asked: str, allowed: Optional[list]) -> int:
+    """How many keys of `asked`'s family THIS CARD actually serves. Counted against the card's declared
+    values so the note can never claim a key the card does not carry; falls back to the declared family
+    when a caller has no `allowed` to count against."""
+    fam = PSD_FANOUT_MEMBERS.get("_".join(_slug_tokens(asked)), ())
+    if not fam:
+        return 0
+    if not allowed:
+        return len(fam)
+    served = {str(v) for v in allowed}
+    return sum(1 for m in fam if m in served)
+
+
+def _reader_words(slug: str) -> str:
+    """The analyst name for a contract slug ('soft_red_winter_wheat_cbot' -> 'CBOT soft red winter
+    wheat'), through the estate's ONE display producer. Any failure returns the slug -- a note that
+    cannot resolve a name still says the right thing, it just says it in the machine's words."""
+    try:
+        from leviathan.graphrag import display as _dp
+        return str(_dp._contract_label(str(slug)) or slug)
+    except Exception:  # noqa: BLE001 -- a display hiccup must never fail a lookup
+        return str(slug)
+
+
+def alias_resolution_note(asked: str, slug: str, allowed: Optional[list] = None) -> str:
+    """The model-facing (and reader-facing) stamp of a resolved alias. ONE producer: the tool_result's
+    scope_note and the pin both read this string, so what the model is told and what the test asserts
+    can never drift.
+
+    ROUND 2, REVIEW M-1 -- THE NOTE MUST NOT INSTRUCT THE MISLABEL THE CARD FORBIDS. The first cut said
+    "Say 'soft_red_winter_wheat_cbot''s own subject out loud when you state the figure", four tokens
+    from the figure, while this card's own notes (250 kB up the cached prefix) say the opposite in
+    capitals: all four wheat keys carry USDA's ALL-CLASS wheat aggregate, "never quote one as if it
+    were that class's own balance sheet". The consequence was already measured at HEAD on the pre-arm
+    corpus -- `quick_rv_corn_wheat.md` served "soft red winter wheat's stocks-to-use reads 0.652178
+    [N34]" for a figure the producer map says is the all-class aggregate -- so the note was about to
+    make that mislabel the INSTRUCTED behaviour on every wheat/corn/maize/soybeans ask.
+
+    So the note names the KEY (the machine fact: which slug was read), the FAMILY it belongs to and
+    how many of that family this card serves, and hands the authority back to the CARD PROSE for what
+    the figure covers. It never tells the model to name the contract class as the subject."""
+    n = _fanout_family_size(asked, allowed)
+    words = _reader_words(slug)
+    fam = str(asked or "").replace("_", " ").strip() or "family"
+    return (f"COMMODITY RE-KEYED, NOT RE-SCOPED -- this card is keyed by contract slug and USDA "
+            f"publishes ONE sheet per commodity code, so the call's {asked!r} was read as {slug!r} "
+            f"({words}), one of {n} {fam} contract keys this card serves for that SAME published "
+            f"sheet. THE FIGURE IS USDA'S {fam.upper()} SHEET FOR THE COUNTRY AND MARKETING YEAR YOU "
+            f"ASKED FOR, not {words}'s own class balance sheet, and naming that one contract as the "
+            f"subject would be a mislabel. This card's own commodity note is the authority on what "
+            f"the family covers -- read it before you name the scope. Nothing was substituted.")
+
+
+def _stamp_alias(payload: dict, pair: Optional[tuple]) -> dict:
+    """Say the resolution out loud on the payload the model reads. D-PQ EMPTY-1 APPEND DISCIPLINE: a
+    `scope_note` already on this payload is about whether a number exists at all (the NO ROWS marker, the
+    zero-aggregate caveat) and outranks a keying note, so this is appended behind it, never over it.
+    `pair` None -- every call the model spelled correctly, which is almost all of them -- returns the
+    payload object UNTOUCHED, so the byte-identity of an unresolved turn is by identity, not comparison.
+
+    ROUND 2, REVIEW M-2 -- THE NOTE RIDES AT THE FRONT, BECAUSE THE TOOL RESULT IS CUT FROM THE BACK.
+    `answer_numbers` ships every tool_result as `json.dumps(content)[:6000]`, and a PSD serve is not a
+    one-row fixture: MEASURED on PSD-shaped payloads, the JSON is 723 chars at 1 row, 3,440 at 20,
+    6,300 at 40 and 11,448 at the 76 rows the pre-arm smoke's own [N23]/[N24] serve carried. With the
+    keys appended LAST the whole safety mechanism -- "the resolution is said out loud on the
+    tool_result the model reads" -- was cut off the payload at 40 rows (mid-sentence) and gone
+    entirely at 76. Python dicts are insertion-ordered and `json.dumps` follows that order, so the two
+    alias keys are rebuilt at the FRONT of the payload and the cut can never reach them. The rebuilt
+    dict REPLACES the caller's, which is why `answer_numbers` re-seats it in `payload_by_id` -- one
+    object per call, exactly as before."""
+    if not pair or not isinstance(payload, dict):
+        return payload
+    note = alias_resolution_note(pair[0], pair[1], pair[2] if len(pair) > 2 else None)
+    prior = payload.get("scope_note")
+    front = {"commodity_alias": {"asked": pair[0], "resolved": pair[1]},
+             "scope_note": f"{prior} {note}" if prior else note}
+    return {**front, **{k: v for k, v in payload.items() if k not in front}}
+
+
+def _check_commodity_class(spec, reg: NumbersRegistry) -> Optional[str]:
     """RAISE `CommodityOffCard` when the spec names a commodity outside the card's declared closed set.
     A card WITHOUT a declaration (`commodity_values` empty) gets no fence and no behaviour change --
     opt-in by declaration, so the count of fenced cards is a property of the registry, not of this
-    function, and is deliberately not restated here."""
+    function, and is deliberately not restated here.
+
+    LANE C: RETURNS the resolved slug when an off-card name resolves to EXACTLY ONE declared value
+    (see the block note above), and None on every path that raises nothing today -- so a caller that
+    ignores the return value is byte-identical to HEAD, which is what every existing pin does."""
     cid = str(getattr(spec, "commodity", "") or "").strip()
     tid = str(getattr(spec, "table", "") or "").strip()
     if not cid or not tid:
-        return
+        return None
     try:
         allowed = list(reg.get(tid).commodity_values or [])
     except Exception:  # noqa: BLE001 -- an unknown table is the OTHER fence's business, not this one
-        return
+        return None
     if not allowed or cid in allowed:
-        return
+        return None
+    resolved = _psd_fanout_alias(cid, allowed, tid)
+    if resolved:
+        return resolved
+    cands = _alias_candidates(cid, allowed)
     raise CommodityOffCard(
         f"lookup REFUSED -- {tid} does not serve commodity {cid!r}. This card serves exactly these and "
         f"nothing else: {', '.join(allowed)}. It is a CLOSED set, not a default: there is no row for "
         f"{cid!r} here and no neighbouring commodity on this card stands in for it. Either re-issue the "
         f"call with one of the listed values (and say out loud, in the answer, which commodity and which "
         f"geography the figure belongs to), or find another table -- do NOT substitute a different "
-        f"commodity's number for the one that was asked about. Nothing was queried.")
+        f"commodity's number for the one that was asked about. Nothing was queried."
+        + (f" AMBIGUOUS, NOT ABSENT: {cid!r} could mean {' | '.join(cands)} on this card, and this seam "
+           f"will not choose for you. Re-issue naming ONE of them and say which one you picked."
+           if len(cands) > 1 else ""))
 
 
 class PeriodRequiredOffCard(ValueError):
@@ -2960,6 +3790,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # (text) response. Stays [] on every turn the guard does not fire, and an empty list is never written
     # onto the result -- so a matched-unit turn is byte-identical and the key's PRESENCE means a fire.
     unit_guard_fires: list[str] = []
+    # LANE C: every ALIAS RESOLVED this turn, as {asked name -> declared slug}. Turn-scoped for exactly
+    # the reason above -- the resolution happens inside the tool loop and the result dict is built on the
+    # final response. Stays {} on every turn no off-card name arrives (the overwhelming majority), and an
+    # empty map is never written onto the result, so the key's PRESENCE means a resolution fired.
+    commodity_aliases_used: dict[str, str] = {}
+    # LANE C / COST_LATENCY STEP 1: one {model, in, out, cache_read, cache_write} row per agent round.
+    # Accumulated ONLY under GRAPHRAG_COST_CENSUS and written onto the turn-ending returns only when it
+    # is non-empty, so with the flag off the returns carry no new key at all.
+    usage_rounds: list[dict] = []
     # ESR destination-scope honesty guard: detect a named buyer/destination ONCE, up front. Only applied
     # when an ESR lookup actually executes — a destination-worded question that never touches export
     # sales stays byte-identical. None (the common case) is a no-op everywhere below.
@@ -2984,6 +3823,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # ONLY when the card flag is on -> flag-off never even computes the scope, so the loop is byte-identical
     # to pre-feature. None (the common case, and always when off) is a no-op everywhere below.
     pr_scope = PR.pattern_records_scope(question, contracts=None) if PR.pattern_records_on() else None
+    # LANE C RV-PAIR scope: the TWO markets the question names, resolved ONCE up front and only when the
+    # flag is lit. None (every one-market question, and every turn with the flag off) is a no-op
+    # everywhere below, so the loop is byte-identical to pre-feature.
+    rv_scope = rv_pair_scope(question) if _rv_pair_on() else None
     # C2 question-shape scope: which observed metric an honest answer to THIS shape of question requires,
     # resolved ONCE up front and independently of what the model looks up. None (a shapeless ask) is a no-op
     # everywhere below. It dispatches nothing -- the verdict is taken against the finished call list.
@@ -3005,6 +3848,23 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 kw["output_config"] = _out_cfg
             return client.messages.create(**kw)
         resp = pv.with_retry(_one) if pv else _one()
+        if _cost_census_on():
+            # LANE C / COST_LATENCY STEP 1: one row per AGENT ROUND, read off the response this loop
+            # already holds. Inside a try because this file's standing law is that an instrument never
+            # breaks an answer -- a provider whose usage object lacks a field yields 0 for that field and
+            # the round is still recorded, and a usage object that raises costs the census one row, never
+            # the turn. Field names and the `or 0` idiom are the print's own, three lines below.
+            try:
+                _cu = getattr(resp, "usage", None)
+                usage_rounds.append({
+                    "model": model,
+                    "in": getattr(_cu, "input_tokens", 0) or 0,
+                    "out": getattr(_cu, "output_tokens", 0) or 0,
+                    "cache_read": getattr(_cu, "cache_read_input_tokens", 0) or 0,
+                    "cache_write": getattr(_cu, "cache_creation_input_tokens", 0) or 0,
+                })
+            except Exception:  # noqa: BLE001 -- a census can never fail a lookup round
+                pass
         if _thinking is not None:
             # ARMED-LANE ONLY (unset stays byte-identical). Review wf_e16bbcd3 objections 2+3:
             # (2) the truncation sentinel -- extract.py:557's doctrine ("NEVER silently accept a
@@ -3015,10 +3875,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             # and cache behaviour are otherwise unmeasurable from any artifact; one stdout line per
             # create reaches the eval logs and settles whether 6,000 was the right ceiling.
             _u = getattr(resp, "usage", None)
-            print("[numbers-thinking] stop=%s in=%s out=%s cache_read=%s" % (
+            # LANE C: `cache_write` joins the line. COST_LATENCY section 1.4 names its absence "the
+            # single largest blind spot" -- the 26 lines this print produced on the pre-arm smoke are
+            # what made the arm's biggest cost term a MODEL rather than a measurement, and the comment
+            # above already claims this line "settles whether 6,000 was the right ceiling".
+            print("[numbers-thinking] stop=%s in=%s out=%s cache_read=%s cache_write=%s" % (
                 getattr(resp, "stop_reason", None),
                 getattr(_u, "input_tokens", None), getattr(_u, "output_tokens", None),
-                getattr(_u, "cache_read_input_tokens", None)), flush=True)
+                getattr(_u, "cache_read_input_tokens", None),
+                getattr(_u, "cache_creation_input_tokens", None)), flush=True)
             if getattr(resp, "stop_reason", None) == "max_tokens":
                 raise RuntimeError(
                     "numbers-thinking turn TRUNCATED at max_tokens=%d -- refusing to serve a "
@@ -3042,6 +3907,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # `shape_decline_suppressed` below. Those four files are outside this lane; until they
                 # move, this key is observable on answer_numbers' own return and nowhere else.
                 result[UNIT_MISMATCH_TRACE_KEY] = list(unit_guard_fires)
+            if commodity_aliases_used:
+                # LANE C: the same contract as the key above -- present only when it fired, and
+                # numbers-lane-local until the orchestrator's whitelist tuples carry it. It is the
+                # measurement of the defect ("eleven refused lookups over five turns") and of its fix.
+                result["commodity_aliases"] = dict(commodity_aliases_used)
+            if usage_rounds:
+                # LANE C: the per-round spend census. Stamped HERE so every turn-ending return below --
+                # the ESR aggregate early return included -- carries it off this one `result` dict.
+                result["numbers_usage"] = list(usage_rounds)
             preface = ""
             if ask_win:
                 # year_month period-scoping guard, closing tooth: the question NAMED a month and no
@@ -3155,6 +4029,27 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 if pr_line:
                     preface += pr_line + "\n\n"
                 result["pattern_records"] = pr_signal          # surfaced to out['trace'] by run_numbers_only
+            if rv_scope:
+                # LANE C: the RV pair leg, in the ESR/pattern-records idiom -- real [N] provenance
+                # appended in call order, so the citation verifier accepts the figure exactly as it
+                # accepts a fetched one. It runs BEFORE the C2 verdict below for the reason that branch
+                # states: a decline that could not see an injected leg is the wrong decline.
+                rv_legs, rv_reason = rv_pair_spread_legs(rv_scope, calls)
+                for leg in rv_legs:
+                    calls.append(leg)
+                    hseq += 1
+                    h = f"L{hseq}"
+                    leg["handle"] = h
+                    _rvrows = leg.get("rows") or []
+                    handles[h] = {"series": _series_from_rows(_rvrows), "kd": _handle_kd(_rvrows),
+                                  "unit": (_rvrows[0].get("unit") if _rvrows else None)}
+                if rv_legs:
+                    result["rv_pair_spread"] = {"legs": len(rv_legs), "markets": list(rv_scope)}
+                elif rv_reason:
+                    # A RECORD, NEVER A REFUSAL TO THE READER: the answer is untouched and no preface is
+                    # minted. This key is the measurement of the miss -- the one thing the smoke could
+                    # not see when a page printed two prices and said the gap "is not a served series".
+                    result[RV_PAIR_UNCOMPUTED_KEY] = {"markets": list(rv_scope), "reason": rv_reason}
             if shape:
                 # C2 (D3): the shape verdict, taken LAST and against the FINAL call list -- the ESR aggregate
                 # and pattern-records branches above append real legs, and a decline that could not see them
@@ -3218,7 +4113,33 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             try:
                 try:
                     spec = _forced_spec(asof, dict(b.input))
-                    _check_commodity_class(spec, reg)      # D-PQ CLASS-1: the card's own closed slug set
+                    # D-PQ CLASS-1: the card's own closed slug set. LANE C: an off-card name that resolves
+                    # to EXACTLY ONE declared value is re-keyed here instead of refused (the block note at
+                    # `_check_commodity_class`); anything else still raises, now naming the candidates.
+                    # The spec is REBUILT through `_forced_spec`, never patched: the same constructor, the
+                    # same validation and the same forced as-of, so a resolved call is indistinguishable
+                    # from one the model spelled correctly itself.
+                    _alias = _check_commodity_class(spec, reg)
+                    if _alias:
+                        _asked = str(getattr(spec, "commodity", "") or "")
+                        _inp_al = dict(b.input)
+                        _inp_al["commodity"] = _alias
+                        # ROUND 2 (review M-1): the CARD's own declared values ride the record, so the
+                        # note can say how many of the family THIS card serves rather than how many the
+                        # producer emits. Read off the same registry `_check_commodity_class` just read.
+                        try:
+                            _allowed = list(reg.get(str(getattr(spec, "table", "") or ""))
+                                            .commodity_values or [])
+                        except Exception:  # noqa: BLE001 -- no card, no count; the note falls back
+                            _allowed = []
+                        spec = _forced_spec(asof, _inp_al)
+                        # ROUND 2 (review MINOR-6): keyed on a REAL id only. A tool_use block with no
+                        # id would key on "" and two such in one round would cross-attribute a
+                        # resolution to the wrong payload -- a resolution note naming the wrong
+                        # commodity is worse than no note. Fixture-only today, fail-closed anyway.
+                        _bid = str(getattr(b, "id", "") or "")
+                        if _bid:
+                            alias_by_id[_bid] = (_asked, _alias, _allowed)
                     _check_period_required(spec, reg)      # D-LD: the WAP wrong-crop fence (period axis)
                 except Exception as ve:  # noqa: BLE001 -- D-PQ SCHEMA-1: a REJECTED SPEC, said actionably
                     # Separated from the outer handler because the two failures are different things and
@@ -3291,6 +4212,12 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # rows, the other needs exactly one valued row).
                 if not vals:
                     payload["scope_note"] = _no_rows_note(status)
+                    # ROUND 2 (review F-1, docket #5): APPENDED behind the marker, on the same D-PQ
+                    # EMPTY-1 discipline the front-expiry note below uses. The marker says there is no
+                    # number here; this says which axis to rule out before calling that an absence.
+                    if _country_axis_empty(spec, reg):
+                        payload["scope_note"] += " " + _country_spelling_note(
+                            getattr(spec, "country", ""))
                 elif _is_zero_esr_aggregate(payload):
                     payload["scope_note"] = _ESR_ZERO_AGG_NOTE.format(
                         metric=str(getattr(spec, "metric", "") or "figure"))
@@ -3382,7 +4309,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 prov.setdefault("params", {})["window"] = res["window"]
             sh = handles.get(inp.get("series_handle")) or {}
             injected = _stat_calls(stat, res, prov, sh.get("unit"), sh.get("kd"), sh.get("labels"),
-                                   sh.get("src_table"), sh.get("src_metric"))
+                                   sh.get("src_table"), sh.get("src_metric"),
+                                   dates=sh.get("dates"))
             # K9-5 FIX-CYCLE (2026-09-09), REVIEW MAJOR-2 -- THE DETERMINISTIC HALF OF THE SCALE RULE.
             # `_stat_unit` derives the row's unit at the mint (a DIFFERENCE over a percent series is `pp`),
             # and the citation label, the numbers panel and the `## Sources` footer all read that ONE
@@ -3410,6 +4338,11 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
         # lookup as it lands and dispatching each stat against the handles registered so far.
         lookup_uses = [b for b in uses if getattr(b, "name", TOOL_NAME) == TOOL_NAME]
         payload_by_id: dict[str, dict] = {}
+        # LANE C: {tool_use id -> (asked name, resolved slug)} for the round's resolved aliases. Written
+        # by `_exec` (one key per call, so the concurrent pool cannot collide) and read once below, where
+        # `_stamp_scope` already owns the payload -- the resolution is never applied to a row without
+        # being said out loud on the same payload.
+        alias_by_id: dict[str, tuple] = {}
         if len(lookup_uses) > 1:
             from concurrent.futures import ThreadPoolExecutor
             with ThreadPoolExecutor(max_workers=min(4, len(lookup_uses))) as pool:
@@ -3438,7 +4371,18 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                                   # compute (an empty shape is never interleaved) and `spread` refuses it.
                                   "labels": _handle_labels(injected[0]["rows"])}
             elif name == TOOL_NAME:
-                content = _stamp_scope(payload_by_id[b.id])
+                # LANE C: the resolution is SAID on the payload and RECORDED on the turn, at the one
+                # seam that already owns this payload. `_pair` None -- every correctly-spelled call --
+                # returns the payload object itself, so the common path is byte-identical by identity.
+                _pair = alias_by_id.get(str(getattr(b, "id", "") or "")) if getattr(b, "id", "") else None
+                # ROUND 2 (review M-2): `_stamp_alias` REBUILDS the payload so the two alias keys sit at
+                # the FRONT of the JSON the 6,000-char cut trims from the back. The rebuilt dict is
+                # re-seated here so exactly one object per call survives, as before -- `_pair` None
+                # still returns the caller's own object and nothing is rebuilt at all.
+                content = _stamp_scope(_stamp_alias(payload_by_id[b.id], _pair))
+                payload_by_id[b.id] = content
+                if _pair:
+                    commodity_aliases_used[_pair[0]] = _pair[1]
                 calls.append(content)
                 hseq += 1                                          # mint the lookup's turn-scoped handle
                 h = f"L{hseq}"
@@ -3457,6 +4401,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 handles[h] = {"series": _vals, "kd": _handle_kd(_rows),
                               "unit": (_rows[0].get("unit") if _rows else None),
                               "expiries": _exps, "shape": Q.series_shape(_rows),
+                              # LANE C: the OBSERVATION-DATE axis, parallel to `series` by construction
+                              # (`_date_axis` drops exactly the rows `_series_axis` drops). Two readers:
+                              # the stat window on the injected row, and the RV pair leg's join key.
+                              "dates": _date_axis(_rows),
                               "labels": _handle_labels(_rows),
                               "src_table": (_srcq.get("table") or None),
                               "src_metric": (_srcq.get("metric") or None)}
@@ -3480,10 +4428,19 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # LANE S: the THIRD turn-ending return, and the ONLY one that records `capped=True` -- the loop
     # ran out of rounds rather than the model stopping. This is the return the whole tier lever is
     # about, so the record has to be able to say so from the artifact alone.
-    return {"answer": "(stopped: max tool calls reached)", "calls": calls,
-            "tables_queried": tables_queried(calls),
-            "numbers_budget": _budget_stamp(max_calls, _rounds, calls, capped=True,
-                                            max_tokens=max_tokens)}
+    capped_result = {"answer": "(stopped: max tool calls reached)", "calls": calls,
+                     "tables_queried": tables_queried(calls),
+                     "numbers_budget": _budget_stamp(max_calls, _rounds, calls, capped=True,
+                                                     max_tokens=max_tokens)}
+    # LANE C: the two turn-scoped censuses ride the CAPPED return for the reason the comment above gives
+    # about the budget stamp -- a capped turn is the BUSIEST turn, so it is exactly the one whose spend
+    # and whose alias resolutions must not be missing from the read. Both are absent-when-empty, so this
+    # return is byte-identical to HEAD on every turn that resolved nothing with the census flag off.
+    if commodity_aliases_used:
+        capped_result["commodity_aliases"] = dict(commodity_aliases_used)
+    if usage_rounds:
+        capped_result["numbers_usage"] = list(usage_rounds)
+    return capped_result
 
 
 # --- J3: DATED ROW RENDERING (OUTCOMES_JOIN_PLAN items 54-60a, 91) ----------------------------------

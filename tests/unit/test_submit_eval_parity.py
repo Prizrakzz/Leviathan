@@ -249,7 +249,15 @@ def test_every_var_the_arm_needs_is_in_the_base(base):
     # clock to the board; it was classified in NO section of this file until today, so all three guards
     # were blind to it. `arm_only` is where "the arm sets its own value" lives, and both cells get it.
     assert env["GRAPHRAG_RERANK_GROUP_WORKERS"] == "16"
-    assert len(base["arm_only"]) == 6                       # the 4 dark legs + strip audit + the width
+    # LANE F (2026-09-17): THE COST CENSUS IS A BOTH-CELLS CONSTANT, AND THAT IS THE PARITY PIN. It
+    # gates four stamps (the numbers agent's per-round usage, the dispatch planner's usage, the judge's
+    # usage, and the summed `turn_cost_total_usd` column) that close the estate's ONE money column
+    # pricing ONE of six seats -- $2.5643 measured against a $3.9251 proven floor on the 2026-09-16
+    # in-VPC smoke. It must be IDENTICAL IN BOTH CELLS or it becomes a confounder of its own, so it
+    # lives in `arm_only` beside the strip audit and the dispatch width and NOT in `arm_flags`.
+    assert env["GRAPHRAG_COST_CENSUS"] == "on"
+    assert "GRAPHRAG_COST_CENSUS" not in base["arm_flags"]   # an INSTRUMENT, never a treatment
+    assert len(base["arm_only"]) == 8                # 4 dark legs + strip audit + width + cost census + orphan repair OFF (decision 1, 2026-09-17)
     assert "GRAPHRAG_RERANK_GROUP_WORKERS" not in base["arm_flags"]      # a WIDTH, never a treatment
     # THE ARM'S OWN FLAGS ARE NOT IN THE BASE ENV: they are the treatment, passed per cell, so the
     # control's flag-off turn stays byte-identical. DECISION A3: `arm_flags` is a LIST, because the
@@ -329,10 +337,16 @@ def test_the_diff_against_the_prior_base_is_recorded_and_names_the_one_changed_k
     assert prior["distinct_names"] == 33 and len(prior["sources"]) == 3
     # `added_arm_only` went 4 -> 5 on 2026-09-16 (decision A2): the dispatch width is a key the arm now
     # SETS and the prior base never carried, and the file's own header says to record what moved.
-    # 18 since ruling R3 (GRAPHRAG_RERANK_BACKEND became a copy); 5 since decision A2
-    assert len(diff["added"]) == 18 and len(diff["added_arm_only"]) == 5
+    # 18 since ruling R3 (GRAPHRAG_RERANK_BACKEND became a copy); 6 since lane F (2026-09-17) appended
+    # GRAPHRAG_COST_CENSUS -- the cost census is a key the arm now sets and the prior base never
+    # carried, which is the same class of omission decision A2 closed one entry earlier.
+    # 19 / 7 since orchestrator DECISION 1 (2026-09-17, round-3 census): GRAPHRAG_VERIFY_ORPHAN_REPAIR runs OFF in
+    # both cells (the substitution arm's ordinal weld; 0 of 112 answers differ with it off).
+    assert len(diff["added"]) == 19 and len(diff["added_arm_only"]) == 7
     assert "GRAPHRAG_RERANK_BACKEND" in diff["added"]
-    assert diff["added_arm_only"][-1] == "GRAPHRAG_RERANK_GROUP_WORKERS"
+    assert diff["added_arm_only"][-3] == "GRAPHRAG_RERANK_GROUP_WORKERS"
+    assert diff["added_arm_only"][-1] == "GRAPHRAG_VERIFY_ORPHAN_REPAIR"
+    assert diff["added_arm_only"][-2] == "GRAPHRAG_COST_CENSUS"
     assert diff["removed"] == []
     assert set(diff["changed"]) == {"GRAPHRAG_MODES"}
     assert diff["changed"]["GRAPHRAG_MODES"]["prior"] == "quick,deep"
