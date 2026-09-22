@@ -22,7 +22,7 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "fetch->bronze->silver",
+  "chain_shape": "fetch->silver (NO bronze phase and NO bronze producer in the tree: icco_cocoa_task reads bronze/production/source=icco_qbcs/, 48 objects all written by the 2026-06-03 restore backfill, so a newly fetched raw release never reaches silver)",
   "phases": [
     {
       "name": "fetch",

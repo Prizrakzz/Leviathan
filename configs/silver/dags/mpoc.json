@@ -24,7 +24,7 @@
     "maximum_event_age_in_seconds": 86400
   },
   "queue": "leviathan-dev-queue-ondemand",
-  "chain_shape": "fetch->bronze->silver x3 (F052 adapter)",
+  "chain_shape": "fetch->silver x3 (NO bronze phase: each silver task reads the RAW html in-task via the F052 adapter; bronze/production/source=mpoc/ is a dead 31-object 2026-06-02 backfill nothing writes or reads)",
   "phases": [
     {
       "name": "fetch",

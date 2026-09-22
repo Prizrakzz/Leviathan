@@ -262,12 +262,14 @@ _LINT = _REPO / "scripts" / "silver" / "f091_source_universe_lint.py"
 #     class, neither a collection literal; and transforms/gold/weather_z.py's new `AGGREGATE_RENAMES`
 #     is a 2-member dict, which the raw census FLOORS OUT at MIN_CARDINALITY = 3 -- a 2-member map is
 #     a pair of renames, not a universe (the same reading the 09-10 block gave `_CGROUP_PEAK_FILES`).
-PIN_RAW_LITERALS = 358          # 356 = HEAD (29de55eb, and still 356 at 5ca2b785), measured off a
+PIN_RAW_LITERALS = 359          # 358 -> 359 on 2026-09-22: fetch_mpoc.DATA_RELEASE_TYPES (census B8/P11)
+                                # 356 = HEAD (29de55eb, and still 356 at 5ca2b785), measured off a
                                 # `git archive HEAD` export + 2 CHIRPS PRELIM
                                 # (chirps_weather._MERGE_KEYS and ._MELT_DROPNA_SUBSET); the ESR
                                 # vintage-stream +5 that this pin used to carry has LANDED and is
                                 # part of the 356 baseline
-PIN_RAW_FILES = 133             # 132 HEAD, measured + 1 CHIRPS PRELIM (chirps_weather.py declares a
+PIN_RAW_FILES = 134             # 133 -> 134 on 2026-09-22: fetch_mpoc.py enters the raw census (B8/P11)
+                                # 132 HEAD, measured + 1 CHIRPS PRELIM (chirps_weather.py declares a
                                 # module-level collection for the first time and so ENTERS the raw
                                 # census)
 PIN_UNIVERSE_LITERALS = 175     # 171 HEAD, measured + 4 ESR vintage-stream
