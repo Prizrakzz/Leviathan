@@ -184,6 +184,37 @@ variable "silver_table_freshness_slas" {
   default     = {}
 }
 
+# --- P6 / P7, 2026-09-22: THE DATA (CONTENT) AXIS ---------------------------------------------
+# GENERATED into silver_observability.auto.tfvars.json by
+#     python jobs/observability/silver_alarms.py --emit-tfvars infra/terraform/envs/dev
+# All three arrived in that file before these blocks existed, so every plan and apply in this
+# directory emitted three "Value for undeclared variable" warnings and terraform created ZERO
+# data-date alarms -- the fix was generated, committed and inert (round-2 blocker B-3).
+# Types and defaults are identical to modules/silver_observability/variables.tf; the defaults are
+# the inert ones so this directory still applies with the tfvars absent.
+variable "silver_data_date_slas" {
+  type = map(object({
+    family          = string
+    ratio_threshold = number
+    ceiling_days    = number
+    basis           = string
+  }))
+  description = "table_name -> the DATA-axis alarm contract {family, ratio_threshold, ceiling_days, basis} for the per-table data_date_age_breach alarms (poller metric DataDateAgeRatio{Table}). Generated from leviathan.silver.freshness.data_date_alarm_targets(): polled, DECLARES a knowledge axis, and not a declared closed archive. Empty default = no data-date alarms."
+  default     = {}
+}
+
+variable "silver_expected_poll_targets" {
+  type        = number
+  description = "How many targets the REPO registry declares the freshness poller should poll -- the threshold of the freshness_targets_polled alarm. MEASURED 2026-09-21: the poller emitted 46 against 53 declared, because its image carried a configs/silver/tables five weeks behind HEAD. Generated, never hand-set. 0 (default) disables the census alarm."
+  default     = 0
+}
+
+variable "silver_data_date_static" {
+  type        = map(string)
+  description = "table_name -> why its source is CLOSED (census threat T8). Excluded from the ALARM and from nothing else: the poller still reads a declared axis on them and still emits their age every cycle, tagged static, which is what makes each entry's removal trigger observable. Consumed by the module for the data_date_age_breach disjointness precondition and the data_date_unread operator note. Empty default = no declared archives."
+  default     = {}
+}
+
 variable "silver_alert_email" {
   type        = string
   description = "Email for the silver-pipeline SNS subscription placeholder ('' = no subscription)."

@@ -486,6 +486,22 @@ module "silver_observability" {
   # (single-dim {Table} metric from the freshness poller; family rollup rides {Family}).
   silver_table_freshness_slas = var.silver_table_freshness_slas
 
+  # P6 / P7, 2026-09-22 -- THE DATA (CONTENT) AXIS. Everything above reads S3 WRITE recency, so a
+  # producer that re-writes a byte-identical object on its cadence is green forever while its
+  # content is dead (silver_sagis_weekly_exports: FreshnessLagRatio 0.211 beside DataDateAgeRatio
+  # 46.263, measured 2026-09-22). All three values are GENERATED into
+  # silver_observability.auto.tfvars.json by jobs/observability/silver_alarms.py --emit-tfvars and
+  # are under the D-EI-12 hold -- never hand-edit that file, re-run the generator.
+  #
+  # These three lines are the whole reason the generated keys stopped being inert: until they
+  # existed terraform read the tfvars, warned "Value for undeclared variable" three times and
+  # created ZERO data-date alarms. ORDER OF APPLY: freshness_targets_polled is
+  # treat_missing_data="breaching" and is TRUE-and-red until the image carrying the emitter ships,
+  # so repin the poller jobdef FIRST (see the lane 7 fix report's STEP A/B).
+  silver_data_date_slas        = var.silver_data_date_slas
+  silver_expected_poll_targets = var.silver_expected_poll_targets
+  silver_data_date_static      = var.silver_data_date_static
+
   # A-W5 step 3: orchestration-plane alarms + the aws.states failure rule. The machine ARN
   # gates the SFN-specific alarms/rule (empty -> they don't create), so this can apply before or
   # after step_functions; the scheduler + Batch-queued-age alarms always apply. The per-family

@@ -26,6 +26,31 @@ THE FAILURE MODES COVERED (alarm classes)
   * ``value_census_regression`` -- one GLOBAL alarm: the census-emitted ``ValueCensusHardFailTables``
                                  rose above 0 (any all-NaN / single-vintage / all-constant regression
                                  after R4 -- the CHIRPS/ESR class the census exists to catch).
+  * ``data_date_age_breach``  -- P6, 2026-09-22: one alarm PER poll target with a declared DATA axis:
+                                 the poller-emitted ``DataDateAgeRatio{Table}`` exceeded 1.0, i.e.
+                                 the table's CONTENT is older than its own ceiling. Every alarm
+                                 class above this one reads S3 WRITE recency and is therefore blind
+                                 to a producer that re-writes an identical object on its cadence.
+  * ``data_date_unread``      -- P6: one GLOBAL alarm: a target whose data axis IS declared could
+                                 not be read. This is what lets the per-table alarms above be
+                                 notBreaching with no door left open.
+  * ``data_date_ahead``       -- P6 round 2, review M3: one GLOBAL alarm: a target's declared
+                                 knowledge axis points INTO THE FUTURE, so it publishes no age
+                                 datapoint and its notBreaching per-table alarm reads OK while
+                                 nothing watches its content -- and a forward-stamped knowledge row
+                                 is one guard away from a point-in-time leak. RED ON ARRIVAL by
+                                 design: silver_nass_annual reads 2027-02-01 today.
+  * ``freshness_targets_polled`` -- P7: one GLOBAL alarm: the poller polled FEWER targets than this
+                                 repo's registry declares, i.e. its image is behind HEAD. Measured
+                                 2026-09-21: 46 polled against 53 declared, invisible for 5 weeks.
+  * ``corpus_fold_liveness`` / ``corpus_fold_wrote_nothing`` / ``wasde_text_errors`` -- round 2,
+                                 handed by the text/corpus lane: the monthly fold never fired, the
+                                 fold that fired wrote nothing, and a WASDE document raised during
+                                 text extraction. DOCUMENTED HERE AND NOT YET APPLIED -- their
+                                 metrics have never published (measured 2026-09-22: list-metrics
+                                 returns eleven names, none of them Corpus* or Wasde*), so they
+                                 are deliberately absent from :func:`build_tfvars` until one fire
+                                 emits. See the block that builds them for the exact gate.
 
 Every alarm dict is fully specified (:func:`_alarm`) so the completeness test can assert the F082
 contract fields are present and well-typed. Pure + AWS-free + deterministic. ASCII-only stdout.
@@ -48,6 +73,20 @@ if str(_REPO / "src") not in sys.path:
     sys.path.insert(0, str(_REPO / "src"))
 
 from leviathan.silver.dag_catalog import build_catalog  # noqa: E402
+from leviathan.silver.freshness import (  # noqa: E402
+    CLOUDWATCH_MAX_EVALUATION_SECONDS,
+    DATA_DATE_AHEAD_KNOWN,
+    DATA_DATE_RATIO_METRIC_NAME,
+    DATA_DATE_UNREAD_METRIC_NAME,
+    STATIC_DATA_TARGETS,
+    TARGETS_POLLED_METRIC_NAME,
+    UNREAD_AHEAD,
+    UNREAD_UNREADABLE,
+    all_poll_targets,
+    data_date_alarm_targets,
+    ledger_gauge,
+    refuse_uncreatable_window,
+)
 from leviathan.silver.registry import load_registry  # noqa: E402
 
 PROJECT = "leviathan"
@@ -209,12 +248,31 @@ def _alarm(*, failure_mode: str, family: str, metric_name: str, dimensions: dict
            statistic: str, period_seconds: int, evaluation_periods: int,
            comparison_operator: str, threshold: float, treat_missing_data: str,
            severity: str, owner: str, dedup_key: str, retention_days: int,
-           description: str, table: Optional[str] = None) -> dict:
+           description: str, table: Optional[str] = None,
+           datapoints_to_alarm: Optional[int] = None) -> dict:
     """Build one fully-specified alarm definition (the F082 per-alarm contract).
 
     ``table`` (when given) makes this a PER-TABLE alarm: the name tail is the table (two burned
     tables share the usda_nass family, so a family-only name would collide) and ``table`` is
-    carried as a field for the completeness lint."""
+    carried as a field for the completeness lint.
+
+    ``datapoints_to_alarm`` (when given) is emitted BESIDE ``evaluation_periods`` for an M-of-N
+    alarm. Optional and omitted by default so every alarm dict that existed before it was added is
+    byte-identical: CloudWatch defaults it to ``evaluation_periods``, so an alarm that does not say
+    it is not changed by this field existing.
+
+    THE WINDOW FENCE (round 3, review M-A). Every alarm minted here is checked against the
+    PutMetricAlarm bound BEFORE it can exist as a dict: ``Period x EvaluationPeriods <= 604,800 s``
+    (seven days), quoted from botocore's own CloudWatch service model in
+    ``freshness.CLOUDWATCH_MAX_EVALUATION_SECONDS``. Round 2 shipped ``corpus_fold_liveness`` at
+    86,400 x 35 = 3,024,000 s -- five times the ceiling -- into the document, into a paste-ready
+    HCL handed to the owner and into five green unit tests, because nothing between the choice and
+    `terraform apply` could say no. This is that no, and it fails CLOSED: the generator REFUSES to
+    mint the definition rather than emitting one the API will reject. A refusal is a signal."""
+    refuse_uncreatable_window(
+        f"alarm {PROJECT}-{ENVIRONMENT}-{failure_mode.replace('_', '-')}-"
+        f"{(table or family).replace('_', '-')}",
+        period_seconds, evaluation_periods)
     name_tail = (table or family).replace("_", "-")
     alarm = {
         "alarm_name": f"{PROJECT}-{ENVIRONMENT}-{failure_mode.replace('_', '-')}-{name_tail}",
@@ -238,6 +296,8 @@ def _alarm(*, failure_mode: str, family: str, metric_name: str, dimensions: dict
     }
     if table is not None:
         alarm["table"] = table
+    if datapoints_to_alarm is not None:
+        alarm["datapoints_to_alarm"] = datapoints_to_alarm
     return alarm
 
 
@@ -338,6 +398,408 @@ def build_alarms(registry=None) -> list[dict]:
             ),
         ))
 
+    # 2c. PER-TABLE DATA-DATE alarms (P6, the 2026-09-22 pipeline census).
+    #
+    # THE GAP THESE CLOSE, in one sentence: every alarm above this block reads S3 WRITE RECENCY, so
+    # a producer that re-writes a byte-identical object on its fire cadence is GREEN forever while
+    # its content is dead. MEASURED 2026-09-22 by a read-only poll: silver_sagis_weekly_exports
+    # FreshnessLagRatio 0.211 (green) and DataDateAgeRatio 46.26; silver_unica_corn_ethanol 0.430
+    # (green) and 16.64. Six of the census's fourteen blockers are that one shape.
+    #
+    # THRESHOLD 1.0 IS NOT A GUESS, and that matters because silver_rebuild_gate.py's own comment
+    # refused to build this alarm until "a week of measured data" was in ("the threshold is set from
+    # a week of measured data, not guessed the day the metric is born"). A RATIO needs no such week:
+    # the denominator is each table's OWN declared ceiling, so 1.0 means "past the promise this
+    # contract already makes" for an annual table and a daily one alike -- the identical argument
+    # that justified FreshnessLagRatio's 1.0 in D-PR-14. The DAY metric rides alongside for exactly
+    # the distribution reading the gate asked for.
+    #
+    # treat_missing_data = "notBreaching", and this is the one place this file departs from the
+    # freshness alarms' posture ON PURPOSE. Those are "breaching" because a stopped producer stops
+    # emitting and must page. Here MISSING means the poller could not READ a data date -- and that
+    # absence is already alarmed ONCE, precisely, by data_date_unread below. Making all ~36 of these
+    # "breaching" instead would put every one of them into ALARM on the apply that creates them,
+    # before the image carrying the emitter ships -- the exact hazard
+    # modules/silver_observability's own header names for the pre-emit families, multiplied by
+    # thirty-six. Nothing is fail-open: the blindness has its own alarm, an empty prefix keeps the
+    # write axis's "breaching" per-table alarm, and a dead poller trips freshness_targets_polled.
+    #
+    # STATIC_DATA_TARGETS is subtracted inside data_date_alarm_targets(): a genuinely closed archive
+    # (mpoc trade stats at 1,025 days, mpoc exports at 996) still EMITS its age every cycle but
+    # never pages, because "a loud board nobody believes is the failure this whole census is about".
+    for table, (family, ceiling, basis) in sorted(data_date_alarm_targets(reg).items()):
+        fam = catalog.get(family)
+        owner = fam.owner if fam else "silver-platform"
+        label = fam.label if fam else family
+        alarms.append(_alarm(
+            failure_mode="data_date_age_breach",
+            family=family,
+            table=table,
+            metric_name=DATA_DATE_RATIO_METRIC_NAME,
+            dimensions={"Table": table},   # single-dim, matching the poller's {Table} datapoint
+            statistic="Maximum",
+            period_seconds=86400,
+            evaluation_periods=1,
+            comparison_operator="GreaterThanThreshold",
+            threshold=1.0,
+            treat_missing_data="notBreaching",
+            severity=SEV_P2,
+            owner=owner,
+            dedup_key=f"data-date/{table}",
+            retention_days=90,
+            description=(
+                f"Table {table} ({label}) holds DATA older than its own declared ceiling "
+                f"({ceiling:.0f}d; {basis}). This is the CONTENT axis, not the write axis: a "
+                f"producer that re-writes an identical object every fire reads fresh on "
+                f"FreshnessLagDays while this alarm is the one that speaks. Emitted by "
+                f"jobs/observability/freshness_poller_task.py (DataDateAgeRatio, dim Table). "
+                f"Runbook: R4_incident_runbooks.md#freshness-sla-breach."
+            ),
+        ))
+
+    # 2d. THE BLINDNESS ALARM (P6). One alarm for the whole class: how many targets whose data axis
+    # IS declared could not be read this cycle. This is what lets every per-table alarm above be
+    # notBreaching without a single door left open -- an unreadable footer, an absent declared
+    # column, a missing pyarrow, a partition value that will not parse, all land here.
+    #
+    # Reason=unreadable ONLY here; `ahead` gets its OWN alarm at 2d-bis because it carries a
+    # different meaning and a different remedy. The remaining reasons are deliberately unalarmed:
+    # `static` is a declared closed archive, `undeclared` is a repo fact pinned by name in the unit
+    # deck (freshness.data_date_undeclared_tables), `absent` is an empty canonical prefix, which the
+    # write axis already treats as a breach, and `disabled` is an operator holding the documented
+    # rollback lever down (emitted so that lever is visible, never so it pages).
+    alarms.append(_alarm(
+        failure_mode="data_date_unread",
+        family="_global",
+        metric_name=DATA_DATE_UNREAD_METRIC_NAME,
+        dimensions={"Reason": UNREAD_UNREADABLE},
+        statistic="Maximum",
+        period_seconds=86400,
+        evaluation_periods=1,
+        comparison_operator="GreaterThanThreshold",
+        threshold=0,
+        treat_missing_data="notBreaching",
+        severity=SEV_P2,
+        owner="silver-platform",
+        dedup_key="data-date-unread/global",
+        retention_days=90,
+        description=(
+            "At least one poll target whose DATA-date axis is DECLARED could not be read this "
+            "cycle (unreadable parquet footer, declared column absent from the schema, "
+            "unparseable partition value, or pyarrow missing from the image). While this is in "
+            "ALARM the per-table data_date_age_breach alarms are blind for that target, which is "
+            "why they can safely be notBreaching. Emitted by "
+            "jobs/observability/freshness_poller_task.py (DataDateUnread, dim Reason=unreadable)."
+        ),
+    ))
+
+    # 2d-bis. THE FORWARD-STAMP ALARM (P6 round 2 / adversarial review M3, 2026-09-22).
+    #
+    # WHAT ROUND 1 SHIPPED AND WHY IT WAS WRONG. A target whose DECLARED knowledge axis reads into
+    # the future publishes no DataDateAgeRatio datapoint -- correctly, a future date is not a
+    # freshness figure -- and round 1 stopped there. The consequence, MEASURED: silver_nass_annual
+    # reads 2027-02-01, 132 days ahead; its per-table alarm is treat_missing_data="notBreaching" and
+    # therefore sits OK forever; the blindness alarm above is scoped to Reason=unreadable. So the
+    # table left the content watch and NOTHING said so. The recurrence is structural, not exotic:
+    # this estate stamps forward vintages by design, so every contract that declares a scheduled
+    # RELEASE date as its knowledge axis joins the unwatched set the moment it is declared.
+    #
+    # WHY IT ALARMS RATHER THAN MERELY COUNTS. A knowledge row stamped in the future is one guard
+    # away from a point-in-time LEAK -- the evidence estate's whole contract is that no row whose
+    # knowledge date is after the question's as-of may be served -- so this is a finding in its own
+    # right, not a gap in a freshness reading.
+    #
+    # THRESHOLD 0, AND THE KNOWN SET IS NOT EXCUSED. freshness.DATA_DATE_AHEAD_KNOWN documents the
+    # one table that reads ahead TODAY with its measured lead and its remedy, and that map is read
+    # into this description -- not into the threshold. A threshold of len(KNOWN) would be round 1's
+    # silence wearing a number: it would re-hide nass_annual, and it would re-hide the NEXT
+    # forward-stamped contract the moment somebody added it to the map. RED ON ARRIVAL IS THE
+    # INTENT: it is red because the finding is real and open, and its own description says what
+    # closes it.
+    #
+    # treat_missing_data = "notBreaching": absence of this datum means the poller did not run,
+    # which freshness_targets_polled (breaching) already says once and precisely.
+    ahead_known = ", ".join(f"{t} ({why})" for t, why in sorted(DATA_DATE_AHEAD_KNOWN.items()))
+    alarms.append(_alarm(
+        failure_mode="data_date_ahead",
+        family="_global",
+        metric_name=DATA_DATE_UNREAD_METRIC_NAME,
+        dimensions={"Reason": UNREAD_AHEAD},
+        statistic="Maximum",
+        period_seconds=86400,
+        evaluation_periods=1,
+        comparison_operator="GreaterThanThreshold",
+        threshold=0,
+        treat_missing_data="notBreaching",
+        severity=SEV_P2,
+        owner="silver-platform",
+        dedup_key="data-date-ahead/global",
+        retention_days=90,
+        description=(
+            "At least one poll target's DECLARED knowledge axis points INTO THE FUTURE past the "
+            "one-day clock-skew tolerance. That target publishes no DataDateAgeRatio datapoint, so "
+            "its per-table data_date_age_breach alarm (notBreaching) reads OK while nothing is "
+            "watching its content -- and a knowledge row stamped in the future is one guard away "
+            "from a point-in-time leak. Remedy: declare a data-PERIOD column on the contract, or "
+            "fix the producer that stamped a future date. KNOWN AND OPEN at declaration "
+            f"(2026-09-22): {ahead_known or 'none'}. The known set is deliberately NOT excused by "
+            "the threshold -- see leviathan.silver.freshness.DATA_DATE_AHEAD_KNOWN. Emitted by "
+            "jobs/observability/freshness_poller_task.py (DataDateUnread, dim Reason=ahead)."
+        ),
+    ))
+
+    # 2e. THE POLLER'S OWN CENSUS (P7). The poller has printed its target count on line 1 of every
+    # run since it was built and NOTHING has ever read it. MEASURED 2026-09-21: it printed 46 while
+    # the repo registry enumerated 53 -- a baked image five weeks behind HEAD. Four contracts had
+    # zero datapoints over a 7-day window and the RETIRED silver_esr surface was still being polled
+    # at ratio 2.34, latching leviathan-dev-freshness-breach-count-usda-esr ALARM since 2026-09-04
+    # and hiding the leg that actually serves.
+    #
+    # The threshold is GENERATED from the same registry the poller reads (see build_tfvars), so it
+    # can never be a stale literal, and treat_missing_data = "breaching" because a poller that
+    # cannot say how many targets it polled is a poller that did not run.
+    alarms.append(_alarm(
+        failure_mode="freshness_targets_polled",
+        family="_global",
+        metric_name=TARGETS_POLLED_METRIC_NAME,
+        dimensions={},
+        statistic="Minimum",
+        period_seconds=86400,
+        evaluation_periods=1,
+        comparison_operator="LessThanThreshold",
+        threshold=float(len(all_poll_targets(reg))),
+        treat_missing_data="breaching",   # no census datapoint == the poller did not run
+        severity=SEV_P2,
+        owner="silver-platform",
+        dedup_key="targets-polled/global",
+        retention_days=90,
+        description=(
+            f"The freshness poller polled FEWER than the "
+            f"{len(all_poll_targets(reg))} targets this repo's registry declares -- i.e. the "
+            f"image it runs from carries an OLDER configs/silver/tables than HEAD, and every "
+            f"contract added since that image is unmeasured and unalarmed. Emitted by "
+            f"jobs/observability/freshness_poller_task.py (FreshnessTargetsPolled, undimensioned); "
+            f"the threshold is regenerated from the registry by this file, never hand-set. "
+            f"Remedy: repin the jobdef the leviathan-dev-freshness-poller schedule targets onto a "
+            f"CURRENT worker image (scripts/ops/repin_jobdef_digest.py)."
+        ),
+    ))
+
+    # 4. THE TEXT / CORPUS LANE'S LIVENESS ALARMS (handed by lane 5, round 2; the liveness half
+    # RE-SHAPED onto a daily age gauge in round 3, review M-A).
+    #
+    # WHY THEY ARE HERE AND NOT APPLIED YET, stated so nobody reads the gap as an oversight. These
+    # three metrics DO NOT EXIST in the account today -- MEASURED 2026-09-22,
+    # `list-metrics --namespace Leviathan/Silver` returns eleven names and not one of them starts
+    # with Corpus or Wasde -- because the emitters ship inside images whose current pins predate the
+    # change. An alarm created against a stream that has never published goes red on the apply that
+    # creates it (corpus_fold_liveness is treat_missing_data="breaching"), which is the exact hazard
+    # this module's own header names for the pre-publish families. So the DOCUMENT carries them now
+    # (this file has always documented the target state; PRE_PUBLISH_FAMILIES is filtered in
+    # build_tfvars and only there) and the terraform half waits on one precondition:
+    #
+    #     commit -> image build + repin -> ONE fire that emits -> `aws cloudwatch list-metrics
+    #     --namespace Leviathan/Silver` shows the name -> THEN apply.
+    #
+    # They are deliberately NOT in build_tfvars: the applied set may not contain an alarm whose
+    # metric has never published.
+    #
+    # ONE NAME IN THE BRIEF IS REFUTED, WITH LANE 5's MEASUREMENT. The spec handed down said
+    # `CorpusFoldDocsWritten == 0 -> ALARM`. A fold is a RE-DERIVATION from the chunk cache, not an
+    # ingestion, so `docs.written` is 0 BY CONSTRUCTION on a perfect fold: the last real fold's own
+    # manifest (write_manifest_rebuild_20260821T212319Z.json, read-only GET 2026-09-22) records
+    # docs {"written": 0} beside slices {"commodity": 52, "drivers": 144} and 2,742,847 rows. An
+    # alarm on docs.written would have paged on a 4h29m fold that rewrote 196 objects. The metric
+    # that counts the work is CorpusFoldSlicesWritten, healthy value 196, and that is what is
+    # alarmed here.
+    #
+    # ROUND 3 -- THE LIVENESS SHAPE THE API ACCEPTS. Round 2 asked "did the monthly fold fire?"
+    # with SampleCount(CorpusFoldRuns) over THIRTY-FIVE daily periods. PutMetricAlarm refuses any
+    # alarm whose Period x EvaluationPeriods exceeds 604,800 s, so 86,400 x 35 = 3,024,000 s could
+    # never have been created: the apply would have failed with a ValidationError on an alarm five
+    # unit tests reported as delivered. The question is unchanged and the 35 is unchanged; it is
+    # now spent as 35 DAYS OF AGE on a gauge the DAILY poller emits, evaluated once. Two things
+    # improve on the way: the alarm CLEARS on the next fold instead of needing 35 clean days, and
+    # the reporter no longer has to be the job whose death is being reported.
+    fold = ledger_gauge("corpus_fold")
+    alarms.append(_alarm(
+        failure_mode="corpus_fold_liveness",
+        family=fold.family,
+        metric_name=fold.metric_name,
+        dimensions={"Family": fold.family},
+        statistic="Maximum",
+        period_seconds=86400,
+        evaluation_periods=1,
+        datapoints_to_alarm=1,
+        comparison_operator="GreaterThanThreshold",
+        # READ OFF THE GAUGE DECLARATION, never hand-set here: the number in the alarm and the
+        # number the poller prints beside the reading are ONE number (freshness.LEDGER_GAUGES).
+        threshold=fold.threshold_days,
+        # breaching, and here it means one thing only: the DAILY poller emitted no age at all --
+        # the ledger prefix is unreadable or the poller did not run. Silence on a daily gauge is a
+        # blindness, never a quiet month, because the gauge does not depend on the fold firing.
+        treat_missing_data="breaching",
+        severity=SEV_P2,
+        owner="graphrag-platform",
+        dedup_key="corpus-fold/liveness",
+        retention_days=90,
+        description=(
+            f"The monthly evidence FOLD is more than {fold.threshold_days:.0f} DAYS OLD. THE BOUND "
+            f"IS DERIVED, NOT PREFERRED: {fold.basis} This is the alarm for the never-DELIVERED "
+            "case: leviathan-dev-batch-job-failed-backstop has zero alarm actions and the "
+            "scheduled-failure metric filter matches only MANAGED_BY_AWS or a named jobName list "
+            "that does not include corpus-fold, so a fold that is never submitted is invisible "
+            f"without this. Emitted DAILY by jobs/observability/freshness_poller_task.py "
+            f"({fold.metric_name}, dim Family) as the age of {fold.prefix} -- with "
+            f"{fold.fallback_prefix} ({fold.fallback_note}) when the ledger prefix is empty. "
+            "MISSING DATA IS BREACHING because the emitter is the daily poller, not the monthly "
+            "fold: no datapoint means the poller did not run or could not read the ledger, and "
+            "both are blindness. Remedy: submit a fold (or repin the poller), then this clears on "
+            "the next cycle."
+        ),
+    ))
+    alarms.append(_alarm(
+        failure_mode="corpus_fold_wrote_nothing",
+        family="graphrag_evidence",
+        metric_name="CorpusFoldSlicesWritten",
+        dimensions={"Family": "graphrag_evidence"},
+        statistic="Maximum",
+        period_seconds=86400,
+        evaluation_periods=1,
+        datapoints_to_alarm=1,
+        comparison_operator="LessThanThreshold",
+        threshold=1,
+        # notBreaching HERE, and the pair is the reason: liveness is the alarm above's job, so this
+        # one must be silent on the ~30 days a month when no fold fires. It speaks only on a day
+        # that HAS a datapoint whose value is 0 -- a fold ran and wrote no slice object.
+        treat_missing_data="notBreaching",
+        severity=SEV_P2,
+        owner="graphrag-platform",
+        dedup_key="corpus-fold/wrote-nothing",
+        retention_days=90,
+        description=(
+            "A monthly evidence fold FIRED and wrote ZERO slice objects. The healthy value is 196 "
+            "(52 commodity + 144 driver slices, measured from the 2026-08-21 fold manifest), and "
+            "the task emits 0 on any failed or refused chain, so this is 'the fold ran and did "
+            "nothing'. NOT DocsWritten: a fold is a re-derivation from the chunk cache and "
+            "docs.written is 0 on a perfect fold. Paired with corpus_fold_liveness, which is the "
+            "alarm for a fold that never fired. Emitted by jobs/batch/corpus_fold_task.py "
+            "(CorpusFoldSlicesWritten, dim Family)."
+        ),
+    ))
+    # The WASDE text leg stopped exiting 1 on a document-level extraction error (it is the LAST
+    # task of a FAIL-FAST silver phase, so one unreadable PDF out of 375 withheld the whole month's
+    # canonical publish). The leg is tolerant by exit code and the failure is COUNTED, never
+    # swallowed -- so this metric is now the ONLY thing that can see a text failure.
+    alarms.append(_alarm(
+        failure_mode="wasde_text_errors",
+        family="usda_wasde",
+        metric_name="WasdeTextErrors",
+        dimensions={"Family": "usda_wasde"},
+        statistic="Maximum",
+        period_seconds=86400,
+        evaluation_periods=1,
+        datapoints_to_alarm=1,
+        # THE NUMBER IS THE LEG'S OWN CONSTANT, SPELLED ONCE THERE: jobs/batch/wasde_text_task.py
+        # WASDE_TEXT_ERROR_ALARM_THRESHOLD = 0 (the closing round retired MAX_TOLERATED_DOC_FAILURES
+        # = 1: the leg no longer exits 1 on ANY document count -- a DOCUMENT failure is counted,
+        # named, RECORDED and tolerated, an INFRA failure exits 1 -- so the exit code no longer
+        # sees the first document failure and THIS alarm must: GreaterThanThreshold 0 pages on the
+        # FIRST new document failure of a fire). tests/unit/silver/test_silver_alarms.py joins this
+        # literal to that constant and the join is MANDATORY (a retired constant reds the deck).
+        # Maximum, never Sum: the family fires six times a month and a daily Sum would add two
+        # fires' errors together and invent a breach no single fire had.
+        comparison_operator="GreaterThanThreshold",
+        threshold=0,
+        # The family fires only on days 8-13; missing data is the other 25 days and must be silent.
+        treat_missing_data="notBreaching",
+        severity=SEV_P2,
+        owner=catalog["usda_wasde"].owner if "usda_wasde" in catalog else "silver-platform",
+        dedup_key="wasde-text/errors",
+        retention_days=90,
+        description=(
+            "A WASDE document raised during text extraction on a single fire (the FIRST one pages). "
+            "jobs/batch/wasde_text_task.py no longer exits 1 on a document-level error -- it is "
+            "the last task of the FAIL-FAST silver phase, so one unreadable PDF out of 375 used to "
+            "withhold the month's canonical WASDE publish -- so this counter is the compensating "
+            "detector for that tolerance. THE THRESHOLD IS THE LEG'S OWN CONSTANT: "
+            "WASDE_TEXT_ERROR_ALARM_THRESHOLD = 0, so the first new document failure pages while the "
+            "leg records it and keeps the month's canonical publish. Infra failures (an S3 throttle) "
+            "exit 1 on the leg AND page through wasde_text_infra_errors. Do "
+            "NOT alarm WasdeTextDocsWritten == 0: a month whose document is already current writes "
+            "0 and that is the correct steady state -- the staleness question is "
+            "wasde_text_tip_stale's. Emitted by jobs/batch/wasde_text_task.py (WasdeTextErrors, "
+            "dim Family) at the end of EVERY fire, including the failing one."
+        ),
+    ))
+    # THE INFRA CLASS, SEPARATELY (closing round, lane 5 MAJOR-R3-1): a ClientError / BotoCoreError out
+    # of the S3 seam exits 1 on the leg (the fire must RE-RUN) AND is counted on its own metric, so the
+    # board can tell "a throttle" from "an unreadable PDF" without reading a log. Maximum > 0.
+    alarms.append(_alarm(
+        failure_mode="wasde_text_infra_errors",
+        family="usda_wasde",
+        metric_name="WasdeTextInfraErrors",
+        dimensions={"Family": "usda_wasde"},
+        statistic="Maximum",
+        period_seconds=86400,
+        evaluation_periods=1,
+        datapoints_to_alarm=1,
+        comparison_operator="GreaterThanThreshold",
+        threshold=0,
+        treat_missing_data="notBreaching",
+        severity=SEV_P2,
+        owner=catalog["usda_wasde"].owner if "usda_wasde" in catalog else "silver-platform",
+        dedup_key="wasde-text/infra-errors",
+        retention_days=90,
+        description=(
+            "An INFRA failure (S3 ClientError / BotoCoreError) inside the WASDE text leg on a single "
+            "fire. The leg exits 1 on this class -- a throttled release is a document that was never "
+            "attempted, so the fire must re-run inside the 8th-13th window -- and this counter is the "
+            "board's reading of it, separate from WasdeTextErrors (document failures, tolerated and "
+            "recorded). Emitted by jobs/batch/wasde_text_task.py (WasdeTextInfraErrors, dim Family)."
+        ),
+    ))
+
+    # THE OTHER HALF OF THE TEXT LEG, and the one the error counter cannot see: a chain that
+    # never fires raises nothing, writes nothing and counts nothing. Round 3's brief asked for it
+    # as "missing data over 40 days", which is 86,400 x 40 = 3,456,000 s and uncreatable; it is the
+    # same daily AGE GAUGE as the fold's -- and here the gauge reads the KEY, never the mtime,
+    # because the text lane MEASURED the difference: newest object mtime 2026-08-20 (33.2d, GREEN
+    # at 40) over a newest release_date partition of 2026-08-12 (41.0d, RED).
+    tip = ledger_gauge("wasde_text")
+    alarms.append(_alarm(
+        failure_mode="wasde_text_tip_stale",
+        family=tip.family,
+        metric_name=tip.metric_name,
+        dimensions={"Family": tip.family},
+        statistic="Maximum",
+        period_seconds=86400,
+        evaluation_periods=1,
+        datapoints_to_alarm=1,
+        comparison_operator="GreaterThanThreshold",
+        threshold=tip.threshold_days,
+        # breaching: an unreadable prefix is a blindness, never a quiet month. The emitter is the
+        # DAILY poller, so silence here is the poller's silence and not the chain's.
+        treat_missing_data="breaching",
+        severity=SEV_P2,
+        owner=catalog["usda_wasde"].owner if "usda_wasde" in catalog else "silver-platform",
+        dedup_key="wasde-text/tip-stale",
+        retention_days=90,
+        description=(
+            f"The WASDE TEXT layer's newest release is more than {tip.threshold_days:.0f} DAYS "
+            f"old. THE BOUND IS DERIVED, NOT PREFERRED: {tip.basis} READ FROM THE PARTITION KEY, "
+            f"NEVER THE OBJECT MTIME: measured 2026-09-22, the newest mtime under {tip.prefix} is "
+            "2026-08-20 (33.2 days, which a mtime gauge would call GREEN) over a newest "
+            "release_date of 2026-08-12 (41.0 days) -- a bulk re-write of old documents, i.e. the "
+            "write-recency blindness the data axis exists to end. Emitted DAILY by "
+            f"jobs/observability/freshness_poller_task.py ({tip.metric_name}, dim Family). "
+            "RED ON ARRIVAL IS EXPECTED AND INTENDED: the tip stands at 41 days today and clears "
+            "the moment the first fire writes release_date=2026-09-11. Paired with "
+            "wasde_text_errors, which sees a fire that ran and failed; this one sees a chain that "
+            "never fired at all."
+        ),
+    ))
+
     # 3. Global value-census-regression alarm.
     census_owner = catalog.get("usda_esr").owner if "usda_esr" in catalog else "numbers-platform"
     alarms.append(_alarm(
@@ -402,6 +864,17 @@ def build_tfvars(registry=None) -> dict:
     catalog = build_catalog(reg)
     families = [k for k, f in catalog.items()
                 if f.backfillable and k not in PRE_PUBLISH_FAMILIES]
+    # P6/P7. The DATA-axis map and the poller's own expected census, filtered by the SAME
+    # PRE_PUBLISH_FAMILIES rule and for the same reason: silver_moex_agro_indices and
+    # silver_ams_gtr are registered ahead of their producers and their canonical prefixes are
+    # EMPTY (verified by listing, 2026-09-22), so an alarm on them would watch an absence somebody
+    # deliberately created. ``silver_expected_poll_targets`` is a COUNT, not a filter: the poller
+    # really does poll those two, so the census must expect them.
+    data_date = {
+        table: {"family": family, "ratio_threshold": 1.0, "ceiling_days": ceiling, "basis": basis}
+        for table, (family, ceiling, basis) in sorted(data_date_alarm_targets(reg).items())
+        if family not in PRE_PUBLISH_FAMILIES
+    }
     return {
         "silver_metric_namespace": METRIC_NAMESPACE,
         "silver_batch_families": families,
@@ -411,6 +884,13 @@ def build_tfvars(registry=None) -> dict:
             for table, (family, max_lag, basis) in sorted(
                 {**BURNED_TABLE_FRESHNESS, **ARTIFACT_FRESHNESS}.items())
         },
+        "silver_data_date_slas": data_date,
+        "silver_expected_poll_targets": len(all_poll_targets(reg)),
+        # Recorded in the applied variables so the closed archives the board deliberately does NOT
+        # page about are visible to whoever reads the infrastructure, not only to whoever reads
+        # leviathan/silver/freshness.py. Terraform consumes it for the alarm descriptions; the
+        # EXCLUSION itself already happened above, in data_date_alarm_targets().
+        "silver_data_date_static": dict(sorted(STATIC_DATA_TARGETS.items())),
     }
 
 
