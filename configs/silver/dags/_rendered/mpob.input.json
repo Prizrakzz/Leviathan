@@ -25,7 +25,8 @@
       "tasks": [
         {
           "command": [
-            "jobs/batch/mpob_task.py"
+            "jobs/batch/mpob_task.py",
+            "--force-overwrite"
           ],
           "env": [],
           "integration": "batch",

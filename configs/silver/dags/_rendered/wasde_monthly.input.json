@@ -67,6 +67,17 @@
           "integration": "batch",
           "jobdef": "leviathan-dev-wasde-silver",
           "queue": "leviathan-dev-queue-ondemand"
+        },
+        {
+          "command": [
+            "jobs/batch/wasde_text_task.py",
+            "--era",
+            "all"
+          ],
+          "env": [],
+          "integration": "batch",
+          "jobdef": "leviathan-dev-text-to-graphrag",
+          "queue": "leviathan-dev-queue-ondemand"
         }
       ]
     }
