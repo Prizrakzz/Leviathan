@@ -18,11 +18,12 @@ exercised by the live read-only dry runs, not by this deck.
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
 import sys
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -198,7 +199,11 @@ def test_the_fold_chain_is_lint_then_rebuild_then_census_with_an_explicit_baseli
     assert steps[1] == ["-m", "leviathan.graphrag.evidence_batch", "--rebuild-slices"]
     assert steps[2] == ["-m", "leviathan.graphrag.e1_census", "--diff",
                         "--baseline", "s3://b/p/eval/e1_census.json"]
-    assert len(steps) == 3
+    # ROUND 2: a FOURTH step -- the ROLL. `--diff` never writes and no schedule runs a plain
+    # census, so without this the frozen Input diffs against one 2026-08-02 object forever and a
+    # growing store's partial regression reads GREEN. Pinned in full in test_corpus_fold_task.py.
+    assert steps[3] == ["-m", "leviathan.graphrag.e1_census"]
+    assert len(steps) == 4
     assert all("--allow-churn" not in s for s in steps)
 
 
@@ -208,9 +213,12 @@ def test_the_pg_legs_are_off_by_default_and_append_in_order(fold) -> None:
     ns = _ns(stage="fold", evidence_s3="s3://b/p", census_baseline="x",
              with_pg_load=True, with_pg_swap=True, pg_shadow_table="evidence_props_shadow")
     steps = fold.chain_steps(ns)
-    assert steps[3] == ["-m", "jobs.utils.load_pg_evidence", "--all",
+    # The pg legs sit AFTER the roll: the baseline describes the S3 store the rebuild produced and
+    # the gate cleared, and pg is a separate, operator-owned mirror of it.
+    assert steps[3] == ["-m", "leviathan.graphrag.e1_census"]
+    assert steps[4] == ["-m", "jobs.utils.load_pg_evidence", "--all",
                         "--table", "evidence_props_shadow"]
-    assert steps[4] == ["-m", "jobs.utils.pg_evidence_swap", "--swap"]
+    assert steps[5] == ["-m", "jobs.utils.pg_evidence_swap", "--swap"]
 
 
 def test_the_fold_task_imports_the_submitters_guards_rather_than_copying_them(fold) -> None:
@@ -727,3 +735,115 @@ def test_a_dry_run_writes_neither_ledger_nor_heartbeat_on_any_quiet_path(
     assert ingest.stage_chunk(_chunk_args(dry_run=True), _TODAY) == 0
     assert calls == []
 
+
+
+# ---------------------------------------------------------------------------
+# ROUND 2 -- A CORRECTED DOCUMENT REACHES THE CHUNK CACHE
+#
+# THE DEFECT, MEASURED. The cache is key-addressed -- `chunks/md5(text_key)` -- and
+# `_cached_hashes` read the mere EXISTENCE of that object as a permanent hit. A USDA correction is
+# rewritten AT THE SAME KEY (`text_wasde_key(release_date)` is a pure function of the release date),
+# so a corrected document was "already chunked" forever: its propositions never entered chunks/,
+# never entered a slice, never reached pg, and `--since-ledger` (`d > newest_covered_pub`) would
+# have dropped it a second time because a correction is BACK-DATED by construction.
+#
+# RE-KEYING ON CONTENT WAS REFUSED WITH THE NUMBER: it would rename all 5,936 existing chunk objects
+# at once and re-pay Haiku over 7,067 documents (~$0.029/doc -> ~$200) against a 200-document cap
+# that would then refuse every fire. The key stays md5(text_key); a chunk object OLDER than its
+# document is simply no longer a hit. Measured live 2026-09-22 (two LISTs, zero GETs): 7,067
+# documents, 5,936 chunk objects, 5,936 md5 hits, 0 stale -- this re-chunks NOTHING today.
+# ---------------------------------------------------------------------------
+
+_DOC_A = "text/source=usda_wasde/release_date=2026-09-11/document.json"
+_DOC_B = "text/source=usda_wap/release_month=2026-09/document.json"
+_T0 = datetime(2026, 9, 22, tzinfo=timezone.utc)
+
+
+def _md5(key: str) -> str:
+    return hashlib.md5(key.encode("utf-8")).hexdigest()
+
+
+def test_a_chunk_object_OLDER_than_its_document_is_not_a_cache_hit() -> None:
+    """THE PIN THAT FAILS ON HEAD AND ON ROUND 1: `stale_cache_names` does not exist there, and
+    `_cached_hashes` returns every listed name whatever the document did afterwards."""
+    chunks = {_md5(_DOC_A): _T0 - timedelta(days=30), _md5(_DOC_B): _T0 - timedelta(days=30)}
+    docs = {_DOC_A: _T0, _DOC_B: _T0 - timedelta(days=40)}               # A was REWRITTEN, B was not
+    assert eb.stale_cache_names(chunks, docs) == {_md5(_DOC_A): _DOC_A}
+
+
+def test_an_UNCHUNKED_document_is_never_reported_as_a_correction() -> None:
+    """A document with no chunk object is a GAP, not a correction -- it is already selected by the
+    ordinary path and must not be double-counted into the loud correction line."""
+    assert eb.stale_cache_names({}, {_DOC_A: _T0}) == {}
+
+
+def test_a_document_older_than_its_chunk_object_is_still_a_hit() -> None:
+    """The whole 5,936-object store is in this case today. A rule that read them as stale would
+    re-chunk the corpus."""
+    assert eb.stale_cache_names({_md5(_DOC_A): _T0}, {_DOC_A: _T0 - timedelta(days=1)}) == {}
+    assert eb.stale_cache_names({_md5(_DOC_A): _T0}, {_DOC_A: _T0}) == {}, \
+        "equal timestamps are NOT a correction: the chunk object was written from that document"
+
+
+def test_the_cache_subtracts_the_corrections_so_all_six_callers_correct_at_once(monkeypatch) -> None:
+    """`select_docs`, `_build_requests`, `_build_requests_from_docs`, `_build_novelty_gate`,
+    `store_path_index` and `_write_doc_cache` all ask `_cached_hashes` what the store holds. One
+    definition of 'already chunked' is what makes the correction reach every one of them -- and it
+    is what lets `_write_doc_cache` see a FILL instead of refusing a re-chunk it should welcome."""
+    eb.reset_correction_cache()
+    monkeypatch.setattr(ev, "_evid_s3", lambda: "s3://b/graphrag_evidence")
+    monkeypatch.setattr(eb, "_cached_object_mtimes",
+                        lambda: {_md5(_DOC_A): _T0 - timedelta(days=30), _md5(_DOC_B): _T0})
+    monkeypatch.setattr(eb, "_document_mtimes", lambda: {_DOC_A: _T0, _DOC_B: _T0 - timedelta(days=1)})
+    try:
+        assert eb.corrected_documents() == {_md5(_DOC_A): _DOC_A}
+        assert eb._cached_hashes() == {_md5(_DOC_B)}
+    finally:
+        eb.reset_correction_cache()
+
+
+def test_an_UNREADABLE_listing_re_chunks_NOTHING_and_says_so(monkeypatch, capsys) -> None:
+    """The cheap direction, deliberately: an empty correction set leaves exactly today's behaviour
+    (the correction waits for the next fire), while reading an unreadable listing as 'everything is
+    stale' would re-chunk the entire corpus on a transient S3 error."""
+    eb.reset_correction_cache()
+    monkeypatch.setattr(ev, "_evid_s3", lambda: "s3://b/graphrag_evidence")
+    monkeypatch.setattr(eb, "_cached_object_mtimes",
+                        lambda: {_md5(_DOC_A): _T0, _md5(_DOC_B): _T0})
+
+    def _boom():
+        raise RuntimeError("throttled")
+
+    monkeypatch.setattr(eb, "_document_mtimes", _boom)
+    try:
+        assert eb.corrected_documents() == {}
+        assert eb._cached_hashes() == {_md5(_DOC_A), _md5(_DOC_B)}
+        assert "correction scan unavailable" in capsys.readouterr().out
+    finally:
+        eb.reset_correction_cache()
+
+
+def test_the_since_ledger_bound_EXEMPTS_a_correction_because_it_is_back_dated(
+        ingest, monkeypatch) -> None:
+    """THE SECOND HALF, and without it the first is useless. The 2026-09-11 WASDE sits at or before
+    `newest_covered_pub` once it has been chunked once, so `d > newest_covered_pub` would drop the
+    corrected edition on every weekly fire forever."""
+    monkeypatch.setattr(eb, "select_docs", lambda sources, **kw: [_DOC_A])
+    census = _census(usda_wasde={"covered": "2026-09-11"})
+    args = _chunk_args(all_gap=False)
+    monkeypatch.setattr(eb, "corrected_documents", dict)
+    assert ingest._gap_doc_keys(args, census, ["usda_wasde"]) == [], \
+        "an already-covered document is NOT a candidate -- that is the weekly bound working"
+    monkeypatch.setattr(eb, "corrected_documents", lambda: {_md5(_DOC_A): _DOC_A})
+    assert ingest._gap_doc_keys(args, census, ["usda_wasde"]) == [_DOC_A]
+
+
+def test_the_exemption_is_a_NAMED_SET_and_never_a_loosening_of_the_bound(
+        ingest, monkeypatch) -> None:
+    """Everything outside the correction set still obeys `d > newest_covered_pub` exactly."""
+    other = "text/source=usda_wasde/release_date=2026-05-12/document.json"
+    monkeypatch.setattr(eb, "select_docs", lambda sources, **kw: [_DOC_A, other])
+    monkeypatch.setattr(eb, "corrected_documents", lambda: {_md5(_DOC_A): _DOC_A})
+    got = ingest._gap_doc_keys(_chunk_args(all_gap=False),
+                               _census(usda_wasde={"covered": "2026-09-11"}), ["usda_wasde"])
+    assert got == [_DOC_A]

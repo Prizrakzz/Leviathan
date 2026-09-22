@@ -63,8 +63,14 @@ WHAT THIS FILE DELIBERATELY DOES NOT DO.
   -- it only grows `chunks/`. So the chunk stage touches `chunks/` and `_batches/` and no guarded
   layer, which is what makes it (and only it) legal on the S3-staged override seam. THE FOLD IS
   NEVER STAGED; it is `jobs/batch/corpus_fold_task.py`.
-* It never writes a slice, never touches pg, never calls CloudWatch, and never passes `--allow-churn`
-  to anything.
+* It never writes a slice, never touches pg, and never passes `--allow-churn` to anything.
+* IT DOES CALL CLOUDWATCH, since 2026-09-22, and the header used to say it did not. `_emit_metrics`
+  PUTs the four family-rolled datums at the same commit point as the ledger. Until that line existed
+  `corpus_coverage.metric_payloads` had exactly one caller in the estate -- `stage_census`, which
+  only PRINTED it -- so `list_metrics(Namespace="Leviathan/Silver")` returned 11 names and none of
+  the four, and a fire that ingested nothing was indistinguishable from a fire that never happened.
+  No new IAM: the job role's `leviathan-dev-freshness-put-metric` inline policy already grants
+  `cloudwatch:PutMetricData` on exactly this namespace.
 * `--stage fetch` does NOT fetch. Sitting 1 ships the G1 RULE (ledger-bounded, refuse-an-undated-
   object) as a pure gate in `corpus_coverage.bound_listing` and REPORTS the bound each source's
   ledger entry would impose. Wiring it into `jobs/ingest/fetch_*.py` is a later sitting and is gated
@@ -221,10 +227,79 @@ def _fulltext_cap():
         return None
 
 
+def metric_datums(ledger: dict) -> list[dict]:
+    """The FOUR family-rolled CloudWatch datums, built FROM THE LEDGER this fire just wrote.
+
+    They are built from the ledger rather than re-derived from a census so the number CloudWatch
+    carries and the number `coverage/ledger.json` records can never disagree; the deck pins this
+    against `corpus_coverage.metric_payloads` for the same census so the two mintings cannot drift.
+    Cardinality is the module's: at most four names, ONE dimension, and that dimension's value is
+    the constant `Family=graphrag_evidence`. Do NOT add a per-source dimension -- the 85-metric
+    shape was priced at $25.50/month and rejected (corpus_coverage.py:147-151).
+    """
+    dim = [{"Name": "Family", "Value": cc.FAMILY}]
+    pairs = (
+        (cc.METRIC_COVERAGE_MIN, ledger.get("coverage_min"), "None"),
+        (cc.METRIC_CHUNK_LAG_MAX, ledger.get("chunk_lag_days_max"), "Count"),
+        (cc.METRIC_FETCH_LAG_MAX, ledger.get("fetch_lag_days_max"), "Count"),
+        (cc.METRIC_BREACH_COUNT, len(ledger.get("breaching_sources") or []), "Count"),
+    )
+    return [{"MetricName": n, "Dimensions": list(dim), "Value": float(v), "Unit": u}
+            for n, v, u in pairs if v is not None]
+
+
+def _emit_metrics(args, ledger: dict) -> None:
+    """PUT the four datums. THE LINE THAT WAS MISSING, and the defect it closes is not subtle.
+
+    `corpus_coverage.metric_payloads` has been written and unit-tested since the lane's first
+    sitting, and `stage_census` has always PRINTED its output -- but this file was the only caller
+    in the estate and it never called `put_metric_data`, so on 2026-09-22
+    `list_metrics(Namespace="Leviathan/Silver")` returned 11 names and NOT ONE of the four was among
+    them. With no datapoint there is no alarm, and the only instrument the `graphrag_evidence`
+    family had was `freshness.py:316-345`'s pointer at `timeline/last_run.json` -- the weekly
+    timeline rebuild's HEARTBEAT, which read 1.395 d GREEN on a corpus whose newest fact was 41 days
+    old. A FIRE THAT INGESTS NOTHING NOW SAYS SO: `CorpusChunkLagDaysMax` climbs while the sources
+    move, and `CorpusCoverageBreachCount` names how many sources are past the declared contract, on
+    EVERY outcome that reaches a ledger -- including the quiet ones (NOTHING_TO_DO, NO_CANDIDATES,
+    ALL_CACHED) and the loud one (REFUSED_CAP).
+
+    NO NEW IAM: `leviathan-dev-batch-job-role`, which `leviathan-dev-evidence-build` runs under,
+    already carries the inline policy `leviathan-dev-freshness-put-metric` --
+    `cloudwatch:PutMetricData` conditioned on `cloudwatch:namespace = Leviathan/Silver`, which is
+    exactly `corpus_coverage.METRIC_NAMESPACE` (verified live 2026-09-22).
+
+    A FAILED PUT DOES NOT FAIL THE FIRE, and that is not fail-open: this module's own stated
+    convention is that the alarm's `treat_missing_data="breaching"` OWNS the silence
+    (corpus_coverage.py:570-573), so a datum that never arrives reads RED by construction. Failing
+    the job instead would throw away a ledger and a heartbeat that already committed.
+    """
+    # R2 MINOR-4: the MINTING is inside the guard too. A malformed ledger value raising here would
+    # have failed a fire whose ledger and heartbeat had ALREADY committed -- an instrument killing
+    # a complete record, which is the one thing this emit promises never to do.
+    try:
+        datums = metric_datums(ledger)
+        if not datums:
+            print("  METRICS: no measurable value in the ledger -- NOTHING emitted. The alarms' "
+                  "treat_missing_data=breaching owns that silence; it is never a zero.")
+            return
+        import boto3
+        boto3.client("cloudwatch", region_name=args.aws_region).put_metric_data(
+            Namespace=cc.METRIC_NAMESPACE, MetricData=datums)
+        print("  metrics -> %s %s" % (cc.METRIC_NAMESPACE,
+                                      ", ".join("%s=%s" % (d["MetricName"], d["Value"])
+                                                for d in datums)))
+    except Exception as exc:                                   # noqa: BLE001
+        print("  METRIC EMIT FAILED (%s) -- the ledger and the heartbeat STAND, and the missing "
+              "datapoints read RED through treat_missing_data=breaching. Never silently swallowed."
+              % type(exc).__name__)
+
+
 def _write_ledger(args, ledger: dict, *, heartbeat: bool = True,
                   outcome: str = "CORPUS_INGEST_OK") -> None:
     """The ledger and the heartbeat are written LAST, after every other write has committed, so a
-    half-finished fire never advertises itself as complete (design G5)."""
+    half-finished fire never advertises itself as complete (design G5). The CloudWatch emit rides
+    the SAME commit point for the same reason -- a metric that says the store moved is only true
+    once the record of that move is durable."""
     import boto3
     bkt, key = cc._split_s3(ledger_prefix(args))
     s3 = boto3.client("s3", region_name=args.aws_region)
@@ -239,6 +314,7 @@ def _write_ledger(args, ledger: dict, *, heartbeat: bool = True,
         s3.put_object(Bucket=bkt, Key="%s/%s" % (key, cc.HEARTBEAT_SUFFIX),
                       Body=json.dumps(hb).encode("utf-8"), ContentType="application/json")
         print("  heartbeat -> s3://%s/%s/%s" % (bkt, key, cc.HEARTBEAT_SUFFIX))
+    _emit_metrics(args, ledger)
 
 
 def _close_quiet(args, census: dict, *, outcome: str) -> None:
@@ -381,6 +457,15 @@ def _gap_doc_keys(args, census: dict, sources: list[str]) -> list[str]:
     `docs` vs `chunked + aliased` columns are where it shows up. Closing it properly is a
     ledger-of-seen-keys, which is a later sitting.
 
+    ONE CLASS IS NO LONGER BLIND, AND IT IS THE CORRECTION. A USDA correction is rewritten at the
+    SAME text key with its ORIGINAL release date, so it is back-dated BY CONSTRUCTION: even after
+    `evidence_batch.corrected_documents` invalidates its chunk-cache entry and `select_docs` re-takes
+    it, `d > newest_covered_pub` would drop it a second time and the writer would go on citing the
+    superseded edition. The date bound is therefore EXEMPTED for exactly the keys the correction scan
+    names -- a set that is EMPTY today (measured 2026-09-22: 7,067 documents, 5,936 chunk objects,
+    0 stale), so this changes the candidate list by nothing at all until a document actually moves.
+    It is an exemption for a NAMED, MEASURED set, never a loosening of the bound.
+
     `select_docs` (evidence_batch.py:1582-1598) already drops anything already in `chunks/` via
     `_cached_hashes`; the ALIAS layers are applied later, inside `submit_docs`' `DedupGate`, which is
     why a `--sources usda_gain_soybeans` fire reports 0 NEW docs rather than 69. Both depend on
@@ -390,12 +475,16 @@ def _gap_doc_keys(args, census: dict, sources: list[str]) -> list[str]:
     keys = eb.select_docs(sources)                             # md5-cached filter, free-ish
     if args.all_gap:
         return sorted(keys)
+    corrected = set(eb.corrected_documents().values())         # rewritten since chunked; {} today
     out = []
     for k in keys:
         src = cc.source_of(k)
         rec = census["sources"].get(src) or {}
         edge = rec.get("newest_covered_pub")
         d, _lay = cc._pub_date(k)
+        if k in corrected:
+            out.append(k)                                      # a correction is back-dated BY
+            continue                                           # CONSTRUCTION -- see the docstring
         if d is None:
             continue                                           # G2's population: never chunked here
         if edge is None or d > date.fromisoformat(edge):

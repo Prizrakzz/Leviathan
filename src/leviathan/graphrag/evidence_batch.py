@@ -254,16 +254,131 @@ def _doc_cache_node(source_key: str) -> str:
     return "chunks/" + hashlib.md5(source_key.encode("utf-8")).hexdigest()
 
 
+def _cached_object_mtimes() -> dict:
+    """{md5 name -> LastModified} for the chunk cache. ONE paginated LIST, the same LIST
+    `_cached_hashes` already took -- `list_objects_v2` carries LastModified, so the vintage of every
+    cached document costs nothing extra."""
+    import boto3
+    base = ev._evid_s3()
+    bkt, prefix = ev._parse_s3(base.rstrip("/") + "/chunks/")
+    out: dict = {}
+    for p in boto3.client("s3").get_paginator("list_objects_v2").paginate(Bucket=bkt, Prefix=prefix):
+        for o in p.get("Contents", []):
+            if o["Key"].endswith(".jsonl"):
+                out[o["Key"].rsplit("/", 1)[-1][:-6]] = o["LastModified"]
+    return out
+
+
+_DOC_MTIMES: dict | None = None                              # memo: text/ listing, once per process
+_CORRECTED: dict | None = None                               # memo: {md5 name -> text key}, once
+
+
+def reset_correction_cache() -> None:
+    """Drop both memos. For tests and for a long-lived process that must re-read the store."""
+    global _DOC_MTIMES, _CORRECTED
+    _DOC_MTIMES = _CORRECTED = None
+
+
+def _document_mtimes() -> dict:
+    """{text key -> LastModified} for every document.json, from ONE paginated LIST of `text/`,
+    memoized for the process (the text producers run in a different job; documents do not move
+    under a chunk pass)."""
+    global _DOC_MTIMES
+    if _DOC_MTIMES is None:
+        import boto3
+
+        from leviathan.graphrag.corpus_recon import BUCKET, TEXT_PREFIX
+        out: dict = {}
+        pag = boto3.client("s3").get_paginator("list_objects_v2")
+        for p in pag.paginate(Bucket=BUCKET, Prefix=TEXT_PREFIX):
+            for o in p.get("Contents", []):
+                if o["Key"].endswith("document.json"):
+                    out[o["Key"]] = o["LastModified"]
+        _DOC_MTIMES = out
+    return _DOC_MTIMES
+
+
+def stale_cache_names(chunk_mtimes: dict, doc_mtimes: dict) -> dict:
+    """{md5 name -> text key} for every cached document whose document.json is NEWER than the chunk
+    object derived from it. A pure function of two listings -- no IO, so the rule is unit-testable
+    without S3."""
+    out: dict = {}
+    for key, dm in doc_mtimes.items():
+        name = hashlib.md5(key.encode("utf-8")).hexdigest()
+        cm = chunk_mtimes.get(name)
+        if cm is not None and dm > cm:
+            out[name] = key
+    return out
+
+
+def corrected_documents(chunk_mtimes: dict | None = None) -> dict:
+    """THE CORRECTION SET: cached documents whose text/ object has been REWRITTEN since it was
+    chunked. `{md5 name -> text key}`, computed once per process.
+
+    THE DEFECT THIS CLOSES, AND WHY IT IS NOT A RE-KEYING. The chunk cache is key-addressed --
+    `chunks/md5(text_key)` -- and `_cached_hashes` treated the mere EXISTENCE of that object as a
+    permanent cache hit. A USDA correction does not change the key: `text_wasde_key(release_date)`
+    is a pure function of the release date, so a corrected `document.json` is rewritten AT THE SAME
+    KEY and was "already chunked" forever. Its corrected propositions never entered `chunks/`, never
+    entered a slice, never reached pg, and the `--since-ledger` bound (`d > newest_covered_pub`)
+    would have excluded it a second time. The writer went on citing the superseded edition with
+    every layer downstream reporting 100% coverage.
+
+    RE-KEYING ON THE CONTENT HASH WAS REFUSED, WITH THE NUMBER. Making the cache name a function of
+    the body would rename all 5,936 existing chunk objects at once: every one of the 7,067
+    documents would read as never-chunked and re-pay Haiku (the lane's own price for the 686-document
+    backlog is ~$19.6, i.e. ~$0.029/doc -> ~$200 and 7,067 documents against a 200-document cap that
+    would refuse every fire forever), and the 5,936 orphaned objects would still be there. The key
+    stays `md5(text_key)`; what changes is that a chunk object OLDER than its document is no longer
+    a cache hit.
+
+    THE SIGNAL IS THE LISTING, and its cost is zero: `list_objects_v2` returns LastModified, so both
+    halves of the join come from LISTs already paid for (one of `chunks/`, one of `text/`). Measured
+    read-only over the live store on 2026-09-22: 7,067 documents, 5,936 chunk objects, 5,936 md5
+    hits, **0 stale** -- arming this re-chunks NOTHING today and costs $0. It is the fence that makes
+    a FUTURE correction reachable, and `_write_doc_cache` then treats the document as a fill rather
+    than refusing it as a silent re-chunk, which is right: a document whose SOURCE moved is the one
+    case where re-chunking is mandatory rather than suspicious.
+
+    IF THE LISTING CANNOT BE TAKEN the correction set is EMPTY and the run says so loudly. That is
+    deliberate and it is the cheap direction: an empty set leaves exactly today's behaviour (a
+    correction waits for the next fire), while treating an unreadable listing as "everything is
+    stale" would re-chunk the entire corpus on a transient S3 error."""
+    global _CORRECTED
+    if _CORRECTED is None:
+        try:
+            _CORRECTED = stale_cache_names(
+                _cached_object_mtimes() if chunk_mtimes is None else chunk_mtimes,
+                _document_mtimes())
+        except Exception as exc:                             # noqa: BLE001 -- never re-chunk on an error
+            print(f"  WARN correction scan unavailable ({type(exc).__name__}): the chunk cache is "
+                  f"read as-is this run, so a document REWRITTEN since it was chunked stays "
+                  f"skipped until a fire that can take the listing. Nothing is re-chunked.")
+            _CORRECTED = {}
+        if _CORRECTED:
+            shown = sorted(_CORRECTED.values())[:10]
+            print(f"  CORRECTIONS: {len(_CORRECTED)} cached document(s) were REWRITTEN after they "
+                  f"were chunked and will be re-chunked: {', '.join(shown)}"
+                  + (" ..." if len(_CORRECTED) > 10 else ""))
+    return _CORRECTED
+
+
 def _cached_hashes() -> set:
-    """md5 names of documents already in the chunk cache (list chunks/ once, local or S3)."""
+    """md5 names of documents already in the chunk cache (list chunks/ once, local or S3), MINUS the
+    documents that have been corrected since they were chunked (`corrected_documents`).
+
+    Subtracting here rather than at each call site is the point: `select_docs`,
+    `_build_requests`, `_build_requests_from_docs`, `_build_novelty_gate`, `store_path_index` and
+    `_write_doc_cache` all ask THIS function what the store holds, so one definition of "already
+    chunked" corrects all six at once -- selection re-takes the document, the request builder does
+    not skip it, and the write guard sees a fill instead of refusing a re-chunk it should welcome.
+
+    LOCAL MODE IS UNCHANGED: with no EVIDENCE_S3 there is no `text/` listing to join against, so the
+    local laptop path keeps its pure existence rule."""
     base = ev._evid_s3()
     if base:
-        import boto3
-        bkt, prefix = ev._parse_s3(base.rstrip("/") + "/chunks/")
-        out = set()
-        for p in boto3.client("s3").get_paginator("list_objects_v2").paginate(Bucket=bkt, Prefix=prefix):
-            out |= {o["Key"].rsplit("/", 1)[-1][:-6] for o in p.get("Contents", []) if o["Key"].endswith(".jsonl")}
-        return out
+        mtimes = _cached_object_mtimes()                     # the ONE listing, handed on so the
+        return set(mtimes) - set(corrected_documents(mtimes))  # correction scan adds no second LIST
     d = ev._EVID_DIR / "chunks"
     return {p.stem for p in d.glob("*.jsonl")} if d.exists() else set()
 

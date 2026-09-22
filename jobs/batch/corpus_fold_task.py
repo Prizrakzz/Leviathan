@@ -44,6 +44,37 @@ prefix. Measured: guard `PASS`, backup of the shadow's 199 objects, child resolv
 flag before anything reads it and `child_env` pins it for every step; the post-condition below
 refuses if the chain's prefix is ever not the one the guard cleared.
 
+AND THE DEFECT ROUND 2 CLOSED: THE GATE WAS FROZEN AGAINST A SNAPSHOT NOTHING REFRESHED.
+
+The scheduled fold's `--census-baseline` is an EventBridge Scheduler Input, frozen at apply time, so
+every monthly fold forever diffed against ONE object -- `graphrag_evidence/eval/e1_census.json`,
+written 2026-08-02T00:36:09Z. Nothing in the account refreshes it: `e1_census --diff` is a read-only
+gate that never calls `write()`, and no schedule anywhere runs a plain census (all 30 schedules and
+4 rules were listed). The gate's teeth are `population_drops` at a 10% fractional floor MEASURED
+AGAINST THE BASELINE'S VALUE, and this lane exists to make the store grow every month -- so a slice
+that doubles by 2027-03 could lose half of everything ingested since August, still sit above the
+August number, and the fold would exit green. THE FOLD NOW ADVANCES ITS OWN BASELINE: step 4 of the
+chain is a plain census WRITE that runs only after the lint, the rebuild and the gate all returned 0
+(`run_chain` stops at the first nonzero -- NO ROLL ON RED), so each fold diffs against the previous
+fold. GUARD 4 refuses a live fold whose declared baseline is not the key it rolls, and a green chain
+whose rolled object did not move is turned RED by a post-condition HEAD. The shape is
+`jobs/audit/advance_rolling_census.py`'s, which does exactly this for the silver estate's rolling
+gate baselines.
+
+AND THE INSTRUMENT ROUND 2 ADDED: THIS FOLD USED TO BE UNMEASURED IN EVERY DIRECTION.
+
+At HEAD this file wrote no ledger, no heartbeat and no metric, and nothing else covered it: the
+EventBridge rule `leviathan-dev-batch-job-failed` targets only a log group, the metric filter that
+feeds an alarm WITH AN ACTION matches only MANAGED_BY_AWS jobs plus three named jobNames (none of
+them corpus-*), and the catch-all backstop alarm has 0 alarm actions. A monthly fold that failed
+every month would have paged nobody, and a DLQ alarm cannot see it (a DLQ catches a delivery
+Scheduler could not make, never a job that ran and failed). Every fire now ends with a ledger line
+at `<EVIDENCE_S3>/fold/last_run.json` and three datums in `Leviathan/Silver` --
+`CorpusFoldRuns`, `CorpusFoldSlicesWritten`, `CorpusFoldFailures`, one constant dimension
+`Family=graphrag_evidence`, no new IAM. The SLICE count and not `docs.written`: a fold is a
+re-derivation, so `docs.written` is 0 on a perfect fold (measured: the 2026-08-21 manifest records
+`docs {"written": 0}` beside 196 slice objects and 2,742,847 rows).
+
 WHAT THIS FILE DELIBERATELY DOES NOT DO.
 
 * IT NEVER PASSES `--allow-churn`. An add-only lane must never need it, and if the live rebuild
@@ -79,6 +110,22 @@ from leviathan.graphrag import corpus_coverage as cc  # noqa: E402
 
 BACKUP_PREFIX_FMT = "_backup_pre_corpuslane_%Y%m%d"
 JOBDEF = "leviathan-dev-evidence-build"
+
+# -- the rolling baseline (R2 FATAL-1) -----------------------------------------------------------
+# `e1_census.write()` writes `<EVIDENCE_S3>/eval/e1_census.json` (+ .md) and archives any prior copy
+# to `e1_census_<UTC>.json` first. That key IS the one the scheduled fold's frozen
+# `--census-baseline` names, which is what makes the roll possible without touching the Input.
+CENSUS_ARTEFACT = "eval/e1_census.json"
+
+# -- the liveness instrument (R2 MAJOR-3) ---------------------------------------------------------
+# Namespace and dimension are `corpus_coverage`'s, not new ones: ONE namespace, ONE constant
+# dimension, three names. `leviathan-dev-batch-job-role` (which JOBDEF runs under) already grants
+# PutMetricData conditioned on exactly this namespace -- no new IAM (verified live 2026-09-22).
+METRIC_RUNS = "CorpusFoldRuns"
+METRIC_SLICES_WRITTEN = "CorpusFoldSlicesWritten"
+METRIC_FAILURES = "CorpusFoldFailures"
+FOLD_METRIC_NAMES = (METRIC_RUNS, METRIC_SLICES_WRITTEN, METRIC_FAILURES)
+FOLD_LEDGER_SUFFIX = "fold/last_run.json"
 
 
 def _guards():
@@ -138,6 +185,203 @@ def take_backup(s3, bp: dict) -> int:
     return landed
 
 
+def census_write_step() -> list[str]:
+    """THE ROLL, derived from the submitter's own gate command so the two can never name different
+    modules: it is `_CENSUS_GATE_CMD` MINUS `--diff`, i.e. a plain census run, which is the ONLY
+    thing in the estate that writes `<EVIDENCE_S3>/eval/e1_census.json`. Hand-typing the module here
+    would be a second definition free to drift from the gate it must roll."""
+    sm = _guards()
+    return [tok for tok in sm._CENSUS_GATE_CMD if tok != "--diff"]
+
+
+def census_roll_target(evidence_s3: str) -> str:
+    """The s3:// key a plain census run writes under the bound prefix -- i.e. the key step 4 rolls.
+
+    `e1_census.write()` resolves its remote copy as `ev._evid_s3() + "/eval/" + name`
+    (e1_census.py:400-408) and `child_env` PINS `EVIDENCE_S3` to exactly `evidence_s3`, so this is a
+    derivation of where the roll lands, never a guess."""
+    return "%s/%s" % (evidence_s3.rstrip("/"), CENSUS_ARTEFACT)
+
+
+def assert_baseline_is_the_rolled_key(args, *, echo=print) -> None:
+    """GUARD 4 -- THE FOLD MUST DIFF AGAINST THE KEY IT ROLLS, or the gate decays anyway.
+
+    Step 4 writes `<EVIDENCE_S3>/eval/e1_census.json` and can write nowhere else (that is the whole
+    point of `child_env`: a rehearsal must never be able to overwrite the live store's baseline). So
+    if `--census-baseline` names some OTHER object, this fold advances one key and judges itself
+    against another -- the frozen-snapshot defect wearing a rolling fold's clothes.
+
+    On the LIVE path (`--i-know-this-is-live`, which is what the scheduled fold carries) that is
+    REFUSED before a dollar is spent. A shadow rehearsal is NOT refused and must not be: a fresh
+    shadow prefix holds no census at all, so its only legal baseline is a foreign one -- it diffs
+    against the live census and rolls its OWN, which is correct and leaves the live key untouched.
+    That case is reported loudly instead of being silently tolerated."""
+    target = census_roll_target(args.evidence_s3)
+    declared = (args.census_baseline or "").rstrip("/")
+    if declared == target:
+        echo("  GUARD baseline-roll: PASS (--census-baseline IS the key step 4 rolls, %s -- so next "
+             "month's fold diffs against THIS month's store)" % target)
+        return
+    msg = ("REFUSED: --census-baseline %r is not the key this fold can roll (%s). A fold judges "
+           "itself against the baseline and then ADVANCES it; if those are two different objects "
+           "the baseline never moves and the gate decays into a no-op -- by construction, silently, "
+           "and reading green. The baseline object named in the live schedule was written "
+           "2026-08-02T00:36:09Z and NOTHING in the account refreshes it: `e1_census --diff` never "
+           "calls write() and no schedule runs a plain census."
+           % (args.census_baseline, target))
+    if args.i_know_this_is_live and not args.dry_run:
+        raise SystemExit(msg)
+    echo("  GUARD baseline-roll: NOTE this fold diffs against a FOREIGN baseline (%s) and rolls its "
+         "OWN (%s). Legal for a shadow rehearsal -- a fresh shadow prefix holds no census -- and the "
+         "live key is NOT touched. It would be REFUSED on the live path."
+         % (args.census_baseline, target))
+
+
+def verify_baseline_advanced(s3, evidence_s3: str, *, since: datetime, echo=print) -> None:
+    """THE POST-CONDITION on the roll: after a GREEN chain the rolled object must be NEWER than the
+    fold's own start. One HEAD against a fence that would otherwise be decorative.
+
+    `e1_census.write()`'s S3 leg is conditional on `ev._evid_s3()` being set and it prints rather
+    than raises; a future refactor, a dropped environment variable or an `--local-only` creeping into
+    the step would leave the chain green with the baseline untouched, and the NEXT month's gate would
+    be frozen again with nobody told. A green fold whose baseline did not move is a red fold."""
+    bkt, key = cc._split_s3(census_roll_target(evidence_s3))
+    from botocore.exceptions import ClientError
+    try:
+        got = s3.head_object(Bucket=bkt, Key=key)["LastModified"]
+    except ClientError as exc:
+        raise SystemExit("REFUSED: the rolled census s3://%s/%s could not be read after a GREEN "
+                         "chain (%s). The fold's own gate is judged against that object next month; "
+                         "a fold that cannot prove it rolled did not roll."
+                         % (bkt, key, type(exc).__name__)) from exc
+    if got <= since:
+        raise SystemExit("REFUSED: the chain returned 0 but s3://%s/%s still carries %s, which is "
+                         "not newer than this fold's start (%s). The census WRITE step did not "
+                         "reach the store, so next month's gate would diff against a snapshot this "
+                         "fold never refreshed -- the exact frozen-baseline defect step 4 exists to "
+                         "end." % (bkt, key, got.isoformat(), since.isoformat()))
+    echo("  baseline ROLLED: s3://%s/%s now %s (the prior copy was archived to eval/e1_census_<UTC>"
+         ".json by write()'s archive-before-overwrite)" % (bkt, key, got.isoformat()))
+
+
+def slices_written(manifest: dict) -> int:
+    """SLICE OBJECTS written by the rebuild, across every layer -- the fold's real work number.
+
+    NOT `manifest["docs"]["written"]`, AND THE DIFFERENCE IS MEASURED, not a preference. A fold is a
+    RE-DERIVATION from the chunk cache, never an ingestion, so `docs.written` is 0 on a PERFECT fold:
+    the live manifest of the last real fold
+    (eval/write_manifest_rebuild_20260821T212319Z.json, read 2026-09-22) records
+    `docs {"written": 0, "overwritten": 0}` beside `slices {"commodity": 52, "drivers": 144}` and
+    2,742,847 rows. An alarm on `docs.written == 0` would have paged on a 4 h 29 m fold that rewrote
+    196 objects. 196 is the healthy value here; 0 means the fold wrote nothing."""
+    return sum(len(recs or {}) for recs in (manifest.get("slices") or {}).values())
+
+
+def newest_manifest_since(s3, evidence_s3: str, *, stamp: str) -> tuple[dict | None, str]:
+    """The rebuild manifest THIS fold wrote: the newest `eval/write_manifest_*.json` whose UTC stamp
+    is at or after `stamp` (the fold's start), by ONE LIST + at most one GET.
+
+    Deliberately NOT `write_guard.newest_run_manifest()`: that helper prefers the LOCAL
+    `configs/graphrag/eval/` archive, which on a laptop returns a 2026-08-21 manifest and would make
+    this fold report another pass's numbers. Filtering on the fold's own start stamp means a fold
+    that wrote no manifest reports 0 rather than inheriting someone else's 196.
+
+    AND IT MATCHES `write_manifest_rebuild_` ALONE, NOT `write_manifest_*` (R2 MINOR-1). MEASURED
+    2026-09-22: `graphrag_evidence/eval/` holds 9 `write_manifest_*` objects and FIVE of them are
+    not rebuilds (`seed`, `retrieve` x2, `x2_tail`); the two that were read carry `slices == {}`,
+    so `slices_written()` on one of them returns 0. A non-rebuild manifest stamped after this
+    fold's own -- which a hand fire beside the chunk pass produces, even though the nominal crons
+    (chunk SUN 04:00Z bounded by AttemptDurationSeconds=9000, fold 22nd 08:00Z) do not collide --
+    would make a fold that wrote 196 objects report `CorpusFoldSlicesWritten = 0` and fire lane 7's
+    `corpus_fold_wrote_nothing` alarm as a FALSE RED. A false green is worse than a red; a false
+    RED is how an alarm gets muted."""
+    bkt, prefix = cc._split_s3(evidence_s3.rstrip("/") + "/eval/")
+    keys: list[str] = []
+    try:
+        for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bkt, Prefix=prefix):
+            for o in page.get("Contents") or []:
+                rel = o["Key"][len(prefix):]
+                if (rel.startswith("write_manifest_rebuild_") and rel.endswith(".json")
+                        and "/" not in rel):
+                    if rel[:-len(".json")].rsplit("_", 1)[-1] >= stamp:
+                        keys.append(o["Key"])
+        if not keys:
+            return None, ("no write_manifest_rebuild_* at or after %s under s3://%s/%s"
+                          % (stamp, bkt, prefix))
+        newest = max(keys, key=lambda k: (k.rsplit("/", 1)[-1][:-len(".json")].rsplit("_", 1)[-1], k))
+        import json as _json
+        doc = _json.loads(s3.get_object(Bucket=bkt, Key=newest)["Body"].read().decode("utf-8"))
+        return doc, "s3://%s/%s" % (bkt, newest)
+    except Exception as exc:                                    # noqa: BLE001 -- a metric never fails a fold
+        return None, "manifest unreadable (%s)" % type(exc).__name__
+
+
+def fold_metric_datums(*, slices: int, failed: bool) -> list[dict]:
+    """The THREE family-rolled datums, one constant dimension, no per-slice cardinality.
+
+    `CorpusFoldRuns` is emitted on EVERY outcome -- that is what lets a missing datapoint mean "no
+    fold fired" instead of "a fold fired and failed", which is precisely the distinction the estate
+    could not make: the EventBridge rule `leviathan-dev-batch-job-failed` targets only a log group,
+    the metric filter that feeds the alarm WITH AN ACTION matches only MANAGED_BY_AWS jobs and three
+    named jobNames (none of them corpus-*), and the catch-all backstop alarm has 0 alarm actions.
+    A monthly fold that failed every month would have paged nobody."""
+    dim = [{"Name": "Family", "Value": cc.FAMILY}]
+    pairs = ((METRIC_RUNS, 1.0), (METRIC_SLICES_WRITTEN, float(slices)),
+             (METRIC_FAILURES, 1.0 if failed else 0.0))
+    return [{"MetricName": n, "Dimensions": list(dim), "Value": v, "Unit": "Count"}
+            for n, v in pairs]
+
+
+def fold_ledger_document(*, outcome: str, rc: int, started: datetime, finished: datetime,
+                         evidence_s3: str, slices: int, rows: int | None,
+                         manifest_label: str, manifest_docs_written: int | None,
+                         baseline: str, note: str = "") -> dict:
+    """The ledger line the fold leaves at `<EVIDENCE_S3>/fold/last_run.json`, mirroring the chunk
+    pass's `coverage/last_run.json`. A leg nothing measures is the defect this lane was opened to
+    end, and a CloudWatch datapoint expires -- the ledger is the durable half."""
+    return {"stage": "fold", "outcome": outcome, "rc": int(rc),
+            "started_utc": started.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "finished_utc": finished.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "evidence_s3": evidence_s3.rstrip("/"),
+            "slice_objects_written": int(slices),
+            "rows_written": rows,
+            "run_manifest": manifest_label,
+            # Recorded BESIDE the slice count and never in place of it: on a re-derivation this is 0
+            # by construction (2026-08-21 measured 0 while 196 objects and 2,742,847 rows moved).
+            "manifest_docs_written": manifest_docs_written,
+            "census_baseline": baseline,
+            "census_rolled_to": census_roll_target(evidence_s3),
+            "note": note}
+
+
+def _emit_and_record(args, s3, doc: dict, datums: list[dict], *, echo=print) -> None:
+    """Write the ledger line, then PUT the datums -- in that order and at the same commit point as
+    the chunk pass, so a metric that says the fold moved is only true once the record of that move
+    is durable. NEITHER failure fails the fold: the fold's own rc is the verdict, and the alarms'
+    missing-data treatment owns a silence. Both failures are printed, never swallowed."""
+    bkt, key = cc._split_s3("%s/%s" % (args.evidence_s3.rstrip("/"), FOLD_LEDGER_SUFFIX))
+    import json as _json
+    try:
+        s3.put_object(Bucket=bkt, Key=key, Body=_json.dumps(doc).encode("utf-8"),
+                      ContentType="application/json")
+        echo("  fold ledger -> s3://%s/%s  (%s, %d slice objects)"
+             % (bkt, key, doc["outcome"], doc["slice_objects_written"]))
+    except Exception as exc:                                    # noqa: BLE001
+        echo("  FOLD LEDGER WRITE FAILED (%s) -- the fold's exit code still carries the verdict."
+             % type(exc).__name__)
+    try:
+        import boto3
+        boto3.client("cloudwatch", region_name=args.aws_region).put_metric_data(
+            Namespace=cc.METRIC_NAMESPACE, MetricData=datums)
+        echo("  metrics -> %s %s" % (cc.METRIC_NAMESPACE,
+                                     ", ".join("%s=%s" % (d["MetricName"], d["Value"])
+                                               for d in datums)))
+    except Exception as exc:                                    # noqa: BLE001
+        echo("  METRIC EMIT FAILED (%s) -- the ledger STANDS and the missing datapoints read RED "
+             "through the liveness alarm's treat_missing_data. Never silently swallowed."
+             % type(exc).__name__)
+
+
 def chain_steps(args) -> list[list[str]]:
     """The gated chain, in order, reusing the submitter's own constants so a change there lands here:
 
@@ -150,11 +394,40 @@ def chain_steps(args) -> list[list[str]]:
                                                Without one it resolves NOTHING on a shadow prefix
                                                and passes SILENTLY (a documented trap,
                                                submit_batch_evidence_maintenance.py:118-127).
+        4. e1_census (a plain WRITE run)    -- THE ROLL. See below.
+
+    STEP 4 IS THE R2 FATAL, AND IT IS THE WHOLE REASON THE GATE ABOVE MEANS ANYTHING NEXT MONTH.
+
+    An EventBridge Scheduler Input is frozen at apply time, so `--census-baseline` names ONE key
+    forever: `s3://leviathan-dev-shahem-001/graphrag_evidence/eval/e1_census.json`, whose object was
+    written 2026-08-02T00:36:09Z and which NOTHING in the account refreshes -- `e1_census --diff` is
+    a read-only gate that never calls `write()` (e1_census.py:763-766), and no schedule anywhere runs
+    a plain census. The gate's teeth are `population_drops` (POP_DROP_REFUSE = 0.10), which compares
+    each slice's `n_routed_props` to THE BASELINE'S value. This lane exists to make the store GROW
+    every month, so a baseline that never moves decays into a no-op: by 2027-03 a slice carrying
+    twice its August population could lose half of everything ingested since August and still sit at
+    the August number, `population_drops` would find nothing, `run_diff` would return 0, and the
+    operator would be told the fold was clean. A fence that reads green while a true regression
+    passes is worse than no fence.
+
+    THE SHAPE IS THE ESTATE'S OWN, not an invention: `jobs/audit/advance_rolling_census.py` (the SFN
+    [Reconcile] task) re-runs its census after a GREEN gate and a GREEN promote and writes it to the
+    key the NEXT gate reads, and it refuses to enshrine a dirty census as a baseline (`if rc != 0:
+    return rc`, BEFORE the upload). Step 4 is the same act for this store: `run_chain` stops at the
+    FIRST nonzero, so the write runs ONLY when the lint, the rebuild and the gate all returned 0 --
+    NO ROLL ON RED. And `write()` copies the prior `e1_census.json` to `e1_census_<UTC>.json` (local
+    and remote) BEFORE overwriting, so no BEFORE snapshot is lost; three such archives already exist
+    on S3, so the mechanism is proven, not assumed.
+
+    The frozen Input does not change: it goes on naming a key that the fold now ROLLS. The first
+    fold after this change diffs against the 2026-08-02 object exactly once; every fold after that
+    diffs against the previous fold's store, which is what a rolling regression gate means.
     """
     sm = _guards()
     steps = [list(sm._MANIFEST_LINT_CMD),
              sm.build_command(mode="rebuild-slices"),           # allow_churn deliberately omitted
-             list(sm._CENSUS_GATE_CMD) + ["--baseline", args.census_baseline]]
+             list(sm._CENSUS_GATE_CMD) + ["--baseline", args.census_baseline],
+             census_write_step()]
     if args.with_pg_load:
         steps.append(["-m", "jobs.utils.load_pg_evidence", "--all",
                       "--table", args.pg_shadow_table])
@@ -239,7 +512,9 @@ def main(argv=None) -> int:
         pass
     args = build_parser().parse_args(argv)
 
-    stamp = datetime.now(timezone.utc).strftime(BACKUP_PREFIX_FMT)
+    started = datetime.now(timezone.utc)
+    start_stamp = started.strftime("%Y%m%dT%H%M%SZ")
+    stamp = started.strftime(BACKUP_PREFIX_FMT)
     print("stage=fold  evidence_s3=%s  dry_run=%s  backup=%s"
           % (args.evidence_s3, args.dry_run, "SKIPPED" if args.no_backup else stamp))
 
@@ -284,9 +559,31 @@ def main(argv=None) -> int:
           "one; a refusal on an add-only pass IS the finding. (2026-08-21 ran --allow-churn 50.0 "
           "and lost barley_yellow_dwarf_virus and wheat_blast to 'unwritten'.)")
 
-    # ---- STEP 1: the pre-rebuild backup ----------------------------------------------------------
     import boto3
     s3 = boto3.client("s3", region_name=args.aws_region)
+
+    # ---- GUARD 4: the baseline this fold judges itself against is the one it ROLLS ---------------
+    # It runs here -- after the client, before the backup's LIST -- so a refusal costs nothing AND
+    # still REPORTS. A pre-flight refusal is a fire that happened and wrote nothing; reported, the
+    # failure alarm sees it the next day, and unreported a monthly fold could refuse for 35 days
+    # before the liveness alarm noticed. (In a dry run this cannot raise, by construction.)
+    try:
+        assert_baseline_is_the_rolled_key(args)
+    except SystemExit as exc:
+        note = str(exc).replace("\n", " ").encode("ascii", "backslashreplace").decode("ascii")[:600]
+        print("  REFUSED: %s" % note)
+        _emit_and_record(
+            args, s3,
+            fold_ledger_document(outcome="CORPUS_FOLD_REFUSED", rc=1, started=started,
+                                 finished=datetime.now(timezone.utc),
+                                 evidence_s3=args.evidence_s3, slices=0, rows=None,
+                                 manifest_label="<none: refused before any work>",
+                                 manifest_docs_written=None, baseline=args.census_baseline,
+                                 note=note),
+            fold_metric_datums(slices=0, failed=True))
+        return 1
+
+    # ---- STEP 1: the pre-rebuild backup ----------------------------------------------------------
     bp = None
     if args.no_backup:
         if args.i_know_this_is_live:
@@ -333,15 +630,71 @@ def main(argv=None) -> int:
                   "EVIDENCE_S3 -> %s" % (probe.stdout.strip() or "<no output>"))
         except Exception as exc:                            # noqa: BLE001
             print("  CHILD PROBE unavailable (%s) -- reported, never assumed" % type(exc).__name__)
-        print("  DRY RUN: nothing copied, nothing rebuilt, nothing loaded, nothing swapped.")
+        print("  DRY RUN: nothing copied, nothing rebuilt, nothing loaded, nothing swapped, "
+              "NOTHING EMITTED and no ledger line (the lane's contract).")
+        print("  WOULD ROLL: %s ; WOULD EMIT: %s"
+              % (census_roll_target(args.evidence_s3),
+                 ", ".join("%s=%s" % (d["MetricName"], d["Value"])
+                           for d in fold_metric_datums(slices=0, failed=False))))
         print("  NEXT (operator, and NOT this task): pg shadow load -> missing_canonical_indexes "
               "assertion -> free-space check -> pg_evidence_swap --swap -> pg_ann_build recall "
               "re-certification -> timeline rebuild -> delete the PREVIOUS cycle's backup prefix.")
         return 0
 
-    if bp is not None:
-        take_backup(s3, bp)
-    return run_chain(steps, env=env)
+    # ---- THE RUN, AND THE RECORD OF IT ----------------------------------------------------------
+    # Every exit from here on leaves a ledger line and three datums, because the outcome this lane
+    # could NOT previously distinguish is "the fold failed" from "the fold never fired": a direct
+    # batch:submitJob schedule named corpus-fold matches no metric filter that feeds an alarm with
+    # an action, and the catch-all backstop alarm has zero actions. `CorpusFoldRuns` is that
+    # distinction; a refusal (a partial backup, a baseline that did not roll) is a fire that wrote
+    # nothing and says so.
+    rc, outcome, note = 0, "CORPUS_FOLD_OK", ""
+    try:
+        if bp is not None:
+            take_backup(s3, bp)
+        rc = run_chain(steps, env=env)
+        if rc == 0:
+            verify_baseline_advanced(s3, args.evidence_s3, since=started)
+        else:
+            outcome = "CORPUS_FOLD_CHAIN_FAILED"
+            note = "the chain stopped at the first nonzero step; NO ROLL ON RED."
+    except SystemExit as exc:                                   # a guard refused, mid-run
+        rc, outcome = (int(exc.code) if isinstance(exc.code, int) and exc.code else 1), \
+                      "CORPUS_FOLD_REFUSED"
+        note = str(exc).replace("\n", " ").encode("ascii", "backslashreplace").decode("ascii")[:600]
+        print("  REFUSED: %s" % note)
+    except Exception as exc:                                    # noqa: BLE001 -- see below
+        # R2 MINOR-2. "Every exit leaves a ledger line and three datums" was true only for
+        # SystemExit. `take_backup` raises SystemExit for a PARTIAL copy, but `s3.copy` itself
+        # raises ClientError / S3UploadFailedError, and that escaped `main` with NO ledger and NO
+        # datum -- so a fold that died in its own backup was indistinguishable from a fold that
+        # NEVER FIRED, which is precisely the distinction `CorpusFoldRuns` was added to make, and
+        # it would have surfaced on the 35-day liveness alarm instead of the next-day failure one.
+        # The exception is RECORDED, NOT SWALLOWED: the traceback goes to stdout, the class and
+        # message go in the ledger note, rc is nonzero, and `CorpusFoldFailures=1` is emitted below
+        # on the same path as every other outcome. A fence CORRECTS; it does not delete.
+        import traceback
+        rc, outcome = 1, "CORPUS_FOLD_CRASHED"
+        note = ("%s: %s" % (type(exc).__name__, exc)).replace("\n", " ").encode(
+            "ascii", "backslashreplace").decode("ascii")[:600]
+        print("  CRASHED: %s" % note)
+        traceback.print_exc()
+
+    manifest, label = newest_manifest_since(s3, args.evidence_s3, stamp=start_stamp)
+    n_slices = slices_written(manifest) if manifest else 0
+    rows = (sum(int(r.get("after_n") or 0)
+                for recs in (manifest.get("slices") or {}).values() for r in recs.values())
+            if manifest else None)
+    _emit_and_record(
+        args, s3,
+        fold_ledger_document(outcome=outcome, rc=rc, started=started,
+                             finished=datetime.now(timezone.utc), evidence_s3=args.evidence_s3,
+                             slices=n_slices, rows=rows, manifest_label=label,
+                             manifest_docs_written=((manifest.get("docs") or {}).get("written")
+                                                    if manifest else None),
+                             baseline=args.census_baseline, note=note),
+        fold_metric_datums(slices=n_slices, failed=rc != 0))
+    return rc
 
 
 if __name__ == "__main__":
