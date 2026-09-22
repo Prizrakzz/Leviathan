@@ -148,6 +148,9 @@ _EXPECTED_BRANCH_A = frozenset({
     # real producer defect and never a structural absence, which is why it carries no overrides.
     # As with every entry above: the in-VPC load has NOT run. Unlike every entry above, it will
     # never gain a numbers_parity SAMPLE_COMMODITY row -- the card has no commodity axis at all.
+    # 2026-09-22 (pipeline fix-now, census B3): gold_board_crush now ALSO has an owning descriptor
+    # (configs/silver/dags/gold_board_crush.json, after the databento promote); it stays HERE because
+    # branch A is the mirrored set, and it leaves _EXPECTED_ORPHANS below.
     "gold_board_crush",
     # LIGHT THE CARD (2026-08-20) -- silver_minagro_grain_exports, on the SAME served-card rule and
     # DELIBERATELY, not to make a test pass: the card landed this wave, and a served card that is not
@@ -171,6 +174,8 @@ _EXPECTED_BRANCH_A = frozenset({
     # shape with per-spread unit_overrides; roll sessions excluded by row_filters at the card. The W2.3
     # commit moved neither this roster nor the orphan roster nor the 50-pin -- three reds this sweep
     # closed together, deliberately, on the measured facts above.
+    # 2026-09-22 (pipeline fix-now, census B14): gold_futures_spreads, the same: owned by
+    # configs/silver/dags/gold_futures_spreads.json now, still mirrored, no longer an orphan.
     "gold_futures_spreads",
     # PROJECTION WAVE Lane 3 -- silver_psd_attributes was DELIBERATELY ABSENT while its card sat
     # behind registry.WHITELIST_ABSENT_DEFAULT (2026-08-25: contract landed, no Glue table, a P1
@@ -1103,8 +1108,10 @@ def test_main_exits_zero_and_prints_a_grepable_warn_line(monkeypatch, capsys, tm
 # written real objects -- it goes straight into psd_monthly.json's gate_tables (same bulk object, same
 # chain, same on-call as silver_psd) with the rendered SFN inputs regenerated, and never through this
 # roster at all.
-_EXPECTED_ORPHANS = frozenset({"gold_pattern_records", "gold_board_crush",
-                               "silver_minagro_grain_exports", "gold_futures_spreads"})
+# 2026-09-22 (pipeline fix-now, census B3/B14): gold_board_crush and gold_futures_spreads GAINED owning
+# descriptors (configs/silver/dags/gold_{board_crush,futures_spreads}.json, gate_tables set) and left
+# this roster; the two that remain are the ones the census still names as served-without-a-producer.
+_EXPECTED_ORPHANS = frozenset({"gold_pattern_records", "silver_minagro_grain_exports"})
 
 
 def _resolve_owned(walked: set, owned: set) -> set:
@@ -1324,7 +1331,8 @@ def test_no_scheduled_gate_command_carries_json_so_stdout_is_the_only_record():
     reports/silver_readiness/... and nothing uploads it. If a drift is not on stdout it is not anywhere."""
     rendered = sorted((g._REPO_ROOT / "configs" / "silver" / "dags" / "_rendered")
                       .glob("*.input.json"))
-    assert len(rendered) == 26, len(rendered)
+    # 26 -> 28 on 2026-09-22: the two gold derivation descriptors (board_crush, futures_spreads) rendered.
+    assert len(rendered) == 28, len(rendered)
     with_json = [p.name for p in rendered
                  if "--json" in json.loads(p.read_text(encoding="utf-8"))["gate"]["command"]]
     assert with_json == [], with_json
@@ -1376,3 +1384,272 @@ def test_main_no_baseline_is_unset_not_empty_string(monkeypatch):
     # stub still raises BaselineFetchError to avoid run_gate, but we only assert the resolved value.
     g.main(["--tables", "silver_wasde"])
     assert store["baseline_uri"] is None
+
+
+# ---------------------------------------------------------------------------
+# THE P3 WIRING (2026-09-22) -- the weather deadlock, gate side.
+#
+# Round 1 shipped a graded `contract_check_ex` and NOTHING CALLED IT: `stage_contract_check` still called
+# the ungraded one-list `contract_check`, so the grading was inert on the scheduled path and the six-fail
+# weather streak (2026-09-17..22) would have survived the deploy. THE WIRING IS WHERE THE DEADLOCK LIVED,
+# so it is pinned here and not only in the check's own deck.
+#
+# THE ROUTE MATTERS AS MUCH AS THE CALL. A REGISTERED card-ahead warning must NOT go through
+# `_split_verdict`: that helper reds the table a drift IMPLICATES, so routing the gold_weather_z warning
+# through it puts gold_weather_z straight back to RED and rebuilds the deadlock. Measured offline over all
+# 28 rendered gate commands (46 distinct (family, table) pairs), running the REAL stage on both sides:
+# HEAD -> 1 red (weather/gold_weather_z) + 45 warn; naive -> the same 1 red + 45 warn, i.e. the deadlock
+# unchanged; this route -> 0 red + 46 warn. Both halves are asserted below, including the owner's family.
+#
+# AND THE ROUND-3 HALF: what reaches this route is decided by `CARD_AHEAD_OF_PRODUCER`, not by the gate.
+# Round 2 decided it with an all-time `COUNT(*)` that was the DISTINCT probe restated, so EVERY
+# declared-but-zero-row metric arrived here as a warning -- including an ORPHAN card's, which under HEAD
+# redded every family through fence (A). An UNREGISTERED metric now takes HEAD's route unchanged, and the
+# orphan case is pinned at the bottom of this block.
+# ---------------------------------------------------------------------------
+def _registered_warn_line(metric="drought_z_is_preliminary"):
+    """A warning line in the EXACT shape the check emits, built from the module's own constants so this
+    deck cannot drift from the text the gate will really parse."""
+    import leviathan.graphrag.numbers.contract_check as cch
+    head = (f"gold_weather_z: metric {metric!r} not in DISTINCT metric of gold_weather_z "
+            f"(declared-but-zero-row -- the drought_z class)")
+    return head + " [" + cch.REGISTERED_NOTE.format(
+        declared="2026-09-15", why="the justification the register carries",
+        expires="2026-10-30") + "]"
+
+
+_PRELIM_WARN = _registered_warn_line()
+_PRELIM_WARN_2 = _registered_warn_line("drought_z_preliminary_share")
+_PRELIM_WARN_3 = _registered_warn_line("drought_z_is_preliminary_cells")
+
+# An UNREGISTERED declared-but-zero-row metric of the ORPHAN tall card. silver_production_livestock is in
+# the C002 walk and in NOBODY's gate_tables (measured); its physical is silver_production, which IS gated,
+# so the line implicates both and fence (A) is not even needed -- what matters is that it arrives as an
+# ERROR and takes HEAD's route, which round 2 broke for the whole class.
+_LIVESTOCK_ZERO_ROW = ("silver_production_livestock: metric 'milk_animals' not in DISTINCT metric of "
+                       "silver_production (declared-but-zero-row -- the drought_z class)")
+
+
+def _graded_ctx(gate_table, errs, warns, monkeypatch, **kw):
+    """A Branch-A context whose `contract_check_ex` returns `(errs, warns)`. Patches the TWO-LIST entry
+    point on purpose: if the stage ever reverts to the one-list call this fixture stops being consulted
+    and the assertions below fail, which is exactly the regression that must not ship silently."""
+    import leviathan.graphrag.numbers.contract_check as cch
+    assert gate_table in g.PG_MIRROR_TABLES, gate_table
+    monkeypatch.setattr(cch, "contract_check_ex", lambda reg=None, **k: (list(errs), list(warns)))
+    silver = _SilverReg({gate_table: {"consumers": "both"}})
+    return silver, _ctx(silver, numbers_reg=_NUMBERS, query_fn=lambda *a, **k: [], **kw)
+
+
+def test_the_registered_card_ahead_warning_is_yellow_for_the_OWNING_family(monkeypatch):
+    """THE DEADLOCK, ENDED. The three preliminary stamps name gold_weather_z -- the family that OWNS the
+    table -- and that is precisely the family `_split_verdict` would red. This route warns it instead, so
+    the promote runs, silver_chirps is written, and the rows the card is waiting for can finally land."""
+    for gate_table in ("silver_wasde", "silver_fred_fx"):
+        _s, ctx = _graded_ctx(gate_table, [], [_PRELIM_WARN, _PRELIM_WARN_2, _PRELIM_WARN_3], monkeypatch)
+        res = g.stage_contract_check(gate_table, ctx)
+        assert res.status == g.WARN, (gate_table, res.status, res.detail)
+        assert "REGISTERED" in res.detail and "global_drift" in res.detail
+        # and the drift really does implicate the owner, so this is not an attribution accident
+        assert g.implicated_tables(_PRELIM_WARN) == frozenset({"gold_weather_z"})
+
+    # the OWNER's own gate: still WARN, never RED. This is the assertion the naive wiring fails.
+    _s, ctx = _graded_ctx("silver_wasde", [], [_PRELIM_WARN], monkeypatch)
+    naive = g._split_verdict("contract_check", "gold_weather_z", ctx,
+                             [(_PRELIM_WARN, g.implicated_tables(_PRELIM_WARN))], noun="vocab drift(s)")
+    assert naive.status == g.RED, "the wrong turn, recorded: _split_verdict reds the owner"
+    ctx.numbers_reg = _NumbersReg({"gold_weather_z": None})
+    silver = _SilverReg({"silver_wasde": {"consumers": "both"}})
+    owner_ctx = _ctx(silver, numbers_reg=ctx.numbers_reg, query_fn=lambda *a, **k: [])
+    assert g.stage_contract_check("silver_wasde", owner_ctx).status in (g.WARN, g.GREEN)
+
+
+def test_a_warned_table_still_promotes_and_the_run_exits_zero(monkeypatch):
+    """A WARN is not a red: `TableResult.ok` stays True, the bundle verdict is PASS and the SFN's
+    `Gate.Next = Promote` runs. That is the whole point -- the weather family's canonical write is what
+    produces the rows the card declared."""
+    _s, ctx = _graded_ctx("silver_wasde", [], [_PRELIM_WARN, _PRELIM_WARN_2, _PRELIM_WARN_3], monkeypatch)
+    bundle = g.run_gate(["silver_wasde"], ctx,
+                        branch_a_stages=(_green("pg_reload"), g.stage_contract_check))
+    assert bundle["verdict"] == "PASS", bundle["results"]
+    assert bundle["results"][0]["ok"] is True and bundle["results"][0]["warn"] is True
+    assert bundle["banner"]["red_tables"] == 0 and bundle["banner"]["warn_tables"] == 1
+    stage = [s for s in bundle["results"][0]["stages"] if s["name"] == "contract_check"][0]
+    assert stage["status"] == g.WARN
+    # NEVER SILENTLY DROPPED, and readable from a container log: `_print_stage_errors` prints ONLY
+    # `errors`, and `detail` truncates at five, so the warnings ride BOTH lists.
+    assert stage["errors"] == [_PRELIM_WARN, _PRELIM_WARN_2, _PRELIM_WARN_3]
+    assert stage["global_errors"] == [_PRELIM_WARN, _PRELIM_WARN_2, _PRELIM_WARN_3]
+
+
+def test_a_real_regression_beside_a_warning_still_reds_and_keeps_head_s_shape(monkeypatch):
+    """A run can carry BOTH. The error keeps HEAD's verdict and HEAD's `StageResult` shape byte for byte,
+    and the warning is appended to `global_errors` rather than dropped -- a fence corrects or computes."""
+    _s, ctx = _graded_ctx("silver_wasde", [_WASDE_DRIFT], [_PRELIM_WARN], monkeypatch)
+    res = g.stage_contract_check("silver_wasde", ctx)
+    assert res.status == g.RED
+    assert res.errors == [_WASDE_DRIFT]                       # HEAD's list, unchanged
+    assert _PRELIM_WARN in res.global_errors
+    assert res.detail.startswith("1 vocab drift(s): " + _WASDE_DRIFT)
+    assert res.detail.endswith("(+1 registered card-ahead)")
+
+
+def test_a_green_contract_check_is_byte_identical_to_head(monkeypatch):
+    """No errors and no warnings -> the exact string HEAD emitted. The byte-identical set includes the
+    GREEN case: 28 rendered gate commands print this detail on every clean fire."""
+    _s, ctx = _graded_ctx("silver_wasde", [], [], monkeypatch)
+    res = g.stage_contract_check("silver_wasde", ctx)
+    assert (res.status, res.detail) == (g.GREEN, "vocabulary consistent")
+    assert res.errors == [] and res.global_errors == []
+
+
+def test_the_stage_hands_the_check_the_mirror_query_fn_and_a_caches_dict(monkeypatch):
+    """THE ARGUMENTS, not merely the call. The DISTINCT probes ride `ctx.query_fn` (the same pg_query the
+    mirror reload used), and `caches` is how the grade word per metric and the register fact behind it
+    reach stdout. A spy pins both, so a future edit cannot quietly starve the check of its evidence."""
+    import leviathan.graphrag.numbers.contract_check as cch
+    seen = {}
+
+    def spy(reg=None, **k):
+        seen.update(k)
+        seen["reg"] = reg
+        k.setdefault("caches", {})
+        return [], []
+
+    monkeypatch.setattr(cch, "contract_check_ex", spy)
+    silver = _SilverReg({"silver_wasde": {"consumers": "both"}})
+    qfn = lambda *a, **kw: []                                        # noqa: E731 -- identity is the pin
+    ctx = _ctx(silver, numbers_reg=_NUMBERS, query_fn=qfn)
+    g.stage_contract_check("silver_wasde", ctx)
+    assert seen["query_fn"] is qfn, "the check must read the SAME mirror the reload wrote"
+    assert isinstance(seen["caches"], dict)
+    assert seen["reg"] is _NUMBERS
+    assert "baseline" not in seen, "the round-1 baseline channel is gone (see contract_check's docstring)"
+
+
+def test_the_gate_prints_the_grade_word_and_the_register_fact_per_metric(monkeypatch, capsys):
+    """On the scheduled path stdout is the only durable record (all 28 rendered gate commands run with no
+    --json and nothing uploads the bundle). A yellow line whose REASON is invisible gets re-litigated by
+    the next operator, so the grade word and the REGISTER FACT that decided it are printed per metric.
+
+    The grade line names the metric's OWN card and not the gate table under test: round 2 printed
+    `contract_check silver_nasa_power grade WARN: gold_weather_z.drought_z_is_preliminary`, which reads as
+    if silver_nasa_power owned it."""
+    import leviathan.graphrag.numbers.contract_check as cch
+
+    def spy(reg=None, **k):
+        k.get("caches")[("grades",)] = [
+            ("gold_weather_z", "drought_z_is_preliminary", cch.GRADE_WARN,
+             "registered 2026-09-15, expires 2026-10-30"),
+            ("silver_wasde", "ending_stocks", cch.GRADE_RED, "NOT REGISTERED")]
+        return [], [_PRELIM_WARN]
+
+    monkeypatch.setattr(cch, "contract_check_ex", spy)
+    silver = _SilverReg({"silver_nasa_power": {"consumers": "both"}})
+    ctx = _ctx(silver, numbers_reg=_NUMBERS, query_fn=lambda *a, **kw: [])
+    g.stage_contract_check("silver_wasde", ctx)
+    out = capsys.readouterr().out
+    assert "graded 2 declared-but-zero-row metric(s) against the CARD_AHEAD_OF_PRODUCER register" in out
+    assert f"({cch.PENDING_WINDOW_DAYS}-day window, 0 quer(ies))" in out
+    assert ("grade WARN: gold_weather_z.drought_z_is_preliminary "
+            "(registered 2026-09-15, expires 2026-10-30)") in out
+    assert "grade RED: silver_wasde.ending_stocks (NOT REGISTERED)" in out
+    # the metric's card is named on the grade line; the gate table is named ONCE, on the header
+    assert "grade WARN: silver_wasde." not in out
+
+
+def test_a_grade_print_failure_never_reds_a_gate(monkeypatch, capsys):
+    """A print is not a verdict. If the ledger is malformed the stage says so and keeps its verdict --
+    the opposite of the D-PR-5 rule that an EXCEPTION in the check itself is RED, because here nothing
+    about the data is in question."""
+    import leviathan.graphrag.numbers.contract_check as cch
+
+    def spy(reg=None, **k):
+        k.get("caches")[("grades",)] = ["not-a-4-tuple"]
+        return [], []
+
+    monkeypatch.setattr(cch, "contract_check_ex", spy)
+    silver = _SilverReg({"silver_wasde": {"consumers": "both"}})
+    ctx = _ctx(silver, numbers_reg=_NUMBERS, query_fn=lambda *a, **kw: [])
+    res = g.stage_contract_check("silver_wasde", ctx)
+    assert (res.status, res.detail) == (g.GREEN, "vocabulary consistent")
+    assert "grade print failed" in capsys.readouterr().out
+
+
+# --- ROUND 3 / the reviewer's MAJOR 3: the UNREGISTERED class keeps HEAD's route ---------------------
+def test_an_unregistered_zero_row_metric_of_the_orphan_card_is_an_error_not_a_warning():
+    """THE ORPHAN CARD, READ OFF THE REAL REGISTRY. `silver_production_livestock` is TALL, it is
+    DISTINCT-probed, and it is in NOBODY's gate_tables -- so under HEAD a declared-but-zero-row metric of
+    it was an ERROR that reached `_split_verdict` and, where no gated family owned the implicated set,
+    fence (A) charged it to EVERY family. Round 2 turned the whole class into a warning.
+
+    Here the REAL check is run on the REAL registry with `milk_animals` absent, and the line comes back in
+    the ERROR list with the empty suffix -- HEAD's string, byte for byte -- because nobody registered it.
+    No monkeypatch: this is the shipped register deciding."""
+    from leviathan.graphrag.numbers import contract_check as cch
+    from leviathan.graphrag.numbers.registry import load_registry
+
+    reg = load_registry()
+    ts = reg.get("silver_production_livestock")
+    assert "milk_animals" in ts.metrics and ts.shape == "tall"
+    assert ("silver_production_livestock", "milk_animals") not in cch.CARD_AHEAD_OF_PRODUCER
+    assert "silver_production_livestock" not in (g.gated_tables() or set()), "the orphan gained an owner"
+
+    served = {}
+    for tid in cch._numbers_table_ids(reg):
+        t = reg.get(tid)
+        if t.shape == "tall" and t.metric_col:
+            served.setdefault((cch._physical(t), t.metric_col), set()).update(t.metrics)
+    served[("silver_production", "metric")] -= {"milk_animals"}
+
+    def pg(sql):
+        assert sql.startswith("SELECT DISTINCT"), sql
+        for (phys, col), vals in served.items():
+            if f"{col} " in sql and phys in sql:
+                return [{"v": v} for v in sorted(vals)]
+        return []
+
+    warns: list = []
+    errs = cch.check_metric_vocabulary(reg, query_fn=pg, column_fn=lambda t: set(), warnings=warns)
+    tall = [e for e in errs if "not in DISTINCT" in e]
+    assert _LIVESTOCK_ZERO_ROW in tall, tall
+    assert not any("milk_animals" in w for w in warns), warns
+
+
+def test_the_orphan_card_s_unregistered_drift_verdicts_exactly_as_head_did(monkeypatch):
+    """THE ROUTE, PAIR BY PAIR. The same line driven through the REAL stage on the graded two-list path
+    and on the one-list path HEAD used: identical status, identical detail, identical lists, for every
+    gated family tried. `_drift_ctx` patches the one-list `contract_check` that HEAD's stage called, so
+    the right-hand side of this comparison IS HEAD's behaviour with HEAD's inputs.
+
+    Round 2 fails this test: the same line arrives as a WARNING there, the stage is yellow and the family
+    promotes."""
+    for gate_table in ("silver_cot", "silver_fred_fx", "silver_wasde", "silver_psd"):
+        with pytest.MonkeyPatch.context() as mp:
+            _s, ctx = _drift_ctx(gate_table, [_LIVESTOCK_ZERO_ROW], mp)
+            head_like = g.stage_contract_check(gate_table, ctx)
+        with pytest.MonkeyPatch.context() as mp:
+            _s, ctx = _graded_ctx(gate_table, [_LIVESTOCK_ZERO_ROW], [], mp)
+            graded = g.stage_contract_check(gate_table, ctx)
+        assert (graded.status, graded.detail, graded.errors, graded.global_errors) == \
+               (head_like.status, head_like.detail, head_like.errors, head_like.global_errors), gate_table
+        assert graded.errors == [_LIVESTOCK_ZERO_ROW], gate_table
+        assert graded.status in (g.RED, g.WARN)
+
+
+def test_an_expired_or_unregistered_metric_reaches_the_error_route_not_the_warn_route(monkeypatch):
+    """THE GATE HALF OF THE EXPIRY. The stage has no clock and no register of its own -- it routes what
+    the check hands it -- so the pin is that an ERROR list containing a card-ahead-shaped line takes the
+    `_split_verdict` road and the promote stops, exactly as it did before this wave."""
+    head_shape = _PRELIM_WARN[:_PRELIM_WARN.rindex(" [")]          # the same line with no suffix
+    _s, ctx = _graded_ctx("silver_wasde", [head_shape], [], monkeypatch)
+    res = g.stage_contract_check("silver_wasde", ctx)
+    assert res.status == g.WARN and res.errors == [head_shape]     # not this family's table: D-PR-5
+    assert "global_drift" in res.detail and "vocab drift(s)" in res.detail
+
+    _s, ctx = _graded_ctx("gold_weather_z", [head_shape], [], monkeypatch)
+    owner = g.stage_contract_check("gold_weather_z", ctx)
+    assert owner.status == g.RED, owner.detail                     # the OWNER reds: the deadlock's shape
+    bundle = g.run_gate(["gold_weather_z"], ctx,
+                        branch_a_stages=(_green("pg_reload"), g.stage_contract_check))
+    assert bundle["verdict"] == "FAIL" and bundle["banner"]["red_tables"] == 1

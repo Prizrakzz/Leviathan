@@ -662,20 +662,92 @@ def stage_parity(table: str, ctx: GateContext) -> StageResult:
         return StageResult("parity", RED, f"{type(e).__name__}: {str(e)[:200]}")
 
 
+def _print_contract_grades(table: str, cch, caches: dict) -> None:
+    """Print the P3 grade WORD for every declared-but-zero-row tall metric, plus the REGISTER FACT that
+    decided it (declared on / expires on, or NOT REGISTERED), to the container's stdout.
+
+    On the scheduled path stdout is the only durable record (`_print_stage_errors` says why), and a
+    yellow line whose REASON is invisible is a yellow line the next operator will re-litigate. The header
+    names the gate run (`while gating {table}`); each grade line names the metric's OWN card, because the
+    table under test and the table that owns the metric are different things and the round-2 line read as
+    if `silver_nasa_power` owned `gold_weather_z.drought_z_is_preliminary`. NEVER RAISES: a print is not a
+    verdict, and a formatting slip must not red a gate."""
+    try:
+        ledger = cch.grade_ledger(caches)
+        if not ledger:
+            return
+        print(f"    contract_check (while gating {table}) graded {len(ledger)} declared-but-zero-row "
+              f"metric(s) against the CARD_AHEAD_OF_PRODUCER register "
+              f"({cch.PENDING_WINDOW_DAYS}-day window, 0 quer(ies))")
+        for tid, metric, grade, reason in ledger:
+            print(f"    contract_check grade {str(grade).upper()}: {tid}.{metric} ({reason})")
+    except Exception as e:  # noqa: BLE001 -- see the docstring: a print is not a verdict
+        print(f"    contract_check {table} grade print failed ({type(e).__name__}) -- verdict unaffected")
+
+
 def stage_contract_check(table: str, ctx: GateContext) -> StageResult:
     """SILVER-C002 vocabulary + value-nonnull on the reloaded mirror (cross-table; the whole numbers
     vocabulary is cheap). RED on a drift implicating THIS table, on an unattributable one, or on one
     naming only tables NO family gates (fence (A)); WARN on one implicating only other OWNED tables
-    (D-PR-5). The walk itself is unchanged -- global as before -- so nothing stops being detected."""
+    (D-PR-5). The walk itself is unchanged -- global as before -- so nothing stops being detected.
+
+    P3 (2026-09-22) adds ONE more WARN route, and it is deliberately NOT the D-PR-5 one: a declared tall
+    metric REGISTERED in `contract_check.CARD_AHEAD_OF_PRODUCER` and still inside its declared window is
+    a card a human declared ahead by hand, and it warns for EVERY family INCLUDING the one that owns the
+    table. Routing it through `_split_verdict` instead would red the owner and rebuild the deadlock
+    (measured; see the comment at the call site). An UNREGISTERED or EXPIRED zero-row metric is an ERROR
+    and takes HEAD's route unchanged -- `_split_verdict`, the D-PR-5 split and fence (A) all still apply
+    to it, so a drift naming only tables NO family gates still reds every family exactly as before. Round
+    2 graded that whole class a warning; the register does not.
+
+    A WARN IS NOT A GREEN, and `TableResult.ok` needs at least one green stage. On Branch A the table also
+    runs `pg_reload`, `parity` and `value_census`, so a warn here can never be the only thing a table
+    proved -- but if `stage_contract_check` is ever made the sole stage of a branch, `ok` goes False.
+    `_BRANCH_A_STAGES` makes that impossible today; do not change it without re-reading this note."""
     try:
         from leviathan.graphrag.numbers import contract_check as cch
         if ctx.query_fn is None:
             return StageResult("contract_check", SKIPPED, "no pg query_fn (offline/dry)")
-        errs = cch.contract_check(ctx.numbers_reg, query_fn=ctx.query_fn)
-        if not errs:
-            return StageResult("contract_check", GREEN, "vocabulary consistent")
-        return _split_verdict("contract_check", table, ctx,
-                              [(e, implicated_tables(e)) for e in errs], noun="vocab drift(s)")
+        # P3 (2026-09-22) -- THE GRADED PATH. `contract_check_ex` splits the TALL declared-but-zero-row
+        # family in two on a DECLARATION: a metric REGISTERED in `CARD_AHEAD_OF_PRODUCER` with a date and
+        # a reason, still inside its window, is a WARNING -- the class that deadlocked the weather family
+        # for six consecutive fires. Everything else stays an ERROR in HEAD's own words, and so does an
+        # entry the grade cannot read. The round-2 design graded on an all-time `COUNT(*)`, which is the
+        # DISTINCT probe restated (measured: it could not red 51 of 51 dropped metrics); this one costs
+        # NO query at all, so the SQL this stage sends to pg is byte-identical to HEAD's. `caches` is
+        # passed in so the grade word per metric and the register fact behind it can be PRINTED.
+        caches: dict = {}
+        errs, warns = cch.contract_check_ex(ctx.numbers_reg, query_fn=ctx.query_fn, caches=caches)
+        _print_contract_grades(table, cch, caches)
+        if errs:
+            r = _split_verdict("contract_check", table, ctx,
+                               [(e, implicated_tables(e)) for e in errs], noun="vocab drift(s)")
+            if warns:
+                # never dropped: a run can carry a real regression AND a registered card-ahead metric
+                r.global_errors = list(r.global_errors) + list(warns)
+                r.detail += f" (+{len(warns)} registered card-ahead)"
+            return r
+        if warns:
+            # THESE LINES MUST NOT GO THROUGH `_split_verdict`. That helper reds the table a drift
+            # IMPLICATES, so routing a REGISTERED card-ahead warning through it puts `gold_weather_z`
+            # straight back to RED and re-creates the deadlock this fix exists to end. MEASURED offline
+            # 2026-09-22 over all 28 rendered gate commands (46 distinct (family, table) pairs), running
+            # the REAL stage on both sides, with the register as shipped:
+            #     HEAD                           -> 1 red (weather/gold_weather_z) + 45 warn
+            #     naive (through _split_verdict) -> 1 red (weather/gold_weather_z) + 45 warn <- unchanged
+            #     this route                     -> 0 red + 46 warn
+            # and with the SAME harness on an UNREGISTERED drop (`drought_z`, the flagship) this route
+            # reds weather/gold_weather_z exactly as HEAD does -- the register, not this route, is what
+            # decides which lines arrive here.
+            # `errors` carries the same list as `global_errors` on purpose: `_print_stage_errors` prints
+            # ONLY `errors`, and `detail` truncates at five, so without it the sixth warning onward would
+            # be unrecoverable from a container log -- the exact loss D-PR-32 ended for red stages.
+            return StageResult("contract_check", WARN,
+                               f"global_drift: {len(warns)} declared-but-zero-row metric(s) REGISTERED "
+                               f"in CARD_AHEAD_OF_PRODUCER and still inside the declared window: "
+                               + "; ".join(warns[:5]),
+                               errors=list(warns), global_errors=list(warns))
+        return StageResult("contract_check", GREEN, "vocabulary consistent")
     except Exception as e:  # noqa: BLE001
         # UNATTRIBUTABLE BY CONSTRUCTION: an exception is not an error STRING, so there is no leg and no
         # table to charge it to -- and a check that crashed proved nothing about ANY table. RED (ratified).
