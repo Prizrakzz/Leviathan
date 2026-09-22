@@ -1,0 +1,46 @@
+{
+  "schedule": "gold_futures_spreads",
+  "family": "futures_spreads",
+  "wave": 3,
+  "cron": "cron(0 10 ? * TUE-SAT *)",
+  "publish_class": "A",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "post_publish_audit",
+  "auth_mode": "kms",
+  "skip_existing": false,
+  "asof": "<aws.scheduler.scheduled-time>",
+  "gate_tables": [
+    "gold_futures_spreads"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/gold_futures_spreads/census.json",
+  "gate_jobdef": "leviathan-dev-silver-gate",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue-ondemand",
+  "chain_shape": "gold(recompute from published silver_futures_eod)->gate",
+  "phases": [
+    {
+      "name": "gold",
+      "tasks": [
+        {
+          "id": "gold_futures_spreads",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "jobs/batch/gold_futures_spreads_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        }
+      ]
+    }
+  ],
+  "notes": "AUTHORED 2026-09-22 (census B14). ITS OWN SCHEDULE, not a second task inside gold_board_crush.json, because leviathan.silver.dag_catalog gives board_crush and futures_spreads SEPARATE families on purpose (one on-call answer per family, one tightest-ceiling arithmetic per family) and a descriptor carries exactly one family. THE DEFECT IT CLOSES IS TWO DEFECTS. First, the same as B3: a SERVED card bound to a board leg with no descriptor, no jobdef and no schedule, hand-produced once on 2026-08-21 and 32 days stale on 2026-09-22. Second, and WORSE because it hid the first: configs/silver/tables/gold_futures_spreads.yaml declared freshness_sla {cadence: null, max_lag_days: null}, so dag_catalog.effective_sla_lag_days fell through BOTH rungs to the _CADENCE_FALLBACK_LAG_DAYS of 46 and a 32-day-old DAILY table reported GREEN. The cadence is now declared daily/5 -- the same ceiling its sole input silver_futures_eod carries, including that table's ratified weekend grace -- through scripts/silver/gen_registry_from_baseline.py CURATION_OVERRIDES (the registry YAMLs are GENERATED; hand-editing one is undone by the next run), exactly as gold_board_crush has declared it since D-EC DK-13. THE CRON is the sibling's, and for the same reason: 10:00 UTC TUE-SAT is two hours after the databento chain that writes the kc_chi pair's two legs (hard_red_winter_wheat_kcbt / soft_red_winter_wheat_cbot). The white_yellow pair's two JSE legs are written by futures_eod_free at cron(30 22 ? * MON-FRI *), i.e. the PREVIOUS evening, so both pairs are reading the same prior session when this fires. PARTIAL-PAIR POSTURE, deliberately different from the crush's fail-closed: this table is N independent pairs, so a pair whose venue is dark emits nothing FOR THAT PAIR and says so in its ledger while the others publish; the zero-row fence (gold_futures_spreads_task.py:106-109) still refuses to overwrite the published table with an empty frame. NO NEW JOB DEFINITION: leviathan-dev-b3-flat-silver is the worker image this producer needs (rev 44, worker digest 46f55987, 1 vCPU / 4096 MB) and the whole input is 32 objects totalling 1.8 MB compressed across the four slugs (measured 2026-09-22) -- see gold_board_crush.json's notes for the full argument. PUBLISH_MODE latest_only + PROMOTE_MODE post_publish_audit: the producer writes gold/futures_spreads/part-000.parquet directly with put_object and has no --publish-mode flag, so the promote Map renders EMPTY and the gate is an audit of a completed write. BEFORE THE FIRST FIRE mint s3://leviathan-dev-shahem-001/cascade_census/rolling/gold_futures_spreads/census.json -- the gate fails closed on a missing baseline. VERIFICATION: the first 10:00Z TUE-SAT fire SUCCEEDS and a read-only re-read shows max(trade_date) within 5 days of the fire for the kc_chi pair."
+}

@@ -1659,10 +1659,35 @@ tables:
       prior-year and a z-score vs the trailing 3-year same-week average. Point-in-time via the week's
       ending date plus a conservative publication lag.
     grain: "one row per season x crop x week_number"
-    # COVERAGE (PA-1, hoisted from this card's own measured text): "canonical parquet 1204 rows, 0 nulls,
-    # 2003-05..2024-04" (Card C block). The file STOPPED at 2024-04 (the deliveries card names the 27-month
-    # gap as this tranche's sharpest hazard) -> the end is a ceiling
+    # COVERAGE. THE CEILING IS GONE AND THE "STOPPED FILE" CLAIM WAS FALSE (census B9/P9, 2026-09-22).
+    # This card used to carry `row_count: 1204` and `last_obs: "2024-04"`, hoisted from a Card C
+    # measurement of a canonical parquet that ends 2024-04-26 -- and the registry's own ceiling rule
+    # (numbers/registry.py:159-165) cites this table BY NAME as the example of "a stopped file". SAGIS
+    # NEVER STOPPED. The raw tree carries IMP-EXP_Progressive_Koring_2025-2026_50.xlsx fetched
+    # 2026-09-18 and a maize file through week 20 of 2026-27; what stopped was the producer's INPUT --
+    # jobs/batch/sagis_weekly_exports_silver_task.py read a BRONZE prefix that no phase in this
+    # repository writes (last written 2026-06-03 by a tool that is not in git) while its own
+    # descriptor's chain_shape claimed a bronze leg it does not have. The producer now reads RAW, as
+    # its deliveries sibling always did. A `last_obs` here is therefore exactly what the ceiling rule
+    # forbids: not a harmless approximation but the model DECLINING a question the table can answer.
+    # `row_count` is dropped with it rather than restated: this is a LIVE weekly front whose count
+    # grows every Friday, and measured offline against all 70 raw workbooks the repointed producer
+    # emits 2,409 rows over 24 maize and 23 wheat seasons with a newest week ending 2026-09-11 -- so
+    # 1,204 would be false within one fire ONCE THE REPOINTED PRODUCER HAS PROMOTED. UNTIL THEN IT IS THE
+    # TRUTH: on 2026-09-22 the CANONICAL parquet still ends 2024-04-26 with 1,204 rows (the 2,409-row,
+    # 2026-09-11 figure is an OFFLINE measurement of what the first repointed Friday fire, 2026-09-25,
+    # will publish through shadow -> diff -> promote). A card that declares a tip canonical does not
+    # carry is a card AHEAD OF ITS DATA (review 2026-09-22 M3), so `row_count` and `last_obs` stay at
+    # the measured canonical and are RE-MEASURED after that promote -- the ceiling rule then lifts by
+    # the data moving, never by the card asserting it.
     row_count: 1204
+    # THE 318 ROWS THAT CHANGE, and why a reader who saw the old ones was misled: of the 1,204 rows
+    # the old canonical held, 886 are reproduced value-identical (week_ending text and derived
+    # week_ending_date identical too) and 318 are CORRECTED -- 2016-17 and 2019-20 maize were the
+    # WHITE workbook sheet alone with South Africa's yellow maize exports silently dropped, 2022-23
+    # maize was the white sheet's NAMIBIA destination cell (a WEEKLY figure served as a season-to-date
+    # total, ~865x low), and 2012-13 maize was the IMPORTS column. RE-MEASURE this card's census after
+    # the first repointed Friday fire lands canonical.
     first_obs: "2003-05"
     last_obs: "2024-04"
     cadence: weekly
@@ -1694,10 +1719,15 @@ tables:
   #   (2) It carries the DENOMINATOR. prior_prog_total_mt is a real physical column here (92.5% populated)
   #       and the exports table has no equivalent, so pct_of_prior_yr is interpretable on this card in a
   #       way it never was on the sibling -- which is the whole reason it is served as a metric (see notes).
-  #   (3) IT IS CURRENT AND ITS SIBLING IS NOT. Deliveries runs to week-ending 2026-08-07 (measured, the
-  #       weekly job is on the clock); silver_sagis_weekly_exports ENDS 2024-04-26. A 27-month gap between
-  #       two same-shaped SAGIS cards is the sharpest substitution hazard in this tranche, and the notes
-  #       name it rather than trusting the model to notice.
+  #   (3) BOTH WILL RIDE THE SAME FRIDAY FIRE FROM 2026-09-25; UNTIL THAT PROMOTE, CANONICAL EXPORTS
+  #       STILL END 2024-04-26 (the 27-month gap is CLOSING, not closed). This line used to read "IT IS
+  #       CURRENT AND ITS SIBLING IS NOT ... silver_sagis_weekly_exports ENDS 2024-04-26. A 27-month gap
+  #       between two same-shaped SAGIS cards is the sharpest substitution hazard in this tranche." The
+  #       gap was never a SOURCE gap: SAGIS published the export workbook every week throughout, and the
+  #       exports producer was reading a bronze prefix no phase writes (census B9/P9). It now reads RAW
+  #       like this table's producer always did, so both cards ride the same Friday fire and the same
+  #       week-ending axis. Deliveries measured to week-ending 2026-08-07; exports to 2026-09-11 OFFLINE,
+  #       2024-04-26 on canonical until the repointed fire promotes.
   #
   # PIT: data_date on the DERIVED week_ending_date + the sibling's ratified +5d lag. The physical
   # `week_ending` is FREE TEXT and cannot anchor anything -- 3,005 of 3,007 derived dates are a FRIDAY, so

@@ -28,12 +28,20 @@ _SCHEMA = _DAGS / "dag_descriptor.schema.json"
 #   futures_eod_free      -- W1a/W1b, the four FREE venues (CZCE, JSE/SAFEX, CEPEA, MIAX) on ONE
 #       cron at 22:30 UTC MON-FRI, which is after the latest of the four same-day publications.
 #       They share one table and one gate, so one schedule rather than four keeps one census.
+#   gold_board_crush / gold_futures_spreads -- census B3/B14, 2026-09-22. Neither is a Section-3
+#       row either: they are CONSUMERS of a published silver table (silver_futures_eod), each its
+#       own dag_catalog family, on one cron at 10:00 UTC TUE-SAT two hours behind the databento
+#       chain that writes their legs. Both were SERVED numbers cards bound to board legs in
+#       cascade_map.yaml with no descriptor, no jobdef and no schedule at all -- produced once by
+#       hand on 2026-08-2x and 33 and 32 days stale -- which is the defect the new
+#       gen_dag_schedules_tfvars.py --lint makes impossible to repeat.
 EXPECTED_SCHEDULES = {
     "fx_macro_daily", "enso_monthly", "pink_sheet_monthly", "mpob", "mpoc", "icco_cocoa",
     "ams_cotton_quality", "fnc_colombia", "production_conab", "nass_citrus", "sagis_weekly",
     "wap", "cot", "food_cpi", "futures_prices", "unica", "psd_monthly", "nass_crop_progress",
     "fgis", "modis_biweekly", "weather_daily", "esr_weekly", "wasde_monthly", "production_faostat",
     "futures_eod_databento", "futures_eod_free",
+    "gold_board_crush", "gold_futures_spreads",
 }
 
 # The module-form producers named in A-W6 (invocation form [m] = -m jobs.batch.X).
@@ -66,7 +74,7 @@ def descriptors(gen):
 # ---------------------------------------------------------------------------
 def test_every_section3_schedule_has_a_descriptor(descriptors):
     assert set(descriptors) == EXPECTED_SCHEDULES
-    assert len(descriptors) == 26
+    assert len(descriptors) == 28
 
 
 def test_filename_stem_matches_schedule(descriptors):

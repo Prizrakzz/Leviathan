@@ -1185,6 +1185,25 @@ CURATION_OVERRIDES: dict = {
     "gold_board_crush": {
         "freshness_sla": {"cadence": "daily", "max_lag_days": 5},
     },
+    # CENSUS B14 (2026-09-22) -- gold_futures_spreads, the SAME derived-from-our-own-silver shape as
+    # gold_board_crush directly above, and the entry it was MISSING. The absence was not cosmetic: with
+    # no entry here `_cadence(grain)` had nothing to read (the R0 record carries no period_col and no
+    # month/year grain), the contract shipped `freshness_sla: {cadence: null, max_lag_days: null}`, and
+    # `dag_catalog.effective_sla_lag_days` fell through BOTH rungs -- the explicit ceiling and the
+    # cadence default -- to `_CADENCE_FALLBACK_LAG_DAYS` = 46. MEASURED CONSEQUENCE: on 2026-09-22 the
+    # table's newest trade_date was 2026-08-21, THIRTY-TWO days old on a table whose sole input is a
+    # DAILY one, and it reported GREEN against that 46-day generic fallback. A null cadence on a daily
+    # table is a hiding place, which is why the census names the null itself as the defect.
+    # daily/5 MIRRORS the input silver_futures_eod exactly, including that table's ratified weekend
+    # grace (a Friday close is ~3 days old by Monday, so the bare daily default of 3 false-fires), and
+    # it is the input's ceiling because a spread can never be fresher than its two legs. It is the
+    # ceiling to RE-OPEN FIRST if configs/silver/dags/gold_futures_spreads.json is ever armed on a cron
+    # slower than its input -- the ceiling would then be asserting a cadence nobody scheduled, which is
+    # the same caveat gold_board_crush's entry carries. As of this change the schedule IS armed, at
+    # cron(0 10 ? * TUE-SAT *), two hours behind the databento chain that writes the kc_chi legs.
+    "gold_futures_spreads": {
+        "freshness_sla": {"cadence": "daily", "max_lag_days": 5},
+    },
     # MINAGRO -- two facts build_contract cannot derive, because the table has neither a
     # source_contracts entry nor a numbers card (four-checkmark law: no card until a cloud run
     # proves rows), so ``grain`` is empty and both derivations fall through to None:

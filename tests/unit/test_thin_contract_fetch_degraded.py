@@ -14,7 +14,7 @@ THE THREE BOUNDS THIS FILE PINS, because the tolerance is worth nothing without 
 
   1. BOUNDED (finding M1). A degraded fetch continues to Bronze ONLY when at least one leg
      SUCCEEDED. Measured over infra/terraform/envs/dev/dag_schedules.auto.tfvars.json, the
-     fetch-leg histogram across the 25 enabled schedules is {0: 1, 1: 18, 2: 4, 3: 1, 5: 1}
+     fetch-leg histogram across the 25 enabled schedules is {0: 3, 1: 18, 2: 4, 3: 1, 5: 1}
      -- so for 18 of 25 schedules "one leg failed" IS "the whole acquisition phase failed",
      and those runs take the failure path with the same terminal status, the same untouched
      canonical and the same never-entered Bronze/Silver/Gate/Promote as today. Only the 6
@@ -425,14 +425,16 @@ def test_the_degraded_choice_is_bounded_guarded_and_defaults_to_todays_behaviour
 
 def test_eighteen_of_the_twenty_five_schedules_cannot_run_degraded_at_all():
     """The measurement that gives arm 2 its scope, read from the committed tfvars rather
-    than asserted. 18 of 25 enabled schedules carry EXACTLY ONE fetch leg, so for them a
+    than asserted. 18 of 27 enabled schedules (25 until 2026-09-22) carry EXACTLY ONE fetch leg, so for them a
     failed leg is the whole acquisition phase and arm 2 fires: same terminal status, same
     untouched canonical, same never-entered Bronze/Silver/Gate/Promote as today. Only the 6
     multi-leg schedules can reach DegradedNotify. If this histogram moves, the honest scope
     of the lane moved with it and the main.tf comment must be re-measured."""
     hist = _fetch_leg_histogram()
-    assert hist == {0: 1, 1: 18, 2: 4, 3: 1, 5: 1}, hist
-    assert sum(hist.values()) == 25
+    assert hist == {0: 3, 1: 18, 2: 4, 3: 1, 5: 1}, hist
+    # 25 -> 27 on 2026-09-22: gold_board_crush and gold_futures_spreads are DERIVATIONS with zero
+    # fetch legs (they run after the databento promote), so only the zero bucket moved: 1 -> 3.
+    assert sum(hist.values()) == 27
     assert sum(n for legs, n in hist.items() if legs > 1) == 6, "the degradable families"
 
 

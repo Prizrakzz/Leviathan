@@ -1,0 +1,46 @@
+{
+  "schedule": "gold_board_crush",
+  "family": "board_crush",
+  "wave": 3,
+  "cron": "cron(0 10 ? * TUE-SAT *)",
+  "publish_class": "A",
+  "retrofit_required": false,
+  "retrofit_landed": true,
+  "promote_mode": "post_publish_audit",
+  "auth_mode": "kms",
+  "skip_existing": false,
+  "asof": "<aws.scheduler.scheduled-time>",
+  "gate_tables": [
+    "gold_board_crush"
+  ],
+  "gate_baseline_uri": "s3://leviathan-dev-shahem-001/cascade_census/rolling/gold_board_crush/census.json",
+  "gate_jobdef": "leviathan-dev-silver-gate",
+  "gate_queue": "leviathan-dev-queue-ondemand",
+  "retry": {
+    "maximum_retry_attempts": 3,
+    "maximum_event_age_in_seconds": 86400
+  },
+  "queue": "leviathan-dev-queue-ondemand",
+  "chain_shape": "gold(recompute from published silver_futures_eod)->gate",
+  "phases": [
+    {
+      "name": "gold",
+      "tasks": [
+        {
+          "id": "gold_board_crush",
+          "invocation_form": "s",
+          "integration": "batch",
+          "jobdef": "leviathan-dev-b3-flat-silver",
+          "queue": "leviathan-dev-queue-ondemand",
+          "command": [
+            "jobs/batch/gold_board_crush_task.py"
+          ],
+          "env": {},
+          "publishes": true,
+          "publish_mode": "latest_only"
+        }
+      ]
+    }
+  ],
+  "notes": "AUTHORED 2026-09-22 (census B3). THE DEFECT IT CLOSES: gold_board_crush is a SERVED numbers card, in P1_TABLES and bound to a board leg in cascade_map.yaml, and it had NO descriptor, NO job definition and NO schedule -- produced ONCE BY HAND on 2026-08-22 and 33 days stale against its own 5-day ceiling on 2026-09-22, i.e. 5.5x, with no alarm and (its contract having been added after the poller image) no poll target either. The recurrence it prevents is a contract that can be served without a producer; the registry-vs-schedule LINT in scripts/silver/gen_dag_schedules_tfvars.py --lint is the pin that makes it impossible to add the next one. THE CRON: 10:00 UTC TUE-SAT is TWO HOURS AFTER the futures_eod_databento chain's 08:00 UTC TUE-SAT fire, which is the ONLY writer of the three CBOT soy legs this job reads (soybeans_cbot / soybean_meal_cbot / soybean_oil_cbot). Measured over the seven databento executions 2026-09-12..2026-09-22 the chain runs 30, 30, 32, 36, 37, 54 and 66 minutes end to end, so two hours is ~1.8x the worst SUCCESSFUL run; TUE-SAT because the input only moves TUE-SAT (a Monday session is published in Tuesday's fire, a Friday session in Saturday's). A late or FAILED input is fail-soft here by construction, not by luck: the producer recomputes the WHOLE history and overwrites one flat object, so a missing newest session simply is not in this run's output and the next day's fire picks it up -- and gold_board_crush_task.py:128-135 refuses to publish a partial crush when a leg has no rows at all, while :152-155 refuses to overwrite a published table with an empty one. NO NEW JOB DEFINITION, and that is the decision rather than an omission: the producer needs pandas + pyarrow + boto3 and leviathan.transforms.gold, all of which the WORKER image carries (docker/leviathan_worker/Dockerfile COPYs all of src/), and leviathan-dev-b3-flat-silver is exactly that image -- rev 44, digest-pinned to worker 46f55987 (20260916-seams), jobRoleArn leviathan-dev-batch-job-role, 1 vCPU / 4096 MB. The whole input is 51 objects totalling 3.9 MB compressed across the three legs (measured 2026-09-22), so the sizing is not close. gold-weather-z has its own jobdef because it rides the EMBEDDER image for historical reasons ('the worker image predates Phase D'); that has not been true since src/ was copied whole into both, and minting a second jobdef here would only add a pin somebody has to remember to move. PUBLISH_MODE latest_only + PROMOTE_MODE post_publish_audit: the producer writes gold/board_crush/part-000.parquet DIRECTLY with put_object -- it has no --publish-mode flag at all, so the renderer correctly appends none and the promote Map renders EMPTY. The gate that follows is therefore an AUDIT of a write that already happened, which is what post_publish_audit says, and never a permission for one. BEFORE THE FIRST FIRE the rolling baseline s3://leviathan-dev-shahem-001/cascade_census/rolling/gold_board_crush/census.json must be minted (jobs/audit/advance_rolling_census.py --dest-uri, in-VPC on leviathan-dev-evidence-build): silver_rebuild_gate._load_census_from_s3 FAILS CLOSED on a missing baseline, deliberately, so an unminted baseline reds the first execution. VERIFICATION: the first 10:00Z TUE-SAT fire is observed to SUCCEED and a read-only re-read of the object shows max(trade_date) within 5 days of the fire."
+}

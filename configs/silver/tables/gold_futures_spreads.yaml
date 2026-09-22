@@ -114,8 +114,8 @@ knowledge_date_col: trade_date
 knowledge_semantics: data_date
 publication_lag_days: 1
 freshness_sla:
-  cadence: null
-  max_lag_days: null
+  cadence: daily
+  max_lag_days: 5
 consumers: numbers_registry
 numbers_ref: configs/graphrag/numbers/tables.yaml#gold_futures_spreads
 cascade_ref: configs/graphrag/numbers/cascade_map.yaml#kc_chi_spread
