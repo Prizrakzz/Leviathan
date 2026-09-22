@@ -98,6 +98,13 @@ module "iam" {
   # SILVER-F014 latch: flipped TRUE under the signed A1-A2 G1+G5.0 grants (2026-07-16) --
   # canonical authority now rests on kms:Sign + gate-first + shadow-first, not the deny.
   silver_canonical_publish_approved = true
+  # SILVER-F014's repair flag, set 2026-09-23 (pipeline census B12 / P5): the ESR canonical publisher
+  # passes reconcile_schema_widen=True and calls glue:UpdatePartition to widen 243 of 272
+  # silver_esr_compact partitions from 12 to 17 columns, and the role only granted Create/BatchCreate,
+  # so every Thursday promote since 2026-09-17 logged created=29 failed=243 and exited 1. The narrowness
+  # that protects the estate lives in the CODE (catalog.is_schema_widen admits only a pure trailing
+  # append at an identical location/format/SerDe), never in this grant.
+  publisher_repair_enabled = true
 }
 
 # Cost tripwires (Jul-2026 S3 LIST storm): daily S3 budget alert + CE anomaly detection -> email.

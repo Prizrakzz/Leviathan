@@ -275,7 +275,11 @@ variable "futures_eod_image_digest" {
   # available end, on the only path that submits.
   # 2026-09-03 (r2): repinned to tag 20260903-worker-cpo2-7f465765 (commit 7f465765): CPO root + the D3 lane fix (unit-window fence, zero marks)
   # settlement-spine bronze + statistics-only buy; the palm slug re-pointed to the CME USD tape (V2-4).
-  default     = "sha256:a4946d83f891ce61a0a9104ae74119bed124b92822223d5aedbe8c135551e1df"
+  # 2026-09-23: moved to the pipeline fix-now WORKER build 2c1aa6b1 (commit 5d90d2c0; tag
+  # 20260922-20260923-pipeline) so the futures_eod fetch jobdefs carry fetch_cepea_daily.py's 403
+  # inside the backoff loop (six of eleven lost CEPEA sessions were 403s that later succeeded).
+  # Previous value: sha256:a4946d83f891ce61a0a9104ae74119bed124b92822223d5aedbe8c135551e1df
+  default = "sha256:2c1aa6b19242f9ae0e4b694cdc32fa5e98d62f69c1c129c1bbd4bf82de2c7ebc"
 
   validation {
     condition     = var.futures_eod_image_digest == "" || can(regex("^sha256:[0-9a-f]{64}$", var.futures_eod_image_digest))
