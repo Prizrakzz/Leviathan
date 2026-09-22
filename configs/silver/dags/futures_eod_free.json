@@ -25,6 +25,7 @@
   },
   "queue": "leviathan-dev-queue-ondemand",
   "chain_shape": "fetch(czce|jse|cepea|miax incremental + euronext browser day-capture)->silver(one --source pass each, registered per leviathan_slug/trade_year)",
+  "silver_leg_order_note": "THE SILVER-PHASE LEG ORDER IS LOAD-BEARING AND IS NEITHER ALPHABETICAL NOR HISTORICAL. The state machine's Silver and Promote Maps are MaxConcurrency 1 and their ItemProcessors carry NO Catch at all, so the FIRST silver or promote leg to fail aborts the Map and every leg after it NEVER RUNS. The Fetch Map is different and that difference is why only this phase is reordered: BatchSyncFetch catches States.ALL into ClassifyFailureFetch, the iteration still succeeds with a recorded per-leg verdict, and AnyFetchLegFailed reads the whole scan AFTER the Map -- so a blocked fetch leg DEGRADES the run and every later fetch leg still runs, and the fetch order below is immaterial and is left exactly as the W1a/W1b chain wrote it. MEASURED 2026-09-21: execution futures_eod-sched-ae6ab1af raised MapIterationFailed {\"name\":\"Promote\",\"index\":3} -- index 3 IS miax under the ORIGINAL order (czce, jse, cepea, miax, euronext) -- on StatusReason \"Rate limit exceeded while preparing network interface to be attached to instance\" with ExitCode None, a PRE-START fault with nothing to do with the data; euronext at index 4 never ran, its shadow held trade_date 2026-09-21 and canonical stayed at 2026-09-18. The legs are therefore ordered by WHAT A LOST SESSION COSTS, never by venue name. euronext, jse and cepea are FORWARD-ONLY -- the MATIF quote table, the JSE portal object and the CEPEA widget each serve TODAY and nothing earlier, their fetches take no window BY DESIGN, and a session missed past the silver leg's --lookback-days reach is gone for good -- so they run FIRST. czce and miax carry --lookback-days 5 on the fetch AND the silver leg and self-heal on the next fire, so they run LAST and a failure there costs a day of latency instead of a session. THIS IS A MITIGATION, NOT THE FIX: the fix is ToleratedFailureCount on the Silver and Promote Maps plus a narrow pre-start retryStrategy on leviathan-dev-futures-eod-silver (P14), both deferred to after the release. AND A DESCRIPTOR EDIT ALONE CHANGES NOTHING AT 22:30Z: the live scheduler Input is infra/terraform/envs/dev/dag_schedules.auto.tfvars.json, so this reorder reaches a fire only through scripts/silver/gen_dag_schedules_tfvars.py followed by a terraform apply.",
   "euronext_capture_window_note": "THE CAPTURE WINDOW, AND WHY 22:30Z IS INSIDE IT IN BOTH HALVES OF THE YEAR. The rendered live.euronext.com quote table publishes a Time column and NO DATE anywhere in its DOM, so trade_date comes from the raw key's as_of_date= segment and from nowhere else (transforms/raw_to_bronze/euronext_eod.py, point 1), and fetch_euronext_eod.py derives that default from datetime.now(timezone.utc).date(). The window is therefore a UTC statement, not the CET-local one D-PR-23 wrote down: the capture must sit AFTER the settlement publish and BEFORE 00:00Z. The publish is ~18:30 Paris = 16:30Z under CEST and 17:30Z under CET; 22:30Z clears it by 5-6 hours and sits 90 minutes before UTC midnight, in summer AND in winter. The earlier reading -- 'a 22:30Z fire is 00:30 CEST, i.e. after local midnight' -- measured the wrong midnight: the key's date rolls at 00:00Z, so a 22:30Z Wednesday fire lands Wednesday's session under as_of_date=Wednesday. D-PR-24 (user-ratified 2026-08-05, 'arm MATIF') also resolves the SETTL. semantics that D-PR-23 held this leg behind: the evening scrape reads the SAME session's settlement, so there is no T-1 risk and settle_kind='settlement' stands as CONTRACT_MAP pins it. THE RESIDUAL SEAM, stated rather than hidden: retry.maximum_event_age_in_seconds is 86400, so a retried fire may execute after 00:00Z and land the session under the NEXT UTC date -- silently, because this is the one leg with no independent date authority to cross-check. Every other venue in this chain reads its session date from inside the payload (JSE) or from a venue-chosen key segment (CZCE, MIAX). Narrowing this chain's event age, or teaching the producer to derive --as-of-date from <aws.scheduler.scheduled-time>, is the durable fix and is NOT carried here.",
   "phases": [
     {
@@ -106,7 +107,7 @@
       "name": "silver",
       "tasks": [
         {
-          "id": "futures_eod_silver_czce",
+          "id": "futures_eod_silver_euronext",
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-futures-eod-silver",
@@ -114,7 +115,7 @@
           "command": [
             "jobs/batch/futures_eod_task.py",
             "--source",
-            "czce",
+            "euronext",
             "--mode",
             "incremental",
             "--lookback-days",
@@ -163,7 +164,7 @@
           "publish_mode": "shadow_canonical"
         },
         {
-          "id": "futures_eod_silver_miax",
+          "id": "futures_eod_silver_czce",
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-futures-eod-silver",
@@ -171,7 +172,7 @@
           "command": [
             "jobs/batch/futures_eod_task.py",
             "--source",
-            "miax",
+            "czce",
             "--mode",
             "incremental",
             "--lookback-days",
@@ -182,7 +183,7 @@
           "publish_mode": "shadow_canonical"
         },
         {
-          "id": "futures_eod_silver_euronext",
+          "id": "futures_eod_silver_miax",
           "invocation_form": "s",
           "integration": "batch",
           "jobdef": "leviathan-dev-futures-eod-silver",
@@ -190,7 +191,7 @@
           "command": [
             "jobs/batch/futures_eod_task.py",
             "--source",
-            "euronext",
+            "miax",
             "--mode",
             "incremental",
             "--lookback-days",

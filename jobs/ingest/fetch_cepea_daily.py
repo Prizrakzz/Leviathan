@@ -18,9 +18,25 @@ THREE REQUEST FACTS, ALL PROBED, NONE OPTIONAL
    (which is exactly what separates CEPEA from Bursa, whose ``Cf-Mitigated: challenge`` Turnstile
    interstitial no header permutation clears). :data:`CEPEA_USER_AGENT` is pinned here for that
    reason and must not be "cleaned up".
-2. **A 403 is a HARD FAILURE, never an empty result.** This table has no freshness alarm armed yet,
-   so a producer that swallowed a challenge body and wrote nothing would be silent for as long as
-   nobody looked.
+2. **A 403 is RETRIED, and a run of them is a HARD FAILURE -- never an empty result.** This table
+   has no freshness alarm armed yet, so a producer that swallowed a challenge body and wrote
+   nothing would be silent for as long as nobody looked; that half stands. What did NOT stand is
+   the claim, written here on the 2026-07-29 probe, that the 403 is a STATIC UA block and therefore
+   not worth retrying. **Falsified by the schedule's own CloudWatch log, 2026-09:** the
+   byte-identical pinned :data:`CEPEA_USER_AGENT` landed both indicators on 09-14, 09-18 and 09-21
+   and was 403'd on 09-03, 09-15, 09-16 and 09-17, and because the raise sat ABOVE the backoff loop
+   the producer gave up after ONE request each time. CEPEA lost 11 of 36 sessions between 08-04 and
+   09-21, and on a source with no history at all -- no series endpoint, no republisher, a ~9-year
+   archive hole -- each of those is gone for good. The 403 now rides the same backoff as 429/5xx
+   and raises only after :data:`_MAX_ATTEMPTS` consecutive 403s.
+
+   **What this fix does NOT close, stated rather than implied.** The same log shows 09-10 and 09-11
+   lost to HTTP **500**, which was ALREADY retryable and ALREADY exhausted its three attempts
+   (`attempt 1/3 ... 5s`, `attempt 2/3 ... 10s`, then `HTTPError: 500`). So a 15-second in-run
+   backoff does not survive a CEPEA origin outage, and no in-process retry can: the second half of
+   this fix is a CATCH-UP FIRE, which is safe by this producer's own design because
+   :func:`raw_exists` short-circuits an already-landed capture and a later fire that serves the
+   expected session simply lands it. That half is a schedule change and is not carried here.
 3. **The host is load-bearing: ``www.cepea.org.br``.** The ``cepea.esalq.usp.br`` host 301s to it
    and the redirect DOUBLE-ENCODES the ``[]`` in the query (``%255B%255D``), which silently yields
    "Sem resultados" -- a 200 with no data. The host is hard-coded; never follow the other one.
@@ -178,8 +194,18 @@ _DEFAULT_SLEEP_SECONDS = 2.5
 _MAX_ATTEMPTS = 3
 _BACKOFF_SECONDS = 5
 _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
-# Cloudflare's static UA filter. NOT retryable (retrying a UA block just hammers the origin) and
-# NOT an absence (writing nothing would be silent on a table with no freshness alarm).
+# Cloudflare's edge rejection. RETRYABLE, and NOT an absence (writing nothing would be silent on a
+# table with no freshness alarm). The original comment here read "static UA filter, NOT retryable
+# (retrying a UA block just hammers the origin)" and :func:`fetch_indicator` raised on the FIRST
+# 403, jumping over the backoff loop written directly below it. THE PREMISE IS FALSIFIED BY THE
+# SCHEDULE'S OWN LOG: the byte-identical pinned :data:`CEPEA_USER_AGENT` landed both indicators on
+# 2026-09-14, 09-18 and 09-21 (`landed=2 ... verdict fresh`) and was 403'd on 09-03, 09-15, 09-16
+# and 09-17 -- a UA the origin accepts three times in eight days is not a static UA block, it is an
+# edge-dependent rejection, and this leg has NO history anywhere (see the module docstring), so
+# every un-retried 403 destroyed a session that cannot be re-fetched at any price. A 403 is
+# therefore treated exactly like any other transient status: retried on the shared schedule, and
+# raised -- still hard, still never an empty result -- only once the attempts are exhausted, which
+# is the shape a REAL block has and an edge hiccup does not.
 _CHALLENGE_STATUS = 403
 
 # The only S3 error codes that mean "this key is genuinely not there". Everything else raises --
@@ -202,7 +228,12 @@ def looks_like_a_widget(payload: bytes) -> Optional[str]:
 
 
 def fetch_indicator(indicator_id: int, *, timeout: int = _TIMEOUT) -> bytes:
-    """The widget payload for one indicator id. A 403 raises -- see the module docstring."""
+    """The widget payload for one indicator id.
+
+    A 403 is RETRIED on the same backoff schedule as every other transient status and raises --
+    hard, and never as an empty result -- only after :data:`_MAX_ATTEMPTS` consecutive 403s. See
+    :data:`_CHALLENGE_STATUS` for the measurement that moved it into this loop.
+    """
     url = cepea_url(indicator_id)
     headers = {"User-Agent": CEPEA_USER_AGENT}
     backoff = _BACKOFF_SECONDS
@@ -210,14 +241,18 @@ def fetch_indicator(indicator_id: int, *, timeout: int = _TIMEOUT) -> bytes:
     for attempt in range(1, _MAX_ATTEMPTS + 1):
         try:
             resp = requests.get(url, headers=headers, timeout=timeout)
-            if resp.status_code == _CHALLENGE_STATUS:
+            if resp.status_code == _CHALLENGE_STATUS and attempt >= _MAX_ATTEMPTS:
                 raise RuntimeError(
-                    f"{url} returned HTTP 403 -- Cloudflare rejected the request. This is NOT an "
-                    f"empty result and must never be treated as one. Check that the pinned "
-                    f"CEPEA_USER_AGENT is still being sent and still accepted; the UA alone is the "
-                    f"gate (Referer and Accept-Language change nothing)"
+                    f"{url} returned HTTP 403 on all {_MAX_ATTEMPTS} attempts -- Cloudflare "
+                    f"rejected the request. This is NOT an empty result and must never be treated "
+                    f"as one. A SINGLE 403 on this origin is transient and is retried (the pinned "
+                    f"UA landed on 2026-09-14/18/21 and was 403'd on 09-03/15/16/17); "
+                    f"{_MAX_ATTEMPTS} in a row is the shape of a real block, so check that the "
+                    f"pinned CEPEA_USER_AGENT is still being sent and still accepted; the UA alone "
+                    f"is the gate (Referer and Accept-Language change nothing)"
                 )
-            if resp.status_code in _RETRYABLE_STATUS and attempt < _MAX_ATTEMPTS:
+            if (resp.status_code == _CHALLENGE_STATUS
+                    or resp.status_code in _RETRYABLE_STATUS) and attempt < _MAX_ATTEMPTS:
                 logger.warning("CEPEA id=%s returned HTTP %d (attempt %d/%d) -- retrying in %ds",
                                indicator_id, resp.status_code, attempt, _MAX_ATTEMPTS, backoff)
             else:
