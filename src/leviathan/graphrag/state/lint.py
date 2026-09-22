@@ -698,6 +698,16 @@ def _check_absence_vocabulary() -> list[str]:
         seen.setdefault(w, "rows.STATUS_WORDS")
     for w in ROWS.TAPE_STATUS_WORDS:
         seen.setdefault(w, "rows.TAPE_STATUS_WORDS")
+    # S8 LANE N: THE CHAIN VOCABULARY IS SEEDED BY NAME AND NOT ONLY THROUGH ITS LEG. `CHAIN_REASONS`
+    # reaches the loop above today because `LEG_REASONS["path"]` IS that tuple (the leg deliberately
+    # keeps its old name so no census row changes meaning), so this seeds nothing new and every message
+    # above keeps its exact provenance string -- it is seeded AFTER the legs for precisely that reason.
+    # It is here as a BELT: the day someone renames the leg key, or renders a chain decline off a leg
+    # this loop does not walk, the three words would leave the graded set silently and a reader would
+    # meet the fallback line where DESIGN B.3's own count sentence was owed. `getattr` because this
+    # clause must not red on a tree where lane W's constant has not landed.
+    for w in getattr(B, "CHAIN_REASONS", ()) or ():
+        seen.setdefault(w, "board.CHAIN_REASONS")
     seen.pop("ok", None)
     for w, where in sorted(seen.items()):
         if w not in R.ABSENCE_WHY:
@@ -823,6 +833,589 @@ def _walk_line_rxs() -> dict:
     return out
 
 
+# -- clause 15 (S8 lane N): NO CHAIN LINT DELETES ---------------------------------------------------
+#: THE FOUR COUNTERS ``answer._chain_lints`` ACTUALLY RETURNS, read off the shipped function and not
+#: declared beside it. The counter is the right key and the function name is not: the counter is what
+#: the arm report reads (threat E2 -- "the counter `chain_unranked_narrated` is read in the arm
+#: report"), so it is the name that cannot change without a census row changing meaning, while a
+#: private function may be renamed freely by the lane that owns it.
+#:
+#: ROUND 3 ADDS THE FOURTH. ``chain_hops_ambiguous`` (round 2, review MAJOR A-2) counts the hops that
+#: HAD a served figure and were REFUSED it because the sentence names another anchor of a multi-anchor
+#: page -- the one counter that records a refusal, and the one counter no build graded.
+#: ``tests/unit/test_state_lint.py`` reads all four off ``_chain_lints``'s own tree, so this tuple can
+#: never drift from the function again.
+#:
+#: ``chain_referenced`` IS NOT ONE OF THEM AND MAY NOT BE ADDED (round-2b review MAJOR 4). It is a
+#: COVERAGE counter, produced by ``render.board_coverage`` over the block's own chain rows -- how many
+#: RENDERED chains the writer's prose reached -- while these four are produced by the correcting pass
+#: over the writer's SENTENCES. One census name over two populations is the failure this estate keeps
+#: paying for, so the name is spelled where it lives and nowhere else.
+#: ROUND 4 ADDS THE FIFTH, AND IT LANDED PRODUCER FIRST. ``chain_fence_closed`` counts the
+#: corrections this pass WITHHELD because an instrument it reads could not be read -- a figure not
+#: appended because the market fence returned nothing, an L3 stamp not made because the pool came back
+#: empty. It is the FAIL-CLOSED counter, and a withholding that is counted is the opposite of a
+#: withholding that is silent: "fail-open is the opposite of the doctrine", and a dropped item is
+#: COUNTED. Lane A shipped it inside ``_chain_lints`` on this sitting; the roster row follows IN THE
+#: SAME COMMIT, which is the rule this tuple was written under -- a counter in the function and not in
+#: this tuple is a census column no build grades, and the round-3 pin that reads the roster off the
+#: function's own tree is what made the drift visible the moment it happened.
+CHAIN_LINT_COUNTERS: tuple = ("chain_hops_unfigured", "chain_hops_skipped",
+                              "chain_unranked_narrated", "chain_hops_ambiguous",
+                              "chain_fence_closed")
+#: The collection methods that REMOVE. A correcting fence may call none of them ON THE SERVED TEXT: the
+#: doctrine is "fences CORRECT or COMPUTE, never delete", and the estate has paid for the other reading
+#: twice this month -- the citation verifier deleted five sentences on five real 2026-09-16 turns, and
+#: the S7b advice cut deleted readings on the first 149 fresh sentences it met. A lint that drops a
+#: sentence it cannot check has not corrected the page; it has removed the reader's evidence that
+#: anything was wrong.
+_CHAIN_LINT_REMOVERS: tuple = ("remove", "pop", "clear", "discard", "popitem")
+#: The two calls that ERASE a span when their replacement is the empty string.
+_CHAIN_BLANKING_CALLS: tuple = ("replace", "sub", "subn")
+#: THE PROBE THE EXECUTED LAW RUNS ON (round 3). Ordinary served prose in the two fields the shipped
+#: pass writes, four sentences each, every one of them a sentence a chain lint has a reason to touch --
+#: a probe a lint cannot fire on proves nothing, so :func:`chain_append_only_report` returns what it
+#: CHANGED beside what it charged and the decks assert on both.
+CHAIN_APPEND_PROBE: dict = {
+    "tldr": ("Palm stocks sit near the top of their own record and the export hop is the one to "
+             "watch. The same hop runs into soybean oil within the quarter. A third sentence names "
+             "no hop at all and must survive untouched. Rain in the producing states is the hop "
+             "behind both."),
+    "mechanism": ("The shipment hop moves first and the crush hop follows it. A sentence with no "
+                  "hop in it sits between them. The stocks hop closes the sequence; the reader is "
+                  "owed every one of these sentences back."),
+}
+
+
+@functools.lru_cache(maxsize=1)
+def _answer_source() -> str:
+    """``answer.py``'s TEXT, read by path and never imported.
+
+    THE SOURCE JOIN IS THE POINT (``test_k9_stop_census.py``'s own idiom, which asserts
+    ``"def _g1x_sans(" in walk`` over the file's text). This module is imported by a lint, by decks that
+    render nothing and by ``config_check``; importing the serving answer module to grade three functions
+    inside it would drag a provider stack, a boto session and every registry loader into a config check,
+    and would make a build failure in one of them look like a lint failure here."""
+    try:
+        return (pathlib.Path(__file__).resolve().parents[1] / "answer.py").read_text(encoding="utf-8")
+    except Exception:                                   # noqa: BLE001 -- an unreadable file is a SKIP
+        return ""                                       #   (the warning names it), never a red build
+
+
+def _chain_stores(node) -> set:
+    """The counter names this function STORES -- half of the producer join.
+
+    A STORE is one of exactly two shapes, and both are shapes the shipped reference, lane A's
+    ``_chain_lints`` and every one of the review's deletion cases actually write:
+
+      * the constant subscript of an assignment or an augmented assignment TARGET
+        (``census["chain_hops_skipped"] += 1``), and
+      * a key of a dict LITERAL bound to a name -- the census initialiser
+        (``census = {"chain_hops_skipped": 0, ...}``), which is what keeps the "never increments its
+        own counter" rule able to fire at all: a function whose increments were deleted still declares
+        the counter it owes. It is also the only way two of the four counters are visible at all in
+        ``_chain_lints``, which raises them through a VARIABLE key (``census[counter] += weight``).
+
+    A name that appears only inside a tuple, a call argument or a subscript being READ is NOT a store.
+    STORING A COUNTER IS NOT ON ITS OWN ENOUGH TO BE GRADED: threat E2 says the arm report READS these
+    names, and a report row is written as a dict literal and an f-string. What decides is
+    :func:`_chain_served_writes` -- whether the function puts SERVED TEXT BACK."""
+    import ast
+    out: set = set()
+    for n in ast.walk(node):
+        targets = []
+        if isinstance(n, ast.Assign):
+            targets = list(n.targets)
+            if isinstance(n.value, ast.Dict):
+                out |= {k.value for k in n.value.keys
+                        if isinstance(k, ast.Constant) and isinstance(k.value, str)}
+        elif isinstance(n, ast.AugAssign):
+            targets = [n.target]
+        for t in targets:
+            if (isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant)
+                    and isinstance(t.slice.value, str)):
+                out.add(t.slice.value)
+    return out
+
+
+def _bound_names(target) -> set:
+    """The plain NAMES an assignment or a ``for`` binds -- never the base of a subscript.
+
+    ``structured[field] = ...`` binds nothing: it WRITES. ``for field, text in ...`` binds both."""
+    import ast
+    if isinstance(target, ast.Name):
+        return {target.id}
+    if isinstance(target, (ast.Tuple, ast.List)):
+        out: set = set()
+        for e in target.elts:
+            out |= _bound_names(e)
+        return out
+    return set()
+
+
+def _chain_served_taint(node) -> dict:
+    """``{parameter: every local name carrying something read out of it}`` -- the data-flow half.
+
+    A chain lint is handed the writer's own ``structured`` dict and reads the served text out of it
+    (``structured.get(field)``, ``(structured or {}).items()``, ``structured[field]``), splits it,
+    walks the pieces and puts them back. THAT ROUND TRIP is what makes a function a producer of served
+    text, and following it is what tells a PRODUCER from a READER without asking either to be spelled a
+    particular way: the arm-report reader derives its values from the CENSUS and writes them into a
+    RECORD, and no name it writes carries anything it read out of the thing it is writing into.
+
+    The walk is a FIXPOINT over assignments and ``for`` targets: a name whose value mentions the
+    parameter, or any name already derived from it, is derived from it too, until a pass adds nothing
+    (a cap of twelve, which no ordinary lint's chain of intermediates comes near, and the loop leaves
+    early). It is deliberately COARSE in the permissive direction -- it can call a name derived when it
+    is only adjacent, and the cost of that is a removal rule reaching one name further, never a served
+    write being missed."""
+    import ast
+    a = node.args
+    params = [x.arg for x in list(getattr(a, "posonlyargs", [])) + list(a.args) + list(a.kwonlyargs)]
+    if a.vararg:
+        params.append(a.vararg.arg)
+    if a.kwarg:
+        params.append(a.kwarg.arg)
+    taint = {p: {p} for p in params}
+    body = list(ast.walk(node))
+    for _ in range(12):
+        grew = False
+        for n in body:
+            if isinstance(n, ast.Assign):
+                bound: set = set()
+                for t in n.targets:
+                    bound |= _bound_names(t)
+                src = n.value
+            elif isinstance(n, (ast.For, ast.AsyncFor)):
+                bound = _bound_names(n.target)
+                src = n.iter
+            elif isinstance(n, ast.withitem) and n.optional_vars is not None:
+                bound = _bound_names(n.optional_vars)
+                src = n.context_expr
+            else:
+                continue
+            if not bound:
+                continue
+            mentioned = {x.id for x in ast.walk(src) if isinstance(x, ast.Name)}
+            for p, names in taint.items():
+                if mentioned & names and not bound <= names:
+                    names |= bound
+                    grew = True
+        if not grew:
+            break
+    return taint
+
+
+def _chain_counter_buckets(node) -> set:
+    """``{(base name, constant key)}`` -- every slot this function fills with a BUCKET OF COUNTERS.
+
+    A bucket is a dict LITERAL, bound to a constant subscript of a name, whose keys are all
+    :data:`CHAIN_LINT_COUNTERS` and at least one of them: ``report["chain"] = {"chain_hops_skipped":
+    0, "chain_hops_unfigured": 0}``. That is the shape an arm-report rollup writes before it fills the
+    bucket and totals it, and reading it back is reading counters, never the reader's sentences. The
+    ALL clause is what keeps this narrow: a served field is never assigned a literal made only of
+    counter names, so no page can be mistaken for a bucket."""
+    import ast
+    out: set = set()
+    for n in ast.walk(node):
+        if not (isinstance(n, ast.Assign) and isinstance(n.value, ast.Dict) and n.value.keys):
+            continue
+        keys = [k.value for k in n.value.keys if isinstance(k, ast.Constant)]
+        if len(keys) != len(n.value.keys) or not set(keys) <= set(CHAIN_LINT_COUNTERS):
+            continue
+        for t in n.targets:
+            if (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)
+                    and isinstance(t.slice, ast.Constant)):
+                out.add((t.value.id, t.slice.value))
+    return out
+
+
+def _chain_counter_raised(node, counter: str) -> bool:
+    """Does this function RAISE ``counter`` -- not merely DECLARE it? (round-4 review MAJOR 1.)
+
+    THE RULE IS GRADED PER COUNTER because the number the arm report reads is per counter. Round 3
+    asked only whether the function carried ANY ``+=`` anywhere, which the shipped
+    ``answer._chain_lints`` satisfies with ``clause += ...`` on a LOCAL STRING: measured by surgery on
+    the shipped source (``r2c/rev3/REV3_N_adv3.json``), a ``_chain_lints`` with every one of its five
+    counter raises replaced by ``pass`` passed the clause clean and was still named the producer of
+    all four. A zero the arm report cannot tell from "nothing happened" is the census-row-with-two-
+    meanings failure this estate keeps paying for.
+
+    THREE SPELLINGS COUNT, and each is one the shipped pass or the deck's own reference really writes:
+
+      * ``census["chain_hops_skipped"] += 1`` -- the augmented assignment under the counter's own
+        CONSTANT key;
+      * ``census["chain_hops_skipped"] = census.get("chain_hops_skipped", 0) + 1`` -- the same number
+        off its own previous value, because a clause that knew only the first would charge a
+        conforming pass for its punctuation;
+      * ``census[counter] += int(weight)`` -- the augmented assignment under a VARIABLE key, over a
+        base whose own dict literal DECLARED this counter. ``answer._chain_lints`` raises two of its
+        four that way (``chain_hops_skipped`` and ``chain_unranked_narrated``), and it is the only
+        reason the loose rule was reached for in the first place."""
+    import ast
+    declared_by = {n.targets[0].id for n in ast.walk(node)
+                   if isinstance(n, ast.Assign) and len(n.targets) == 1
+                   and isinstance(n.targets[0], ast.Name) and isinstance(n.value, ast.Dict)
+                   and any(isinstance(k, ast.Constant) and k.value == counter for k in n.value.keys)}
+    for n in ast.walk(node):
+        if isinstance(n, ast.AugAssign):
+            t = n.target
+            if not (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)):
+                continue
+            if isinstance(t.slice, ast.Constant):
+                if t.slice.value == counter:
+                    return True
+            elif t.value.id in declared_by:
+                return True
+        elif isinstance(n, ast.Assign):
+            names = {x.id for x in ast.walk(n.value) if isinstance(x, ast.Name)}
+            for t in n.targets:
+                if (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)
+                        and isinstance(t.slice, ast.Constant) and t.slice.value == counter
+                        and t.value.id in names):
+                    return True
+    return False
+
+
+def _chain_served_writes(node) -> list:
+    """Every assignment that PUTS SERVED TEXT BACK -- ``[(written name, parameter, node)]``.
+
+    THE CLASS RULE, and the whole of round 3's answer to three MAJORs at once. A chain lint PRODUCES:
+    it assigns into a subscript of the structure it read the served text from -- ``structured[field] =
+    "".join(toks)``, or the token list it split out of that field (``toks[i] = sent``), which is the
+    same write one level down. A chain lint READER never does: the arm-report assembly threat E2 names
+    writes ``rec[counter]`` from ``census[counter]``, and nothing it writes carries anything it read
+    out of ``rec``. MEASURED at round 2b (``r2b/rev2/REV2_clause15_readerFP.json``): that reader, in
+    the ordinary spelling of a report row -- a dict literal plus an f-string summary -- RED the build
+    with six errors, beside the lane's own conforming reference.
+
+    A STORE UNDER A CONSTANT COUNTER KEY IS NEVER A SERVED WRITE. ``census["chain_hops_skipped"] =
+    census.get("chain_hops_skipped", 0) + 1`` raises a counter; it does not write a page. That one
+    exclusion is what keeps BOTH reader spellings out with no rule about readers at all.
+
+    AND NEITHER IS A READ UNDER ONE (round-4 review MAJOR 2, the same exclusion on the other side of
+    the assignment). ``base in reads`` asks "was the written value read out of the structure being
+    written into", which is the round trip a producer makes. An arm-report row reads its OWN counters
+    back to derive a line -- ``rec["chain_note"] = "%d hops skipped" % rec["chain_hops_skipped"]`` --
+    and at round 3 that RED the build TWICE beside the conforming reference, once with the DELETION
+    message, on a record holding no sentence at all (``r2c/rev3/REV3_N_adv.json``,
+    ``REV3_N_adv2.json``). A counter read back is no more a page than a counter bump is, and a COUNTER
+    BUCKET -- a constant key this function bound to a dict literal whose every key is one of
+    :data:`CHAIN_LINT_COUNTERS` (``report["chain"] = {"chain_hops_skipped": 0, ...}``) -- is a bucket
+    of counters and not a page either; the one-line counter-key exclusion alone left that third
+    spelling charged, measured, and it is the rollup every report writes.
+
+    THE RESIDUAL IS DECLARED RATHER THAN LISTED, because a table of spellings is what a later reviewer
+    cannot trust: a function that derives a field from a key of its own record that is NEITHER a
+    counter NOR a counter bucket IS charged, and a reader written that way must spell the derivation
+    off the census it read from rather than off the record it is filling."""
+    import ast
+    taint = _chain_served_taint(node)
+    buckets = _chain_counter_buckets(node)
+    out: list = []
+    for n in ast.walk(node):
+        if isinstance(n, ast.Assign):
+            targets = list(n.targets)
+        elif isinstance(n, ast.AugAssign):
+            targets = [n.target]
+        else:
+            continue
+        mentioned = {x.id for x in ast.walk(n.value) if isinstance(x, ast.Name)}
+        reads = {x.value.id for x in ast.walk(n.value)
+                 if isinstance(x, ast.Subscript) and isinstance(x.value, ast.Name)
+                 and not (isinstance(x.slice, ast.Constant)
+                          and (x.slice.value in CHAIN_LINT_COUNTERS
+                               or (x.value.id, x.slice.value) in buckets))}
+        for t in targets:
+            if not (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)):
+                continue
+            if isinstance(t.slice, ast.Constant) and t.slice.value in CHAIN_LINT_COUNTERS:
+                continue                                # a counter bump is not a page
+            base = t.value.id
+            for p, names in taint.items():
+                if base not in names:
+                    continue
+                if (mentioned & (names - {base})) or base in reads:
+                    out.append((base, p, n))
+                    break
+    return out
+
+
+def _chain_lint_functions(tree, src: str = "") -> dict:
+    """``{counter: [(function name, node)]}`` -- every function that PRODUCES one of the counters.
+
+    A function produces a counter when it STORES the counter's exact name (:func:`_chain_stores`) AND
+    it writes served text back into the structure it read it from (:func:`_chain_served_writes`). BOTH
+    HALVES ARE THE CONTRACT and neither alone is:
+
+      * the name AS A STRING CONSTANT and nothing more is what a comment or a block note carries, and
+        lane A writes the note before it writes the function -- a clause that red-flagged the note
+        would be a fence firing on its own documentation;
+      * the name as a MENTION and nothing more is what the arm report carries. A build gate that reds
+        on the conforming implementation of the lane it was written for is a gate that gets deleted,
+        which is how the estate lost the T2b write-guard.
+
+    ``src`` is accepted and unused: it is the file's text, which the callers already hold, and the join
+    is made on the parsed TREE alone."""
+    import ast
+    out: dict = {c: [] for c in CHAIN_LINT_COUNTERS}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        stores = _chain_stores(node)
+        if not (stores & set(CHAIN_LINT_COUNTERS)) or not _chain_served_writes(node):
+            continue
+        for c in CHAIN_LINT_COUNTERS:
+            if c in stores:
+                out[c].append((node.name, node))
+    return out
+
+
+# -- THE LAW ITSELF, EXECUTED ------------------------------------------------------------------------
+#: A sentence boundary, spelled as ``register._SENT_KEEP`` spells it. It is repeated here rather than
+#: imported because this module is read by ``config_check`` and by decks that render nothing.
+_CHAIN_PROBE_SENT = re.compile(r"([.!?;]\s+)")
+
+
+def _append_only_charges(name: str, before: dict, after: dict) -> list:
+    """APPEND-ONLY, CHARACTER FOR CHARACTER, on one before/after pair.
+
+    Two readings of one law, because a page can be damaged two ways:
+
+      * EVERY CHARACTER THE WRITER WROTE IS STILL THERE, IN ORDER -- the served text before the pass is
+        a SUBSEQUENCE of the served text after it. An append inserts; a deletion removes; and the
+        subsequence test does not care WHERE the clause was inserted, which matters because the shipped
+        idiom appends INSIDE the sentence, in front of its terminator, so a plain prefix test would
+        charge the one shape every conforming lint in this estate uses.
+      * EVERY SENTENCE IS STILL A SENTENCE -- each sentence's body, sans its terminator, is still a
+        contiguous substring. A pass that kept every character but scattered one sentence through the
+        others has taken that sentence off the page just as surely.
+
+    The charge NAMES THE FIRST CHARACTER THAT WENT MISSING, because "a sentence was deleted" is a
+    verdict and an offset is evidence."""
+    errs: list = []
+    for field, old in sorted(before.items()):
+        new = after.get(field)
+        if not isinstance(new, str):
+            errs.append("%s hands back %r as %s and not as text -- the reader's own sentences left "
+                        "the page in the shape they were served in" % (name, field, type(new).__name__))
+            continue
+        if not isinstance(old, str):
+            continue
+        i = 0
+        for ch in new:
+            if i < len(old) and ch == old[i]:
+                i += 1
+        if i < len(old):
+            errs.append("%s loses served text in %r: character %d of the writer's own sentence (%r) "
+                        "is not in what the reader is handed back -- the law is APPEND-ONLY"
+                        % (name, field, i, old[max(0, i - 30):i + 30]))
+        for k, sent in enumerate(_CHAIN_PROBE_SENT.split(old)):
+            if k % 2 or not sent.strip():
+                continue
+            body = sent.strip().rstrip(".;!?").strip()
+            if body and body not in new:
+                errs.append("%s no longer carries the sentence %r whole in %r -- a sentence broken "
+                            "apart is a sentence the reader lost" % (name, body[:60], field))
+        if len(new) < len(old):
+            errs.append("%s SHORTENS %r (%d characters to %d); an appending pass never shortens"
+                        % (name, field, len(old), len(new)))
+    return errs
+
+
+def chain_append_only_report(fn, *args, probe: Optional[dict] = None, **kwargs) -> dict:
+    """RUN a chain lint on a known structured dict and GRADE WHAT IT DID -- the append-only law.
+
+    ``{"errors": [...], "changed": [fields], "raised": None or the exception's class name,
+    "before": {...}, "after": {...}}``.
+
+    THIS IS THE LAW AND THE SOURCE CLAUSE IS THE BELT, and round 3 turned them around for a measured
+    reason. A roster of deletion SHAPES is a roster: at round 2 it charged two conforming APPENDING
+    lints (a filtered list joined onto the full text) and it stopped grading a lint that deletes IN
+    PLACE and writes the field back as the list it is, because no string was built. Both were found by
+    one-edit variants of the lane's own reference. What a FIXTURE answers is neither of those
+    questions but the only one that matters: run it, and see whether the reader still has every
+    character the writer wrote.
+
+    IT GRADES IDEMPOTENCE THE SAME WAY, by running the pass TWICE. That rule used to be graded as a
+    SHAPE (``if <clause> in <sentence>: continue``), which charged the conforming spelling
+    ``if clause not in sent:`` for the guard it plainly has; run twice, a pass that appends a second
+    clause is charged and a pass that appends nothing is not, whichever way it is written.
+
+    ``fn`` is called as ``fn(box, *args, **kwargs)`` with ``box`` a fresh copy of :data:`CHAIN_APPEND_PROBE`
+    (or of ``probe``). A raised exception is reported rather than swallowed: the shipped pass declares
+    that it never raises, and a fixture is where that is cheap to check."""
+    box = dict(probe if probe is not None else CHAIN_APPEND_PROBE)
+    before = dict(box)
+    name = getattr(fn, "__name__", "the chain lint")
+    out: dict = {"errors": [], "changed": [], "raised": None, "before": before, "after": box}
+    try:
+        fn(box, *args, **kwargs)
+    except Exception as exc:                            # noqa: BLE001 -- named, never re-raised
+        out["raised"] = type(exc).__name__
+        out["errors"].append("%s raised %s on the append-only probe; a correcting pass over the "
+                             "writer's own sentences never raises" % (name, type(exc).__name__))
+        return out
+    out["after"] = dict(box)
+    out["changed"] = sorted(f for f, v in before.items() if box.get(f) != v)
+    out["errors"] += _append_only_charges(name, before, box)
+    once = dict(box)
+    try:
+        fn(box, *args, **kwargs)
+    except Exception as exc:                            # noqa: BLE001
+        out["raised"] = type(exc).__name__
+        out["errors"].append("%s raised %s on its SECOND run; a correcting pass that cannot be run "
+                             "twice cannot be run at all" % (name, type(exc).__name__))
+        return out
+    for field, v in sorted(once.items()):
+        if box.get(field) != v:
+            out["errors"].append("%s is NOT IDEMPOTENT in %r: a second run changes the page again, "
+                                 "and a pass that grows the page every time it runs is a deletion's "
+                                 "mirror image" % (name, field))
+    return out
+
+
+def _chain_deletion_shapes(node, served: set) -> list:
+    """THE BELT: the removals a source can see WITHOUT a fixture, scoped to the SERVED TEXT.
+
+    Each rule below charges only when the thing removed is the served structure itself or a name this
+    function derived from it (:func:`_chain_served_taint`) -- a ``.pop()`` off a local options dict is
+    nobody's deletion. What is NOT here is as deliberate as what is: the round-2 rule that charged ANY
+    filtered list put back into the served text is narrowed to the review's own remedy -- a filtered
+    re-join is charged only when the name the comprehension FILTERED OVER is absent from the written
+    value, so ``"".join(keep)`` is a rebuild and ``"".join(toks) + ", ".join(named)`` is an append.
+
+    THE BELT DECIDES NOTHING THE LAW DECIDES. :func:`chain_append_only_report` runs the pass and reads
+    the page; this reaches the shapes that are a deletion however the fixture falls."""
+    import ast
+    out: list = []
+    filtered: dict = {}
+    for n in ast.walk(node):
+        if not (isinstance(n, ast.Assign) and len(n.targets) == 1
+                and isinstance(n.targets[0], ast.Name)):
+            continue
+        v = n.value
+        if isinstance(v, (ast.ListComp, ast.SetComp, ast.GeneratorExp)) and any(
+                g.ifs for g in v.generators):
+            filtered[n.targets[0].id] = {x.id for g in v.generators
+                                         for x in ast.walk(g.iter) if isinstance(x, ast.Name)}
+        elif isinstance(v, ast.Call) and isinstance(v.func, ast.Name) and v.func.id == "filter":
+            filtered[n.targets[0].id] = {x.id for a in v.args
+                                         for x in ast.walk(a) if isinstance(x, ast.Name)}
+    for n in ast.walk(node):
+        if isinstance(n, ast.Delete):
+            for t in n.targets:
+                base = t.value if isinstance(t, (ast.Subscript, ast.Attribute)) else t
+                if isinstance(base, ast.Name) and base.id in served:
+                    out.append("carries a `del` over the served text (%s) -- a chain lint CORRECTS or "
+                               "COMPUTES and never deletes (DESIGN B.6, ruling R2)" % (base.id,))
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and n.func.attr in _CHAIN_LINT_REMOVERS
+                and isinstance(n.func.value, ast.Name) and n.func.value.id in served):
+            out.append("calls %s.%s() on the served text -- a removing method inside a fence whose "
+                       "whole contract is that the sentence survives" % (n.func.value.id, n.func.attr))
+        if not isinstance(n, ast.Assign):
+            continue
+        names = {x.id for x in ast.walk(n.value) if isinstance(x, ast.Name)}
+        blanking = any(isinstance(x, ast.Call) and isinstance(x.func, ast.Attribute)
+                       and x.func.attr in _CHAIN_BLANKING_CALLS
+                       and any(isinstance(a, ast.Constant) and a.value == "" for a in x.args)
+                       for x in ast.walk(n.value))
+        empty = (isinstance(n.value, (ast.List, ast.Tuple, ast.Set)) and not n.value.elts
+                 or isinstance(n.value, ast.Dict) and not n.value.keys
+                 or isinstance(n.value, ast.Constant) and n.value.value == "")
+        for t in n.targets:
+            if not (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)
+                    and t.value.id in served):
+                continue
+            if isinstance(t.slice, ast.Slice) and empty:
+                out.append("assigns an EMPTY collection into a slice of the served text -- a deletion "
+                           "spelled as an assignment is still a deletion")
+            elif empty:
+                out.append("blanks a slot of the served text with the empty string -- a deletion "
+                           "spelled as an assignment is still a deletion")
+            if blanking:
+                out.append("writes back a span ERASED with an empty replacement -- an erase spelled "
+                           "as a rewrite still takes the reader's sentence off the page")
+            back = sorted(f for f in (names & set(filtered)) if not (filtered[f] & names))
+            if back:
+                out.append("rebuilds the served text from a FILTERED copy (%s) with the list it "
+                           "filtered nowhere in the written value -- a sentence the comprehension's "
+                           "`if` did not keep is a sentence deleted" % (", ".join(back),))
+    seen: set = set()
+    return [t for t in out if not (t in seen or seen.add(t))]
+
+
+def _check_chain_lints_append_only() -> list[str]:
+    """CLAUSE 15. Every chain lint DESIGN B.6 declares only ever APPENDS -- it never deletes.
+
+    WHO IT GRADES, and round 3 made this a CLASS instead of a list of spellings: a chain lint is a
+    function that stores one of :data:`CHAIN_LINT_COUNTERS` AND writes served text back into the
+    structure it read that text from (:func:`_chain_served_writes`). A function that only READS the
+    counters -- the arm-report assembly threat E2 names -- writes nothing back and is not graded, in
+    ANY of the six ordinary spellings measured (a tuple of names with ``rec[k] = int(census[k])``; a
+    dict literal with an f-string summary line; constant keys into a record it was handed; a note
+    DERIVED off that record; a nested rollup with a total; and a row that drops its own line when the
+    counter is zero -- the last three re-opened this at round 3 and are closed by the read-side
+    exclusions in :func:`_chain_served_writes`). A function that deletes IN PLACE and writes the field back
+    as the LIST it is (``del toks[i]`` ... ``structured[field] = toks``) IS graded, and was not at
+    round 2 because it built no string.
+
+    WHAT IT GRADES HERE, on those functions: the removals a source can see with no fixture at all
+    (:func:`_chain_deletion_shapes` -- a ``del`` or a removing method over the served text, a slot
+    blanked, a slice taking an empty collection, a span erased with an empty replacement, a filtered
+    rebuild that left the list it filtered out of the written value), and that a function declaring a
+    counter actually RAISES THAT COUNTER (:func:`_chain_counter_raised`), so the number the arm report
+    reads is produced rather than only named. ROUND 4 MADE THAT SECOND RULE PER COUNTER: round 3 asked
+    whether the function carried any augmented assignment at all, and a ``_chain_lints`` with every one
+    of its five counter raises replaced by ``pass`` passed clean while still being named the producer
+    of all four (surgery on the shipped source, ``r2c/rev3/REV3_N_adv3.json``).
+
+    WHAT IT DOES NOT GRADE HERE, stated because the claim a docstring makes is the thing a later
+    reviewer trusts: THE LAW ITSELF. Append-only is a property of what the pass DOES to a page, and it
+    is graded by EXECUTION -- :func:`chain_append_only_report` runs the pass on a known structured dict
+    and reads back whether every character the writer wrote is still there, whether every sentence is
+    still whole and whether a second run changes anything. It runs in ``tests/unit/test_state_lint.py``
+    -- on the lane's conforming reference, on every deletion shape the review measured, on both reader
+    spellings, and on the five 2026-09-16 served bodies, which are UNSEEN real-seat prose and not this
+    fence's own case list. Beside it ``tests/unit/test_chain_lints.py`` measures the SHIPPED pass
+    against a real board on those same five bodies, with its own assertions. IT CANNOT RUN HERE:
+    this module is imported by ``config_check`` and by decks that render nothing, importing the serving
+    answer module to grade one function inside it would drag a provider stack and every registry loader
+    into a config check, and the shipped pass needs a real board before it can fire at all -- a build
+    lint that fabricated one would be grading its own fixture.
+
+    IT SKIPS HONESTLY AND SAYS SO. Until a counter has a producer, this clause returns clean and
+    :func:`state_board_warnings` NAMES the counter -- a lint that RED the board for a file another lane
+    has not written yet would be a fence charging for work in progress."""
+    import ast
+    errs: list[str] = []
+    src = _answer_source()
+    if not src or not any(c in src for c in CHAIN_LINT_COUNTERS):
+        return errs                                     # lane A has not landed; the warning names it
+    try:
+        tree = ast.parse(src)
+    except SyntaxError as exc:                          # a file that does not parse is a real defect
+        return ["state/lint.py clause 15: answer.py does not parse (%s); the chain lints cannot be "
+                "graded for the append-only law" % (exc,)]
+    for counter, fns in sorted(_chain_lint_functions(tree, src).items()):
+        for name, node in fns:
+            where = "answer.%s (the %s lint)" % (name, counter)
+            taint = _chain_served_taint(node)
+            served: set = set()
+            for _base, p, _n in _chain_served_writes(node):
+                served |= taint.get(p, set())
+            errs += [where + " " + t for t in _chain_deletion_shapes(node, served)]
+            # THE COUNTER IS RAISED, AND IT IS THIS COUNTER (:func:`_chain_counter_raised`). Round 3
+            # asked whether the function carried ANY `+=`, which `clause += ...` on a local string
+            # answers -- so a pass that declared four counters and raised none passed clean. The
+            # number the arm report reads is per counter, so the rule is graded per counter.
+            if not _chain_counter_raised(node, counter):
+                errs.append("%s never increments its own counter; the arm report reads %s and a "
+                            "counter nothing raises reads zero for free" % (where, counter))
+    return errs
+
+
 # ── clause 11 (S3): the narration literals and the calendar's rule kinds ────────────────────────────
 def _check_narration_and_calendar() -> list[str]:
     """``narration.check_literals()`` (the mandate and the two recency sentences, bar B15) plus
@@ -848,7 +1441,14 @@ def check_state_board() -> list[str]:
     S7b ADDS THE TWELFTH, :func:`_check_nonobvious_watch` -- the non-obvious watch vocabulary, its
     ceilings and the owner's 2026-09-11 release-calendar ban, graded on the closed KIND map. It is
     named here because `config_check.check_state_board`'s docstring is where a reviewer looks to answer
-    "is the calendar ban enforced at build", and a roster that stops at eleven answers no."""
+    "is the calendar ban enforced at build", and a roster that stops at eleven answers no.
+
+    THE ROSTER IS FIFTEEN TODAY and the sentence above is kept rather than renumbered, because each
+    clause is named by the sitting that added it: lane D's two reader-word books are 13 and 14, and S8
+    lane N adds the FIFTEENTH, :func:`_check_chain_lints_append_only` -- the append-only law over
+    DESIGN B.6's three chain lints, graded on ``answer.py``'s SOURCE and SKIPPED, loudly, until they
+    land. It is named here for the same reason the twelfth is: a reviewer asking "can a chain lint
+    delete a sentence" reads this docstring, and a roster that stops at fourteen answers nothing."""
     errs: list[str] = []
     errs += _check_lag_table()
     errs += _check_no_summed_band()
@@ -864,6 +1464,7 @@ def check_state_board() -> list[str]:
     errs += _check_nonobvious_watch()
     errs += _check_reading_words()
     errs += _check_phase_pairs()
+    errs += _check_chain_lints_append_only()
     return errs
 
 
@@ -1399,6 +2000,21 @@ def state_board_warnings(asof: Optional[str] = None) -> list[str]:
         if src.get("verified_against") is None:
             warns.append("release_calendar %r: verified_against is null -- the rule prints WINDOW words "
                          "only and never a print time until it is read off the publisher." % (sid,))
+    # S8 LANE N -- CLAUSE 15'S SKIP, STATED OUT LOUD. A clause that grades nothing because the code it
+    # grades has not landed is a DECLARED ABSENCE here and never a silence, which is the same law the
+    # calendar's own skip obeys three lines down.
+    try:
+        import ast as _ast
+        _src = _answer_source()
+        _have = (_chain_lint_functions(_ast.parse(_src), _src) if _src
+                 else {c: [] for c in CHAIN_LINT_COUNTERS})
+    except Exception:                                   # noqa: BLE001 -- a skip, never a raised warning
+        _have = {c: [] for c in CHAIN_LINT_COUNTERS}
+    _no_producer = sorted(c for c, fns in _have.items() if not fns)
+    if _no_producer:
+        warns.append("state/lint.py clause 15 (no chain lint deletes) graded NOTHING for %r: no "
+                     "function in answer.py produces those counters yet, so the append-only law is "
+                     "UNENFORCED for them. It is a SKIP and not a pass." % (_no_producer,))
     if asof is None:
         warns.append("release_calendar: the 180-day staleness check was SKIPPED -- this module reads no "
                      "clock; pass asof=YYYY-MM-DD to run it.")

@@ -404,7 +404,7 @@ def series_key_census(graph) -> dict:
 # ---------------------------------------------------------------------------------------------------
 def board_run(graph, contract: str, mode: str, asof: str, *, state_fn, key_fn=None,
               tape_fn=None, alternative: bool = False, width: int = 2,
-              receipts=None) -> dict:
+              receipts=None, state_chain: bool = False, chains=()) -> dict:
     """ONE board at ONE mode: the walk (both stages), the tape, the analogs, the watch, the render.
 
     ``state_fn`` and ``tape_fn`` are INJECTED, exactly as ``walk`` takes them, which is what makes
@@ -412,7 +412,15 @@ def board_run(graph, contract: str, mode: str, asof: str, *, state_fn, key_fn=No
     laptop with the same code path. The census NEVER opens its own reader.
 
     THE RECTANGLE IS CHECKED AT THE END OF EVERY BOARD, not only at the estate roll-up: bar B1 is
-    "at every early return", and a board whose rectangle is open is a finding about THAT board."""
+    "at every early return", and a board whose rectangle is open is a finding about THAT board.
+
+    ``state_chain`` ARMS THE S8 CHAIN LEG, AND WITHOUT IT THIS INSTRUMENT IS CHAIN-BLIND (the round-2
+    census's blocker 5). This module carried ZERO references to the chain, so its REGISTER TRIPS gate
+    (``register_trips_zero``, "must be 0") and its block-chars table could not see a chain row IN
+    EITHER DIRECTION: a real trip on a chain line would not have been reported, and neither could a
+    claimed one be reproduced. The flag is a KWARG threaded from the caller, never an environment read
+    -- ``state/`` reads no environment -- and with it absent every byte of this function is what it
+    was, so a chain-off census is still the control the baseline compares against."""
     from leviathan.graphrag.state import analogs as A
     from leviathan.graphrag.state import board as B
     from leviathan.graphrag.state import narration as N
@@ -424,10 +432,12 @@ def board_run(graph, contract: str, mode: str, asof: str, *, state_fn, key_fn=No
     t0 = time.perf_counter()
     kn = B.board_knobs_of(mode)
     anchors = W.resolve_anchors(named=(contract,), graph=graph)
+    rcpt = dict(receipts or {})
     bd = W.walk(graph=graph, asof=asof, mode=mode, anchors=anchors, question="",
-                state_fn=state_fn, key_fn=key_fn, receipts=dict(receipts or {}),
+                state_fn=state_fn, key_fn=key_fn, receipts=rcpt,
                 knobs=kn, width=width, legb_on=False, alternative_rank=alternative,
-                stage2=True, analog_reads=False)
+                stage2=True, analog_reads=False,
+                chains=(chains if state_chain else ()), state_chain=bool(state_chain))
     walk_ms = (time.perf_counter() - t0) * 1000.0
 
     # -- THE TAPE (D19): one mirror read per anchor board, priced by `render.price_tape` first -------
@@ -463,7 +473,11 @@ def board_run(graph, contract: str, mode: str, asof: str, *, state_fn, key_fn=No
         (str(getattr(t, "level_date", "") or "") for t in tape.values()), default=""))
     producers_ms = (time.perf_counter() - t_prod) * 1000.0
     t_render = time.perf_counter()
+    # THE CHAIN'S OWN DOCUMENT POOL IS THE CENSUS'S OWN RECEIPTS, under the CHAIN cap and never the
+    # per-row SB-R one (`render_board`'s own note). It is threaded ONLY when the leg is armed, so a
+    # chain-off census renders the bytes it always did.
     blk = R.render_board(bd, analogs=ana, watch=wr, recency=rec, age_clauses=ages,
+                         chain_receipts=(rcpt if state_chain else None),
                          anchor_label=", ".join(R.board_label(s) for s in bd.anchor_slugs))
     render_ms = (time.perf_counter() - t_render) * 1000.0
     bd.stamp("render", "fired" if not blk.trips else "declined",
@@ -487,6 +501,13 @@ def board_run(graph, contract: str, mode: str, asof: str, *, state_fn, key_fn=No
             "watch": {"rows": len(wr), "fired": sum(1 for w in wr if not w.get("declined")),
                       "declined": sorted({str(w.get("declined")) for w in wr if w.get("declined")})},
             "tape": _tape_census(bd, tape),
+            # WHETHER THE LEG WAS ARMED RIDES ON THE RECORD, for the reason `fixture` does: a banked
+            # chain-off board and a banked chain-on board were otherwise indistinguishable, and a gate
+            # read off the wrong one is a chain-off verdict wearing a chain-on label.
+            "chain": {"armed": bool(state_chain),
+                      "counts": {k: v for k, v in (bd.chain_counts or {}).items()
+                                 if k != "disagreement"},
+                      "rendered": sum(1 for c in (bd.chains or ()) if c.rendered)},
             "notes": [dict(n) for n in bd.notes],
             # THE TRACE, MINUS THE TWO BLOCKS THE RECORD ALREADY CARRIES. `Board.trace()` is the
             # serving key's payload and it repeats `legs` and `ledger`, both of which are banked above
@@ -1953,7 +1974,7 @@ def cascade_leg_census(asof: str, *, qfn) -> dict:
 def census(*, asof: str = CENSUS_ASOF_DEFAULT, qfn, state_fn_factory=None, tape_fn=None,
            tape_fn_factory=None, modes=MODES, contracts=None, width: int = 2,
            alternative_pass: str = "max", probes=True, prior=None, cascade_legs: bool = True,
-           checkpoint=None, fixture: str = "") -> dict:
+           checkpoint=None, fixture: str = "", state_chain: bool = False) -> dict:
     """THE WHOLE BOARD CENSUS. Returns ``{"summary": ..., "boards": [...], "probes": {...}}``.
 
     ``state_fn_factory(asof, counter) -> state_fn`` is injected so the same pass runs against the pg
@@ -1974,6 +1995,10 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, qfn, state_fn_factory=None, tape_
     with the artifact -- so a banked offline banner was indistinguishable from a measurement of the
     estate, which is exactly the provenance a census artifact exists to carry. ``""`` means the LIVE pg
     mirror and prints as ``estate=pg-mirror``.
+
+    ``state_chain`` ARMS THE S8 CHAIN LEG ON EVERY BOARD OF THE PASS and loads the estate's own
+    curated chains once (the round-2 census's blocker 5: this instrument could not see a chain row in
+    either direction). Default False -- the baseline pass, byte for byte what it was.
 
     THE MEMO IS CLEARED BETWEEN BOARDS, deliberately. With ``GRAPHRAG_STATE_CACHE`` off (the shipped
     default) the memo is a no-op and this changes nothing; with it ON, a board that inherited the
@@ -1996,6 +2021,11 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, qfn, state_fn_factory=None, tape_
     passes: list = [(m, False) for m in modes]
     if alternative_pass and alternative_pass in modes:
         passes.append((alternative_pass, True))
+    chains: tuple = ()
+    if state_chain:
+        from leviathan.graphrag.numbers import cascade as _CAS
+        chains = tuple(_CAS.load_chain_map()) + tuple(_CAS.load_transmission_map())
+        print(f"board_census: CHAIN LEG ARMED -- {len(chains)} curated rows")
     for mode, alt in passes:
         for contract in roster:
             F.cache_clear()
@@ -2008,7 +2038,8 @@ def census(*, asof: str = CENSUS_ASOF_DEFAULT, qfn, state_fn_factory=None, tape_
             try:
                 rec = board_run(graph, contract, mode, asof,
                                 state_fn=factory(asof, read_counter),
-                                tape_fn=tfn, alternative=alt, width=width)
+                                tape_fn=tfn, alternative=alt, width=width,
+                                state_chain=state_chain, chains=chains)
             except Exception as e:                      # noqa: BLE001 -- one board never ends a census
                 rec = {"contract": contract, "mode": mode, "asof": asof,
                        "rank_rule": "alternative" if alt else "d2",
@@ -2753,6 +2784,10 @@ def main(argv=None) -> int:
                          "behind the as-of -- the read-span falsifier); ignored on an in-VPC pass")
     ap.add_argument("--dump-blocks", default="",
                     help="comma-separated board slugs whose rendered block text is banked under blocks/")
+    ap.add_argument("--state-chain", action="store_true",
+                    help="arm the S8 composed-chain leg on every board (DEFAULT OFF). Without it "
+                         "this census cannot see a chain row in either direction -- the register-trip "
+                         "gate and the block-chars table read a chain-off block")
     ap.add_argument("--no-probes", action="store_true")
     ap.add_argument("--no-cascade-census", action="store_true")
     ap.add_argument("--no-tape", action="store_true")
@@ -2777,7 +2812,8 @@ def main(argv=None) -> int:
                      tape_fn=None, modes=modes, contracts=contracts, width=a.width,
                      alternative_pass=a.alternative_pass,
                      probes=(() if a.no_probes else PROBES_OFFLINE), cascade_legs=False,
-                     prior=read_prior(a.prior), checkpoint=_checkpoint, fixture=a.fixture)
+                     prior=read_prior(a.prior), checkpoint=_checkpoint, fixture=a.fixture,
+                     state_chain=bool(a.state_chain))
         athena_calls = 0
     else:
         env = assert_pg_only()
@@ -2793,7 +2829,8 @@ def main(argv=None) -> int:
                          modes=modes, contracts=contracts, width=a.width,
                          alternative_pass=a.alternative_pass,
                          probes=(() if a.no_probes else PROBES_ALL), prior=prior,
-                         cascade_legs=not a.no_cascade_census, checkpoint=_checkpoint)
+                         cascade_legs=not a.no_cascade_census, checkpoint=_checkpoint,
+                         state_chain=bool(a.state_chain))
         # THE FIREWALL'S CLOSING READ IS TAKEN HERE AND JUDGED AFTER THE ARTIFACT IS ON DISK. The
         # tripwire itself is the `athena_firewall` context above, which RAISES at the call; this is
         # the ledger check, and an `assert` at this line would have thrown a whole finished census

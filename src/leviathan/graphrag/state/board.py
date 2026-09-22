@@ -168,7 +168,11 @@ class BoardKnobs(NamedTuple):
     wave1: int           # the anchor-DAG state-key cap (24 / 32 / 40)
     wave2: int           # the TOTAL wave-2 cap (0 / 18 / 58); its four columns derive -- `wave2_shape`
     receipt_cap: int     # analog receipts on the EVIDENCE pool, counted (0 / 3 / 5)
-    path_render_k: int   # SB-P rows RENDERED (2 / 4 / 8). The closure is walked WHOLE on every tier.
+    path_render_k: int   # SB-P rows RENDERED (1 / 4 / 8). The closure is walked WHOLE on every
+    #                      tier. THE NUMBER IS QUICK'S OWN AND THE SENTENCE USED TO SAY TWO (S8
+    #                      F1b): S7 moved the Scan row 2 -> 1 and left this line at the S6 value,
+    #                      so the docstring documented a tier that renders ONE chain of the 36 to
+    #                      138 it walks as rendering two. The knob was right; the sentence was not.
     # -- S6: THE RENDER CAPS, appended LAST, defaults = the shipped tables (the design's planned sizes).
     render_spillover: int = 8          # SB-F + far SB-E lines  (4 / 8 / 16)   [measured: the SB-E class
     #                                    is the third-largest on the Cascade board]
@@ -214,6 +218,28 @@ class BoardKnobs(NamedTuple):
     #                                    reconciled), so cutting it decides what the reader is TOLD and
     #                                    not merely how long the page is. `render_spillover` already
     #                                    bounds the FAR edges; this knob is the near one.
+    # -- S8 LANE W: THE CHAIN MOVEMENT, appended LAST. All three are DARK until a caller threads
+    #    `state_chain=True` into `walk.stage2`; with the flag off no chain is built, no chain reason
+    #    is stamped and no render cap moves, so a board-on / chain-off turn is byte-identical to the
+    #    2026-09-16 smoke and arm A measures ONE instrument.
+    chain_render_k: int = 2            # COMPOSED chains RENDERED (1 / 2 / 3). It does NOT replace
+    #                                    `path_render_k`: the SB-P leg keeps its own knob and its own
+    #                                    bytes, because the two legs have to be separable for the arm.
+    chain_print_line: int = 40         # of 100, and it DECIDES ONE THING ONLY: a chain at or above it
+    #                                    renders IN FULL, below it as ONE line carrying its own
+    #                                    arithmetic. IT IS RETIRED AS A SELECTION RULE (owner ruling 6,
+    #                                    2026-09-18): the top K of THIS board render always, because
+    #                                    the rank is relative WITHIN one turn and a data-poor anchor
+    #                                    still gets its best chains -- what a low score means is stated
+    #                                    on the page as DATA SCOPE (`Chain.scope`), never as a chain
+    #                                    the page declined to carry. It can never render fewer than K,
+    #                                    and every chain keeps its score, its rank, its trace row and
+    #                                    its place in the count line.
+    chain_receipts: int = 2            # dated receipts rendered per turn (1 / 2 / 3) -- ONE per
+    #                                    rendered chain, at the hop the action acts on. It is NOT
+    #                                    `render_receipts` (0 / 3 / 5), which caps the per-ROW SB-R
+    #                                    enumeration and is ZERO on the free tier, i.e. would render
+    #                                    nothing there.
 
 
 #: Reads per leg-B tape cell -- ``cascade.CW_READS_PER_CELL`` (:6411), restated rather than imported so
@@ -227,6 +253,50 @@ READS_PER_CELL = 3
 #: probe (sec 4.3, D6) and ships dark, which is why :func:`wave2_shape` takes the cells and the rider
 #: SEPARATELY -- see the note there, which is a defect this sitting measured rather than a nicety.
 LEGB_CELLS: dict = {"quick": 0, "deep": 0, "max": 9}
+
+#: **THE A.8 ENUMERATION CAPS, AND THEY RIDE THE CHAIN FLAG RATHER THAN THE TIER TABLE.**
+#:
+#: DESIGN A.8 cuts four enumerations to buy the chain rows their bytes: the SB-X absence GROUPS, the
+#: NAMES inside one absence line, the SB-F index's board names and the SB-J projection rows. Putting
+#: those numbers in ``reasoning_modes.BOARD_PRESETS`` would move them on every BOARD-ON turn, which
+#: breaks the one property arm A needs -- board ON and chain OFF must be byte-identical to the
+#: 2026-09-16 smoke, or the arm cannot attribute a single character. So the tier table keeps its
+#: shipped values and the cuts land through :func:`with_chain_caps`, which the walk applies ONCE, at
+#: the foot of stage 2, and only when the chain leg ran.
+#:
+#: MEASURED on a clean 0250bade export, same fixture board, only ``caps=`` changed: quick 14,241 ->
+#: 14,241 (**ZERO** -- ``BOARD_PRESETS[QUICK]`` already ships this exact row byte for byte), deep
+#: 23,542 -> 20,708 (-2,834: SB-X -1,214, SB-J -1,149, SB-F -467), max 29,911 -> 27,131 (-2,780).
+#: **The quick tier gets NOTHING from this table and absorbs its one chain as a net add** -- said here
+#: rather than left for a census to discover.
+CHAIN_RENDER_CAPS: dict = {
+    "quick": {"render_absence": 3, "render_absence_names": 6, "render_fan_names": 8,
+              "render_projection": 4},
+    "deep": {"render_absence": 8, "render_absence_names": 6, "render_fan_names": 10,
+             "render_projection": 6},
+    "max": {"render_absence": 10, "render_absence_names": 6, "render_fan_names": 12,
+            "render_projection": 8},
+}
+
+
+def with_chain_caps(k: Optional[BoardKnobs], mode: str) -> Optional[BoardKnobs]:
+    """The tier's knobs with DESIGN A.8's enumeration caps in place -- the CHAIN-ON row.
+
+    A NEW TUPLE, NEVER A MUTATION: :class:`BoardKnobs` is a NamedTuple precisely so a caller that
+    typos a knob name raises instead of getting ``None`` back, and this returns a fresh row so a
+    caller still holding the tier's own table still holds the tier's own table. ``None`` in, ``None``
+    out -- a mode with no knobs has no board, which is the passthrough every other accessor here keeps.
+
+    THE FOUR IT MOVES ARE ENUMERATIONS AND NOTHING ELSE. It touches no budget knob, no loud cut, no
+    fan cap and no analog column, so the wave arithmetic :func:`check_knobs` pins is untouched by
+    construction -- and the board it is applied to has already spent every read it is going to spend."""
+    if k is None:
+        return None
+    from leviathan.graphrag import reasoning_modes as rm
+    row = CHAIN_RENDER_CAPS.get(rm.base_mode(mode))
+    if not row:
+        return k
+    return k._replace(**{name: int(v) for name, v in row.items() if hasattr(k, name)})
 
 
 def legb_cells_of(mode: str) -> int:
@@ -354,7 +424,24 @@ EDGE_REASONS: tuple[str, ...] = (
     "lag_unparsed", "far_series_other_table", "lag_undeclared_between_nodes",
 )
 FAN_REASONS: tuple[str, ...] = ("fan_cap", "board_unlabeled", "child_uncovered")
-PATH_REASONS: tuple[str, ...] = ("render_cap", "edge_hop_cap")
+#: THE PATH / CHAIN LEG'S OWN CLOSED ENUM. It was ``PATH_REASONS`` with two words; S8's composed
+#: chain adds three and THE LEG KEEPS ITS NAME ``path`` in :data:`LEG_REASONS`, so no census row, no
+#: EMF dimension and no banked decline histogram changes meaning -- the leg that used to cut topology
+#: lines now cuts chains, and it is the same leg.
+#:
+#: ``below_print_line`` is the RENDER cut of DESIGN B.3 and it is the word that must never be read as
+#: a gate: a chain below the line keeps its score, its rank, its trace row and its place in the count
+#: line, and the TOP-ranked chain renders whatever it scored. ``no_measured_hop`` names a chain no hop
+#: of which carried a served series -- where it is picked it renders its declared direction alone, and
+#: this word is why a reader is told which of the two happened. ``cross_unpriced`` is the EARNED-CROSS
+#: rule's own word and it removes NO CHAIN: it removes the chain's cross EXTENSION, and the intra-DAG
+#: chain stays in the pool with its own score (DESIGN B.0, threat E10).
+CHAIN_REASONS: tuple[str, ...] = ("render_cap", "edge_hop_cap", "below_print_line",
+                                  "no_measured_hop", "cross_unpriced")
+#: The name the two-word enum shipped under, kept as an ALIAS rather than deleted: it is a public
+#: constant of a module three packages read, and a rename that breaks an importer to save a line is a
+#: trade nobody asked for. THEY ARE THE SAME OBJECT -- one vocabulary, not two.
+PATH_REASONS: tuple[str, ...] = CHAIN_REASONS
 CONV_REASONS: tuple[str, ...] = ("when_not_all_loud",)
 TAPE_REASONS: tuple[str, ...] = (
     "no_tape_slug", "pre_coverage", "front_decline", "changes_thin", "percentile_thin",
@@ -844,6 +931,25 @@ class Board:
     edges: list = field(default_factory=list)       # inter-commodity, BOTH ways (3.5)
     convergence: list = field(default_factory=list)  # proximity rows + amplifier sub-lines (3.5, D24)
     paths: list = field(default_factory=list)       # the FULL ancestor closure, path-ranked (3.4, D27)
+    #: THE COMPOSED CHAINS (S8 lane W, DESIGN B.0). ``[walk.Chain]`` -- the WHOLE candidate pool, not
+    #: the rendered few: every chain keeps its score, its rank, its reason word and its trace row, and
+    #: the render cut is a FIELD on each one (``rendered`` / ``full`` / ``decline``) rather than a
+    #: filter on this list. EMPTY on every turn the chain leg did not run, which is every turn until a
+    #: caller threads ``state_chain=True``, and :meth:`trace` omits the key entirely then.
+    chains: list = field(default_factory=list)
+    #: The chain COUNT LINE's own arithmetic (DESIGN B.3) -- how many chains the graph carried, how
+    #: many carry a measured state at more than one hop, how many carry a dated document, how many
+    #: reach a market the question did not name, and which reason cut the rest. COUNTS, never names:
+    #: the names are exactly what A.8 cuts, and a count line that enumerated would be the class it
+    #: replaces. EMPTY when the leg did not run.
+    chain_counts: dict = field(default_factory=dict)
+    #: WHETHER :meth:`trace` BANKS THE PER-ROW STATE PAYLOAD (DESIGN A.7). It is a rider rather than a
+    #: default because the payload is an INSTRUMENT: with it, every future selection question ("would
+    #: this rule have fired", "how many dimensions were observable at that date") is answerable for $0
+    #: from a banked payload instead of a paid re-run -- and without it a board-on / chain-off turn's
+    #: payload stays byte-identical to S6's, which is what lets arm A attribute its delta. The walk
+    #: sets it when the chain leg runs; any lane may set it for its own probe.
+    trace_rows: bool = False
     fan: list = field(default_factory=list)         # the free index: every shared id's far boards (3.6)
     analogs: list = field(default_factory=list)     # S3
     watch: list = field(default_factory=list)       # S3
@@ -1077,7 +1183,60 @@ class Board:
         # and the same reason: a flag-off (or pre-writer) payload stays byte-identical to S6's.
         if self.coverage:
             out["coverage"] = dict(self.coverage)
+        # ``row_states`` IS DESIGN A.7's ROW PAYLOAD AND IT IS NOT SPELLED ``rows`` (a correction the
+        # design could not make from outside the file): ``out["rows"]`` above is already the row COUNT
+        # that every banked payload, census and arm report reads as an integer, and turning an integer
+        # into a list of forty dicts under the same name would break every one of them silently. Two
+        # facts, two names. The payload itself is exactly what A.7 asks for -- names, z, percentile,
+        # run, the two dates, the loud flag and the declared silver status, and NO ARRAYS -- so an
+        # offline reader can rank a chain, or ask what an analog rule would have done, without a turn.
+        if self.trace_rows and self.rows:
+            out["row_states"] = [self._row_state(r) for r in self.rows]
+        # ``chains`` rides the same omit-when-empty idiom as ``subject`` and ``coverage``, and for the
+        # same reason: a sub-dict inside the ALREADY-REGISTERED ``state_board`` key costs zero
+        # `tracekeys.TRACE_RECORD_KEYS` churn and re-pins nothing (the S5 measurement: appending one
+        # registered key reds seven test files' negative-index tail pins).
+        if self.chains:
+            # THE PAYLOAD IS BOUNDED AND THE POOL IS NOT. A max board composes 1,848 candidate chains
+            # (MEASURED on the fixture) and a `state_board` record carrying two thousand chain rows is
+            # an instrument nobody can open; the COUNTS below carry the whole pool, and the rows carry
+            # what rendered plus what it was beaten by, which is the question a reader of a banked
+            # payload actually asks. The cut is by `Chain.rank`, rendered first.
+            from leviathan.graphrag.state.walk import chain_trace_set
+            out["chains"] = [c.to_dict() for c in chain_trace_set(self.chains)]
+            out["chain_counts"] = dict(self.chain_counts)
         return out
+
+    @staticmethod
+    def _row_state(r: NodeRow) -> dict:
+        """ONE row of DESIGN A.7's payload. Every figure is the row's OWN served reading; nothing is
+        recomputed here, and a declined measure is ``None`` rather than a zero -- a decline is not a
+        reading and a payload that spelled it as one would rank a quiet row as a measured middle."""
+        st = r.state
+
+        def _v(m):
+            if not isinstance(m, dict) or m.get("declined"):
+                return None
+            try:
+                return None if m.get("value") is None else float(m["value"])
+            except (TypeError, ValueError):
+                return None
+
+        run = (st.run or {}) if st is not None else {}
+        if run.get("declined"):
+            run = {}
+        return {"contract": r.contract, "driver_id": r.driver_id,
+                "series_key": r.series_key or "",
+                "level_shown": (st.level_shown if st is not None else None),
+                "unit": (st.unit if st is not None else ""),
+                "z": _v(getattr(st, "z", None)), "percentile": _v(getattr(st, "percentile", None)),
+                "run_direction": str(run.get("direction") or ""),
+                "run_length": run.get("length"),
+                "level_date": str((getattr(st, "level_date", "") or "")),
+                "knowledge_date": str((getattr(st, "knowledge_date", "") or "")),
+                "status": (getattr(st, "status", "") or "") if st is not None else "",
+                "loud": bool(r.legs.get("loud")), "silver_status": r.silver_status,
+                "coverage_tier": r.coverage_tier}
 
 
 def board_knobs_of(mode: str) -> Optional[BoardKnobs]:

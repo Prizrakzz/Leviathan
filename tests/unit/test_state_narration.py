@@ -42,6 +42,12 @@ def test_the_board_mandate_and_every_recency_literal_are_untouched():
                                    ("WATCH", "## What to watch", ""))
     assert N.BANNED_RECENCY_PHRASE == "not a current-state read"
     assert N.SYSTEM_DESK_REGISTER_MANDATE not in N.SYSTEM_STATE_BOARD_MANDATE
+    # S8 LANE N, the same law one flag over: the chain movement is a SUBSTITUTION and never an edit, so
+    # the constant must not learn it and the FOUR-row table must not grow a fifth row. Both are what a
+    # chain-flag-OFF board turn ships, and both are in S8's byte-identical set.
+    assert N.MANDATE_CHAIN_MOVEMENT not in N.SYSTEM_STATE_BOARD_MANDATE
+    assert "THE CHAIN" not in N.SYSTEM_STATE_BOARD_MANDATE
+    assert len(N.MANDATE_MOVEMENTS) == 4
 
 
 def test_the_desk_mandate_is_graded_by_check_literals():
@@ -839,3 +845,344 @@ def test_round4_the_over_ceiling_stamp_is_a_report_and_not_a_refusal():
     assert out["outcome"] == "rewritten" and out["rewritten"] == 1
     assert out.get("over_ceiling") is True and out["usd"] > an._DESK_REWRITE_USD_CEILING
     assert d["mechanism"] == "The market reads two-sided here [N2]."
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# 3. S8 LANE N -- THE FIFTH MOVEMENT, "THE CHAIN" (DESIGN B.5)
+#
+# TWO HALVES, exactly as section 1 holds them for the desk register:
+#   FLAG OFF -- `state_board_mandate()` and `state_board_mandate(nonobvious=True)` are HEAD's bytes,
+#               the constant never learns the paragraph, the movement table never grows a row, and
+#               `_system` cannot move because no leg in `answer.py` threads the kwarg in this lane.
+#   FLAG ON  -- the paragraph lands as movement (3), SPILLOVERS and WATCH renumber, the non-obvious
+#               WATCH variant survives the renumbering, and every literal rule `check_literals` grades
+#               is PROVED TO FIRE rather than merely observed to pass.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+_HEAD_MANDATE = N.SYSTEM_STATE_BOARD_MANDATE
+_HEAD_NONOBVIOUS = _HEAD_MANDATE.replace(N.MANDATE_WATCH_HEAD_RX, N.MANDATE_WATCH_NONOBVIOUS)
+
+
+def test_chain_the_flag_off_mandate_is_HEAD_byte_for_byte_on_both_arms():
+    """S8's prompt-side byte-identical set, at the function level: absent and explicitly-False are the
+    same bytes, on BOTH watch arms, and both are HEAD's own text.
+
+    THIS IS THE ARM'S WHOLE INSTRUMENT. Arm A measures ONE thing, so a board-ON / chain-OFF turn must be
+    byte-identical to the 2026-09-16 smoke or nothing it reports can be attributed."""
+    assert N.state_board_mandate() == _HEAD_MANDATE
+    assert N.state_board_mandate(chain=False) == _HEAD_MANDATE
+    assert N.state_board_mandate(nonobvious=True) == _HEAD_NONOBVIOUS
+    assert N.state_board_mandate(nonobvious=True, chain=False) == _HEAD_NONOBVIOUS
+    assert N.MANDATE_CHAIN_MOVEMENT not in N.state_board_mandate()
+    assert N.MANDATE_CHAIN_MOVEMENT not in N.state_board_mandate(nonobvious=True)
+
+
+def test_chain_the_assembled_system_prompt_cannot_move_in_this_lane():
+    """THE SEAM IS LANE A's AND THIS LANE PROVES IT HAS NOT MOVED. `answer._system` threads only
+    `nonobvious` today, so every combination of the legs this deck can reach still carries HEAD's
+    mandate and none of them carries the chain paragraph. When lane A adds `state_chain`, THIS is the
+    assertion that has to be extended rather than deleted."""
+    for kw in ({}, {"state_board": True}, {"state_board": True, "watch_selection": True},
+               {"state_board": True, "desk_register": True}, {"state_board": True, "handles": True}):
+        out = an._system(**kw)
+        assert N.MANDATE_CHAIN_MOVEMENT not in out, kw
+        assert "(3) THE CHAIN" not in out, kw
+    assert _HEAD_MANDATE in an._system(state_board=True)
+    assert _HEAD_NONOBVIOUS in an._system(state_board=True, watch_selection=True)
+
+
+def test_chain_the_movement_lands_as_three_and_renumbers_the_two_below_it():
+    """DESIGN B.5: the movement goes BETWEEN EVIDENCE and SPILLOVERS. Renumbering is arithmetic and it
+    is graded as arithmetic -- five movements, one to five, each exactly once, in the text that ships."""
+    lit = N.state_board_mandate(chain=True)
+    assert re.findall(r"\(\d\) [A-Z][A-Z ]*:", lit) == ["(1) DIRECTION:", "(2) EVIDENCE:",
+                                                        "(3) THE CHAIN:", "(4) SPILLOVERS:",
+                                                        "(5) WATCH:"]
+    assert "(3) SPILLOVERS" not in lit and "(4) WATCH" not in lit
+    assert "Cover these five movements" in lit and "Cover these four movements" not in lit
+    assert N.MANDATE_CHAIN_MOVEMENT in lit
+    # the JOIN is grammatical at both ends -- a substitution that welded two clauses is a defect of the
+    # shipped text and of nothing smaller
+    assert "another. (3) THE CHAIN: take the chains" in lit
+    assert "named first. (4) SPILLOVERS: name the other markets" in lit
+
+
+def test_chain_the_non_obvious_watch_variant_survives_the_renumbering():
+    """BOTH FLAGS LIT IS A REAL TURN and the two substitutions must compose. The watch needle is cut
+    against HEAD's `(4) WATCH`; the chain pass renumbers it to `(5)`. Applied the wrong way round the
+    watch variant would silently stop shipping on exactly the turns that lit both flags."""
+    both = N.state_board_mandate(nonobvious=True, chain=True)
+    assert N.MANDATE_WATCH_NONOBVIOUS.replace("(4) WATCH", "(5) WATCH") in both
+    assert "the next scheduled print" not in both          # HEAD's watch movement is gone
+    assert "the items the block nominates" in both
+    assert N.MANDATE_CHAIN_MOVEMENT in both
+    # and the chain-only arm keeps HEAD's watch movement, renumbered and otherwise untouched
+    chain_only = N.state_board_mandate(chain=True)
+    assert N.MANDATE_WATCH_HEAD_RX.replace("(4) WATCH", "(5) WATCH") in chain_only
+
+
+def test_chain_a_reworded_mandate_reds_loudly_rather_than_renumbering_nothing():
+    """THE NEEDLES ARE ASSERTED, `response_contracts.apply`'s own reason. A mandate reworded in another
+    lane must fail HERE, at build, not quietly ship a paragraph numbered (3) beside a SPILLOVERS still
+    numbered (3)."""
+    for gone in (N.MANDATE_COUNT_RX, N.MANDATE_SPILLOVERS_RX, N.MANDATE_WATCH_NUMBER_RX):
+        broken = _HEAD_MANDATE.replace(gone, gone.replace("(", "[").replace(")", "]")
+                                       if "(" in gone else gone.upper())
+        saved = N.SYSTEM_STATE_BOARD_MANDATE
+        try:
+            N.SYSTEM_STATE_BOARD_MANDATE = broken
+            with pytest.raises(AssertionError):
+                N.state_board_mandate(chain=True)
+        finally:
+            N.SYSTEM_STATE_BOARD_MANDATE = saved
+    assert N.state_board_mandate(chain=True)               # and the real one still renders
+
+
+def test_chain_the_movement_table_is_flag_scoped_like_the_literal_it_describes():
+    """`MANDATE_MOVEMENTS`' standing claim -- graded by `test_state_render.py`'s B15 deck -- is that
+    every movement it names appears in `SYSTEM_STATE_BOARD_MANDATE`. The chain movement does NOT appear
+    there and must not, so the table is flag-scoped too and `mandate_movements` is the ONE producer."""
+    assert N.mandate_movements() is N.MANDATE_MOVEMENTS
+    chained = N.mandate_movements(chain=True)
+    assert [m[0] for m in chained] == ["DIRECTION", "EVIDENCE", "CHAIN", "SPILLOVERS", "WATCH"]
+    assert chained[2] == N.MANDATE_CHAIN_ROW == ("CHAIN", "## Mechanism", "")
+    # B15's three rules, re-graded on the text the chain row actually ships with
+    from leviathan.graphrag import response_contracts as RC
+    known = set(RC.CANONICAL) | {v for v in vars(RC).values()
+                                 if isinstance(v, str) and v.startswith("## ")}
+    known |= {x for v in vars(RC).values() if isinstance(v, (tuple, list, frozenset, set))
+              for x in v if isinstance(x, str) and x.startswith("## ")}
+    lit = N.state_board_mandate(chain=True)
+    for movement, heading, fallback in chained:
+        assert movement in lit
+        assert heading in known, heading               # never a heading the contract does not own
+        if fallback:
+            assert fallback in RC.CANONICAL
+
+
+def test_chain_the_movement_is_desk_clean_and_that_is_a_BUILD_rule():
+    """THE LANE'S OWN MEASUREMENT, made mechanical (`narration._check_chain_movement`).
+
+    The chain movement and the desk-register mandate ship in the SAME system prompt on a lit turn, so a
+    movement that said "the graph" or "the rows" would order the writer to disobey the literal beside
+    it. It is written in the reader's words from the first draft rather than reworded after a lint
+    charged it -- the table teaches a replacement for every word it avoids."""
+    m = N.MANDATE_CHAIN_MOVEMENT
+    assert reg.count_desk_register(m) == 0, reg.desk_register_hits(m)
+    assert reg.desk_register_hits(m) == []
+    assert reg.register_leaks(m) == [] and reg.count_flow_words(m) == 0
+    assert reg.count_valuation_words(m) == 0 and not reg._LANE_B_ADJ.search(m)
+    for w in N.CHAIN_MOVEMENT_BANNED_WORDS:
+        assert w not in m.lower(), w
+    assert N.CHAIN_MOVEMENT_BANNED_WORDS == ("loud", "rank", "score", "board")
+    m.encode("ascii")
+    assert "{" not in m and "}" not in m
+    assert N.BANNED_RECENCY_PHRASE not in m
+    # THE ONE DIGIT IS THE MOVEMENT'S OWN ENUMERATOR, which is structural and not a magnitude -- the
+    # same decision `check_literals` records for "(1) DIRECTION ... (4) WATCH".
+    assert [c for c in m if c.isdigit()] == ["3"]
+
+
+def test_chain_check_literals_is_PROVED_to_fire_on_the_new_literal():
+    """A lint that has never been seen to fail is a lint nobody has tested (this deck's own law, and
+    `test_state_lint.py`'s). Every rule `_check_chain_movement` adds is tripped here."""
+    assert N.check_literals() == []
+    saved = N.MANDATE_CHAIN_MOVEMENT
+    cases = {
+        "the graph declares": "the graph",             # a desk-register charge
+        "the loudest hop":    "loud",                  # the instrument's selection vocabulary
+        "rank the chains":    "rank",
+        "score the chains":   "score",
+        "read the board":     "board",
+        "not a current-state read": "recency",         # the one sentence a board may never contain
+        "narrate {k} of them":      "format slot",     # only the ledger sentence carries one
+        "narrate two of them — hop by hop": "ascii",   # the file is UTF-8, the literal is ASCII
+    }
+    try:
+        for bad, why in cases.items():
+            N.MANDATE_CHAIN_MOVEMENT = "(3) THE CHAIN: " + bad + " and stop."
+            errs = N.check_literals()
+            assert errs, (bad, why)
+            assert any("MANDATE_CHAIN_MOVEMENT" in e or "chain" in e for e in errs), (errs, why)
+            if why == "format slot":
+                assert any("format slot" in e for e in errs), errs
+            if why == "ascii":
+                assert any("not ASCII" in e for e in errs), errs
+    finally:
+        N.MANDATE_CHAIN_MOVEMENT = saved
+    assert N.check_literals() == []
+
+
+def test_chain_a_renumbering_that_lost_a_movement_is_caught_by_arithmetic():
+    """The register detectors cannot see a movement numbered twice or a movement dropped. The count
+    clause can, and it grades the LITERAL against the TABLE so the two can never disagree about how
+    many movements ship."""
+    saved = N.MANDATE_CHAIN_MOVEMENT
+    try:
+        N.MANDATE_CHAIN_MOVEMENT = "(2) THE CHAIN: take the chains the block puts first and stop."
+        errs = N.check_literals()
+        assert any("numbers movement" in e for e in errs), errs
+    finally:
+        N.MANDATE_CHAIN_MOVEMENT = saved
+    assert N.check_literals() == []
+
+
+@pytest.mark.parametrize("clause", [
+    # the hop-by-hop narration, in the present tense, off the block's own order
+    "take the chains the block puts first, in the order it gives them",
+    "hop by hop, in the present tense",
+    "give the figure in its unit and the plain meaning in the same sentence",
+    "which way the driver model declares that hop pushes the next one",
+    # the agreement WORD comes from the block, never from the writer
+    "agree with that declared direction or run against it -- the block gives you the word",
+    # the receipt, by handle, with its date -- and the honest absence beside it (threat E6)
+    "Cite the chain's dated report at the hop it acts on, by its handle, and say when it is dated",
+    "where the block says no dated document reaches a hop's window, say so",
+    # the record: a COUNT with its sample size, in the past tense (threat E7)
+    "the block's own count of past firings and how many moved the declared way",
+    "history, never a forecast",
+    # the OUTCOME line the owner added, as history and never as a forecast
+    "give the chain's own outcome line the same way, as what measured after those firings",
+    "never as what is coming",
+    # the RELATIVE-VALUE call the owner added -- one sentence, or an honest refusal to settle it
+    "Where the question sets one market against another, make the call on the pair",
+    "which of the two the record leans toward and the reading that carries it",
+    "saying plainly that the record does not settle it",
+    # anti-padding (threat E2) and the count line
+    "Narrate the chains the block puts first and not the rest of the driver model",
+    "where the block prints a count of further chains, state the count and move on",
+    # ROUND 2, review MAJOR 4: the chain under the print line is RENDERED IN ONE LINE, never dropped,
+    # so the writer is ordered to give it its sentence -- the other half of the 2026-09-17 deviation
+    "Where the block carries a chain in one line instead of in full, that chain still gets its "
+    "sentence",
+    "a turn whose block carries a chain never reaches the reader without one",
+    # ROUND 2, ORCHESTRATOR_NOTES item 6: the arithmetic line states the DATA SCOPE, and a short one
+    # reads as scarce data and never as a weak chain
+    "Where the block states what it could read for a chain",
+    "the terms it could do the arithmetic for, the hops no series served, a buffer series this "
+    "market does not carry",
+    "what this market's data covers on this turn, never that the chain itself is a weak one",
+    # the two consequences B.5 names: the record does not restate, and the stanza is the chain's THEN
+    "Do not restate under the record a reading this movement has already given its figure to",
+    # ROUND 2, review MAJOR 3: the like-state attribution is CONDITIONED on the block's own marker
+    "where the block marks a LIKE STATE stanza as the chain's, read that stanza as the history of "
+    "the chain you named first",
+])
+def test_chain_every_clause_DESIGN_B5_names_is_in_the_shipped_movement(clause):
+    """B.5's paragraph, clause for clause. The WORDS are the reader's (the desk-register table's own
+    replacements) and the SUBSTANCE is the design's -- this is the pin that keeps the second true while
+    the first is edited."""
+    assert clause in N.MANDATE_CHAIN_MOVEMENT
+
+
+def test_chain_the_like_state_attribution_is_CONDITIONAL_and_both_states_are_pinned():
+    """REVIEW MAJOR 3. DESIGN C.2's sentence is true only where the stanza carries the top chain's own
+    receipt hop, and `analogs.analog_rows(..., first_dim=None)` has NO caller in `state/` that passes
+    it -- measured on this tree. Unconditioned, the mandate ORDERED the writer to read whichever
+    stanza the selector picked as the history of a chain it may have nothing to do with: threat E11's
+    cross-attribution arriving through the prompt instead of through a join.
+
+    BOTH STATES ARE PINNED and the sentence is written so that ONE sentence covers them:
+
+      UNWIRED (today)  -- the block marks no stanza, the condition is not met, and the writer is given
+                          NO attribution to make. The literal must therefore carry the marker clause.
+      WIRED (lane R)   -- the block marks the stanza as the chain's, the condition is met, and the
+                          same sentence orders exactly what C.2 asks for. The literal must therefore
+                          NOT name `first_dim`, a flag or any wiring, or it would go stale on the
+                          commit that satisfies it."""
+    m = N.MANDATE_CHAIN_MOVEMENT
+    assert "where the block marks a LIKE STATE stanza as the chain's" in m
+    assert "read that stanza as the history of the chain you named first" in m
+    # the UNCONDITIONED order is gone in every spelling it could survive in
+    assert "read a LIKE STATE stanza as the history" not in m
+    assert "read the LIKE STATE stanza as the history" not in m
+    # and the clause names no wiring, so lane R's commit cannot make it false
+    for wiring in ("first_dim", "GRAPHRAG_", "flag", "kwarg", "analog_rows"):
+        assert wiring not in m, wiring
+    # it is still the LAST clause of the movement, so the join into (4) SPILLOVERS is the pinned one
+    assert m.rstrip().endswith("read that stanza as the history of the chain you named first.")
+    assert "you named first. (4) SPILLOVERS: name the other markets" in N.state_board_mandate(
+        chain=True)
+
+
+def test_chain_the_top_chain_is_NARRATED_even_when_the_block_gives_it_one_line():
+    """REVIEW MAJOR 4, and the orchestrator's 2026-09-17 deviation carried all the way to the prompt.
+    The print line decides FULL versus ONE LINE and never ZERO -- `render.sb_chain_one_line` is called
+    for every `rendered and not full` chain -- so a block that carries a chain ALWAYS carries at least
+    one. HEAD's paragraph ordered the writer to narrate "the ones it renders in full" and to state a
+    COUNT of the rest, and a one-line chain is NEITHER: on a thin turn the writer had no order to
+    mention a chain at all.
+
+    THE NEGATIVE PIN THE ORCHESTRATOR ASKED FOR, on this lane's own half: the movement must order the
+    sentence for the one-line chain, and it must not make narrating a chain conditional on the block
+    rendering it in full. (The render half of that pin -- a fixture board whose top chain sits below
+    the print line renders ONE LINE -- is `tests/unit/test_state_chain_render.py`'s, lane R's file.)"""
+    m = N.MANDATE_CHAIN_MOVEMENT
+    assert "in one line instead of in full" in m
+    assert "that chain still gets its sentence" in m
+    assert "never reaches the reader without one" in m
+    # the count clause is still there and is still about the REST -- the one-line chain is not a count
+    assert "where the block prints a count of further chains, state the count and move on" in m
+    assert m.index("in one line instead of in full") > m.index("state the count and move on")
+    # and the order is unconditional on the block's own rendering: "renders in full" appears ONCE, in
+    # the opening clause, and the one-line sentence is what covers the rest
+    assert m.count("renders in full") == 1
+
+
+def test_chain_the_arithmetic_line_is_read_as_DATA_SCOPE_and_never_as_a_weak_chain():
+    """ORCHESTRATOR_NOTES item 6, applied to the mandate's words. The rank is RELATIVE WITHIN ONE
+    BOARD, so a data-poor anchor still gets its best chains and the arithmetic line states the SCOPE:
+    the terms it could do, the hops no series served, the buffer series this market does not carry. A
+    reader handed a short arithmetic line with no scope beside it reads it as a weak chain, which is
+    the one thing the ruling says it is not.
+
+    AND IT SAYS SO WITHOUT THE INSTRUMENT'S OWN WORD FOR THE TOTAL: `score` is the third entry of
+    `CHAIN_MOVEMENT_BANNED_WORDS`, so the clause states what the total MEANS instead of naming it."""
+    m = N.MANDATE_CHAIN_MOVEMENT
+    assert "Where the block states what it could read for a chain" in m
+    assert "the terms it could do the arithmetic for" in m
+    assert "the hops no series served" in m
+    assert "a buffer series this market does not carry" in m
+    assert "what this market's data covers on this turn, never that the chain itself is a weak one" in m
+    for w in N.CHAIN_MOVEMENT_BANNED_WORDS:
+        assert w not in m.lower(), w
+
+
+def test_chain_the_flag_scoped_TABLE_and_the_flag_scoped_LITERAL_agree_in_both_states():
+    """THE ORCHESTRATOR'S DEVIATION, PINNED AS BUILT. `MANDATE_MOVEMENTS` keeps FOUR rows and the fifth
+    is produced only under `chain=True`, because the table's standing claim -- graded by
+    `test_state_render.py`'s B15 deck -- is that every movement it names appears in the literal it
+    describes. A chain row appears only when the chain paragraph is in the literal, and that is
+    asserted here in BOTH directions rather than in the one that happens to ship.
+
+    AND THE FLAG-OFF LITERAL IS PINNED BY ITS BYTES, not by a comparison with itself: a sha256 banked
+    on 2026-09-18 against the constant this tree carries, which the r2 census proved byte-identical to
+    HEAD (`cen/byteid_system.out`, 790 cells / 0 differing, object identity preserved)."""
+    import hashlib
+    assert N.mandate_movements() is N.MANDATE_MOVEMENTS
+    assert len(N.MANDATE_MOVEMENTS) == 4
+    assert [m[0] for m in N.MANDATE_MOVEMENTS] == ["DIRECTION", "EVIDENCE", "SPILLOVERS", "WATCH"]
+    assert N.MANDATE_CHAIN_ROW not in N.MANDATE_MOVEMENTS
+    # the table DESCRIBES the literal, in both states
+    for chain in (False, True):
+        lit = N.state_board_mandate(chain=chain)
+        for movement, _h, _f in N.mandate_movements(chain=chain):
+            assert movement in lit, (chain, movement)
+        assert ("CHAIN" in lit) is chain
+    # THE FLAG-OFF BYTES, banked
+    assert hashlib.sha256(N.SYSTEM_STATE_BOARD_MANDATE.encode("utf-8")).hexdigest() == (
+        "26cf673ec832026dc0315e11d1fd7b211440bf10759f86791e3d0d1802c8dc4f")
+    assert N.state_board_mandate() is N.SYSTEM_STATE_BOARD_MANDATE
+    assert len(N.SYSTEM_STATE_BOARD_MANDATE) == 3495
+
+
+def test_chain_the_movement_carries_no_word_budget():
+    """DESIGN B.5, stated: length follows from SELECTION, not from a number. The measured note is
+    1,145-1,833 words against a 150-220-word budget nobody obeys, so the movement gains the anti-padding
+    SENTENCE and no count; lane E measures whether that alone moves the length."""
+    low = N.MANDATE_CHAIN_MOVEMENT.lower()
+    for budget in ("no more than", "at most ", "keep it to", "in under", "words or fewer",
+                   "sentences or fewer", "a paragraph each"):
+        assert budget not in low, budget
+    # the only digit in the literal is the movement's own enumerator, which is the same proof one
+    # assertion over: a budget cannot be stated without a number.
+    assert [c for c in N.MANDATE_CHAIN_MOVEMENT if c.isdigit()] == ["3"]

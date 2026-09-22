@@ -2989,11 +2989,11 @@ _G1X_K94_CUT = ("# K9-4 VINTAGE ROLE, BUILT DARK",
                 '_vr_kw = {"vintage_role": True} if _vintage_role_on() else {}')
 
 
-def _g1x_sans(producer_path: str) -> tuple:
-    import hashlib
+def _g1x_block(producer_path: str) -> tuple:
+    """``(the seam block's own text, the producer's constants module)`` -- the extraction half of
+    :func:`_g1x_sans`, lifted so a pin can read the BLOCK and not only its sha."""
     import importlib.util
     import inspect
-    import re
     from leviathan.graphrag import answer as an
 
     _spec = importlib.util.spec_from_file_location("_g1x_bank_anchors", producer_path)
@@ -3004,7 +3004,14 @@ def _g1x_sans(producer_path: str) -> tuple:
     i, j = src.find(_bank.BLOCK_START), src.find(end)
     assert i != -1 and j != -1 and i < j, "seam anchors not found -- re-anchor, never loosen"
     assert src.count(_bank.BLOCK_START) == 1 and src.count(end) == 1, "an anchor is not unique"
-    block = src[i:j + len(end)]
+    return src[i:j + len(end)], _bank
+
+
+def _g1x_sans(producer_path: str) -> tuple:
+    import hashlib
+    import re
+
+    block, _bank = _g1x_block(producer_path)
 
     def _cut(text, start, stop):
         """The producer's own line-set cut, verbatim: from the START anchor's OWN LINE through the end
@@ -3304,6 +3311,21 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # ground() kwarg set is untouched (test_dam_modes pins the exact set) and no key reaches the trace.
     # Independently revertable for the same MINOR-3 reason, so it is its own group.
     _BRIDGE_ONE = ["_bridge_query_on"]
+    # RE-ANCHORED 2026-09-17 BY S8's CHAIN MOVEMENT, same census, same construction, same DARK default:
+    # the producer enumerates every zero-arg `_*_on` callable on `answer`, so the chain lane's
+    # kill-switch `_state_chain_on` (GRAPHRAG_STATE_CHAIN -- the chain rows on the block, the mandate's
+    # fifth movement and the three correcting chain lints) appears here BY CONSTRUCTION. Unset resolves
+    # False, and with it `walk.stage2` composes no chain, `render_board` writes no chain row, the
+    # persona's board arm is byte-identical (790 flag-off `_system` cells and 880 board-on cells, 0
+    # differing) and `_chain_lints` is never called -- MEASURED, and the five 2026-09-16 payloads
+    # reproduce HEAD's board sha on both the block and the trace with the flag off. S8's other surfaces
+    # do NOT move this bank: `_system` gains ONE default-False keyword (`state_chain`) whose branch is
+    # never taken in the producer's stripped env, so the 14 `system_deck` renders are byte-identical;
+    # `cq.quantify` gains nothing, so `signatures` and `seam_kwarg_keys_off` are untouched; and the
+    # seam block between `BLOCK_START` and `BLOCK_END_POST` is character-for-character HEAD's
+    # (a5bc9370712c2130, 13,054 chars, at 0250bade, at bbddd4cc and in this tree). Independently
+    # revertable for the same MINOR-3 reason, so it is its own group.
+    _S8_CHAIN = ["_state_chain_on"]
     # THE ACCEPTED SET IS THE BASE PLUS ANY SUBSET OF THE THREE INDEPENDENTLY-REVERTABLE DARK ITEMS, and
     # that is a WIDENING OF THE ENUMERATION, never a loosening of the pin: the previous six-state list
     # was the same subset rule written out by hand for two items (MINOR-3's "each item is independently
@@ -3313,7 +3335,7 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
     # so a default flipping in either direction still reds. `[]` (the pre-D-XL state) stays accepted.
     import itertools as _it
     _optional = (_K96_ONE, _K94_ONE, _S5_ONE, _S5_TWO, _S6_ONE, _S7B_LICENCE, _S7B_DESK,
-                 _S7B_WATCH, _BRIDGE_ONE)
+                 _S7B_WATCH, _BRIDGE_ONE, _S8_CHAIN)
     _accepted = [[], _XL_SIX] + [
         sorted(_XL_SIX + _DCL_ONE + [n for grp in combo for n in grp])
         for r in range(len(_optional) + 1) for combo in _it.combinations(_optional, r)]
@@ -3332,17 +3354,53 @@ def test_g1x_the_locator_flag_off_seam_reproduces_the_banked_head_golden():
         "3b931ac7ce742ed976e84e21f5bb923de8a98053d36f6273ec1963adb3158dcd")
     assert ob["planner_sys"]["default_len"] == 26595
     assert len(ob["plan_tool"]) == 3 and len(ob["system_deck"]) == 14
+    # RE-BANKED 2026-09-22 (S8 chain movement, round 3), `seam_block` ONLY, ON A NAMED AND MEASURED
+    # CAUSE -- which is what this pin's own docstring demands ("Re-anchor on a named measurement,
+    # never by loosening the join"), and the cause is NOT this movement's:
+    #   2b4407f4b7701799... / 8,399 chars / 98 lines  ->  07c163a755ae1a8d... / 8,431 / 99.
+    # THE BLOCK MOVED AT COMMIT 0250bade ("THE PRE-ARM FIX, ALL THREE ROUNDS") AND NOWHERE ELSE, and
+    # THE ONE FIELD THAT MOVED IS THE R4 PRICE-CONTEXT LEG'S (`price_replay`) OWN INLINE IMPORT -- the
+    # two lines feeding `_pr_kw = {"price_replay": True} if asof and str(asof)[:10] < ...`:
+    #     -  from datetime import datetime as _dtn, timezone as _tzu
+    #     +  from datetime import datetime as _dtn
+    #     +  from datetime import timezone as _tzu
+    # one import per line, ruff I001's own shape: +32 characters, +1 line, NOT ONE OTHER BYTE. It is
+    # flag-independent source and therefore not a dark insert, so no cut can recover it and the bank
+    # is the only honest place for it.
+    # MEASURED, not read: the block between `BLOCK_START` and `BLOCK_END_POST` was extracted from
+    # `git show <ref>:src/leviathan/graphrag/answer.py` at five refs and this pin's OWN four dark cuts
+    # applied at each -- 975398dd and 17fed3e4 both give 2b4407f4 / 8,399 / 98; 0250bade, bbddd4cc
+    # (HEAD) and THIS TREE all give 07c163a7 / 8,431 / 99; and the unified sans diffs
+    # 975398dd->17fed3e4, 0250bade->bbddd4cc and bbddd4cc->TREE are each ZERO lines. THE CHAIN
+    # MOVEMENT MOVES ZERO BYTES OF THIS BLOCK: the full block is a5bc9370712c2130 / 13,054 / 149 at
+    # 0250bade, at bbddd4cc and in this tree alike, with `GRAPHRAG_STATE_CHAIN` unset and set.
+    # THE JOIN IS NOT LOOSENED: `end_anchor`, `start_anchor` and every other section of the bank are
+    # untouched, and both literals below still pin to a constant so a future edit cannot re-bank into
+    # them. CARRIED, NOT THIS FILE'S: `tests/unit/test_k9_stop_census.py` holds the SAME sha as a
+    # source literal three times (:2202, :2216, :3314, in `test_k9_6_...` and `test_k9_4_...`, the two
+    # that already fail for this very cause) and `tests/unit/test_extreme_locator.py:2027` names it in
+    # prose; all four must take 07c163a7 in the same sitting.
     assert ob["seam_block"]["sha256"] == (
-        "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074")
-    assert ob["seam_block"]["len"] == 8399 and ob["seam_block"]["n_lines"] == 98
+        "07c163a755ae1a8d68f00b751682c31bebdedf7e4b05f91598d4f12f8f4b611c")
+    assert ob["seam_block"]["len"] == 8431 and ob["seam_block"]["n_lines"] == 99
     # ...and the LITERAL the re-anchor above rests on: the fresh block, the D-XL insertion AND K9-6's
     # one appended kwarg removed, must hash to the banked HEAD block. Pinned to the constant so a
     # future edit cannot re-bank into it. (Before K9-6 this read the producer's own
     # `sans_xl_sha256`; K9-6 lands after the producer's second cut, so the same constant is now
     # joined through `_g1x_sans`, whose FIRST return value is checked against that producer field
-    # above. THE CONSTANT IS UNMOVED -- which is the whole point of naming the cause.)
+    # above. THE CONSTANT MOVES ONLY WITH THE BANK, AND ONLY ON THE NAMED CAUSE ABOVE.)
     assert _sans_head == (
-        "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074")
+        "07c163a755ae1a8d68f00b751682c31bebdedf7e4b05f91598d4f12f8f4b611c")
+    # ...AND THE CHAIN MOVEMENT'S OWN CLAIM AT THIS SEAM, MADE FALSIFIABLE RATHER THAN PROMISED: S8
+    # adds no kwarg, no assignment and no comment INSIDE the kwarg-assembly block, so this bank owes
+    # it no cut and the `sans` above is the whole story. (`_g1x_sans` reads the source STATICALLY, so
+    # a GRAPHRAG_* name in the runner's shell cannot move a byte of the block -- which is why the
+    # flag-off claim is pinned on the block's CONTENT here and on `flags_off["_state_chain_on"] is
+    # False` above, and never on a re-read under a different env, which could not fail.)
+    _block_now, _ = _g1x_block(producer)
+    for _tok in ("_state_chain", "state_chain", "_sc_kw", "chain_lints", "_chain_lints"):
+        assert _tok not in _block_now, ("S8 landed inside the seam block: %r" % _tok)
+    assert "_chain_kw" in _block_now                 # ...and the pre-existing chain ENGINE kwarg stays
     # the OFF-state kwarg key set: `futures_newest_first` alone (its `_series_newest_first_on`
     # half defaults ON estate-wide), and E16 must not add a key to it
     assert ob["seam_kwarg_keys_off"]["keys"] == ["futures_newest_first"]

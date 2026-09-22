@@ -603,23 +603,39 @@ MODES[QUICK_R0] = replace(MODES[QUICK_S], name=QUICK_R0, numbers_roster=True)
 # MEASURED BASIS (S4 board census, 36 boards, pg mirror, in-VPC): the quick block's median is 53 lines /
 # 13,648.5 chars / ~3,412.5 est tokens against sec 7's Scan sizing of ~17-20 lines / ~1,100 tokens, i.e.
 # 3.10x by tokens, in front of a 105-154-word Scan writer budget. Deep is 2.17x and max 1.72x.
+# S8 LANE W APPENDS THREE COLUMNS AND MOVES NOTHING ELSE. `chain_render_k` / `chain_print_line` /
+# `chain_receipts` are the COMPOSED CHAIN's own caps, and every one of the twenty-one columns above
+# them keeps the value it shipped with -- including `render_absence`, `render_fan_names` and
+# `render_projection`, which DESIGN A.8 cuts. Those four cuts ride the CHAIN FLAG through
+# `state.board.with_chain_caps` instead of this table, for the one reason that decides it: a number
+# moved here moves on every BOARD-ON turn, and arm A's control cell is a board-on / chain-off turn
+# that has to be byte-identical to the 2026-09-16 smoke. A treatment that also moved the control is
+# not a measurement. (`board.CHAIN_RENDER_CAPS` carries the A.8 row per tier, with the measured
+# per-class saving beside it: quick 0, deep -2,834, max -2,780.)
+# `path_render_k` IS NOT RETIRED BY `chain_render_k`. The SB-P leg keeps its knob and its bytes so the
+# arm can separate "the chain block earned its space" from "the topology lines were cut"; the design's
+# A.8 item (4) is a RENDER decision and belongs to the lane that owns the render.
 BOARD_PRESETS: dict[str, tuple] = {
     #        loud_k fan_k analog_k analog_dims admit wave1 wave2 receipt_cap path_render_k
     #                                                     | spill conv analog outcomes rcpt watch absence
     #                                                     |                          max_anchors abs_names
     #                                                     |            fan_names projection edge (S7)
+    #                                                     |    chain_render_k print_line receipts (S8)
     QUICK:  (8,     4,    0,       0,          4,    24,   0,    0,          1,
              4,    1,   0,     0,        0,   3,    3,
              4,    6,
-             8,    4,   0),
+             8,    4,   0,
+             1,    40,  1),
     DEEP:   (16,    8,    1,       3,          8,    32,   18,   3,          4,
              8,    4,   1,     4,        3,   6,    0,
              6,    24,
-             0,    0,   0),
+             0,    0,   0,
+             2,    40,  2),
     MAX:    (24,    16,   2,       5,          12,   40,   58,   5,          8,
              16,   6,   2,     4,        5,   8,    0,
              8,    32,
-             0,    0,   0),
+             0,    0,   0,
+             3,    40,  3),
 }
 
 

@@ -327,7 +327,7 @@ def fill_stage1(*, graph, sg, asof: str, mode: str, query: str = "", lane: str =
 def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, legb_on: bool = False,
                 width: int = 2, complexes=(), chains=(), benchmark_fn=None, receipt_fn=None,
                 record_through: str = "", n_start: int = 1, e_start: int = 1,
-                watch_nonobvious: bool = False) -> dict:
+                watch_nonobvious: bool = False, state_chain: bool = False) -> dict:
     """Run STAGE 2, then the analogs, the watch rows and the RENDER. Returns the seam payload:
 
     ``{"block": str, "request": dict, "trace": dict, "counters": dict, "recency": dict}``
@@ -366,13 +366,50 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
         t0 = time.perf_counter()
         _render_ms = 0.0
         if bd.knobs is not None and bd.anchors and bd.stage_done.get(1):
+            # THE TURN'S OWN GROUNDED PROPOSITIONS, READ ONCE. The board's text tier costs zero reads
+            # because `ground()` has already paid for `n.evidence`; the walk takes them per row and --
+            # S8 -- the chain leg takes the same map as its WIDER pool at a rendered chain's receipt
+            # hop. One call, two readers, so the two can never see different documents.
+            _rcpt = _receipts_from(sg)
+            # **THE TAPE IS ON THE BOARD BEFORE THE WALK COMPOSES, BECAUSE THE CHAIN LEG READS IT**
+            # (round-3 census blocker 3). The anchor's own front price is a term of the chain rank
+            # (owner ruling 2, 2026-09-18: "when a chain's terminal is the anchor price, its tail term
+            # MUST read that row too") and `walk.anchor_facts` reads it off `bd.tape` -- but this seam
+            # attached the tape AFTER `W.stage2`, so `bd.tape` was EMPTY at composition time on every
+            # turn. MEASURED on the fixture at all three tiers: `Chain.scope["price_read"]` False on
+            # 3,308 of 3,308 chains and `AnchorFacts.price_tail` 0.0000, while the SAME board's front
+            # price sat at the 83rd percentile of its own record and scored 0.6656 the moment the tape
+            # was attached. The term was BUILT, PINNED and UNREACHABLE; the ordering is the whole of it.
+            # `walk._outcome_for` reads the same tape for the chain's own price record, so the SB-O row
+            # becomes constructible by the same move.
+            #
+            # NOTHING WITH THE FLAGS OFF READS `bd.tape` INSIDE `W.stage2` -- the two readers
+            # (`anchor_facts`, `_outcome_for`) are both inside the chain leg, `Board.stamp` writes into
+            # a dict whose key ORDER was fixed by `walk()`'s own `stamp_not_reached(*ALL_LEGS)` at
+            # stage 1, and the ledger's tape columns are additive. Measured as byte identity through
+            # this function with both flags popped, block / request / trace / counters.
+            _attach_tape(bd, qfn=qfn, width=width)
             W.stage2(bd, graph, state_fn=state_fn or _state_fn(bd.asof, qfn=qfn,
                                                                turn_kind=bd.turn_kind),
-                     key_fn=key_fn, receipts=_receipts_from(sg), width=width, legb_on=legb_on,
-                     complexes=complexes, chains=chains,
+                     key_fn=key_fn, receipts=_rcpt, width=width, legb_on=legb_on,
+                     complexes=complexes, chains=chains or _curated_chains(state_chain),
+                     state_chain=bool(state_chain),
                      analog_reads=bool(benchmark_fn is not None or receipt_fn is not None))
-            _attach_tape(bd, qfn=qfn, width=width)
-            ana = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=benchmark_fn, receipt_fn=receipt_fn)
+            # THE LIKE-STATE STANZA IS THE **THEN** OF THE TOP CHAIN, AND THAT IS ONE ARGUMENT
+            # (DESIGN C.2, round-2 item R-5). `analogs.select_analogs` already accepts `first_dim` and
+            # `analogs._dims_first` already moves that dimension to the front of the vector the
+            # coverage line enumerates -- the analog half landed COMMITTED at bbddd4cc and its own
+            # docstring names this caller ("the caller is the render half"). What was missing was the
+            # caller. It orders what the reader is shown FIRST and CANNOT move the distance (the
+            # distance is an unweighted mean over the declared dimensions), so this is a statement
+            # about the stanza's READING and never about its selection.
+            #
+            # IT IS THE TOP chain's RECEIPT HOP -- the hop the whole chain is read at (one rule, two
+            # readers: `walk.chain_receipt_index`) -- and it is `None` with the chain flag off, where
+            # `bd.chains` is empty, so a board-on / chain-off turn passes the argument's own default
+            # and is byte-identical.
+            ana = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=benchmark_fn, receipt_fn=receipt_fn,
+                                first_dim=_first_dim(bd))
             A.analog_leg(bd, ana)
             # S7b LANE W's re-ranker, threaded by the sec 6.1 seam protocol. `nonobvious` is the flag
             # `answer._watch_nonobvious_on()` read ONCE at the seam -- this module reads no
@@ -407,9 +444,19 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
             # it is held because the block is measured at 2.5-3.0x its sec 7 budget already and phase 3
             # is the sitting that decides which slices are READ. Named here so the swept cut's own note
             # is not read as a description of what a reader sees today.
+            # ...AND `chain_receipts` IS THE HALF S8 WIRES, WHICH IS NOT THE SAME ARGUMENT (DESIGN
+            # B.4). The chain's receipt of first choice already rides on `row.event_receipt` /
+            # `row.receipts["top"]` for every row; what this buys is the WIDER pool at the receipt hop
+            # -- every proposition the turn grounded for that node, folded to one entry per
+            # proposition, with the EARLIEST instance of a dated action winning and the later mentions
+            # counted (frequency is not evidence). It is read ONLY at a rendered chain's receipt hop,
+            # under `BoardKnobs.chain_receipts` (1 / 2 / 3), and it is `None` with the chain flag off,
+            # so a board-on / chain-off turn is byte-identical and `receipts_by_row` stays the declared
+            # residual it was.
             blk = R.render_board(bd, analogs=ana, watch=wr, receipts_by_row=None, recency=rec,
                                  age_clauses=ages, start=max(1, int(n_start)),
                                  e_start=max(1, int(e_start)),
+                                 chain_receipts=(_rcpt if state_chain else None),
                                  anchor_label=", ".join(R.board_label(s) for s in bd.anchor_slugs))
             _render_ms = (time.perf_counter() - _tr) * 1000.0
             # THE RENDER'S DECLINE WORD MEANS "A LINE WAS CORRECTED", NOT "NO BLOCK" (S6 review). The
@@ -770,6 +817,168 @@ def _tape_edge(bd) -> str:
     turn read no tape, which the ledger states as words rather than as a blank."""
     return max((str(getattr(t, "level_date", "") or "") for t in (bd.tape or {}).values()),
                default="")
+
+
+def _curated_chains(state_chain: bool) -> tuple:
+    """THE ESTATE'S TWELVE CURATED CHAINS, read from the two maps that hold them -- and ONLY when the
+    chain leg is armed.
+
+    **BOTH SHAPES, BECAUSE THEY ARE TWO DIFFERENT OBJECTS.** ``cascade.load_chain_map()`` returns ten
+    rows of ``{id, contracts, hops:[{node, ref}], terminal}`` -- DRIVER NODES keyed by contract --
+    and ``cascade.load_transmission_map()`` returns two of ``{id, links:[{pair_id, source, target,
+    nature}]}`` -- MARKET to MARKET. ``walk.curated_chain_index`` is the adapter that reads both; this
+    is the call site that finally hands them over. Until it existed, ``notes[kind=chains].rows`` was
+    ``()`` on 5 of 5 banked payloads (DESIGN F5): the maps were on disk and reached no turn.
+
+    **IT IS GATED ON THE FLAG AND THAT IS NOT AN OPTIMISATION.** ``chain_paths`` runs on every board
+    and stamps ``notes[kind=chains]``, so loading the maps unconditionally would move that note -- and
+    therefore the ``state_board`` payload -- on a board-on / chain-off turn, which is exactly the one
+    property arm A needs to attribute a character to anything. An explicit ``chains=`` from the caller
+    still wins, so a deck or a probe can thread its own rows either way.
+
+    A MAP THAT WILL NOT LOAD IS NOT A TURN THAT FAILS: the curated rows are a PRIOR on the rank, never
+    a second engine, and a board without them ranks the composed chains on their own facts."""
+    if not state_chain:
+        return ()
+    try:
+        from leviathan.graphrag.numbers import cascade as CAS
+        return tuple(CAS.load_chain_map() or ()) + tuple(CAS.load_transmission_map() or ())
+    except Exception:                                   # noqa: BLE001 -- a prior is never a fence
+        return ()
+
+
+def _first_dim(bd) -> Optional[str]:
+    """THE TOP RENDERED CHAIN'S RECEIPT HOP -- the dimension the like-state stanza is read on first
+    (DESIGN C.2, round-2 item R-5), or ``None`` where no chain rendered.
+
+    ``None`` IS THE FLAG-OFF ANSWER AND IT IS THE ARGUMENT'S OWN DEFAULT, so this call moves not one
+    byte of a board-on / chain-off turn: with the chain leg unarmed ``bd.chains`` is ``[]``.
+
+    THE TOP CHAIN IS THE RANK'S TOP AND NOT THE LIST'S FIRST. ``walk.chain_render_set`` stamps
+    ``rendered`` across the pool in rank order but ``Board.chains`` carries the POOL, whose order is
+    the composition's; reading ``[0]`` would hand the stanza whichever candidate the walk happened to
+    build first. ``Chain.rank`` is the declared tuple and it is the same one the render's own "first of
+    three" ordering uses, so the stanza's dimension and the page's first chain can never disagree.
+
+    IT IS A DIMENSION ORDER AND NEVER A FILTER: ``analogs._dims_first`` is a no-op for a ``first_dim``
+    no declared dimension carries, so a chain whose receipt hop this board does not rank among its
+    analog seeds costs the stanza nothing at all.
+
+    **AND THE HOP IS TRANSLATED TO THE DIMENSION'S OWN ID BEFORE IT IS PASSED** (round-3 MAJOR 6). The
+    analog leg declares its dimensions off the board's LOUD rows (``analogs.analog_rows``: the top
+    ``analog_dims`` loud, numeric, ok rows, each entered under ITS OWN ``driver_id``), while a chain
+    hop is a node of a DAG -- and the two name the same SERIES under different driver ids all the time:
+    on this very fixture ``El_Nino`` and ``La_Nina`` are two rows of ONE series (``oni_climate|_global|``)
+    and a hop on either would miss a dimension declared under the other. That is the estate's standing
+    string-identity failure in its smallest form, so the match is made on the SERIES KEY and the id
+    that comes back is the one the analog leg ranks under. :func:`_dim_for_hop` does the translation
+    and the no-op is unchanged where no row serves it.
+
+    **AND IT IS THE TOP CHAIN'S HOPS, IN TAIL ORDER, AND NOT THE RECEIPT HOP ALONE** (round-4 MAJOR 2).
+    Round 3 handed the stanza the receipt hop's dimension and stopped: where that dimension was not one
+    the analog leg ranks, ``analogs._dims_first`` no-opped and the chain's THEN was never read, which
+    is a silent miss rather than a correction. MEASURED on the live fixture with the receipt hop alone:
+    the stanza's ``dims_order`` moved on 10 of 10 stanzas on the no-receipt max cell and on 0 of 10 /
+    0 of 3 / 0 of 0 on the RECEIPT-CARRYING cell -- the cell a served turn actually is -- because that
+    cell's top chain is read at ``cot_mm_positioning``, which this board declares no dimension under.
+
+    SO THE WALK IS THE HOPS IN ``walk._tail_order``: the loudest reading on the chain first (which IS
+    the receipt hop, by ``chain_receipt_index``' own rule), then the next loudest, and the FIRST hop
+    whose series the analog leg ranks is the dimension the stanza is read on. One rule, two readers --
+    the order is the walk's own and no second ranking is minted here -- and where NO hop of the top
+    chain carries a declared dimension the answer is ``None``, which is the same no-op as before. It
+    orders what the reader is shown and can move no distance, so a walk further down the chain is a
+    better READING of the same stanza and never a different selection."""
+    from leviathan.graphrag.state import walk as W
+    ch = sorted((c for c in (getattr(bd, "chains", None) or ())
+                 if getattr(c, "rendered", False)), key=lambda c: c.rank)
+    if not ch:
+        return None
+    hops = list(ch[0].hops or ())
+    if not hops:
+        return None
+    declared = _analog_dims(bd)
+    first = None
+    for i in W._tail_order(hops):
+        got = _dim_for_hop(bd, hops[i])
+        if first is None:
+            first = got                                  # the receipt hop's own answer, as round 3
+        if got and got in declared:
+            return got
+    # NO HOP OF THE TOP CHAIN IS A DECLARED DIMENSION. The receipt hop's answer is returned unchanged
+    # -- `analogs._dims_first` no-ops on it exactly as its own docstring says it should -- so this walk
+    # can only ever ADD a reading and never take one away.
+    return first
+
+
+def _analog_dims(bd) -> frozenset:
+    """THE DRIVER IDS THE ANALOG LEG DECLARES ITS DIMENSIONS UNDER on this board.
+
+    ``analogs.analog_rows`` seeds one dimension per row in ``Board.order`` that is LOUD, carries an
+    ``ok`` state with its own input series, is not context-only, and sits inside ``knobs.analog_dims``
+    -- and each dimension is entered under THAT ROW's ``driver_id``. This function reads the same rule
+    off the same board so :func:`_first_dim` can tell a hop the leg RANKS from one it does not.
+
+    IT IS A LOOKUP AND NEVER A SECOND SELECTION: nothing here admits, caps or declines anything, and a
+    wrong answer costs the stanza only its dimension ORDER (``analogs._dims_first`` no-ops). THE TWO
+    SPELLINGS ARE PINNED TO AGREE -- ``test_state_seam.py`` asserts this set equals the ids the LIVE
+    ``analog_rows`` puts in ``dims_order`` on both cells -- because the rule lives in a module this
+    lane may not edit; folding it into one published accessor is asked for in the lane's handoff."""
+    from leviathan.graphrag.state.rows import status_word
+    kn = getattr(bd, "knobs", None)
+    want = int(getattr(kn, "analog_dims", 0) or 0)
+    if want <= 0:
+        return frozenset()
+    seat = {k: i for i, k in enumerate(getattr(bd, "order", None) or ())}
+    loud = sorted((r for r in (getattr(bd, "rows", None) or ()) if r.legs.get("loud")),
+                  key=lambda r: seat.get(r.key, len(seat)))
+    out = []
+    for r in loud:
+        st = getattr(r, "state", None)
+        if st is None or status_word(st.status) != "ok" or r.context_only:
+            continue
+        try:
+            if not (st.inputs or {}).get(st.key.label()):
+                continue
+        except Exception:                               # noqa: BLE001 -- a lookup never kills a turn
+            continue
+        out.append(str(r.driver_id))
+        if len(out) >= want:
+            break
+    return frozenset(out)
+
+
+def _dim_for_hop(bd, hop) -> Optional[str]:
+    """The DRIVER ID the analog leg would declare its dimension under for this hop's SERIES, or the
+    hop's own id where the board serves that series nowhere else.
+
+    THE RULE IS THE ANALOG LEG'S OWN, READ OFF THE SAME BOARD: its seeds are the LOUD rows in
+    ``Board.order`` (``analogs.analog_rows``), so among the rows serving this hop's series key the
+    loudest in that same order is the one a declared dimension would carry. It is a LOOKUP and never a
+    second selection -- it names no cap, admits nothing, and where the chosen id is not a declared
+    dimension after all, ``analogs._dims_first`` no-ops exactly as it does today.
+
+    A hop with NO served series (an unmeasured node) has no series to match and returns its own id,
+    which is what the stanza was handed before this translation existed."""
+    own = str(getattr(hop, "driver_id", "") or "")
+    want = str(getattr(hop, "series_key", "") or "")
+    if not want:
+        return own or None
+    seat = {k: i for i, k in enumerate(getattr(bd, "order", None) or ())}
+    best = None
+    for r in (getattr(bd, "rows", None) or ()):
+        st = getattr(r, "state", None)
+        if st is None:
+            continue
+        try:
+            if str(st.key.label()) != want:
+                continue
+        except Exception:                               # noqa: BLE001 -- a lookup never kills a turn
+            continue
+        cand = (0 if r.legs.get("loud") else 1, seat.get(r.key, len(seat)), str(r.driver_id))
+        if best is None or cand < best[0]:
+            best = (cand, str(r.driver_id))
+    return (best[1] if best is not None else own) or None
 
 
 def _receipts_from(sg) -> dict:

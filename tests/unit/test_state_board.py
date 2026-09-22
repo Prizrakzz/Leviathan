@@ -66,19 +66,27 @@ def test_the_nine_knobs_are_the_designs_own_nine_in_the_designs_own_order():
     # budgeted and that a cap can reach: the fan index's ENUMERATION, the projection row, and the
     # seed's own edge line (minted dark, 0 on every tier, the number is S8's).
     _S7_CAPS = ("render_fan_names", "render_projection", "render_edge")
+    # S8 LANE W APPENDS THREE MORE, LAST, each with a default -- the COMPOSED CHAIN's own caps. They
+    # are a different kind again: `chain_render_k` bounds a ROW CLASS like the S6 seven,
+    # `chain_receipts` bounds a class the seven cannot reach (the per-ROW `render_receipts` is 0 on
+    # the free tier and would render nothing there), and `chain_print_line` IS NOT A CAP AT ALL -- it
+    # is a RENDER threshold between a full block and one line, and the chain below it is counted,
+    # kept in the trace and never removed. It sits in the knob tuple because it is a TIER number.
+    _S8_CHAIN = ("chain_render_k", "chain_print_line", "chain_receipts")
     assert B.BoardKnobs._fields[:9] == _NINE
     assert B.BoardKnobs._fields in (_NINE, _NINE + _S6_RENDER, _NINE + _S6_RENDER + _S6R_BOUNDS,
-                                    _NINE + _S6_RENDER + _S6R_BOUNDS + _S7_CAPS)
+                                    _NINE + _S6_RENDER + _S6R_BOUNDS + _S7_CAPS,
+                                    _NINE + _S6_RENDER + _S6R_BOUNDS + _S7_CAPS + _S8_CHAIN)
     # every appended field carries a DEFAULT, which is what keeps a nine-tuple caller valid
     assert set(B.BoardKnobs._field_defaults) == set(B.BoardKnobs._fields[9:])
 
 
-@pytest.mark.parametrize("mode,expect,render,bounds,s7", [
-    ("quick", (8, 4, 0, 0, 4, 24, 0, 0, 1), (4, 1, 0, 0, 0, 3, 3), (4, 6), (8, 4, 0)),
-    ("deep", (16, 8, 1, 3, 8, 32, 18, 3, 4), (8, 4, 1, 4, 3, 6, 0), (6, 24), (0, 0, 0)),
-    ("max", (24, 16, 2, 5, 12, 40, 58, 5, 8), (16, 6, 2, 4, 5, 8, 0), (8, 32), (0, 0, 0)),
+@pytest.mark.parametrize("mode,expect,render,bounds,s7,s8", [
+    ("quick", (8, 4, 0, 0, 4, 24, 0, 0, 1), (4, 1, 0, 0, 0, 3, 3), (4, 6), (8, 4, 0), (1, 40, 1)),
+    ("deep", (16, 8, 1, 3, 8, 32, 18, 3, 4), (8, 4, 1, 4, 3, 6, 0), (6, 24), (0, 0, 0), (2, 40, 2)),
+    ("max", (24, 16, 2, 5, 12, 40, 58, 5, 8), (16, 6, 2, 4, 5, 8, 0), (8, 32), (0, 0, 0), (3, 40, 3)),
 ])
-def test_every_shipped_tiers_knobs_are_the_values_sec_7_declares(mode, expect, render, bounds, s7):
+def test_every_shipped_tiers_knobs_are_the_values_sec_7_declares(mode, expect, render, bounds, s7, s8):
     """S6 RE-ANCHOR: the NINE are asserted as a whole tuple; the SEVEN render caps appended after them
     are asserted separately AND against the tables `render.RENDER_CAPS` ships, so the claim "the
     defaults are the design's planned sizes, not a new opinion" is MEASURED rather than described.
@@ -99,8 +107,15 @@ def test_every_shipped_tiers_knobs_are_the_values_sec_7_declares(mode, expect, r
     budget. Deep measured 2.17x and max 1.72x."""
     kn = B.board_knobs_of(mode)
     assert tuple(kn)[:9] == expect
-    assert tuple(kn)[9:] in ((), render, render + bounds, render + bounds + s7)
+    assert tuple(kn)[9:] in ((), render, render + bounds, render + bounds + s7,
+                             render + bounds + s7 + s8)
     assert (kn.render_fan_names, kn.render_projection, kn.render_edge) == s7
+    # S8 LANE W: THE CHAIN COLUMNS ARE THE ONLY THING THAT MOVED, and this line is the pin that says
+    # so. The S7 row above is asserted UNCHANGED on all three tiers even though DESIGN A.8 cuts three
+    # of those very numbers -- the cuts ride the CHAIN FLAG through `board.with_chain_caps`, never
+    # this table, because a number moved here moves on every BOARD-ON turn and arm A's control cell is
+    # a board-on / chain-off turn that has to stay byte-identical to the 2026-09-16 smoke.
+    assert (kn.chain_render_k, kn.chain_print_line, kn.chain_receipts) == s8
     # THE EDGE KNOB SHIPS DARK ON EVERY TIER. The mechanism lands at S7 and the NUMBER is S8's: an
     # SB-E line is what makes ruling 3 renderable, so cutting it decides what the reader is TOLD.
     assert kn.render_edge == 0

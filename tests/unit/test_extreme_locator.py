@@ -1060,9 +1060,15 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # this seam by the two-lane protocol (threat model sec 6.1) because `state/` reads no environment.
     # It rides the SAME two-leg gate the board's mandate does (the flag AND the block's own marker), so
     # a writer can never be told to select from candidates the board did not nominate.
+    # ...and S8's CHAIN MOVEMENT appends the LAST one: `state_chain` (default False), which is NOT a
+    # leg of its own -- it is a second argument to the board's OWN mandate producer, because the fifth
+    # movement lands BETWEEN (2) EVIDENCE and (3) SPILLOVERS and renumbers the two below it, which an
+    # appended paragraph cannot do. It rides a THREE-leg gate (`an._state_chain_block_on`: the chain
+    # flag, the board's own marker, and a chain row actually in the assembled volatile prompt), so a
+    # writer is never told to narrate chains the block declined to compose.
     _tail = list(params)
     _APPENDS = [n for n in ("numbers_budget", "state_board", "desk_register", "watch_selection",
-                            "register_licence")
+                            "register_licence", "state_chain")
                 if n in _tail]
     assert _tail[len(_tail) - 2 - len(_APPENDS):len(_tail) - len(_APPENDS)] == \
         ["extreme_locator", "extreme_hop"], _tail
@@ -1126,6 +1132,45 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
         assert an._system(state_board=True, watch_selection=True) == \
             an._system(state_board=True).replace(_sn_w.MANDATE_WATCH_HEAD_RX, _sn_w.MANDATE_WATCH_NONOBVIOUS) \
             + _sw.WATCH_SELECTION_CLAUSE
+    if "state_chain" in _tail:                            # S8's ONE named append, and the LAST
+        assert params["state_chain"].default is False
+        assert params["state_chain"].kind is inspect.Parameter.KEYWORD_ONLY
+        assert an._system(state_chain=False) == base      # the default-off VALUE, not just the default
+        # ...AND THE DEFAULT-OFF VALUE ON EVERY ARM THE BOARD HAS, which is the property arm A rests
+        # on: with the board lit and the chain dark the persona is byte-identical to the 2026-09-16
+        # smoke's, so a character that moves between the two cells is the chain movement's and
+        # nobody else's (DESIGN B.7).
+        for _sb in (False, True):
+            for _ws in (False, True):
+                assert an._system(state_board=_sb, watch_selection=_ws, state_chain=False) == \
+                    an._system(state_board=_sb, watch_selection=_ws)
+        # THE MOVEMENT RIDES THE BOARD'S BRANCH AND NOWHERE ELSE: lit without a board it appends
+        # nothing at all, because there is no block to narrate the chains of.
+        assert an._system(state_chain=True) == base
+        from leviathan.graphrag.state import narration as _sn_c
+        _lit = an._system(state_board=True, state_chain=True)
+        assert _lit == an._system(state_board=True) \
+            .replace(_sn_c.state_board_mandate(), _sn_c.state_board_mandate(chain=True))
+        assert _sn_c.MANDATE_CHAIN_MOVEMENT in _lit
+        assert _sn_c.MANDATE_CHAIN_MOVEMENT not in base
+        # ONE ENV READ AT THE SEAM AND `state/` READS NONE -- the two-lane seam protocol, third
+        # application. The helper's grammar is `_state_board_on`'s and it is the ONLY place in `src/`
+        # that names the variable.
+        assert an._state_chain_on() is False              # the default-off VALUE
+        _src = inspect.getsource(an._state_chain_on)
+        assert 'os.environ.get("GRAPHRAG_STATE_CHAIN", "").strip().lower() in ("on", "1", "true")' \
+            in _src
+        assert "state_chain=_state_chain_on()" in inspect.getsource(an._answer_l2)
+        # ROUND 2: THE LOCAL IS `_state_chain` AND NEVER `_chain_on`. The first cut spelled it
+        # `_chain_on`, which is the MODULE-LEVEL cascade-chain kill-switch this same body calls 1,375
+        # lines earlier -- so the local made that name local for the whole body and
+        # `_chain_kw = {"chain": True} if _chain_on() else {}` raised UnboundLocalError on EVERY L2
+        # turn WITH BOTH FLAGS OFF, swallowed by the quantify leg's broad except into "proceeding
+        # qualitative". 23 tests in 7 decks, all green at HEAD. The class-wide pin is in
+        # `test_answer.py` (the AST shadow census); these two are the spelling itself.
+        assert "state_chain=_state_chain," in inspect.getsource(an._answer_l2)
+        assert "_state_chain = _state_chain_block_on(vp)" in inspect.getsource(an._answer_l2)
+        assert "_chain_on = _state_chain_block_on(vp)" not in inspect.getsource(an._answer_l2)
     qs = inspect.signature(cq.quantify).parameters
     assert qs["extreme_locator"].default is None
     # the locator kwarg and the extrema rider are the LAST TWO, in the order they were added -- so
@@ -1979,8 +2024,12 @@ def test_fix_review_minor_6_the_seam_re_anchor_cuts_named_line_sets():
     D-XL cuts recovered HEAD exactly. K9-6 then appended a THIRD line set to the same seam block, which
     the producer does not know about, so the two parted: measured this sitting,
       producer sans_xl_sha256 = e6f2b4f2414579681c55f71d2858b5891dea0f36e297b6caac7c629213be8578
-      banked HEAD sha256      = 2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074
-    and HEAD is reached only after `test_cascade_walk._g1x_sans` makes the second, K9-6-named cut. This
+      banked HEAD sha256      = 07c163a755ae1a8d68f00b751682c31bebdedf7e4b05f91598d4f12f8f4b611c
+    and HEAD is reached only after `test_cascade_walk._g1x_sans` makes the second, K9-6-named cut.
+    (That banked value is itself re-stated 2026-09-22: `xl_golden_seam_off.json`'s `seam_block` was
+    re-banked from 2b4407f4 to 07c163a7 on a cause that is NOT the chain movement's -- the block moved
+    at commit 0250bade and nowhere else, one inline `from datetime import ...` split one-import-per-line,
+    +32 chars / +1 line. The bank's own `rebanked` key carries the full measurement.) This
     test's own asserts are unaffected -- it reads the producer's SOURCE, not its output -- which is
     exactly why the line was correctable in place rather than by moving a pin."""
     import pathlib

@@ -2199,7 +2199,7 @@ def test_k9_6_the_seam_golden_is_re_anchored_on_this_insertion_and_not_re_banked
     assert '_K96_ONE = ["_xc_leg_handles_on"]' in walk
     # the bank itself is UNTOUCHED: the HEAD sha the re-anchor lands on is the one D-XL banked
     bank = (repo / "data" / "consequence_leg" / "xl_golden_seam_off.json").read_text(encoding="utf-8")
-    assert "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074" in bank
+    assert "07c163a755ae1a8d68f00b751682c31bebdedf7e4b05f91598d4f12f8f4b611c" in bank
     # ...and the producer is NOT edited by this lane -- the repair is a cut in the pin, not a new anchor
     prod = (repo / "data" / "consequence_leg" / "xl_golden_seam_bank.py").read_text(encoding="utf-8")
     assert "xc_leg_handles" not in prod and "_xlh_kw" not in prod
@@ -2213,7 +2213,7 @@ def test_k9_6_the_seam_golden_is_re_anchored_on_this_insertion_and_not_re_banked
     _walk_mod = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_walk_mod)
     _repro, _head = _walk_mod._g1x_sans(str(repo / "data" / "consequence_leg" / "xl_golden_seam_bank.py"))
-    assert _head == "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074", _head
+    assert _head == "07c163a755ae1a8d68f00b751682c31bebdedf7e4b05f91598d4f12f8f4b611c", _head
     assert _repro != _head, "K9-6 is not in the seam block -- this pin has nothing to measure"
     assert os.environ.get("GRAPHRAG_XC_LEG_HANDLES") in (None, "", "off")  # and the flag stays dark
     from leviathan.graphrag import answer as an
@@ -3311,4 +3311,4 @@ def test_k9_4_the_answer_seam_is_omit_when_off_and_its_span_is_measured():
                      "**_xlh_kw, **_vr_kw, **_xsc_kw, **_sb_kw, **_eod_kw)"), _tail
     # and the recovery still reaches the banked HEAD block, cut order and all
     _repro, _head = _walk._g1x_sans(str(repo / "data" / "consequence_leg" / "xl_golden_seam_bank.py"))
-    assert _head == "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074"
+    assert _head == "07c163a755ae1a8d68f00b751682c31bebdedf7e4b05f91598d4f12f8f4b611c"

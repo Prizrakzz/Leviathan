@@ -1485,6 +1485,27 @@ def _watch_nonobvious_on() -> bool:
     return os.environ.get("GRAPHRAG_WATCH_NONOBVIOUS", "").strip().lower() in ("on", "1", "true")
 
 
+def _state_chain_on() -> bool:
+    """S8's kill-switch (GRAPHRAG_STATE_CHAIN) -- THE CHAIN MOVEMENT, BUILT DARK.
+
+    THE GRAMMAR IS `_state_board_on`'s and `_watch_nonobvious_on`'s, character for character, and the
+    SEAM is theirs too: `state/` reads no environment -- two live doctrine tests assert it on the
+    package's own source and `config_check.check_state_seam` clause (i) grades the whole allowlist --
+    so this flag is read HERE, once per turn, and threaded down as a kwarg into `fill_stage2` and as a
+    bool into the mandate producer. Nothing else in `src/` reads the variable.
+
+    IT IS THE SECOND FLAG AND THAT IS THE WHOLE POINT (DESIGN B.7). Everything the chain movement does
+    rides INSIDE `GRAPHRAG_STATE_BOARD` -- there is no chain without a board -- but arm A has to
+    attribute a character to ONE instrument, so with the board ON and the chain OFF the turn must be
+    byte-identical to the 2026-09-16 pre-arm smoke: `walk._stage2` builds no `bd.chains`, the render
+    takes its `else` arm and prints the topology lines the smoke printed, the mandate keeps its four
+    movements, and the three lints below are never called. An arm that could not separate the two
+    would measure the chain rows and the fix lane's +2.4-2.6k block growth as one number.
+
+    Read PER CALL, never memoized, so the env-flip rollback is live without a redeploy."""
+    return os.environ.get("GRAPHRAG_STATE_CHAIN", "").strip().lower() in ("on", "1", "true")
+
+
 def _register_licence_on() -> bool:
     """S7b R1's kill-switch (GRAPHRAG_REGISTER_LICENCE), BUILT DARK.
 
@@ -2644,6 +2665,37 @@ def _state_board_block_on(volatile_prompt: str | None) -> bool:
     return _sr.SB_MARKER_PREFIX in (volatile_prompt or "")
 
 
+def _state_chain_block_on(volatile_prompt: str | None) -> bool:
+    """THE CHAIN'S SEAM GATE -- `_state_board_block_on` VERBATIM IN SHAPE, third leg added (DESIGN B.5).
+    The fifth MANDATE MOVEMENT ships iff ALL THREE legs hold:
+
+      leg 1  the kill-switch      -- `_state_chain_on()`;
+      leg 2  the BOARD's own gate -- `_state_board_block_on(vp)`, i.e. the board flag AND its marker;
+      leg 3  the EVIDENCE         -- the assembled VOLATILE prompt actually carries a CHAIN ROW, by the
+             producer's own head prefix (`state.render.CHAIN_HEAD_PREFIX`) at a LINE START.
+
+    LEG 3 IS NOT REDUNDANT AND ITS COST IS MEASURED ONE LANE OVER. The chain leg declines for reasons
+    the board does not: a graph with no composable sequence into any anchor, a tier whose
+    `chain_render_k` the selection could not fill, a pool the diversity fold emptied. In every one of
+    those the block prints its topology lines instead and a flag-only gate would hand the writer a
+    movement about chains it was never given -- `_cascade_walk_block_on`'s own measured failure, in the
+    other direction.
+
+    IT IS ANCHORED AT A LINE START, and that is refute M2's ruling applied to this class: the bare
+    six-character token `CHAIN ` is something a retrieved chunk can carry into the volatile prompt
+    (evidence text is rendered raw, newlines and all), and a chain row is a LINE the block composed.
+    The pattern is built HERE from the PRODUCER's own exported constant rather than typed, so the gate
+    and the row it looks for cannot drift apart.
+
+    THE KILL-SWITCH IS TESTED BEFORE THE IMPORT, for `_state_board_block_on`'s own stated reason: with
+    the flag off this function imports nothing."""
+    if not _state_chain_on() or not _state_board_block_on(volatile_prompt):
+        return False
+    from leviathan.graphrag.state import render as _sr  # lazy: the state package is phase-2 only
+    return re.search(r"(?m)^" + re.escape(str(_sr.CHAIN_HEAD_PREFIX)),
+                     volatile_prompt or "") is not None
+
+
 def _cascade_context_block_on(volatile_prompt: str | None) -> bool:
     """THE RIDER'S SEAM GATE -- `_cascade_walk_block_on` in shape, keyed on ROW-1C's OWN ROW SHAPE
     (`cascade.CW_CONTEXT_LINE_RX`: a line START of '- [N<digits>' followed by the one minted class
@@ -3575,7 +3627,13 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
             extreme_locator: bool = False, extreme_hop: bool = False,
             numbers_budget: bool = False, state_board: bool = False,
             desk_register: bool = False, watch_selection: bool = False,
-            register_licence: bool = False) -> str:
+            register_licence: bool = False,
+            # S8: THE SIXTH APPEND AND IT GOES LAST, which is a pin rather than a preference.
+            # `test_extreme_locator`'s parameter census asserts the tail of this signature is
+            # `extreme_locator, extreme_hop` followed by the named appends IN ORDER, so a keyword
+            # landing anywhere but the end reds that deck with no defect; and `test_cascade_walk`'s
+            # g1x bank asserts the banked twelve-name prefix still holds, which it does.
+            state_chain: bool = False) -> str:
     """The active reader-facing persona. GRAPHRAG_MENTOR_VOICE default on -> mentor; =off -> the prior string.
     GRAPHRAG_CASCADE_QUANT on -> append the OBSERVED CASCADE NUMBERS addendum (P9-B: the loop supplies the
     [N] rows). GRAPHRAG_PATTERN_RECORDS on -> append the OBSERVATION-register RECORDED HISTORY directive (T2B).
@@ -3764,8 +3822,16 @@ def _system(*, outlook: bool = False, episodes: bool | None = None, recency: boo
         # the same turn, opens by denying ("CANDIDATES nominated for you, not a list to reproduce").
         # The variant rides `watch_selection`, which is already the flag AND the block's own marker, so
         # a board turn with the watch flag off keeps HEAD's mandate byte for byte.
+        # S8 (2026-09-17): THE FIFTH MOVEMENT, "THE CHAIN", rides `state_chain` -- the chain flag AND
+        # the board's own marker AND a chain row actually in the prompt (`_state_chain_block_on`). It
+        # is a SECOND kwarg on the SAME producer rather than a second leg appended beside it, because
+        # the movement lands BETWEEN (2) EVIDENCE and (3) SPILLOVERS and renumbers the two below it:
+        # an appended paragraph could not do that, and two paragraphs numbering the same movements
+        # differently is the coherence defect the 09-16 audit spent a lane closing. DEFAULT FALSE on
+        # BOTH kwargs == HEAD's bytes, which lane N proved cell by cell.
         from leviathan.graphrag.state import narration as _sn  # lazy: phase-2 only, gate-guarded
-        base = base + _sn.state_board_mandate(nonobvious=bool(watch_selection))
+        base = base + _sn.state_board_mandate(nonobvious=bool(watch_selection),
+                                              chain=bool(state_chain))
         # LANE E (2026-09-17): THE WRITER SEAM MANDATE, appended IMMEDIATELY AFTER the board's own and
         # INSIDE the same branch. The position is not cosmetic and it is pinned in three decks: the
         # desk-register leg asserts `_system(state_board=True, desk_register=True) == _system(
@@ -4654,6 +4720,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                # False -> `watch_rows` returns HEAD's five-kind interleave byte for
                                # byte, which is what makes the whole re-ranker dark.
                                watch_nonobvious=_watch_nonobvious_on(),
+                               # S8, landed by the SAME seam protocol and for the same reason: ONE
+                               # boolean, read once above, threaded down, because `state/` reads no
+                               # environment. False -> `walk._stage2` builds no `bd.chains` at all,
+                               # the render takes its topology-line arm, and the block is the
+                               # 2026-09-16 smoke's byte for byte (DESIGN B.7).
+                               state_chain=_state_chain_on(),
                                e_start=len(_uniq) + 1)
         if _sb.get("block") and _quant_on:
             volatile_blocks = volatile_blocks + [_sb["block"]]
@@ -5088,6 +5160,24 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     sg.trace["fork_basis"] = _fork_basis(graph, contracts,
                                          [h for n in sg.nodes for h in (getattr(n, "evidence", None) or [])],
                                          sg.trace)
+    # S8: THE CHAIN GATE IS ONE LOCAL READ, resolved HERE and read TWICE -- by the mandate below and by
+    # the three chain lints after the writer returns. Two calls would be two chances to disagree, and a
+    # disagreement between them is the `_cascade_walk_block_on` failure in either direction: a movement
+    # instructed and not enforced, or corrections applied to a writer that was never told. `_wseam_on`
+    # one screen down is the same idiom for the same reason.
+    #
+    # THE NAME IS `_state_chain` AND NOT `_chain_on`, AND THAT IS A MEASURED SCAR (round-2 FATAL).
+    # `_chain_on` is a MODULE-LEVEL zero-arg helper of this same file -- the CASCADE chain engine's
+    # kill-switch -- which `_answer_l2` calls 1,375 lines ABOVE this line
+    # (`_chain_kw = {"chain": True} if _chain_on() else {}`). A local binding of that spelling anywhere
+    # in this body makes the name local for the WHOLE body, so that earlier call raised
+    # `UnboundLocalError` on EVERY L2 turn WITH BOTH FLAGS OFF, the broad `except` around the quantify
+    # leg swallowed it, and the cascade quantify leg died silently into "proceeding qualitative" -- 23
+    # tests in 7 decks, all green at HEAD, and not one byte of the flag-off census could see it. The
+    # pin that closes the class is `test_answer.py::test_no_body_of_this_module_binds_a_local_that_
+    # shadows_a_module_level_flag_helper`: an AST census of every function in this file for a STORE of
+    # any module-level zero-arg `_*_on` name.
+    _state_chain = _state_chain_block_on(vp)
     structured = call(_system(outlook=_outlook, episodes=_episodes, recency=_recency_stamp_on(),
                               cascade_walk=_cascade_walk_block_on(vp),
                               cascade_context=_cascade_context_block_on(vp),
@@ -5112,6 +5202,9 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                                and _state_board_block_on(vp)),  # AND the block's marker
                               #                                                  the flag AND the block's
                               #                                                  own marker in `vp`
+                              state_chain=_state_chain,           # S8: the chain flag AND the board's
+                              #                                     marker AND a chain row in `vp`,
+                              #                                     resolved once above
                               response_contract=_rc_active, budget=_mode_budget(_rc_active, mode_knobs),
                               prose_mode=mode_name,               # LANE E: the tier the CEILING is
                               #                                     priced for; read ONLY inside the
@@ -5311,6 +5404,36 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             # to report would move an eval column for no measured reason (round-3 MINOR, 2026-09-15).
             if any(v for v in _badj.values()):
                 sg.trace["bar_adjectives"] = _badj
+        # S8's THREE CHAIN LINTS, in the SAME gate and in the `_bind_bar_adjectives` seat immediately
+        # after it (DESIGN B.6 in terms: "beside `_bind_bar_adjectives`"). THE POSITION IS A DECISION
+        # AND IT IS THE CONSERVATIVE ONE. Seated here they read the MODEL's own sentences and nothing
+        # any later pass inserted -- `_seam_metric_labels` SUBSTITUTES a card's declared reader words
+        # into a sentence, which is one of the two spellings L1 matches a hop on, so a chain lint
+        # seated after lane E could read the seam's own correction as the writer naming a hop and
+        # append a figure to a sentence the writer never pointed at a chain. The residual of choosing
+        # this seat is NAMED: the desk rewrite runs after and may rewrite a sentence carrying an L2 or
+        # L3 stamp (neither carries a digit or a handle, so guards (3) and (4) do not protect them) --
+        # a stamp LOST, never a stamp INVENTED, and L1's is protected by both guards.
+        # Flag off -> `_state_chain` is False, not called, no key, byte-identical.
+        #
+        # `handle_prose=_handles` IS THE SAME ONE RESOLUTION `_writer_seam_lints` and
+        # `_resolve_number_handles` are threaded with one screen down, and it is threaded here for the
+        # reason that pass exists: on the `*_hp` presets the resolver SPLICES a row's value in front of
+        # its own handle unless a numeral sits IMMEDIATELY beside it (`_figure_already_stated` /
+        # `_HANDLE_ADJ_BEFORE_RX`, whitespace and brackets only), and L1's clause puts the UNIT between
+        # the numeral and the handle -- so the shipped shape measured as "the served reading is 0.117
+        # S/U ratio 0.117 S/U ratio [N34]", D-PQ HANDLE-1's doubled figure re-minted by the correction
+        # itself. Under the treatment L1 appends the HANDLE ALONE and the resolver fills it, which is
+        # the D-HP contract.
+        if _state_chain:
+            _clints = _chain_lints(structured, extra_number_calls, _board, handle_prose=_handles)
+            # STAMPED IFF SOMETHING WAS READ OR DONE, the `bar_adjectives` rule: `outcome` alone is not
+            # a finding, and a key stamped on every chain turn would move an eval column for no
+            # measured reason. A turn whose block carried chains the writer never narrated is a real
+            # zero and reads as an absent key, which is what `chain_referenced` on the coverage splat
+            # is for.
+            if any(v for k, v in _clints.items() if k != "outcome"):
+                sg.trace["chain_lints"] = _clints
         # S7b R2's LINT + its ONE bounded rewrite, in the SAME gate and immediately after -- the last
         # pass that may touch the MODEL's own words, and still before any splice. Flag off -> not
         # called, no call, no key, byte-identical.
@@ -10266,6 +10389,677 @@ def _bind_bar_adjectives(structured: dict | None, number_calls: list | None) -> 
                 structured[field] = "".join(toks)
     except Exception:  # noqa: BLE001 -- a render guard must never be the thing that breaks an answer
         return census
+    return census
+
+
+# ══ S8 LANE A -- THE THREE CHAIN LINTS. EVERY ONE OF THEM APPENDS; NOT ONE OF THEM MAY DELETE. ═══════
+# DESIGN B.6. They are `_bind_bar_adjectives`' seat, its segmentation (`register._SENT_KEEP`, so the
+# unit a clause is appended to is the unit the licence keeps alive), its append-inside-the-terminator
+# rule, its idempotence guard and its belt -- five properties, taken deliberately rather than
+# re-invented, because the estate has paid twice this month for a fence that reached further than the
+# pass it was modelled on.
+#
+# WHAT IS NEW IS THE SOURCE OF TRUTH: these three read the BLOCK THE WRITER WAS ACTUALLY HANDED
+# (`Board.rendered_rows`, which `render.render_board` stamps after every cap, every fence correction
+# and every weld) and never the `Chain` objects behind it. The question each lint asks is "did the
+# writer narrate the page it was given", and the page is the rows. It also makes the join FREE and
+# EXACT: a rendered hop line IS `'  chain <name in reader words>[ [N<k>]]: <its reading>...'`, so the
+# name the writer read, the address that minted its figure and the chain it belongs to are all on one
+# line that the register fence has already graded.
+#
+# THE APPEND-ONLY LAW IS GRADED AT BUILD, BY NAME, ON THIS FILE'S OWN SOURCE. `state/lint.py` clause 15
+# (`_check_chain_lints_append_only`) parses answer.py, finds every function carrying one of
+# `lint.CHAIN_LINT_COUNTERS` as a string constant, and FAILS THE BUILD unless that function has no
+# `del`, no removing collection method, no slot blanked with `""`, an idempotence guard
+# (`if <clause> in <sentence>: continue`) and an in-place increment. That is why all three counters are
+# produced by ONE function: three functions would be three places for the law to be graded and three
+# places for it to be forgotten, and the guard below is load-bearing twice -- it makes a re-run append
+# nothing twice, and it is the clause the build reads.
+#
+# NONE OF THE THREE MINTS OR REWRITES A NUMERAL. Every figure L1 appends is a SERVED ROW's own, taken
+# character for character from the `[N]` call that minted it (`_seam_row_index`, which is the same
+# index `verify._check_number_handle` value-checks a writer's transcription against), and it ships
+# CITED at that row's own address. That is the `_bind_bar_adjectives` licence and its exact boundary:
+# these passes run AFTER `verify_citations`, so a figure they invented would be unverified, and a
+# figure they copy is the one the verifier already passed.
+#: L1's clause. The FIGURE and its ADDRESS travel together and so do the percentile and ITS address --
+#: a correction that prints two figures under one handle is the wrong-row defect the pre-arm fix lane
+#: measured ("a first cut printed a 23rd-percentile harvested area off a stocks-to-use row sixty words
+#: away"), and here the two rows are genuinely two rows: the board mints a level, a sigma and a
+#: percentile as THREE `[N]` calls off ONE series with a byte-identical label head.
+_CHAIN_FIGURE_OPEN = " -- the served reading is "
+_CHAIN_FIGURE_PCT = ", %s percentile of its own record [N%d]"
+#: THE SAME TWO CLAUSES UNDER THE D-HP TREATMENT (`handle_prose`), where the ONE contract is that a row
+#: reaches the reader as its HANDLE and `_resolve_number_handles` splices the value in front of it. The
+#: level clause is `_CHAIN_FIGURE_OPEN` with the handle alone; this is the percentile's, written so the
+#: spliced value reads as the sentence ("at 68 percentile [N36] of its own record").
+_CHAIN_FIGURE_PCT_HANDLE = ", at [N%d] of its own record"
+#: L2's clause. DESIGN B.6 writes it "the graph places <hop 2> between these two" and THE SHIPPED
+#: CLAUSE MAY NOT SAY THAT: `the graph` is a CHARGED token of `register.DESK_REGISTER_TOKENS` (its
+#: replacement column reads "the mechanism, the driver model"), so the design's literal would put a
+#: desk-register charge on the page in the same commit that ships the fence -- which is lane R's own
+#: W-1 finding, one lane over, in the other direction. `declared` is the block's own word for the same
+#: fact (`render.sb_chain_hop` writes "declared ... onto <next hop>"), and the shipped clause measures
+#: clean on all four graders: `desk_register_hits`, `internal_leaks`, `register_leaks`,
+#: `count_flow_words` / `count_valuation_words` / `count_exec_words` all zero.
+_CHAIN_SKIP_OPEN = " -- the declared sequence places "
+_CHAIN_SKIP_CLOSE = " between these two"
+#: L3's clause. DESIGN B.6 writes "not one the block ranked"; `block` is this instrument's own word for
+#: itself and threat E12 is about exactly that, so the shipped clause says `this page` -- the noun the
+#: block itself uses for the same fact.
+#:
+#: ROUND 3 (review MAJOR B-1) TOOK THE VERB OFF `ranked` AND ONTO `carries`, WHICH IS THE BLOCK'S OWN
+#: WORD FOR THE SAME FACT. `ranked` was a claim about the POOL and this instrument could only see the
+#: RENDERED set, so the page told a reader it had never ranked a sequence a chain of its own pool
+#: carries and it scored LEVEL WITH ITS OWN RENDERED #1 -- measured on the corn+wheat max board,
+#: which renders four chains scoring 76.0 / 70.0 / 69.4 / 52.5 (the order the page prints them in,
+#: which is `Chain.rank`) and whose best pool chain carrying such a pair scores 76.0, the rendered
+#: top's own score to the decimal (`_chain_pool_carry` below).
+#:
+#: ROUND 4 (review MINOR m-5) STRUCK THE QUOTATION THAT JUSTIFIED THE NOUN, because the block does not
+#: print it. MEASURED on seven rendered boards: "the three above are what this page carries" occurs in
+#: NO block. THE VERB IS STILL THE BLOCK'S, in `render.sb_chain_head` / `sb_chain_one_line`, whose
+#: singular branch reads "CHAIN the one this page carries, ..." -- and on a board rendering more than
+#: one chain that same head reads "CHAIN first of four, ...", so what a reader checks the clause
+#: against is the head's own ordinal and the below-print-line class ("the chains below this page's own
+#: selection line are counted here; the reading behind each of them is still on the page"). Both say
+#: CARRIES or COUNTS and neither says RANKED, which is the whole of the ruling.
+_CHAIN_UNRANKED_CLAUSE = " -- this chain is not one this page carries"
+_CHAIN_TERMINATORS = ".!?;"
+#: The cite a rendered hop line carries for its OWN reading -- always the LAST token of the line's head
+#: (`render.sb_chain_hop` writes `prefix + humanise(driver_id) + cite + ":"`), never the terminal's.
+_CHAIN_HOP_CITE_RX = re.compile(r"\s*\[N(\d+)\]\s*$")
+#: THE MATCH ALPHABET. Everything that is not a letter or a digit folds to ONE space, on both sides, so
+#: "stocks-to-use ratio" and "stocks to use ratio" are one key and a name can only match on WORD
+#: boundaries. It is a normalisation and NOT a synonym table: the estate has measured what a
+#: hand-built frame list does to unseen prose (`feedback_negative_corpus_must_be_unseen_prose`), and
+#: every alternative spelling these lints accept is one a PRODUCER already wrote for a reader.
+_CHAIN_FOLD_RX = re.compile(r"[^a-z0-9]+")
+#: WHAT MAKES A SENTENCE A *CHAIN* SENTENCE, and it is DESIGN B.6's own words read strictly: one that
+#: "names a hop the block rendered and PRINTS NO FIGURE for it". A sentence carrying any numeral at all
+#: -- a level, a percentile, a year, or the digits inside a `[N]` handle -- has already handed the
+#: reader a number and an address to check it at; the class these three lints exist for is the other
+#: one, the pure topology claim that tells a reader a mechanism and gives it nothing to act on. Both
+#: sentences DESIGN B.6 names as L1's target case are digit-free, and so is every chain-shaped sentence
+#: in the five 2026-09-16 served notes.
+#:
+#: IT IS ALSO THE E11 FENCE AT THE PROSE END, and that is what it was tightened for. MEASURED before
+#: it, on a deliberately mismatched cell (a palm board's rendered chain against the soybean deep
+#: note): fourteen appends, of which twelve put a Malaysian palm figure beside the phrase "ending
+#: stocks" in sentences whose subject was SOYBEANS -- two of them beside the writer's own `[N7]` for
+#: the soybean row. One market's figure on another market's sentence is the standing memory as a page
+#: byte, and a correction that names the wrong row is strictly worse than the word it replaced. With
+#: the rule the same cell appends ZERO.
+_CHAIN_DIGIT_RX = re.compile(r"\d")
+#: A hop name shorter than this is not a match key ON ITS OWN. MEASURED on the five 2026-09-16 served
+#: notes: the bare ids that fall under it are ordinary desk words ("frost", "urea"), and a lint that
+#: fired on them would be reading the writer's vocabulary rather than its narration.
+_CHAIN_NAME_MIN = 8
+#: ROUND 2 (review MAJOR A-2, threat E11 at the prose end). THE SHORTEST WORD OF A BOARD'S OWN READER
+#: LABEL that may name a market on its own. `render.board_label` is `'{EXCH} {node}'` (`corn_cbot` ->
+#: "CBOT corn", `soft_red_winter_wheat_cbot` -> "CBOT srw wheat") and the 2026-09-16 notes write the
+#: commodity word bare -- "a supply shock into corn's thin buffer ... the same shock into wheat's
+#: cushion" -- so `render._market_words`' two-token spellings match NEITHER market on the sentence that
+#: made this fence necessary. The charity is bounded in the direction that costs nothing: this token
+#: set is only ever read to REFUSE an append (a figure NOT printed, with every word of the sentence
+#: still on the page), never to accept one, so a loose match spends a correction and never a claim.
+_CHAIN_MARKET_MIN = 4
+
+
+def _chain_market_fence(board) -> dict | None:
+    """``{contract -> the folded words that name a DIFFERENT MARKET OF THIS PAGE}``; ``{}`` on a page
+    that names exactly ONE market; **``None`` when the page's own markets could not be read at all**.
+
+    THE MEASURED CAUSE (review MAJOR A-2, on a real 2026-09-16 turn against its own served note): on
+    the `corn_cbot` + `soft_red_winter_wheat_cbot` max board BOTH rendered chains are corn's and the
+    only stocks-to-use rows served are corn's, so neither the address fence nor the spelling fence sees
+    anything -- and L1 appended corn's `0.117 S/U ratio [N64]` immediately after the clause "the same
+    shock into wheat's cushion". The estate's own round-3 ruling is that a correction naming the wrong
+    row is strictly worse than the word it replaced, and the standing memory is
+    `feedback_string_identity_joins_lose_renames`.
+
+    Each market's words are its own reader label minus a leading exchange code, and what is kept per
+    market is the words that NO OTHER market of this page shares -- so "oil" never fences a
+    soyoil/palm board (both carry it) while "palm" fences a soyoil hop and "wheat" fences a corn one.
+
+    ROUND 3 (review MAJOR B-2): THE MARKETS ARE THE ANCHORS **AND THE RENDERED CHAINS' OWN TERMINALS**,
+    read off the SAME board object (``Chain.terminal``, the contract slug a rendered chain reaches).
+    Round 2 read the anchors alone, so a board with ONE anchor had no fence at all by construction --
+    and a single-anchor board RENDERS CROSS CHAINS INTO OTHER MARKETS AND NAMES THEM. MEASURED on the
+    max soybeans board (one anchor, three rendered cross chains to BMF corn, ICE canola and CBOT srw
+    wheat): the sentence "the pressure shows up in BMF corn rather than here, and it travels through
+    the export pace lag" was given SOYBEANS' `664.8 1000 MT [N7]`, `corrected=1
+    chain_hops_ambiguous=0`. That is A-2's own defect -- a correction that names the wrong row is
+    strictly worse than the word it replaced -- on the board shape that is the MAJORITY.
+
+    IT WIDENS AN EXISTING TERM AND ADDS NONE: the same `board_label` fold, the same
+    keep-what-no-other-market-shares rule, the same refuse-only direction. MEASURED on seven real
+    fixture boards: NOT ONE of the words this widening adds names a rendered hop of its own market
+    (`fence_word_that_names_a_rendered_hop_of_its_own_market` = 0 on all seven), so nothing the page
+    itself printed can be fenced by its own terminal's name.
+
+    ROUND 4 (review MINOR m-6): IT FAILS CLOSED, AND THE TWO EMPTY ANSWERS ARE NOW TWO ANSWERS. ``{}``
+    means "this page names ONE market", which needs no fence BY CONSTRUCTION -- no sentence can name
+    another market of a page that has only one. ``None`` means "I could not read this page's markets":
+    the display vocabulary raised, or not one slug came back. Round 3 returned ``{}`` for both, and
+    the caller reads ``{}`` as NO FENCE, so an unreadable vocabulary RESTORED the exact defect this
+    function exists to stop. DRIVEN AND MEASURED (r2d/A_m6_failopen.py, `render.board_label` raising
+    on seven real boards): on the deep AND the max soybeans board the corn/wheat note gained TWO
+    corrections the shipped fence refuses -- a soybean figure appended to a corn/wheat sentence --
+    while `chain_hops_ambiguous` fell 2 -> 0, so the arm read the fence's disappearance as "nothing
+    was refused". The caller now refuses every figure on a ``None`` and counts each refusal in
+    ``chain_fence_closed``, which is a stamp the arm can see rather than a silence it cannot."""
+    slugs = [str(s) for s in (getattr(board, "anchor_slugs", None) or ()) if str(s or "").strip()]
+    for c in (getattr(board, "chains", None) or ()):
+        if not getattr(c, "rendered", False):
+            continue                          # a chain the page did not print names no market to a reader
+        t = str(getattr(c, "terminal", "") or "").strip()
+        if t and t not in slugs:
+            slugs.append(t)
+    if not slugs:
+        return None                                   # NOT ONE market read: fail CLOSED, never open
+    if len(slugs) < 2:
+        return {}                                     # ONE market: no other market of this page exists
+    words: dict = {}
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: the state package is phase-2
+        for s in slugs:
+            parts = str(_sr.board_label(s) or "").split(" ")
+            if len(parts) > 1 and parts[0].isupper():
+                parts = parts[1:]                     # the exchange code is not a market word
+            words[s] = {w for w in _chain_fold(" ".join(parts)).split()
+                        if len(w) >= _CHAIN_MARKET_MIN}
+    except Exception:  # noqa: BLE001 -- an unreadable vocabulary is NO FIGURE, never an unfenced one
+        return None
+    out: dict = {}
+    for s in slugs:
+        other: set = set()
+        for t in slugs:
+            if t != s:
+                other |= words.get(t, set())
+        out[s] = tuple(" " + w + " " for w in sorted(other - words.get(s, set())))
+    return out
+
+
+def _chain_fold(text: str) -> str:
+    """``text`` as the match alphabet, space-padded so a lookup is a word-boundary test."""
+    return " " + _CHAIN_FOLD_RX.sub(" ", str(text or "").lower()).strip() + " "
+
+
+def _chain_hop_names(printed: str, call) -> tuple:
+    """The FOLDED spellings one hop may be named by, and every one of them was written for a reader by
+    a producer this turn already ran.
+
+    (i) ``printed`` -- the name the BLOCK put on the page (``render.humanise``, the estate's one display
+        vocabulary). This is the spelling the writer read, so it is the one it usually copies.
+    (ii) the DECLARED READER WORDS of the row's own card (``render.reading_words(table, metric)``, off
+        ``state_conventions.yaml``) and the same without a leading article. The block PRINTS these too
+        ("the reading is the stocks-to-use ratio"), which is why the 2026-09-16 deep note names a
+        stocks-to-use ratio where the node id reads `psd_ending_stock_su_ratio` -- the writer took the
+        card's words, not the node's. A lint that knew only (i) would miss the sentence DESIGN B.6
+        names as its target case.
+
+    A name under :data:`_CHAIN_NAME_MIN` characters is dropped, and an undeclared card contributes
+    nothing -- ``reading_words`` returns '' for a metric the conventions do not declare, which is its
+    own documented fail-closed property."""
+    out: list = []
+    for name in (printed,):
+        folded = _chain_fold(name).strip()
+        if len(folded) >= _CHAIN_NAME_MIN:
+            out.append(folded)
+    q = (call or {}).get("query") if isinstance(call, dict) else None
+    if isinstance(q, dict):
+        try:
+            from leviathan.graphrag.state import render as _sr  # lazy: the state package is phase-2
+            words = _sr.reading_words(str(q.get("table") or ""), str(q.get("metric") or ""))
+        except Exception:  # noqa: BLE001 -- an unreadable conventions book is one fewer spelling
+            words = ""
+        folded = _chain_fold(words).strip()
+        for cand in (folded, folded[4:] if folded.startswith("the ") else ""):
+            if len(cand) >= _CHAIN_NAME_MIN and cand not in out:
+                out.append(cand)
+    return tuple(out)
+
+
+def _chain_hop_rows(board, number_calls) -> list:
+    """Every hop of every chain THE BLOCK RENDERED, in page order, joined to the rows that minted its
+    figures. ``[]`` when the chain leg did not run, which is every flag-off turn.
+
+    Each entry: ``{rank, pos, printed, names, n, pct_n, figure, pct, contract, driver_id, id}`` -- the
+    chain's page position, the hop's position inside it, the name the page printed, the folded
+    spellings it may be narrated by, the `[N]` address of its level and of its percentile, the two
+    figures as the CITATION spells them, and THE HOP'S OWN (contract, driver_id) IDENTITY. ``n`` is
+    None for a hop the board read no series for, which is the honest majority: on the max fixture,
+    five of the eight rendered hops carry no series at all.
+
+    ROUND 2 (review MAJOR A-2 / MAJOR A-1, threat E11): ``contract`` AND ``driver_id`` COME OFF THE
+    PRODUCER'S OWN CHAIN OBJECT, positionally -- the rendered chains IN ``Chain.rank`` ORDER, which is
+    the order `render.render_board` prints them in and which round 4 had to correct from the pool's
+    list order (see the comment on the sort below), then that chain's ``hops[pos - 1]`` -- and THE JOIN
+    VERIFIES ITSELF: the object's ``humanise(driver_id)`` must equal the name the line printed, or the
+    hop carries no identity at all and every rule below fails closed on it. That is the one thing the
+    rendered row cannot give -- `rows_meta` keeps `role`, `rank`, `cls`, `handles`, `tokens` and `line`
+    and drops the `label`/`display` the block was built with -- and the design forbids joining on the
+    id alone: ``id`` is ``(contract, driver_id, n)``, never a driver id, and never a spelling.
+
+    THE PERCENTILE'S ADDRESS IS FOUND THE WAY `_seam_percentiles` finds it -- by the LABEL HEAD, which
+    the level row and the percentile row share byte for byte because one `cit.from_number` built both.
+    An ambiguous head (two percentile rows under one head) yields no percentile address at all, which
+    is the same refusal that index makes and for the same reason: two ranks for one series is not a
+    fact a correcting lint may pick between."""
+    out: list = []
+    rows = list(getattr(board, "rendered_rows", None) or ())
+    if not rows:
+        return out
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: phase-2 only, gate-guarded
+        prefix = str(_sr.CHAIN_SUB_PREFIX)
+        # THE BLOCK'S OWN ENUMERATION, AND IT IS `Chain.rank` AND NOT THE POOL'S LIST POSITION.
+        # ROUND 4, MEASURED THE HARD WAY: `render.render_board` sorts the rendered chains by
+        # `Chain.rank` before it prints them ("ONE ORDER, and it is the selection's own"), and the
+        # rendered subsequence of `board.chains` is in POOL order -- so a positional join is a join on
+        # a key the producer does not use. On the corn+wheat max board the page prints ranks
+        # 1..4 as scores 76.0 / 70.0 / 69.4 / 52.5 while the pool holds them 52.5 / 76.0 / 70.0 /
+        # 69.4: ALL THIRTEEN rendered hops came back identity-less, five of this deck's pins went
+        # vacuous, and on the max rapeseed board six of nine did. THE JOIN FAILED CLOSED, which is
+        # the one thing that went right -- no figure landed on another hop's sentence -- but a fence
+        # that is inert is not a fence. The key is now the PRODUCER'S OWN, read off the shipped
+        # property, so the two orders cannot part again without `Chain.rank` itself moving.
+        chains = sorted((c for c in (getattr(board, "chains", None) or ())
+                         if getattr(c, "rendered", False)), key=lambda c: c.rank)
+        calls = list(number_calls or [])
+        idx = _seam_row_index(calls)
+        pct_by_head: dict = {}
+        for i, r in sorted(idx.items()):
+            if str(r.get("unit") or "").lower() != "percentile":
+                continue
+            head = r.get("head")
+            pct_by_head[head] = None if head in pct_by_head else i
+        seen: dict = {}
+        for m in rows:
+            if str(m.get("role") or "") != "chain_hop":
+                continue
+            line = str(m.get("line") or "")
+            if not line.startswith(prefix) or ":" not in line:
+                continue
+            head = line[len(prefix):line.index(":")]
+            cite = _CHAIN_HOP_CITE_RX.search(head)
+            n = int(cite.group(1)) if cite else None
+            printed = (head[:cite.start()] if cite else head).strip()
+            rank = int(m.get("rank") or 0)
+            seen[rank] = seen.get(rank, 0) + 1
+            pos = seen[rank]
+            # THE (contract, driver_id) IDENTITY, POSITIONALLY AND VERIFIED (E11). `render_board`
+            # writes one `chain_hop` row per hop of each FULL rendered chain, in hop order, under that
+            # chain's rank -- so rank and position ARE the address of the producer's own object. The
+            # equality below is what makes that an assertion rather than an assumption: a block whose
+            # hop lines ever stop being `humanise(driver_id)` leaves the hop identity-less, and an
+            # identity-less hop is fenced everywhere it matters instead of being joined by its name.
+            _ch = chains[rank - 1] if 0 < rank <= len(chains) else None
+            _hops = list(getattr(_ch, "hops", None) or ()) if _ch is not None else []
+            _hop = _hops[pos - 1] if 0 < pos <= len(_hops) else None
+            if _hop is not None and str(_sr.humanise(getattr(_hop, "driver_id", "")) or "") != printed:
+                _hop = None
+            contract = str(getattr(_hop, "contract", "") or "") if _hop is not None else ""
+            driver_id = str(getattr(_hop, "driver_id", "") or "") if _hop is not None else ""
+            row = idx.get(n) if n else None
+            figure = " ".join(x for x in ((row or {}).get("value"), (row or {}).get("unit")) if x)
+            pct_n = pct_by_head.get((row or {}).get("head")) if row else None
+            pct = ""
+            if pct_n:
+                try:
+                    pct = _seam_ordinal(float(str(idx[pct_n]["value"]).replace(",", "")))
+                except (KeyError, TypeError, ValueError):
+                    pct, pct_n = "", None
+            out.append({"rank": rank, "pos": pos, "printed": printed,
+                        "names": _chain_hop_names(printed, calls[n - 1] if n and n <= len(calls)
+                                                  else None),
+                        "n": n if figure else None, "pct_n": pct_n, "figure": figure, "pct": pct,
+                        "contract": contract, "driver_id": driver_id,
+                        "id": (contract, driver_id or printed, n if figure else None)})
+        # E11: A SPELLING THAT NAMES TWO DIFFERENT ROWS NAMES NOTHING. `area` is a driver of
+        # `corn_cbot` AND of `soft_red_winter_wheat_cbot` and the two read the 98th and the 1st
+        # percentile ON THE SAME TURN; `ending stocks` is a hop on one board and an ordinary
+        # balance-sheet phrase everywhere else. A multi-anchor board can therefore render two chains
+        # whose hops share a spelling, and a correcting lint that picked the first of them would
+        # append one market's figure to the other market's sentence -- the standing memory
+        # (`feedback_string_identity_joins_lose_renames`) as a page byte. Two hops sharing a spelling
+        # AND an address are ONE reading under two node names (the crush fold: `soybean crush margin`
+        # and `board crush` are both served "the board crush margin") and keep it; two hops sharing a
+        # spelling and NOT an address both lose it, which is `_seam_percentiles`' own refusal and for
+        # the same stated reason -- two readings for one name is not a fact this lint may pick between.
+        #
+        # ROUND 2 (review MAJOR A-2): THE KEY IS `(contract, address)` AND NOT THE ADDRESS ALONE. A
+        # spelling that names one series on TWO MARKETS names nothing, even where both markets' rows
+        # were minted under one handle, because "the stocks-to-use ratio" on a corn+wheat board is not
+        # a fact this lint may pick between either -- E11's own rule, which the design writes as "the
+        # state join keys on (contract, driver_id) and the series key, NEVER the id alone". The crush
+        # fold is UNCHANGED by the widening: `soybean crush margin` and `board crush` are two node
+        # names for ONE market's ONE series, so they share the key and keep the spelling.
+        #
+        # AND IT RUNS IN A `finally`, which is the other half of the same fence. Before round 2 the
+        # broad belt below returned the PARTIALLY BUILT `out` from a mid-loop exception -- with the
+        # colliding spellings still on it, because this block sits after the loop. A fence that an
+        # exception can walk around is not a fence.
+    except Exception:  # noqa: BLE001 -- an instrument must never be the thing that breaks an answer
+        return out
+    finally:
+        where: dict = {}
+        for h in out:
+            for name in h["names"]:
+                where.setdefault(name, set()).add((h["contract"], h["n"]))
+        drop = {name for name, addrs in where.items() if len(addrs) > 1}
+        if drop:
+            for h in out:
+                h["names"] = tuple(x for x in h["names"] if x not in drop)
+    return out
+
+
+def _chain_pool_carry(board) -> dict:
+    """``{(contract, driver_id) -> the set of POOL POSITIONS whose chain carries that hop}``, over
+    ``board.chains`` **ENTIRE** -- the chains this page RANKED, rendered and unrendered alike.
+
+    ROUND 3, REVIEW MAJOR B-1. `_chain_hop_rows` reads `[c for c in board.chains if c.rendered]`,
+    which is the right set for a lint that must speak about what the reader can SEE -- and the wrong
+    set for L3, whose whole claim is about what this page RANKED. `board.chains` is the pool the walk
+    scored and ordered (328 / 486 / 1,280 / 1,848 / 3,539 chains on the five boards the review
+    measured) of which one, two or three RENDER, and the block's own vocabulary already separates the
+    two: the head line says "the one this page carries" while the below-print-line class says "the
+    chains below this page's own selection line are COUNTED here".
+
+    MEASURED ON SEVEN REAL BOARDS AS THIS TREE RANKS THEM (round-4 re-measurement; the round-2b
+    figures were taken before the ranker moved and three of their denominators no longer hold): of the
+    pairs of distinct RENDERED hops that no RENDERED chain carries together -- exactly L3's firing
+    condition -- these many are carried together by a chain of the SAME POOL, and this is the best
+    score a carrying chain reaches beside the page's own rendered top:
+
+        rape deep         2 of 4    carrier 62.3   rendered [63.8, 60.4]
+        rape max          2 of 12   carrier 62.3   rendered [63.8, 60.4, 57.5]
+        soy deep          5 of 9    carrier 69.9   rendered [72.2, 71.4]
+        soy max           4 of 27   carrier 63.4   rendered [71.4, 63.4, 60.8]
+        corn+wheat max    8 of 51   carrier 76.0   rendered [76.0, 70.0, 69.4, 52.5]
+        soyoil+palm max   3 of 33   carrier 72.2   rendered [74.4, 71.2, 68.6, 52.3]
+        palm+rape max     3 of 33   carrier 72.2   rendered [74.4, 71.2, 67.0, 47.5]
+
+    (the rendered lists are in the order the PAGE prints them, which is `Chain.rank` and not the
+    pool's own list order -- the two parted under this round and cost `_chain_hop_rows` its join.)
+
+    On corn+wheat max the carrier scores 76.0, which is this page's own rendered #1 to the decimal;
+    on rape deep, rape max and soy max it scores ABOVE a chain the page did render. A writer that narrates a
+    mechanism this page ranked level with its own first chain and chose not to print was told, ON THE
+    PAGE, that the page never ranked it -- beside a head line counting how many chains it holds.
+
+    THE KEY IS `(contract, driver_id)` AND NOT THE E11 ADDRESS TRIPLE, because a pool chain carries no
+    `[N]` address: the POOL knows drivers, the PAGE knows readings. Two rendered rows that differ only
+    by address fold to ONE pool hop here, which is the honest reading -- one driver named twice is not
+    a sequence. A hop with NO driver id contributes nothing and is never keyed, which is what makes
+    the caller's identity test meaningful.
+
+    ROUND 4 (review MINOR m-6): AN EMPTY ANSWER IS A CLOSED DOOR AND NOT AN OPEN ONE. Round 3 returned
+    ``{}`` on an exception, and ``{}`` made every ``pool.get(k)`` None, ``all(held)`` False and L3
+    STAMP -- restoring in one `except` the false claim B-1 closed. The caller now reads an EMPTY POOL
+    of any cause -- raised, or a board whose chains carry no driver id -- as "I cannot say what this
+    page carries", withholds the stamp and counts it in ``chain_fence_closed``. It is a belt rather
+    than a remedy and it is measured as one: on the seven real boards the pool is 28-86 keys deep and
+    never empty while hops exist, and forcing it empty moves NOTHING on the five 2026-09-16 served
+    notes (r2d/A_m6_failopen.py) -- L3 does not reach them. What it removes is the shape."""
+    out: dict = {}
+    try:
+        for i, c in enumerate(getattr(board, "chains", None) or ()):
+            for hp in (getattr(c, "hops", None) or ()):
+                did = str(getattr(hp, "driver_id", "") or "")
+                if did:
+                    out.setdefault((str(getattr(hp, "contract", "") or ""), did), set()).add(i)
+    except Exception:  # noqa: BLE001 -- an unreadable pool is NO CLAIM, never an unchecked one
+        return {}
+    return out
+
+
+def _chain_append_clause(sent: str, clause: str) -> str:
+    """``clause`` appended INSIDE the sentence, before its terminator and before any trailing space --
+    `_bind_bar_adjectives`' own three lines, lifted rather than re-derived so the two correcting passes
+    can never disagree about where a sentence ends."""
+    body = sent.rstrip()
+    tail = sent[len(body):]
+    end = ""
+    while body and body[-1] in _CHAIN_TERMINATORS:
+        end, body = body[-1] + end, body[:-1]
+    return body + clause + end + tail
+
+
+def _chain_lints(structured: dict | None, number_calls, board, *, handle_prose: bool = False) -> dict:
+    """DESIGN B.6's THREE CORRECTIONS, in one pass over the writer's own sentences. Returns
+    ``{outcome, sentences, corrected, chain_hops_unfigured, chain_hops_skipped,
+    chain_unranked_narrated, chain_hops_ambiguous, chain_fence_closed}``; mutates ``structured`` in
+    place; never raises; never deletes.
+
+    ``chain_fence_closed`` (ROUND 4, review MINOR m-6) is the FAIL-CLOSED counter and it belongs to
+    both fences at once: it counts the corrections this pass WITHHELD because an instrument it reads
+    could not be read -- a figure not appended because `_chain_market_fence` returned ``None``, and an
+    L3 stamp not made because `_chain_pool_carry` came back empty. It is the counted word the arm sees
+    in place of the silence round 3 shipped, and it rides `sg.trace["chain_lints"]` on the same rule
+    as every other counter here (stamped iff something was read or done).
+
+      L1  A CHAIN SENTENCE THAT NAMES A RENDERED HOP AND PRINTS NO FIGURE FOR IT gets the served
+          reading appended, at the address that minted it. The measured target is the 2026-09-16 deep
+          note's own chain prose -- "the model places it one hop upstream of both the stocks-to-use
+          ratio and the WASDE revision that re-prices the sheet" -- where two hops are named, a reader
+          is told a topology, and neither hop is given a number it could act on.
+          ``chain_hops_unfigured`` counts the named hops with NO served figure to append. Those are not
+          a defect and nothing is struck for them: WORDS ARE FREE, and a hop the board read no series
+          for is a hop whose declared direction is all there is. The counter exists so the arm can see
+          how much of the chain prose stands on declaration alone (threat E3).
+          ``chain_hops_ambiguous`` (ROUND 2, review MAJOR A-2) counts the hops that HAD a served figure
+          and were refused it because the sentence names another MARKET OF THIS PAGE -- an anchor or
+          the terminal of a rendered cross chain (round 3, review MAJOR B-2) -- the
+          measured defect being corn's `0.117 S/U ratio [N64]` appended immediately after "the same
+          shock into wheat's cushion". Refusing costs the reader a figure it can still look up; naming
+          the wrong row costs it the page's word.
+      L2  A SENTENCE THAT JUMPS a rendered chain's own sequence is STAMPED with what it jumped, never
+          cut. ``chain_hops_skipped`` counts the hops named back onto the page.
+      L3  A SENTENCE NARRATING A SEQUENCE THIS PAGE DOES NOT CARRY is stamped and survives (ruling
+          R2's shape, threat E2). It fires on the one case the page can actually adjudicate: a
+          sentence that walks from TWO DISTINCT HOPS -- distinct on the E11 key
+          `(contract, driver_id, address)` and never on a spelling -- that NO SINGLE RENDERED CHAIN
+          carries together AND that NO CHAIN OF THE POOL carries together either.
+          ``chain_unranked_narrated`` is the counter the arm report reads.
+
+          ROUND 3 (review MAJOR B-1) MADE THE PREDICATE READ THE POOL AND THE CLAUSE SAY `carries`.
+          `_chain_hop_rows` reads the RENDERED chains, so a sequence a POOL chain carries -- scored,
+          ordered and counted by the same page, merely not rendered -- was stamped as one the page
+          never ranked: measured on SEVEN real boards at 2 of 4 firable pairs (rape deep), 2 of 12
+          (rape max), 5 of 9 (soy deep), 4 of 27 (soy max), 8 of 51 (corn+wheat max) and 3 of 33 on
+          each of soyoil+palm max and palm+rape max, with the carrying chain scoring 76.0 on the
+          corn+wheat board whose four rendered chains score 76.0 / 70.0 / 69.4 / 52.5 -- level with
+          its own rendered #1. `_chain_pool_carry` is the predicate, carries its own table, and the
+          clause is now the block's own verb.
+
+          ROUND 2 (review MAJOR A-1) MOVED THAT TEST OFF THE RENDERED LINE AND ONTO THE HOP.
+          `walk.chain_render_set` folds only the TOP hop and the RECEIPT hop, so a shared MIDDLE or
+          TERMINAL hop is legal by construction and the shipped `french_rapeseed_matif` board renders
+          two chains (deep) and three (max) that ALL end at `ending_stocks_su_ratio`. One hop rendered
+          twice used to enter `named` TWICE with two ranks, so a sentence naming that ONE hop satisfied
+          both legs and was stamped "this chain is not one this page ranked" -- about a hop the page
+          ranked twice, 7 times on the five 2026-09-16 served notes at deep and 7 at max, and it
+          SILENCED L2 on those sentences as well (the `elif`). The rule now: fold `named` to distinct
+          hops, and fire only when the ranks those hops appear in have NO CHAIN IN COMMON.
+
+    ONE CLAUSE OF EACH KIND PER SENTENCE, AT MOST. DESIGN B.6 writes all three in the singular and the
+    reason is the reader: a sentence naming four hops does not become clearer for four appended
+    clauses, it becomes a list. L1 takes the FIRST named hop in the sentence that has a served figure
+    and no address of its own already cited there.
+
+    IT IS NOT A GATE ANYWHERE. Every branch either appends or counts -- including the two fail-closed
+    branches, which withhold a CORRECTION this pass would have added and never a word the writer
+    wrote; no sentence, clause, handle or
+    numeral can leave by this function, which `state/lint.py` clause 15 grades on this source at build
+    and `tests/unit/test_chain_lints.py` measures on the five 2026-09-16 SERVED NOTES -- prose written
+    months before any of these three rules existed (standing memory,
+    `feedback_negative_corpus_must_be_unseen_prose`).
+
+    THE BOARD IS AN ARGUMENT AND THE FLAG IS NOT READ HERE. The caller resolves `_state_chain_block_on`
+    once per turn and calls this only then; a board with no rendered chain rows returns
+    ``outcome='no_chain'`` having read nothing, which is also what the one-hop body would get -- so the
+    lints are seated on the L2 body alone, deliberately: `GRAPHRAG_PLANNER=onehop` builds no board, and
+    stamping "not one this page carries" on a turn that HAS no page would be a fence telling the reader
+    something false about a decision nobody made.
+
+    ``handle_prose`` IS THE SAME ONE RESOLUTION THE PASSES BESIDE THIS ONE ARE THREADED WITH
+    (`_handle_prose_active`, D-HP-9/12), and it changes ONE thing: under the treatment L1 appends the
+    HANDLE ALONE and lets `_resolve_number_handles` fill it. MEASURED (review MAJOR A-3): the shipped
+    clause puts the UNIT between the numeral and the handle, `_figure_already_stated` reads strict
+    adjacency (whitespace, brackets and quotes only), so the resolver spliced the value a SECOND time
+    -- "the served reading is 0.117 S/U ratio 0.117 S/U ratio [N34]", D-PQ HANDLE-1's doubled figure
+    re-minted by the correction itself. Default False, so every non-`_hp` turn is byte-identical."""
+    census = {"outcome": "ok", "sentences": 0, "corrected": 0, "chain_hops_unfigured": 0,
+              "chain_hops_skipped": 0, "chain_unranked_narrated": 0, "chain_hops_ambiguous": 0,
+              "chain_fence_closed": 0}
+    if not isinstance(structured, dict):
+        census["outcome"] = "bad_shape"
+        return census
+    hops = _chain_hop_rows(board, number_calls)
+    if not hops:
+        census["outcome"] = "no_chain"
+        return census
+    try:
+        by_rank: dict = {}
+        for h in hops:
+            by_rank.setdefault(h["rank"], []).append(h)
+        # THE MARKET FENCE IS RESOLVED ONCE PER TURN, off the board's OWN markets -- its anchors AND
+        # the rendered chains' terminals (round 3, review MAJOR B-2) -- and is `{}` on every board that
+        # names ONE market, which is every turn that cannot have the defect it exists for.
+        #
+        # ROUND 4 (review MINOR m-6): BOTH FENCE INPUTS FAIL CLOSED. `None` is "I could not read this
+        # page's markets" and is NOT `{}` ("this page names one market"); an empty POOL of any cause is
+        # "I cannot say what this page carries". Either way the correction is WITHHELD and COUNTED in
+        # `chain_fence_closed` -- never made on an instrument that could not be read, and never lost
+        # in silence, which is the doctrine's own pair (a dropped item is COUNTED).
+        market = _chain_market_fence(board)
+        fence_unreadable = market is None
+        if fence_unreadable:
+            market = {}
+        # AND SO IS THE POOL (round 3, review MAJOR B-1): the chains this page RANKED, rendered and
+        # unrendered alike, keyed by hop. One pass over `board.chains` per turn, never per sentence.
+        pool = _chain_pool_carry(board)
+        for field in ("tldr", "mechanism"):
+            text = structured.get(field)
+            if not isinstance(text, str) or not text.strip():
+                continue
+            toks = reg._SENT_KEEP.split(text)
+            changed = False
+            for i in range(0, len(toks), 2):
+                sent = toks[i]
+                if not sent.strip() or _CHAIN_DIGIT_RX.search(sent):
+                    continue                          # not a chain sentence: see _CHAIN_DIGIT_RX
+                fold = _chain_fold(sent)
+                named = [h for h in hops if any((" " + a + " ") in fold for a in h["names"])]
+                if not named:
+                    continue
+                census["sentences"] += 1
+                cited = set(_seam_cited(sent))
+                # DISTINCT HOPS, NOT RENDERED LINES (review MAJOR A-1), AND THE FOLD IS RESOLVED ONCE
+                # FOR ALL THREE LINTS: one hop rendered in two chains is ONE hop this page ranked
+                # TWICE, so it is corrected once, counted once, and the chains it appears in are a
+                # SET. The key is the E11 identity `(contract, driver_id, address)` -- never a
+                # spelling, never a driver id alone.
+                hop_ranks: dict = {}
+                first: dict = {}
+                for h in named:
+                    hop_ranks.setdefault(h["id"], set()).add(h["rank"])
+                    first.setdefault(h["id"], h)
+                # THE ONE-FIGURE CAP IS READ OFF THE SENTENCE AND NOT OFF THIS RUN'S STATE, which is
+                # what makes it IDEMPOTENT. MEASURED on the five served notes before the fix: run 1
+                # appended the first named hop's figure, whose `[N]` then satisfied the "already
+                # cited" test on run 2 -- so the cap slid to the SECOND named hop and a re-run
+                # appended a second clause. A correcting pass that grows the page every time it is
+                # run is a deletion's mirror image and just as disqualifying.
+                figured = _CHAIN_FIGURE_OPEN in sent
+                pending: list = []
+                for h in first.values():
+                    if not h["n"]:
+                        census["chain_hops_unfigured"] += 1
+                        continue
+                    if h["n"] in cited or (h["pct_n"] and h["pct_n"] in cited):
+                        continue                      # the writer already gave this hop its address
+                    if pending or figured:
+                        continue                      # one served figure per sentence (DESIGN B.6)
+                    # E11 AT THE PROSE END, SECOND LEG (review MAJOR A-2 / B-2): on a board that names
+                    # MORE THAN ONE MARKET -- its anchors and its rendered chains' own terminals -- a
+                    # sentence that names a market OTHER than this hop's own gets NO figure. An
+                    # identity-less hop (the verified join above found none) is refused for the same
+                    # reason -- a correction that cannot say which market it speaks for may not speak.
+                    # AND A FENCE THAT COULD NOT BE READ REFUSES TOO (round 4, m-6): a page whose own
+                    # markets are unreadable is a page this correction cannot speak for either.
+                    if fence_unreadable:
+                        census["chain_fence_closed"] += 1
+                        continue
+                    if market and (h["contract"] not in market
+                                   or any(t in fold for t in market[h["contract"]])):
+                        census["chain_hops_ambiguous"] += 1
+                        continue
+                    if handle_prose:
+                        # D-HP: THE HANDLE ALONE, and `_resolve_number_handles` splices the figure in
+                        # front of it. Appending the figure here too is the doubling A-3 measured.
+                        clause = _CHAIN_FIGURE_OPEN + "[N%d]" % (int(h["n"]),)
+                        if h["pct_n"] and h["pct"]:
+                            clause += _CHAIN_FIGURE_PCT_HANDLE % (int(h["pct_n"]),)
+                    else:
+                        clause = _CHAIN_FIGURE_OPEN + "%s [N%d]" % (h["figure"], int(h["n"]))
+                        if h["pct_n"] and h["pct"]:
+                            clause += _CHAIN_FIGURE_PCT % (h["pct"], int(h["pct_n"]))
+                    pending.append((clause, "", 0))
+                # L3 IS THE CLAIM "no chain on this page carries this sequence", so it may fire only
+                # when the hops' rank sets have NO CHAIN IN COMMON; where they do, that chain is the
+                # sequence L2 reads. Before round 2 a hop rendered twice satisfied both legs on its
+                # own and the page told a reader it had never ranked a chain it ranked twice.
+                shared = set.intersection(*hop_ranks.values()) if hop_ranks else set()
+                if len(hop_ranks) >= 2 and not shared:
+                    # ROUND 3 (review MAJOR B-1): THE RENDERED SET IS NOT THE RANKED SET. The hops may
+                    # share no RENDERED chain and still be carried together by a chain of the POOL this
+                    # page scored and ordered -- measured at score 60.6 on a board whose rendered #1
+                    # scores 60.0 -- and a sequence this page CARRIES may never be stamped as one it
+                    # does not. The claim is made only when EVERY named hop has an identity (an
+                    # identity-less hop is one this lint cannot speak for, the market fence's own rule)
+                    # and NO chain of the pool carries them all.
+                    #
+                    # ROUND 4 (m-6): AN EMPTY POOL IS NOT AN EMPTY ANSWER. `{}` from any cause -- a
+                    # raise, or chains carrying no driver id -- says this pass cannot read what the
+                    # page carries, and a claim about what the page does NOT carry may not be made on
+                    # a reading that failed. The stamp is withheld and the withholding is COUNTED.
+                    keys = [(h["contract"], h["driver_id"]) for h in first.values()]
+                    held = [pool.get(k) for k in keys if k[1]]
+                    if not pool:
+                        census["chain_fence_closed"] += 1
+                    elif len(held) == len(keys) and not (all(held) and set.intersection(*held)):
+                        pending.append((_CHAIN_UNRANKED_CLAUSE, "chain_unranked_narrated", 1))
+                elif len(hop_ranks) >= 2:
+                    _rank = min(shared)               # a chain of this page that carries them all
+                    held = {h["pos"] for h in named if h["rank"] == _rank}
+                    seq = sorted(held)
+                    gap = [x["printed"] for x in by_rank[_rank]
+                           if seq[0] < x["pos"] < seq[-1] and x["pos"] not in held]
+                    if gap:
+                        joined = (gap[0] if len(gap) == 1
+                                  else ", ".join(gap[:-1]) + " and " + gap[-1])
+                        pending.append((_CHAIN_SKIP_OPEN + joined + _CHAIN_SKIP_CLOSE,
+                                        "chain_hops_skipped", len(gap)))
+                # THE COUNTER IS RAISED WITH THE APPEND AND NEVER BEFORE IT. A stamp the idempotence
+                # guard declined is a stamp the reader already has; counting it again would make a
+                # re-run read as a second defect.
+                for clause, counter, weight in pending:
+                    if clause in sent:                # IDEMPOTENT: a re-run appends nothing twice
+                        continue
+                    sent = _chain_append_clause(sent, clause)
+                    census["corrected"] += 1
+                    if counter:
+                        census[counter] += int(weight)
+                if sent != toks[i]:
+                    toks[i] = sent
+                    changed = True
+            if changed:
+                structured[field] = "".join(toks)
+    except Exception as exc:  # noqa: BLE001 -- named and stamped, never raised onward
+        census["outcome"] = f"lint_failed:{type(exc).__name__}"
     return census
 
 

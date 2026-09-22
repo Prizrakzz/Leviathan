@@ -1916,3 +1916,896 @@ def test_S7b4_the_identity_is_the_HANDLE_and_the_DRIVER_HALF_of_the_label():
     # has -- which is why the key leg exists at all
     hs3, key3 = R._nom_identity(_nom_line("recurrence", "Argentina export registration", 0), words)
     assert hs3 == frozenset() and key3[0] == "Argentina export registration"
+
+
+# S8 ROUND 2: THE CHAIN ROWS' CITATION SURFACE, THEIR HOP, THEIR ARITHMETIC AND THEIR CEILINGS
+#
+# THE PINS BELOW ARE THE ROUND-2 ITEMS R-1, R-2, R-3 AND R-6, each on the PRODUCER rather than on a
+# built board: ``test_state_chain_render.py`` owns the armed board and is not this round's file, so
+# what is asserted here is what this round CHANGED -- the call record the reader's ``## Sources`` line
+# is built from, the hop the document row names, the arithmetic line and its data scope, the lag
+# window's peak, the positioning row, and the count line's own ceiling.
+def _s8_hop(**kw):
+    kw.setdefault("contract", "soybeans_cbot")
+    kw.setdefault("driver_id", "export_pace_lag")
+    kw.setdefault("lag_band", parse_lag("0-1 quarters"))
+    kw.setdefault("measured", True)
+    kw.setdefault("percentile", 13.0)
+    kw.setdefault("series_key", "silver_esr|soybeans_cbot|United States")
+    kw.setdefault("knowledge_date", "2026-09-04")
+    return W.ChainHop(**kw)
+
+
+def _s8_chain(hops, **kw):
+    hops = tuple(hops)
+    ch = W.Chain(contract=kw.pop("contract", "soybeans_cbot"), hops=hops,
+                 depth=len(hops) - 1,
+                 terminal=kw.pop("terminal", "soybeans_cbot"),
+                 agreements=kw.pop("agreements", tuple(["aligned"] * len(hops))),
+                 edge_signs=kw.pop("edge_signs", tuple(["+"] * len(hops))), **kw)
+    ch.rendered = ch.full = True
+    return ch
+
+
+_S8_SCOPE = "the front price's own 2025-06-16 to 2026-09-04 window"
+
+
+def test_S8R2_the_chain_outcome_row_mints_a_FOOTER_LINE_A_READER_CAN_CHECK_and_a_LOCATOR_THAT_RERUNS():
+    """**ROUND-2 ITEM R-1.** The chain outcome is the one chain row that MINTS, and its call record is
+    what ``citations.from_number`` turns into the reader's ``## Sources`` line and into the drill-down's
+    ``locator``. MEASURED on the first cut, through that same producer:
+
+        [N1] STATE BOARD CHAIN front_price_move_after_firing CBOT soybeans MYthe front price's own
+             2025-06-16 to 2026-09-04 window = 2.1 percent       (source 'STATE BOARD CHAIN', date None)
+
+    -- a machine id headlining the Sources line (``citations.py:1458-1467`` names that exact class), the
+    metric as its raw snake_case id, the "MYMY" weld ``_period_label`` makes of any period that neither
+    starts with MY nor contains "..", and no vintage at all. Three of three footer lines defective. The
+    magnitude is computed off ``bd.tape``, whose own row cites ``silver_futures_eod`` / ``settle``, so
+    the card was there the whole time."""
+    from leviathan.graphrag import citations as CIT
+    ch = _s8_chain([_s8_hop(), _s8_hop(driver_id="psd_ending_stock_su_ratio", percentile=68.0)],
+                   declared_sign="+")
+    ch.outcome = {"n": 9, "median_move": 2.1, "low": -3.4, "high": 6.8, "share_declared_way": 6,
+                  "unit": "percent", "scope": _S8_SCOPE}
+    line, calls = R.sb_chain_outcome(1, ch, asof="2026-09-07")
+    assert R.classify(line) == ("SB-O",) and len(calls) == 3
+    for i, c in enumerate(calls, start=1):
+        cit = CIT.from_number(c, i)
+        assert "STATE BOARD CHAIN" not in (cit.label or "")
+        assert "front_price_move_after_firing" not in (cit.label or "")
+        assert "MYthe" not in (cit.label or "") and "MYMY" not in (cit.label or "")
+        assert cit.date == "2026-09-04", "the vintage is the window's far date"
+        assert cit.source and cit.source != "STATE BOARD CHAIN"
+        # the LOCATOR is an address a drill-down re-runs: a real card, the SLUG, the `..` window
+        assert cit.locator["table"] == "silver_futures_eod"
+        assert cit.locator["commodity"] == "soybeans_cbot", "the address is the slug, not the label"
+        assert cit.locator["period"] == "2025-06-16..2026-09-04"
+        assert cit.locator["asof"] == "2026-09-07"
+    # ...and an outcome computed on some OTHER basis (lane C's pair spread) declares its own card.
+    ch.outcome = dict(ch.outcome, table="silver_pair_spread", metric="spread")
+    _l2, c2 = R.sb_chain_outcome(1, ch, asof="2026-09-07")
+    assert c2[0]["query"]["table"] == "silver_pair_spread"
+
+
+def test_S8R2_a_scope_naming_no_dates_leaves_the_period_and_the_vintage_EMPTY_rather_than_inventing():
+    """FAIL CLOSED ON THE WINDOW. ``walk.chain_outcome``'s ``scope`` is a PROSE sentence and the two
+    dates are read out of it until lane W carries them as fields. A scope that names none must not
+    produce a period -- a period is a filter the query never issued (``citations.py``'s own D-XL note)
+    -- and must not produce a ``[known ...]`` stamp, which would be a vintage nobody measured."""
+    ch = _s8_chain([_s8_hop(), _s8_hop(driver_id="psd_ending_stock_su_ratio")])
+    ch.outcome = {"n": 4, "median_move": 1.0, "low": 0.0, "high": 2.0, "unit": "percent",
+                  "scope": "the front price's own window"}
+    _line, calls = R.sb_chain_outcome(1, ch, asof="2026-09-07")
+    assert calls[0]["query"]["period"] == ""
+    assert "knowledge_date" not in calls[0]["rows"][0]
+    # ...and lane W's FIELDS win over the sentence the moment they land.
+    ch.outcome = dict(ch.outcome, window_from="2025-01-02", window_to="2026-01-02")
+    _l, c2 = R.sb_chain_outcome(1, ch, asof="2026-09-07")
+    assert c2[0]["query"]["period"] == "2025-01-02..2026-01-02"
+    assert c2[0]["rows"][0]["knowledge_date"] == "2026-01-02"
+
+
+def test_S8R2_the_chain_document_row_NAMES_THE_HOP_the_document_acts_on_on_every_branch():
+    """**ROUND-2 ITEM R-2.** ``CHAIN_NO_RECEIPT`` and the open / closed / mechanism sentences all said
+    "this hop" or "for it" and named no hop, while the row is emitted after the record line -- so the
+    nearest antecedent on the page was the LAST hop line. The receipt hop is the LOUDEST hop, which is
+    generally not the last: on the max fixture chain #1 is ``China import tariff -> export pace lag ->
+    psd ending stock su ratio``, its receipt hop is hop TWO of three, and the row sat under hop three.
+
+    ``chain_receipt`` still returns the hop-free sentence it always returned (its own pins read
+    ``CHAIN_NO_RECEIPT`` by identity); the hop is named HERE, where the row is written."""
+    hop = _s8_hop(driver_id="export_pace_lag")
+    for kind, words in (("none", R.CHAIN_NO_RECEIPT),
+                        ("open", "a dated action on 2026-08-01, and the window declared for it is "
+                                 "still open"),
+                        ("closed", "a dated action on 2021-05-12, read as history: the window closed"),
+                        ("mechanism", "a dated report on this hop's mechanism, 2026-04-17")):
+        row = R.sb_chain_document({"kind": kind, "words": words, "hop": hop}, hop)
+        assert row.startswith(R.CHAIN_SUB_PREFIX + "document:"), row
+        assert "at export pace lag," in row, (kind, row)
+        assert words in row, "the placement wording the threat model bought is untouched"
+        assert R.classify(row) == ("SB-P",) and R.register_hits(row) == []
+    # ONE DOCUMENT, ONE ADDRESS: the events section's own handle rides at the end of the sentence.
+    cited = R.sb_chain_document({"kind": "open", "words": "a dated action on 2026-08-01", "hop": hop},
+                                hop, cite_e=" [E4]")
+    assert cited.endswith("[E4].")
+    # a row with no hop at all still renders, and says so rather than naming nothing.
+    assert "at this hop," in R.sb_chain_document({"kind": "none", "words": R.CHAIN_NO_RECEIPT}, None)
+
+
+def test_S8R2_the_arithmetic_line_names_every_SCORING_term_with_its_POINTS_IN_WORDS_and_no_digit():
+    """**ROUND-2 ITEM R-3, and the round-2 census's own 8.3.** DESIGN B.2 asks for "each rendered
+    chain's arithmetic in one line" because "falsifiable on the page" was the reason for the line; the
+    first cut named the TERMS and left the POINTS on the trace. They are said in words because a chain
+    row rides SB-P and SB-P carries no charged digit -- and a census can still check every pair against
+    ``Board.trace()["chains"][*]["terms"]``."""
+    from leviathan.graphrag import register as REG
+    ch = _s8_chain([_s8_hop(), _s8_hop(driver_id="psd_ending_stock_su_ratio", percentile=68.0)])
+    ch.terms = {"tail": 23.5, "reach": 25, "event": 0, "history": 7.5, "asymmetry": 10,
+                "confidence": 3, "lag": 2}
+    line = R.chain_arithmetic_words(ch)
+    assert line.startswith(R.CHAIN_SUB_PREFIX + "why: ")
+    for want in ("tail twenty-three and a half", "reach twenty-five", "record seven and a half",
+                 "buffer ten", "strength three", "lag fit two"):
+        assert want in line, want
+    assert "action" not in line, "a term that scored nothing is not named as if it had"
+    assert "six of seven terms scored" in line
+    assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []
+    assert REG.count_desk_register(line) == 0
+    bare = _GLUED_RX.sub("", _YEAR_RX.sub("", _YM_RX.sub("", _ISO_RX.sub(
+        "", _HANDLE_RX.sub("", line)))))
+    assert not any(c.isdigit() for c in bare), line
+
+
+def test_S8R2_the_arithmetic_line_states_the_DATA_SCOPE_so_a_low_score_reads_as_SCARCE_DATA():
+    """**ORCHESTRATOR NOTE 6: each anchor is judged on the data it has.** A term that scored zero for
+    want of a series is a different fact from a term that scored zero on a reading, and the page says
+    which. The two facts the render can compute it computes; the two it cannot -- whether this market
+    serves ANY buffer series, whether the corpus carries ANY dated action for it -- are read off
+    ``Chain.scope`` when the walk declares them and are SILENT otherwise, never a zero.
+
+    **ROUND 3: THE DICT IS ``Chain.scope`` AND THE ASSERTION IS AGAINST A REAL ``walk.Chain``.** The
+    round-2 pin set ``ch.data_scope`` on the object and passed, because a dataclass takes any attribute
+    you give it -- while the shipped walk carried ``Chain.scope`` and ``hasattr(c, "data_scope")`` was
+    FALSE on every rendered chain of every tier. A stand-in name asserted against itself is how an
+    owner-ordered surface ships dead; this pin now sets the field the walk publishes and reads the
+    walk's own roster to prove the name is one it declares."""
+    ch = _s8_chain([_s8_hop(), _s8_hop(driver_id="drought", measured=False, percentile=None,
+                                       series_key="", knowledge_date="")])
+    ch.terms = {"tail": 23.5, "reach": 25}
+    assert hasattr(ch, "scope") and not hasattr(ch, "data_scope"), \
+        "the dict is the walk's own `Chain.scope` -- `data_scope` was this lane's invention"
+    for name in ("Chain.scope", "Chain.scope.buffer_series", "Chain.scope.events_in_corpus"):
+        assert name in W.CHAIN_SEAM_FIELDS, name
+    line = R.chain_arithmetic_words(ch)
+    assert "one hop carries no series" in line
+    assert "buffer series" not in line and "dated action" not in line
+    ch.scope = {"buffer_series": False, "events_in_corpus": False}
+    rich = R.chain_arithmetic_words(ch)
+    assert "this market serves no buffer series" in rich
+    assert "this turn retrieved no dated action for this market" in rich
+    assert R.classify(rich) == ("SB-P",) and R.register_hits(rich) == []
+    ch.scope = {"buffer_series": True, "events_in_corpus": True}
+    assert "no buffer series" not in R.chain_arithmetic_words(ch)
+    # ...and an anchor the walk could not read at all is SILENT rather than an absence claim.
+    ch.scope = {"buffer_series": None, "events_in_corpus": None}
+    quiet = R.chain_arithmetic_words(ch)
+    assert "no buffer series" not in quiet and "no dated action" not in quiet
+
+
+def test_S8R4_the_count_line_holds_its_RE_BASELINED_CEILING_and_keeps_both_denominators():
+    """**ROUND-2 ITEM R-3's own ceiling, ROUND 3's MEASURED REFUTATION OF IT, AND ROUND 4's
+    RE-BASELINE.** The three hundred was set BEFORE the two CONTENT rulings that landed on this line,
+    and content ordered by a ruling is never cut to meet a number set before the rulings. The ceiling
+    is now the MEASURED MAXIMUM over both cells of the fixture AND the five 2026-09-16 payloads (433),
+    plus ten per cent, rounded up to fifty: FIVE HUNDRED. The base line -- the counts alone, which is
+    what the three hundred was measured against -- is still inside the OLD number, which is what makes
+    the re-baseline a budget decision about the two clauses rather than a blanket relaxation.
+
+    MEASURED on the three fixture cells the line ran 563 / 589 / 609 characters, and 185 of that was a
+    closing sentence restating -- once per page -- the four terms ``chain_arithmetic_words`` now prints
+    PER CHAIN with the points each one earned. The cut took the max cell to 298 against a 300 ceiling.
+
+    **THEN TWO OWNER RULINGS LANDED ON THIS ONE LINE and the ceiling stopped being reachable.** The
+    ORTHOGONAL SHOCKS clause (note 3, the owner's own word) costs about 86 characters at the counts the
+    walk really carries, and the HELD-SEAT count (ruling 2026-09-22) about 47. The line is at 433 on the
+    max fixture cell with both. Nothing here trims them to fit: the ceiling is a BUDGET ruling and the
+    clauses are CONTENT rulings, so this pin states the arithmetic and leaves the trade to the
+    orchestrator rather than quietly dropping the owner's clause to keep a number green.
+
+    WHAT IS STILL PINNED IS WHAT THE LINE MUST BE: both denominators, one population per noun, no
+    charged digit, SB-P and register-clean -- and the base line (the counts alone, which is what the
+    300 was measured against) still inside it."""
+    counts = {"distinct_sequences": 77, "total": 1848, "state_two_hops": 816,
+              "with_document": 432, "distinct_unnamed_markets": 17}
+    line = R.sb_chain_count(counts, k=3, anchor_label="CBOT soybeans")
+    assert len(line) <= 300, len(line)
+    assert R.words_for_int(77) in line and R.words_for_int(1848) in line
+    assert "ways in all" in line, "both populations, and which sub-count belongs to which"
+    assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []
+    bare = _GLUED_RX.sub("", _YEAR_RX.sub("", _ISO_RX.sub("", line)))
+    assert not any(c.isdigit() for c in bare), line
+    # THE REFUTATION, AS ARITHMETIC RATHER THAN AS A SENTENCE: the two ruling clauses' own cost on the
+    # very cell the ceiling was measured on. A future sitting that wants the 300 back can read exactly
+    # what it must spend, and a future sitting that quietly drops a clause reddens this deck.
+    full = R.sb_chain_count(dict(counts, cross_market_event=414, cross_market_event_rendered=1),
+                            k=3, anchor_label="CBOT soybeans",
+                            slots=("sign", "top", "top"))
+    shocks = len(R.sb_chain_count(dict(counts, cross_market_event=414,
+                                       cross_market_event_rendered=1), k=3,
+                                  anchor_label="CBOT soybeans")) - len(line)
+    seats = len(full) - len(line) - shocks
+    assert 60 <= shocks <= 110, shocks
+    assert 30 <= seats <= 60, seats
+    assert len(full) > 300, "recorded, not hidden: the OLD ceiling is refuted at the counts that ship"
+    # ...AND THE RE-BASELINED ONE HOLDS, with the aged-out clause on top of both ruling clauses -- the
+    # largest this line can be on any cell or payload this lane can measure.
+    widest = R.sb_chain_count(dict(counts, cross_market_event=414, cross_market_event_rendered=1),
+                              k=3, anchor_label="CBOT soybeans",
+                              slots=("sign", "subject", "horizon"), aged=414)
+    assert len(widest) <= 500, (len(widest), widest)
+    assert R.classify(full) == ("SB-P",) and R.register_hits(full) == []
+    assert R.classify(widest) == ("SB-P",) and R.register_hits(widest) == []
+
+
+def test_S8R2_the_count_line_names_the_CROSS_MARKET_dated_actions_and_is_ABSENT_where_none_counted():
+    """**ORCHESTRATOR NOTE 3, the owner's ORTHOGONAL SHOCKS.** A chain that crosses a commodity
+    boundary on an earned cross edge AND carries an open dated action is the combination the question
+    did not ask about. The line says how many existed and how many rendered, so a turn with none reads
+    as "no cross-market dated action reached this page" rather than as silence -- and where the walk
+    counts neither, the clause is ABSENT rather than a zero wearing a claim.
+
+    **ROUND 3: THE KEYS ARE ``cross_market_event`` / ``cross_market_event_rendered``, AND THEY ARE
+    ASSERTED AGAINST THE REAL ``walk.chain_counts`` OUTPUT.** The round-2 pin passed a hand-made dict
+    carrying ``cross_event`` -- a key this lane invented in its own handoff -- so the clause was green
+    in the deck and ABSENT on all three tiers of the real page while the producer counted 112 / 342 /
+    414 of them with one rendered on each."""
+    counts = {"distinct_sequences": 77, "total": 1848, "state_two_hops": 816,
+              "with_document": 432, "distinct_unnamed_markets": 17}
+    # THE NAME COMES OFF THE PRODUCER, not off this test's own dict: `chain_counts` over an EMPTY pool
+    # still declares its whole key roster, which is exactly the assertion a stand-in cannot make.
+    produced = W.chain_counts([])
+    assert "cross_market_event" in produced and "cross_market_event_rendered" in produced
+    assert "cross_event" not in produced and "cross_event_rendered" not in produced
+    for name in ("chain_counts.cross_market_event", "chain_counts.cross_market_event_rendered"):
+        assert name in W.CHAIN_SEAM_FIELDS, name
+    assert "cross a market carrying an open action" not in R.sb_chain_count(counts, k=3)
+    assert "cross a market carrying an open action" not in \
+        R.sb_chain_count(dict(counts, cross_event=9, cross_event_rendered=3), k=3), \
+        "the invented key buys nothing -- the line reads the name the walk publishes"
+    named = R.sb_chain_count(dict(counts, cross_market_event=9, cross_market_event_rendered=3), k=3,
+                             anchor_label="CBOT soybeans")
+    assert "nine cross a market carrying an open action, three of them carried here" in named
+    zero = R.sb_chain_count(dict(counts, cross_market_event=0, cross_market_event_rendered=0), k=3)
+    assert "zero cross a market carrying an open action, zero of them carried here" in zero, \
+        "counted and stated, because a silent zero is the absence-lie class"
+    assert R.classify(named) == ("SB-P",) and R.register_hits(named) == []
+
+
+def test_S8R2_the_hop_reads_its_LAG_WINDOWS_PEAK_and_prints_BOTH_readings_and_where_the_lag_runs():
+    """**ORCHESTRATOR NOTE 5 (2026-09-18).** A shock is IN TRANSIT for the length of its declared lag:
+    a reading that peaked at the ninety-seventh percentile three months ago and eased to the eightieth
+    is still acting on the next hop while the lag runs. The clause prints BOTH readings and where the
+    lag runs to, and it REPLACES the run words rather than joining them -- "peaked in June, now
+    eightieth" states the direction of travel more precisely than "falling since June" and at fewer
+    characters than printing both.
+
+    **ROUND 3: THE NAMES ARE ``tail_peak_date`` AND ``tail_lag_to``, AND THE PIN IS AGAINST A REAL
+    ``walk.ChainHop``.** The round-2 pin built a ``types.SimpleNamespace`` carrying ``tail_peak_month``
+    and ``lag_window_end`` -- two names this lane invented in its own handoff -- and asserted the clause
+    against THAT. It was green, and would have stayed green whatever the dataclass was called, while on
+    the shipped page ``"peaked"`` appeared ZERO times at every tier: a stand-in cannot fail a rename,
+    which is the whole mechanism of this estate's standing string-identity memory. A frozen dataclass
+    REFUSES an unknown keyword, so the construction below is itself the name assertion."""
+    hop = _s8_hop(percentile=80.0, run_direction="down", run_since="2026-06-30",
+                  knowledge_date="2026-09-04")
+    plain = R.chain_state_words(hop)
+    assert "at the eightieth percentile of its own record" in plain
+    assert "falling since June 2026" in plain and "through 2026-09-04" in plain
+    assert "peaked" not in plain and "the lag runs to" not in plain
+    for name in ("ChainHop.tail_peak_percentile", "ChainHop.tail_peak_date", "ChainHop.tail_lag_to"):
+        assert name in W.CHAIN_SEAM_FIELDS, name
+    peak = _s8_hop(percentile=80.0, tail=0.6, run_direction="down", run_since="2026-06-30",
+                   knowledge_date="2026-09-04", tail_peak=0.94, tail_peak_percentile=97.0,
+                   tail_peak_date="2026-06-19", tail_lag_to="2026-11-19")
+    assert not hasattr(peak, "tail_peak_month") and not hasattr(peak, "lag_window_end"), \
+        "the round-2 names do not exist on the shipped hop -- that is why the surface rendered nothing"
+    got = R.chain_state_words(peak)
+    assert "peaked at the ninety-seventh percentile in June 2026, now eightieth" in got
+    assert "the lag runs to November 2026" in got
+    assert "through 2026-09-04" in got
+    assert "falling since" not in got, "the peak clause REPLACES the run, it does not join it"
+    # A DECLARED PEAK THAT IS THE LATEST READING IS NOT A PEAK WORTH TWO FIGURES -- and it takes the
+    # lag clause down with it: "where the lag runs to" answers "is that older reading still acting?",
+    # which only an eased peak makes a reader ask, and the same line now carries the band in full.
+    same = _s8_hop(percentile=97.0, tail=0.94, run_direction="", run_since="",
+                   knowledge_date="2026-09-04", tail_peak=0.94, tail_peak_percentile=97.0,
+                   tail_peak_date="2026-06-19", tail_lag_to="2026-11-19")
+    quiet = R.chain_state_words(same)
+    assert "peaked" not in quiet and "the lag runs to" not in quiet
+
+
+def test_S8R2_the_positioning_row_says_AMPLIFIER_or_CONVEXITY_and_is_SILENT_where_none_is_declared():
+    """**ORCHESTRATOR NOTE 1 (owner: "how does it know how convex the market is?").** A managed-money
+    net position at a tail of its OWN record is an amplifier when it sits the same way the chain argues
+    and CONVEXITY when it sits against it -- the risk the 2026-09-16 smoke's own PM read flagged twice.
+    The row states which of the two, and cites the board's own positioning row where this page carries
+    its address: a standing with no address is a claim a reader cannot check."""
+    from leviathan.graphrag import register as REG
+    ch = _s8_chain([_s8_hop(), _s8_hop(driver_id="cot_mm_positioning", percentile=100.0)])
+    assert R.sb_chain_positioning(ch) == "", "no positioning row, no line -- never a zero"
+    ch.positioning = {"percentile": 100.0, "against": True,
+                      "key": ("soybeans_cbot", "cot_mm_positioning")}
+    row = R.sb_chain_positioning(ch, handle=12)
+    assert "[N12]" in row and "one hundredth percentile of its own record" in row
+    assert "the other way from this sequence" in row and "reversal abrupt" in row
+    ch.positioning = dict(ch.positioning, against=False)
+    same = R.sb_chain_positioning(ch)
+    assert "the same way as this sequence" in same and "amplifies it" in same
+    assert "[N" not in same, "a standing this page carries no address for prints no handle"
+    for line in (row, same):
+        assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []
+        assert REG.count_desk_register(line) == 0
+
+
+# ═══ S8 ROUND 3: THE SEAM'S NAMES, THE PRINTED ARITHMETIC, THE BAND AND THE SLOT LABEL ══════════════
+#
+# TWO LAWS OF THIS ROUND, AND BOTH ARE HERE BECAUSE OF WHAT ROUND 2 MEASURED:
+#   (a) A CROSS-LANE PIN ASSERTS AGAINST THE SHIPPED TYPE. Four owner-ordered surfaces rendered
+#       NOTHING for a whole round while every pin on both sides was green, because every pin asserted
+#       against a `types.SimpleNamespace` carrying whatever name the reader hoped for. Every seam
+#       field this module reads is now resolved against a real `walk.Chain` / `walk.ChainHop` / the
+#       real `walk.chain_counts` output AND against `walk.CHAIN_SEAM_FIELDS`, the one published
+#       spelling of the W -> R seam.
+#   (b) A SURFACE IS MEASURED ON THE PAGE, not only on its producer. A label that never renders is a
+#       green pin and a dead surface, so the armed-board pins below read the rendered block.
+@pytest.fixture(scope="module")
+def chain_blocks(graph):
+    """{mode: (board, Block)} on the soybeans fixture with the CHAIN LEG ARMED, all three tiers.
+
+    OFFLINE BY CONSTRUCTION: the state producer, the tape and the benchmark are the harness's own
+    fixtures, so this fixture reads no mirror, opens no socket and calls no model.
+
+    **THE TAPE IS ATTACHED BEFORE ``W.stage2``, BECAUSE THAT IS WHAT THE SEAM NOW DOES** (round-3
+    census blocker 3): ``walk.anchor_facts`` reads ``bd.tape`` for the anchor's own price standing and
+    the chain leg scores on it, so a harness that attached it afterwards would measure a board no turn
+    ever has."""
+    from leviathan.graphrag.numbers import cascade as CAS
+    curated = list(CAS.load_chain_map() or ()) + list(CAS.load_transmission_map() or ())
+    q = "what is the situation on soybeans now? how is it looking 3 months from now?"
+    out = {}
+    for mode in ("quick", "deep", "max"):
+        anchors = W.resolve_anchors(named=("soybeans_cbot",))
+        bd = W.walk(graph=graph, asof=H.ASOF, mode=mode, anchors=anchors, question=q,
+                    state_fn=H.fixture_state_fn(H.ASOF), key_fn=None, receipts={},
+                    knobs=B.board_knobs_of(mode), width=2, legb_on=False, stage2=False)
+        R.attach_tape(bd, {s: H.fixture_tape(s, H.ASOF) for s in bd.anchor_slugs}, reads_each=0)
+        W.stage2(bd, graph, state_fn=H.fixture_state_fn(H.ASOF), receipts={}, width=2,
+                 legb_on=False, chains=curated, state_chain=True)
+        bd.stamp("tape", "fired")
+        ana = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=H.fixture_benchmark_fn(),
+                            receipt_fn=None)
+        A.analog_leg(bd, ana)
+        blk = R.render_board(bd, analogs=ana,
+                             anchor_label=", ".join(R.board_label(s) for s in bd.anchor_slugs))
+        out[mode] = (bd, blk)
+    return out
+
+
+def _chain_rows(blk, role):
+    return [ln for ln, m in zip(blk.lines, blk.rows_meta) if str((m or {}).get("role") or "") == role]
+
+
+def _points_back(words):
+    """The NUMBER a spelled points value stands for -- the census's own read of the printed pair."""
+    half = 0.5 if words.endswith(" and a half") else 0.0
+    stem = words[: -len(" and a half")] if half else words
+    for k in range(0, 60):
+        if R.words_for_int(k) == stem:
+            return k + half
+    return None
+
+
+def test_S8R3_the_POINTS_are_rounded_to_the_nearest_HALF_before_they_are_spelled():
+    """**ROUND-3 MAJOR 1 / CENSUS BLOCKER 1 -- A PRINTED FIGURE ITS OWN BACKING CONTRADICTED.**
+
+    ``_points_words`` truncated toward zero and then said "and a half" for anything 0.25 away, on a
+    docstring's claim that "the terms land on halves by construction". MEASURED, they do not:
+    ``walk.chain_score`` rounds each term to one decimal, so the live fixture's rendered chains carried
+    ``tail`` 21.9 / 23.9 / 24.8 and ``history`` 6.4 / 11.8 / 8.6 -- and the line printed "twenty-one and
+    a half", "twenty-three and a half", "twenty-four and a half", "eleven and a half". Wrong on 1 of 1
+    chains at quick, 2 of 2 at deep and 3 of 3 at max, always UNDERSTATING, on the one line whose whole
+    declared reason is that a census can check it against the trace."""
+    got = {v: R._points_words(v) for v in (21.9, 23.9, 24.8, 11.8, 6.4, 24.9, 7.75, 0.5, 25.0, 0.0)}
+    assert got[21.9] == "twenty-two" and got[23.9] == "twenty-four"
+    assert got[24.8] == "twenty-five" and got[11.8] == "twelve"
+    assert got[6.4] == "six and a half" and got[24.9] == "twenty-five"
+    assert got[7.75] == "eight" and got[25.0] == "twenty-five" and got[0.0] == "zero"
+    assert R._points_words(-7.4) == "minus seven and a half"
+    assert R._points_words(None) == "" and R._points_words("x") == ""
+    # THE PROPERTY, not just the sample: every spelled value is within a quarter point of the number.
+    for i in range(0, 501):
+        v = i / 10.0
+        back = _points_back(R._points_words(v))
+        assert back is not None, v
+        assert abs(back - v) <= 0.25 + 1e-9, (v, R._points_words(v))
+
+
+def test_S8R3_every_rendered_chains_PRINTED_POINTS_agree_with_its_own_TRACE_terms(chain_blocks):
+    """**THE CHECK THE ARITHMETIC LINE EXISTS FOR, RUN ON THE PAGE** (DESIGN B.2, census blocker 1).
+
+    The line says the terms and the points in WORDS so that a census can check every pair against
+    ``Board.trace()["chains"][*]["terms"]``. Round 2 shipped the line and that check FAILED on every
+    rendered chain of every tier. This pin IS that census, on the armed board, all three tiers: for
+    each rendered chain, every printed pair is read back out of the line and compared with the trace's
+    own number for that term, to the half the page is allowed to round to."""
+    for mode, (bd, blk) in sorted(chain_blocks.items()):
+        rows = _chain_rows(blk, "chain_why")
+        # **RANK ORDER, BECAUSE THAT IS THE PAGE'S ORDER** (round-4 MINOR 2). `Board.chains` is the
+        # POOL in composition order and this zip read it as the page's -- which was true only while
+        # the render also read the pool. It now renders in `Chain.rank` order, the trace's own.
+        chains = sorted((c for c in bd.chains if c.rendered and c.full), key=lambda c: c.rank)
+        assert len(rows) == len(chains), (mode, len(rows), len(chains))
+        traced = [c for c in (bd.trace().get("chains") or ()) if c.get("rendered")]
+        by_hops = {tuple(h["driver_id"] for h in c["hops"]): c for c in traced}
+        for ch, row in zip(chains, rows):
+            terms = dict(by_hops[tuple(ch.hop_ids)]["terms"])
+            pairs = row.split("why: ", 1)[1].split(";", 1)[0]
+            seen = 0
+            for term, words in R.CHAIN_TERM_WORDS.items():
+                v = float(terms.get(term) or 0.0)
+                if v <= 0.0:
+                    assert ("%s " % words) not in pairs, (mode, term, pairs)
+                    continue
+                seen += 1
+                want = "%s %s" % (words, R._points_words(v))
+                assert want in pairs, (mode, ch.hop_ids, want, pairs)
+                # ...and the WORDS the page printed stand for the number the trace carries, to a half.
+                back = _points_back(R._points_words(v))
+                assert back is not None and abs(back - v) <= 0.25 + 1e-9, (mode, term, v)
+            assert "%s of %s terms scored" % (R.words_for_int(seen),
+                                              R.words_for_int(len(W.CHAIN_TERMS))) in row
+            # THE COUNT AGREES WITH THE PAIRS BESIDE IT, which is the property that matters on the
+            # page: one sentence, one population, no reader arithmetic.
+            assert seen == sum(1 for t in W.CHAIN_TERMS
+                               if float((ch.terms or {}).get(t) or 0.0) > 0.0), (mode, ch.hop_ids)
+            # **AND THE WALK'S OWN PUBLISHED COUNT IS MEASURED HERE RATHER THAN TRUSTED.** It is not
+            # the same number: ``Chain.scope["terms_scored"]`` is computed inside ``chain_score``,
+            # and the HISTORY term is re-scored afterwards by ``chain_history``, so the published
+            # count can be STALE LOW. MEASURED on this fixture: the deep cell's first rendered chain
+            # prints six pairs and publishes five. That is why this line counts what it PRINTS; the
+            # drift is lane W's to close (handoff R3-W1) and the direction is pinned so a flip -- a
+            # published count LARGER than the pairs on the page -- reds this deck.
+            assert int((ch.scope or {}).get("terms_scored") or 0) <= seen, \
+                (mode, ch.hop_ids, (ch.scope or {}).get("terms_scored"), seen)
+
+
+def test_S8R3_EVERY_field_this_render_reads_off_the_walk_is_a_NAME_THE_WALK_PUBLISHES():
+    """**LAW (a) OF THIS ROUND, AS ONE ASSERTION.** Round 2 shipped four owner-ordered surfaces that
+    rendered nothing because this module read ``tail_peak_month``, ``lag_window_end``,
+    ``Chain.data_scope`` and ``chain_counts["cross_event"]`` against a walk carrying
+    ``tail_peak_date``, ``tail_lag_to``, ``Chain.scope`` and ``chain_counts["cross_market_event"]``.
+    Every pin was green; every pin asserted against a stand-in.
+
+    So the seam has ONE published spelling (``walk.CHAIN_SEAM_FIELDS``) and every name this render
+    reads is resolved here against the SHIPPED objects: a real frozen ``ChainHop``, a real ``Chain``,
+    and the real ``chain_counts`` output -- never a namespace this test wrote itself."""
+    import ast
+    import inspect
+    import textwrap
+    hop, ch = _s8_hop(), _s8_chain([_s8_hop()])
+    produced = W.chain_counts([])
+    # `series_key` IS ON THIS LIST BECAUSE `seam._dim_for_hop` MATCHES A HOP TO THE ANALOG LEG'S
+    # DECLARED DIMENSION ON IT (round-3 MAJOR 6) -- it is a consumed seam field, it was missing from
+    # the roster when this pin was first written, and lane W published it on the handoff.
+    reads_hop = ("measured", "percentile", "tail", "run_direction", "run_since", "knowledge_date",
+                 "driver_id", "contract", "lag_band", "series_key",
+                 "tail_peak_percentile", "tail_peak_date", "tail_lag_to")
+    reads_chain = ("hops", "agreements", "edge_signs", "cross", "terminal", "terminal_key",
+                   "terminal_percentile", "contract", "unnamed_terminal", "receipt_index",
+                   "receipt_hop", "receipt_kind", "history", "outcome", "side", "against_hops",
+                   "curated", "terms", "scope", "positioning", "slot", "rendered", "full")
+    reads_counts = ("distinct_sequences", "total", "state_two_hops", "with_document",
+                    "distinct_unnamed_markets", "cross_market_event",
+                    "cross_market_event_rendered")
+    for f in reads_hop:
+        assert hasattr(hop, f), f
+        assert "ChainHop.%s" % f in W.CHAIN_SEAM_FIELDS, f
+    for f in reads_chain:
+        assert hasattr(ch, f), f
+        assert "Chain.%s" % f in W.CHAIN_SEAM_FIELDS, f
+    for f in reads_counts:
+        assert f in produced, f
+        assert "chain_counts.%s" % f in W.CHAIN_SEAM_FIELDS, f
+    for f in ("buffer_series", "events_in_corpus", "price_read", "terms_scored"):
+        assert "Chain.scope.%s" % f in W.CHAIN_SEAM_FIELDS, f
+    for f in ("percentile", "against", "key"):
+        assert "Chain.positioning.%s" % f in W.CHAIN_SEAM_FIELDS, f
+    # AND THE FOUR NAMES THAT COST A ROUND ARE GONE FROM BOTH SIDES.
+    for dead in ("tail_peak_month", "lag_window_end"):
+        assert not hasattr(hop, dead), dead
+    assert not hasattr(ch, "data_scope")
+    assert "cross_event" not in produced and "cross_event_rendered" not in produced
+    # THE SCAN IS OVER CODE, NOT PROSE. Every one of these producers DOCUMENTS the name it used to
+    # read and why the surface died -- that record is the point of the docstring -- so the check
+    # unparses the AST with the docstrings dropped and reads what the function actually executes.
+    for fn in (R.chain_state_words, R.chain_arithmetic_words, R.sb_chain_count):
+        tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                first = node.body[0] if node.body else None
+                if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                        and isinstance(first.value.value, str)):
+                    node.body = node.body[1:]
+        code = ast.unparse(tree)
+        for dead in ("tail_peak_month", "lag_window_end", "data_scope", "cross_event"):
+            assert dead not in code, (fn.__name__, dead)
+
+
+def test_S8R4_the_LAG_BAND_prints_ONLY_where_its_DECLARED_RELATION_is_the_one_the_clause_asserts(
+        chain_blocks):
+    """**ROUND-4 MAJOR 1, ORCHESTRATOR RULING -- A PRINTED FIGURE UNDER THE WRONG PREDICATE.**
+
+    ``ChainHop.lag_band`` is ``parse_lag(dag_node.lag)`` and every node of the anchor's DAG declares
+    ``target_metric: price``, so the band is the driver's declared lag TO THE ANCHOR'S PRICE. Round 3
+    printed it inside the clause that asserts the edge onto the NEXT HOP -- "declared in the same
+    direction onto drought with a lag of one to two quarters", where one to two quarters is La Nina's
+    lag to the CBOT soybean price and not the time it takes to reach drought. MEASURED before this
+    cut: 23 of 23 printed bands misbound, on both cells at all three tiers
+    (``r2d/R4_cells_BEFORE.json``).
+
+    THE RULING: the band prints on the TERMINAL EDGE -- the last hop, whose clause's own "onto" IS the
+    anchor's price -- and on NO intermediate hop. A chain whose terminal is a FAR market carries no
+    clause onto the anchor's price, so it prints no band at all rather than the same misbinding one
+    noun further on.
+
+    AND IT RETIRES ROUND-3 MINOR 3: ``band_words(None)`` is an honest absence sentence in the SB-E row
+    it was written for and a doubled noun here, so a hop whose band the table does not carry prints no
+    band clause. Nothing is deleted -- there is no figure to delete."""
+    band = parse_lag("0-2 quarters")
+    hops = [_s8_hop(driver_id="China_import_tariff", lag_band=parse_lag("1-2 quarters")),
+            _s8_hop(driver_id="psd_ending_stock_su_ratio", percentile=68.0, lag_band=band)]
+    ch = _s8_chain(hops)                                 # terminal == contract: NOT a cross chain
+    assert ch.cross is None and str(ch.terminal) == str(ch.contract)
+    first, last = R.sb_chain_hop(ch, 0), R.sb_chain_hop(ch, 1)
+    assert "with a declared lag of %s to the price" % R.band_words(band) in last, last
+    assert "lag of" not in first, "no intermediate hop names a band it is not declared against"
+    assert "the CBOT soybeans price" in last, "the terminal clause's own onto IS the anchor's price"
+    for line in (first, last):
+        assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []
+    # A CROSS chain's terminal edge is onto a FAR market, so the band -- declared to the ANCHOR's
+    # price -- is not printed there either. The relation, not the position, is the rule.
+    xch = _s8_chain(hops, terminal="corn_cbot", cross={"other": "corn_cbot", "sign": "+"})
+    assert "lag of" not in R.sb_chain_hop(xch, 1), R.sb_chain_hop(xch, 1)
+    # MINOR 3, GUARDED: a hop whose table carries no band prints no band clause and no doubled noun.
+    nob = _s8_chain([_s8_hop(driver_id="China_import_tariff"),
+                     _s8_hop(driver_id="psd_ending_stock_su_ratio", percentile=68.0, lag_band=None)])
+    assert R.band_words(None) == "a lag the table does not carry"
+    assert R.band_words(None) not in R.sb_chain_hop(nob, 1), R.sb_chain_hop(nob, 1)
+    assert "percentile" in R.sb_chain_hop(nob, 1), "the reading, the direction and the verdict stay"
+    # ON THE PAGE: NOT ONE hop line prints a band whose "onto" is anything but the anchor's own price.
+    for mode, (bd, blk) in sorted(chain_blocks.items()):
+        rows = _chain_rows(blk, "chain_hop")
+        assert rows, mode
+        want = 0
+        for c in sorted((x for x in bd.chains if x.rendered and x.full), key=lambda x: x.rank):
+            want += int(bool(c.hops) and not c.cross
+                        and c.hops[-1].lag_band is not None
+                        and c.hops[-1].lag_band.min_q is not None)
+        assert sum(1 for x in rows if "declared lag of" in x) == want, (mode, want)
+        assert not [x for x in rows if "with a lag of" in x], mode
+
+
+def test_S8R3_the_SLOT_LABEL_renders_in_the_chain_rows_own_words_on_a_real_walk_Chain():
+    """**OWNER RULING 2026-09-22, RATIFIED -- THE SLOT LABEL ON THE PAGE.**
+
+    ``walk.Chain.slot`` names the seat the selection held for a chain: the chain the question's SUBJECT
+    names, the PAIR it sets, a chain inside the HORIZON it asked for, or the other SIGN. ``top`` is a
+    chain that ranked in on its own score and renders NO label. The label is one short clause on the
+    row head, the one-line form below the print line carries it too, and the count line counts the
+    held seats in the same sentence it counts the rest.
+
+    THE ROUND-2 LESSON IS WHY EVERY ASSERTION HERE IS AGAINST A REAL ``walk.Chain``: a label pinned on
+    a stand-in is a green pin and a dead surface."""
+    from leviathan.graphrag import register as REG
+    assert "Chain.slot" in W.CHAIN_SEAM_FIELDS
+    assert set(R.CHAIN_SLOT_WORDS) | {"top"} == set(W.CHAIN_SLOTS), \
+        "one roster, published by the walk, spelled once here"
+    ch = _s8_chain([_s8_hop(), _s8_hop(driver_id="psd_ending_stock_su_ratio", percentile=68.0)],
+                   terminal="corn_cbot")
+    ch.unnamed_terminal = True
+    assert hasattr(ch, "slot") and ch.slot == "", "the field is the walk's own and defaults empty"
+    plain = R.sb_chain_head(ch, i=1, n=3)
+    assert R.chain_slot_words(ch) == ""
+    for slot, words in (("subject", "the chain this question names"),
+                        ("pair", "the pair this question sets"),
+                        ("horizon", "inside the horizon this question asks"),
+                        ("sign", "the other side")):
+        ch.slot = slot
+        assert R.chain_slot_words(ch) == words, slot
+        head = R.sb_chain_head(ch, i=1, n=3)
+        one = R.sb_chain_one_line(ch, i=1, n=3, why=("the distance it travels",))
+        assert words in head and words in one, slot
+        assert len(head) - len(plain) == len(words) + 2, slot
+        for line in (head, one):
+            assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []
+            assert REG.count_desk_register(line) == 0 and REG.internal_leaks(line) == []
+            line.encode("ascii")
+    ch.slot = "top"
+    assert R.chain_slot_words(ch) == "" and R.sb_chain_head(ch, i=1, n=3) == plain, \
+        "a chain that ranked in says so by carrying no label at all"
+    # THE COUNT LINE COUNTS THE HELD SEATS IN THE SAME SENTENCE, and says nothing where none was held.
+    counts = {"distinct_sequences": 77, "total": 1848, "state_two_hops": 816,
+              "with_document": 432, "distinct_unnamed_markets": 17}
+    assert "for a reason other than rank" not in R.sb_chain_count(counts, k=3, slots=("top", "top"))
+    held = R.sb_chain_count(counts, k=3, anchor_label="CBOT soybeans",
+                            slots=("sign", "top", "subject"))
+    assert "two of them here for a reason other than rank" in held
+    assert R.classify(held) == ("SB-P",) and R.register_hits(held) == []
+
+
+def test_S8R3_the_OWNER_ORDERED_SURFACES_RENDER_ON_THE_PAGE(chain_blocks):
+    """**LAW (b): A SURFACE IS MEASURED ON THE PAGE.** The round-2 census counted, on the rendered
+    block at every tier: ``"peaked"`` 0, ``"cross a market"`` 0, ``"open action"`` 0, the data-scope
+    sentence 0 -- while the producers carried 135 / 1,200 / 1,488 window peaks and 112 / 342 / 414
+    cross-market dated actions. Four owner-ordered surfaces, every pin green, nothing on the page.
+
+    This pin reads the rendered block. It asserts the tail-window peak clause and the orthogonal-shocks
+    clause where the fixture's own data carries them, and it asserts the SLOT label wherever the
+    selection held a seat on this board. The two data-scope absence sentences are NOT asserted here and
+    are not claimed: this anchor serves a buffer family and carries dated actions, so the fixture
+    cannot reach them -- their pin is the producer-level one above, and the arm's own smoke is where a
+    buffer-less anchor is read."""
+    reached = {"peak": 0, "cross": 0, "slot": 0}
+    for mode, (bd, blk) in sorted(chain_blocks.items()):
+        text = blk.text()
+        hops = _chain_rows(blk, "chain_hop")
+        counts = dict(bd.chain_counts or {})
+        want_peak = [h for c in bd.chains if c.rendered and c.full for h in c.hops
+                     if h.measured and h.tail_peak_percentile is not None and h.tail_peak_date
+                     and R.percentile_words(h.tail_peak_percentile)
+                     != R.percentile_words(h.percentile)]
+        if want_peak:
+            assert "peaked at the " in text, mode
+            assert "the lag runs to " in text, mode
+            assert sum(1 for x in hops if "peaked at the " in x) == len(want_peak), mode
+            reached["peak"] += 1
+        if counts.get("cross_market_event") is not None:
+            assert "cross a market carrying an open action" in text, mode
+            reached["cross"] += 1
+        slots = [str(getattr(c, "slot", "") or "") for c in bd.chains if c.rendered]
+        held = [s for s in slots if s and s != "top"]
+        for s in held:
+            assert R.CHAIN_SLOT_WORDS[s] in text, (mode, s)
+        if held:
+            assert "here for a reason other than rank" in text, mode
+            reached["slot"] += 1
+        # **ONE FACT, AND THE TWO PRODUCERS OF IT ARE PINNED TO AGREE.** The count line derives the
+        # held seats from `Chain.slot` on the chains THIS PAGE RENDERED -- the same read that mints
+        # the label a reader just saw, so the label and the count cannot disagree. The walk publishes
+        # the same counts over its own rendered set (`chain_counts["slot_*"]`). They are the same
+        # population by construction and a drift is a red deck here rather than a page that counts
+        # one thing and labels another.
+        if any(("slot_%s" % s) in counts for s in R.CHAIN_SLOT_WORDS):
+            pub = sum(int(counts.get("slot_%s" % s) or 0) for s in R.CHAIN_SLOT_WORDS)
+            assert pub == len(held), (mode, pub, held)
+            assert int(counts.get("slot_top") or 0) == sum(1 for s in slots if s == "top"), mode
+        # AND THE WHOLE CHAIN SECTION STAYS CLEAN while all of this renders.
+        assert blk.trips == [], (mode, blk.trips[:1])
+        for line in hops + _chain_rows(blk, "chain_count") + _chain_rows(blk, "chain"):
+            assert R.register_hits(line) == [], (mode, line[:120])
+    # **AND THE SLOT COUNTER IS READ** (round-4 MINOR 4). It was accumulated and never asserted, so a
+    # walk that seated NO slot on any tier -- the very guards lane W landed in round 3 skip the
+    # subject / pair / horizon seats before the pool is touched -- would take the whole owner-ordered
+    # surface dark with this deck green. That is precisely the round-2 failure law (b) exists to stop.
+    assert reached["peak"] >= 2 and reached["cross"] == 3 and reached["slot"] >= 1, reached
+
+
+# S8 ROUND 4: THE CLOSING ITEMS -- the page's own ORDINAL, the two counted-not-deleted halves
+# (the aged-out document and the outcome's denominator), the one recency rule, and the stanza mark.
+def test_S8R4_the_pages_chain_ORDINAL_is_the_RANKS_and_not_the_POOLS(chain_blocks):
+    """**ROUND-4 MINOR 2 -- ONE FACT, TWO ORDERS.** ``Board.chains`` carries the POOL in COMPOSITION
+    order; ``Board.trace()["chains"]`` publishes RANK order (``walk.chain_trace_set`` sorts on
+    ``Chain.rank``). The render read the pool, so "CHAIN first of three" named the chain the trace
+    listed SECOND -- MEASURED on the live fixture: page tail terms [23.9, 21.9] against trace
+    [21.9, 23.9] on deep, and [23.9, 21.9, 24.8] against [21.9, 23.9, 24.8] on max.
+
+    A reader takes "first of three" for a rank. The judge and the arm report read the trace. And the
+    held-seat label (owner ruling 2026-09-22) rides one of those heads, which is what made the split
+    legible rather than merely present. ONE ORDER, and it is the selection's own."""
+    for mode, (bd, blk) in sorted(chain_blocks.items()):
+        heads = [x for x in _chain_rows(blk, "chain") if x.startswith(R.CHAIN_HEAD_PREFIX)]
+        traced = [c for c in (bd.trace().get("chains") or ()) if c.get("rendered")]
+        assert heads and traced, mode
+        # THE TRACE'S OWN ORDER, read off the trace and never re-sorted here.
+        want = [tuple(h["driver_id"] for h in c["hops"]) for c in traced]
+        got = []
+        for x in heads:
+            hit = [c for c in bd.chains
+                   if c.rendered and R.humanise(c.hops[0].driver_id) in x
+                   and R.board_label(c.terminal or c.contract) in x]
+            assert hit, (mode, x[:90])
+            got.append(tuple(sorted(hit, key=lambda c: c.rank)[0].hop_ids))
+        assert got == want[: len(got)], (mode, got, want)
+        # ...and the ordinal WORDS follow that same order, first to last.
+        for i, x in enumerate(heads, start=1):
+            which = ("the one this page carries" if len(heads) == 1
+                     else "%s of %s" % (R.ordinal_words(i), R.words_for_int(len(heads))))
+            assert which in x, (mode, i, x[:90])
+
+
+def test_S8R4_the_COUNT_LINE_counts_the_AGED_OUT_dated_actions_in_its_own_sentence(chain_blocks):
+    """**ROUND-4 CENSUS 5 -- A CORRECTION THAT LEAVES NO TRACE IS A DELETION.**
+
+    ``walk._receipt_in_reach`` correctly refuses to call a 2019 action today's receipt, and
+    ``Chain.receipts_aged_out`` counts the documents it refused. The PAGE read neither that field nor
+    the counter beside it, so a chain whose only dated action was aged out was indistinguishable, to a
+    reader, from a chain that never had one.
+
+    IT FOLDS INTO THE EXISTING CLOSURE, never a second sentence, and ZERO is silent because "no dated
+    action aged out" is this page's ordinary state. The number is the POOL's own DOCUMENT count off
+    ``Chain.receipts_aged_out``; ``chain_counts["receipts_aged_out"]`` counts CHAINS under the same
+    name (census 9.1 measured two against one on one board) and reading it under the noun "dated
+    actions" would be this round's own MAJOR 1 on a second dict."""
+    counts = {"distinct_sequences": 77, "total": 1848, "state_two_hops": 816,
+              "with_document": 432, "distinct_unnamed_markets": 17}
+    assert "aged out" not in R.sb_chain_count(counts, k=3, anchor_label="CBOT soybeans")
+    one = R.sb_chain_count(counts, k=3, anchor_label="CBOT soybeans", aged=1)
+    many = R.sb_chain_count(counts, k=3, anchor_label="CBOT soybeans", aged=4)
+    assert "one dated action aged out of its window" in one, one
+    assert "four dated actions aged out of their windows" in many, many
+    for line in (one, many):
+        assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []
+        bare = _GLUED_RX.sub("", _YEAR_RX.sub("", _ISO_RX.sub("", line)))
+        assert not any(c.isdigit() for c in bare), line
+    # ON THE PAGE, off the SHIPPED field on the REAL pool: this fixture ages none out, so the clause
+    # is (correctly) absent, and the counted state is rendered by stamping the walk's own field.
+    for mode, (bd, blk) in sorted(chain_blocks.items()):
+        assert "aged out of" not in blk.text(), (mode, "the fixture ages none out")
+        victim = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)[0]
+        assert isinstance(victim, W.Chain) and "Chain.receipts_aged_out" in W.CHAIN_SEAM_FIELDS
+        was = int(victim.receipts_aged_out or 0)
+        try:
+            victim.receipts_aged_out = 2
+            again = R.render_board(bd, analogs=(), anchor_label="CBOT soybeans")
+            assert "two dated actions aged out of their windows" in again.text(), mode
+            assert again.trips == [], (mode, again.trips[:1])
+        finally:
+            victim.receipts_aged_out = was
+
+
+def test_S8R4_the_OUTCOME_row_states_the_SAMPLE_and_its_DENOMINATOR_in_one_noun(chain_blocks):
+    """**ROUND-4 CENSUS 5 -- ``Chain.outcome["n_in"]`` WAS A DECLARED SEAM FIELD THE PAGE NEVER READ.**
+
+    ``walk.chain_outcome`` publishes ``n_in`` (the past firings of this reading) beside ``n`` (those
+    the anchor's price array could read over the declared band). The page printed the SUBSET alone --
+    "across five past firings" -- two rows under a record line printing "in eleven of fourteen past
+    firings of this reading". Two counts of one population under one noun, and nothing on the page
+    saying the five were a subset of the fourteen. ``walk.chain_outcome_words`` closed exactly this
+    for the trace (review MA-5); the page was left on the old spelling.
+
+    ONE PRODUCER FOR BOTH ROWS -- the minting one and the letters-only absence -- so the sample can
+    never be stated two ways on one page."""
+    ch = _s8_chain([_s8_hop(), _s8_hop(driver_id="psd_ending_stock_su_ratio", percentile=68.0)])
+    ch.declared_sign = "+"
+    ch.outcome = {"n": 5, "n_in": 14, "median_move": 2.1, "low": -1.0, "high": 4.0,
+                  "share_declared_way": 3, "unit": "percent", "scope": _S8_SCOPE,
+                  "window_from": "2025-06-16", "window_to": "2026-09-04"}
+    line, calls = R.sb_chain_outcome(9, ch, asof="2026-09-07")
+    assert "five of fourteen firings carry a price reading over the band" in line, line
+    assert len(calls) == 3 and R.classify(line) == ("SB-O",), line
+    # ...and the SAME clause on the branch the fixture's own chains take.
+    ch.outcome = dict(ch.outcome, median_move=None, low=None, high=None)
+    thin = R.sb_chain_outcome_absent(ch)
+    assert "five of fourteen firings carry a price reading over the band" in thin, thin
+    assert "too thin for a middle figure" in thin, thin
+    # A SINGULAR SAMPLE AND A SINGULAR DENOMINATOR each take their own verb and noun.
+    ch.outcome = dict(ch.outcome, n=1, n_in=1)
+    assert "one of one firing carries a price reading over the band" in R.sb_chain_outcome_absent(ch)
+    # NO DENOMINATOR PUBLISHED -> the subset's own count, and nothing it cannot back.
+    ch.outcome = dict(ch.outcome, n=3, n_in=0)
+    assert "three past firings carry a price reading over the band" in R.sb_chain_outcome_absent(ch)
+    # AND ON THE PAGE, off the SHIPPED producer's own numbers.
+    seen = 0
+    for mode, (bd, blk) in sorted(chain_blocks.items()):
+        for c in sorted((x for x in bd.chains if x.rendered and x.full), key=lambda x: x.rank):
+            o = dict(c.outcome or {})
+            if not int(o.get("n") or 0):
+                continue
+            seen += 1
+            want = "%s of %s firings" % (R.words_for_int(int(o["n"])),
+                                         R.words_for_int(int(o["n_in"])))
+            assert want in blk.text(), (mode, want)
+        for line in _chain_rows(blk, "chain_outcome"):
+            assert R.register_hits(line) == [], (mode, line[:120])
+    assert seen >= 1, "the fixture must carry one priced outcome, or this pin grades nothing"
+
+
+def test_S8R4_an_OUT_OF_REACH_closed_document_is_NEVER_the_chains_receipt_and_says_so(chain_blocks):
+    """**ROUND-4 CENSUS 8 (round-2b blocker 8) -- ONE RECENCY RULE, AND THE RENDER HAD NONE.**
+
+    ``walk._chain_receipt`` ages a CLOSED receipt out at one band-length of the as-of and scores the
+    EVENT term accordingly. ``render.chain_receipt`` -- which is handed the WIDER pool and so sees
+    documents the walk never did -- had no bound at all, so the page could print, as this chain's
+    receipt, a document the score gave zero for. ``_receipt_in_reach`` appeared ZERO times in
+    ``render.py``.
+
+    THE RULE IS IMPORTED, NEVER RE-TYPED: the candidate's own date rides a REAL ``walk.ChainHop``
+    (``dataclasses.replace``) and the shipped predicate decides, so the two halves of one recency rule
+    cannot drift. The aged document is PRINTED -- counted, never deleted -- and spends no ``[E]``
+    seat, because a document this chain cannot claim must not cost the page a citation."""
+    import dataclasses
+    import inspect
+
+    from leviathan.graphrag import register as REG
+    assert "_receipt_in_reach" in inspect.getsource(R.chain_receipt), "one rule, imported"
+    hop = _s8_hop(lag_band=parse_lag("0-1 quarters"))
+    ch = _s8_chain([hop, _s8_hop(driver_id="psd_ending_stock_su_ratio", percentile=68.0)])
+    old = {"event_date": "2019-01-01", "source": "a wire service", "tier": 2,
+           "text": "the authority raised the export levy from the first of that month"}
+    near = dict(old, event_date="2026-08-20",
+                text="the authority raised the export levy from the twentieth")
+    # THE SHIPPED PREDICATE'S OWN VERDICT on the two dates, on a REAL hop.
+    assert not W._receipt_in_reach(dataclasses.replace(hop, event_date="2019-01-01"), "2026-09-07")
+    assert W._receipt_in_reach(dataclasses.replace(hop, event_date="2026-08-20"), "2026-09-07")
+    aged = R.chain_receipt(ch, {("soybeans_cbot", "export_pace_lag"): [old]}, asof="2026-09-07")
+    assert aged["kind"] == "none" and aged["prop"] is None, aged
+    assert "aged out of the window declared for it" in aged["words"], aged["words"]
+    assert "2019-01-01" in aged["words"] and "read as history" not in aged["words"]
+    row = R.sb_chain_document(aged, aged["hop"])
+    assert "aged out of the window declared for it" in row and R.classify(row) == ("SB-P",)
+    assert R.register_hits(row) == [] and REG.count_desk_register(row) == 0
+    # ...AND A CLOSED DOCUMENT INSIDE ONE BAND-LENGTH IS STILL THE CHAIN'S RECEIPT, read as history.
+    # THE MEASUREMENT THAT SHAPES THIS HALF, STATED RATHER THAN HIDDEN: for a band with a max end of
+    # one quarter or more, "the window has closed" (event + max < as-of) and "within one band-length
+    # of the as-of" (event >= as-of - max) are COMPLEMENTARY by construction, so the in-reach CLOSED
+    # case exists only for a same-quarter band -- which is the case built here, and the same property
+    # holds of ``walk._chain_receipt``'s own closed branch. Handed to lane W in the round-4 handoff.
+    same = _s8_hop(driver_id="export_pace_lag", lag_band=parse_lag("0 quarters"))
+    ch2 = _s8_chain([same, _s8_hop(driver_id="psd_ending_stock_su_ratio", percentile=68.0)])
+    assert W._receipt_in_reach(dataclasses.replace(same, event_date="2026-08-20"), "2026-09-07")
+    got = R.chain_receipt(ch2, {("soybeans_cbot", "export_pace_lag"): [near]}, asof="2026-09-07")
+    assert got["kind"] == "closed" and got["prop"] is not None, got
+    assert "read as history: the window closed" in got["words"], got["words"]
+    # AND NOTHING ON THE LIVE FIXTURE'S PAGES MOVED: no chain there carries an aged-out document.
+    for mode, (_bd, blk) in sorted(chain_blocks.items()):
+        assert "aged out of the window declared for it" not in blk.text(), mode
+
+
+def test_S8R4_the_STANZA_HEAD_is_MARKED_as_the_THEN_of_the_chain_the_page_named_first():
+    """**ROUND-4 MAJOR 2 / DESIGN C.2's RENDER HALF -- WIRED AND INAUDIBLE.**
+
+    ``seam._first_dim`` passed the top chain's dimension into the analog selection and
+    ``analogs._dims_first`` moved it to the front of the vector the coverage line enumerates -- and
+    ``first_dim`` appeared ZERO times in ``render.py``, so nothing on the page said WHY that dimension
+    led. A reordering nobody is told about is not an attribution, and lane N's mandate clause is
+    conditional on exactly this mark.
+
+    IT IS PRINTED ONLY WHERE THE ORDER IS ACTUALLY THE CHAIN'S: where ``_dims_first`` no-opped because
+    the chain's dimension is not one this board declares, the clause is absent rather than claiming a
+    lead that did not happen."""
+    from leviathan.graphrag import register as REG
+    a = {"driver_id": "El_Nino", "contract": "soybeans_cbot", "date": "2015-08-31",
+         "n_candidates": 4, "floor_year": "2003", "asof": "2026-09-07",
+         "first_dim": "export_pace_lag",
+         "dims_order": ["export_pace_lag", "El_Nino", "La_Nina"]}
+    head, plain = R.sb_analog_header(a), R.sb_analog_header(dict(a, first_dim=None))
+    assert "read as the history of the chain named first, on export pace lag" in head, head
+    assert R.classify(head) == ("SB-A",), R.classify(head)
+    # THE CLAUSE ITSELF IS CLEAN, and it moves neither instrument count on the header it rides. The
+    # SB-A header's own two desk-register hits are HEAD's and predate this movement.
+    mark = R.chain_stanza_mark(a)
+    assert R.register_hits(mark) == [] and REG.count_desk_register(mark) == 0, mark
+    assert REG.internal_leaks(mark) == [] and not any(c.isdigit() for c in mark), mark
+    assert R.register_hits(head) == R.register_hits(plain)
+    assert REG.count_desk_register(head) == REG.count_desk_register(plain)
+    head.encode("ascii")
+    # THE NO-OP SAYS NOTHING: a first_dim no declared dimension leads with is not an attribution.
+    assert R.chain_stanza_mark(dict(a, dims_order=["El_Nino", "La_Nina"])) == ""
+    assert R.chain_stanza_mark(dict(a, first_dim=None)) == ""
+    assert R.chain_stanza_mark({}) == ""
+    assert R.sb_analog_header(dict(a, first_dim=None)) + R.chain_stanza_mark(a) == head
+    # THE CO-LOUD STANZA IS A DIFFERENT SELECTOR and carries no chain attribution at all.
+    co = dict(a, co_loud=True, n_contracts=3)
+    assert "read as the history of the chain" not in R.sb_analog_header(co)

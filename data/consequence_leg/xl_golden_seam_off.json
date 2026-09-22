@@ -2,7 +2,7 @@
  "what": "D-XL FLAG-OFF SEAM GOLDEN -- the planner surface, the answer-seam signatures and kwarg-assembly block, the _system deck and the resolved off-state, measured with every GRAPHRAG_* name absent. Wraps nothing: cq.quantify cannot be rewrapped without flooring the live-path deck (10 reds on a pure no-op, measured).",
  "basis": "HEAD 9f928623 (product surface identical to 6679c154: HEAD touches only infra/terraform/envs/dev/variables.tf)",
  "collector": "one clean-env python subprocess, no pytest, no wrapping",
- "bank_sha256": "5eaaff55798c52c6e77ead25d3d5250ee823b557eb73c957463238d84bd6d407",
+ "bank_sha256": "3d2db701d1f23abb68c13712b16d7a7606dda3e94a0dc9ee351714ca6e71eb1d",
  "sections": [
   "flags_off",
   "negative_pins",
@@ -191,9 +191,9 @@
   },
   "seam_block": {
    "end_anchor": "**_dv_kw, **_cw_kw)",
-   "len": 8399,
-   "n_lines": 98,
-   "sha256": "2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074",
+   "len": 8431,
+   "n_lines": 99,
+   "sha256": "07c163a755ae1a8d68f00b751682c31bebdedf7e4b05f91598d4f12f8f4b611c",
    "start_anchor": "_pace_kw = {\"pace\": True} if _pace_leg_on() else {}"
   },
   "seam_kwarg_keys_off": {
@@ -958,5 +958,6 @@
     "sha256": "5bcc70e7214c5c8e2ef6388365695bcdae268dc23a6a1d24bbb4ddbcd167a7e5"
    }
   }
- }
+ },
+ "rebanked": "2026-09-22, S8 CHAIN MOVEMENT ROUND 3 (lane A), `seam_block` ONLY -- sha256 2b4407f4b7701799036182180bcc09993f49a37f4593e84d86912865a686e074 -> 07c163a755ae1a8d68f00b751682c31bebdedf7e4b05f91598d4f12f8f4b611c, len 8399 -> 8431, n_lines 98 -> 99. THE CAUSE IS NAMED AND MEASURED, and it is NOT this movement's: the block moved at commit 0250bade ('THE PRE-ARM FIX, ALL THREE ROUNDS') and NOWHERE ELSE. The ONE field that moved is the R4 PRICE-CONTEXT (`price_replay`) leg's own inline import, the two lines that feed `_pr_kw = {\"price_replay\": True} if asof and str(asof)[:10] < _dtn.now(_tzu.utc).date().isoformat() else {}`: `from datetime import datetime as _dtn, timezone as _tzu` became `from datetime import datetime as _dtn` + `from datetime import timezone as _tzu` (one import per line, ruff I001's own shape) -- +32 characters, +1 line, and not one other byte of the block. MEASURED by extracting the block between `BLOCK_START` and `BLOCK_END_POST` from `git show <ref>:src/leviathan/graphrag/answer.py` and applying the pin's own four dark cuts at each ref: 975398dd and 17fed3e4 both give 2b4407f4 / 8,399 / 98; 0250bade, bbddd4cc (HEAD) and THIS TREE all give 07c163a7 / 8,431 / 99, and the unified diff 975398dd->17fed3e4, 0250bade->bbddd4cc and bbddd4cc->TREE are each ZERO lines. The end anchor is unchanged (`**_dv_kw, **_cw_kw)`), no other section of this bank is touched, and the S8 chain movement moves ZERO bytes of this block -- the full block is a5bc9370712c2130 / 13,054 / 149 at 0250bade, at bbddd4cc and in this tree alike."
 }

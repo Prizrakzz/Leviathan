@@ -9,9 +9,12 @@ here opens a pg mirror, reaches Athena, spends a cent or reads an environment va
 about a fact of the SHIPPED graph (B7's `-`/`+` split on El_Nino, B8's crude_oil path) the test loads
 the REAL 36 curated DAGs, because a bar pinned against a synthetic graph would pin the fixture.
 """
+import json
+
 import pytest
 from leviathan.causal import schema as cs
 from leviathan.graphrag import graph as G
+from leviathan.graphrag import register as REG
 from leviathan.graphrag.state import board as B
 from leviathan.graphrag.state import walk as W
 from leviathan.graphrag.state.feeders import KeyPlan
@@ -1349,3 +1352,1580 @@ def test_the_declared_cap_is_the_EFFECTIVE_one_so_the_S6_ceiling_is_derived_from
               state_fn=_flat_state_fn(), key_fn=_key_fn(), receipts={})
     assert W.walk(**kw).declared_cap() == 71
     assert W.walk(legb_on=True, **kw).declared_cap() == 98
+
+# ═════════════════════════════════════════════════════════════════════════════════════════════════════
+# S8 LANE W -- THE COMPOSED CHAIN (DESIGN B.0-B.3, owner doctrine 2026-09-17)
+#
+# THE BARS THIS BLOCK OWNS. E9 the history stat is a weight and never a gate; E10 the earned-cross
+# rule; E11 the (contract, driver_id) join, built from HAND-MADE rows because the fixture serves one
+# array per ref and CANNOT fail it; the orchestrator's print-line ruling (a pool is never rendered
+# empty); the SIGN-DIVERSITY rule (owner: disagreement must be structural); the diversity fold on the
+# SERIES key; the curated prior; and the shape adapter that lets the estate's ten curated chains reach
+# a turn for the first time.
+#
+# EVERYTHING HERE IS HAND-BUILT AND OFFLINE. No graph is loaded except where a bar is about the shipped
+# graph, no state producer runs, no environment is read and nothing is spent.
+# ═════════════════════════════════════════════════════════════════════════════════════════════════════
+def _cs(ref, *, pct=None, z=None, values=None, dates=None, unit="t", run=None,
+        level=1.0, status="ok", changes=None, conv=None):
+    """ONE StateRow carrying its own INPUT BUNDLE, which is what the history stat reads at zero reads."""
+    key = SeriesKey(ref=ref)
+    st = StateRow(key=key, status=status, coverage_tier="series", table="t", metric=ref,
+                  cadence="monthly", unit=unit, narrate_unit=unit, level=level,
+                  level_date="2026-08-31", knowledge_date="2026-09-01",
+                  z=None if z is None else {"value": z, "window_n": 120},
+                  percentile=None if pct is None else {"value": pct, "n": 120},
+                  run=run, convention=conv,
+                  changes=list(changes or [{"window": "1m", "delta": 1.0, "pct": 1.0}]))
+    if values is not None:
+        st.inputs = {key.label(): {"values": list(values), "dates": list(dates or ()), "unit": unit}}
+    return st
+
+
+def _crow(bd, contract, driver_id, *, sign="+", lag="0-1 quarters", conf="high", st=None,
+          series_key=None, loud=True, event=None, event_open=False, receipts=None):
+    """ONE NodeRow on ``bd``, with its state registered under its OWN series key (E11's whole point)."""
+    lbl = series_key if series_key is not None else (st.key.label() if st is not None else "")
+    row = B.NodeRow(contract=contract, driver_id=driver_id, sign=sign, lag=lag,
+                    lag_band=parse_lag(lag), confidence=conf, mechanism="m",
+                    silver_status="available", series_key=lbl, state=st)
+    row.legs["loud"] = loud
+    if st is not None:
+        bd.series[lbl] = st
+    if event:
+        row.event_date, row.event_precision = event, "day"
+        row.event_receipt = {"date": event, "source": "src", "text": "an action", "event_date": event}
+        row.event_open = bool(event_open)
+    if receipts:
+        row.receipts = {"n": len(receipts), "top": list(receipts), "status": "ok"}
+    bd.rows.append(row)
+    return row
+
+
+def _cboard(*, asof="2026-09-07", mode="deep", anchors=("a_cbot",), horizon=3):
+    bd = B.Board(asof=asof, mode=mode, knobs=B.board_knobs_of(mode), horizon_months=horizon,
+                 anchors=tuple(B.Anchor(contract=s, source="named") for s in anchors))
+    return bd
+
+
+def _cpath(bd, contract, hops):
+    bd.paths.append({"contract": contract, "seeded_by": hops[0], "ancestor": hops[0],
+                     "bottom": hops[-1], "depth": len(hops) - 1, "hops": tuple(hops),
+                     "lag_band": parse_lag(""), "band_is_the_ancestors_own": True,
+                     "confidence": "high", "rank": (), "rendered": False, "decline": None})
+
+
+def _cfinish(bd):
+    bd.set_order(W.rank_rows(bd.rows))
+
+
+# ── the flag, and the byte-identical set it protects ────────────────────────────────────────────────
+def test_the_chain_flag_off_builds_nothing_stamps_nothing_and_moves_no_knob(real):
+    """DESIGN B.7: board ON and chain OFF must be byte-identical to the 2026-09-16 smoke, or arm A
+    cannot attribute a character. This is that property at the WALK's own seam: with the kwarg absent,
+    `Board.chains` is empty, `chain_counts` is empty, the trace omits both keys AND the row payload,
+    the `path` leg carries the stamp step 6 gave it, and the render caps are the TIER's own -- the A.8
+    cuts ride the flag through `board.with_chain_caps` and never the mode table."""
+    g = _graph(a_cbot=cs.CausalContract(
+        contract="a_cbot",
+        drivers=[_driver("top", lag="0-1 quarters"), _driver("mid", parents=["top"]),
+                 _driver("bot", parents=["mid"])]))
+    bd = W.walk(graph=g, asof="2026-09-07", mode="deep", anchors=W.resolve_anchors(named=("a_cbot",)),
+                question="q", state_fn=lambda ref, node: (_state(ref, z=1.0, pct=90), 1),
+                key_fn=_key_fn(), receipts={}, knobs=B.board_knobs_of("deep"), width=2, stage2=False)
+    W.stage2(bd, g, state_fn=lambda ref, node: (_state(ref, z=1.0, pct=90), 1), key_fn=_key_fn(),
+             receipts={})
+    assert bd.chains == [] and bd.chain_counts == {}
+    tr = bd.trace()
+    assert "chains" not in tr and "chain_counts" not in tr and "row_states" not in tr
+    assert isinstance(tr["rows"], int), "`rows` is the COUNT and must stay an integer"
+    assert bd.knobs == B.board_knobs_of("deep"), "no cap moved with the flag off"
+    assert bd.legs["path"]["outcome"] in ("fired", "declined", "not_reached")
+
+
+def test_the_chain_flag_on_cuts_exactly_the_four_A8_enumerations_and_nothing_else():
+    """DESIGN A.8 / threat E1: the enumeration cuts land in the same commit as the chain rows, and
+    they ride the CHAIN FLAG rather than `BOARD_PRESETS` so the control cell cannot move with the
+    treatment. Exactly four knobs move, and every budget knob is untouched by construction."""
+    for mode in ("quick", "deep", "max"):
+        k = B.board_knobs_of(mode)
+        c = B.with_chain_caps(k, mode)
+        moved = {n for n in B.BoardKnobs._fields if getattr(k, n) != getattr(c, n)}
+        assert moved <= {"render_absence", "render_absence_names", "render_fan_names",
+                         "render_projection"}, moved
+        for n in ("loud_k", "fan_k", "wave1", "wave2", "analog_k", "analog_dims", "receipt_cap",
+                  "board_admit_k", "max_anchors", "path_render_k"):
+            assert getattr(k, n) == getattr(c, n), n
+        assert B.check_knobs(c, legb_cells=B.legb_cells_of(mode)) == []
+    # QUICK GETS NOTHING FROM THE TABLE AND THE DESIGN SAYS SO: `BOARD_PRESETS[QUICK]` already ships
+    # A.8's quick row byte for byte, which is why the free tier absorbs its one chain as a net add.
+    assert B.with_chain_caps(B.board_knobs_of("quick"), "quick") == B.board_knobs_of("quick")
+    assert B.with_chain_caps(None, "deep") is None
+
+
+# ── E9: THE STATS GRADE, THEY NEVER GATE ────────────────────────────────────────────────────────────
+def test_E9_a_chain_with_ONE_firing_and_a_first_percentile_hop_RANKS_AND_RENDERS():
+    """THE NEGATIVE TEST DESIGN E9 ASKS FOR BY NAME, and it exists because this is the estate's own
+    repeated failure -- the analog rule, the K9 floors, the register fence and S7's STOP were all a
+    weight that became a gate. A chain whose record is ONE firing and whose receipt hop sits at the
+    FIRST percentile of its own record must rank and render, with "history thin" printed beside it.
+    Frequency floors deny the tail."""
+    bd = _cboard()
+    st_top = _cs("top", pct=1, z=-2.6, values=[5, 4, 5, 4, 3, 2, 1], unit="pct",
+                 dates=["2026-0%d-28" % i for i in range(1, 8)])
+    _crow(bd, "a_cbot", "top", st=st_top)
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50, values=[1, 2], dates=["2026-01-31", "2026-07-31"]))
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    assert got["pool"], "the chain must exist"
+    ch = got["pool"][0]
+    # 25 * max(|1-50|/50, min(|-2.6|/2.5, 1)) = 25 * max(0.98, 1.0) = 25.0 -- THE SIGMA LEG CLAMPS
+    # AT ONE, so a reading past 2.5 sigma is a full tail and not a bigger one.
+    assert ch.terms["tail"] == 25.0, ch.terms
+    assert ch.history["n_firings"] <= 2 and ch.history["thin"] is True
+    assert ch.terms["history"] == W.CHAIN_HISTORY_NEUTRAL, "a thin record is NEUTRAL, never low"
+    assert ch.rendered is True, "a thin record removed a chain -- the weight became a gate"
+    assert "history thin" in ch.notes["history"] or "no past firings" in ch.notes["history"]
+
+
+def test_the_history_term_is_a_fraction_of_a_real_record_and_prints_its_sample_size():
+    """DESIGN B.2's HISTORY arithmetic, executed: `15 * aligned_fraction` at six or more firings,
+    discounted by 0.7 between three and six, NEUTRAL below three -- and the words carry the COUNT so a
+    reader weighs it (figures AND words together, never either extreme)."""
+    # a parent that rises, falls, rises ... and a child that follows it one month later
+    vals = [1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
+    dates = ["2024-%02d-28" % ((i % 12) + 1) if i < 12 else "2025-%02d-28" % ((i % 12) + 1)
+             for i in range(len(vals))]
+    a = _cs("a", pct=95, values=vals, dates=dates, run={"direction": "up", "length": 1})
+    b = _cs("b", pct=60, values=[v * 2 for v in vals], dates=dates)
+    h = W.chain_history(a, b, edge_sign="+", band=parse_lag("0-1 quarters"), asof="2026-09-07",
+                        direction=1)
+    assert h["n_firings"] >= 3, h
+    assert 0.0 <= h["fraction"] <= 1.0
+    assert str(h["n_firings"]) not in h["words"], "the sample size is spelled in WORDS, not digits"
+    assert "past firings" in h["words"]
+    # and it never removes anything: a declined record is a NEUTRAL score, not an absent chain
+    assert W.chain_history(None, None, edge_sign="+", band=parse_lag("0-1 quarters"),
+                           asof="2026-09-07")["n_firings"] == 0
+
+
+def test_the_history_stat_drops_a_firing_whose_declared_window_has_NOT_closed_at_the_asof():
+    """THE ONLY HARD FILTERS IN THIS DESIGN ARE POINT-IN-TIME AND EXISTENCE (ruling R2). A firing
+    whose declared band closes after the as-of is not a record -- it is the present -- so it is
+    dropped, and the CURRENT run's own start needs no second clause because its window closes after
+    the as-of by construction."""
+    vals = [1, 2, 1, 2, 1, 2]
+    dates = ["2026-04-30", "2026-05-31", "2026-06-30", "2026-07-31", "2026-08-31", "2026-09-30"]
+    early = W.chain_firings(vals, dates, direction=1, min_separation=1, asof="2026-09-07",
+                            close_months=3)
+    late = W.chain_firings(vals, dates, direction=1, min_separation=1, asof="2027-09-07",
+                           close_months=3)
+    assert len(early) < len(late), (early, late)
+    assert all(f["date"] <= "2026-06-07" for f in early), early
+
+
+# ── E10: THE EARNED-CROSS RULE ──────────────────────────────────────────────────────────────────────
+def test_E10_a_cross_hop_to_an_UNPRICED_far_board_earns_no_reach_and_renders_no_cross_line():
+    """DESIGN B.0 / E10: an unpriced far market is a NAME, and a name buys no rank -- the direct fix
+    for the PM's reading of "declared on twenty-three other markets" as scoring machinery. AND IT
+    REMOVES NO CHAIN: it removes the chain's cross EXTENSION, and the intra-DAG chain stays in the
+    pool with its own score, which is the half of the rule that is easy to get wrong."""
+    bd = _cboard()
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=95))
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    bd.edges.append({"anchor": "a_cbot", "direction": "forward", "other": "z_cbot",
+                     "relation": "substitute", "sign": "+", "lag": "0-1 quarters",
+                     "lag_band": parse_lag("0-1 quarters"), "mechanism": "m", "tracked": True})
+    bd.fan.append({"contract": "a_cbot", "driver_id": "top", "loud": True,
+                   "far": [{"contract": "z_cbot", "driver_id": "top", "state_read": False,
+                            "series_key": "", "sign": "+", "confidence": "high", "ref": "r"}]})
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    assert got["counts"]["cross_unpriced"] == 1
+    assert all(c.cross is None for c in got["pool"]), "an unpriced far board was carried"
+    assert len(got["pool"]) == 1, "the intra-DAG chain was removed with its extension"
+    assert got["pool"][0].terms["reach"] < 15
+
+
+def test_a_cross_hop_to_a_PRICED_far_board_is_earned_and_carries_the_far_reading():
+    """The other half: `bd.edges` is MARKET to MARKET and knows the relation, the sign, the lag and
+    the mechanism; `bd.fan[*].far[*]` is the SAME DRIVER on another board and is the only one that
+    knows whether anything was PRICED. The composition takes the edge from the first and EARNS it
+    against the second (S8 recon, surprise S5)."""
+    bd = _cboard()
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=95))
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    far_st = _cs("zfar", pct=99)
+    bd.series["zfar"] = far_st
+    bd.edges.append({"anchor": "a_cbot", "direction": "forward", "other": "z_cbot",
+                     "relation": "substitute", "sign": "+", "lag": "0-1 quarters",
+                     "lag_band": parse_lag("0-1 quarters"), "mechanism": "m", "tracked": True})
+    bd.fan.append({"contract": "a_cbot", "driver_id": "top", "loud": True,
+                   "far": [{"contract": "z_cbot", "driver_id": "top", "state_read": True,
+                            "series_key": "zfar", "sign": "+", "confidence": "high", "ref": "r"}]})
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    crossed = [c for c in got["pool"] if c.cross]
+    assert len(crossed) == 1 and crossed[0].terminal == "z_cbot"
+    assert crossed[0].terminal_percentile == 99
+    assert crossed[0].terms["reach"] > got["pool"][0].terms["reach"]
+    assert crossed[0].unnamed_terminal is True, "the question named a_cbot and not z_cbot"
+
+
+# ── E11: THE JOIN ───────────────────────────────────────────────────────────────────────────────────
+def test_E11_the_chain_state_join_keys_on_contract_AND_driver_id_and_on_the_series_key():
+    """`area` IS A DRIVER OF `corn_cbot` AND OF `soft_red_winter_wheat_cbot` AND THE TWO READ THE 98TH
+    AND THE 1ST PERCENTILE ON THE SAME TURN. `render.series_by_driver` keys on the bare id with
+    `setdefault` and returns ONE reading per id for the whole board, so a chain built off it prints one
+    board's tail on the other board's chain.
+
+    THE FIXTURE CANNOT FAIL THIS -- it serves one array per ref regardless of scope, so both boards
+    print the same percentile and the defect is invisible (measured in the S8 recon, surprise S4). So
+    the rows here are HAND-MADE, which is exactly what the standing memory about string-identity joins
+    asks for."""
+    bd = _cboard(anchors=("corn_cbot", "soft_red_winter_wheat_cbot"))
+    _crow(bd, "corn_cbot", "top", st=_cs("ctop", pct=55), series_key="ctop")
+    _crow(bd, "corn_cbot", "area", st=_cs("area_corn", pct=98), series_key="area_corn")
+    _crow(bd, "soft_red_winter_wheat_cbot", "top", st=_cs("wtop", pct=55), series_key="wtop")
+    _crow(bd, "soft_red_winter_wheat_cbot", "area", st=_cs("area_wheat", pct=1), series_key="area_wheat")
+    _cpath(bd, "corn_cbot", ["top", "area"])
+    _cpath(bd, "soft_red_winter_wheat_cbot", ["top", "area"])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    by_board = {c.contract: c for c in got["pool"]}
+    assert by_board["corn_cbot"].hops[1].percentile == 98
+    assert by_board["soft_red_winter_wheat_cbot"].hops[1].percentile == 1
+    assert by_board["corn_cbot"].hops[1].series_key != by_board["soft_red_winter_wheat_cbot"].hops[1].series_key
+    # and the two `area` hops are NOT one reading for the diversity fold either
+    assert by_board["corn_cbot"].hops[1].fold_key != \
+        by_board["soft_red_winter_wheat_cbot"].hops[1].fold_key
+
+
+# ── the render decision ─────────────────────────────────────────────────────────────────────────────
+def test_the_TOP_chain_always_renders_even_below_the_print_line_IN_FULL():
+    """THE ORCHESTRATOR'S RULING OF 2026-09-17 AND OWNER RULING 6(a) TOGETHER: when any candidate chain
+    exists the top-ranked one renders, and it renders IN FULL whatever it scored (review MA-1) -- so no
+    turn is chain-less while the graph carried one, and a data-poor anchor's best chain is not served
+    in a reduced form for having scarce data. The chain below the line keeps its score, its rank and
+    its trace row, and the count line says it sat below the line only where it did NOT render."""
+    bd = _cboard()
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=50), conf="low")
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50), conf="low")
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    ch = got["pool"][0]
+    assert ch.score < bd.knobs.chain_print_line, ch.score
+    assert ch.rendered is True and ch.full is True, "a pool was rendered empty or reduced"
+    assert ch.decline is None and ch.slot == "top"
+    assert got["counts"]["below_print_line"] == 0, "it RENDERED, so it is not counted below the line"
+    # and the line still has exactly one reader: the count, never the selection
+    assert W.chain_render_set([ch], k=1, print_line=0.0)["rendered"][0].full is True
+
+
+def test_no_chain_is_ever_removed_from_the_pool_and_every_cut_carries_a_declared_word():
+    """Ruling R2 in one assertion. `chain_render_set` is a RENDER rule the object exposes, never a
+    filter: the pool it returns is the pool it was given, and every chain that did not render carries
+    a word from `board.CHAIN_REASONS` -- the vocabulary the render owes a sentence."""
+    bd = _cboard(mode="quick")
+    for i in range(6):
+        _crow(bd, "a_cbot", "t%d" % i, st=_cs("t%d" % i, pct=90 + i))
+        _crow(bd, "a_cbot", "b%d" % i, st=_cs("b%d" % i, pct=50))
+        _cpath(bd, "a_cbot", ["t%d" % i, "b%d" % i])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    assert len(got["pool"]) == 6
+    assert got["counts"]["total"] == 6
+    for c in got["pool"]:
+        assert c.rendered or c.decline in B.CHAIN_REASONS, (c.rendered, c.decline)
+    assert sum(1 for c in got["pool"] if c.rendered) == bd.knobs.chain_render_k
+
+
+def test_the_diversity_rule_folds_on_the_SERIES_key_so_one_reading_is_never_two_chains():
+    """DESIGN B.2's diversity rule with the fix lane's own fold. Two drivers served by ONE series --
+    `El_Nino` and `La_Nina` off one ONI print, the estate's own example -- are ONE reading, and
+    rendering both would be the defect `_series_fold` / `group_keep` / `fold_relation` closed on four
+    other surfaces in the pre-arm fix."""
+    bd = _cboard(mode="max")
+    oni = _cs("oni", pct=93, z=2.4)
+    _crow(bd, "a_cbot", "El_Nino", st=oni, series_key="oni")
+    _crow(bd, "a_cbot", "La_Nina", st=oni, series_key="oni")
+    _crow(bd, "a_cbot", "b1", st=_cs("b1", pct=50), series_key="b1")
+    _crow(bd, "a_cbot", "b2", st=_cs("b2", pct=50), series_key="b2")
+    _cpath(bd, "a_cbot", ["El_Nino", "b1"])
+    _cpath(bd, "a_cbot", ["La_Nina", "b2"])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    rendered = [c for c in got["pool"] if c.rendered]
+    assert len(rendered) == 1, [c.hop_ids for c in rendered]
+    assert got["pool"][0].hops[0].fold_key == ("series", "oni")
+
+
+def test_the_SIGN_DIVERSITY_rule_carries_both_sides_and_says_so_when_only_one_exists():
+    """OWNER, 2026-09-17: disagreement is where convexity lives and it must be STRUCTURAL, never left
+    to the writer to notice. Where both sides of the anchor carry a chain above the line the render
+    carries the best FOR and the best AGAINST; where only one side exists, the block SAYS SO."""
+    bd = _cboard(mode="max")
+    up = {"direction": "up", "length": 3, "since_date": "2026-06-30"}
+    # a '+' driver rising -> higher;  a '-' driver rising -> lower
+    _crow(bd, "a_cbot", "bull", sign="+", st=_cs("bull", pct=97, run=up), series_key="bull")
+    _crow(bd, "a_cbot", "bear", sign="-", st=_cs("bear", pct=96, run=up), series_key="bear")
+    _crow(bd, "a_cbot", "bull2", sign="+", st=_cs("bull2", pct=95, run=up), series_key="bull2")
+    # THE BOTTOM HOP SHARES ITS TOP'S DECLARED SIGN so the relative sign is '+' and the two readings
+    # AGREE. With opposite signs the chain runs against itself and is UNSETTLED -- which is the rule
+    # working rather than a fixture detail, and the test below pins that case on its own.
+    for t, sg in (("bull", "+"), ("bear", "-"), ("bull2", "+")):
+        _crow(bd, "a_cbot", "x_" + t, sign=sg, st=_cs("x_" + t, pct=50), series_key="x_" + t)
+        _cpath(bd, "a_cbot", [t, "x_" + t])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    rendered = [c for c in got["pool"] if c.rendered]
+    assert {c.side for c in rendered} >= {"for", "against"}, [(c.hop_ids, c.side) for c in rendered]
+    assert "opposite ways" in got["disagreement"]
+    # ONE SIDE ONLY -> the block says so rather than staying silent about the absence
+    one = W.chain_render_set([c for c in got["pool"] if c.side == "for"], k=3, print_line=0.0)
+    assert "no chain above the line points the other way" in one["disagreement"] or \
+        "none points the other way" in one["disagreement"]
+
+
+def test_a_chain_is_never_ranked_down_for_disagreeing_and_the_hop_that_runs_against_is_NAMED():
+    """Disagreement is INFORMATION, not noise: the per-hop verdict is a FIELD and the print line is a
+    FIELD, never a filter. A chain whose middle hop runs against its declared direction scores exactly
+    what the same chain scores with the hop agreeing, and the block names the hop."""
+    def _one(child_delta):
+        bd = _cboard()
+        _crow(bd, "a_cbot", "top", sign="+", st=_cs("top", pct=95,
+                                                    changes=[{"window": "1m", "delta": 1.0}]))
+        _crow(bd, "a_cbot", "bot", sign="+", st=_cs("bot", pct=50,
+                                                    changes=[{"window": "1m", "delta": child_delta}]))
+        _cpath(bd, "a_cbot", ["top", "bot"])
+        _cfinish(bd)
+        return W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0]
+    agree, against = _one(1.0), _one(-1.0)
+    assert agree.agreements[0] == "aligned" and against.agreements[0] == "at_odds"
+    assert agree.score == against.score, "a chain was ranked down for disagreeing"
+    assert against.against_hops == ("top",)
+    assert against.side == "unsettled"
+    # THE SENTENCE NAMES THE HOP, AND IT SPENDS NO CHARGED TOKEN DOING IT (review round 2 M1): the
+    # first cut said "the direction THE GRAPH declares for it", which `register.desk_register_hits`
+    # charges on every rendered chain of every tier.
+    words = W.chain_disagreement_words([against])
+    assert "runs against the direction declared for it" in words
+    assert "the graph" not in words and REG.desk_register_hits(words) == []
+
+
+# ── the declared sign, and the composition the shipped schema licenses ───────────────────────────────
+def test_the_relative_sign_between_two_hops_is_the_PRODUCT_of_their_own_declared_signs():
+    """`Driver.sign` is "the driver's effect on the contract's target_metric" (causal/schema.py:8-10),
+    NOT its sign onto its child, so the only composition the schema licenses is the product -- a '+'
+    parent of a '-' child pushes it DOWN. `'0'` is a DECLARED word and is not a sign (sec 1.5), so the
+    pair has no relative sign and the verdict is `undetermined`: stated, never guessed."""
+    assert W.hop_edge_sign("+", "+") == "+"
+    assert W.hop_edge_sign("-", "-") == "+"
+    assert W.hop_edge_sign("+", "-") == "-"
+    assert W.hop_edge_sign("0", "+") == ""
+    assert W.hop_edge_sign("", "+") == ""
+
+
+def test_the_chains_declared_direction_telescopes_onto_the_TOP_hops_own_sign():
+    """The product of the relative signs along a chain composed with the bottom hop's own sign onto
+    the price is `s0 * s1^2 * ... = s0` -- so a chain's declared direction onto the anchor IS its top
+    hop's own declared sign, which is what `ancestor_paths` already says of the BAND ("the band on the
+    row is the TOP node's own, never a sum"), arrived at from the other end. An EARNED cross hop then
+    carries it onto the far board through the EDGE's own sign."""
+    hops = (W.ChainHop(contract="a", driver_id="t", sign="-"),
+            W.ChainHop(contract="a", driver_id="m", sign="+"),
+            W.ChainHop(contract="a", driver_id="b", sign="-"))
+    assert W.chain_declared_sign(hops) == "-"
+    assert W.chain_declared_sign(hops, cross_sign="-") == "+"
+    assert W.chain_declared_sign(hops, cross_sign="0") == ""
+    assert W.chain_declared_sign(()) == ""
+
+
+# ── the receipt ─────────────────────────────────────────────────────────────────────────────────────
+def test_the_receipt_takes_an_OPEN_action_first_a_closed_one_next_and_a_mechanism_sentence_last():
+    """DESIGN B.4's order of choice, and the EVENT ladder that prices it. An enacted action inside the
+    hop's own window is worth the most a receipt can be worth; a closed one is read AS HISTORY and
+    says so in its own words (threat E4: the correction, not the deletion); a dated report sentence
+    about the mechanism is worth a third of it; and none says so rather than going quiet (E6)."""
+    def _one(**kw):
+        bd = _cboard()
+        _crow(bd, "a_cbot", "top", st=_cs("top", pct=95), **kw)
+        _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+        _cpath(bd, "a_cbot", ["top", "bot"])
+        _cfinish(bd)
+        return W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0]
+    op = _one(event="2026-08-01", event_open=True)
+    cl = _one(event="2026-07-01", event_open=False)
+    me = _one(receipts=[{"date": "2026-05-02", "source": "s", "text": "a report sentence"}])
+    no = _one()
+    assert (op.receipt_kind, op.terms["event"]) == ("open", 20)
+    assert (cl.receipt_kind, cl.terms["event"]) == ("closed", 12)
+    assert "history" in cl.receipt_words and "closed" in cl.receipt_words
+    assert (me.receipt_kind, me.terms["event"]) == ("mechanism", 6)
+    assert (no.receipt_kind, no.terms["event"]) == ("none", 0)
+    # E6: the absence names WHICH DRAW RAN, never "none exists" -- and owner ruling 6 splits that
+    # absence in two, because "nothing in THIS HOP'S WINDOW" and "nothing about this MARKET reached
+    # the turn at all" are different facts about a term that scored the same.
+    assert "no dated document about this market reached this turn" in no.notes["event"]
+    bd = _cboard()
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=95))
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _crow(bd, "a_cbot", "elsewhere", st=_cs("elsewhere", pct=50),
+          receipts=[{"date": "2026-05-02", "source": "s", "text": "a report sentence"}])
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    some = W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0]
+    assert some.receipt_kind == "none"
+    assert "among the documents this turn retrieved" in some.notes["event"]
+
+
+def test_B4_a_CLOSED_receipt_older_than_ONE_BAND_LENGTH_is_AGED_OUT_of_the_choice_and_the_term():
+    """DESIGN B.4's own clause, which the first cut did not implement (review round 2 M7).
+    `NodeRow.event_date` is `max(event_date <= asof)` and is never aged out, so a 2019 action could be
+    a 2026 chain's printed receipt AND score the EVENT term 12 of 20. The WORDS were honest ("read as
+    history: the window closed"), so this is not the E4 lie -- it is a rank term inflated by a document
+    no desk would call a receipt for today's chain, and a stale document put on the page beside it.
+    ONE BAND-LENGTH is the hop's OWN declared maximum lag, so the bound is the graph's."""
+    def _one(event, lag="0-1 quarters"):
+        bd = _cboard(asof="2026-09-07")
+        _crow(bd, "a_cbot", "top", lag=lag, st=_cs("top", pct=95), event=event, event_open=False)
+        _crow(bd, "a_cbot", "bot", lag=lag, st=_cs("bot", pct=50))
+        _cpath(bd, "a_cbot", ["top", "bot"])
+        _cfinish(bd)
+        return W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0]
+    near, old = _one("2026-07-01"), _one("2024-01-01")
+    assert (near.receipt_kind, near.terms["event"]) == ("closed", 12)
+    assert (old.receipt_kind, old.terms["event"]) == ("none", 0), old.receipt_words
+    # A WIDER DECLARED BAND REACHES FURTHER BACK, because the bound is the BAND and not a constant:
+    # the same 2024 action sits inside one band-length of a hop that declares twelve quarters.
+    wide = _one("2024-01-01", lag="4-12 quarters")
+    assert wide.receipt_kind == "closed", wide.receipt_words
+    # and the OPEN branch is untouched: an open window is by definition still running
+    bd = _cboard(asof="2026-09-07")
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=95), event="2019-01-01", event_open=True)
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    assert W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0].receipt_kind == "open"
+
+
+# ── the outcome line ────────────────────────────────────────────────────────────────────────────────
+def test_the_outcome_line_is_PAST_TENSE_with_its_sample_size_and_names_the_window_it_had():
+    """OWNER ASK, 2026-09-17: the base rate a PM pays for. And the S8 recon's hard measurement beside
+    it -- the anchor's front-month tape is ~320 sessions by DECLARATION, `bd.tape` is keyed by anchor
+    slug only, and `board_map` declares NO level price series -- so an outcome older than about
+    eighteen months is not constructible at zero reads. Both honest forms are pinned: the window the
+    array actually covers, named in the sentence, and "no price history over these firings"."""
+    dates = ["2024-%02d-15" % m for m in range(1, 13)] + ["2025-%02d-15" % m for m in range(1, 13)]
+    vals = [100 - i for i in range(len(dates))]
+    firings = [{"index": i, "date": dates[i]} for i in range(0, 12)]
+    got = W.chain_outcome(vals, dates, unit="USc/bu", firings=firings,
+                          band=parse_lag("0-1 quarters"), declared_sign="-",
+                          scope="the front price's own 2024-01-15 to 2025-12-15 window")
+    assert got["n"] >= 8 and got["median_move"] is not None
+    assert "moved a middle" in got["words"] and "2024-01-15" in got["words"]
+    assert "the declared way" in got["words"] and got["share_declared_way"] == got["n"]
+    # ONE CALCULATOR, AND IT REFUSES BELOW ITS OWN FLOOR. `stats.quantiles` declines under
+    # MIN_QUANTILE_N, so a handful of firings prints the COUNT and the SHARE and says the sample is
+    # thin -- a count is not a distribution and must never be dressed as one.
+    thin = W.chain_outcome(vals, dates, unit="USc/bu", firings=firings[:2],
+                           band=parse_lag("0-1 quarters"), declared_sign="-")
+    assert thin["n"] == 2 and thin["median_move"] is None
+    assert "too thin for a middle figure" in thin["words"]
+    empty = W.chain_outcome([], [], unit="", firings=firings, band=parse_lag("0-1 quarters"))
+    assert empty["words"] == "no price history over these firings" and empty["n"] == 0
+
+
+# ── the curated prior, and the adapter that lets it reach a turn ────────────────────────────────────
+def test_the_curated_chains_are_a_PRIOR_and_never_a_second_engine():
+    """DESIGN B.0 / F5: `notes[kind=chains].rows == ()` on 5 of 5 banked payloads because the seam
+    passes `chains=()` and `chain_paths` would raise on the first curated row anyway. A curated row
+    MINTS NO CHAIN and REMOVES NONE -- it is worth the CONFIDENCE term at its maximum and the curated
+    name on the page, and the composed chain would have existed without it."""
+    curated = [{"id": "corn_lanina_safrinha_su", "contracts": ["a_cbot"],
+                "hops": [{"node": "top", "ref": "r"}, {"node": "bot", "ref": "r2"}]}]
+    idx = W.curated_chain_index(curated)
+    assert idx["nodes"]["a_cbot"] == [("corn_lanina_safrinha_su", ("top", "bot"))]
+    bd = _cboard()
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=95), conf="low")
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50), conf="low")
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    plain = W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0]
+    with_prior = W.chain_rows(bd, None, knobs=bd.knobs, chains=curated)["pool"][0]
+    assert plain.curated == "" and with_prior.curated == "corn_lanina_safrinha_su"
+    assert with_prior.terms["confidence"] == W.CHAIN_TERM_MAX["confidence"] > plain.terms["confidence"]
+    assert len(W.chain_rows(bd, None, knobs=bd.knobs, chains=curated)["pool"]) == 1
+
+
+def test_chain_paths_reads_BOTH_shipped_maps_instead_of_raising_on_the_first_row(real):
+    """THE DEFECT REFUTED #3 NAMES, CLOSED. `cascade.load_chain_map()` rows carry `id` and `hops` of
+    DICTS; `chain_paths` read `ch['name']` and then `h in loud` with `h` a dict -- `TypeError:
+    unhashable type: 'dict'` on the FIRST row. And its one caller passed BOARD SLUGS while those hops
+    are DRIVER NODES, so even without the raise the join would have counted nothing. The axis is now
+    DECLARED per row."""
+    from leviathan.graphrag.numbers import cascade as CAS
+    rows = list(CAS.load_chain_map())
+    assert rows and any(isinstance(h, dict) for h in rows[0]["hops"]), "the shipped shape moved"
+    nodes = {("corn_cbot", h["node"]) for ch in rows for h in ch["hops"]}
+    got = W.chain_paths(rows, ["corn_cbot"], loud_boards={"corn_cbot"},
+                        on_nodes=nodes, loud_nodes=nodes)
+    assert got and any(c["loud_hops"] for c in got), got[:2]
+    assert all(c["axis"] == "node" for c in got)
+    # a node-axis row whose own contracts are not on THIS board counts nothing (the string-identity
+    # join this estate has a standing memory about, arrived at through a config)
+    off = W.chain_paths(rows, ["malaysian_crude_palm_oil_cme"], on_nodes=nodes, loud_nodes=nodes)
+    assert all(c["loud_hops"] == 0 for c in off if "corn" in c["name"])
+    # and the transmission map's MARKET axis reads as markets
+    tm = list(CAS.load_transmission_map())
+    if tm:
+        assert W.chain_row_shape(tm[0])[0] == "market"
+    assert W.chain_paths((), ["corn_cbot"]) == []
+
+
+def test_E11_a_curated_chains_hops_are_counted_on_ITS_OWN_CONTRACTS_rows_and_never_another_boards():
+    """E11 ON THE ORDERING SURFACE F5 JUST OPENED (review round 2 M3). `chain_paths` took a FLAT set of
+    driver ids over a board that spans contracts, so on the corn+wheat turn -- one of the five smoke
+    payloads -- a curated chain whose hops are `area` and `ending_stocks` counted TWO LOUD HOPS and
+    rendered off the OTHER board's two rows, because both DAGs declare both ids. A string-identity join
+    on a driver id alone is this estate's standing failure; the join is `(contract, driver_id)`."""
+    row = [{"id": "corn_area_su", "contracts": ["corn_cbot"],
+            "hops": [{"node": "area"}, {"node": "ending_stocks"}]}]
+    board = ["corn_cbot", "soft_red_winter_wheat_cbot"]
+    wheat = {("soft_red_winter_wheat_cbot", "area"),
+             ("soft_red_winter_wheat_cbot", "ending_stocks")}
+    off = W.chain_paths(row, board, loud_boards={"soft_red_winter_wheat_cbot"},
+                        on_nodes=wheat, loud_nodes=wheat)[0]
+    assert (off["loud_hops"], off["hops_on_board"], off["rendered"]) == (0, 0, False), off
+    # the SAME board, once CORN's own rows are on it: the curated corn chain lights, and it lights on
+    # its own readings.
+    both = wheat | {("corn_cbot", "area"), ("corn_cbot", "ending_stocks")}
+    on = W.chain_paths(row, board, loud_boards={"corn_cbot", "soft_red_winter_wheat_cbot"},
+                       on_nodes=both, loud_nodes=both)[0]
+    assert (on["loud_hops"], on["hops_on_board"], on["rendered"]) == (2, 2, True), on
+    # and the SHIPPED wheat row behaves the same way against a corn-only reading set
+    from leviathan.graphrag.numbers import cascade as CAS
+    shipped = [r for r in CAS.load_chain_map() if r.get("id") == "wheat_area_su"]
+    assert shipped, "the shipped curated row moved"
+    corn = {("corn_cbot", "area"), ("corn_cbot", "ending_stocks")}
+    got = W.chain_paths(shipped, board, loud_boards={"corn_cbot"}, on_nodes=corn, loud_nodes=corn)[0]
+    assert (got["loud_hops"], got["rendered"]) == (0, False), got
+
+
+# ── the trace ───────────────────────────────────────────────────────────────────────────────────────
+def test_the_chain_trace_is_BOUNDED_and_carries_what_rendered_plus_what_beat_the_rest():
+    """A max board composes 1,848 candidate chains (MEASURED on the fixture) and a `state_board`
+    record carrying two thousand chain rows is an instrument nobody can open. The COUNTS carry the
+    whole pool; the ROWS carry what rendered and what it was beaten by, rendered first, and no arrays
+    ride either (DESIGN A.7's "NO ARRAYS")."""
+    bd = _cboard(mode="max")
+    for i in range(20):
+        _crow(bd, "a_cbot", "t%d" % i, st=_cs("t%d" % i, pct=90 + (i % 10)))
+        _crow(bd, "a_cbot", "b%d" % i, st=_cs("b%d" % i, pct=50))
+        _cpath(bd, "a_cbot", ["t%d" % i, "b%d" % i])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    bd.chains, bd.chain_counts = got["pool"], got["counts"]
+    bd.trace_rows = True
+    tr = bd.trace()
+    assert len(tr["chains"]) == W.CHAIN_TRACE_K < len(bd.chains)
+    assert tr["chain_counts"]["total"] == len(bd.chains)
+    assert all(c["rendered"] for c in tr["chains"][:got["counts"]["rendered"]])
+    blob = json.dumps(tr["chains"])
+    assert "values" not in blob and "dates" not in blob, "an array reached the payload"
+    assert isinstance(tr["rows"], int) and isinstance(tr["row_states"], list)
+    assert {"contract", "driver_id", "percentile", "loud"} <= set(tr["row_states"][0])
+
+
+def test_chain_explain_fills_the_seven_sentences_and_moves_no_score():
+    """The arithmetic line is what makes the selection falsifiable on the page (DESIGN B.2), so it is
+    not optional -- only DEFERRED to the chains a reader meets. MEASURED: building seven sentences for
+    every candidate cost 2.5 seconds on a board whose whole stage 2 is 108 ms."""
+    bd = _cboard()
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=95))
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    ch = W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0]
+    before = ch.score
+    W.chain_explain(ch, named_markets=("a_cbot",), horizon_months=3)
+    assert ch.score == before
+    assert set(ch.notes) == set(W.CHAIN_TERMS)
+    for t, words in ch.notes.items():
+        assert words and words == words.encode("ascii", "ignore").decode("ascii"), t
+
+
+def test_the_rank_is_100_points_and_the_receipt_hop_rule_has_ONE_reader():
+    """DESIGN B.2's ceiling, and the ONE rule that decides where the action is looked for, which record
+    is read and which reading the diversity fold keys on. `chain_score` re-derives the same index from
+    the same tuple that `_compose` chose it with -- two readers of one rule, pinned."""
+    assert sum(W.CHAIN_TERM_MAX.values()) == 100.0
+    assert set(W.CHAIN_TERM_MAX) == set(W.CHAIN_TERMS)
+    hops = (W.ChainHop(contract="a", driver_id="quiet", tail=0.1, seat=0),
+            W.ChainHop(contract="a", driver_id="loud", tail=0.9, seat=5))
+    assert W.chain_receipt_index(hops) == 1
+    ch = W.Chain(contract="a", hops=hops, depth=1, terminal="a")
+    ch.edge_signs, ch.agreements = ("", ""), ("undetermined", "undetermined")
+    W.chain_score(ch, named_markets=("a",), horizon_months=None, history={})
+    assert ch.receipt_index == 1
+    assert 0.0 <= ch.score <= 100.0
+    # TIES ON THE TAIL BREAK ON THE BOARD'S OWN SEAT, never the alphabet
+    tied = (W.ChainHop(contract="a", driver_id="zeta", tail=0.5, seat=1),
+            W.ChainHop(contract="a", driver_id="alpha", tail=0.5, seat=9))
+    assert W.chain_receipt_index(tied) == 0
+
+
+# ═════════════════════════════════════════════════════════════════════════════════════════════════════
+# S8 LANE W, ROUND 2 -- THE FIX ROUND'S OWN PINS
+#
+# Six review MAJORs and four owner rulings, each with the measurement that found it. Everything here is
+# offline: two pins build the SHIPPED fixture board through the walk (zero reads, the state producer is
+# the harness's own), the rest are hand-made rows.
+# ═════════════════════════════════════════════════════════════════════════════════════════════════════
+@pytest.fixture(scope="module")
+def chain_tiers(real):
+    """The fixture soybeans board at all three tiers with the chain leg ARMED -- the same path
+    `seam.fill_stage2` drives, at zero reads."""
+    from leviathan.graphrag.numbers import cascade as CAS
+    from leviathan.graphrag.state import __main__ as H
+    from leviathan.graphrag.state import render as R
+    curated = list(CAS.load_chain_map()) + list(CAS.load_transmission_map())
+    out = {}
+    for mode in ("quick", "deep", "max"):
+        anchors = W.resolve_anchors(named=("soybeans_cbot",))
+        bd = W.walk(graph=real, asof=H.ASOF, mode=mode, anchors=anchors,
+                    question="what is the situation on soybeans now? and 3 months from now?",
+                    state_fn=H.fixture_state_fn(H.ASOF), key_fn=None, receipts={},
+                    knobs=B.board_knobs_of(mode), width=2, legb_on=False, stage2=False)
+        R.attach_tape(bd, {s: H.fixture_tape(s, H.ASOF) for s in bd.anchor_slugs}, reads_each=0)
+        W.stage2(bd, real, state_fn=H.fixture_state_fn(H.ASOF), receipts={}, width=2,
+                 legb_on=False, chains=curated, state_chain=True)
+        out[mode] = bd
+    return out
+
+
+def _chain_prose(bd):
+    """EVERY SENTENCE THE CHAIN MOVEMENT PRODUCES for the chains a reader or the arm meets."""
+    out = []
+    for c in bd.chains:
+        if not c.rendered:
+            continue
+        out.extend((("notes." + k), v) for k, v in sorted(c.notes.items()))
+        out.append(("receipt", c.receipt_words))
+        out.append(("history", (c.history or {}).get("words") or ""))
+        out.append(("outcome", (c.outcome or {}).get("words") or ""))
+    out.append(("disagreement", (bd.chain_counts or {}).get("disagreement") or ""))
+    return [(k, str(v)) for k, v in out if str(v).strip()]
+
+
+def test_M1_every_rendered_chains_OWN_PROSE_is_register_clean_at_ALL_THREE_TIERS(chain_tiers):
+    """REVIEW ROUND 2, M1. `chain_score` built `notes['reach']` as "depth 2, reaching corn_cbot, a
+    market this question did not name" -- a RAW CONTRACT SLUG -- and `notes['tail']` / `['asymmetry']`
+    printed raw driver ids, beside `chain_disagreement_words`' charged `the graph`. MEASURED before the
+    fix: of the 60 sentences the rendered chains carried across the three tiers SIX tripped the block's
+    own fence (`register.internal_leaks`), one per rendered chain on every tier, and `Block.add`
+    answers a tripping line by REPLACING it and dropping its citations. The producers already existed
+    -- `render.humanise` for a node, `render.board_label` for a market, which is what `sb_path` uses on
+    the very class this one replaces.
+
+    NO PIN IN THIS LANE GRADED THE CHAIN'S OWN PROSE, which is exactly how six tripping sentences
+    reached a build report claiming the block's bytes were measured. This is that pin."""
+    from leviathan.graphrag.state import render as R
+    for mode, bd in chain_tiers.items():
+        prose = _chain_prose(bd)
+        assert prose, mode
+        assert sum(1 for c in bd.chains if c.rendered) == bd.knobs.chain_render_k, mode
+        for kind, s in prose:
+            assert R.register_hits(s) == [], (mode, kind, s)
+            assert REG.internal_leaks(s) == [], (mode, kind, s)
+            assert REG.desk_register_hits(s) == [], (mode, kind, s)
+            assert s == s.encode("ascii", "ignore").decode("ascii"), (mode, kind, s)
+
+
+def test_M1_the_notes_name_a_market_and_a_driver_through_the_estates_ONE_display_vocabulary():
+    """The same defect at the unit, so the pin above cannot pass by an accident of the fixture."""
+    from leviathan.graphrag.state import render as R
+    bd = _cboard()
+    _crow(bd, "a_cbot", "psd_ending_stock_su_ratio", st=_cs("su", pct=3))
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["psd_ending_stock_su_ratio", "bot"])
+    _cfinish(bd)
+    ch = W.chain_explain(W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0],
+                         named_markets=("a_cbot",))
+    assert "psd_ending_stock_su_ratio" not in ch.notes["tail"]
+    assert R.humanise("psd_ending_stock_su_ratio") in ch.notes["tail"]
+    assert "a_cbot" not in ch.notes["reach"] and R.board_label("a_cbot") in ch.notes["reach"]
+
+
+def test_M2_the_array_memo_key_carries_the_ASOF_the_OFFSET_and_the_MIRROR_EPOCH():
+    """REVIEW ROUND 2, M2 -- a POINT-IN-TIME breach, and the immortal kind. `hop_arrays` memoised on
+    `st.key.label()` alone, in a module global with a process lifetime, so the SECOND turn's history
+    stat was computed on the FIRST turn's array. MEASURED before the fix: a second reader of
+    `oni_climate|_global|` got [1.0, 2.0, 3.0] where its own array is [1.0 .. 5.0], and
+    `feeders.cache_clear()` left the entry in place."""
+    from leviathan.graphrag.state import feeders as F
+    W.cache_clear()
+    a = _cs("oni_climate", values=[1.0, 2.0, 3.0], dates=["2024-01-31", "2024-02-29", "2024-03-31"])
+    a.asof = "2024-04-01"
+    b = _cs("oni_climate", values=[1.0, 2.0, 3.0, 4.0, 5.0],
+            dates=["2024-01-31", "2024-02-29", "2024-03-31", "2024-04-30", "2024-05-31"])
+    b.asof = "2026-09-07"
+    assert a.key.label() == b.key.label(), "the two rows must share a label for this to mean anything"
+    assert W.hop_arrays(a)[0] == (1.0, 2.0, 3.0)
+    assert W.hop_arrays(b)[0] == (1.0, 2.0, 3.0, 4.0, 5.0), "one label, two as-ofs, one entry"
+    assert W.array_memo_key(a, a.key.label()) != W.array_memo_key(b, b.key.label())
+    # THE DECLARED SAME-SERIES OFFSET IS ON THE KEY for the reason `feeders.state_cache_key`'s own
+    # docstring gives: the same array, shifted, is a different STATE.
+    c = _cs("oni_climate", values=[9.0, 9.0, 9.0], dates=["2024-01-31", "2024-02-29", "2024-03-31"])
+    c.asof, c.offset_months = a.asof, 6
+    assert W.array_memo_key(c, c.key.label()) != W.array_memo_key(a, a.key.label())
+    assert W.array_memo_key(a, a.key.label())[-1] == F.mirror_epoch()
+    # AND THE ESTATE'S ONE CLEAR SEAM REACHES IT (the board census calls it between boards)
+    assert W._ARRAY_MEMO
+    F.cache_clear()
+    assert not W._ARRAY_MEMO and not W._DATE_KEY_MEMO
+
+
+def test_M4_sign_diversity_tests_the_REPLACEMENT_before_it_drops_and_never_renders_K_minus_1():
+    """REVIEW ROUND 2, M4. Clause (4) removed the worst chain on the crowded side and only THEN called
+    `_take(other)`, which can refuse on the diversity fold -- so the reviewer's 90 / 80 / 70 case (k=2,
+    two FOR and one AGAINST that shares the survivor's receipt reading) rendered ONE chain where three
+    existed. Fewer than K is right when fewer EXIST, never when more did."""
+    def _ch(score, side, top, rcpt):
+        hops = (W.ChainHop(contract="a", driver_id=top, series_key=top, tail=0.9, seat=0),
+                W.ChainHop(contract="a", driver_id=rcpt, series_key=rcpt, tail=0.95, seat=1))
+        c = W.Chain(contract="a", hops=hops, depth=1, terminal="a")
+        c.score, c.side, c.receipt_index = score, side, 1
+        return c
+    a = _ch(90.0, "for", "t1", "shared")
+    b = _ch(80.0, "for", "t2", "own")
+    d = _ch(70.0, "against", "t3", "shared")        # shares the SURVIVOR's receipt reading
+    got = W.chain_render_set([a, b, d], k=2, print_line=40.0)
+    assert len(got["rendered"]) == 2, [c.hop_ids for c in got["rendered"]]
+    assert {c.score for c in got["rendered"]} == {90.0, 80.0}
+    # AND WHERE THE SWAP DOES CLOSE IT STILL HAPPENS: an AGAINST chain that folds cleanly takes the
+    # weaker FOR chain's seat, which is the clause doing its own job.
+    e = _ch(70.0, "against", "t4", "free")
+    got2 = W.chain_render_set([a, b, e], k=2, print_line=40.0)
+    assert {c.side for c in got2["rendered"]} == {"for", "against"}
+    assert {c.score for c in got2["rendered"]} == {90.0, 70.0}
+
+
+def test_M5_the_firing_separation_is_the_ARRAYS_OWN_PERIODS_and_never_a_month_count():
+    """REVIEW ROUND 2, M5. `chain_history` passed the band's MONTHS as `min_separation`, which
+    `chain_firings` compares against ARRAY INDEXES. MEASURED: a DAILY parent over a 1-2 quarter band
+    kept 83 firings where a true six-month separation keeps 3, and an ANNUAL parent under the same call
+    skipped SIX YEARS between firings. `n_firings` is a PRINTED figure with its sample size, so the
+    number the reader was handed moved with the card's cadence and nothing declared it."""
+    daily = _cs("d", values=[1.0], dates=["2026-01-01"])
+    daily.cadence = "daily"
+    annual = _cs("a", values=[1.0], dates=["2026-01-01"])
+    annual.cadence = "annual"
+    assert W.separation_periods(6, daily) == 126, "six months of a daily card is ~126 sessions"
+    assert W.separation_periods(6, annual) == 1, "six months of an ANNUAL card is one period"
+    assert W.separation_periods(6, _cs("m", values=[], dates=[])) == 6, "the monthly card is itself"
+    import datetime as _d
+    dd = [(_d.date(2023, 1, 2) + _d.timedelta(days=i)).isoformat() for i in range(1000)]
+    dv = [float((i % 20) if (i // 20) % 2 == 0 else (20 - (i % 20))) for i in range(1000)]
+    shipped = W.chain_firings(dv, dd, direction=1, min_separation=6, asof="2026-09-07",
+                              close_months=6)
+    fixed = W.chain_firings(dv, dd, direction=1, min_separation=W.separation_periods(6, daily),
+                            asof="2026-09-07", close_months=6)
+    assert len(fixed) < len(shipped) and len(fixed) <= 8, (len(shipped), len(fixed))
+    ad = ["%d-12-31" % y for y in range(1995, 2025)]
+    av = [float(y % 3) for y in range(1995, 2025)]
+    a_shipped = W.chain_firings(av, ad, direction=1, min_separation=6, asof="2026-09-07",
+                                close_months=6)
+    a_fixed = W.chain_firings(av, ad, direction=1, min_separation=W.separation_periods(6, annual),
+                              asof="2026-09-07", close_months=6)
+    assert len(a_fixed) > len(a_shipped), (len(a_shipped), len(a_fixed))
+    # AND A CARD THAT DECLARES NO CADENCE IS ANSWERED BY ITS OWN ARRAY, never by a guess.
+    weekly = [(_d.date(2026, 1, 5) + _d.timedelta(days=7 * i)).isoformat() for i in range(40)]
+    assert W.separation_periods(6, None, weekly) >= 20
+
+
+def test_RULING_5_the_TAIL_term_reads_the_hops_DECLARED_LAG_WINDOW_and_prints_peak_AND_latest():
+    """OWNER RULING 5, 2026-09-18. A shock is IN TRANSIT for the length of its declared lag: a reading
+    that peaked at the 97th percentile three months ago and eased to the 80th is still acting on the
+    next hop while the window runs. The TAIL term reads the LOUDEST knowable reading inside
+    [as-of - max_lag, as-of]; the LATEST reading alone stays the SB-1 figure, and the chain prints
+    BOTH."""
+    vals = [50.0] * 20 + [99.0, 60.0, 60.0]
+    dates = (["2024-%02d-28" % (1 + i) for i in range(12)]
+             + ["2025-%02d-28" % (1 + i) for i in range(8)]
+             + ["2026-03-31", "2026-06-30", "2026-08-31"])
+    bd = _cboard(asof="2026-09-07")
+    _crow(bd, "a_cbot", "peaky", lag="0-2 quarters", st=_cs("peaky", pct=57, values=vals,
+                                                            dates=dates))
+    _crow(bd, "a_cbot", "bot", lag="0-2 quarters", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["peaky", "bot"])
+    _cfinish(bd)
+    ch = W.chain_explain(W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0],
+                         named_markets=("a_cbot",))
+    hop = ch.hops[0]
+    assert hop.percentile == 57 and hop.tail < 0.2, "the LATEST reading is mid-record"
+    assert hop.tail_peak > 0.9 and hop.tail_peak_date == "2026-03-31", (hop.tail_peak,
+                                                                       hop.tail_peak_date)
+    assert hop.chain_tail == hop.tail_peak, "the chain's measure is the window's peak"
+    assert ch.terms["tail"] > 20.0, ch.terms
+    assert "peaked at the" in ch.notes["tail"] and "reads the 57th now" in ch.notes["tail"]
+    assert "the declared lag runs to" in ch.notes["tail"]
+    # THE WINDOW IS THE HOP'S OWN DECLARED LAG AND NOT A CONSTANT: a hop whose band ends before that
+    # peak cannot see it.
+    bd2 = _cboard(asof="2026-09-07")
+    _crow(bd2, "a_cbot", "peaky", lag="0-1 quarters",
+          st=_cs("peaky", pct=57, values=vals, dates=dates))
+    _crow(bd2, "a_cbot", "bot", lag="0-1 quarters", st=_cs("bot", pct=50))
+    _cpath(bd2, "a_cbot", ["peaky", "bot"])
+    _cfinish(bd2)
+    narrow = W.chain_rows(bd2, None, knobs=bd2.knobs)["pool"][0]
+    assert narrow.hops[0].tail_peak < 0.9, narrow.hops[0].tail_peak
+
+
+def test_RULING_1_POSITIONING_crowded_the_chains_own_way_is_ASYMMETRY_and_it_is_PRINTED():
+    """OWNER RULING 1, 2026-09-18 ("how does it know how convex the market is?"). The ASYMMETRY term
+    read BUFFER rows and never POSITIONING, and the smoke's own PM read flagged twice that a
+    100th-percentile managed-money long into a bullish call is the risk that kills the position. A COT
+    row at or past the 90th / 10th percentile of its own record, crowded the way the chain argues,
+    gains five points INSIDE the ten and says so; crowded the other way it is printed as the cushion it
+    is and scores nothing. It is a RANK TERM and never a filter."""
+    def _one(cot_pct, sign):
+        up = {"direction": "up", "length": 3, "since_date": "2026-06-30"}
+        bd = _cboard(mode="max", asof="2026-09-07")
+        _crow(bd, "a_cbot", "top", sign=sign, st=_cs("top", pct=60, run=up))
+        _crow(bd, "a_cbot", "bot", sign=sign, st=_cs("bot", pct=55))
+        r = _crow(bd, "a_cbot", "cot_mm_positioning", st=_cs("cot", pct=cot_pct))
+        r.silver_ref = "cot_mm_positioning"
+        _cpath(bd, "a_cbot", ["top", "bot"])
+        _cfinish(bd)
+        return W.chain_explain(W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0],
+                               named_markets=("a_cbot",), anchor=W.anchor_facts(bd, "a_cbot"))
+    same, other, quiet = _one(99, "+"), _one(1, "+"), _one(50, "+")
+    assert same.direction == "higher" and other.direction == "higher"
+    assert same.terms["asymmetry"] == quiet.terms["asymmetry"] + 5.0, (same.terms, quiet.terms)
+    assert "crowded the same way" in same.notes["asymmetry"]
+    assert "makes the reversal abrupt" in same.notes["asymmetry"]
+    assert other.terms["asymmetry"] == quiet.terms["asymmetry"]
+    assert "crowded the other way" in other.notes["asymmetry"]
+    assert same.terms["asymmetry"] <= W.CHAIN_TERM_MAX["asymmetry"], "capped inside the ten"
+
+
+def test_RULING_2_the_anchors_PRICE_row_feeds_TAIL_when_the_chain_terminates_on_the_price():
+    """OWNER RULING 2, 2026-09-18 ("by the futures price?"). The TAIL term read every HOP's percentile
+    and never the terminal's. Where no cross is earned the chain lands on the anchor's own front price,
+    so a chain terminating on a price at the 97th percentile of its own record scores tail on the
+    terminal too -- and the sentence says the richer standing (the front spread, the curve, realised
+    volatility) is not served on this page."""
+    from leviathan.graphrag.state.rows import TapeState
+    bd = _cboard(asof="2026-09-07")
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=52))
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=48))
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    quiet = W.chain_explain(W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0],
+                            named_markets=("a_cbot",), anchor=W.anchor_facts(bd, "a_cbot"))
+    bd.tape["a_cbot"] = TapeState(slug="a_cbot", status="ok", level=1200.0,
+                                  percentile={"value": 97.0, "n": 250},
+                                  window_note="250 sessions")
+    loud = W.chain_explain(W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0],
+                           named_markets=("a_cbot",), anchor=W.anchor_facts(bd, "a_cbot"))
+    assert loud.terms["tail"] > quiet.terms["tail"], (loud.terms, quiet.terms)
+    assert "97th percentile" in loud.notes["tail"]
+    assert "not served on this page" in loud.notes["tail"]
+    assert loud.scope["price_read"] is True and quiet.scope["price_read"] is False
+
+
+def test_RULING_6_the_PRINT_LINE_never_renders_fewer_than_K_and_the_SCOPE_says_what_the_page_had():
+    """OWNER RULING 6, 2026-09-18: each anchor is judged on the data it has. The rank is RELATIVE
+    WITHIN ONE BOARD, so the top K render ALWAYS and a low score reads as SCARCE DATA -- which is only
+    honest because the chain carries its own data scope.
+
+    **AND THEY RENDER IN FULL** (review MA-1, closed round 3). The first cut kept the line as the FULL
+    versus ONE-LINE decision and that is the rule the parenthetical of ruling 6(a) NAMES -- "drop the
+    absolute print line (score >= 40 to render in full): the top K render in full ALWAYS". ONE FIELD
+    was carrying two readings: this very pool rendered THREE chains, `full=False` on all three, while
+    `below_print_line` said four of four sat below a line three of them were printed above. Now
+    `Chain.full` means "rendered in full" and the count is computed from the SCORE over the chains
+    that did NOT render."""
+    bd = _cboard(mode="max")                    # k = 3
+    for i in range(5):
+        _crow(bd, "a_cbot", "t%d" % i, conf="low", st=_cs("t%d" % i, pct=50))
+        _crow(bd, "a_cbot", "b%d" % i, conf="low", st=_cs("b%d" % i, pct=50))
+        _cpath(bd, "a_cbot", ["t%d" % i, "b%d" % i])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    rendered = [c for c in got["pool"] if c.rendered]
+    assert all(c.score < bd.knobs.chain_print_line for c in got["pool"]), "the fixture must be poor"
+    assert len(rendered) == bd.knobs.chain_render_k, [c.score for c in rendered]
+    assert all(c.full is True for c in rendered), "the top K render IN FULL, always"
+    assert got["counts"]["below_print_line"] == len(got["pool"]) - len(rendered), got["counts"]
+    assert got["counts"]["rendered_one_line"] == 0
+    assert not any(c.decline == "below_print_line" for c in got["pool"]), \
+        "the line is a COUNT and no longer a cut, so no chain declines for it"
+    sc = rendered[0].scope
+    assert sc["terms_total"] == 7 and 0 <= sc["terms_scored"] <= 7
+    assert sc["hops"] == 2 and sc["hops_no_series"] == 0
+
+
+def test_MA1_a_data_poor_pool_renders_THREE_FULL_chains_and_counts_ONE_below_the_line():
+    """**THE REVIEWER'S OWN UNIT, MOVED WITH THE BEHAVIOUR** (review MA-1 / census blocker 5). The
+    measurement that found it: a pool of four chains at 30 / 22 / 15 / 9 with k=3 rendered three, ALL
+    THREE as one-liners, and `below_print_line` read 4 of a pool of 4 while three of those four were
+    ON THE PAGE. The reading now: three chains rendered IN FULL, and the ONE chain below the line that
+    is counted is the one that did not render."""
+    pool = []
+    for i, sc in enumerate((30.0, 22.0, 15.0, 9.0)):
+        ch = W.Chain(contract="a_cbot", terminal="a_cbot", depth=1,
+                     hops=(W.ChainHop(contract="a_cbot", driver_id="t%d" % i, seat=i),
+                           W.ChainHop(contract="a_cbot", driver_id="b%d" % i, seat=i + 10)))
+        ch.score = sc
+        pool.append(ch)
+    got = W.chain_render_set(pool, k=3, print_line=40.0)
+    rendered = got["rendered"]
+    assert [c.score for c in rendered] == [30.0, 22.0, 15.0]
+    assert all(c.full is True for c in rendered), "the top K render in full, ALWAYS"
+    assert all(c.slot == "top" for c in rendered)
+    assert got["counts"]["below_print_line"] == 1, got["counts"]
+    assert got["counts"]["rendered_one_line"] == 0
+    # and the one NOT rendered is the one the count names
+    assert [c.score for c in pool if not c.rendered] == [9.0]
+
+
+def test_RULING_6b_the_BUFFER_family_is_resolved_PER_ANCHOR_and_its_absence_is_PRINTED():
+    """OWNER RULING 6b, 2026-09-18. The ASYMMETRY term's buffer family is whatever THAT MARKET's cards
+    declare -- the desk-convention registry's own percentile-band and pace series plus
+    `verify.BAR_FAMILY_REFS` -- never the design's literal token list. A market with no buffer series
+    scores zero on that clause and the sentence SAYS SO, so the absence reads as scarce data and never
+    as a chain that failed a test."""
+    fam = W.registry_buffer_refs()
+    assert "psd_ending_stock_su_ratio" in fam and "mpob_ending_stocks" in fam
+    assert "cot_mm_positioning" not in fam, "positioning is its own family and its own term"
+    bd = _cboard()
+    r = _crow(bd, "a_cbot", "su", st=_cs("su", pct=2))
+    r.silver_ref = "psd_ending_stock_su_ratio"
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["su", "bot"])
+    _cfinish(bd)
+    af = W.anchor_facts(bd, "a_cbot")
+    assert af.buffer_served and af.buffer_ids == frozenset({"su"})
+    ch = W.chain_explain(W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0],
+                         named_markets=("a_cbot",), anchor=af)
+    assert ch.terms["asymmetry"] == 10.0, ch.terms
+    # and a market that serves NONE says so, in its own sentence
+    bd2 = _cboard()
+    _crow(bd2, "a_cbot", "weather", st=_cs("weather", pct=50))
+    _crow(bd2, "a_cbot", "bot", st=_cs("bot2", pct=50))
+    _cpath(bd2, "a_cbot", ["weather", "bot"])
+    _cfinish(bd2)
+    af2 = W.anchor_facts(bd2, "a_cbot")
+    assert not af2.buffer_served
+    ch2 = W.chain_explain(W.chain_rows(bd2, None, knobs=bd2.knobs)["pool"][0],
+                          named_markets=("a_cbot",), anchor=af2)
+    assert "no buffer series is served for this market" in ch2.notes["asymmetry"]
+    assert ch2.scope["buffer_series"] is False
+
+
+# ═════════════════════════════════════════════════════════════════════════════════════════════════════
+# S8 LANE W, ROUND 3 -- THE SEAM, THE COUNTS THAT STOPPED CONTRADICTING THE PAGE, AND THE RENDER SLOTS
+#
+# LAW (a) FROM ROUND 2: A CROSS-LANE PIN ASSERTS AGAINST THE SHIPPED TYPE. Four owner-ordered surfaces
+# rendered NOTHING while every pin on both sides was green, because every pin asserted against a
+# `types.SimpleNamespace` stand-in carrying whatever name its author hoped for. Everything below
+# resolves against a REAL `walk.Chain` / `walk.ChainHop` / `walk.chain_counts`.
+# ═════════════════════════════════════════════════════════════════════════════════════════════════════
+def _seam_targets(chain_tiers):
+    """The three SHIPPED objects the seam names live on, taken off the deep fixture board."""
+    bd = chain_tiers["deep"]
+    ch = next(c for c in bd.chains if c.rendered)
+    return bd, ch, ch.receipt_hop
+
+
+def test_R3_CHAIN_SEAM_FIELDS_RESOLVES_ON_THE_SHIPPED_TYPES_BUILT_FROM_THE_FIXTURE(chain_tiers):
+    """**THE W -> R SEAM IN ONE SPELLING, PINNED AGAINST THE PRODUCER'S OWN OBJECTS** (round-3 item 1).
+
+    THE MEASUREMENT THAT MADE THIS NECESSARY (round-2 census, blocker 2): `render.chain_state_words`
+    read `tail_peak_month` and `lag_window_end`; `render.chain_arithmetic_words` read
+    `Chain.data_scope`; `render.sb_chain_count` read `chain_counts["cross_event"]`. The walk carries
+    `tail_peak_date`, `tail_lag_to`, `Chain.scope` and `chain_counts["cross_market_event"]`. On the
+    page, across all three tiers: "peaked" 0 times, against 6 of 6 rendered chains whose TAIL term was
+    SCORED on a window peak -- including a hop printed at the 28th percentile and scored at the 94th.
+
+    So the names live in ONE place and this test resolves EVERY one of them -- flat attributes, the
+    three dicts a chain carries, and the count line's keys -- on the shipped types."""
+    bd, ch, hop = _seam_targets(chain_tiers)
+    assert W.CHAIN_SEAM_FIELDS == tuple(dict.fromkeys(W.CHAIN_SEAM_FIELDS)), "one spelling, once"
+    counts = dict(bd.chain_counts or {})
+    assert counts, "the fixture must have run the chain leg"
+    missing = []
+    for name in W.CHAIN_SEAM_FIELDS:
+        parts = name.split(".")
+        if parts[0] == "ChainHop":
+            if not hasattr(hop, parts[1]):
+                missing.append(name)
+        elif parts[0] == "chain_counts":
+            if parts[1] not in counts:
+                missing.append(name)
+        elif parts[0] == "Chain" and len(parts) == 2:
+            if not hasattr(ch, parts[1]):
+                missing.append(name)
+        elif parts[0] == "Chain" and len(parts) == 3:
+            holder = getattr(ch, parts[1], None)
+            # `positioning` is EMPTY unless the clause fires; its keys have their own pin below.
+            if parts[1] != "positioning" and parts[2] not in (holder or {}):
+                missing.append(name)
+        else:
+            missing.append("UNPARSEABLE " + name)
+    assert missing == [], missing
+    # ...AND THE FOUR NAMES THE CENSUS CAUGHT ARE NOT THIS MODULE'S SPELLING, on the shipped type.
+    for wrong in ("tail_peak_month", "lag_window_end", "tail_peak_value"):
+        assert not hasattr(hop, wrong), wrong
+    assert not hasattr(ch, "data_scope")
+    assert "cross_event" not in counts and "cross_market_event" in counts
+    # every seam name is reachable from `to_dict`'s payload too, for the keys the arm report reads
+    row = ch.to_dict()
+    for k in ("scope", "positioning", "slot", "receipts_aged_out", "full", "rendered"):
+        assert k in row, k
+
+
+def test_R3_the_POSITIONING_dict_carries_the_pages_own_three_keys_and_is_EMPTY_otherwise():
+    """`Chain.positioning` (lane R's handoff W-R2): the fact the page's positioning row prints, under
+    the PAIR the standing is cited at (E11 -- `cot_mm_positioning` is a row of every futures board this
+    turn carries). It is EMPTY where the clause does not fire, so the row is absent rather than a zero
+    wearing a claim."""
+    bd = _cboard()
+    r = _crow(bd, "a_cbot", "cot_mm_positioning", st=_cs("cot_mm_positioning", pct=99))
+    r.silver_ref = "cot_mm_positioning"
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=95))
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    af = W.anchor_facts(bd, "a_cbot")
+    assert af.positioning_id == "cot_mm_positioning" and af.positioning_percentile == 99
+    ch = W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0]
+    assert ch.direction in ("higher", "lower"), ch.direction
+    assert set(ch.positioning) == {"percentile", "against", "key"}, ch.positioning
+    assert ch.positioning["key"] == ("a_cbot", "cot_mm_positioning")
+    assert ch.positioning["percentile"] == 99
+    assert isinstance(ch.positioning["against"], bool)
+    # a board with NO positioning row declares nothing at all -- never a zero
+    bd2 = _cboard()
+    _crow(bd2, "a_cbot", "top", st=_cs("t2", pct=95))
+    _crow(bd2, "a_cbot", "bot", st=_cs("b2", pct=50))
+    _cpath(bd2, "a_cbot", ["top", "bot"])
+    _cfinish(bd2)
+    assert W.chain_rows(bd2, None, knobs=bd2.knobs)["pool"][0].positioning == {}
+
+
+def test_MA3_terms_scored_counts_a_term_ONLY_WHERE_IT_READ_SOMETHING(chain_tiers):
+    """**REVIEW MA-3.** `Chain.scope['terms_scored']` counted every term scoring above zero, and TWO of
+    the seven carry a NEUTRAL: HISTORY scores 7.5 exactly when there is NO record and LAG scores 1 when
+    no horizon was asked. MEASURED on the deep fixture's first rendered chain before this landed:
+
+        terms  {'tail': 23.9, 'reach': 25, 'event': 0, 'history': 7.5, 'asymmetry': 10.0,
+                'confidence': 3.0, 'lag': 2}      history n_firings = 0, unmeasured = 14
+        scope  terms_scored 6 of 7
+
+    -- "six of seven terms scored" printed one line above "history thin: the next hop publishes no
+    second reading inside the declared window, on any of the fourteen past firings". The instrument
+    ruling 6(a) added so a low score would read as SCARCE DATA was counting the scarcity as a reading.
+    SIX -> FIVE, and it is the same arithmetic read off facts already on the object."""
+    bd = chain_tiers["deep"]
+    thin = next(c for c in bd.chains
+                if c.rendered and int((c.history or {}).get("n_firings") or 0) == 0)
+    assert thin.terms["history"] == W.CHAIN_HISTORY_NEUTRAL and thin.receipt_kind == "none"
+    assert thin.scope["terms_read"] == 5, (thin.scope, thin.terms)
+    assert thin.scope["terms_total"] == 7
+    # ...and `terms_scored` is what the PAGE prints beside it (round-4 ruling, R3-W1):
+    # one word, one number, and the neutral is visible under its own name.
+    assert thin.scope["terms_scored"] == 6, thin.scope
+    # ...and a chain that DID read a record counts it
+    rich = next((c for c in bd.chains
+                 if c.rendered and int((c.history or {}).get("n_firings") or 0) > 0), None)
+    assert rich is not None and rich.scope["terms_read"] == 6, "the deep board carries both cases"
+    assert rich.scope["terms_scored"] == 6, rich.scope
+    # the rule at the unit, both neutrals and the EVENT word
+    band = parse_lag("0-1 quarters")
+    terms = {"tail": 20.0, "reach": 25, "event": 0, "history": W.CHAIN_HISTORY_NEUTRAL,
+             "asymmetry": 0.0, "confidence": 3.0, "lag": 1}
+    assert W._term_was_read("history", terms, n_firings=0, kind="none", horizon_months=3,
+                            band=band) is False
+    assert W._term_was_read("history", terms, n_firings=1, kind="none", horizon_months=3,
+                            band=band) is True
+    assert W._term_was_read("lag", terms, n_firings=0, kind="none", horizon_months=None,
+                            band=band) is False
+    assert W._term_was_read("lag", terms, n_firings=0, kind="none", horizon_months=3,
+                            band=None) is False
+    assert W._term_was_read("lag", terms, n_firings=0, kind="none", horizon_months=3,
+                            band=band) is True
+    assert W._term_was_read("event", terms, n_firings=0, kind="none", horizon_months=3,
+                            band=band) is False
+    assert W._term_was_read("event", terms, n_firings=0, kind="closed", horizon_months=3,
+                            band=band) is True
+    assert W._term_was_read("asymmetry", terms, n_firings=0, kind="none", horizon_months=3,
+                            band=band) is False
+
+
+def test_MA4_an_AGED_OUT_closed_receipt_is_COUNTED_and_never_silently_dropped():
+    """**REVIEW MA-4.** M7's recency bound landed and its COUNTING did not: as-of 2026-09-07, a 0-1
+    quarter hop carrying a dated action of 2024-01-01 read `receipt_kind "none"` / `receipt_words ""`
+    / EVENT 0 of 20 with NOTHING recording that the document existed -- indistinguishable, on the trace
+    and in the count line, from a chain that never had one. Fences CORRECT or COMPUTE, never delete,
+    and that applies to a document the turn actually retrieved."""
+    bd = _cboard()
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=95), event="2024-01-01")
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    ch = got["pool"][0]
+    assert ch.receipt_kind == "none" and ch.terms["event"] == 0, "the bound still holds"
+    assert ch.receipts_aged_out == 1, "the estate HAD the document; the window had closed on it"
+    assert got["counts"]["receipts_aged_out"] == 1, got["counts"]
+    assert ch.to_dict()["receipts_aged_out"] == 1
+    # and a receipt INSIDE one band-length is the chain's receipt and ages nothing out
+    bd2 = _cboard()
+    _crow(bd2, "a_cbot", "top", st=_cs("t2", pct=95), event="2026-08-01")
+    _crow(bd2, "a_cbot", "bot", st=_cs("b2", pct=50))
+    _cpath(bd2, "a_cbot", ["top", "bot"])
+    _cfinish(bd2)
+    got2 = W.chain_rows(bd2, None, knobs=bd2.knobs)
+    assert got2["pool"][0].receipt_kind == "closed"
+    assert got2["pool"][0].receipts_aged_out == 0
+    assert got2["counts"]["receipts_aged_out"] == 0
+
+
+def test_MA5_ONE_noun_for_past_firings_and_the_outcome_line_names_ITS_OWN_SUBSET(chain_tiers):
+    """**REVIEW MA-5.** `chain_history_words` prints "in eleven of FOURTEEN past firings of this
+    reading ..." and `chain_outcome_words` printed "after FIVE past firings of this reading the front
+    price ..." -- one population, two counts, one noun, and nothing saying the five were a SUBSET of
+    the fourteen. MEASURED on the deep fixture's rendered chain: history `n_firings` 14, outcome `n` 5.
+    The page was saved there only because five sits under `stats.quantiles`' own floor.
+
+    ONE COUNT WITH ITS EXPLAINED SUBSET: the record line keeps the firings, the outcome line names how
+    many of THOSE the front price reaches, and `n_in` carries the denominator on the dict."""
+    from leviathan.graphrag.state.render import words_for_int
+    bd = chain_tiers["deep"]
+    ch = next((c for c in bd.chains
+               if c.rendered and int((c.outcome or {}).get("n") or 0) > 0), None)
+    assert ch is not None, "the deep fixture must price at least one chain's firings"
+    o, h = ch.outcome, ch.history
+    n, n_in = int(o["n"]), int(o["n_in"])
+    assert n <= n_in, (n, n_in)
+    assert n_in == int(h["n_firings"]), "the denominator IS the record line's own count"
+    assert words_for_int(n) in o["words"] and words_for_int(n_in) in o["words"]
+    assert words_for_int(int(h["n_firings"])) in h["words"]
+    # LANE R's HANDOFF W-R7: the "over" clause is said ONCE
+    assert "over the declared window over" not in o["words"], o["words"]
+    # the two window dates are FIELDS and no longer only prose (handoff W-R5)
+    assert o["window_from"] and o["window_to"] and o["window_from"] <= o["window_to"]
+    assert o["window_from"] in o["scope"] and o["window_to"] in o["scope"]
+
+
+def test_CENSUS3_the_anchors_PRICE_ROW_scores_TAIL_on_the_TERMINAL_when_the_TAPE_IS_ATTACHED_FIRST(
+        chain_tiers):
+    """**THE ROUND-2 CENSUS'S BLOCKER 3, the producer half.** Owner ruling 2's price-row TAIL term was
+    BUILT, PINNED and UNREACHABLE: `walk.anchor_facts` reads `bd.tape`, and the census measured
+    `bd.tape` EMPTY at stage-2 time in its own harness AND in `seam.fill_stage2` (`:374` then `:380`),
+    so `Chain.scope['price_read']` was False on all 3,308 chains of all three tiers while the same
+    board's front price sat at the 83rd percentile of its own record.
+
+    WITH THE TAPE ATTACHED BEFORE THE CHAIN COMPOSES -- which is the order this fixture drives and the
+    order lane R moves `_attach_tape` to -- the term fires and stamps the fact."""
+    for mode, bd in chain_tiers.items():
+        af = W.anchor_facts(bd, "soybeans_cbot")
+        assert round(float(af.price_percentile or 0.0), 2) == 83.28, (mode, af.price_percentile)
+        assert round(af.price_tail, 4) == 0.6656, (mode, af.price_tail)
+        priced = [c for c in bd.chains if (c.scope or {}).get("price_read")]
+        assert priced, "%s: the anchor price must score TAIL on some terminal" % mode
+        for c in priced:
+            assert not c.cross, "the price is the terminal only where NO cross was earned"
+            assert c.terms["tail"] == round(W.CHAIN_TERM_MAX["tail"] * af.price_tail, 1)
+            assert c.scope["price_standing"] == "level and its own window percentile"
+    # THE NEGATIVE, AND IT IS THE ORDERING HAZARD ITSELF: no tape, no reading, and the fact says so.
+    bd2 = _cboard()
+    _crow(bd2, "a_cbot", "top", st=_cs("top", pct=50))
+    _crow(bd2, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd2, "a_cbot", ["top", "bot"])
+    _cfinish(bd2)
+    assert bd2.tape == {}
+    ch2 = W.chain_rows(bd2, None, knobs=bd2.knobs)["pool"][0]
+    assert ch2.scope["price_read"] is False and ch2.scope["price_standing"] == ""
+
+
+# ── THE RENDER SLOTS (owner ruling 2026-09-22) ──────────────────────────────────────────────────────
+def _slot_board(*, anchors, horizon=3, n=6):
+    """A pool of `n` two-hop chains on one anchor, ranked by the receipt hop's own percentile."""
+    bd = B.Board(asof="2026-09-07", mode="max", knobs=B.board_knobs_of("max"),
+                 horizon_months=horizon, anchors=tuple(anchors))
+    for i in range(n):
+        _crow(bd, "a_cbot", "t%d" % i, st=_cs("t%d" % i, pct=90 - i))
+        _crow(bd, "a_cbot", "b%d" % i, st=_cs("b%d" % i, pct=50))
+        _cpath(bd, "a_cbot", ["t%d" % i, "b%d" % i])
+    return bd
+
+
+def test_SLOT_a_SUBJECT_chain_ranked_BELOW_the_top_K_takes_its_own_seat():
+    """**OWNER RULING 2026-09-22, ratified.** After the top K and the sign swap, the QUESTION's own
+    seats: a chain carrying the driver this turn is ANCHORED on renders, labelled, even where the rank
+    left it under the cap. THE RANK IS NEVER MOVED -- the graph decides relevance and the question only
+    anchors -- so the subject chain is APPENDED and the picked set stays in rank order."""
+    sub = B.Anchor(contract="a_cbot", source="subject", driver_id="t5", subject=True)
+    bd = _slot_board(anchors=(sub,))
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    rendered = got["rendered"]
+    k = bd.knobs.chain_render_k
+    assert len(rendered) == k + 1, [c.hop_ids for c in rendered]
+    seat = next(c for c in rendered if c.slot == "subject")
+    assert "t5" in seat.hop_ids, seat.hop_ids
+    assert [c.rank for c in rendered] == sorted(c.rank for c in rendered), "the rank never moved"
+    assert got["counts"]["slot_subject"] == 1 and got["counts"]["slot_top"] == k
+    assert sum(1 for c in rendered if c.slot == "top") == k
+
+
+def test_SLOT_a_COINCIDING_chain_adds_NO_ROW():
+    """A slot RESERVES a seat; it does not duplicate one. Where the top K already carries a chain that
+    satisfies the slot, the slot adds nothing at all -- so the page never grows for a fact it already
+    printed."""
+    sub = B.Anchor(contract="a_cbot", source="subject", driver_id="t0", subject=True)
+    bd = _slot_board(anchors=(sub,))
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    assert len(got["rendered"]) == bd.knobs.chain_render_k
+    assert got["counts"]["slot_subject"] == 0
+    assert any("t0" in c.hop_ids for c in got["rendered"])
+
+
+def test_SLOT_with_NO_subject_ONE_named_market_and_NO_horizon_the_set_is_the_PRE_SLOT_SET():
+    """THE NEGATIVE HALF, and it is the one that protects every turn the ruling did not aim at: a board
+    the question anchors nothing on renders EXACTLY the top K by rank, every seat labelled `top` or
+    `sign`, byte for byte what the selection chose before the slots existed."""
+    bd = _slot_board(anchors=(B.Anchor(contract="a_cbot", source="named", named=True),),
+                     horizon=None)
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    pre = W.chain_render_set(list(got["pool"]), k=bd.knobs.chain_render_k,
+                             print_line=float(bd.knobs.chain_print_line))
+    assert [c.hop_ids for c in got["rendered"]] == [c.hop_ids for c in pre["rendered"]]
+    assert all(c.slot in ("top", "sign") for c in got["rendered"])
+    for key in ("slot_subject", "slot_pair", "slot_horizon", "rendered_one_line"):
+        assert got["counts"][key] == 0, (key, got["counts"])
+
+
+def _slot_chain(i, score, hop_ids, terminal, *, band="0-1 quarters", contract="a_cbot"):
+    """ONE hand-made chain with a declared score, so the slot rules are read at the unit and the
+    board's own ranker is not the thing under test."""
+    hops = tuple(W.ChainHop(contract=contract, driver_id=h, seat=j + i * 10,
+                            lag_band=parse_lag(band), series_key="s_%s_%d" % (h, i))
+                 for j, h in enumerate(hop_ids))
+    ch = W.Chain(contract=contract, hops=hops, depth=len(hops) - 1, terminal=terminal)
+    ch.score = score
+    return ch
+
+
+def test_SLOT_the_K_PLUS_TWO_FULL_BOUND_HOLDS_WITH_ALL_THREE_SLOTS_LIVE():
+    """THE BOUND: at most `K + 2` chains render IN FULL, and a slot chain past it renders as ONE LINE
+    -- never dropped, and COUNTED. Three slots can seat three extra chains and the block's own budget
+    cannot absorb three extra full chain rows.
+
+    AND THE SAME POOL AT A WIDER K SHOWS THE OTHER HALF: where the top K already carries the subject,
+    that slot adds no row at all, and nothing is reduced because nothing is past the bound."""
+    pool = [_slot_chain(0, 90.0, ("t0", "b0"), "a_cbot"),
+            _slot_chain(1, 80.0, ("t1", "b1"), "a_cbot"),
+            _slot_chain(2, 70.0, ("sub", "b2"), "a_cbot"),                   # the SUBJECT
+            _slot_chain(3, 60.0, ("t3", "b3"), "z_cbot"),                    # the PAIR call
+            _slot_chain(4, 50.0, ("t4", "b4"), "a_cbot", band="2-4 quarters")]  # the HORIZON
+    kw = {"subject_ids": {"a_cbot": frozenset({"sub"})},
+          "named_contracts": ("a_cbot", "z_cbot"), "horizon_months": 9}
+    got = W.chain_render_set(pool, k=1, print_line=40.0, **kw)
+    rendered = got["rendered"]
+    assert [(c.slot, c.full) for c in rendered] == [("top", True), ("subject", True),
+                                                    ("pair", True), ("horizon", False)], \
+        [(c.hop_ids, c.slot, c.full) for c in rendered]
+    assert len([c for c in rendered if c.full]) == 1 + W.CHAIN_SLOT_FULL_OVER_K
+    assert got["counts"]["rendered_one_line"] == 1
+    assert got["counts"]["rendered"] == 4, "the chain past the bound is REDUCED, never dropped"
+    assert all(c.rendered for c in rendered)
+    assert sum(got["counts"]["slot_" + w] for w in W.CHAIN_SLOTS) == len(rendered)
+    # THE RANK IS NEVER MOVED BY A SLOT
+    assert [c.score for c in rendered] == sorted((c.score for c in rendered), reverse=True)
+    # ...and at K=3 the subject is already carried, so that slot adds NOTHING
+    wide = W.chain_render_set(pool, k=3, print_line=40.0, **kw)
+    assert [(c.slot, c.full) for c in wide["rendered"]] == [
+        ("top", True), ("top", True), ("top", True), ("pair", True), ("horizon", True)]
+    assert wide["counts"]["slot_subject"] == 0 and wide["counts"]["rendered_one_line"] == 0
+
+
+def test_SLOT_the_ROUTING_FIELDS_SELECT_NOTHING():
+    """"The graph decides relevance, the question only anchors." A slot is anchored by the SUBJECT, the
+    NAMED markets and the HORIZON -- facts about the question -- and never by how the turn was routed.
+    This is the negative pin the ruling asks for, read off the selection's own source."""
+    import ast
+    import inspect
+    import textwrap
+    code: list = []
+    for fn in (W.chain_render_set, W._slot_subject, W._slot_pair, W._slot_horizon, W.chain_counts):
+        tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+        # THE DOCSTRINGS ARE STRIPPED AND THE COMMENTS NEVER PARSE: this pin grades what the selection
+        # READS, not what its prose NAMES -- the docstring above names these five fields precisely in
+        # order to say that none of them selects anything.
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Module, ast.ClassDef)):
+                if node.body and isinstance(node.body[0], ast.Expr) \
+                        and isinstance(node.body[0].value, ast.Constant) \
+                        and isinstance(node.body[0].value.value, str):
+                    node.body = node.body[1:] or [ast.Pass()]
+        ast.fix_missing_locations(tree)
+        code.append(ast.unparse(tree))
+    src = "\n".join(code)
+    for routing in ("steps", "fallback", "subject_hints_n", "degraded", "planner_mode", "mode"):
+        assert routing not in src, routing
+    assert set(W.CHAIN_SLOTS) == {"top", "sign", "subject", "pair", "horizon"}
+
+
+# -- ROUND 4: the closing round's own pins ----------------------------------------------------------
+def _keyed_chain(score, drivers, keys, terminal, *, band="0-1 quarters", contract="a_cbot"):
+    """ONE hand-made chain with its FOLD KEYS declared, so a slot candidate can be a FOLD DUPLICATE of
+    a top-K pick -- the shape that makes clause (5) seat a chain the diversity fold refused."""
+    hops = tuple(W.ChainHop(contract=contract, driver_id=d, seat=j, lag_band=parse_lag(band),
+                            series_key=k)
+                 for j, (d, k) in enumerate(zip(drivers, keys)))
+    ch = W.Chain(contract=contract, hops=hops, depth=len(hops) - 1, terminal=terminal)
+    ch.score = score
+    return ch
+
+
+def _demote_pool():
+    """THE REVIEWER'S OWN POOL (round-3 review MA-R3-1, reproduced by the census at 8b.1): k=3, print
+    line 40.0, a top K of 99 / 70 / 40 and three FOLD-DUPLICATE slot chains at 98 / 97 / 96.
+
+    All three duplicates carry the TOP chain's own two fold keys, so `_fits` refuses every one of them
+    and the top K is 99 / 70 / 40 by rank -- and each one then answers a slot the top K does not: the
+    SUBJECT driver, a terminal in the second named market, a band containing the horizon."""
+    return [_keyed_chain(99.0, ("t1", "r1"), ("s1", "s1r"), "a_cbot"),
+            _keyed_chain(70.0, ("t2", "r2"), ("s2", "s2r"), "a_cbot"),
+            _keyed_chain(40.0, ("t3", "r3"), ("s3", "s3r"), "a_cbot"),
+            # the three slot candidates, each carrying the TOP chain's own two fold keys
+            _keyed_chain(98.0, ("sub", "r1"), ("s1", "s1r"), "a_cbot"),
+            _keyed_chain(97.0, ("t1", "pair"), ("s1", "s1r"), "z_cbot"),
+            _keyed_chain(96.0, ("t1", "hzn"), ("s1", "s1r"), "a_cbot", band="2-4 quarters")]
+
+
+def test_MA_R3_1_the_FULL_bound_is_stamped_in_SEAT_order_so_a_TOP_K_chain_is_NEVER_reduced():
+    """**ROUND-3 REVIEW MA-R3-1, ORCHESTRATOR RULING 2026-09-22.** The bound belongs to the order the
+    SEATS were taken -- the top K, then the sign swap, then the slots -- and the sort is for DISPLAY.
+
+    MEASURED BEFORE, on this pool: the chains rendered 99 / 98 / 97 / 96 / 70 / 40 and `c.full = i <
+    k + 2` on the POST-SORT position reduced the SIXTH -- the 40.0 chain, a TOP-K pick -- so the page
+    printed "CHAIN sixth of six, under this page's own selection line: t3, then r3, reaching a cbot"
+    while `below_print_line` said ZERO chains sat below a line that chain scored exactly. One field,
+    two readings, and the count line reading the wrong one: MA-1's own class, one round after it
+    closed, and against both ruling 6(a) ("the top K render in full ALWAYS") and this function's own
+    docstring. The chains that can outrank a top-K pick are exactly the slot candidates, because
+    clause (5) bypasses the diversity fold as a veto.
+
+    AFTER: the reduced chain is the LAST-SEATED slot chain (the horizon seat, taken sixth of six), the
+    40.0 top-K chain renders IN FULL, and the count line agrees with the page word for word."""
+    from leviathan.graphrag.state import render as R
+    pool = _demote_pool()
+    got = W.chain_render_set(pool, k=3, print_line=40.0,
+                             subject_ids={"a_cbot": frozenset({"sub"})},
+                             named_contracts=("a_cbot", "z_cbot"), horizon_months=9)
+    rendered = got["rendered"]
+    assert [(c.score, c.slot, c.full) for c in rendered] == [
+        (99.0, "top", True), (98.0, "subject", True), (97.0, "pair", True),
+        (96.0, "horizon", False), (70.0, "top", True), (40.0, "top", True)], \
+        [(c.score, c.slot, c.full, c.hop_ids) for c in rendered]
+    assert all(c.full for c in rendered if c.slot == "top"), "ruling 6(a): the top K render in FULL"
+    assert len([c for c in rendered if c.full]) == 3 + W.CHAIN_SLOT_FULL_OVER_K
+    assert got["counts"]["rendered_one_line"] == 1
+    assert got["counts"]["below_print_line"] == 0, "nothing in this pool is below the line"
+    # THE WORDS ON THE PAGE. `render.render_board` switches on `Chain.full` and nothing else (the
+    # `if not _c.full:` branch that calls `sb_chain_one_line`), so this is the row a reader meets.
+    n = len(rendered)
+    rows = [(R.sb_chain_head(c, i=i, n=n) if c.full else R.sb_chain_one_line(c, i=i, n=n))
+            for i, c in enumerate(rendered, start=1)]
+    reduced = [(c, row) for c, row in zip(rendered, rows) if "it is here for" in row]
+    assert len(reduced) == 1, rows
+    assert reduced[0][0].slot == "horizon" and "hzn" in reduced[0][1], reduced
+    forty = next(row for c, row in zip(rendered, rows) if c.score == 40.0)
+    assert "t3" in forty and "it is here for" not in forty and "selection line" not in forty, forty
+
+
+def test_MINOR2_a_render_cap_of_ZERO_renders_NOTHING_the_slots_INCLUDED():
+    """**ROUND-3 REVIEW, MINOR 2.** `chain_rows` reads `int(getattr(knobs, "chain_render_k", 0) or 0)`,
+    so a knobs object WITHOUT the column arrives at k=0 -- and clause (5) still seated three chains,
+    TWO of them in full, because the bound is `0 + 2`. MEASURED before: the five-chain pool with all
+    three slots live rendered THREE at k=0 (subject, pair, horizon). A slot is a seat BESIDE the top K
+    and never instead of it, so a page that asked for no chains gets none -- and every chain still
+    carries a declared decline word, because nothing is dropped without a reason."""
+    pool = [_slot_chain(0, 90.0, ("t0", "b0"), "a_cbot"),
+            _slot_chain(1, 80.0, ("t1", "b1"), "a_cbot"),
+            _slot_chain(2, 70.0, ("sub", "b2"), "a_cbot"),
+            _slot_chain(3, 60.0, ("t3", "b3"), "z_cbot"),
+            _slot_chain(4, 50.0, ("t4", "b4"), "a_cbot", band="2-4 quarters")]
+    kw = {"subject_ids": {"a_cbot": frozenset({"sub"})},
+          "named_contracts": ("a_cbot", "z_cbot"), "horizon_months": 9}
+    got = W.chain_render_set(pool, k=0, print_line=40.0, **kw)
+    assert got["rendered"] == []
+    assert got["counts"]["rendered"] == 0 and got["counts"]["rendered_one_line"] == 0
+    assert all(not c.rendered and not c.full and c.slot == "" for c in pool)
+    assert all(c.decline for c in pool), [c.decline for c in pool]
+    for word in W.CHAIN_SLOTS:
+        assert got["counts"]["slot_" + word] == 0, word
+    # ...and the same pool at k=1 still renders, so the guard is a CAP and not a new fence
+    assert len(W.chain_render_set(pool, k=1, print_line=40.0, **kw)["rendered"]) == 4
+
+
+def test_MA_R3_2_receipts_aged_out_is_ONE_population_DOCUMENTS_wherever_the_name_appears():
+    """**ROUND-3 REVIEW MA-R3-2, ORCHESTRATOR RULING 2026-09-22.** `Chain.receipts_aged_out` counts
+    the aged-out DOCUMENTS on one chain; `chain_counts["receipts_aged_out"]` counted the CHAINS that
+    had at least one. MEASURED through the shipped producer on a board with TWO aged hops: the chain
+    said 2 and the count line said 1, under ONE name, and both reach `Board.trace()`, the census
+    record and the arm's report. It is the law MA-5 closed for the firings noun -- one series, counted
+    ONCE, in ONE spelling -- so the count line SUMS the documents."""
+    bd = _cboard()
+    _crow(bd, "a_cbot", "h0", st=_cs("h0", pct=95), event="2024-01-01")
+    _crow(bd, "a_cbot", "h1", st=_cs("h1", pct=94), event="2023-05-05")
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["h0", "h1", "bot"])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    ch = got["pool"][0]
+    assert ch.receipt_kind == "none" and ch.terms["event"] == 0, "the recency bound still holds"
+    assert ch.receipts_aged_out == 2, "TWO documents the window had closed on"
+    assert got["counts"]["receipts_aged_out"] == 2, got["counts"]
+    assert got["counts"]["receipts_aged_out"] == sum(int(c.receipts_aged_out or 0)
+                                                     for c in got["pool"])
+    assert ch.to_dict()["receipts_aged_out"] == 2
+    assert "chain_counts.receipts_aged_out" in W.CHAIN_SEAM_FIELDS
+
+
+def test_R3W1_the_scope_count_IS_the_number_the_page_prints_and_the_READ_count_has_its_OWN_name(
+        chain_tiers):
+    """**LANE R's HANDOFF R3-W1, ORCHESTRATOR RULING 2026-09-22.** `render.chain_arithmetic_words`
+    counts the PAIRS it enumerates -- every term with points above zero -- and `Chain.scope` published
+    `_term_was_read`'s SEMANTIC count under the same word, so the sentence "six of seven terms scored"
+    and the trace's own number were two claims about one chain. MEASURED before, over the six rendered
+    chains of the three fixture tiers: FIVE disagreed, always LOW (5 against 6, 5 against 6, 5 against
+    6, 5 against 6, 4 against 5), and the arm report and the judge read the one the reader never saw.
+
+    ONE NAME, ONE NUMBER: `terms_scored` is computed by the page's own rule, after every term
+    including HISTORY is set. MA-3's fact is NOT deleted -- it is published as `terms_read`, which is
+    what a low score reading as SCARCE DATA actually needs (ruling 6a), and the thin chains keep it."""
+    from leviathan.graphrag.state.render import chain_arithmetic_words, words_for_int
+    bad, seen = [], 0
+    for mode in ("quick", "deep", "max"):
+        for ch in chain_tiers[mode].chains:
+            if not ch.rendered:
+                continue
+            seen += 1
+            printed = sum(1 for t in W.CHAIN_TERMS if W._term_points(ch.terms, t) > 0.0)
+            if int(ch.scope["terms_scored"]) != printed:
+                bad.append((mode, ch.hop_ids, ch.scope["terms_scored"], printed))
+            # the SENTENCE the reader meets carries that same count in the estate's own cardinals
+            assert ("%s of seven terms scored" % words_for_int(printed)) in chain_arithmetic_words(ch)
+    assert seen >= 6 and bad == [], bad
+    # ...and the READ count survives under its own name, one short exactly where a NEUTRAL is scored
+    thin = next(c for c in chain_tiers["deep"].chains
+                if c.rendered and int((c.history or {}).get("n_firings") or 0) == 0)
+    assert thin.terms["history"] == W.CHAIN_HISTORY_NEUTRAL
+    assert thin.scope["terms_read"] == 5 and thin.scope["terms_scored"] == 6, thin.scope
+    rich = next(c for c in chain_tiers["deep"].chains
+                if c.rendered and int((c.history or {}).get("n_firings") or 0) > 0)
+    assert rich.scope["terms_read"] == 6 and rich.scope["terms_scored"] == 6, rich.scope
+    for name in ("Chain.scope.terms_scored", "Chain.scope.terms_read"):
+        assert name in W.CHAIN_SEAM_FIELDS, name
+
+
+def test_CENSUS7_a_firing_the_PARSE_cannot_read_is_COUNTED_and_never_silently_dropped(monkeypatch):
+    """**ROUND-2 CENSUS BLOCKER 7, CARRIED.** `chain_history`'s parent-move parse answered a
+    TypeError / ValueError / IndexError with a bare `continue`, so the firing left BOTH counters and
+    the denominator a reader meets ("on any of the fourteen past firings of this reading") was smaller
+    than the record the arrays held. The two window drops beside it already counted; a fence CORRECTS
+    or COMPUTES, and a dropped item is COUNTED.
+
+    THE BRANCH IS NOT REACHABLE THROUGH `hop_arrays` ON THE SERVED PATH and this pin says so out loud:
+    `transforms.num_or_none` makes every array numeric by construction, which is why the branch went
+    four rounds uncounted. So the pin hands the SHIPPED producer an array the cleaner would have
+    dropped -- seven cells that all COMPARE (they are strings, so `chain_firings` finds its runs) of
+    which one does not PARSE -- and asserts on the real ledger it returns: every firing
+    `chain_firings` found is in `n_firings` or in `unmeasured`, and neither is a stand-in."""
+    vals = ("5", "4", "zz", "2", "1", "3", "6")                      # the run into "zz" FIRES
+    dates = ("2015-01-01", "2015-02-01", "2015-03-01", "2015-04-01", "2015-05-01",
+             "2015-06-01", "2015-07-01")
+    child = (1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0)
+    a, b = _cs("A", pct=90), _cs("B", pct=50)
+    a.metric, b.metric = "A", "B"
+    monkeypatch.setattr(W, "hop_arrays", lambda st: (
+        ((), (), "") if st is None else
+        ((vals, dates, "t") if getattr(st, "metric", "") == "A" else (child, dates, "t"))))
+    band = parse_lag("0-1 quarters")
+    h = W.chain_history(a, b, edge_sign="+", band=band, asof="2026-09-07", direction=1)
+    fired = W.chain_firings(vals, dates, direction=1,
+                            min_separation=W.separation_periods(band.months()[1], a, dates),
+                            asof="2026-09-07", close_months=band.months()[1])
+    assert len(fired) == 2, fired
+    assert int(h["n_firings"]) == 1 and int(h["unmeasured"]) == 1, h
+    assert int(h["n_firings"]) + int(h["unmeasured"]) == len(fired), h
+    assert "Chain.history.unmeasured" in W.CHAIN_SEAM_FIELDS
+
+
+def test_CENSUS7_every_firing_on_a_REAL_board_lands_in_exactly_one_counter(chain_tiers):
+    """The same ledger on the three fixture tiers, through the boards the seam actually drives: the
+    three VERDICTS sum to `n_firings` on every chain that carries a record (3,308 of them), so a
+    firing is aligned, at odds, undetermined or UNMEASURED and never nothing at all."""
+    bad, seen = [], 0
+    for mode in ("quick", "deep", "max"):
+        for c in chain_tiers[mode].chains:
+            h = c.history or {}
+            if not h:
+                continue
+            seen += 1
+            got = (int(h.get("aligned") or 0) + int(h.get("at_odds") or 0)
+                   + int(h.get("undetermined") or 0))
+            if got != int(h.get("n_firings") or 0):
+                bad.append((mode, c.hop_ids, got, h.get("n_firings")))
+    assert seen > 100 and bad == [], bad[:3]
+
+
+def test_CENSUS7_a_SINGLE_HOP_path_is_COUNTED_in_the_count_line_and_never_silently_skipped():
+    """**ROUND-2 CENSUS BLOCKER 7, CARRIED.** A path of ONE hop is not a chain and never becomes one
+    -- `chain_rows` skips it, correctly -- but it was on the board and the skip recorded nothing, so
+    the count line's own `total` (the POOL) could not be reconciled with the paths the walk carried.
+    It rides the count line under its own name, beside `cross_unpriced`: the two facts the BUILDER
+    knows and the selection cannot."""
+    bd = _cboard()
+    _crow(bd, "a_cbot", "solo", st=_cs("solo", pct=95))
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=90))
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["solo"])
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    assert len(bd.paths) == 2 and got["counts"]["total"] == 1
+    assert got["counts"]["single_hop_paths"] == 1, got["counts"]
+    assert "chain_counts.single_hop_paths" in W.CHAIN_SEAM_FIELDS
+
+
+def test_SEAM_every_key_the_count_dict_carries_at_RUNTIME_has_a_DECLARED_spelling(chain_tiers):
+    """**ROUND-3 CENSUS, SECTION 9.** Three keys existed on the served dict with no published
+    spelling: `cross_unpriced` and `single_hop_paths`, stamped by the BUILDER after the selection
+    returns, and `disagreement`, stamped by `stage2` -- and all three reach `Board.trace()` and the
+    census record, because `chain_counts` is dumped wholesale. A key with no declared name is how
+    `counts["cross_event"]` rendered silence for a whole round. The roster is the seam in ONE
+    spelling, so it is graded in BOTH directions here: nothing runtime that is undeclared, and
+    nothing declared that the real dict does not carry."""
+    counts = dict(chain_tiers["deep"].chain_counts or {})
+    declared = {n.split(".", 1)[1] for n in W.CHAIN_SEAM_FIELDS if n.startswith("chain_counts.")}
+    assert counts, "the fixture must have run the chain leg"
+    assert sorted(set(counts) - declared) == [], sorted(set(counts) - declared)
+    assert sorted(declared - set(counts)) == [], sorted(declared - set(counts))
+    for name in ("chain_counts.cross_unpriced", "chain_counts.single_hop_paths",
+                 "chain_counts.disagreement"):
+        assert name in W.CHAIN_SEAM_FIELDS, name
+    assert W.CHAIN_SEAM_FIELDS == tuple(dict.fromkeys(W.CHAIN_SEAM_FIELDS)), "one spelling, once"

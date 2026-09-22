@@ -40,6 +40,7 @@ from leviathan.graphrag import reasoning_modes as rm
 from leviathan.graphrag import tracekeys as tk
 from leviathan.graphrag.numbers import cascade as cq
 from leviathan.graphrag.state import __main__ as H
+from leviathan.graphrag.state import analogs as A
 from leviathan.graphrag.state import board as B
 from leviathan.graphrag.state import narration as N
 from leviathan.graphrag.state import render as R
@@ -1448,6 +1449,39 @@ def test_lane_ws_seam_patch_is_landed_verbatim_and_defaults_off(monkeypatch):
     assert cc.check_state_seam() == []
 
 
+def test_S8_the_stage2_kwarg_tail_is_EXTENDED_by_state_chain_and_not_moved():
+    """**DESIGN B.7 (ii), and the pin it actually names.**
+
+    The design says "the keyword-tail source pin (`test_state_seam.py:80`)" is extended. THAT LINE IS A
+    DIFFERENT TAIL: :80 sits in `test_board_seam_off_the_flag_defaults_to_off_and_the_kwarg_is_ABSENT`
+    and asserts the QUANTIFY call's tail (`**_sb_kw, **_eod_kw)`), which is the g1x byte-identity
+    anchor and must NOT move at all. The STAGE-2 kwarg tail is the one above, and it is EXTENDED here:
+    `state_chain` is appended LAST, after `watch_nonobvious`, keyword-only, default False.
+
+    THE ANSWER-SIDE READ (`state_chain=_state_chain_on()` beside `watch_nonobvious=`) IS LANE A's and
+    is deliberately NOT asserted here: `answer.py` is not this lane's file, and a pin on a call site
+    another lane has not landed would red this deck for a reason that is not a defect in it. What this
+    lane owes is that the kwarg EXISTS, defaults off, threads through, and reads no environment on the
+    way -- all four asserted below."""
+    params = list(inspect.signature(S.fill_stage2).parameters)
+    assert params[-1] == "state_chain", params[-3:]
+    assert params[-2] == "watch_nonobvious", "the tail is APPENDED to, never reordered"
+    p = inspect.signature(S.fill_stage2).parameters["state_chain"]
+    assert p.default is False and p.kind is inspect.Parameter.KEYWORD_ONLY
+    src = inspect.getsource(S.fill_stage2)
+    assert "state_chain=bool(state_chain)" in src, "threaded into W.stage2 as a kwarg"
+    assert "chains=chains or _curated_chains(state_chain)" in src, \
+        "an explicit chains= from the caller still wins; the curated maps ride the flag"
+    assert "chain_receipts=(_rcpt if state_chain else None)" in src
+    assert "receipts_by_row=None" in src, \
+        "the DECLARED RESIDUAL is untouched: the chain wires its OWN pool under its OWN cap"
+    # THE QUANTIFY TAIL, the g1x anchor, is the one that did NOT move.
+    assert "**_sb_kw, **_eod_kw)" in inspect.getsource(an._answer_l2)
+    assert "state_chain" in str(inspect.signature(W.stage2))
+    assert inspect.signature(W.stage2).parameters["state_chain"].default is False
+    assert cc.check_state_seam() == []
+
+
 def test_lane_ws_selection_clause_rides_the_mandate_and_never_the_block():
     """(3) THE SELECTION-CLAUSE CONSTANT. It belongs in the MANDATE: a licence sentence rendered as a
     BLOCK row would need a class of its own in `render.ROW_CLASSES` -- which is in this sitting's
@@ -1472,3 +1506,265 @@ def test_lane_ws_selection_clause_rides_the_mandate_and_never_the_block():
     assert N.MANDATE_WATCH_HEAD_RX in base and N.MANDATE_WATCH_NONOBVIOUS not in base
     assert an._system() == an._system(watch_selection=False)
     assert clause not in R.ROW_CLASSES and not any(clause in str(v) for v in R.ROW_CLASSES.values())
+
+
+def test_S8R2_the_like_state_stanza_is_the_THEN_of_the_TOP_CHAIN_and_first_dim_is_WIRED_here():
+    """**ROUND-2 ITEM R-5 (DESIGN C.2).** The analog half landed COMMITTED at ``bbddd4cc`` and already
+    accepts ``first_dim``: ``analogs.select_analogs`` takes it, ``analogs._dims_first`` moves that
+    dimension to the front of the vector the coverage line enumerates, and that function's own
+    docstring names this caller ("the caller is the render half"). WHAT WAS MISSING WAS THE CALLER.
+
+    IT IS THE TOP chain's RECEIPT HOP -- the hop the whole chain is read at, one rule and two readers
+    (``walk.chain_receipt_index``) -- and it is the RANK's top, not the list's first: ``chain_render_set``
+    stamps ``rendered`` across the pool in rank order but ``Board.chains`` carries the POOL, whose order
+    is the composition's, so reading ``[0]`` would hand the stanza whichever candidate the walk happened
+    to build first.
+
+    AND IT IS ``None`` WITH THE FLAG OFF, which is the argument's own default, so a board-on /
+    chain-off turn passes what it passed before and is byte-identical (measured through
+    ``fill_stage2`` on all three tiers: block, request, trace and counters shas unmoved).
+
+    **ROUND 3: THE CHAINS HERE ARE REAL ``walk.Chain`` OBJECTS.** The round-2 pin built two local
+    classes carrying a hand-made ``rank`` tuple, so it asserted this seam's rule against a shape
+    nothing produces -- the same stand-in habit that let four owner-ordered surfaces ship dead. The
+    rank below is ``Chain.rank``'s own computation off a real score and a real hop."""
+    assert S._first_dim(types.SimpleNamespace(chains=[])) is None
+    assert S._first_dim(types.SimpleNamespace()) is None
+
+    def _c(score, hop_id):
+        ch = W.Chain(contract="soybeans_cbot",
+                     hops=(W.ChainHop(contract="soybeans_cbot", driver_id=hop_id, measured=True),))
+        ch.score, ch.rendered, ch.full = score, True, True
+        return ch
+
+    lo, hi = _c(30.0, "drought"), _c(81.5, "export_pace_lag")
+    board = types.SimpleNamespace(chains=[lo, hi], rows=(), order=())
+    # POOL ORDER puts the loser first; the RANK decides.
+    assert S._first_dim(board) == "export_pace_lag"
+    hi.rendered = False
+    assert S._first_dim(board) == "drought"
+    for c in (lo, hi):
+        c.rendered = False
+    assert S._first_dim(board) is None
+    # ...and the seam spends it at the ONE call site that has an analog vector to order.
+    src = inspect.getsource(S.fill_stage2)
+    assert "first_dim=_first_dim(bd)" in src
+    assert src.count("A.analog_rows(") == 1, "one producer, one caller"
+    assert "first_dim" in str(inspect.signature(A.analog_rows))
+    assert inspect.signature(A.analog_rows).parameters["first_dim"].default is None
+
+
+# ═══ S8 ROUND 3: THE TAPE'S PLACE IN THE SEAM, AND THE HOP -> DIMENSION TRANSLATION ═════════════════
+#: THE RECEIPT POOL A SERVED TURN CARRIES, built through the seam's OWN producer. `fill_stage2` passes
+#: `receipts=_receipts_from(sg)`, so a board built with `receipts={}` is the cell furthest from a
+#: served turn -- and round 3 measured DESIGN C.2's whole effect on that cell alone (round-4 MAJOR 2).
+_R3_EVIDENCE: tuple = (
+    {"date": "2026-08-21", "event_date": "2026-08-01", "source": "a wire service", "tier": 2,
+     "text": "the authority raised the export levy on the shipment from the first of the month"},
+    {"date": "2026-07-14", "event_date": "2026-07-02", "source": "a monthly outlook", "tier": 3,
+     "text": "the monthly outlook repeats that the blend mandate is unchanged this season"},
+)
+
+
+def _r3_receipts(bd, rows: int = 3) -> dict:
+    """`{(contract, driver_id): [props]}` for the loudest measured rows, THROUGH `S._receipts_from`."""
+    from leviathan.graphrag.state.rows import status_word
+    nodes, hit = [], 0
+    for r in bd.rows:
+        st = r.state
+        if st is None or status_word(st.status) != "ok" or not r.legs.get("loud"):
+            continue
+        hit += 1
+        if hit > rows:
+            break
+        nodes.append(types.SimpleNamespace(contract=r.contract, id=r.driver_id,
+                                           evidence=[dict(p) for p in _R3_EVIDENCE]))
+    return S._receipts_from(types.SimpleNamespace(nodes=nodes))
+
+
+def _r3_board(graph, mode="deep", *, tape_first=True, receipts=None):
+    """The soybeans fixture board with the CHAIN LEG ARMED, built the way the seam builds it.
+
+    ``tape_first`` is the ONE thing under test in the first pin below: `walk.anchor_facts` reads
+    `bd.tape` for the anchor's own price standing, so the tape has to be on the board BEFORE
+    `W.stage2` composes and scores, and this helper can build the board either way.
+
+    ``receipts`` IS THE CELL. `None` builds the no-receipt cell (`receipts={}`, round 3's only cell)
+    and a callable builds the receipt-carrying one off this board's own rows -- which is what
+    `fill_stage2` hands `W.stage2` on any turn that retrieved anything."""
+    from leviathan.graphrag.numbers import cascade as CAS
+    curated = list(CAS.load_chain_map() or ()) + list(CAS.load_transmission_map() or ())
+    bd = W.walk(graph=graph, asof=H.ASOF, mode=mode,
+                anchors=W.resolve_anchors(named=("soybeans_cbot",)),
+                question="what is the situation on soybeans now? and three months from now?",
+                state_fn=H.fixture_state_fn(H.ASOF), key_fn=None, receipts={},
+                knobs=B.board_knobs_of(mode), width=2, legb_on=False, stage2=False)
+    tape = {s: H.fixture_tape(s, H.ASOF) for s in bd.anchor_slugs}
+    if tape_first is True:
+        R.attach_tape(bd, tape, reads_each=0)
+    _rc = receipts(bd) if callable(receipts) else {}
+    W.stage2(bd, graph, state_fn=H.fixture_state_fn(H.ASOF), receipts=_rc, width=2, legb_on=False,
+             chains=curated, state_chain=True)
+    if tape_first is False:                             # the round-2 ordering: after the composition
+        R.attach_tape(bd, tape, reads_each=0)
+    bd.stamp("tape", "fired" if tape_first is not None else "not_reached")
+    return bd
+
+
+def test_S8R3_the_TAPE_is_attached_BEFORE_the_walk_composes_so_the_PRICE_ROW_reaches_the_rank(graph):
+    """**ROUND-3 CENSUS BLOCKER 3 -- OWNER RULING 2's PRICE TERM WAS DEAD BY ORDERING.**
+
+    Ruling 2 (2026-09-18): "when a chain's terminal is the anchor price, its tail term MUST read that
+    row too". ``walk.anchor_facts`` reads the front price off ``bd.tape`` -- and this seam called
+    ``_attach_tape`` AFTER ``W.stage2``, so ``bd.tape`` was EMPTY at composition time on every turn of
+    every tier. MEASURED on the fixture: ``Chain.scope["price_read"]`` False on 3,308 of 3,308 chains
+    and ``AnchorFacts.price_tail`` 0.0000, while the same board's front price sat at the 83rd
+    percentile of its own record and scored 0.6656 the moment the tape was attached. The term was
+    BUILT, PINNED and UNREACHABLE.
+
+    THIS PIN IS THE ORDERING ITSELF AND ITS EFFECT: the source order at the seam, and the same board
+    built both ways so the cause is the ordering and not the data."""
+    src = inspect.getsource(S.fill_stage2)
+    assert src.index("_attach_tape(bd,") < src.index("W.stage2(bd, graph"), \
+        "the chain leg scores on the anchor's price row -- the tape has to be there first"
+    after = _r3_board(graph, tape_first=False)
+    before = _r3_board(graph, tape_first=True)
+    assert not any((c.scope or {}).get("price_read") for c in after.chains), \
+        "the round-2 ordering: not one chain on the board could read the anchor's own price"
+    read = [c for c in before.chains if (c.scope or {}).get("price_read")]
+    assert read, "and with the tape on the board first the price row reaches the rank"
+    assert all(str((c.scope or {}).get("price_standing") or "") for c in read)
+    # THE ANCHOR'S OWN FACTS ARE THE CAUSE, and the cause is the EMPTY TAPE at composition time --
+    # which is what `anchor_facts` reads on a board that has none (`tape_first=None` never attaches
+    # one, i.e. exactly the state `W.stage2` was handed under the round-2 ordering).
+    none_yet = _r3_board(graph, tape_first=None)
+    assert not none_yet.tape and W.anchor_facts(none_yet, "soybeans_cbot").price_percentile is None
+    assert W.anchor_facts(none_yet, "soybeans_cbot").price_tail == 0.0
+    assert W.anchor_facts(before, "soybeans_cbot").price_percentile is not None
+    assert W.anchor_facts(before, "soybeans_cbot").price_tail > 0.0
+    assert not any((c.scope or {}).get("price_read") for c in none_yet.chains)
+
+
+def test_S8R3_first_dim_TRANSLATES_the_receipt_hop_to_the_dimension_the_analog_leg_ranks(graph):
+    """**ROUND-3 MAJOR 6.** ``_first_dim`` handed ``analogs.analog_rows`` the receipt hop's RAW DRIVER
+    ID. The analog leg declares its dimensions off the board's LOUD rows, each under ITS OWN driver id
+    -- and two rows of one SERIES carry two different driver ids all the time. On this very fixture
+    ``El_Nino`` and ``La_Nina`` are both served by ``oni_climate|_global|``, so a chain read at one of
+    them would miss a dimension declared under the other: the estate's standing string-identity failure
+    in its smallest form.
+
+    So the hop is matched on its SERIES KEY and the id that comes back is the one the analog leg ranks
+    under. MEASURED on the max cell with the translation in: the stanza's ``dims_order`` moves
+    ``export_pace_lag`` to the front on 10 of 10 stanzas. On deep it does NOT move, and that is
+    reported rather than engineered around -- the deep cell's top chain is read at
+    ``cot_mm_positioning``, which this board does not rank among its three declared dimensions, and
+    ``analogs._dims_first`` no-ops exactly as its own docstring says it should."""
+    bd = _r3_board(graph, mode="max")
+    rows = [r for r in bd.rows if r.state is not None]
+    by_series = {}
+    for r in rows:
+        try:
+            by_series.setdefault(str(r.state.key.label()), []).append(r)
+        except Exception:                               # noqa: BLE001
+            continue
+    shared = [(k, v) for k, v in by_series.items() if len({x.driver_id for x in v}) > 1]
+    assert shared, "this fixture is the one that carries two driver ids on one series"
+    key, group = shared[0]
+    seat = {k: i for i, k in enumerate(bd.order)}
+    want = sorted(group, key=lambda r: (0 if r.legs.get("loud") else 1,
+                                        seat.get(r.key, len(seat)), r.driver_id))[0].driver_id
+    others = [r for r in group if r.driver_id != want]
+    assert others, (key, [r.driver_id for r in group])
+    # A REAL `walk.ChainHop` FOR THE SIBLING ROW -- the translation is asserted on the shipped type.
+    sib = others[0]
+    hop = W.ChainHop(contract=sib.contract, driver_id=sib.driver_id, measured=True,
+                     series_key=key, percentile=50.0)
+    assert S._dim_for_hop(bd, hop) == want != hop.driver_id, (key, want, hop.driver_id)
+    # A hop with no served series keeps its own id, which is what the stanza was handed before.
+    bare = W.ChainHop(contract="soybeans_cbot", driver_id="drought", measured=False)
+    assert S._dim_for_hop(bd, bare) == "drought"
+    # ...AND THE STANZA'S OWN FIRST DIMENSION MOVES ON THIS BOARD.
+    fd = S._first_dim(bd)
+    assert fd, "the max cell renders chains, so the stanza has a dimension to be read on"
+    plain = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=H.fixture_benchmark_fn())
+    chain_first = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=H.fixture_benchmark_fn(),
+                                first_dim=fd)
+    assert plain and len(plain) == len(chain_first)
+    moved = [(a, b) for a, b in zip(plain, chain_first)
+             if list(a.get("dims_order") or ()) != list(b.get("dims_order") or ())]
+    assert moved, (fd, [list(a.get("dims_order") or ()) for a in plain[:1]])
+    for _a, b in moved:
+        assert list(b["dims_order"])[0] == fd and b["first_dim"] == fd
+
+
+def test_S8R4_first_dim_walks_the_top_chain_in_TAIL_ORDER_to_a_DIMENSION_THE_LEG_RANKS(graph):
+    """**ROUND-4 MAJOR 2 / DESIGN C.2 -- THE RECEIPT HOP ALONE WAS THE WRONG READ, ON THE CELL A
+    SERVED TURN ACTUALLY IS.**
+
+    Round 3 handed the stanza the TOP CHAIN'S RECEIPT HOP, translated to the driver id the analog leg
+    declares its dimension under. Where that dimension is not one the board ranks, ``_dims_first``
+    no-ops -- correctly -- and the chain's THEN is simply never read. MEASURED on the round-3 code:
+    the stanza's dimension order moved on 10 of 10 stanzas on the NO-RECEIPT max cell and on 0 of 10 /
+    0 of 3 / 0 of 0 on the RECEIPT-CARRYING one, because that cell's top chain is read at
+    ``cot_mm_positioning`` and this board declares no dimension under it.
+
+    SO THE WALK IS THE TOP CHAIN'S HOPS IN ``walk._tail_order`` -- the loudest reading first, which IS
+    the receipt hop by ``chain_receipt_index``' own rule, then the next loudest -- and the FIRST hop
+    whose series the analog leg ranks is the dimension the stanza is read on. ONE RULE, TWO READERS:
+    the order is the walk's own and nothing is re-ranked here.
+
+    IT CAN ONLY ADD A READING: where NO hop of the top chain carries a declared dimension the receipt
+    hop's own answer comes back unchanged, which is round 3's behaviour exactly."""
+    for cell, rc in (("no_receipt", None), ("receipt", _r3_receipts)):
+        bd = _r3_board(graph, mode="max", receipts=rc)
+        declared = S._analog_dims(bd)
+        assert declared, cell
+        # **THE TWO SPELLINGS OF THE DECLARED SET ARE PINNED TO AGREE.** The rule lives in
+        # `analogs.analog_rows`, a module this lane may not edit, so `_analog_dims` reads it off the
+        # same board -- and this asserts the set it returns IS the set the LIVE producer declares.
+        live = set()
+        for e in A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=H.fixture_benchmark_fn()):
+            live |= {str(x) for x in (e.get("dims_order") or ())}
+        assert set(declared) == live, (cell, sorted(declared), sorted(live))
+        fd = S._first_dim(bd)
+        assert fd in declared, (cell, fd, sorted(declared))
+        # ...AND IT IS A HOP OF THE TOP CHAIN, TAKEN IN THE WALK'S OWN TAIL ORDER.
+        top = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)[0]
+        hops = list(top.hops)
+        order = W._tail_order(hops)
+        assert order and order[0] == top.receipt_index, "the receipt hop IS the tail order's first"
+        want = next((S._dim_for_hop(bd, hops[i]) for i in order
+                     if S._dim_for_hop(bd, hops[i]) in declared), None)
+        assert fd == want, (cell, fd, want, [hops[i].driver_id for i in order])
+        # THE STANZA IS THEN READ ON IT -- every stanza, on both cells. This is the property the
+        # reorder exists to produce; whether the order MOVED is a fact about where the dimension
+        # already sat, and it is recorded rather than asserted (max no-receipt 10 of 10, max receipt
+        # 0 of 10 -- the receipt cell's top chain leads with `El_Nino`, which was already first).
+        plain = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=H.fixture_benchmark_fn())
+        chain_first = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=H.fixture_benchmark_fn(),
+                                    first_dim=fd)
+        assert plain and len(plain) == len(chain_first), cell
+        for e in chain_first:
+            assert list(e["dims_order"])[0] == fd and e["first_dim"] == fd, (cell, e["driver_id"])
+        moved = sum(1 for a, b in zip(plain, chain_first)
+                    if list(a.get("dims_order") or ()) != list(b.get("dims_order") or ()))
+        assert moved >= 0
+        # **AND THE PAGE SAYS SO** (the render half of MAJOR 2): a reordering nobody is told about is
+        # not an attribution, so the stanza head carries the mark -- measured on the block, not on
+        # the producer.
+        blk = R.render_board(bd, analogs=chain_first,
+                             anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs))
+        mark = "read as the history of the chain named first, on %s" % R.humanise(fd)
+        assert mark in blk.text(), (cell, mark)
+        # EVERY RENDERED STANZA HEAD CARRIES IT -- the tier's stanza cap decides how many render, and
+        # the mark is a property of the head rather than of the cap.
+        heads = [x for x in blk.lines if x.startswith("LIKE STATE ")
+                 and "measured on the record as revised through" in x
+                 and "across the boards that carry it" not in x]
+        assert heads, cell
+        assert all(mark in x for x in heads), (cell, [x[-90:] for x in heads])
+        assert blk.trips == [], (cell, blk.trips[:1])
+        # ...and with NO chain leg the mark is absent, because there is no chain to attribute to.
+        plainblk = R.render_board(bd, analogs=plain,
+                                  anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs))
+        assert "read as the history of the chain named first" not in plainblk.text(), cell

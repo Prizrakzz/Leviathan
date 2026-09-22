@@ -724,3 +724,40 @@ def test_l2_seam_passes_the_rendered_contract_set_to_the_verifier(monkeypatch):
     assert "robusta_glut" not in seen["foreign"]           # the hop's regimes were RENDERED -> not foreign
     assert "corn_pollination_burn" in seen["foreign"]      # an unwalked DAG's regime still is
     assert seen["handle_prose"] is False                   # D-HP-8: no `_hp` preset -> a CONTROL turn
+
+
+# ── S8 ROUND 2's FATAL, AS A CLASS AND NOT AS A SPELLING ────────────────────────────────────────────
+def test_no_body_of_this_module_binds_a_local_that_shadows_a_module_level_flag_helper():
+    """A SERVING BODY MAY NOT BIND A NAME THAT A MODULE-LEVEL `_*_on()` HELPER ALREADY OWNS.
+
+    THE MEASURED CAUSE (S8 chain lane, round 1). `_answer_l2` resolved the chain gate into a local
+    spelled `_chain_on` -- which is this module's own zero-arg CASCADE-CHAIN kill-switch, called by
+    that same body 1,375 lines ABOVE the binding
+    (`_chain_kw = {"chain": True} if _chain_on() else {}`). Python makes the name local for the WHOLE
+    function, so that earlier call raised `UnboundLocalError` on EVERY L2 turn -- WITH BOTH FLAGS OFF
+    -- the quantify leg's broad `except` swallowed it ("cascade quantify failed ...; proceeding
+    qualitative"), and the cascade quantify leg died silently in production. 23 tests across 7 decks
+    went red on one word, and NOT ONE of the four lanes' byte-identity censuses could see it: they
+    compare rendered bytes and persona cells, and neither enters `_answer_l2`.
+
+    WHY THE PIN IS AN AST CENSUS AND NOT A GREP. The defect class is "a local wearing a helper's
+    name", not the one name it wore; the next flag lane will reach for `_watch_on` or `_board_on` with
+    exactly the same reasoning, and a literal pin would pass while the body raised. A flag-off turn
+    must be HEAD's bytes AND HEAD's FUNCTION, and this is the second half."""
+    import ast
+    import inspect
+
+    tree = ast.parse(inspect.getsource(an))
+    owned = {n.name for n in tree.body
+             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+             and n.name.startswith("_") and n.name.endswith("_on")
+             and not (n.args.args or n.args.kwonlyargs or n.args.posonlyargs)}
+    assert "_chain_on" in owned and "_state_chain_on" in owned, sorted(owned)[:8]
+    shadows = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for n in ast.walk(fn):
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store) and n.id in owned:
+                shadows.append("%s binds %s at line %d" % (fn.name, n.id, n.lineno))
+    assert shadows == [], shadows

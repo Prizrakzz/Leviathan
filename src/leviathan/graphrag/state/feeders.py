@@ -629,6 +629,16 @@ def cache_clear() -> None:
         _render.cache_clear()
     except Exception:                                   # noqa: BLE001 -- telemetry never fails a read
         pass
+    # AND THE CHAIN LEG'S ARRAY MEMO GOES WITH IT (S8 lane W, review round 2 M2). ``walk._ARRAY_MEMO``
+    # holds whole CLEANED ARRAYS under a key that now carries the as-of, the declared offset and the
+    # epoch above -- but it is a process-lifetime global like ``_SHARED``, and the one seam that says
+    # "forget what you read" has to reach every memo or the caller has to know the list. Imported
+    # lazily: ``walk`` imports this module.
+    try:
+        from leviathan.graphrag.state import walk as _walk
+        _walk.cache_clear()
+    except Exception:                                   # noqa: BLE001 -- telemetry never fails a read
+        pass
 
 
 # ---------------------------------------------------------------------------------------------------

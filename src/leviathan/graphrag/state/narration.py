@@ -14,7 +14,9 @@ WHY THE MANDATE IS A LITERAL AND NOT A BUILDER. It is graded at BUILD by all fou
 one thing it can never do is acquire a number by interpolation. Every figure the writer prints comes
 from a board row with its own handle.
 
-THE FOUR MOVEMENTS MAP ONTO THE SHIPPED SPINE WITH NO NEW HEADING (D-RC-3): DIRECTION -> ``## Mechanism``;
+THE FOUR MOVEMENTS MAP ONTO THE SHIPPED SPINE WITH NO NEW HEADING (D-RC-3) -- five when the chain
+movement is lit, and it lands on ``## Mechanism``, a heading the contract already owns:
+DIRECTION -> ``## Mechanism``;
 EVIDENCE, analogs included -> ``## The record``; SPILLOVERS -> ``## Cross-commodity`` /
 ``## Complex-wide move`` where the contract licenses them, else inside ``## Mechanism``; WATCH ->
 ``## What to watch``. The mandate is APPENDED and never a rewrite of the fixed four, and it sits ABOVE
@@ -22,6 +24,15 @@ EVIDENCE, analogs included -> ``## The record``; SPILLOVERS -> ``## Cross-commod
 
 THAT MAPPING IS ABOUT NAMES, NOT ABOUT ORDER, and the first S6 build's mandate read as though it were
 about both -- see :data:`MANDATE_MOVEMENTS` for the measurement and the correction.
+
+MOVEMENT NUMBERS IN THIS FILE ARE HEAD'S, AND HEAD HAS FOUR (S8 lane N, 2026-09-17). Under
+``GRAPHRAG_STATE_CHAIN`` a FIFTH movement is SUBSTITUTED IN -- :data:`MANDATE_CHAIN_MOVEMENT`, which
+lands as ``(3) THE CHAIN`` and pushes SPILLOVERS to ``(4)`` and WATCH to ``(5)`` -- so every constant,
+comment and needle below numbers by HEAD and the chain numbering is stated once, at that constant.
+The substitution is the ``MANDATE_WATCH_NONOBVIOUS`` idiom one screen down and for the same reason:
+:data:`SYSTEM_STATE_BOARD_MANDATE` is a module constant that ships on EVERY board turn, so an edit in
+place would move the prompt on every chain-flag-OFF turn, and that prompt is the first row of S8's
+byte-identical set.
 
 ASCII-ONLY; the file is UTF-8.
 """
@@ -145,7 +156,8 @@ SYSTEM_STATE_BOARD_MANDATE = (
 #:
 #: (1) THE COUNTING BAN IS GONE AND A SCORING BAN REPLACES IT. "a sentence that counts the things it
 #: is reading has stopped writing about markets" was unscoped, while ``SYSTEM_STATE_BOARD_MANDATE``
-#: movement (2) orders "how many such cases the record carries, IN WORDS", movement (3) orders "name
+#: movement (2) orders "how many such cases the record carries, IN WORDS", movement (3) -- which the
+#: chain movement renumbers to (4) on a lit turn -- orders "name
 #: the other markets the block declares the same loud state moves", and the mandate closes "Base rates
 #: come from the block's count words". MEASURED: 11 sentences in the two corpora carry exactly those
 #: constructions ("declared on twenty-three other markets, twenty-two in the same direction"; "the
@@ -285,8 +297,45 @@ MANDATE_MOVEMENTS: tuple = (
     ("WATCH", "## What to watch", ""),
 )
 
+#: S8 LANE N -- THE CHAIN MOVEMENT'S OWN ROW, and it is a SEPARATE TABLE for the reason the movement is
+#: a separate literal: this table's standing claim, graded by ``test_state_render.py``'s B15 deck, is
+#: that EVERY movement it names appears in :data:`SYSTEM_STATE_BOARD_MANDATE`. The chain movement does
+#: NOT appear there and must not -- the constant is in S8's byte-identical set -- so a fifth row added
+#: to the tuple above would make the table state something false about the literal it describes, and
+#: would red a deck in another lane's file for a defect that does not exist. THE TABLE IS THEREFORE
+#: FLAG-SCOPED LIKE THE LITERAL IT DESCRIBES: :func:`mandate_movements` is the ONE producer, and the
+#: chain row is graded against ``state_board_mandate(chain=True)`` by this lane's own deck under the
+#: same three rules (the movement is named in the text it ships with, its heading is one the response
+#: contract already owns, a licensed heading has a canonical home).
+#:
+#: ``## Mechanism`` IS THE CHAIN'S HOME AND IT IS A CANONICAL HEADING, so this row carries no fallback:
+#: a chain narrated hop by hop, in the present tense, with a declared direction onto the next hop IS
+#: the transmission mechanism, which is the one section the response contract has always reserved for
+#: it. The movement's HISTORY sentence -- the count of past firings and the outcome line -- is a fact
+#: INSIDE the movement and lands under ``## The record`` by the mandate's own "THEN, and only then"
+#: clause, which is prose about an order of ideas and not a second heading. That distinction is the
+#: whole of ``MANDATE_MOVEMENTS``' own docstring: the mapping is about NAMES, never about ORDER.
+MANDATE_CHAIN_ROW: tuple = ("CHAIN", "## Mechanism", "")
+
+
+def mandate_movements(chain: bool = False) -> tuple:
+    """:data:`MANDATE_MOVEMENTS`, with :data:`MANDATE_CHAIN_ROW` inserted between EVIDENCE and
+    SPILLOVERS when the chain movement ships. ONE producer for both readings, so a consumer that wants
+    the lit turn's table can never assemble a second copy of the order.
+
+    THE INSERTION POINT IS COMPUTED FROM THE TABLE, never a hard-coded index: the movement lands after
+    EVIDENCE because the chain is what the evidence is FOR, and a literal ``2`` would put it there by
+    coincidence rather than by rule."""
+    if not chain:
+        return MANDATE_MOVEMENTS
+    names = [m[0] for m in MANDATE_MOVEMENTS]
+    at = names.index("EVIDENCE") + 1
+    return tuple(MANDATE_MOVEMENTS[:at]) + (MANDATE_CHAIN_ROW,) + tuple(MANDATE_MOVEMENTS[at:])
+
 
 #: COHERENCE AUDIT 2026-09-16 (WP-A2) -- THE MANDATE'S MOVEMENT (4) DESCRIBES THE PRE-RULING WATCH.
+#: (HEAD's numbering, which is what this constant's needle is cut against; the chain movement
+#: renumbers this one to (5) AFTER the substitution below has already been applied.)
 #: :data:`SYSTEM_STATE_BOARD_MANDATE` closes with "the WATCH rows -- the next scheduled print, the level
 #: a convention names, the date a declared lag window opens -- as concrete items with their dates".
 #: Under ``GRAPHRAG_WATCH_NONOBVIOUS`` the ``next_release`` kind is BANNED AT NOMINATION
@@ -321,21 +370,152 @@ MANDATE_WATCH_NONOBVIOUS: str = (
 )
 
 
-def state_board_mandate(nonobvious: bool = False) -> str:
-    """:data:`SYSTEM_STATE_BOARD_MANDATE`, with movement (4) restated for the NON-OBVIOUS watch draw.
+# ---------------------------------------------------------------------------------------------------
+# S8 LANE N (2026-09-17) -- THE FIFTH MOVEMENT, "THE CHAIN" (DESIGN B.5)
+# ---------------------------------------------------------------------------------------------------
+#: THE CHAIN MOVEMENT, landed as a SUBSTITUTION under ``GRAPHRAG_STATE_CHAIN`` and never as an edit to
+#: :data:`SYSTEM_STATE_BOARD_MANDATE`. The reason is the one the watch variant states one screen up and
+#: the desk register states two: the mandate is a module constant appended on EVERY board turn, so a
+#: paragraph edited into it would move the system prompt on every chain-flag-OFF turn -- and the arm
+#: measuring the chain needs a board-ON / chain-OFF turn that is byte-identical to the 2026-09-16
+#: smoke, or it cannot attribute a single character to the instrument.
+#:
+#: IT IS WRITTEN IN THE DESK'S WORDS FROM THE FIRST DRAFT, not reworded after a lint charged it
+#: (standing memory: a ban with no replacement is how a writer loses a fact rather than a word, and
+#: S7b's own measurement -- the writer copies the block's vocabulary). MEASURED on this literal before
+#: it landed: ``register.count_desk_register`` = 0, ``desk_register_hits`` = [], ``register_hits`` =
+#: [], ``pace_register_ok`` = True, and it carries none of ``loud`` / ``rank`` / ``score`` / ``board``.
+#: That is why it says "the driver model" where DESIGN B.5's prose says "the graph", "the dated report"
+#: where B.5 says "the receipt", "the readings" where B.5 says "the rows", and "the chains the block
+#: puts first" where B.5 says "the chains the block ranks": every one of those is the REPLACEMENT the
+#: desk-register table itself teaches (``register.DESK_REGISTER_TOKENS``), so the two literals that
+#: ship side by side on a lit turn can never order the writer to disobey each other. The SUBSTANCE is
+#: B.5's, clause for clause; only the vocabulary is the reader's. :func:`check_literals` grades all of
+#: it at BUILD, which is where a shipped literal's register trip belongs.
+#:
+#: IT CARRIES NO WORD BUDGET, by design (B.5): length follows from SELECTION. The measured note is
+#: 1,145-1,833 words against a 150-220-word budget nobody obeys, so the movement gains the sentence
+#: "narrate the chains the block puts first and not the rest of the driver model" instead of a number,
+#: and lane E measures whether that alone moves the length.
+#:
+#: THE TWO SENTENCES THE OWNER ADDED TO B.5 (2026-09-17) are the OUTCOME line and the RELATIVE-VALUE
+#: CALL. The outcome line is stated "as what measured after those firings and never as what is coming"
+#: -- threat E7's own fence, in the past tense, beside the count and its sample size. The RV call is
+#: the one sentence a pair question is owed: which of the two the record leans toward and the reading
+#: that carries it, or that the record does not settle it. Both are graded for the valuation and flow
+#: registers like every other word here (``count_valuation_words`` = 0, ``count_flow_words`` = 0): a
+#: call on a pair is a READ, and the spelling that would make it a trade instruction is fenced.
+#:
+#: ROUND 2 (2026-09-18) -- THE THREE CLAUSES THE REVIEW AND THE ORCHESTRATOR ADDED, each one a
+#: correction of something this paragraph ORDERED and the tree could not honour, or FAILED to order
+#: and the ruling requires:
+#:
+#:   * THE CHAIN THAT RENDERS IN ONE LINE STILL GETS ITS SENTENCE (review MAJOR 4). The orchestrator's
+#:     2026-09-17 deviation is that the print line decides FULL versus ONE LINE and never ZERO, so the
+#:     top chain ALWAYS renders (``render.sb_chain_one_line``, called for every ``rendered and not
+#:     full`` chain). HEAD's paragraph ordered the writer to narrate "the ones it renders in full" and
+#:     to state a COUNT of the rest -- and a one-line chain is neither, so on a thin turn (a quick tier
+#:     with few drivers) the writer had no order to mention a chain at all. MEASURED on the five
+#:     2026-09-16 payloads: the top chain reads 81.5 / 81.5 / 60.0 / 50.5 / 69.5 against a print line
+#:     of 40, so 0 of 5 turns hit the case today -- it is the thin-turn tail the ruling was written
+#:     for, which is exactly why the order has to be in the literal before the turn arrives.
+#:   * WHAT THE BLOCK COULD READ IS A STATEMENT ABOUT THE DATA (ORCHESTRATOR_NOTES item 6). The rank is
+#:     RELATIVE WITHIN ONE BOARD, so a data-poor anchor still gets its best chains and the arithmetic
+#:     line states the SCOPE -- the terms it could do, the hops no series served, the buffer series a
+#:     market does not carry. The writer is told to pass that on as a fact about the market's data and
+#:     never as a verdict on the chain, because a reader handed a short arithmetic line with no scope
+#:     beside it reads it as a weak chain. (The word the ruling uses for the arithmetic's own total is
+#:     :data:`CHAIN_MOVEMENT_BANNED_WORDS`' third entry, so the clause says what the total MEANS and
+#:     never names the instrument's own word for it.)
+#:   * THE LIKE-STATE ATTRIBUTION IS CONDITIONAL, and it is conditional in BOTH tree states (review
+#:     MAJOR 3). HEAD's clause read "read a LIKE STATE stanza as the history of the chain named first"
+#:     -- DESIGN C.2, and TRUE ONLY IF the stanza carries the top chain's own receipt hop. MEASURED on
+#:     this tree: ``analogs.analog_rows(..., first_dim=None)`` and no caller in ``state/seam.py``,
+#:     ``state/walk.py`` or ``state/board.py`` passes it, so the unconditioned order told the writer to
+#:     read WHICHEVER stanza the selector picked as the history of a chain it may have nothing to do
+#:     with -- a cross-attribution ORDERED BY THE PROMPT, threat E11 arriving through the literal
+#:     instead of through a join. The clause now reads "where the block MARKS a LIKE STATE stanza as
+#:     the chain's", which is SELF-LIMITING: with ``first_dim`` unwired the block marks nothing and the
+#:     order is silent; when lane R wires it the same sentence becomes stronger rather than false. Both
+#:     states are pinned in ``tests/unit/test_state_narration.py``.
+MANDATE_CHAIN_MOVEMENT: str = (
+    "(3) THE CHAIN: take the chains the block puts first, in the order it gives them, and narrate "
+    "the ones it renders in full, hop by hop, in the present tense. At each hop give the figure in "
+    "its unit and the plain meaning in the same sentence, say which way the driver model declares "
+    "that hop pushes the next one, and say whether the current readings agree with that declared "
+    "direction or run against it -- the block gives you the word. Cite the chain's dated report at "
+    "the hop it acts on, by its handle, and say when it is dated; where the block says no dated "
+    "document reaches a hop's window, say so. THEN, and only then, say what the record shows: the "
+    "block's own count of past firings and how many moved the declared way, in its words, over the "
+    "stated band -- history, never a forecast -- and give the chain's own outcome line the same way, "
+    "as what measured after those firings and never as what is coming. Where the question sets one "
+    "market against another, make the call on the pair the chain's far end reaches: one sentence "
+    "naming which of the two the record leans toward and the reading that carries it, or saying "
+    "plainly that the record does not settle it. Narrate the chains the block puts first and not the "
+    "rest of the driver model; where the block prints a count of further chains, state the count and "
+    "move on. Where the block carries a chain in one line instead of in full, that chain still gets "
+    "its sentence: say what it links and which way it pushes, in the block's own words -- a turn "
+    "whose block carries a chain never reaches the reader without one. Where the block states what "
+    "it could read for a chain -- the terms it could do the arithmetic for, the hops no series "
+    "served, a buffer series this market does not carry -- say that in the same breath: it states "
+    "what this market's data covers on this turn, never that the chain itself is a weak one. Do not "
+    "restate under the record a reading this movement has already given its figure to, and where "
+    "the block marks a LIKE STATE stanza as the chain's, read that stanza as the history of the "
+    "chain you named first."
+)
+
+#: THE THREE NEEDLES THE SUBSTITUTION KEYS ON, asserted at call time exactly as
+#: :data:`MANDATE_WATCH_HEAD_RX` is: a reworded mandate must RED LOUDLY here rather than quietly stop
+#: renumbering itself. ``MANDATE_WATCH_NUMBER_RX`` is the PREFIX both WATCH variants share, so the
+#: renumbering holds whether or not the non-obvious watch draw is also lit.
+MANDATE_COUNT_RX: str = "Cover these four movements as a mentor"
+MANDATE_COUNT_CHAIN: str = "Cover these five movements as a mentor"
+MANDATE_SPILLOVERS_RX: str = "(3) SPILLOVERS:"
+MANDATE_SPILLOVERS_CHAIN: str = "(4) SPILLOVERS:"
+MANDATE_WATCH_NUMBER_RX: str = "(4) WATCH: close with "
+MANDATE_WATCH_NUMBER_CHAIN: str = "(5) WATCH: close with "
+
+
+def state_board_mandate(nonobvious: bool = False, chain: bool = False) -> str:
+    """:data:`SYSTEM_STATE_BOARD_MANDATE`, with movement (4) restated for the NON-OBVIOUS watch draw
+    and, under ``chain``, with :data:`MANDATE_CHAIN_MOVEMENT` substituted in as movement (3).
 
     ``nonobvious`` is ``answer._system``'s own ``watch_selection`` bool -- the flag AND the block's own
     marker -- so the writer is never told to narrate nominations the board did not draw. DEFAULT FALSE,
     which is HEAD's literal byte for byte and is what every board turn with the watch flag off ships.
 
-    THE NEEDLE IS ASSERTED, for ``response_contracts.apply``'s stated reason: a reworded mandate must
+    ``chain`` IS THE SAME SHAPE ONE LANE OVER (S8 lane N): ``answer._system``'s own ``state_chain``
+    bool -- the flag AND the block's own chain rows -- threaded as a kwarg, never read from the
+    environment here (``state/`` reads no environment, and that law does not bend for this). DEFAULT
+    FALSE, and with it false this function returns exactly what it returned at HEAD on both arms, which
+    is the whole of S8's prompt-side byte-identical set.
+
+    THE ORDER OF THE TWO SUBSTITUTIONS IS LOAD-BEARING AND IT IS WATCH FIRST. The watch needle is cut
+    against HEAD's numbering (``(4) WATCH``); the chain pass renumbers WATCH to ``(5)``. Applied the
+    other way round the watch needle would no longer match and the non-obvious variant would silently
+    stop shipping on exactly the turns that lit both flags -- which is the failure the assertion below
+    exists to make loud, so it is sequenced rather than asserted around.
+
+    THE NEEDLES ARE ASSERTED, for ``response_contracts.apply``'s stated reason: a reworded mandate must
     red loudly here rather than quietly stop being corrected on the one lane that needs it."""
     if not nonobvious:
-        return SYSTEM_STATE_BOARD_MANDATE
-    assert MANDATE_WATCH_HEAD_RX in SYSTEM_STATE_BOARD_MANDATE, (
-        "narration: the mandate's WATCH movement was reworded and the non-obvious variant's needle no "
-        "longer matches -- re-cut MANDATE_WATCH_HEAD_RX beside it")
-    return SYSTEM_STATE_BOARD_MANDATE.replace(MANDATE_WATCH_HEAD_RX, MANDATE_WATCH_NONOBVIOUS)
+        text = SYSTEM_STATE_BOARD_MANDATE
+    else:
+        assert MANDATE_WATCH_HEAD_RX in SYSTEM_STATE_BOARD_MANDATE, (
+            "narration: the mandate's WATCH movement was reworded and the non-obvious variant's needle "
+            "no longer matches -- re-cut MANDATE_WATCH_HEAD_RX beside it")
+        text = SYSTEM_STATE_BOARD_MANDATE.replace(MANDATE_WATCH_HEAD_RX, MANDATE_WATCH_NONOBVIOUS)
+    if not chain:
+        return text
+    for needle in (MANDATE_COUNT_RX, MANDATE_SPILLOVERS_RX, MANDATE_WATCH_NUMBER_RX):
+        assert text.count(needle) == 1, (
+            "narration: the chain movement's renumbering needle %r matches %d times in the mandate, not "
+            "once -- the movements were renumbered or reworded and this substitution must be re-cut "
+            "beside them" % (needle, text.count(needle)))
+    text = text.replace(MANDATE_COUNT_RX, MANDATE_COUNT_CHAIN)
+    text = text.replace(MANDATE_SPILLOVERS_RX,
+                        MANDATE_CHAIN_MOVEMENT + " " + MANDATE_SPILLOVERS_CHAIN)
+    return text.replace(MANDATE_WATCH_NUMBER_RX, MANDATE_WATCH_NUMBER_CHAIN)
 
 
 def watch_selection_mandate() -> str:
@@ -698,8 +878,21 @@ def check_literals() -> list:
     except Exception as exc:                        # noqa: BLE001 -- named, never raised onward
         errs.append(f"narration: could not render state_board_mandate(nonobvious=True): {exc}")
         _watch_mandate = ("SYSTEM_STATE_BOARD_MANDATE[nonobvious]", "")
+    # S8 LANE N: THE WIDEST TEXT THAT CAN SHIP IS NOW BOTH FLAGS AT ONCE, and it is graded as one
+    # string rather than as a paragraph in isolation -- a substitution that welded two clauses into an
+    # ungrammatical join, or that left a movement numbered twice, is a defect of the SHIPPED text and
+    # of nothing smaller. The chain paragraph's own desk-register grade is a separate clause below,
+    # because it is the ONE literal in this module held to that standard (the mandate it rides inside
+    # predates the register and is in the byte-identical set; correcting it there is a different lane's
+    # commit, and this lane refuses to pretend otherwise).
+    try:
+        _chain_mandate = ("SYSTEM_STATE_BOARD_MANDATE[nonobvious+chain]",
+                          state_board_mandate(nonobvious=True, chain=True))
+    except Exception as exc:                        # noqa: BLE001 -- named, never raised onward
+        errs.append(f"narration: could not render state_board_mandate(chain=True): {exc}")
+        _chain_mandate = ("SYSTEM_STATE_BOARD_MANDATE[nonobvious+chain]", "")
     for name, text in (("SYSTEM_STATE_BOARD_MANDATE", SYSTEM_STATE_BOARD_MANDATE),
-                       _watch_mandate,
+                       _watch_mandate, _chain_mandate,
                        ("RECENCY_LEDGER_SENTENCE", RECENCY_LEDGER_SENTENCE),
                        ("SYSTEM_RECENCY_CLAUSE", SYSTEM_RECENCY_CLAUSE),
                        _desk):
@@ -723,13 +916,76 @@ def check_literals() -> list:
     try:
         from leviathan.graphrag.numbers.cascade import pace_register_ok
         for _n, _t in (("SYSTEM_STATE_BOARD_MANDATE", SYSTEM_STATE_BOARD_MANDATE),
-                       _watch_mandate, _desk):
+                       _watch_mandate, _chain_mandate, _desk):
             if _t and not pace_register_ok(_t):
                 errs.append(f"narration.{_n}: pace_register_ok is False")
     except Exception as exc:                        # noqa: BLE001 -- named, never raised onward
         errs.append(f"narration: could not run pace_register_ok: {exc}")
     for _n, _t in (("SYSTEM_STATE_BOARD_MANDATE", SYSTEM_STATE_BOARD_MANDATE),
-                   _watch_mandate, _desk):
+                   _watch_mandate, _chain_mandate, _desk):
         if BANNED_RECENCY_PHRASE in _t:
             errs.append(f"narration.{_n}: carries the banned recency phrase")
+    errs += _check_chain_movement()
+    return errs
+
+
+#: THE FOUR WORDS THE CHAIN MOVEMENT MAY NEVER CARRY, over and above the desk-register table. They are
+#: the INSTRUMENT'S OWN SELECTION VOCABULARY -- the words that tell a reader the page is scoring itself
+#: rather than reading a market -- and three of the four are invisible to `register.count_desk_register`
+#: (`rank` and `score` are on no ban table; `board` is on one but is exempt in a dozen legitimate
+#: market spellings). MEASURED REASON (threat E12): `register_lingo_hits` read 6 on the deep 2026-09-16
+#: body, and the pre-arm fix lane's own commit took `board` 142 -> 65 and `loud` 27 -> 0 inside the
+#: block. A mandate that spent those words would teach back exactly what that lane had just swept out,
+#: on the same turn, from the one text the writer is told to obey.
+CHAIN_MOVEMENT_BANNED_WORDS: tuple = ("loud", "rank", "score", "board")
+
+
+def _check_chain_movement() -> list:
+    """The chain movement is DESK-CLEAN AT BUILD -- the S8 lane-N measurement, made mechanical.
+
+    IT GRADES THE PARAGRAPH AND NOT THE MANDATE AROUND IT, and the scope is the honest one: the
+    surrounding literal is HEAD's, it is in S8's byte-identical set, and it carries `board`, `rows` and
+    "the graph" in sentences a different lane wrote for a different reason. What THIS lane adds is held
+    to the standard the desk register teaches, because a paragraph appended in 2026-09-17 has no excuse
+    for spending a word the lint beside it charges -- and because the two literals ship TOGETHER on a
+    lit turn, so a chain movement that said "the graph" would order the writer to disobey the desk
+    mandate in the same system prompt.
+
+    THE SUBSTITUTION'S OWN ARITHMETIC IS GRADED HERE TOO: a renumbering that left two movements sharing
+    a number, or that dropped one, is a defect no register detector can see."""
+    errs: list = []
+    try:
+        from leviathan.graphrag.register import count_desk_register, desk_register_hits
+    except Exception as exc:                            # noqa: BLE001 -- named, never raised onward
+        return [f"narration: could not import the desk register to grade the chain movement: {exc}"]
+    n = count_desk_register(MANDATE_CHAIN_MOVEMENT)
+    if n:
+        errs.append("narration.MANDATE_CHAIN_MOVEMENT: %d desk-register charge(s) -- %s. This literal "
+                    "is written in the reader's words from the first draft; the table teaches the "
+                    "replacement for every one of them"
+                    % (n, ", ".join(f"{t}={w!r}" for t, w in desk_register_hits(
+                        MANDATE_CHAIN_MOVEMENT))))
+    low = MANDATE_CHAIN_MOVEMENT.lower()
+    for w in CHAIN_MOVEMENT_BANNED_WORDS:
+        if w in low:
+            errs.append("narration.MANDATE_CHAIN_MOVEMENT carries %r -- the instrument's own selection "
+                        "vocabulary, which this movement exists to keep off the page" % (w,))
+    # THE RENUMBERING IS ARITHMETIC AND IT IS CHECKED AS ARITHMETIC: five movements, numbered one to
+    # five, each exactly once, in the text that actually ships.
+    try:
+        lit = state_board_mandate(chain=True)
+    except Exception as exc:                            # noqa: BLE001 -- named, never raised onward
+        return errs + [f"narration: could not render the chain mandate to grade its numbering: {exc}"]
+    for i, (name, _h, _f) in enumerate(mandate_movements(chain=True), start=1):
+        token = "(%d) " % (i,)
+        if lit.count(token) != 1:
+            errs.append("narration: the chain mandate numbers movement %r as %s %d time(s), not once "
+                        "-- the substitution renumbered nothing, or renumbered it twice"
+                        % (name, token.strip(), lit.count(token)))
+        if name not in lit:
+            errs.append("narration: the chain mandate does not name the movement %r that "
+                        "mandate_movements(chain=True) declares for it" % (name,))
+    if ("(%d) " % (len(mandate_movements(chain=True)) + 1,)) in lit:
+        errs.append("narration: the chain mandate carries a movement number beyond the table's own "
+                    "rows -- the table and the literal disagree about how many movements ship")
     return errs

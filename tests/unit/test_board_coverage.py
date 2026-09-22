@@ -83,6 +83,39 @@ def test_the_two_OWED_notes_have_LANDED_and_the_seam_declares_the_twelve_counter
     assert cc.check_state_seam() == []
 
 
+#: **S8's ELEVEN, DESIGN B.6's OWN LIST.** They ride the `_nomination_coverage` splat precedent -- a
+#: sub-dict returned from `board_coverage` needs no `tracekeys` entry and re-pins nothing -- and they
+#: are DECLARED here, beside the twelve above, so the chain's counter roster has ONE home rather than
+#: living only in the function that computes it.
+CHAIN_COVERAGE_KEYS = ("chain_rendered", "chain_referenced", "chain_hops_rendered",
+                       "chain_hops_referenced", "chain_hops_agreeing", "chain_hops_at_odds",
+                       "chain_receipts_rendered", "chain_receipts_cited", "chain_events_open",
+                       "chain_history_n", "chain_below_print_line")
+
+
+def test_S8_the_chain_counters_are_ABSENT_on_every_board_whose_chain_leg_did_not_run(boards):
+    """**ABSENT IS NEVER ZERO**, the contract this whole return keeps, applied to the eleven new keys.
+
+    The three acceptance fixtures build with `state_chain` unset, so `bd.chains` is empty and NOT ONE
+    of these keys may appear: a census must be able to tell "the chain rendered nothing" from "the
+    chain was never armed", and an all-zero dict says the first while meaning the second. The positive
+    half -- every key present, and the zero-writer floor where the block is scored against its own
+    rendered text -- is pinned in `test_state_chain_render.py`, which is the deck that owns a board
+    with the leg armed."""
+    for name, ctx in boards.items():
+        assert list(ctx["board"].chains) == [], name
+        cov = R.board_coverage(ctx["board"], ctx["block"].text(), calls=ctx["block"].calls)
+        assert [k for k in cov if k.startswith("chain")] == [], (name, cov)
+        assert "missed_chains" not in cov, name
+    # ...and the eleven are real keys of the producer, not a list nobody joined to it.
+    src = R._chain_coverage.__doc__ or ""
+    assert "ABSENT IS NEVER ZERO" in src
+    import inspect as _i
+    body = _i.getsource(R._chain_coverage)
+    for key in CHAIN_COVERAGE_KEYS:
+        assert '"%s"' % key in body, key
+
+
 _RESERVED_MARKER_WORDS = ("CO-MOVE", "CROSS-BOARD", "DIVERGENCE", "REROUTE")
 
 
@@ -1055,3 +1088,118 @@ def test_S7b4_the_flag_off_coverage_keeps_HEADS_TWENTY_KEYS_on_every_banked_page
             assert {'loud_lead_rows', 'loud_lead_referenced'} <= set(cov)
             assert 'loud_top3' in cov['missed']
             assert not [k for k in NOMINATION_KEYS if k in cov], (name, sorted(cov))
+
+
+def test_S8R2_the_chain_OUTCOME_rows_carry_a_ROLE_so_no_census_can_count_them_as_NON_CHAIN():
+    """**ROUND-2, the review's MINOR 4, and it is an ARITHMETIC defect and not a cosmetic one.**
+
+    ``Block.add`` writes ``role``, ``rank``, ``cls``, ``handles``, ``tokens`` and ``line`` into the
+    coverage manifest and writes NO ``label`` -- ``label`` rides ``self.trips``, where it is telemetry.
+    Both chain-outcome branches (the SB-O row that mints, and its letters-only absence) passed neither,
+    so every instrument that selects chain rows by ``role`` OR ``label`` -- the lane's own census, the
+    round-2 census, and the "every chain line" pins -- MISSED them, and their bytes were then counted
+    as NON-CHAIN block bytes.
+
+    MEASURED on the receipt-carrying max cell: 85 characters per rendered chain, 255 on the page, which
+    is the whole of the round-2 census's reported 83-character A.8 miss and then some -- non-chain max
+    reads 25,825 with the rows attributed where they belong against the 26,083 the census reported, so
+    the cell PASSES by 175 where it was read as FAILING by 83."""
+    import inspect
+    import re
+    body = inspect.getsource(R.render_board)
+    assert body.count('role="chain_outcome"') == 2, \
+        "the minting row AND its letters-only absence, one role between them"
+    # THE CAUSE, pinned so it cannot come back: the manifest carries no label to fall back on.
+    b = R.Block(start=1)
+    b.add("  chain price record: the front price here does not reach those firings.",
+          label="chain soybeans_cbot a/b outcome absence", display="the price record",
+          role="chain_outcome", rank=1)
+    assert "label" not in b.rows_meta[0]
+    assert b.rows_meta[0]["role"] == "chain_outcome"
+    # ...and every chain role this block can stamp begins with the one word a census selects on.
+    roles = {m for m in re.findall(r'role="([a-z_]+)"', body) if "chain" in m}
+    assert roles and all(m.startswith("chain") for m in roles), roles
+
+
+def test_S8R3_the_SLOT_LABEL_adds_no_coverage_key_and_moves_no_coverage_DENOMINATOR():
+    """**OWNER RULING 2026-09-22 (the render slots), read on the COVERAGE surface.**
+
+    The slot label is a clause on the chain's head row naming the seat the selection held for it. It
+    is PROSE, not a new population: the head row's token groups are the chain's first hop and the
+    market it reaches, and a label must not join them -- a writer who copied "the other side" would
+    otherwise score as having referenced the chain, which would make the label a way to inflate the
+    very counter it rides beside.
+
+    So this pin holds two things at once: the chain counter roster is UNCHANGED by the ruling (no
+    twelfth key), and the head row's token groups are computed from the hop and the terminal alone."""
+    import inspect
+    import re as _re
+
+    from leviathan.graphrag.state import render as _R
+    from leviathan.graphrag.state import walk as _W
+    body = inspect.getsource(_R.render_board)
+    emitted = set(_re.findall(r'"(chain[a-z_]*)":', inspect.getsource(_R._chain_coverage)))
+    assert emitted == set(CHAIN_COVERAGE_KEYS), sorted(emitted)
+    assert '"missed_chains"' in inspect.getsource(_R._chain_coverage),         "the twelfth key is the round-1 debt this roster already names, not the ruling's"
+    # THE HEAD ROW'S TOKENS ARE THE HOP AND THE MARKET, and the label is in neither.
+    tok = body.split("_tok = (", 1)[1].split(")\n", 1)[0]
+    assert "_name_words(humanise(_c.hops[0].driver_id))" in tok
+    assert "_market_words(_c.terminal or _c.contract)" in tok
+    assert "slot" not in tok, "a label is prose on the row, never a token group the writer is graded on"
+    # AND THE LABEL IS REALLY ON THE ROW, on a real `walk.Chain`, in the ruling's own words.
+    ch = _W.Chain(contract="soybeans_cbot",
+                  hops=(_W.ChainHop(contract="soybeans_cbot", driver_id="export_pace_lag",
+                                    measured=True, percentile=13.0),),
+                  terminal="corn_cbot")
+    ch.rendered = ch.full = True
+    plain = _R.sb_chain_head(ch, i=1, n=2)
+    for slot, words in _R.CHAIN_SLOT_WORDS.items():
+        ch.slot = slot
+        got = _R.sb_chain_head(ch, i=1, n=2)
+        assert words in got and len(got) == len(plain) + len(words) + 2, slot
+    ch.slot = "top"
+    assert _R.sb_chain_head(ch, i=1, n=2) == plain
+
+
+def test_S8R4_the_ROUND_FOUR_clauses_add_no_coverage_key_and_move_no_coverage_DENOMINATOR():
+    """**THE FOUR ROUND-4 SURFACES, READ ON THE COVERAGE SURFACE.**
+
+    The aged-out count, the outcome's denominator, the terminal edge's declared lag and the stanza
+    mark are all PROSE on rows that already exist. None of them is a new population, none adds a
+    counter, and none may join a row's token groups -- a writer who copied "aged out of their
+    windows" must not thereby score as having referenced a chain, which would make an honest absence
+    clause a way to inflate the very counter it rides beside.
+
+    AND THE CHAIN ORDINAL NOW FOLLOWS THE RANK (round-4 MINOR 2), which is a change of ORDER and not
+    of MEMBERSHIP: the same chains render, so the coverage denominator is the same set."""
+    import inspect
+    import re as _re
+
+    from leviathan.graphrag.state import render as _R
+    from leviathan.graphrag.state import walk as _W
+    body = inspect.getsource(_R.render_board)
+    emitted = set(_re.findall(r'"(chain[a-z_]*)":', inspect.getsource(_R._chain_coverage)))
+    assert emitted == set(CHAIN_COVERAGE_KEYS), sorted(emitted)
+    # THE HEAD ROW'S TOKENS ARE STILL THE HOP AND THE MARKET, and no round-4 clause is in them.
+    tok = body.split("_tok = (", 1)[1].split(")\n", 1)[0]
+    for word in ("aged", "slot", "n_in", "first_dim", "declared lag"):
+        assert word not in tok, word
+    # THE RENDERED SET IS THE SAME SET, ordered by rank rather than by the pool's composition order.
+    pool = []
+    for i, (driver, score) in enumerate((("export_pace_lag", 20.0), ("La_Nina", 30.0),
+                                         ("RFS", 25.0))):
+        c = _W.Chain(contract="soybeans_cbot",
+                     hops=(_W.ChainHop(contract="soybeans_cbot", driver_id=driver, measured=True,
+                                       percentile=13.0 + i, series_key="s%d" % i),),
+                     terminal="soybeans_cbot")
+        c.score, c.rendered, c.full = score, True, True
+        pool.append(c)
+    ranked = sorted(pool, key=lambda c: c.rank)
+    assert [c.hops[0].driver_id for c in ranked] == ["La_Nina", "RFS", "export_pace_lag"]
+    assert sorted(map(id, ranked)) == sorted(map(id, pool)), "an ORDER, never a membership"
+    # AND THE COUNT LINE'S AGED CLAUSE IS ABSENT AT ZERO and letters-only when it fires.
+    counts = {"distinct_sequences": 9, "total": 12, "state_two_hops": 4, "with_document": 3}
+    assert "aged out" not in _R.sb_chain_count(counts, k=2, aged=0)
+    fired = _R.sb_chain_count(counts, k=2, aged=3)
+    assert "three dated actions aged out of their windows" in fired, fired
+    assert _R.classify(fired) == ("SB-P",) and _R.register_hits(fired) == []
