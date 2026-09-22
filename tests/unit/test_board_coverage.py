@@ -87,10 +87,15 @@ def test_the_two_OWED_notes_have_LANDED_and_the_seam_declares_the_twelve_counter
 #: sub-dict returned from `board_coverage` needs no `tracekeys` entry and re-pins nothing -- and they
 #: are DECLARED here, beside the twelve above, so the chain's counter roster has ONE home rather than
 #: living only in the function that computes it.
+#: ROUND 5 ADDS ONE (blocker 10): `chain_counts["rendered_one_line"]` was the ONE declared count key
+#: carrying a fact about the PAGE -- how many of the rows a reader just met were rendered short -- that
+#: no reader in `render.py` read. It is the denominator for the one-line row's own seated sentence, so
+#: a census that finds that sentence on a page and this counter at zero has found the two producers
+#: disagreeing. It joins its sibling `chain_below_print_line` and adds NO population.
 CHAIN_COVERAGE_KEYS = ("chain_rendered", "chain_referenced", "chain_hops_rendered",
                        "chain_hops_referenced", "chain_hops_agreeing", "chain_hops_at_odds",
                        "chain_receipts_rendered", "chain_receipts_cited", "chain_events_open",
-                       "chain_history_n", "chain_below_print_line")
+                       "chain_history_n", "chain_below_print_line", "chain_rendered_one_line")
 
 
 def test_S8_the_chain_counters_are_ABSENT_on_every_board_whose_chain_leg_did_not_run(boards):
@@ -1199,7 +1204,16 @@ def test_S8R4_the_ROUND_FOUR_clauses_add_no_coverage_key_and_move_no_coverage_DE
     assert sorted(map(id, ranked)) == sorted(map(id, pool)), "an ORDER, never a membership"
     # AND THE COUNT LINE'S AGED CLAUSE IS ABSENT AT ZERO and letters-only when it fires.
     counts = {"distinct_sequences": 9, "total": 12, "state_two_hops": 4, "with_document": 3}
-    assert "aged out" not in _R.sb_chain_count(counts, k=2, aged=0)
-    fired = _R.sb_chain_count(counts, k=2, aged=3)
+    assert "aged out" not in _R.sb_chain_count(dict(counts, receipts_aged_out=0), k=2)
+    fired = _R.sb_chain_count(dict(counts, receipts_aged_out=3), k=2)
     assert "three dated actions aged out of their windows" in fired, fired
     assert _R.classify(fired) == ("SB-P",) and _R.register_hits(fired) == []
+    # **ROUND 5's ONE ADDED KEY, AND IT IS A READER RATHER THAN A POPULATION** (blocker 10). It reads
+    # the producer's own `rendered_one_line` off `chain_counts`; it joins no row's token groups, it
+    # changes no denominator, and like every chain key it is ABSENT on a board whose leg did not run.
+    cov_src = inspect.getsource(_R._chain_coverage)
+    assert '"chain_rendered_one_line": int(counts.get("rendered_one_line") or 0)' in cov_src
+    assert "chain_counts.rendered_one_line" in _W.CHAIN_SEAM_FIELDS
+    assert "rendered_one_line" in _W.chain_counts([]), "the name is the producer's"
+    for word in ("one_line", "rendered_one_line"):
+        assert word not in tok, word

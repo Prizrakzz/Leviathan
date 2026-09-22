@@ -1760,13 +1760,24 @@ def test_the_receipt_takes_an_OPEN_action_first_a_closed_one_next_and_a_mechanis
         return W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0]
     op = _one(event="2026-08-01", event_open=True)
     cl = _one(event="2026-07-01", event_open=False)
-    me = _one(receipts=[{"date": "2026-05-02", "source": "s", "text": "a report sentence"}])
+    # **THE MECHANISM SENTENCE IS READ AGAINST THE HOP'S OWN WINDOW TOO** (round-5, census 5).
+    # Choice (3) now takes the SAME recency bound choice (2) does, so THIS fixture's report is
+    # dated INSIDE the 0-1 quarter band it is read against. Round 4 dated it 2026-05-02 -- four
+    # months before the as-of, on a hop whose own declared window reaches three -- and scored it
+    # 6 of 20, which is the reading the bound refuses. THE LADDER IS UNMOVED: the document this
+    # tier is graded on is now one the chain can claim, and the refused one is graded below it.
+    me = _one(receipts=[{"date": "2026-08-02", "source": "s", "text": "a report sentence"}])
     no = _one()
     assert (op.receipt_kind, op.terms["event"]) == ("open", 20)
     assert (cl.receipt_kind, cl.terms["event"]) == ("closed", 12)
     assert "history" in cl.receipt_words and "closed" in cl.receipt_words
     assert (me.receipt_kind, me.terms["event"]) == ("mechanism", 6)
     assert (no.receipt_kind, no.terms["event"]) == ("none", 0)
+    # ...and a report sentence OLDER than the hop's own declared window is NOT this chain's
+    # receipt under choice (3) either -- the same 2026-05-02 date round 4 scored six for.
+    old_me = _one(receipts=[{"date": "2026-05-02", "source": "s",
+                             "text": "a report sentence"}])
+    assert (old_me.receipt_kind, old_me.terms["event"]) == ("none", 0), old_me.receipt_words
     # E6: the absence names WHICH DRAW RAN, never "none exists" -- and owner ruling 6 splits that
     # absence in two, because "nothing in THIS HOP'S WINDOW" and "nothing about this MARKET reached
     # the turn at all" are different facts about a term that scored the same.
@@ -2722,7 +2733,8 @@ def test_MA_R3_1_the_FULL_bound_is_stamped_in_SEAT_order_so_a_TOP_K_chain_is_NEV
     MEASURED BEFORE, on this pool: the chains rendered 99 / 98 / 97 / 96 / 70 / 40 and `c.full = i <
     k + 2` on the POST-SORT position reduced the SIXTH -- the 40.0 chain, a TOP-K pick -- so the page
     printed "CHAIN sixth of six, under this page's own selection line: t3, then r3, reaching a cbot"
-    while `below_print_line` said ZERO chains sat below a line that chain scored exactly. One field,
+    while `below_print_line` said ZERO chains sat below a line that chain scored exactly (round 5 renamed
+    that seat's sentence to "carried in one line, past the page's full-render bound"). One field,
     two readings, and the count line reading the wrong one: MA-1's own class, one round after it
     closed, and against both ruling 6(a) ("the top K render in full ALWAYS") and this function's own
     docstring. The chains that can outrank a top-K pick are exactly the slot candidates, because
@@ -2929,3 +2941,168 @@ def test_SEAM_every_key_the_count_dict_carries_at_RUNTIME_has_a_DECLARED_spellin
                  "chain_counts.disagreement"):
         assert name in W.CHAIN_SEAM_FIELDS, name
     assert W.CHAIN_SEAM_FIELDS == tuple(dict.fromkeys(W.CHAIN_SEAM_FIELDS)), "one spelling, once"
+
+
+# ── ROUND 5: the aged document, its hop, its label and the record line's own denominator ────────────
+def test_C3_the_count_line_counts_DISTINCT_DOCUMENTS_over_the_pool_and_never_chains_x_documents():
+    """**ROUND-4 CENSUS BLOCKER 3.** `ChainHop` is memoised per `(contract, driver_id)`, so ONE dated
+    action on ONE row rides EVERY pool chain that walks that row -- and the count line summed the
+    PER-CHAIN field over the pool. MEASURED with EXACTLY ONE dated action in the whole estate, the
+    page printed "fifty-five / two hundred twenty / two hundred sixty-four dated actions aged out of
+    their windows" at quick / deep / max. Chains times documents is not a document count, and the
+    noun the page prints it under says documents.
+
+    THE KEY IS THE DOCUMENT'S OWN ADDRESS -- `(contract, driver_id, event_date)`, E11's PAIR and never
+    the bare id, because one driver id is a row of many markets. `Chain.receipts_aged_out` STAYS the
+    per-chain count: two arithmetics over ONE population, each under its own owner's name, and
+    `CHAIN_SEAM_FIELDS` says which name carries which."""
+    bd = _cboard()
+    _crow(bd, "a_cbot", "doc", st=_cs("doc", pct=95), event="2019-01-01")
+    for b in ("b1", "b2", "b3"):
+        _crow(bd, "a_cbot", b, st=_cs(b, pct=50))
+        _cpath(bd, "a_cbot", ["doc", b])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    pool = got["pool"]
+    assert len(pool) == 3, "three chains walk the ONE row the document sits on"
+    assert [c.receipts_aged_out for c in pool] == [1, 1, 1], "each chain HAD the one document"
+    assert sum(int(c.receipts_aged_out or 0) for c in pool) == 3, "round 4's own arithmetic"
+    assert got["counts"]["receipts_aged_out"] == 1, got["counts"]
+    assert W._aged_receipt_keys(pool[0]) == {("a_cbot", "doc", "2019-01-01")}
+    assert len({k for c in pool for k in W._aged_receipt_keys(c)}) == 1
+    # ...and TWO aged rows on ONE chain are still TWO documents (MA-R3-2, unmoved)
+    bd2 = _cboard()
+    _crow(bd2, "a_cbot", "h0", st=_cs("h0", pct=95), event="2024-01-01")
+    _crow(bd2, "a_cbot", "h1", st=_cs("h1", pct=94), event="2023-05-05")
+    _crow(bd2, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd2, "a_cbot", ["h0", "h1", "bot"])
+    _cfinish(bd2)
+    got2 = W.chain_rows(bd2, None, knobs=bd2.knobs)
+    assert got2["pool"][0].receipts_aged_out == 2
+    assert got2["counts"]["receipts_aged_out"] == 2, got2["counts"]
+
+
+def test_C4_C5_the_AGED_document_names_ITS_OWN_HOP_and_never_returns_under_the_MECHANISM_label():
+    """**ROUND-4 CENSUS BLOCKERS 4 AND 5, the producer half.**
+
+    (4) THE AGED DATE IS A `max` OVER WHICHEVER HOPS AGED OUT, and the only hop a consumer could name
+    beside it was the chain's RECEIPT hop -- so a page whose document sits on `La_Nina` printed "at
+    cot mm positioning, a dated action on 2019-01-01, aged out of the window declared for it": a dated
+    fact under a relation the producer never declared it against, which is round-3 MAJOR 1's own
+    class. The producer knows which hop it was; now it says so, beside the date.
+
+    (5) A DATED ACTION USUALLY CARRIES A PUBLICATION DATE TOO, so the document choice (2) had just
+    aged out came straight back as choice (3) and scored SIX of twenty: one page read "reach
+    twenty-five, ACTION SIX, record six and a half" beside its OWN document row saying that document
+    aged out, with `receipt_kind = mechanism` on the same chain. Two producers, one document, one
+    page. Choice (3) now reads the SAME bound choice (2) does, on the candidate's own date."""
+    from leviathan.graphrag.state.render import CHAIN_RECEIPT_AGED
+    bd = _cboard(asof="2026-09-07")
+    # the document sits on the QUIETER hop, so the chain's receipt hop is a DIFFERENT row -- the
+    # census's own shape (the action on `La_Nina`, the receipt hop `cot_mm_positioning`)
+    _crow(bd, "a_cbot", "doc_row", st=_cs("doc_row", pct=60), event="2019-01-01",
+          receipts=[{"date": "2019-01-05", "source": "s", "text": "an action, reported"}])
+    _crow(bd, "a_cbot", "loudest", st=_cs("loudest", pct=99))
+    _cpath(bd, "a_cbot", ["doc_row", "loudest"])
+    _cfinish(bd)
+    ch = W.chain_rows(bd, None, knobs=bd.knobs)["pool"][0]
+    # (5) THE MECHANISM LABEL NO LONGER BUYS THE AGED DOCUMENT SIX POINTS -- and the candidate that
+    # bought them is still on the hop, so this is a REFUSAL and not an absence
+    assert (ch.receipt_kind, ch.terms["event"]) == ("none", 0), ch.receipt_words
+    assert any(str(r.get("date") or "")[:10] == "2019-01-05"
+               for r in (ch.aged_receipt_hop.receipts_top or ())), "the candidate is still there"
+    assert ch.receipts_aged_out == 1
+    # ...and the WORDS state the aged action instead of the empty string a reader met as "this turn
+    # retrieved nothing", in the render's own ONE spelling of that sentence
+    assert ch.receipt_words == CHAIN_RECEIPT_AGED % "2019-01-01", ch.receipt_words
+    # (4) THE HOP THE DOCUMENT SITS ON, BESIDE ITS DATE -- and it is NOT the chain's receipt hop
+    assert ch.receipt_hop is not None and ch.receipt_hop.driver_id == "loudest"
+    assert ch.aged_receipt_hop is not None and ch.aged_receipt_hop.driver_id == "doc_row"
+    assert ch.aged_receipt_hop is not ch.receipt_hop, "the row the round-4 page named"
+    assert ch.aged_receipt_date == "2019-01-01"
+    row = ch.to_dict()
+    assert row["aged_receipt_hop"] == "doc_row" and row["aged_receipt_date"] == "2019-01-01"
+    for name in ("Chain.aged_receipt_hop", "Chain.aged_receipt_date"):
+        assert name in W.CHAIN_SEAM_FIELDS, name
+    # a chain with NOTHING aged carries neither name's claim, and the ladder above it is untouched
+    bd2 = _cboard(asof="2026-09-07")
+    _crow(bd2, "a_cbot", "t", st=_cs("t", pct=95), event="2026-08-01")
+    _crow(bd2, "a_cbot", "b", st=_cs("b", pct=50))
+    _cpath(bd2, "a_cbot", ["t", "b"])
+    _cfinish(bd2)
+    fine = W.chain_rows(bd2, None, knobs=bd2.knobs)["pool"][0]
+    assert (fine.receipt_kind, fine.terms["event"]) == ("closed", 12)
+    assert fine.receipts_aged_out == 0
+    assert fine.aged_receipt_hop is None and fine.aged_receipt_date == ""
+
+
+def test_C8_the_record_line_names_ONE_population_and_the_reader_meets_the_TRACE_ROWS_numbers():
+    """**ROUND-4 CENSUS BLOCKER 8 / this lane's own MA-R4-1.** Both branches of
+    `chain_history_words` spelled the denominator "past firings of this reading" and meant two
+    different counts: the thin branch's is `unmeasured` (every firing the producer found) and the
+    n>0 branch's was `n_firings` -- THE MEASURED SUBSET ALONE. MEASURED through the shipped producer,
+    `China_import_tariff -> export_pace_lag` carries `n_firings` 5 and `unmeasured` 9, so the producer
+    found FOURTEEN firings and the line read "in one of FIVE past firings of this reading ..." while
+    the chain's own trace row carried 5 and 9. A printed figure its own trace contradicts is a backing
+    failure, and it is the law MA-5 closed for this very noun one round ago."""
+    from leviathan.graphrag.state import render as R
+    h = {"n_firings": 5, "aligned": 1, "unmeasured": 9}
+    line = W.chain_history_words(h)
+    assert "measured past firings of this reading" in line, line
+    assert "in one of five measured past firings" in line, line
+    assert "nine more published no second reading inside it" in line, line
+    assert R.words_for_int(5) in line and R.words_for_int(9) in line, line
+    # AND ON THE PAGE, through the row producer that prints it verbatim
+    ch = W.Chain(contract="a_cbot", hops=(W.ChainHop(contract="a_cbot", driver_id="d"),))
+    ch.history = dict(h)
+    row = R.sb_chain_record(ch)
+    assert R.words_for_int(5) in row and R.words_for_int(9) in row, row
+    assert "measured past firings" in row, row
+    # the THIN branch's own denominator is untouched -- it always named every firing found
+    assert "on any of the fourteen past firings of this reading" in W.chain_history_words(
+        {"n_firings": 0, "aligned": 0, "unmeasured": 14})
+    # ...and a record with nothing unmeasured says nothing about it
+    clean = W.chain_history_words({"n_firings": 14, "aligned": 11, "unmeasured": 0})
+    assert "fourteen measured past firings" in clean, clean
+    assert "published no second reading" not in clean, clean
+
+
+def test_R5_a_REPORT_SENTENCE_the_mechanism_bound_refuses_is_RECORDED_and_COUNTED_under_its_own_noun():
+    """**ROUND-5 CENSUS BLOCKERS 1 AND 4.** Choice (3) refuses a report sentence outside the hop's declared
+    window (EVENT 0) -- and before this it recorded NOTHING, so the render could print the sentence as the
+    chain's receipt and the count line could not say how often the bound fired. The refused date and its
+    hop ride ``Chain.mechanism_refused_date`` / ``_hop``, the trace row, and ``chain_counts.mechanism_refused``
+    -- their OWN key and noun, never folded into ``receipts_aged_out`` (dated ACTIONS)."""
+    bd = _cboard()
+    _crow(bd, "a_cbot", "top", st=_cs("top", pct=95),
+          receipts=[{"date": "2019-01-05", "source": "src", "tier": 2,
+                     "text": "the cold phase tightened the planting window that season"}])
+    _crow(bd, "a_cbot", "bot", st=_cs("bot", pct=50))
+    _cpath(bd, "a_cbot", ["top", "bot"])
+    _cfinish(bd)
+    got = W.chain_rows(bd, None, knobs=bd.knobs)
+    ch = got["pool"][0]
+    assert ch.receipt_kind == "none" and ch.terms["event"] == 0, "the bound holds"
+    assert ch.mechanism_refused_date == "2019-01-05", ch.mechanism_refused_date
+    assert ch.mechanism_refused_hop is not None and ch.mechanism_refused_hop.driver_id == "top"
+    assert "outside the window declared for it" in ch.receipt_words and "dated report" in ch.receipt_words
+    assert ch.receipts_aged_out == 0, "a report sentence is NOT a dated action"
+    assert got["counts"]["mechanism_refused"] == 1 and got["counts"]["receipts_aged_out"] == 0, got["counts"]
+    assert ch.to_dict()["mechanism_refused_date"] == "2019-01-05"
+    assert ch.to_dict()["mechanism_refused_hop"] == "top"
+    # a report sentence INSIDE one band-length is the chain's mechanism receipt and refuses nothing
+    bd2 = _cboard()
+    _crow(bd2, "a_cbot", "top", st=_cs("t2", pct=95),
+          receipts=[{"date": "2026-08-20", "source": "src", "tier": 2,
+                     "text": "the cold phase tightened the planting window this month"}])
+    _crow(bd2, "a_cbot", "bot", st=_cs("b2", pct=50))
+    _cpath(bd2, "a_cbot", ["top", "bot"])
+    _cfinish(bd2)
+    got2 = W.chain_rows(bd2, None, knobs=bd2.knobs)
+    assert got2["pool"][0].receipt_kind == "mechanism" and got2["pool"][0].terms["event"] == 6
+    assert got2["pool"][0].mechanism_refused_date == "" and got2["counts"]["mechanism_refused"] == 0
+    # blocker 6 (round-4 review MINOR 5): the thin record line agrees with itself at ONE firing.
+    one = W.chain_history_words({"n_firings": 1, "unmeasured": 0, "fraction": 1.0, "aligned": 1})
+    assert "one past firing of this reading carries a measured next hop" in one, one
+    two = W.chain_history_words({"n_firings": 2, "unmeasured": 0, "fraction": 1.0, "aligned": 2})
+    assert "two past firings of this reading carry a measured next hop" in two, two

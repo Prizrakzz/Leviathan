@@ -1184,7 +1184,14 @@ CHAIN_SEAM_FIELDS: tuple[str, ...] = (
     "Chain.terminal_level", "Chain.terminal_unit", "Chain.terminal_percentile", "Chain.depth",
     "Chain.score", "Chain.terms", "Chain.notes", "Chain.scope", "Chain.positioning",
     "Chain.receipt_index", "Chain.receipt_hop", "Chain.receipt", "Chain.receipt_kind",
-    "Chain.receipt_words", "Chain.receipts_aged_out", "Chain.history", "Chain.outcome",
+    # `Chain.receipts_aged_out` is the PER-CHAIN document count and `chain_counts.receipts_aged_out`
+    # is the POOL's DISTINCT one -- two arithmetics over one population, each under its own owner's
+    # name (round-4 census 3). `aged_receipt_hop` / `aged_receipt_date` are WHICH document that was
+    # and WHERE it sits, so a row naming it names the hop the producer declared it against (census 4).
+    "Chain.receipt_words", "Chain.receipts_aged_out", "Chain.aged_receipt_hop",
+    "Chain.aged_receipt_date",
+    # A REPORT SENTENCE THE MECHANISM BOUND REFUSED: its own two names, its own noun (round-5 blocker 1/4).
+    "Chain.mechanism_refused_hop", "Chain.mechanism_refused_date", "Chain.history", "Chain.outcome",
     "Chain.unnamed_terminal", "Chain.declared_sign", "Chain.direction", "Chain.side",
     "Chain.against_hops", "Chain.curated", "Chain.rendered", "Chain.full", "Chain.slot",
     "Chain.decline",
@@ -1210,7 +1217,11 @@ CHAIN_SEAM_FIELDS: tuple[str, ...] = (
     "chain_counts.distinct_unnamed_markets", "chain_counts.below_print_line",
     "chain_counts.render_cap", "chain_counts.no_measured_hop",
     "chain_counts.cross_market_event", "chain_counts.cross_market_event_rendered",
-    "chain_counts.receipts_aged_out", "chain_counts.state_two_hops", "chain_counts.with_event",
+    # THE DISTINCT DOCUMENTS, over the pool. The per-chain count lives on `Chain.receipts_aged_out`
+    # above; this name is the count line's, and it counts each dated action ONCE however many chains
+    # walk the row it sits on (round-4 census 3).
+    "chain_counts.receipts_aged_out", "chain_counts.mechanism_refused", "chain_counts.state_two_hops",
+    "chain_counts.with_event",
     "chain_counts.with_document", "chain_counts.reaching_unnamed", "chain_counts.cross_earned",
     "chain_counts.curated", "chain_counts.for_side", "chain_counts.against_side",
     "chain_counts.history_n", "chain_counts.slot_top", "chain_counts.slot_sign",
@@ -1413,7 +1424,28 @@ class Chain:
     #: document and the chain's own window had closed on it, which is a different fact from never
     #: having one, and a fence CORRECTS or COMPUTES and never deletes: the receipt does not score, and
     #: it is COUNTED here and in :func:`chain_counts` rather than silently dropped (review MA-4).
+    #:
+    #: IT IS THE PER-CHAIN COUNT AND IT STAYS ONE (round-4 census 3): the COUNT LINE's own key folds
+    #: the same documents over the pool by their own identity, because a memoised hop rides every
+    #: chain that walks it and chains x documents is not a document count.
     receipts_aged_out: int = 0
+    #: WHERE THE NEWEST OF THOSE DOCUMENTS SITS, AND WHEN IT IS DATED (round-4 census 4). The aged date
+    #: is a ``max`` over whichever hops aged out, so a row that names the chain's RECEIPT hop beside it
+    #: prints a dated fact under a relation the producer never declared it against -- the page said
+    #: "at cot mm positioning, a dated action on 2019-01-01, aged out of the window declared for it"
+    #: about a document sitting on ``La_Nina``. The producer knows which hop it was; these two names
+    #: are how a consumer can say it. Both are ``None`` / ``""`` where nothing aged out.
+    aged_receipt_hop: Optional[ChainHop] = None
+    aged_receipt_date: str = ""
+    #: A DATED REPORT SENTENCE (a `date`, no `event_date`) THE MECHANISM BOUND REFUSED (round-5 census
+    #: blocker 1 / handoff W5-O3(4)). Choice (3) now reads the same window as choice (2), so a report
+    #: sentence older than one band-length of the as-of scores EVENT 0 -- and until this field it was
+    #: named nowhere and counted nowhere, while the render could still print it as the chain's receipt.
+    #: It is its OWN population under its OWN noun ("a dated report", never "a dated action"):
+    #: `receipts_aged_out` counts ACTIONS and folding report sentences under that noun would be one
+    #: name over two populations. Both are ``None`` / ``""`` where nothing was refused.
+    mechanism_refused_hop: Optional[ChainHop] = None
+    mechanism_refused_date: str = ""
     history: dict = field(default_factory=dict)
     outcome: dict = field(default_factory=dict)
     # -- the direction (owner, 2026-09-17: disagreement must be STRUCTURAL) --------------------------
@@ -1491,6 +1523,14 @@ class Chain:
                 "receipt_index": self.receipt_index, "receipt_kind": self.receipt_kind,
                 "receipt_words": self.receipt_words,
                 "receipts_aged_out": int(self.receipts_aged_out),
+                # WHICH HOP THE AGED DOCUMENT SAT ON, ON THE TRACE ROW TOO (census 4) -- the id and
+                # not the object, because a trace row carries no objects (A.7).
+                "aged_receipt_hop": (self.aged_receipt_hop.driver_id
+                                     if self.aged_receipt_hop is not None else ""),
+                "aged_receipt_date": self.aged_receipt_date,
+                "mechanism_refused_hop": (self.mechanism_refused_hop.driver_id
+                                          if self.mechanism_refused_hop is not None else ""),
+                "mechanism_refused_date": self.mechanism_refused_date,
                 "history": {k: v for k, v in self.history.items() if k != "firings"},
                 "outcome": {k: v for k, v in self.outcome.items() if k != "moves"},
                 "declared_sign": self.declared_sign, "direction": self.direction, "side": self.side,
@@ -1996,14 +2036,26 @@ def chain_history_words(h: dict) -> str:
         if not n and un:
             return ("history thin: the next hop publishes no second reading inside the declared "
                     "window, on any of the %s past firings of this reading" % words_for_int(un))
-        return "history thin: %s past %s of this reading carry a measured next hop" % (
-            words_for_int(n), "firing" if n == 1 else "firings")
+        return "history thin: %s past %s of this reading %s a measured next hop" % (
+            words_for_int(n), "firing" if n == 1 else "firings", "carries" if n == 1 else "carry")
     al = int(h.get("aligned") or 0)
     rest = n - al
     tail = ("" if not rest else "; %s %s not" % (words_for_int(rest),
                                                  "did" if rest != 1 else "did"))
-    return ("in %s of %s past firings of this reading the next hop moved the declared way inside the "
-            "declared window%s" % (words_for_int(al), words_for_int(n), tail))
+    # **ONE NOUN, ONE POPULATION, AND THE READER MEETS THE NUMBER THE TRACE ROW CARRIES** (round-4
+    # census 8). Both branches spelled "past firings of this reading" and meant two different
+    # counts: the thin branch's denominator is `unmeasured` (every firing found) and this one's is
+    # `n_firings` -- the MEASURED SUBSET ALONE. MEASURED through the shipped producer,
+    # `China_import_tariff -> export_pace_lag` has `n_firings` 5 and `unmeasured` 9, so the producer
+    # found FOURTEEN firings and the line stated five while the chain's own trace row carried both.
+    # A printed figure its own trace contradicts is a backing failure, and it is the law MA-5 closed
+    # for this very noun: the denominator is NAMED as the measured one and the firings the record
+    # could not read are stated beside it rather than left outside every number the reader meets.
+    un_tail = ("" if not un else "; %s more published no second reading inside it"
+               % words_for_int(un))
+    return ("in %s of %s measured past firings of this reading the next hop moved the declared way "
+            "inside the declared window%s%s"
+            % (words_for_int(al), words_for_int(n), tail, un_tail))
 
 
 # ── the outcome line: the base rate a PM pays for ────────────────────────────────────────────────────
@@ -2427,9 +2479,10 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
 
     # EVENT 20 -- the order of choice of DESIGN B.4, at the RECEIPT hop first and then along the chain.
     if ch.receipt_kind == "none" and ch.receipt is None and not ch.receipt_words:
-        kind, receipt, words, aged = _chain_receipt(ch)
+        kind, receipt, words, aged, aged_hop, aged_date = _chain_receipt(ch)
         ch.receipt_kind, ch.receipt, ch.receipt_words = kind, receipt, words
         ch.receipts_aged_out = int(aged)
+        ch.aged_receipt_hop, ch.aged_receipt_date = aged_hop, aged_date
     else:
         kind, words = ch.receipt_kind, ch.receipt_words
     terms["event"] = CHAIN_EVENT_POINTS.get(kind, 0)
@@ -2687,6 +2740,30 @@ def _receipt_in_reach(hp: ChainHop, asof: str) -> bool:
     return str(hp.event_date)[:10] >= floor
 
 
+def _aged_receipt_keys(ch: Chain) -> set:
+    """THE DATED ACTIONS THIS CHAIN'S OWN WINDOWS HAD SHUT ON, BY THE DOCUMENT'S OWN IDENTITY --
+    ``(contract, driver_id, event_date)``, ONE ROW'S ONE ACTION COUNTED ONCE (round-4 census 3).
+
+    **A DOCUMENT IS NOT A CHAIN-DOCUMENT PAIR.** :class:`ChainHop` is memoised per
+    ``(contract, driver_id)``, so the SAME aged action rides every pool chain that walks that row --
+    and a count line that summed the per-chain field over the pool printed "fifty-five / two hundred
+    twenty / two hundred sixty-four dated actions aged out of their windows" on an estate holding
+    EXACTLY ONE (measured at quick / deep / max). The product of chains and documents is not a
+    document count, and the noun on the page says documents.
+
+    THE KEY IS THE DOCUMENT'S OWN ADDRESS AND NOT THE PROPOSITION'S TEXT: ``NodeRow.event_date`` is
+    ``max(event_date <= asof)`` per row, so one row carries at most one dated action here, and E11's
+    rule -- the PAIR, never the bare driver id -- keeps one id's action on two markets two documents.
+    :attr:`Chain.receipts_aged_out` stays the PER-CHAIN count (the chain's own answer to "how many
+    documents did I have and not use"); this set is what :func:`chain_counts` folds over the POOL, and
+    :data:`CHAIN_SEAM_FIELDS` says which name carries which."""
+    if not ch.hops:
+        return set()
+    return {(hp.contract, hp.driver_id, str(hp.event_date)[:10]) for hp in ch.hops
+            if hp.event_receipt and hp.event_date and not hp.event_open
+            and not _receipt_in_reach(hp, ch.asof)}
+
+
 def _chain_receipt(ch: Chain) -> tuple:
     """DESIGN B.4's ORDER OF CHOICE at the chain's receipt hop, then along the rest of the chain.
 
@@ -2697,6 +2774,25 @@ def _chain_receipt(ch: Chain) -> tuple:
     document at all -- indistinguishable, on the trace and in the count line, from a chain that never
     had one. The fourth element of the return is how many such documents this chain had; it scores
     NOTHING and it is COUNTED on :attr:`Chain.receipts_aged_out` and in :func:`chain_counts`.
+
+    **AND THE AGED DOCUMENT IS RETURNED WITH THE HOP IT SITS ON AND ITS DATE** (round-4 census 4), the
+    way every chosen branch returns the hop it read: the aged date is a ``max`` over whichever hops
+    aged out, so a consumer that names the chain's RECEIPT hop beside it puts a dated fact under a
+    relation the producer never declared it against. Elements five and six are that hop and that date,
+    published on :attr:`Chain.aged_receipt_hop` / :attr:`Chain.aged_receipt_date`; and where nothing
+    else was found the WORDS state the aged action (:data:`render.CHAIN_RECEIPT_AGED`, the estate's one
+    spelling of it) instead of the empty string a reader met as "this turn retrieved nothing".
+
+    **AND CHOICE (3) TAKES THE SAME RECENCY BOUND AS CHOICE (2)** (round-4 census 5). Without it the
+    document choice (2) had just aged out came straight back under the MECHANISM label and scored 6 of
+    20: measured on the census board, one page carried "ACTION SIX" in its arithmetic line beside a
+    document row reading "aged out of the window declared for it", with ``receipt_kind = mechanism``
+    on the same chain -- two producers disagreeing about ONE document on ONE page. The bound is the
+    SHIPPED predicate and it is not re-typed: the candidate's own date is carried on a REAL hop
+    (``dataclasses.replace``, ``render.chain_receipt``'s own idiom) and :func:`_receipt_in_reach`
+    decides. A report sentence older than the hop's own declared window is NOT a deletion where it is
+    refused -- the term reads the tier the window supports and ``notes['event']`` says exactly that
+    ("no dated document in this hop's window among the documents this turn retrieved").
 
     **THE EVENT RECEIPT NEEDS NO SEAM ARGUMENT.** ``walk._stage2`` sets ``row.receipts`` /
     ``row.event_date`` / ``row.event_receipt`` / ``row.event_open`` for EVERY row of ``bd.rows``
@@ -2710,28 +2806,57 @@ def _chain_receipt(ch: Chain) -> tuple:
     the deletion. A receipt dated after the as-of never reaches here at all -- ``event_receipt_for``
     is the ONE rule and it already refuses one (:1011)."""
     order = [ch.receipt_index] + [i for i in range(len(ch.hops)) if i != ch.receipt_index]
-    aged = sum(1 for i in order
-               if ch.hops[i].event_receipt and ch.hops[i].event_date
-               and not ch.hops[i].event_open and not _receipt_in_reach(ch.hops[i], ch.asof))
+    keys = _aged_receipt_keys(ch)
+    # THE NEWEST AGED DOCUMENT, AND THE HOP IT ACTUALLY SITS ON (census 4). The date is a `max` over
+    # the aged set and the hop is the one carrying THAT date -- read in `order`, so the receipt hop
+    # wins a tie and the answer is the board's own seat rather than insertion order.
+    aged_date = max((k[2] for k in keys), default="")
+    aged_hop = next((ch.hops[i] for i in order
+                     if str(ch.hops[i].event_date or "")[:10] == aged_date
+                     and (ch.hops[i].contract, ch.hops[i].driver_id, aged_date) in keys),
+                    None) if keys else None
+    aged = (len(keys), aged_hop, aged_date)
+    refused_date, refused_hop = "", None
     for i in order:
         hp = ch.hops[i]
         if hp.event_receipt and hp.event_date and hp.event_open:
             return ("open", dict(hp.event_receipt),
                     "a dated action on %s, and the window this chain declares for it is still open"
-                    % hp.event_date, aged)
+                    % hp.event_date, *aged)
     for i in order:
         hp = ch.hops[i]
         if hp.event_receipt and hp.event_date and _receipt_in_reach(hp, ch.asof):
             return ("closed", dict(hp.event_receipt),
-                    "a dated action on %s, read as history: the window closed" % hp.event_date, aged)
+                    "a dated action on %s, read as history: the window closed" % hp.event_date,
+                    *aged)
     for i in order:
         hp = ch.hops[i]
         for r in hp.receipts_top:
-            if isinstance(r, dict) and r.get("date"):
-                return ("mechanism", dict(r),
-                        "a dated report sentence about this hop's mechanism, %s"
-                        % str(r["date"])[:10], aged)
-    return ("none", None, "", aged)
+            if not (isinstance(r, dict) and r.get("date")):
+                continue
+            rd = str(r["date"])[:10]
+            # ONE RECENCY RULE, READ BY BOTH CHOICES (census 5): a document this chain's own declared
+            # window has shut on is not its receipt under a SECOND label either. WHAT IT REFUSED IS
+            # RECORDED (round-5 blocker 1): the newest refused date and the hop it sits on, so the
+            # page can NAME the report sentence it will not cite and the count line can count it.
+            if not _receipt_in_reach(replace(hp, event_date=rd), ch.asof):
+                if rd > refused_date:
+                    refused_date, refused_hop = rd, hp
+                continue
+            return ("mechanism", dict(r),
+                    "a dated report sentence about this hop's mechanism, %s" % rd, *aged)
+    # NOTHING CHOSEN: what the mechanism bound refused rides the chain (blocker 1) before either return.
+    ch.mechanism_refused_hop, ch.mechanism_refused_date = refused_hop, refused_date
+    if aged_date:
+        # THE AGED ACTION IS STATED WHERE THE CHAIN WOULD OTHERWISE HAVE SAID IT RETRIEVED NOTHING,
+        # in the render's own spelling of the sentence so the two producers cannot drift.
+        from leviathan.graphrag.state.render import CHAIN_RECEIPT_AGED
+        return ("none", None, CHAIN_RECEIPT_AGED % aged_date, *aged)
+    if refused_date:
+        # A REPORT SENTENCE OUTSIDE THE WINDOW IS NAMED, in the render's own spelling, never dropped.
+        from leviathan.graphrag.state.render import CHAIN_RECEIPT_REPORT_OUTSIDE
+        return ("none", None, CHAIN_RECEIPT_REPORT_OUTSIDE % refused_date, *aged)
+    return ("none", None, "", *aged)
 
 
 # ── the render decision: the print line, the diversity rule and the SIGN diversity rule ─────────────
@@ -2905,6 +3030,8 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
     # three slots live): the 40.0 TOP-K chain was reduced to the one-line form and the page printed
     # "under this page's own selection line" over it while `below_print_line` said ZERO chains sat
     # below the line -- one field carrying two readings again, one round after MA-1 closed it.
+    # (Round 5: the seat past the K+2 bound now prints "carried in one line, past the page's
+    # full-render bound"; the sentence quoted above is what the page printed BEFORE that.)
     seat_order = list(picked)
     picked.sort(key=lambda c: c.rank)
     for c in picked:
@@ -3035,6 +3162,9 @@ def chain_counts(pool, *, print_line: float = 40.0) -> dict:
             # HOW MANY RENDERED CHAINS TOOK THE REDUCED FORM -- never dropped, counted. A rendered
             # chain is one-line ONLY where a SLOT seated it past the K + 2 full bound.
             "rendered_one_line": sum(1 for c in rendered if not c.full),
+            # CHAINS WHOSE MECHANISM BOUND REFUSED A REPORT SENTENCE (round-5 blocker 4): its own key,
+            # its own noun; never folded into receipts_aged_out (actions).
+            "mechanism_refused": sum(1 for c in pool if c.mechanism_refused_date),
             "distinct_sequences": len({(c.contract, c.hop_ids) for c in pool}),
             "distinct_markets": len({c.terminal for c in pool if c.terminal}),
             "distinct_unnamed_markets": len({c.terminal for c in pool if c.unnamed_terminal}),
@@ -3067,7 +3197,14 @@ def chain_counts(pool, *, print_line: float = 40.0) -> dict:
             # MEASURED through the shipped producer on a board with TWO aged hops, the chain said 2
             # and the count line said 1. It is the law MA-5 closed for the firings noun -- one series,
             # counted ONCE, in ONE spelling -- and the count line is the surface that would print it.
-            "receipts_aged_out": sum(int(c.receipts_aged_out or 0) for c in pool),
+            #
+            # **AND SUMMING THE FIELD OVER THE POOL WAS NOT A DOCUMENT COUNT EITHER** (round-4 census
+            # 3): `ChainHop` is memoised per `(contract, driver_id)`, so one aged action rides every
+            # pool chain that walks that row and the sum printed 55 / 220 / 264 "dated actions aged
+            # out of their windows" at quick / deep / max ON AN ESTATE HOLDING EXACTLY ONE. The pool's
+            # number is the DISTINCT set of documents (:func:`_aged_receipt_keys`), which is one for
+            # one document however many chains carried it; the per-chain field is unchanged.
+            "receipts_aged_out": len({k for c in pool for k in _aged_receipt_keys(c)}),
             # WHICH SEAT EACH RENDERED CHAIN TOOK (owner ruling 2026-09-22). The top K are `top`, the
             # sign swap is `sign`, and the three the QUESTION anchors name themselves -- so a reader of
             # the count can tell a page that answered the question's own subject from one that did not.
@@ -3283,8 +3420,10 @@ def _with_cross(bd, base: Chain, cross: dict, *, index, named, hist_cache, ancho
                # THE AGED-OUT COUNT IS A FACT OF THE HOPS, and the hops are identical across a path's
                # cross variants -- so it rides the derivation exactly as the receipt it belongs to
                # does. Without it a cross variant of a chain that HAD a receipt would report zero
-               # aged-out documents while its own base reported one.
-               receipts_aged_out=base.receipts_aged_out)
+               # aged-out documents while its own base reported one. The HOP it sits on and its DATE
+               # ride with it for the same reason (census 4): they are facts of the same hops.
+               receipts_aged_out=base.receipts_aged_out,
+               aged_receipt_hop=base.aged_receipt_hop, aged_receipt_date=base.aged_receipt_date)
     ch.terminal_key = ((ch.terminal, cross.get("far_driver_id") or "")
                        if cross.get("far_driver_id") else None)
     ch.curated = base.curated or _curated_for(index, base.contract, base.hop_ids,

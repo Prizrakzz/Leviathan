@@ -1313,19 +1313,38 @@ _TAIL_WORDS: tuple = ((0.80, "at a far tail of its own record"),
 #: goes; the verdict word and the reading it is about are untouched, and the deck reads these constants
 #: rather than their letters, so the pin holds by construction.
 #:
-#: **THE THREE CHAIN CEILINGS WERE RE-BASELINED ON MEASUREMENT** (orchestrator budget ruling, round 4).
-#: The 160 / 1,100 / 300 were set BEFORE the rulings that decide what these rows must say, and content
-#: ordered by a ruling is never cut to meet a number set before the rulings. Each is now the MEASURED
-#: MAXIMUM over both cells of the fixture AND the five 2026-09-16 payloads, plus ten per cent, rounded
-#: up to fifty (``r2d/R4_cells_AFTER.json``, ``r2d/R4_five_payload_gate.json``):
+#: **THE THREE CHAIN CEILINGS ARE RE-BASELINED ON MEASUREMENT** (orchestrator budget ruling, round 5
+#: blocker 9; round 4 took the first two). The 160 / 1,100 / 300 were set BEFORE the rulings that
+#: decide what these rows must say, and content ordered by a ruling is never cut to meet a number set
+#: before the rulings. THE RULE IS ONE RULE: the MEASURED MAXIMUM over EVERY CELL RENDERED -- both
+#: cells of the fixture at all three tiers AND the five 2026-09-16 payload boards -- plus ten per cent,
+#: rounded UP to the next fifty. Each number below was measured through the shipped producer with the
+#: ROLE the producer stamped, never a prefix guess (``r2d/CENSUS.md`` 7.2, ``r2e/R5_ceilings.json``):
 #:
-#:     hop line            measured max  304  ->  **350**   (was 160; round-3 max 304)
-#:     rendered chain      measured max 1407  -> **1550**   (was 1,100; round-3 max 1,448)
-#:     count line          measured max  433  ->  **500**   (was 300; round-3 max 433)
+#:     metric            measured max   +10%      CEILING    where the maximum was measured
+#:     rendered chain         1,406.5  1,547.2    **1,550**  payload quick_rv_soyoil_palm
+#:     longest hop line         304      334.4      **350**  payload quick_rv_soyoil_palm
+#:     count line               480      528.0      **550**  fixture max, ONE dated action aged out
 #:
-#: THE A.8 NON-CHAIN GATE IS UNTOUCHED AND IT IS THE ONE THAT DECIDES: not one non-chain byte moved in
-#: round 4 either (14,801 / 13,740, 20,494 / 19,447, 25,825 / 24,778 on the fixture; byte-identical on
-#: all five payloads), and the chain-OFF block is byte-identical to round 3's on all five.
+#: RE-MEASURED AFTER ROUND 5's OWN EDITS, on the same eleven cells (``r2e/R5_ceilings.json``,
+#: ``r2e/R5_aged_page.json``): **1,439.5 / 304 / 439**, so ALL THREE CEILINGS HOLD on every cell, by
+#: 110.5 / 46 / 111. The per-chain maximum moved 1,406.5 -> 1,439.5 AFTER the ruling was taken, and the
+#: whole of that is the record row's own new word (``walk.chain_history_words`` now says "measured past
+#: firings", +9 characters per rendered chain); the ceiling is left at the RULED number and the drift
+#: is reported rather than re-based here, because a lane that re-bases its own budget every time it
+#: measures has no budget. The count line FELL 480 -> 439 on the aged cell: the distinct-document fix
+#: below spells "one" where the round-4 line spelled "two hundred sixty-four".
+#:
+#: ``per chain`` IS (all chain-row chars minus the once-per-page sides + count rows) / rendered chains,
+#: which is the rule the 1,100 was set against. THE COUNT LINE'S BASE IS THE AGED CELL DELIBERATELY:
+#: the clause round 4 added costs +47 characters the moment ONE dated action ages out (433 -> 480 at
+#: max), and a ceiling measured only on pages where the clause is silent is a ceiling that fails the
+#: first time the page says something.
+#:
+#: THE A.8 NON-CHAIN GATE IS UNTOUCHED AND IT IS THE ONE THAT DECIDES: not one non-chain byte has moved
+#: in four rounds of chain fixes (14,801 / 13,740, 20,494 / 19,447, 25,825 / 24,778 on the fixture;
+#: byte-identical on all five payloads), and the chain-OFF block is byte-identical to round 3's on all
+#: five.
 CHAIN_AGREEMENT_CLAUSE: dict = {
     "aligned": "and the readings agree",
     "at_odds": "and the readings run against it",
@@ -1372,6 +1391,27 @@ CHAIN_SLOT_WORDS: dict = {
     "sign": "the other side",
 }
 
+#: WHY A CHAIN RENDERS AS ONE LINE -- **TWO CAUSES, TWO SENTENCES** (round-5 blockers 7 and 10,
+#: orchestrator ruling; lane W's W4-R1 names the same defect and the same available fact).
+#:
+#: Round 3 retired the print line as a selection rule and round 4 stamped ``Chain.full`` in SEAT order,
+#: so the ONLY chain that can render short today is a chain the selection held a SEAT for and seated
+#: past the ``K + 2`` full bound (``walk.CHAIN_SLOT_FULL_OVER_K``) -- never a top-K chain, and never a
+#: chain the print line cut. The row nevertheless said "under this page's own selection line" on every
+#: one of them: MEASURED on the shipped pin's own board, four chains scoring 90 / 80 / 70 / 60 against
+#: a print line of 40.0, ``chain_counts["below_print_line"] = 0``, ``rendered_one_line = 1`` -- the page
+#: stating a cause the producer's own count denies, with a GREEN pin over it.
+#:
+#: THE SEATED SENTENCE STATES THE BOUND AND NOT A LINE, because that is what happened: the page's
+#: full-render budget was spent on the chains above it and this one was carried anyway, which is the
+#: opposite of being cut. The BELOW sentence is kept verbatim for the only caller that can still mint
+#: it -- a walk that stamps no slot and a print line that cuts -- so nothing is deleted, and the fact
+#: deciding between them is ``Chain.slot``, the same field the row's own label is read off.
+CHAIN_ONE_LINE_WORDS: dict = {
+    "seated": "carried in one line, past the page's full-render bound",
+    "below": "under this page's own selection line",
+}
+
 
 def chain_slot_words(ch) -> str:
     """One short clause naming the seat this chain was held for, or ``""`` for a chain that ranked in.
@@ -1415,6 +1455,11 @@ CHAIN_OUTSIDE_WINDOW: str = "outside the declared window"
 #: too old for this chain's own window, and neither half of that is a silence. The date is the
 #: document's own, so the reader can see how old "too old" was.
 CHAIN_RECEIPT_AGED: str = "a dated action on %s, aged out of the window declared for it"
+#: A REPORT SENTENCE THE MECHANISM BOUND REFUSED, named where the chain would otherwise say it retrieved
+#: nothing (round-5 census blocker 1): its own noun -- "a dated report", never "a dated action" -- so
+#: the page never folds two populations under :data:`CHAIN_RECEIPT_AGED`. Spends no ``[E]`` seat.
+CHAIN_RECEIPT_REPORT_OUTSIDE: str = ("a dated report on this hop's mechanism, %s, outside the window "
+                                     "declared for it")
 
 #: THE SEVEN RANK TERMS IN READER WORDS (DESIGN B.2's ids, said as facts a desk reads). The ORDER is
 #: ``walk.CHAIN_TERMS`` -- one producer -- and the WORDS are this page's, for the same reason every
@@ -1771,20 +1816,31 @@ def sb_chain_hop(ch, i: int, *, handle=None, terminal_handle=None) -> str:
     # on EVERY declared hop -- and the restore shipped the figure under the wrong predicate on 23 of 23
     # printed bands across both cells and all three tiers (MEASURED, `r2d/R4_cells_BEFORE.json`).
     #
-    # ``ChainHop.lag_band`` IS ``parse_lag(dag_node.lag)`` (``walk.py:1548`` -> ``:4429``) and every
-    # node of the anchor's DAG declares ``target_metric: price``, so the band is the driver's declared
-    # lag TO THE ANCHOR'S PRICE. This line's clause asserts the edge onto the NEXT HOP, and printing a
-    # driver fact inside an edge predicate told the reader that La Nina takes one to two quarters to
-    # reach DROUGHT -- when one to two quarters is its declared lag to the CBOT soybean price. The
+    # ``ChainHop.lag_band`` IS ``parse_lag(dag_node.lag)`` (``walk.py:1548`` -> ``:4429``) -- the lag the
+    # DAG declares for that node -- and this line's clause asserts the edge onto the NEXT HOP, so
+    # printing a driver fact inside an edge predicate told the reader that La Nina takes one to two
+    # quarters to reach DROUGHT, when one to two quarters is its declared lag into this market. The
     # estate's own standing rule is the writer seam's: a correction that names the wrong row is
     # strictly worse than the word it replaced.
     #
-    # SO IT RIDES THE TERMINAL EDGE AND NOTHING ELSE: the last hop, where the clause's own "onto" IS
-    # the anchor's price, and the band and the predicate then name ONE relation. A chain whose terminal
-    # is a FAR market has no clause onto the anchor's price at all, so the band is not printed there --
-    # naming "the price" beside "onto ICE canola" would be the same misbinding one noun further on. The
-    # cross edge's OWN declared lag (``Chain.cross["lag"]``) is the surface that case wants and it is
-    # the orchestrator's to rule on; this producer never guesses one.
+    # SO IT RIDES THE TERMINAL EDGE AND NOTHING ELSE: the last hop, where the clause's own "onto"
+    # already names what the edge runs into, so the band and the predicate name ONE relation. A chain
+    # whose terminal is a FAR market prints no band, because the cross edge's OWN declared lag
+    # (``Chain.cross["lag"]``) is the surface that case wants and it is the orchestrator's to rule on;
+    # this producer never guesses one.
+    #
+    # **AND THE CLAUSE NAMES NO TARGET METRIC** (round-5 blocker 11). Round 4 printed "with a declared
+    # lag of <band> TO THE PRICE" on the premise -- written into this comment and into the pin's own
+    # docstring -- that "every node of the anchor's DAG declares ``target_metric: price``". MEASURED
+    # over the 36 ``configs/graphrag/causal/*.yaml``: 1,208 nodes declare ``price`` and **49 declare
+    # something else, in SIX DAGs** (``rough_rice_cbot`` 22 of 33, ``cotton`` 13 of 37, the four wheats
+    # 6-8 each; values yield, production, export, stock, import, drought, area). ``NodeRow.target_metric``
+    # is on the BOARD (``board.py:719``) and ``ChainHop`` carries none, so this producer cannot read the
+    # relation those three words asserted -- and a rice hop whose 0-2 quarter band is declared against
+    # YIELD would have printed it "to the price". The band is the hop's own declared lag and the clause
+    # now says exactly that and no more; where the hop's target metric reaches the seam, naming it is
+    # one clause and a ruling, not a guess. It also ends the noun this lane's R4-O1 recorded
+    # ("onto the CBOT soybeans price with a declared lag of ... to the price").
     #
     # AND THE ABSENCE WORDING IS GUARDED (round-3 MINOR 3): ``band_words(None)`` is an honest absence
     # sentence in the SB-E row it was written for ("a lag the table does not carry") and a doubled noun
@@ -1792,10 +1848,10 @@ def sb_chain_hop(ch, i: int, *, handle=None, terminal_handle=None) -> str:
     # not carry prints no band clause; the hop line still states its reading, its direction and its
     # verdict, and nothing is deleted because there was no figure to delete.
     state = chain_state_words(hop)
-    _terminal_onto_price = (nxt is None) and not ch.cross
+    _terminal_edge = (nxt is None) and not ch.cross
     _band = hop.lag_band
-    lag = (" with a declared lag of %s to the price" % band_words(_band)
-           if (_terminal_onto_price and _band is not None and _band.min_q is not None) else "")
+    lag = (" with a declared lag of %s" % band_words(_band)
+           if (_terminal_edge and _band is not None and _band.min_q is not None) else "")
     edge = ("declared %s onto %s%s%s" % (way, onto, onto_cite, lag) if way
             else "carried onto %s%s with no direction declared between them" % (onto, onto_cite))
     tail = CHAIN_AGREEMENT_CLAUSE.get(str(ch.agreements[i]) if i < len(ch.agreements) else "", "")
@@ -1944,11 +2000,18 @@ def sb_chain_outcome_absent(ch) -> str:
 
 
 def sb_chain_one_line(ch, *, i: int, n: int, why=()) -> str:
-    """A chain BELOW this page's own selection line, in ONE line carrying its own selection clause.
+    """A chain rendered in ONE line, carrying its own selection clause AND THE TRUE CAUSE OF ITS LENGTH.
 
-    THE ORCHESTRATOR'S RULING OF 2026-09-17: the print line decides FULL versus ONE LINE, never zero, so
-    no turn is chain-less while the graph carried one. The reader is told what the chain was carried on
-    rather than shown nothing -- the same law every cut on this page keeps."""
+    THE ORCHESTRATOR'S RULING OF 2026-09-17: the page decides FULL versus ONE LINE, never zero, so no
+    turn is chain-less while the graph carried one. The reader is told what the chain was carried on
+    rather than shown nothing -- the same law every cut on this page keeps.
+
+    **AND THE CAUSE IS READ OFF ``Chain.slot`` RATHER THAN ASSERTED** (round-5 blockers 7 and 10). See
+    :data:`CHAIN_ONE_LINE_WORDS` for the measurement: with ``full`` stamped in SEAT order the only
+    chain that reaches this producer is one seated past the ``K + 2`` bound, and the row told its
+    reader it sat below a selection line the producer's own ``below_print_line = 0`` said nothing sat
+    below. A held seat now states the bound; a chain with no seat -- the only caller a print-line cut
+    can still mint -- keeps the old sentence, so the correction adds a reading and removes none."""
     seq = ", then ".join(humanise(h.driver_id) for h in ch.hops)
     named = " -- a market this question did not name" if ch.unnamed_terminal else ""
     which = ("the one this page carries" if int(n) <= 1
@@ -1958,8 +2021,9 @@ def sb_chain_one_line(ch, *, i: int, n: int, why=()) -> str:
     # the reason for -- it is short BECAUSE it scored low, and the reason it is on the page at all is
     # the seat, not the score.
     slot = chain_slot_words(ch)
-    return ("%s%s, %sunder this page's own selection line: %s, reaching %s%s; it is here for %s."
-            % (CHAIN_HEAD_PREFIX, which, (slot + ", ") if slot else "", seq,
+    cause = CHAIN_ONE_LINE_WORDS["seated" if slot else "below"]
+    return ("%s%s, %s%s: %s, reaching %s%s; it is here for %s."
+            % (CHAIN_HEAD_PREFIX, which, (slot + ", ") if slot else "", cause, seq,
                board_label(ch.terminal or ch.contract), named,
                _and_list(list(why)) or "the sequence it composes"))
 
@@ -2005,7 +2069,7 @@ def sb_chain_sides(rendered) -> str:
                "hop" if len(seen) == 1 else "hops", _and_list([humanise(a) for a in seen])))
 
 
-def sb_chain_count(counts: dict, *, k: int, anchor_label: str = "", slots=(), aged: int = 0) -> str:
+def sb_chain_count(counts: dict, *, k: int, anchor_label: str = "", slots=()) -> str:
     """DESIGN B.3's COUNT LINE -- the honest closure, in words, on ONE line.
 
     **IT REPLACES THE SB-X ``path_render_cap`` ENUMERATION AND IT COUNTS RATHER THAN NAMES**, which is
@@ -2055,16 +2119,25 @@ def sb_chain_count(counts: dict, *, k: int, anchor_label: str = "", slots=(), ag
     **AND THE AGED-OUT DATED ACTIONS ARE COUNTED IN THE SAME SENTENCE** (round-4 census 5). A DOCUMENT
     that the chain's own recency bound refused -- a 2019 action on a 0-1 quarter hop, which
     ``walk._receipt_in_reach`` correctly declines to call today's receipt -- is a thing the estate HAD
-    and did not print, and a correction that leaves no trace is a deletion. ``aged`` is the POOL's own
-    document count, summed off ``Chain.receipts_aged_out``; it folds into the existing closure as one
-    more clause and never onto a line of its own, and ZERO is silent because "no dated action aged out"
-    is this page's ordinary state.
+    and did not print, and a correction that leaves no trace is a deletion. It folds into the existing
+    closure as one more clause and never onto a line of its own, and ZERO is silent because "no dated
+    action aged out" is this page's ordinary state.
 
-    ``chain_counts["receipts_aged_out"]`` IS NOT READ HERE AND THAT IS DELIBERATE: it counts CHAINS
-    that had at least one aged document while ``Chain.receipts_aged_out`` counts DOCUMENTS (census 9.1
-    measured two against one on the same board), so a line printing the counter under the noun "dated
-    actions" would be this round's own MAJOR 1 on a second dict. When lane W settles the spelling this
-    clause reads the counter instead and the words do not move."""
+    **AND THE NUMBER UNDER THAT NOUN IS THE DISTINCT DOCUMENT COUNT, READ OFF THE PRODUCER**
+    (round-5 blocker 3). The round-4 line summed ``Chain.receipts_aged_out`` over ``bd.chains`` at the
+    call site -- a PER-CHAIN document count over the whole POOL, while ``ChainHop`` is memoised per
+    ``(contract, driver_id)``, so ONE document on ONE row was counted once for every pool chain that
+    walked that row. MEASURED through the shipped producer with EXACTLY ONE dated action in the
+    estate, the page printed "**fifty-five** / **two hundred twenty** / **two hundred sixty-four**
+    dated actions aged out of their windows" at quick / deep / max. The noun names DOCUMENTS; the
+    number counted (chain, document) pairs -- the estate's own one-series-counted-once law broken on
+    the very clause written to keep it.
+
+    ``chain_counts["receipts_aged_out"]`` IS NOW THAT DISTINCT COUNT (``walk._aged_receipt_keys`` over
+    the pool, ONE key per ``(contract, driver_id, event_date)``) and this line reads it rather than
+    re-summing anything: the noun, the number and the producer's own name are one fact with one owner,
+    and a page that prints a figure its own trace row contradicts is a backing failure. The per-chain
+    field keeps its own name (``Chain.receipts_aged_out``) for the chain's own answer."""
     c = dict(counts or {})
     seq = int(c.get("distinct_sequences") or 0)
     total = int(c.get("total") or 0)
@@ -2092,7 +2165,7 @@ def sb_chain_count(counts: dict, *, k: int, anchor_label: str = "", slots=(), ag
         parts.append("%s cross a market carrying an open action, %s of them carried here"
                      % (words_for_int(int(xe or 0)),
                         words_for_int(int(c.get("cross_market_event_rendered") or 0))))
-    _aged = max(0, int(aged or 0))
+    _aged = max(0, int(c.get("receipts_aged_out") or 0))
     if _aged:
         parts.append("%s dated %s aged out of %s"
                      % (words_for_int(_aged), "action" if _aged == 1 else "actions",
@@ -2668,9 +2741,15 @@ def attach_tape(bd, tape_by_slug: dict, *, reads_each: int = 1) -> None:
     bd.ledger.tape_reads += n * max(0, int(reads_each))
 
 
-def sb_analog_header(a: dict) -> str:
+def sb_analog_header(a: dict, *, chain_dims=()) -> str:
     """SB-A (sec 6.2, 4.2): the LIKE STATE header. Counts in words; the coverage floor PRINTED, so a
     loud set that cannot see 2003 says so; the vintage sentence on every stanza.
+
+    ``chain_dims`` IS THE TOP RENDERED CHAIN'S OWN HOP IDS and it is spent by
+    :func:`chain_stanza_mark` alone -- see there for the measurement that forced it. It is READ, NEVER
+    REQUIRED: the default is the flag-off answer, every other line of this header is untouched by it,
+    and a caller that passes none renders exactly the header it rendered before minus a mark it could
+    not have attributed.
 
     **THE HEADER DECLARES NO BAND, AND THAT IS THE CORRECTION A MEASURED FALSE NOTE FORCED.** It used to
     print "the moves below are read over the declared lag band of {seed's band}" -- one band for a whole
@@ -2706,10 +2785,10 @@ def sb_analog_header(a: dict) -> str:
             f"{'crossing' if n == 1 else 'crossings'} since {str(a['floor_year'])}; each move below is "
             f"read over the band the graph declares for the leg it names, and the row prints that "
             f"band; measured on the record as revised through {month_words(a['asof'])}"
-            f"{chain_stanza_mark(a)}")
+            f"{chain_stanza_mark(a, chain_dims=chain_dims)}")
 
 
-def chain_stanza_mark(a: dict) -> str:
+def chain_stanza_mark(a: dict, *, chain_dims=()) -> str:
     """THE CLAUSE THAT SAYS THIS STANZA IS THE **THEN** OF THE CHAIN THE PAGE NAMED FIRST -- or ``""``.
 
     **DESIGN C.2 WAS WIRED AND INAUDIBLE** (round-4 MAJOR 2). ``seam._first_dim`` passed the top
@@ -2722,15 +2801,37 @@ def chain_stanza_mark(a: dict) -> str:
     IT IS A STATEMENT ABOUT READING AND NEVER ABOUT SELECTION, which is why the clause says "read as".
     ``_dims_first`` cannot move the distance (an unweighted mean over the declared dimensions), so the
     stanza the reader is shown is the same stanza either way; what changed is which dimension the
-    coverage line enumerates first. And the mark is printed ONLY where the order actually moved: where
-    the chain's dimension is not one this board declares, ``_dims_first`` no-ops and this clause is
-    absent rather than claiming a lead that did not happen.
+    coverage line enumerates first. And the mark is printed ONLY where the dimension the leg LEADS
+    WITH is the one the chain was read on: where ``_dims_first`` no-opped, this clause is absent rather
+    than claiming a lead that did not happen. (Round 4's docstring said "only where the order actually
+    MOVED", which the CODE never checked and which the census refuted -- ``moved == 0`` with the mark
+    on two stanza heads, because the lead was already the chain's. The rule below is the true one.)
+
+    **AND ONLY WHERE THAT DIMENSION IS A HOP THE CHAIN ACTUALLY CARRIES** (round-5 blocker 6).
+    ``seam._dim_for_hop`` translates a hop onto the id the analog leg ranks its SERIES under, and on
+    the estate's own ONI collision (``board.py:700``: one reading, 35 rows, two directions) the board
+    declares ``El_Nino`` where the chain walks ``La_Nina``. MEASURED on 3 of the 4 cells that carry a
+    mark -- 4 of the 6 printed marks -- one page read "CHAIN first of three, from LA NINA to ICE
+    canola", "chain La Nina [N4]: at the eighty-second percentile", and then "LIKE STATE EL NINO ...;
+    read as the history of the chain named first, ON EL NINO": the same series under two spellings, in
+    OPPOSITE PHASES, under the one clause on this page whose entire job is attribution. A rename inside
+    an attribution is the estate's standing string-identity failure in its smallest form.
+
+    So ``chain_dims`` -- the top rendered chain's own hop ids, handed down by :func:`render_board` from
+    the same ``Chain.rank`` order ``seam._first_dim`` reads -- decides: the mark names the chain's OWN
+    driver word or it does not print. The TRANSLATION is untouched and still orders the stanza (a
+    reading the reader keeps); what it no longer does is put a word the chain never carried inside a
+    sentence that says "the chain named first". A caller passing no ``chain_dims`` gets no mark, which
+    is the flag-off answer and the honest one: a mark that cannot be checked against the chain is a
+    claim about a row this producer cannot see.
 
     "the chain named first" IS THE PAGE'S OWN ORDINAL and it is now the rank's (round-4 MINOR 2), so
     the row this clause points at is the row ``seam._first_dim`` read."""
     fd = str((a or {}).get("first_dim") or "")
     order = list((a or {}).get("dims_order") or ())
     if not fd or not order or str(order[0]) != fd:
+        return ""
+    if fd not in {str(d) for d in (chain_dims or ()) if str(d or "")}:
         return ""
     return "; read as the history of the chain named first, on %s" % humanise(fd)
 
@@ -2947,6 +3048,9 @@ def chain_receipt(ch, pool=None, *, asof: str = "") -> dict:
     order = [ch.receipt_index] + [i for i in range(len(ch.hops)) if i != ch.receipt_index]
     best = None
     aged = ""                                            # the newest CLOSED action out of every reach
+    refused = ""                                         # the newest REPORT sentence the bound refused
+    refused_hop = None                                   # ...and the hop it sits on (blocker 1)
+    aged_hop = None                                      # ...THE HOP IT SITS ON (round-5 blocker 4)
     aged_ids: set = set()                                # ...and WHICH documents those were
     for i in order:
         hop = ch.hops[i]
@@ -2985,7 +3089,11 @@ def chain_receipt(ch, pool=None, *, asof: str = "") -> dict:
             # spellings of one recency rule is exactly the drift E11 exists to stop.
             if opened is False and not _receipt_in_reach(
                     dataclasses.replace(hop, event_date=ed), asof):
-                aged = max(aged, ed)
+                # THE DATE AND THE HOP IT SITS ON MOVE TOGETHER (round-5 blocker 4): `aged` is a
+                # `max()` over the dates found on ANY hop, so a hop recorded anywhere but beside its
+                # own date is a dated fact under a relation the producer never declared it against.
+                if ed > aged:
+                    aged, aged_hop = ed, hop
                 aged_ids.add(prop_identity(p.get("text")))
                 continue
             if kind == "open":
@@ -3010,6 +3118,19 @@ def chain_receipt(ch, pool=None, *, asof: str = "") -> dict:
         for p in dedupe_props(cands, asof=asof):
             if not p.get("date"):
                 continue
+            # ROUND-5 CENSUS BLOCKER 1 (reproduced on both trees): THE SAME BOUND THE WALK'S CHOICE (3)
+            # NOW READS, on the candidate's OWN date. Without it a report sentence the score refuses
+            # (EVENT 0, "no dated document in this hop's window") was still this page's mechanism
+            # receipt -- two producers disagreeing about one document. A refused sentence is
+            # RECORDED (newest date, its hop) and NAMED below, never dropped.
+            import dataclasses as _dc
+
+            from leviathan.graphrag.state.walk import _receipt_in_reach as _in_reach
+            _rd = str(p["date"])[:10]
+            if asof and not _in_reach(_dc.replace(hop, event_date=_rd), asof):
+                if _rd > refused:
+                    refused, refused_hop = _rd, hop
+                continue
             # AND NOT UNDER A SECOND LABEL EITHER. A dated ACTION the recency bound just refused
             # usually carries a publication date too, so without this the same document came straight
             # back as choice (3) -- "a dated report on this hop's mechanism, 2021-05-13" -- which is
@@ -3026,8 +3147,37 @@ def chain_receipt(ch, pool=None, *, asof: str = "") -> dict:
     # (the walk's, scored) is untouched, and the reader is told the estate HELD a dated action rather
     # than "this turn retrieved none". A correction that leaves no trace is a deletion.
     if aged:
+        # **AND THE ROW NAMES THE HOP THE DOCUMENT SITS ON, NEVER THE CHAIN'S RECEIPT HOP** (round-5
+        # blocker 4). This branch returned ``ch.receipt_hop`` while ``aged`` is a ``max()`` over the
+        # dates found on ANY hop, so :func:`sb_chain_document`'s "at <hop>" and its "the window
+        # declared for it" pointed at a hop that was not the document's and carried a different band:
+        # MEASURED on the fixture with ONE dated action, sitting on ``La_Nina`` (band 1-2 quarters),
+        # the page said at every tier "chain document: AT COT MM POSITIONING, a dated action on
+        # 2019-01-01, aged out of the window declared for it" -- the chain's receipt hop, band 0-1
+        # quarters. That is round-3 MAJOR 1's own class (a dated fact under a relation the producer
+        # did not declare it against), and :data:`CHAIN_DOCUMENT_AT` exists precisely to close it.
+        #
+        # THE PRODUCER'S OWN PAIR IS PREFERRED WHERE IT NAMES THE SAME DOCUMENT: lane W publishes
+        # ``Chain.aged_receipt_hop`` / ``Chain.aged_receipt_date`` off the walk's own aged set, so
+        # where the wider pool adds nothing the hop a reader is handed is the one the SCORE aged out,
+        # read rather than re-derived. Where this producer's pool carries a NEWER aged action than the
+        # walk ever saw, the hop beside THAT date is the honest answer and it is this loop's own.
+        _wh = getattr(ch, "aged_receipt_hop", None)
+        if _wh is not None and str(getattr(ch, "aged_receipt_date", "") or "")[:10] == aged:
+            aged_hop = _wh
         return {"kind": "none", "prop": None, "words": CHAIN_RECEIPT_AGED % aged,
-                "hop": ch.receipt_hop, "echoes": 0, "outside": False}
+                "hop": aged_hop if aged_hop is not None else ch.receipt_hop,
+                "echoes": 0, "outside": False}
+    if refused:
+        # THE REFUSED REPORT SENTENCE IS NAMED WHERE THE PAGE WOULD OTHERWISE SAY IT RETRIEVED NOTHING
+        # (blocker 1), on the hop it sits on; the producer's own pair is preferred where it names the
+        # same date (``Chain.mechanism_refused_hop`` / ``_date``, the walk's seam), as for aged actions.
+        _mh = getattr(ch, "mechanism_refused_hop", None)
+        if _mh is not None and str(getattr(ch, "mechanism_refused_date", "") or "")[:10] == refused:
+            refused_hop = _mh
+        return {"kind": "none", "prop": None, "words": CHAIN_RECEIPT_REPORT_OUTSIDE % refused,
+                "hop": refused_hop if refused_hop is not None else ch.receipt_hop,
+                "echoes": 0, "outside": False}
     return {"kind": "none", "prop": None, "words": CHAIN_NO_RECEIPT, "hop": ch.receipt_hop,
             "echoes": 0, "outside": False}
 
@@ -4362,14 +4512,12 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                              # rows above are here for a reason other than rank", so its population is
                              # this loop's own `_chains` -- one producer, and it cannot drift from the
                              # labels the reader just read on those heads.
-                             slots=tuple(str(getattr(_c, "slot", "") or "") for _c in _chains),
-                             # THE AGED-OUT DATED ACTIONS, OVER THE POOL AND BY DOCUMENT (census 5).
-                             # `Chain.receipts_aged_out` is the producer's own per-chain DOCUMENT
-                             # count; `chain_counts["receipts_aged_out"]` counts CHAINS under the
-                             # same name (census 9.1), so the noun on the page and the number under
-                             # it are read off the field whose population the noun describes.
-                             aged=sum(int(getattr(_c, "receipts_aged_out", 0) or 0)
-                                      for _c in (getattr(bd, "chains", None) or ()))),
+                             # THE AGED-OUT DATED ACTIONS ARE NO LONGER SUMMED HERE (round-5 blocker
+                             # 3): `chain_counts["receipts_aged_out"]` is the POOL's own DISTINCT
+                             # document count and the line reads it off the dict it already has, so
+                             # the noun and the number have one owner. The round-4 re-sum over
+                             # `bd.chains` printed 264 on an estate holding ONE dated action.
+                             slots=tuple(str(getattr(_c, "slot", "") or "") for _c in _chains)),
               label="chain count", display="the chains this page did not carry", role="chain_count")
     else:
         # -- PATHS (capped by the walk's own `path_render_k`, which stamped `rendered` per path) ------
@@ -4507,8 +4655,15 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     fired.sort(key=lambda a: (int(a.get("seat", 1 << 20)),
                               round(float(a.get("distance") or 0.0), 9), a["driver_id"]))
     shown_analogs = fired[: int(cap["analog"])]
+    # THE TOP RENDERED CHAIN'S OWN HOP IDS, for the stanza mark's attribution alone (round-5 blocker
+    # 6). It is `_chains`, which this function already sorted on `Chain.rank` -- the same order
+    # `seam._first_dim` reads -- so the chain the mark says the stanza is read for and the chain the
+    # page named FIRST can never be two different rows. Empty on a board-on / chain-off turn, which is
+    # the flag-off answer, and the mark is then absent exactly as it is today.
+    _chain_dims = tuple(str(getattr(h, "driver_id", "") or "")
+                        for h in ((_chains[0].hops or ()) if _chains else ()))
     for a in shown_analogs:
-        b.add(sb_analog_header(a), label=f"analog {a['driver_id']}",
+        b.add(sb_analog_header(a, chain_dims=_chain_dims), label=f"analog {a['driver_id']}",
               display=f"the like state for {row_words(a['contract'], a['driver_id'])}")
         outs = [o for o in (a.get("outcomes") or ()) if not o.get("declined")]
         # THE ANCHOR BOARD'S OWN CONSEQUENCE LEADS. Sorting on the label alone put "the palm monthly
@@ -5349,6 +5504,13 @@ def _chain_coverage(bd, rows, bucket, sents, *, text: str = "") -> dict:
         "chain_events_open": sum(1 for c in rendered if str(c.receipt_kind) == "open"),
         "chain_history_n": [int((c.history or {}).get("n_firings") or 0) for c in rendered],
         "chain_below_print_line": int(counts.get("below_print_line") or 0),
+        # **AND THE ONE-LINE COUNT GAINS ITS READER** (round-5 blocker 10). Of the declared count keys
+        # the render read nowhere, this was the one carrying a fact about the PAGE rather than about
+        # the pool: how many of the rows a reader just met were rendered short. It is the denominator
+        # for :data:`CHAIN_ONE_LINE_WORDS`'s seated sentence -- a census that finds the sentence on the
+        # page and this counter at zero has found the two producers disagreeing, which is exactly the
+        # contradiction round 5 closed -- and it rides the same coverage dict as its sibling above.
+        "chain_rendered_one_line": int(counts.get("rendered_one_line") or 0),
         "missed_chains": tuple(ch_missed),
     }
 

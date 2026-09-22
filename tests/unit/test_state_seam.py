@@ -1749,22 +1749,79 @@ def test_S8R4_first_dim_walks_the_top_chain_in_TAIL_ORDER_to_a_DIMENSION_THE_LEG
         moved = sum(1 for a, b in zip(plain, chain_first)
                     if list(a.get("dims_order") or ()) != list(b.get("dims_order") or ()))
         assert moved >= 0
-        # **AND THE PAGE SAYS SO** (the render half of MAJOR 2): a reordering nobody is told about is
-        # not an attribution, so the stanza head carries the mark -- measured on the block, not on
-        # the producer.
+        # **AND THE PAGE SAYS SO -- BUT ONLY WHERE IT CAN NAME THE CHAIN'S OWN WORD** (round-5
+        # blocker 6, re-anchoring round 4's half of MAJOR 2). A reordering nobody is told about is not
+        # an attribution; a reordering announced under a driver the chain does not carry is a WRONG
+        # attribution, which is worse. MEASURED on this very fixture: the RECEIPT cell's top chain is
+        # `La_Nina / drought / cot_mm_positioning`, `_dim_for_hop` translates `La_Nina` onto the
+        # board's declared dimension for the shared `oni_climate|_global|` series -- which the board
+        # spells `El_Nino`, the OPPOSITE PHASE (`board.py:700` records the collision) -- and the page
+        # read "CHAIN first of three, from LA NINA to ICE canola", "chain La Nina [N4]: at the
+        # eighty-second percentile", and then "LIKE STATE EL NINO ...; read as the history of the
+        # chain named first, ON EL NINO". One series, two spellings, on one page, under the one clause
+        # whose whole job is attribution.
+        top_ids = [str(h.driver_id) for h in hops]
         blk = R.render_board(bd, analogs=chain_first,
                              anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs))
         mark = "read as the history of the chain named first, on %s" % R.humanise(fd)
-        assert mark in blk.text(), (cell, mark)
-        # EVERY RENDERED STANZA HEAD CARRIES IT -- the tier's stanza cap decides how many render, and
-        # the mark is a property of the head rather than of the cap.
         heads = [x for x in blk.lines if x.startswith("LIKE STATE ")
                  and "measured on the record as revised through" in x
                  and "across the boards that carry it" not in x]
         assert heads, cell
-        assert all(mark in x for x in heads), (cell, [x[-90:] for x in heads])
+        if fd in top_ids:
+            # THE HOP'S OWN SPELLING: the mark prints, on every rendered stanza head (the tier's
+            # stanza cap decides how many render; the mark is a property of the head, not of the cap).
+            assert mark in blk.text(), (cell, mark)
+            assert all(mark in x for x in heads), (cell, [x[-90:] for x in heads])
+        else:
+            # A TRANSLATION: the stanza is still ORDERED on it -- nothing is deleted, `dims_order`
+            # above is asserted either way -- and the page stays silent rather than naming a driver
+            # the chain never carried.
+            assert "read as the history of the chain named first" not in blk.text(), \
+                (cell, fd, top_ids, [x[-110:] for x in heads])
+            assert any(R.humanise(top_ids[0]) in x for x in blk.lines
+                       if x.startswith(R.CHAIN_HEAD_PREFIX)), (cell, top_ids)
         assert blk.trips == [], (cell, blk.trips[:1])
         # ...and with NO chain leg the mark is absent, because there is no chain to attribute to.
         plainblk = R.render_board(bd, analogs=plain,
                                   anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs))
         assert "read as the history of the chain named first" not in plainblk.text(), cell
+
+
+def test_S8R5_the_stanza_mark_NEVER_names_a_driver_the_chain_does_not_carry(graph):
+    """**ROUND-5 BLOCKER 6 -- THE ONI COLLISION, ON THE PAGE, VERBATIM.**
+
+    The receipt-carrying max cell is the one a served turn actually is, and on it the page named
+    ``El_Nino`` for a chain that walks ``La_Nina``: the same ONI series under two driver ids in
+    OPPOSITE PHASES, inside the one clause on this page that exists to attribute a reading to a chain.
+    THE RULE: the mark prints only where the dimension the analog leg LEADS WITH is a hop the chain
+    itself carries (``first_dim == hop.driver_id``); a translated id still ORDERS the stanza and is
+    never NAMED.
+
+    This pin is the negative half on the page, through the real producers, with the two spellings
+    named so a future sitting that re-couples them reds this deck."""
+    bd = _r3_board(graph, mode="max", receipts=_r3_receipts)
+    top = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)[0]
+    top_ids = [str(h.driver_id) for h in top.hops]
+    fd = S._first_dim(bd)
+    assert "La_Nina" in top_ids, top_ids
+    assert fd == "El_Nino" != top_ids[0], (fd, top_ids)          # the collision, still live
+    assert S._dim_for_hop(bd, top.hops[0]) == "El_Nino", "the translation itself is unchanged"
+    ana = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=H.fixture_benchmark_fn(), first_dim=fd)
+    assert any(list(e.get("dims_order") or ())[0] == fd for e in ana), \
+        "the leg is still ORDERED on it -- the correction takes a word, never a reading"
+    page = R.render_board(bd, analogs=ana,
+                          anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs)).text()
+    assert "from La Nina" in page, "the chain still says La Nina in its own head"
+    assert "read as the history of the chain named first, on El Nino" not in page
+    assert "read as the history of the chain named first" not in page
+    # AND THE PRODUCER ITSELF, on the two inputs that differ by ONE word: the chain's own spelling
+    # prints, the board's spelling does not.
+    a = {"first_dim": "La_Nina", "dims_order": ["La_Nina", "drought"], "driver_id": "La_Nina",
+         "contract": "soybeans_cbot", "date": "2013-06-01", "n_candidates": 3, "floor_year": 1990,
+         "asof": H.ASOF}
+    assert R.chain_stanza_mark(a, chain_dims=("La_Nina", "drought")) == \
+        "; read as the history of the chain named first, on La Nina"
+    assert R.chain_stanza_mark(dict(a, first_dim="El_Nino", dims_order=["El_Nino", "drought"]),
+                               chain_dims=("La_Nina", "drought")) == ""
+    assert R.chain_stanza_mark(a) == "", "no chain_dims, no attribution -- the flag-off answer"

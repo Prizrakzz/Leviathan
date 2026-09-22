@@ -89,7 +89,10 @@ def _build(graph, mode, *, state_chain, chains=(), receipts=None, knobs=None):
     bd = W.walk(graph=graph, asof=ASOF, mode=mode, anchors=anchors, question=Q,
                 state_fn=H.fixture_state_fn(ASOF), key_fn=None, receipts={}, knobs=kn,
                 width=2, legb_on=False, stage2=False)
-    rc = _receipt_pool(bd) if receipts is None else dict(receipts)
+    # ``receipts`` IS THE CELL: ``None`` is this deck's ordinary pool, a CALLABLE is a pool built off
+    # THIS board's own rows (the aged-document cell of round 5 needs one), and a dict is passed through.
+    rc = (_receipt_pool(bd) if receipts is None
+          else (receipts(bd) if callable(receipts) else dict(receipts)))
     tape = {slug: H.fixture_tape(slug, ASOF) for slug in bd.anchor_slugs}
     W.stage2(bd, graph, state_fn=H.fixture_state_fn(ASOF), receipts=rc, width=2, legb_on=False,
              chains=chains, state_chain=state_chain)
@@ -184,7 +187,7 @@ def test_the_coverage_counters_are_ABSENT_on_a_chain_off_board_and_present_on_a_
     for key in ("chain_rendered", "chain_referenced", "chain_hops_rendered", "chain_hops_referenced",
                 "chain_hops_agreeing", "chain_hops_at_odds", "chain_receipts_rendered",
                 "chain_receipts_cited", "chain_events_open", "chain_history_n",
-                "chain_below_print_line"):
+                "chain_below_print_line", "chain_rendered_one_line"):
         assert key in on, key
     assert on["chain_rendered"] == sum(1 for c in on_bd.chains if c.rendered)
     assert isinstance(on["chain_history_n"], list)
@@ -395,11 +398,31 @@ def test_a_chain_BELOW_the_print_line_renders_as_ONE_LINE_with_its_selection_cla
     assert int(out["counts"].get("below_print_line") or 0) == 0,         "one field, one reading: nothing here is below the line and the count says so"
     one = R.sb_chain_one_line(c4, i=4, n=4, why=R.chain_why_words(c4))
     assert one.startswith(R.CHAIN_HEAD_PREFIX)
-    assert "under this page's own selection line" in one
+    # **ROUND 5, BLOCKER 7: THE ROW STATES THE CAUSE ITS OWN COUNT AGREES WITH.** The row said "under
+    # this page's own selection line" on a chain scoring 60.0 against a print line of 40.0, on a board
+    # whose `below_print_line` is 0 -- the page contradicting its producer, with THIS pin green over
+    # it. The cause is the SEAT: `full` is stamped in seat order, the K + 2 bound was spent, and the
+    # chain was carried anyway.
+    assert R.CHAIN_ONE_LINE_WORDS["seated"] in one, one
+    assert R.CHAIN_ONE_LINE_WORDS["below"] not in one, one
     assert "it is here for" in one, "the one-line form still carries its own selection clause"
     assert R.CHAIN_SLOT_WORDS["horizon"] in one, "and the seat it was held for, by name"
     assert R.classify(one) == ("SB-P",) and R.register_hits(one) == []
     assert REG.count_desk_register(one) == 0
+    # AND THE OTHER CAUSE IS NOT DELETED: a chain with NO seat -- the only row a print-line cut can
+    # still mint -- keeps the sentence it always had, off the same producer.
+    import dataclasses as _dc
+    nos = _mk("La_Nina", "psd_ending_stock_su_ratio", series="oni_climate|_global|", score=10.0,
+              band="0-2 quarters")
+    assert str(getattr(nos, "slot", "") or "") == ""
+    cut = R.sb_chain_one_line(nos, i=4, n=4, why=R.chain_why_words(nos))
+    assert R.CHAIN_ONE_LINE_WORDS["below"] in cut and R.CHAIN_ONE_LINE_WORDS["seated"] not in cut
+    assert R.classify(cut) == ("SB-P",) and R.register_hits(cut) == []
+    assert REG.count_desk_register(cut) == 0
+    assert _dc.is_dataclass(c4), "every assertion here is against the SHIPPED walk.Chain"
+    # ...AND `rendered_one_line` NOW HAS A READER IN THIS MODULE (blocker 10): the counter that carries
+    # the fact this row states reaches `board_coverage`, so a census can compare the two.
+    assert "rendered_one_line" in inspect.getsource(R._chain_coverage)
 
 
 def test_the_count_line_COUNTS_and_never_NAMES_and_its_denominators_are_stated(cells):
@@ -593,6 +616,106 @@ def test_the_chain_CITES_the_events_sections_handle_instead_of_minting_a_second_
     for d in docs:
         for h in re.findall(r"\[E(\d+)\]", d):
             assert int(h) in handles, f"a cited handle points at a row the block never printed: {d}"
+
+
+#: ONE dated action in the whole estate, more than one band-length before the as-of: the cell blockers
+#: 3, 4 and 5 are all measured on. It lands on the board's FIRST loud measured row, which on this
+#: fixture is `La_Nina` -- a hop the top chain walks, and NOT that chain's own receipt hop.
+_AGED_EVENT, _AGED_DOC = "2019-01-01", "2019-01-05"
+
+
+def _one_aged_receipt(bd) -> dict:
+    for r in bd.rows:
+        st = r.state
+        if st is None or status_word(st.status) != "ok" or not r.legs.get("loud"):
+            continue
+        return {r.key: [{"date": _AGED_DOC, "event_date": _AGED_EVENT, "source": "a wire service",
+                         "tier": 2, "text": ("the authority suspended the export licence for the "
+                                             "season, and the trade read it as durable")}]}
+    return {}
+
+
+def test_S8R5_the_AGED_document_row_names_the_HOP_THE_DOCUMENT_SITS_ON():
+    """**ROUND-5 BLOCKER 4 -- A DATED FACT UNDER A RELATION THE PRODUCER NEVER DECLARED IT AGAINST.**
+
+    :func:`render.chain_receipt`'s aged branch returned ``ch.receipt_hop`` while ``aged`` is a
+    ``max()`` over the dates found on ANY hop, so the row's "at <hop>" and its "the window declared for
+    it" pointed at a hop that was not the document's and carried a DIFFERENT declared band. That is
+    round-3 MAJOR 1's own class, re-introduced by the round-4 fix, and :data:`render.CHAIN_DOCUMENT_AT`
+    exists precisely to close it.
+
+    The document here sits on ``La_Nina`` (band 1-2 quarters) and the chain is receipted at
+    ``cot_mm_positioning`` (band 0-1 quarters) -- the shape the fixture produces on a real board."""
+    old = {"date": _AGED_DOC, "event_date": _AGED_EVENT, "source": "a wire service", "tier": 2,
+           "text": "the authority suspended the export licence for the season"}
+    doc_hop = _hop(driver_id="La_Nina", lag_band=parse_lag("1-2 quarters"), receipts_top=(old,),
+                   event_receipt=dict(old), event_date=_AGED_EVENT, event_open=False,
+                   percentile=82.0, tail=0.64)
+    receipt_hop = _hop(driver_id="cot_mm_positioning", lag_band=parse_lag("0-1 quarters"),
+                       percentile=94.0, tail=0.88)
+    ch = _chain([doc_hop, receipt_hop])
+    ch.receipt_index = 1                                  # the CHAIN's receipt hop is the other one
+    assert ch.receipt_hop.driver_id == "cot_mm_positioning"
+    rp = R.chain_receipt(ch, None, asof=ASOF)
+    assert rp["kind"] == "none" and "aged out of the window declared for it" in rp["words"]
+    assert rp["hop"] is doc_hop, (rp["hop"].driver_id, doc_hop.driver_id)
+    row = R.sb_chain_document(rp, rp["hop"])
+    assert "document: at La Nina, a dated action on 2019-01-01, aged out of" in row, row
+    assert "cot mm positioning" not in row, row
+    assert R.classify(row) == ("SB-P",) and R.register_hits(row) == []
+    # AND THE PRODUCER'S OWN PAIR IS READ WHERE IT NAMES THE SAME DOCUMENT (lane W publishes it).
+    assert "Chain.aged_receipt_hop" in W.CHAIN_SEAM_FIELDS
+    assert "Chain.aged_receipt_date" in W.CHAIN_SEAM_FIELDS
+
+
+def test_S8R5_ONE_aged_document_prints_ONE_on_the_page_at_the_hop_it_sits_on(graph, curated):
+    """**ROUND-5 BLOCKERS 3, 4 AND 5, ON THE PAGE, THROUGH THE REAL PRODUCERS.**
+
+    The estate is given EXACTLY ONE dated action -- 2019-01-01, on the board's first loud measured row
+    -- and everything else is the ordinary fixture. Round 4's page answered with three defects at once:
+
+      * **the count line printed a CHAINS x DOCUMENTS product.** ``Chain.receipts_aged_out`` is a
+        per-chain document count and ``ChainHop`` is memoised per ``(contract, driver_id)``, so the
+        render's sum over the POOL counted the one document once per chain that walked its row:
+        "fifty-five / two hundred twenty / TWO HUNDRED SIXTY-FOUR dated actions aged out of their
+        windows" on an estate holding ONE;
+      * **the document row named the chain's RECEIPT hop** ("at cot mm positioning") for a document
+        sitting on ``La_Nina``;
+      * **the arithmetic row credited "ACTION SIX"** for the very document the row beside it declined,
+        because the walk's MECHANISM branch carried no recency bound while the render's did.
+
+    All three are surfaces, so all three are pinned HERE, on the rendered block."""
+    bd, blk = _build(graph, "deep", state_chain=True, chains=curated, receipts=_one_aged_receipt)
+    page, rows = blk.text(), {}
+    for m in blk.rows_meta:
+        rows.setdefault(str(m.get("role") or ""), []).append(str(m.get("line") or ""))
+    assert "aged out of the window declared for it" in page, "the cell must age a document out"
+    # (3) ONE DOCUMENT, ONE COUNT, AND THE NOUN AGREES WITH THE NUMBER.
+    pool_sum = sum(int(getattr(c, "receipts_aged_out", 0) or 0) for c in bd.chains)
+    assert int(bd.chain_counts["receipts_aged_out"]) == 1, bd.chain_counts["receipts_aged_out"]
+    assert pool_sum > 1, ("the per-chain field still counts per chain -- that is its own job",
+                          pool_sum)
+    count_line = next(x for x in blk.lines if x.startswith(R.CHAIN_HEAD_PREFIX + "COUNT "))
+    assert "one dated action aged out of its window" in count_line, count_line
+    assert "dated actions aged out of their windows" not in count_line, count_line
+    assert len(count_line) <= 550, (len(count_line), count_line)
+    # (4) THE ROW NAMES THE HOP THE DOCUMENT SITS ON.
+    aged_rows = [x for x in rows.get("chain_document", ()) if "aged out of" in x]
+    assert aged_rows, rows.get("chain_document")
+    top = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)[0]
+    on = [h.driver_id for h in top.hops
+          if str((h.event_receipt or {}).get("event_date") or "")[:10] == _AGED_EVENT]
+    assert on, [h.driver_id for h in top.hops]
+    assert all(("at %s," % R.humanise(on[0])) in x for x in aged_rows), (on, aged_rows)
+    if str(top.receipt_hop.driver_id) != on[0]:          # the collision this fixture actually mints
+        assert not any(R.humanise(top.receipt_hop.driver_id) in x for x in aged_rows), aged_rows
+    # (5) AND NO ARITHMETIC ROW CREDITS AN ACTION FOR A DOCUMENT THE SAME PAGE DECLINES.
+    assert "%s %s" % (R.CHAIN_TERM_WORDS["event"], R._points_words(6.0)) not in page,         "the walk's mechanism branch is bounded by the same recency rule the render applies"
+    assert float((top.terms or {}).get("event") or 0.0) == 0.0, top.terms
+    why = [x for x in rows.get("chain_why", ()) if x]
+    assert why and not any(re.search(r"%s [a-z]" % R.CHAIN_TERM_WORDS["event"], x)
+                           for x in why[:1]), why[:1]
+    assert blk.trips == [] and R.register_hits(count_line) == []
 
 
 def test_the_chain_receipt_cap_is_the_CHAINS_own_and_never_the_per_row_SB_R_cap(graph, curated):

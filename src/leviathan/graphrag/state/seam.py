@@ -898,17 +898,29 @@ def _first_dim(bd) -> Optional[str]:
     if not hops:
         return None
     declared = _analog_dims(bd)
-    first = None
+    first, translated = None, None
     for i in W._tail_order(hops):
-        got = _dim_for_hop(bd, hops[i])
+        own, got = str(getattr(hops[i], "driver_id", "") or ""), _dim_for_hop(bd, hops[i])
         if first is None:
             first = got                                  # the receipt hop's own answer, as round 3
         if got and got in declared:
-            return got
-    # NO HOP OF THE TOP CHAIN IS A DECLARED DIMENSION. The receipt hop's answer is returned unchanged
-    # -- `analogs._dims_first` no-ops on it exactly as its own docstring says it should -- so this walk
-    # can only ever ADD a reading and never take one away.
-    return first
+            # **A HOP'S OWN SPELLING IS PREFERRED OVER A TRANSLATION OF AN EARLIER ONE** (round-5
+            # blocker 6). The translation is what lets a chain hop find the dimension the analog leg
+            # ranks its SERIES under, and it is kept -- but where a LATER hop of the same chain is
+            # declared under the id the chain itself walks, that hop is the better lead: the stanza
+            # is ordered on a dimension the page can then ATTRIBUTE in the chain's own words
+            # (`render.chain_stanza_mark`), where a translated id can only be ordered on and never
+            # named. Same walk, same order, same no-op; one more reading reaches the page.
+            if got == own:
+                return got
+            if translated is None:
+                translated = got
+    # NO HOP OF THE TOP CHAIN IS DECLARED UNDER ITS OWN ID. The first TRANSLATED declared dimension is
+    # returned -- round 4's answer exactly, and it still orders the stanza -- and where there is none
+    # of those either the receipt hop's own answer goes back unchanged, so `analogs._dims_first` no-ops
+    # exactly as its own docstring says it should. This walk can only ever ADD a reading, never take
+    # one away.
+    return translated or first
 
 
 def _analog_dims(bd) -> frozenset:
@@ -959,7 +971,14 @@ def _dim_for_hop(bd, hop) -> Optional[str]:
     dimension after all, ``analogs._dims_first`` no-ops exactly as it does today.
 
     A hop with NO served series (an unmeasured node) has no series to match and returns its own id,
-    which is what the stanza was handed before this translation existed."""
+    which is what the stanza was handed before this translation existed.
+
+    **THE HOP'S OWN ID IS CARRIED THROUGH, AND THE CALLER IS TOLD WHICH ANSWER IT GOT** (round-5
+    blocker 6). A returned id EQUAL to ``hop.driver_id`` is the hop's own spelling; anything else is a
+    TRANSLATION onto another row's, and the two are different facts for a page that must attribute a
+    reading in words. :func:`_first_dim` reads that difference (it prefers an identity match) and
+    ``render.chain_stanza_mark`` prints the mark only on one -- the estate's ONI collision
+    (``El_Nino`` / ``La_Nina``, one series) is why a caller may not treat them as one."""
     own = str(getattr(hop, "driver_id", "") or "")
     want = str(getattr(hop, "series_key", "") or "")
     if not want:
