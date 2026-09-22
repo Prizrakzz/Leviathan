@@ -5,6 +5,14 @@ Runs a grid of registry (table, metric) x sample (commodity, asof) NumberQuery s
 knowledge/vintage dates). The flip to pg is allowed only on a clean report. ASCII-only stdout (cp1252
 console rule); the full report also lands in data/graphrag/ + S3 when EVIDENCE_S3 is set.
 
+SINCE 2026-09-22 IT ASKS TWO QUESTIONS, NOT ONE (pipeline census B1/P2). The grid proves
+ARITHMETIC -- do the two backends compute the same answer -- and it asked only FIXED HISTORICAL
+as-ofs, which is how it printed ``## verdict: 108/108 exact-match`` and PASSED on a mirror twelve
+days stale. It now also proves CURRENCY: a TODAY as-of beside the three pinned ones (``run_asofs``)
+and one bounded MAX(knowledge axis) per table, run on BOTH backends and diffed (``tip_sql`` /
+``tip_mismatch``). The two verdicts print on SEPARATE lines so a reader can see which question was
+answered.
+
 Runs IN-VPC (needs both Athena and RDS): submit via
     python jobs/submit/submit_batch_load_numbers_pg.py --parity
 """
@@ -204,11 +212,341 @@ SAMPLE_COMMODITY = {"silver_psd": "corn_cbot", "silver_wasde": "corn", "silver_p
                     # every Branch-A gate run -- so the futures_eod "sampled but unmirrored reds the
                     # whole gate" hazard is closed twice over here. That note in load_pg_numbers.py
                     # is now stale; it is another lane's file and is left alone, not edited.
-                    "silver_wap_table01_revisions": "wheat"}
+                    "silver_wap_table01_revisions": "wheat",
+                    # ---------------------------------------------------------------------------
+                    # SAMPLER TOTALITY (2026-09-22, pipeline census B4/P4) -- THE REMAINING
+                    # SEVENTEEN, LANDED IN ONE CHANGE BECAUSE THE CLASS IS THE DEFECT.
+                    #
+                    # This is the FOURTH sighting of one bug: silver_nass_annual /
+                    # silver_nass_crop_progress (2026-09-09), silver_wap_table01_revisions
+                    # (2026-09-15), and today silver_fgis and the three fnc tables -- each found by a
+                    # RED GATE that had already blocked a canonical promote, each fixed by adding one
+                    # dictionary row, each leaving the next table in the queue. Measured in this
+                    # sitting: load_pg_numbers.P1_TABLES has 39 members and this dict had 22, so
+                    # SEVENTEEN mirrored tables had no sampler entry and every one of them was one
+                    # whitelist flip away from repeating the RCA. The entries below close the roster;
+                    # `config_check.check_sampler_totality` (and its unit deck) closes the CLASS, so
+                    # the 40th table fails in CI with its own name on it instead of at 12:00Z inside
+                    # a gate that blocks a family's writes.
+                    #
+                    # NONE OF THESE IS A GUESS. Every one was proved NON-VACUOUS before it landed, by
+                    # compiling the REAL build_sql and running it READ-ONLY on Athena at the three
+                    # pinned as-ofs plus today (probe banked at scratchpad/pipeline_fix_0922/
+                    # l1_sampler_probe.py + .json, run 2026-09-22). The per-entry row counts are
+                    # quoted below. That discipline is the whole point: an entry matching ZERO rows
+                    # does not fail, it PASSES VACUOUSLY -- 0 rows == 0 rows is an exact match -- and
+                    # re-creates the gold_weather_z weather-R3 trap the EMPTY-PANEL guard exists to
+                    # catch as a BACKSTOP, never as the test.
+                    #
+                    # THE COMMODITY-LESS ENTRIES ARE `None` AND THAT IS A DECLARATION, NOT A SKIP.
+                    # Seven of the seventeen have NO commodity column at all (commodity_col is None on
+                    # the card), so `None` is the only correct value -- the silver_pink_sheet /
+                    # silver_fred_fx / silver_noaa_oni idiom. They are written out rather than left
+                    # absent precisely so the totality lint can tell "declared commodity-less" from
+                    # "nobody has looked at this table yet", which is the distinction whose ABSENCE
+                    # cost four RCAs.
+                    #
+                    # gold_board_crush -- NO commodity column (a flat board-margin table; the card's
+                    # commodity_values are the SUBJECTS it answers for, not an axis it filters on).
+                    # Measured: 8 of 8 legs non-empty (latest=1, series=50 at every as-of including
+                    # today). B3's table -- 33 days stale with no producer -- so this panel is also
+                    # the instrument that will show the crush leg recovering.
+                    "gold_board_crush": None,
+                    # gold_futures_spreads -- commodity_col is `spread_id`, NOT a contract slug: the
+                    # closed set is {kc_chi, white_yellow} (measured: 2,676 and 14 rows). kc_chi is
+                    # the decade-deep leg and the only one with history at the 2021 as-of; a contract
+                    # slug here would match zero rows. 8 of 8 legs non-empty.
+                    "gold_futures_spreads": "kc_chi",
+                    # silver_mpoc_stock_comparison -- commodity_col is `oil_type` and the card
+                    # declares NO commodity_values, so the set was read from the data: palm_oil 89
+                    # rows, soybean_oil 87, rapeseed_oil 49, sunflower_oil 47. palm_oil is the card's
+                    # subject and the widest leg. HONEST PIT, NOT A DEFECT: the series itself begins
+                    # after 2024-06, so the 2021 and 2024 as-ofs legitimately return 0 and only the
+                    # 2026-07 and today legs carry rows (4 of 8) -- which is exactly why the today
+                    # leg added below matters for this table. The same shape as silver_conab_coffee's
+                    # documented 2021 miss.
+                    "silver_mpoc_stock_comparison": "palm_oil",
+                    # silver_fgis -- B4, and the reason this block is not four rows. commodity_col is
+                    # `leviathan_slug` holding CONTRACT slugs; corn_cbot is the liquid probe and is in
+                    # the card's declared commodity_values. 8 of 8 legs non-empty. The gate FAILED on
+                    # 2026-09-17 and the canonical tip has sat at week_ending_date 2026-08-30 since.
+                    "silver_fgis": "corn_cbot",
+                    # silver_fnc_colombia_monthly -- commodity_col `commodity`, closed set
+                    # {arabica_coffee}. 8 of 8 legs non-empty. B6's coffee card.
+                    "silver_fnc_colombia_monthly": "arabica_coffee",
+                    # silver_fnc_colombia_exports_port_type -- same closed set. 8 of 8 non-empty.
+                    "silver_fnc_colombia_exports_port_type": "arabica_coffee",
+                    # silver_fnc_colombia_area_department -- same closed set, and the ONE entry in
+                    # this block that does NOT reach the "non-empty at 2 of the 3 pinned as-ofs" bar:
+                    # 4 of 8 legs, non-empty at 2026-07-01 and today, EMPTY at 2021-08-15 and
+                    # 2024-06-01. THAT IS A FINDING ABOUT THE TABLE, NOT ABOUT THE SAMPLE, and no
+                    # sample can fix it: this card's knowledge axis is `ingest_date` under
+                    # knowledge_semantics=ingest, and ingest_date carries a SINGLE value across the
+                    # whole table (2026-06-02, measured by the 2026-09-22 refuter), so every as-of
+                    # before that date is invisible to the guard by construction whatever commodity
+                    # is asked for. The entry lands because it makes the panel non-vacuous TODAY
+                    # (50 rows at both modern as-ofs) instead of leaving it unbuilt; the knowledge-axis
+                    # repair (ingest_date -> year, the P12 descriptor half) belongs to whoever owns
+                    # configs/graphrag/numbers/tables.yaml and is carried in this lane's still_open.
+                    "silver_fnc_colombia_area_department": "arabica_coffee",
+                    # silver_nass_citrus -- commodity_col is `crop`, a NASS CROP LABEL and never a
+                    # contract slug (the loader's own entry says so in advance). all_orange is the
+                    # headline crop. 8 of 8 legs non-empty (49-50 rows per leg).
+                    "silver_nass_citrus": "all_orange",
+                    # silver_mpoc_trade_stats_monthly -- NO commodity column. The loader's entry
+                    # already called this STRUCTURAL rather than a deferral, and the `None` here is
+                    # that sentence made machine-readable. 8 of 8 legs non-empty.
+                    "silver_mpoc_trade_stats_monthly": None,
+                    # silver_sagis_weekly_deliveries -- commodity_col is `crop`, a SAGIS crop LABEL:
+                    # wheat 1,079 rows, maize 1,056, sunflower 446, soybeans 446. maize matches the
+                    # exports sibling's sample, so the two SAGIS panels compare the same crop. 8 of 8
+                    # non-empty. This is the LIVE half of the sagis family (tip 2026-09-11) beside
+                    # B9's dead exports leg, so the pair is also the contrast the census needed.
+                    "silver_sagis_weekly_deliveries": "maize",
+                    # silver_ams_cotton_quality -- commodity_col `commodity`, closed set {cotton}.
+                    # 8 of 8 legs non-empty (21/24/26/27 rows -- the row count IS the vintage count,
+                    # which is why it rises with the as-of).
+                    "silver_ams_cotton_quality": "cotton",
+                    # silver_food_cpi -- NO commodity column (the axis is country_iso). 8 of 8
+                    # non-empty.
+                    "silver_food_cpi": None,
+                    # silver_mpoc_exports_by_country -- NO commodity column (the axis is country).
+                    # 8 of 8 non-empty.
+                    "silver_mpoc_exports_by_country": None,
+                    # The three UNICA cards -- NONE has a commodity column (season_history and
+                    # monthly_ethanol_sales carry `region`; corn_ethanol carries neither). 8 of 8
+                    # legs non-empty on all three. NOTE WHAT THESE PANELS WILL AND WILL NOT SAY: B5
+                    # has the family frozen at fortnight_date 2026-02-01 with every weekly fire
+                    # green, and a PARITY panel cannot see that -- parity proves Athena == pg, and a
+                    # mirror of a frozen table is faithfully frozen. The instrument that CAN see it
+                    # is the tip leg added below, and only once the canonical side moves; the fix
+                    # itself is P13 and belongs to another lane.
+                    "silver_unica_biweekly_season_history": None,
+                    "silver_unica_corn_ethanol": None,
+                    "silver_unica_monthly_ethanol_sales": None,
+                    # silver_minagro_grain_exports -- commodity_col is `crop_slug`, an Argentine
+                    # MINAGRO crop label: every slug carries exactly 12 rows (grains_pulses_total,
+                    # wheat, barley, rye, corn, the four flour aggregates...), so availability cannot
+                    # choose here and MEANING does: `corn` is the Argentine export-pace subject the
+                    # card is served for. 6 of 8 legs non-empty -- empty at 2021-08-15 because the
+                    # canonical object only carries as_of_date 2026 captures (max 2026-08-14), which
+                    # is honest PIT and is also R6's measurement: 39 days against a 14-day ceiling.
+                    "silver_minagro_grain_exports": "corn"}
+
+# ---------------------------------------------------------------------------
+# SAMPLER EXEMPTIONS -- the ONLY sanctioned way for a mirrored table to have no sampler entry.
+#
+# EMPTY TODAY, ON PURPOSE. Every one of load_pg_numbers.P1_TABLES's 39 members now has a
+# SAMPLE_COMMODITY entry, so nothing is exempt. The mechanism exists anyway because the alternative
+# -- a table that is simply ABSENT from both dicts -- is the silent skip that cost four RCAs, and
+# `config_check.check_sampler_totality` must be able to tell a DECLARED refusal (with its reason on
+# the record, readable by the next person) from an oversight. A future entry here is a sentence, not
+# a flag: it names WHY this table cannot be sampled and what would have to change for it to be.
+# The lint rejects an empty or whitespace reason, so an exemption can never be a silent one.
+# ---------------------------------------------------------------------------
+SAMPLER_EXEMPT: dict[str, str] = {
+    # ONE entry, and finding it was the totality lint's first catch. gold_pattern_records is
+    # MIRRORED, it has carried a SAMPLE_COMMODITY entry ('corn_cbot') since 2026-07-24 -- and its
+    # card declares `metrics: {}` ON PURPOSE (configs/graphrag/numbers/tables.yaml:3007, "NO
+    # `metrics` (deliberate): this is an AGGREGATION-only card"). So the grid loop below iterates an
+    # EMPTY metric list, `compared[tid]` stays 0, neither the EMPTY-PANEL nor the SPEC-INVALID-PANEL
+    # guard can see it, and this table's VALUE parity has been unproven for as long as it has been in
+    # the mirror -- silently, while its entry read as coverage. It was not caught by the four earlier
+    # RCAs because it does not FAIL: it compares nothing and returns 0.
+    #
+    # It is declared here rather than fixed because the fix is a CARD change (declaring the five
+    # numeric metric columns as metrics), and the card's own comment argues against exactly that --
+    # declaring them would make the F010 generator derive per-metric machinery this aggregation-only
+    # ledger does not want. That is another lane's decision, so this lane RECORDS the hole instead of
+    # widening a card to close it.
+    #
+    # WHAT STILL COVERS THE TABLE: the CURRENCY leg added below. tip_sql reads the card's knowledge
+    # axis with no metric at all, so gold_pattern_records gains its FIRST cross-backend parity check
+    # in this same change (canonical tip measured 2026-08-17 on Athena, 2026-09-22).
+    #
+    # AND THE WAIVER CANNOT ROT: config_check.check_sampler_totality clause 3 turns RED the day this
+    # card declares metrics and the entry compiles, telling whoever lands that change to delete this
+    # line. Nobody has to remember.
+    "gold_pattern_records": "the card declares `metrics: {}` on purpose (an AGGREGATION-only ledger "
+                            "card); there is no metric to grid, so no sample can make a value panel "
+                            "non-vacuous. Retire this exemption when the card declares metrics.",
+}
+
 # 2026 asof included because ingest-semantics tables (silver_production) were ingested in 2026 — earlier
 # asofs legitimately see 0 rows (honest PIT), which would leave that panel vacuous.
+#
+# THESE THREE ARE HISTORICAL AND PINNED, AND THEY STAY BYTE-IDENTICAL (threat model T4). Every leg
+# this list produces returned exactly what it returns today before the 2026-09-22 currency change;
+# the CURRENCY leg is additive and lives in `run_asofs` below, never by editing this list. A test
+# pins the three strings for exactly that reason.
 ASOFS = ["2021-08-15", "2024-06-01", "2026-07-01"]
 AGGS = ["latest", "series"]
+
+
+# ===========================================================================================
+# CURRENCY (2026-09-22, pipeline census B1/P2) -- THE GATE LEARNS TO SEE A STALE MIRROR.
+#
+# THE DEFECT, MEASURED. At 2026-09-22T09:27Z this gate reported `## verdict: 108/108 exact-match`
+# and PASSED, while the pg mirror it certifies had last been fully loaded on 2026-09-10 and was
+# missing the ENTIRE September WASDE and PSD release (silver_psd: 247,294 mirrored rows against
+# 251,475 canonical, release_date max 2026-09-11). It passed honestly: every leg asks one of three
+# FIXED HISTORICAL as-ofs -- 2021-08-15, 2024-06-01, 2026-07-01 -- and a mirror twelve days behind
+# answers all three exactly right. The gate proved ARITHMETIC and said nothing about VINTAGE, and
+# because GRAPHRAG_NUMBERS_BACKEND=pg is the serving default, "nothing about vintage" is the whole
+# question a reader grading the engine on merit is actually asking.
+#
+# TWO LEGS CLOSE IT, and they close different halves:
+#   (a) run_asofs() -- a TODAY as-of beside the three pinned ones. This catches a mirror that is
+#       stale in the rows a present-day question reads, on every metric of every card, through the
+#       same _cmp path as everything else. It is ADDITIVE: ASOFS above is untouched, so the three
+#       historical legs compile the byte-identical SQL and return the byte-identical rows they did
+#       before this change (T4's byte-identical set).
+#   (b) tip_sql() -- ONE bounded aggregate per table over the card's OWN knowledge axis, run on
+#       BOTH backends and diffed. This is the leg that names the defect in one line instead of
+#       leaving a reader to infer it from a grid: `TIP-STALE silver_psd: canonical 2026-09-11,
+#       mirror 2026-08-12`. A today as-of alone would NOT reliably catch it -- a card whose newest
+#       rows are older than its publication lag has an identical answer on both sides at any as-of,
+#       and a wide card's [:4] metric cap means most columns are never asked at all.
+#
+# WHY A SECOND STATEMENT RATHER THAN REUSING THE GATE'S. jobs/audit/silver_rebuild_gate.py already
+# builds `_tip_ym_sql` / `_tip_date_sql` over `_mirror_relation` -- but it runs them against the pg
+# mirror ALONE, to ask "is the DATA current", and it is DARK (_DATA_FRESHNESS_BLOCKING = False).
+# This leg asks the different question "do the TWO BACKENDS carry the same newest knowledge", and
+# it cannot import from that module because that module imports THIS one (jobs/audit/
+# silver_rebuild_gate.py:652 imports jobs.utils.numbers_parity inside stage_parity) -- a back-import
+# would be circular. The shapes are deliberately kept aligned and the divergence is named here
+# rather than discovered later.
+#
+# MEASURED COST, so nobody has to guess at it later (2026-09-22, offline compile + read-only Athena):
+#   * the grid goes 657 -> 1,292 COMPILED legs. 39 tables instead of 22 and 4 as-ofs instead of 3;
+#     spec-invalid legs go 3 -> 4. At ~3.0 s per Athena leg the FULL standalone run goes from about
+#     33 to about 65 minutes, inside the loader jobdef's 7,200 s timeout with room to spare.
+#   * the gate does NOT pay that: `stage_parity` pins PARITY_TABLES to ONE table, so a gate run grows
+#     only by its own table's share.
+#   * the 39 tip statements ran against the real Glue catalog in 117.6 s total, ~3.0 s each, worst
+#     PLANNING time 2,430 ms. Planning time is the S3-LIST-storm signature (the Jul-2026 storm
+#     planned for 26-31 s while scanning kilobytes), so the projected tables -- silver_esr_compact,
+#     silver_fgis, the nass and fnc cards -- were the ones to watch and they are nowhere near it. No
+#     bounding is needed; if a future card's tip ever plans slowly, THAT is the signal to bound it.
+# ===========================================================================================
+
+def today_asof() -> str:
+    """The wall-clock as-of, as its own function so a deck can pin a date without pinning a day.
+
+    The silver gate's `_freshness_clock` records what happens when a currency instrument reads a
+    PINNED baseline instead of the clock: with the frozen `--asof 2026-02-15` default it published
+    `months_behind = -6` and would have certified a 42-day-stale table as fresh. A currency leg's
+    clock is the wall clock, and never a census baseline."""
+    return date.today().isoformat()
+
+
+def run_asofs(today: str | None = None) -> list[str]:
+    """The as-ofs THIS RUN compares: the three pinned historical legs, plus today.
+
+    Pure, so the composition is pinnable offline. `ASOFS` itself is never mutated -- a reader (or a
+    test) can still see the three historical strings exactly as they have always been, which is the
+    property T4's byte-identical set is stated in terms of."""
+    return list(ASOFS) + [today or today_asof()]
+
+
+# The one-day operational override the threat model asks for, and NOT a default.
+#
+# T4 says the tip leg "is first run in report-only mode for one full day so a wrong threshold cannot
+# block a promote before it has been read". That is an OPERATIONAL step for the first run, so it is
+# an explicit env opt-out -- `PARITY_TIP_REPORT_ONLY=1` -- and the DEFAULT IS BLOCKING, because a
+# fence that defaults to advisory is fail-open and fail-open is the opposite of the doctrine: the
+# 108/108 PASS above is exactly what an advisory currency instrument looks like after everyone has
+# stopped reading it.
+#
+# THE BLAST RADIUS OF THE BLOCKING DEFAULT WAS MEASURED, NOT ASSUMED. The gate runs this module
+# per-table through `stage_parity` with PARITY_TABLES pinned, and `stage_pg_reload` has ALREADY
+# reloaded that table from the same canonical S3 objects Athena reads, immediately before -- so in a
+# gate run the two tips are equal by construction and a RED here means the reload did not take,
+# which is precisely a red worth having. The standalone full run is the one that goes red today,
+# and it SHOULD: that is B1.
+_TIP_REPORT_ONLY_ENV = "PARITY_TIP_REPORT_ONLY"
+
+
+def tip_report_only() -> bool:
+    return (os.environ.get(_TIP_REPORT_ONLY_ENV) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def tip_sql(ts, *, db: str | None = None) -> str | None:
+    """ONE bounded aggregate over the card's OWN knowledge axis, in a spelling both backends read.
+
+    Returns None for a card that declares no knowledge axis at all -- which the caller reports as a
+    named TIP-SKIP line, never as a silent pass.
+
+    THE THREE THINGS THIS STATEMENT GETS RIGHT, each of them a recorded defect elsewhere:
+
+      * SCHEMA-QUALIFIED. `leviathan_dev.<physical>`, from Q.ATHENA_DB, because the pg mirror does
+        not put its tables on the default search_path -- load_pg_numbers creates every one as
+        `"leviathan_dev"."<physical>"` and pgnumbers connects with an `options` string that replaces
+        whatever the DSN carried. A bare relation raises UndefinedTable on pg only, which reads as a
+        one-sided failure of the mirror rather than as a bug in the instrument (silver_rebuild_gate
+        `_mirror_relation`, repaired 2026-09-11 for exactly this).
+
+      * NORMALISED THROUGH THE COMPILER'S OWN EXPRESSION. `Q._dcmp` is what build_sql uses for every
+        as-of predicate: a physical TIMESTAMP date column becomes `substr(CAST(col AS varchar),1,10)`
+        and everything else `CAST(col AS varchar)`. That is not decoration, and it is MEASURED, not
+        argued -- run read-only on Athena 2026-09-22, `SELECT MAX(date) FROM
+        leviathan_dev.silver_pink_sheet` returns '2026-08-01 00:00:00.000' while the normalised form
+        returns '2026-08-01', and the pg mirror stores str(datetime) as '2026-08-01 00:00:00'. A
+        naive MAX() would therefore report a FALSE STALE on silver_pink_sheet, silver_futures_prices
+        and silver_futures_eod on EVERY run, for ever (DP-5, PRICE_OBSERVABILITY W1.1) -- a fence
+        that cries wolf daily is how a real red stops being read. Borrowing the
+        compiler's expression rather than re-spelling it means the two can never drift apart; a test
+        pins the emitted string so a rename fails in CI rather than at 12:00Z.
+
+      * THE year_month CLASS IS READ, NOT SKIPPED. `knowledge_col()` returns None for a card guarded
+        on `year*100+month` (silver_mpoc_stock_comparison, silver_mpoc_trade_stats_monthly), and a
+        `if not col: skip` would have silently exempted them -- the same shape as the sampler holes
+        this change closes. They get the year-month aggregate instead, which is the same statement
+        the gate's own `_tip_ym_sql` builds.
+    """
+    from leviathan.graphrag.numbers import query as Q
+    relation = f"{db or Q.ATHENA_DB}.{ts.athena_table or ts.id}"
+    if getattr(ts, "knowledge_semantics", None) == "year_month":
+        if not (ts.year_col and ts.month_col):
+            return None
+        return f"SELECT MAX(({ts.year_col} * 100) + {ts.month_col}) AS tip FROM {relation}"
+    col = ts.knowledge_col()
+    if not col:
+        return None
+    return f"SELECT MAX({Q._dcmp(ts, col)}) AS tip FROM {relation}"
+
+
+def tip_value(rows) -> str:
+    """The comparable projection of a tip statement's result: the single cell, normalised.
+
+    `_norm_value` is reused deliberately -- a numeric year-month comes back as the string '202606'
+    from Athena and as the int 202606 from psycopg, and the SAME normaliser that already makes the
+    grid's values comparable makes these comparable too. A table that is empty on a backend yields
+    '' (NULL and no-rows collapse to the same empty tip), so empty-on-both is a match and the grid's
+    EMPTY-PANEL guard -- not this leg -- is what calls that out."""
+    if not rows:
+        return ""
+    first = rows[0]
+    v = first.get("tip") if isinstance(first, dict) else None
+    if v is None and isinstance(first, dict) and first:
+        v = next(iter(first.values()))
+    return "" if v is None else _norm_value(v)
+
+
+def tip_mismatch(tid: str, athena_rows, pg_rows) -> str | None:
+    """The tip leg's VERDICT, as a pure function of the two backends' rows.
+
+    Returns None when the mirror is at the canonical tip, or the mismatch sentence otherwise.
+    Pure and offline on purpose: the decision this instrument makes is the one thing that must be
+    pinnable without Athena and without a VPC, because the 2026-09-22 failure was not a wrong
+    comparison -- it was a comparison nobody had asked for."""
+    a, p = tip_value(athena_rows), tip_value(pg_rows)
+    if a == p:
+        return None
+    return (f"TIP-STALE {tid}: canonical(athena)={a or 'empty'} mirror(pg)={p or 'empty'} - the pg "
+            f"mirror is NOT carrying this table's newest knowledge, so a present-day question "
+            f"gets an older vintage stamped honestly and the engine reads as stale; reload the "
+            f"mirror (jobs/utils/load_pg_numbers.py) and re-run")
 
 # PROJECTION WAVE Lane 3 / D-8: the silver_psd_attributes VINTAGE-FAN cell, as (market_year, asof) pairs.
 # Module-level so the shape is pinnable offline (tests/unit/test_numbers_parity_prereq.py); the leg itself
@@ -380,12 +718,22 @@ def main() -> int:
     tables = [t.strip() for t in
               (os.environ.get("PARITY_TABLES") or ",".join(SAMPLE_COMMODITY)).split(",") if t.strip()]
 
+    # ONE clock for the whole run: run_asofs() is called ONCE here, never per table. A run that
+    # crosses midnight must compare every table at the SAME today, or two tables' "current" legs
+    # silently ask different questions and the report cannot be reproduced from its own header.
+    asofs = run_asofs()
+    tip_only = tip_report_only()
+
     total = match = 0
+    tip_total = tip_match = 0
+    tip_advisories: list[str] = []                    # tip diffs when the one-day override is lit
     mismatches: list[str] = []
     nonempty: dict[str, int] = {}                     # per-table compared queries with actual rows
     compared: dict[str, int] = {}
     spec_invalid: dict[str, int] = {}                 # per-table legs whose spec would not BUILD
-    lines = [f"# numbers pg-parity report ({date.today().isoformat()})", ""]
+    lines = [f"# numbers pg-parity report ({date.today().isoformat()})", "",
+             f"as-ofs: {asofs} (the last is the CURRENCY leg; the first three are pinned history)",
+             f"tip leg: {'REPORT-ONLY (PARITY_TIP_REPORT_ONLY lit)' if tip_only else 'BLOCKING'}", ""]
     def _cmp(spec, tid, metric, asof, agg):
         """One spec -> compare Athena vs the pg mirror (the SAME build_sql string on both) and tally into
         the enclosing report state. Reused verbatim by the (table,metric,asof,agg) grid AND the ESR
@@ -419,6 +767,47 @@ def main() -> int:
                          f"within {_SUM_REL_TOL:g} rel (athena={a} pg={p})")
         else:
             mismatches.append(f"DIFF {tid}.{metric} asof={asof} agg={agg}: athena={a} pg={p}")
+
+    def _cmp_tip(ts, tid):
+        """The CURRENCY leg: is the mirror carrying the same newest knowledge as canonical?
+
+        Tallied into its OWN counters and NEVER into `compared`/`nonempty`. That separation is
+        load-bearing, not tidiness: a non-empty tip would otherwise satisfy the EMPTY-PANEL guard
+        for a table whose entire metric grid is vacuous, and this change would have WEAKENED the
+        one guard standing between a broken sampler and a passing gate while appearing to add an
+        instrument. The tip leg proves vintage; the grid proves values; neither covers for the
+        other."""
+        nonlocal tip_total, tip_match
+        sql = tip_sql(ts)
+        if sql is None:
+            lines.append(f"- TIP-SKIP {tid}: the card declares no knowledge axis (no knowledge_col "
+                         f"and no year/month pair) - currency is unmeasurable for this table, which "
+                         f"is a fact about the CARD; it is named here rather than passed silently")
+            return
+        tip_total += 1
+        try:
+            a_rows = athena(sql)
+        except Exception as e:  # noqa: BLE001
+            # 2026-09-22 review MAJOR-3: fail CLOSED, symmetric with the pg side below. An unreadable
+            # canonical tip is a MISMATCH the exit code carries, never a line above a PASS verdict.
+            mismatches.append(f"TIP-ATHENA-ERR {tid}: {str(e)[:140]}")
+            return
+        try:
+            p_rows = pgnumbers.pg_query(sql)
+        except Exception as e:  # noqa: BLE001
+            mismatches.append(f"TIP-PG-ERR {tid}: {str(e)[:140]}")
+            return
+        msg = tip_mismatch(tid, a_rows, p_rows)
+        if msg is None:
+            tip_match += 1
+            lines.append(f"- TIP {tid}: mirror at canonical tip "
+                         f"({tip_value(a_rows) or 'empty on both'})")
+            return
+        if tip_only:
+            tip_advisories.append(msg)
+            lines.append(f"- TIP-ADVISORY {msg}")
+        else:
+            mismatches.append(msg)
 
     for tid in tables:
         # A table can be REGISTERED in tables.yaml yet FENCED out of the loaded registry
@@ -459,10 +848,15 @@ def main() -> int:
                          f"the {FULL_METRIC_MAX}-metric full-compare width); NOT compared: "
                          f"{uncompared}")
         for metric in metric_list:
-            for asof in ASOFS:
+            for asof in asofs:
                 for agg in AGGS:
                     _cmp(Q.NumberQuery(table=tid, metric=metric, asof=asof, commodity=commodity,
                                        agg=agg, limit=50), tid, metric, asof, agg)
+        # ...and the currency leg, AFTER the two skip fences above, so a fenced or unmirrored table
+        # never reaches a registry that raises or a pg relation that was never created. (The ESR and
+        # psd_attributes blocks below sit OUTSIDE this loop and therefore outside those fences --
+        # named in their own comments, and the reason the tip leg is placed INSIDE.)
+        _cmp_tip(ts, tid)
 
     # ESR_DESTINATION_PLAN 5.2: destination-scoped parity leg -- the concrete cross-backend proof that the
     # smallint (Athena) / TEXT (pg) country_code compares IDENTICALLY under CAST(country_code AS varchar)
@@ -470,7 +864,7 @@ def main() -> int:
     # Empty-on-both is a match (not a mismatch); only a genuine athena!=pg divergence flags -- exactly the
     # smallint/TEXT trap needing runtime proof (the offline unit test only proves the SQL STRING is emitted).
     if "silver_esr" in tables:
-        for asof in ASOFS:
+        for asof in asofs:
             for agg in ("sum", "latest"):
                 _cmp(Q.NumberQuery(table="silver_esr", metric="weekly_exports_1000mt", asof=asof,
                                    commodity="corn_cbot", country="China", agg=agg, limit=50),
@@ -553,9 +947,21 @@ def main() -> int:
                      _PSD_ATTR, f"{PSD_ATTR_CELL_METRIC}[{PSD_ATTR_CELL_COUNTRY} MY{my}]", asof, agg)
     mismatches += vacuity_mismatches(compared, nonempty, spec_invalid)
     lines += ["", f"## verdict: {match}/{total} exact-match",
+              # The CURRENCY verdict is its OWN line and never folded into the one above. The
+              # 2026-09-22 report read `## verdict: 108/108 exact-match` beside a twelve-day-old
+              # mirror; a reader must be able to see, in one line, which of the two questions was
+              # answered. Folding the tip legs into the same fraction would have made that
+              # unreadable in exactly the way it was already unreadable.
+              f"## tip verdict: {tip_match}/{tip_total} tables at the canonical tip"
+              + (" (REPORT-ONLY)" if tip_only else ""),
               "PASS - flip GRAPHRAG_NUMBERS_BACKEND=pg" if not mismatches and match == total and total > 0
               else "FAIL - do NOT flip; mismatches below", ""]
     lines += [f"- {m}" for m in mismatches]
+    if tip_advisories:
+        lines += ["", f"## {len(tip_advisories)} tip advisories NOT blocking this run "
+                      f"({_TIP_REPORT_ONLY_ENV} is lit -- this is the ONE-DAY read-first override, "
+                      f"not a setting):"]
+        lines += [f"- {m}" for m in tip_advisories]
     report = "\n".join(lines)
     print(report)
 

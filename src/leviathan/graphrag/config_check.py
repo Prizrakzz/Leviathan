@@ -6157,6 +6157,369 @@ def check_metric_lags() -> list[str]:
     return list(_cml())
 
 
+def check_sampler_totality() -> list[str]:
+    """SAMPLER TOTALITY (pipeline census 2026-09-22, B4/P4): every MIRRORED table is SAMPLED, or its
+    refusal is DECLARED IN WRITING. The class-closing half of the four-RCA sampler bug.
+
+    WHAT KEEPS HAPPENING, AND WHY A LINT AND NOT A FIFTH DICTIONARY ROW. ``jobs/utils/numbers_parity``
+    compares a grid of (table, metric, as-of, agg) specs across Athena and the pg mirror, and it takes
+    the commodity for each table from ``SAMPLE_COMMODITY``. A table absent from that dict is not
+    skipped loudly -- ``query.build_sql`` raises "table {id} requires commodity (partition column)"
+    (or the DP-1 unit_overrides guard does), ``_cmp`` books every leg as a spec-invalid SKIP BEFORE
+    the compare counter, and the table's panel proves NOTHING while the run returns 0. The
+    SPEC-INVALID-PANEL guard added on 2026-09-09 turns that into a red, which is the right behaviour
+    and is also the problem: it fires at 12:00Z INSIDE A BLOCKING GATE, so the first anyone hears of
+    a missing dictionary row is a family whose canonical promote did not run.
+
+    It has now happened four times -- silver_nass_annual and silver_nass_crop_progress (2026-09-09),
+    silver_wap_table01_revisions (2026-09-15, three fires lost and silver frozen at release_month
+    2026-07), and silver_fgis plus the three fnc cards (2026-09-22) -- and each fix added one row and
+    left the next table in the queue. MEASURED at the fourth sighting: ``P1_TABLES`` had 39 members
+    against 22 sampler entries, so SEVENTEEN mirrored tables were waiting their turn.
+
+    THE RULE, in three clauses:
+      (1) TOTALITY -- every table in ``load_pg_numbers.P1_TABLES`` is named in ``SAMPLE_COMMODITY``
+          or in ``SAMPLER_EXEMPT``. Never neither; "nobody has looked at this one" is the bug.
+      (2) VALIDITY -- a sampled table must compile AT LEAST ONE leg through the REAL ``build_sql``.
+          Waived for an exempt table, and only for an exempt table.
+      (3) THE WAIVER RETIRES ITSELF -- an exemption whose reason has EXPIRED (the card now declares
+          metrics and the entry now compiles) is a red, naming the table. A waiver that can outlive
+          its reason is how a fence becomes decoration; this one cannot, because the day the
+          blocking condition lifts the lint says so.
+    An exemption may sit BESIDE an entry: the entry documents which commodity the panel will use on
+    the day the waiver retires, which is worth keeping rather than rediscovering.
+
+    WHY THE REAL COMPILER AND NOT A PRESENCE TEST. Presence is not validity -- that is the
+    gold_weather_z weather-R3 lesson (a base-name 'corn' where the table keys on 'corn_cbot' is
+    PRESENT and makes every leg vacuous) and the WAP lesson (an entry whose commodity is None
+    compiles nothing at all because the card carries unit_overrides). Only the compiler knows, so the
+    lint asks the compiler. It asks for ONE leg and stops at the first success, so the normal cost is
+    one compile per table; a table that compiles nothing pays its own full grid, which is precisely
+    the table worth spending it on.
+
+    WHAT THIS LINT DOES *NOT* CLAIM. A compiling leg can still return zero rows on both backends, and
+    0 rows == 0 rows is an exact match -- the vacuous panel. Nothing offline can see that, so the
+    proof stays where it belongs: a read-only Athena probe of every candidate entry BEFORE it lands
+    (banked for the 2026-09-22 seventeen), with ``numbers_parity.vacuity_mismatches``' EMPTY-PANEL
+    guard as the runtime backstop. This lint closes the "nobody looked" class, not the "looked and
+    guessed" one.
+
+    Pure config + compiler; no AWS, no pg, no store."""
+    errs: list[str] = []
+    # jobs/ is a namespace package at the repository root, which is NOT on sys.path when this module
+    # is imported as an installed library (the gate's in-process call already puts it there; a bare
+    # `python -m leviathan.graphrag.config_check` does not). Same idiom as numbers_parity.py:25-27
+    # and silver_rebuild_gate.py:62-64, and _REPO is this file's own repo root -- /app in the image.
+    if str(_REPO) not in sys.path:
+        sys.path.insert(0, str(_REPO))
+    try:
+        from jobs.utils import numbers_parity as _np
+        from jobs.utils.load_pg_numbers import P1_TABLES as _mirror
+    except Exception as e:  # noqa: BLE001
+        # FAIL CLOSED, and say which half is unreadable. An unreadable roster is not "no tables to
+        # check": it is the lint's input missing, which is the 2026-08-18 class this estate keeps
+        # paying for.
+        return [f"sampler_totality: cannot read the mirror roster or the sampler "
+                f"({type(e).__name__}: {str(e)[:160]}) -- the lint's own input is missing, so it "
+                f"reports RED rather than passing on an empty set"]
+    from leviathan.graphrag.numbers import query as _Q
+    from leviathan.graphrag.numbers.registry import load_registry as _lr
+
+    reg = _lr()
+    sample = _np.SAMPLE_COMMODITY
+    exempt = getattr(_np, "SAMPLER_EXEMPT", {})
+    # The three PINNED as-ofs, deliberately NOT run_asofs(): buildability does not depend on the
+    # as-of value, and a lint whose input moves with the wall clock is a lint that can go red on a
+    # date nobody changed anything on.
+    asofs = list(_np.ASOFS)
+
+    def _compiles(tid: str, ts) -> tuple[bool, str | None, int]:
+        """Does ANY leg of this table's grid compile with its declared sample? Stops at the first
+        success, so the normal cost is one compile per table."""
+        metrics, _dropped = _np.metric_plan(ts.shape, ts.metrics)
+        if not metrics:
+            return False, "the card declares NO metrics (an aggregation-only card)", 0
+        last: str | None = None
+        for metric in metrics:
+            for asof in asofs:
+                for agg in _np.AGGS:
+                    try:
+                        _Q.build_sql(_Q.NumberQuery(table=tid, metric=metric, asof=asof,
+                                                    commodity=sample.get(tid), agg=agg, limit=50))
+                        return True, None, len(metrics)
+                    except Exception as e:  # noqa: BLE001
+                        last = f"{type(e).__name__}: {str(e)[:140]}"
+        return False, last, len(metrics)
+
+    for tid in _mirror:
+        reason = exempt.get(tid)
+        if reason is not None:
+            if not str(reason).strip():
+                errs.append(f"sampler_totality: {tid} is declared SAMPLER_EXEMPT with an empty "
+                            f"reason -- an exemption is a sentence on the record, never a flag")
+                continue
+            # CLAUSE 3 -- the waiver retires itself. If the blocking condition has lifted, the
+            # exemption is now a hole in the parity grid that nobody is watching.
+            ts = reg.tables.get(tid)
+            if ts is not None and tid in sample:
+                ok, _why, _n = _compiles(tid, ts)
+                if ok:
+                    errs.append(
+                        f"sampler_totality: {tid} is declared SAMPLER_EXEMPT ({str(reason)[:90]}) "
+                        f"but its card NOW compiles a real leg with SAMPLE_COMMODITY="
+                        f"{sample[tid]!r} -- the reason for the waiver has expired. Delete the "
+                        f"SAMPLER_EXEMPT entry so the panel is actually compared; a waiver that "
+                        f"outlives its reason is a hole nobody is watching")
+            continue
+        if tid not in sample:
+            errs.append(
+                f"sampler_totality: {tid} is mirrored (load_pg_numbers.P1_TABLES) but has NO "
+                f"SAMPLE_COMMODITY entry and no declared SAMPLER_EXEMPT reason. Every leg of its "
+                f"parity panel will be spec-invalid, the SPEC-INVALID-PANEL guard will red the gate "
+                f"at its next fire, and that gate blocks a canonical promote -- the nass (2026-09-09) "
+                f"/ wap (2026-09-15) / fgis+fnc (2026-09-22) sequence, a fourth time. Add a sampler "
+                f"entry PROVED non-empty on Athena first, or declare an exemption with its reason")
+            continue
+        ts = reg.tables.get(tid)
+        if ts is None:
+            # WHITELIST-ABSENT, and legal: the card is registered in tables.yaml but fenced out of the
+            # loaded registry, so numbers_parity reports SKIP-FENCED and the entry activates by itself
+            # at the flip. There is nothing to compile against, and reddening the estate for a table
+            # nobody serves is the failure mode the SKIP-FENCED branch was written to avoid.
+            continue
+        ok, why, n_metrics = _compiles(tid, ts)
+        if not ok:
+            errs.append(
+                f"sampler_totality: {tid} has SAMPLE_COMMODITY={sample[tid]!r} but NOT ONE of its "
+                f"{n_metrics} x {len(asofs)} x {len(_np.AGGS)} legs compiles through the real "
+                f"build_sql -- {why}. That is the silver_wap_table01_revisions shape (18 of 18 "
+                f"unbuildable with commodity=None, three gate fires lost, silver frozen at "
+                f"release_month 2026-07): an entry that EXISTS is not an entry that WORKS. Fix the "
+                f"sample, or -- if the card genuinely cannot be gridded -- declare a SAMPLER_EXEMPT "
+                f"reason, which clause 3 will retire for you the day it stops being true")
+    return errs
+
+
+def check_dag_registry_schedule(descriptors: dict | None = None,
+                                tfvars: dict | None = None) -> list[str]:
+    """THE REGISTRY-VS-SCHEDULE LINT, WIRED (pipeline census 2026-09-22, P8 + refuter M4).
+
+    The rule itself lives with the generator that owns the artifact it reads --
+    ``scripts/silver/gen_dag_schedules_tfvars.py`` (``--lint``, exit 2) -- and until this entry its
+    only caller was that flag, i.e. a script an operator has to REMEMBER to run. Both functions are
+    IMPORTED here, never copied: a second copy of a rule is a second answer to the same question.
+
+    WHO RUNS IT, STATED PLAINLY BECAUSE THE LAST CLAIM OF THIS KIND WAS FALSE. ``main()`` is a
+    MANUAL CLI (``python -m leviathan.graphrag.config_check``) plus this clause's own unit deck --
+    and that is the whole list.
+      * NOT CI. ``.github/workflows/`` holds exactly one file, ``terminal-ci.yml``, whose ``paths:``
+        filter is ``apps/terminal/**`` plus the workflow file itself -- no python path can trigger
+        it. There is no python CI and no pre-commit hook, and the repo says so in its own words at
+        ``jobs/submit/submit_batch_evidence_maintenance.py``.
+      * NOT THE SILVER GATE. ``jobs/audit/silver_rebuild_gate.py::_run_config_check`` carries its
+        OWN hardcoded list of TEN lints (vocab, node_silver_map, hierarchy, geography,
+        display_names, display_vocab, cascade_map, pin_realizability, driver_slices, edge_blurbs)
+        and never calls ``main()``; this wave does not change that list. It is deliberate (L1
+        review MAJOR-2): ``_config_implicated`` cannot attribute a lint string to a table, so a
+        violation reaching the gate would red the ESTATE at 12:00Z, blocking every family's
+        canonical promote over one descriptor's prose. A rule that reds everything gets waived.
+    So the honest claim is: this clause makes the rule part of the config lint any author or
+    reviewer runs, and it does not put it on a clock. The clock-side instrument is a different
+    thing and is not owed here.
+
+    THE TWO RULES IT ENFORCES, and the measured defects each was written from:
+      (1) EVERY SERVED CARD HAS A PRODUCER ON A CLOCK -- a table with a card in
+          ``configs/graphrag/numbers/tables.yaml`` is named in ``gate_tables`` of an ARMED entry of
+          ``dag_schedules.auto.tfvars.json``, or carries an explicit ``NOT_ARMED_TABLES`` reason.
+          It reads the ARMED input, NOT the descriptor, because the EventBridge target carries an
+          execution input compiled at APPLY time: a producer phase that reached a descriptor and
+          never reached an apply is not on any clock (``silver_psd_attributes``, carried since
+          2026-08-26 and still not armed when this was measured). It named SEVEN tables on HEAD,
+          among them ``gold_board_crush`` and ``gold_futures_spreads`` -- served cards bound to
+          board legs, produced ONCE BY HAND, 33 and 32 days stale, with no descriptor, no job
+          definition, no schedule and no alarm.
+      (2) A ``chain_shape`` MAY NOT NAME A PHASE ITS OWN ``phases`` LIST LACKS. That string is the
+          prose a reader trusts when deciding whether a leg exists, and ``sagis_weekly`` is what
+          trusting it costs: 'fetch->bronze(shared parser)->silver x3' over phases [fetch, silver],
+          a producer reading a bronze prefix NO phase writes, 879 days write-green and data-dead.
+          A phase counts as CLAIMED only when it LEADS a '->' step, so a descriptor that names a
+          phase in order to DENY it is not punished for being explicit.
+
+    ARMED MEANS ``enabled: true`` (round-3 review MAJOR-2). ``armed_gate_tables`` read every entry
+    in the tfvars until 2026-09-22 and never looked at ``enabled``, so a family an operator had
+    PARKED satisfied the rule -- the fence would have certified the exact state it exists to catch.
+    ``enabled: false`` renders the EventBridge schedule in state DISABLED
+    (``modules/eventbridge/main.tf``: ``state = each.value.enabled ? "ENABLED" : var.schedule_state``,
+    default ``"DISABLED"``), i.e. the entry exists and never fires. The field is operator-owned and
+    the generator never rewrites it, so this is one edit away at all times. A parked producer is
+    reported by THIS clause, not by the generator's generic sentence: "no entry names it" would be
+    false in front of an entry that does, so the violation is CORRECTED here and names the parked
+    schedule and the value of its boolean. Measured on this tree: 27 entries, all ``true``.
+
+    WHAT THIS CLAUSE IS RED FOR, AND WHEN. The tfvars is the INTENT to apply, not the applied
+    clock: it is a generated file, and the estate's own state between the push and the owner's
+    ``terraform apply`` is "tfvars names it, EventBridge does not". This clause grades
+    descriptors-vs-tfvars; the APPLIED read is
+    ``aws scheduler get-schedule --name leviathan-dev-<stem> --query Target.Input``, which the
+    commit plan performs after the apply (measured 2026-09-22: the applied psd_monthly input
+    carried ``gate_tables ['silver_psd']`` while this clause already printed PASS on the folded
+    tfvars). A green here means the intent is coherent, never "it fires".
+    AND THE SEQUENCE THAT FOLLOWS FROM THAT, MEASURED: the regenerated tfvars rides its own commit,
+    so at the tip of every commit between this clause and that fold the clause is RED by
+    construction -- HEAD's tfvars against this tree's descriptors and numbers registry = THREE
+    violations (``gold_board_crush``, ``gold_futures_spreads``, ``silver_psd_attributes``), and the
+    folded tfvars = ZERO. That is a property of the SEQUENCE, not of the tip; the same is true of
+    exactly TWO of the 21 tests this clause's deck collects (``test_the_live_tree_passes`` and
+    ``test_a_served_card_with_no_producer_on_a_clock_is_a_config_check_FAIL``, both named in that
+    file's own docstring), and the push is not to be split to hide it.
+    The clause says so in its own violation line, with the remedy (regenerate the tfvars), because
+    a reader meeting a red between two commits should not have to find this docstring.
+
+    WHERE IT HAS NO INPUT, AND WHY THAT IS A RED AND NOT A PASS. MEASURED 2026-09-22:
+    ``docker/leviathan_worker/Dockerfile`` copies ``src/ jobs/ configs/ sql/`` and NEVER
+    ``scripts/`` or ``infra/``; ``docker/leviathan_embedder/Dockerfile`` adds ``scripts/`` and
+    still not ``infra/``. So in an image the chain_shape half HAS its input (descriptors ship
+    inside ``configs/``) and the served-table half does not. This clause therefore reports the
+    MISSING INPUT in one line naming the file, rather than blaming 37 served cards for an artifact
+    the layout never carried (MEASURED: ``lint_served_tables_have_a_producer({})`` returns 37
+    violations, the 41 served cards less the 4 that carry a written waiver) -- and it never returns
+    ``[]`` on an input it could not read, which is the 2026-08-18 fail-open class. Its home is a
+    source checkout; that is where its runners live.
+    THE FOURTH DOOR, closed in round 3 (review MINOR-2): ``load_descriptors`` globs a directory
+    NON-RECURSIVELY and returns ``{}`` -- raising nothing -- when that directory is absent or
+    empty, and a chain_shape rule over ``{}`` is vacuously clean. An EMPTY roster is therefore
+    reported as a RED in its own line, exactly like an absent tfvars. Live roster: 28.
+
+    ``descriptors``/``tfvars`` are injection points for the deck (a fixture descriptor, a rebuilt
+    pre-fix armed set); ``main()`` passes neither and reads the tree.
+
+    Pure config reads: descriptor JSON, the numbers registry YAML and the generated tfvars. No AWS,
+    no pg, no store."""
+    # scripts/ is not a package and is not on sys.path when this module is imported as an installed
+    # library -- same path-injection idiom the generator itself uses for gen_sfn_inputs, and the
+    # same one check_sampler_totality uses for jobs/.
+    _gen_dir = _REPO / "scripts" / "silver"
+    if str(_gen_dir) not in sys.path:
+        sys.path.insert(0, str(_gen_dir))
+    try:
+        import gen_dag_schedules_tfvars as _gen
+    except Exception as e:  # noqa: BLE001
+        return [f"dag_registry_schedule: cannot import the generator that OWNS this rule "
+                f"(scripts/silver/gen_dag_schedules_tfvars.py -- {type(e).__name__}: "
+                f"{str(e)[:140]}). The rule's own code is the input here, so this reports RED "
+                f"rather than passing on an empty set. In an image this is expected and it is "
+                f"still not a pass: the worker Dockerfile copies src/ jobs/ configs/ sql/ and "
+                f"never scripts/ -- run the config lint on a source checkout"]
+    _rules = ("lint_chain_shape_matches_phases", "lint_served_tables_have_a_producer")
+    _absent = [n for n in _rules if not hasattr(_gen, n)]
+    if _absent:
+        return [f"dag_registry_schedule: gen_dag_schedules_tfvars.py is importable but does not "
+                f"define {_absent} -- this clause and the generator's --lint mode are ONE change "
+                f"and the generator's half is not present. Commit the generator atom before the "
+                f"atom that carries this file, or a checkout between the two reds here"]
+
+    errs: list[str] = []
+    if descriptors is None:
+        try:
+            # The generator holds the house loader as `G` (gen_sfn_inputs); read it through the
+            # generator so the descriptor directory is named in exactly one place.
+            descriptors = _gen.G.load_descriptors()
+        except Exception as e:  # noqa: BLE001
+            return [f"dag_registry_schedule: cannot load the DAG descriptors "
+                    f"({type(e).__name__}: {str(e)[:140]}) -- configs/silver/dags is this rule's "
+                    f"input and an unreadable input is a RED, never an empty roster"]
+    if not descriptors:
+        # THE FOURTH DOOR (round-2 review MINOR-2). `load_descriptors` globs a directory
+        # NON-RECURSIVELY and raises nothing when that directory is absent or empty -- it returns
+        # {} -- and a chain_shape rule over {} is vacuously clean. That is the 2026-08-18
+        # inferred-floor class exactly: a green that means "nothing was read", not "nothing is
+        # wrong". The live roster is 28 descriptors, so any floor >= 1 closes it.
+        return ["dag_registry_schedule: the DAG descriptor roster is EMPTY (configs/silver/dags "
+                "holds no *.json this loader could see, or the directory is absent from this "
+                "layout) -- an unread input is a RED, never a clean chain. This rule's home is a "
+                "source checkout, where the roster is 28"]
+    errs += [f"dag_registry_schedule: {v}"
+             for v in _gen.lint_chain_shape_matches_phases(descriptors)]
+
+    if tfvars is None:
+        if not _gen.TFVARS.exists():
+            errs.append(
+                f"dag_registry_schedule: {_gen.TFVARS.name} is not in this layout "
+                f"(expected at infra/terraform/envs/dev/), so the SERVED-CARD half of this rule "
+                f"has no input and is NOT being enforced here. Neither image carries infra/, by "
+                f"construction -- run the config lint on a source checkout. Reported rather than "
+                f"skipped, and reported ONCE naming the file rather than as a violation against "
+                f"every served card")
+            return errs
+        import json as _json
+        try:
+            tfvars = (_json.loads(_gen.TFVARS.read_text(encoding="utf-8"))
+                      or {}).get("dag_schedules", {})
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"dag_registry_schedule: {_gen.TFVARS.name} is present but unreadable "
+                        f"({type(e).__name__}: {str(e)[:140]}) -- the armed schedule set is what "
+                        f"decides whether a served card has a producer, so an unparseable tfvars "
+                        f"is a RED and not an empty armed set")
+            return errs
+    # THE PARKED ENTRY (round-3 review MAJOR-2). `armed_gate_tables` now counts a table as armed
+    # only through an entry carrying `enabled: true`, so a parked family's cards reach the
+    # served-card rule as unproduced -- which is right. But that rule's sentence says "no entry in
+    # dag_schedules.auto.tfvars.json names it in gate_tables", and for a parked entry that sentence
+    # is FALSE: the entry is right there, and the reader sent looking for a missing entry finds one
+    # and concludes the fence is broken. So the violation is CORRECTED here -- same table, same
+    # RED, the offending schedule and the value of its own boolean named -- and never dropped.
+    # The parse is the generator's own (`armed_gate_tables` on a copy flipped to enabled=True), so
+    # "which tables does this entry name" still has exactly one implementation in the estate.
+    parked: dict[str, list[str]] = {}
+    for _stem, _entry in sorted(tfvars.items()):
+        try:
+            _state = _entry.get("enabled", "<absent>")
+            if _state is True:
+                continue
+            _named = _gen.armed_gate_tables({_stem: dict(_entry, enabled=True)})
+        except Exception:  # noqa: BLE001
+            continue
+        for _table in _named:
+            parked.setdefault(_table, []).append(f"{_stem} (enabled: {_state!r})")
+
+    for v in _gen.lint_served_tables_have_a_producer(tfvars):
+        _table = v.split(":", 1)[0]
+        _dark = parked.get(_table) if "SERVED" in v else None
+        if _dark:
+            errs.append(
+                f"dag_registry_schedule: {_table}: SERVED (it has a card in "
+                f"configs/graphrag/numbers/tables.yaml) and the ONLY dag_schedules entries that "
+                f"name it in gate_tables are PARKED: {', '.join(_dark)}. An entry is not a clock. "
+                f"terraform renders enabled:false as state=\"DISABLED\" "
+                f"(modules/eventbridge/main.tf: state = each.value.enabled ? \"ENABLED\" : "
+                f"var.schedule_state, default DISABLED), so the schedule exists in the account, "
+                f"never fires, and the card is served off whatever the last manual run left. "
+                f"`enabled` is OPERATOR-OWNED -- the generator writes it once on the ARM create "
+                f"path and never again -- so regenerating the tfvars does NOT undo this: re-enable "
+                f"the entry and apply it, or add a NOT_ARMED_TABLES entry naming the decision to "
+                f"leave this card dark.")
+        else:
+            errs.append(f"dag_registry_schedule: {v}")
+
+    if any("SERVED" in e for e in errs):
+        # THE REMEDY, AND THE SEQUENCE (round-3 review MAJOR-1). This clause is RED between the
+        # commit that lands a new descriptor/card and the commit that folds the regenerated
+        # tfvars, and a reader who meets that red needs the remedy in the same message.
+        errs.append(
+            f"dag_registry_schedule: the armed set just read is {_gen.TFVARS.name}, a GENERATED "
+            f"artifact -- if a card named above has a descriptor whose phase produces it, the "
+            f"remedy is to regenerate the tfvars "
+            f"(python scripts/silver/gen_dag_schedules_tfvars.py; --check exits 3 when it would "
+            f"change) and apply it, never to hand-edit the file. SEQUENCE, MEASURED 2026-09-22: "
+            f"HEAD's tfvars read against this tree's descriptors and numbers registry names "
+            f"EXACTLY THREE cards -- gold_board_crush, gold_futures_spreads, "
+            f"silver_psd_attributes -- and the folded tfvars takes the same read to ZERO. That is "
+            f"a property of the SEQUENCE, not of the tip: a checkout that carries this clause but "
+            f"not yet the regenerated tfvars reds here by construction, and the push is not to be "
+            f"split to hide it")
+    return errs
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -6208,7 +6571,20 @@ def main() -> int:
                         # PER-METRIC LAGS (29de55eb): APPENDED AT THE TAIL, the same append-never-insert
                         # law. The orchestrator's owed tuple entry, landed 2026-09-16 after S7b released
                         # this file. A pure read of the numbers registry.
-                        ("metric_lags", check_metric_lags())):
+                        ("metric_lags", check_metric_lags()),
+                        # SAMPLER TOTALITY (pipeline census 2026-09-22, B4/P4): APPENDED AT THE TAIL,
+                        # the same append-never-insert law this roster keeps for itself. It is the
+                        # only entry that reads jobs/ -- the mirror roster and the sampler both live
+                        # there -- and it is a pure config + compiler read; no AWS, no pg, no store.
+                        ("sampler_totality", check_sampler_totality()),
+                        # REGISTRY-VS-SCHEDULE (pipeline census 2026-09-22, P8 + refuter M4):
+                        # APPENDED AT THE TAIL, the same append-never-insert law. Round 1 built
+                        # the rule as `gen_dag_schedules_tfvars.py --lint` and left its only
+                        # caller that flag; this entry is what makes it a lint an author runs.
+                        # It does NOT reach the silver gate -- `_run_config_check` keeps its own
+                        # hardcoded ten and this wave does not touch it (L1 review MAJOR-2) --
+                        # and there is no python CI, so the runners are this CLI and the deck.
+                        ("dag_registry_schedule", check_dag_registry_schedule())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

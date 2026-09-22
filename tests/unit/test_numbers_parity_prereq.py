@@ -522,10 +522,33 @@ def test_the_wap_entry_changes_nothing_for_any_other_table():
         ("silver_futures_eod", "corn_cbot"), ("silver_psd_attributes", "soybeans_cbot"),
         ("silver_nass_annual", "corn_cbot"), ("silver_nass_crop_progress", "corn_cbot"),
     )
-    assert tuple((k, v) for k, v in parity.SAMPLE_COMMODITY.items() if k != _WAP) == pre_existing
-    assert len(parity.SAMPLE_COMMODITY) == len(pre_existing) + 1 == 22
-    # ...and the grid's own dimensions, which every table's leg count is a product of.
+    # THE SEVENTEEN, appended 2026-09-22 by the pipeline census's sampler-totality lane (B4/P4).
+    # THIS LIST IS THE DELIBERATE CHANGE THIS TEST ASKS FOR, and it is written out in full rather
+    # than counted, because the property that matters is not "22 became 39" -- it is that not one of
+    # the twenty-one entries above MOVED. Every value below was proved non-empty against Athena
+    # before it landed (read-only probe, scratchpad/pipeline_fix_0922/l1_sampler_probe.json), and
+    # seven of them are None because their cards have NO commodity column at all.
+    the_seventeen = (
+        ("gold_board_crush", None), ("gold_futures_spreads", "kc_chi"),
+        ("silver_mpoc_stock_comparison", "palm_oil"), ("silver_fgis", "corn_cbot"),
+        ("silver_fnc_colombia_monthly", "arabica_coffee"),
+        ("silver_fnc_colombia_exports_port_type", "arabica_coffee"),
+        ("silver_fnc_colombia_area_department", "arabica_coffee"),
+        ("silver_nass_citrus", "all_orange"), ("silver_mpoc_trade_stats_monthly", None),
+        ("silver_sagis_weekly_deliveries", "maize"), ("silver_ams_cotton_quality", "cotton"),
+        ("silver_food_cpi", None), ("silver_mpoc_exports_by_country", None),
+        ("silver_unica_biweekly_season_history", None), ("silver_unica_corn_ethanol", None),
+        ("silver_unica_monthly_ethanol_sales", None), ("silver_minagro_grain_exports", "corn"),
+    )
+    items = tuple((k, v) for k, v in parity.SAMPLE_COMMODITY.items() if k != _WAP)
+    assert items[:len(pre_existing)] == pre_existing, "a pre-existing sample MOVED"
+    assert items[len(pre_existing):] == the_seventeen
+    assert len(parity.SAMPLE_COMMODITY) == len(pre_existing) + 1 + len(the_seventeen) == 39
+    # ...and the grid's own dimensions, which every table's leg count is a product of. ASOFS stays
+    # the THREE PINNED historical legs: the 2026-09-22 currency change is ADDITIVE and lives in
+    # run_asofs(), precisely so this pin can keep saying that the historical legs did not move.
     assert parity.ASOFS == ["2021-08-15", "2024-06-01", "2026-07-01"]
+    assert parity.run_asofs()[:3] == parity.ASOFS and len(parity.run_asofs()) == 4
     assert parity.AGGS == ["latest", "series"]
     assert parity.WIDE_METRIC_CAP == 4 and parity.FULL_METRIC_MAX == 8
 

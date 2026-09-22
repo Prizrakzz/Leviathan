@@ -140,7 +140,30 @@ def test_the_measured_cost_of_the_width_rule_stays_bounded():
     watch: 660 / 618 = 1.068, further BELOW the 1.25 ceiling than the 1.072 it was cut at, because
     the population grew on the tall side where the width rule does nothing. 618 and 660 are the
     MEASURED values with BOTH lanes in the tree and they are what this test pins -- there is no
-    remaining conditional on the WAP entry, which landed at 5ca2b785 before this pin was cut."""
+    remaining conditional on the WAP entry, which landed at 5ca2b785 before this pin was cut.
+
+    RE-PINNED AGAIN 2026-09-22 (pipeline census B4/P4), 618 -> 894 and 660 -> 972. NOT ONE BYTE OF
+    THE WIDTH RULE MOVED; the SAMPLED POPULATION did, from 22 tables to 39, because seventeen
+    mirrored tables that had no sampler entry at all now have one. A table with no entry contributed
+    ZERO to both sides of this sum, so the arithmetic below is measuring a bigger population of the
+    same rule, which is exactly what it should do.
+
+    The ratio is the thing this test actually guards and it moved 1.068 -> 1.087, still far below
+    the 1.25 ceiling. Eight cards are now capped instead of four -- silver_noaa_oni 4->5,
+    silver_mpob 4->5, silver_cot 4->8 and silver_nass_crop_progress 4->5 as before, joined by
+    silver_fnc_colombia_monthly 4->5, silver_unica_biweekly_season_history 4->5,
+    silver_unica_corn_ethanol 4->6 and silver_unica_monthly_ethanol_sales 4->6. Every one of the
+    four new ones is a WIDE card declaring 5 or 6 metrics, i.e. inside FULL_METRIC_MAX, so the rule
+    compares them IN FULL and the cap drops nothing: the +78 is coverage that did not exist, not a
+    cap loosening.
+
+    ONE THING THIS SUM DELIBERATELY DOES NOT COUNT, so the two costs stay separable. ``legs`` below
+    is ``len(ASOFS) * len(AGGS)`` = 6, the THREE PINNED as-ofs -- and since 2026-09-22 a run also
+    asks a fourth, TODAY (numbers_parity.run_asofs, the B1/P2 currency leg). The real compiled grid
+    is therefore 4/3 of the arithmetic here: measured offline the same day, 657 -> 1,292 compiled
+    legs at ~3.0 s each. That belongs to the currency change and is pinned with it; mixing it in
+    here would make this test unable to say whether a future rise came from the WIDTH RULE or from
+    the number of as-ofs, which is the whole reason the previous two re-pins could be attributed."""
     from leviathan.graphrag.numbers.registry import load_registry
     from jobs.utils.numbers_parity import PG_MIRROR_TABLES
 
@@ -153,8 +176,8 @@ def test_the_measured_cost_of_the_width_rule_stays_bounded():
         head += len(_head_metric_list(ts.shape, ts.metrics))
         new += len(metric_plan(ts.shape, ts.metrics)[0])
     legs = len(ASOFS) * len(AGGS)
-    assert head * legs == 618
-    assert new * legs == 660
+    assert head * legs == 894
+    assert new * legs == 972
     assert new * legs <= head * legs * 1.25, (
         "the width rule must stay a trim, not a doubling; if a card grew, re-measure and decide "
         "deliberately rather than letting the gate's runtime drift")
