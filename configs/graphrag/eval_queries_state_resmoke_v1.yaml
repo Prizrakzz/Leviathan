@@ -7,16 +7,18 @@
 # original turns; the relative-value call made on 3 of 3 pair turns; one event/policy turn; one
 # historical as-of turn; three non-oilseed turns -- cocoa and rice replace sugar and coffee (owner
 # ruling 09-22: the UNICA and FNC families are deferred to after arm A). The analog stanza read on
-# every turn (the selection half bbddd4cc, the render half 00293d1f).
+# every DEEP and MAX turn (owner ruling 09-23, threat-model decision 2: the Scan tier runs no analogs by
+# budget, reasoning_modes.py QUICK analog_k 0; the selection half bbddd4cc, the render half 00293d1f).
 #
 # THE FIVE ORIGINALS ARE COPIED VERBATIM from `eval_queries_state_arm_a_v1.yaml` (same ids, same
 # contracts, same text) so the re-read is comparable turn for turn with the 2026-09-16 answers under
 # `scratchpad/prearm_smoke_0916/answers/`. `rv_soybeans_state_2026_09_07` runs at BOTH deep and max, as
 # it did then (two submits, `--mode deep` / `--mode max`); the three quick pairs run at quick.
 #
-# THE TREATMENT SET is `arm_env_base.yaml`'s `arm_flags`, SIX after 00293d1f: GRAPHRAG_STATE_BOARD,
+# THE TREATMENT SET is `arm_env_base.yaml`'s `arm_flags`, EIGHT after the owner's 09-23 rulings 1 and 6: GRAPHRAG_STATE_BOARD,
 # GRAPHRAG_WATCH_NONOBVIOUS, GRAPHRAG_BRIDGE_QUERY, GRAPHRAG_DESK_REGISTER, GRAPHRAG_REGISTER_LICENCE and
-# GRAPHRAG_STATE_CHAIN (the chain movement, inside STATE_BOARD). Every flag spelt `on`.
+# GRAPHRAG_STATE_CHAIN (the chain movement, inside STATE_BOARD), GRAPHRAG_SUBJECT_RESOLVER (the subject
+# slot's resolver) and GRAPHRAG_VINTAGE_ROLE (the K9-4 role words). Every flag spelt `on`.
 #
 # `asof` on the historical turn is the eval's own field (eval.py reads q.get("asof")): the board, the
 # chain, the analog and the numbers seat all read the world as known at that date -- the point-in-time

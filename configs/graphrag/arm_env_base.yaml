@@ -207,6 +207,14 @@ arm_only:
   # A LEGITIMATE DIVERGENCE, STATED RATHER THAN "FIXED": serving runs STRIP_AUDIT off, both arms run it
   # ON. Strip count is the estate's primary judge-free quality metric and the design names it.
   GRAPHRAG_STRIP_AUDIT: 'on'
+  # OWNER RULING 2026-09-23 (threat-model decision 11, ratified): EVAL CELLS ONLY, both cells. The
+  # writer's evidence block is cached by default (the 09-06 ruling: same-session repeats read it back
+  # in serving), but parallel cold eval turns WRITE it and never read it -- the 09-23 re-smoke wrote
+  # 458,415 cache tokens for $2.865 (60% of the writer seat) and read back 14,791 (cache_read 0 on
+  # 9 of 10 turns). `answer._synth_plain_evidence_on()` ships the block plain under this key. It is
+  # transport metadata: no token the model reads changes, so it rides both cells and is not a
+  # treatment. Serving keeps its default; this key is never copied to the taskdef.
+  GRAPHRAG_SYNTH_PLAIN_EVIDENCE: 'on'
   # ORCHESTRATOR DECISION A2, 2026-09-16 (coherence audit OS-A12) -- A DISPATCH WIDTH, DECLARED AS
   # RIDING **BOTH** CELLS. It was classified NOWHERE until today: not here, not in `copy_from_taskdef`,
   # not in `never_copy`, not in `container_env_on_jobdef` -- and all three guards are blind to a key
@@ -318,6 +326,12 @@ arm_flags:
   - GRAPHRAG_DESK_REGISTER         # ) HELD until pre-arm gate (i)(a) and (i)(b) close --
   - GRAPHRAG_REGISTER_LICENCE      # ) see ARM_A_HANDOFF.md; declared here, lit per cell
   - GRAPHRAG_STATE_CHAIN           # the chain movement (d9d86224..00293d1f), read INSIDE STATE_BOARD; lit per cell
+  # OWNER RULINGS 2026-09-23 (the re-smoke fix round, threat-model decisions 1 and 6, ratified):
+  - GRAPHRAG_SUBJECT_RESOLVER      # the SUBJECT render slot's resolver (state/subject.py). Dark, slot_subject was 0 on
+                                   # 10/10 re-smoke turns incl. the tariff turn built to exercise it; token `sr`
+  - GRAPHRAG_VINTAGE_ROLE          # K9-4 projection / estimate / actual role words (numbers/cascade.py, citations.py,
+                                   # answer.py). The fix existed dark while the re-smoke printed "settled ... survey
+                                   # actual" on projection rows (rice, the 2024 as-of); token `vr`
 
 # Serving does NOT set these; the JOBDEF bakes them and they must stay. Listed so a jobdef repin that
 # drops one is visible here rather than at a container that cannot import its own package.
