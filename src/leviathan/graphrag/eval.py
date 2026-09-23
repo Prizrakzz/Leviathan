@@ -2214,6 +2214,33 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
     # bridged. Arming a $30-42 A/B whose treatment cannot report whether its treatment applied is the
     # defect the pre-arm seams commit was written to close, standing in its own subject matter.
     _bq = (out.get("trace") or {}).get("bridge_query")
+    # THE CHAIN LINTS' CENSUS (lane tracekeys, 2026-09-22), ON THE SAME SPLAT IDIOM AS `bridge_query`
+    # DIRECTLY ABOVE, AND THE CHOICE IS THE ONE THIS FILE ALREADY STATES IN ITS OWN WORDS: "use the
+    # registry for a key the estate should always carry; use a splat when a flag-off artifact must stay
+    # byte-identical" (the `numbers_budget` note a dozen lines up). Both halves of that sentence were
+    # measured before this line was written. Registering `chain_lints` in `tracekeys.TRACE_RECORD_KEYS`
+    # makes the flag-off record 210 columns carrying `"chain_lints": null` on every control row of every
+    # deck forever, and -- because the registry tuple IS the column order -- re-anchors 60 negative-index
+    # tail pins across EIGHT test files (`test_dmw_eval_instruments` 17, `test_dhp_handle_grammar` 13,
+    # `test_cascade_walk` 12, `test_dhp_binding_verifier` 6, `test_dhp_episode_select` 5,
+    # `test_extreme_locator` 3, `test_tracekeys` 3, `test_orchestrator_telemetry` 1). The splat leaves the
+    # flag-off record at HEAD's 209 columns in HEAD's exact order and puts a column only on the rows that
+    # have the thing. BY SYMBOL, NEVER BY LINE (round-2 review MAJOR-1):
+    # `tests/unit/test_tracekeys.py::test_a_registered_key_is_present_with_null_and_a_splat_is_absent`
+    # pins both idioms and now names this key on the SPLAT side.
+    #
+    # THE DEFECT IT CLOSES is the C2/U3 silent-lift class, standing at HEAD: `answer._chain_lints` stamps
+    # an EIGHT-key census on `sg.trace["chain_lints"]` (BY SYMBOL: `answer._answer_l2`'s `if _state_chain:`
+    # gate), `_answer_l2` spreads `**sg.trace` wholesale into `out["trace"]`, and eval named the key
+    # NOWHERE -- `_per_answer_record` returned the SAME 209 columns with the identical key list whether the
+    # trace carried the full census or nothing at all, so five counters an arm was built to read reached no
+    # artifact column and no report line.
+    #
+    # THE KEY IS L2-ONLY AND ITS ABSENCE HAS TWO MEANINGS. `answer.answer` -- the GRAPHRAG_PLANNER=onehop
+    # rollback body -- never calls the pass (it builds no board), so a one-hop row carries no column for a
+    # reason that has nothing to do with the chain flag. Only `trace['planner']` separates them, and
+    # `state_report` says so in its own words rather than printing a zero.
+    _cl = (out.get("trace") or {}).get("chain_lints")
     # THE JUDGE's OWN USAGE (lane F): `judge()` binds it under GRAPHRAG_COST_CENSUS and hangs it on the
     # returned scores under a PRIVATE `_usage` key -- the `answer._pop_usage` pop-tag idiom.
     # It is NOT a trace key: the judge is not part of the turn, it is what MEASURING the turn costs.
@@ -2341,6 +2368,17 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # The judge's own usage, absent unless GRAPHRAG_COST_CENSUS bound it. A MEASUREMENT cost,
             # carried beside the turn's seats and never folded into `turn_cost_usd`.
             **({"judge_usage": _judge_usage} if isinstance(_judge_usage, dict) else {}),
+            # THE CHAIN LINTS' EIGHT-KEY CENSUS, ON THE TURN THAT STAMPED ONE AND NOWHERE ELSE (see the
+            # `_cl` note above for why this is a splat and not a registry row). LIFTED VERBATIM: the
+            # producer's own dict, in the producer's own key order -- `outcome` FIRST, then `sentences`
+            # and `corrected`, then the five `state.lint.CHAIN_LINT_COUNTERS`. A reader must take
+            # `outcome` before it reads any counter as a complete census: the vocabulary is four words
+            # (`ok` | `bad_shape` | `no_chain` | `lint_failed:<Exc>`) and the last one CAN arrive with
+            # partial counters, since a counter raised before the exception survives the handler.
+            # ABSENT, NEVER ZERO and never `{}`: the producer stamps the key only when something was read
+            # or done, so a chain-lit turn whose prose named no hop carries no column at all -- and on
+            # the five 2026-09-16 banked bodies that is 7 of 15 tier-cells, not an edge case.
+            **({"chain_lints": _cl} if _cl is not None else {}),
             **{col: (out.get("intent_decision") or {}).get(dk) for dk, col in tk.DECISION_RECORD_KEYS},
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
@@ -3853,6 +3891,9 @@ def state_report(rows: list[dict]) -> list[str]:
     dregs: list[dict] = []
     bqs: list[dict] = []
     wseams: list[dict] = []
+    clints: list[dict] = []
+    cl_malformed = 0
+    onehop = 0
     for r in rows:
         out = r.get("out") if isinstance(r.get("out"), dict) else {}
         tr = out.get("trace") if isinstance(out.get("trace"), dict) else {}
@@ -3889,7 +3930,46 @@ def state_report(rows: list[dict]) -> list[str]:
         ws = tr.get("writer_seam")
         if isinstance(ws, dict) and ws:
             wseams.append(ws)
-    if not (covs or declined or dregs or bqs or wseams):
+        # LANE tracekeys' CHAIN LINTS, same read, same absent-is-never-zero rule -- and the same R5 MINOR
+        # guard the board key carries one screen up: a truthy NON-DICT is COUNTED and named below rather
+        # than raised, because `report()` runs once per deck after a paid arm and a raise here loses the
+        # whole artifact rather than one row. The key is stamped by `answer._chain_lints`'s caller only
+        # when the pass READ OR DID something, so an absent key is never a zero and a turn that served the
+        # one-hop rollback body never ran the pass at all.
+        cl = tr.get("chain_lints")
+        if isinstance(cl, dict) and cl:
+            clints.append(cl)
+        elif cl is not None and not isinstance(cl, dict):
+            cl_malformed += 1
+        # THE PLANNER THAT SERVED THE TURN, counted ONLY so the chain block can name the population its own
+        # absence belongs to. `_chain_lints` is seated on the L2 body alone (`answer.answer` builds no
+        # board and never calls it), so a `GRAPHRAG_PLANNER=onehop` row carries no column for a reason that
+        # is NOT "the chain flag was dark".
+        #
+        # IT READS THE TWO KEYS THE ONE-HOP BODY'S OWN RETURN WRITES, AND `trace["planner"]` IS NOT ONE
+        # OF THEM (round-2 review MAJOR-1). That key has exactly ONE producer in `answer.py` and it is
+        # the CONSTANT `"planner": "l2"` inside `_answer_l2`; nothing in this estate ever writes
+        # `"onehop"` there, so round 1's `== "onehop"` was a figure no deck could make non-zero --
+        # measured `0 of 10` on a deck whose nine one-hop rows were taken from the shipped producer.
+        # Both keys below are minted by the SAME dict literal, the one-hop body's single return:
+        #   * `state_board.legs.board.reason == "lane_off:onehop"` -- EXACT, one producer
+        #     (`answer._state_board_lane_stamp`), and the ONLY place that word is written. It is
+        #     present only when GRAPHRAG_STATE_BOARD was LIT: the stamp returns `{}` with the flag
+        #     dark, so on a board-dark deck it separates nothing and cannot carry this figure alone.
+        #   * `regimes` -- the one-hop trace's own key, stamped unconditionally on that return and by
+        #     NOTHING else in `src/leviathan` (`_answer_l2` stamps `fired_regimes` instead, which is
+        #     why `directional_claim_backed` already reads the pair that way, one screen-full up).
+        #     PRESENCE, never truth: the value is a list and an EMPTY one is still a one-hop turn.
+        # `tr.get("planner") != "l2"` IS NOT USED, and refusing it is the point: `answer()`'s
+        # empty-route return stamps `anchor_none` BEFORE the planner branch, on EITHER planner, and
+        # carries no `planner` key -- so that read files an L2 turn under the rollback and prints a
+        # figure whose population the row is not a member of. Measured on a 4-row deck: 1 of 4 true,
+        # `!= "l2"` prints 2 of 4.
+        _bleg = sb.get("legs") if isinstance(sb.get("legs"), dict) else {}
+        _bleg = _bleg.get("board") if isinstance(_bleg.get("board"), dict) else {}
+        if str(_bleg.get("reason") or "") == "lane_off:onehop" or "regimes" in tr:
+            onehop += 1
+    if not (covs or declined or dregs or bqs or wseams or clints or cl_malformed):
         return []
     n = len(rows) or 1
     # THE PURE LINT, PER ROW, ON BOTH SIDES OF THE ARM (ruling R1). `lint_ctl` = rows whose trace
@@ -3922,10 +4002,16 @@ def state_report(rows: list[dict]) -> list[str]:
     # query's receipt with no board and no desk census at all (the bridge has its own flag and its own
     # producer), and a board- or register-titled header over it would be "absent is never zero" read
     # from the other end -- a reader would look for a board line that no row could produce.
+    # LANE tracekeys (2026-09-22) adds the FOURTH shape for the SAME R5 reason, and it is a real deck
+    # rather than a hypothetical one: `GRAPHRAG_STATE_CHAIN` is its own flag, read once at
+    # `answer._state_chain_on`, and a chain-lit / board-dark turn stamps `chain_lints` with no
+    # `state_board`, no `desk_register` and no `bridge_query` anywhere on the row. Filing those counters
+    # under "State board use" would promise a board line no row here could produce.
     L = [("## State board use (S7 coverage + S7b watch draw + desk register)" if boards
           else "## Desk register (S7b: the mandate's lint + its one bounded rewrite)" if dregs
           else "## Bridge query (V2 retrieval: the path writes the query)" if bqs
-          else "## Writer seam (the prose contract the writer's own rows corrected)"), ""]
+          else "## Writer seam (the prose contract the writer's own rows corrected)" if wseams
+          else "## Chain lints (S8: the corrections the chain pass made to the writer's own sentences)"), ""]
     if boards:
         L.append(f"- board turns: **{boards}/{n}** (rows whose trace carries `state_board`); of those, "
                  f"{len(covs)} rendered rows a coverage instrument could read")
@@ -4131,6 +4217,116 @@ def state_report(rows: list[dict]) -> list[str]:
                      f"dated window {_ws('watch_no_window')}, no falsifier "
                      f"{_ws('watch_no_falsifier')} -- the last two are STAMPED, never repaired -- and "
                      f"**over the tier's own 3/5/7 ceiling: {_ws('watch_over_ceiling')}**")
+    # -- THE CHAIN LINTS (lane tracekeys, 2026-09-22): S8's THREE CORRECTIONS, AS COUNTED FACTS --------
+    # A CORRECTION COUNT IS A DEFECT COUNT, the writer-seam block's sign convention one screen up, and it
+    # is stated here too: `corrected` is the number of the writer's OWN sentences that named a rendered
+    # hop and printed no figure for it, so a cell with a LOWER number wrote a better page unaided.
+    #
+    # `outcome` IS READ FIRST AND IT IS A CLOSED SET OF FOUR WORDS -- `ok` | `bad_shape` | `no_chain` |
+    # `lint_failed:<Exc>`. The first three can never reach an artifact (the caller stamps the key only
+    # when a counter moved, and all three return with every counter at 0), but `lint_failed` CAN: the
+    # pass counts as it goes, so a counter raised before the exception survives. A panel that pooled the
+    # counters without printing the outcome would report a HALF-RUN pass's partial census as a complete
+    # one, so the outcome Counter is the block's first line and the clean-run denominator is stated apart.
+    #
+    # THE DENOMINATOR IS "TURNS THAT STAMPED ONE", the bridge line's own wording, and on this instrument
+    # that phrase is load-bearing rather than idiomatic: over the five 2026-09-16 banked bodies at three
+    # tiers, 7 of 15 cells stamp NOTHING while the chain flag is lit and a board is rendered -- the prose
+    # simply named no hop the pass could act on. "No chain_lints column" is therefore not "the flag was
+    # off", and `n` (every row of the deck) would be the wrong bottom number.
+    #
+    # THE COUNTER NAMES ARE READ OFF `state.lint.CHAIN_LINT_COUNTERS` AND NOT SPELLED HERE -- THE
+    # FIGURES AND THE GLOSS BOTH, which round 1 got half right and round 2 finished. That
+    # tuple is the roster the build lints append-only (`_check_chain_lints_append_only`), and
+    # `tests/unit/test_state_lint.py` reads it against `answer._chain_lints`'s own AST -- so a sixth
+    # counter reaches this report the day it reaches the producer, and a renamed one can never leave a
+    # silently-zero column behind. `sentences` and `corrected` ride the same census and are NOT in that
+    # tuple; they are the pass's own volume and repair counts, printed on their own line.
+    if clints or cl_malformed:
+        # `collections` is already bound at the top of this function; only the ROSTER is new here, and it
+        # is imported locally for the reason every import in this function is -- `eval.py` is loaded by
+        # tooling that must not drag `state/` in, and the gate above means a deck with no census never
+        # pays for it.
+        from leviathan.graphrag.state import lint as _lint  # noqa: PLC0415
+        L += ["",
+              f"- **CHAIN LINTS: ran and stamped on {len(clints)} of {n} turn(s)**; outcomes "
+              f"{dict(collections.Counter(str(c.get('outcome') or '') for c in clints))}. READ THE OUTCOME "
+              f"BEFORE ANY COUNTER: `ok` is a complete census, `lint_failed:<Exc>` carries only the "
+              f"counters raised before the exception, and `no_chain` / `bad_shape` never reach a row"]
+        if cl_malformed:
+            L.append(f"- **rows whose `chain_lints` trace is not a mapping: {cl_malformed}** -- counted "
+                     f"and named rather than scored, the `state_board` rule above: the shape carries no "
+                     f"census this panel can read")
+        _clean = [c for c in clints if str(c.get("outcome") or "") == "ok"]
+        if _clean:
+            _cs = lambda k: sum(int(c.get(k) or 0) for c in _clean)      # noqa: E731
+            L.append(f"- over the {len(_clean)} turn(s) whose census is COMPLETE (`outcome` `ok`): "
+                     f"**{_cs('corrected')} of {_cs('sentences')} chain sentence(s) corrected** -- a "
+                     f"DEFECT count, not a feature count: each one named a rendered hop and printed no "
+                     f"figure the reader could act on until this pass appended the served reading at the "
+                     f"address that minted it")
+            # THE GLOSS IS BUILT FROM THE ROSTER TOO, AND THAT IS ROUND 2's REPAIR (review MAJOR-2).
+            # This line's own words were "read off the roster and never spelled here" -- and the next
+            # clause then spelled THREE of the five by hand (measured: roster elements [0], [3] and
+            # [4] as literals in this file, 3 of 5). Not a prose slip: with the gloss hand-spelled, a
+            # RENAME leaves one line printing the roster's NEW name in the figure and its OLD name in
+            # the gloss beside it -- reproduced by monkeypatching the shipped tuple's first element
+            # to `chain_hops_RENAMED`, which printed that name in the figure and glossed the RETIRED
+            # one in the same sentence, the exact failure the comment above claims is impossible.
+            # (The retired name is not written out even here: the pin below is over this whole FILE,
+            # comments included, and an example is not worth an exception to it.) The glosses ride a
+            # tuple
+            # POSITIONALLY ALIGNED with the roster and are zipped against it: every name printed here
+            # comes from `state.lint` and NO counter is spelled anywhere in `eval.py`
+            # (`tests/unit/test_tracekeys.py` asserts that over this file's source). A rename carries
+            # its gloss with it; a SIXTH counter arrives UNGLOSSED rather than mis-glossed, because
+            # zip stops at the shorter side while the FIGURES are a separate join over the roster
+            # itself. The alignment is the one coupling this line cannot read out of `state/`, so
+            # `tests/unit/test_eval.py` pins each gloss to the counter it belongs to BY NAME -- a
+            # deck may spell what the report may not, and a reordered roster goes red there.
+            _gloss = ("is NOT a defect (a hop the board read no series for is a hop whose declared "
+                      "direction is all there is -- WORDS ARE FREE)",
+                      "",
+                      "",
+                      "counts figures REFUSED because the sentence named another market of the page",
+                      "counts corrections WITHHELD because an instrument could not be read -- a "
+                      "fail-closed withholding that is COUNTED")
+            _named = "; ".join(f"`{k}` {g}" for k, g in zip(_lint.CHAIN_LINT_COUNTERS, _gloss) if g)
+            L.append("- " + " | ".join(f"`{k}` {_cs(k)}" for k in _lint.CHAIN_LINT_COUNTERS)
+                     + f" -- the {len(_lint.CHAIN_LINT_COUNTERS)} `state.lint.CHAIN_LINT_COUNTERS`, "
+                       f"read off the roster: every name on this line, in the figures AND in the "
+                       f"gloss, is an element of that tuple, so a rename cannot orphan one. "
+                     + _named)
+        _bad = [c for c in clints if str(c.get("outcome") or "") != "ok"]
+        if _bad:
+            L.append(f"- **{len(_bad)} turn(s) did NOT complete the pass** "
+                     f"({dict(collections.Counter(str(c.get('outcome') or '') for c in _bad))}); their counters "
+                     f"are PARTIAL by construction and are excluded from the two lines above, which "
+                     f"report only the complete censuses")
+        L.append("- THE POPULATIONS ARE TWO AND ARE NEVER SUMMED. These counters are produced by the "
+                 "correcting pass over the WRITER's own sentences; `chain_rendered` / "
+                 "`chain_referenced` in the board-coverage line are produced by `render.board_coverage` "
+                 "over the block's own chain ROWS (how many rendered chains the prose reached). One "
+                 "census name over two populations is the failure this estate keeps paying for, so "
+                 "`chain_referenced` is spelled where it lives and may not enter the roster above")
+        L.append(f"- ABSENCE HAS TWO MEANINGS AND THIS PANEL WILL NOT COLLAPSE THEM. The pass is seated "
+                 f"on the L2 body alone -- `answer.answer`, the `GRAPHRAG_PLANNER=onehop` rollback, "
+                 f"builds no board and never calls it -- so a row with no column either ran with the "
+                 f"chain flag dark or served the one-hop body. Rows on the one-hop rollback in this "
+                 f"deck: {onehop} of {n}, counted off the TWO keys that body's own return writes: its "
+                 f"`lane_off:onehop` lane stamp (`state_board.legs.board.reason` -- exact, one "
+                 f"producer, and present ONLY when GRAPHRAG_STATE_BOARD was lit, because the stamp is "
+                 f"`{{}}` with the flag dark) and its `regimes` trace key, which the L2 body never "
+                 f"writes (it writes `fired_regimes`). NOT `trace['planner']`: that key's one producer "
+                 f"is the constant `l2`, so a test for `onehop` there can never be true on any deck, "
+                 f"and a test for NOT-`l2` would file the empty-route `anchor_none` return -- taken by "
+                 f"EITHER planner and carrying no `planner` key -- under the rollback. That same return "
+                 f"is the one one-hop turn neither key can see, so this figure is a FLOOR, and the "
+                 f"turn it misses is one an L2 row could equally have produced -- which is why it is "
+                 f"left out rather than guessed at. A row carrying neither key is an unstamped row "
+                 f"and never a counted zero. A turn whose block carried chains the writer never "
+                 f"narrated ALSO stamps nothing, so the stamped-census count at the head of this block "
+                 f"is turns that stamped a census and never turns that had a chain")
     return L
 
 def spend_report(rows: list[dict]) -> list[str]:

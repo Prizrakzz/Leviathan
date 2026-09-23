@@ -115,9 +115,17 @@ def test_a_registered_key_is_present_with_null_and_a_splat_is_absent():
     for k in ("composition_census", "state_board", "numbers_usage", "plan_usage",
               "desk_register", "writer_seam"):
         assert k in off and off[k] is None, k                    # REGISTERED -> present-with-null
+    # LANE tracekeys (2026-09-22) adds `chain_lints` to the SPLAT side, and it is named here rather than
+    # in `test_every_known_mint_site_is_registered` on purpose: that test asserts REGISTRATION, which is
+    # the option this build measured and refused. `answer._chain_lints` stamps an eight-key census on
+    # `sg.trace["chain_lints"]` and `_answer_l2` spreads the trace wholesale, so the key is a real mint
+    # site -- it simply takes the splat, because registering it puts `"chain_lints": null` on every
+    # control row of every deck forever AND re-anchors 60 negative-index tail pins across eight files,
+    # while the splat leaves the flag-off record at its 209 columns in their existing order.
     for k in ("bridge_query", "numbers_budget", "turn_cost_total_usd", "turn_cost_by_seat_usd",
-              "judge_usage"):
+              "judge_usage", "chain_lints"):
         assert k not in off, k                                   # SPLAT -> absent
+    assert "chain_lints" not in tk.TRACE_RECORD_KEYS              # ...and it is genuinely unregistered
     # ...and a registered key LIFTS VERBATIM, by its own name, with no rename hook anywhere
     on = ev._per_answer_record(_turn({"state_board": {"legs": {}}, "plan_usage": {"model": "m"}}),
                                "single")
@@ -193,3 +201,49 @@ def test_the_one_census_grammar_lives_here_and_is_strict(monkeypatch):
     # ...and the leaf law survives it: the grammar reads the environment with the standard library and
     # imports nothing from this package, which `test_the_registry_is_a_leaf_module` above re-asserts.
     assert "\nimport os\n" in _SRC
+
+
+# ── the OTHER roster eval.py reads, and the claim a build made about it ───────────────────────────
+def test_no_chain_lint_counter_name_is_spelled_anywhere_in_eval_py():
+    """LANE tracekeys ROUND 2 (2026-09-23) -- A SELF-REFUTATION ITEM TURNED INTO AN ASSERTION.
+
+    The round-1 build report claimed "counter names SPELLED in eval.py: [] (none)" as one of its own
+    refutation numbers. The review MEASURED THREE (`CHAIN_LINT_COUNTERS[0]`, `[3]` and `[4]`, as
+    literals inside the very line whose words were "read off the roster and never spelled here"). A
+    number in a build report that nobody can re-run is a number that drifts the day after it is
+    written, so it lives here now and the build's claim is the deck's.
+
+    WHY IT BELONGS IN THIS DECK: `chain_lints` is the SPLAT half of this file's own subject -- the
+    registry decides whether a key is a column, and this roster decides whether a counter is a FIGURE.
+    Both are "a name read off a producer, never re-spelled by a consumer", and this one has no other
+    home: `state/lint.py` owns the tuple and cannot see `eval.py`'s prose.
+
+    THE PIN CANNOT PASS BY DELETION. A file with no chain panel at all would spell no counter either,
+    so the roster READ is asserted in the same breath, and the panel is run to prove every name still
+    reaches the page."""
+    from leviathan.graphrag.state import lint as LINT
+    assert len(LINT.CHAIN_LINT_COUNTERS) >= 5
+    for c in LINT.CHAIN_LINT_COUNTERS:
+        assert c not in _EVAL_SRC, c                  # not in code, not in a comment, not in prose
+    assert "_lint.CHAIN_LINT_COUNTERS" in _EVAL_SRC   # ...because the ROSTER is what it reads instead
+    census = {"outcome": "ok", "sentences": 2, "corrected": 1}
+    census.update({c: i + 1 for i, c in enumerate(LINT.CHAIN_LINT_COUNTERS)})
+    line = [x for x in ev.state_report([{"out": {"trace": {"chain_lints": census}}}])
+            if ("`%s`" % LINT.CHAIN_LINT_COUNTERS[0]) in x]
+    assert len(line) == 1
+    for i, c in enumerate(LINT.CHAIN_LINT_COUNTERS):
+        assert ("`%s` %d" % (c, i + 1)) in line[0], c
+    # AND THE DEAD READ IS GONE WITH IT: the one-hop figure counted a `trace["planner"]` value no
+    # producer writes, so it could not leave 0 on any deck. The panel now reads the lane stamp's own
+    # reason and the one-hop body's `regimes` key.
+    #
+    # PINNED ON THE AST AND NOT ON THE TEXT, and that is the whole point of the pin: a text scan
+    # cannot tell the KEY `"planner"` from the panel's own sentence NAMING the key it deliberately
+    # does not read, and the prose has to stay free to say which field was dead and why. A bare
+    # `"planner"` constant inside this function is a lookup; the same word inside a sentence is not.
+    import ast
+    fn = next(x for x in ast.walk(ast.parse(_EVAL_SRC))
+              if isinstance(x, ast.FunctionDef) and x.name == "state_report")
+    consts = {c.value for c in ast.walk(fn) if isinstance(c, ast.Constant) and isinstance(c.value, str)}
+    assert "planner" not in consts                   # no row in this panel is keyed on that field
+    assert "lane_off:onehop" in consts and "regimes" in consts   # ...these two are what it reads

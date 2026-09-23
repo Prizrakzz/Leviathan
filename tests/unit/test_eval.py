@@ -1001,6 +1001,145 @@ def test_state_report_prints_no_desk_register_lines_on_a_board_only_deck():
     assert "shipped lint hits" not in body and "mandate" not in body.lower() and "51" not in body
 
 
+# ── LANE tracekeys ROUND 2 (2026-09-23): THE CHAIN PANEL'S TWO FIGURES, AGAINST THEIR PRODUCERS ────
+# Round 1 shipped this panel with a figure that counted `trace["planner"] == "onehop"` -- a value with
+# NO producer anywhere in the estate. `answer.py` carries exactly ONE `"planner"` literal and it is the
+# CONSTANT `"planner": "l2"` inside `_answer_l2`, so the count could never leave 0 on any deck: the
+# review's own 10-row deck, nine of whose rows were the one-hop body's trace taken from the shipped
+# stamp, printed "0 of 10". A printed figure whose population no row can join is a backing failure,
+# and these two pins are what make it one the build cannot re-ship.
+_CHAIN_CENSUS = {"outcome": "ok", "sentences": 3, "corrected": 2, "chain_hops_unfigured": 1,
+                 "chain_hops_skipped": 4, "chain_unranked_narrated": 1, "chain_hops_ambiguous": 2,
+                 "chain_fence_closed": 3}
+#: An L2 row: the planner constant the ONE producer writes, plus a census, so the block renders.
+_L2_CHAIN_ROW = {"out": {"trace": {"planner": "l2", "chain_lints": dict(_CHAIN_CENSUS)}}}
+
+
+def _onehop_row(monkeypatch, lit: bool) -> dict:
+    """The one-hop body's own trace, from the SHIPPED producer at the flag state asked for.
+
+    `answer.answer`'s single return splices `_state_board_lane_stamp("lane_off:onehop", mode)` and
+    `"regimes": regimes` into ONE dict literal, so a real one-hop row carries both -- and with
+    GRAPHRAG_STATE_BOARD dark the stamp is `{}` and `regimes` is all there is."""
+    from leviathan.graphrag import answer as gan
+    if lit:
+        monkeypatch.setenv("GRAPHRAG_STATE_BOARD", "on")
+    else:
+        monkeypatch.delenv("GRAPHRAG_STATE_BOARD", raising=False)
+    return {"out": {"trace": {**gan._state_board_lane_stamp("lane_off:onehop", "deep"),
+                              "regimes": []}}}
+
+
+def _onehop_line(rows: list[dict]) -> str:
+    L = [x for x in gev.state_report(rows) if "one-hop rollback in this deck" in x]
+    assert len(L) == 1, L
+    return L[0]
+
+
+def test_the_one_hop_figure_is_counted_off_keys_the_one_hop_body_actually_writes(monkeypatch):
+    """ROUND-2 RULING B5. THE FIGURE READS THE DISCRIMINATOR THAT EXISTS, IN BOTH FLAG STATES.
+
+    THE DEFECT, REPRODUCED ON THE SHIPPED PRODUCER: `trace["planner"]` has one producer in
+    `answer.py` and it is the constant `"l2"`, so `== "onehop"` was structurally dead and this deck's
+    ten rows printed "0 of 10" while nine of them were one-hop rows taken from the stamp itself.
+
+    THE OPPOSITE ERROR IS PINNED IN THE SAME TEST, because the obvious repair is worse than the
+    defect: `trace["planner"] != "l2"` counts `answer()`'s empty-route `anchor_none` return, which is
+    taken BEFORE the planner branch and therefore by an L2 turn just as readily -- 2 of 4 on a deck
+    whose truth is 1 of 4. What the panel counts instead are the two keys the one-hop body's OWN
+    single return writes: the `lane_off:onehop` lane stamp (exact, one producer, but present only
+    while GRAPHRAG_STATE_BOARD is lit) and its `regimes` trace key (which `_answer_l2` never writes --
+    it writes `fired_regimes` -- and which survives a dark board). BOTH flag states are exercised
+    because either key alone leaves a real deck unreadable."""
+    import pathlib as _pl
+
+    from leviathan.graphrag import answer as gan
+    for lit in (True, False):
+        rows = [_L2_CHAIN_ROW] + [_onehop_row(monkeypatch, lit) for _ in range(9)]
+        line = _onehop_line(rows)
+        assert "one-hop rollback in this deck: 9 of 10" in line, (lit, line)
+        # ...and the sentence that framed the dead figure is gone with it
+        assert "only `trace['planner']` separates" not in line
+    # THE OPPOSITE ERROR: an `anchor_none` row is NOT a one-hop row, on either planner or either flag.
+    for lit in (True, False):
+        if lit:
+            monkeypatch.setenv("GRAPHRAG_STATE_BOARD", "on")
+        else:
+            monkeypatch.delenv("GRAPHRAG_STATE_BOARD", raising=False)
+        anchor = {"out": {"trace": {"routed": [],
+                                    **gan._state_board_lane_stamp("anchor_none", "deep")}}}
+        rows = [_L2_CHAIN_ROW, _L2_CHAIN_ROW, anchor, _onehop_row(monkeypatch, lit)]
+        line = _onehop_line(rows)
+        assert "one-hop rollback in this deck: 1 of 4" in line, (lit, line)
+        assert "in this deck: 2 of 4" not in line                 # what `!= "l2"` would have printed
+    # AND THE BACKING IS THE PRODUCER CENSUS, not this deck's own fixtures: nothing in `answer.py`
+    # writes "onehop" into that key, so a row that carried one would be a row no seat can mint.
+    _asrc = _pl.Path(gan.__file__).read_text(encoding="utf-8")
+    assert _asrc.count('"planner"') == 1 and '"planner": "l2"' in _asrc
+    assert '"planner": "onehop"' not in _asrc
+    fabricated = [_L2_CHAIN_ROW, {"out": {"trace": {"planner": "onehop"}}}]
+    assert "one-hop rollback in this deck: 0 of 2" in _onehop_line(fabricated)
+    # A MALFORMED BOARD STILL CANNOT RAISE HERE -- `report()` runs once per deck after a paid arm.
+    bent = [_L2_CHAIN_ROW, {"out": {"trace": {"state_board": {"legs": "not a dict"}}}},
+            {"out": {"trace": {"state_board": "pg_not_live"}}}]
+    assert "one-hop rollback in this deck: 0 of 3" in _onehop_line(bent)
+
+
+def test_the_chain_counter_gloss_is_built_from_the_roster_and_cannot_outlive_a_rename(monkeypatch):
+    """ROUND-2 RULING B6. THE GLOSS IS THE ROSTER'S TOO, AND THE DECK SPELLS WHAT THE REPORT MAY NOT.
+
+    Round 1's line said the five counters were "read off the roster and never spelled here" and then
+    spelled three of them in its next clause -- measured, 3 of 5 as literals in `eval.py`. The FIGURES
+    were roster-read; the GLOSS was not, so a rename printed the NEW name in the figure and the OLD
+    name in the gloss on one line, which is precisely the failure the comment above it calls
+    impossible. Reproduced here by monkeypatching the shipped tuple.
+
+    THE ALIGNMENT IS WHAT A DECK MUST HOLD. The gloss text rides a tuple zipped against
+    `CHAIN_LINT_COUNTERS`, so a REORDERED roster would attach each sentence to the wrong counter and
+    no source rule in `eval.py` could see it. This test pins each gloss to its counter BY NAME -- the
+    one place the names may be spelled -- so a reorder goes red here."""
+    from leviathan.graphrag.state import lint as LINT
+    line = [x for x in gev.state_report([{"out": {"trace": {"chain_lints": dict(_CHAIN_CENSUS)}}}])
+            if ("`%s`" % LINT.CHAIN_LINT_COUNTERS[0]) in x]
+    assert len(line) == 1
+    body = line[0]
+    for name, tot in (("chain_hops_unfigured", 1), ("chain_hops_skipped", 4),
+                      ("chain_unranked_narrated", 1), ("chain_hops_ambiguous", 2),
+                      ("chain_fence_closed", 3)):
+        assert ("`%s` %d" % (name, tot)) in body, (name, body)
+    # EACH GLOSS AGAINST THE COUNTER IT BELONGS TO -- the reorder tripwire
+    assert "`chain_hops_unfigured` is NOT a defect" in body
+    assert "`chain_hops_ambiguous` counts figures REFUSED" in body
+    assert "`chain_fence_closed` counts corrections WITHHELD" in body
+    # NO ORPHAN NAME: every counter-shaped token on the line is an element of the shipped roster
+    import re as _re
+    toks = set(_re.findall(r"`(chain_[a-z_]+)`", body))
+    assert toks and toks <= set(LINT.CHAIN_LINT_COUNTERS), toks
+    # ...and the claim the line used to make about itself, which was false, is not made any more
+    assert "never spelled here" not in body
+
+    # THE RENAME, ON THE SHIPPED TUPLE: the gloss follows the name and the retired one is GONE.
+    monkeypatch.setattr(LINT, "CHAIN_LINT_COUNTERS",
+                        ("chain_hops_renamed",) + tuple(LINT.CHAIN_LINT_COUNTERS[1:]))
+    renamed = [x for x in gev.state_report(
+        [{"out": {"trace": {"chain_lints": {**_CHAIN_CENSUS, "chain_hops_renamed": 7}}}}])
+        if "chain_hops_renamed" in x]
+    assert len(renamed) == 1
+    assert "`chain_hops_renamed` 7" in renamed[0]                 # the FIGURE moved with the roster
+    assert "`chain_hops_renamed` is NOT a defect" in renamed[0]   # ...and so did its GLOSS
+    assert "chain_hops_unfigured" not in renamed[0]               # the retired name is not printed
+    # A SIXTH COUNTER ARRIVES UNGLOSSED RATHER THAN MIS-GLOSSED, and its FIGURE still prints.
+    monkeypatch.setattr(LINT, "CHAIN_LINT_COUNTERS",
+                        tuple(LINT.CHAIN_LINT_COUNTERS) + ("chain_sixth_counter",))
+    sixth = [x for x in gev.state_report(
+        [{"out": {"trace": {"chain_lints": {**_CHAIN_CENSUS, "chain_hops_renamed": 7,
+                                            "chain_sixth_counter": 5}}}}])
+        if "chain_sixth_counter" in x]
+    assert len(sixth) == 1 and "`chain_sixth_counter` 5" in sixth[0]
+    assert "`chain_sixth_counter` is NOT" not in sixth[0]
+    assert "the 6 `state.lint.CHAIN_LINT_COUNTERS`" in sixth[0]   # the COUNT is read, never spelled
+
+
 # ── LANE F (2026-09-17): THE COST CENSUS AND THE SPEND PANEL ──────────────────────────────────────
 # THE DEFECT, MEASURED (COST_LATENCY.md sec 0, the 2026-09-16 in-VPC pre-arm smoke): `turn_cost_usd`
 # is the estate's ONE money column and it prices ONE of six Anthropic seats -- the WRITER. Five smoke

@@ -1071,3 +1071,117 @@ def test_the_five_served_notes_go_through_the_SHIPPED_append_only_report(cell, n
             assert rep["changed"] == [], (name, cen, rep["changed"])
             assert rep["after"]["mechanism"] == rep["before"]["mechanism"], name
     assert seen_changed == 3, seen_changed            # MEASURED on this board: three of the five
+
+
+# == LANE tracekeys (2026-09-22): THE CENSUS REACHES AN ARTIFACT AND A REPORT ======================
+def test_the_census_reaches_the_per_answer_record_and_an_unstamped_row_is_unchanged():
+    """THE C2/U3 SILENT-LIFT CLASS, CLOSED FOR THIS PRODUCER -- AND THE BYTE PIN BESIDE IT.
+
+    THE DEFECT, MEASURED AT b9c50701: ``_chain_lints`` returns an EIGHT-key census, ``_answer_l2``
+    stamps it on ``sg.trace["chain_lints"]`` under its own ``any(...)`` predicate, and the return
+    spreads ``**sg.trace`` wholesale -- so the key reaches ``out['trace']`` with no orchestrator edit at
+    all. ``eval.py`` then named it NOWHERE: a grep for ``chain_lints`` over the whole file returned 0,
+    and ``_per_answer_record`` returned 209 columns with the IDENTICAL key list whether the trace
+    carried the full census or nothing. Five counters an arm was built to read reached no artifact
+    column and no report line.
+
+    THE SECOND HALF IS THE ASSERTION THAT WOULD HAVE FAILED UNDER REGISTRATION, and it is the whole
+    reason the splat was chosen over ``tracekeys.TRACE_RECORD_KEYS``: a registered key emits ``None`` on
+    every control row of every deck forever (and re-anchors 60 negative-index tail pins across eight
+    files); a splat emits nothing. MEASURED BOTH WAYS before this test was written -- registering makes
+    the flag-off record 210 columns carrying a null ``chain_lints``; the splat leaves it at HEAD's 209
+    in HEAD's order. The byte-identical clause decides it, and
+    ``test_tracekeys.py::test_a_registered_key_is_present_with_null_and_a_splat_is_absent`` now names
+    this key on the SPLAT side (BY SYMBOL, never by line).
+
+    THE LIFT IS VERBATIM, KEY ORDER INCLUDED. A reader must take ``outcome`` before it reads any
+    counter as a complete census -- the vocabulary is four words and ``lint_failed:<Exc>`` can arrive
+    with partial counters -- so the census must not be re-spelled, re-ordered or flattened on the way
+    to the column."""
+    from leviathan.graphrag import eval as ev_mod
+    from leviathan.graphrag import tracekeys as tk_mod
+    from leviathan.graphrag.state import lint as LINT
+    census = {"outcome": "ok", "sentences": 2, "corrected": 2, "chain_hops_unfigured": 0,
+              "chain_hops_skipped": 0, "chain_unranked_narrated": 0, "chain_hops_ambiguous": 2,
+              "chain_fence_closed": 0}
+    on = ev_mod._per_answer_record({"q": {"id": "x"}, "out": {"trace": {"chain_lints": census}}},
+                                   "single")
+    assert on["chain_lints"] == census                             # VERBATIM, the whole eight
+    assert list(on["chain_lints"]) == list(census)                 # ...in the producer's own key order
+    assert list(on["chain_lints"])[0] == "outcome"                 # read FIRST, by position too
+    for c in LINT.CHAIN_LINT_COUNTERS:                             # the roster, never a spelling
+        assert c in on["chain_lints"], c
+    off = ev_mod._per_answer_record({"q": {"id": "x"}, "out": {"trace": {}}}, "single")
+    assert "chain_lints" not in off                                # ABSENT, not None -- the byte pin
+    assert "chain_lints" not in ev_mod._per_answer_record({"q": {"id": "x"}, "out": {}}, "single")
+    # THE ONE COLUMN IS THE ONLY DIFFERENCE: the flag-off key LIST is the on-row's minus this key, in
+    # order. A set comparison would pass while a column silently moved, which is the D-MW P3 defect.
+    assert [k for k in on if k != "chain_lints"] == list(off)
+    # ...and the key is genuinely NOT registered, so no tail pin in any other deck moved
+    assert "chain_lints" not in tk_mod.TRACE_RECORD_KEYS
+    assert len(tk_mod.TRACE_RECORD_KEYS) == 47 and tk_mod.TRACE_RECORD_KEYS[-5] == "state_board"
+
+
+def test_the_state_report_prints_one_chain_line_and_a_deck_with_no_stamp_prints_nothing():
+    """LANE tracekeys (2026-09-22). ABSENT IS NEVER ZERO, in the panel too -- and on THIS instrument the
+    denominator is load-bearing rather than idiomatic. MEASURED on the five 2026-09-16 banked bodies at
+    three tiers: 7 of 15 cells stamp NOTHING while the chain flag is lit and a board is rendered,
+    because the prose named no hop the pass could act on. So "no chain_lints column" is not "the flag
+    was off", and the line says ``of N turn(s)`` against the rows that stamped one.
+
+    ``outcome`` IS PRINTED FIRST AND THE PARTIAL CENSUSES ARE HELD APART. ``lint_failed:<Exc>`` is the
+    one outcome that can reach a row carrying counters (the pass counts as it goes, so a counter raised
+    before the exception survives), and a panel that pooled it with the clean rows would report a
+    half-run pass as a complete one."""
+    from leviathan.graphrag import eval as ev_mod
+    from leviathan.graphrag.state import lint as LINT
+    rows = [{"out": {"trace": {"chain_lints": {"outcome": "ok", "sentences": 2, "corrected": 2,
+                                               "chain_hops_unfigured": 1, "chain_hops_skipped": 0,
+                                               "chain_unranked_narrated": 0,
+                                               "chain_hops_ambiguous": 2, "chain_fence_closed": 0}}}},
+            {"out": {"trace": {"chain_lints": {"outcome": "ok", "sentences": 3, "corrected": 1,
+                                               "chain_hops_unfigured": 0, "chain_hops_skipped": 4,
+                                               "chain_unranked_narrated": 1,
+                                               "chain_hops_ambiguous": 0, "chain_fence_closed": 3}}}}]
+    L = ev_mod.state_report(rows)
+    hl = [x for x in L if "CHAIN LINTS" in x]
+    assert len(hl) == 1
+    assert "stamped on 2 of 2 turn(s)" in hl[0] and "'ok': 2" in hl[0]
+    pooled = [x for x in L if "chain sentence(s) corrected" in x]
+    assert len(pooled) == 1
+    assert "3 of 5 chain sentence(s) corrected" in pooled[0]       # 2+1 corrected of 2+3 sentences
+    cl = [x for x in L if "`chain_hops_unfigured`" in x]
+    assert len(cl) == 1
+    for name, tot in (("chain_hops_unfigured", 1), ("chain_hops_skipped", 4),
+                      ("chain_unranked_narrated", 1), ("chain_hops_ambiguous", 2),
+                      ("chain_fence_closed", 3)):
+        assert ("`%s` %d" % (name, tot)) in cl[0], (name, cl[0])
+    # THE ROSTER IS READ, NEVER SPELLED: every counter the shipped tuple carries appears on that line,
+    # so a sixth counter reaches this report the day it reaches the producer.
+    assert all(("`%s`" % c) in cl[0] for c in LINT.CHAIN_LINT_COUNTERS)
+    # a chain-only deck takes a header that does not promise a board line (ruling R5)
+    assert L[0].startswith("## Chain lints")
+    assert not any("board turns" in x for x in L)
+    # THE TWO POPULATIONS ARE NAMED APART, never summed into one line
+    assert any("chain_referenced" in x and "never summed" in x.lower() for x in L)
+    # THE L2-ONLY ABSENCE IS NAMED IN WORDS, never reported as a zero
+    assert any("onehop" in x and "one-hop" in x for x in L)
+    # NO STAMP ANYWHERE -> the panel does not exist at all, so a banked flag-off report is HEAD's
+    assert ev_mod.state_report([{"out": {"trace": {}}}, {"out": {}}]) == []
+    # A FAILED LINT PRINTS ITS OUTCOME AND IS EXCLUDED FROM EVERY CLEAN CLAIM. Its counters are partial
+    # by construction, so pooling them would report a half-run census as a complete one.
+    mixed = ev_mod.state_report(rows + [{"out": {"trace": {"chain_lints": {
+        "outcome": "lint_failed:RuntimeError", "sentences": 9, "corrected": 9,
+        "chain_hops_unfigured": 0, "chain_hops_skipped": 0, "chain_unranked_narrated": 0,
+        "chain_hops_ambiguous": 7, "chain_fence_closed": 0}}}}])
+    assert any("lint_failed:RuntimeError" in x for x in mixed)
+    assert any("did NOT complete the pass" in x for x in mixed)
+    _pool = [x for x in mixed if "chain sentence(s) corrected" in x]
+    assert "3 of 5 chain sentence(s) corrected" in _pool[0]        # the failed row's 9 never enters
+    _cnt = [x for x in mixed if "`chain_hops_ambiguous`" in x]
+    assert "`chain_hops_ambiguous` 2" in _cnt[0]                   # ...and neither does its 7
+    # A TRUTHY NON-DICT IS COUNTED AND NAMED, NEVER RAISED (the R5 MINOR rule the board key carries):
+    # ``report()`` runs once per deck after a paid arm, so a raise here loses the whole artifact.
+    bad = ev_mod.state_report([{"out": {"trace": {"chain_lints": "not a dict"}}}])
+    assert any("not a mapping: 1" in x for x in bad)
+    assert not any("chain sentence(s) corrected" in x for x in bad)   # nothing scored off a bad shape
