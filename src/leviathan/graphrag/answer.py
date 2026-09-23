@@ -4739,6 +4739,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         if _sb.get("trace"):
             try:
                 sg.trace["state_board"] = _sb["trace"]
+                # THE BOARD'S [N] ORIGIN, STAMPED (numbers-seat recon 2026-09-23, lane 0-b): every seat/board
+                # seam figure in three recons was an inference from served_rows position because this
+                # number -- computed above and used at the coverage join -- reached no artifact. Absent when
+                # the board never ran, so a flag-off trace is byte-identical.
+                sg.trace["board_n_start"] = int(_board_n_start or 0)
             except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
                 pass
     # W5-D3/D5: the outlook legs were resolved by the CALLER (plan.answer_mode_outlook AND
@@ -5027,6 +5032,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             else sum(len(getattr(n, "evidence", []) or []) for n in sg.nodes))
     n_num = len(extra_number_calls or [])
     sg.trace["injected_n"] = n_num                               # W6.1-0: [N] rows injected (cited-vs-injected denom)
+    # THE NUMBERS BLOCK'S OWN SIZE (numbers-seat recon 2026-09-23, lane 0-c): the board stamps BoardBlockChars,
+    # the numbers block stamped nothing, so every seat-vs-board size figure was a +/-15% estimate. `extra_context`
+    # IS the hybrid numbers block (orchestrator._numbers_block, "SILVER NUMBERS"), verbatim, on every turn it rides.
+    sg.trace["numbers_block_chars"] = len(extra_context or "")
     # PA-8(b): the ledger states SERVED ROWS and names the lookups separately -- `n_num` still governs the
     # [N] handle range (one indexed citation per call) and still stamps `injected_n`, so no counter and no
     # address moves. `n_srv` is a pure sum over the same `rows` lists the panel renders.

@@ -668,6 +668,12 @@ DECISION_RECORD_KEYS: tuple[tuple[str, str], ...] = (
     # no column shift -- and the engine-only-key law holds by construction, because the engine's own key
     # is never written on a dispatch decline.
     ("extreme_locator", "extreme_locator_decision"),
+    # NUMBERS-SEAT RECON (2026-09-23), APPENDED AT THE TAIL: the one decision field that NAMES the table --
+    # dispatch.family_names() (one family per visible card), validated against the live registry and
+    # stamped on the decision every turn -- was absent from 1,455 banked per_answer rows. It is the
+    # precondition for pricing the deterministic lookup lane: which families a turn asked for, before
+    # any seat spent a round on them. eval.py gains the column with no edit (it loops this registry).
+    ("data_families", "data_families_decision"),
 )
 
 

@@ -247,3 +247,21 @@ def test_no_chain_lint_counter_name_is_spelled_anywhere_in_eval_py():
     consts = {c.value for c in ast.walk(fn) if isinstance(c, ast.Constant) and isinstance(c.value, str)}
     assert "planner" not in consts                   # no row in this panel is keyed on that field
     assert "lane_off:onehop" in consts and "regimes" in consts   # ...these two are what it reads
+
+
+def test_lane0_the_seat_board_seam_is_stamped_and_data_families_is_the_registry_tail():
+    """NUMBERS-SEAT RECON (2026-09-23), LANE 0 -- three trace facts that rode no artifact: the board's [N]
+    origin (every seat/board seam figure in three recons was a positional inference), the numbers block's
+    own size (BoardBlockChars had no twin), and the decision field that NAMES the table (absent from
+    1,455 banked rows). The two answer.py stamps are read at source: `board_n_start` inside the block
+    that stamps `state_board` (absent when the board never ran -- a flag-off trace is byte-identical);
+    `numbers_block_chars` beside `injected_n`. The registry gains `data_families` AT THE TAIL."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[2] / "src" / "leviathan" / "graphrag" / "answer.py").read_text(encoding="utf-8")
+    i = src.index('sg.trace["state_board"] = _sb["trace"]')
+    assert 'sg.trace["board_n_start"] = int(_board_n_start or 0)' in src[i:i + 900], "stamped beside the board trace"
+    j = src.index('sg.trace["injected_n"] = n_num')
+    assert 'sg.trace["numbers_block_chars"] = len(extra_context or "")' in src[j:j + 700], "stamped beside injected_n"
+    assert tk.DECISION_RECORD_KEYS[-1] == ("data_families", "data_families_decision")
+    cols = [c for _k, c in tk.DECISION_RECORD_KEYS]
+    assert len(set(cols)) == len(cols)

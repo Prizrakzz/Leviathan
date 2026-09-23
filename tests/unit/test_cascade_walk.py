@@ -5376,8 +5376,10 @@ def test_s5_phase0s_state_board_is_registered_at_the_tail_before_its_writer():
     #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
     assert tk.TRACE_RECORD_KEYS.count("state_board") == 1
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
-    # the DECISION tuple is untouched by the append
-    assert tk.DECISION_RECORD_KEYS[-1] == ("extreme_locator", "extreme_locator_decision")
+    # the DECISION tuple gained ONE tail entry on 2026-09-23 (data_families, the numbers-seat recon lane 0-d);
+    # extreme_locator is the entry before it, exactly where the append-never-sort law puts it.
+    assert tk.DECISION_RECORD_KEYS[-2] == ("extreme_locator", "extreme_locator_decision")
+    assert tk.DECISION_RECORD_KEYS[-1] == ("data_families", "data_families_decision")
     # eval lifts it by LOOPING the registry, so the registration IS the lift and needs no eval edit
     from leviathan.graphrag import eval as _ev
     assert "for k in tk.TRACE_RECORD_KEYS}" in open(_ev.__file__, encoding="utf-8").read()
