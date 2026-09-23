@@ -317,6 +317,7 @@ arm_flags:
   - GRAPHRAG_BRIDGE_QUERY          # the V2-retrieval bridge (dark at ba5fbcf6, seam at 08252c6a)
   - GRAPHRAG_DESK_REGISTER         # ) HELD until pre-arm gate (i)(a) and (i)(b) close --
   - GRAPHRAG_REGISTER_LICENCE      # ) see ARM_A_HANDOFF.md; declared here, lit per cell
+  - GRAPHRAG_STATE_CHAIN           # the chain movement (d9d86224..00293d1f), read INSIDE STATE_BOARD; lit per cell
 
 # Serving does NOT set these; the JOBDEF bakes them and they must stay. Listed so a jobdef repin that
 # drops one is visible here rather than at a container that cannot import its own package.

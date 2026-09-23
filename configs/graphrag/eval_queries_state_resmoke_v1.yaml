@@ -1,0 +1,101 @@
+# THE PRE-ARM RE-SMOKE deck v1 (2026-09-23) -- ten turns, every treatment flag lit, read END TO END by the
+# same PM and fact graders that read the 2026-09-16 five (all five PM 2/5, fact 1/5; root cause =
+# composition, not data). It is a SMOKE, not an arm: no control cell, no judge, ~$8, in-VPC on the
+# on-demand queue, `--job-definition leviathan-dev-graphrag-eval` (rev 16 at 00293d1f).
+#
+# THE OWNER'S GATE (09-17, 09-22): PM >= 3 and fact >= 3 on the read; the chain referenced on 5 of 5
+# original turns; the relative-value call made on 3 of 3 pair turns; one event/policy turn; one
+# historical as-of turn; three non-oilseed turns -- cocoa and rice replace sugar and coffee (owner
+# ruling 09-22: the UNICA and FNC families are deferred to after arm A). The analog stanza read on
+# every turn (the selection half bbddd4cc, the render half 00293d1f).
+#
+# THE FIVE ORIGINALS ARE COPIED VERBATIM from `eval_queries_state_arm_a_v1.yaml` (same ids, same
+# contracts, same text) so the re-read is comparable turn for turn with the 2026-09-16 answers under
+# `scratchpad/prearm_smoke_0916/answers/`. `rv_soybeans_state_2026_09_07` runs at BOTH deep and max, as
+# it did then (two submits, `--mode deep` / `--mode max`); the three quick pairs run at quick.
+#
+# THE TREATMENT SET is `arm_env_base.yaml`'s `arm_flags`, SIX after 00293d1f: GRAPHRAG_STATE_BOARD,
+# GRAPHRAG_WATCH_NONOBVIOUS, GRAPHRAG_BRIDGE_QUERY, GRAPHRAG_DESK_REGISTER, GRAPHRAG_REGISTER_LICENCE and
+# GRAPHRAG_STATE_CHAIN (the chain movement, inside STATE_BOARD). Every flag spelt `on`.
+#
+# `asof` on the historical turn is the eval's own field (eval.py reads q.get("asof")): the board, the
+# chain, the analog and the numbers seat all read the world as known at that date -- the point-in-time
+# guarantee the whole estate is built on, exercised on a served page for the first time.
+queries:
+- id: rv_soybeans_state_2026_09_07
+  contract: soybeans_cbot
+  category: state_resmoke
+  expected_intent: reasoning
+  question: what is the situation on soybeans now? how is it looking 3 months from now?
+  owner_verbatim: true
+  expect:
+    needs_evidence: true
+- id: rv_corn_wheat
+  contract: corn_cbot
+  category: state_resmoke
+  expected_intent: reasoning
+  question: With corn's balance sheet where it is, what does that do to wheat on the feed side, and
+    how do the two sheets compare this marketing year?
+  expect:
+    needs_evidence: true
+- id: rv_palm_rapeoil
+  contract: malaysian_crude_palm_oil_cme
+  category: state_resmoke
+  expected_intent: reasoning
+  question: Set palm oil against rapeseed oil for me -- whose stocks position moved more this year,
+    and how do the two read against each other from here?
+  expect:
+    needs_evidence: true
+- id: rv_soyoil_palm
+  contract: soybean_oil_cbot
+  category: state_resmoke
+  expected_intent: reasoning
+  question: Palm oil's supply picture has been shifting. How does that reach soybean oil, and where
+    does the balance between the two sheets stand this marketing year?
+  expect:
+    needs_evidence: true
+# -- the three non-oilseed turns (owner 09-22: cocoa and rice in, sugar and coffee out) ---------------
+- id: state_cotton_2026_09
+  contract: cotton
+  category: state_resmoke
+  expected_intent: reasoning
+  question: Where does cotton stand right now -- is the US balance sheet tightening or loosening, and
+    what does the pace of export sales say against last year at this point in the season?
+  expect:
+    needs_evidence: true
+- id: state_cocoa_2026_09
+  contract: cocoa
+  category: state_resmoke
+  expected_intent: reasoning
+  question: How tight is cocoa after this season -- where do stocks sit against grindings, and what
+    does the record say about a market this stretched, the last times it looked like this?
+  expect:
+    needs_evidence: true
+- id: state_rice_2026_09
+  contract: rough_rice_cbot
+  category: state_resmoke
+  expected_intent: reasoning
+  question: Rough rice -- how does the US balance sheet look this year, and what is the tail risk
+    from here, on the supply side or the export side?
+  expect:
+    needs_evidence: true
+# -- the event / policy turn (owner 09-17: text evidence -- policies, tariffs -- must ride the chains) --
+- id: event_china_tariff_soybeans_2026_09
+  contract: soybeans_cbot
+  category: state_resmoke
+  expected_intent: reasoning
+  question: China's import tariff on US soybeans is back in the frame. What has it done to US export
+    pace and the balance sheet this year, and what happened the last times it moved -- how long did
+    the effect take to show, and what did the market do after?
+  expect:
+    needs_evidence: true
+# -- the historical as-of turn (owner 09-17: leviathan is also for historical research) ---------------
+- id: rv_soybeans_state_2024_03_01
+  contract: soybeans_cbot
+  category: state_resmoke
+  expected_intent: reasoning
+  asof: "2024-03-01"
+  question: As of the first of March 2024, what was the situation on soybeans, and how was it looking
+    three months out from there? Read it as it was known then, not with hindsight.
+  expect:
+    needs_evidence: true

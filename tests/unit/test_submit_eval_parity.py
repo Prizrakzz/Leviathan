@@ -262,9 +262,10 @@ def test_every_var_the_arm_needs_is_in_the_base(base):
     # THE ARM'S OWN FLAGS ARE NOT IN THE BASE ENV: they are the treatment, passed per cell, so the
     # control's flag-off turn stays byte-identical. DECISION A3: `arm_flags` is a LIST, because the
     # treatment is a SET of five and a scalar could not tell two cells apart one flag over.
+    # SIX after 00293d1f: the chain movement rides its own flag INSIDE STATE_BOARD (job-name token `sc`).
     assert base["arm_flags"] == ["GRAPHRAG_STATE_BOARD", "GRAPHRAG_WATCH_NONOBVIOUS",
                                  "GRAPHRAG_BRIDGE_QUERY", "GRAPHRAG_DESK_REGISTER",
-                                 "GRAPHRAG_REGISTER_LICENCE"]
+                                 "GRAPHRAG_REGISTER_LICENCE", "GRAPHRAG_STATE_CHAIN"]
     assert se.arm_flag_names(base) == base["arm_flags"]
     for flag in base["arm_flags"]:
         assert flag not in env, flag
@@ -559,7 +560,7 @@ def test_no_two_cells_of_this_arm_can_share_a_job_name(base):
     type', which is what the ambiguity was."""
     import itertools
     flags = se.arm_flag_names(base)
-    assert len(flags) == 5
+    assert len(flags) == 6                      # six after 00293d1f: + GRAPHRAG_STATE_CHAIN (`sc`)
     stem = "eval-eval-queries-state-arm-a-v1-claude-opus-5-deep"
     names = {}
     for r in range(len(flags) + 1):
@@ -573,7 +574,7 @@ def test_no_two_cells_of_this_arm_can_share_a_job_name(base):
             # not a naming preference, and the five-flag cell is the longest this arm can type.
             assert len(name) <= 128, (len(name), name)
             assert re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name), name
-    assert len(names) == 32
+    assert len(names) == 64                     # 2**6 subsets of the declared six
     # THE CONTROL RENDERS NO SUFFIX AT ALL, and the board-only cell renders EXACTLY the pre-A3 bytes --
     # so every banked S7 job name stays readable against the console.
     assert se.arm_cell_suffix([]) == ""
@@ -601,7 +602,7 @@ def test_the_six_arm_a_cells_render_six_names(base):
             seen.append(stem + ("-" + suffix if suffix else ""))
     assert len(set(seen)) == 6, seen
     assert all(len(nm) <= 128 for nm in seen)
-    assert seen[1].endswith("-state-board-on-wn-bq-dr-rl")
+    assert seen[1].endswith("-state-board-on-wn-bq-dr-rl-sc")
 
 
 # --- ROUND 2 (2026-09-11): THE BASE'S THREE PRECONDITIONS, AND THE OPEN DECISION IN THE HEADER -----
@@ -890,10 +891,10 @@ def test_the_suffix_refuses_a_declared_set_it_could_not_tell_apart(base):
         se.arm_cell_suffix([("GRAPHRAG_STATE_BOARD", "on")], declared=long_pair + ["GRAPHRAG_X"])
     with pytest.raises(ValueError, match="same job-name initials"):
         se.arm_cell_suffix([("GRAPHRAG_STATE_BOARD", "on"), ("GRAPHRAG_STATE_BLOCK", "on")])
-    # the shipped five still render exactly what they rendered, with and without `declared`
+    # the shipped six still render exactly what they render, with and without `declared`
     lit = [(k, "on") for k in flags]
     assert se.arm_cell_suffix(lit) == se.arm_cell_suffix(lit, declared=flags) \
-        == "state-board-on-wn-bq-dr-rl"
+        == "state-board-on-wn-bq-dr-rl-sc"
 
 
 def test_the_rerank_backend_is_decided_and_its_secret_is_a_venue_precondition(base):
