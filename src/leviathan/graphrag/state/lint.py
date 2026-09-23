@@ -53,6 +53,7 @@ workflow is mid-edit.
 """
 from __future__ import annotations
 
+import ast
 import datetime as _dt
 import functools
 import pathlib
@@ -768,8 +769,24 @@ def _check_row_classes() -> list[str]:
                 "largest moves here; the graph records the effect as amplifies",
         "SB-P": "UPSTREAM crude oil -> soybean crush margin -> board crush -> CBOT soybeans: the graph "
                 "places crude oil two hops upstream of the CBOT soybeans price",
-        "SB-A": "LIKE STATE El Nino on CBOT soybeans: the series sat like this in June 2013; the "
-                "record carries seventy-five such crossings since 2022",
+        # SB-A's SAMPLE IS RE-BANKED ON THE ANALOG RENDER HALF (the sitting that gave the selection's
+        # own facts a reader), AND AGAIN ON ITS ROUND-2 RULING. The old sample's "seventy-five such
+        # crossings since 2022" paired the relaxed POOL count with the LOUD SET's raw coverage floor;
+        # round 1 swapped the count for HEAD's admitted one, which put a number beside a picked date
+        # the number does not count (2013-06-30 against a three-member set beginning 2023-12-31), and
+        # left a THIRD year in the reach clause. What this class renders now is the RANKED POOL the
+        # pick is a member of, the head-admitted count as a separately named second number, and ONE
+        # year for "how far back these dimensions see" (``render.analog_count_floor``,
+        # ``max(first_date)`` over ``record_span``) in both clauses that print it. Taken VERBATIM off
+        # the served soybeans deep stanza.
+        "SB-A": "LIKE STATE El Nino on CBOT soybeans: the series sat like this in June 2013; one "
+                "hundred fifty-nine past readings on this series could be ranked beside it, this one "
+                "the nearest; three like states admitted "
+                "at the full-coverage floor since 2023; like on two of the three dimensions ranked "
+                "beside it, which together reach back to 2023; the one it could not read there counts "
+                "as a full sigma apart; the state agreed in sign on two of the two a sigma could be "
+                "read on; the path into it agreed on zero of the two a direction could be read on; "
+                "this date precedes the record of one of the dimensions ranked beside it",
         # SB-L's sample carried the RETIRED wording (review round 3): "the newest knowledge date on a
         # number row is ..." is the phrasing `narration.recency_rows` replaced in pre-arm round 1 --
         # the block's only source of `knowledge date` and of three `row` charges on the served bodies,
@@ -1346,6 +1363,144 @@ def _chain_deletion_shapes(node, served: set) -> list:
     return [t for t in out if not (t in seen or seen.add(t))]
 
 
+#: The state modules clause 16 grades. The list is the package's own serving surface -- every module
+#: that could see an analog row between the selection and the page -- and it is read BY PATH, never
+#: imported, for :func:`_answer_source`' reason: this module is imported by ``config_check`` and by
+#: decks that render nothing.
+_ANALOG_ROW_MODULES: tuple = ("render.py", "analogs.py", "walk.py", "watch.py", "board.py",
+                              "seam.py", "narration.py")
+
+#: The ONE spelling of the selection flag clause 16 follows. There is no second name for it anywhere
+#: in the package, which is what makes a source join over it meaningful at all.
+_NEAR_ASOF = "near_asof"
+
+
+@functools.lru_cache(maxsize=None)
+def _state_source(name: str) -> str:
+    """One state module's TEXT, read by path and never imported (see :func:`_answer_source`)."""
+    try:
+        return (pathlib.Path(__file__).resolve().parent / name).read_text(encoding="utf-8")
+    except Exception:                                   # noqa: BLE001 -- an unreadable file is a SKIP
+        return ""
+
+
+def _mentions_near(node) -> bool:
+    """Does this node reference the flag, under either spelling a Python source can carry it in --
+    a NAME (``pick["near_asof"]`` unpacked into a local) or the STRING KEY itself?"""
+    for n in ast.walk(node):
+        if isinstance(n, ast.Name) and n.id == _NEAR_ASOF:
+            return True
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value == _NEAR_ASOF:
+            return True
+        if isinstance(n, ast.Attribute) and n.attr == _NEAR_ASOF:
+            return True
+    return False
+
+
+#: What a FILTER looks like in a source, as the five shapes a reviewer can see with no fixture: the
+#: statements that make a row STOP EXISTING for the reader below them.
+_DROPPING = (ast.Continue, ast.Break, ast.Delete, ast.Return, ast.Raise)
+
+
+def _near_filter_shapes(node, where: str) -> list[str]:
+    """Every place this function lets ``near_asof`` REMOVE a row rather than DESCRIBE one."""
+    errs: list[str] = []
+    for n in ast.walk(node):
+        if isinstance(n, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)):
+            for gen in n.generators:
+                for test in (gen.ifs or ()):
+                    if _mentions_near(test):
+                        errs.append("%s filters a comprehension on `%s` -- the flag DESCRIBES the "
+                                    "picked date and may never remove it (fences correct or compute, "
+                                    "never delete)" % (where, _NEAR_ASOF))
+        elif isinstance(n, ast.If) and _mentions_near(n.test):
+            for stmt in ast.walk(n):
+                if isinstance(stmt, _DROPPING) and stmt is not n:
+                    errs.append("%s branches on `%s` and then %s -- a row the selection PICKED is "
+                                "removed on a flag whose whole job is to qualify it"
+                                % (where, _NEAR_ASOF, type(stmt).__name__.lower()))
+                    break
+        elif isinstance(n, ast.Call):
+            fn = n.func
+            name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+            if name in ("remove", "pop", "discard", "filter") and _mentions_near(n):
+                errs.append("%s calls %s() on `%s` -- the flag may not take a row off the page"
+                            % (where, name, _NEAR_ASOF))
+    return errs
+
+
+def _check_analog_near_asof() -> list[str]:
+    """CLAUSE 16. The analog header READS ``near_asof``, and no module in this package FILTERS on it.
+
+    **WHY IT IS A SOURCE CLAUSE AND NOT A PER-TURN ONE, STATED BECAUSE THE DESIGN ASKED FOR THE OTHER.**
+    DESIGN C.4 asks for "a lint that asserts the chosen date is not within ``min_separation_months`` of
+    the as-of". This module grades CONFIGS AND SOURCE -- its other fifteen clauses read YAML and
+    ``answer.py``'s AST and not one of them has ever seen a rendered turn -- and the design's own
+    sentence is, on inspection, a FENCE THAT DELETES: it would have a lint remove a stanza the
+    selection picked. Doctrine is the other way round (fences correct or compute, never delete), and
+    ``analogs.select_analogs``' own note already says it: "``near_asof`` IS A FLAG AND NEVER A FILTER:
+    the selection states it and the render half grades it." So the bar splits in two. The RENDER half
+    appends the distance in months (``render.analog_selection_clauses``) and the stanza stays. This
+    clause grades the two halves of that contract that a source can actually answer for.
+
+    **THE STATE IT WAS WRITTEN AGAINST IS MEASURED, NOT ASSUMED.** ``near_asof`` was live and silent:
+    on the served fixture board ``attached_event`` at deep renders a stanza picked 2026-01-31 against
+    an as-of of 2026-09-07 and ``attached_event`` at max's top stanza picks 2025-12-31 -- seven and
+    nine months, both flagged True by the selection, both rendered, and the word ``near_asof``
+    appeared NOWHERE in ``render.py``, ``watch.py``, ``lint.py``, ``narration.py`` or ``board.py``. A
+    reader was shown the present state described as its own precedent with nothing saying so.
+
+    WHAT IT DOES NOT GRADE: whether the MONTHS are right. That is arithmetic over two dates and it has
+    one producer (``analogs.select_analogs`` stores ``months_to_asof`` off the same
+    ``_months_between`` call that mints the flag, so the figure and the flag can never disagree); it is
+    pinned by execution in ``tests/unit/test_state_analogs.py`` and ``tests/unit/test_state_render.py``,
+    on rows rather than on a source.
+
+    IT SKIPS HONESTLY. An unreadable or unparsable module returns clean for that module rather than
+    reddening a build on a file it could not open -- the same discipline clause 15 keeps."""
+    errs: list[str] = []
+    src = _state_source("render.py")
+    if not src:
+        return errs                                     # unreadable: a SKIP, never a red build
+    try:
+        tree = ast.parse(src)
+    except SyntaxError as exc:
+        return ["state/lint.py clause 16: state/render.py does not parse (%s)" % (exc,)]
+    readers = {n.name for n in ast.walk(tree)
+               if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and _mentions_near(n)}
+    if not readers:
+        errs.append("state/render.py reads `%s` nowhere -- the selection flags a like date inside the "
+                    "separation window of the as-of and the page says nothing about it" % (_NEAR_ASOF,))
+    else:
+        # AND THE READER HAS TO BE ON THE HEADER'S OWN PATH. A read in a function nothing calls is a
+        # field with a reference and still no reader, which is the exact state this clause exists to
+        # end -- so the clause joins the reader to `sb_analog_header` by the call the header makes.
+        head = next((n for n in ast.walk(tree)
+                     if isinstance(n, ast.FunctionDef) and n.name == "sb_analog_header"), None)
+        if head is None:
+            errs.append("state/render.py declares no `sb_analog_header` -- the analog header this "
+                        "clause grades is gone")
+        else:
+            called = {getattr(c.func, "id", "") or getattr(c.func, "attr", "")
+                      for c in ast.walk(head) if isinstance(c, ast.Call)}
+            if "sb_analog_header" not in readers and not (readers & called):
+                errs.append("state/render.py reads `%s` only in %s, which `sb_analog_header` does not "
+                            "call -- the flag has a reference and still no reader on the page"
+                            % (_NEAR_ASOF, ", ".join(sorted(readers))))
+    for name in _ANALOG_ROW_MODULES:
+        s = _state_source(name)
+        if not s or _NEAR_ASOF not in s:
+            continue
+        try:
+            t = ast.parse(s)
+        except SyntaxError:
+            continue                                    # a module that will not parse is not this
+        for n in ast.walk(t):                           #   clause's failure to report
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and _mentions_near(n):
+                errs += _near_filter_shapes(n, "state/%s %s()" % (name, n.name))
+    return errs
+
+
 def _check_chain_lints_append_only() -> list[str]:
     """CLAUSE 15. Every chain lint DESIGN B.6 declares only ever APPENDS -- it never deletes.
 
@@ -1443,12 +1598,22 @@ def check_state_board() -> list[str]:
     named here because `config_check.check_state_board`'s docstring is where a reviewer looks to answer
     "is the calendar ban enforced at build", and a roster that stops at eleven answers no.
 
-    THE ROSTER IS FIFTEEN TODAY and the sentence above is kept rather than renumbered, because each
+    THE ROSTER IS SIXTEEN TODAY and the sentence above is kept rather than renumbered, because each
     clause is named by the sitting that added it: lane D's two reader-word books are 13 and 14, and S8
     lane N adds the FIFTEENTH, :func:`_check_chain_lints_append_only` -- the append-only law over
     DESIGN B.6's three chain lints, graded on ``answer.py``'s SOURCE and SKIPPED, loudly, until they
     land. It is named here for the same reason the twelfth is: a reviewer asking "can a chain lint
-    delete a sentence" reads this docstring, and a roster that stops at fourteen answers nothing."""
+    delete a sentence" reads this docstring, and a roster that stops at fourteen answers nothing.
+
+    THE ANALOG RENDER LANE ADDS THE SIXTEENTH, :func:`_check_analog_near_asof` -- DESIGN C.4's bar, in
+    the only shape a source clause can carry it: the analog header READS the flag the selection stamps
+    on a like date sitting inside the separation window of the as-of, and no module in this package
+    FILTERS a picked row on it. A reviewer asking "can a stanza be removed for being too recent" reads
+    this docstring, and the answer is no: the header says how many months and the stanza stays.
+
+    ``config_check.check_state_board`` only DELEGATES here, so a sixteenth clause needs no edit there.
+    (Its own docstring still says "twelve"; that was already stale against fifteen and is not this
+    lane's file.)"""
     errs: list[str] = []
     errs += _check_lag_table()
     errs += _check_no_summed_band()
@@ -1465,6 +1630,7 @@ def check_state_board() -> list[str]:
     errs += _check_reading_words()
     errs += _check_phase_pairs()
     errs += _check_chain_lints_append_only()
+    errs += _check_analog_near_asof()
     return errs
 
 

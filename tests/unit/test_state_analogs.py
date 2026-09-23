@@ -1725,3 +1725,154 @@ def test_R3_the_EXISTENCE_filter_is_COUNTED_on_the_row_and_the_CENSUS_CLOSES():
     assert r0["n_dropped_unreadable"] > 0, "the warm-up stretch must actually decline here"
     # AND IT IS A COUNT, NOT A GATE: the ranked pool is what the selector picks from, unchanged.
     assert r0["n_candidates_raw"] >= r0["n_candidates_pit"] >= r0["n_candidates"] >= 1
+
+
+# === THE ANALOG RENDER HALF'S TWO PRODUCER FACTS ====================================================
+class _AfterLedger:
+    def __init__(self):
+        self.evidence_borrows = 0
+
+
+class _AfterBoard:
+    """The one attribute ``_receipts_after`` touches, and nothing else."""
+
+    def __init__(self):
+        self.ledger = _AfterLedger()
+
+
+class _AfterRow:
+    def __init__(self, band):
+        self.contract, self.driver_id, self.lag_band = "soybeans_cbot", "El_Nino", band
+
+
+def test_ANALOG_months_to_asof_comes_off_THE_SAME_ARITHMETIC_that_mints_the_flag():
+    """**THE FLAG AND ITS FIGURE HAVE ONE PRODUCER.** ``near_asof`` is
+    ``abs(_months_between(date, asof)) < min_separation_months``; the render half owes the reader the
+    months wherever it is True (DESIGN C.4, as an APPEND -- fences correct or compute, never delete).
+    Re-deriving that gap in ``render.py`` from the same two strings would be one series counted twice
+    in two spellings, which is the failure ``analogs.axis_date`` exists to close arriving through the
+    other door. So the selection STORES what it already computed.
+
+    IT IS ``None`` EXACTLY WHERE THE FLAG IS FALSE FOR WANT OF A PLACEABLE DATE, and the render then
+    states the fact in words with no figure at all."""
+    import inspect
+    d = _months(320, 2000, 1)
+    v = [float(i % 11) - 5.0 for i in range(320)]
+    st = _row(v, d, window=60)
+    h = A.state_history(st, want_pct=True)
+    dims = [{"id": "oni", "hist": h, "z_now": float(st.z["value"])}]
+    sel = A.select_analogs(h, dims=dims, asof=ASOF, band=parse_lag("1-2 quarters"), analog_k=5,
+                           min_separation_months=12)
+    assert sel["picked"], sel.get("declined")
+    for p in sel["picked"]:
+        assert "months_to_asof" in p and "near_asof" in p
+        m = p["months_to_asof"]
+        assert m is None or (isinstance(m, int) and m >= 0), m
+        want = A._months_between(p["date"], ASOF)
+        assert m == (None if want is None else abs(int(want)))      # ONE arithmetic, read back
+        assert p["near_asof"] is bool(m is not None and m < 12)
+    # AND IT REACHES THE ROW `analog_rows` BUILDS, BY THE SAME SPELLING. That dict copies the picked
+    # row FIELD BY FIELD, so a fact the selection computes and that line does not name never reaches
+    # a reader -- which is the shape of the whole defect this lane closes.
+    assert '"months_to_asof": pick["months_to_asof"]' in inspect.getsource(A.analog_rows)
+
+
+def test_ANALOG_every_PICK_carries_its_SEAT_in_the_pool_the_page_counts_beside_it():
+    """**THE HEADER'S COUNT IS THE RANKED POOL NOW, AND "THIS ONE THE NEAREST" HAS TO BE BACKED**
+    (round-2 blocker 2). The page prints ``n_candidates`` -- the population every picked row is a
+    member of -- and says which one of it this stanza is. That claim is TRUE of the first pick and
+    FALSE of the second, and a max tier renders both side by side (``named_one`` prints 2020-04-30 and
+    then 2017-02-28), so the rank rides on the row rather than on the stanza's position.
+
+    IT IS THE SEAT IN ``scored``, WHICH IS ALREADY SORTED BY DISTANCE HERE, so no consumer re-ranks a
+    distance to find out what this selection already knew. The pin is two-sided: rank one IS the
+    minimum distance, and a pick that is not the minimum does not get rank one."""
+    d = _months(320, 2000, 1)
+    v = [float(i % 11) - 5.0 for i in range(320)]
+    st = _row(v, d, window=60)
+    h = A.state_history(st, want_pct=True)
+    dims = [{"id": "oni", "hist": h, "z_now": float(st.z["value"])}]
+    sel = A.select_analogs(h, dims=dims, asof=ASOF, band=parse_lag("1-2 quarters"), analog_k=3,
+                           min_separation_months=12)
+    picked = list(sel["picked"])
+    assert len(picked) >= 2, sel.get("declined")
+    ranks = [p["pool_rank"] for p in picked]
+    assert ranks[0] == 1, ranks                                  # the first pick IS the nearest
+    assert all(isinstance(r, int) and 1 <= r <= sel["n_candidates"] for r in ranks), ranks
+    assert ranks == sorted(ranks) and len(set(ranks)) == len(ranks), ranks
+    # TWO-SIDED, AND THIS IS THE LINE THAT DISCRIMINATES: the seat is the POOL's and not the PICK's
+    # position. The separation rule skips candidates between one pick and the next, so the ranks have
+    # GAPS -- measured 1, 3, 5 over a 46-candidate pool. A `pool_rank` minted as "how many have I
+    # picked so far" would read 1, 2, 3 and pass every other assertion in this test.
+    assert ranks != list(range(1, len(ranks) + 1)), ranks
+    assert ranks == [1, 3, 5], ranks
+    assert picked[0]["distance"] <= picked[1]["distance"], [p["distance"] for p in picked]
+    # AND IT REACHES THE ROW `analog_rows` BUILDS, BY THE SAME SPELLING.
+    import inspect
+    assert '"pool_rank": pick["pool_rank"]' in inspect.getsource(A.analog_rows)
+
+
+def test_ANALOG_receipts_after_reads_the_window_that_FOLLOWED_and_counts_the_borrow():
+    """``_receipts_for`` filters the publication axis to ``<= t`` -- documents that EXPLAIN the state.
+    ``_receipts_after`` takes the band's own window FORWARD from ``t``, the same window
+    ``outcome_over_band`` reads the consequence over, so a reader shown what the price did next is
+    told how much the record said next. It is PIT-safe by construction: ``select_analogs`` admits a
+    candidate only where that band has already closed against the as-of.
+
+    THE WINDOW IS HALF-OPEN AT THE LIKE DATE ITSELF: a document published ON ``t`` explains the state
+    and belongs to the other producer. A band with no declared far edge has no window and takes
+    none.
+
+    **AND THE WALK IS THE WINDOW'S, NEVER THE CAP'S** (round-2 blocker 3). This used to stop at
+    ``len(out) >= cap`` while the page printed ``len()`` of the result as "N dated documents inside
+    the window that followed it", so the printed figure was CONSTANT AT THE CAP whatever the corpus
+    held: measured through the real seam with twelve documents inside the forward window, deep printed
+    three against a true eleven and max printed five against a true eight. A cap is a CUT ROW and never
+    a count. ``analog_rows`` cuts what it CARRIES and publishes the length of what this returns, and
+    ``render.render_board`` prints the difference as an absence row."""
+    import inspect
+    bd = _AfterBoard()
+    row = _AfterRow(parse_lag("1-2 quarters"))
+    docs = [{"date": "2013-06-01", "tier": 1, "text": "well before"},
+            {"date": "2013-06-30", "tier": 1, "text": "ON the date itself"},
+            {"date": "2013-07-15", "tier": 2, "text": "inside"},
+            {"date": "2013-12-31", "tier": 2, "text": "the far edge"},
+            {"date": "2014-06-01", "tier": 3, "text": "past the far edge"}]
+    got = A._receipts_after(bd, row, "2013-06-30", receipt_fn=lambda *a: list(docs), cap=5)
+    assert [g["text"] for g in got] == ["inside", "the far edge"], got
+    assert bd.ledger.evidence_borrows == 1, "counted at the one place a borrow happens"
+    # THE CAP DOES NOT BOUND THE ARITHMETIC. A tier that carries one row still COUNTS both, and the
+    # opposite error is pinned too: a walk that returned MORE than the window holds would fail the
+    # line above.
+    tight = A._receipts_after(bd, row, "2013-06-30", receipt_fn=lambda *a: list(docs), cap=1)
+    assert [g["text"] for g in tight] == ["inside", "the far edge"], tight
+    # AND THE CUT IS THE CALLER'S, BY THE ONE SPELLING: `analog_rows` carries `receipt_cap` rows and
+    # publishes the length of the WINDOW beside them.
+    assert '"receipts_after": tuple(_after[: int(knobs.receipt_cap)])' in \
+        inspect.getsource(A.analog_rows)
+    assert "else len(_after)" in inspect.getsource(A.analog_rows)
+    # NO PRODUCER, NO CAP AND NO DECLARED FAR EDGE EACH TAKE NOTHING -- and none of them borrows.
+    before = bd.ledger.evidence_borrows
+    assert A._receipts_after(bd, row, "2013-06-30", receipt_fn=None, cap=5) == []
+    assert A._receipts_after(bd, row, "2013-06-30", receipt_fn=lambda *a: docs, cap=0) == []
+    assert A._receipts_after(bd, _AfterRow(parse_lag("structural")), "2013-06-30",
+                             receipt_fn=lambda *a: docs, cap=5) == []
+    assert bd.ledger.evidence_borrows == before, "a call that reads nothing borrows nothing"
+
+
+def test_ANALOG_the_row_carries_what_FOLLOWED_only_where_a_producer_was_wired():
+    """``n_receipts_after`` is ``None`` -- not zero -- where no ``receipt_fn`` reached the leg, because
+    "nobody looked" and "nothing was there" are different facts and the header prints the second one.
+    ``render.analog_selection_clauses`` gates the clause on exactly that, and suppresses a ZERO on a
+    stanza whose own absence row already says the corpus held nothing on either side: one absence
+    stated twice in two spellings is not two facts."""
+    from leviathan.graphrag.state import render as R
+    assert "inside the window that followed it" not in \
+        R.analog_selection_clauses({"n_receipts_after": None})
+    assert "zero dated documents inside the window that followed it" in \
+        R.analog_selection_clauses({"n_receipts_after": 0, "receipts": ({"e": 1},)})
+    assert R.analog_selection_clauses({"n_receipts_after": 0, "receipts": ()}) == ""
+    assert "one dated document inside the window that followed it" in \
+        R.analog_selection_clauses({"n_receipts_after": 1})
+    assert "two dated documents inside the window that followed it" in \
+        R.analog_selection_clauses({"n_receipts_after": 2})

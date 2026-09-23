@@ -770,15 +770,24 @@ def test_scenario_1_carries_a_dated_watch_list_and_a_like_state_stanza(scenarios
     kinds = {w["kind"] for w in ctx["watch"]}
     assert "next_release" in kinds and "lag_window" in kinds
     assert any(l.startswith("LIKE STATE") for l in ctx["block"].lines)
-    assert any("such crossing since" in l or "such crossings since" in l
-               for l in ctx["block"].lines)
+    # THE RARITY COUNT AND ITS FLOOR, IN THE SPELLING THE PRODUCED ROW RENDERS (round-2 blocker 2:
+    # the count beside a pick is the pool the pick was drawn from; the head-admitted count is a
+    # second, separately named number). A row the selection did NOT build still renders HEAD's
+    # sentence, which is pinned by name in the unit test above.
+    assert any("could be ranked beside it, this one " in l
+               for l in ctx["block"].lines), [l for l in ctx["block"].lines
+                                              if l.startswith("LIKE STATE")]
+    assert any("admitted at the full-coverage floor since " in l for l in ctx["block"].lines)
     assert any("measured on the record as revised through" in l for l in ctx["block"].lines)
 
 
 #: The plural-on-a-singular-count sightings this bar exists to keep out. Each was MEASURED on a
 #: rendered block: a count in WORDS still has to agree with the noun and the verb beside it.
 _SINGULAR_MISMATCHES = ("one such crossings", "one other boards", "one hops upstream",
-                        "one of its one declared drivers sit among")
+                        "one of its one declared drivers sit among",
+                        # ROUND 2's own two: the ranked-pool clause and the second number beside it.
+                        "one past readings on this series", "one like states admitted",
+                        "one dated documents inside the window")
 
 
 def test_a_singular_count_takes_a_SINGULAR_NOUN_in_every_template(scenarios):
@@ -2892,3 +2901,394 @@ def test_S8R5_a_REPORT_SENTENCE_outside_the_hops_window_is_NAMED_never_cited_and
     # AND NOTHING ON THE LIVE FIXTURE'S PAGES MOVED: no chain there carries a refused report sentence.
     for mode, (_bd, blk) in sorted(chain_blocks.items()):
         assert "outside the window declared for it" not in blk.text(), mode
+
+
+# === THE ANALOG RENDER HALF (sec 4.2 / 4.4, DESIGN C.1-C.4) =========================================
+#: A PRODUCED analog row -- every field ``analogs.analog_rows`` puts on a FIRED stanza, by its ONE
+#: spelling. The defaults are the measured soybeans deep stanza (``El_Nino`` at 2013-06-30 on the
+#: served seam): two of three dimensions readable, one charged a full sigma, sign 2 of 2, DIRECTION
+#: 0 of 2, one dimension's record starting after the picked date, the seed's own record from 1999 and
+#: the R3a pool at 159 against HEAD's own admitted three.
+def _analog_row(**kw) -> dict:
+    a = {"driver_id": "El_Nino", "contract": "soybeans_cbot", "date": "2013-06-30",
+         "asof": "2026-09-07", "floor_year": "2022", "n_candidates": 159, "n_candidates_head": 3,
+         "n_candidates_raw": 222, "n_candidates_pit": 219, "n_dropped_unreadable": 60,
+         "dims_declared": 3, "dims_seen": 2, "dims_unread": 1, "unread_sigma": 1.0,
+         "sign_agree": 2, "sign_seen": 2, "dir_agree": 0, "dir_seen": 2, "precedes_dims": 1,
+         "near_asof": False, "months_to_asof": 158, "first_dim": None, "detail": None,
+         "pool_rank": 1,
+         "declined": None, "dims_order": ["El_Nino", "La_Nina", "export_pace_lag"],
+         "record_span": ({"id": "El_Nino", "first_date": "1999-12-31"},
+                         {"id": "La_Nina", "first_date": "1999-12-31"},
+                         {"id": "export_pace_lag", "first_date": "2023-11-03"})}
+    a.update(kw)
+    return a
+
+
+#: The letters this class may carry once its calendar years and its glued digits are taken out. A
+#: character left over after this is a DIGIT in a letters-only row.
+_SB_A_LETTERS = {ord(c): None for c in
+                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -;,:'."}
+
+
+def _no_digits(line: str) -> str:
+    return _GLUED_RX.sub("", _YEAR_RX.sub("", line)).strip().translate(_SB_A_LETTERS)
+
+
+def test_ANALOG_the_SELECTIONS_OWN_FACTS_ARE_PRINTED_AS_COUNTS_AND_COST_NOTHING_AT_THE_REGISTER():
+    """**SEVENTEEN FACTS ON EVERY ROW AND ZERO READERS.** The committed selection half (bbddd4cc)
+    stopped declining by rule and started PRINTING facts -- coverage, the unread charge, sign
+    agreement, direction agreement, how far back each dimension's record reaches, whether the picked
+    date sits inside the separation window of the as-of -- and a census over ``render.py``,
+    ``watch.py``, ``lint.py``, ``narration.py``, ``board.py`` and ``answer.py`` by each field's ONE
+    spelling found ZERO readers for sixteen of them. This is the pin that they reach a reader.
+
+    EVERY CLAUSE IS A COUNT AND NAMES NO DIMENSION: ``record_span`` and ``dims_order`` carry RAW
+    driver ids, ``register.internal_leaks`` is never relaxable, and a counts-only clause cannot leak
+    one. And none of them carries the token ``board``: the handoff's own suggested wording ("the
+    dimensions this board ranks") cost ONE desk-register charge PER STANZA, measured, against a
+    pre-arm sweep that drove that token 142 -> 65 across this block."""
+    from leviathan.graphrag import register as REG
+    cases = [_analog_row(),
+             _analog_row(dims_declared=5, dims_seen=5, dims_unread=0, sign_agree=4, sign_seen=5,
+                         dir_agree=4, dir_seen=5, precedes_dims=0),
+             _analog_row(dims_declared=5, dims_seen=2, dims_unread=3, sign_agree=2, sign_seen=2,
+                         dir_agree=0, dir_seen=0, precedes_dims=3)]
+    for a in cases:
+        head = R.sb_analog_header(a)
+        clauses = R.analog_selection_clauses(a)
+        assert clauses and clauses in head, (clauses, head)
+        assert R.classify(head) == ("SB-A",), R.classify(head)
+        assert R.register_hits(head) == [] and R.register_hits(clauses) == [], head
+        assert REG.count_desk_register(clauses) == 0, REG.desk_register_hits(clauses)
+        assert REG.internal_leaks(clauses) == [] and REG.market_leaks(clauses) == [], clauses
+        assert "board" not in clauses.lower(), clauses
+        head.encode("ascii")
+        assert not _no_digits(clauses), clauses      # letters only: every count is in words
+        for dim in ("El_Nino", "La_Nina", "export_pace_lag", "El Nino", "La Nina"):
+            assert dim not in clauses, (dim, clauses)
+    one = R.analog_selection_clauses(cases[0])
+    assert "like on two of the three dimensions ranked beside it, which together reach back to 2023" \
+        in one, one
+    assert "the one it could not read there counts as a full sigma apart" in one, one
+    assert "this date precedes the record of one of the dimensions ranked beside it" in one, one
+    assert " one of the dimension ranked" not in one, "the noun is the SET's, never the count's"
+    full = R.analog_selection_clauses(cases[1])
+    assert "like on five of the five dimensions" in full and "could not read there" not in full
+    assert "this date precedes" not in full, "a correction is printed only where it was earned"
+    three = R.analog_selection_clauses(cases[2])
+    assert "the three it could not read there count as a full sigma apart" in three, three
+    assert "the path into it agreed on" not in three, "no direction clause where none could be read"
+
+
+def test_ANALOG_ONE_PRODUCER_FOR_HOW_FAR_BACK_THESE_DIMENSIONS_SEE_AND_THE_PIN_IS_TWO_SIDED():
+    """**THE PAGE PUT THREE ANSWERS TO ONE QUESTION ON ONE LINE, AND ROUND 2 RULED THERE IS ONE.**
+    HEAD printed the LOUD SEEDS' raw coverage floor (``floor_year``) beside a count minted over the
+    seed's own history; round 1 moved the count's floor to the SEED'S OWN ``record_span`` entry and
+    left the new reach clause on ``floor_year``. Measured over the 36 rendered stanzas of the fixture
+    sweep: 24 printed a count floor EARLIER than its own counted population can reach (El Nino 1999
+    against a binding 2023-11-03, ending stocks 1999 against 2015-12-31) and 36 of 36 printed a reach
+    year the ``record_span`` the clause NAMES disagrees with. One stanza read "three such crossings
+    since 1999 ... the three dimensions ranked beside it, which together reach back to 2022".
+
+    THE ANSWER IS ``max(first_date)`` OVER ``record_span`` -- the first date every declared dimension
+    could be read at once, which is exactly the population the head-admitted count is admitted over
+    (``dims_seen == dims_declared``) and exactly what "together reach back to" says.
+
+    **THE PIN IS TWO-SIDED, BECAUSE ROUND 1'S WAS NOT.** Its self-refutation asked only whether a
+    floor was too LATE (a pick before it, a count wider than its window), so moving the floor
+    twenty-four years EARLIER drove both tests to zero BY CONSTRUCTION and graded nothing. Here a
+    floor earlier than ``max(first_date)`` fails and a floor later fails, on rows built to fail each
+    way."""
+    a = _analog_row()
+    head = R.sb_analog_header(a)
+    # ONE NUMBER, BOTH CLAUSES. 2023-11-03 is the LAST of the three records to open.
+    assert R.analog_count_floor(a) == "2023"
+    assert "three like states admitted at the full-coverage floor since 2023" in head, head
+    assert "which together reach back to 2023" in head, head
+    assert head.count("2023") == 2 and "2022" not in head and "1999" not in head, head
+    # EARLIER FAILS: the seed's own entry (1999) is not the answer, and neither is the loud set's.
+    assert "since 1999" not in head and "reach back to 1999" not in head, head
+    # LATER FAILS: a span that binds EARLIER than `floor_year` takes the SPAN, not the bigger year.
+    early = _analog_row(floor_year="2022",
+                        record_span=({"id": "El_Nino", "first_date": "2001-01-31"},
+                                     {"id": "La_Nina", "first_date": "2015-12-31"}))
+    assert R.analog_count_floor(early) == "2015"
+    assert "reach back to 2015" in R.sb_analog_header(early)
+    assert "2022" not in R.sb_analog_header(early)
+    # THE ANSWER IS THE MAX AND NOT THE MIN, AND NOT THE FIRST ENTRY EITHER -- order cannot move it.
+    assert R.analog_count_floor(_analog_row(
+        record_span=({"id": "x", "first_date": "2023-11-03"},
+                     {"id": "y", "first_date": "1999-12-31"}))) == "2023"
+    # A DUPLICATE ID CANNOT TAKE ANOTHER BOARD'S FLOOR: there is no join left to get wrong.
+    assert R.analog_count_floor(_analog_row(
+        record_span=({"id": "El_Nino", "first_date": "1999-12-31"},
+                     {"id": "El_Nino", "first_date": "2020-06-30"}))) == "2020"
+    # IT FAILS BACK AND NEVER CLOSED: no span, no placeable date -- `floor_year` exactly as at HEAD.
+    assert R.analog_count_floor(_analog_row(record_span=())) == "2022"
+    assert R.analog_count_floor(_analog_row(
+        record_span=({"id": "El_Nino", "first_date": None},))) == "2022"
+    assert R.analog_count_floor({}) == ""
+
+
+def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF():
+    """**A NUMBER WHOSE POPULATION THE PICK IS NOT IN IS A BACKING FAILURE** (round-2 blocker 2).
+    Round 1 printed ``n_candidates_head`` -- admitted only where EVERY declared dimension is readable
+    -- in the sentence that opens "the series sat like this in June 2013", and on 10 of the 18
+    rendered stanzas the date in that sentence was outside the set the number counts: 2013-06-30
+    beside a three-member set beginning 2023-12-31, 2020-04-30 and 2017-02-28 beside a one-member set
+    at 2024-02-29. A reader takes the two as one event; at HEAD this could not happen, because HEAD
+    printed the pool the pick was drawn from.
+
+    So the count beside the pick is the RANKED POOL, which every picked row is a member of by
+    construction, and the head-admitted count rides as a SECOND number that says whose population it
+    is. It prints ONLY where the two differ, because a second number equal to the first is one
+    population wearing two sentences.
+
+    AND THE "NEAREST" CLAIM IS THE ROW'S, NOT THE STANZA'S POSITION: a max tier renders two stanzas
+    off one pool and the second one is not the nearest."""
+    a = _analog_row()
+    head = R.sb_analog_header(a)
+    # THE NOUN IS THE POPULATION'S (round-2 review MAJOR 2): the ranked pool is "past readings ... could
+    # be ranked beside it"; only the HEAD-admitted count is a "like state" -- the word the watch's
+    # base-rate row spends on the same population, so the two producers can never be read as one
+    # number a factor of 159 apart.
+    assert ("one hundred fifty-nine past readings on this series could be ranked beside it, "
+            "this one the nearest") in head, head
+    assert "three like states admitted at the full-coverage floor since 2023" in head, head
+    # THE OPPOSITE ERRORS: the pool may never be called like states; the admitted count may never
+    # wear the pool's sentence.
+    assert "like states ranked" not in head and "such crossings" not in head, head
+    assert "three past readings" not in head, head
+    # RANK: only the nearest may say so; every other seat, and a row with no seat at all, says less.
+    second = R.sb_analog_header(_analog_row(pool_rank=6))
+    assert ("one hundred fifty-nine past readings on this series could be ranked beside it, "
+            "this one among them") in second, second
+    assert "the nearest" not in second, second
+    noneth = _analog_row()
+    noneth.pop("pool_rank")
+    assert "this one among them" in R.sb_analog_header(noneth)
+    # THE SECOND NUMBER IS PRINTED ONLY WHERE IT DIFFERS -- and where it does not, nothing is lost:
+    # the reach clause still carries the year, off the same one producer.
+    same = R.sb_analog_header(_analog_row(n_candidates=3, n_candidates_head=3))
+    assert "three past readings on this series could be ranked beside it, this one the nearest" in same, same
+    assert "admitted at the full-coverage floor" not in same, same
+    assert "which together reach back to 2023" in same, same
+    # SINGULARS, and a zero that is a real and different fact.
+    one = R.sb_analog_header(_analog_row(n_candidates=1, n_candidates_head=1))
+    assert "one past reading on this series could be ranked beside it, this one the nearest" in one, one
+    none_admitted = R.sb_analog_header(_analog_row(n_candidates_head=0))
+    assert "zero like states admitted at the full-coverage floor since 2023" in none_admitted
+    # A ROW THE SELECTION DID NOT BUILD IS HEAD'S ROW, FLOOR AND ALL.
+    headrow = _analog_row()
+    headrow.pop("n_candidates_head")
+    assert "the record carries one hundred fifty-nine such crossings since 2022" in \
+        R.sb_analog_header(headrow)
+    # LETTERS ONLY AND NOTHING NEW AT THE REGISTER, on every arm above.
+    from leviathan.graphrag import register as REG
+    for line in (head, second, same, one, none_admitted):
+        assert R.classify(line) == ("SB-A",) and R.register_hits(line) == [], line
+        assert REG.internal_leaks(line) == [] and REG.market_leaks(line) == [], line
+        line.encode("ascii")
+
+
+def test_ANALOG_what_FOLLOWED_is_the_WINDOWS_COUNT_and_the_TIERS_CAP_IS_A_CUT_ROW(scenarios):
+    """**THE FIRST SILENT CUT IN THIS MODULE WHOSE NUMBER WAS PRINTED AS A FACT** (round-2 blocker 3).
+    ``analogs._receipts_after`` stopped walking at the tier's ``receipt_cap`` and the header printed
+    ``len()`` of what it got: measured through the real seam with twelve documents inside the forward
+    window, deep printed "three dated documents inside the window that followed it" against a true
+    eleven and max printed "five" against a true eight -- CONSTANT AT THE CAP whatever the corpus
+    held, with no cut row, while the BACKWARD window has carried one since S6. Fences correct or
+    compute; a cap is a cut row and never a count.
+
+    BOTH DIRECTIONS ARE GRADED: a stanza whose carried rows are short of the count says so and names
+    the difference, and a stanza the cap did not cut mints no absence at all -- a cut line over an
+    uncut section is a false absence."""
+    ctx = scenarios["b40_event"]
+    bd = ctx["board"]
+    base = _analog_row(contract="malaysian_crude_palm_oil_cme", n_receipts_after=11,
+                       receipts_after=tuple({"t": 1, "date": "2013-0%d-15" % i} for i in (7, 8, 9)))
+    cut = [l for l in R.render_board(bd, analogs=[base]).lines
+           if l.startswith("BOARD ABSENCE") and "inside the window that followed" in l]
+    assert len(cut) == 1, cut
+    # ROUND-2 REVIEW MAJOR 1: nothing renders the forward rows, so the row withholds the WHOLE count
+    # the header printed -- eleven, the same figure -- never "count minus rows the page never showed".
+    assert cut[0].startswith("BOARD ABSENCE the eleven documents counted inside the window that "
+                             "followed this like state are not shown on this page "
+                             "(El Nino on CME palm oil)"), cut[0]
+    assert "eight" not in cut[0] and "receipt cut" not in cut[0], cut[0]
+    assert R.classify(cut[0]) == ("SB-X",) and R.register_hits(cut[0]) == [], cut[0]
+    cut[0].encode("ascii")
+    assert not any(ch.isdigit() for ch in cut[0]), cut[0]       # the count is in words
+    # THE HEADER'S FIGURE IS THE WINDOW'S, not the three rows the tier carried.
+    assert "eleven dated documents inside the window that followed it" in R.sb_analog_header(base)
+    # NOTHING COUNTED, NOTHING SAID (round-2 review MAJOR 1: nothing on this page renders the forward
+    # rows, so a counted row is withheld whatever it carries -- and a zero or an absent count prints
+    # no row at all).
+    carried = _analog_row(n_receipts_after=3, receipts_after=({"t": 1}, {"t": 1}, {"t": 1}))
+    _cl = [l for l in R.render_board(bd, analogs=[carried]).lines
+           if "inside the window that followed this like state" in l]
+    assert any("the three documents counted inside the window" in l and "are not shown on this page" in l
+               for l in _cl), _cl
+    for row in (_analog_row(n_receipts_after=0, receipts_after=()), _analog_row()):
+        assert not [l for l in R.render_board(bd, analogs=[row]).lines
+                    if "inside the window that followed this like state" in l], row.get("date")
+    # AND THE SINGULAR IS ITS OWN SENTENCE.
+    one = R.render_board(bd, analogs=[_analog_row(n_receipts_after=1,
+                                                  receipts_after=({"t": 1},))]).lines
+    assert any("the one document counted inside the window" in l and "is not shown on this page" in l
+               for l in one), one
+
+
+def test_ANALOG_the_DIRECTION_clause_is_the_one_that_changes_a_mind_and_it_reads_ZERO_OF_TWO():
+    """**THE LEVEL MATCHED AND THE PATH DID NOT.** ``sign_agree/sign_seen`` is nearly constant by
+    construction -- the distance ranks on the z, so a small z-gap implies a shared sign -- and it
+    measured 2/2, 4/4 and 5/5 on the live stanzas. ``dir_agree/dir_seen`` measured **0 of 2** on the
+    served soybeans deep stanza and 0 of 3 on ``export_pace_lag``. Round 3 put direction and run on the
+    KNOWLEDGE axis, so it is a true statement about what a desk could have read then; it is also the
+    only one of the two a reader would act on.
+
+    THE ``sign_seen == 0`` BRANCH IS NOT BUILT AND MUST NOT BE: it is unreachable after round 2 (a
+    fired row always carries a readable sigma) and pinned as such in ``tests/unit/test_state_analogs``.
+    A branch for an unreachable state is a sentence no measurement can ever grade."""
+    import inspect
+    head = R.sb_analog_header(_analog_row())
+    assert "the state agreed in sign on two of the two a sigma could be read on" in head, head
+    assert "the path into it agreed on zero of the two a direction could be read on" in head, head
+    none_seen = R.analog_selection_clauses(_analog_row(sign_seen=0, sign_agree=0, dir_seen=0,
+                                                       dir_agree=0))
+    assert "agreed in sign" not in none_seen and "the path into it" not in none_seen, none_seen
+    # THE SOURCE, PAST ITS OWN DOCSTRING -- which names the branch in order to say it is not built.
+    src = inspect.getsource(R.analog_selection_clauses)
+    assert src.count('"""') >= 2, src[:200]
+    assert "sign_seen == 0" not in src.split('"""')[2]
+
+
+def test_ANALOG_near_asof_APPENDS_THE_MONTHS_AND_NEVER_REMOVES_THE_STANZA():
+    """**DESIGN C.4's BAR, IN THE ONLY SHAPE DOCTRINE ALLOWS.** The design asks for a lint that
+    asserts the chosen date is not within ``min_separation_months`` of the as-of -- which is a fence
+    that DELETES a stanza the selection picked. Fences correct or compute;
+    ``analogs.select_analogs`` says it in its own words ("``near_asof`` IS A FLAG AND NEVER A
+    FILTER"). So the page APPENDS the distance and the stanza stays.
+
+    IT WAS LIVE AND SILENT: ``attached_event`` at deep renders a stanza picked 2026-01-31 against an
+    as-of of 2026-09-07 and ``attached_event`` at max's top stanza picks 2025-12-31 -- both flagged
+    True by the selection, both rendered, and the word appeared NOWHERE in this module."""
+    near = _analog_row(date="2026-01-31", near_asof=True, months_to_asof=8)
+    head = R.sb_analog_header(near)
+    assert "that date sits eight months before the as-of this page is read at" in head, head
+    assert head.startswith("LIKE STATE El Nino on CBOT soybeans: the series sat like this in ")
+    assert R.classify(head) == ("SB-A",) and R.register_hits(head) == []
+    assert "sits one month before" in R.sb_analog_header(
+        _analog_row(near_asof=True, months_to_asof=1))
+    fallback = R.sb_analog_header(_analog_row(near_asof=True, months_to_asof=None))
+    assert "sits inside the separation window of the as-of this page is read at" in fallback
+    assert not _no_digits(R.analog_selection_clauses(
+        _analog_row(near_asof=True, months_to_asof=None)))
+    assert R.sb_analog_header(_analog_row(near_asof=False)) == R.sb_analog_header(_analog_row())
+
+
+def test_ANALOG_the_TRANSLATED_chain_mark_NAMES_THE_CHAINS_OWN_WORD_instead_of_going_silent():
+    """**ROUND 5 CLOSED THE RENAME BY GOING SILENT; THIS SPEAKS IT.** Where the analog leg leads with
+    the TRANSLATION of a chain hop, ``first_dim`` is not in ``chain_dims`` and round 5's mark printed
+    nothing at all. MEASURED over the twelve chain-on served cells: six marks and two silent chain-on
+    cells, one of them exactly this -- ``named_one`` at deep, where the top chain walks ``La_Nina``,
+    ``seam._dim_for_hop`` translates it onto ``El_Nino`` (one series, ``oni_climate|_global|``, two
+    phases) and the page printed "LIKE STATE El Nino ..." beside chain rows reading LA NINA with
+    nothing saying why. A silence is not a correction: the stanza IS that chain's history, read on the
+    series they share, and the pairing was owed. Marks go 6 -> 7 with ZERO cells losing one."""
+    from leviathan.graphrag import register as REG
+    oni = _analog_row(first_dim="El_Nino", dims_order=["El_Nino", "La_Nina", "export_pace_lag"])
+    names = {"El_Nino": "La_Nina"}
+    mark = R.chain_stanza_mark(oni, chain_dims=("La_Nina", "drought"), chain_dim_names=names)
+    assert mark == ("; read as the history of the chain named first, which carries that series as "
+                    "La Nina"), mark
+    assert "El Nino" not in mark, "an attribution never names a driver the chain does not carry"
+    assert R.register_hits(mark) == [] and REG.count_desk_register(mark) == 0
+    assert REG.internal_leaks(mark) == [] and not any(c.isdigit() for c in mark)
+    assert R.classify(R.sb_analog_header(oni, chain_dims=("La_Nina", "drought"),
+                                         chain_dim_names=names)) == ("SB-A",)
+    assert R.chain_stanza_mark(oni, chain_dims=("El_Nino",)) == \
+        "; read as the history of the chain named first, on El Nino"
+    assert R.chain_stanza_mark(oni, chain_dims=("La_Nina",)) == ""
+    assert R.chain_stanza_mark(oni, chain_dims=(), chain_dim_names=names) == ""
+    assert R.chain_stanza_mark(oni, chain_dims=("drought",), chain_dim_names=names) == ""
+    assert R.chain_stanza_mark(_analog_row(first_dim="La_Nina",
+                                           dims_order=["El_Nino", "La_Nina"]),
+                               chain_dims=("La_Nina",), chain_dim_names=names) == ""
+    assert R.sb_analog_header(_analog_row(), chain_dims=("La_Nina",)) + mark == \
+        R.sb_analog_header(oni, chain_dims=("La_Nina", "drought"), chain_dim_names=names)
+
+
+def test_ANALOG_a_DECLINED_stanza_states_its_FINER_REASON_without_a_new_DECLINE_WORD():
+    """**RENDERING THE HANDOFF'S PROPOSAL REFUTED IT.** The handoff asked for ``pre_coverage`` to take
+    the analog producer. ``render.ABSENCE_WHY`` is keyed by WORD ALONE and clause 9 of
+    ``state/lint.py`` requires exactly one sentence per word in BOTH directions, so an analog decline
+    on that word prints, verbatim, "BOARD ABSENCE a like state on this market: the as-of sits before
+    this market's own price history begins" -- which is FALSE for ``detail == 'unobservable'``, where
+    the as-of is today and it is the CANDIDATE DATES that sit inside the record with nothing readable
+    on them. The word does not move; the finer reason is ONE extra sentence in the same class."""
+    from leviathan.graphrag import register as REG
+    from leviathan.graphrag.state import board as BRD
+    assert R.absence_why("pre_coverage") == ("the as-of sits before this market's own price history "
+                                             "begins"), "the TAPE's sentence, and only the tape's"
+    assert "pre_coverage" in BRD.TAPE_REASONS and "pre_coverage" in BRD.ANALOG_REASONS
+    for detail, must in (("unobservable", "sixty such dates were ranked past"),
+                         ("window_open", "too recent for its own declared window to have closed"),
+                         ("no_candidates", "holds no crossing on this series at all")):
+        row = _analog_row(declined="no_like_state", detail=detail, date=None)
+        line = R.sb_analog_decline_detail(row)
+        assert line.startswith("LIKE STATE El Nino on CBOT soybeans: "), line
+        assert must in line, (detail, line)
+        assert R.classify(line) == ("SB-A",) and R.register_hits(line) == [], line
+        assert REG.count_desk_register(line) == 0 and REG.internal_leaks(line) == []
+        assert not _no_digits(line), line
+        line.encode("ascii")
+    assert R.sb_analog_decline_detail(_analog_row(declined="no_like_state", detail=None)) == ""
+    assert R.sb_analog_decline_detail({}) == ""
+    assert set(R.ANALOG_DETAIL_WHY) == {"no_candidates", "window_open", "unobservable"}
+    for why in R.ANALOG_DETAIL_WHY.values():
+        assert not any(c.isdigit() for c in why), why
+
+
+def test_ANALOG_a_row_the_SELECTION_DID_NOT_BUILD_composes_the_header_it_composed_at_HEAD():
+    """THE GATE ON EVERY CLAUSE IS A FIELD THE COMMITTED SELECTION HALF PUTS ON A PRODUCED ROW, so a
+    hand-built row -- every deck row, every census row, ``event_analogs``' own appended stanza in
+    ``state/__main__.build_scenario`` -- composes the header it composed before, byte for byte. This
+    is the pin that the render half added a READER and not a second producer."""
+    legacy = {"driver_id": "El_Nino", "contract": "soybeans_cbot", "date": "2015-08-31",
+              "n_candidates": 4, "floor_year": "2003", "asof": "2026-09-07"}
+    head = R.sb_analog_header(legacy)
+    assert head == ("LIKE STATE El Nino on CBOT soybeans: the series sat like this in August 2015; "
+                    "the record carries four such crossings since 2003; each move below is read over "
+                    "the band the graph declares for the leg it names, and the row prints that band; "
+                    "measured on the record as revised through September 2026"), head
+    assert R.analog_selection_clauses(legacy) == ""
+    co = dict(legacy, co_loud=True, n_contracts=3, dims_seen=2, dims_declared=3, sign_agree=2,
+              sign_seen=2, near_asof=True, months_to_asof=3)
+    assert "dimensions ranked beside it" not in R.sb_analog_header(co)
+    assert "before the as-of this page is read at" not in R.sb_analog_header(co)
+
+
+#: THE MEASURED CEILING for the SB-A header, by the chain lane's own rule (measured max, +10%, rounded
+#: up to the next fifty). MEASURED on the eighteen served cells through ``seam.fill_stage1`` +
+#: ``fill_stage2``, every anchor shape, every tier, chain off and on: HEAD 310-382 characters, this
+#: landing 615-876. 876 plus a tenth is 963.6, so the bar is 1,000. It is a BAR THE DECK GRADES and
+#: never a truncation: a fence that cut this header would delete a fact the selection measured.
+SB_A_HEADER_CEILING = 1000
+
+
+def test_ANALOG_the_composed_header_states_a_MEASURED_ceiling_rather_than_drifting(scenarios):
+    """The header grew from 310-382 characters to 615-876 on the served pages -- +77% to +129% -- on a
+    stanza that is 442 to 2,252 characters of a 13k-75k block. That is a budget fact and it is stated
+    with a number rather than left to drift, exactly as the chain lane re-baselined its three ceilings
+    on measurement."""
+    seen = []
+    for name, ctx in sorted(scenarios.items()):
+        for line in ctx["block"].lines:
+            if line.startswith("LIKE STATE ") and "the series sat like this" in line:
+                seen.append((name, len(line), line))
+    assert seen, "the three acceptance fixtures render at least one like-state header"
+    for name, n, line in seen:
+        assert n <= SB_A_HEADER_CEILING, (name, n, line[:160])
+        assert R.classify(line) == ("SB-A",) and R.register_hits(line) == []

@@ -2741,7 +2741,163 @@ def attach_tape(bd, tape_by_slug: dict, *, reads_each: int = 1) -> None:
     bd.ledger.tape_reads += n * max(0, int(reads_each))
 
 
-def sb_analog_header(a: dict, *, chain_dims=()) -> str:
+def analog_count_floor(a: dict) -> str:
+    """**HOW FAR BACK THESE DIMENSIONS SEE -- THE PAGE'S ONE PRODUCER FOR THAT YEAR**, and it is
+    ``max(first_date)`` over ``record_span``: the first date on which EVERY declared dimension could be
+    read at once.
+
+    **ROUND 2 RULED ON THIS BECAUSE ROUND 1 PUT TWO ANSWERS TO ONE QUESTION ON ONE SENTENCE.** Round 1
+    took the count's floor from the SEED'S OWN ``record_span`` entry and left the coverage clause's
+    "which together reach back to" on ``floor_year`` (``analogs._coverage_floor``, ``max(first_obs)``
+    over the LOUD SEEDS -- a RAW series start, bound here to a Z-READABILITY population). Both were
+    measured wrong and in the same direction, OPTIMISTIC, and they contradicted each other on the same
+    line: 24 of 36 rendered stanzas printed a count floor EARLIER than its own counted population could
+    reach (El Nino 1999 against a binding 2023-11-03; ending stocks 1999 against 2015-12-31) and 36 of
+    36 printed a reach year the ``record_span`` it names disagrees with (1990 vs 1999-12-31, 2022 vs
+    2023-11-03, 2006 vs 2015-12-31). One page read "the record carries three such crossings SINCE 1999
+    ... the three dimensions ranked beside it, WHICH TOGETHER REACH BACK TO 2022".
+
+    So there is ONE producer and both clauses spend it. The number is the max and not the min because
+    the sentences it serves are about the dimensions TOGETHER: the head-admitted count is admitted only
+    where ``dims_seen == dims_declared`` (:func:`analogs.select_analogs`), so its earliest possible
+    member is the date the LAST dimension's record opens, and "which together reach back to" says the
+    same thing about the same set. A floor EARLIER than that is a claim the population cannot support;
+    a floor LATER is a record the reader is denied. Both are pinned.
+
+    IT JOINS NOTHING AND THAT CLOSES A LIVE HAZARD (round-1 minor 3): round 1 matched ``record_span``
+    on the driver NAME, and duplicate ids are live on this estate -- 78 rows across the 54 measured
+    cells carry one (``['El_Nino','El_Nino','El_Nino']``, three boards' dimensions) -- so the first
+    board whose same-named driver had a different record start would silently have taken another
+    board's floor. A max over the whole span has no key to get wrong.
+
+    WHAT IT IS NOT, STATED BECAUSE HEAD PRINTED IT AND ROUND 1 KEPT IT: ``floor_year`` is the year the
+    LOUD SET's raw series start can see, and the served soybeans page spent it under "the record
+    carries one hundred fifty-nine such crossings since 2022" over a window of fifty-six months, with
+    all three picked dates (2013-06-30, 2020-04-30, 2017-02-28) PRECEDING the printed floor. It stays
+    on the row as the fail-back and is printed by no clause that names ``record_span``.
+
+    IT FAILS BACK, NEVER CLOSED: a row with no ``record_span`` -- every hand-built deck row and every
+    census row -- gets ``floor_year`` exactly as it got it at HEAD, so this function can only ever
+    correct a floor and never remove one. A span whose entries carry no placeable ``first_date``
+    (``analogs._record_span`` writes ``None`` where no position carries a distance component) is the
+    same case and takes the same answer: a floor the record cannot back is not invented here."""
+    firsts = [str((r or {}).get("first_date") or "")[:10]
+              for r in ((a or {}).get("record_span") or ())]
+    firsts = [d for d in firsts if len(d) >= 4 and d[:4].isdigit()]
+    if firsts:
+        return max(firsts)[:4]
+    return str((a or {}).get("floor_year") or "")
+
+
+def analog_selection_clauses(a: dict) -> str:
+    """THE SEVENTEEN FACTS THE SELECTION PUTS ON EVERY ANALOG ROW, AS THE SENTENCES THE PAGE OWES.
+
+    **THE MEASURED STATE THIS FUNCTION ANSWERS.** The committed selection half (bbddd4cc) puts
+    ``dims_seen``, ``dims_unread``, ``unread_sigma``, ``sign_agree``/``sign_seen``,
+    ``dir_agree``/``dir_seen``, ``precedes_dims``, ``record_span``, ``near_asof``,
+    ``n_candidates_raw``/``_pit``/``_head``, ``n_dropped_unreadable``, ``per_dim``, ``run_gap`` and
+    ``detail`` on every row -- and a census over ``render.py``, ``watch.py``, ``lint.py``,
+    ``narration.py``, ``board.py`` and ``answer.py`` by each field's ONE spelling found ZERO readers
+    for sixteen of them. The selection stopped declining by rule and started PRINTING facts; nothing
+    printed them. These are those sentences.
+
+    **EVERY CLAUSE IS A COUNT AND NOT AN ENUMERATION** (the board SELECTS, never enumerates). Not one
+    of them names a dimension: ``record_span`` and ``dims_order`` carry RAW driver ids,
+    ``register.internal_leaks`` is never relaxable, and a counts-only clause cannot leak one. They are
+    letters-only -- ``words_for_int`` renders every number -- so SB-A mints no handle here and the
+    verifier has nothing new to bind.
+
+    **AND NOT ONE OF THEM CARRIES THE TOKEN ``board``**, which is a measurement and not a style note:
+    ``register.desk_register_hits`` charges it, the pre-arm sweep drove it 142 -> 65 across this block,
+    and the handoff's own suggested wording ("the dimensions this board ranks") cost one charge PER
+    STANZA. "ranked beside it" is the same fact at zero.
+
+    THE ORDER IS THE READING'S: how rare the state is, how wide the pool that could be ranked, how much
+    of the state was legible, whether the LEVEL agreed, whether the PATH agreed, and then the two
+    corrections that qualify the date itself.
+
+    **THE DIRECTION CLAUSE IS THE ONE THAT CHANGES A MIND** (D4). ``sign_agree/sign_seen`` is nearly
+    constant by construction -- the distance ranks on the z, so a small z-gap implies a shared sign, and
+    it measured 2/2, 4/4 and 5/5 on the live stanzas. ``dir_agree/dir_seen`` measured **0 of 2** on the
+    served soybeans deep stanza and 0 of 3 on ``export_pace_lag``: the level matched and the PATH did
+    not. Round 3 put direction and run on the KNOWLEDGE axis, so it is a true statement about what a
+    desk could have read then. Both ride; the sign clause is cheap and the direction clause is the
+    information.
+
+    ``sign_seen == 0`` IS NOT BRANCHED ON, and that is deliberate: it is unreachable after round 2 (a
+    fired row always carries a readable sigma) and pinned as such in ``tests/unit/test_state_analogs.py``.
+    A branch for an unreachable state is a sentence no measurement can ever grade.
+
+    ``near_asof`` IS APPENDED AND NEVER FILTERED ON (DESIGN C.4, and ``state/lint.py`` clause 16 grades
+    exactly that). It is live and silent on the served page today: ``attached_event`` at deep renders a
+    stanza picked 2026-01-31 against an as-of of 2026-09-07 and ``attached_event`` at max's TOP stanza
+    picks 2025-12-31 -- seven and nine months, both flagged, both rendered, neither saying so. Fences
+    correct or compute; this one computes, and the stanza stays on the page.
+
+    A row that carries none of these fields -- every hand-built deck row, every census row -- gets the
+    empty string, so the header it composes is HEAD's byte for byte."""
+    out: list = []
+    seen, decl = a.get("dims_seen"), a.get("dims_declared")
+    if seen is not None and decl is not None:
+        # ONE PRODUCER FOR "HOW FAR BACK THESE DIMENSIONS SEE" (round-2 blockers 1 and 4). Round 1
+        # attached ``floor_year`` here -- ``analogs._coverage_floor``, the LOUD SEEDS' RAW series
+        # start -- to a population that is a Z-READABILITY one, and 36 of 36 rendered stanzas printed
+        # a year the ``record_span`` this very clause names disagrees with (1990 vs 1999-12-31, 2022
+        # vs 2023-11-03, 2006 vs 2015-12-31). The count clause beside it read a THIRD number. There is
+        # one question and there is now one answer: :func:`analog_count_floor`.
+        floor = analog_count_floor(a)
+        out.append("; like on %s of the %s %s ranked beside it%s"
+                   % (words_for_int(seen), words_for_int(decl),
+                      "dimension" if int(decl) == 1 else "dimensions",
+                      (", which together reach back to %s" % floor) if floor else ""))
+        unread = int(a.get("dims_unread") or 0)
+        if unread:
+            out.append("; the %s it could not read there %s a full sigma apart"
+                       % (words_for_int(unread), "counts as" if unread == 1 else "count as"))
+    s_agree, s_seen = a.get("sign_agree"), a.get("sign_seen")
+    if s_agree is not None and s_seen is not None and int(s_seen) > 0:
+        out.append("; the state agreed in sign on %s of the %s a sigma could be read on"
+                   % (words_for_int(s_agree), words_for_int(s_seen)))
+    d_agree, d_seen = a.get("dir_agree"), a.get("dir_seen")
+    if d_agree is not None and d_seen is not None and int(d_seen) > 0:
+        out.append("; the path into it agreed on %s of the %s a direction could be read on"
+                   % (words_for_int(d_agree), words_for_int(d_seen)))
+    pre = int(a.get("precedes_dims") or 0)
+    if pre:
+        # THE NOUN IS THE **SET'S**, NEVER THE COUNT'S. "one of the dimension" is what a count-driven
+        # plural produces here and it is wrong English: the count is the subset, the noun names the
+        # population it is drawn from. MEASURED on the served soybeans deep page, where
+        # `precedes_dims` is 1 against three declared dimensions.
+        out.append("; this date precedes the record of %s of the %s ranked beside it"
+                   % (words_for_int(pre),
+                      "dimension" if int(decl or 0) == 1 else "dimensions"))
+    if a.get("near_asof"):
+        m = a.get("months_to_asof")
+        if m is None:
+            out.append("; that date sits inside the separation window of the as-of this page is read "
+                       "at")
+        else:
+            out.append("; that date sits %s %s before the as-of this page is read at"
+                       % (words_for_int(m), "month" if int(m) == 1 else "months"))
+    # WHAT THE RECORD SAID **NEXT**, counted over the WHOLE forward window and never at the tier's cap
+    # (round-2 blocker 3: `analogs._receipts_after` walks the window whole, `analogs.analog_rows`
+    # publishes its length here and carries only `receipt_cap` rows, and `render_board` prints the cut
+    # between the two as its own absence row). It is suppressed in exactly
+    # ONE case -- a stanza whose corpus held nothing on EITHER side of the date -- because the stanza's
+    # own receipt-absence row already says so in full ("the corpus holds no dated document for this
+    # window; the figures above stand on the series alone"), and a header printing "zero dated
+    # documents inside the window that followed it" one line above it is one absence stated twice in
+    # two spellings. Where the stanza HAS explaining documents, a zero here is a real and different
+    # fact and it prints.
+    n_after = a.get("n_receipts_after")
+    if n_after is not None and (int(n_after) > 0 or (a.get("receipts") or ())):
+        n_after = int(n_after)
+        out.append("; %s dated %s inside the window that followed it"
+                   % (words_for_int(n_after), "document" if n_after == 1 else "documents"))
+    return "".join(out)
+
+
+def sb_analog_header(a: dict, *, chain_dims=(), chain_dim_names=None) -> str:
     """SB-A (sec 6.2, 4.2): the LIKE STATE header. Counts in words; the coverage floor PRINTED, so a
     loud set that cannot see 2003 says so; the vintage sentence on every stanza.
 
@@ -2749,7 +2905,34 @@ def sb_analog_header(a: dict, *, chain_dims=()) -> str:
     :func:`chain_stanza_mark` alone -- see there for the measurement that forced it. It is READ, NEVER
     REQUIRED: the default is the flag-off answer, every other line of this header is untouched by it,
     and a caller that passes none renders exactly the header it rendered before minus a mark it could
-    not have attributed.
+    not have attributed. ``chain_dim_names`` rides beside it on exactly the same terms: it is the
+    hop-to-dimension PAIRING (``render._chain_dim_name_map`` off ``seam.dim_for_hop``) and it is spent
+    by that same clause's TRANSLATED arm, so the ONI collision can be SPOKEN instead of swallowed.
+
+    **THE SELECTION'S OWN FACTS NOW REACH THE READER** (:func:`analog_selection_clauses`) and every
+    year this header prints for "how far back these dimensions see" comes off ONE producer
+    (:func:`analog_count_floor`). Both are gated on fields the committed selection half puts on a
+    produced row, so a hand-built row -- every deck row, every census row -- composes HEAD's header
+    byte for byte.
+
+    **THE COUNT BESIDE A PICK IS A POPULATION THE PICK IS A MEMBER OF** (round-2 blocker 2), and that
+    is the ruling this header was re-cut on. Round 1 printed ``n_candidates_head`` -- the count the
+    SHIPPED selector admits, which requires a candidate observable on EVERY declared dimension -- in
+    the sentence that opens "the series sat like this in June 2013", and on 3 of the 18 served stanzas
+    the date in that sentence was NOT in the set the number counts: 2013-06-30 beside a three-member
+    set beginning 2023-12-31; 2020-04-30 and 2017-02-28 beside a one-member set at 2024-02-29. A
+    reader takes the two as one event. So the number the pick stands beside is the RANKED POOL it was
+    drawn from -- "one hundred fifty-nine like states ranked, this one the nearest" -- and the
+    head-admitted count rides as a SECOND, separately named number, printed only where it differs and
+    saying whose population it is ("three of them admitted at the full-coverage floor since 2023").
+    Neither number wears the other's population, and ``watch.like_state_base_rate``'s arithmetic is
+    untouched: it reads ``n_candidates_head`` off the row, which this header never re-spells.
+
+    "THIS ONE THE NEAREST" IS BACKED BY ``pool_rank`` AND NOT BY THE STANZA'S POSITION, because a max
+    tier renders TWO stanzas off one pool and the second one is not the nearest -- ``named_one`` at max
+    prints 2020-04-30 and then 2017-02-28. Rank one gets the claim; every other rank gets "among
+    them", and a row carrying no rank at all gets "among them" too, which is the weaker true sentence
+    rather than the stronger unbacked one.
 
     **THE HEADER DECLARES NO BAND, AND THAT IS THE CORRECTION A MEASURED FALSE NOTE FORCED.** It used to
     print "the moves below are read over the declared lag band of {seed's band}" -- one band for a whole
@@ -2778,17 +2961,45 @@ def sb_analog_header(a: dict, *, chain_dims=()) -> str:
                 f"{'date' if n_dates == 1 else 'dates'} since {str(a['floor_year'])}; each move below "
                 f"is read over the band the graph declares for the board it names, and the row prints "
                 f"that band; measured on the record as revised through {month_words(a['asof'])}")
-    n = int(a['n_candidates'])
+    # THE COUNT THE PICK STANDS BESIDE IS THE POOL THE PICK CAME OUT OF, AND THE SHIPPED RULE'S OWN
+    # COUNT IS A SECOND NUMBER THAT SAYS SO (round-2 blocker 2; see the docstring for the three served
+    # stanzas whose date was outside the number printed beside it). `n_candidates` is the set the
+    # selector RANKS and every picked row is a member of it by construction; `n_candidates_head` is a
+    # SUBSET of that set -- `analogs.select_analogs` counts it inside the same loop that scores -- so
+    # "M OF THEM" is exact arithmetic and not a turn of phrase. It prints only where the two differ,
+    # because a second number equal to the first is one population wearing two sentences.
+    # A ROW WITHOUT `n_candidates_head` IS HEAD'S ROW and gets HEAD's sentence, floor and all.
+    n_head = a.get("n_candidates_head")
+    n_pool = int(a['n_candidates'])
+    if n_head is None:
+        rarity = ("the record carries %s such %s since %s"
+                  % (words_for_int(n_pool), "crossing" if n_pool == 1 else "crossings",
+                     str(a['floor_year'])))
+    else:
+        rank = a.get("pool_rank")
+        # THE NOUN IS THE POPULATION'S (round-2 review MAJOR 2): the ranked pool is 35-75% of the series'
+        # own record and is NOT a set of like states -- "like state" is the word the watch's base-rate
+        # row spends on the HEAD-admitted set, and one word over two populations a factor of 159 apart
+        # is the reading D3 was opened to close. So the pool keeps round 1's accurate noun ("past
+        # readings ... could be ranked beside it") and only the admitted count is called a like state.
+        rarity = ("%s past %s on this series could be ranked beside it, this one %s"
+                  % (words_for_int(n_pool), "reading" if n_pool == 1 else "readings",
+                     "the nearest" if rank is not None and int(rank) == 1 else "among them"))
+        if int(n_head) != n_pool:
+            floor = analog_count_floor(a)
+            rarity += ("; %s like %s admitted at the full-coverage floor%s"
+                       % (words_for_int(n_head), "state" if int(n_head) == 1 else "states",
+                          (" since %s" % floor) if floor else ""))
     return (f"LIKE STATE {humanise(a['driver_id'])} on {board_label(a['contract'])}: the series sat "
             f"like this in "
-            f"{month_words(a['date'])}; the record carries {words_for_int(n)} such "
-            f"{'crossing' if n == 1 else 'crossings'} since {str(a['floor_year'])}; each move below is "
+            f"{month_words(a['date'])}; {rarity}"
+            f"{analog_selection_clauses(a)}; each move below is "
             f"read over the band the graph declares for the leg it names, and the row prints that "
             f"band; measured on the record as revised through {month_words(a['asof'])}"
-            f"{chain_stanza_mark(a, chain_dims=chain_dims)}")
+            f"{chain_stanza_mark(a, chain_dims=chain_dims, chain_dim_names=chain_dim_names)}")
 
 
-def chain_stanza_mark(a: dict, *, chain_dims=()) -> str:
+def chain_stanza_mark(a: dict, *, chain_dims=(), chain_dim_names=None) -> str:
     """THE CLAUSE THAT SAYS THIS STANZA IS THE **THEN** OF THE CHAIN THE PAGE NAMED FIRST -- or ``""``.
 
     **DESIGN C.2 WAS WIRED AND INAUDIBLE** (round-4 MAJOR 2). ``seam._first_dim`` passed the top
@@ -2826,14 +3037,129 @@ def chain_stanza_mark(a: dict, *, chain_dims=()) -> str:
     claim about a row this producer cannot see.
 
     "the chain named first" IS THE PAGE'S OWN ORDINAL and it is now the rank's (round-4 MINOR 2), so
-    the row this clause points at is the row ``seam._first_dim`` read."""
+    the row this clause points at is the row ``seam._first_dim`` read.
+
+    **AND THE TRANSLATION IS NOW SPOKEN INSTEAD OF SWALLOWED** (this lane's D5). Round 5 closed the
+    rename by going SILENT: where the leg leads with the TRANSLATION of a chain hop, ``fd`` is not in
+    ``chain_dims`` and the mark did not print at all. MEASURED over the twelve chain-on served cells:
+    six marks printed and two chain-on cells said nothing, one of them for exactly this reason --
+    ``named_one`` at deep, where the top chain is ``La_Nina -> drought -> cot_mm_positioning``,
+    ``seam._dim_for_hop`` translates ``La_Nina`` onto ``El_Nino`` (one series, ``oni_climate|_global|``,
+    two phases), ``analogs._dims_first`` leads the stanza with ``El_Nino`` and the page printed
+    "LIKE STATE El Nino ..." with nothing saying why, beside chain rows reading LA NINA. A silence is
+    not a correction: the stanza REALLY IS that chain's history, read on the series they share, and the
+    reader was owed the pairing.
+
+    So ``chain_dim_names`` -- ``{the analog leg's dimension id: that hop's OWN driver id}``, built by
+    ``render_board`` off ``seam.dim_for_hop``, which is the ONE owner of the hop-to-dimension rule --
+    gives the clause a SECOND ARM. The first arm is unchanged and still names the dimension. The
+    second names the CHAIN'S own word and says the series is the same one: "read as the history of the
+    chain named first, which carries that series as La Nina". Neither arm can name a driver the chain
+    does not carry, and a caller that passes neither argument gets the flag-off answer, which is
+    silence."""
     fd = str((a or {}).get("first_dim") or "")
     order = list((a or {}).get("dims_order") or ())
     if not fd or not order or str(order[0]) != fd:
         return ""
-    if fd not in {str(d) for d in (chain_dims or ()) if str(d or "")}:
+    if fd in {str(d) for d in (chain_dims or ()) if str(d or "")}:
+        return "; read as the history of the chain named first, on %s" % humanise(fd)
+    # THE TRANSLATED ARM. The pairing is only ever consulted for a hop the TOP CHAIN CARRIES: the name
+    # it hands back has to be checkable against `chain_dims`, or this clause would be asserting an
+    # attribution off a map nobody on this page can audit.
+    own = str((chain_dim_names or {}).get(fd) or "")
+    if own and own != fd and own in {str(d) for d in (chain_dims or ()) if str(d or "")}:
+        return ("; read as the history of the chain named first, which carries that series as %s"
+                % humanise(own))
+    return ""
+
+
+def _chain_dim_name_map(bd, hops) -> dict:
+    """``{the analog leg's dimension id -> that hop's OWN driver id}`` for the top chain's hops.
+
+    ONE OWNER, READ LAZILY. ``seam._dim_for_hop`` is the rule -- among the rows serving a hop's SERIES
+    KEY, the loudest in ``Board.order`` is the id a declared dimension would carry -- and this module
+    calls the published accessor rather than re-typing it, because a private second copy would agree
+    with the seam until the first edit and then rename a driver inside an ATTRIBUTION. The import is
+    lazy: ``seam`` imports this module lazily too, so at module scope the two would close a cycle.
+
+    ONLY TRANSLATIONS ARE KEPT. Where the accessor hands back the hop's own spelling there is nothing
+    to translate and arm one of :func:`chain_stanza_mark` already names it. A seam that cannot be
+    imported or a hop that answers nothing leaves the entry out, and the mark then says nothing --
+    round 5's answer, which is the safe one."""
+    try:
+        from leviathan.graphrag.state import seam as _seam
+    except Exception:                                   # noqa: BLE001 -- a lookup never costs a row
+        return {}
+    own_ids = {str(getattr(h, "driver_id", "") or "") for h in (hops or ())}
+    out: dict = {}
+    for h in (hops or ()):
+        own = str(getattr(h, "driver_id", "") or "")
+        if not own:
+            continue
+        try:
+            got = _seam.dim_for_hop(bd, h)
+        except Exception:                               # noqa: BLE001 -- a lookup never costs a row
+            continue
+        got = str(got or "")
+        # A DIMENSION THE CHAIN ITSELF WALKS IS NEVER RE-POINTED. Where two hops of one chain translate
+        # onto the same dimension and one of them IS that dimension, arm one owns it: the mark then
+        # names the chain's own word without a translation at all.
+        if got and got != own and got not in own_ids:
+            out.setdefault(got, own)
+    return out
+
+
+#: The three finer reasons ``analogs.select_analogs`` records on ``detail`` when it declines, as the
+#: sentence each one owes -- and NOT as a fourth decline word. ``board.ANALOG_REASONS`` keeps its one
+#: word (``no_like_state``); ``detail`` is a FIELD on the row, so ``board.DETAIL_REASONS``,
+#: :data:`ABSENCE_WHY` and clause 9's one-sentence-per-word rule are all untouched by this map. The
+#: slot is the COUNT each reason is honest about, in words, and a reason with nothing to count says so
+#: without one.
+ANALOG_DETAIL_WHY: dict = {
+    "no_candidates": "the record holds no crossing on this series at all, so there is no past state "
+                     "to compare this one against",
+    "window_open": "every crossing the record holds is too recent for its own declared window to have "
+                   "closed, so none of them has an outcome yet",
+    "unobservable": "the candidate dates sit inside the record and carry no reading that can be "
+                    "compared there",
+}
+
+
+def sb_analog_decline_detail(a: dict) -> str:
+    """SB-A: the ONE extra sentence a declined like state owes, under the word it already declined on.
+
+    WHY IT IS A SENTENCE AND NOT A WORD (this lane's D1, settled by RENDERING the proposal). The
+    handoff asked for ``pre_coverage`` to take the analog producer; :data:`ABSENCE_WHY` is keyed by
+    WORD ALONE and that word already carries the TAPE leg's sentence, so the proposed row prints, in
+    full, "BOARD ABSENCE a like state on this market: the as-of sits before this market's own price
+    history begins" -- false for ``unobservable``, where the as-of is today. Clause 9 of
+    ``state/lint.py`` forbids a second sentence per word in either direction, so the finer reason
+    cannot be a word at all. It is this line.
+
+    IT IS LETTERS-ONLY, like every other member of its class: the one count it may carry renders
+    through :func:`words_for_int`, and it names no dimension -- ``record_span`` and ``dims_order`` hold
+    raw driver ids and ``register.internal_leaks`` is never relaxable.
+
+    NO SERVED FIXTURE CELL REACHES THIS BRANCH TODAY (0 declines on 18 of 18 served cells after the
+    R3a relaxation), so the pin is the deck's and the arm's and this docstring says so rather than
+    claiming a page measurement nobody made."""
+    why = ANALOG_DETAIL_WHY.get(str((a or {}).get("detail") or ""))
+    if not why:
         return ""
-    return "; read as the history of the chain named first, on %s" % humanise(fd)
+    lead = ("LIKE STATE %s on %s: %s"
+            % (humanise(str((a or {}).get("driver_id") or "")),
+               board_label(str((a or {}).get("contract") or "")), why))
+    n = (a or {}).get("n_dropped_unreadable")
+    if str((a or {}).get("detail") or "") == "unobservable" and n is not None:
+        n = int(n)
+        return ("%s; %s such %s were ranked past and none of them could be read"
+                % (lead, words_for_int(n), "date" if n == 1 else "dates"))
+    n = (a or {}).get("n_candidates_raw")
+    if str((a or {}).get("detail") or "") == "window_open" and n is not None:
+        n = int(n)
+        return ("%s; %s such %s stand in the record" % (lead, words_for_int(n),
+                                                        "crossing" if n == 1 else "crossings"))
+    return lead
 
 
 def sb_analog_outcome(n: int, o: dict, *, asof: str, scale=1.0) -> tuple:
@@ -4660,10 +4986,18 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     # `seam._first_dim` reads -- so the chain the mark says the stanza is read for and the chain the
     # page named FIRST can never be two different rows. Empty on a board-on / chain-off turn, which is
     # the flag-off answer, and the mark is then absent exactly as it is today.
-    _chain_dims = tuple(str(getattr(h, "driver_id", "") or "")
-                        for h in ((_chains[0].hops or ()) if _chains else ()))
+    _chain_hops = tuple((_chains[0].hops or ()) if _chains else ())
+    _chain_dims = tuple(str(getattr(h, "driver_id", "") or "") for h in _chain_hops)
+    # {the analog leg's dimension id -> that hop's OWN driver id}, for the mark's TRANSLATED arm alone.
+    # `seam.dim_for_hop` is the ONE owner of the hop-to-dimension rule (`seam._analog_dims`' own
+    # docstring asks for exactly this folding, and `test_state_seam.py` pins the two spellings to
+    # agree), so the page and the selection can never read the pairing two ways. It is a pure lookup
+    # over rows this board already holds -- no read, no cap, no second selection -- and a failure to
+    # import or to answer leaves the map EMPTY, which is round 5's silence exactly.
+    _chain_dim_names = _chain_dim_name_map(bd, _chain_hops)
     for a in shown_analogs:
-        b.add(sb_analog_header(a, chain_dims=_chain_dims), label=f"analog {a['driver_id']}",
+        b.add(sb_analog_header(a, chain_dims=_chain_dims, chain_dim_names=_chain_dim_names),
+              label=f"analog {a['driver_id']}",
               display=f"the like state for {row_words(a['contract'], a['driver_id'])}")
         outs = [o for o in (a.get("outcomes") or ()) if not o.get("declined")]
         # THE ANCHOR BOARD'S OWN CONSEQUENCE LEADS. Sorting on the label alone put "the palm monthly
@@ -4712,6 +5046,35 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                              f"({humanise(a['driver_id'])} on {board_label(a['contract'])})",
                              "render_cap"),
                   label="analog receipt render cap")
+        # THE FIFTH SILENT CUT, AND THE FIRST WHOSE NUMBER WAS PRINTED AS A FACT (round-2 blocker 3).
+        # `analogs._receipts_after` used to stop walking at the tier's receipt cap and the header
+        # printed `len()` of what it got as "N dated documents inside the window that followed it", so
+        # the figure was CONSTANT AT THE CAP whatever the corpus held: measured through the real seam
+        # with twelve documents inside the forward window, deep printed three against eleven and max
+        # printed five against eight. The count is the WINDOW's now, and the cap -- which still bounds
+        # the rows the row CARRIES, for the sitting that mints an `[E]` for them -- says what it cut,
+        # exactly as the backward window has said since S6. The names are the STANZA's and never the
+        # documents': a document title is retrieved text and this class is letters-only.
+        _n_aft = a.get("n_receipts_after")
+        # ROUND-2 REVIEW MAJOR 1: NOTHING ON THIS PAGE RENDERS THE FORWARD WINDOW'S ROWS (the only
+        # sb_receipt rows are the BACKWARD window's, and `receipts_after` has no reader but the count
+        # and the mint), so the honest row withholds the WHOLE count the header just printed -- never
+        # "count minus carried" over rows a reader was never shown. The sitting that mints an [E] for
+        # the forward rows retires this row by rendering them.
+        if _n_aft is not None and int(_n_aft) > 0:
+            _more = int(_n_aft)
+            # THE COUNT IS THE SUBSET'S AND THE NOUN IS THE COUNTED SET'S. "N more inside the window"
+            # would read as N BEYOND the eleven the clause above just printed; "N of the documents
+            # counted inside the window" can only be read as part of that same eleven, which is what
+            # a cut row is for.
+            # THE WHOLE COUNT IS WITHHELD, SO THE NOUN AND THE VERB AGREE WITH IT (one document IS not
+            # shown; N documents ARE not shown) -- the singular bar in the render deck.
+            b.add(sb_absence(f"the {words_for_int(_more)} "
+                             f"{'document' if _more == 1 else 'documents'} counted inside the window "
+                             f"that followed this like state {'is' if _more == 1 else 'are'} not shown "
+                             f"on this page ({humanise(a['driver_id'])} on {board_label(a['contract'])})",
+                             "render_cap"),
+                  label="analog receipt after render cap")
         if not _arc:
             # THE CO-LOUD STANZA SPANS BOARDS, so its absence may not name ONE of them: the ordinary
             # line's "on {board}" would attribute the whole stanza to its leading anchor, and the rows
@@ -4720,7 +5083,8 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
                      else f"on {board_label(a['contract'])}")
             stands = ("the boards' own records alone" if a.get("co_loud") else "the series alone")
             b.add(f"LIKE STATE {humanise(a['driver_id'])} {where}: the corpus "
-                  f"holds no dated document for this window; the figures above stand on {stands}",
+                  f"holds no dated document explaining this state (the window before it); the "
+                  f"figures above stand on {stands}",
                   label="analog receipt absence")
     if len(fired) > len(shown_analogs):
         b.add(sb_absence("the like states past this tier's stanza cut ("
@@ -4732,6 +5096,22 @@ def render_board(bd, *, analogs=(), watch=(), receipts_by_row=None, recency=None
     _declines = sorted({str(a["declined"]) for a in analogs if a.get("declined")})
     for word in _declines:
         b.add(sb_absence("a like state on this market", word), label="analog absence")
+        # THE FINER REASON, UNDER THE SAME WORD (this lane's D1). `select_analogs` records WHY it found
+        # nothing on `detail` -- `no_candidates` (the record offered none), `window_open` (every
+        # candidate's outcome window is still open) or `unobservable` (candidates survived both
+        # point-in-time filters and no declared dimension carried a readable sigma at any of their
+        # dates) -- and nothing read it. The handoff asked for a new decline word (`pre_coverage`);
+        # RENDERING that word REFUTED it: `ABSENCE_WHY` is keyed by WORD ALONE and clause 9 of
+        # `state/lint.py` requires exactly one sentence per word in both directions, so an analog
+        # decline on `pre_coverage` prints the TAPE's sentence verbatim -- "the as-of sits before this
+        # market's own price history begins" -- which is FALSE for `unobservable`: the as-of is today
+        # and it is the CANDIDATE DATES that sit inside the record with nothing readable on them. So
+        # the word does not move, `board.ANALOG_REASONS` and `ABSENCE_WHY` stay byte-identical, and the
+        # finer reason rides as ONE extra sentence in the same class.
+        for line in sorted({sb_analog_decline_detail(a) for a in analogs
+                            if str(a.get("declined") or "") == word and a.get("detail")}):
+            if line:
+                b.add(line, label="analog absence detail")
     # THE HONEST ABSENCE THE PM COULD NOT FIND (lane D, the 2026-09-16 smoke). ``BoardAnalogs`` was 0 on
     # all five served turns, and on the turns where the LEG declined before it built a single stanza --
     # ``not_reached``, or a decline recorded on the leg rather than per candidate -- the section printed

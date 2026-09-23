@@ -394,7 +394,16 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                      key_fn=key_fn, receipts=_rcpt, width=width, legb_on=legb_on,
                      complexes=complexes, chains=chains or _curated_chains(state_chain),
                      state_chain=bool(state_chain),
-                     analog_reads=bool(benchmark_fn is not None or receipt_fn is not None))
+                     # **A BORROW IS NOT A READ, AND THE BUDGET MUST NOT BE TOLD IT IS** (analog lane,
+                     # D7). `analog_reads` is what makes `walk._stage2` RESERVE `analog_dims *
+                     # analog_k` benchmark seats and the same number of receipt candidates against the
+                     # turn's read budget -- and a reserved seat can move the "keys this turn's budget
+                     # did not reach" row. The receipts below come from `_receipts_from(sg)`, the pool
+                     # `ground()` has ALREADY paid for, at zero reads; `Ledger.reads_used` does not sum
+                     # `evidence_borrows` for exactly that reason. The BENCHMARK is the read: it calls
+                     # a mirror from outside both wave rectangles, `_bench_read` counts it and
+                     # `reads_used` sums it. So the seat reservation follows the benchmark alone.
+                     analog_reads=bool(benchmark_fn is not None))
             # THE LIKE-STATE STANZA IS THE **THEN** OF THE TOP CHAIN, AND THAT IS ONE ARGUMENT
             # (DESIGN C.2, round-2 item R-5). `analogs.select_analogs` already accepts `first_dim` and
             # `analogs._dims_first` already moves that dimension to the front of the vector the
@@ -408,7 +417,19 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
             # readers: `walk.chain_receipt_index`) -- and it is `None` with the chain flag off, where
             # `bd.chains` is empty, so a board-on / chain-off turn passes the argument's own default
             # and is byte-identical.
-            ana = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=benchmark_fn, receipt_fn=receipt_fn,
+            # **THE LIKE-STATE STANZA GETS THE DOCUMENTS THE TURN ALREADY HOLDS** (analog lane, D7).
+            # `receipt_fn` was `None` on the ONE serving caller (`answer.py:4715` passes neither
+            # producer), so `analogs._receipts_for` returned at zero on every served turn and the whole
+            # like-state movement on a real page was the header plus "the corpus holds no dated
+            # document for this window" -- MEASURED: 0 receipts on 5 of 5 rendered stanzas across the
+            # eighteen served cells. The pool is `_rcpt`, read ONCE above and already handed to the
+            # walk and to the chain leg; borrowing it here adds a THIRD reader of one call and not a
+            # second retrieval, which is the over-commitment revision 1 shipped and revision 2 withdrew.
+            # An explicitly injected `receipt_fn` still wins: a caller that wires a real retrieval is
+            # spending its own reads and this seam does not second-guess it.
+            ana = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=benchmark_fn,
+                                receipt_fn=(receipt_fn if receipt_fn is not None
+                                            else _receipt_borrow(_rcpt)),
                                 first_dim=_first_dim(bd))
             A.analog_leg(bd, ana)
             # S7b LANE W's re-ranker, threaded by the sec 6.1 seam protocol. `nonobvious` is the flag
@@ -960,6 +981,21 @@ def _analog_dims(bd) -> frozenset:
     return frozenset(out)
 
 
+def dim_for_hop(bd, hop) -> Optional[str]:
+    """THE PUBLISHED ACCESSOR for the hop-to-dimension rule -- ONE owner, two readers.
+
+    :func:`_first_dim` reads it to ORDER the like-state stanza; ``render._chain_dim_name_map`` reads it
+    to NAME the pairing in ``render.chain_stanza_mark``'s translated arm, so the page can say "the
+    chain named first ... carries that series as La Nina" instead of going silent on a rename. Those
+    are the two halves of one fact and a private second copy in the render would agree with this one
+    until the first edit and then put a driver the chain never walked inside an attribution -- the
+    estate's standing string-identity failure, in the one clause whose whole job is attribution.
+
+    It is a LOOKUP: no read, no cap, no admission, nothing selected. See :func:`_dim_for_hop` for the
+    rule and for the measurement that forced the caller to be told WHICH answer it got."""
+    return _dim_for_hop(bd, hop)
+
+
 def _dim_for_hop(bd, hop) -> Optional[str]:
     """The DRIVER ID the analog leg would declare its dimension under for this hop's SERIES, or the
     hop's own id where the board serves that series nowhere else.
@@ -1016,6 +1052,23 @@ def _receipts_from(sg) -> dict:
             continue
         out.setdefault(key, []).extend(dict(h) for h in ev if isinstance(h, dict))
     return out
+
+
+def _receipt_borrow(pool: dict):
+    """``receipt_fn(contract, driver_id, t) -> [receipt dicts]`` over the pool ``ground()`` already
+    filled -- the analog leg's ZERO-READ borrow.
+
+    IT IS THE SAME MAP THE WALK AND THE CHAIN LEG READ (``_receipts_from(sg)``, called once in
+    :func:`fill_stage2`), so the three legs can never be shown different documents for one row. The
+    PUBLICATION-AXIS filter is NOT here: ``analogs._receipts_for`` filters ``<= t`` and
+    ``analogs._receipts_after`` filters ``(t, t+band]``, each stating its own window, and a second copy
+    of either rule in this adapter would be a point-in-time discipline with two owners.
+
+    AN EMPTY POOL IS AN EMPTY ANSWER AND NEVER AN ERROR: the stanza then carries the absence sentence
+    it carries today, which is the honest one."""
+    def _fn(contract, driver_id, _t):
+        return list((pool or {}).get((contract, driver_id)) or ())
+    return _fn
 
 
 def _positioning_ids() -> tuple:

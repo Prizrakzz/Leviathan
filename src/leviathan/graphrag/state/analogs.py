@@ -885,9 +885,19 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
     is HEAD's arithmetic END TO END or it is a different statistic wearing HEAD's name; ``run_now`` keeps
     the seats where a "now" belongs -- the tie-break and :func:`likeness` -- and nothing else.
 
+    **AND THE POOL THE PAGE PRINTS IS THE ONE THE PICK IS A MEMBER OF** (round-2 blocker 2). The header
+    prints ``n_candidates`` -- the pool this selector RANKS and draws every picked row out of -- and
+    ``n_candidates_head`` only as a SECOND, separately named number where the two differ, because
+    ``n_candidates_head`` counts candidates observable on EVERY declared dimension and a picked row
+    seen on two of three is not one of them: the served ``named_one`` stanza at deep is dated
+    2013-06-30 beside a head-admitted set of three whose earliest member is 2023-12-31. Each picked row
+    therefore carries ``pool_rank``, its 1-based seat in the ranked pool, so the sentence that says
+    which one of that pool this is can be BACKED rather than assumed from the stanza's position.
+
     ``n_candidates_head`` IS A COUNT AND NEVER A FILTER, and that distinction is the whole of it: not one
     candidate is removed by it, the ranking does not read it, and the pool it counts is a SUBSET of the
-    pool this selector picks from. It exists because ``watch.like_state_base_rate`` prints "N like states
+    pool this selector picks from -- which is what makes "M OF THEM admitted at the full-coverage floor"
+    a true sentence about the number printed beside it and not a second population in disguise. It exists because ``watch.like_state_base_rate`` prints "N like states
     in M observations" to a PM, and under the relaxation the ranked pool is 50%-79% of the record -- a
     number that is a COVERAGE statement and reads as a 79% recurrence rate. The rarity question keeps the
     rarity answer, measured the way the record's own reader measured it last week.
@@ -1046,7 +1056,7 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
     scored.sort(key=lambda s: (round(s["distance"], 9), abs(s["run_length"] - run_now),
                                _desc_date(s["date"])))
     picked: list = []
-    for s in scored:
+    for _rank, s in enumerate(scored, start=1):
         if len(picked) >= max(0, int(analog_k)):
             break
         # A SEPARATION NOBODY COULD MEASURE EXCLUDES NOTHING (see :func:`_months_between`): ``None``
@@ -1064,6 +1074,23 @@ def select_analogs(seed_hist: dict, *, dims: list, asof: str, band: LagBand, ana
         # which is the present state described as its own precedent.
         m_asof = _months_between(s["date"], asof)
         picked.append({**s, "precedes_dims": _precedes_count(span, s["date"]),
+                       # WHERE THIS PICK SITS IN THE POOL THE PAGE PRINTS BESIDE IT (round-2 blocker
+                       # 2). The header's count is now the RANKED POOL -- the population this row was
+                       # drawn from and is a member of -- and the sentence the ruling asks for says
+                       # "this one the nearest". That is TRUE of the first pick and FALSE of the
+                       # second, which a max-tier stanza pair renders side by side, so the claim rides
+                       # on the rank rather than on the shape: 1 is the nearest, anything else is "one
+                       # of them". It is the position in `scored`, already sorted by distance here, so
+                       # no consumer re-derives an ordering from a distance it would have to re-rank.
+                       "pool_rank": int(_rank),
+                       # THE FLAG AND ITS FIGURE COME OFF **ONE** ARITHMETIC, and that is why the
+                       # distance is stored rather than re-derived. The render half owes the reader
+                       # the months where the flag is true (DESIGN C.4's correction, which APPENDS
+                       # and never removes), and a second calendar in `render.py` computing the same
+                       # gap from the same two strings is one series counted twice in two spellings
+                       # -- the failure `axis_date` exists to close, arriving through the other door.
+                       # It is `None` exactly where the flag is False for want of a placeable date.
+                       "months_to_asof": (None if m_asof is None else abs(int(m_asof))),
                        "near_asof": bool(m_asof is not None
                                          and abs(m_asof) < int(min_separation_months))})
     return {**base, "picked": tuple(picked), "n_candidates": len(scored), "declined": None,
@@ -1529,6 +1556,8 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
                         "detail": sel.get("detail"), **counts})
             continue
         for pick in sel["picked"]:
+            _after = _receipts_after(bd, r, pick["date"], receipt_fn=receipt_fn,
+                                     cap=int(knobs.receipt_cap))
             out.append({
                 "contract": r.contract, "driver_id": r.driver_id, "band": band, "asof": bd.asof,
                 "date": pick["date"], "distance": pick["distance"], "kind": pick["kind"],
@@ -1540,9 +1569,27 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
                 "run_length": pick["run_length"], "run_now": pick["run_now"],
                 "run_gap": pick["run_gap"], "per_dim": pick["per_dim"],
                 "precedes_dims": pick["precedes_dims"], "near_asof": pick["near_asof"],
+                # THE PICK'S SEAT IN THE POOL THE HEADER COUNTS (round-2 blocker 2), copied by name
+                # like every other field on this row: the header may only say "this one the nearest"
+                # where the selection measured it so.
+                "pool_rank": pick["pool_rank"],
+                # THE FLAG'S OWN FIGURE. This dict copies the picked row FIELD BY FIELD rather than
+                # splatting it, so a fact the selection computes and this line does not name never
+                # reaches a reader -- which is the shape of the whole defect this lane closes.
+                "months_to_asof": pick["months_to_asof"],
                 "outcomes": tuple(_outcomes_for(bd, r, pick["date"], benchmark_fn=benchmark_fn)),
                 "receipts": tuple(_receipts_for(bd, r, pick["date"], receipt_fn=receipt_fn,
                                                 cap=int(knobs.receipt_cap))),
+                # WHAT THE RECORD SAID **NEXT**, over the same window the outcome row reads the price
+                # over. The page prints the COUNT and never the titles; see :func:`_receipts_after`.
+                # THE COUNT IS THE WINDOW'S AND THE CARRY IS THE CAP'S (round-2 blocker 3). They are
+                # two numbers off ONE walk: `n_receipts_after` is how many dated documents the corpus
+                # holds inside `(t, t+band]`, and `receipts_after` is the rows this tier carries --
+                # the cut between them is a ROW on the page (`render.render_board`'s analog receipt
+                # after cut), never a silently smaller integer wearing the count's sentence.
+                "receipts_after": tuple(_after[: int(knobs.receipt_cap)]),
+                "n_receipts_after": (None if receipt_fn is None or int(knobs.receipt_cap) <= 0
+                                     else len(_after)),
             })
     return out
 
@@ -1711,7 +1758,8 @@ def _receipts_for(bd, seed_row, t: str, *, receipt_fn=None, cap: int = 0) -> lis
     publication axis is pre-filtered to ``<= t`` -- the second as-of hop's own discipline.
 
     THE ABSENCE IS THE ROW'S OWN SENTENCE, not a silence: when this returns nothing the stanza carries
-    "the corpus holds no dated document for this window; the figures above stand on the series alone",
+    "the corpus holds no dated document explaining this state (the window before it); the figures
+    above stand on the series alone",
     which the render adds. There is no count floor anywhere here -- one mechanism-narrating receipt is
     enough, and frequency floors deny the tail."""
     if receipt_fn is None or cap <= 0:
@@ -1731,6 +1779,65 @@ def _receipts_for(bd, seed_row, t: str, *, receipt_fn=None, cap: int = 0) -> lis
         if d and d[:10] > str(t)[:10]:
             continue                                # the publication axis is <= t, always
         out.append({"e": i, "t": int((r.get("tier") if isinstance(r, dict) else 3) or 3),
+                    "date": d, "source": r.get("source") if isinstance(r, dict) else "",
+                    "text": r.get("text") if isinstance(r, dict) else "",
+                    "event_date": r.get("event_date") if isinstance(r, dict) else None})
+    return out
+
+
+def _receipts_after(bd, seed_row, t: str, *, receipt_fn=None, cap: int = 0) -> list:
+    """The dated documents that fall inside the window that FOLLOWED a chosen date -- ``(t, t+band]``.
+
+    **IT IS THE OTHER HALF OF SEC 4.4 AND IT IS PIT-SAFE BY CONSTRUCTION.** :func:`_receipts_for`
+    filters the publication axis to ``<= t``: documents that EXPLAIN the state. This one takes the
+    band's own window forward from ``t`` -- the same window :func:`outcome_over_band` reads the
+    consequence over -- because the reader who is shown what the price did next is owed what the record
+    SAID next. There is no as-of hop to argue about: :func:`select_analogs` admits a candidate only
+    where the far edge of that same band has ALREADY CLOSED against the as-of, so every date this
+    window can reach is strictly behind the as-of already. A band with no declared far edge has no
+    window and takes none.
+
+    IT COUNTS AND DOES NOT ENUMERATE. The row carries the documents; the page prints the COUNT
+    (``render.analog_selection_clauses``), because a document title is retrieved text and SB-A is a
+    letters-only class -- and because the board SELECTS rather than enumerating. The rows are kept
+    whole so a later sitting that mints an ``[E]`` for them does not have to re-read the pool.
+
+    THE BORROW IS COUNTED WHERE THE BORROW HAPPENS, exactly as :func:`_receipts_for` counts its own:
+    ``bd.ledger.evidence_borrows`` is "analog receipt reads on the evidence pool" and a second read of
+    the same pool is a second borrow. It is not a READ -- ``Ledger.reads_used`` does not sum it,
+    because ``ground()`` has already paid for these propositions and the seam hands them down.
+
+    **IT RETURNS THE WINDOW, NEVER THE CAP** (round-2 blocker 3). This walk used to stop at
+    ``len(out) >= cap`` and :func:`analog_rows` published ``len()`` of what it got, so the number the
+    page prints as "N dated documents inside the window that followed it" was CONSTANT AT THE CAP
+    whatever the corpus held -- measured through the real seam with a pool carrying twelve documents
+    inside the forward window: deep printed three against eleven, max printed five against eight, and
+    the ordinary fixture pool could not see it because it carries two or three per node. A cap is a CUT
+    ROW and never a count. So the window is walked WHOLE here, the caller publishes ``len()`` of it as
+    the count and carries only the first ``cap`` rows, and ``render.render_board`` prints the cut as
+    its own absence row. ``cap`` still switches the LEG (``receipt_cap`` is zero at quick, which is the
+    tier declaring it buys no documents at all) -- it no longer bounds the arithmetic."""
+    if receipt_fn is None or cap <= 0:
+        return []
+    band = getattr(seed_row, "lag_band", None)
+    max_q = getattr(band, "max_q", None)
+    if max_q is None:
+        return []
+    far = _window_end(t, int(max_q) * QUARTER_MONTHS)
+    if far is None:
+        return []
+    try:
+        bd.ledger.evidence_borrows += 1
+    except Exception:                                   # noqa: BLE001 -- a counter never costs a row
+        pass
+    got = receipt_fn(seed_row.contract, seed_row.driver_id, far) or []
+    lo, hi = str(t)[:10], str(far)[:10]
+    out: list = []
+    for r in got:
+        d = str((r.get("date") if isinstance(r, dict) else getattr(r, "date", "")) or "")
+        if not d or not (lo < d[:10] <= hi):
+            continue                                # (t, t+band], half-open at the like date itself
+        out.append({"t": int((r.get("tier") if isinstance(r, dict) else 3) or 3),
                     "date": d, "source": r.get("source") if isinstance(r, dict) else "",
                     "text": r.get("text") if isinstance(r, dict) else "",
                     "event_date": r.get("event_date") if isinstance(r, dict) else None})

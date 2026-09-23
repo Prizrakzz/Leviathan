@@ -1168,17 +1168,35 @@ def test_the_reserved_analog_seats_are_a_cap_and_the_borrows_are_a_read(fired):
     because the seam wires no `receipt_fn`. Arm A's evidence-pool pressure would have been measured
     from a number no read produced. And the BENCHMARK column had no ledger field at all, so the day it
     IS wired its spend would be invisible to `_cw_turn_spent` (it reads outside both rectangles) --
-    the "a real spend read as zero" failure S5 had to repair for the composer sub-legs."""
+    the "a real spend read as zero" failure S5 had to repair for the composer sub-legs.
+
+    **RE-BANKED BY THE ANALOG RENDER LANE, WHICH GAVE THE COLUMN ITS PRODUCER.** The seam now hands
+    the analog leg the pool ``ground()`` already filled (``seam._receipt_borrow`` over
+    ``_receipts_from(sg)``), so the borrows are REAL and the column is no longer a price with nothing
+    behind it. What has NOT changed is the half this test exists to protect: a borrow from an
+    already-grounded pool is not a READ. ``Ledger.reads_used`` does not sum ``evidence_borrows``,
+    ``analog_reads`` at the seam is computed from ``benchmark_fn`` ALONE so ``walk._stage2`` reserves
+    no seat for it, and the BENCHMARK column -- the one that really does call a mirror -- is still
+    unwired and still counted the moment it is wired. MEASURED over the 54 served cells of this
+    landing's sweep: ``reads_used`` identical to HEAD on 54 of 54, ``evidence_borrows`` 0 -> 6 at deep
+    and 0 -> 20 at max."""
     bd, out = fired
-    assert out["counters"]["BoardEvidenceBorrows"] == 0
-    assert bd.ledger.evidence_borrows == 0 and bd.ledger.benchmark_reads == 0
+    assert out["counters"]["BoardEvidenceBorrows"] == bd.ledger.evidence_borrows
+    assert bd.ledger.benchmark_reads == 0, "no caller wires a benchmark, so nothing is read"
+    # A BORROW IS NOT A READ. It is counted at the one place a borrow happens and it stays OUT of the
+    # ceiling arithmetic, because `ground()` already paid for these propositions.
+    before = bd.net_reads()
+    bd.ledger.evidence_borrows += 7
+    assert bd.net_reads() == before, "a borrow may never move the read ceiling"
     # THE UNWIRED COLUMNS ARE NOT RESERVED EITHER, so the walk's ceiling gains no read that nothing
-    # can pay: the seam wires neither producer, so both columns are zero on the served shape.
+    # can pay: the seam wires no benchmark, so both cap columns are zero on the served shape.
     assert bd.ledger.evidence_cap == 0 and bd.ledger.benchmark_cap == 0
     assert bd.net_reads() <= bd.declared_cap()
     # ...and `reads_used` counts a benchmark read, so a future wiring is visible to the enumeration.
     bd.ledger.benchmark_reads += 3
     assert bd.net_reads() == out["trace"]["net_reads"] + 3
+    # AND THE SEAM RESERVES THE SEATS OFF THE BENCHMARK ALONE, in its own source.
+    assert "analog_reads=bool(benchmark_fn is not None))" in inspect.getsource(S.fill_stage2)
 
 
 def test_a_phase_pair_on_one_series_is_one_reading_and_the_block_says_so(graph):
@@ -1774,11 +1792,18 @@ def test_S8R4_first_dim_walks_the_top_chain_in_TAIL_ORDER_to_a_DIMENSION_THE_LEG
             assert mark in blk.text(), (cell, mark)
             assert all(mark in x for x in heads), (cell, [x[-90:] for x in heads])
         else:
-            # A TRANSLATION: the stanza is still ORDERED on it -- nothing is deleted, `dims_order`
-            # above is asserted either way -- and the page stays silent rather than naming a driver
-            # the chain never carried.
-            assert "read as the history of the chain named first" not in blk.text(), \
-                (cell, fd, top_ids, [x[-110:] for x in heads])
+            # A TRANSLATION. **ROUND 5 CLOSED THIS BY GOING SILENT; THE ANALOG RENDER LANE SPEAKS IT.**
+            # The stanza IS that chain's history, read on the series the two ids share, and a silence
+            # is not a correction -- it left the reader with "LIKE STATE El Nino ..." beside chain rows
+            # reading LA NINA and nothing saying why. `render._chain_dim_name_map` builds the pairing
+            # off `seam.dim_for_hop` -- the ONE owner of the hop-to-dimension rule -- and the mark's
+            # SECOND ARM names the CHAIN'S own word. What round 5 forbade still holds exactly: the
+            # board's spelling never appears inside the attribution.
+            named = ("read as the history of the chain named first, which carries that series as %s"
+                     % R.humanise(top_ids[0]))
+            assert mark not in blk.text(), (cell, "the translated id is never NAMED", mark)
+            assert named in blk.text(), (cell, fd, top_ids, [x[-110:] for x in heads])
+            assert all(named in x for x in heads), (cell, [x[-110:] for x in heads])
             assert any(R.humanise(top_ids[0]) in x for x in blk.lines
                        if x.startswith(R.CHAIN_HEAD_PREFIX)), (cell, top_ids)
         assert blk.trips == [], (cell, blk.trips[:1])
@@ -1794,9 +1819,16 @@ def test_S8R5_the_stanza_mark_NEVER_names_a_driver_the_chain_does_not_carry(grap
     The receipt-carrying max cell is the one a served turn actually is, and on it the page named
     ``El_Nino`` for a chain that walks ``La_Nina``: the same ONI series under two driver ids in
     OPPOSITE PHASES, inside the one clause on this page that exists to attribute a reading to a chain.
-    THE RULE: the mark prints only where the dimension the analog leg LEADS WITH is a hop the chain
-    itself carries (``first_dim == hop.driver_id``); a translated id still ORDERS the stanza and is
-    never NAMED.
+    THE RULE: the mark never names the dimension the BOARD spells a translated series under; a
+    translated id ORDERS the stanza and is never NAMED.
+
+    **AND THE ANALOG RENDER LANE GAVE THE OTHER HALF ITS SENTENCE.** Round 5 satisfied the rule by
+    going SILENT, which left the page with "LIKE STATE El Nino ..." beside chain rows reading LA NINA
+    and nothing saying they are one series -- a rename answered by an absence. The mark's second arm
+    names the CHAIN'S own word ("which carries that series as La Nina") off
+    ``render._chain_dim_name_map``, which reads ``seam.dim_for_hop`` and no second copy of the rule.
+    MEASURED over the twelve chain-on served cells: marks 6 -> 7, ZERO cells losing one, ZERO marks
+    naming a driver the chain does not carry.
 
     This pin is the negative half on the page, through the real producers, with the two spellings
     named so a future sitting that re-couples them reds this deck."""
@@ -1814,7 +1846,9 @@ def test_S8R5_the_stanza_mark_NEVER_names_a_driver_the_chain_does_not_carry(grap
                           anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs)).text()
     assert "from La Nina" in page, "the chain still says La Nina in its own head"
     assert "read as the history of the chain named first, on El Nino" not in page
-    assert "read as the history of the chain named first" not in page
+    assert "read as the history of the chain named first, which carries that series as La Nina" \
+        in page, "the pairing is SPOKEN in the chain's own word, never in the board's"
+    assert "El Nino" not in page.split("which carries that series as")[1].split("\n")[0]
     # AND THE PRODUCER ITSELF, on the two inputs that differ by ONE word: the chain's own spelling
     # prints, the board's spelling does not.
     a = {"first_dim": "La_Nina", "dims_order": ["La_Nina", "drought"], "driver_id": "La_Nina",
@@ -1825,3 +1859,272 @@ def test_S8R5_the_stanza_mark_NEVER_names_a_driver_the_chain_does_not_carry(grap
     assert R.chain_stanza_mark(dict(a, first_dim="El_Nino", dims_order=["El_Nino", "drought"]),
                                chain_dims=("La_Nina", "drought")) == ""
     assert R.chain_stanza_mark(a) == "", "no chain_dims, no attribution -- the flag-off answer"
+
+
+# === THE ANALOG RENDER HALF: one owner for the pairing, and the zero-read receipt borrow ===========
+def test_ANALOG_dim_for_hop_is_PUBLISHED_and_the_render_reads_THAT_rule_and_no_copy(graph):
+    """**ONE OWNER, TWO READERS.** ``seam._first_dim`` reads the hop-to-dimension rule to ORDER the
+    like-state stanza; ``render.chain_stanza_mark`` needs the same rule to NAME the pairing in its
+    translated arm. A private second copy in the render would agree with this one until the first
+    edit and then put a driver the chain never walked inside an attribution -- the estate's standing
+    string-identity failure, in the one clause whose whole job is attribution. ``seam._analog_dims``'
+    own docstring asked for exactly this folding.
+
+    THE ACCESSOR IS A LOOKUP AND NOTHING ELSE: no read, no cap, no admission, and it answers the
+    private function byte for byte on every hop of every rendered chain."""
+    bd = _r3_board(graph, mode="max", receipts=_r3_receipts)
+    assert callable(S.dim_for_hop)
+    seen = 0
+    for ch in sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank):
+        for hop in (ch.hops or ()):
+            assert S.dim_for_hop(bd, hop) == S._dim_for_hop(bd, hop)
+            seen += 1
+    assert seen, "the fixture renders at least one chain with hops"
+    # THE RENDER CALLS THE ACCESSOR AND DECLARES NO SECOND RULE OF ITS OWN.
+    src = inspect.getsource(R._chain_dim_name_map)
+    assert "seam" in src and "dim_for_hop" in src, src
+    assert "series_key" not in src, "the SERIES-KEY rule has one owner and it is the seam"
+    # ...AND THE PAIRING IT BUILDS HOLDS ONLY TRANSLATIONS, each checkable against the chain's own ids.
+    top = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)[0]
+    names = R._chain_dim_name_map(bd, top.hops)
+    own = {str(h.driver_id) for h in top.hops}
+    assert names, "the ONI collision is live on this fixture"
+    for dim, hop_id in names.items():
+        assert hop_id in own and dim != hop_id and dim not in own, (dim, hop_id, sorted(own))
+    # A BOARD THE ACCESSOR CANNOT READ COSTS THE MARK ITS SENTENCE AND NEVER THE TURN.
+    assert R._chain_dim_name_map(bd, ()) == {}
+    assert R._chain_dim_name_map(None, top.hops) == {}
+
+
+def test_ANALOG_the_receipt_borrow_is_the_pool_the_turn_ALREADY_GROUNDED_and_costs_no_read(graph):
+    """**THE WHOLE LIKE-STATE MOVEMENT ON A SERVED PAGE WAS THE HEADER PLUS AN ABSENCE.**
+    ``answer.py:4715`` is the only ``fill_stage2`` caller and it passes no ``receipt_fn``, so
+    ``analogs._receipts_for`` returned at zero on every served turn: MEASURED, 0 receipts on 5 of 5
+    rendered stanzas across the eighteen served cells, every one of them carrying "the corpus holds
+    no dated document for this window".
+
+    The seam already reads the turn's grounded propositions ONCE (``_receipts_from(sg)``, handed to
+    the walk and to the chain leg). The analog leg becomes the THIRD reader of that one call -- not a
+    second retrieval, which is the over-commitment revision 1 shipped and revision 2 withdrew. And it
+    is not a READ: ``Ledger.reads_used`` does not sum ``evidence_borrows``, and ``analog_reads`` at
+    the seam is computed from ``benchmark_fn`` ALONE so ``walk._stage2`` reserves no seat against the
+    turn's budget for a document ``ground()`` already paid for."""
+    docs = [{"date": "2013-04-02", "tier": 1, "source": "NOAA", "text": "before the state"},
+            {"date": "2013-09-14", "tier": 2, "source": "USDA", "text": "inside the window after"}]
+    nodes = [_node("soybeans_cbot", "El_Nino", evidence=docs),
+             _node("soybeans_cbot", "La_Nina", evidence=docs)]
+    out = {}
+    for tag, ns in (("bare", ()), ("docs", nodes)):
+        sg = _sg(["soybeans_cbot"], nodes=ns)
+        bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode="deep",
+                           query="what is the situation on soybeans now?",
+                           state_fn=H.fixture_state_fn(H.ASOF), named=("soybeans_cbot",))
+        payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF))
+        out[tag] = (bd, payload)
+    bare_bd, bare = out["bare"]
+    docs_bd, lit = out["docs"]
+    # THE BORROW IS COUNTED WHERE A BORROW HAPPENS, on both cells -- an empty pool is still a borrow.
+    assert bare_bd.ledger.evidence_borrows > 0 and docs_bd.ledger.evidence_borrows > 0
+    # ...AND IT COSTS NOTHING. Both columns that ride the ceiling are untouched by it.
+    assert bare_bd.ledger.benchmark_reads == 0 and docs_bd.ledger.benchmark_reads == 0
+    assert bare["trace"]["net_reads"] == lit["trace"]["net_reads"]
+    # THE EMPTY POOL IS THE HONEST ABSENCE and the page still carries it.
+    assert "the corpus holds no dated document explaining this state (the window before it)" in bare["block"]
+    # THE FILLED POOL PUTS DOCUMENTS ON THE STANZA -- the receipt rows the page never had.
+    assert lit["block"].count("[E") > bare["block"].count("[E")
+    # AND THE ADAPTER FILTERS NOTHING: the publication axis has ONE owner per window, in `analogs`.
+    # A second copy of either rule here would be a point-in-time discipline with two owners.
+    body = inspect.getsource(S._receipt_borrow).split('"""')[2]
+    assert "date" not in body and "<=" not in body and "<" not in body, body
+
+
+def _ranked_pool(rec):
+    """The pool ``select_analogs`` RANKS, re-walked HERE from the producer's own primitives rather
+    than read off the row -- crossings, both point-in-time filters, then the existence filter. A
+    membership claim checked against the number that made the claim is not a check."""
+    sh, dims, asof, band, kw = rec["hist"], rec["dims"], rec["asof"], rec["band"], rec["kw"]
+    conv, lag_days, min_run = kw.get("convention"), kw.get("lag_days") or 0, kw.get("min_run")
+    cands = (A.crossings(sh, convention=conv, any_month=True, min_separation_months=0)
+             if min_run is None else A.crossings(sh, convention=conv, min_run=int(min_run)))
+    horizon = None if band.max_q is None else int(band.max_q) * A.QUARTER_MONTHS
+    out = []
+    for c in cands:
+        if horizon is not None:
+            far = A._window_end(c["date"], horizon)
+            if far is None or far > str(asof)[:10]:
+                continue
+        if lag_days:
+            kn = A._add_days(c["date"], int(lag_days))
+            if kn is None or kn > str(asof)[:10]:
+                continue
+        if A.likeness(c["date"], dims) is None:
+            continue
+        out.append(str(c["date"]))
+    return out
+
+
+def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF(graph, monkeypatch):
+    """**THE SERVED PAGE PUT A DATE BESIDE A NUMBER THAT DOES NOT COUNT IT** (round-2 blocker 2), on
+    10 of the 18 rendered stanzas of the fixture sweep and on exactly the three this pin names:
+    ``named_one`` at deep opened "the series sat like this in June 2013; the record carries three such
+    crossings", where the three head-admitted crossings begin 2023-12-31, and ``named_one`` at max did
+    the same for 2020-04-30 and 2017-02-28 against a one-member set at 2024-02-29. The grammar of the
+    sentence says the date is one of the N; the arithmetic said it was not.
+
+    The count is the RANKED POOL now, re-walked here from ``crossings`` + both PIT filters +
+    ``likeness`` so the membership is measured and not asserted, and the head-admitted count is a
+    SECOND number naming its own population. Both numbers are the row's, and both are checked.
+
+    AND THE "NEAREST" CLAIM IS TWO-SIDED ON THE ONE CELL THAT RENDERS BOTH ARMS: at max the first
+    stanza is the nearest and the second is not, and the second must not say it is."""
+    cap = []
+    real = A.select_analogs
+
+    def spy(seed_hist, *, dims, asof, band, **kw):
+        out = real(seed_hist, dims=dims, asof=asof, band=band, **kw)
+        cap.append({"hist": seed_hist, "dims": dims, "asof": asof, "band": band, "kw": kw,
+                    "out": out})
+        return out
+
+    monkeypatch.setattr(A, "select_analogs", spy)
+    seen = {}
+    for mode, dates in (("deep", ("2013-06-30",)), ("max", ("2020-04-30", "2017-02-28"))):
+        del cap[:]
+        sg = _sg(["soybeans_cbot"])
+        bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode=mode,
+                           query="what is the situation on soybeans now?",
+                           state_fn=H.fixture_state_fn(H.ASOF), named=("soybeans_cbot",))
+        payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF))
+        rec = next(r for r in cap
+                   if [str(p["date"]) for p in (r["out"].get("picked") or ())] == list(dates))
+        pool = _ranked_pool(rec)
+        assert len(pool) == int(rec["out"]["n_candidates"]), (mode, len(pool))
+        heads = [x for x in payload["block"].splitlines()
+                 if x.startswith("LIKE STATE El Nino on CBOT soybeans:")
+                 and "the series sat like this" in x]
+        assert len(heads) == len(dates), heads
+        n_pool, n_head = int(rec["out"]["n_candidates"]), int(rec["out"]["n_candidates_head"])
+        assert n_head < n_pool, (mode, n_head, n_pool)      # the defect's shape is live here
+        for i, d in enumerate(dates):
+            hd = heads[i]
+            assert R.month_words(d) in hd, (d, hd)
+            # THE PRINTED COUNT IS THE POOL, AND THE PICK IS IN IT -- measured, not assumed.
+            assert ("%s past readings on this series could be ranked beside it, this one "
+                    % R.words_for_int(n_pool)) in hd, hd
+            assert d in pool, (mode, d, pool[:5])
+            # THE OPPOSITE ERROR: the head count may not wear that sentence, and the date it counts
+            # is not this one.
+            assert "%s past readings" % R.words_for_int(n_head) not in hd, hd
+            assert d not in _head_dates(rec), (mode, d)
+            # ...AND IT IS STILL ON THE PAGE, NAMING ITS OWN POPULATION.
+            assert ("%s like %s admitted at the full-coverage floor since "
+                    % (R.words_for_int(n_head), "state" if n_head == 1 else "states")) in hd, hd
+            assert ("this one the nearest" if i == 0 else "this one among them") in hd, (i, hd)
+            if i:
+                assert "the nearest" not in hd, hd
+        seen[mode] = heads
+    # THE THREE STANZAS THE RULING NAMES, AND NOTHING ELSE CHANGED ABOUT THEM.
+    assert "June 2013" in seen["deep"][0] and "April 2020" in seen["max"][0]
+    assert "February 2017" in seen["max"][1]
+
+
+def _head_dates(rec):
+    """The candidates the SHIPPED rule admits -- observable on every declared dimension and agreeing
+    in sign on at least half -- re-walked from the producer's primitives."""
+    sh, dims, asof, band, kw = rec["hist"], rec["dims"], rec["asof"], rec["band"], rec["kw"]
+    conv, lag_days, min_run = kw.get("convention"), kw.get("lag_days") or 0, kw.get("min_run")
+    cands = (A.crossings(sh, convention=conv, any_month=True, min_separation_months=0)
+             if min_run is None else A.crossings(sh, convention=conv, min_run=int(min_run)))
+    horizon = None if band.max_q is None else int(band.max_q) * A.QUARTER_MONTHS
+    try:
+        hr = A._run_at(sh, len(sh.get("dates") or ()) - 1) or 0
+    except Exception:
+        hr = 0
+    head_idx = {c["index"] for c in
+                A.crossings(sh, convention=conv, min_run=(hr if min_run is None else int(min_run)))}
+    out = []
+    for c in cands:
+        if horizon is not None:
+            far = A._window_end(c["date"], horizon)
+            if far is None or far > str(asof)[:10]:
+                continue
+        if lag_days:
+            kn = A._add_days(c["date"], int(lag_days))
+            if kn is None or kn > str(asof)[:10]:
+                continue
+        like = A.likeness(c["date"], dims)
+        if like is None:
+            continue
+        if (c["index"] in head_idx and like["dims_seen"] == len(dims)
+                and like["sign_agree"] * 2 >= len(dims)):
+            out.append(str(c["date"]))
+    return out
+
+
+def test_ANALOG_the_FORWARD_WINDOWS_COUNT_IS_THE_CORPUS_AND_THE_TIERS_CAP_IS_A_CUT_ROW(graph):
+    """**THE FIGURE WAS THE CAP, PRINTED AS A COUNT** (round-2 blocker 3). ``_receipts_after`` stopped
+    walking at ``receipt_cap`` and the header printed the length of what it got, so "N dated documents
+    inside the window that followed it" was CONSTANT AT THE CAP whatever the corpus held -- measured
+    through this same seam with twelve documents inside the forward window: deep printed three against
+    a true eleven, max printed five against a true eight, and there was no cut row while the BACKWARD
+    window has carried one since S6. A cap is a CUT ROW and never a count.
+
+    Driven here on the deep tier, whose ``receipt_cap`` is three, with six documents inside the window
+    the band declares forward of the picked date: the page counts SIX, the row carries THREE and the
+    block says which three it could not carry."""
+    docs = ([{"date": "2013-04-02", "tier": 1, "source": "NOAA", "text": "before the state"}]
+            + [{"date": "2013-%02d-15" % m, "tier": 2, "source": "USDA", "text": "after %d" % m}
+               for m in (7, 8, 9, 10, 11, 12)])
+    sg = _sg(["soybeans_cbot"],
+             nodes=[_node("soybeans_cbot", d, evidence=docs)
+                    for d in ("El_Nino", "La_Nina", "drought", "export_pace_lag")])
+    bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode="deep",
+                       query="what is the situation on soybeans now?",
+                       state_fn=H.fixture_state_fn(H.ASOF), named=("soybeans_cbot",))
+    payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF))
+    block = payload["block"]
+    assert int(bd.knobs.receipt_cap) == 3, bd.knobs.receipt_cap
+    # THE COUNT IS THE WINDOW'S: six documents fall in (2013-06-30, 2013-12-31].
+    assert "six dated documents inside the window that followed it" in block, \
+        [x[-200:] for x in block.splitlines() if "window that followed" in x]
+    assert "three dated documents inside the window that followed it" not in block, "the cap again"
+    # ...AND THE CUT IS A ROW, naming the stanza and never a document title.
+    cut = [x for x in block.splitlines()
+           if x.startswith("BOARD ABSENCE") and "inside the window that followed" in x]
+    # round-2 review MAJOR 1: the row withholds the WHOLE count (six) -- nothing renders the forward rows.
+    assert cut and cut[0].startswith("BOARD ABSENCE the six documents counted inside the "
+                                     "window that followed this like state are not shown on this "
+                                     "page (El Nino on CBOT soybeans)"), cut
+    for d in docs:
+        assert d["text"] not in "\n".join(cut), d
+
+
+def test_ANALOG_what_FOLLOWED_is_counted_on_the_page_and_never_enumerated(graph):
+    """``analogs._receipts_after`` reads the window the OUTCOME row reads -- ``(t, t+band]`` -- so the
+    reader shown what the price did next is told how much the record SAID next. It is PIT-safe by
+    construction: ``select_analogs`` admits a candidate only where that band has already closed
+    against the as-of.
+
+    THE PAGE PRINTS THE COUNT AND NOT THE TITLES. A document title is retrieved text and SB-A is a
+    letters-only class; the board SELECTS rather than enumerating. And the clause is suppressed in the
+    one case where the stanza's own absence row already says the corpus held nothing on either side,
+    because one absence stated twice in two spellings is not two facts."""
+    docs = [{"date": "2013-04-02", "tier": 1, "source": "NOAA", "text": "before the state"},
+            {"date": "2013-09-14", "tier": 2, "source": "USDA", "text": "inside the window after"},
+            {"date": "2013-11-30", "tier": 3, "source": "trade", "text": "also after"}]
+    sg = _sg(["soybeans_cbot"],
+             nodes=[_node("soybeans_cbot", d, evidence=docs)
+                    for d in ("El_Nino", "La_Nina", "drought", "export_pace_lag")])
+    bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode="deep",
+                       query="what is the situation on soybeans now?",
+                       state_fn=H.fixture_state_fn(H.ASOF), named=("soybeans_cbot",))
+    payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF))
+    heads = [x for x in payload["block"].splitlines()
+             if x.startswith("LIKE STATE ") and "the series sat like this" in x]
+    assert heads, payload["block"][:400]
+    assert any("dated document" in x and "inside the window that followed it" in x for x in heads), \
+        [x[-160:] for x in heads]
+    # LETTERS ONLY: the count is in words and no title reaches the header.
+    for x in heads:
+        for d in docs:
+            assert d["text"] not in x and d["source"] not in x, (d, x)

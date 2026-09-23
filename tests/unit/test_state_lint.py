@@ -1104,3 +1104,172 @@ def test_clause11_carries_the_chain_movements_own_grade():
     assert _nar.check_literals() == []
     assert _nar._check_chain_movement() == []
     assert sbl.check_state_board() == []
+
+
+# === CLAUSE 16: near_asof IS READ ON THE PAGE AND FILTERS NOWHERE (DESIGN C.4) ======================
+#: The one spelling. There is no second name for the flag anywhere in the state package, which is what
+#: makes a source join over it mean anything at all.
+_NEAR = "near_asof"
+
+#: FOUR SURGICAL FILTERS, each one a shape a real edit could take, written against the source this
+#: clause reads. A lint that has never been shown failing is a lint nobody has graded.
+_FILTERED_SOURCES = {
+    "comprehension": (
+        "def analog_selection_clauses(a):\n"
+        "    rows = [r for r in a if not r.get('near_asof')]\n"
+        "    return rows\n"
+        "def sb_analog_header(a, *, chain_dims=()):\n"
+        "    return analog_selection_clauses(a)\n"),
+    "continue": (
+        "def analog_selection_clauses(a):\n"
+        "    out = []\n"
+        "    for r in a:\n"
+        "        if r.get('near_asof'):\n"
+        "            continue\n"
+        "        out.append(r)\n"
+        "    return out\n"
+        "def sb_analog_header(a, *, chain_dims=()):\n"
+        "    return analog_selection_clauses(a)\n"),
+    "return": (
+        "def analog_selection_clauses(a):\n"
+        "    if a.get('near_asof'):\n"
+        "        return ''\n"
+        "    return 'x'\n"
+        "def sb_analog_header(a, *, chain_dims=()):\n"
+        "    return analog_selection_clauses(a)\n"),
+    "remove": (
+        "def analog_selection_clauses(a, rows):\n"
+        "    rows.remove(a['near_asof'])\n"
+        "    return rows\n"
+        "def sb_analog_header(a, *, chain_dims=()):\n"
+        "    return analog_selection_clauses(a, [])\n"),
+}
+
+
+def _with_render_source(monkeypatch, src: str):
+    """Point clause 16's reader at a STATED source, leaving every other module the tree's."""
+    real = sbl._state_source
+    monkeypatch.setattr(sbl, "_state_source",
+                        lambda name: src if name == "render.py" else real(name))
+
+
+def test_CLAUSE16_is_GREEN_on_the_tree_and_the_whole_roster_is_SIXTEEN():
+    """The roster grew by one and ``check_state_board()`` is still empty. ``config_check`` only
+    DELEGATES here, so a sixteenth clause needs no edit in a file this lane may not touch."""
+    import inspect
+    assert sbl._check_analog_near_asof() == []
+    assert sbl.check_state_board() == []
+    src = inspect.getsource(sbl.check_state_board)
+    assert "_check_analog_near_asof()" in src
+    assert src.count("errs += _check") == 16, src.count("errs += _check")
+
+
+def test_the_SB_A_SAMPLE_IS_WHAT_THE_PRODUCER_RENDERS_AND_CARRIES_ONE_FLOOR_YEAR():
+    """**THE BANKED SAMPLE IS THE CLASS'S OWN OUTPUT OR IT GRADES NOTHING.** ``_check_row_classes``
+    asserts disjointness on these lines, so a sample that drifts from the producer greens a clause
+    about a page that no longer exists. This pin joins the two: the SB-A sample is re-composed HERE
+    by ``render.sb_analog_header`` off a row carrying exactly the fields the sample states, and it
+    has to come back word for word.
+
+    AND IT CARRIES ONE YEAR (round-2 blockers 1 and 4). The round-1 sample printed "three such
+    crossings since 1999" and "which together reach back to 2022" -- two answers to one question on
+    one line, which is the defect the ruling closed. A sample with two different years fails here."""
+    import re as _re
+
+    from leviathan.graphrag.state import render as _R
+
+    line = [s for s in _sb_a_samples() if s.startswith("LIKE STATE El Nino on CBOT soybeans:")]
+    assert len(line) == 1, line
+    years = set(_re.findall(r"(?:since|reach back to) (\d{4})", line[0]))
+    assert years == {"2023"}, years
+    row = {"driver_id": "El_Nino", "contract": "soybeans_cbot", "date": "2013-06-30",
+           "asof": "2026-09-07", "floor_year": "2022", "n_candidates": 159,
+           "n_candidates_head": 3, "pool_rank": 1, "dims_declared": 3, "dims_seen": 2,
+           "dims_unread": 1, "sign_agree": 2, "sign_seen": 2, "dir_agree": 0, "dir_seen": 2,
+           "precedes_dims": 1, "near_asof": False, "months_to_asof": 158,
+           "record_span": ({"id": "El_Nino", "first_date": "1999-12-31"},
+                           {"id": "La_Nina", "first_date": "1999-12-31"},
+                           {"id": "export_pace_lag", "first_date": "2023-11-03"})}
+    composed = _R.sb_analog_header(row)
+    assert composed.startswith(line[0]), (line[0], composed[:len(line[0]) + 60])
+
+
+def _sb_a_samples():
+    """The sample lines ``lint._check_row_classes`` banks, read off its own source -- the function
+    builds them in a local dict, so this is the one way to see them without re-declaring them."""
+    import ast
+    import inspect
+    tree = ast.parse(inspect.getsource(sbl._check_row_classes).lstrip())
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values):
+                if isinstance(k, ast.Constant) and k.value == "SB-A" and isinstance(v, ast.Constant):
+                    out.append(v.value)
+    return out
+
+
+def test_CLAUSE16_REDS_a_render_that_FILTERS_a_picked_row_on_near_asof(monkeypatch):
+    """**THE DESIGN ASKED FOR A FENCE THAT DELETES AND THIS IS THE CLAUSE THAT REFUSES IT.** DESIGN
+    C.4 asks for a lint asserting the chosen date is not inside ``min_separation_months`` of the
+    as-of -- which would take a stanza the selection PICKED off the page. Doctrine is the other way
+    round, and ``analogs.select_analogs`` already says so: "``near_asof`` IS A FLAG AND NEVER A
+    FILTER". So the render APPENDS the distance in months and this clause reds every shape that
+    would remove the row instead."""
+    for shape, src in sorted(_FILTERED_SOURCES.items()):
+        _with_render_source(monkeypatch, src)
+        errs = sbl._check_analog_near_asof()
+        assert errs, shape
+        assert all(_NEAR in e for e in errs), (shape, errs)
+
+
+def test_CLAUSE16_REDS_a_render_that_STOPPED_READING_the_flag_at_all(monkeypatch):
+    """The state it was written against: ``near_asof`` was live and SILENT. On the served fixture
+    board ``attached_event`` at deep renders a stanza picked 2026-01-31 against an as-of of
+    2026-09-07 and at max picks 2025-12-31 -- both flagged True by the selection, both rendered, and
+    the word appeared nowhere in ``render.py``, ``watch.py``, ``lint.py``, ``narration.py`` or
+    ``board.py``. A reader was shown the present state described as its own precedent."""
+    _with_render_source(monkeypatch,
+                        "def sb_analog_header(a, *, chain_dims=()):\n    return 'LIKE STATE'\n")
+    errs = sbl._check_analog_near_asof()
+    assert errs and "reads `near_asof` nowhere" in errs[0], errs
+    # AND A READER THE HEADER DOES NOT CALL IS A REFERENCE WITHOUT A READER -- the same defect.
+    _with_render_source(monkeypatch,
+                        "def somewhere_else(a):\n    return a['near_asof']\n"
+                        "def sb_analog_header(a, *, chain_dims=()):\n    return 'LIKE STATE'\n")
+    errs = sbl._check_analog_near_asof()
+    assert errs and "still no reader on the page" in errs[0], errs
+    # AN UNREADABLE MODULE IS A SKIP, never a red build on a file it could not open; an UNPARSABLE one
+    # is a single, named error rather than a silent pass.
+    _with_render_source(monkeypatch, "")
+    assert sbl._check_analog_near_asof() == []
+    _with_render_source(monkeypatch, "def f(:\n")
+    errs = sbl._check_analog_near_asof()
+    assert len(errs) == 1 and "does not parse" in errs[0], errs
+
+
+def test_CLAUSE16_reads_the_flag_WHERE_THE_SHIPPED_RENDER_READS_IT():
+    """The join is to ``render.sb_analog_header``'s own call graph, so a read in a function nothing
+    calls cannot satisfy it. On the tree the reader is ``analog_selection_clauses``, which the header
+    calls and which APPENDS -- no ``continue``, no ``return``, no ``del``, no comprehension filter."""
+    import ast
+    import inspect
+
+    from leviathan.graphrag.state import analogs as A
+    from leviathan.graphrag.state import render as R
+    src = inspect.getsource(R.analog_selection_clauses)
+    assert _NEAR in src
+    body = src.split('"""')[2]
+    assert "continue" not in body and "del " not in body
+    assert "before the as-of this page is read at" in body, "it APPENDS the distance"
+    assert "months_to_asof" in body, "and the distance is the SELECTION's, not a second calendar"
+    assert "analog_selection_clauses(a)" in inspect.getsource(R.sb_analog_header)
+    # AND THE SELECTION STILL STAMPS IT AS A FLAG, never as a filter -- the other half of the contract.
+    sel = inspect.getsource(A.select_analogs)
+    assert '"near_asof"' in sel and "months_to_asof" in sel
+    assert sbl._near_filter_shapes(ast.parse(sel).body[0], "analogs.select_analogs()") == []
+    # EVERY STATE MODULE THE CLAUSE GRADES IS ONE THIS PACKAGE ACTUALLY SHIPS.
+    import pathlib
+    here = pathlib.Path(A.__file__).resolve().parent
+    for name in sbl._ANALOG_ROW_MODULES:
+        assert (here / name).exists(), name
