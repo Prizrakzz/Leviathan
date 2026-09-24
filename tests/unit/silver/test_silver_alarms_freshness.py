@@ -322,6 +322,7 @@ class TestDataDateTfvars:
             "silver_metric_namespace", "silver_batch_families", "silver_freshness_slas",
             "silver_table_freshness_slas", "silver_data_date_slas",
             "silver_expected_poll_targets", "silver_data_date_static",
+            "silver_lane_alarms",   # 2026-09-24: the text/corpus lane map, census-admitted (5053e4de)
         }
         assert tf["silver_freshness_slas"]["usda_nass"] == 14
 
