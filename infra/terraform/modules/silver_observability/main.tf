@@ -776,3 +776,28 @@ resource "aws_cloudwatch_metric_alarm" "freshness_targets_polled" {
   alarm_actions       = local.alarm_actions
   tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
 }
+
+# ---------------------------------------------------------------------------
+# THE TEXT / CORPUS LANE ALARMS -- one map-driven resource, keyed by failure_mode. The alarm's
+# name, metric, dimensions, window, threshold and words are the alarm DOCUMENT's own
+# (jobs/observability/silver_alarms.py), admitted to var.silver_lane_alarms only once the account's
+# metric census lists the stream. Adding a lane alarm is a generator change, never a new resource.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "lane" {
+  for_each = var.silver_lane_alarms
+
+  alarm_name          = each.value.alarm_name
+  alarm_description   = each.value.description
+  namespace           = var.silver_metric_namespace
+  metric_name         = each.value.metric_name
+  dimensions          = each.value.dimensions
+  statistic           = each.value.statistic
+  period              = each.value.period
+  evaluation_periods  = each.value.evaluation_periods
+  datapoints_to_alarm = each.value.datapoints_to_alarm
+  comparison_operator = each.value.comparison_operator
+  threshold           = each.value.threshold
+  treat_missing_data  = each.value.treat_missing_data
+  alarm_actions       = local.alarm_actions
+  tags                = { Project = var.project_name, Environment = var.environment, ManagedBy = "terraform" }
+}

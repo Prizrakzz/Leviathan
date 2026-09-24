@@ -508,6 +508,9 @@ module "silver_observability" {
   silver_data_date_slas        = var.silver_data_date_slas
   silver_expected_poll_targets = var.silver_expected_poll_targets
   silver_data_date_static      = var.silver_data_date_static
+  # The text / corpus lane alarms (round 2/3 of the 09-22 pipeline fix wave), admitted to the
+  # generated tfvars by the account's own metric census (silver_published_metrics.json).
+  silver_lane_alarms           = var.silver_lane_alarms
 
   # A-W5 step 3: orchestration-plane alarms + the aws.states failure rule. The machine ARN
   # gates the SFN-specific alarms/rule (empty -> they don't create), so this can apply before or

@@ -1,0 +1,5378 @@
+{
+  "listed_at": "2026-09-24T02:43:58Z",
+  "metrics": [
+    {
+      "dimensions": {},
+      "metric_name": "BatchJobFailedBackstop"
+    },
+    {
+      "dimensions": {},
+      "metric_name": "BatchJobFailedScheduled"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "CorpusChunkCoverageMin"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "CorpusChunkLagDaysMax"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "CorpusCoverageBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "CorpusFetchLagDaysMax"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "CorpusFoldAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "CorpusFoldFailures"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "CorpusFoldRuns"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "CorpusFoldSlicesWritten"
+    },
+    {
+      "dimensions": {
+        "Family": "ams"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "board_crush"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "cftc"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "cftc",
+        "Table": "silver_cot"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "conab"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "fnc_colombia"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "fred",
+        "Table": "silver_fred_fx"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "futures"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "futures",
+        "Table": "silver_futures_prices"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_eod"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_eod",
+        "Table": "silver_futures_eod"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_spreads"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "icco"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "minagro"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "mpob"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "mpob",
+        "Table": "silver_mpob"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "mpoc"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "sagis"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "sagis",
+        "Table": "silver_sagis_weekly_deliveries"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "sagis",
+        "Table": "silver_sagis_weekly_exports"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "unica"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "unica",
+        "Table": "silver_unica_biweekly_season_history"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "unica",
+        "Table": "silver_unica_corn_ethanol"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "unica",
+        "Table": "silver_unica_monthly_ethanol_sales"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_esr"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_esr",
+        "Table": "silver_esr"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_fgis"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_fgis",
+        "Table": "silver_fgis"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_nass"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_nass",
+        "Table": "silver_nass_crop_progress"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_psd"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wap"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "world_bank"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_board_crush"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_futures_spreads"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_ams_cotton_quality"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_conab_coffee"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_cot"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_esr_compact"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fgis"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_exports_port_type"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_monthly"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_food_cpi"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_futures_eod"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_futures_prices"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_icco_cocoa"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_minagro_grain_exports"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpob"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpoc_exports_by_country"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_citrus"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_crop_progress"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_pink_sheet"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_pink_sheet_vintages"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_psd"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_psd_attributes"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_cec"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_weekly_deliveries"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_weekly_exports"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_biweekly_season_history"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_corn_ethanol"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_monthly_ethanol_sales"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wap_table01_revisions"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wasde"
+      },
+      "metric_name": "DataDateAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "ams"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "board_crush"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "cftc"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "conab"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "fnc_colombia"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "futures"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_eod"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_spreads"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "icco"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "minagro"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "mpob"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "mpoc"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "sagis"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "unica"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_esr"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_fgis"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_nass"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_psd"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wap"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "world_bank"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_board_crush"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_futures_spreads"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_ams_cotton_quality"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_conab_coffee"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_cot"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_esr_compact"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fgis"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_exports_port_type"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_monthly"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_food_cpi"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_futures_eod"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_futures_prices"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_icco_cocoa"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_minagro_grain_exports"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpob"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpoc_exports_by_country"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_citrus"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_crop_progress"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_pink_sheet"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_pink_sheet_vintages"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_psd"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_psd_attributes"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_cec"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_weekly_deliveries"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_weekly_exports"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_biweekly_season_history"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_corn_ethanol"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_monthly_ethanol_sales"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wap_table01_revisions"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wasde"
+      },
+      "metric_name": "DataDateAgeRatio"
+    },
+    {
+      "dimensions": {
+        "Reason": "absent"
+      },
+      "metric_name": "DataDateUnread"
+    },
+    {
+      "dimensions": {
+        "Reason": "ahead"
+      },
+      "metric_name": "DataDateUnread"
+    },
+    {
+      "dimensions": {
+        "Reason": "disabled"
+      },
+      "metric_name": "DataDateUnread"
+    },
+    {
+      "dimensions": {
+        "Reason": "static"
+      },
+      "metric_name": "DataDateUnread"
+    },
+    {
+      "dimensions": {
+        "Reason": "undeclared"
+      },
+      "metric_name": "DataDateUnread"
+    },
+    {
+      "dimensions": {
+        "Reason": "unreadable"
+      },
+      "metric_name": "DataDateUnread"
+    },
+    {
+      "dimensions": {
+        "Family": "weather",
+        "Table": "gold_weather_z"
+      },
+      "metric_name": "DataFreshnessMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Family": "ams"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "ams_gtr"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "board_crush"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "cftc"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "conab"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "eex_freight"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "faostat"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "fnc_colombia"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "fred"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "futures"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_eod"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_spreads"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "icco"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "minagro"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "model_output"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "moex_agro"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "mpob"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "mpoc"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "noaa_climate"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "pattern_records"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "sagis"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "unica"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_esr"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_fgis"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_nass"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_psd"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wap"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "weather"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "world_bank"
+      },
+      "metric_name": "FreshnessBreachCount"
+    },
+    {
+      "dimensions": {
+        "Family": "ams"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "board_crush"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "cftc"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "conab"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "faostat"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "fnc_colombia"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "fred"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "futures"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_eod"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_spreads"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "icco"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "minagro"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "model_output"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "mpob"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "mpoc"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "noaa_climate"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "pattern_records"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "sagis"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "unica"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_esr"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_fgis"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_nass"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_psd"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wap"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "weather"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "world_bank"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_board_crush"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_futures_spreads"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_pattern_records"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_weather_z"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "graphrag_timeline_episodes"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_ams_cotton_quality"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_chirps"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_conab_coffee"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_cot"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_cpc_soil"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_esr"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_esr_compact"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fgis"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_area_department"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_exports_port_type"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_monthly"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_food_cpi"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fred_fx"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_futures_eod"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_futures_prices"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_icco_cocoa"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_minagro_grain_exports"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_model_predictions"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_modis_ndvi"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpob"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpob_annual"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpoc_exports_by_country"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpoc_stock_comparison"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpoc_trade_stats_monthly"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nasa_power"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_annual"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_citrus"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_crop_progress"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_noaa_iod"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_noaa_oni"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_pink_sheet"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_pink_sheet_vintages"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_production"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_psd"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_psd_attributes"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_cec"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_weekly_deliveries"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_weekly_exports"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_annual_state"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_biweekly_release_series"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_biweekly_season_history"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_corn_ethanol"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_monthly_ethanol_sales"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wap_table01"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wap_table01_revisions"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wasde"
+      },
+      "metric_name": "FreshnessLagDays"
+    },
+    {
+      "dimensions": {
+        "Family": "ams"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "board_crush"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "cftc"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "conab"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "faostat"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "fnc_colombia"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "fred"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "futures"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_eod"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_spreads"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "graphrag_evidence"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "icco"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "minagro"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "model_output"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "mpob"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "mpoc"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "noaa_climate"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "pattern_records"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "sagis"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "unica"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_esr"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_fgis"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_nass"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_psd"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wap"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "weather"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Family": "world_bank"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_board_crush"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_futures_spreads"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_pattern_records"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "gold_weather_z"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "graphrag_timeline_episodes"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_ams_cotton_quality"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_chirps"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_conab_coffee"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_cot"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_cpc_soil"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_esr"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_esr_compact"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fgis"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_area_department"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_exports_port_type"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fnc_colombia_monthly"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_food_cpi"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_fred_fx"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_futures_eod"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_futures_prices"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_icco_cocoa"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_minagro_grain_exports"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_model_predictions"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_modis_ndvi"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpob"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpob_annual"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpoc_exports_by_country"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpoc_stock_comparison"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_mpoc_trade_stats_monthly"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nasa_power"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_annual"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_citrus"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_nass_crop_progress"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_noaa_iod"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_noaa_oni"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_pink_sheet"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_pink_sheet_vintages"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_production"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_psd"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_psd_attributes"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_cec"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_weekly_deliveries"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_sagis_weekly_exports"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_annual_state"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_biweekly_release_series"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_biweekly_season_history"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_corn_ethanol"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_unica_monthly_ethanol_sales"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wap_table01"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wap_table01_revisions"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {
+        "Table": "silver_wasde"
+      },
+      "metric_name": "FreshnessLagRatio"
+    },
+    {
+      "dimensions": {},
+      "metric_name": "FreshnessTargetsPolled"
+    },
+    {
+      "dimensions": {
+        "Family": "ams",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "cftc",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "cftc",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "fnc_colombia",
+        "Verdict": "FAIL"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "fred",
+        "Verdict": "FAIL"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "fred",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "fred",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "futures",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "futures",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_eod",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "futures_eod",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "icco",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "mpob",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "mpob",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "sagis",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "sagis",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "unica",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "unica",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_esr",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_esr",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_fgis",
+        "Verdict": "FAIL"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_nass",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_nass",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_psd",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_psd",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wap",
+        "Verdict": "FAIL"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wap",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde",
+        "Verdict": "FAIL"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "weather",
+        "Verdict": "FAIL"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "weather",
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Family": "weather",
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Verdict": "FAIL"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Verdict": "PASS"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {
+        "Verdict": "PASS_WITH_DRIFT"
+      },
+      "metric_name": "GateVerdict"
+    },
+    {
+      "dimensions": {},
+      "metric_name": "ValueCensusHardFailTables"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "WasdeTextAgeDays"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "WasdeTextDocsWritten"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "WasdeTextErrors"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "WasdeTextInfraErrors"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "WasdeTextKnownFailures"
+    },
+    {
+      "dimensions": {
+        "Family": "usda_wasde"
+      },
+      "metric_name": "WasdeTextRuns"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZMonthsBehind"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "arabica_coffee",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "brazilian_arabica_coffee",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "campinas_corn_reference_bmf",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "canola_ice",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cocoa",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "corn_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "cotton",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_maize_matif",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_rapeseed_matif",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "french_wheat_matif",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "frozen_orange_juice",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_spring_wheat_mgex",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "hard_red_winter_wheat_kcbt",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "malaysian_crude_palm_oil_cme",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "drought_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "drought_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "frost_event_flag_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "frost_event_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "gdd_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "gdd_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "heat_stress_z_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "heat_stress_z_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "tmax_anomaly_cells"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "palm_olein_dce",
+        "Metric": "tmax_anomaly_tail_share"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_meal_zce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rapeseed_oil_zce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "raw_sugar",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "robusta_coffee",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "rough_rice_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soft_red_winter_wheat_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_white_maize_jse",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "south_african_yellow_maize_jse",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_meal_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybean_oil_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_cbot",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_1_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "soybeans_no_2_dce",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "drought_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "frost_event_flag"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "gdd_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "heat_stress_z"
+      },
+      "metric_name": "WeatherZTipYm"
+    },
+    {
+      "dimensions": {
+        "Commodity": "white_sugar",
+        "Metric": "tmax_anomaly"
+      },
+      "metric_name": "WeatherZTipYm"
+    }
+  ],
+  "namespace": "Leviathan/Silver"
+}

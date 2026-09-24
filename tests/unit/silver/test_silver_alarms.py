@@ -233,7 +233,9 @@ class TestTheTextAndCorpusLivenessAlarms:
         # or could not read the ledger. It no longer depends on the monthly fold emitting anything.
         assert a["treat_missing_data"] == "breaching"
         # The basis travels with the alarm, so an operator reading the console gets the derivation.
-        assert "31 days" in a["description"] and "four-day grace" in a["description"]
+        # the derivation prose lives in `notes` since the 1,024-char API bound (2026-09-24)
+        assert "31 days" in a["notes"] and "four-day grace" in a["notes"]
+        assert "derived bound, see notes" in a["description"]
 
     def test_the_work_alarm_counts_slices_and_never_docs(self, doc):
         # THE REFUTED NAME. A fold is a re-derivation from the chunk cache, so docs.written is 0 BY
@@ -299,18 +301,31 @@ class TestTheTextAndCorpusLivenessAlarms:
         assert a["treat_missing_data"] == "breaching"     # an unreadable prefix is a blindness
         # THE MEASUREMENT TRAVELS WITH THE ALARM: an operator reading the console is told why this
         # gauge reads the key and not the object, and that red on arrival is intended.
-        assert "release_date" in a["description"] and "33.2" in a["description"]
-        assert "RED ON ARRIVAL" in a["description"]
+        assert "release_date" in a["description"] and "33.2" in a["notes"]
+        # it WAS red on arrival (41.0 days on 09-22) and cleared on the 2026-09-23 fire -- the
+        # measurement is kept in `notes`, the applied description carries the operational words
+        assert "41.0 days" in a["notes"] and "cleared" in a["notes"]
         assert gauge.partition_key == "release_date"
 
-    def test_none_of_them_reaches_the_applied_variables(self, sa):
+    def test_they_reach_the_applied_variables_ONLY_through_the_metric_census(self, sa):
         # THE GATE, asserted rather than trusted to a comment: an alarm whose metric has never
         # published may not be created, because treat_missing_data="breaching" would make it red on
-        # the apply that creates it. They enter the tfvars only after one fire emits.
+        # the apply that creates it. Until 2026-09-24 this pin asserted the WITHHELD state ("Corpus"
+        # and "WasdeText" absent from the tfvars). The four streams published on 09-23/24 (the first
+        # fold, the first WASDE text fire on text-to-graphrag:17), and the gate is now DATA: the
+        # lane map is filled from the account's own census file and from nothing else.
         import json
 
-        tf = json.dumps(sa.build_tfvars())
-        assert "Corpus" not in tf and "WasdeText" not in tf
+        lane = sa.build_tfvars()[sa.LANE_ALARMS_VAR]
+        census = sa.load_published_metrics()
+        if census is None:
+            assert lane == {}                                   # no census, nothing applied
+            return
+        for row in lane.values():
+            assert (row["metric_name"], tuple(sorted(row["dimensions"].items()))) in census
+        # and nothing but the lane map carries a lane metric name into the applied variables
+        rest = json.dumps({k: v for k, v in sa.build_tfvars().items() if k != sa.LANE_ALARMS_VAR})
+        assert "Corpus" not in rest and "WasdeText" not in rest
 
     def test_the_liveness_alarm_no_longer_depends_on_the_job_it_watches(self, doc, sa):
         # The shape defect underneath M-A, stated as a property: the alarm that answers "did the
@@ -549,3 +564,69 @@ def _str_attr(body, key):
         return raw[1:-1]
     return None
 
+
+class TestTheLaneAlarmsAreAppliedByCensus:
+    """The four text/corpus lane alarms reach terraform through ONE map variable and ONLY when the
+    account's own metric census lists their (metric, dimensions) stream -- the header's precondition,
+    enforced by data. No census = no lane alarm applied."""
+
+    LANE = ("corpus_fold_liveness", "corpus_fold_wrote_nothing", "wasde_text_errors",
+            "wasde_text_infra_errors", "wasde_text_tip_stale")
+
+    def test_exactly_the_five_lane_alarms_declare_the_lane_variable(self, sa, doc):
+        via = {a["failure_mode"] for a in doc["alarms"] if a.get("applied_via") == sa.LANE_ALARMS_VAR}
+        assert via == set(self.LANE)
+        # every OTHER alarm dict is byte-identical to before the field existed: no key at all
+        assert all("applied_via" not in a for a in doc["alarms"] if a["failure_mode"] not in self.LANE)
+
+    def test_no_census_means_no_lane_alarm_applied(self, sa):
+        assert sa.lane_alarms_tfvars(sa.build_alarms(), None) == {}
+        assert sa.load_published_metrics(Path("C:/definitely/not/here.json")) is None
+
+    def test_an_alarm_is_admitted_only_when_its_own_stream_is_listed(self, sa):
+        alarms = [a for a in sa.build_alarms() if a.get("applied_via") == sa.LANE_ALARMS_VAR]
+        wasde = next(a for a in alarms if a["failure_mode"] == "wasde_text_errors")
+        listed = {(wasde["metric_name"], tuple(sorted(wasde["dimensions"].items())))}
+        out = sa.lane_alarms_tfvars(alarms, listed)
+        assert set(out) == {"wasde_text_errors"}
+        row = out["wasde_text_errors"]
+        assert row["alarm_name"] == wasde["alarm_name"]            # the DOCUMENT's own name is applied
+        assert row["period"] == wasde["period_seconds"] and row["threshold"] == wasde["threshold"]
+        assert row["dimensions"] == wasde["dimensions"] and row["treat_missing_data"] == wasde["treat_missing_data"]
+        # the same metric under OTHER dimensions is a different stream and is not admitted
+        other = {(wasde["metric_name"], (("Family", "somebody_else"),))}
+        assert sa.lane_alarms_tfvars(alarms, other) == {}
+
+    def test_the_emitted_tfvars_carry_the_lane_map_from_the_checked_in_census(self, sa):
+        tf = sa.build_tfvars()
+        assert isinstance(tf[sa.LANE_ALARMS_VAR], dict)
+        census = sa.load_published_metrics()
+        if census is None:
+            assert tf[sa.LANE_ALARMS_VAR] == {}
+            return
+        for mode, row in tf[sa.LANE_ALARMS_VAR].items():
+            assert mode in self.LANE
+            assert (row["metric_name"], tuple(sorted(row["dimensions"].items()))) in census
+
+
+class TestNoAlarmDescriptionExceedsTheAPIBound:
+    """PutMetricAlarm bounds AlarmDescription at 1,024 characters; `terraform plan` refused the
+    fold-liveness alarm at 1,3xx on 2026-09-24 after five green decks. The generator now refuses
+    first, and derivation prose lives in `notes` (document only)."""
+
+    def test_every_description_fits_and_notes_never_reach_the_applied_variables(self, sa, doc):
+        import json
+        for a in doc["alarms"]:
+            assert len(a["description"]) <= sa.CLOUDWATCH_MAX_ALARM_DESCRIPTION_CHARS, a["failure_mode"]
+        tf = json.dumps(sa.build_tfvars())
+        assert "THE BOUND IS DERIVED" not in tf                 # the notes prose stays in the document
+        fold = next(a for a in doc["alarms"] if a["failure_mode"] == "corpus_fold_liveness")
+        assert "THE BOUND IS DERIVED" in fold["notes"] and "notes" in fold
+
+    def test_the_generator_refuses_an_over_long_description(self, sa):
+        import pytest
+        with pytest.raises(ValueError, match="AlarmDescription"):
+            sa._alarm(failure_mode="x", family="f", metric_name="M", dimensions={}, statistic="Maximum",
+                      period_seconds=86400, evaluation_periods=1, comparison_operator="GreaterThanThreshold",
+                      threshold=0, treat_missing_data="notBreaching", severity=sa.SEV_P2, owner="o",
+                      dedup_key="d", retention_days=1, description="x" * 1025)

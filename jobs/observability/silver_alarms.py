@@ -92,6 +92,23 @@ from leviathan.silver.registry import load_registry  # noqa: E402
 PROJECT = "leviathan"
 ENVIRONMENT = "dev"
 METRIC_NAMESPACE = "Leviathan/Silver"
+# THE LANE ALARMS (corpus_fold_liveness / corpus_fold_wrote_nothing / wasde_text_errors /
+# wasde_text_infra_errors) reach terraform through ONE map-driven resource
+# (`aws_cloudwatch_metric_alarm.lane`, for_each over this variable) and ONLY when their metric has
+# PUBLISHED: the precondition the header states ("an alarm created against a stream that has never
+# published goes red on the apply that creates it") is enforced by DATA, not by a comment -- the
+# emitter reads the account's own `list-metrics` census, written by `--census-published-metrics`
+# (read-only), and admits an alarm to the tfvars only when its (metric, dimensions) pair is listed.
+# No census file = no lane alarm applied (fail closed). MEASURED 2026-09-24 03:20Z: all four pairs
+# listed after the first fold (CorpusFoldRuns=1, Failures=1) and the first WASDE text fire on the
+# repinned image (text-to-graphrag:17).
+# PutMetricAlarm bounds AlarmDescription at 1,024 characters (measured 2026-09-24 by `terraform plan`:
+# the provider refused corpus_fold_liveness at 1,3xx). Enforced in `_alarm` the way the evaluation
+# window is: the generator REFUSES to mint a definition the API will reject. Derivation prose that
+# does not fit goes in `notes`, which the DOCUMENT keeps and the applied variables never carry.
+CLOUDWATCH_MAX_ALARM_DESCRIPTION_CHARS = 1024
+LANE_ALARMS_VAR = "silver_lane_alarms"
+PUBLISHED_METRICS_CENSUS = _REPO / "infra" / "terraform" / "envs" / "dev" / "silver_published_metrics.json"
 
 # The severity policy (F082 "route quality/source rejections per a documented severity policy"):
 #   P1 = page immediately (query-visible corruption / value regression).
@@ -249,7 +266,9 @@ def _alarm(*, failure_mode: str, family: str, metric_name: str, dimensions: dict
            comparison_operator: str, threshold: float, treat_missing_data: str,
            severity: str, owner: str, dedup_key: str, retention_days: int,
            description: str, table: Optional[str] = None,
-           datapoints_to_alarm: Optional[int] = None) -> dict:
+           datapoints_to_alarm: Optional[int] = None,
+           applied_via: Optional[str] = None,
+           notes: Optional[str] = None) -> dict:
     """Build one fully-specified alarm definition (the F082 per-alarm contract).
 
     ``table`` (when given) makes this a PER-TABLE alarm: the name tail is the table (two burned
@@ -273,6 +292,11 @@ def _alarm(*, failure_mode: str, family: str, metric_name: str, dimensions: dict
         f"alarm {PROJECT}-{ENVIRONMENT}-{failure_mode.replace('_', '-')}-"
         f"{(table or family).replace('_', '-')}",
         period_seconds, evaluation_periods)
+    if len(description) > CLOUDWATCH_MAX_ALARM_DESCRIPTION_CHARS:
+        raise ValueError(
+            f"alarm {failure_mode}: description is {len(description)} chars; PutMetricAlarm bounds "
+            f"AlarmDescription at {CLOUDWATCH_MAX_ALARM_DESCRIPTION_CHARS} -- move the derivation "
+            f"prose to `notes` (the document keeps it; the applied variables never carry it)")
     name_tail = (table or family).replace("_", "-")
     alarm = {
         "alarm_name": f"{PROJECT}-{ENVIRONMENT}-{failure_mode.replace('_', '-')}-{name_tail}",
@@ -298,7 +322,53 @@ def _alarm(*, failure_mode: str, family: str, metric_name: str, dimensions: dict
         alarm["table"] = table
     if datapoints_to_alarm is not None:
         alarm["datapoints_to_alarm"] = datapoints_to_alarm
+    if applied_via is not None:
+        # the terraform VARIABLE this alarm is applied through (omitted = a class with its own
+        # resource: batch / freshness / table / data_date); byte-identical for every older dict.
+        alarm["applied_via"] = applied_via
+    if notes is not None:
+        alarm["notes"] = notes                # derivation prose: document only, never applied
     return alarm
+
+
+def load_published_metrics(path: Optional[Path] = None) -> Optional[set]:
+    """The account's own metric census as {(metric_name, ((dim, value), ...))}, or None when no
+    census has been written -- and None means NO lane alarm is applied (fail closed)."""
+    p = Path(path) if path is not None else PUBLISHED_METRICS_CENSUS
+    if not p.exists():
+        return None
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    if doc.get("namespace") != METRIC_NAMESPACE:
+        raise ValueError(f"{p}: census namespace {doc.get('namespace')!r} != {METRIC_NAMESPACE!r}")
+    return {(m["metric_name"], tuple(sorted((m.get("dimensions") or {}).items())))
+            for m in doc.get("metrics") or []}
+
+
+def lane_alarms_tfvars(alarms: list, published: Optional[set]) -> dict:
+    """failure_mode -> the terraform alarm object, for every alarm that declares
+    ``applied_via == LANE_ALARMS_VAR`` AND whose (metric, dimensions) the census lists. The
+    alarm_name is the DOCUMENT's own, so the applied alarm and the documented one are one name."""
+    out = {}
+    for a in alarms:
+        if a.get("applied_via") != LANE_ALARMS_VAR:
+            continue
+        key = (a["metric_name"], tuple(sorted((a.get("dimensions") or {}).items())))
+        if published is None or key not in published:
+            continue
+        out[a["failure_mode"]] = {
+            "alarm_name": a["alarm_name"],
+            "metric_name": a["metric_name"],
+            "dimensions": dict(a.get("dimensions") or {}),
+            "statistic": a["statistic"],
+            "period": int(a["period_seconds"]),
+            "evaluation_periods": int(a["evaluation_periods"]),
+            "datapoints_to_alarm": int(a.get("datapoints_to_alarm") or a["evaluation_periods"]),
+            "comparison_operator": a["comparison_operator"],
+            "threshold": a["threshold"],
+            "treat_missing_data": a["treat_missing_data"],
+            "description": a["description"],
+        }
+    return dict(sorted(out.items()))
 
 
 def build_alarms(registry=None) -> list[dict]:
@@ -624,6 +694,7 @@ def build_alarms(registry=None) -> list[dict]:
     fold = ledger_gauge("corpus_fold")
     alarms.append(_alarm(
         failure_mode="corpus_fold_liveness",
+        applied_via=LANE_ALARMS_VAR,
         family=fold.family,
         metric_name=fold.metric_name,
         dimensions={"Family": fold.family},
@@ -644,22 +715,26 @@ def build_alarms(registry=None) -> list[dict]:
         dedup_key="corpus-fold/liveness",
         retention_days=90,
         description=(
-            f"The monthly evidence FOLD is more than {fold.threshold_days:.0f} DAYS OLD. THE BOUND "
-            f"IS DERIVED, NOT PREFERRED: {fold.basis} This is the alarm for the never-DELIVERED "
-            "case: leviathan-dev-batch-job-failed-backstop has zero alarm actions and the "
-            "scheduled-failure metric filter matches only MANAGED_BY_AWS or a named jobName list "
-            "that does not include corpus-fold, so a fold that is never submitted is invisible "
-            f"without this. Emitted DAILY by jobs/observability/freshness_poller_task.py "
-            f"({fold.metric_name}, dim Family) as the age of {fold.prefix} -- with "
-            f"{fold.fallback_prefix} ({fold.fallback_note}) when the ledger prefix is empty. "
-            "MISSING DATA IS BREACHING because the emitter is the daily poller, not the monthly "
-            "fold: no datapoint means the poller did not run or could not read the ledger, and "
-            "both are blindness. Remedy: submit a fold (or repin the poller), then this clears on "
-            "the next cycle."
+            f"The monthly evidence FOLD is more than {fold.threshold_days:.0f} DAYS OLD (a derived "
+            "bound, see notes). This is the alarm for the never-DELIVERED case: the batch-failed "
+            "backstop has no actions and the scheduled-failure filter does not name corpus-fold, so "
+            f"a fold that is never submitted is invisible without this. Emitted DAILY by "
+            f"jobs/observability/freshness_poller_task.py ({fold.metric_name}, dim Family) as the "
+            f"age of {fold.prefix}. MISSING DATA IS BREACHING: the emitter is the daily poller, "
+            "not the monthly fold, so no datapoint means the poller did not run or could not read "
+            "the ledger. Remedy: submit a fold (or repin the poller); this clears on the next cycle."
+        ),
+        notes=(
+            f"THE BOUND IS DERIVED, NOT PREFERRED: {fold.basis} Fallback when the ledger prefix is "
+            f"empty: {fold.fallback_prefix} ({fold.fallback_note}). The backstop it stands in for: "
+            "leviathan-dev-batch-job-failed-backstop has zero alarm actions and the scheduled-failure "
+            "metric filter matches only MANAGED_BY_AWS or a named jobName list that does not include "
+            "corpus-fold."
         ),
     ))
     alarms.append(_alarm(
         failure_mode="corpus_fold_wrote_nothing",
+        applied_via=LANE_ALARMS_VAR,
         family="graphrag_evidence",
         metric_name="CorpusFoldSlicesWritten",
         dimensions={"Family": "graphrag_evidence"},
@@ -693,6 +768,7 @@ def build_alarms(registry=None) -> list[dict]:
     # swallowed -- so this metric is now the ONLY thing that can see a text failure.
     alarms.append(_alarm(
         failure_mode="wasde_text_errors",
+        applied_via=LANE_ALARMS_VAR,
         family="usda_wasde",
         metric_name="WasdeTextErrors",
         dimensions={"Family": "usda_wasde"},
@@ -737,6 +813,7 @@ def build_alarms(registry=None) -> list[dict]:
     # board can tell "a throttle" from "an unreadable PDF" without reading a log. Maximum > 0.
     alarms.append(_alarm(
         failure_mode="wasde_text_infra_errors",
+        applied_via=LANE_ALARMS_VAR,
         family="usda_wasde",
         metric_name="WasdeTextInfraErrors",
         dimensions={"Family": "usda_wasde"},
@@ -769,6 +846,7 @@ def build_alarms(registry=None) -> list[dict]:
     tip = ledger_gauge("wasde_text")
     alarms.append(_alarm(
         failure_mode="wasde_text_tip_stale",
+        applied_via=LANE_ALARMS_VAR,
         family=tip.family,
         metric_name=tip.metric_name,
         dimensions={"Family": tip.family},
@@ -787,16 +865,20 @@ def build_alarms(registry=None) -> list[dict]:
         retention_days=90,
         description=(
             f"The WASDE TEXT layer's newest release is more than {tip.threshold_days:.0f} DAYS "
-            f"old. THE BOUND IS DERIVED, NOT PREFERRED: {tip.basis} READ FROM THE PARTITION KEY, "
-            f"NEVER THE OBJECT MTIME: measured 2026-09-22, the newest mtime under {tip.prefix} is "
+            "old (a derived bound, see notes), read from the release_date PARTITION KEY and never "
+            f"from object mtime. Emitted DAILY by jobs/observability/freshness_poller_task.py "
+            f"({tip.metric_name}, dim Family). MISSING DATA IS BREACHING: the emitter is the daily "
+            "poller, so silence is the poller's. Paired with wasde_text_errors, which sees a fire "
+            "that ran and failed; this one sees a chain that never fired at all. Remedy: fire the "
+            "WASDE text leg (or repin the poller); this clears when the newest release_date lands."
+        ),
+        notes=(
+            f"THE BOUND IS DERIVED, NOT PREFERRED: {tip.basis} READ FROM THE PARTITION KEY, NEVER "
+            f"THE OBJECT MTIME: measured 2026-09-22, the newest mtime under {tip.prefix} was "
             "2026-08-20 (33.2 days, which a mtime gauge would call GREEN) over a newest "
             "release_date of 2026-08-12 (41.0 days) -- a bulk re-write of old documents, i.e. the "
-            "write-recency blindness the data axis exists to end. Emitted DAILY by "
-            f"jobs/observability/freshness_poller_task.py ({tip.metric_name}, dim Family). "
-            "RED ON ARRIVAL IS EXPECTED AND INTENDED: the tip stands at 41 days today and clears "
-            "the moment the first fire writes release_date=2026-09-11. Paired with "
-            "wasde_text_errors, which sees a fire that ran and failed; this one sees a chain that "
-            "never fired at all."
+            "write-recency blindness the data axis exists to end. It stood at 41 days on 09-22 and "
+            "cleared when the 2026-09-23 fire wrote release_date=2026-09-11."
         ),
     ))
 
@@ -891,6 +973,8 @@ def build_tfvars(registry=None) -> dict:
         # leviathan/silver/freshness.py. Terraform consumes it for the alarm descriptions; the
         # EXCLUSION itself already happened above, in data_date_alarm_targets().
         "silver_data_date_static": dict(sorted(STATIC_DATA_TARGETS.items())),
+        # THE LANE ALARMS, admitted by the account's own metric census (see LANE_ALARMS_VAR).
+        LANE_ALARMS_VAR: lane_alarms_tfvars(build_alarms(reg), load_published_metrics()),
     }
 
 
@@ -898,8 +982,29 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="SILVER-F082 alarms-as-code emitter")
     ap.add_argument("--emit-report", default=None, help="write alarm_definitions.json under this dir")
     ap.add_argument("--emit-tfvars", default=None, help="write silver_observability.auto.tfvars.json under this dir")
+    ap.add_argument("--census-published-metrics", default=None, metavar="DIR",
+                    help="READ-ONLY: list the account's published metrics in the namespace (boto3 "
+                         "list_metrics) and write silver_published_metrics.json under DIR -- the census "
+                         "that admits the lane alarms to the tfvars")
     args = ap.parse_args(argv)
 
+    if args.census_published_metrics:
+        import datetime as _dt
+        import boto3  # lazy: this module is AWS-free everywhere else
+        cw = boto3.client("cloudwatch", region_name="us-east-1")
+        metrics = []
+        for page in cw.get_paginator("list_metrics").paginate(Namespace=METRIC_NAMESPACE):
+            for m in page.get("Metrics") or []:
+                metrics.append({"metric_name": m["MetricName"],
+                                "dimensions": {d["Name"]: d["Value"] for d in m.get("Dimensions") or []}})
+        metrics.sort(key=lambda m: (m["metric_name"], sorted(m["dimensions"].items())))
+        out = Path(args.census_published_metrics)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "silver_published_metrics.json").write_text(json.dumps({
+            "namespace": METRIC_NAMESPACE,
+            "listed_at": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "metrics": metrics}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"[F082] silver_published_metrics.json -> {out} ({len(metrics)} metric streams)")
     doc = build_document()
     if args.emit_report:
         out = Path(args.emit_report)
@@ -913,7 +1018,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         (out / "silver_observability.auto.tfvars.json").write_text(
             json.dumps(build_tfvars(), indent=2, sort_keys=True), encoding="utf-8")
         print(f"[F082] silver_observability.auto.tfvars.json -> {out}")
-    if not args.emit_report and not args.emit_tfvars:
+    if not args.emit_report and not args.emit_tfvars and not args.census_published_metrics:
         print(json.dumps(doc, indent=2, sort_keys=True))
     return 0
 
