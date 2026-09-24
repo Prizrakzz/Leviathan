@@ -1031,9 +1031,14 @@ def internal_leaks(text: str) -> list[tuple[str, str]]:
 #     writer is supposed to copy;
 #   * "board crush" is a real CBOT spread and the convention ref `cbot_board_crush_margin`;
 #   * "the CBOT soybean board" is how a desk says it.
-# So the ban is BY PHRASE WITH A DECLARED EXEMPTION TABLE, and NO `render.py` or `narration.py` literal is
-# reworded to suit it: rewording either would change the flag-on block and the flag-on prompt for every
-# board turn, which is the byte-identity this whole sitting rests on. EXEMPT, never reword.
+# So the ban is BY PHRASE WITH A DECLARED EXEMPTION TABLE, and at S7b NO `render.py` or `narration.py`
+# literal was reworded to suit it: rewording either would change the flag-on block and the flag-on prompt
+# for every board turn, which is the byte-identity that sitting rested on. EXEMPT, never reword.
+# **09-23 (OWNER DECISION 7) RE-RULES THIS FOR THE OWNER-NAMED ROWS ONLY**: the chain rows, the history
+# line, the analog stanza, the chain receipt words and the watch recurrence row ARE reworded into desk
+# English -- they ship only with GRAPHRAG_STATE_BOARD (the chain rows only with GRAPHRAG_STATE_CHAIN) lit,
+# so no flag-off byte moves -- and `state/lint.py` holds those classes to zero on the extended table;
+# every other class keeps its words under a banked per-class CEILING that may only fall (threat R-17).
 #
 # `driver` IS DELIBERATELY NOT A MEMBER. `_JARGON_SUBS` REWRITES "the node" INTO "the driver" (:893-898):
 # a lint charging the word would charge the estate's own repair. The context census agrees -- 0
@@ -1127,7 +1132,44 @@ DESK_REGISTER_TOKENS: tuple = (
     ("node", r"\bnodes?\b", "the driver"),
     ("series key", r"\bseries keys?\b", "this series"),
     ("the walk", r"\bthe walk\b", "the chain"),
+    # -- THE 09-23 ROWS (owner, CONTRACT.md C13): THE CHAIN AND ANALOG BLOCK'S OWN INSTRUMENT WORDS --
+    # MEASURED on the ten 09-23 served pages (fix_round_0923/probe/page_vocab.py): "hop" 34, "firing"
+    # 25, "far end" 5 -- the writer copied the board's chain rows, history line and analog stanza
+    # verbatim ("five of eight past firings moved the declared way"), and a desk analyst does not follow
+    # that sentence. The render now spells those rows in desk English (lane R; the migrated classes are
+    # held to zero by `state/lint.py`) and these rows teach the writer the same words. THE REPLACEMENT
+    # COLUMN IS PHRASES ONLY, comma-separated (`answer._desk_replacement_phrases` splits on "," and
+    # " or "), and every phrase scores zero on all four detectors and names no claim class (the 09-17
+    # "strongest signal" withdrawal is the precedent the deck re-grades).
+    # `declared` ALONE IS DELIBERATELY NOT A TOKEN THIS ROUND (OWNER DECISION 7): 128 uses on the ten pages
+    # would put 9-33 sentences per page in front of a rewrite capped at ten; the render stops minting it in
+    # the migrated classes and only its two instrument phrases are charged here.
+    ("firing", r"\bfirings?\b",
+     "the times this reading sat this far out, past episodes like this, occasions"),
+    ("hop", r"\bhops?\b", "link, step in the chain"),
+    ("far end", r"\bfar end\b", "where the chain ends, the last link"),
+    # "the cut for a full TREATMENT" and not the contract table's "write-up": `write-up` carries the word
+    # `up`, a member of `answer._DESK_CLAIM_RX`'s DIRECTION class, and a taught phrase may name no claim
+    # class (C13's own rule, the 09-17 "strongest signal" withdrawal) -- `_desk_allowed_stems` would have
+    # let a rewrite drop a direction word with no charge.
+    ("print line", r"\bprint line\b", "the cut for a full treatment"),
+    ("ranked beside", r"\branked beside\b", "compared with"),
+    ("admitted", r"\badmitted\b", "counted, kept"),
+    ("seated", r"\bseated\b", "kept on the page"),
+    ("tier cap", r"\btier'?s? (?:cap|cut|fan|limit)\b", "this page's limit"),
+    ("coverage floor", r"\bcoverage floor\b", "the bar every compared reading had to clear"),
+    ("declared way", r"\bdeclared (?:way|direction)\b",
+     "the way the model expects, the direction the model expects"),
+    ("declared window", r"\b(?:the )?(?:window declared for it|declared window)\b",
+     "the lag the model allows for it"),
 )
+#: THE ELEVEN NAMES THE TABLE CARRIED AT HEAD ee06f19c, FROZEN (OWNER DECISION 8). The arm reports the
+#: register count on BOTH tables side by side -- ``count_desk_register(text, DESK_REGISTER_V1_NAMES)`` and
+#: the extended ``count_desk_register(text)`` -- because a metric whose definition moved between the
+#: control and the treatment is not a delta, and a v1 count read off the grown table would jump on both
+#: cells for a reason that is not the treatment (threat R-10).
+DESK_REGISTER_V1_NAMES: tuple = ("board", "row", "the graph", "loud", "knowledge date", "convention",
+                                 "state read", "receipt", "node", "series key", "the walk")
 #: The EXEMPTIONS, each with (a) the TOKENS it exempts and (b) the measured reason it is here. A token
 #: hit whose span falls inside one of these AND whose name this row names is ordinary market English and
 #: is never charged.
@@ -1302,10 +1344,15 @@ def desk_register_hits(text: str) -> list[tuple[str, str]]:
     return hits
 
 
-def count_desk_register(text: str) -> int:
+def count_desk_register(text: str, names=None) -> int:
     """RAW instrument-word count (the DP-6 counter idiom): measured wherever it is asked, enforced only
-    where the answer seam threaded the flag."""
-    return len(desk_register_hits(text))
+    where the answer seam threaded the flag. ``names`` restricts the count to those token names -- the
+    arm's v1 count is ``count_desk_register(text, DESK_REGISTER_V1_NAMES)`` (OWNER DECISION 8)."""
+    hits = desk_register_hits(text)
+    if names is not None:
+        keep = frozenset(str(n) for n in names)
+        hits = [h for h in hits if h[0] in keep]
+    return len(hits)
 
 
 def desk_register_sentences(text: str) -> list[str]:

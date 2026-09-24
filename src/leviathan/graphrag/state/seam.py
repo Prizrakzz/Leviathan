@@ -327,7 +327,8 @@ def fill_stage1(*, graph, sg, asof: str, mode: str, query: str = "", lane: str =
 def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, legb_on: bool = False,
                 width: int = 2, complexes=(), chains=(), benchmark_fn=None, receipt_fn=None,
                 record_through: str = "", n_start: int = 1, e_start: int = 1,
-                watch_nonobvious: bool = False, state_chain: bool = False) -> dict:
+                watch_nonobvious: bool = False, state_chain: bool = False,
+                evidence_ordinals: Optional[dict] = None) -> dict:
     """Run STAGE 2, then the analogs, the watch rows and the RENDER. Returns the seam payload:
 
     ``{"block": str, "request": dict, "trace": dict, "counters": dict, "recency": dict}``
@@ -352,7 +353,16 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
     the text half is phase 3's (9.2). A writer copying such a handle loses the sentence to the
     verifier's ordinary unresolved-handle rule -- a STRIP, never a false claim, and never a
     collision now that the origins are threaded. Phase 3 admits the board's receipts into the
-    turn's own list and closes it; until then the residual is named here and measured by the arm."""
+    turn's own list and closes it; until then the residual is named here and measured by the arm.
+
+    **09-23 (CONTRACT.md C2 / C4): TWO KEYS ARE ADDED, AND ONLY WHERE THE BLOCK RENDERED.**
+    ``served_scalars`` is :meth:`render.Block.served_scalars` -- every figure the block printed, in digits
+    or in words, the pool the verifier reads -- and ``row_handles`` is :attr:`render.Block.row_handles`,
+    every SB-1 row's handles by what each is. A turn whose board never rendered returns neither key, so a
+    board-off turn and a declined board carry HEAD's key set exactly (I-8). ``evidence_ordinals`` is the
+    turn's own ``{source_key: [E] ordinal}`` over its evidence menu (``answer._evidence_ordinals``), read
+    ONLY by the chain rows that name a document the chain cannot claim, so that document carries the
+    menu's own address (threat R-14); ``None`` -- every caller that threads nothing -- is HEAD's row."""
     try:
         from leviathan.graphrag.state import analogs as A
         from leviathan.graphrag.state import narration as N
@@ -478,6 +488,8 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                                  age_clauses=ages, start=max(1, int(n_start)),
                                  e_start=max(1, int(e_start)),
                                  chain_receipts=(_rcpt if state_chain else None),
+                                 evidence_ordinals=(dict(evidence_ordinals) if evidence_ordinals
+                                                    else None),
                                  anchor_label=", ".join(R.board_label(s) for s in bd.anchor_slugs))
             _render_ms = (time.perf_counter() - _tr) * 1000.0
             # THE RENDER'S DECLINE WORD MEANS "A LINE WAS CORRECTED", NOT "NO BLOCK" (S6 review). The
@@ -490,8 +502,12 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                      reads=len(blk.trips) if blk.trips else 0)
             text = blk.text()
             calls = list(blk.calls)
+            # THE TWO 09-23 PAYLOADS, taken off the block that RENDERED and nowhere else (C2 / C4).
+            _extra = {"served_scalars": blk.served_scalars(),
+                      "row_handles": {k: dict(v) for k, v in (blk.row_handles or {}).items()}}
         else:
             ana, wr, rec, text, calls = [], [], {}, "", []
+            _extra = {}
             # THE ONE BLOCK A DECLINED BOARD MAY MINT (SUBJECT RESOLVER D5), and it exists because the
             # two halves of that decision landed on opposite sides of this gate. `_stamp_subject` takes
             # the `subject_ambiguous` decline ONLY on an anchorless board -- the restraint is right, a
@@ -540,8 +556,11 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
         # turn where the writer met no block and no mandate. That is two facts, not one, and the note
         # above claims one (S6 review). Both legs now.
         fired = ((bd.legs.get("board") or {}).get("outcome") == "fired") and bool(text)
-        return {"block": text, "request": (req if fired else None), "trace": tr,
-                "counters": cnt, "recency": rec, "analogs": ana, "watch": wr}
+        out = {"block": text, "request": (req if fired else None), "trace": tr,
+               "counters": cnt, "recency": rec, "analogs": ana, "watch": wr}
+        if text and _extra:
+            out.update(_extra)
+        return out
     except Exception:                                   # noqa: BLE001 -- a board must never break a turn
         return {}
 
@@ -612,6 +631,19 @@ def counters(bd, *, block: str = "", analogs=(), watch=(), render_ms: float = 0.
     out["BoardPoolDeclined"] = int(led.pool_declined)
     out["BoardEvidenceBorrows"] = int(led.evidence_borrows)
     out["BoardReplayLabelled"] = int(led.replay_labelled)
+    # THE WITHHELD RELEASE STAMPS (09-23, CONTRACT.md C11; lane C's B-2). The feeder marks a row whose
+    # provenance stamp postdates the as-of (or cannot be dated) and publishes ONE predicate
+    # (`feeders.pit_stamp_withheld`); this sums it over the rows, which is where the mark lives, and the
+    # counters ride the trace (`tr["counters"]`), so the count is on the board trace. PRESENT ONLY WHEN A
+    # STAMP WAS WITHHELD -- `BoardSubjectDeclined`'s idiom in this same function -- so a turn on which no
+    # feeder withheld anything carries HEAD's key set exactly (B4).
+    try:
+        from leviathan.graphrag.state import feeders as _F
+        _pw = sum(int(_F.pit_stamp_withheld(r.state)) for r in bd.rows if r.state is not None)
+    except Exception:                                   # noqa: BLE001 -- a counter never breaks a turn
+        _pw = 0
+    if _pw:
+        out["BoardPitStampWithheld"] = int(_pw)
     out["BoardTruncated"] = sum(
         1 for r in bd.rows
         if r.state is not None and status_word(r.state.status) == "history_truncated")

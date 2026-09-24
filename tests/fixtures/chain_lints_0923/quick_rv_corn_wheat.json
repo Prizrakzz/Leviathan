@@ -1,0 +1,2101 @@
+{
+ "turn": "quick_rv_corn_wheat",
+ "anchors": [
+  "corn_cbot",
+  "soft_red_winter_wheat_cbot"
+ ],
+ "n_calls": 74,
+ "calls": {
+  "1": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "production",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "15800.0",
+     "unit": "Million Bushels",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "2": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "ending_stocks",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "1567.0",
+     "unit": "Million Bushels",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "3": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "domestic_total",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "12905.0",
+     "unit": "Million Bushels",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "4": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "production",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "1531.0",
+     "unit": "Million Bushels",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "5": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "ending_stocks",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "717.0",
+     "unit": "Million Bushels",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "6": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "domestic_total",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "1099.0",
+     "unit": "Million Bushels",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "7": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Feed Dom. Consumption",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": "154947.0",
+     "unit": "(1000 MT)",
+     "country": "United States",
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "8": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Feed Waste Dom. Cons.",
+    "country": "United States"
+   },
+   "rows": [
+    {}
+   ],
+   "status": "not_known"
+  },
+  "9": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": "0.12139340211469118",
+     "unit": null,
+     "country": "United States",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "10": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": "0.6521782740980976",
+     "unit": null,
+     "country": "United States",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "11": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Feed Dom. Consumption",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": "2177.0",
+     "unit": "(1000 MT)",
+     "country": "United States",
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "12": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Feed Waste Dom. Cons.",
+    "country": "United States"
+   },
+   "rows": [
+    {}
+   ],
+   "status": "not_known"
+  },
+  "13": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 12.971,
+     "unit": "M ha",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "14": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -2.5,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "15": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "16": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "17": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "18": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "19": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "20": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "21": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "22": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "23": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "24": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "25": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "26": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "27": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "28": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 414460.0,
+     "unit": "contracts",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "29": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "30": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 100,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "31": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "beginning_stocks_mt",
+    "country": "China"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 177.148,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "32": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "beginning_stocks_mt",
+    "country": "China"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -2.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "33": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "beginning_stocks_mt",
+    "country": "China"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 84,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "34": {
+   "query": {
+    "table": "silver_production_livestock",
+    "metric": "live_animals",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 87.1574,
+     "unit": "million head",
+     "country": null,
+     "knowledge_date": "2026-08-26"
+    }
+   ],
+   "status": "ok"
+  },
+  "35": {
+   "query": {
+    "table": "silver_production_livestock",
+    "metric": "live_animals",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -1.9,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-26"
+    }
+   ],
+   "status": "ok"
+  },
+  "36": {
+   "query": {
+    "table": "silver_production_livestock",
+    "metric": "live_animals",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-26"
+    }
+   ],
+   "status": "ok"
+  },
+  "37": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Feed Dom. Consumption",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 154.947,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "38": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Feed Dom. Consumption",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.3,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "39": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Feed Dom. Consumption",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 95,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "40": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 35.817,
+     "unit": "M ha",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "41": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "42": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 98,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "43": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "FSI Consumption",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 176.665,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "44": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "FSI Consumption",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.9,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "45": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "FSI Consumption",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 98,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "46": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "urea_usd_mt_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.5315172188774722,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "47": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "urea_usd_mt_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.8,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "48": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "urea_usd_mt_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 26,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "49": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "natural_gas_us_usd_mmbtu_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.5361503933627537,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "50": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "natural_gas_us_usd_mmbtu_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.7,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "51": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "natural_gas_us_usd_mmbtu_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 34,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "52": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 12.139340211469118,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "53": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "54": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 16,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "55": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 73.905,
+     "unit": "1000 MT",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "56": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "57": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 66,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "58": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "blended_npk_index_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.11253557279815038,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "59": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "blended_npk_index_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.5,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "60": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "blended_npk_index_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 63,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "61": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.33013759936968984,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "62": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "63": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 34,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "64": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "urea_usd_mt_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": -0.5315172188774722,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "65": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "urea_usd_mt_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": -0.5315172188774722,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "66": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "imports_mt",
+    "country": "China"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": 5.0,
+     "unit": "MMT",
+     "country": "China",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "67": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": "2027",
+     "estimate_role": null,
+     "value": 0.0,
+     "unit": "1000 MT",
+     "country": "Canada",
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "68": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "urea_usd_mt_zscore_5yr_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.0487,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "69": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "urea_usd_mt_zscore_5yr_pace_streak"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 4,
+     "unit": "months",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "70": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "urea_usd_mt_zscore_5yr_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.0487,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "71": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "urea_usd_mt_zscore_5yr_pace_streak"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 4,
+     "unit": "months",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "72": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -5.833,
+     "unit": "1000 MT",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "73": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "avg_farm_price",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 3.56,
+     "unit": "$/bu",
+     "country": null,
+     "knowledge_date": "2022-04-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "74": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "avg_farm_price",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 4.53,
+     "unit": "$/bu",
+     "country": null,
+     "knowledge_date": "2023-04-11"
+    }
+   ],
+   "status": "ok"
+  }
+ },
+ "row_states": [
+  {
+   "contract": "corn_cbot",
+   "driver_id": "La_Nina",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "El_Nino",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "blocking_high",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "drought",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "flash_drought",
+   "series_key": "drought_z|corn_cbot|United States"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "heat_stress",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "flowering_stress",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "excess_rain",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "frost",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "tar_spot",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "southern_rust",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "gray_leaf_spot",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "fall_armyworm",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "corn_rootworm",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "ear_rot",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "safrinha",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "crop_progress_condition",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "ndvi_vegetation_health",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "gdd_accumulation",
+   "series_key": "gdd_z|corn_cbot|United States"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "favorable_rainfall",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "ending_stocks_su_ratio",
+   "series_key": "psd_ending_stock_su_ratio|corn_cbot|United States"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "planted_area",
+   "series_key": "area|corn_cbot|United States"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "ethanol_demand",
+   "series_key": "psd_fsi_use|corn_cbot|United States"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "crude_oil",
+   "series_key": "brent_crude_z|_global|"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "RFS",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "RIN",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "feed_demand",
+   "series_key": "psd_feed_use|corn_cbot|United States"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "china_import_demand",
+   "series_key": "import|corn_cbot|China"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "China_state_reserves",
+   "series_key": "beginning_stock_region|corn_cbot|China"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "export_pace",
+   "series_key": "esr_exports|corn_cbot|"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "russia_corn_export_competition",
+   "series_key": "export|corn_cbot|Russia"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "ukraine_corn_export_competition",
+   "series_key": "export|corn_cbot|Ukraine"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "USD_index",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "BRL_FX",
+   "series_key": "fred_fx_macro|_global||brl_usd"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "ARS_FX",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "fertilizer_input_costs",
+   "series_key": "npk_fertilizer_z|_global|"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "urea_cost",
+   "series_key": "urea_z|_global|"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "natural_gas",
+   "series_key": "natural_gas_us_z|_global|"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "freight_logistics",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "soybean_corn_price_ratio",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "wheat_corn_spread",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "calendar_spread",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "managed_money_positioning",
+   "series_key": "cot_mm_positioning|corn_cbot|"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "export_ban",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "import_tariff",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "macro_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "Mississippi_low_water",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "Panama_Canal_constraint",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "cattle_on_feed",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "dap_cost",
+   "series_key": "dap_z|_global|"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "cattle_cycle_herd_size",
+   "series_key": "herd_size_cattle|cattle_beef|United States"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "TRQ_corn",
+   "series_key": "import|corn_cbot|China"
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "UAH_USD",
+   "series_key": ""
+  },
+  {
+   "contract": "corn_cbot",
+   "driver_id": "MXN_USD",
+   "series_key": "fred_fx_macro|_global||mxn_usd"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "La_Nina",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "El_Nino",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "drought",
+   "series_key": "drought_z|soft_red_winter_wheat_cbot|United States"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "flash_drought",
+   "series_key": "drought_z|soft_red_winter_wheat_cbot|United States"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "vernalization_failure",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "frost",
+   "series_key": "frost_event_flag|soft_red_winter_wheat_cbot|United States"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "polar_vortex",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "AO",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "protective_snow_cover",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "excess_rain",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "pre_harvest_sprouting",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "fusarium_head_blight",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "stripe_rust",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "leaf_rust",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "septoria",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "hessian_fly",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "lodging",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "area",
+   "series_key": "area|soft_red_winter_wheat_cbot|United States"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "ending_stocks",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "export_pace_lag",
+   "series_key": "fgis_inspections_pace|soft_red_winter_wheat_cbot|"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "russia_wheat_export_competition",
+   "series_key": "export|soft_red_winter_wheat_cbot|Russia"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "ukraine_wheat_export_competition",
+   "series_key": "export|soft_red_winter_wheat_cbot|Ukraine"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "eu_wheat_export_competition",
+   "series_key": "export|soft_red_winter_wheat_cbot|European Union"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "BlackSea_export_quota_war",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "export_ban",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "India_export_ban",
+   "series_key": "export|soft_red_winter_wheat_cbot|India"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "terminal_heat",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "heat_stress",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "USD_index",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "crude_oil",
+   "series_key": "brent_crude_z|_global|"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "fertilizer_cost",
+   "series_key": "npk_fertilizer_z|_global|"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "urea_cost",
+   "series_key": "urea_z|_global|"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "natural_gas",
+   "series_key": "natural_gas_us_z|_global|"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "freight_rates",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "cot_mm_positioning",
+   "series_key": "cot_mm_positioning|soft_red_winter_wheat_cbot|"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "tenderable_collapse",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "basis",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "calendar_spread",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "former_ussr_import_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "us_farm_program",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "desert_locust_swarm",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "us_export_pace",
+   "series_key": "esr_exports|soft_red_winter_wheat_cbot|"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "Mississippi_low_water",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "Suez_Red_Sea_disruption",
+   "series_key": ""
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "TRQ_wheat",
+   "series_key": "import|soft_red_winter_wheat_cbot|China"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "Nigeria_wheat_levy",
+   "series_key": "import|soft_red_winter_wheat_cbot|Nigeria"
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "driver_id": "RUB_USD",
+   "series_key": ""
+  }
+ ],
+ "chains": [
+  {
+   "contract": "corn_cbot",
+   "agreements": [
+    "undetermined",
+    "undetermined",
+    "undetermined"
+   ],
+   "edge_signs": [
+    "+",
+    "+",
+    "-"
+   ],
+   "cross": {
+    "other": "barley",
+    "direction": "forward",
+    "relation": "substitutes_for",
+    "sign": "-",
+    "lag": "0-2 quarters",
+    "far_driver_id": "urea_cost",
+    "far_series_key": "urea_z|_global|",
+    "far_percentile": 26.136363636363637,
+    "far_level": -0.5315172188774722
+   },
+   "terminal": "barley",
+   "depth": 2,
+   "score": 69.3,
+   "declared_sign": "+",
+   "direction": "higher",
+   "side": "for",
+   "against_hops": [],
+   "rendered": true,
+   "full": true,
+   "slot": "top",
+   "receipt_kind": "none",
+   "receipt_words": "",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 4,
+    "hops": 3,
+    "hops_no_series": 2,
+    "buffer_series": true,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "corn_cbot",
+     "driver_id": "El_Nino",
+     "sign": "-",
+     "lag": "1-3 quarters",
+     "confidence": "medium",
+     "measured": true,
+     "series_key": "oni_climate|_global|",
+     "level_shown": 1.8,
+     "unit": "degC",
+     "percentile": 92.74809160305344,
+     "z": 2.426665229537876,
+     "run_direction": "up",
+     "run_length": 8,
+     "level_date": "2026-07",
+     "knowledge_date": "2026-09-05",
+     "tail": 0.9707,
+     "tail_peak": 0.855,
+     "tail_peak_percentile": 92.74809160305344,
+     "tail_peak_date": "2026-07",
+     "tail_lag_to": "2027-04-30",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 16
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "favorable_rainfall",
+     "sign": "-",
+     "lag": "0-1 quarters",
+     "confidence": "medium",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": null
+    },
+    {
+     "contract": "corn_cbot",
+     "driver_id": "crop_progress_condition",
+     "sign": "-",
+     "lag": "0-1 quarters",
+     "confidence": "medium",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": null
+    }
+   ]
+  },
+  {
+   "contract": "soft_red_winter_wheat_cbot",
+   "agreements": [
+    "at_odds",
+    "undetermined",
+    "undetermined",
+    "undetermined"
+   ],
+   "edge_signs": [
+    "-",
+    "+",
+    "-",
+    "+"
+   ],
+   "cross": {
+    "other": "corn_cbot",
+    "direction": "forward",
+    "relation": "competes_with",
+    "sign": "+",
+    "lag": "0-2 quarters",
+    "far_driver_id": "La_Nina",
+    "far_series_key": "oni_climate|_global|",
+    "far_percentile": 92.74809160305344,
+    "far_level": 1.8
+   },
+   "terminal": "corn_cbot",
+   "depth": 3,
+   "score": 61.5,
+   "declared_sign": "+",
+   "direction": "unsettled",
+   "side": "unsettled",
+   "against_hops": [
+    "fertilizer_cost"
+   ],
+   "rendered": true,
+   "full": true,
+   "slot": "pair",
+   "receipt_kind": "none",
+   "receipt_words": "a dated report on this hop's mechanism, 2024-04-11, outside the window declared for it",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 4,
+    "hops": 4,
+    "hops_no_series": 2,
+    "buffer_series": true,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "soft_red_winter_wheat_cbot",
+     "driver_id": "fertilizer_cost",
+     "sign": "+",
+     "lag": "1-3 quarters",
+     "confidence": "medium",
+     "measured": true,
+     "series_key": "npk_fertilizer_z|_global|",
+     "level_shown": -0.11253557279815038,
+     "unit": "z",
+     "percentile": 63.25757575757576,
+     "z": -0.5197440958922037,
+     "run_direction": "down",
+     "run_length": 4,
+     "level_date": "2026-08-01",
+     "knowledge_date": "2026-09-10",
+     "tail": 0.2652,
+     "tail_peak": 0.5833,
+     "tail_peak_percentile": 79.16666666666667,
+     "tail_peak_date": "2026-04-01",
+     "tail_lag_to": "2027-01-01",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 58
+    },
+    {
+     "contract": "soft_red_winter_wheat_cbot",
+     "driver_id": "area",
+     "sign": "-",
+     "lag": "1-3 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "area|soft_red_winter_wheat_cbot|United States",
+     "level_shown": 12.971,
+     "unit": "1000 ha",
+     "percentile": 0.746268656716418,
+     "z": -2.5155045023334353,
+     "run_direction": "down",
+     "run_length": 2,
+     "level_date": "2026",
+     "knowledge_date": "2026-09-11",
+     "tail": 1.0,
+     "tail_peak": 0.9851,
+     "tail_peak_percentile": 0.746268656716418,
+     "tail_peak_date": "2026",
+     "tail_lag_to": "2027-09-30",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 13
+    },
+    {
+     "contract": "soft_red_winter_wheat_cbot",
+     "driver_id": "ending_stocks",
+     "sign": "-",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": null
+    },
+    {
+     "contract": "soft_red_winter_wheat_cbot",
+     "driver_id": "calendar_spread",
+     "sign": "+",
+     "lag": "0-1 quarters",
+     "confidence": "medium",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "planned",
+     "n": null
+    }
+   ]
+  }
+ ],
+ "coverage_chain_referenced": 0,
+ "served_chain_lints": {
+  "outcome": "ok",
+  "sentences": 1,
+  "corrected": 1,
+  "chain_hops_unfigured": 2,
+  "chain_hops_skipped": 1,
+  "chain_unranked_narrated": 0,
+  "chain_hops_ambiguous": 1,
+  "chain_fence_closed": 0
+ },
+ "structured": {
+  "tldr": "Corn's US sheet is the tight one and Chicago soft red winter wheat's is the loose one: corn's stocks-to-use sits at 12.14 % [N52], the 16th percentile of its own record [N54], while SRW wheat's US stocks-to-use reads 0.652178 [N10] -- and that gap is the whole feed-substitution story, because dear corn against ample cheap wheat pulls feed rations toward wheat, which supports Chicago wheat from the demand side while corn's own tightness points toward higher corn prices. The two-sided caveat: the largest single move on the board is a warm-phase tropical Pacific at +1.8 degC [N16], declared in the opposite direction on both markets, so the same reading that lifts wheat's feed bid also leans price-pressuring on each.",
+  "mechanism": "## Mechanism\n- **Balance-sheet tightness.** Corn's ending stocks-to-use is 12.14 % [N52], falling over the last marketing year and past the line the desk calls tight; SRW wheat's US ratio is 0.652178 [N10] -- a far larger cushion on wheat, a razor-thin one on corn. Corn is therefore where a supply shock is convex; wheat's own buffer caps its upside from the supply side.\n- **The feed link itself.** The model carries the substitution both ways: cheap feed wheat displaces corn in rations (price-pressuring for corn), and higher corn prices pull feed-wheat demand and raise the wheat-corn spread floor, supporting Chicago wheat. With corn's sheet this tight, the second direction is the live one -- corn tightness is wheat's feed-demand channel. That is the only substitution channel the model carries between these two.\n- **Dominant drivers, signed.** Corn's ethanol grind reads 176.66 MMT [N43], the 98th percentile of its own record [N45], and feed use 154.95 MMT [N37], the 95th percentile [N39] -- both declared in the same direction as price, at high confidence, compounding with the tight ratio. Wheat's acreage reading is the offsetting supportive leg: harvested area 12.97 M ha [N13], the 1st percentile of its own record [N15], declared in the opposite direction on price at high confidence.\n- **Shared macro exposure.** Both markets carry the same tropical Pacific reading, +1.8 degC [N16] on corn and [N19] on wheat, at the 93rd percentile [N18] and rising -- declared in the opposite direction on each at medium confidence. The warm phase in force is the price-pressuring one on both; the cool-phase entry is the same series under another name, not a second, disagreeing signal.\n\n## The record\nCorn US production reads 15,800 Million Bushels [N1] against 12,905 Million Bushels of domestic use [N3] and 1,567 Million Bushels of ending stocks [N2]; wheat production is 1,531 Million Bushels [N4] with 717 Million Bushels of ending stocks [N5] on 1,099 Million Bushels of domestic use [N6]. On the feed line itself, corn feed use is 154,947 (1000 MT) [N7] against SRW wheat feed use of 2,177 (1000 MT) [N11] -- the record carries no figure at all for the US wheat feed-and-waste series at this as-of, so treat that scope as unpublished rather than small.\n\nThe dated documents support the mechanism in both directions. In MY2021/22 the attache raised corn feed use at wheat's expense because corn had become the cheaper ingredient [E1]; feed wheat was expected to price under domestic corn in MY2018/19 [E2]; in 2017 corn import volumes were trimmed partly on competitive feed wheat from South America and East Europe [E6]; and in April 2011 USDA cut US corn feed and residual use on larger prospective SRW production [E4] -- the cleanest official instance of wheat taking corn's feed slot. US wheat ending stocks were reported higher in April 2024 [E10].\n\nOn the settled price side, the US corn season-average farm price rose from $3.56/bu [N73] in MY2019/20 to $4.53/bu [N74] in MY2020/21 -- a USDA survey actual, not a futures settle and not a forecast.\n\nReading dates honestly: the newest number behind this page was known 21 September 2026 and the oldest 12 August 2026; the newest dated document is 24 April 2024; the board price tape is not carried on this page, so nothing here is read off a settle.\n\n## Where the record disagrees\nThe two loudest readings pull opposite ways and both are high- or medium-confidence, so name both legs. Corn's demand side -- ethanol at the 98th percentile [N45], feed at the 95th, against a 16th-percentile stocks-to-use [N54] -- is three of the eight conditions the demand-pull pattern names, at its own threshold, and that leans price-supportive for corn. Against it, the warm-phase Pacific at the 93rd percentile [N18] is declared in the opposite direction on corn and on wheat alike, and corn's harvested area reads 35.82 M ha [N42, the 98th percentile of its own record], declared in the opposite direction at high confidence. The effect window the model puts on the Pacific reading, counted from its start in November 2025, opened around February 2026 and closed around August 2026 -- so that leg's declared window has already passed, which is why I lean toward the demand-side leg dominating into the balance of this marketing year, with the acreage reading as the standing offset.\n\nOne chain the model puts forward runs from fertilizer cost to Chicago corn through acreage, ending stocks and the calendar spread. Its first hop runs against the direction declared for it: fertilizer cost reads -0.11 z [N58], the 63rd percentile [N60], falling in each of the last four months, and its declared opposite-direction push onto area is not what the readings show. Downstream, area sits at the 1st percentile [N15]; the ending-stocks and calendar-spread hops carry no series at all, so the chain does not reach a price conclusion, and the dated report at the ending-stocks hop [E10] sits outside the window declared for it. History is thin here: no past firing of this reading carries a measured next hop, and the front price does not reach those firings. A second chain runs from the Pacific reading into barley -- a market this question did not set -- and it likewise carries no series at two hops and no dated document in its window. Beyond these two, the model counts one hundred thirty-nine sequences into these two markets; I am narrating only the two it puts first.\n\n## Cross-commodity\nThe board declares these largest moves on one other market as well -- palm oil, where the same warm-phase Pacific reading is declared in the same direction as price with a lag of two to four quarters at high confidence. That is the opposite sign to the one it carries on corn and on Chicago wheat; keep each market's own sign rather than reconciling them.\n\n## What to watch\n- **Corn's ethanol pull, 176.66 MMT [N43], read as of 11 September 2026.** Mechanism: the grind is the largest single domestic corn demand channel and is declared in the same direction as price at high confidence; it is the driver carrying the demand-side leg above. It acts over the zero-to-two-quarter window the model states. Falsifier: the next print, due 9 October 2026, returns the series to the middle of its own record.\n- **Corn's feed use, 154.95 MMT [N37], read as of 11 September 2026.** Mechanism: this is the exact line the wheat-substitution story runs through -- five declared upstream paths land on price via this reading -- and it is declared in the same direction as price at high confidence, over zero to two quarters. Falsifier: the 9 October 2026 print shows feed use falling while feed wheat use rises, which is the 2011-style substitution [E4] running the other way.\n- **Corn's stocks-to-use, 12.14 % [N52], read as of 11 September 2026.** Mechanism: this is the buffer that makes a corn supply shock convex and it is declared in the opposite direction on price at high confidence over zero to two quarters; the same reading is declared on thirteen other markets, all in the same direction, so a move here reprices beyond this pair. Falsifier: the 9 October 2026 print lifts the ratio back off its tight band, which flattens the convexity and removes the floor under wheat's feed bid."
+ }
+}

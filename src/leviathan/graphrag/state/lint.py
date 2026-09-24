@@ -735,19 +735,34 @@ def _check_row_classes() -> list[str]:
     acceptance fixtures produce -- and this clause is the half that fails without a board."""
     errs: list[str] = []
     from leviathan.graphrag.state import render as R
-    samples = {
+    samples = _row_class_samples()
+    _check_samples_shape(samples, errs, R)
+    return errs
+
+
+def _row_class_samples() -> dict:
+    """THE ONE SAMPLE LINE PER ROW CLASS, each taken VERBATIM off the render (see
+    :func:`_check_row_classes` for why the samples are the spec). A module-level producer since the 09-23
+    fix round because TWO clauses read them now: disjointness (clause 10) and the desk-register ratchet
+    (clause 17)."""
+    return {
         "SB-H": "STATE OF THE WORLD at 2026-09-07 for CBOT soybeans: two drivers read on their own "
                 "series, one carried as dated receipts; ordered by how far each reading sits from its "
                 "own history.",
-        "SB-1": "- [N1] El Nino on CBOT soybeans, NOAA ONI for 2026-08-31: +0.98 degC; [N2] +1.2 sigma "
-                "on its trailing window of one hundred twenty months [series: CBOT soybeans; table: "
-                "NOAA ONI]",
+        # SB-1 IS RE-BANKED ON THE 09-23 ROW IDENTITY (CONTRACT.md C1): the head names the SERIES (the
+        # card's declared reading words and the period at its own precision) and the driver rides once
+        # as "read here for". Verbatim off the soybeans fixture's first state row, sigma and tag kept.
+        "SB-1": "- [N1] the tropical Pacific sea-surface temperature anomaly, August 2026, on CBOT "
+                "soybeans (NOAA ONI), read here for El Nino: +0.98 degC; [N2] +1.2 sigma on its "
+                "trailing window of one hundred twenty months [series: CBOT soybeans; table: NOAA ONI]",
         "SB-V": "- [N7] WATCH the level a convention names El Nino on CBOT soybeans: 0.52 degC "
                 "under the strong line at 1.5 degC -- 2026-08-31",
         "SB-T": "- [N9] CBOT soybeans front 2026-11 settle on 2026-09-04: 1085.08 USc/bu",
-        "SB-O": "- [N11] the soybean monthly benchmark over the band the graph declares from that "
-                "state, one to two quarters: moved 46.33 USD/t by the near end; [N12] moved 68.21 "
-                "USD/t by the far end",
+        # SB-O IS RE-BANKED ON THE 09-23 DESK VOCABULARY: the chain outcome's own class spelling ("over the
+        # band declared from that state") and the band's two ends said as WHEN the lag opened and closed.
+        "SB-O": "- [N11] the soybean monthly benchmark over the band declared from that state, one to "
+                "two quarters: moved 46.33 USD/t by the time that lag opened; [N12] moved 68.21 USD/t "
+                "by the time it closed",
         "SB-W": "- WATCH the next scheduled print El Nino on CBOT soybeans (NOAA ONI): scheduled "
                 "between 2026-10-01 and 2026-10-05 -- 2026-10-01 to 2026-10-05",
         "SB-R": "- [E1][T1] (Indonesia Ministry of Energy, reported 2026-05-02; event 2026-05-01) "
@@ -779,14 +794,17 @@ def _check_row_classes() -> list[str]:
         # year for "how far back these dimensions see" (``render.analog_count_floor``,
         # ``max(first_date)`` over ``record_span``) in both clauses that print it. Taken VERBATIM off
         # the served soybeans deep stanza.
+        # ...AND RE-BANKED ONCE MORE ON THE 09-23 DESK VOCABULARY (CONTRACT.md C13): "compared with it" for
+        # the instrument's "ranked beside it", and the head-admitted count said as the like states that are
+        # readable on every dimension -- the same two numbers, the same one floor year.
         "SB-A": "LIKE STATE El Nino on CBOT soybeans: the series sat like this in June 2013; one "
-                "hundred fifty-nine past readings on this series could be ranked beside it, this one "
-                "the nearest; three like states admitted "
-                "at the full-coverage floor since 2023; like on two of the three dimensions ranked "
-                "beside it, which together reach back to 2023; the one it could not read there counts "
-                "as a full sigma apart; the state agreed in sign on two of the two a sigma could be "
-                "read on; the path into it agreed on zero of the two a direction could be read on; "
-                "this date precedes the record of one of the dimensions ranked beside it",
+                "hundred fifty-nine past readings on this series could be compared with it, this one "
+                "the nearest; three of them are like states, the ones readable on every dimension "
+                "since 2023; like on two of the three dimensions compared with it, which together "
+                "reach back to 2023; the one it could not read there counts as a full sigma apart; the "
+                "state agreed in sign on two of the two a sigma could be read on; the path into it "
+                "agreed on zero of the two a direction could be read on; this date precedes the record "
+                "of one of the dimensions compared with it",
         # SB-L's sample carried the RETIRED wording (review round 3): "the newest knowledge date on a
         # number row is ..." is the phrasing `narration.recency_rows` replaced in pre-arm round 1 --
         # the block's only source of `knowledge date` and of three `row` charges on the served bodies,
@@ -804,6 +822,10 @@ def _check_row_classes() -> list[str]:
         "SB-LEAD": "LARGEST MOVE first of three: export pace lag on CBOT soybeans, past the line the "
                    "desk convention calls behind; its figures are on its own state line below.",
     }
+
+
+def _check_samples_shape(samples: dict, errs: list, R) -> None:
+    """Clause 10's body over :func:`_row_class_samples` -- unchanged, only lifted."""
     # ── S7 polish (a): NO RENDERED LINE MAY CARRY AN EMPTY ANCHOR ────────────────────────────────────
     # `month_words` returned "" for the bare-year form a marketing-year card writes, so `_anchor_words`
     # interpolated nothing and the block printed "counted from the run's start in , the effect window
@@ -831,6 +853,114 @@ def _check_row_classes() -> list[str]:
             if rx.search(line):
                 errs.append("row class %s's sample line also matches the walk's %s -- the two blocks "
                             "would be indistinguishable to a consumer" % (name, rx_name))
+
+
+# ── clause 17 (09-23 fix round, lane R): THE DESK REGISTER OF THE BOARD'S OWN ROWS ─────────────────────
+#: THE MIGRATED CLASSES (OWNER DECISION 7): the chain rows (every ``chain*`` role but the corpus-quoting
+#: receipt row), the analog stanza (SB-A) and the outcome rows (SB-O) are spelled in desk English and are
+#: held to ZERO charges on the EXTENDED ``register.DESK_REGISTER_TOKENS`` table. A class key is the row's
+#: ROLE for the chain family (the chain rows share SB-P with the UPSTREAM row, which is not migrated) and
+#: its regex class otherwise (:func:`desk_class_key`).
+DESK_MIGRATED_CLASSES: tuple = ("chain", "SB-A", "SB-O")
+
+#: THE RATCHET (threat R-17): per UNMIGRATED class key, the most extended-table charges ONE rendered
+#: fixture block carried at this build -- the three fixture anchors (soybeans, palm, corn) x three tiers,
+#: rendered through the serving seam with the chain lit (``scratchpad/fix_round_0923/laneR``). A ceiling
+#: may only FALL: a block that exceeds one is a build error naming the class, and the class is migrated in
+#: a later round rather than re-based here. A key absent from this map has a ceiling of zero.
+#: MEASURED at this build over the eighteen fixture cells (three anchors x three tiers x chain on/off,
+#: ``laneR/CLASS_CENSUS_TREE.json``); the same census at HEAD ee06f19c read chain 25, SB-A 14 and SB-W 4 --
+#: the three the owner's rows moved to zero, zero and two.
+DESK_REGISTER_CLASS_CEILINGS: dict = {
+    "SB-1": 2, "SB-E": 22, "SB-F": 1, "SB-H": 2, "SB-J": 14, "SB-JOIN": 10, "SB-M": 7, "SB-P": 16,
+    "SB-V": 2, "SB-W": 2, "SB-X": 28,
+}
+
+#: NO HAND-TYPED SAMPLE OF A MIGRATED ROW IS GRADED HERE (09-23 fix round, the verifier's LEX-2). The first
+#: cut banked five chain lines verbatim off one render and graded THOSE -- the author's own case list, which
+#: stays green while the live template drifts. The migrated rows are now graded on the RENDER PRODUCER'S OWN
+#: OUTPUT: :func:`check_desk_register_migrated` reads a rendered block's manifest (``Block.rows_meta``, one
+#: entry per printed row, with its role and line), and the deck renders the fixture boards (three anchors x
+#: three tiers, chain lit, the serving seam's own path) and hands it every one.
+
+
+def desk_class_key(meta: dict) -> str:
+    """The ratchet's class key for ONE rendered row (``Block.rows_meta``): ``chain`` for every chain row
+    but the receipt (whose quote is corpus prose), the row's regex class otherwise."""
+    role = str((meta or {}).get("role") or "")
+    if role.startswith("chain") and role != "chain_receipt":
+        return "chain"
+    return str((meta or {}).get("cls") or "") or "unclassified"
+
+
+def desk_register_class_census(rows_meta) -> dict:
+    """``{class key: extended desk-register charges}`` over ONE rendered block's manifest."""
+    from leviathan.graphrag import register as _reg
+    out: dict = {}
+    for m in (rows_meta or ()):
+        k = desk_class_key(m)
+        out[k] = out.get(k, 0) + _reg.count_desk_register(str((m or {}).get("line") or ""))
+    return out
+
+
+def check_desk_register_ratchet(census: dict, *, ceilings: Optional[dict] = None) -> list[str]:
+    """ONE block's census against the ratchet: a migrated class above zero, or any other class above its
+    banked ceiling, is an error naming the class and both numbers."""
+    ceil = DESK_REGISTER_CLASS_CEILINGS if ceilings is None else ceilings
+    errs: list[str] = []
+    for k, n in sorted((census or {}).items()):
+        cap = 0 if k in DESK_MIGRATED_CLASSES else int(ceil.get(k, 0))
+        if int(n) > cap:
+            errs.append("desk register: class %s carries %d charge(s) on one block, above its %s of %d "
+                        "-- %s" % (k, int(n), "migrated zero" if k in DESK_MIGRATED_CLASSES else
+                                   "banked ceiling", cap,
+                                   "the owner-named rows speak desk English" if k in
+                                   DESK_MIGRATED_CLASSES else "a ratchet only falls"))
+    return errs
+
+
+def check_desk_register_migrated(rows_meta) -> list[str]:
+    """THE MIGRATED ROWS, GRADED ON WHAT THE PRODUCER PRINTED (OWNER DECISION 7, threat R-17; LEX-2): over ONE
+    rendered block's manifest, every row of a MIGRATED class key (:data:`DESK_MIGRATED_CLASSES`, read through
+    :func:`desk_class_key`) scores ZERO on the EXTENDED desk-register table, and every chain-family row
+    classifies exactly as SB-P, the class its role rides. An error names the class, the role and the hits."""
+    from leviathan.graphrag import register as _reg
+    from leviathan.graphrag.state import render as R
+    errs: list[str] = []
+    for m in (rows_meta or ()):
+        key = desk_class_key(m)
+        if key not in DESK_MIGRATED_CLASSES:
+            continue
+        line = str((m or {}).get("line") or "")
+        role = str((m or {}).get("role") or "")
+        hits = [w for w, _c in _reg.desk_register_hits(line)]
+        if hits:
+            errs.append("desk register: a migrated %s row (role %s) carries %s: %r"
+                        % (key, role or "-", hits, line[:120]))
+        if key == "chain" and R.classify(line) != ("SB-P",):
+            errs.append("desk register: a migrated chain row (role %s) classifies as %s, not SB-P: %r"
+                        % (role or "-", R.classify(line), line[:120]))
+    return errs
+
+
+def _check_desk_register_classes() -> list[str]:
+    """CLAUSE 17 (09-23 fix round, OWNER DECISION 7 / threat R-17): the ratchet's STRUCTURE -- every ceiling
+    names a real class key and no migrated class carries one. THE ROWS THEMSELVES ARE GRADED ON THE RENDER
+    PRODUCER'S OUTPUT, never on a sample typed here (LEX-2): :func:`check_desk_register_ratchet` over
+    :func:`desk_register_class_census` and :func:`check_desk_register_migrated`, both over a rendered block's
+    manifest -- the deck renders the fixture boards and runs them on every cell, because a build clause cannot
+    afford a board render and a banked line is the author's own case list."""
+    from leviathan.graphrag.state import render as R
+    errs: list[str] = []
+    known = set(R.ROW_CLASSES) | {"chain", "unclassified"}
+    for k in sorted(DESK_REGISTER_CLASS_CEILINGS):
+        if k not in known:
+            errs.append("desk register: ceiling for %r names no row class" % (k,))
+        if k in DESK_MIGRATED_CLASSES:
+            errs.append("desk register: migrated class %r may not carry a ceiling" % (k,))
+    for k in DESK_MIGRATED_CLASSES:
+        if k not in known:
+            errs.append("desk register: migrated class %r names no row class" % (k,))
     return errs
 
 
@@ -1611,6 +1741,12 @@ def check_state_board() -> list[str]:
     FILTERS a picked row on it. A reviewer asking "can a stanza be removed for being too recent" reads
     this docstring, and the answer is no: the header says how many months and the stanza stays.
 
+    THE 09-23 FIX ROUND ADDS THE SEVENTEENTH, :func:`_check_desk_register_classes` -- the desk register
+    of the board's OWN rows (OWNER DECISION 7): the owner-named classes held to zero on the extended
+    table, every other class under a banked ceiling that may only fall. The build clause grades the
+    ratchet's STRUCTURE; the rows are graded on the render producer's own output over the fixture boards
+    (:func:`check_desk_register_migrated`, :func:`check_desk_register_ratchet`), never on a typed sample.
+
     ``config_check.check_state_board`` only DELEGATES here, so a sixteenth clause needs no edit there.
     (Its own docstring still says "twelve"; that was already stale against fifteen and is not this
     lane's file.)"""
@@ -1631,6 +1767,7 @@ def check_state_board() -> list[str]:
     errs += _check_phase_pairs()
     errs += _check_chain_lints_append_only()
     errs += _check_analog_near_asof()
+    errs += _check_desk_register_classes()
     return errs
 
 

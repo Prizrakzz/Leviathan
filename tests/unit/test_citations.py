@@ -213,9 +213,15 @@ class TestGeoFallbackDestinationFence:
         c = ci.from_number({"query": q, "rows": rows, "value": 123.4, "unit": "mt"}, 1)
         return c.label
 
-    def test_esr_unscoped_single_row_stays_geo_silent(self):
+    def test_esr_unscoped_single_row_names_its_DESTINATION_never_a_subject(self):
+        """MOVED 09-23 (lane C, D3 -- deep26 F3). The fix-cycle-2 fence refused the buyer's name so it could
+        not stand as the SUBJECT of a national leg ("China's outstanding sales"). But a LIMIT-1 unscoped
+        read's one row IS one destination's figure (the 09-23 deep page footered Nicaragua's 0.0 as the
+        national outstanding sales), so silence served the figure as national. The row now names its
+        destination IN THE FLOW'S DIRECTION -- "to 1220" -- which is the one reading the fence protects."""
         label = self._cite("silver_esr", [{"country": "1220", "value": 123.4}])
-        assert "1220" not in label
+        assert " to 1220 " in label
+        assert " corn 1220 " not in label, "the buyer never stands in the subject slot"
 
     def test_esr_scoped_read_still_names_the_asked_geo(self):
         label = self._cite("silver_esr", [{"country": "5700", "value": 123.4}], country="5700")

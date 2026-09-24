@@ -456,15 +456,43 @@ def test_the_tape_probe_names_the_CAUSE_per_slug_and_not_only_the_decline():
     assert by["corn_cbot"]["reason"] == "served" and by["corn_cbot"]["front"] == "2026-09"
     assert by["corn_cbot"]["roll_method"] == "open_interest"
     assert by["french_wheat_matif"]["reason"] == "served"
-    assert by["cocoa"]["reason"] == "roll_inputs_absent", "the cause, by name"
+    # RE-BANKED 09-24 (fix round FINAL_2, INTEGRATION O-4; a DECLARED move: OWNER DECISION 5 / CONTRACT
+    # C12). The blank tape is SERVED by the declared cycle fallback, so the probe's reason is the
+    # roll_method THE SERVED ROW CARRIES -- and the census row now agrees with the row the board renders
+    # (it said "roll_inputs_absent" beside `tape_status: ok`). The CAUSE still rides, by count, below.
+    from leviathan.graphrag.numbers import query as Q
+    assert by["cocoa"]["reason"] == Q.CYCLE_FALLBACK_METHOD, "the served row's own method, by name"
+    assert by["cocoa"]["tape_status"] == "ok" and by["cocoa"]["tape_contract_month"] == "2026-12"
+    assert by["cocoa"]["front"] is None, "a fallback is never the rule's named front month"
     assert by["cocoa"]["metric_col"] == "volume"
     assert by["cocoa"]["n_candidates"] == 10 and by["cocoa"]["n_candidates_with_metric"] == 0, (
         "the input COUNT is what separates a missing column from a stale window")
     assert by["brazilian_arabica_coffee"]["reason"] == "cash_reference"
-    assert set(out["reason_words"]) == {"served", "roll_inputs_absent", "cash_reference"}
+    assert set(out["reason_words"]) == {"served", Q.CYCLE_FALLBACK_METHOD, "cash_reference"}
     assert out["served"] == ["corn_cbot", "french_wheat_matif"] and out["served_of"] == 4
-    for word in out["reason_words"]:
-        assert word in BC.TAPE_DECLINE_REASONS, "every word this probe prints is in its closed set"
+    for r in out["per_slug"]:
+        # every word is in the closed DECLINE set, or it is the method of a row the board actually served
+        assert r["reason"] in BC.TAPE_DECLINE_REASONS or (
+            r["reason"] == Q.CYCLE_FALLBACK_METHOD and r["tape_status"] == "ok"), r
+
+
+def test_O4_the_tape_probe_and_the_served_row_agree_on_both_sides_of_the_fallback():
+    """INTEGRATION O-4 (09-24, fix round FINAL_2). The probe asked the rule's precondition BEFORE the
+    selector, so a tape the read served through the declared cycle fallback was reported
+    "roll_inputs_absent" while the board printed it. Now the probe asks the selector exactly as the read
+    does: where the fallback SERVES (a fresh blank session) the reason is the served row's roll_method and
+    the tape row is ``ok``; where it REFUSES (the blank session is older than the read's session-age bound)
+    the cause stands and the tape row declines. The two readers can no longer disagree."""
+    from leviathan.graphrag.numbers import query as Q
+    from leviathan.graphrag.state import __main__ as M
+    qfn = M.mirror_query_fn({"silver_futures_eod": M.tape_fixture_rows("cocoa", sessions=5,
+                                                                         blank_roll_inputs=True)})
+    served = BC.probe_tape("2026-09-08", qfn=qfn, slugs=["cocoa"])["per_slug"][0]
+    assert served["reason"] == Q.CYCLE_FALLBACK_METHOD and served["tape_contract_month"] == "2026-12"
+    assert served["tape_status"] != "front_decline" and served["n_candidates_with_metric"] == 0
+    refused = BC.probe_tape("2026-09-30", qfn=qfn, slugs=["cocoa"])["per_slug"][0]
+    assert refused["reason"] == "roll_inputs_absent" and refused["tape_status"] == "front_decline"
+    assert refused["n_candidates"] == 10 and refused["n_candidates_with_metric"] == 0
 
 
 def test_the_tape_probe_prints_the_FRAME_the_read_fetched():

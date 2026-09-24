@@ -1,0 +1,1715 @@
+{
+ "turn": "max_rv_soybeans_state_2026_09_07",
+ "anchors": [
+  "soybeans"
+ ],
+ "n_calls": 65,
+ "calls": {
+  "1": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle"
+   },
+   "rows": [
+    {}
+   ],
+   "status": "no_rows"
+  },
+  "2": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "1328.0",
+     "unit": "US cents/bushel",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "3": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "ending_stocks",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2025/26",
+     "estimate_role": "estimate",
+     "value": "325.0",
+     "unit": "Million Bushels",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "4": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "avg_farm_price",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2025/26",
+     "estimate_role": "estimate",
+     "value": "10.5",
+     "unit": "$/bu",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "5": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "241501",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-09-15"
+    }
+   ],
+   "status": "ok"
+  },
+  "6": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_pct_oi"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "21.8577",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-09-15"
+    }
+   ],
+   "status": "ok"
+  },
+  "7": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "cbot_board_crush_v1",
+     "value": "2.603799999999998",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-20"
+    }
+   ],
+   "status": "ok"
+  },
+  "8": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "production",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2025/26",
+     "estimate_role": "estimate",
+     "value": "4262.0",
+     "unit": "Million Bushels",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "9": {
+   "query": {
+    "table": "silver_nass_crop_progress",
+    "metric": "pct_harvested",
+    "country": "US"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "12.0",
+     "unit": null,
+     "country": "US",
+     "knowledge_date": "2026-09-20"
+    }
+   ],
+   "status": "ok"
+  },
+  "10": {
+   "query": {
+    "table": "silver_nass_crop_progress",
+    "metric": "pct_good_excellent",
+    "country": "US"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "58.0",
+     "unit": null,
+     "country": "US",
+     "knowledge_date": "2026-09-20"
+    }
+   ],
+   "status": "ok"
+  },
+  "11": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net_z_3yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "1.9957",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-09-15"
+    }
+   ],
+   "status": "ok"
+  },
+  "12": {
+   "query": {
+    "table": "compute_stat",
+    "metric": "spread"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 30.0,
+     "unit": "spread",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "13": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "14": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "15": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "16": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "17": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "18": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "19": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 241501.0,
+     "unit": "contracts",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "20": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.0,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "21": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 99,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "22": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.5981291348538516,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "23": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "24": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 85,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "25": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 10.719961351182985,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "26": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.7,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "27": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 23,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "28": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.603799999999998,
+     "unit": "USD/bu",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "29": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "30": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 92,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "31": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.603799999999998,
+     "unit": "USD/bu",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "32": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "33": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 92,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "34": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 622.692,
+     "unit": "1000 MT",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "35": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "36": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 43,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "37": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 34.755,
+     "unit": "M ha",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "38": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "39": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 91,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "40": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.5072943423080404,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "41": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "42": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 68,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "43": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Argentina"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 6.449999999999999,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "44": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Argentina"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "45": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Argentina"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 61,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "46": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "-1.29",
+     "unit": null,
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "47": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "48": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": "2027",
+     "estimate_role": null,
+     "value": 0.0,
+     "unit": "1000 MT",
+     "country": "Costa Rica",
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "49": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": 0.5072943423080404,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "50": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": 0.0,
+     "unit": "1000 MT",
+     "country": "Guatemala",
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "51": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom_pace_change",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.41,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "52": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom_pace_streak",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 5,
+     "unit": "months",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "53": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 191.096,
+     "unit": "1000 MT",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "54": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt_pace_streak"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2,
+     "unit": "weeks",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "55": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.5124,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "56": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.396,
+     "unit": "1000 MT",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "57": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "avg_farm_price",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 9.59,
+     "unit": "$/bu",
+     "country": null,
+     "knowledge_date": "2012-04-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "58": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "avg_farm_price",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 11.3,
+     "unit": "$/bu",
+     "country": null,
+     "knowledge_date": "2013-04-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "59": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -3.1828,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2025-04-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "60": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.5362,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2025-04-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "61": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "exchange rate change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.3201,
+     "unit": "percent change in Chinese yuan per US dollar",
+     "country": null,
+     "knowledge_date": "2025-04-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "62": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 10.0615,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2025-04-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "63": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -6.6432,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2025-04-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "64": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 4.0123,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2025-04-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "65": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 4.8007,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2025-04-01"
+    }
+   ],
+   "status": "ok"
+  }
+ },
+ "row_states": [
+  {
+   "contract": "soybeans",
+   "driver_id": "La_Nina",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "El_Nino",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "drought",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "flash_drought",
+   "series_key": "drought_z|soybeans_cbot|United States"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "heat_stress",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "pod_fill",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "flowering_stress",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "excess_rain",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "soybean_rust",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "sudden_death_syndrome",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "white_mold",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "soybean_cyst_nematode",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "stink_bug",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "frost",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "favorable_rainfall",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "soybean_crush_margin",
+   "series_key": "cbot_board_crush_margin|_global|"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "board_crush",
+   "series_key": "cbot_board_crush_margin|_global|"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "biodiesel_mandate",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "RFS",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "import_tariff",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "export_tax",
+   "series_key": "export|soybeans_cbot|Argentina"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "soy_dollar",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "withheld_supply",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "port_closure",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "export_pace_lag",
+   "series_key": "esr_exports|soybeans_cbot|"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "psd_ending_stock_su_ratio",
+   "series_key": "psd_ending_stock_su_ratio|soybeans_cbot|United States"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "conab_production_revision",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "safrinha",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "area",
+   "series_key": "area|soybeans_cbot|United States"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "USD_index",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "crude_oil",
+   "series_key": "brent_crude_z|_global|"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "cot_mm_positioning",
+   "series_key": "cot_mm_positioning|soybeans_cbot|"
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "freight_disruption",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "former_ussr_import_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "us_farm_program",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "macro_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "soybeans",
+   "driver_id": "farm_credit_cost",
+   "series_key": ""
+  }
+ ],
+ "chains": [
+  {
+   "contract": "soybeans",
+   "agreements": [
+    "aligned",
+    "aligned",
+    "undetermined"
+   ],
+   "edge_signs": [
+    "+",
+    "-",
+    "0"
+   ],
+   "cross": {
+    "other": "campinas_corn_reference_bmf",
+    "direction": "reverse",
+    "relation": "competes_with",
+    "sign": "0",
+    "lag": "1-3 quarters",
+    "far_driver_id": "El_Nino",
+    "far_series_key": "oni_climate|_global|",
+    "far_percentile": 92.74809160305344,
+    "far_level": 1.8
+   },
+   "terminal": "campinas_corn_reference_bmf",
+   "depth": 2,
+   "score": 72.0,
+   "declared_sign": "",
+   "direction": "unsettled",
+   "side": "unsettled",
+   "against_hops": [],
+   "rendered": true,
+   "full": true,
+   "slot": "top",
+   "receipt_kind": "none",
+   "receipt_words": "a dated report on this hop's mechanism, 2005-09-01, outside the window declared for it",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 6,
+    "hops": 3,
+    "hops_no_series": 0,
+    "buffer_series": true,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "soybeans",
+     "driver_id": "crude_oil",
+     "sign": "+",
+     "lag": "0-2 quarters",
+     "confidence": "medium",
+     "measured": true,
+     "series_key": "brent_crude_z|_global|",
+     "level_shown": 0.5072943423080404,
+     "unit": "z",
+     "percentile": 67.8030303030303,
+     "z": -0.1139767730194088,
+     "run_direction": "up",
+     "run_length": 1,
+     "level_date": "2026-08-01",
+     "knowledge_date": "2026-09-10",
+     "tail": 0.3561,
+     "tail_peak": 0.9621,
+     "tail_peak_percentile": 98.10606060606061,
+     "tail_peak_date": "2026-04-01",
+     "tail_lag_to": "2026-10-01",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 40
+    },
+    {
+     "contract": "soybeans",
+     "driver_id": "soybean_crush_margin",
+     "sign": "+",
+     "lag": "0-1 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "cbot_board_crush_margin|_global|",
+     "level_shown": 2.603799999999998,
+     "unit": "USD/bu",
+     "percentile": 91.58674803836094,
+     "z": 0.5844002187401481,
+     "run_direction": "up",
+     "run_length": 1,
+     "level_date": "2026-08-20",
+     "knowledge_date": "2026-08-21",
+     "tail": 0.8317,
+     "tail_peak": 0.9119,
+     "tail_peak_percentile": 95.59721011333914,
+     "tail_peak_date": "2026-07-17",
+     "tail_lag_to": "2026-10-17",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 28
+    },
+    {
+     "contract": "soybeans",
+     "driver_id": "psd_ending_stock_su_ratio",
+     "sign": "-",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "psd_ending_stock_su_ratio|soybeans_cbot|United States",
+     "level_shown": 10.719961351182985,
+     "unit": "ratio",
+     "percentile": 23.015873015873016,
+     "z": -0.6783188971012025,
+     "run_direction": "down",
+     "run_length": 3,
+     "level_date": "2026",
+     "knowledge_date": "2026-09-11",
+     "tail": 0.5397,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 25
+    }
+   ]
+  },
+  {
+   "contract": "soybeans",
+   "agreements": [
+    "undetermined",
+    "aligned",
+    "undetermined"
+   ],
+   "edge_signs": [
+    "-",
+    "-",
+    "0"
+   ],
+   "cross": {
+    "other": "campinas_corn_reference_bmf",
+    "direction": "reverse",
+    "relation": "competes_with",
+    "sign": "0",
+    "lag": "1-3 quarters",
+    "far_driver_id": "El_Nino",
+    "far_series_key": "oni_climate|_global|",
+    "far_percentile": 92.74809160305344,
+    "far_level": 1.8
+   },
+   "terminal": "campinas_corn_reference_bmf",
+   "depth": 2,
+   "score": 71.2,
+   "declared_sign": "",
+   "direction": "unsettled",
+   "side": "unsettled",
+   "against_hops": [],
+   "rendered": true,
+   "full": true,
+   "slot": "top",
+   "receipt_kind": "none",
+   "receipt_words": "a dated report on this hop's mechanism, 2018-07-12, outside the window declared for it",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 5,
+    "hops": 3,
+    "hops_no_series": 1,
+    "buffer_series": true,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "soybeans",
+     "driver_id": "import_tariff",
+     "sign": "-",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": null
+    },
+    {
+     "contract": "soybeans",
+     "driver_id": "export_pace_lag",
+     "sign": "+",
+     "lag": "0-1 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "esr_exports|soybeans_cbot|",
+     "level_shown": 622.692,
+     "unit": "1000 MT",
+     "percentile": 42.98245614035088,
+     "z": -0.44367760686723234,
+     "run_direction": "up",
+     "run_length": 2,
+     "level_date": "2026-09-10",
+     "knowledge_date": "20260917",
+     "tail": 0.1775,
+     "tail_peak": 0.9474,
+     "tail_peak_percentile": 2.6315789473684212,
+     "tail_peak_date": "2026-08-06",
+     "tail_lag_to": "2026-11-06",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 34
+    },
+    {
+     "contract": "soybeans",
+     "driver_id": "psd_ending_stock_su_ratio",
+     "sign": "-",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "psd_ending_stock_su_ratio|soybeans_cbot|United States",
+     "level_shown": 10.719961351182985,
+     "unit": "ratio",
+     "percentile": 23.015873015873016,
+     "z": -0.6783188971012025,
+     "run_direction": "down",
+     "run_length": 3,
+     "level_date": "2026",
+     "knowledge_date": "2026-09-11",
+     "tail": 0.5397,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 25
+    }
+   ]
+  },
+  {
+   "contract": "soybeans",
+   "agreements": [
+    "undetermined",
+    "undetermined",
+    "undetermined"
+   ],
+   "edge_signs": [
+    "+",
+    "-",
+    "-"
+   ],
+   "cross": {
+    "other": "canola_ice",
+    "direction": "reverse",
+    "relation": "competes_with",
+    "sign": "-",
+    "lag": "1-3 quarters",
+    "far_driver_id": "La_Nina",
+    "far_series_key": "oni_climate|_global|",
+    "far_percentile": 92.74809160305344,
+    "far_level": 1.8
+   },
+   "terminal": "canola_ice",
+   "depth": 2,
+   "score": 66.8,
+   "declared_sign": "-",
+   "direction": "lower",
+   "side": "against",
+   "against_hops": [],
+   "rendered": true,
+   "full": true,
+   "slot": "sign",
+   "receipt_kind": "none",
+   "receipt_words": "a dated action on 2019-01-01, aged out of the window declared for it",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 5,
+    "hops": 3,
+    "hops_no_series": 2,
+    "buffer_series": true,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "soybeans",
+     "driver_id": "La_Nina",
+     "sign": "+",
+     "lag": "1-2 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "oni_climate|_global|",
+     "level_shown": 1.8,
+     "unit": "degC",
+     "percentile": 92.74809160305344,
+     "z": 2.426665229537876,
+     "run_direction": "up",
+     "run_length": 8,
+     "level_date": "2026-07",
+     "knowledge_date": "2026-09-05",
+     "tail": 0.9707,
+     "tail_peak": 0.855,
+     "tail_peak_percentile": 92.74809160305344,
+     "tail_peak_date": "2026-07",
+     "tail_lag_to": "2027-01-31",
+     "event_date": "2011-01-01",
+     "event_open": false,
+     "silver_status": "available",
+     "n": 13
+    },
+    {
+     "contract": "soybeans",
+     "driver_id": "drought",
+     "sign": "+",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": "2019-01-01",
+     "event_open": false,
+     "silver_status": "available",
+     "n": null
+    },
+    {
+     "contract": "soybeans",
+     "driver_id": "conab_production_revision",
+     "sign": "-",
+     "lag": "0-1 quarters",
+     "confidence": "high",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": null
+    }
+   ]
+  }
+ ],
+ "coverage_chain_referenced": 0,
+ "served_chain_lints": {
+  "outcome": "ok",
+  "sentences": 1,
+  "corrected": 1,
+  "chain_hops_unfigured": 0,
+  "chain_hops_skipped": 0,
+  "chain_unranked_narrated": 0,
+  "chain_hops_ambiguous": 0,
+  "chain_fence_closed": 0
+ },
+ "structured": {
+  "tldr": "Soybeans read two-sided, and the two legs are genuinely opposed: the US balance sheet is tight -- stocks-to-use at 10.72% [N25], the 23rd percentile of its own record [N27] and falling three marketing years running -- and crush is paying, at 2.6 USD/bu [N28], the 92nd percentile of its own record [N30], both pointing toward higher prices; against that, harvested area at 34.76 M ha [N37] sits at the 91st percentile of its own record [N39] and pressures the balance from the supply side inside exactly the next three months. Over that horizon I expect the tight-carryout-plus-crush leg to dominate, because it is the higher-confidence pairing and it is the one the market can re-price every session, while the crowd at 241,501 contracts [N19] -- the 99th percentile of its own record [N21] -- is what makes any disappointment sharp rather than gradual.",
+  "mechanism": "## Mechanism\n\nThe physical chain runs crush-first. A wide processing margin bids for beans now: it is declared to move soybeans the same way at high confidence with essentially no lag, and the reading is 2.6 USD/bu [N28] at the 92nd percentile [N30], rising into its last session. Behind it, carryout: 10.72% [N25] stocks-to-use, declared to move price the opposite way at high confidence, so a thin buffer is what makes any further supply loss convex rather than linear -- the same tonne of loss moves price harder from a 23rd-percentile [N27] cushion than from a fat one.\n\nThe offsetting leg is area at 34.76 M ha [N37], 91st percentile [N39], declared against price on a two-to-four-quarter lag whose window runs into December 2026 -- the one loud reading that lands squarely inside the three-month horizon.\n\nTwo model notes, not observations. The price-pressuring supply-glut pattern counts four of the five conditions it names here against a threshold of three, with the Argentine selling-incentive and dollar legs unread on this page; the price-supportive crush pattern counts three of four against a threshold of two. Both are at or past their own counts, which is the honest statement of a two-sided board -- and the crush reading and the board crush margin are one reading under two names, counted once.\n\nThe tropical Pacific sits at +1.8 degC [N13], 93rd percentile [N15], eight months rising. The warm phase is the one in force, and on soybeans the driver model declares that phase against price at medium confidence -- but its lag window opens 2026-10-31 and closes 2027-01-31, so it bites at the far edge of the horizon, not now. Its cool-phase twin is not the phase we are in. Flash drought in the United States reads 0.6 z [N22], 85th percentile [N24], declared with price on a window running to 2026-10-31.\n\n## The record\n\n- The tight-carryout chain the model puts first runs crude to crush to carryout: Brent against its five-year record peaked at the 98th percentile in April 2026 and now reads 0.51 z, 68th percentile, its lag to October 2026, declared to lift the crush margin and the readings agree; carryout at 10.72% [N25] then hands off to a market this question did not name, and the record does not settle that last hop. Historically, five of eight measured past firings of this sequence saw the next hop move the declared way, three did not, and eight more published no second reading -- history, not a forecast; no firing carries a price reading over the band. The dated report at the crude hop is from 2005-09-01 [E13] and sits outside the window declared for it.\n- A second chain from import tariffs through export pace reaches the same carryout hop: weekly sales read 622.69 thousand MT [N34], 43rd percentile [N36], rising two weeks, lag to November 2026, agreeing with its declared direction; its own history is thin -- three past firings, no second reading inside the window. Its dated report is China's tariff on US soybeans, 2018-07-12 [E9], outside the declared window.\n- A third runs the cool-phase side toward Canadian canola, with no series served at two hops and zero past firings measured; the crowd at the 99th percentile [N21] sits the other way from that sequence, which is what would make a reversal abrupt. Fifty such sequences run into soybeans; the three above are the ones the model puts first.\n- Supporting levels, each on its own date: US 2025/26 ending stocks 325 Million Bushels [N3] and production 4,262 Million Bushels [N8], both known 2026-09-11; the season-average farm price projection 10.5 $/bu [N4]; the crop 12 pct harvested [N9] and 58 pct good-to-excellent [N10] as of 2026-09-20; May 2027 beans settled 1,358 US cents/bushel [N2] on 2026-09-21. The record carries no figure for a front-month soybean settlement at this as-of -- that is a coverage gap, and I assert no number for it.\n- A dated settled price response on the analogue marketing years: the US season-average farm price rose from $9.59/bu [N57] in MY2009/10 to $11.30/bu [N58] in MY2010/11. That is a USDA survey actual, not a futures settle and not my forecast.\n- Cross-market coincidences over the January-April 2025 withheld-supply window, each a pairwise reading on that one window, and each now dated history. Soybeans and French rapeseed compete for the same demand; that window predates the French board's own price history, so the record carries no figure for it. Soybeans and Chinese rapeseed meal compete for the same demand: soybeans moved -3.1828 % [N59] in US dollars and rapeseed meal +2.5362 % [N60] in Chinese yuan, no exchange rate applied to either; the two moves sat at odds with the declared relation on this firing, read on each board's own-currency move, so the currency move over the window sits inside that comparison. The yuan per US dollar moved +0.3201 % [N61] from 2025-01-24 through 2025-04-01. Soybeans and Chinese rapeseed oil compete for the same demand: rapeseed oil moved +10.0615 % [N62] in yuan against the soybean move above in dollars; again the two sat at odds with the declared relation. Soybeans and Chicago soybean meal are joined by the same crush: meal moved -6.6432 % [N63] and the declared relation held. Meal and soyoil compete for the same demand: soyoil moved +4.0123 % [N64] and the relation held. Soyoil and palm oil compete for and stand in for one another in the same use: palm moved +4.8007 % [N65] and the relation held. Each read is in-sample on that named window only.\n- Two like-state readings on the warm-phase series -- May 2025 and September 2023 -- are matched on two of five dimensions, and the corpus holds no dated document explaining either state; the figures stand on the series alone. That is the history of the carryout chain named first, and it is history, not a projection.\n- Dating the layers: the numbers here are read as of 2026-09-23, the newest known 2026-09-21 and the oldest 2026-07-31; the newest dated document behind this page is from 2026-04-06; the board price tape is not carried on this page.\n\n## Where the record disagrees\n\nSame-window, opposite verdicts. Within the January-April 2025 firing, the three crush-and-substitution hops inside the oils complex held -- meal [N63], soyoil [N64], palm [N65] -- while both Chinese oilseed hops, rapeseed meal [N60] and rapeseed oil [N62], sat at odds with their declared relation. The complex transmitted through the crush identity and did not transmit into Zhengzhou on that window. Do not smooth those into one story.\n\n## What to watch\n\n- **Carryout** at 10.72% [N25], known 2026-09-11, past the tight line with three marketing years falling: wrong if the next print turns back inside that line or the run breaks. Its next print restates the same marketing year rather than opening a new one, so read it as standing context inside three months; the reading that can actually turn inside the horizon is the crush margin, which prints every session.\n- **Crush margin** at 2.6 USD/bu [N28], read through 2026-08-21, top decile on the high side, window 2026-08-20 to 2026-11-20: wrong if the next print returns the series to the middle of its own record.\n- **Harvested area** at 34.76 M ha [N37], known 2026-09-11, top decile, its declared window running into December 2026: wrong if the next print returns to the middle of its own record -- same caveat, the next print restates the year.\n- **The tropical Pacific** at +1.8 degC [N13], for July 2026, eight months rising, window 2026-10-31 to 2027-01-31, next print 2026-10-01: wrong if the next print turns back inside the strong line or the run breaks. Conditionally, if the run holds, its declared push against soybean price would land in that band, counted from the reading's own date.\n- **Weekly export sales** at 622.69 thousand MT [N34], for 2026-09-10, window 2026-09-10 to 2026-12-10, next print 2026-09-24: this same reading is declared on sixteen other markets, eleven the same way and five the opposite; wrong if the nearest of those carries no sign, in which case the reach is a count and not a direction.\n- **US flash drought** at 0.6 z [N22], for July 2026, window 2026-07-31 to 2026-10-31: declared with price here and the same way on eighteen other markets; wrong if those declared edges carry no sign.\n\nSpillovers, each on its own market's declared terms. The warm Pacific phase is declared against price on twenty-eight of thirty-four other markets and with price on the rest; on cocoa it is declared with price at one to three quarters, on palm oil with price at two to four quarters. The cool phase is declared against price on South African white and yellow maize at one to three quarters. Flash drought is declared with price on Brazilian corn and on Canadian canola, both zero to one quarter. Carryout is declared against price on arabica in both New York and Brazil at zero to two quarters. The crush reading is declared with price on Chicago meal and oil, zero to one quarter.\n\nThe Chinese meal market's own record notes that canola meal competes with imported soybean meal, which has steadily increased over the past two decades, reported 2026-04-06 -- the substitution channel is live in the documents even where the January-April 2025 coincidence did not confirm it."
+ }
+}

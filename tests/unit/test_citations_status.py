@@ -90,12 +90,16 @@ def test_payload_keeps_full_series_order_untouched():
 # --- (c) staleness clause --------------------------------------------------------------------
 
 def test_stale_headline_appends_latest_available_clause():
-    # freshest knowable = 2025-12-30, asof = 2026-07-21 -> ~7 months behind -> clause fires
+    # freshest knowable = 2026-01-05, asof = 2026-07-21 -> ~6 months behind -> clause fires.
+    # MOVED 09-23 (lane C, D3): silver_cot is a DATA-DATE card (report date + publication_lag_days 6), so
+    # the 2025-12-30 report was knowable on 2026-01-05 -- `feeders.derive_knowledge_date`, the board's ONE
+    # derivation -- and the report date now rides the label as the row's own period.
     call = {"query": {"table": "silver_cot", "metric": "net_long", "commodity": "cocoa",
                       "asof": "2026-07-21"},
             "rows": [{"value": "12345", "knowledge_date": "2025-12-30", "data_date": "2025-12-30"}]}
     c = from_number(call, 1)
-    assert "latest available 2025-12-30" in c.label and "as-of 2026-07-21" in c.label
+    assert "latest available 2026-01-05" in c.label and "as-of 2026-07-21" in c.label
+    assert " 2025-12-30 = " in c.label and c.date == "2026-01-05"
 
 
 def test_fresh_headline_has_no_staleness_clause():
@@ -123,7 +127,7 @@ def test_render_path_joins_status_and_stale_labels_cleanly():
     empty = _empty_call("no_rows")
     block = render(unify(None, [stale, empty]))
     assert "[N1]" in block and "[N2]" in block          # handle table format intact for the verifier
-    assert "latest available 2025-01-01" in block
+    assert "latest available 2025-01-07" in block       # 09-23 (lane C, D3): COT report + its 6-day lag
     assert "scope/coverage gap" in block
     # one line per citation, no crash on the multi-clause label
     assert len([ln for ln in block.splitlines() if ln.strip()]) == 2

@@ -41,6 +41,11 @@ A trailing LIMIT still rides both branches so a pathological curve can never bec
 it is a SAFETY bound, at the same 5000 the series cap uses, not a caller-facing window."""
 
 FRONT_EXPIRY_AGG = "front_expiry"
+#: THE AGGS THAT AGGREGATE ROWS INTO ONE VALUE (`_agg` projects `value` alone): the one declaration the
+#: series predicate below and the citation layer's axis words both read (09-23 fix round, review VC
+#: lexical: citations kept a hand-typed copy). Every other agg SELECTS rows (latest, series, the front
+#: expiry, the extreme row) and keeps each row's own identity.
+AGGREGATE_AGGS = frozenset(("sum", "mean", "max", "min"))
 """D-PQ A' -- the agg token for the EXCHANGE-SETTLE ANCHOR read, named once and referenced everywhere.
 
 It is deliberately NOT one of the four scalar aggregates: the aggregate of a curve is not a price
@@ -908,7 +913,7 @@ def _is_series_branch(spec: NumberQuery, ts: TableSpec) -> bool:
     curve and then collapses to ONE row. Saying so HERE is load-bearing rather than cosmetic: this
     predicate gates the newest-first re-sort in ``run()``, and a front-expiry read re-sorted as though it
     were a truncated series would reverse the very rows the roll rule is about to be handed."""
-    if spec.agg in ("sum", "mean", "max", "min", FRONT_EXPIRY_AGG) or spec.agg in EXTREME_ROW_AGGS:
+    if spec.agg in AGGREGATE_AGGS or spec.agg == FRONT_EXPIRY_AGG or spec.agg in EXTREME_ROW_AGGS:
         # D-XL (E24): the extreme-row SELECTION is NOT a series branch either -- it compiles
         # `ORDER BY value <dir> ... LIMIT 1` and returns exactly one row, so there is nothing for the
         # newest-first re-sort to undo and nothing that can truncate. The membership test is joined
@@ -1549,6 +1554,163 @@ FRONT_EXPIRY_DECLINE = (
 )
 
 
+# -- THE 09-23 FIX ROUND, LANE T (CONTRACT C12): THE DECLARED CYCLE FALLBACK AND THE CURVE HEADLINE ------
+#
+# THE MEASURED DEFECT (re-smoke 2026-09-23, deep and max soybeans; D4). Both pages said "no front-month
+# level can be named this session" while the SAME turn's curve read served 1,328 / 1,344 / 1,351.75 US
+# cents/bushel for November 2026 / January 2027 / March 2027 on the 2026-09-21 session -- and the footer
+# headlined the FURTHEST of them. The cause, read off the live tape (silver/futures_eod soybeans_cbot
+# trade_year=2026, pulled read-only this sitting): CME publishes open interest the morning AFTER the
+# session, so the NEWEST session of every GLBX board lands with a settle and a NULL open interest on
+# every row (2026-09-22: 13 of 13 rows), heals on the next fire, and the named rule -- which may not run
+# on a frame missing its own input -- declines at the live edge on essentially every live turn, while a
+# historical as-of (2024-03-01) reads a healed session and serves (May 2024, by open interest).
+#
+# THE FALLBACK IS DECLARED, NAMED AND NEVER CALLED THE FRONT MONTH (owner decision 5, build default (b)).
+# When the named rule declines because its OWN INPUTS are absent on the newest session -- and for no
+# other reason -- the read returns the nearest delivery the rule's own eligibility admits, stamped
+# `roll_method = CYCLE_FALLBACK_METHOD`, its own version, and the primary method it stood in for. The
+# words "front month" belong to `ROLL_METHODS_FRONT` (the methods that decide by an activity print) and
+# to nothing else; every reader keys its words on that set.
+#
+# ONE ADDITION TO THE RULE'S ELIGIBILITY, AND WHY IT IS THE RULE'S OWN FACT RATHER THAN A SECOND COPY.
+# `futures_roll._eligible` admits a delivery month from the first day of that month (`_month >=
+# _trade_month`), because under the named rule an expiring contract inside its own delivery month loses
+# on its activity print (2026-09-14, soybeans: September carries open interest 0 and volume 1 against
+# November's 483,981 and 99,535). The fallback has NO print to lose on, so the rule's own eligibility
+# frame -- whose `_month` / `_trade_month` columns the module carries for exactly this kind of caller --
+# is read one step stricter: a contract inside its own delivery month is IN DELIVERY, and the fallback
+# never names it. Without that step the fallback names September on every live-edge September session
+# up to the 14th -- a one-lot contract in delivery, printed as "the nearest listed delivery" (measured
+# below in the lane's own sweep). It is the same bound `FORWARD_MONTH_FLOOR` already applies to the one
+# averaging board, applied for the one reason this caller has and the rule does not: no activity print.
+#
+# A PROJECTION THAT NEVER CARRIED THE ROLL INPUTS IS NOT A FALLBACK CASE. The S4 census measured a
+# settle-only projection declining every metric-reading board; that is a CALLER defect and it keeps its
+# fail-closed decline here (the key is absent from the row), while a column the read PROJECTED and the
+# publisher left empty (NULL, or the pg layer's "") is the live-edge fact the fallback exists for.
+def _roll_methods_front() -> frozenset:
+    """The roll methods whose selection is DECIDED BY AN ACTIVITY PRINT -- the only methods whose pick may
+    be called "the front month" -- DERIVED from the rule module's own method->column contract
+    (``futures_roll.METHOD_METRIC_COL``: a method that reads a metric). 09-23 fix round (review WT lexical
+    borderline): the first cut typed ``{"open_interest", "volume"}`` here and pinned it equal; a DCE move
+    to volume, or a new metric method, now reaches the page's words with no second edit. Read lazily --
+    the rule module imports pandas, which this module's import path does not pay for."""
+    from leviathan.silver import futures_roll as FR
+    return frozenset(m for m, col in FR.METHOD_METRIC_COL.items() if col)
+
+
+def __getattr__(name: str):
+    # CONTRACT C12's name, `query.ROLL_METHODS_FRONT`, resolved from the rule module on first read
+    # (PEP 562): `from ... import ROLL_METHODS_FRONT` and `getattr(Q, "ROLL_METHODS_FRONT")` both land here.
+    if name == "ROLL_METHODS_FRONT":
+        return _roll_methods_front()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+CYCLE_FALLBACK_METHOD = "cycle_nearest_eligible"
+CYCLE_FALLBACK_VERSION = "cycle_nearest_eligible_v1"
+"""The fallback's OWN version. Never front_month_v2's: that name belongs to a selection decided by the
+rule's activity print, and a nearest-month pick wearing it is the substitution this module refuses."""
+
+CYCLE_FALLBACK_NOTE = (
+    "the front-month rule could not run on this session because the activity figure it reads ({metric}) "
+    "is not published for it yet, so this row is the nearest listed delivery that is not in its delivery "
+    "month, {month} -- quote it as that delivery month and never as 'the front month' or 'the price'"
+)
+
+
+def _cycle_nearest_eligible(frame) -> Optional[str]:
+    """The nearest delivery month on ONE session that ``futures_roll.front_month_eligible`` admits AND
+    that is not inside its own delivery month, as ``'YYYY-MM'``; None when there is none.
+
+    The eligibility is the rule module's, never restated: the frame it returns carries ``_month`` and
+    ``_trade_month`` and this reads them. Ties break the rule's own way (nearest month, then the lexical
+    month string), so two runs over the same rows always name the same contract."""
+    from leviathan.silver import futures_roll as FR
+    elig = FR.front_month_eligible(frame)
+    if elig is None or not len(elig) or "_trade_month" not in elig.columns:
+        return None
+    fwd = elig[elig["_month"] > elig["_trade_month"]]
+    if not len(fwd):
+        return None
+    fwd = fwd.sort_values(["_month", "contract_month"], kind="mergesort")
+    return str(fwd["contract_month"].tolist()[0])[:7]
+
+
+def _month_words(ym: str) -> str:
+    """'2026-11' -> 'November 2026'; '' when the label is not a month (the note then names no month)."""
+    name = _MONTH_NUM_TO_NAME.get(str(ym or "")[5:7], "")
+    return f"{name} {str(ym)[:4]}" if name else ""
+
+
+def cycle_fallback_note(row: dict) -> str:
+    """The model-facing words for ONE cycle-fallback row -- the month off the row, the metric off the
+    stamp. "" for any row the fallback did not serve, so a caller may append it unconditionally."""
+    r = row or {}
+    if str(r.get("roll_method") or "") != CYCLE_FALLBACK_METHOD:
+        return ""
+    month = _month_words(str(r.get("contract_month") or "")) or str(r.get("contract_month") or "")
+    primary = str(r.get("roll_method_fallback") or "").split("->", 1)[0] or "an activity figure"
+    return CYCLE_FALLBACK_NOTE.format(metric=primary.replace("_", " "), month=month)
+
+
+def curve_headline_index(rows: list, *, asof: str, ts, commodity: Optional[str] = None) -> Optional[int]:
+    """On a CURVE read -- ONE session, more than one delivery month -- the index into ``rows`` of the
+    nearest delivery the named rule's own eligibility admits that is not in its delivery month and
+    carries a numeric settle (the SAME selector the cycle fallback runs); None on any other read.
+
+    WHY IT EXISTS (re-smoke 2026-09-23, deep F4 / max F2): ``citations._row_order_key`` headlines the
+    FURTHEST expiry of a curve by design, so "[4 rows served; newest shown]" printed May 2027 while the
+    same call held November 2026. The index is the reader's headline; the rows are untouched.
+
+    ``commodity`` is the call's contract slug (``query.commodity``); a row carrying ``leviathan_slug``
+    or ``commodity`` is read as a second source. With neither the rule cannot be asked which months are
+    eligible for that board, and the answer is None -- the caller keeps its own ordering. ``asof`` and
+    ``ts`` are the PIT belt: a row past the card's publication-lagged cutoff makes the read not a clean
+    as-of curve, and None is returned rather than a headline chosen from it."""
+    if not rows or ts is None or not getattr(ts, "contract_month_col", None):
+        return None
+    slug = str(commodity or "").strip()
+    if not slug:
+        slug = next((str(r.get(k)).strip() for r in rows for k in ("leviathan_slug", "commodity")
+                     if isinstance(r, dict) and str(r.get(k) or "").strip()), "")
+    if not slug:
+        return None
+    cutoff = (_pub_lagged_asof(str(asof)[:10], int(getattr(ts, "publication_lag_days", 0) or 0))
+              if asof else "")
+    recs: list[dict] = []
+    first_at: dict[str, int] = {}
+    sessions: set = set()
+    months: set = set()
+    for i, r in enumerate(rows):
+        if not isinstance(r, dict):
+            return None
+        cm = str(r.get("contract_month") or "")[:7]
+        dt = next((str(r.get(a))[:10] for a in _SESSION_ALIASES if r.get(a) not in (None, "")), None)
+        if not cm or not dt:
+            return None                              # an unattributable row: not a clean curve
+        if cutoff and dt > cutoff:
+            return None                              # PIT belt: never headline a post-cutoff row
+        sessions.add(dt)
+        months.add(cm)
+        try:
+            v = float(str(r.get("value")).replace(",", ""))
+        except (TypeError, ValueError):
+            continue                                 # no settle -> not a candidate delivery
+        if v != v:
+            continue
+        recs.append({"leviathan_slug": slug, "trade_date": dt, "contract_month": cm})
+        first_at.setdefault(cm, i)
+    if len(sessions) != 1 or len(months) < 2 or not recs:
+        return None
+    try:
+        import pandas as pd
+        picked = _cycle_nearest_eligible(pd.DataFrame(recs))
+    except Exception:  # noqa: BLE001 -- an unmapped slug / unreadable frame keeps the caller's ordering
+        return None
+    return first_at.get(picked) if picked else None
+
+
 def _front_expiry_input_cols(ts: TableSpec) -> list[str]:
     """The PHYSICAL activity-metric columns a front-expiry read must SELECT, taken from the card and BOUND
     to the rule module's own declared input contract.
@@ -1688,6 +1850,13 @@ def select_front_expiry(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> l
     off-cycle), and -- defensively -- a frame that somehow spans more than one session, which would make
     "the front month" ambiguous across a roll.
 
+    ONE DECLINE HAS A DECLARED ANSWER (the 09-23 fix round, CONTRACT C12): when the rule's OWN INPUT is
+    absent on the newest session -- projected by the read, left empty by the publisher, which is the
+    live edge of every GLBX board because open interest lands the morning after the session -- the read
+    returns ``_cycle_fallback_row``'s pick instead of ``[]``: the nearest eligible delivery not in its
+    delivery month, stamped ``roll_method = CYCLE_FALLBACK_METHOD`` and never ``front_month_v2``. Every
+    other decline above is unchanged, and the counter below still counts the named rule's decline.
+
     The returned row is the FETCHED row for the selected expiry, unmodified except that the roll-input
     columns are STRIPPED (they are not served metrics) and two provenance keys are added: ``roll_method``
     and ``roll_rule_version``. Value, unit, currency, settle_kind, contract_month and the trade date all
@@ -1735,6 +1904,9 @@ def select_front_expiry(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> l
     by_session: dict[str, list[dict]] = {}
     by_key: dict[tuple, dict] = {}
     poisoned: set[str] = set()
+    # C12: a session whose rows all CARRY the roll-input keys was projected for the rule; a missing
+    # key is a caller that never projected them (the S4 cause), which keeps its decline.
+    projected: dict[str, bool] = {}
     for r in rows:
         cm = str((r or {}).get("contract_month") or "")[:7]
         dt = next((str(r.get(a))[:10] for a in _SESSION_ALIASES if (r or {}).get(a) not in (None, "")), None)
@@ -1758,6 +1930,7 @@ def select_front_expiry(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> l
         rec = {"leviathan_slug": slug, "trade_date": dt, "contract_month": cm, "settle": v}
         for c in roll_cols:
             rec[c] = r.get(c)
+        projected[dt] = projected.get(dt, True) and all(c in r for c in roll_cols)
         by_session.setdefault(dt, []).append(rec)
         # KEYED ON (SESSION, MONTH), NEVER ON THE MONTH ALONE. The fetch's ORDER BY is ASCENDING on
         # the session date, so under a widened rank window a month-keyed lookup would hold the OLDEST
@@ -1826,8 +1999,59 @@ def select_front_expiry(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> l
             return [kept]
     except Exception:  # noqa: BLE001 -- a failed selection is an honest absence, never a raised lookup
         return []
+    # THE NAMED RULE DID NOT SERVE. The counter records that, exactly as HEAD does (its denominator is
+    # the named rule's own decline rate); the DECLARED cycle fallback (C12) then answers on the NEWEST
+    # session iff the rule's own inputs were projected and absent there -- never on any other decline.
     _fe_emit(method, served=0, withheld=0, fallback=0)
-    return []
+    return _cycle_fallback_row(sessions[0], by_session=by_session, by_key=by_key, projected=projected,
+                               roll_cols=roll_cols, method=method, cutoff=cutoff)
+
+
+def _cycle_fallback_row(sess: str, *, by_session: dict, by_key: dict, projected: dict, roll_cols: list,
+                        method: Optional[str], cutoff: str) -> list[dict]:
+    """C12's declared fallback on ONE session -> ``[row]`` or ``[]``.
+
+    Reached only after the named rule declined on every session it was allowed to read, so the one
+    remaining cause on a session whose eligible set is non-empty is the rule's OWN INPUT: absent or
+    partial on that session. It answers ONLY when the read PROJECTED that input (``projected``), the
+    slug has a metric-reading method (a delivery-cycle or cash slug never declines for inputs), the
+    eligible forward set is non-empty, and the session sits inside the calendar bound every
+    mechanism-served row obeys. The row is the FETCHED row for the picked expiry, roll-input columns
+    stripped, and it says what it is: its own method and version, the primary method it stood in for,
+    the session, its age, and how many eligible candidates carried the primary metric."""
+    if not sess or not projected.get(sess) or not method:
+        return []
+    try:
+        import pandas as pd
+
+        from leviathan.silver import futures_roll as FR
+        col = FR.METHOD_METRIC_COL.get(str(method))
+        if not col:
+            return []                                  # a rule that reads no metric never declines for one
+        frame = pd.DataFrame(by_session[sess])
+        picked = _cycle_nearest_eligible(frame)
+        if not picked:
+            return []
+        row = by_key.get((sess, picked))
+        if row is None:
+            return []
+        age = (_date(cutoff) - _date(sess)).days
+        if age > FRONT_EXPIRY_MAX_SESSION_AGE_DAYS:
+            return []                                  # a stale level is worse than the honest decline
+        elig = FR.front_month_eligible(frame)
+        n = int(len(elig))
+        have = (int(pd.to_numeric(elig[col], errors="coerce").notna().sum())
+                if col in getattr(elig, "columns", []) else 0)
+    except Exception:  # noqa: BLE001 -- a fallback that cannot be computed is the honest decline
+        return []
+    kept = {k: v for k, v in row.items() if k not in roll_cols}
+    kept["roll_method"] = CYCLE_FALLBACK_METHOD
+    kept["roll_rule_version"] = CYCLE_FALLBACK_VERSION
+    kept["roll_method_fallback"] = f"{method}->{CYCLE_FALLBACK_METHOD}"
+    kept["front_expiry_session"] = sess
+    kept["session_age_days"] = age
+    kept["roll_inputs_absent"] = f"{n - have} of {n} eligible candidates carried no {col}"
+    return [kept]
 
 
 def _date(s: str):

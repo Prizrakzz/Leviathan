@@ -954,3 +954,91 @@ def test_U3_key_is_ABSENT_from_the_hybrid_artifact_on_a_matched_unit_turn(monkey
     assert _A.UNIT_MISMATCH_TRACE_KEY not in out["trace"]
     assert [c for c in out["number_calls"]
             if (c.get("query") or {}).get("table") == _A.STATS_TOOL_NAME]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE 09-23 FIX ROUND, LANE T (D5): pair_level_spread -- the spread LEVEL at ONE shared observation
+# ---------------------------------------------------------------------------------------------------
+# THE MEASURED TURNS (quick rv_soyoil_palm, quick rv_palm_rapeoil, 2026-09-23): World Bank palm oil
+# 1,117, soybean oil 1,638 and rapeseed oil 1,474 USD/mt, each read ONCE for 2026-08-01. Every figure
+# below is HAND-COMPUTED: 1,638 - 1,117 = 521 and 1,474 - 1,117 = 357.
+def test_pair_level_spread_the_soyoil_palm_turn_is_521():
+    r = S.pair_level_spread([1638.0], ["2026-08-01"], "USD/mt", [1117.0], ["2026-08-01"], "USD/mt",
+                            label_a="soy", label_b="palm")
+    assert r["declined"] is False and r["value"] == 521.0
+    assert (r["unit"], r["date"], r["n"], r["form"]) == ("USD/mt", "2026-08-01", 1, "difference")
+    assert (r["a_value"], r["b_value"]) == (1638.0, 1117.0)
+
+
+def test_pair_level_spread_the_palm_rapeseed_turn_is_357_and_the_sign_is_the_callers_order():
+    r = S.pair_level_spread([1474.0], ["2026-08-01"], "USD/mt", [1117.0], ["2026-08-01"], "USD/mt",
+                            label_a="rape", label_b="palm")
+    assert r["value"] == 357.0
+    rev = S.pair_level_spread([1117.0], ["2026-08-01"], "USD/mt", [1474.0], ["2026-08-01"], "USD/mt",
+                              label_a="palm", label_b="rape")
+    assert rev["value"] == -357.0
+
+
+def test_pair_level_spread_takes_the_NEWEST_shared_observation_in_the_callers_order():
+    r = S.pair_level_spread([10.0, 12.0, 15.0], ["a", "b", "c"], "USD/mt", [4.0, 5.0], ["a", "b"],
+                            "USD/mt", label_a="x", label_b="y")
+    assert (r["value"], r["date"], r["n"]) == (7.0, "b", 2)
+
+
+def test_pair_level_spread_refuses_MATIF_EUR_against_palm_USD_and_never_converts():
+    """T-3: a spread across units is a subtraction of two quantities; across currencies it carries an
+    exchange rate this platform does not hold. Both refuse, on the module's own guard tags."""
+    by_unit = S.pair_level_spread([552.0], ["2026-08-01"], "EUR/t", [1117.0], ["2026-08-01"], "USD/mt",
+                                  label_a="matif", label_b="palm")
+    assert by_unit["declined"] is True and by_unit["guard"] == S.UNIT_GUARD and by_unit["value"] is None
+    assert "EUR/t against USD/mt" in by_unit["reason"]
+    by_ccy = S.pair_level_spread([552.0], ["2026-08-01"], "EUR/t", [1117.0], ["2026-08-01"], "USD/mt",
+                                 currency_a="EUR", currency_b="USD", label_a="matif", label_b="palm")
+    assert by_ccy["declined"] is True and by_ccy["guard"] == S.CURRENCY_GUARD
+
+
+def test_pair_level_spread_refuses_two_periods_as_one():
+    r = S.pair_level_spread([1474.0], ["2026-07-01"], "USD/mt", [1117.0], ["2026-08-01"], "USD/mt",
+                            label_a="rape", label_b="palm")
+    assert r["declined"] is True and r["guard"] == S.THIN_GUARD and r["n"] == 0
+    assert "2026-07-01" in r["reason"] and "2026-08-01" in r["reason"]
+
+
+def test_pair_level_spread_shares_pair_spreads_guard_chain_verbatim():
+    """ONE guard chain (`_pair_join`) for both constructors: every refusal before the join is the
+    same sentence and the same tag, stamped with its own stat name."""
+    cases = [([], [], "USD/mt", [1.0], ["d"], "USD/mt", {}),
+             ([1.0, 2.0], ["d", "d"], "USD/mt", [1.0], ["d"], "USD/mt", {}),
+             ([1.0], ["d"], "USD/mt", [1.0], ["d"], "USD/mt", {"label_a": "x", "label_b": "x"}),
+             ([1.0], ["d"], None, [1.0], ["d"], "", {}),
+             ([1.0], ["d"], "USD/mt", [1.0], ["d"], None, {})]
+    for a, da, ua, b, db, ub, kw in cases:
+        kw = {"label_a": "first", "label_b": "second", **kw}
+        lv, ps = S.pair_level_spread(a, da, ua, b, db, ub, **kw), S.pair_spread(a, da, ua, b, db, ub, **kw)
+        assert lv["declined"] and ps["declined"]
+        assert (lv["reason"], lv.get("guard"), lv["n"]) == (ps["reason"], ps.get("guard"), ps["n"])
+        assert (lv["stat"], ps["stat"]) == ("pair_level_spread", "pair_spread")
+
+
+def test_pair_spread_is_byte_identical_after_the_guard_chain_was_lifted():
+    """The lift of `pair_spread`'s steps 1-7 into `_pair_join` moved no byte: these are HEAD's own
+    returns (re-derived from the HEAD tree in the lane's evidence), pinned literally."""
+    assert S.pair_spread([1638.0], ["2026-08-01"], "USD/mt", [1117.0], ["2026-08-01"], "USD/mt",
+                         label_a="first", label_b="second") == {
+        "stat": "pair_spread", "declined": True, "value": None, "n": 1,
+        "reason": "need >=2 shared observations, got 1", "guard": S.THIN_GUARD,
+        "labels": "first vs second", "units": "USD/mt vs USD/mt"}
+    assert S.pair_spread([1.0, 2.0], ["d1", "d2"], "USD/mt", [1.0, 2.0], ["d1", "d2"], "USD/mt",
+                         currency_a="EUR", currency_b="USD", label_a="first", label_b="second")["guard"] \
+        == S.CURRENCY_GUARD
+    ok = S.pair_spread([1480.0, 1502.0], ["a", "b"], "USD/mt", [1050.0, 1062.0], ["a", "b"], "USD/mt",
+                       label_a="first", label_b="second")
+    assert (ok["value"], ok["form"], ok["series"], ok["dates"]) == (440.0, "difference", [430.0, 440.0],
+                                                                    ["a", "b"])
+
+
+def test_pair_level_spread_is_an_ENGINE_calculator_and_its_floor_is_inherited():
+    assert "pair_level_spread" in S.ENGINE_STAT_NAMES
+    assert "pair_level_spread" not in S.STAT_REGISTRY and "pair_level_spread" not in S.STAT_NAMES
+    assert S.MIN_PAIR_LEVEL_N is S.MIN_SHARE_N == 1        # ONE floor family: two parts of ONE observation
+    assert not S.is_banned_name("pair_level_spread")

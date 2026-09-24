@@ -211,8 +211,14 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # test_dam_modes::test_exempt_lanes_never_grow_the_kwarg is the fence, and it stays green untouched.
     # NOTE ALSO: this lane builds its own explicit `_trace` dict below, so agent.py's UNCONDITIONAL
     # `numbers_budget` stamp cannot reach a trace from here either -- the whole lane is byte-identical.
+    # THE 09-23 FIX ROUND (O-1; OWNER DECISION 9 (b), review WT M-3 (a)): the RV pair's spread LEVEL is
+    # minted only when the board flag is lit, and the flag reaches the agent as a KWARG read here at
+    # answer's ONE seam -- the `_fnf` idiom exactly: OMITTED when off, so the flag-off call is byte-
+    # identical and an injected answer_numbers fake with the older signature stays valid. The agent arms
+    # the LEVEL only (`rv_pair_spread_legs(level_only=...)`); the history leg stays behind its own env.
+    _ps = {"pair_spread": True} if an._state_board_on() else {}
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn, families=families,
-                            **_fnf)
+                            **_fnf, **_ps)
     _ms_numbers = int((_time.perf_counter() - _tn) * 1000)
     _raw = out.get("answer", "")                                    # DP-6: raw pre-sanitize agent text
     # CYCLE-5 FOOTER-1: the footer is built against WHAT THE PROSE STATES, not against the call list alone.
@@ -292,6 +298,14 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
                 "fork_basis", "tables_queried"):
         if out.get(_gk) is not None:
             _trace[_gk] = out[_gk]
+    # 09-24 (fix round FINAL_2, INTEGRATION O-2): the RV pair leg's own record -- MINTED or REFUSED, never
+    # both -- on a guarded line of its own and NOT in the tuple above (whose text four decks pin by
+    # count). `answer_numbers` stamps a key only when the leg ran (the board-flag kwarg or the dark env,
+    # AND a two-market question), so a flag-off trace carries neither and is byte-identical. Registered
+    # in `tracekeys.TRACE_SPLAT_KEYS`, so the per-answer record lifts it only where it rides.
+    for _rk in ("rv_pair_spread", na.RV_PAIR_UNCOMPUTED_KEY):
+        if out.get(_rk) is not None:
+            _trace[_rk] = out[_rk]
     return {"answer": body, "intent": "numbers_only",
             "citations": [c.model_dump() for c in cits], "number_calls": out.get("calls", []),
             "evidence": [], "asof": asof, "structured": None,
@@ -741,6 +755,11 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     # on the CALLING thread so the numbers lane and the walk lane cannot disagree within one turn.
     _nf = an._newest_first_scope(an._futures_newest_first_on(), an._series_newest_first_on())
     _fnf = {"futures_newest_first": _nf} if _nf else {}
+    # THE 09-23 FIX ROUND (O-1; OWNER DECISION 9 (b), review WT M-3 (a)): the pair-spread gate, read HERE
+    # on the CALLING thread for the reason written above -- the board flag is the same env the walk lane
+    # reads, and a per-thread read would let the two lanes disagree about the treatment within one turn.
+    # Omit-when-off (the `_fnf` idiom): flag off -> the submit below is byte-identical.
+    _ps = {"pair_spread": True} if an._state_board_on() else {}
     # LANE S (2026-09-06): this turn's NUMBERS-ROUND BUDGET, read HERE, on the CALLING thread, beside
     # `_nf` and for the reason already written three comments up -- deliberately NOT inside `_numbers()`,
     # whose body runs on a pool thread: a per-thread env read lets the numbers lane and the walk lane
@@ -821,7 +840,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
             else:
                 nums = na.answer_numbers(numbers_query or query, asof, client=client, model=numbers_model,
                                          query_fn=query_fn, on_call=on_call, families=families, **_fnf,
-                                         **_nc)      # LANE S: absent unless the mode carries a budget
+                                         **_nc,      # LANE S: absent unless the mode carries a budget
+                                         **_ps)      # 09-23 O-1: absent unless the board flag is lit
         except Exception as e:  # noqa: BLE001 — numbers must never take the note down with it
             nums = {"calls": [], "error": str(e)[:200]}
         nums["_ms_numbers"] = int((_time.perf_counter() - _tn) * 1000)
@@ -926,6 +946,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
         _nu = nums.get("numbers_usage")
         if _nu is not None:
             holder["numbers_usage"] = _nu
+        # 09-24 (fix round FINAL_2, INTEGRATION O-2): the RV pair leg's record, MINTED or REFUSED, on the
+        # `numbers_usage` guarded idiom directly above and never in the unguarded copy tuple: `holder`
+        # gains a key only when the agent stamped it, so a flag-off hybrid turn carries neither.
+        for _rk in ("rv_pair_spread", na.RV_PAIR_UNCOMPUTED_KEY):
+            if nums.get(_rk) is not None:
+                holder[_rk] = nums[_rk]
         # LANE S (2026-09-06). TWO GATES, both required: the NOTE flag, and `bool(_nc)` -- i.e. this turn
         # actually ran under a threaded budget. `agent.answer_numbers` stamps `numbers_budget` on EVERY
         # turn-ending return UNCONDITIONALLY (no flag there; consumption is decided here), so without the
@@ -1049,6 +1075,12 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     # per-answer record gains the column with no eval edit; absent-as-None on every row that is dark.
     if holder.get("numbers_usage") is not None:
         out.setdefault("trace", {})["numbers_usage"] = holder["numbers_usage"]
+    # 09-24 (FINAL_2, INTEGRATION O-2): the mirror of the `_resolve` carry of the RV pair leg's record,
+    # same guard -- absent on every turn whose leg did not run, so a REFUSED pair is a counted record on
+    # the trace (`tracekeys.TRACE_SPLAT_KEYS`) and a flag-off trace is byte-identical.
+    for _rk in ("rv_pair_spread", na.RV_PAIR_UNCOMPUTED_KEY):
+        if holder.get(_rk) is not None:
+            out.setdefault("trace", {})[_rk] = holder[_rk]
     # LANE S (2026-09-06): its OWN guarded stamp, modelled on the ms_numbers stamp directly above, for the
     # reason spelled at the single write in `_resolve`: the `_sk` copy loop two blocks up is unguarded, so
     # this key must never join it. `holder["numbers_budget"]` is None on every turn either gate declines,

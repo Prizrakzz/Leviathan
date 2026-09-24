@@ -1155,13 +1155,17 @@ def _with_render_source(monkeypatch, src: str):
 
 def test_CLAUSE16_is_GREEN_on_the_tree_and_the_whole_roster_is_SIXTEEN():
     """The roster grew by one and ``check_state_board()`` is still empty. ``config_check`` only
-    DELEGATES here, so a sixteenth clause needs no edit in a file this lane may not touch."""
+    DELEGATES here, so a sixteenth clause needs no edit in a file this lane may not touch.
+
+    THE 09-23 FIX ROUND ADDS THE SEVENTEENTH (the desk register of the board's own rows, clause 17), so
+    the roster count this pin reads is seventeen; the name is kept because the pin is clause 16's."""
     import inspect
     assert sbl._check_analog_near_asof() == []
     assert sbl.check_state_board() == []
     src = inspect.getsource(sbl.check_state_board)
     assert "_check_analog_near_asof()" in src
-    assert src.count("errs += _check") == 16, src.count("errs += _check")
+    assert "_check_desk_register_classes()" in src
+    assert src.count("errs += _check") == 17, src.count("errs += _check")
 
 
 def test_the_SB_A_SAMPLE_IS_WHAT_THE_PRODUCER_RENDERS_AND_CARRIES_ONE_FLOOR_YEAR():
@@ -1199,7 +1203,7 @@ def _sb_a_samples():
     builds them in a local dict, so this is the one way to see them without re-declaring them."""
     import ast
     import inspect
-    tree = ast.parse(inspect.getsource(sbl._check_row_classes).lstrip())
+    tree = ast.parse(inspect.getsource(sbl._row_class_samples).lstrip())
     out = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Dict):
@@ -1273,3 +1277,110 @@ def test_CLAUSE16_reads_the_flag_WHERE_THE_SHIPPED_RENDER_READS_IT():
     here = pathlib.Path(A.__file__).resolve().parent
     for name in sbl._ANALOG_ROW_MODULES:
         assert (here / name).exists(), name
+
+
+# === CLAUSE 17 (09-23 fix round, lane R): THE DESK REGISTER OF THE BOARD'S OWN ROWS ===================
+_R0923_Q = {"soybeans_now": ("soybeans_cbot", "what is the situation on soybeans now? how is it looking "
+                                               "3 months from now?"),
+            "palm": ("malaysian_crude_palm_oil_cme", "where does palm oil stand now?"),
+            "corn": ("corn_cbot", "what is the state of corn now?")}
+
+
+def _r0923_render(tag, mode, monkeypatch=None, *, benchmark=False):
+    import types as _ty
+
+    from leviathan.graphrag import graph as _G
+    from leviathan.graphrag.state import __main__ as _M
+    from leviathan.graphrag.state import seam as _S
+    slug, q = _R0923_Q[tag]
+    g = _G.CausalGraph(_G.load_contracts(), silver=set(), version="harness")
+    sg = _ty.SimpleNamespace(seeds=[slug], nodes=[], trace={})
+    bd = _S.fill_stage1(graph=g, sg=sg, asof=_M.ASOF, mode=mode, query=q,
+                        state_fn=_M.fixture_state_fn(_M.ASOF), named=(slug,))
+    # `benchmark=True` wires the harness's own fixture benchmark (`__main__.fixture_benchmark_fn`), so the
+    # analog OUTCOME rows (SB-O) are minted by the producer too -- the fixture boards print none without it
+    kw = {"benchmark_fn": _M.fixture_benchmark_fn()} if benchmark else {}
+    got = _S.fill_stage2(bd, graph=g, sg=sg, state_fn=_M.fixture_state_fn(_M.ASOF), state_chain=True, **kw)
+    return bd, got
+
+
+def test_CLAUSE17_the_MIGRATED_classes_are_ZERO_and_every_other_class_is_under_its_CEILING_on_every_fixture_cell():
+    """R-17 on the rendered fixtures (three anchors x three tiers, chain lit): the chain rows, the
+    analog stanza and the outcome rows score ZERO on the extended table, and every other class sits at
+    or under its banked ceiling. The ceilings were measured on these cells at this build."""
+    for tag in _R0923_Q:
+        for mode in ("quick", "deep", "max"):
+            bd, got = _r0923_render(tag, mode)
+            census = sbl.desk_register_class_census(bd.rendered_rows)
+            assert sbl.check_desk_register_ratchet(census) == [], (tag, mode, census)
+            assert census.get("chain", 0) == 0 and census.get("SB-A", 0) == 0, (tag, mode, census)
+
+
+def test_CLAUSE17_a_SYNTHETIC_instrument_word_in_SB1_REDS_the_ratchet(monkeypatch):
+    """R-17's own falsifier: the SB-1 template gains one charged word per row and the ratchet names the
+    class. A ceiling that could not be broken would be a ceiling nobody graded."""
+    from leviathan.graphrag.state import render as _R
+    real = _R.sb_state
+
+    def _dirty(n, row, **kw):
+        line, calls = real(n, row, **kw)
+        return (line.replace(": ", ": the board row reads ", 1) if line else line), calls
+    monkeypatch.setattr(_R, "sb_state", _dirty)
+    bd, _got = _r0923_render("soybeans_now", "max")
+    errs = sbl.check_desk_register_ratchet(sbl.desk_register_class_census(bd.rendered_rows))
+    assert errs and any("class SB-1" in e for e in errs), errs
+
+
+def test_CLAUSE17_the_MIGRATED_rows_are_graded_on_the_PRODUCERS_OWN_output_on_every_fixture_cell():
+    """LEX-2 (09-23 fix round, re-banked, declared): the migrated rows are MINTED BY THE RENDER PRODUCER at test
+    time -- every fixture cell (three anchors x three tiers, chain lit) is rendered through the serving seam
+    and `check_desk_register_migrated` grades every row its migrated templates printed; no hand-typed sample
+    list exists to grade instead. The grade is not vacuous: every cell prints chain rows, and across the
+    cells every chain role family (head, why, hop, record, outcome, document, sides, count), the analog
+    stanza (SB-A) and the analog outcome rows (SB-O, minted with the harness's fixture benchmark wired) are
+    graded -- all three migrated classes."""
+    assert not hasattr(sbl, "DESK_MIGRATED_SAMPLES"), "the author's own case list is retired"
+    assert sbl._check_desk_register_classes() == []
+    roles, graded = set(), 0
+    for tag in _R0923_Q:
+        for mode in ("quick", "deep", "max"):
+            bd, _got = _r0923_render(tag, mode, benchmark=True)
+            rows = [m for m in (bd.rendered_rows or ()) if sbl.desk_class_key(m) in sbl.DESK_MIGRATED_CLASSES]
+            assert any(sbl.desk_class_key(m) == "chain" for m in rows), (tag, mode)
+            assert sbl.check_desk_register_migrated(bd.rendered_rows) == [], (tag, mode)
+            roles |= {(sbl.desk_class_key(m), str(m.get("role") or "")) for m in rows}
+            graded += len(rows)
+    assert {("chain", r) for r in ("chain", "chain_why", "chain_hop", "chain_record", "chain_outcome",
+                                   "chain_document", "chain_sides", "chain_count")} <= roles, sorted(roles)
+    assert ("SB-A", "") in roles and ("SB-O", "") in roles and graded >= 150, (graded, sorted(roles))
+    assert set(sbl.DESK_REGISTER_CLASS_CEILINGS).isdisjoint(sbl.DESK_MIGRATED_CLASSES)
+
+
+def test_CLAUSE17_a_charged_word_in_a_LIVE_chain_template_REDS_the_migrated_grade(monkeypatch):
+    """The falsifier on the producer, not on a sample: the chain HOP and COUNT templates gain one charged word
+    each and the grade names the migrated class and the role; the clean render grades zero."""
+    from leviathan.graphrag.state import render as _R
+    hop, count = _R.sb_chain_hop, _R.sb_chain_count
+
+    def _dirty_hop(*a, **kw):
+        out = hop(*a, **kw)
+        return (out[0].replace(": ", ": the loud row reads ", 1),) + tuple(out[1:]) if isinstance(out, tuple) \
+            else out.replace(": ", ": the loud row reads ", 1)
+
+    def _dirty_count(*a, **kw):
+        return count(*a, **kw).replace(": ", ": the graph counts ", 1)
+    monkeypatch.setattr(_R, "sb_chain_hop", _dirty_hop)
+    monkeypatch.setattr(_R, "sb_chain_count", _dirty_count)
+    bd, _got = _r0923_render("soybeans_now", "max")
+    errs = sbl.check_desk_register_migrated(bd.rendered_rows)
+    assert any("migrated chain row (role chain_hop)" in e for e in errs), errs
+    assert any("migrated chain row (role chain_count)" in e for e in errs), errs
+
+
+def test_CLAUSE17_the_SB1_sample_is_the_renders_own_N1_head():
+    """Clause 10's SB-1 sample (a class-disjointness sample, not a desk grade) is the rendered fixture's own
+    N1 head, re-banked VERBATIM off the render."""
+    bd, got = _r0923_render("soybeans_now", "max")
+    first = next(x for x in got["block"].splitlines() if x.startswith("- [N1] "))
+    sample = sbl._row_class_samples()["SB-1"]
+    assert first.split("; ")[0] == sample.split("; ")[0], (first[:160], sample[:160])

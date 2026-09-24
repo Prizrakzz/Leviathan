@@ -1,0 +1,1458 @@
+{
+ "turn": "deep_state_cocoa_2026_09",
+ "anchors": [
+  "cocoa"
+ ],
+ "n_calls": 60,
+ "calls": {
+  "1": {
+   "query": {
+    "table": "silver_icco_cocoa",
+    "metric": "su_ratio"
+   },
+   "rows": [
+    {
+     "period": "2024/25",
+     "estimate_role": null,
+     "value": "0.28522039757994816",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-05-29"
+    }
+   ],
+   "status": "ok"
+  },
+  "2": {
+   "query": {
+    "table": "silver_icco_cocoa",
+    "metric": "end_stocks_kt"
+   },
+   "rows": [
+    {
+     "period": "2024/25",
+     "estimate_role": null,
+     "value": "1320.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-05-29"
+    }
+   ],
+   "status": "ok"
+  },
+  "3": {
+   "query": {
+    "table": "silver_icco_cocoa",
+    "metric": "grindings_kt"
+   },
+   "rows": [
+    {
+     "period": "2024/25",
+     "estimate_role": null,
+     "value": "4628.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-05-29"
+    }
+   ],
+   "status": "ok"
+  },
+  "4": {
+   "query": {
+    "table": "compute_stat",
+    "metric": "percentile"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 10.0,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-05-29"
+    }
+   ],
+   "status": "ok"
+  },
+  "5": {
+   "query": {
+    "table": "compute_stat",
+    "metric": "extrema_min"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.2635948526359485,
+     "unit": "ratio",
+     "country": null,
+     "knowledge_date": "2026-05-29"
+    }
+   ],
+   "status": "ok"
+  },
+  "6": {
+   "query": {
+    "table": "compute_stat",
+    "metric": "extrema_max"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.4753889313950523,
+     "unit": "ratio",
+     "country": null,
+     "knowledge_date": "2026-05-29"
+    }
+   ],
+   "status": "ok"
+  },
+  "7": {
+   "query": {
+    "table": "compute_stat",
+    "metric": "zscore"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -1.6567090649905531,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-05-29"
+    }
+   ],
+   "status": "ok"
+  },
+  "8": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "9": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "10": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "11": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "12": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "13": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "14": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "tmax_anomaly",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.6681553372294483,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "15": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "tmax_anomaly",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -1.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "16": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "tmax_anomaly",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 6,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "17": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -9539.0,
+     "unit": "contracts",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "18": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -1.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "19": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 13,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "20": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "blended_npk_index_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.11253557279815038,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "21": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "blended_npk_index_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.5,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "22": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "blended_npk_index_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 63,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "23": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.11,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-14"
+    }
+   ],
+   "status": "ok"
+  },
+  "24": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.3,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-14"
+    }
+   ],
+   "status": "ok"
+  },
+  "25": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 37,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-14"
+    }
+   ],
+   "status": "ok"
+  },
+  "26": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.0008853195561135851,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "27": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "28": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 55,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "29": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "gbp_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.74656,
+     "unit": "local currency per USD",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "30": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "gbp_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "31": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "gbp_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 25,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "32": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "heat_stress_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.24333674692740578,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "33": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "heat_stress_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 35,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "34": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "heat_stress_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.24333674692740578,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "35": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "heat_stress_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 35,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "36": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 5330.0,
+     "unit": "USD/metric ton",
+     "country": null,
+     "knowledge_date": "2026-09-18"
+    }
+   ],
+   "status": "ok"
+  },
+  "37": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle change over 1 session"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -290.0,
+     "unit": "USD/metric ton",
+     "country": null,
+     "knowledge_date": "2026-09-18"
+    }
+   ],
+   "status": "ok"
+  },
+  "38": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle change over 5 sessions"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -583.0,
+     "unit": "USD/metric ton",
+     "country": null,
+     "knowledge_date": "2026-09-18"
+    }
+   ],
+   "status": "ok"
+  },
+  "39": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle change over 21 sessions"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -604.0,
+     "unit": "USD/metric ton",
+     "country": null,
+     "knowledge_date": "2026-09-18"
+    }
+   ],
+   "status": "ok"
+  },
+  "40": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle change over 63 sessions"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1351.0,
+     "unit": "USD/metric ton",
+     "country": null,
+     "knowledge_date": "2026-09-18"
+    }
+   ],
+   "status": "ok"
+  },
+  "41": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle percentile"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 40,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-18"
+    }
+   ],
+   "status": "ok"
+  },
+  "42": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.2327,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "43": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.1528,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-07"
+    }
+   ],
+   "status": "ok"
+  },
+  "44": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "heat_stress_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.8434,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "45": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "heat_stress_z",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.07,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "46": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value",
+    "country": ""
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.94,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "47": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value",
+    "country": ""
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.86,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-07"
+    }
+   ],
+   "status": "ok"
+  },
+  "48": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom",
+    "country": "Cote d'Ivoire"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "1.84",
+     "unit": null,
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "49": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom",
+    "country": "Cote d'Ivoire"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "0.95",
+     "unit": null,
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "50": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom",
+    "country": "Cote d'Ivoire"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "51": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "tmax_anomaly",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "1.1962003256821547",
+     "unit": null,
+     "country": "West Africa",
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "52": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "tmax_anomaly",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "0.4605612521484053",
+     "unit": null,
+     "country": "West Africa",
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "53": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "tmax_anomaly",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "1.4034794672822957",
+     "unit": null,
+     "country": "West Africa",
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "54": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -9539.0,
+     "unit": "contracts",
+     "country": null,
+     "knowledge_date": "2026-09-15"
+    }
+   ],
+   "status": "ok"
+  },
+  "55": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom_pace_change",
+    "country": "Cote d'Ivoire"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.41,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "56": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom_pace_streak",
+    "country": "Cote d'Ivoire"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 5,
+     "unit": "months",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "57": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "tmax_anomaly_pace_change",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -2.2546,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "58": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -782.0,
+     "unit": "contracts",
+     "country": null,
+     "knowledge_date": "2026-09-15"
+    }
+   ],
+   "status": "ok"
+  },
+  "59": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net_pace_streak"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2,
+     "unit": "weeks",
+     "country": null,
+     "knowledge_date": "2026-09-15"
+    }
+   ],
+   "status": "ok"
+  },
+  "60": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "tmax_anomaly_tail_share",
+    "country": "West Africa"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.0,
+     "unit": "%",
+     "country": "West Africa",
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  }
+ },
+ "row_states": [
+  {
+   "contract": "cocoa",
+   "driver_id": "La_Nina",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "El_Nino",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "IOD_positive",
+   "series_key": "iod_climate|_global|"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "harmattan",
+   "series_key": "stage_tmax_anomaly|cocoa|West Africa"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "drought",
+   "series_key": "drought_z|cocoa|West Africa"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "excess_rain",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "black_pod",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "swollen_shoot_virus",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "frosty_pod_rot",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "witches_broom",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "heat_stress",
+   "series_key": "heat_stress_z|cocoa|West Africa"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "flowering_stress",
+   "series_key": "heat_stress_z|cocoa|West Africa"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "replanting_cycle",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "export_tax",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "minimum_export_price",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "EUDR",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "US_section301_tariffs",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "port_closure",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "export_pace_lag",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "tenderable_collapse",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "withheld_supply",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "grind_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "macro_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "demand_destruction",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "USD_strength",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "GBP_cross",
+   "series_key": "fred_fx_macro|_global||gbp_usd"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "speculative_positioning",
+   "series_key": "cot_mm_positioning|cocoa|"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "fertilizer_input_cost",
+   "series_key": "npk_fertilizer_z|_global|"
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "biennial_bearing",
+   "series_key": ""
+  },
+  {
+   "contract": "cocoa",
+   "driver_id": "west_africa_rainfall",
+   "series_key": ""
+  }
+ ],
+ "chains": [
+  {
+   "contract": "cocoa",
+   "agreements": [
+    "aligned",
+    "aligned",
+    "undetermined"
+   ],
+   "edge_signs": [
+    "+",
+    "+",
+    "+"
+   ],
+   "cross": null,
+   "terminal": "cocoa",
+   "depth": 2,
+   "score": 54.9,
+   "declared_sign": "+",
+   "direction": "higher",
+   "side": "for",
+   "against_hops": [],
+   "rendered": true,
+   "full": true,
+   "slot": "top",
+   "receipt_kind": "none",
+   "receipt_words": "a dated action on 2015-01-01, aged out of the window declared for it",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 5,
+    "hops": 3,
+    "hops_no_series": 0,
+    "buffer_series": false,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "cocoa",
+     "driver_id": "El_Nino",
+     "sign": "+",
+     "lag": "1-3 quarters",
+     "confidence": "medium",
+     "measured": true,
+     "series_key": "oni_climate|_global|",
+     "level_shown": 1.8,
+     "unit": "degC",
+     "percentile": 92.74809160305344,
+     "z": 2.426665229537876,
+     "run_direction": "up",
+     "run_length": 8,
+     "level_date": "2026-07",
+     "knowledge_date": "2026-09-05",
+     "tail": 0.9707,
+     "tail_peak": 0.855,
+     "tail_peak_percentile": 92.74809160305344,
+     "tail_peak_date": "2026-07",
+     "tail_lag_to": "2027-04-30",
+     "event_date": "2015-01-01",
+     "event_open": false,
+     "silver_status": "available",
+     "n": 8
+    },
+    {
+     "contract": "cocoa",
+     "driver_id": "heat_stress",
+     "sign": "+",
+     "lag": "0-2 quarters",
+     "confidence": "medium",
+     "measured": true,
+     "series_key": "heat_stress_z|cocoa|West Africa",
+     "level_shown": -0.24333674692740578,
+     "unit": "z",
+     "percentile": 35.0,
+     "z": null,
+     "run_direction": "up",
+     "run_length": 1,
+     "level_date": "2026-08",
+     "knowledge_date": "2026-09-05",
+     "tail": 0.3,
+     "tail_peak": 0.5364,
+     "tail_peak_percentile": 76.81818181818181,
+     "tail_peak_date": "2026-04",
+     "tail_lag_to": "2026-10-30",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 32
+    },
+    {
+     "contract": "cocoa",
+     "driver_id": "flowering_stress",
+     "sign": "+",
+     "lag": "1-2 quarters",
+     "confidence": "medium",
+     "measured": true,
+     "series_key": "heat_stress_z|cocoa|West Africa",
+     "level_shown": -0.24333674692740578,
+     "unit": "z",
+     "percentile": 35.0,
+     "z": null,
+     "run_direction": "up",
+     "run_length": 1,
+     "level_date": "2026-08",
+     "knowledge_date": "2026-09-05",
+     "tail": 0.3,
+     "tail_peak": 0.5364,
+     "tail_peak_percentile": 76.81818181818181,
+     "tail_peak_date": "2026-04",
+     "tail_lag_to": "2026-10-30",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 32
+    }
+   ]
+  },
+  {
+   "contract": "cocoa",
+   "agreements": [
+    "undetermined",
+    "undetermined",
+    "undetermined"
+   ],
+   "edge_signs": [
+    "+",
+    "+",
+    "+"
+   ],
+   "cross": null,
+   "terminal": "cocoa",
+   "depth": 2,
+   "score": 49.2,
+   "declared_sign": "+",
+   "direction": "lower",
+   "side": "against",
+   "against_hops": [],
+   "rendered": true,
+   "full": true,
+   "slot": "top",
+   "receipt_kind": "none",
+   "receipt_words": "a dated action on 2025-01-01, aged out of the window declared for it",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 4,
+    "hops": 3,
+    "hops_no_series": 1,
+    "buffer_series": false,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "cocoa",
+     "driver_id": "harmattan",
+     "sign": "+",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "stage_tmax_anomaly|cocoa|West Africa",
+     "level_shown": -0.6681553372294483,
+     "unit": "z",
+     "percentile": 6.4393939393939394,
+     "z": -1.2278165895708655,
+     "run_direction": "down",
+     "run_length": 1,
+     "level_date": "2026-08",
+     "knowledge_date": "2026-09-05",
+     "tail": 0.8712,
+     "tail_peak": 0.8712,
+     "tail_peak_percentile": 6.4393939393939394,
+     "tail_peak_date": "2026-08",
+     "tail_lag_to": "2027-02-28",
+     "event_date": "2024-12-01",
+     "event_open": false,
+     "silver_status": "available",
+     "n": 14
+    },
+    {
+     "contract": "cocoa",
+     "driver_id": "export_pace_lag",
+     "sign": "+",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": null
+    },
+    {
+     "contract": "cocoa",
+     "driver_id": "speculative_positioning",
+     "sign": "+",
+     "lag": "0-1 quarters",
+     "confidence": "medium",
+     "measured": true,
+     "series_key": "cot_mm_positioning|cocoa|",
+     "level_shown": -9539.0,
+     "unit": "contracts",
+     "percentile": 13.190184049079754,
+     "z": -1.1383289221683093,
+     "run_direction": "down",
+     "run_length": 2,
+     "level_date": "2026-09-15",
+     "knowledge_date": "2026-09-21",
+     "tail": 0.7362,
+     "tail_peak": 0.9693,
+     "tail_peak_percentile": 1.5337423312883436,
+     "tail_peak_date": "2026-06-23",
+     "tail_lag_to": "2026-09-23",
+     "event_date": "2025-01-01",
+     "event_open": false,
+     "silver_status": "available",
+     "n": 17
+    }
+   ]
+  }
+ ],
+ "coverage_chain_referenced": 0,
+ "served_chain_lints": {
+  "outcome": "ok",
+  "sentences": 4,
+  "corrected": 4,
+  "chain_hops_unfigured": 0,
+  "chain_hops_skipped": 0,
+  "chain_unranked_narrated": 0,
+  "chain_hops_ambiguous": 0,
+  "chain_fence_closed": 0
+ },
+ "structured": {
+  "tldr": "Cocoa's buffer is thin but off its lows: world stocks-to-grindings sits at 0.28522 [N1], the 10th percentile of its own record [N4] and -1.65671 sigma against fifteen points of that record [N7] -- a balance sheet still deep in the bottom decile, which keeps the supply side convex to any further shock. The loud readings lean both ways: the tropical Pacific anomaly is at +1.8 degC [N8], a price-supportive weather signal on its declared edge, while the West African maximum-temperature anomaly at -0.67 z [N14] and managed money net short at -9539 contracts [N17] do not corroborate an active squeeze, and the front 2026-12 contract settled 5330 USD/metric ton on 18 September 2026 [N36], down 604 over twenty-one sessions [N39].",
+  "mechanism": "## Mechanism\nThe chain is stocks to grindings: carryover is the only shock absorber between a West African crop miss and the front month. When the buffer is in the bottom decile, a given tonnage loss moves price far more than it would on a fat carryover -- that is where the response turns convex and right-tailed; a good crop, by contrast, first rebuilds a depleted buffer, so the skew is asymmetric upward. The drought reading is declared price-supportive on West African soil moisture with a one-to-three-quarter lag at high confidence; the Harmattan reading the same way at zero to two quarters. The El Nino reading is medium confidence and reaches price only through heat and flowering stress.\n\n## The record\n- Stocks-to-grindings 0.28522 [N1], end stocks 1,320 thousand tonnes [N2] against grindings of 4,628 thousand tonnes [N3], read through 29 May 2026; the record's own range runs 0.263595 [N5] to 0.475389 [N6].\n- The prior published prints: 26.4% for 2023/24 after a 28% stock drop to 1.270 million tonnes [E1], then 29.2% for 2024/25 [E7] -- the buffer stopped falling and edged up, it did not rebuild.\n- How stretched is stretched: the 1995/96 crop year ended near 45% [E2] -- roughly the top of this record's range -- the base rate for a comfortable market, and nothing like today.\n- Weather now: the Pacific anomaly +1.8 degC [N8], 93rd percentile [N10], rising eight straight months; West African maximum temperature -0.67 z [N14], 6th percentile [N16]; no basin cells at or beyond a level this page could not back [N60].\n- Positioning was a net short of -9539 contracts as of 15 September 2026 [N17], 13th percentile [N19], having fallen in each of the last two weeks -- history, not a forecast.\n- Earlier reported conditions consistent with the price-supportive West African confluence: drought from April 2024 [E36], Harmattan concern December 2024 into February 2025 [E21]; both are dated well before this as-of and are past, not current.\n\n## Where the record disagrees\nThe two chains the driver model puts first point opposite ways. Through El Nino into heat and flowering stress, the readings agree with the declared direction at the first hop and the last hop does not settle it; in seven of eight measured past firings the next hop moved the declared way, one did not, and only one firing carries a price reading -- too thin for a central estimate. Through Harmattan into export pace and positioning, no hop settles it and zero past firings carry a measured next hop; the front price does not reach them. So the fundamental buffer says right-tailed, the current weather and positioning prints do not confirm a squeeze is underway.\n\n## Cross-commodity\nThe same loud readings are declared on two other markets: ICE arabica coffee, where the Pacific anomaly is declared in the opposite direction at one to three quarters, medium confidence, and the Indian Ocean dipole in the same direction at one to three quarters; and JSE white maize, where the La Nina naming of that one reading is declared in the opposite direction at one to three quarters, high confidence. Note the two Pacific names here are one reading under two labels, counted once. The drought reading is declared in the same direction on thirty-three other markets, nearest of them barley at zero to two quarters, high confidence -- a move in West African soil moisture is not a cocoa-only event.\n\n## What to watch\n Wrong if the next print returns the series to the middle of its own record.\n- **West African drought anomaly** a level this page could not back, read 2026-07 [N26], acting 31 October 2026 to 30 April 2027; it is one of the drivers the price-supportive West African confluence names, and the count there is at its threshold. Wrong if one of those drivers turns and the count falls back under it.\n- **Pacific sea-surface anomaly** +1.8 degC, read 2026-07 [N8], run unbroken eight months, acting 31 October 2026 to 30 April 2027, next print 1 October 2026. Wrong if that print turns back inside the strong line or the run breaks.\n- **Flowering stress** -0.24 z, read 2026-08 [N32], acting 30 November 2026 to 28 February 2027 -- six declared upstream paths land on price through it. Wrong if those paths share one upstream cause, in which case it is one route counted twice.\n\nThe newest number behind this page was known 21 September 2026 and the oldest 31 January 2026; the newest dated document is 20 May 2026; the board price tape runs through 18 September 2026."
+ }
+}

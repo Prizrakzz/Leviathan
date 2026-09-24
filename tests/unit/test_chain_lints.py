@@ -322,11 +322,22 @@ def test_L1_corrects_the_deep_notes_first_chain_sentence_at_the_rows_own_address
     assert out != T1 and out.startswith(T1[:-1])
     assert cen["sentences"] == 1 and cen["corrected"] == 1
     assert an._CHAIN_FIGURE_OPEN in out
-    # THE FIGURE IS THE SERVED ROW'S OWN, CHARACTER FOR CHARACTER, AND IT IS CITED AT ITS OWN ADDRESS.
+    # THE FIGURE IS THE SERVED ROW'S OWN VALUE AND IT IS CITED AT ITS OWN ADDRESS. 09-23 LANE A (C5,
+    # defect 2): it is printed at the page's ONE precision -- `render.shown_figure`, which also applies
+    # the card's DECLARED display scale (the fixture serves the ratio natively, 0.117 S/U ratio, and the
+    # block prints it "11.7 %") -- and it is still a SPELLING of the row: a rounding of the raw value,
+    # in the row's own unit or in the card's declared display unit at the card's declared scale.
     rows = an._seam_row_index(calls)
     hop = next(h for h in an._chain_hop_rows(bd, calls) if "the stocks to use ratio" in h["names"])
     assert ("%s [N%d]" % (hop["figure"], hop["n"])) in out
-    assert rows[hop["n"]]["value"] in out and rows[hop["n"]]["unit"] in out
+    assert hop["figure"] == an._chain_figure_text(rows[hop["n"]])
+    num, unit = hop["figure"].split(" ", 1)
+    raw = float(rows[hop["n"]]["raw"])
+    dec = len(num.split(".")[1]) if "." in num else 0
+    cf = R.card_fields(rows[hop["n"]]["table"], rows[hop["n"]]["metric"]) if hasattr(R, "card_fields") else {}
+    scale = float(cf.get("display_scale") or 1.0) if unit == cf.get("display_unit") else 1.0
+    assert unit in (rows[hop["n"]]["unit"], cf.get("display_unit")), hop["figure"]
+    assert abs(float(num) - raw * scale) <= 0.5 * 10 ** -dec + 1e-12, (hop["figure"], raw, scale)
     assert ("[N%d]" % hop["pct_n"]) in out
     assert out.rstrip().endswith(".")                 # appended INSIDE the sentence's terminator
 
@@ -612,7 +623,15 @@ def test_A2_the_hop_row_carries_its_own_contract_and_driver_id_and_the_join_veri
         hop = chains[h["rank"] - 1].hops[h["pos"] - 1]
         assert h["driver_id"] == hop.driver_id, h      # the positional join IS the producer's own
         assert h["contract"] == hop.contract, h
-        assert R.humanise(hop.driver_id) == h["printed"], h
+        # 09-23 LANE A (CONTRACT C9 / THREAT A-2, I-3): the block prints the hop's SERIES name
+        # (`render.chain_hop_name`), and the join verifies itself against THAT -- the two sides move
+        # together or every hop comes back identity-less (fails closed). HEAD compared humanise(driver_id).
+        assert an._chain_hop_printed_name(R, hop) == h["printed"], h
+        if hasattr(R, "chain_hop_name"):
+            assert R.chain_hop_name(hop) == h["printed"], h
+    # I-3: NOT ONE rendered hop of the fixture board is identity-less
+    assert all(h["contract"] and h["driver_id"] for h in hops), [h["printed"] for h in hops
+                                                                 if not h["contract"]]
 
 
 def test_A2_a_multi_anchor_board_refuses_the_figure_when_the_sentence_names_the_OTHER_market(
@@ -706,7 +725,10 @@ def test_A3_the_treatment_appends_the_handle_alone_and_the_resolver_fills_it_exa
     # (a) THE DOUBLED SHAPE, pinned as the cause: the control clause through a handle_prose resolver.
     doubled = {"tldr": "", "mechanism": st_c["mechanism"]}
     an._resolve_number_handles(doubled, calls, handle_prose=True)
-    assert "0.117 S/U ratio 0.117 S/U ratio" in doubled["mechanism"]
+    # 09-23: the control clause now prints the row at the page's precision (C5), so the doubling reads
+    # "<L1's figure> <the resolver's splice> [N..]" -- still TWO figures in front of ONE handle.
+    _fig = next(h for h in an._chain_hop_rows(bd, calls) if "the stocks to use ratio" in h["names"])["figure"]
+    assert (_fig + " 0.117 S/U ratio [N") in doubled["mechanism"], doubled["mechanism"]
     # (b) ...and the control arm's own resolver leaves it alone, so only the treatment was ever hurt.
     control = {"tldr": "", "mechanism": st_c["mechanism"]}
     an._resolve_number_handles(control, calls, handle_prose=False)
@@ -917,11 +939,12 @@ def test_the_chain_seam_fields_this_lane_reads_exist_on_the_SHIPPED_TYPES(cell):
     assert sorted(cen) == ["chain_fence_closed", "chain_hops_ambiguous", "chain_hops_skipped",
                            "chain_hops_unfigured", "chain_unranked_narrated", "corrected",
                            "outcome", "sentences"], cen
-    # PRODUCED: the hop row's own eleven keys, which `_chain_hop_rows`' docstring declares.
+    # PRODUCED: the hop row's own twelve keys, which `_chain_hop_rows`' docstring declares -- the
+    # twelfth, `series_key`, is the 09-23 lane-A join key (THREAT A-1: L1 binds to the series).
     rows = an._chain_hop_rows(bd, calls)
     assert rows and all(
         sorted(r) == ["contract", "driver_id", "figure", "id", "n", "names", "pct", "pct_n",
-                      "pos", "printed", "rank"] for r in rows), rows[:1]
+                      "pos", "printed", "rank", "series_key"] for r in rows), rows[:1]
     # PRODUCED: the pool index's key is `(contract, driver_id)` and its value a set of pool positions.
     pool = an._chain_pool_carry(bd)
     assert pool and all(isinstance(k, tuple) and len(k) == 2 and all(isinstance(x, str) for x in k)
@@ -1119,7 +1142,8 @@ def test_the_census_reaches_the_per_answer_record_and_an_unstamped_row_is_unchan
     assert [k for k in on if k != "chain_lints"] == list(off)
     # ...and the key is genuinely NOT registered, so no tail pin in any other deck moved
     assert "chain_lints" not in tk_mod.TRACE_RECORD_KEYS
-    assert len(tk_mod.TRACE_RECORD_KEYS) == 47 and tk_mod.TRACE_RECORD_KEYS[-5] == "state_board"
+    # lane A 09-23 appended the three lane-0 stamps at the tail (CONTRACT C14): 47 -> 50, one commit
+    assert len(tk_mod.TRACE_RECORD_KEYS) == 50 and tk_mod.TRACE_RECORD_KEYS[-8] == "state_board"
 
 
 def test_the_state_report_prints_one_chain_line_and_a_deck_with_no_stamp_prints_nothing():
@@ -1185,3 +1209,311 @@ def test_the_state_report_prints_one_chain_line_and_a_deck_with_no_stamp_prints_
     bad = ev_mod.state_report([{"out": {"trace": {"chain_lints": "not a dict"}}}])
     assert any("not a mapping: 1" in x for x in bad)
     assert not any("chain sentence(s) corrected" in x for x in bad)   # nothing scored off a bad shape
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-23 FIX ROUND, LANE A -- L1 BINDS TO THE SENTENCE'S OWN SERIES, AT THE PAGE'S ONE PRECISION, AND THE
+# CHAIN-OMITTED BACKSTOP. Graded on the TEN 2026-09-23 re-smoke turns, banked in the repo
+# (tests/fixtures/chain_lints_0923, see its README): the writer's own post-verify prose, the board's rows
+# and rendered chains, and the served calls those chains cite -- prose written before either rule existed
+# (the 09-15 negative-corpus law). NEVER A SKIP: a missing corpus is a RED.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+import json as _json
+import types as _types
+
+from leviathan.graphrag.numbers import cascade as _CAS
+from leviathan.graphrag.state.lagbands import parse_lag as _parse_lag
+from leviathan.graphrag.state.rows import SeriesKey as _SK
+from leviathan.graphrag.state.rows import StateRow as _SR
+
+_FX0923 = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "chain_lints_0923"
+_TURNS_0923 = ("deep_event_china_tariff_soybeans_2026_09", "deep_rv_soybeans_state_2024_03_01",
+               "deep_rv_soybeans_state_2026_09_07", "deep_state_cocoa_2026_09", "deep_state_cotton_2026_09",
+               "deep_state_rice_2026_09", "max_rv_soybeans_state_2026_09_07", "quick_rv_corn_wheat",
+               "quick_rv_palm_rapeoil", "quick_rv_soyoil_palm")
+#: CHAIN_ANALOG_READ.md sec 1 -- the HUMAN read of "did the served page narrate a rendered chain". Lane R's
+#: fixed `chain_referenced` is graded to reproduce it (THREAT R-12); the backstop reads that counter.
+_HUMAN_READ_0923 = {"deep_event_china_tariff_soybeans_2026_09": 0, "deep_state_cotton_2026_09": 0}
+_OPEN = an._CHAIN_FIGURE_OPEN
+
+
+@pytest.fixture(scope="module")
+def turns0923():
+    assert _FX0923.is_dir() and (_FX0923 / "README.txt").is_file(), (
+        "the banked 09-23 corpus is missing: %s" % (_FX0923,))
+    out = {t: _json.loads((_FX0923 / (t + ".json")).read_text(encoding="utf-8")) for t in _TURNS_0923}
+    assert len(out) == 10
+    return out
+
+
+def _sk(sk):
+    p = (str(sk or "").split("|") + ["", "", "", ""])[:4]
+    return p
+
+
+def _state(r):
+    ref, com, country, met = _sk(r.get("series_key"))
+    if not ref:
+        return None
+    row = _CAS.map_row(ref) or {}
+    return _SR(key=_SK(ref=ref, commodity=com, country=country, metric=met),
+               table=str(row.get("table") or ""), metric=str(met or row.get("metric") or ""))
+
+
+def _board0923(fx):
+    """The board `_chain_lints` / `_chain_backstop` read, rebuilt from the banked turn: real `walk` objects
+    for the rendered chains (page order), one `chain_hop` line per hop of each FULL chain printed the way
+    the block prints it (`answer._chain_hop_printed_name`, i.e. `render.chain_hop_name` once lane R has
+    landed it) and cited at the hop's own level handle."""
+    calls = [None] * int(fx["n_calls"])
+    for n, c in fx["calls"].items():
+        calls[int(n) - 1] = c
+    rows = [_types.SimpleNamespace(contract=r["contract"], driver_id=r["driver_id"],
+                                   series_key=r["series_key"], state=_state(r)) for r in fx["row_states"]]
+    chains, rendered = [], []
+    hop_f, chain_f = set(W.ChainHop.__dataclass_fields__), set(W.Chain.__dataclass_fields__)
+    for rank, c in enumerate(fx["chains"], start=1):
+        hops = []
+        for h in c["hops"]:
+            kw = {k: v for k, v in h.items() if k in hop_f and v is not None}
+            kw["lag_band"] = _parse_lag(h.get("lag")) if h.get("lag") else None
+            hops.append(W.ChainHop(**kw))
+        kw = {k: v for k, v in c.items() if k in chain_f and k != "hops" and v is not None}
+        for k in ("agreements", "edge_signs", "against_hops"):
+            if k in kw:
+                kw[k] = tuple(kw[k])
+        ch = W.Chain(hops=tuple(hops), **kw)
+        ch.rendered, ch.score = True, 1000.0 - rank           # page order IS rank order
+        chains.append(ch)
+        if c.get("full"):
+            for h, ho in zip(c["hops"], hops):
+                cite = (" [N%d]" % h["n"]) if h.get("n") else ""
+                rendered.append({"role": "chain_hop", "rank": rank,
+                                 "line": R.CHAIN_SUB_PREFIX + an._chain_hop_printed_name(R, ho) + cite
+                                 + ": (reading)"})
+
+    def _row(contract, driver_id):
+        return next((r for r in rows if r.contract == contract and r.driver_id == driver_id), None)
+    bd = _types.SimpleNamespace(anchor_slugs=tuple(fx["anchors"]), rows=rows, chains=chains,
+                                rendered_rows=tuple(rendered), row=_row)
+    return bd, calls
+
+
+def _appended(before: str, after: str) -> list:
+    rx = re.compile(re.escape(_OPEN) + r"(?:[^.;!?]|[.;!?](?!\s|$))*")
+    return [m.group(0) for m in rx.finditer(after) if m.group(0) not in before]
+
+
+#: THE APPEND LIST AS THE TEN PAGES SERVED IT (HEAD), by the handles each append cited -- (level, percentile).
+#: HEAD's own census on this reconstruction reproduces all ten served `chain_lints.corrected` counts
+#: (laneA/drive_l1.json). The tree may only KEEP (at the page's precision) or REFUSE these; it may never
+#: add one, and every append it keeps must bind to ONE series of the board.
+_SERVED_APPENDS_0923 = {
+    "deep_event_china_tariff_soybeans_2026_09": [(54, 56), (54, 56)],
+    "deep_state_cocoa_2026_09": [(14, 16), (32, None), (32, None), (14, 16)],
+    "deep_state_rice_2026_09": [(52, 54)],
+    "max_rv_soybeans_state_2026_09_07": [(28, None)],
+    "quick_rv_palm_rapeoil": [(54, 56)],
+    "quick_rv_soyoil_palm": [(66, 67)],
+}
+_CLAUSE_HANDLES_RX = re.compile(r"\[N(\d+)\]")
+
+
+def _series_of(bd, hops) -> dict:
+    so: dict = {}
+    for h in hops:
+        for n in h["names"]:
+            if h.get("series_key"):
+                so.setdefault(n, set()).add(h["series_key"])
+    return an._chain_board_series_names(bd, so)
+
+
+def test_0923_L1_every_append_is_a_served_one_and_binds_to_ONE_series(turns0923):
+    """THREAT A-1 / A-2, on the ten served pages, and written so it holds WHATEVER the reader vocabulary
+    lanes R and T settle on (the hop names and the card reading words are theirs): (1) the tree appends
+    nothing HEAD did not (a subset of the served appends, by handle); (2) every append it keeps lands on a
+    sentence that names its hop by a spelling that names exactly ONE series among ALL the board's rows;
+    (3) every rendered hop keeps its identity (the join compares the name the block prints)."""
+    for turn, fx in turns0923.items():
+        bd, calls = _board0923(fx)
+        st = dict(fx["structured"])
+        before = st["tldr"] + "\n" + st["mechanism"]
+        cen = an._chain_lints(st, calls, bd)
+        assert cen["outcome"] == "ok", (turn, cen)
+        after = st["tldr"] + "\n" + st["mechanism"]
+        got = _appended(before, after)
+        sig = []
+        for cl in got:
+            hs = [int(x) for x in _CLAUSE_HANDLES_RX.findall(cl)]
+            sig.append((hs[0], hs[1] if len(hs) > 1 else None))
+        served = list(_SERVED_APPENDS_0923.get(turn, []))
+        for x in sig:
+            assert x in served, (turn, x, served)             # (1) nothing HEAD did not append
+            served.remove(x)
+        hops = an._chain_hop_rows(bd, calls)
+        so = _series_of(bd, hops)
+        by_n = {h["n"]: h for h in hops if h["n"]}
+        for cl in got:
+            n = int(_CLAUSE_HANDLES_RX.findall(cl)[0])
+            h = by_n[n]
+            i = after.index(cl)
+            s0 = max(after.rfind(". ", 0, i), after.rfind("\n", 0, i), after.rfind("; ", 0, i)) + 1
+            fold = an._chain_fold(after[s0:i])
+            spoke = [a for a in h["names"] if (" " + a + " ") in fold]
+            assert spoke, (turn, cl)
+            assert all(so.get(a) == {h["series_key"]} for a in spoke), (turn, cl, spoke)   # (2)
+        assert hops and all(h["contract"] and h["driver_id"] for h in hops), turn            # (3)
+
+
+def test_0923_L1_the_palm_rape_EU_drought_sentence_gets_NO_append(turns0923):
+    """DEFECT 1 (palm_rapeoil F1, FATAL). The served body appended the SE Asia palm-belt drought z to
+    "the EU drought anomaly and autumn establishment are the same series ...". The card's reading words
+    carry NO SCOPE, and the EU belt's drought rows are BOARD rows, never rendered hops -- so HEAD's fold,
+    which compared rendered hops with each other, never saw that the spelling names two series. The fold
+    now reads every board row by its series key.
+
+    VOCABULARY-FREE: the shared spelling is DERIVED from the card (whatever lane T names it), and the
+    control proves the refusal is caused by the collision and by nothing else."""
+    fx = turns0923["quick_rv_palm_rapeoil"]
+    bd, calls = _board0923(fx)
+    st = dict(fx["structured"])
+    cen = an._chain_lints(st, calls, bd)
+    assert _OPEN not in st["tldr"] + st["mechanism"] and cen["corrected"] == 0, cen
+    keys = {r.series_key for r in bd.rows if r.state is not None and r.state.metric == "drought_z"}
+    assert len(keys) >= 2 and any("SE Asia" in k for k in keys) and any("EU" in k for k in keys), keys
+    shared = an._chain_card_names("gold_weather_z", "drought_z", [])
+    assert shared, "the drought card declares no reader words -- nothing to collide on"
+    drought = [h for h in an._chain_hop_rows(bd, calls) if h["driver_id"] == "drought"]
+    assert drought and not (set(shared) & {n for h in drought for n in h["names"]}), drought
+    probe = "The %s is the reading that matters for this market." % shared[0]
+    assert _run(probe, calls, bd)[1]["corrected"] == 0              # two series -> names nothing
+    # CONTROL: the same board with the EU belt's rows removed gives the spelling ONE series again, and
+    # the palm-belt reading is appended at its own address -- the refusal was the collision's
+    bd.rows = [r for r in bd.rows if "EU Belt" not in r.series_key]
+    st2, cen2 = _run(probe, calls, bd)
+    assert cen2["corrected"] == 1 and "[N%d]" % drought[0]["n"] in st2["mechanism"], (cen2, st2)
+
+
+def test_0923_L1_figure_is_the_pages_one_precision_and_still_the_rows_own_value(turns0923):
+    """DEFECT 2. The appended figure is `render.shown_figure` of the row's full-precision value -- never
+    the label's six significant digits -- and it is still a SPELLING of that value (L1 mints no numeral:
+    the text is inside half a unit of its last printed decimal)."""
+    for turn in ("deep_state_cocoa_2026_09", "deep_state_rice_2026_09", "max_rv_soybeans_state_2026_09_07"):
+        fx = turns0923[turn]
+        bd, calls = _board0923(fx)
+        idx = an._seam_row_index(calls)
+        for h in an._chain_hop_rows(bd, calls):
+            if not h["n"]:
+                continue
+            row = idx[h["n"]]
+            raw = float(row["raw"])
+            num = h["figure"].split(" ")[0]
+            dec = len(num.split(".")[1]) if "." in num else 0
+            assert abs(float(num) - raw) <= 0.5 * 10 ** -dec + 1e-12, (turn, h["figure"], raw)
+            assert dec <= 2 or abs(raw) < 0.1, (turn, h["figure"])        # no machine precision
+            want = R.shown_figure(raw, table=row["table"], metric=row["metric"], unit=row["unit"]) \
+                if hasattr(R, "shown_figure") else ""
+            if want:
+                assert h["figure"] == want, (turn, h["figure"], want)
+
+
+def test_0923_the_backstop_fires_on_cotton_and_tariff_only_and_its_one_sentence_obeys_the_limits(turns0923):
+    """DEFECT 3 (THREAT A-3 / A-4). With the coverage counter the human read gives (lane R's fixed
+    `chain_referenced`), the board's ONE chain sentence lands on the two pages that narrated no rendered
+    chain and on none of the eight that did. The sentence is the board's own: <= 45 words, no digit
+    outside its [N] handles, clean on the desk-register and register detectors; the insertion is
+    append-only and idempotent."""
+    fired = []
+    for turn, fx in turns0923.items():
+        bd, calls = _board0923(fx)
+        st = dict(fx["structured"])
+        an._chain_lints(st, calls, bd)
+        mech0 = st["mechanism"]
+        cen = an._chain_backstop(st, bd, calls,
+                                 coverage={"chain_referenced": _HUMAN_READ_0923.get(turn, 1)})
+        if not cen["backstop_appended"]:
+            assert st["mechanism"] == mech0, turn
+            continue
+        fired.append(turn)
+        it = iter(st["mechanism"])
+        assert all(ch in it for ch in mech0), turn                    # insertion only
+        ins = st["mechanism"]
+        i = 0
+        while i < len(mech0) and mech0[i] == ins[i]:
+            i += 1
+        sent = ins[i:i + len(ins) - len(mech0)].strip()
+        assert sent and len(sent.split()) <= 45, (turn, sent)
+        assert not re.findall(r"\d", re.sub(r"\[N\d+\]", "", sent)), (turn, sent)
+        assert REG.desk_register_hits(sent) == [] and REG.register_leaks(sent) == [], sent
+        assert REG.internal_leaks(sent) == [], sent
+        snap = dict(st)
+        again = an._chain_backstop(st, bd, calls, coverage={"chain_referenced": 0})
+        assert st == snap and not again["backstop_appended"], turn   # idempotent
+    # 09-23 FIX ROUND (review RA M3): the backstop's guard (3) is the COUNTER'S OWN PRODUCER
+    # (`render.chain_referenced_in`, no keyword gate), and the tariff and cotton pages DO name two linked
+    # hops of a rendered chain in one sentence ("export pace ... feeds the stocks-to-use ratio"; "if El
+    # Nino emerges ... weaken the Indian monsoon and raise drought") -- so no second telling lands on any
+    # of the ten pages. The firing path itself is pinned on a page that names no chain (next pin).
+    assert fired == [], fired
+
+
+def test_0923_the_backstop_lands_at_the_end_of_the_chain_movements_own_section(turns0923):
+    """On a page whose prose names NO link of any rendered chain (the cotton board, the writer's words
+    replaced by a section that names none), the ONE sentence lands at the end of the chain movement's own
+    section, within its limits, append-only and idempotent."""
+    fx = turns0923["deep_state_cotton_2026_09"]
+    bd, calls = _board0923(fx)
+    head = N.MANDATE_CHAIN_ROW[1]
+    st = dict(fx["structured"])
+    st["tldr"] = "The balance sheet is tightening on the projections we hold."
+    st["mechanism"] = ("The picture is mixed.\n\n" + head + "\nThe board carries more than one reading.\n\n"
+                       "## What would change the view\nA wetter season.")
+    cen = an._chain_backstop(st, bd, calls, coverage={"chain_referenced": 0})
+    m = st["mechanism"]
+    sec = m.split(head, 1)[1].split("\n## ", 1)[0]
+    assert cen["backstop_appended"] == 1 or not hasattr(R, "chain_page_sentence"), cen
+    assert "One chain the data carries" in sec or not hasattr(R, "chain_page_sentence"), sec[-400:]
+    sent = sec.strip().split("\n")[-1]
+    assert len(sent.split()) <= 45 and not re.findall(r"\d", re.sub(r"\[N\d+\]", "", sent)), sent
+    snap = dict(st)
+    assert not an._chain_backstop(st, bd, calls, coverage={"chain_referenced": 0})["backstop_appended"]
+    assert st == snap
+
+
+def test_0923_the_backstop_withholds_when_the_writer_narrated_ANY_rendered_chain(turns0923):
+    """The second guard, on its own (the counter handed to it says zero): the corn/wheat page narrated the
+    PAIR-slot chain (rendered second), deep 2026 / max / cocoa cite two hop addresses in one sentence --
+    the backstop never tells a chain the writer already told."""
+    for turn in ("quick_rv_corn_wheat", "deep_rv_soybeans_state_2026_09_07",
+                 "max_rv_soybeans_state_2026_09_07", "deep_state_cocoa_2026_09"):
+        fx = turns0923[turn]
+        bd, calls = _board0923(fx)
+        st = dict(fx["structured"])
+        an._chain_lints(st, calls, bd)
+        cen = an._chain_backstop(st, bd, calls, coverage={"chain_referenced": 0})
+        assert not cen["backstop_appended"], (turn, cen)
+
+
+def test_the_backstop_needs_the_writers_zero_and_fails_closed_without_it(turns0923):
+    fx = turns0923["deep_state_cotton_2026_09"]
+    bd, calls = _board0923(fx)
+    for cov in (None, {}, {"declined": "KeyError"}, {"chain_referenced": 1}, {"chain_referenced": "x"}):
+        st = dict(fx["structured"])
+        cen = an._chain_backstop(st, bd, calls, coverage=cov)
+        assert st == fx["structured"] and not any(cen.values()), cov
+    # no rendered chain -> nothing; a board that carries no chains at all -> nothing
+    st = dict(fx["structured"])
+    empty = _types.SimpleNamespace(chains=[], rows=[], rendered_rows=(), anchor_slugs=("cotton",))
+    assert not any(an._chain_backstop(st, empty, calls, coverage={"chain_referenced": 0}).values())
+    assert not any(an._chain_backstop(None, bd, calls, coverage={"chain_referenced": 0}).values())
+
+
+def test_0923_the_backstop_count_rides_the_chain_lints_census_at_the_seat():
+    """C14: the count rides `chain_lints["backstop_appended"]` (the eval splat), never a new trace key --
+    read at source, in the chain-flag gate, after the three lints."""
+    src = inspect.getsource(an._answer_l2)
+    i = src.index("_clints = _chain_lints(structured, extra_number_calls, _board")
+    seg = src[i:i + 1600]
+    assert "_chain_backstop(structured, _board, extra_number_calls, coverage=_cov" in seg
+    assert "_clints[_bk] = int(_bv)" in seg
+    assert src.index("_cov = _sbr.board_coverage(") < i          # the WRITER's coverage, counted first

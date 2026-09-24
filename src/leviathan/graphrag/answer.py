@@ -4710,6 +4710,12 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # A block that never shipped has no coverage to measure, and scoring one would charge a writer for
     # rows it was never handed.
     _board_n_start, _board_block_shipped = None, False
+    # 09-23 LANE A (CONTRACT C4 / C2): the two board facts the writer-side passes read AFTER the writer,
+    # taken off the seam's own payload and nothing else. `served_scalars` is every figure the BLOCK
+    # printed (lane R's `Block.served_scalars()`), handed to the verifier ONLY when the block reached the
+    # prompt; `row_handles` is the block's own {(contract, driver_id): {level, sigma, percentile, peak,
+    # current}} map, read by the chain backstop. Both None on every board-off turn -> no kwarg, no read.
+    _served_scalars, _board_row_handles = None, None
     if _board is not None:
         _board_n_start = len(extra_number_calls or []) + 1
         _sb = _sbs.fill_stage2(_board, graph=graph, sg=sg,
@@ -4726,10 +4732,24 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
                                # the render takes its topology-line arm, and the block is the
                                # 2026-09-16 smoke's byte for byte (DESIGN B.7).
                                state_chain=_state_chain_on(),
-                               e_start=len(_uniq) + 1)
+                               e_start=len(_uniq) + 1,
+                               # 09-23 INTEGRATION SEAM (lane R's kwarg, THREAT R-14): the turn's own
+                               # {source_key: [E] ordinal}, the SAME positional numbering `cit.unify`
+                               # stamps, read ONLY by the chain's document row (render
+                               # `chain_document_cite`), so a board-on / chain-off block cannot move.
+                               evidence_ordinals=_evidence_ordinals(_uniq))
         if _sb.get("block") and _quant_on:
             volatile_blocks = volatile_blocks + [_sb["block"]]
             _board_block_shipped = True
+            # C4 TRANSPORT: the pool rides ONLY with a block the writer was actually handed -- a figure
+            # the prompt never carried backs nothing. Read DEFENSIVELY (`dict.get`): the seam returns
+            # the key only when the block rendered, so a flag-off or declined board passes nothing.
+            if isinstance(_sb.get("served_scalars"), list):
+                _served_scalars = _sb["served_scalars"]
+            _rh = _sb.get("row_handles")
+            if not isinstance(_rh, dict):
+                _rh = getattr(_board, "row_handles", None)
+            _board_row_handles = _rh if isinstance(_rh, dict) else None
         if _sb.get("request") and _quant_on:
             _board_req = _sb["request"]
         # THE TRACE KEY IS STAMPED WHETHER THE BOARD FIRED OR DECLINED (design 6.7, D10): one
@@ -5258,6 +5278,20 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # D-HP-1: `evidence` / `uniq` were BUILT HERE and are now built BEFORE `_l2_blocks` (see the hoist
     # above). These two names are kept so the rest of this body reads unchanged; nothing is re-derived.
     evidence, uniq = _evidence, _uniq
+    # 09-23 LANE A, DEFECT 7 (CONTRACT C3 `display`): THE ANALYST-PRECISION STAMP, on EVERY number call of
+    # the turn -- the numbers seat's and the board's alike -- iff GRAPHRAG_STATE_BOARD is lit (OWNER
+    # DECISION 10: the board flag, through this stamp; widening to both cells is the owner's). Lane C's
+    # `citations.from_number` reads it and prints the label's headline value through the page's ONE
+    # precision producer, so a row reads one way in the block, the footer and L1 (THREAT_MODEL I-6).
+    # IT IS STAMPED HERE, AFTER THE WRITER RETURNED: the writer's numbers panel was built upstream from
+    # the orchestrator's own labels and is a string by now, so no prompt byte can move -- what moves is
+    # every label this answer mints from here on (the UI list, the seam index, the `## Sources` rows).
+    # THE CALLS ARE COPIED, NEVER MUTATED: the dicts are shared with the orchestrator's own
+    # `number_calls` (the FE product contract), and a stamp that leaked into them would change a surface
+    # this lane does not own. Flag off -> the list is not touched at all (A-8: flag-off served_rows
+    # byte-identical).
+    if _state_board_on():
+        extra_number_calls = _display_stamped(extra_number_calls)
     ev_cits = cit.unify(uniq, extra_number_calls)                 # machine-readable list (UI drill-down)
     from leviathan.graphrag import verify as vf
     # D-DV-1c: the RENDERED contract set, not sg.seeds. _l2_blocks builds a context block for EVERY walk
@@ -5275,7 +5309,10 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     verifier = vf.verify_citations(structured, uniq, extra_number_calls,
                                    foreign_names=_foreign_regime_names(
                                        graph, sorted({n.contract for n in sg.nodes})),
-                                   handle_prose=_handles)         # D-HP-9/12: the SAME one resolution
+                                   handle_prose=_handles,         # D-HP-9/12: the SAME one resolution
+                                   # C4/C15 TRANSPORT: the board's printed-figure pool, OMITTED unless the
+                                   # block reached the prompt -- a flag-off call is HEAD's kwargs exactly.
+                                   **_served_scalars_kw(vf, _served_scalars))
     _bar_licence = _bar_licence_for(_bar_licence, verifier)        # S7b R1 review MINOR: one predicate
     # LANE E (2026-09-17): THE WRITER SEAM's ONE RESOLVED BOOL, read HERE and threaded to all three of
     # its consumers -- the lint pass, `render`'s scaffold kwarg and `_cited_sources_block`'s footer
@@ -5303,6 +5340,19 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
     # switch, no new cost class, and every existing key is byte-identical.
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         postverify_tldr=structured.get("tldr"), postverify_mechanism=structured.get("mechanism")))
+    # 09-23 LANE A, DEFECT 5 -- THE BODY SERVED TWICE. A PURE CORRECTION, BOTH BODIES: a TL;DR field that
+    # carries the response contract's own section headings is the mechanism written a second time into
+    # the wrong tool field (tariff turn: 7,504 chars carrying "## Mechanism" .. "## What to watch", served
+    # twice). Seated AFTER the verifier -- whose strip ledger and denominators stay HEAD's -- and BEFORE
+    # the coverage count, so the writer's coverage is read off the page actually served. Every other turn
+    # carries no section heading in its TL;DR and is untouched byte for byte.
+    # 09-24 (VERIFY_FINAL m3): THE TREATMENT CELL ONLY. The correction and its census key ride the board
+    # flag, in ONE expression so the two can never disagree: flag off -> the de-dup never runs, the body
+    # is HEAD's and the key is absent (the splat idiom), so a CONTROL record is HEAD's 213 columns always.
+    _spine = _dedup_spine_tldr(structured) if _state_board_on() else {}
+    if any(v for v in _spine.values()):
+        sg.trace["tldr_spine_deduped"] = _spine
+    _cov = None                                  # 09-23 LANE A: read by the chain backstop below
     # ══ STATE ENGINE S7 -- THE BOARD-COVERAGE INSTRUMENT, BESIDE THE VERIFIER AND NEVER INSIDE IT ═══
     # WHAT THE WRITER DID WITH THE BOARD, counted against the rendered block: the top-`loud_k` state
     # rows, every OPEN event row, every RECENCY layer fact, every WATCH row and the far spillover rows.
@@ -5436,6 +5486,15 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
         # the D-HP contract.
         if _state_chain:
             _clints = _chain_lints(structured, extra_number_calls, _board, handle_prose=_handles)
+            # 09-23 LANE A, DEFECT 3 -- THE CHAIN-OMITTED BACKSTOP, in the SAME gate and immediately after
+            # the three lints (they read the writer's own sentences; the backstop's one sentence is the
+            # board's and must never be read by them as the writer naming a hop). It reads the coverage
+            # counted ABOVE -- the writer's number, never re-stamped -- and its count rides this census
+            # (CONTRACT C14: `chain_lints["backstop_appended"]`), stamped only when non-zero.
+            for _bk, _bv in _chain_backstop(structured, _board, extra_number_calls, coverage=_cov,
+                                            row_handles=_board_row_handles).items():
+                if _bv:
+                    _clints[_bk] = int(_bv)
             # STAMPED IFF SOMETHING WAS READ OR DONE, the `bar_adjectives` rule: `outcome` alone is not
             # a finding, and a key stamped on every chain turn would move an eval column for no
             # measured reason. A turn whose block carried chains the writer never narrated is a real
@@ -5567,6 +5626,11 @@ def _answer_l2(query: str, graph: gph.CausalGraph, *, model, asof, near, call, r
             _d = _dreg or {}
             _sbcov["register_lingo_hits"] = int(_d.get("hits_after") or 0)
             _sbcov["register_lingo_rewritten"] = int(_d.get("rewritten") or 0)
+            # OWNER DECISION 8 (review RA M4): the v1 (eleven-token) count beside the extended one, so
+            # the arm reports both side by side and never reads the grown table as a treatment delta
+            # (a clean answer's census carries no v1 key: its v1 count is ZERO by inclusion -- the v1
+            # table is a subset of the extended one that counted nothing -- a true zero, never a fake one)
+            _sbcov["register_lingo_hits_v1"] = int(_d.get("hits_after_v1") or 0)
     # A4b SEAM 1: `_humanize_structured` is the FIRST reg.sanitize pass on the prose (per field). Capture
     # its INPUT -- post-verify, pre-sanitize -- because that is the last state in which a banned sentence
     # is still attributable to sanitize rather than to the verifier's strips.
@@ -5684,6 +5748,182 @@ def _prompt_parts(query: str, contracts: list[str], stable_blocks: list[str],
 def _pack(stable: str, volatile: str, structured: bool):
     """Real call path -> (stable, volatile) tuple for cached blocks; injected fakes -> one plain string."""
     return (stable, volatile) if structured else stable + "\n\n" + volatile
+
+
+#: A numeral token as a CLAIM-IDENTITY key: digits with optional thousands commas and decimals,
+#: compared with the commas folded out ("12,357" and "12357" are one figure). It TOKENISES a sentence
+#: the writer already wrote for the de-dup below; it finds no claim and charges nothing, and it is a
+#: SUPERSET of the verifier's claim spans (years and ordinals are kept), which is the direction that
+#: keeps a sentence rather than drops it.
+_SPINE_NUM_RX = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _spine_claims(text: str) -> frozenset:
+    """A sentence's CLAIM CONTENT: every `[N]` / `[E]` address it cites (each member of a grouped or
+    ranged token, through the one handle grammar each namespace has) and every numeral it prints outside
+    those tokens, commas folded."""
+    out: set = set()
+    t = str(text or "")
+    for m in _N_HANDLE_RX.finditer(t):
+        out |= {("N", i) for i in _n_handle_members(m.group(0))}
+    for m in _E_HANDLE_RX.finditer(t):
+        out |= {("E", i) for i in _e_handle_members(m.group(0))}
+    bare = _E_HANDLE_RX.sub(" ", _N_HANDLE_RX.sub(" ", t))
+    out |= {("#", x.replace(",", "")) for x in _SPINE_NUM_RX.findall(bare)}
+    return frozenset(out)
+
+
+def _spine_norm(text: str) -> str:
+    """The sentence-identity key: letters and digits only, one space, lower case (the chain lints' own
+    match alphabet, `_chain_fold`)."""
+    return _chain_fold(text).strip()
+
+
+def _spine_sections(text: str, spine: frozenset) -> tuple:
+    """(lead, [(heading, body)]) -- ``text`` cut at the lines that ARE a declared spine heading
+    (`response_contracts.SECTIONS`, the nine reserved literals). A `## ` line the contract does not
+    declare is ordinary body text and cuts nothing, so this is never "truncate at the first ## "."""
+    lead: list = []
+    secs: list = []
+    for ln in str(text or "").splitlines(keepends=True):
+        if ln.strip() in spine:
+            secs.append([ln.strip(), []])
+        elif secs:
+            secs[-1][1].append(ln)
+        else:
+            lead.append(ln)
+    return "".join(lead), [(h, "".join(b)) for h, b in secs]
+
+
+def _dedup_spine_tldr(structured: dict | None) -> dict:
+    """THE BODY SERVED TWICE (09-23 fix round, lane A, defect 5; THREAT_MODEL A-6). Returns
+    ``{sections, sentences_removed, sentences_moved}`` -- all zero on every turn whose TL;DR carries no
+    declared section heading, which is nine of the ten 09-23 turns; mutates ``structured`` only when a
+    TL;DR field DOES carry one; never raises.
+
+    THE MEASURED DEFECT: on the tariff turn the writer put the whole body into the tool's `tldr` field
+    (7,504 chars carrying `## Mechanism` .. `## What to watch`) AND wrote it again, paraphrased, into
+    `mechanism`; the page served both (2,418 words, every heading twice).
+
+    THE FIELDS ARE VALIDATED AGAINST THE DECLARED SPINE. The response contract's section headings
+    (`response_contracts.SECTIONS`) belong to the `mechanism` field; a `tldr` that carries one has filed
+    body text in the summary field. The TL;DR's own lead -- everything above its first declared heading
+    -- is the summary and is NEVER touched. Each section below it is compared with the mechanism the
+    writer ALSO wrote, sentence by sentence:
+      * a sentence whose normalised text appears in `mechanism`, or whose CLAIM CONTENT -- every
+        `[N]`/`[E]` address and every numeral it prints -- the mechanism already carries, is the same
+        statement served a second time, and it is removed from the TL;DR (the words are the writer's
+        paraphrase of a claim the page still carries, address and figure included);
+      * any other sentence carries a claim the mechanism does NOT, so it is MOVED -- appended to the end
+        of the mechanism's section under the same heading, or with its heading at the mechanism's end
+        when the writer wrote no such section -- and never deleted: every figure and every address the
+        writer printed reaches the reader exactly once.
+    MEASURED on the tariff turn (laneA/drive_spine.py): the TL;DR's four sections carry 46 sentences
+    below its three-sentence lead. On the POST-VERIFY fields this pass actually reads, 45 are the
+    mechanism's own claims again and leave; ONE is moved -- "The channel reopened in 2025 ... reported
+    19 March 2025 [E7] ...", whose [E7] receipt the verifier kept in the TL;DR's copy and stripped from
+    the mechanism's -- so the receipt reaches the reader once. Page 2,240 -> 1,145 words, every declared
+    heading once, 0 claims lost; the other nine turns byte-identical. (Only 4 of the 46 are textually
+    identical to a mechanism sentence: the writer PARAPHRASED its own body, which is why sentence text
+    alone cannot serve the body once and the claim test is the one that decides.)
+
+    FAILS CLOSED: a TL;DR that is ONLY spine (no lead) is left as it is -- a correction must never serve
+    an empty summary; and an unreadable contract module changes nothing. REJECTED: truncating the TL;DR
+    at the first "\\n## " (positional, and it would delete a claim the mechanism does not carry)."""
+    census = {"sections": 0, "sentences_removed": 0, "sentences_moved": 0}
+    if not isinstance(structured, dict):
+        return census
+    tldr, mech = structured.get("tldr"), structured.get("mechanism")
+    if not isinstance(tldr, str) or not isinstance(mech, str) or not mech.strip():
+        return census
+    try:
+        from leviathan.graphrag import response_contracts as _rc
+        spine = frozenset(str(h) for h in _rc.SECTIONS)
+        lead, secs = _spine_sections(tldr, spine)
+        if not secs or not lead.strip():
+            return census
+        m_norm = " " + _spine_norm(mech) + " "
+        m_claims = _spine_claims(mech)
+        moved: list = []                                   # (heading, [sentence, ...]) in written order
+        for heading, body in secs:
+            census["sections"] += 1
+            keep: list = []
+            for sent in reg._SENT_KEEP.split(body)[0::2]:
+                if not sent.strip():
+                    continue
+                n = _spine_norm(sent)
+                if (n and (" " + n + " ") in m_norm) or _spine_claims(sent) <= m_claims:
+                    census["sentences_removed"] += 1
+                    continue
+                keep.append(sent.strip())
+                census["sentences_moved"] += 1
+            if keep:
+                moved.append((heading, keep))
+        new_mech = mech
+        for heading, keep in moved:
+            new_mech = _spine_append(new_mech, heading, " ".join(keep), spine)
+        structured["tldr"] = lead.rstrip()
+        structured["mechanism"] = new_mech
+    except Exception:  # noqa: BLE001 -- a field correction must never be the thing that breaks an answer
+        return census
+    return census
+
+
+def _spine_append(mech: str, heading: str, text: str, spine: frozenset) -> str:
+    """``text`` appended as its own paragraph at the END of ``mech``'s section under ``heading`` (before
+    the whitespace that separates it from the next declared heading), or -- when the mechanism has no
+    such section -- as a new section at the mechanism's end. Insertion only: every character of
+    ``mech`` stays, in order."""
+    lines = mech.splitlines(keepends=True)
+    pos, inside = 0, False
+    for ln in lines:
+        if inside and ln.strip() in spine:
+            at = len(mech[:pos].rstrip())
+            return mech[:at] + "\n\n" + text + mech[at:]
+        if ln.strip() == heading:
+            inside = True
+        pos += len(ln)
+    if inside:
+        at = len(mech.rstrip())
+        return mech[:at] + "\n\n" + text + mech[at:]
+    at = len(mech.rstrip())
+    return mech[:at] + "\n\n" + heading + "\n\n" + text + mech[at:]
+
+
+#: CONTRACT C3's one value for the `display` key: the label's headline figure at ANALYST precision
+#: (lane C reads it in `citations.from_number`; lane R's `render.shown_figure` is the producer).
+_DISPLAY_ANALYST = "analyst"
+
+
+def _display_stamped(number_calls: list | None) -> list:
+    """A COPY of the turn's number calls, each dict call carrying ``display = "analyst"`` (CONTRACT C3).
+    Shallow copies: the rows, the query and every other key are the SAME objects, so no value, unit,
+    period or query can move (THREAT_MODEL R-1's invariant, held at this seam too); a non-dict entry
+    is kept exactly as it came (the index space `[N]` addresses is positional and must not shift)."""
+    return [dict(c, display=_DISPLAY_ANALYST) if isinstance(c, dict) else c
+            for c in list(number_calls or [])]
+
+
+@functools.lru_cache(maxsize=1)
+def _verify_takes_served_scalars(fn) -> bool:
+    """Does the verifier this process loaded declare CONTRACT C15's `served_scalars` kwarg? Read off
+    its SIGNATURE once, so a tree where lane V has not landed yet ships HEAD's call exactly instead of
+    raising a TypeError on every board turn -- the defensive-read rule CONTRACT.md opens with."""
+    import inspect as _inspect                          # lazy: read once per process
+    try:
+        return "served_scalars" in _inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def _served_scalars_kw(vf, pool) -> dict:
+    """``{"served_scalars": pool}`` when there IS a pool (the block reached the prompt) and the verifier
+    takes it; ``{}`` otherwise, so every board-off turn calls `verify_citations` with HEAD's kwargs and
+    the verifier sees its declared default, None (THREAT_MODEL I-8)."""
+    if not isinstance(pool, list):
+        return {}
+    fn = getattr(vf, "verify_citations", None)
+    return {"served_scalars": pool} if (fn is not None and _verify_takes_served_scalars(fn)) else {}
 
 
 # D-HP G1 AMENDMENT A2(a), 2026-08-14 -- THE BUDGET SENTENCE, AND WHY THE OLD ONE WAS FALSE.
@@ -10618,26 +10858,105 @@ def _chain_hop_names(printed: str, call) -> tuple:
             out.append(folded)
     q = (call or {}).get("query") if isinstance(call, dict) else None
     if isinstance(q, dict):
-        try:
-            from leviathan.graphrag.state import render as _sr  # lazy: the state package is phase-2
-            words = _sr.reading_words(str(q.get("table") or ""), str(q.get("metric") or ""))
-        except Exception:  # noqa: BLE001 -- an unreadable conventions book is one fewer spelling
-            words = ""
-        folded = _chain_fold(words).strip()
-        for cand in (folded, folded[4:] if folded.startswith("the ") else ""):
-            if len(cand) >= _CHAIN_NAME_MIN and cand not in out:
-                out.append(cand)
+        _chain_card_names(str(q.get("table") or ""), str(q.get("metric") or ""), out)
     return tuple(out)
+
+
+def _chain_card_names(table: str, metric: str, out: list) -> list:
+    """The card's DECLARED reader words (``render.reading_words``), folded, with and without a leading
+    article, appended to ``out`` under the :data:`_CHAIN_NAME_MIN` rule. ONE spelling of the rule for
+    the rendered hop (above) and for every other board row (:func:`_chain_row_names`), so a hop and a
+    board row reading the same card can never be named by two different vocabularies."""
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: the state package is phase-2
+        words = _sr.reading_words(str(table or ""), str(metric or ""))
+    except Exception:  # noqa: BLE001 -- an unreadable conventions book is one fewer spelling
+        words = ""
+    folded = _chain_fold(words).strip()
+    for cand in (folded, folded[4:] if folded.startswith("the ") else ""):
+        if len(cand) >= _CHAIN_NAME_MIN and cand not in out:
+            out.append(cand)
+    return out
+
+
+def _chain_names_folded(spellings, out: list | None = None) -> list:
+    """Producer spellings -> the MATCH ALPHABET, under the :data:`_CHAIN_NAME_MIN` rule. The producer
+    (``render.chain_hop_reader_names``, CONTRACT C9) already folds; folding again is idempotent and is
+    what keeps this lint's key space ONE key space whatever the producer's own normalisation is."""
+    out = [] if out is None else out
+    for s in (spellings or ()):
+        folded = _chain_fold(s).strip()
+        if len(folded) >= _CHAIN_NAME_MIN and folded not in out:
+            out.append(folded)
+    return out
+
+
+def _chain_hop_printed_name(sr, hop) -> str:
+    """THE NAME THE BLOCK PRINTS FOR THIS HOP -- CONTRACT C9's ``render.chain_hop_name(hop)`` (the
+    series' own reader name plus its scope words), read DEFENSIVELY: before lane R lands it the block
+    still prints ``humanise(driver_id)`` and so does this. THE TWO SIDES MOVE TOGETHER OR THE JOIN
+    FAILS CLOSED (THREAT_MODEL A-2 / I-3): the positional identity check below compares the line the
+    block printed with THIS function, so a block that renamed its hops while this lint kept comparing
+    the driver id would leave every hop identity-less -- inert, never wrong."""
+    fn = getattr(sr, "chain_hop_name", None)
+    if callable(fn):
+        try:
+            return str(fn(hop) or "")
+        except Exception:  # noqa: BLE001 -- an unreadable name is an identity-less hop, never a guess
+            return ""
+    return str(sr.humanise(getattr(hop, "driver_id", "")) or "")
+
+
+def _chain_hop_reader_spellings(sr, hop) -> list:
+    """CONTRACT C9's ``render.chain_hop_reader_names(hop)`` -- the spellings a writer may use for one
+    hop (its printed name, the card's reading words, the driver's display name) -- folded; ``[]`` when
+    the producer is absent or raises, so the caller keeps HEAD's two spellings and nothing else."""
+    fn = getattr(sr, "chain_hop_reader_names", None)
+    if not callable(fn):
+        return []
+    try:
+        return _chain_names_folded(fn(hop))
+    except Exception:  # noqa: BLE001 -- one fewer spelling, never a raise
+        return []
+
+
+def _chain_row_names(sr, r) -> list:
+    """The folded spellings ONE BOARD ROW may be named by: the driver's display name and its card's
+    declared reading words -- the SAME two vocabularies a rendered hop carries (HEAD's `_chain_hop_names`
+    pair, through the same :data:`_CHAIN_NAME_MIN` rule). Used ONLY to REFUSE: a spelling that names
+    two DISTINCT series among the board's rows names nothing (see `_chain_hop_rows`' fold), so a wider
+    set here can only withhold an append and never make one."""
+    out: list = []
+    st = getattr(r, "state", None)
+    _chain_names_folded((sr.humanise(getattr(r, "driver_id", "")),), out)
+    if st is not None:
+        _chain_card_names(str(getattr(st, "table", "") or ""), str(getattr(st, "metric", "") or ""), out)
+        # ...and the row's SERIES NAME as the render names it (CONTRACT C1 `RowIdentity.name`, through
+        # `render.row_identity_for`, the one door): where a card declares no reading words the render
+        # names the series by its metric label, and a hop reading such a card carries that label among
+        # its reader names -- so the refusal side must see it too, or the collision it exists for hides.
+        fn = getattr(sr, "row_identity_for", None)
+        if callable(fn):
+            try:
+                ident = fn(r)
+                nm = str(getattr(ident, "name", "") or "") if ident is not None else ""
+                if nm:
+                    _chain_names_folded((nm, nm[4:] if nm.lower().startswith("the ") else ""), out)
+            except Exception:  # noqa: BLE001 -- one fewer refusal spelling, never a raise
+                pass
+    return out
 
 
 def _chain_hop_rows(board, number_calls) -> list:
     """Every hop of every chain THE BLOCK RENDERED, in page order, joined to the rows that minted its
     figures. ``[]`` when the chain leg did not run, which is every flag-off turn.
 
-    Each entry: ``{rank, pos, printed, names, n, pct_n, figure, pct, contract, driver_id, id}`` -- the
-    chain's page position, the hop's position inside it, the name the page printed, the folded
-    spellings it may be narrated by, the `[N]` address of its level and of its percentile, the two
-    figures as the CITATION spells them, and THE HOP'S OWN (contract, driver_id) IDENTITY. ``n`` is
+    Each entry: ``{rank, pos, printed, names, n, pct_n, figure, pct, contract, driver_id, series_key,
+    id}`` -- the chain's page position, the hop's position inside it, the name the page printed, the
+    folded spellings it may be narrated by, the `[N]` address of its level and of its percentile, the two
+    figures at the PAGE'S one precision (09-23: `render.shown_figure` / `rows.percentile_int`, no longer
+    the citation label's six digits), THE HOP'S OWN (contract, driver_id) IDENTITY and -- 09-23, the
+    L1 join key -- the SERIES it reads (`ChainHop.series_key`, '' on an identity-less hop). ``n`` is
     None for a hop the board read no series for, which is the honest majority: on the max fixture,
     five of the eight rendered hops carry no series at all.
 
@@ -10707,24 +11026,36 @@ def _chain_hop_rows(board, number_calls) -> list:
             _ch = chains[rank - 1] if 0 < rank <= len(chains) else None
             _hops = list(getattr(_ch, "hops", None) or ()) if _ch is not None else []
             _hop = _hops[pos - 1] if 0 < pos <= len(_hops) else None
-            if _hop is not None and str(_sr.humanise(getattr(_hop, "driver_id", "")) or "") != printed:
+            # 09-23 LANE A (THREAT_MODEL A-2 / CONTRACT C9): the identity is verified against the name
+            # the block PRINTS for a hop -- `render.chain_hop_name(hop)` -- and not against the driver
+            # id's display name, which is what the block printed before lane R named hops by their
+            # SERIES. One side moved without the other leaves the hop identity-less (fails closed).
+            if _hop is not None and _chain_hop_printed_name(_sr, _hop) != printed:
                 _hop = None
             contract = str(getattr(_hop, "contract", "") or "") if _hop is not None else ""
             driver_id = str(getattr(_hop, "driver_id", "") or "") if _hop is not None else ""
+            series_key = str(getattr(_hop, "series_key", "") or "") if _hop is not None else ""
             row = idx.get(n) if n else None
-            figure = " ".join(x for x in ((row or {}).get("value"), (row or {}).get("unit")) if x)
+            # 09-23 LANE A, DEFECT 2 (cocoa "-0.668155 z", rice "27.3095 %", max "2.6038 USD/bu"): the
+            # figure is the row's OWN value at the page's ONE precision (`_chain_figure_text`, C5), never
+            # the citation label's six significant digits. L1 still mints no numeral: the producer only
+            # ROUNDS the served value, and a text that is not a rounding of it falls back to the label.
+            figure = _chain_figure_text(row) if row else ""
             pct_n = pct_by_head.get((row or {}).get("head")) if row else None
             pct = ""
             if pct_n:
                 try:
-                    pct = _seam_ordinal(float(str(idx[pct_n]["value"]).replace(",", "")))
+                    pct = _chain_ordinal_text(float(str(idx[pct_n]["value"]).replace(",", "")))
                 except (KeyError, TypeError, ValueError):
                     pct, pct_n = "", None
-            out.append({"rank": rank, "pos": pos, "printed": printed,
-                        "names": _chain_hop_names(printed, calls[n - 1] if n and n <= len(calls)
-                                                  else None),
+            names = _chain_hop_names(printed, calls[n - 1] if n and n <= len(calls) else None)
+            if _hop is not None:
+                # THE PRODUCER'S READER SPELLINGS (C9) join HEAD's two -- only for a hop whose identity
+                # verified, so a spelling can never be borrowed from a hop the line does not print.
+                names = tuple(_chain_names_folded(_chain_hop_reader_spellings(_sr, _hop), list(names)))
+            out.append({"rank": rank, "pos": pos, "printed": printed, "names": names,
                         "n": n if figure else None, "pct_n": pct_n, "figure": figure, "pct": pct,
-                        "contract": contract, "driver_id": driver_id,
+                        "contract": contract, "driver_id": driver_id, "series_key": series_key,
                         "id": (contract, driver_id or printed, n if figure else None)})
         # E11: A SPELLING THAT NAMES TWO DIFFERENT ROWS NAMES NOTHING. `area` is a driver of
         # `corn_cbot` AND of `soft_red_winter_wheat_cbot` and the two read the 98th and the 1st
@@ -10750,18 +11081,133 @@ def _chain_hop_rows(board, number_calls) -> list:
         # broad belt below returned the PARTIALLY BUILT `out` from a mid-loop exception -- with the
         # colliding spellings still on it, because this block sits after the loop. A fence that an
         # exception can walk around is not a fence.
+        #
+        # 09-23 LANE A, DEFECT 1 (quick palm_rapeoil F1, FATAL): THE FOLD NOW READS EVERY BOARD ROW, NOT
+        # ONLY THE RENDERED HOPS. The served body appended the SE Asia palm-belt drought z ("the served
+        # reading is 0.15831 z [N54]") to a sentence about the EU drought anomaly, because the hop's
+        # spelling "drought anomaly" (the card's reading words for `gold_weather_z.drought_z`) carries
+        # NO SCOPE and the only other drought series on that board -- the EU belt's, rows 37 and 41 --
+        # was a board row and never a rendered hop, so the old fold, which compared rendered hops with
+        # each other, never saw the collision. THE JOIN KEY IS THE ROW'S SERIES (`series_key`, CONTRACT
+        # C1's own key): a spelling that names TWO DISTINCT SERIES among ALL the board's rows names
+        # NOTHING (THREAT_MODEL A-1). One series under two drivers (the crush fold) is one series and
+        # keeps its spelling. HEAD's `(contract, address)` rule over the rendered hops is KEPT beside
+        # it -- the new rule only ever adds refusals, which cost a figure the reader can still look up,
+        # never a word. REJECTED: a list of region words.
     except Exception:  # noqa: BLE001 -- an instrument must never be the thing that breaks an answer
         return out
     finally:
         where: dict = {}
+        series_of: dict = {}
         for h in out:
             for name in h["names"]:
                 where.setdefault(name, set()).add((h["contract"], h["n"]))
-        drop = {name for name, addrs in where.items() if len(addrs) > 1}
+                if h.get("series_key"):
+                    series_of.setdefault(name, set()).add(h["series_key"])
+        _chain_board_series_names(board, series_of)
+        drop = ({name for name, addrs in where.items() if len(addrs) > 1}
+                | {name for name, keys in series_of.items() if len(keys) > 1})
         if drop:
             for h in out:
                 h["names"] = tuple(x for x in h["names"] if x not in drop)
     return out
+
+
+def _chain_board_series_names(board, series_of: dict) -> dict:
+    """``series_of`` widened IN PLACE with ``{folded spelling -> {series_key}}`` over EVERY row of the
+    board that read a series -- the collision half of E11 at the prose end (see the fold in
+    `_chain_hop_rows`). A row with no ``series_key`` read nothing and can name no reading, so it adds no
+    key. Never raises: an unreadable board adds nothing, and the rendered hops' own keys still fold."""
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: phase-2 only, gate-guarded
+        for r in (getattr(board, "rows", None) or ()):
+            sk = str(getattr(r, "series_key", "") or "")
+            if not sk:
+                continue
+            for name in _chain_row_names(_sr, r):
+                series_of.setdefault(name, set()).add(sk)
+    except Exception:  # noqa: BLE001 -- a refusal source that cannot be read refuses nothing more
+        return series_of
+    return series_of
+
+
+def _chain_figure_text(row: dict) -> str:
+    """L1's appended FIGURE -- the served row's own value in its own unit, at the page's ONE precision.
+
+    THE PRODUCER IS `render.shown_figure` (CONTRACT C5), read defensively, handed the row's FULL
+    precision value (`Citation.value`, the headline row `citations.from_number` chose) and its card.
+    It replaces the label's `f"{v:g}"` six significant digits the 09-23 re-smoke served on three pages
+    (cocoa "-0.668155 z", rice "27.3095 %", max "2.6038 USD/bu") while the block printed the same handle
+    at two places -- one handle, two precisions.
+
+    THE L1 LAW STILL BINDS (answer.py's own note: "NONE OF THE THREE MINTS OR REWRITES A NUMERAL"): the
+    producer may only SPELL the served value, so the text it returns is accepted iff its leading number
+    is a ROUNDING of the raw value in the SAME unit -- inside half a unit of its own last printed
+    decimal. Anything else (a display scale applied twice, a producer not yet landed, a raise) falls
+    back to HEAD's label spelling, which is the row's own value. REJECTED: rounding the appended string
+    with a regex."""
+    unit = str(row.get("unit") or "")
+    fallback = " ".join(x for x in (row.get("value"), unit) if x)
+    raw = row.get("raw")
+    try:
+        v = float(str(raw).replace(",", ""))
+        from leviathan.graphrag.state import render as _sr  # lazy: phase-2 only
+        fn = getattr(_sr, "shown_figure", None)
+        if not callable(fn):
+            return fallback
+        txt = str(fn(v, table=str(row.get("table") or ""), metric=str(row.get("metric") or ""),
+                     unit=unit) or "").strip()
+    except Exception:  # noqa: BLE001 -- a figure this cannot spell is the label's own spelling
+        return fallback
+    m = _CHAIN_LEAD_NUM_RX.match(txt)
+    if not m:
+        return fallback
+    num = m.group(0)
+    try:
+        shown = float(num.replace(",", ""))
+    except ValueError:
+        return fallback
+    dec = len(num.split(".", 1)[1]) if "." in num else 0
+    tol = 0.5 * (10 ** -dec) * (1 + 1e-9) + 1e-12
+    rest = txt[m.end():].strip()
+    if abs(shown - v) <= tol and not (rest and unit and rest != unit):
+        return (num + " " + unit).strip() if unit else num
+    # ...OR the SAME row in the card's DECLARED display units (C10 `display_scale` / `display_unit`,
+    # read through `render.card_fields`, the one reader): a native 0.117 stocks-to-use ratio that the
+    # block prints "11.7 %" is printed "11.7 %" here too, so one row reads one way in the block, the
+    # footer and L1 (THREAT_MODEL I-6). Still no numeral minted: the text must be a rounding of the raw
+    # value times the card's own scale, in the card's own display unit.
+    try:
+        cf = _sr.card_fields(str(row.get("table") or ""), str(row.get("metric") or "")) \
+            if callable(getattr(_sr, "card_fields", None)) else {}
+        scale, d_unit = cf.get("display_scale"), str(cf.get("display_unit") or "")
+        if scale is not None and d_unit and rest == d_unit and abs(shown - v * float(scale)) <= tol:
+            return num + " " + d_unit
+    except Exception:  # noqa: BLE001 -- an unreadable card is the label's own spelling
+        pass
+    return fallback                                      # not a spelling of the served value
+
+
+#: The figure a precision producer returns, read from its front: an optional sign, digits with optional
+#: thousands commas, an optional decimal part. It PARSES a producer's own output; it never finds a
+#: figure in prose.
+_CHAIN_LEAD_NUM_RX = re.compile(r"[+-]?\d[\d,]*(?:\.\d+)?")
+
+
+def _chain_ordinal_text(p: float) -> str:
+    """L1's appended PERCENTILE, through the page's ONE percentile producer (`rows.percentile_int`,
+    CONTRACT C5: never rounded onto or across a decile line) when it has landed, else HEAD's ordinal
+    producer. The value is the percentile row's own, exactly as `_seam_percentiles` reads it."""
+    try:
+        from leviathan.graphrag.state import rows as _rows  # lazy: phase-2 only
+        fn = getattr(_rows, "percentile_int", None)
+        if callable(fn):
+            txt = str(fn(float(p)) or "").strip()
+            if txt:
+                return txt
+    except Exception:  # noqa: BLE001 -- HEAD's producer is the fallback, never a guess
+        pass
+    return _seam_ordinal(float(p))
 
 
 def _chain_pool_carry(board) -> dict:
@@ -10821,6 +11267,130 @@ def _chain_pool_carry(board) -> dict:
                     out.setdefault((str(getattr(hp, "contract", "") or ""), did), set()).add(i)
     except Exception:  # noqa: BLE001 -- an unreadable pool is NO CLAIM, never an unchecked one
         return {}
+    return out
+
+
+def _chain_backstop_insert_at(text: str) -> int:
+    """Where the backstop sentence goes: the END of the chain movement's own section -- the one headed
+    by `narration.MANDATE_CHAIN_ROW`'s heading -- before the whitespace that separates it from the next
+    level-2 heading; the end of the field (before its trailing whitespace) when the writer wrote no
+    such section. An OFFSET and never a rewrite: the caller inserts there and every character the
+    writer wrote stays where it was, in order."""
+    try:
+        from leviathan.graphrag.state.narration import MANDATE_CHAIN_ROW
+        heading = str(MANDATE_CHAIN_ROW[1])
+    except Exception:  # noqa: BLE001 -- no declared heading -> the field's end
+        heading = ""
+    end = len(text.rstrip())
+    if not heading:
+        return end
+    lines = text.splitlines(keepends=True)
+    pos, start = 0, None
+    for ln in lines:
+        if start is None and ln.strip() == heading:
+            start = pos + len(ln)
+        elif start is not None and ln.startswith("## "):
+            return len(text[:pos].rstrip())
+        pos += len(ln)
+    return end
+
+
+def _chain_backstop(structured: dict | None, board, number_calls, *, coverage,
+                    row_handles=None) -> dict:
+    """THE CHAIN-OMITTED BACKSTOP (09-23 fix round, lane A, defect 3). Returns
+    ``{"backstop_appended": 0|1, "backstop_withheld": 0|1}``; mutates ``structured['mechanism']`` by
+    INSERTION only; never raises.
+
+    THE MEASURED DEFECT: on the cotton and tariff turns of the 2026-09-23 re-smoke the block RENDERED
+    chains (cotton 2, tariff 2) and the served page narrated none of them -- the mandate's "a turn whose
+    block carries a chain never reaches the reader without one" (narration.MANDATE_CHAIN_MOVEMENT) had
+    no enforcement at all. A LOUDER MANDATE LINE WAS REJECTED: the mandate already says it.
+
+    THE CORRECTION COMPUTES, IT DOES NOT DELETE: when ALL THREE hold --
+      (1) the writer's own coverage number says no rendered chain was referenced
+          (`coverage["chain_referenced"] == 0`, lane R's hop-identity counter, read and NEVER re-stamped:
+          the coverage number stays the WRITER's),
+      (2) the block rendered at least one chain, and
+      (3) no sentence of the served prose names two or more distinct hops of the rank-1 rendered chain
+          by any spelling a reader could use for them (THREAT_MODEL A-4: a chain the writer DID narrate
+          in words the counter missed gets no second telling) --
+    ONE sentence, the board's own (`render.chain_page_sentence`, CONTRACT C9: digit-free except its
+    [N] handles, register-clean, at most three named nodes), is inserted at the end of the chain
+    movement's own section (`narration.MANDATE_CHAIN_ROW`'s heading), or at the field's end when the
+    writer wrote no such section. The board SELECTS: the rank-1 chain only, never a list (A-3).
+
+    FAILS CLOSED, AND COUNTED: an absent or declined coverage, a producer not yet landed, or a sentence
+    the producer declines (no hop of the chain carries a handle) appends NOTHING; the last two are
+    counted in ``backstop_withheld`` so the arm reads a withheld correction and not a silence.
+    IDEMPOTENT: a sentence already in the field is not appended twice."""
+    census = {"backstop_appended": 0, "backstop_withheld": 0}
+    if not isinstance(structured, dict) or not isinstance(coverage, dict) or coverage.get("declined"):
+        return census
+    try:
+        if int(coverage.get("chain_referenced")) != 0:
+            return census
+    except (TypeError, ValueError):
+        return census                              # no counter -> no claim that nothing was referenced
+    try:
+        from leviathan.graphrag.state import render as _sr  # lazy: phase-2 only, gate-guarded
+        chains = sorted((c for c in (getattr(board, "chains", None) or ())
+                         if getattr(c, "rendered", False)), key=lambda c: c.rank)
+        if not chains:
+            return census
+        ch = chains[0]
+        handles = row_handles if isinstance(row_handles, dict) else _chain_row_handles(board,
+                                                                                         number_calls)
+        # GUARD (3) CALLS THE COUNTER'S OWN PRODUCER (review RA M3): `render.chain_referenced_in` -- ONE
+        # sentence naming two distinct links of a rendered chain by their identity words, their reader
+        # names or their OWN [N] addresses (the block prints every measured hop's address, C2). The
+        # first cut's guard was a second, NARROWER spelling of that rule (full names or addresses only),
+        # so "never a second telling" rested on the counter's keyword anchor; one producer can never be
+        # narrower than itself. EVERY RENDERED CHAIN IS CHECKED, not only the one the backstop would
+        # print: condition (1) is "no rendered chain was referenced". Both halves only WITHHOLD.
+        from leviathan.graphrag import verify as _vf
+        text = f"{structured.get('tldr') or ''}\n{structured.get('mechanism') or ''}"
+        sents = _vf.sentences(text)
+        for c in chains:
+            hh = []
+            for h in (getattr(c, "hops", None) or ()):
+                rh = (handles or {}).get((str(getattr(h, "contract", "") or ""),
+                                          str(getattr(h, "driver_id", "") or ""))) or {}
+                hh.append(tuple(int(v) for v in rh.values() if isinstance(v, int) and v > 0))
+            if _sr.chain_referenced_in(c, sents, hop_handles=hh):
+                return census                      # the writer narrated a chain in its own words
+        fn = getattr(_sr, "chain_page_sentence", None)
+        if not callable(fn):
+            census["backstop_withheld"] += 1
+            return census
+        sentence = str(fn(ch, handles) or "").strip()
+        if not sentence:
+            census["backstop_withheld"] += 1
+            return census
+        mech = structured.get("mechanism")
+        mech = mech if isinstance(mech, str) else ""
+        if sentence in mech:                       # IDEMPOTENT: a re-run appends nothing twice
+            return census
+        at = _chain_backstop_insert_at(mech)
+        structured["mechanism"] = mech[:at] + ("\n\n" if mech[:at].strip() else "") + sentence + mech[at:]
+        census["backstop_appended"] += 1
+    except Exception:  # noqa: BLE001 -- a correction must never be the thing that breaks an answer
+        return census
+    return census
+
+
+def _chain_row_handles(board, number_calls) -> dict:
+    """``{(contract, driver_id): {"level", "sigma", "percentile", "peak", "current"}}`` for the hops the
+    block RENDERED -- the addresses the block itself printed on each hop line (`_chain_hop_rows`: the
+    line's own cite for the level, the label-head sibling for the percentile). It is the FALLBACK shape
+    of CONTRACT C2's `Block.row_handles` for a seam that does not hand that map over; it re-derives
+    nothing the page did not print."""
+    out: dict = {}
+    for h in _chain_hop_rows(board, number_calls):
+        if not (h.get("contract") and h.get("driver_id")):
+            continue
+        out.setdefault((h["contract"], h["driver_id"]),
+                       {"level": h.get("n"), "sigma": None, "percentile": h.get("pct_n"),
+                        "peak": None, "current": None})
     return out
 
 
@@ -11654,8 +12224,14 @@ def _desk_register_lint(structured: dict | None, *, call=None, model: str = "",
         fields = [(f, v) for f, v in fields if isinstance(v, str) and v.strip()]
         census["hits_before"] = sum(reg.count_desk_register(v) for _f, v in fields)
         census["hits_after"] = census["hits_before"]
+        # OWNER DECISION 8 (review RA M4): the v1 table's count BESIDE the extended one, on the same text --
+        # the arm's standing measure, so a metric whose table grew between cells is never read as a delta
+        _v1n = tuple(getattr(reg, "DESK_REGISTER_V1_NAMES", ()) or ())
         if not census["hits_before"]:
-            return census
+            return census                               # a clean answer: the v1 subset is zero by inclusion
+        if _v1n:
+            census["hits_before_v1"] = sum(reg.count_desk_register(v, _v1n) for _f, v in fields)
+            census["hits_after_v1"] = census["hits_before_v1"]
         # THE UNIT IS THE OFFENDING SENTENCE, addressed by (field, index) rather than by its text: two
         # identical sentences in one answer must not have one rewrite spliced over both.
         split = {f: reg._SENT_KEEP.split(v) for f, v in fields}
@@ -11665,10 +12241,23 @@ def _desk_register_lint(structured: dict | None, *, call=None, model: str = "",
                 if toks[i].strip() and reg.desk_register_hits(toks[i]):
                     offending.append((f, i, toks[i]))
         census["sentences"] = len(offending)
+        # THE v1 CLASS FIRST, THEN DOCUMENT ORDER (09-23 fix round, review RA M5 / THREAT R-11). The C13
+        # rows grew the table the rewrite offers from, and the cap is ten sentences: offered in document
+        # order, sentences carrying only a NEW token ("hop", "firing") displaced v1-bearing ones past the
+        # cap on a banked page (max soybeans: 14 offerable, 2 v1 sentences displaced). The v1 table is the
+        # arm's standing measure (OWNER DECISION 8), so its sentences are never displaced by the growth:
+        # a STABLE sort on "carries a v1 token" -- within each class the order is still the document's,
+        # never a yield the lint happened to score.
+        _v1 = frozenset(getattr(reg, "DESK_REGISTER_V1_NAMES", ()) or ())
+
+        def _is_v1(sent: str) -> bool:
+            return bool(_v1) and any(h[0] in _v1 for h in reg.desk_register_hits(sent))
+
+        offending.sort(key=lambda o: 0 if _is_v1(o[2]) else 1)
         take, used = [], 0
-        for f, i, s in offending:                       # DOCUMENT ORDER, then the cap. A cap that chose
-            if len(take) >= _DESK_REWRITE_MAX_SENTENCES:  # by yield would make the remedy depend on the
-                break                                     # order the lint happened to score.
+        for f, i, s in offending:                       # v1 CLASS, then DOCUMENT ORDER, then the cap. A
+            if len(take) >= _DESK_REWRITE_MAX_SENTENCES:  # cap that chose by yield would make the remedy
+                break                                     # depend on the order the lint happened to score.
             # A SENTENCE CARRYING A LINE BREAK IS NEVER OFFERED, and the restriction is declared and
             # counted rather than worked around. `_SENT_ITER` splits on `[.!?;]\s+` and deliberately
             # does NOT break on a bare newline (S1.F2/W0-1: the strip and the scanner must segment
@@ -11692,6 +12281,8 @@ def _desk_register_lint(structured: dict | None, *, call=None, model: str = "",
             census["outcome"] = "nothing_offerable"
             return census
         census["offered"] = len(take)
+        # OFFERED BY TOKEN CLASS (R-11's own drive reads it): v1-bearing vs new-token-only sentences
+        census["offered_v1"] = sum(1 for _f, _i, _h, b in take if _is_v1(b))
         if call is None:
             census["outcome"] = "no_caller"
             return census
@@ -11783,6 +12374,8 @@ def _desk_register_lint(structured: dict | None, *, call=None, model: str = "",
                 continue                                            # (5) no improvement -> no change
             split[f][i] = head + cand                               # the marker rides back VERBATIM
             census["rewritten"] += 1
+            if _is_v1(body):
+                census["rewritten_v1"] = census.get("rewritten_v1", 0) + 1
         if _refused:
             census["refused"] = _refused
         if census["rewritten"]:
@@ -11790,6 +12383,9 @@ def _desk_register_lint(structured: dict | None, *, call=None, model: str = "",
                 structured[f] = "".join(toks)
             census["hits_after"] = sum(reg.count_desk_register(structured.get(f) or "")
                                        for f, _v in fields)
+            if _v1n:
+                census["hits_after_v1"] = sum(reg.count_desk_register(structured.get(f) or "", _v1n)
+                                              for f, _v in fields)
             census["outcome"] = "rewritten"
         else:
             census["outcome"] = "unchanged"
@@ -11918,6 +12514,12 @@ _SEAM_ANNUAL_RX = re.compile(r"\bMY\s?\d{4}/\d{2}\b|\bMY\s?\d{4}(?![-/]?\d)|"
 #: card that says it publishes annually is annual whatever its period token spells, which is the other
 #: half of the same ruling and the half a period regex can never see.
 _SEAM_ANNUAL_CADENCES = frozenset(("annual", "annually", "yearly", "marketing_year", "crop_year"))
+#: ...and the PERIOD KINDS (`rows.PERIOD_KINDS` via `citations.period_kind`) that are a year's reading:
+#: a marketing year, a crop season ("2024/25 season"), a bare year -- the kind a card declares, read off
+#: the call, never a label spelling (09-23 fix round).
+_SEAM_ANNUAL_KINDS = frozenset(("marketing_year", "crop_season", "year"))
+#: The year and month of an ISO period VALUE ("2026-07", "2026-07-01") -- a data field's own format.
+_SEAM_ISO_MONTH_RX = re.compile(r"((?:19|20)\d\d)-(0[1-9]|1[0-2])(?!\d)")
 #: THE CURRENCY CLAIM -- the leg that turns a stale row into a claim about NOW, and it is deliberately
 #: NOT the copula. A first cut also charged `is|are|reads|sits|runs|stands|holds|remains`, which is
 #: ordinary English for stating a fact, and it charged 36 sentences over the five served bodies -- most
@@ -12156,8 +12758,22 @@ def _seam_row_index(number_calls) -> dict:
         # clause, the watch figure, the absence clause, the lag arithmetic) speaks the page's own ISO
         # and not the `20260904` the ESR card hands up. `_seam_iso_date` re-punctuates and derives
         # nothing; a stamp it cannot parse is carried through exactly as it came.
+        # 09-23 LANE A (C5 reader): the row's OWN full-precision value (`Citation.value`, the headline
+        # row `from_number` itself chose -- one selector, never a second one here) and its card, so a
+        # consumer that PRINTS the figure can hand it to the page's ONE precision producer
+        # (`render.shown_figure`) instead of re-printing the label's six significant digits. ADDITIVE:
+        # every existing reader of this index keys on the six names above and none of them moves.
+        _cq = c.get("query") if isinstance(c, dict) else None
+        # 09-23 FIX ROUND (review VC M1 / RA M2): the PERIOD the label prints and its KIND, off the call
+        # by the citation's own rule (`cit.printed_period`) -- the two clocks below key on the kind, never
+        # on the "MY" prefix lane C's correction removed from month / week / day labels.
+        _ptok, _pkind = cit.printed_period(c) if isinstance(c, dict) else ("", None)
         out[i] = {"label": label, "head": head.strip(), "value": val.strip(), "unit": unit,
-                  "known": _seam_iso_date(str(getattr(cn, "date", "") or ""))[:10], "cadence": cad}
+                  "known": _seam_iso_date(str(getattr(cn, "date", "") or ""))[:10], "cadence": cad,
+                  "raw": getattr(cn, "value", None),
+                  "table": str((_cq or {}).get("table") or "") if isinstance(_cq, dict) else "",
+                  "metric": str((_cq or {}).get("metric") or "") if isinstance(_cq, dict) else "",
+                  "period_token": _ptok, "period_kind": _pkind}
     return out
 
 
@@ -12440,11 +13056,28 @@ def _seam_row_age(r: dict, d_asof) -> tuple:
     if d_row is None:
         return (None, "")
     head = r.get("head") or ""
-    m = _SEAM_MONTH_PERIOD_RX.search(head)
-    if m:
+    # 09-23 FIX ROUND (review VC M1 / RA M2): BOTH CLOCKS KEY ON THE CALL'S OWN PERIOD KIND
+    # (`cit.printed_period`, the card's `period_words` through `citations.period_kind`) wherever the card
+    # declares one. Lane C's D3 correction removed the "MY" prefix from month labels, so the prefix regex
+    # silently stopped the month clock on every declared card (41 served rows lost "the 2026-07 reading";
+    # the "January ONI printed undated" class came back) and never saw "2024/25 season" as annual. An
+    # UNDECLARED card still prints HEAD's prefixed label, and reads HEAD's two regexes, byte for byte.
+    kind = r.get("period_kind")
+    ym = None
+    if kind:
+        if kind == "month":
+            # the call's own period VALUE (an ISO month or day, read as data -- its year and month)
+            _pm = _SEAM_ISO_MONTH_RX.search(str(r.get("period_token") or ""))
+            if _pm:
+                ym = (int(_pm.group(1)), int(_pm.group(2)))
+    else:
+        m = _SEAM_MONTH_PERIOD_RX.search(head)
+        if m:
+            ym = (int(m.group(1)), int(m.group(2)))
+    if ym:
         import calendar as _cal
         import datetime as _dt
-        y, mo = int(m.group(1)), int(m.group(2))
+        y, mo = ym
         p_end = _dt.date(y, mo, _cal.monthrange(y, mo)[1])
         if (d_asof - p_end).days > _SEAM_FRESH_DAYS:
             return ((d_asof - p_end).days,
@@ -12452,9 +13085,14 @@ def _seam_row_age(r: dict, d_asof) -> tuple:
     # ROUND-2 FIX (review MAJOR-4): the annual test is now the PERIOD SHAPE (a marketing year with no
     # month or day segment) OR the CADENCE THE CARD DECLARES -- never the bare `MY` prefix every period
     # in the estate carries, which made a COT week and an ESR week annual and charged them at a
-    # ZERO-day window. A head the MONTH clock already answered for never reaches this leg.
-    annual = bool(_SEAM_ANNUAL_RX.search(head)) or (r.get("cadence") or "") in _SEAM_ANNUAL_CADENCES
-    if m:
+    # ZERO-day window. A head the MONTH clock already answered for never reaches this leg. (09-23 fix
+    # round: a DECLARED kind answers the shape question itself -- marketing year / crop season / year.)
+    if kind:
+        annual = kind in _SEAM_ANNUAL_KINDS
+    else:
+        annual = bool(_SEAM_ANNUAL_RX.search(head))
+    annual = annual or (r.get("cadence") or "") in _SEAM_ANNUAL_CADENCES
+    if ym:
         annual = False                                 # the month period decided; one clock per row
     age = (d_asof - d_row).days
     if age > (0 if annual else _SEAM_FRESH_DAYS):
@@ -14258,6 +14896,44 @@ def _document_source_rows(d: dict, vreport: dict, *,
         if row[-1:] not in (".", "!", "?", ";"):
             row += "."
         out.append((ref, row, (name, str(date), snip), row[len(f"[{ref}]"):]) if keys else (ref, row))
+    # ══ 09-23 LANE A, DEFECT 4 -- THE ORPHAN PRUNE CORRECTS: AN UNDECLARED [E] THE VERIFIER RESOLVED GETS
+    # ITS ROW. MEASURED on the cocoa turn: the writer cited [E1], [E7] and [E2] without declaring them in
+    # its sources ledger; the verifier kept all three (SOME provided item supported each sentence -- the
+    # undeclared branch), and then the prune removed them because no footer row existed, serving five
+    # document figures BARE (26.4%, 28%, 1.270 Mt, 29.2%, 45%) with nothing to trace them to. The prune
+    # was right that a marker needs a row and wrong about which half to fix. CONTRACT C15: the verifier
+    # now names the item it RESOLVED each such ref to, POSITIONALLY in the turn's own evidence menu
+    # (`report["resolved_undeclared"]`, lane V); that item's row is EMITTED HERE, by the SAME walk the
+    # prune reads its live set from, so the footer and the prune can never disagree about it (CYCLE-10
+    # FIX 3's one-walk-two-readers rule). A ref the verifier did NOT resolve is not in that map, so its
+    # marker is still pruned exactly as at HEAD -- the prune now removes only the truly rowless refs.
+    # Rows follow the ledger's, in ascending ref order; a ref the ledger already emitted (in any of its
+    # spellings) is never emitted twice. ABSENT KEY -> nothing appended -> HEAD's rows byte for byte.
+    und = (vreport or {}).get("resolved_undeclared")
+    if isinstance(und, dict) and und:
+        emitted: set = set()
+        for ref in seen:
+            emitted.add(ref)
+            _cn = _E_REF_CANON_RX.match(ref)
+            if _cn:
+                emitted.add(str(int(_cn.group(1))))
+        cand: list = []
+        for k, r in und.items():
+            _cn = _E_REF_CANON_RX.match(str(k).strip().strip("[]"))
+            if not _cn or not isinstance(r, dict):
+                continue                          # not an [E]-namespace ref, or no item to name
+            cand.append((int(_cn.group(1)), r))
+        for n, r in sorted(cand, key=lambda x: x[0]):
+            ref = str(n)
+            if ref in emitted:
+                continue
+            emitted.add(ref)
+            snip = _source_row_snippet(r.get("snippet"), market_register=market_register)
+            name, date = dp.source_name(str(r.get("source") or "")), r.get("date")
+            row = f"[{ref}] {name} ({date})" + (f": {snip}" if snip else "")
+            if row[-1:] not in (".", "!", "?", ";"):
+                row += "."
+            out.append((ref, row, (name, str(date), snip), row[len(f"[{ref}]"):]) if keys else (ref, row))
     return out
 
 
@@ -14573,6 +15249,23 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
     from leviathan.graphrag import providers as pv
     client = pv.make_client()
     sys_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    # 09-23 LANE A, DEFECT 10 (D10, OWNER DECISION 11): THE WRITER CACHE, INSTRUMENT ONLY. The re-smoke
+    # read cache_read 0 against ~53k cache_write on nine of ten turns, and nothing on the artifact could
+    # say WHICH of the two marked blocks the writes were -- the byte-stable system block or the per-turn
+    # graph block. The three prefix SIZES, in characters, ride beside the usage so the post-image read can
+    # apportion the writes. NO BREAKPOINT MOVES and no request byte changes (the owner's 09-06 word keeps
+    # the graph block cached by default); the sizes are measured on the SAME strings this call ships.
+    # Gated by GRAPHRAG_COST_CENSUS -- the one flag every other cost instrument rides -- so a census-off
+    # turn's `synth_usage` is HEAD's five keys, byte for byte.
+    _prefix_chars = None
+    try:
+        from leviathan.graphrag import tracekeys as _tk      # the leaf: no cycle
+        if _tk.cost_census_on():
+            _st, _vt = (user if isinstance(user, tuple) and len(user) == 2 else ("", user))
+            _prefix_chars = {"system": len(system or ""), "stable": len(_st or ""),
+                             "volatile": len(_vt) if isinstance(_vt, str) else 0}
+    except Exception:  # noqa: BLE001 -- an instrument must never break the call it measures
+        _prefix_chars = None
     if isinstance(user, tuple):
         stable, volatile = user
         # D-CL(2) THE WRITER'S EVIDENCE BLOCK: CACHED BY DEFAULT, PLAIN ON REQUEST. `_prompt_parts` named
@@ -14669,6 +15362,8 @@ def _call_opus(system: str, user, *, model: str, tool: dict, on_token=None, temp
         out["_usage"] = {"model": pv.resolve_model(degraded) if degraded else pv.resolve_model(model),
                          "in": _u.input_tokens, "out": _u.output_tokens,
                          "cache_read": _u.cache_read, "cache_write": _u.cache_creation}
+        if _prefix_chars is not None:              # census-gated (above): absent, never null, when off
+            out["_usage"]["prefix_chars"] = _prefix_chars
     return out
 
 
@@ -15019,6 +15714,12 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
     _wseam_on = bool(_state_board_on() and verifier.get("enabled"))
     _raw_draft = _fold_draft(_raw_draft, raw_draft_snapshot(
         postverify_tldr=structured.get("tldr"), postverify_mechanism=structured.get("mechanism")))
+    # 09-23 LANE A, DEFECT 5 on the SECOND synthesis path, at the IDENTICAL seat (after the post-verify
+    # snapshot): the body-twice defect is a property of the tool fields, not of the board, and a
+    # correction that only runs on one of the two bodies is the same defect with a rollback in front.
+    # 09-24 (VERIFY_FINAL m3): gated on the board flag exactly as on the first body -- flag off -> no
+    # de-dup, HEAD's body, and no `tldr_spine_deduped` key on the return below.
+    _spine = _dedup_spine_tldr(structured) if _state_board_on() else {}
     _emit(on_stage, "verifying", checked=int(verifier.get("checked", 0) or 0),
           stripped=int(verifier.get("stripped", 0) or 0))
     _emit(on_stage, "verified", strips=int(verifier.get("stripped", 0) or 0))   # F7: handles may ACTIVATE now
@@ -15193,6 +15894,8 @@ def answer(query: str, *, graph: gph.CausalGraph, model: str = SONNET, k: int = 
                          if (_egeo and any(_egeo.values())) else {}),   # absent-not-null stamp rule
                       **({"prose_debris_tidied": True} if _debris else {}),   # D-PQ HANDLE-3, both bodies
                       **({"prose_orphans_tidied": True} if _orphans else {}),  # CYCLE-5 TIDY-2, both bodies
+                      **({"tldr_spine_deduped": _spine}            # 09-23 LANE A, both bodies: absent
+                         if any(v for v in _spine.values()) else {}),   # ...flag off, or when it did nothing
                       **({"response_contract": _rc_active} if _rc_active else {}),   # Phase B twin stamp
                       **({"composition_census": _census} if _census is not None else {}),   # D-CC-1 twin
                       **_tldr_dir,                                 # D-RC-12: absent when the flag is off

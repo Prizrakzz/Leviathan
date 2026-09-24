@@ -549,8 +549,10 @@ def test_a_percent_CHANGE_never_names_a_percent_LEVEL_row():
         [cot], orc._stated_values(p), seen=set(), cited={1})]
     # PA-10(a): the minted row speaks the card's analyst label, not `mm_pct_oi`; the percent question --
     # WHICH row mints -- is untouched.
+    # RE-BANKED 09-23 FIX ROUND -- D3 label correction (09-23 recon lane-C defect 4): a COT report date is not a
+    # marketing year, so the period token loses the MY prefix.
     assert mint("Per the COT [N1], managed money holds 15.7 percent of open interest.") == \
-        ["COT managed-money share of open interest corn MY2026-06-01 = 15.7316 pct of OI (signed)"]
+        ["COT managed-money share of open interest corn 2026-06-01 = 15.7316 pct of OI (signed)"]
     assert mint("Per the COT [N1], positioning fell, down 2.1 percent on the week.") == []
 
 

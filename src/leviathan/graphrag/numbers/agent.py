@@ -1844,7 +1844,50 @@ def rv_pair_subject(scope: Optional[tuple]) -> str:
     return f"{a} minus {b}" if (a and b) else ""
 
 
-def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list]) -> tuple[list, Optional[str]]:
+def rv_leg_words(call: dict) -> str:
+    """THE SERIES a price leg IS, in the reader's words -- never the market it was routed to.
+
+    THE 09-23 FIX ROUND (lane T, the row-identity law of CONTRACT C1 applied to the one row this lane
+    mints): a World Bank monthly benchmark leg is "world crude palm oil", not "CME palm oil" -- the
+    first cut of the pair row named its subject after the two MARKETS (``rv_pair_subject``), which on
+    the measured turn put a CME contract's name on a World Bank monthly average. The words come off
+    the SAME declared register ``_rv_declared_price_legs`` reads (``cascade._RV_PRICE_SERIES``'s own
+    reader label for that benchmark metric), never re-typed; a commodity-keyed card (the exchange
+    settle) is that contract's own series and takes the estate's display producer. '' when neither
+    source names it -- the caller then keeps the market subject."""
+    q = (call or {}).get("query") or {}
+    table, metric = str(q.get("table") or ""), str(q.get("metric") or "")
+    try:
+        from leviathan.graphrag.numbers import cascade as _csc
+        if table == str(getattr(_csc, "_RV_PRICE_TABLE", "") or ""):
+            for _m, _label in (getattr(_csc, "_RV_PRICE_SERIES", None) or {}).values():
+                if str(_m) == metric and str(_label or "").strip():
+                    return str(_label).strip()
+    except Exception:  # noqa: BLE001 -- no register -> no series words; the market subject stands
+        pass
+    com = str(q.get("commodity") or "").strip()
+    return _reader_words(com) if com else ""
+
+
+def rv_pair_series_subject(call_a: dict, call_b: dict, scope: Optional[tuple]) -> str:
+    """"<series a> minus <series b>" off the two LEGS (``rv_leg_words``), falling back to the markets
+    (``rv_pair_subject``) only when a leg's series cannot be named. ONE producer for the minted row's
+    citation scope; ``pair_markets`` keeps the markets the question named, beside it, as routing."""
+    a, b = rv_leg_words(call_a), rv_leg_words(call_b)
+    return f"{a} minus {b}" if (a and b) else rv_pair_subject(scope)
+
+
+def _rv_leg_currency(call: dict) -> Optional[str]:
+    """The leg's currency when its rows name ONE (the per-expiry price card carries `currency` on every
+    row); None when the rows carry none or disagree -- `stats.unit_compatible`'s three-state rule then
+    reads it, and a card whose currency lives inside its unit string (USD/mt) reads None-vs-None."""
+    cur = {str((r or {}).get("currency") or "").strip() for r in ((call or {}).get("rows") or [])}
+    cur.discard("")
+    return next(iter(cur)) if len(cur) == 1 else None
+
+
+def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list], *,
+                        level_only: bool = False) -> tuple[list, Optional[str]]:
     """(injected [N] calls, uncomputed reason) for the RV pair leg. EXACTLY ONE of the two is ever
     non-empty, and both are empty/None when the question names no pair at all -- so a turn that is not
     an RV turn takes no branch and writes no key.
@@ -1862,7 +1905,13 @@ def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list]) -> tuple[
     is a CHAINED stat ranking a difference inside a pool of LEVELS. Nothing can chain this row -- it is
     minted after the model has stopped, no handle is registered for it, and the rank below is computed
     HERE against the spread's OWN constructed history. `stats.pair_spread` already returns `unit=None`
-    for the ratio form under its own narration law, and that None is passed through untouched."""
+    for the ratio form under its own narration law, and that None is passed through untouched.
+
+    ``level_only`` (09-23 fix round, review WT M-3 (c)): OWNER DECISION 9 licenses the pair's spread LEVEL
+    on a board-lit turn -- the one figure the page owed -- and nothing more. The history spread and its
+    percentile rank are HEAD's dark RV leg (GRAPHRAG_RV_PAIR_SPREAD), which that kwarg must not arm on
+    every board-on two-market question: with ``level_only`` the calculator takes the LEVEL at the newest
+    shared period (`stats.pair_level_spread`) or refuses in its own words, and no history is read."""
     if not scope:
         return [], None
     cands = rv_pair_candidates(calls, scope)
@@ -1878,12 +1927,20 @@ def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list]) -> tuple[
     a, b = cands[0], cands[1]
     rows_a, rows_b = (a.get("rows") or []), (b.get("rows") or [])
     la, lb = _rv_call_label(a), _rv_call_label(b)
+    if level_only:
+        return _rv_pair_level_legs(scope, a, b, la, lb)
     res = ST.pair_spread(_series_axis(rows_a)[0], _date_axis(rows_a), _rv_leg_unit(a),
                          _series_axis(rows_b)[0], _date_axis(rows_b), _rv_leg_unit(b),
                          label_a=la, label_b=lb)
+    if res.get("declined") and str(res.get("guard") or "") == ST.THIN_GUARD:
+        # THE 09-23 FIX ROUND (lane T, D5): THE HISTORY IS THIN, SO THE LEVEL IS TAKEN. Two single-row
+        # `agg='latest'` reads (the measured turns: World Bank palm oil 1,117 and soybean oil 1,638, and
+        # rapeseed oil 1,474, all USD/mt for 2026-08-01) share ONE observation -- below the history's
+        # floor, and exactly what a spread LEVEL needs. The calculator takes it (`stats.
+        # pair_level_spread`: equal unit, equal currency, one shared period) or refuses in its own words.
+        return _rv_pair_level_legs(scope, a, b, la, lb)
     if res.get("declined"):
-        # The calculator's OWN refusal sentence, verbatim -- never a re-worded one. Two single-row
-        # `agg='latest'` reads land here (n=1 < MIN_PAIR_SPREAD_N), which is the smoke's measured case.
+        # The calculator's OWN refusal sentence, verbatim -- never a re-worded one.
         return [], str(res.get("reason") or "pair_spread declined")
     if str(res.get("form") or "") != "difference":
         # THE RATIO FORM IS COMPUTED AND NOT MINTED, and the calculator's own docstring is why: across
@@ -1928,7 +1985,9 @@ def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list]) -> tuple[
     # today the slug renders there. That row is HANDOFF item 2 and this lane does not own the file --
     # with it the line reads "spread between the two markets"; without it the SUBJECT is still named,
     # which is what M-4 is about, and the flag stays dark until the handoff lands.
-    subject = lab["pair_markets"]
+    # 09-23 (lane T): the subject names the two SERIES the figure was computed over; `pair_markets`
+    # above keeps the two markets the question named, as routing.
+    subject = rv_pair_series_subject(a, b, scope)
 
     def _row(val, metric, unit):
         q = {"table": STATS_TOOL_NAME, "metric": metric}
@@ -1949,6 +2008,46 @@ def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list]) -> tuple[
         if not pr.get("declined"):
             out.append(_row(pr.get("value"), "percentile", _STAT_UNIT["percentile"]))
     return out, None
+
+
+def _rv_pair_level_legs(scope: tuple, a: dict, b: dict, la: str, lb: str) -> tuple[list, Optional[str]]:
+    """THE 09-23 FIX ROUND (lane T, D5): the pair's spread LEVEL at the newest period both legs printed,
+    minted as ONE compute_stat-shaped [N] row -- or the calculator's own refusal, verbatim.
+
+    The figure is ``stats.pair_level_spread``'s (never a subtraction here): EQUAL unit strings (the
+    served row's own, else the card's declared unit -- ``_rv_leg_unit``, the citation layer's reader),
+    EQUAL currency (the rows' own ``currency`` where the card carries one), ONE shared observation date
+    (``_date_axis``, the join ``pair_spread`` already uses). The row carries its parameters: both legs'
+    machine addresses, the form, the shared date (as ``data_date`` and in the provenance params), the
+    two SERIES in the reader's words on the citation scope, and the two markets the question named.
+
+    WHY NO ``query.period``: the one period is an OBSERVATION DATE on the legs' cards, and a compute_stat
+    row has no card of its own for the citation layer to read that date's kind from -- a bare date there
+    would be labelled a marketing year by the pre-card rule. It rides the row's ``data_date`` instead,
+    which is the alias every served row already uses for its observation date. NO RANK is minted: a
+    level has no history to be ranked inside, and ``pair_spread``'s history floor is what refused one."""
+    rows_a, rows_b = (a.get("rows") or []), (b.get("rows") or [])
+    lv = ST.pair_level_spread(_series_axis(rows_a)[0], _date_axis(rows_a), _rv_leg_unit(a),
+                              _series_axis(rows_b)[0], _date_axis(rows_b), _rv_leg_unit(b),
+                              currency_a=_rv_leg_currency(a), currency_b=_rv_leg_currency(b),
+                              label_a=la, label_b=lb)
+    if lv.get("declined"):
+        return [], str(lv.get("reason") or "pair_level_spread declined")
+    shared = str(lv.get("date") or "")
+    kd = _handle_kd([r for r in list(rows_a) + list(rows_b) if str(row_date(r) or "") == shared])
+    prov = {"stat": "pair_level_spread",
+            "params": {"form": lv.get("form"), "n": lv.get("n"), "date": shared},
+            "input_legs": [la, lb]}
+    lab = {"leg_a": la, "leg_b": lb, "pair_form": lv.get("form"), "pair_markets": rv_pair_subject(scope)}
+    if shared:
+        lab["data_date"] = shared
+    q = {"table": STATS_TOOL_NAME, "metric": "pair_spread"}
+    subject = rv_pair_series_subject(a, b, scope)
+    if subject:
+        q["commodity"] = subject                  # the reader's name for the pair, in the scope slot
+    return [{"query": q, "rows": [{"value": lv.get("value"), "unit": lv.get("unit"), "knowledge_date": kd,
+                                   **lab}],
+             "status": "ok", "stat_provenance": prov}], None
 # Two decline REGISTERS can co-occur in one answer preface: C2's question-shape line beside a legacy
 # template -- the R5 price-coverage decline (DECLINE_TEMPLATES), the SEAM-C futures levels-only decline
 # (FUTURES_DECLINE_TEMPLATES), the ESR destination decline, the W3.2 coverage decline. The reader then
@@ -3691,7 +3790,8 @@ def tables_queried(calls: list) -> list[str]:
 
 def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU, reg: Optional[NumbersRegistry] = None,
                    query_fn=None, max_calls: int = 6, max_tokens: int = 1500, on_call=None,
-                   families: Optional[list] = None, futures_newest_first: bool | str = False) -> dict:
+                   families: Optional[list] = None, futures_newest_first: bool | str = False,
+                   pair_spread: bool = False) -> dict:
     """Run the agent loop. `client` = an anthropic.Anthropic (real = billed); `query_fn(sql)->rows` overrides Athena
     (tests). Returns {answer, calls:[{query, rows}]} — calls carry the exact provenance behind every number.
     `on_call(n_calls, table)` (default None = byte-identical) fires after each executed lookup — the SSE
@@ -3708,7 +3808,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     function reads no environment for it either, so a mis-plumbed enable cannot flip the read shape on a
     turn nobody asked for. DEFAULT FALSE -> every Q.run below compiles the byte-identical ASC total order,
     which is the rollback. It reaches all THREE reads on this lane: the executor's main lookup, the W3.2
-    legacy-level rewrite beside it, and the ESR aggregate legs."""
+    legacy-level rewrite beside it, and the ESR aggregate legs.
+
+    `pair_spread` (THE 09-23 FIX ROUND, lane T, OWNER DECISION 9) follows the SAME contract: the caller
+    threads True ONLY when `answer._state_board_on()` is lit, and this function reads no environment
+    for it. True arms the RV pair leg (`rv_pair_spread_legs`) for a question naming two markets --
+    the calculator mints the spread row the page owes, or the turn records why it could not -- and it
+    moves NOTHING else: the system prompt is built without it (the cached numbers prefix is byte-
+    identical; only the dark GRAPHRAG_RV_PAIR_SPREAD env adds the RV mandate there). Default False ->
+    every turn is byte-identical to HEAD."""
     # D-AM-5's seat seam, THIRD instance (2026-08-23, the A/B seat wave's lever): env fills the DEFAULT
     # only, exactly like GRAPHRAG_SYNTH_MODEL (answer.py:8766) and GRAPHRAG_DISPATCH_MODEL (dispatch.py:662)
     # -- an explicit caller model always wins, env unset is byte-identical. The docstring's no-env doctrine
@@ -3826,7 +3934,8 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     # LANE C RV-PAIR scope: the TWO markets the question names, resolved ONCE up front and only when the
     # flag is lit. None (every one-market question, and every turn with the flag off) is a no-op
     # everywhere below, so the loop is byte-identical to pre-feature.
-    rv_scope = rv_pair_scope(question) if _rv_pair_on() else None
+    # 09-23 (lane T, OWNER DECISION 9): OR the threaded board-flag kwarg -- never an env read here.
+    rv_scope = rv_pair_scope(question) if (_rv_pair_on() or pair_spread) else None
     # C2 question-shape scope: which observed metric an honest answer to THIS shape of question requires,
     # resolved ONCE up front and independently of what the model looks up. None (a shapeless ask) is a no-op
     # everywhere below. It dispatches nothing -- the verdict is taken against the finished call list.
@@ -4034,7 +4143,10 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # appended in call order, so the citation verifier accepts the figure exactly as it
                 # accepts a fetched one. It runs BEFORE the C2 verdict below for the reason that branch
                 # states: a decline that could not see an injected leg is the wrong decline.
-                rv_legs, rv_reason = rv_pair_spread_legs(rv_scope, calls)
+                # the board-flag kwarg arms the spread LEVEL only (review WT M-3 (c)); the history spread
+                # and its rank stay behind their own dark flag, exactly as at HEAD
+                rv_legs, rv_reason = rv_pair_spread_legs(rv_scope, calls,
+                                                         level_only=bool(pair_spread and not _rv_pair_on()))
                 for leg in rv_legs:
                     calls.append(leg)
                     hseq += 1
@@ -4234,6 +4346,15 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     _prior = payload.get("scope_note")
                     payload["scope_note"] = (f"{_prior} {Q.FRONT_EXPIRY_DECLINE}" if _prior
                                              else Q.FRONT_EXPIRY_DECLINE)
+                # THE 09-23 FIX ROUND (C12): a served row the named rule did NOT pick -- the declared
+                # cycle fallback -- says so on the payload the model reads, in the row's own month, so
+                # "front month" is never the word for it (owner decision 5). "" for every other row,
+                # so every read the named rule served is byte-identical; APPENDED, never over a note.
+                if vals and str(getattr(spec, "agg", "") or "") == Q.FRONT_EXPIRY_AGG:
+                    _cyc = Q.cycle_fallback_note(vals[0])
+                    if _cyc:
+                        _prior = payload.get("scope_note")
+                        payload["scope_note"] = f"{_prior} {_cyc}" if _prior else _cyc
                 return payload
             except Exception as e:  # noqa: BLE001 — a bad lookup must not kill the loop
                 return {"query": dict(b.input), "error": str(e)[:200], "rows": [], "status": "error"}

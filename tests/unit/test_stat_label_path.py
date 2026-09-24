@@ -54,6 +54,32 @@ def _mint(stat, res, rows=PCT_ROWS, table=PCT_TABLE, metric=PCT_METRIC, series_u
                           NA._handle_kd(rows), NA._handle_labels(rows), table, metric)
 
 
+# THE 09-23 RE-SMOKE's quick soyoil/palm question, and its scope read by the agent's OWN detector (palm
+# named first, so the sign is palm minus soyoil). Eight shared months on the two Pink Sheet legs, so the
+# history rung can also mint its rank -- every id either rung writes is then on the table.
+_RV_SCOPE = NA.rv_pair_scope("Palm oil's supply picture has been shifting. How does that reach soybean oil, "
+                             "and where does the balance between the two sheets stand this marketing year?")
+
+
+def _rv_pair_legs():
+    def _leg(metric, vals):
+        return {"query": {"table": "silver_pink_sheet", "metric": metric}, "status": "ok",
+                "rows": [{"value": v, "unit": "USD/mt", "data_date": "2026-%02d-01" % m,
+                          "knowledge_date": "2026-%02d-01" % m} for m, v in enumerate(vals, 1)]}
+    return [_leg("palm_oil_cpo_usd_t", [1050.0, 1062.0, 1071.0, 1088.0, 1094.0, 1101.0, 1110.0, 1117.0]),
+            _leg("soybean_oil_usd_t", [1480.0, 1502.0, 1533.0, 1561.0, 1580.0, 1601.0, 1620.0, 1638.0])]
+
+
+def _rv_pair_minted_ids() -> set:
+    """The metric ids the RV pair leg's REAL producer writes, on both rungs -- read off its output."""
+    ids: set = set()
+    for level_only in (False, True):
+        rows, why = NA.rv_pair_spread_legs(_RV_SCOPE, _rv_pair_legs(), level_only=level_only)
+        assert why is None and rows, why
+        ids |= {r["query"]["metric"] for r in rows}
+    return ids
+
+
 # ══ 1. THE MAP IS THE ENUM ═══════════════════════════════════════════════════════════════════════════
 class TestTheMapIsTheEnum:
     def test_every_agent_stat_has_reader_words(self):
@@ -67,7 +93,25 @@ class TestTheMapIsTheEnum:
     def test_no_stray_names(self):
         # Nothing in the map that is not a stat the agent can actually mint -- a display entry for a name
         # no producer writes is a vocabulary nobody maintains.
-        assert set(CA._STAT_DISPLAY) - set(ST.STAT_NAMES) == {"extrema_min", "extrema_max"}
+        # 09-23 FIX ROUND (review WT M-3, OWNER DECISION 9): the agent now mints a SECOND family outside
+        # the tool enum -- the RV pair leg -- so the allowed set is DERIVED from that leg's own producer
+        # (both rungs: the history spread + its rank, and the board-lit level), never typed here.
+        assert set(CA._STAT_DISPLAY) - set(ST.STAT_NAMES) == \
+            {"extrema_min", "extrema_max"} | (_rv_pair_minted_ids() - set(ST.STAT_NAMES))
+
+    def test_every_id_the_rv_pair_leg_mints_has_reader_words_and_the_label_never_prints_the_slug(self):
+        """THE 09-23 FIX ROUND (review WT M-3): the minted pair row rendered "computed statistic
+        pair_spread ..." -- the raw slug, because this map had no row for the RV leg's id. Every id either
+        rung mints is named here, and the label built by the REAL producer carries the words, the two
+        series and the unit, and no machine id."""
+        ids = _rv_pair_minted_ids()
+        assert "pair_spread" in ids and not (ids - set(CA._STAT_DISPLAY))
+        (lvl,), why = NA.rv_pair_spread_legs(_RV_SCOPE, _rv_pair_legs(), level_only=True)
+        assert why is None
+        label = C.from_number(lvl, 1).label
+        assert label.startswith("computed statistic spread between the two markets "), label
+        assert "world crude palm oil minus world soybean oil" in label and "USD/mt" in label, label
+        assert "pair_spread" not in label and "pair_level_spread" not in label and "MY2026" not in label
 
     def test_the_citation_lanes_pseudo_table_constant_is_the_agents_own(self):
         assert C._STATS_TABLE == NA.STATS_TOOL_NAME == CA._STATS_PSEUDO_TABLE == "compute_stat"
@@ -101,7 +145,10 @@ class TestTheLabelShape:
         assert "CPI year-over-year %" in cit.label                  # the metric's own label
         assert f"({words})" in cit.label                            # ...qualified by what was computed
         assert "brazil" in cit.label                                # the subject the seven rows lacked
-        assert cit.date == "2025-12-01"                             # PIT inherited from the input rows
+        # RE-BANKED 09-23 FIX ROUND -- D3 known-date correction (09-23 recon lane-C defect 5; BUILD_C B-7(b)): the
+        # stat inherits its input rows' ONE derived known date -- data_date 2025-12-01 + silver_food_cpi's declared
+        # publication_lag_days 195.
+        assert cit.date == "2026-06-14"                             # PIT inherited from the input rows
         assert cit.unit                                             # never a bare magnitude
 
     def test_extrema_mints_a_high_and_a_low_and_says_so(self):
@@ -167,7 +214,15 @@ class TestTheDestinationFenceIsKeyedOnTheSourceCard:
         # i.e. "China's outstanding sales" for a fact that is "outstanding sales TO China".
         stat = C.from_number(_mint("window_change", ST.window_change([78.0, 123.0], 0, 1),
                                    rows=_ESR_ROWS, table="silver_esr", metric=_ESR_METRIC)[0], 1)
-        assert "china" not in stat.label.lower()
+        # RE-BANKED 09-23 FIX ROUND -- D3 destination correction (09-23 recon deep26 F3, lane-C defect 3): the buyer is
+        # now named AS A DESTINATION ("to china"), never as the subject ("... window) china = ...").
+        # RE-BANKED 09-24 (VERIFY_FINAL MAJOR-1): the stat row's only date is its KNOWLEDGE stamp -- silver_esr is a
+        # VINTAGE card, so that alias is the release date (`as_of_date`), never the week -- and a knowledge stamp is
+        # not a period: the label prints none, exactly as HEAD did, and the stamp rides the [known ...] slot.
+        assert stat.label == ("USDA FAS Export Sales (ESR) outstanding sales (change over the window) to china "
+                              "= 45 1000 MT")
+        assert stat.date == "2026-08-28"
+        assert "window) china" not in stat.label.lower()
         assert _mint("window_change", ST.window_change([78.0, 123.0], 0, 1), rows=_ESR_ROWS,
                      table="silver_esr", metric=_ESR_METRIC)[0]["rows"][0]["country"] == "china"
 
@@ -175,7 +230,9 @@ class TestTheDestinationFenceIsKeyedOnTheSourceCard:
         fetched = _fetched("silver_esr", _ESR_METRIC, _ESR_ROWS)
         stat = C.from_number(_mint("window_change", ST.window_change([78.0, 123.0], 0, 1),
                                    rows=_ESR_ROWS, table="silver_esr", metric=_ESR_METRIC)[0], 1)
-        assert ("china" in fetched.label.lower()) == ("china" in stat.label.lower()) is False
+        # RE-BANKED 09-23 FIX ROUND -- D3 destination correction (09-23 recon deep26 F3): both lanes name the buyer
+        # the SAME way, as a destination.
+        assert ("to china" in fetched.label.lower()) == ("to china" in stat.label.lower()) is True
         assert fetched.source == stat.source                       # ...and headline the same institution
 
     def test_an_explicit_destination_ask_still_names_it_on_both_lanes(self):
@@ -202,6 +259,59 @@ class TestTheDestinationFenceIsKeyedOnTheSourceCard:
         cit = C.from_number(_mint("window_change", ST.window_change([1.0, 4.0], 0, 1),
                                   rows=rows, table=None, metric=None)[0], 1)
         assert cit.source == "computed statistic" and "brazil" in cit.label
+
+
+# ══ 2b. THE ROW'S OWN PERIOD IS NEVER A KNOWLEDGE STAMP (09-24, VERIFY_FINAL MAJOR-1) ══════════════════
+class TestTheRowsOwnPeriodIsNeverAKnowledgeStamp:
+    """A `compute_stat` row carries one date: the KNOWLEDGE stamp of its inputs (`_stat_calls` writes the
+    handle's kd under `knowledge_date`). The 09-23 round's D3 addition prints a row's own period when the query
+    names none, and on a row with NO source card -- a stat of a stat (the chaining handle), a stat over an
+    ESR-aggregate, pattern-records or RV-pair leg handle: none carries `source_table` -- that stamp was printed
+    as a period and HEAD's marketing-year prefix dressed it as one ("... change over the window MY2026-09-22",
+    "MY20260917"), flag-off, on both cells. A knowledge stamp is a knowledge stamp: the label prints NO period
+    (HEAD's bytes) and the stamp rides `[known ...]`. Only a card that declares its knowledge alias IS the
+    observation (`knowledge_semantics: data_date`) lends that date to the label as the row's period."""
+
+    @pytest.mark.parametrize("stat,res,unit", [
+        ("zscore", {"value": 1.26937, "window": 20, "n": 20}, "sigma"),
+        ("percentile", {"value": 76.0, "n": 30}, "MT"),
+        ("window_change", {"value": 357751.0, "t1": 0, "t2": 5, "n": 6}, "MT"),
+        ("extrema", {"min": 1.0, "max": 9.0, "n": 12}, "MT"),
+    ])
+    @pytest.mark.parametrize("kd", ["2026-07-01", "20260917"])
+    def test_a_stat_with_no_source_card_prints_no_period_and_never_MY_before_a_date(self, stat, res, unit, kd):
+        # the verifier's own grid, through the REAL producer with no source card (10 labels over the 4 stats)
+        calls = NA._stat_calls(stat, res, {"stat": "x", "params": {}}, unit, kd, None, None, None)
+        assert calls and all(not c["rows"][0].get("source_table") for c in calls)
+        for i, c in enumerate(calls, 1):
+            cit = C.from_number(c, i)
+            assert C.printed_period(c) == ("", None), cit.label
+            assert kd not in cit.label and "MY" not in cit.label, cit.label
+            assert cit.label.startswith("computed statistic ") and "  = " in cit.label, cit.label   # HEAD's shape
+            assert cit.date == kd                                     # the stamp rides [known ...], unmoved
+
+    def test_the_same_stat_over_a_DATA_DATE_card_keeps_its_observation_period(self):
+        # The other side, and the reason the rule reads the CARD and never the key's name: on a data-date card the
+        # knowledge alias IS the observation (`knowledge_date_col == date_col`), so the row's period is that month
+        # (D3's declared move, kept) -- and the [known ...] slot carries the DERIVED stamp (+ the card's lag).
+        rows = [{"value": v, "unit": "MT", "knowledge_date": "2026-%02d-01" % m} for m, v in ((6, 1.0), (7, 4.0))]
+        c = _mint("window_change", ST.window_change([1.0, 4.0], 0, 1), rows=rows, table="silver_mpob",
+                  metric="closing_stocks_palm_oil_mt")[0]
+        cit = C.from_number(c, 1)
+        assert C.printed_period(c) == ("2026-07-01", "month")
+        assert " 2026-07-01 = " in cit.label and "MY" not in cit.label, cit.label
+        assert cit.date == "2026-08-13"
+
+    def test_every_data_date_card_surfaces_its_OBSERVATION_under_the_knowledge_alias(self):
+        # THE PREMISE of the exception above, pinned so it cannot rot: a data-date card whose knowledge column were
+        # anything but its date column would lend a KNOWLEDGE stamp to the label as a period -- this defect again.
+        from leviathan.graphrag.numbers.registry import load_registry
+        dd = {n: t for n, t in load_registry().tables.items()
+              if str(getattr(t, "knowledge_semantics", "") or "") == "data_date"}
+        assert dd                                                    # never vacuous
+        for n, t in dd.items():
+            if t.knowledge_date_col:
+                assert t.knowledge_date_col == t.date_col, n
 
 
 # ══ 3-4. THE SCALE AND THE UNIT ══════════════════════════════════════════════════════════════════════

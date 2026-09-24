@@ -1,0 +1,1985 @@
+{
+ "turn": "quick_rv_soyoil_palm",
+ "anchors": [
+  "malaysian_crude_palm_oil_cme",
+  "soybean_oil_cbot"
+ ],
+ "n_calls": 79,
+ "calls": {
+  "1": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "production_cpo_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "1817499.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "2": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "2824488.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "3": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "exports_palm_oil_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "1294664.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "4": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "su_ratio"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "2.1816378612520313",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "5": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Malaysia"
+   },
+   "rows": [
+    {
+     "period": "2025",
+     "estimate_role": null,
+     "value": "20200000.0",
+     "unit": null,
+     "country": "Malaysia",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "6": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "ending_stocks_mt",
+    "country": "Malaysia"
+   },
+   "rows": [
+    {
+     "period": "2025",
+     "estimate_role": null,
+     "value": "2475000.0",
+     "unit": null,
+     "country": "Malaysia",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "7": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "Malaysia"
+   },
+   "rows": [
+    {
+     "period": "2025",
+     "estimate_role": null,
+     "value": "0.5830388692579506",
+     "unit": null,
+     "country": "Malaysia",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "8": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": "2025",
+     "estimate_role": null,
+     "value": "14048000.0",
+     "unit": null,
+     "country": "United States",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "9": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "ending_stocks_mt",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": "2025",
+     "estimate_role": null,
+     "value": "833000.0",
+     "unit": null,
+     "country": "United States",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "10": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": "2025",
+     "estimate_role": null,
+     "value": "0.060498220640569395",
+     "unit": null,
+     "country": "United States",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "11": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "palm_oil_cpo_usd_t"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": "1117.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "12": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "soybean_oil_usd_t"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": "1638.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "13": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "palm_oil_cpo_usd_t_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": "0.26909550274305843",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "14": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "soybean_oil_usd_t_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": "1.2135748375390782",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "15": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Russia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 7.806,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "16": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Russia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.7,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "17": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Russia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 99,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "18": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 101480.0,
+     "unit": "contracts",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "19": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.3,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "20": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 88,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "21": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "idr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 17869.0,
+     "unit": "local currency per USD",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "22": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "idr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "23": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "idr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 97,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "24": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 5.666910834387694,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "25": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -1.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "26": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "27": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "inr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 95.82,
+     "unit": "local currency per USD",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "28": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "inr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "29": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "inr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 98,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "30": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Argentina"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 6.6499999999999995,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "31": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Argentina"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "32": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Argentina"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 97,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "33": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 23.5,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "34": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.8,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "35": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 87,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "36": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 23.5,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "37": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.8,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "38": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 87,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "39": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 23.5,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "40": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.8,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "41": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 87,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "42": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "SE Asia Palm Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.15830973226062853,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "43": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "SE Asia Palm Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.7,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "44": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "SE Asia Palm Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 72,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "45": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.194,
+     "unit": "1000 MT",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "46": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "47": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 38,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "48": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.603799999999998,
+     "unit": "USD/bu",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "49": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "50": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 92,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "51": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.603799999999998,
+     "unit": "USD/bu",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "52": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "53": {
+   "query": {
+    "table": "gold_board_crush",
+    "metric": "crush_margin_usd_bu"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 92,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "54": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.39,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "55": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "56": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 35,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "57": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "58": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.39,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "59": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "60": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 35,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "61": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "62": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.39,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "63": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "64": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 35,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "65": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "66": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.8244879999999997,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-13"
+    }
+   ],
+   "status": "ok"
+  },
+  "67": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 94,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-13"
+    }
+   ],
+   "status": "ok"
+  },
+  "68": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": 0.0,
+     "unit": "1000 MT",
+     "country": "Guatemala",
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "69": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.8244879999999997,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "70": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.396,
+     "unit": "1000 MT",
+     "country": null,
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "71": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.1966,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "72": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt_pace_streak"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 5,
+     "unit": "months",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "73": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 38.9844,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2020-12-31"
+    }
+   ],
+   "status": "ok"
+  },
+  "74": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 27.78,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2020-12-31"
+    }
+   ],
+   "status": "ok"
+  },
+  "75": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "exchange rate change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -4.7833,
+     "unit": "percent change in Canadian dollars per US dollar",
+     "country": null,
+     "knowledge_date": "2020-12-31"
+    }
+   ],
+   "status": "ok"
+  },
+  "76": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 17.6352,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2020-12-31"
+    }
+   ],
+   "status": "ok"
+  },
+  "77": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "exchange rate change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -6.2184,
+     "unit": "percent change in Chinese yuan per US dollar",
+     "country": null,
+     "knowledge_date": "2020-12-31"
+    }
+   ],
+   "status": "ok"
+  },
+  "78": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 40.1812,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2020-12-31"
+    }
+   ],
+   "status": "ok"
+  },
+  "79": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle_change_pct"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 49.5877,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2020-12-31"
+    }
+   ],
+   "status": "ok"
+  }
+ },
+ "row_states": [
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "El_Nino",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "La_Nina",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "IOD_positive",
+   "series_key": "iod_climate|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "IOD_negative",
+   "series_key": "iod_climate|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "drought",
+   "series_key": "drought_z|malaysian_crude_palm_oil_cme|SE Asia Palm Belt"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "heat_stress",
+   "series_key": "heat_stress_z|malaysian_crude_palm_oil_cme|SE Asia Palm Belt"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "flood",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "monsoon_active",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "ganoderma",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "replanting_cycle",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "labor_shortage",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "biodiesel_mandate",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "export_tax",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "export_ban",
+   "series_key": "export|malaysian_crude_palm_oil_cme|Indonesia"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "DMO",
+   "series_key": "export|malaysian_crude_palm_oil_cme|Indonesia"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "import_tariff",
+   "series_key": "import|malaysian_crude_palm_oil_cme|India"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "EUDR",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "US_section301_tariffs",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "crude_oil_price",
+   "series_key": "brent_crude_z|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "gasoil_palm_spread",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "MYR_USD",
+   "series_key": "fred_fx_macro|_global||myr_usd"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "USD_index",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "ending_stocks",
+   "series_key": "mpob_ending_stocks|malaysian_crude_palm_oil_cme|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "export_pace_lag",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "soyoil_palm_premium",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "biennial_low_cycle",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "fertilizer_cost",
+   "series_key": "npk_fertilizer_z|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "potash_cost",
+   "series_key": "potash_z|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "india_import_duty",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "macro_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "ukraine_sunoil_supply",
+   "series_key": "sunflower_oil_supply|sunflower_oil|Ukraine"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "russia_sunoil_supply",
+   "series_key": "sunflower_oil_supply|sunflower_oil|Russia"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "IDR_USD",
+   "series_key": "fred_fx_macro|_global||idr_usd"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "INR_USD",
+   "series_key": "fred_fx_macro|_global||inr_usd"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "saf_mandate",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "rubber_area_substitution",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "CPO_export_levy",
+   "series_key": "export|malaysian_crude_palm_oil_cme|Indonesia"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "biodiesel_mandate",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "RFS",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "RIN",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "blend_mandate",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "crude_oil",
+   "series_key": "brent_crude_z|_global|"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "soybean_crush_margin",
+   "series_key": "cbot_board_crush_margin|_global|"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "board_crush",
+   "series_key": "cbot_board_crush_margin|_global|"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "oil_share",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "soyoil_palm_premium",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "La_Nina",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "El_Nino",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "drought",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "heat_stress",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "pod_fill",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "import_tariff",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "export_tax",
+   "series_key": "export|soybean_oil_cbot|Argentina"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "export_ban",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "EUDR",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "USD_index",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "psd_ending_stock_su_ratio",
+   "series_key": "psd_ending_stock_su_ratio|soybean_oil_cbot|United States"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "stock",
+   "series_key": "stock|soybean_oil_cbot|United States"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "cot_mm_positioning",
+   "series_key": "cot_mm_positioning|soybean_oil_cbot|"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "freight_disruption",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "port_closure",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "calendar_spread",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "india_import_duty",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "us_export_pace",
+   "series_key": "esr_exports|soybean_oil_cbot|"
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "macro_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "driver_id": "saf_mandate",
+   "series_key": ""
+  }
+ ],
+ "chains": [
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "agreements": [
+    "aligned",
+    "at_odds",
+    "aligned"
+   ],
+   "edge_signs": [
+    "+",
+    "-",
+    "+"
+   ],
+   "cross": {
+    "other": "palm_olein_dce",
+    "direction": "forward",
+    "relation": "refined_into",
+    "sign": "+",
+    "lag": "0-1 quarters",
+    "far_driver_id": "russia_sunoil_supply",
+    "far_series_key": "sunflower_oil_supply|sunflower_oil|Russia",
+    "far_percentile": 98.75,
+    "far_level": 7.806
+   },
+   "terminal": "palm_olein_dce",
+   "depth": 2,
+   "score": 72.8,
+   "declared_sign": "+",
+   "direction": "unsettled",
+   "side": "unsettled",
+   "against_hops": [
+    "drought"
+   ],
+   "rendered": true,
+   "full": true,
+   "slot": "top",
+   "receipt_kind": "none",
+   "receipt_words": "",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 5,
+    "hops": 3,
+    "hops_no_series": 0,
+    "buffer_series": true,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "malaysian_crude_palm_oil_cme",
+     "driver_id": "El_Nino",
+     "sign": "+",
+     "lag": "2-4 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "oni_climate|_global|",
+     "level_shown": -0.39,
+     "unit": "degC",
+     "percentile": 34.8,
+     "z": -0.556800031274849,
+     "run_direction": "up",
+     "run_length": 2,
+     "level_date": "2026-01",
+     "knowledge_date": "2026-03-08",
+     "tail": 0.304,
+     "tail_peak": 0.568,
+     "tail_peak_percentile": 21.6,
+     "tail_peak_date": "2025-11",
+     "tail_lag_to": "2026-11-30",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 54
+    },
+    {
+     "contract": "malaysian_crude_palm_oil_cme",
+     "driver_id": "drought",
+     "sign": "+",
+     "lag": "2-4 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "drought_z|malaysian_crude_palm_oil_cme|SE Asia Palm Belt",
+     "level_shown": 0.15830973226062853,
+     "unit": "z",
+     "percentile": 72.13740458015268,
+     "z": 0.6584444980193338,
+     "run_direction": "up",
+     "run_length": 2,
+     "level_date": "2026-07",
+     "knowledge_date": "2026-08-25",
+     "tail": 0.4427,
+     "tail_peak": 0.9771,
+     "tail_peak_percentile": 98.85496183206106,
+     "tail_peak_date": "2026-01",
+     "tail_lag_to": "2027-01-31",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 42
+    },
+    {
+     "contract": "malaysian_crude_palm_oil_cme",
+     "driver_id": "ending_stocks",
+     "sign": "-",
+     "lag": "0-1 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "mpob_ending_stocks|malaysian_crude_palm_oil_cme|",
+     "level_shown": 2.8244879999999997,
+     "unit": "MT",
+     "percentile": 93.58974358974359,
+     "z": null,
+     "run_direction": "up",
+     "run_length": 5,
+     "level_date": "2026-08-01",
+     "knowledge_date": "2026-09-13",
+     "tail": 0.8718,
+     "tail_peak": 0.8718,
+     "tail_peak_percentile": 93.58974358974359,
+     "tail_peak_date": "2026-08-01",
+     "tail_lag_to": "2026-11-01",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 66
+    }
+   ]
+  },
+  {
+   "contract": "soybean_oil_cbot",
+   "agreements": [
+    "undetermined",
+    "aligned",
+    "aligned"
+   ],
+   "edge_signs": [
+    "-",
+    "-",
+    "+"
+   ],
+   "cross": {
+    "other": "malaysian_crude_palm_oil_cme",
+    "direction": "forward",
+    "relation": "substitutes_for",
+    "sign": "+",
+    "lag": "0-2 quarters",
+    "far_driver_id": "El_Nino",
+    "far_series_key": "oni_climate|_global|",
+    "far_percentile": 34.8,
+    "far_level": -0.39
+   },
+   "terminal": "malaysian_crude_palm_oil_cme",
+   "depth": 2,
+   "score": 61.1,
+   "declared_sign": "+",
+   "direction": "unsettled",
+   "side": "unsettled",
+   "against_hops": [],
+   "rendered": true,
+   "full": true,
+   "slot": "pair",
+   "receipt_kind": "none",
+   "receipt_words": "",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 5,
+    "hops": 3,
+    "hops_no_series": 1,
+    "buffer_series": true,
+    "events_in_corpus": false,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "soybean_oil_cbot",
+     "driver_id": "drought",
+     "sign": "+",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": null
+    },
+    {
+     "contract": "soybean_oil_cbot",
+     "driver_id": "psd_ending_stock_su_ratio",
+     "sign": "-",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "psd_ending_stock_su_ratio|soybean_oil_cbot|United States",
+     "level_shown": 5.666910834387694,
+     "unit": "ratio",
+     "percentile": 0.7936507936507936,
+     "z": -1.1723444354222041,
+     "run_direction": "down",
+     "run_length": 2,
+     "level_date": "2026",
+     "knowledge_date": "2026-09-11",
+     "tail": 0.9841,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 24
+    },
+    {
+     "contract": "soybean_oil_cbot",
+     "driver_id": "cot_mm_positioning",
+     "sign": "+",
+     "lag": "0-1 quarters",
+     "confidence": "medium",
+     "measured": true,
+     "series_key": "cot_mm_positioning|soybean_oil_cbot|",
+     "level_shown": 101480.0,
+     "unit": "contracts",
+     "percentile": 88.03680981595092,
+     "z": 1.3314523441048651,
+     "run_direction": "up",
+     "run_length": 1,
+     "level_date": "2026-09-15",
+     "knowledge_date": "2026-09-21",
+     "tail": 0.7607,
+     "tail_peak": 0.8466,
+     "tail_peak_percentile": 92.33128834355828,
+     "tail_peak_date": "2026-07-21",
+     "tail_lag_to": "2026-10-21",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 18
+    }
+   ]
+  }
+ ],
+ "coverage_chain_referenced": 1,
+ "served_chain_lints": {
+  "outcome": "ok",
+  "sentences": 1,
+  "corrected": 1,
+  "chain_hops_unfigured": 0,
+  "chain_hops_skipped": 0,
+  "chain_unranked_narrated": 0,
+  "chain_hops_ambiguous": 0,
+  "chain_fence_closed": 0
+ },
+ "structured": {
+  "tldr": "The loud readings are not one-sided -- a weaker rupiah at 17869 per dollar [N21] and a weaker rupee at 95.82 [N27] both lean price-pressuring on palm, and only the SE Asia drought reading leans the other way.",
+  "mechanism": "## Mechanism\nPalm and soyoil clear against each other in the same food and fuel pool: when soyoil trades at a wide premium, price-sensitive buyers switch to palm, and the reverse pulls demand back to soyoil. That is the declared high-confidence link on both contracts, so a palm supply shift does not stay in Malaysia -- it re-prices the switching incentive.\n\nThree loud readings dominate. Russian sunflower oil production at 7.81 MMT [N15], the 99th percentile of its own record [N17], is declared to move palm the opposite way with a zero-to-two-quarter lag -- a substitute glut that slows palm offtake and builds stocks. A weaker rupiah [N21] pulls Indonesian export selling forward, also price-pressuring. Against them, the SE Asia drought reading at 0.16 z [N42] is declared price-supportive with a two-to-four-quarter lag, and on soyoil managed money is long 101480 contracts [N18], declared same-direction.\n\nThe price-supportive palm pattern the graph names has three of its six conditions showing -- the Pacific sea-surface reading, drought and ending stocks -- which meets its own count, but ending stocks is showing on the loose side, so I read the pattern as counted rather than in force.\n\n## The record\nPalm stocks: 2.82449 MMT [N69], up +0.1966 MMT on the month [N71], rising five straight months. Malaysian stocks-to-use for MY2025 reads 0.583039 [N7] against US soyoil at 0.0604982 [N10] -- each on its own marketing year, a dimensionless comparison only. Palm at 1,117 USD/mt [N11] sits +0.269096 sigma [N13]; soyoil at 1,638 USD/mt [N12] sits +1.21357 sigma [N14]. Argentine soyoil exports read 6.65 MMT [N30], the 97th percentile [N32] -- a loosening at the margin against the tight US sheet. Board crush is 2.6 USD/bu [N48], top decile, read through 2026-08-21.\n\nThe dated documents are thin and old for this link: the most recent is 2024-04-05, noting buyers shifted to palm in MY 2022/23 when palm ran roughly 25 percent cheaper than soyoil [E2].\n\nOver the 2020-08 to 2021-01 window the CME palm contract for February 2021 delivery settled +38.9844 % [N73]; the declared substitution relation onto CBOT soybean oil held, with the January 2021 contract at +40.1812 % [N78], and onto CBOT soybeans at +49.5877 % [N79]. The relation onto ICE canola held too: +27.78 % [N74] on the January 2021 contract, US dollars against Canadian dollars with no rate applied -- the Canadian dollar per US dollar rate moved -4.7833 % [N75] over the same window. Onto ZCE rapeseed oil it held at +17.6352 % [N76], US dollars against Chinese yuan, the yuan rate -6.2184 % [N77]. For MATIF rapeseed this window predates that board's own price history. These are five-year-old prints; they settle that the substitution edge has fired together before, nothing about today.\n\n## Where the record disagrees\nThe two chains the board puts first do not settle a direction. Running El Nino into DCE palm olein: the Pacific reading [N54] sits at the a level this page could not back percentile through 2026-03-08, declared same-direction onto drought and the readings agree; ending stocks [N66] at the a level this page could not back percentile, declared same-direction onto DCE palm olein, readings agree. Five of eight past firings moved the declared way, three did not, one published no second reading; no firing carries a price reading. No dated document reaches the drought hop.\n\nThe second chain, drought into CME palm oil, has no series at its first hop. Soyoil stocks-to-use [N24] at the a level this page could not back percentile is declared opposite onto managed-money positioning and the readings agree; positioning [N18] peaked at the a level this page could not back percentile in July 2026, now 88th, lag running to October 2026, declared same-direction onto palm and agreeing. History is one firing only. Setting the pair the far end reaches: the record does not settle palm against soyoil today -- the balance-sheet readings do, and they lean soyoil tighter.\n\nBeyond these, forty-four sequences run into the two markets; the rest are not narrated here.\n\n## Cross-commodity\nThe largest moves here are also declared on one other market, DCE palm olein: the Russian sunflower reading is declared to move it the opposite way with a zero-to-two-quarter lag at medium confidence, and the rupiah reading the opposite way at zero to one quarter. The managed-money reading is declared same-direction on thirteen other markets this estate tracks, the nearest being ICE and BMF arabica coffee.\n\n## What to watch\n- **US soyoil stocks-to-use** [N24] at 5.67 %, known 2026-09-11, past the desk's very-tight line with two marketing years falling. It acts through the high-confidence edge where a lower ratio tightens the sheet and supports price. This reads wrong if the 2026-10-09 print turns back inside that line or the run breaks.\n- **Board crush** [N48] at 2.6 USD/bu, read through 2026-08-21, top decile and past the desk's high line. Its declared lag window, counted from that reading's own date, runs 2026-08-20 to 2026-11-20. It reads wrong if the next print returns the series to the middle of its own record.\n- **Malaysian closing stocks** [N66] at 2.82 MMT, known 2026-08-01, past the desk's high line with five months rising -- the high-confidence edge says rising stocks pressure palm. Its lag window runs 2026-08-01 to 2026-11-01; next print 2026-10-10. It reads wrong if that print turns back inside the line or the run breaks.\n\nI am taking the palm stocks item in place of the nominated Pacific sea-surface item: it is the reading that sits on the palm sheet this question asks about.\n\nOn reach: the newest number behind this page was known 2026-09-21 and the oldest 2020-12-31; the newest dated document is 2024-04-05; the board price tape is not carried on this page."
+ }
+}

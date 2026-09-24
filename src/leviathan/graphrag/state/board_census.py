@@ -1123,6 +1123,12 @@ TAPE_DECLINE_REASONS: tuple = (
     "multi_session_frame",     # defensive: the newest-session slice held more than one session
     "selection_empty",         # the rule ran and named nothing
 )
+#: 09-24 (fix round FINAL_2, INTEGRATION O-4; OWNER DECISION 5 / CONTRACT C12): a tape whose rule's OWN
+#: inputs are absent is no longer a decline when the read SERVES the declared cycle fallback -- the probe
+#: then prints, as its reason, the ``roll_method`` the SERVED ROW carries (read off that row, never typed
+#: here: ``query.CYCLE_FALLBACK_METHOD`` today). That word is deliberately OUTSIDE the closed set above --
+#: the set names why the RULE named no month, and a fallback-served tape is neither "served" by the rule
+#: (it never enters ``served``: the front month was not named) nor a decline (the board prints a row).
 
 
 def probe_tape(asof: str, *, qfn, slugs=None) -> dict:
@@ -1254,7 +1260,13 @@ def _tape_selection_reason(slug: str, curve: list, spec, ts) -> dict:
         out["reason"] = "no_eligible_expiry"
         return out
     if not FR.front_month_inputs_present(elig):
-        out["reason"] = "roll_inputs_absent"
+        # O-4 (09-24, FINAL_2): the precondition failed, so the NAMED rule cannot run -- but the read may
+        # still serve the declared cycle fallback (C12), and a census that said "roll_inputs_absent" for a
+        # tape the board DOES print disagreed with the served row. Ask the selector, exactly as the read
+        # does, and when it serves, the reason is the roll_method THE SERVED ROW CARRIES; when it does
+        # not, the cause stands. The input counts above ride either way, so the cause is never lost.
+        picked = Q.select_front_expiry(curve, spec, ts)
+        out["reason"] = str((picked[0] if picked else {}).get("roll_method") or "") or "roll_inputs_absent"
         return out
     picked = Q.select_front_expiry(curve, spec, ts)
     if not picked:

@@ -229,16 +229,30 @@ class TestSelection:
         assert (got["settle_kind"], got["currency"], got["knowledge_date"]) == (
             "settlement", "USD", "2026-07-14")
 
-    def test_a_partial_activity_metric_declines_whole(self):
+    def test_a_partial_activity_metric_never_serves_as_the_named_rule(self):
         # THE DANGEROUS CASE. With OI printed on some expiries and not others the rule would fill the
         # missing metric with -1 and fall through to its nearest-month tie-break -- a DIFFERENT, unnamed
         # rule wearing front_month_v2's name. The precondition is asked of the rule module, not restated.
+        # RE-BANKED (09-23 fix round, CONTRACT C12): the named rule STILL refuses this frame -- no row is
+        # stamped open_interest or front_month_v2 -- and the DECLARED cycle fallback answers instead,
+        # under its own method and version, saying how many candidates carried the primary metric.
         rows = [_row("2026-09", "432.25", oi="500000"), _row("2026-12", "447.50", oi=None)]
-        assert Q.select_front_expiry(rows, _spec(), _ts()) == []
+        out = Q.select_front_expiry(rows, _spec(), _ts())
+        assert len(out) == 1
+        r = out[0]
+        assert r["roll_method"] == Q.CYCLE_FALLBACK_METHOD
+        assert r["roll_method"] not in Q.ROLL_METHODS_FRONT
+        assert r["roll_rule_version"] == Q.CYCLE_FALLBACK_VERSION != FR.ROLL_RULE_VERSION
+        assert r["contract_month"] == "2026-09"      # the nearest delivery NOT in delivery at a July session
+        assert r["roll_method_fallback"] == "open_interest->cycle_nearest_eligible"
+        assert r["roll_inputs_absent"] == "1 of 2 eligible candidates carried no open_interest"
 
-    def test_an_absent_activity_metric_declines_whole(self):
+    def test_an_absent_activity_metric_serves_the_declared_fallback_and_never_the_rules_name(self):
         rows = [_row("2026-09", "432.25"), _row("2026-12", "447.50")]
-        assert Q.select_front_expiry(rows, _spec(), _ts()) == []
+        out = Q.select_front_expiry(rows, _spec(), _ts())
+        assert [r["contract_month"] for r in out] == ["2026-09"]
+        assert out[0]["roll_method"] == Q.CYCLE_FALLBACK_METHOD
+        assert "open_interest" not in out[0] and "volume" not in out[0]      # inputs stripped as ever
 
     def test_a_cash_reference_declines(self):
         # "front month" is not a question that can be asked of a CEPEA cash index (roll method 'none').
@@ -288,9 +302,13 @@ class TestReadPath:
         assert r["unit"] == "US cents/bushel"     # unit_overrides still GOVERNS the served unit
         assert r["currency"] == "USD" and r["settle_kind"] == "settlement"
 
-    def test_run_returns_nothing_rather_than_a_nearest_expiry_when_the_rule_cannot_run(self):
+    def test_run_never_serves_a_nearest_expiry_under_the_rules_name_when_the_rule_cannot_run(self):
+        # RE-BANKED (09-23, C12): the read serves the DECLARED fallback, never the rule's own method.
         rows = [_row("2026-09", "432.25"), _row("2026-12", "447.50")]    # no activity metric anywhere
-        assert Q.run(_spec(), query_fn=lambda _sql: rows) == []
+        got = Q.run(_spec(), query_fn=lambda _sql: rows)
+        assert [(r["contract_month"], r["roll_method"]) for r in got] == [
+            ("2026-09", Q.CYCLE_FALLBACK_METHOD)]
+        assert got[0]["unit"] == "US cents/bushel"                          # unit_overrides still govern
 
     def test_the_selected_expiry_survives_all_the_way_into_the_writers_numbers_panel(self):
         """D-PQ RENDER, END TO END -- the half the A' wave shipped without.
@@ -418,7 +436,11 @@ class TestOIGapRed:
         rows = _sess("2026-09-04", CORN_0904)
         sp = _spec(asof="2026-09-07")
         flags()
-        assert Q.select_front_expiry(rows, sp, _ts()) == []          # HEAD: dark
+        # HEAD: dark. 09-23 (C12): the named rule is still dark and the DECLARED cycle fallback answers --
+        # December, because September is inside its own delivery month on a September session.
+        dark = Q.select_front_expiry(rows, sp, _ts())
+        assert [(r["contract_month"], r["roll_method"]) for r in dark] == [
+            ("2026-12", Q.CYCLE_FALLBACK_METHOD)]
         flags(fallback=True)
         out = Q.select_front_expiry(rows, sp, _ts())
         assert len(out) == 1
@@ -445,10 +467,13 @@ class TestOIGapRed:
         under the PRIMARY metric, at zero staleness, and STAMPS the partial condition on the row."""
         rows = _sess("2026-03-13", CORN_0313)
         sp = _spec(asof="2026-03-16")
-        flags()
-        assert Q.select_front_expiry(rows, sp, _ts()) == []          # HEAD: dark
-        flags(fallback=True)
-        assert Q.select_front_expiry(rows, sp, _ts()) == []          # R1 alone still refuses it
+        # HEAD: dark, and R1 alone still refuses it. 09-23 (C12): the named rule is still refused on
+        # both, and the DECLARED fallback names May -- March is inside its own delivery month.
+        for kw in ({}, {"fallback": True}):
+            flags(**kw)
+            got = Q.select_front_expiry(rows, sp, _ts())
+            assert [(r["contract_month"], r["roll_method"]) for r in got] == [
+                ("2026-05", Q.CYCLE_FALLBACK_METHOD)], kw
         flags(partial=True)
         out = Q.select_front_expiry(rows, sp, _ts())
         assert len(out) == 1
@@ -465,10 +490,14 @@ class TestOIGapRed:
         `legacy_lane_front` wearing `front_month_v2`'s name -- and every arm refuses it."""
         rows = _sess("2026-09-04", [(cm, v, None, None) for cm, v, _, _ in CORN_0904])
         sp = _spec(asof="2026-09-07")
+        # RE-BANKED (09-23, C12): under EVERY arm the named rule still refuses -- no pick is ever stamped
+        # open_interest / volume / front_month_v2 -- and the one row served is the DECLARED fallback.
         for kw in ({}, {"partial": True}, {"fallback": True},
                    {"partial": True, "fallback": True, "walkback": True}):
             flags(**kw)
-            assert Q.select_front_expiry(rows, sp, _ts()) == [], kw
+            got = Q.select_front_expiry(rows, sp, _ts())
+            assert [(r["contract_month"], r["roll_method"], r["roll_rule_version"]) for r in got] == [
+                ("2026-12", Q.CYCLE_FALLBACK_METHOD, Q.CYCLE_FALLBACK_VERSION)], kw
 
 
 class TestOIGapWalkBack:
@@ -511,7 +540,12 @@ class TestOIGapWalkBack:
                 + _sess("2026-09-01", CORN_0903))    # depth 3 -- one session past the fence
         flags(partial=True, fallback=True, walkback=True)
         assert Q.FRONT_EXPIRY_FENCE == 3
-        assert Q.select_front_expiry(rows, _spec(asof="2026-09-07"), _ts()) == []
+        # RE-BANKED (09-23, C12): past the fence the NAMED rule is still not served (the walk never
+        # reaches the one session that could run it); the newest session answers with the DECLARED
+        # fallback, stamped as such, at depth 0.
+        got = Q.select_front_expiry(rows, _spec(asof="2026-09-07"), _ts())
+        assert [(r["front_expiry_session"], r["roll_method"]) for r in got] == [
+            ("2026-09-04", Q.CYCLE_FALLBACK_METHOD)]
 
     def test_a_stale_level_past_the_calendar_bound_is_refused_rather_than_served(self, flags):
         """`sessions_withheld` is structurally blind to a session that NEVER ARRIVED -- a hole in the
@@ -616,9 +650,14 @@ class TestOIGapPalm:
     def _sp(self, asof="2026-09-04"):
         return _spec(asof=asof, commodity="malaysian_crude_palm_oil_cme")
 
-    def test_head_declines_this_board_on_every_session(self, flags):
+    def test_head_never_serves_this_board_under_the_rules_name(self, flags):
+        # RE-BANKED (09-23, C12): the named rule still declines every session (all-rows precondition);
+        # the DECLARED fallback serves the nearest month the rule's own eligibility admits -- the
+        # forward-month floor included, so the averaging month itself is never the pick.
         flags()
-        assert Q.select_front_expiry(self._rows(), self._sp(), _ts()) == []
+        got = Q.select_front_expiry(self._rows(), self._sp(), _ts())
+        assert [(r["contract_month"], r["roll_method"]) for r in got] == [
+            ("2026-10", Q.CYCLE_FALLBACK_METHOD)]
 
     def test_r0_serves_it_on_the_primary_metric_with_no_rule_table_change(self, flags):
         """THE PALM RE-ROUTE IS NOT NEEDED AND IS NOT SHIPPED. R0 takes this board from 100.0% dark
@@ -670,3 +709,244 @@ class TestOIGapPalm:
         out = Q.select_front_expiry(rows, self._sp(asof="2026-09-07"), _ts())
         assert len(out) == 1
         assert out[0]["front_expiry_session"] == "2026-09-03" and out[0]["sessions_withheld"] == 1
+
+
+# ==================================================================================================
+# THE 09-23 FIX ROUND, LANE T (CONTRACT C12) -- THE DECLARED CYCLE FALLBACK AND THE CURVE HEADLINE.
+#
+# THE MEASURED DEFECT (re-smoke 2026-09-23, deep F4 / max F2; D4): "no front-month level can be named
+# this session" while the same turn's curve read served November 2026 at 1,328. The live-edge cause, read
+# off the tape itself: open interest lands the morning AFTER the session, so the NEWEST session of every
+# GLBX board carries a settle and a NULL open interest on every row. The session shapes below are the
+# REAL soybeans_cbot rows (silver/futures_eod trade_year=2026 and 2024, pulled read-only on 2026-09-23):
+# (contract_month, settle, open_interest, volume).
+# ==================================================================================================
+SOY_0901 = [("2026-09", "1306.75", "396", "54"), ("2026-11", "1317.75", "485206", "132324"),
+            ("2027-01", "1332.75", "178202", "27697"), ("2027-03", "1337.25", "152580", "18146"),
+            ("2027-05", "1340.75", "101173", "10202"), ("2027-07", "1341.50", "58445", "7264"),
+            ("2027-08", "1321.00", "7611", "797"), ("2027-09", "1276.25", "4543", "170"),
+            ("2027-11", "1260.00", "34772", "3562"), ("2028-01", "1269.00", "1947", "36"),
+            ("2028-03", "1265.75", "1091", "9"), ("2028-05", "1266.25", "467", "1"),
+            ("2028-07", "1269.00", "826", "1"), ("2028-11", "1224.75", "251", "41"),
+            ("2029-11", "1206.50", "10", "2")]
+# September's LAST trading day: September still lists, with open interest 0 and ONE lot traded.
+SOY_0914 = [("2026-09", "1285.25", "0", "1"), ("2026-11", "1304.25", "483981", "99535"),
+            ("2027-01", "1320.25", "201513", "18088"), ("2027-03", "1328.00", "167372", "12958"),
+            ("2027-05", "1334.50", "101059", "4246"), ("2027-07", "1338.00", "87017", "3508"),
+            ("2027-08", "1319.75", "7823", "629"), ("2027-09", "1278.50", "4813", "94"),
+            ("2027-11", "1263.75", "36250", "968"), ("2028-01", "1273.50", "2176", "24"),
+            ("2028-03", "1270.75", "1305", "73"), ("2028-05", "1272.00", "497", "3"),
+            ("2028-07", "1275.25", "937", "1"), ("2028-11", "1225.75", "293", "3"),
+            ("2029-11", "1205.00", "9", "1")]
+# The session the deep and max pages read (N2 served 1328.0 / 1344.0 / 1351.75 / 1358.0 of it).
+SOY_0921 = [("2026-11", "1328.00", "469448", "97211"), ("2027-01", "1344.00", "211808", "16097"),
+            ("2027-03", "1351.75", "170745", "10496"), ("2027-05", "1358.00", "103012", "3615"),
+            ("2027-07", "1361.25", "92548", "2220"), ("2027-08", "1342.00", "8869", "708"),
+            ("2027-09", "1298.50", "4946", "104"), ("2027-11", "1282.25", "38266", "1717"),
+            ("2028-01", "1291.75", "2461", "86"), ("2028-03", "1287.75", "2261", "573"),
+            ("2028-05", "1288.25", "575", "77"), ("2028-07", "1291.75", "950", "5"),
+            ("2028-11", "1241.50", "300", "2")]
+# THE LIVE EDGE: the newest session on the 2026-09-23 fetch, open interest NULL on 13 of 13 rows.
+SOY_0922 = [("2026-11", "1325.50", None, "75653"), ("2027-01", "1341.25", None, "17463"),
+            ("2027-03", "1348.75", None, "11374"), ("2027-05", "1355.25", None, "3909"),
+            ("2027-07", "1359.25", None, "2541"), ("2027-08", "1341.00", None, "623"),
+            ("2027-09", "1298.50", None, "90"), ("2027-11", "1282.25", None, "1108"),
+            ("2028-01", "1291.75", None, "32"), ("2028-03", "1288.00", None, "73"),
+            ("2028-05", "1289.00", None, "66"), ("2028-07", "1292.25", None, "4"),
+            ("2029-11", "1204.75", None, "1")]
+# The 2024-03-01 as-of turn's session: open interest healed, the named rule runs -> May 2024, 1,140.75.
+SOY_20240229 = [("2024-03", "1128.25", "2203", "583"), ("2024-05", "1140.75", "342426", "102797"),
+                ("2024-07", "1151.25", "166944", "23327"), ("2024-08", "1148.75", "23068", "3274"),
+                ("2024-09", "1138.75", "13147", "1813"), ("2024-11", "1133.25", "120570", "11037"),
+                ("2025-01", "1142.75", "10852", "1048"), ("2025-03", "1141.75", "13627", "1985"),
+                ("2025-05", "1144.75", "6878", "451"), ("2025-07", "1151.25", "3084", "66"),
+                ("2025-11", "1121.50", "3503", "17")]
+
+
+def _soy(dt, shape, *, strip_oi=False):
+    return [_row(cm, v, dt=dt, oi=(None if strip_oi else oi), vol=vol) for cm, v, oi, vol in shape]
+
+
+def _soy_spec(asof):
+    return _spec(asof=asof, commodity="soybeans_cbot")
+
+
+class TestCycleFallback:
+    def test_the_live_edge_session_serves_november_under_the_declared_method(self, flags):
+        """D4 CLOSED ON THE REAL SESSION: 2026-09-22, open interest NULL on every row. HEAD declined;
+        the read now names November 2026 at 1,325.50 and says which rule it is NOT."""
+        flags()
+        out = Q.select_front_expiry(_soy("2026-09-22", SOY_0922), _soy_spec("2026-09-23"), _ts())
+        assert len(out) == 1
+        r = out[0]
+        assert (r["contract_month"], r["value"]) == ("2026-11", "1325.50")
+        assert r["roll_method"] == Q.CYCLE_FALLBACK_METHOD
+        assert r["roll_method"] not in Q.ROLL_METHODS_FRONT
+        assert r["roll_rule_version"] == Q.CYCLE_FALLBACK_VERSION
+        assert r["front_expiry_session"] == "2026-09-22" and r["session_age_days"] == 0
+        assert r["roll_inputs_absent"] == "13 of 13 eligible candidates carried no open_interest"
+
+    def test_REFUTE_septembers_last_trade_with_its_open_interest_stripped_is_november(self, flags):
+        """THE BRIEF'S REFUTATION. On 2026-09-14 September still lists (settle 1,285.25, open interest
+        0, one lot). At the live edge that session carries no open interest, and a fallback that read
+        the rule's eligibility alone (`_month >= _trade_month`) names SEPTEMBER -- a one-lot contract in
+        delivery. The fallback never names a contract inside its own delivery month: November."""
+        flags()
+        out = Q.select_front_expiry(_soy("2026-09-14", SOY_0914, strip_oi=True),
+                                    _soy_spec("2026-09-15"), _ts())
+        assert [(r["contract_month"], r["value"], r["roll_method"]) for r in out] == [
+            ("2026-11", "1304.25", Q.CYCLE_FALLBACK_METHOD)]
+        # ...and with the real (healed) open interest the NAMED rule runs and agrees on November
+        real = Q.select_front_expiry(_soy("2026-09-14", SOY_0914), _soy_spec("2026-09-15"), _ts())
+        assert [(r["contract_month"], r["roll_method"]) for r in real] == [("2026-11", "open_interest")]
+
+    @pytest.mark.parametrize("dt,shape", [("2026-09-01", SOY_0901), ("2026-09-14", SOY_0914),
+                                          ("2026-09-21", SOY_0921), ("2026-09-22", SOY_0922)])
+    def test_T1_the_september_sweep_never_names_a_contract_in_delivery_or_without_a_settle(
+            self, flags, dt, shape):
+        flags()
+        import datetime as _d
+        asof = (_d.date.fromisoformat(dt) + _d.timedelta(days=1)).isoformat()    # the lag-1 cutoff admits dt
+        for strip in (False, True):
+            out = Q.select_front_expiry(_soy(dt, shape, strip_oi=strip), _soy_spec(asof), _ts())
+            assert len(out) == 1, (dt, strip)
+            r = out[0]
+            assert r["contract_month"] > dt[:7], (dt, strip, r["contract_month"])
+            assert r["value"] not in (None, ""), (dt, strip)
+            assert r["contract_month"] == "2026-11", (dt, strip)
+
+    def test_T1_the_2024_as_of_open_interest_path_is_unchanged(self, flags):
+        """The as-of turn read a HEALED session: the named rule runs, May 2024, 1,140.75 -- exactly the
+        page's own tape row -- with no fallback stamp anywhere."""
+        flags()
+        out = Q.select_front_expiry(_soy("2024-02-29", SOY_20240229), _soy_spec("2024-03-01"), _ts())
+        assert len(out) == 1
+        r = out[0]
+        assert (r["contract_month"], r["value"], r["roll_method"], r["roll_rule_version"]) == (
+            "2024-05", "1140.75", "open_interest", FR.ROLL_RULE_VERSION)
+        assert "roll_method_fallback" not in r and "roll_inputs_absent" not in r
+
+    def test_a_projection_that_never_carried_the_roll_inputs_keeps_its_decline(self, flags):
+        """The S4 cause is a CALLER that never projected the rule's input; the fallback is for a
+        publisher that left it EMPTY. A row with no roll-input KEY at all is not a fallback case."""
+        flags()
+        rows = [{k: v for k, v in r.items() if k not in ("open_interest", "volume")}
+                for r in _soy("2026-09-22", SOY_0922)]
+        assert Q.select_front_expiry(rows, _soy_spec("2026-09-23"), _ts()) == []
+
+    def test_a_cash_reference_and_a_delivery_cycle_board_never_take_the_fallback(self, flags):
+        flags()
+        cash = Q.select_front_expiry([_row("2026-09", "1900.0", unit="BRL/60-kg bag")],
+                                     _spec(commodity="brazilian_arabica_coffee"), _ts())
+        assert cash == []
+        # MATIF reads no metric: the named rule itself serves (vacuously present), never the fallback
+        matif = Q.select_front_expiry([_row("2026-09", "210.0"), _row("2026-12", "215.0")],
+                                      _spec(commodity="french_wheat_matif"), _ts())
+        assert matif and matif[0]["roll_method"] == FR.METHOD_DELIVERY_CYCLE
+
+    def test_the_fallback_is_bounded_by_the_same_calendar_age_as_every_mechanism(self, flags):
+        flags()
+        stale = Q.select_front_expiry(_soy("2026-09-14", SOY_0914, strip_oi=True),
+                                      _soy_spec("2026-09-23"), _ts())          # age 8 > 7
+        assert stale == []
+
+    def test_T2_front_month_is_reserved_for_the_methods_decided_by_an_activity_print(self):
+        """`ROLL_METHODS_FRONT` is exactly the rule module's metric-reading methods, and the fallback's
+        method is outside it -- the one set every reader keys the words 'front month' on."""
+        assert Q.ROLL_METHODS_FRONT == frozenset(m for m, col in FR.METHOD_METRIC_COL.items() if col)
+        assert Q.CYCLE_FALLBACK_METHOD not in Q.ROLL_METHODS_FRONT
+        assert Q.CYCLE_FALLBACK_METHOD not in FR.ROLL_METHODS          # never one of the rule's own
+        assert Q.CYCLE_FALLBACK_VERSION != FR.ROLL_RULE_VERSION
+
+    def test_T2_the_model_is_told_what_the_row_is_in_the_rows_own_month(self, flags):
+        flags()
+        row = Q.select_front_expiry(_soy("2026-09-22", SOY_0922), _soy_spec("2026-09-23"), _ts())[0]
+        note = Q.cycle_fallback_note(row)
+        assert "November 2026" in note and "nearest listed delivery" in note
+        assert "open interest" in note and "never as 'the front month'" in note
+        named = Q.select_front_expiry(_soy("2026-09-21", SOY_0921), _soy_spec("2026-09-22"), _ts())[0]
+        assert Q.cycle_fallback_note(named) == ""                    # a row the rule picked says nothing
+        assert Q.cycle_fallback_note({}) == ""
+
+    def test_T2_the_agent_payload_carries_the_note_and_a_named_read_carries_none(self, flags):
+        import types as _types
+
+        class _Client:
+            def __init__(self):
+                self.queue = [
+                    _types.SimpleNamespace(
+                        content=[_types.SimpleNamespace(
+                            type="tool_use", id="t1", name=A.TOOL_NAME,
+                            input={"table": TABLE, "metric": "settle", "commodity": "soybeans_cbot",
+                                   "agg": FE})],
+                        stop_reason="tool_use"),
+                    _types.SimpleNamespace(content=[_types.SimpleNamespace(type="text", text="done")],
+                                           stop_reason="end_turn")]
+                outer = self
+
+                class _M:
+                    def create(self, **_kw):
+                        return outer.queue.pop(0)
+                self.messages = _M()
+
+        flags()
+        for rows, asof, expect_note in ((_soy("2026-09-22", SOY_0922), "2026-09-23", True),
+                                        (_soy("2026-09-21", SOY_0921), "2026-09-22", False)):
+            out = A.answer_numbers("where is CBOT soybeans trading", asof=asof, client=_Client(),
+                                   query_fn=lambda _sql, _rows=rows: _rows)
+            fe = [c for c in out["calls"] if (c.get("query") or {}).get("agg") == FE]
+            assert fe and fe[0]["rows"], asof
+            if expect_note:
+                assert fe[0]["rows"][0]["roll_method"] == Q.CYCLE_FALLBACK_METHOD
+                assert "nearest listed delivery" in fe[0].get("scope_note", "")
+            else:
+                assert fe[0]["rows"][0]["roll_method"] == "open_interest"
+                assert "scope_note" not in fe[0]                    # the named rule's read: HEAD's shape
+
+
+class TestCurveHeadline:
+    """C12 `curve_headline_index`: the reader's headline on a CURVE read is the nearest delivery the
+    rule's eligibility admits that is not in delivery -- not the furthest expiry `_row_order_key`
+    orders last."""
+
+    def _curve(self, dt, shape):
+        return [{"value": v, "knowledge_date": dt, "contract_month": cm, "settle_kind": "settlement",
+                 "currency": "USD", "unit": "US cents/bushel"} for cm, v, _oi, _vol in shape]
+
+    def test_the_deep_and_max_pages_N2_headlines_november_not_may(self):
+        rows = self._curve("2026-09-21", SOY_0921[:4])         # 1328.0 / 1344.0 / 1351.75 / 1358.0
+        i = Q.curve_headline_index(rows, asof="2026-09-23", ts=_ts(), commodity="soybeans_cbot")
+        assert i == 0 and rows[i]["contract_month"] == "2026-11" and rows[i]["value"] == "1328.00"
+
+    def test_a_contract_in_its_own_delivery_month_is_never_the_headline(self):
+        rows = self._curve("2026-09-14", SOY_0914[:3])
+        i = Q.curve_headline_index(rows, asof="2026-09-15", ts=_ts(), commodity="soybeans_cbot")
+        assert rows[i]["contract_month"] == "2026-11"
+
+    def test_the_slug_can_ride_the_row_and_without_one_there_is_no_headline(self):
+        rows = self._curve("2026-09-21", SOY_0921[:3])
+        assert Q.curve_headline_index(rows, asof="2026-09-23", ts=_ts()) is None
+        tagged = [dict(r, leviathan_slug="soybeans_cbot") for r in rows]
+        assert Q.curve_headline_index(tagged, asof="2026-09-23", ts=_ts()) == 0
+
+    @pytest.mark.parametrize("case", ["one_month", "two_sessions", "undated", "post_cutoff", "no_card"])
+    def test_every_non_curve_read_returns_none(self, case):
+        rows = self._curve("2026-09-21", SOY_0921[:3])
+        ts, asof = _ts(), "2026-09-23"
+        if case == "one_month":
+            rows = rows[:1]
+        elif case == "two_sessions":
+            rows[1]["knowledge_date"] = "2026-09-18"
+        elif case == "undated":
+            rows[1]["knowledge_date"] = ""
+        elif case == "post_cutoff":
+            asof = "2026-09-21"                                   # cutoff 2026-09-20 < the session read
+        elif case == "no_card":
+            ts = None
+        assert Q.curve_headline_index(rows, asof=asof, ts=ts, commodity="soybeans_cbot") is None
+
+    def test_a_settle_less_row_is_never_the_headline(self):
+        rows = self._curve("2026-09-21", SOY_0921[:3])
+        rows[0]["value"] = ""
+        i = Q.curve_headline_index(rows, asof="2026-09-23", ts=_ts(), commodity="soybeans_cbot")
+        assert rows[i]["contract_month"] == "2027-01"

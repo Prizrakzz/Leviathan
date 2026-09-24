@@ -2379,6 +2379,13 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # or done, so a chain-lit turn whose prose named no hop carries no column at all -- and on
             # the five 2026-09-16 banked bodies that is 7 of 15 tier-cells, not an edge case.
             **({"chain_lints": _cl} if _cl is not None else {}),
+            # THE SPLAT REGISTRY (09-24, fix round FINAL_2; INTEGRATION O-2): every key of
+            # `tracekeys.TRACE_SPLAT_KEYS`, lifted VERBATIM and ONLY on a row whose trace carries it --
+            # the `chain_lints` idiom one line up, REGISTERED instead of hand-written, so every flag-off
+            # record keeps its exact columns in their exact order and a REFUSED RV pair reaches the
+            # artifact as a record. Never None, never a fabricated zero.
+            **{k: (out.get("trace") or {})[k] for k in tk.TRACE_SPLAT_KEYS
+               if (out.get("trace") or {}).get(k) is not None},
             **{col: (out.get("intent_decision") or {}).get(dk) for dk, col in tk.DECISION_RECORD_KEYS},
             # RV2 W2 (D15): the v2 fork count + the detecting tier ride every record so a soak/eval readout
             # can attribute fires per tier post-run; None on non-orchestrator rows (no intent_decision).
@@ -2574,7 +2581,29 @@ def _per_answer_record(r: dict, run_kind: str) -> dict:
             # RECORDED ON BOTH ARMS, deliberately: a zero-bar clause with no measured control-arm noise
             # floor is not a measurement (the estate's own lesson), and on the control arm the model still
             # types the figure, so a non-zero reading there is the INSTRUMENT's rate, not the treatment's.
-            "bare_handle_escapes": _bare_handle_escapes(out)}
+            "bare_handle_escapes": _bare_handle_escapes(out),
+            # THE 09-23 FIX ROUND (lane V blocker 4) -- CLAUSE (2b)'s POPULATION GAINS THE CANONICALISED
+            # HANDLES, on the splat idiom (absent-when-empty, exactly as the verifier stamps the key), so a
+            # row whose writer malformed no bracket keeps HEAD's columns and HEAD's tail. THE MEASURED
+            # ESCAPE: "[N42, the 98th percentile of its own record]" (09-23 quick corn/wheat) was no handle
+            # to either grammar, so neither figure was checked and `bare_handle_escapes` read 0 over it. The
+            # verifier now splits it to "[N42], the 98th ..." before anything reads a handle and writes the
+            # split back, so the token ENTERS the body this clause scans (it is in the denominator now) and
+            # is checked like any other; this column says how many of the clause's tokens exist only
+            # because of that split. It is never added to the numerator: a split handle was verified, and
+            # counting it as an escape would score a repaired bracket as the defect it no longer is.
+            **_canonicalised_kw(v)}
+
+
+def _canonicalised_kw(v) -> dict:
+    """`{"handles_canonicalised": n}` when the citation verifier's report split n > 0 malformed handle
+    brackets (`verify._canonicalise_handles`, the report key it stamps only when non-zero), else {}.
+    Never raises: an instrument is never worth a run."""
+    try:
+        n = int((v or {}).get("handles_canonicalised") or 0)
+    except (TypeError, ValueError, AttributeError):
+        return {}
+    return {"handles_canonicalised": n} if n > 0 else {}
 
 
 def _quality_counters(out: dict) -> dict | None:
@@ -3979,6 +4008,14 @@ def state_report(rows: list[dict]) -> list[str]:
     # census does not pay a regex scan per row to be told it has nothing to report.
     lint_ctl: list[int] = []
     lint_trt: list[int] = []
+    # OWNER DECISION 8 (a), THE 09-23 FIX ROUND (review RA M4): the SAME pure lint restricted to the v1
+    # table (`register.DESK_REGISTER_V1_NAMES`, HEAD's eleven tokens, frozen), on the SAME rows of BOTH
+    # cells. The extended table grew this round, so its count moves on both cells for a reason that is
+    # not the treatment (threat R-10); the v1 count is the arm's standing measure and is read beside it.
+    # `names=` is the register's own restriction argument -- no second token list lives here.
+    _v1n = tuple(getattr(reg, "DESK_REGISTER_V1_NAMES", ()) or ())
+    lint_ctl_v1: list[int] = []
+    lint_trt_v1: list[int] = []
     for r in rows:
         out = r.get("out") if isinstance(r.get("out"), dict) else {}
         st = out.get("structured") if isinstance(out.get("structured"), dict) else {}
@@ -3987,6 +4024,9 @@ def state_report(rows: list[dict]) -> list[str]:
             _tr = out.get("trace") if isinstance(out.get("trace"), dict) else {}
             _lit = isinstance(_tr.get("desk_register"), dict)
             (lint_trt if _lit else lint_ctl).append(sum(reg.count_desk_register(v) for v in _fields))
+            if _v1n:
+                (lint_trt_v1 if _lit else lint_ctl_v1).append(
+                    sum(reg.count_desk_register(v, _v1n) for v in _fields))
 
     def _with(key: str) -> list[dict]:
         """The coverage dicts that CARRY the key -- the denominator of every line below."""
@@ -4066,6 +4106,15 @@ def state_report(rows: list[dict]) -> list[str]:
                  f"{_tot('register_lingo_hits', rl)} over {len(rl)} turn(s); sentences the rewrite "
                  f"changed: {_tot('register_lingo_rewritten', rl)}. REGISTER, not grounding -- a word "
                  f"named the instrument instead of the market and no figure moved")
+    # OWNER DECISION 8 (a): the v1 (eleven-token) count BESIDE the extended one, on its OWN denominator --
+    # the coverage dicts that carry the key (answer.py stamps it wherever it stamps the extended count; an
+    # artifact from before the 09-23 round carries only the extended key, and absent is never zero).
+    rl1 = _with("register_lingo_hits_v1")
+    if rl1:
+        L.append(f"- the same count on the v1 table (the eleven tokens every banked register number is "
+                 f"denominated in; OWNER DECISION 8): {_tot('register_lingo_hits_v1', rl1)} over "
+                 f"{len(rl1)} turn(s). The line above reads the EXTENDED table, which grew in the 09-23 "
+                 f"round -- quote this one against a banked baseline, never that one")
     ra = _with("register_adjectives_licensed")
     if ra:
         L.append(f"- bar adjectives whose own cited figure clears the desk's band: "
@@ -4097,13 +4146,32 @@ def state_report(rows: list[dict]) -> list[str]:
             _mand = (f"control **{_mc:.1f}** over {len(lint_ctl)} answer(s); NO mandate-lit answer in "
                      f"these rows, so THE DIFFERENCE IS NOT IN THIS PANEL -- read it against the "
                      f"treatment cell's own rows (this panel takes both cells' rows together)")
+        # OWNER DECISION 8 (a): the v1 table's count, per cell, on the SAME rows as the line above it
+        # (`lint_*_v1` is appended in the same loop under the same `_lit` split, so the two lines can
+        # never read different populations). Its own line, so no word of the extended line moves.
+        _mc1 = statistics.mean(lint_ctl_v1) if lint_ctl_v1 else None
+        _mt1 = statistics.mean(lint_trt_v1) if lint_trt_v1 else None
+        if lint_ctl_v1 and lint_trt_v1:
+            _mand_v1 = f"control **{_mc1:.1f}** -> treatment **{_mt1:.1f}**"
+        elif lint_trt_v1:
+            _mand_v1 = f"treatment **{_mt1:.1f}** (no mandate-dark answer in these rows)"
+        elif lint_ctl_v1:
+            _mand_v1 = f"control **{_mc1:.1f}** (no mandate-lit answer in these rows)"
+        else:
+            _mand_v1 = ""
         L += ["",
               f"- **DESK REGISTER -- THE MANDATE (a CROSS-CELL number): shipped lint hits per answer: "
               f"{_mand}.** The PURE lint (`register.count_desk_register`: no model call, no flag) over "
               f"each row's own banked `tldr` + `mechanism`, with the rows split by whether that turn "
               f"carried the mandate (`trace['desk_register']`, which the answer seam writes under "
-              f"`GRAPHRAG_DESK_REGISTER`, inside the verifier gate, and nowhere else)",
-              f"- the S7b smoke measured THIS SAME PURE LINT at **51 with the mandate ABSENT (arm S6B) "
+              f"`GRAPHRAG_DESK_REGISTER`, inside the verifier gate, and nowhere else)"]
+        if _mand_v1:
+            L.append(f"- **the SAME pure lint on the v1 table** (`register.DESK_REGISTER_V1_NAMES`, the "
+                     f"eleven tokens every banked register number is denominated in; OWNER DECISION 8): "
+                     f"{_mand_v1}, same rows. The line above reads the EXTENDED table, which grew in the "
+                     f"09-23 round and so moves on BOTH cells for a reason that is not the treatment -- "
+                     f"quote the v1 line against a banked baseline")
+        L += [f"- the S7b smoke measured THIS SAME PURE LINT at **51 with the mandate ABSENT (arm S6B) "
               f"vs 5 with it LIT (arm R4)** over three real-seat answers of the same length "
               f"(15.31 vs 1.47 per thousand words). TWO PROMPT ARMS, ONE CENSUS, no rewrite in either "
               f"-- it is NOT a before -> after inside one cell, and it must never be quoted beside one",
@@ -4125,6 +4193,22 @@ def state_report(rows: list[dict]) -> list[str]:
                  f"{before} -> {after} over {len(dregs)} answer(s)** (mean {before / len(dregs):.2f} -> "
                  f"{after / len(dregs):.2f} per answer). This is the REMEDY's own delta INSIDE the "
                  f"mandate-lit cell -- {_tail}")
+        # OWNER DECISION 8 (a): the same delta on the v1 table. answer.py stamps `hits_*_v1` only when the
+        # extended count was non-zero (a clean census is HEAD's bytes, and its v1 count is ZERO BY
+        # INCLUSION: the v1 table is a subset of the extended one that counted nothing), so a census is
+        # v1-READABLE when it carries the key or counted nothing at all. A census that counted hits and
+        # carries no v1 key predates the 09-23 round: it is left out and NAMED, never read as a zero.
+        _dv1 = [d for d in dregs if "hits_before_v1" in d or not int(d.get("hits_before") or 0)]
+        if any("hits_before_v1" in d for d in _dv1):
+            _b1 = sum(int(d.get("hits_before_v1") or 0) for d in _dv1)
+            _a1 = sum(int(d.get("hits_after_v1") or 0) for d in _dv1)
+            _pre = len(dregs) - len(_dv1)
+            L.append(f"- the same REWRITE on the v1 table: {_b1} -> {_a1} over {len(_dv1)} answer(s)"
+                     + (f" ({_pre} census(es) from before the v1 stamp left out, not read as zero)"
+                        if _pre else "")
+                     + f"; v1-bearing sentences offered first "
+                       f"{sum(int(d.get('offered_v1') or 0) for d in _dv1)}, rewritten "
+                       f"{sum(int(d.get('rewritten_v1') or 0) for d in _dv1)}")
         _out = collections.Counter(str(d.get("outcome") or "") for d in dregs)
         L.append(f"- rewrite: charged sentences {sum(int(d.get('sentences') or 0) for d in dregs)}, "
                  f"offered {sum(int(d.get('offered') or 0) for d in dregs)}, "
@@ -4327,6 +4411,74 @@ def state_report(rows: list[dict]) -> list[str]:
                  f"and never a counted zero. A turn whose block carried chains the writer never "
                  f"narrated ALSO stamps nothing, so the stamped-census count at the head of this block "
                  f"is turns that stamped a census and never turns that had a chain")
+    return L
+
+
+def splat_census_report(rows: list[dict]) -> list[str]:
+    """THE SPLAT REGISTRY's REPORT (09-24, fix round FINAL_2; INTEGRATION O-2): the per-turn records
+    `tracekeys.TRACE_SPLAT_KEYS` lifts, read straight off each row's trace on the SAME
+    absent-is-never-zero rule every panel above keeps.
+
+    * THE RV PAIR LEG. A turn whose leg RAN stamps EXACTLY ONE of `rv_pair_spread` (the row was minted)
+      and `rv_pair_uncomputed` (the leg REFUSED, in the calculator's own sentence), so minted + refused
+      is the leg's own denominator -- and a REFUSAL IS COUNTED, by its reason, never dropped (THREAT
+      T-3, "refuse and count": a EUR/t settle against a USD/mt print is refused, never converted, and
+      the arm must be able to say how often). A row carrying neither key did not run the leg -- the
+      question named one market, or the turn was unarmed -- and that absence is not a zero.
+    * THE BODY SERVED TWICE (09-23 lane A, defect 5): the spine de-dup's census, stamped only when it
+      did something. Both cells run that pure correction, so it is a DEFECT count of the writer's
+      doubled bodies and never a treatment effect.
+
+    ABSENT-WHEN-INAPPLICABLE: a deck where no row carries any of the keys returns [] and the report
+    renders nothing, so every flag-off report is byte-identical. A truthy NON-DICT is COUNTED and named
+    (the `state_report` R5 MINOR guard), never raised: `report()` runs once per deck after a paid arm,
+    and a raise here would lose the whole artifact rather than one row."""
+    import collections
+    minted: list[dict] = []
+    refused: list[dict] = []
+    spines: list[dict] = []
+    malformed: collections.Counter = collections.Counter()
+    for r in rows:
+        out = r.get("out") if isinstance(r.get("out"), dict) else {}
+        tr = out.get("trace") if isinstance(out.get("trace"), dict) else {}
+        for key, bucket in (("rv_pair_spread", minted), ("rv_pair_uncomputed", refused),
+                            ("tldr_spine_deduped", spines)):
+            v = tr.get(key)
+            if isinstance(v, dict) and v:
+                bucket.append(v)
+            elif v is not None and not isinstance(v, dict):
+                malformed[key] += 1
+    if not (minted or refused or spines or malformed):
+        return []
+    n = len(rows)
+
+    def _pair(x: dict) -> str:
+        return " / ".join(str(m) for m in (x.get("markets") or [])) or "(no markets stamped)"
+
+    L = ["## Per-turn records (the splat registry: the RV pair leg, the body served twice)", ""]
+    if minted or refused:
+        L.append(f"- **RV PAIR LEG: ran on {len(minted) + len(refused)} of {n} turn(s) -- MINTED "
+                 f"{len(minted)}, REFUSED {len(refused)}**. EXACTLY ONE record rides a turn whose leg "
+                 f"ran, so these two are the leg's own denominator; a turn carrying neither did not run "
+                 f"the leg (one market named, or the turn was unarmed), which is not a zero")
+        if minted:
+            L.append(f"- minted: {sum(int(x.get('legs') or 0) for x in minted)} row(s) over the pairs "
+                     f"{dict(collections.Counter(_pair(x) for x in minted))}")
+        if refused:
+            L.append(f"- **REFUSED, counted by the calculator's own reason** (a spread across two units "
+                     f"or two currencies is refused, never converted): "
+                     f"{dict(collections.Counter(str(x.get('reason') or '(no reason stamped)') for x in refused))}"
+                     f"; pairs {dict(collections.Counter(_pair(x) for x in refused))}")
+    if spines:
+        _s = lambda k: sum(int(x.get(k) or 0) for x in spines)      # noqa: E731
+        L.append(f"- **THE BODY SERVED TWICE: de-duplicated on {len(spines)} of {n} turn(s)** -- "
+                 f"{_s('sections')} TL;DR section(s) carrying the response contract's own headings; "
+                 f"{_s('sentences_removed')} sentence(s) removed from the TL;DR as claims the mechanism already carries, "
+                 f"{_s('sentences_moved')} moved into the mechanism (never deleted). A DEFECT count of "
+                 f"the writer's doubled bodies: both cells run this pure correction")
+    if malformed:
+        L.append(f"- **rows whose record is not a mapping: {dict(malformed)}** -- counted and named "
+                 f"rather than scored: the shape carries no census this panel can read")
     return L
 
 def spend_report(rows: list[dict]) -> list[str]:
@@ -4755,6 +4907,14 @@ def _successor_totals(per: list[dict]) -> dict:
     # `== 0` clause is only actionable if the reader can go straight to the offending row.
     out["bare_handle_escapes"] = sum(int(p.get("bare_handle_escapes") or 0) for p in live)
     out["bare_handle_escape_rows"] = sorted(p.get("id") for p in live if p.get("bare_handle_escapes"))
+    # THE 09-23 FIX ROUND (lane V blocker 4): the clause's CANONICALISED share, pooled over the SAME live
+    # rows and named by id -- the handles that reached the scan above only because the verifier split a
+    # malformed bracket. Present only when a row carries it (the per-row splat's absent-when-empty rule),
+    # so every artifact whose writer malformed nothing keeps HEAD's totals to the key.
+    _hc_rows = [p for p in live if p.get("handles_canonicalised")]
+    if _hc_rows:
+        out["handles_canonicalised"] = sum(int(p.get("handles_canonicalised") or 0) for p in _hc_rows)
+        out["handles_canonicalised_rows"] = sorted(p.get("id") for p in _hc_rows)
     # G1 CLAUSE (8)'s DENOMINATOR, PRODUCED (H2 FOLD 1, K1) -- on BOTH arms, on THESE live rows, from the
     # producer this dict already pools. `bare_handle_escapes` above closed the same defect for clause (2b);
     # clause (8) had the mirror of it: `substitution_load_mean` is the NUMERATOR and the bar it is read
@@ -5182,6 +5342,12 @@ def report(rows: list[dict], *, model: str, graph_version: str | None = None,
     _state_panel = state_report(rows)
     if _state_panel:
         lines += _state_panel + [""]
+    # 09-24 (FINAL_2, INTEGRATION O-2): the splat registry's records -- the RV pair leg's minted AND
+    # REFUSED spreads, and the body served twice. ABSENT on a deck no row of which carries one, so every
+    # flag-off report is byte-identical (the `state_report` idiom directly above, same reason).
+    _splat_panel = splat_census_report(rows)
+    if _splat_panel:
+        lines += _splat_panel + [""]
     # LANE F: the cost census. ABSENT unless a row carries a seat beyond the writer, so every banked
     # report of every flag-off deck is byte-identical -- `spend_report` returns [] and the `if` never
     # adds the blank line either (the `state_report` idiom one screen up, same reason).

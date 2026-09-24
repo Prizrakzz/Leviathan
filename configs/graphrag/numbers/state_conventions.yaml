@@ -281,16 +281,28 @@ watch_overlay:
 # `brl_usd` on the map and `cascade._region_row` swaps in the resolved region's currency, so the metric
 # a board actually reads is `cny_usd`, `myr_usd`, `idr_usd` or `inr_usd` -- names no static table can
 # enumerate. An exact key always wins over the wildcard.
+# THE 09-23 FIX ROUND (lane T, CONTRACT C1/C10): these words are now the served row's NAME -- the board
+# names a row by its SERIES, never by the driver routed to it -- so the entries were re-read against
+# their own cards and corrected where the old words named something the series is not:
+#   gold_weather_z.drought_z        the card's own desc: "longest consecutive dry-day run in the month, z vs
+#                                   prior-year same months" (the page printed it as "flash drought")
+#   silver_esr.weekly_exports_1000mt the card's own desc: "actual shipments in the week" -- "export sales"
+#                                   was false, and the served rewrite had to correct it on the page
+#   silver_psd.beginning_stocks_mt  total carry-in, every holder (the page printed it as "reserve stocks")
+# silver_psd.su_ratio KEEPS its name here: OWNER DECISION 4's basis rides the CARD (tables.yaml
+# `basis_words` + `display_scale`/`display_unit`, CONTRACT C10), which the row identity prints beside
+# the name -- so a writer's "stocks-to-use" still joins the row it names.
+# Each is register-clean on the four detectors and carries no digit or underscore (clause 13).
 reading_words:
   gold_board_crush.crush_margin_usd_bu:                  "the board crush margin"
   gold_futures_spreads.spread_value:                     "the spread between two delivery months"
-  gold_weather_z.drought_z:                              "the drought anomaly"
+  gold_weather_z.drought_z:                              "the longest dry-day run in the month, as a z-score"
   gold_weather_z.frost_event_flag:                       "frost events"
   gold_weather_z.gdd_z:                                  "the growing-degree-day anomaly"
   gold_weather_z.heat_stress_z:                          "the heat-stress anomaly"
   gold_weather_z.tmax_anomaly:                           "the maximum-temperature anomaly"
   silver_cot.mm_net:                                     "the managed-money net position"
-  silver_esr.weekly_exports_1000mt:                      "weekly export sales"
+  silver_esr.weekly_exports_1000mt:                      "weekly export shipments"
   silver_fgis.exports_mt_weekly:                         "weekly export inspections"
   silver_fred_fx.*:                                      "the local currency against the US dollar"
   silver_mpob.closing_stocks_palm_oil_mt:                "Malaysian closing palm oil stocks"
@@ -307,9 +319,13 @@ reading_words:
   silver_pink_sheet.urea_usd_mt_zscore_5yr:              "the urea price against its own five-year record"
   silver_production_livestock.live_animals:              "the head count of live animals"
   silver_psd.area_harvested_1000ha:                      "harvested area"
-  silver_psd.beginning_stocks_mt:                        "beginning stocks"
+  silver_psd.beginning_stocks_mt:                        "carry-in stocks, all holders"
   silver_psd.consumption_mt:                             "domestic consumption"
   silver_psd.ending_stocks_mt:                           "ending stocks"
+  # COMMODITY-SCOPED, exact-first (render.scoped_reading_words, `<table>.<metric>@<series slug>`; 09-23
+  # fix round, review WT M-4 / CONTRACT C10): USDA PSD rice is ONE milled-basis figure across every
+  # class -- the basis the rice page omitted beside "ending stocks" (and once served as "deliverable")
+  silver_psd.ending_stocks_mt@rough_rice_cbot:           "ending stocks, all classes, milled basis"
   silver_psd.exports_mt:                                 "exports"
   silver_psd.imports_mt:                                 "imports"
   silver_psd.production_mt:                              "production"

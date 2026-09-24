@@ -126,6 +126,48 @@ def _handle_members(token: str) -> list[tuple[str, int]]:
         if pair not in out:
             out.append(pair)
     return out
+
+
+# ══ 09-23 FIX ROUND (lane V, BRIEF item 7) -- A BRACKET THAT OPENS AS A HANDLE AND CONTINUES AS PROSE ══
+# THE MEASURED ESCAPE (09-23 re-smoke, quick corn/wheat): the writer put its gloss INSIDE the bracket --
+#     "corn's harvested area reads 35.82 M ha [N42, the 98th percentile of its own record]"
+# `_HANDLE` requires every member after the lead to be a handle member, so the whole bracket matched
+# nothing: 35.82 and 98 were checked against nothing, [N42] never reached the footer, and
+# `bare_handle_escapes` did not count it (0 on that turn).
+# THE RULE IS THE HANDLE GRAMMAR ITSELF, NOT A PATTERN FOR THE GLOSS. The bracket's HEAD is read with
+# `_HANDLE`'s own member grammar (a prefixed lead, then `_H_SEP` + `_H_MEMBER_ANY` continuations, each
+# member ending at a non-word character so "98th" can never be half-read as the member "98t"); the split
+# fires only when (i) the head is a prefixed `[N`/`[E` lead, (ii) the head is followed by the LIST
+# punctuation a gloss is written with (",", ";", ":"), (iii) what follows is NOT itself a continuation
+# `_HANDLE` accepts (the whole bracket fails `_HANDLE.fullmatch`), and (iv) that remainder carries a letter
+# -- so `[N5, 10, 12]`, `[N1-N4]`, `[E2, E5]` and a bracketed year range `[1980-1990]` (bare lead) are
+# untouched by construction. (ii) is MEASURED on unseen banked prose: a writer's NOTE about a handle --
+# "[E31 is area only; the trade and credit items sit in ...]", "[N27 is seed -- see record]" -- names the
+# handle to DISCLAIM it, and splitting it would turn the disclaimer into a live citation of the very row
+# the writer said does not back the claim (the 112-answer replay found both; neither is split now). The remainder keeps its own separator and words verbatim:
+#     "[N42, the 98th percentile of its own record]" -> "[N42], the 98th percentile of its own record"
+# Nothing is deleted and no character is written but the moved bracket.
+_CANON_MEMBER = r"[NE]?\d+[a-z]?(?![\w.])"
+_MALFORMED_HANDLE = re.compile(
+    r"\[(?P<head>[NE]\d+[a-z]?(?![\w.])(?:\s*" + _H_SEP + r"\s*" + _CANON_MEMBER + r")*)"
+    r"(?P<tail>\s*[,;:][^\[\]\n]*?)\]")
+
+
+def _canonicalise_handles(text: str) -> tuple[str, int]:
+    """(text with every malformed handle bracket split to its canonical handle + its own words, count)."""
+    n = 0
+
+    def _fix(m):
+        nonlocal n
+        tok = m.group(0)
+        tail = m.group("tail")
+        if _HANDLE.fullmatch(tok) or not re.search(r"[A-Za-z]", tail):
+            return tok
+        n += 1
+        return "[" + m.group("head") + "]" + tail
+
+    out = _MALFORMED_HANDLE.sub(_fix, str(text or ""))
+    return out, n
 # CYCLE-5 TIDY-1: how much of the text FOLLOWING a strip is read to build the seam key. Long enough that a
 # renderer-side prefix match is unambiguous against ordinary prose, short enough that nothing grows a
 # second copy of the answer.
@@ -270,9 +312,32 @@ def _norm_quote(s: str) -> str:
     return _norm(s).strip(_QUOTE_EDGE)
 
 
+def _same_source_items(entry: dict, evidence: list[dict]) -> list[dict]:
+    """Every provided item whose source matches the entry's (substring either way), date ignored."""
+    src = _norm(str(entry.get("source") or "")).replace(" ", "_")
+    if not src:
+        return []
+    out = []
+    for e in evidence or []:
+        es = _norm(str(e.get("source") or "")).replace(" ", "_")
+        if es and (src in es or es in src):
+            out.append(e)
+    return out
+
+
 def _match_ledger_entry(entry: dict, evidence: list[dict]) -> list[dict]:
     """Provided evidence items compatible with a ledger entry: source must match (substring either
-    way — the model shortens 'usda_gain_soybean_oil' to 'USDA GAIN'); date must equal when both given."""
+    way — the model shortens 'usda_gain_soybean_oil' to 'USDA GAIN'); date must equal when both given.
+
+    09-23 FIX ROUND (lane V, BRIEF item 8, THREAT_MODEL V-11) -- THE DATE-MISMATCH RETRY CORRECTS ONLY
+    WHEN THE SOURCE NAMES ONE DOCUMENT. MEASURED on the rice turn: the writer declared [E41] as a
+    December-2025 USDA WASDE the turn did not hold; the retry matched on the source alone, took the FIRST
+    of several WASDE items and re-dated the entry to it, so the footer bound "USDA raised 2025/26 global
+    beginning stocks ... reported 9 December 2025" to a September-2023 WASDE about a parboiled export tax.
+    "A mistyped date becomes a CORRECTION" is true only when the source leaves exactly ONE candidate; with
+    several, choosing one is a guess, and a guessed provenance is worse than none. So: one same-source
+    item -> the correction, exactly as before; several -> no match here, and the ledger loop records the
+    entry as `ledger_ambiguous` (counted, handle kept, NEVER re-dated) rather than as a fabrication."""
     src = _norm(str(entry.get("source") or "")).replace(" ", "_")
     when = str(entry.get("date") or "")[:10]
     out = []
@@ -284,11 +349,16 @@ def _match_ledger_entry(entry: dict, evidence: list[dict]) -> list[dict]:
             continue
         out.append(e)
     if not out and src:                                   # date was the lie; retry on source alone so a
-        for e in evidence:                                # mistyped date becomes a CORRECTION, not a strip
-            es = _norm(str(e.get("source") or "")).replace(" ", "_")
-            if es and (src in es or es in src):
-                out.append(e)
+        same = _same_source_items(entry, evidence)        # mistyped date becomes a CORRECTION, not a strip
+        if len(_ledger_documents(same)) == 1:             # ...but ONLY when the source names ONE document
+            out = same
     return out
+
+
+def _ledger_documents(items: list[dict]) -> set:
+    """The distinct DOCUMENTS a list of evidence items is: (source, date). Two chunks of one release are
+    one document, so they never make a retry ambiguous."""
+    return {(_norm(str(e.get("source") or "")), str(e.get("date") or "")[:10]) for e in items or []}
 
 
 def _numbers_in(s: str) -> list[float]:
@@ -638,7 +708,440 @@ _UL_GLUE = "[ \t" + chr(0x2010) + chr(0x2011) + "-]"
 _UL_TAIL = re.compile(r"\A" + _UL_GLUE + r"+(?:\d{1,3}" + _UL_GLUE + r"+)?" + _UL_UNIT + r"\b", re.I)
 
 
-def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, float]]:
+# ══ 09-23 FIX ROUND (lane V, BRIEF items 3 + 4, CONTRACT C6; FIX round: review FATAL-1 + M2) ══════════════
+# THE UNIT VOCABULARY IS DECLARED DATA, AND A UNIT LABEL IS READ FROM ITS OWN START
+# THE MEASURED DEFECT (09-23 re-smoke, cotton): all 13 of the turn's charges were ONE false positive. The
+# served WASDE rows print their own unit "Million 480 Pound Bales"; the writer transcribed it as
+# "3.6 million 480-pound bales [N14]"; rule (g)'s unit words were a hand-typed six, "pound" was not one of
+# them, so 480 became a claim magnitude no row carries and `number_unbacked` took every handle of four
+# correct balance-sheet sentences. The rice turn is the same class through `_UNIT_AFTER` ("net long 1992
+# contracts [N37]" read 1992 as a YEAR).
+# WHERE THE VOCABULARY COMES FROM -- DATA ONLY, NO WORD LIST IN THIS MODULE:
+#   * CARDS -- every metric `unit`, `unit_overrides` value and `display_unit` across the loaded numbers
+#     registry (`registry.card_unit_phrases()`), each read as the ALTERNATIVES its own bracket grammar
+#     declares ("MMT (cotton: million 480-lb bales)" is the unit "MMT" and, for cotton, "million 480-lb
+#     bales");
+#   * SPELLINGS -- the other spellings of those units ("tonnes" for MT, "percent" for %, "bps", "cwt", the
+#     durations' "yr" / "wk" / "qtr"), declared ONCE as data in tables.yaml's `unit_spellings` /
+#     `duration_spellings` / `unit_scale_words` (registry.unit_spellings & co.). Each key and its list is
+#     ONE equivalence class -- how "the unit the writer wrote is the unit the row carries" is decided
+#     (`_unit_equal`), with no morphology rule: a plural is declared like any other spelling;
+#   * ROWS -- the `unit` string of every row the sentence's own [N] handles SERVED, ROW-GRANULAR (a row that
+#     recorded no unit contributes nothing and voids nothing);
+#   * THE RENDER -- the board's own period nouns (`render.PERIOD_NOUNS`) for the duration rules.
+# FATAL-1 (the fix-round review): the first cut expanded every declared phrase into ALL its contiguous
+# sub-runs and masked any of them after a figure, so the function words inside card units -- "sigma VS 3 yr
+# mean", "sigma vs PRIOR 5 yrs", "COP PER 125-kg carga" -- became global maskers: "3.6 million 480-pound
+# bales vs 5 in MY2025/26 [N14]" kept its false 5 with its handle. And rule (g)'s word bags, "derived" from
+# the same strings, added "vs" / "prior" / "sigma" as LEAD words and "yr" as a UNIT word: "4.1 vs 3 yr ago"
+# lost its 3. THE STRUCTURAL READING: a unit label written after a figure is the declared phrase written
+# FROM ITS OWN START -- a PREFIX of one declared phrase that runs through a scale numeral AND the word it
+# scales (a scale numeral always scales the word written after it). "million 480-pound bales" is the
+# prefix of "Million 480 Pound Bales"; "vs 5" and "per 125" start in the middle of a phrase and are never a
+# label. At a CHARGE SITE rule (g) is therefore SUBSUMED by this one phrase-prefix rule (i) over the
+# declared data; rule (g)'s bags (HEAD's `_UL_UNIT` / `_UL_QUAL`) keep serving only the default extractor
+# and the frozen cycle-8 view, byte for byte. `_claim_number_spans(s, cycle8=False)` sees NONE of this.
+_UNIT_PUNCT = "()[]{}:;,\"'" + "".join(chr(c) for c in (0x201c, 0x201d, 0x2018, 0x2019))
+_UNIT_SPACE_RX = re.compile(r"[\s" + chr(0x00a0) + chr(0x2010) + chr(0x2011) + r"\-]+")
+_UNIT_NUMERAL = re.compile(r"\d[\d,]*")
+_UNIT_TOKEN_RX = re.compile(r"[^\s" + chr(0x00a0) + chr(0x2010) + chr(0x2011) + r"\-]+")
+# A declared unit string's OWN grammar for alternatives: a bracketed gloss, a ':' naming what the gloss is
+# for, a ',' adding a basis ("MMT (cotton: million 480-lb bales)", "MMT change, milled basis").
+_UNIT_ALT_SPLIT = re.compile(r"[(),]")
+
+
+def _unit_tokens(s) -> tuple:
+    """A unit string as its normalised TOKENS: lower-case, hyphen / non-breaking space / NB-hyphen folded
+    to a blank, the label's own brackets and list punctuation dropped, a token's trailing '.' dropped
+    ("lb." is "lb"). "Million 480 Pound Bales" -> ('million', '480', 'pound', 'bales'); "MMT (cotton:
+    million 480-lb bales)" -> ('mmt', 'cotton', 'million', '480', 'lb', 'bales')."""
+    out = []
+    for t in _UNIT_SPACE_RX.split(str(s or "").lower()):
+        t = t.strip(_UNIT_PUNCT).rstrip(".").strip(_UNIT_PUNCT)
+        if t:
+            out.append(t)
+    return tuple(out)
+
+
+def _is_unit_numeral(tok: str) -> bool:
+    return bool(_UNIT_NUMERAL.fullmatch(tok or ""))
+
+
+def _phrase_alternatives(s) -> set:
+    """The token tuples ONE declared unit string declares: the whole string, and each segment its own
+    bracket / comma grammar separates (the part after a ':' inside a segment is the gloss's unit)."""
+    out = {_unit_tokens(s)}
+    for seg in _UNIT_ALT_SPLIT.split(str(s or "")):
+        seg = seg.rsplit(":", 1)[-1]
+        out.add(_unit_tokens(seg))
+    return {t for t in out if t}
+
+
+#: THE DECLARED HALF, memoised per resolved config root (the `_BAR_*_CACHE` discipline: six unit files
+#: repoint `extract._CFG`).
+_CARD_UNIT_CACHE: dict = {}
+_VOCAB_CACHE: dict = {}
+
+
+def _card_unit_phrases() -> tuple:
+    """Every unit string the loaded numbers registry declares (`registry.card_unit_phrases`, CONTRACT C6),
+    as token tuples, each with its declared alternatives. An unreadable registry is an EMPTY card half --
+    never an error on an answer, and never memoised (a transient failure must not pin an empty half)."""
+    key = _bar_cfg_key()
+    if key in _CARD_UNIT_CACHE:
+        return _CARD_UNIT_CACHE[key]
+    try:
+        from leviathan.graphrag.numbers import registry as _nreg
+        raw = list(_nreg.card_unit_phrases() or ())
+    except Exception:  # noqa: BLE001 -- no registry is an empty card half, never a broken answer
+        return ()
+    out: set = set()
+    for u in raw:
+        out |= _phrase_alternatives(u)
+    res = tuple(sorted(out))
+    _CARD_UNIT_CACHE[key] = res
+    return res
+
+
+class _DeclaredVocab:
+    """The declared, sentence-independent vocabulary: `phrases` (cards + spellings, token tuples), `cls`
+    (joined phrase -> equivalence-class id), `scales` (the declared scale words), `durations` (every
+    declared duration spelling)."""
+
+    __slots__ = ("phrases", "cls", "scales", "durations", "spell_only")
+
+    def __init__(self, phrases, cls, scales, durations, spell_only=frozenset()):
+        self.phrases, self.cls, self.scales, self.durations = phrases, cls, scales, durations
+        #: the phrases ONLY a declared spelling (or a render noun) contributes -- no card prints them
+        self.spell_only = spell_only
+
+
+def _declared_vocab() -> _DeclaredVocab:
+    key = _bar_cfg_key()
+    v = _VOCAB_CACHE.get(key)
+    if v is not None:
+        return v
+    ok = True
+    cards = _card_unit_phrases()
+    spell: dict = {}
+    dur: dict = {}
+    scales: set = set()
+    try:
+        from leviathan.graphrag.numbers import registry as _nreg
+        spell = dict(_nreg.unit_spellings() or {})
+        dur = dict(_nreg.duration_spellings() or {})
+        scales = {str(w) for w in (_nreg.unit_scale_words() or ())}
+    except Exception:  # noqa: BLE001 -- no declared spellings: the cards and the rows still stand
+        ok = False
+    cls: dict = {}
+    phrases: set = set(cards)
+    durations: set = set()
+    for group, is_dur in ((spell, False), (dur, True)):
+        for canon, members in group.items():
+            for m in members:
+                t = _unit_tokens(m)
+                if not t:
+                    continue
+                phrases.add(t)
+                cls[" ".join(t)] = ("dur:" + canon) if is_dur else canon
+                if is_dur:
+                    durations.add(" ".join(t))
+    # THE RENDER'S OWN PERIOD NOUNS (session / week / fortnight / month / marketing year / release, and the
+    # plural the board prints beside a count -- `render.period_noun`) are units a board figure is written
+    # in ("8 sessions"), each its own class; they are never declared durations (`_duration_rx`'s split).
+    try:
+        from leviathan.graphrag.state import render as _rnd
+        pn = getattr(_rnd, "period_noun", None)
+        for cad, noun in (getattr(_rnd, "PERIOD_NOUNS", None) or {}).items():
+            forms = {str(noun)} | ({str(pn(cad, 2))} if callable(pn) else set())
+            for f in forms:
+                t = _unit_tokens(f)
+                if t and " ".join(t) not in cls:
+                    phrases.add(t)
+                    cls[" ".join(t)] = "period:" + str(noun)
+    except Exception:  # noqa: BLE001 -- no render, no board period nouns
+        ok = False
+    v = _DeclaredVocab(tuple(sorted(phrases)), cls, frozenset(scales), frozenset(durations),
+                       frozenset(set(phrases) - set(cards)))
+    if ok and cards:
+        _VOCAB_CACHE[key] = v
+    return v
+
+
+def _declared_unit_key(toks) -> str:
+    """The declared equivalence class of a unit phrase (its tokens), or the phrase itself: "months" and
+    "month" are one class, "tonnes" and "MT" are one class -- by DECLARATION (tables.yaml), never by a
+    morphology rule."""
+    p = " ".join(t for t in (toks or ()) if t)
+    return _declared_vocab().cls.get(p, p)
+
+
+def _unit_equal(a, b) -> bool:
+    """Is unit phrase `a` (tokens) the SAME unit as `b`? Exact after normalisation, or one declared class."""
+    a, b = tuple(a or ()), tuple(b or ())
+    return bool(a) and bool(b) and (a == b or _declared_unit_key(a) == _declared_unit_key(b))
+
+
+def _cited_number_idx(sent: str, number_calls: list) -> list[int]:
+    """Every in-range [N] member the sentence writes, grouped members included, in written order."""
+    out: list[int] = []
+    for m in _HANDLE.finditer(sent or ""):
+        for kind, j in _handle_members(m.group(0)):
+            if kind == "N" and 1 <= j <= len(number_calls or ()) and j not in out:
+                out.append(j)
+    return out
+
+
+def _row_unit_strings(number_calls: list, cited) -> tuple:
+    """The `unit` strings the cited calls' rows SERVED, row-granular: a unit-less row contributes nothing."""
+    out: list[str] = []
+    for j in cited or ():
+        if not (1 <= j <= len(number_calls or ())):
+            continue
+        for r in ((number_calls[j - 1] or {}).get("rows") or []):
+            u = str((r or {}).get("unit") or "").strip()
+            if u and u not in out:
+                out.append(u)
+    return tuple(out)
+
+
+def _unit_phrases_for(sent: str, number_calls: list, cited: list | None = None) -> tuple:
+    """CONTRACT C6 -- the unit phrases a sentence is read against: the declared vocabulary (cards and their
+    spellings) UNION the cited calls' own served row `unit` strings (row-granular, each with its declared
+    alternatives), as normalised token tuples. `cited` defaults to the sentence's own in-range [N] members."""
+    idx = _cited_number_idx(sent, number_calls) if cited is None else list(cited)
+    rows: set = set()
+    for u in _row_unit_strings(number_calls, idx):
+        rows |= _phrase_alternatives(u)
+    return tuple(sorted(set(_declared_vocab().phrases) | rows))
+
+
+class _UnitGrammar:
+    """The declared unit vocabulary one sentence is extracted with, at a CHARGE SITE. Built from phrase
+    token tuples (declared + the sentence's own rows) and the rows' raw unit strings (for the year rule).
+    `prefixes` is rule (i)'s whole vocabulary: every PREFIX of a declared phrase that runs through a scale
+    numeral and at least the word after it. Immutable; memoised."""
+
+    __slots__ = ("prefixes", "maxrun", "row_after", "phrases", "shapes", "printed")
+
+    def __init__(self, phrases: tuple, row_units: tuple = ()):
+        self.phrases = tuple(phrases or ())
+        # THE PHRASES A READER SAW PRINTED beside a figure: the cards' and the cited rows' own unit strings
+        # -- never a spelling-only word. The FIGURE CUT's unit tail reads these (the round-2 ladder's own
+        # scope: a cut ordinal leaves its word "percentile", pinned in test_verifier_correct_not_delete).
+        _rows = set()
+        for u in row_units or ():
+            _rows |= _phrase_alternatives(u)
+        _spell = _declared_vocab().spell_only
+        self.printed = tuple(p for p in self.phrases if p not in _spell or p in _rows)
+        # RULE (g)'s LABEL SHAPES, DERIVED PHRASE BY PHRASE (fix-round FATAL-1 + M2): each declared phrase
+        # whose first numeral is preceded only by words declares the shape "<those leading words, from the
+        # phrase's OWN START> <a bare scale numeral> [<one <=3-digit scale>] <the word the numeral scales>"
+        # -- ('1000 mt') -> ((), mt); ('cop per 125 kg carga') -> ((cop, per), kg); ('sigma vs 3 yr mean')
+        # -> ((sigma, vs), yr). A label POSITION after a figure is one of these shapes; its SCALE is then the
+        # D-DA gate's to judge against the served rows. The leading words are a phrase PREFIX, never a bag:
+        # "4.1 vs 3 yr ago" has no shape (no declared phrase STARTS "vs"), so its 3 stays a claim.
+        shapes: dict = {}
+        for p in self.phrases:
+            i = next((k for k, t in enumerate(p) if _is_unit_numeral(t)), None)
+            if i is None or any(_is_unit_numeral(t) for t in p[:i]):
+                continue
+            j = i + 1
+            if j < len(p) and _is_unit_numeral(p[j]) and len(p[j]) <= 3:
+                j += 1
+            if j < len(p) and not _is_unit_numeral(p[j]):
+                shapes.setdefault(tuple(p[:i]), set()).add(p[j])
+        self.shapes = {k: frozenset(v) for k, v in shapes.items()}
+        prefixes: set = set()
+        for p in self.phrases:
+            seen_num = False
+            for k in range(1, len(p) + 1):
+                if _is_unit_numeral(p[k - 1]):
+                    seen_num = True
+                    continue
+                # a prefix ending on a WORD after at least one numeral: "1000 mt", "million 480 pound",
+                # "cop per 125 kg" -- never one ending on the numeral, never one with no numeral
+                if seen_num and k >= 2:
+                    prefixes.add(p[:k])
+            if seen_num and len(p) >= 2:
+                prefixes.add(tuple(p))                # the WHOLE declared phrase, written out in full
+        self.prefixes = frozenset(prefixes)
+        self.maxrun = max((len(r) for r in prefixes), default=0)
+        # THE YEAR RULE reads the sentence's OWN rows only (the rice grader's structural fix: "take the
+        # un-exempting unit from the cited handle's own served-row unit ('contracts' on N37), never from a
+        # longer list"); the cards' units would turn "in 2025 an El Nino" into a claim through the
+        # registry's per-animal "An".
+        alts = []
+        for u in row_units or ():
+            toks = [re.escape(t) for t in re.split(r"[\s" + chr(0x00a0) + r"]+", str(u).strip()) if t]
+            if toks and re.search(r"[A-Za-z%]", u):
+                alts.append(r"[\s\-]*".join(toks))
+        self.row_after = (re.compile(r"\s*(?:" + "|".join(sorted(set(alts), key=lambda a: (-len(a), a)))
+                                     + r")(?![A-Za-z])", re.I) if alts else None)
+
+
+_GRAMMAR_CACHE: dict = {}
+
+
+def _unit_grammar(phrases: tuple, row_units: tuple = ()) -> _UnitGrammar:
+    key = (phrases, row_units)
+    g = _GRAMMAR_CACHE.get(key)
+    if g is None:
+        if len(_GRAMMAR_CACHE) > 512:
+            _GRAMMAR_CACHE.clear()
+        g = _GRAMMAR_CACHE[key] = _UnitGrammar(phrases, row_units)
+    return g
+
+
+def _grammar_for(sent: str, number_calls: list) -> _UnitGrammar:
+    """The declared grammar a CHARGE-SITE extraction of `sent` reads (CONTRACT C6)."""
+    idx = _cited_number_idx(sent, number_calls)
+    rows = _row_unit_strings(number_calls, idx)
+    return _unit_grammar(_unit_phrases_for(sent, number_calls, idx), rows)
+
+
+def _as_grammar(units) -> _UnitGrammar | None:
+    """`units` as a grammar: an existing `_UnitGrammar`, or a tuple of phrases (strings or token tuples),
+    each read with its declared alternatives."""
+    if units is None or isinstance(units, _UnitGrammar):
+        return units
+    phrases: set = set()
+    for p in units:
+        if isinstance(p, tuple):
+            phrases.add(p)
+        else:
+            phrases |= _phrase_alternatives(p)
+    return _unit_grammar(tuple(sorted(phrases - {()})), ())
+
+
+# ── `_DURATION_NOUN`, REBUILT FROM DECLARED DATA AND THE RENDER'S OWN PERIOD NOUNS (BRIEF item 4) ────────
+# The board writes window lengths in its cadence's nouns (`render.period_noun`: session, week, fortnight,
+# month, marketing year, release; "period" for an undeclared cadence; "quarter" in its lag bands). The noun
+# set is the render's vocabulary UNION the DECLARED duration spellings (tables.yaml `duration_spellings`:
+# day, week/wk, month, quarter/qtr, year/yr, season), read lazily and memoised; with neither readable the
+# extractor keeps HEAD's own rule-(f)/(h) regexes, and the cycle8=False view never sees any of it.
+_DUR_CACHE: dict = {}
+
+
+def _duration_rx() -> tuple:
+    """(rule (f)'s modifier regex, rule (h-ii)'s tail regex) over the derived duration nouns."""
+    if "rx" in _DUR_CACHE:
+        return _DUR_CACHE["rx"]
+    declared = set(_declared_vocab().durations)
+    nouns = set(declared)
+    rendered_ok = False
+    try:
+        from leviathan.graphrag.state import render as _rnd
+        for v in (getattr(_rnd, "PERIOD_NOUNS", None) or {}).values():
+            if isinstance(v, str) and v.strip():
+                nouns.add(v.strip().lower())
+        pn = getattr(_rnd, "period_noun", None)
+        if callable(pn):
+            nouns.add(str(pn("", 1)).strip().lower())
+        q = getattr(_rnd, "_quarters", None)
+        if callable(q):
+            nouns.add(str(q(1)).strip().lower())
+        rendered_ok = True
+    except Exception:  # noqa: BLE001 -- an unreadable render leaves the declared nouns, never an error
+        pass
+    if not nouns:
+        return (_DURATION_MOD, _WINDOW_TAIL)          # nothing declared, nothing rendered: HEAD's own
+    # THE RENDER'S NOUNS SPLIT BY WHAT THEY COUNT, AND RULE (h) ALREADY OWNS ONE HALF. A cadence noun that
+    # counts OBSERVATIONS ("session", "marketing year" -- members of `_WINDOW_UNIT`) is a window length only
+    # before a window HEAD noun or after a statistic lead (rule (h), D-EC round 2); arming rule (f)'s hyphen
+    # branch with it would de-charge "a 3-session rally [N4]", where the numeral IS the magnitude. So rule
+    # (f) takes the declared durations and the render's CALENDAR nouns, and rule (h) keeps the observation
+    # units: every render noun is recognised, each by the rule whose left/right context fits what it counts.
+    rendered = set(nouns)
+    nouns = {n for n in nouns if n in declared or not re.fullmatch(_WINDOW_UNIT, n, re.I)}
+    _DUR_CACHE["window_units"] = frozenset(rendered - nouns)
+    alt = "|".join(re.escape(n).replace(r"\ ", "[ ]") for n in sorted(nouns, key=lambda n: (-len(n), n)) if n)
+    dnoun = r"(?:" + alt + r")s?"
+    mod = re.compile(
+        r"\A(?:" + _DUR_HYPH + dnoun + _DUR_SEP + r"+(?!" + _DUR_STOP + r"\b)[A-Za-z]"
+        + r"|[ ]" + dnoun + r"[ ]+(?!" + _DUR_STOP + r"\b)" + _STAT_HEAD + r"\b)", re.I)
+    tail = re.compile(r"\A[ ]+(?:" + dnoun + r"|" + _WINDOW_UNIT + r")"
+                      r"[ ]*(?:\[[NE]?\d|[,;.:)\]]|-{2}|[" + chr(0x2013) + chr(0x2014) + r"]|\n|\Z)", re.I)
+    if not (rendered_ok and declared):                # never memoise a partial vocabulary (the one-way memo)
+        _DUR_CACHE["nouns"] = frozenset(nouns)
+        return (mod, tail)
+    _DUR_CACHE["rx"] = (mod, tail)
+    _DUR_CACHE["nouns"] = frozenset(nouns)
+    return _DUR_CACHE["rx"]
+
+
+def _derived_unit_words() -> frozenset:
+    """Every unit WORD and PHRASE the declared vocabulary recognises with no sentence context: the cards'
+    tokens and phrases, the declared spellings and durations, and the render's period nouns. The superset
+    pin (HEAD's closed sets, listed in the deck -- not in this module) reads this."""
+    _duration_rx()
+    words: set = set()
+    for p in _declared_vocab().phrases:
+        words.update(p)
+        words.add(" ".join(p))
+    words.update(_DUR_CACHE.get("nouns") or ())
+    words.update(_DUR_CACHE.get("window_units") or ())
+    return frozenset(words)
+
+
+def _phrase_run(s: str, pos: int, g: _UnitGrammar) -> int:
+    """RULE (i): the end offset of the longest declared-phrase PREFIX written right after an accepted figure
+    ending at `pos` (blanks and at most one "(" / "[" / ":" in between -- never a dash, never a comma), or
+    -1. The run must be a PREFIX of one declared phrase running through a scale numeral and the word it
+    scales (`_UnitGrammar.prefixes`) -- a run that starts mid-phrase ("vs 5", "per 125") is never a label."""
+    if not g.prefixes:
+        return -1
+    lead = re.match(r"[ \t]*(?:[(\[:][ \t]*)?", s[pos:])
+    start = pos + (lead.end() if lead else 0)
+    if start >= len(s) or not (s[start].isalnum()):
+        return -1
+    toks: list[tuple[str, int]] = []                  # (normalised token, end offset in s)
+    for m in _UNIT_TOKEN_RX.finditer(s, start):
+        if len(toks) >= g.maxrun or "\n" in s[(toks[-1][1] if toks else start):m.start()]:
+            break
+        raw = m.group()
+        t = raw.lower().strip(_UNIT_PUNCT).rstrip(".").strip(_UNIT_PUNCT)
+        if not t:
+            break
+        toks.append((t, m.end()))
+        if any(c in raw for c in ",;") and not _is_unit_numeral(raw.rstrip(",;")):
+            break                                     # a list comma ends the run (a list's next figure is a claim)
+    for k in range(len(toks), 1, -1):
+        if tuple(t for t, _e in toks[:k]) in g.prefixes:
+            return toks[k - 1][1]
+    return -1
+
+
+#: What may stand between an accepted figure and a label's scale numeral: blanks, the label's own
+#: brackets / colon, and WORDS -- never a digit, a comma or a dash (the range hazard "5900-1000 MT").
+_LABEL_LEAD_OK = re.compile(r"\A[\sA-Za-z(\[:.]*\Z")
+_LABEL_TAIL_RX = re.compile(r"\A(?:" + _UL_GLUE + r"+(\d{1,3}))?" + _UL_GLUE + r"+([A-Za-z][A-Za-z0-9./]*)")
+
+
+def _label_shape_end(s: str, anchor: int, n0: int, n1: int, g) -> int:
+    """RULE (g) AT A CHARGE SITE: the end of a declared label SHAPE (`_UnitGrammar.shapes`) whose scale
+    numeral is `s[n0:n1]`, written after the accepted figure ending at `anchor` -- or -1."""
+    lead_text = s[anchor:n0]
+    if not getattr(g, "shapes", None) or not _LABEL_LEAD_OK.match(lead_text):
+        return -1
+    units = g.shapes.get(_unit_tokens(lead_text))
+    if not units:
+        return -1
+    mt = _LABEL_TAIL_RX.match(s[n1:])
+    if not mt:
+        return -1
+    word = mt.group(2).lower().strip(_UNIT_PUNCT).rstrip(".")
+    return n1 + mt.end() if word in units else -1
+
+
+def _claim_number_spans(s: str, *, cycle8: bool = True, units=None) -> list[tuple[int, int, float]]:
+    """The claim spans -- see `_claim_scan`. `units` (a `_UnitGrammar` or a tuple of unit phrases) arms the
+    09-23 derived vocabulary at a CHARGE SITE; omitted, the extractor is HEAD's plus the rebuilt duration
+    nouns, and `cycle8=False` is HEAD's (a)-(d) view byte for byte."""
+    return _claim_scan(s, cycle8=cycle8, units=units)[0]
+
+
+def _claim_scan(s: str, *, cycle8: bool = True, units=None) -> tuple:
     """(start, end, value) per claim magnitude, positions into `s`. EXEMPT (never a claim): (a) a bare
     4-digit calendar year 1900-2099 with no decimal/comma ('2,021' and '2010.5' keep their punctuation and
     stay magnitudes) -- UNLESS a unit token follows ('exports hit 1950 MMT' IS a claim); (b) the 1-2 digit
@@ -679,6 +1182,12 @@ def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, 
     gets."""
     s = s or ""
     out = []
+    scales: list[float] = []       # 09-23: every scale token rule (g) or rule (i) exempted, in order
+    # 09-23 (C6): the derived vocabulary, ONLY on the shipped view. `cycle8=False` is HEAD's (a)-(d)
+    # exactly and reads HEAD's closed sets; the default view with no `units` reads HEAD's (g) floor and the
+    # rebuilt duration nouns; a CHARGE SITE passes `units` and gets the cards + the sentence's own rows.
+    g = _as_grammar(units) if cycle8 else None
+    dur_mod, win_tail = _duration_rx() if cycle8 else (_DURATION_MOD, _WINDOW_TAIL)
     # D-DA (g): the end of the figure that a unit label may grow from. None everywhere else, so a label
     # can only ever follow a numeral this extractor ACCEPTED: an exempted year, ordinal, duration,
     # date-day or scale token clears it and never anchors a label.
@@ -686,7 +1195,13 @@ def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, 
     skip_until = -1                # (g) the end of a label consumed whole -- its second scale token
     for m in _CLAIM_NUM.finditer(s):
         if m.start() < skip_until:
-            continue                                            # (g) inside a consumed label
+            _c = m.group().rstrip(".,")
+            if _UNIT_NUMERAL.fullmatch(_c):
+                try:
+                    scales.append(float(_c.replace(",", "")))
+                except ValueError:
+                    pass
+            continue                                            # (g)/(i) inside a consumed label
         tok = m.group()
         try:
             v = float(tok.replace(",", ""))
@@ -706,18 +1221,28 @@ def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, 
         # a preference: (g) reads a shape none of (a)-(f) can see. The label is consumed WHOLE, so its
         # SECOND scale token ('1000 60 KG BAGS') is skipped, never anchored (MINOR-5); the exempted
         # numeral must be a BARE digit run (MAJOR-1); and it rides under `cycle8` so the frozen flag's
-        # off-view stays HEAD's (MINOR-7).
-        if cycle8 and anchor is not None and _UL_BARE.fullmatch(core):
+        # off-view stays HEAD's (MINOR-7). 09-23 FIX ROUND (FATAL-1 / M2): at a CHARGE SITE (`units`
+        # given) this bag rule is SUBSUMED by rule (i) below -- a declared phrase written from its own
+        # start -- so no bag of lead / unit words is ever read there; the default extractor keeps it.
+        if cycle8 and g is None and anchor is not None and _UL_BARE.fullmatch(core):
             _tail = _UL_TAIL.match(after_core)
             if _tail and _UL_LEAD.match(s[anchor:m.start()]):
                 skip_until = m.start() + len(core) + _tail.end()  # (g) a UNIT LABEL's scale: '(1000 MT)'
+                scales.append(float(core))
                 anchor = None                                    # consumed whole; never an anchor
+                continue
+        if cycle8 and g is not None and anchor is not None and _UL_BARE.fullmatch(core):
+            _lend = _label_shape_end(s, anchor, m.start(), m.start() + len(core), g)
+            if _lend > 0:
+                skip_until = _lend                               # (g) at a charge site: a DECLARED shape
+                scales.append(float(core))
+                anchor = None
                 continue
         if cycle8:
             if _ORDINAL_AFTER.match(after_core):
                 anchor = None
                 continue                                        # (e) an ORDINAL slot: '85th percentile'
-            if _DURATION_MOD.match(after_core):
+            if dur_mod.match(after_core):
                 anchor = None
                 continue                                        # (f) a DURATION MODIFIER: '5-year mean'
             # D-EC PRE-ARM (h) -- the LENGTH of the observation window a statistic is read against. Three
@@ -726,11 +1251,16 @@ def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, 
             # counter-examples the left context keeps as claims. (h-iii) is the round-2 docket's `of`
             # spelling ("vs 120 points of its own history", "the newest of 53 rows covering ...").
             if (_WINDOW_HYPH.match(after_core) or _WINDOW_OF.match(after_core)
-                    or (_WINDOW_TAIL.match(after_core) and _WINDOW_LEAD.search(s[:m.start()]))):
+                    or (win_tail.match(after_core) and _WINDOW_LEAD.search(s[:m.start()]))):
                 anchor = None
                 continue                                        # (h) a WINDOW LENGTH: 'sigma on 120 months'
+        # 09-23 (C6, V-7): the year rule's unit tell is HEAD's rule (a) (`_UNIT_AFTER`) PLUS the sentence's
+        # OWN served-row units at a charge site -- "net long 1992 contracts [N37]" is a claim in the row's
+        # own unit.
+        _unit_after = _UNIT_AFTER.match(s[m.end():]) or (g is not None and g.row_after is not None
+                                                         and g.row_after.match(s[m.end():]))
         if (re.fullmatch(r"\d{4}", core) and 1900 <= v <= 2099
-                and not _UNIT_AFTER.match(s[m.end():])):        # (a) year -- unless unit-suffixed
+                and not _unit_after):                           # (a) year -- unless unit-suffixed
             anchor = None
             continue
         if re.fullmatch(r"\d{1,2}", core):
@@ -744,7 +1274,15 @@ def _claim_number_spans(s: str, *, cycle8: bool = True) -> list[tuple[int, int, 
                 continue                                        # (d) the DAY of a date
         out.append((m.start(), m.start() + len(core), v))
         anchor = m.start() + len(core)
-    return out
+        # 09-23 (C6) RULE (i) -- a numeral INSIDE a declared unit phrase that directly follows this
+        # accepted figure is the phrase's, never a claim ("3.6 million 480 pound bales"). The run is
+        # consumed whole and never anchors, exactly like a rule-(g) label.
+        if g is not None and g.prefixes:
+            _run_end = _phrase_run(s, anchor, g)
+            if _run_end > anchor:
+                skip_until = _run_end
+                anchor = None
+    return out, scales
 
 
 def _claim_numbers_in(s: str) -> list[float]:
@@ -775,6 +1313,19 @@ def _mask_handles(s: str) -> str:
     _HANDLE.sub("", ...), but a repair needs the numeral's position in the sentence AS WRITTEN, so the
     handle digits have to stop being claim numbers without any offset moving."""
     return _HANDLE.sub(lambda m: " " * (m.end() - m.start()), s or "")
+
+
+def _stripped_offsets(sent: str) -> list:
+    """Index map from `_HANDLE.sub("", sent)` back into `sent` (one entry per stripped character, plus the
+    end), so a span the handle-stripped extraction found is the same span in the sentence AS WRITTEN."""
+    out: list = []
+    last = 0
+    for m in _HANDLE.finditer(sent or ""):
+        out.extend(range(last, m.start()))
+        last = m.end()
+    out.extend(range(last, len(sent or "")))
+    out.append(len(sent or ""))
+    return out
 
 
 def _row_vals(call: dict) -> list[float]:
@@ -811,6 +1362,392 @@ def _mismatch_pool(call: dict, row_vals: list[float]) -> list[float]:
     return shown or row_vals
 
 
+# ══ 09-23 FIX ROUND (lane V, BRIEF item 1, CONTRACT C4) -- THE SERVED-SCALARS POOL ════════════════════
+# THE MEASURED DEFECT (09-23 re-smoke): every figure the BOARD printed in words or digits and minted no call
+# for was, to this module, a figure nobody served. The board prints a chain hop's window PEAK ("peaked at
+# the ninety-eighth percentile in April 2026"), a row's percentile beside its LEVEL handle, a run length, a
+# card threshold; the writer re-digitises what it read, and the verifier then (i) killed the soyoil/palm
+# TL;DR's relative-value call because "94th" and "1st" -- the palm-stocks and soyoil-S/U percentiles, both
+# printed on the board -- had no cited backer, (ii) struck the max turn's crush hop because "96th" (the
+# crush window peak, 95.6) matched no row, and (iii) cut "98th"/"96th" peaks to "a level this page could
+# not back" on three pages. 0 of the writer's figures were wrong.
+# THE FIX IS THE BOARD'S OWN RECORD OF WHAT IT PRINTED, never a list of "board words". `Block.scalar`
+# registers each figure AT THE MOMENT the template formats it (lane R); the seam hands the list over only
+# when the block rendered; answer threads it here as `served_scalars` (None on every board-off turn, so
+# this arm is inert there by construction).
+# THE RULES ARE BINDING-SCOPED (fix-round review FATAL-4). The first cut asked "does the SENTENCE cite a
+# handle of this row?", so in a two-row chain sentence one row's printed figure backed a numeral the writer
+# had put in the OTHER row's clause ("the second sits at the 99th percentile [N3]" backed by the first
+# link's window peak), a run length backed its neighbour row's duration, and an analog's outcome move
+# backed any percent on the page. A numeral now reaches the pool ONLY through the handle group it BINDS TO
+# (`_bind`, the one attribution this module reads -- "figure [N]" adjacency first), and:
+#   (1) EVERY scalar that carries a `row_id` is ROW-BEARING: it backs a numeral only when the group that
+#       numeral binds to cites a call of the SAME `_row_id`. Where the writer ADDRESSED the figure -- wrote
+#       it straight into a handle -- only what that ADDRESS printed can back it: a handled scalar only
+#       through its own handle, a handle-less one only when it is a row COUNT the row prints with no handle
+#       of its own (run length, window length; `_ROW_COUNT_KINDS`). The match is the scale-1 backstop's
+#       own (`_num_backed`, reader precision included) and the unit the writer wrote must be the scalar's.
+#   (2) A HANDLED scalar with no row (an outcome move) backs only through its own handle.
+#   (3) A scalar with neither (a lag band, a firing count, a card threshold) backs a numeral ONLY when the
+#       numeral's OWN unit tail is the scalar's unit ("8 quarters" against a band of eight quarters).
+#   (4) Pool backing counts ONLY for the `number_unbacked` backstop and the every-numeral sibling rescue
+#       (and so, by the same token, a pool-backed figure is never cut by the orphan ladder). It never
+#       creates a charge and never removes a handle by itself; the `number_mismatch` headline check -- does
+#       the CITED handle back a figure in its sentence -- never reads it.
+_ROW_SCALAR_KINDS: tuple = ("level", "sigma", "percentile", "window_peak_percentile", "current_level")
+#: The row facts a board line prints WITHOUT a handle of their own (C4): a writer can only cite them
+#: through the row's handles, so an addressed figure may be one of them.
+_ROW_COUNT_KINDS: tuple = ("run_length", "window_length")
+_POOL_KINDS_FALLBACK: tuple = _ROW_SCALAR_KINDS + ("window_length", "run_length", "lag_band_quarters",
+                                                   "firings_count", "firings_aligned", "card_threshold",
+                                                   "outcome_move")
+
+
+def _scalar_kinds() -> tuple:
+    """`rows.SCALAR_KINDS` (lane R, CONTRACT C4) -- the pool's closed kind roster; the contract's spelling
+    when the leaf does not carry it yet. A scalar of any other kind backs nothing."""
+    try:
+        from leviathan.graphrag.state import rows as _rows
+        k = getattr(_rows, "SCALAR_KINDS", None)
+        if isinstance(k, tuple) and k:
+            return k
+    except Exception:  # noqa: BLE001 -- an unreadable leaf falls back to the contract's own spelling
+        pass
+    return _POOL_KINDS_FALLBACK
+
+
+def _pool_entries(served_scalars) -> tuple:
+    """The pool as (value, unit tokens, kind, row_id, handle) tuples; malformed entries dropped."""
+    if not served_scalars:
+        return ()
+    kinds = set(_scalar_kinds())
+    out = []
+    for sc in served_scalars:
+        if not isinstance(sc, dict):
+            continue
+        kind = str(sc.get("kind") or "")
+        if kind not in kinds:
+            continue
+        try:
+            val = float(sc.get("value"))
+        except (TypeError, ValueError):
+            continue
+        if val != val:
+            continue
+        rid = sc.get("row_id")
+        try:
+            hd = int(sc.get("handle")) if sc.get("handle") else None
+        except (TypeError, ValueError):
+            hd = None
+        if kind == "outcome_move" and not hd:
+            continue                              # an outcome move is minted WITH its call (C4): no handle, no backing
+        out.append((val, _unit_tokens(sc.get("unit") or ""), kind, str(rid) if rid else "", hd))
+    return tuple(out)
+
+
+def _unit_tail_is(s: str, b: int, utoks: tuple, g=None) -> bool:
+    """Does the text directly after the numeral ending at `b` spell `utoks` (a scalar's unit)? Token for
+    token, or -- through the declared vocabulary -- a spelling of the same declared unit (`_unit_equal`).
+    Blanks only in between, or nothing ("3.2%")."""
+    if not utoks:
+        return False
+    if re.match(r"(?:st|nd|rd|th)\b", s[b:b + 3] or ""):
+        b += 2                                        # an ordinal suffix is the numeral's own
+    pos, i = b, 0
+    for m in _UNIT_TOKEN_RX.finditer(s, b):
+        if s[pos:m.start()].strip():
+            break
+        t = m.group().lower().strip(_UNIT_PUNCT).rstrip(".").strip(_UNIT_PUNCT)
+        if t != utoks[i]:
+            break
+        i, pos = i + 1, m.end()
+        if i == len(utoks):
+            return True
+    return _unit_equal(_unit_written_at(s, b, g), utoks)
+
+
+class _VCtx:
+    """One `verify_citations` run's charge-site context: the calls, the served-scalars pool, the
+    per-sentence declared unit grammar and the per-sentence BINDING (both memoised on the sentence). Every
+    charge-site predicate takes it as an optional keyword, so a caller that passes nothing (a deck, a
+    grader's repro) gets the same vocabulary with no pool -- the board-off reading."""
+
+    __slots__ = ("calls", "pool", "_g", "_b", "pool_hits")
+
+    def __init__(self, number_calls, served_scalars=None):
+        self.calls = number_calls or []
+        self.pool = _pool_entries(served_scalars)
+        self._g: dict = {}
+        self._b: dict = {}
+        self.pool_hits: set = set()
+
+    def grammar(self, sent: str) -> _UnitGrammar:
+        idx = tuple(_cited_number_idx(sent, self.calls))
+        g = self._g.get(idx)
+        if g is None:
+            rows = _row_unit_strings(self.calls, idx)
+            g = self._g[idx] = _unit_grammar(_unit_phrases_for(sent, self.calls, list(idx)), rows)
+        return g
+
+    def binding(self, sent: str) -> tuple:
+        """(groups, figures, {group index: [figure + (how,)]}) for `sent` -- `_bind`'s one reading."""
+        b = self._b.get(sent)
+        if b is None:
+            groups = _handle_groups(sent)
+            masked = _mask_handles(sent)
+            g = self.grammar(sent)
+            figs = _written_figures(masked, g)
+            b = self._b[sent] = (groups, figs, _bind(sent, groups, figs, self.calls, g))
+        return b
+
+    def pool_backs(self, sent: str, a: int, b: int, v: float, dec, key=None, count: bool = True,
+                   rowed_only: bool = False) -> bool:
+        """C4 rules (1)-(3) for ONE numeral at `sent[a:b]` (offsets into the sentence AS WRITTEN, handles
+        included -- `_mask_handles` keeps every offset). `key` names the sentence so a figure the pool
+        alone backs is counted once (`pool_backed`)."""
+        if not self.pool:
+            return False
+        groups, _figs, bound = self.binding(sent)
+        where = next(((gi, f[5]) for gi, fs in bound.items() for f in fs if f[0] == a and f[1] == b), None)
+        members: set = set()
+        rids: set = set()
+        how = "loose"
+        if where is not None:
+            gi, how = where
+            for m in groups[gi]:
+                for kind, j in _handle_members(m.group(0)):
+                    if kind == "N" and 1 <= j <= len(self.calls):
+                        members.add(j)
+                        rid = (self.calls[j - 1] or {}).get("_row_id")
+                        if rid:
+                            rids.add(str(rid))
+        masked = _mask_handles(sent)
+        g = self.grammar(sent)
+        written = _unit_written_at(masked, b, g)
+        for val, utoks, kind, rid, hd in self.pool:
+            if rid:
+                if rid not in rids:
+                    continue
+                if how == "adjacent" and not (hd in members if hd else kind in _ROW_COUNT_KINDS):
+                    continue                      # an ADDRESSED figure: only what that address printed
+                if kind in _ROW_COUNT_KINDS:
+                    ok = bool(written) and _unit_equal(written, utoks) and _num_matches([v], [val], [dec])
+                else:
+                    ok = (_num_backed(v, [val], dec=dec)
+                          and (not written or not utoks or _unit_equal(written, utoks)))
+            elif hd:
+                ok = (hd in members and _num_backed(v, [val], dec=dec)
+                      and (not written or not utoks or _unit_equal(written, utoks)))
+            elif rowed_only:
+                continue                          # a row-less scalar is nobody's row: it backs no ADDRESS
+            else:
+                ok = _unit_tail_is(masked, b, utoks, g) and _num_matches([v], [val], [dec])
+            if ok:
+                if count:
+                    self.pool_hits.add((key, a, v))
+                return True
+        return False
+
+
+def _unit_written_at(s: str, b: int, g) -> tuple:
+    """The DECLARED unit the text right after the numeral ending at `b` spells (its ordinal suffix skipped,
+    one declared scale word allowed in front -- "622.69 thousand MT"), as normalised tokens: the longest
+    phrase of the sentence's grammar (cards, their declared spellings, the cited rows' own units) written
+    token for token from its start -- or () when it spells none."""
+    if re.match(r"(?:st|nd|rd|th)\b", s[b:b + 3] or ""):
+        b += 2
+    toks: list = []
+    start = None
+    for m in _UNIT_TOKEN_RX.finditer(s, b):
+        if start is None:
+            if s[b:m.start()].strip():
+                return ()
+            start = m.start()
+        elif s[toks[-1][1]:m.start()].strip() or len(toks) >= 8:
+            break
+        raw = m.group()
+        core = raw.rstrip(".,;:)]*").rstrip(".")
+        t = core.lower().strip(_UNIT_PUNCT)
+        if not t:
+            break
+        toks.append((t, m.end()))
+        if core != raw:
+            break
+    if not toks:
+        return ()
+    words = [t for t, _e in toks]
+    phrases = list(getattr(g, "phrases", ()) or ()) or list(_declared_vocab().phrases)
+    scales = _declared_vocab().scales
+    best: tuple = ()
+    for off in ((0, 1) if len(words) > 1 and words[0] in scales else (0,)):
+        w = words[off:]
+        for p in phrases:
+            k = len(p)
+            if k <= len(w) and tuple(w[:k]) == tuple(p) and off + k > len(best):
+                best = tuple(words[:off]) + tuple(p)  # the scale word is part of the unit written ("m ha")
+        if best:
+            break
+    return best
+
+
+def _unit_tail_end(s: str, b: int, g, extra=()) -> int:
+    """Where the figure ending at `b` stops wearing its own unit: past its ordinal suffix and a glued '%',
+    then past one declared scale word and the longest declared unit phrase written there (the sentence's
+    grammar plus `extra` phrases -- the units of the rows the caller is asking about)."""
+    o = re.match(r"(?:st|nd|rd|th)\b", s[b:])
+    if o:
+        b += o.end()
+    if s[b:b + 1] == "%":
+        b += 1
+    toks: list = []
+    for m in _UNIT_TOKEN_RX.finditer(s, b):
+        gap = s[(toks[-1][1] if toks else b):m.start()]
+        if gap.strip() or "\n" in gap or len(toks) >= 8:
+            break
+        raw = m.group()
+        core = raw.rstrip(".,;:)]*").rstrip(".")
+        t = core.lower().strip(_UNIT_PUNCT)
+        if not t:
+            break
+        toks.append((t, m.start() + len(core)))
+        if core != raw:
+            break
+    if not toks:
+        return b
+    words = [t for t, _e in toks]
+    phrases = set(getattr(g, "phrases", ()) or ()) | {tuple(p) for p in extra if p}
+    if not phrases:
+        phrases = set(_declared_vocab().phrases)
+    scales = _declared_vocab().scales
+    best = b
+    for off in ((0, 1) if len(words) > 1 and words[0] in scales else (0,)):
+        w = words[off:]
+        for p in phrases:
+            k = len(p)
+            if 0 < k <= len(w) and tuple(w[:k]) == tuple(p):
+                best = max(best, toks[off + k - 1][1])
+    return best
+
+
+def _ctx_of(ctx, number_calls) -> _VCtx:
+    return ctx if isinstance(ctx, _VCtx) else _VCtx(number_calls)
+
+
+# ── THE CITED ROW'S OWN ORDINAL (09-23, lane V) -- the headline check reads what the extractor exempts ──
+# MEASURED on three 09-23 pages: "at the 92nd [N33]" (max crush), "now reads 2.6 USD/bu [N42], the 92nd
+# [N44]" (deep crush), "feed at the 95th [N39]" (corn/wheat) -- each handle is a PERCENTILE call and the
+# ordinal touching it IS its row's value, but cycle-8 rule (e) exempts a bare ordinal ("no percentile word
+# follows") as a POSITION, so the handle's own figure was invisible to the charge and the handle was
+# convicted by its NEIGHBOURS' numerals. Rule (e) cannot know better -- it is a pure function of the
+# sentence. The charge site can: the cited call's served rows declare their unit, and when that unit is the
+# percentile family (`_PCTILE_WORD`, the extractor's own grammar, read against the ROW's unit string, never
+# the prose's words), an ordinal written DIRECTLY before the handle whose value is in the handle's pool is
+# that handle's figure. It can only ever turn a `number_mismatch` into no charge; the extractor, the
+# number_unbacked backstop and the cycle-8 frozen view do not move.
+_PCTILE_UNIT_RX = re.compile(r"\A" + _PCTILE_WORD + r"s?\b", re.I)
+_ORDINAL_BEFORE_RX = re.compile(r"(?<![A-Za-z0-9.,])(\d+(?:\.\d+)?)(?:st|nd|rd|th)\s*\Z", re.I)
+
+
+def _percentile_call(call: dict) -> bool:
+    rows = (call or {}).get("rows") or []
+    return bool(rows) and all(_PCTILE_UNIT_RX.match(str((r or {}).get("unit") or "").strip())
+                              for r in rows)
+
+
+def _unbound_handle(sent: str, idx: int, number_calls: list, ctx) -> bool:
+    """09-23 (lane V) -- A HANDLE THAT BINDS NO FIGURE MAKES NO NUMERIC CLAIM, SO NO FIGURE CAN CONTRADICT IT.
+
+    THE MEASURED CLASS (09-16 class (a), still the largest on 09-23 by the fact graders' strike tables): a
+    handle cited for WORDS -- "in the top decile of that record [N47]", "the lagging export pace [N66]",
+    "essentially flat over twenty-one sessions [N66]", "two standard deviations above its ten-year window
+    [N13]", "the crush link into meal held [N67]" -- convicted of `number_mismatch` by numerals that belong
+    to OTHER handles in the same sentence, each of them backed by its own. The sibling rescue then keeps the
+    sentence and DROPS the handle, so a correct citation leaves the page.
+    THE BINDING IS THE ESTATE'S OWN "figure [N]" CONVENTION, READ STRUCTURALLY (`_bind`; fix-round review
+    FATAL-2): a figure whose own unit runs straight into a handle group IS that group's claim, whatever its
+    neighbours back -- "China imports 118 MMT [N2]" is [N2]'s claim even where [N1] carries 118. [N`idx`]
+    is unbound only when ALL of:
+      (i)  no figure is bound to its group that [N`idx`] itself -- or a group member of the SAME ROW
+           IDENTITY (one `_row_id`, C3) -- does not back; an ADDRESSED ordinal ("the 2nd percentile [N9]")
+           counts as the group's figure like any claim;
+      (i-b) no claim figure written INSIDE its window (from the previous handle group to it -- the clause
+           the handle closes) was handed to ANOTHER group only because that group's row carries the same
+           value (`_bind`'s "backed") -- so "118 MMT too [N2]" cannot be handed to the [N1] before it because
+           [N1] happens to carry 118; a figure bound elsewhere by structure (adjacency, its written unit,
+           its clause segment) is that group's, not this one's;
+      (ii) EVERY claim numeral in the sentence is backed by a member of the group it binds to.
+    (ii) is the fail-closed guard; (i) and (i-b) are what make it test the RIGHT group. Without `_row_id`
+    (every board-off call) (i) reduces to "no figure binds to it at all". Words stay free, exactly as in a
+    digit-free sentence; the `number_unbacked` backstop still runs on every numeral."""
+    ctx = _ctx_of(ctx, number_calls)
+    groups, figs, bound = ctx.binding(sent)
+    if not groups:
+        return False
+    mine = [gi for gi, grp in enumerate(groups)
+            if any(("N", idx) in _handle_members(m.group(0)) for m in grp)]
+    if not mine:
+        return False
+    rid = str((number_calls[idx - 1] or {}).get("_row_id") or "")
+    own_pool = _mismatch_pool(number_calls[idx - 1], _row_vals(number_calls[idx - 1]))
+    for gi in mine:
+        same = [own_pool]
+        if rid:
+            for m in groups[gi]:
+                for kind, j in _handle_members(m.group(0)):
+                    if (kind == "N" and j != idx and 1 <= j <= len(number_calls)
+                            and str((number_calls[j - 1] or {}).get("_row_id") or "") == rid):
+                        same.append(_mismatch_pool(number_calls[j - 1], _row_vals(number_calls[j - 1])))
+        for _a, _b, v, d, kind, how in bound.get(gi) or []:
+            if kind != "claim" and how != "adjacent":
+                continue
+            if rid and any(_num_matches([v], pool, [d]) for pool in same):
+                continue
+            # the ROW's own printed figure (C4, binding-scoped: an ADDRESSED figure only through what that
+            # address printed) -- "drought [N42] peaked at the 99th percentile" is the drought row's peak
+            if rid and ctx.pool and ctx.pool_backs(sent, _a, _b, v, d, count=False, rowed_only=True):
+                continue
+            return False
+        # (i-b) the claims INSIDE this group's window that `_bind` handed elsewhere only because that other
+        # group's row happens to carry the same value ("backed") -- a coincidence of value, never a structure
+        w0 = groups[gi - 1][-1].end() if gi > 0 else 0
+        w1 = groups[gi][0].start()
+        for ogi, fs in bound.items():
+            if ogi == gi:
+                continue
+            for a, b, v, d, kind, how in fs:
+                if kind == "claim" and how == "backed" and w0 <= a and b <= w1:
+                    if not any(_num_matches([v], pool, [d]) for pool in same):
+                        return False
+    for gi, fs in bound.items():
+        pools = []
+        for m in groups[gi]:
+            for kind, j in _handle_members(m.group(0)):
+                if kind == "N" and 1 <= j <= len(number_calls):
+                    pools.append(_mismatch_pool(number_calls[j - 1], _row_vals(number_calls[j - 1])))
+        for _a, _b, v, d, kind, _how in fs:
+            if kind != "claim":
+                continue
+            if any(_num_matches([v], pool, [d]) for pool in pools):
+                continue
+            if ctx.pool and ctx.pool_backs(sent, _a, _b, v, d, count=False):
+                continue                          # the bound group's ROW printed it (C4, binding-scoped)
+            return False
+    return True
+
+
+def _own_ordinal(sent: str, idx: int, number_calls: list, pool: list) -> bool:
+    """Is [N`idx`]'s own percentile written as the bare ordinal directly in front of it?"""
+    if not pool or not (1 <= idx <= len(number_calls or ())) or not _percentile_call(number_calls[idx - 1]):
+        return False
+    for m in _HANDLE.finditer(sent or ""):
+        if ("N", idx) not in _handle_members(m.group(0)):
+            continue
+        o = _ORDINAL_BEFORE_RX.search(sent[:m.start()])
+        if o and _num_matches([float(o.group(1))], pool, [_token_decimals(o.group(1))]):
+            return True
+    return False
+
+
 # CYCLE-10 (2026-08-08) -- THE REPAIR FENCES, DELETED WITH THE THING THEY FENCED.
 # This span carried the entire rewrite guard: `_unit_class` / `_unit_class_lead` / `_registry_unit_class`
 # / `_metric_tell_class` / `_call_unit_class` / `_sentence_unit_class` (the unit-class equality test FOR
@@ -825,7 +1762,7 @@ def _mismatch_pool(call: dict, row_vals: list[float]) -> list[float]:
 # `_mask_handles` / `_reader_precision_match` stay because charging and the sibling rescue read them.
 
 
-def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
+def _sibling_backed(sent: str, idx: int, number_calls: list[dict], *, ctx=None) -> bool:
     """True when EVERY claim numeral in the sentence is BACKED by some OTHER [N] handle written in that
     same sentence, against that handle's own mismatch pool.
 
@@ -872,8 +1809,10 @@ def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
     [N50], crush 2.6 [N47]") now keeps its figures and loses both handles, where it used to die. That is
     HEAD's own precedent, not a new doctrine -- the one-numeral arm already accepted it, and
     `number_unbacked` serves figures bare routinely (7 of them on two sentences in this same smoke)."""
+    ctx = _ctx_of(ctx, number_calls)
     masked = _mask_handles(sent)
-    spans = _claim_number_spans(masked)
+    # 09-23 (C6): the derived unit vocabulary -- the same extraction the charge site reads.
+    spans = _claim_number_spans(masked, units=ctx.grammar(sent))
     if not spans:
         return False
     # CYCLE-9 (2026-08-08) AMENDMENT 3a: every MEMBER of every handle token, not just the solitary ones.
@@ -885,15 +1824,20 @@ def _sibling_backed(sent: str, idx: int, number_calls: list[dict]) -> bool:
                 continue
             sib = number_calls[j - 1]
             pools.append(_mismatch_pool(sib, _row_vals(sib)))
-    if not pools:
+    # 09-23 (C4 rule 3b): the served-scalars pool is a backer too -- a figure the BOARD printed, bound to
+    # a row this sentence cites (rule 1) or to its own derived unit (rule 2). Absent pool: HEAD's test.
+    if not pools and not ctx.pool:
         return False
     # CYCLE-6: the sibling rescue asks the SAME matching question, so it gets the same reader-precision arm
     # -- a sibling that backs "-0.31" against its own -0.30632 row is backing it, and refusing to see that
     # would send the sentence to the whole-drop path this rescue exists to avoid.
     for a, b, v in spans:
         dec = [_token_decimals(masked[a:b])]
-        if not any(_num_matches([v], pool, dec) for pool in pools):
-            return False
+        if any(_num_matches([v], pool, dec) for pool in pools):
+            continue
+        if ctx.pool and ctx.pool_backs(sent, a, b, v, dec[0], key=sent):
+            continue
+        return False
     return True
 
 
@@ -981,7 +1925,7 @@ _FIGCUT_SLOT_STOP = re.compile(r"\b(?:higher|lower|above|below|under|over|more|l
                                r"were)\b", re.I)
 
 
-def _figure_span(sent: str, a: int, b: int) -> tuple[int, int]:
+def _figure_span(sent: str, a: int, b: int, *, units=None) -> tuple[int, int]:
     """The span a FIGURE CUT removes: the claim token, the sign or currency mark glued in front of it and
     the exponent, ORDINAL SUFFIX and scale+unit written after it -- plus a comparative that governs
     nothing. `_claim_number_spans` ends at the token CORE by contract, so the unit has to be taken here or
@@ -995,12 +1939,48 @@ def _figure_span(sent: str, a: int, b: int) -> tuple[int, int]:
     if o:                                                 # "93rd", never "93" and a live "rd"
         b += o.end()
     m = _FIGCUT_TAIL.match(sent[b:])
-    if m:
+    # 09-23 (C6): `_FIGCUT_UNIT` is HEAD's FLOOR; a unit the cards or the cited rows DECLARE is taken too,
+    # so the cut never leaves "a level this page could not back percentile" beside a percentile row.
+    d = _declared_unit_tail(sent, b, units)
+    if d and (not m or d > m.end()):
+        b += d
+    elif m:
         b += m.end()
     c = _FIGCUT_COMP.match(sent[b:])
     if c and _FIGCUT_COMP_OBJ.match(sent[b + c.end():]):
         c = None                                          # it governs an object; both stay
     return a, (b + c.end() if c else b)
+
+
+def _declared_unit_tail(sent: str, b: int, units) -> int:
+    """The length of the longest PRINTED unit phrase (`_UnitGrammar.printed`: the cards' and the cited rows'
+    own unit strings, token for token) that the text after offset `b` spells -- blanks allowed between the
+    figure and the unit, and the phrase's own trailing punctuation left in place. 0 when none, or when no
+    grammar is given. The figure cut's reader: it takes the unit a reader saw printed, never a word only a
+    declared spelling knows."""
+    g = _as_grammar(units)
+    if g is None or not g.printed:
+        return 0
+    lead = re.match(r"[ ]?", sent[b:])
+    start = b + (lead.end() if lead else 0)
+    toks: list[tuple[str, int]] = []
+    for m in _UNIT_TOKEN_RX.finditer(sent, start):
+        if len(toks) >= 8 or (not toks and m.start() != start) or (toks and "\n" in sent[toks[-1][1]:m.start()]):
+            break
+        raw = m.group()
+        core = raw.rstrip(".,;:)]").rstrip(".")
+        t = core.lower().strip(_UNIT_PUNCT)
+        if not t:
+            break
+        toks.append((t, m.start() + len(core)))
+        if core != raw:
+            break
+    best = 0
+    for p in g.printed:
+        k = len(p)
+        if 0 < k <= len(toks) and tuple(t for t, _e in toks[:k]) == tuple(p):
+            best = max(best, toks[k - 1][1] - b)
+    return best
 
 
 def _page_figure(tok: str, v: float) -> str:
@@ -1161,16 +2141,35 @@ def _reader_precision_match(a: float, b: float, d: int | None) -> bool:
         d=0  "400"   vs  446      ->  46      >  0.5     NO MATCH  (the binning refusal)
     SCALE 1 ONLY, deliberately: the multi-scale arms answer "is this the same quantity in other units",
     and a rescale bridge stacked on a rounding window would admit a value the reader never wrote.
-    ZERO POLICY IS UNTOUCHED: the callers' `a == 0 or b == 0` guard runs FIRST and still means 0 matches
-    only 0, so a prose "0" can never round-rescue a 0.4 row. `d is None` -> the arm is absent entirely,
+    ZERO POLICY (as shipped at cycle 6, amended 09-23 below): the callers' `a == 0 or b == 0` guard runs
+    FIRST, and a prose "0" can never round-rescue a 0.4 row. `d is None` -> the arm is absent entirely,
     which is what keeps every caller that does not thread decimals byte-identical.
 
     CYCLE-6 REVIEW (2026-08-08): the window is now ALSO fenced by `_READER_REL_CEILING` (see the constant).
     "a is b rounded to d places" AND "a and b are the same number to within 3%" -- both, always. The pinned
     behaviour above is unchanged (every one of those pairs is inside 3%); what the ceiling removes is the
-    d=0 flat-window class, where a vague spelling could certify an arbitrarily wrong small magnitude."""
-    if d is None or a == 0 or b == 0:
+    d=0 flat-window class, where a vague spelling could certify an arbitrarily wrong small magnitude.
+
+    09-23 FIX ROUND (lane V, BRIEF item 5, THREAT_MODEL V-6) -- A ZERO THE WRITER WROTE AT A KNOWN
+    PRECISION REACHES THIS ARM. MEASURED on the cocoa turn: the board printed West Africa's drought z of
+    0.000885 as "0 z" (it rounds to zero at every precision a reader uses), the writer copied "0 z [N26]",
+    and the zero arm above -- "0 matches only 0" -- charged number_mismatch twice: one clause deleted with
+    its 55th-percentile neighbour, one figure cut to "a level this page could not back" beside a footer
+    that prints [N26] = 0.00088532 z. A written "0" IS the row rounded to the precision the prose wrote, so
+    it is admitted by the SAME two tests every other claim takes: (1) a correct rounding, |row| <=
+    0.5 x 10^-d; (2) the cycle-6 ceiling, which for a zero cannot be taken against the claim's own
+    magnitude (every non-zero row is 100% away from 0), so it is taken against the only scale a zero has --
+    one unit in the last place the writer wrote: |row| <= 3% x 10^-d. Measured consequences, all pinned:
+    "0 z" at 0 dp backs the cocoa 0.000885 row; "0" against a 0.4 row is STILL refused (the cycle-6
+    deck's own pin: a vague zero never round-rescues a 0.4 row); "0 [N]" against 0.6 still charged; "0.0"
+    against 0.06 still charged; a claim with no known written precision (`d is None`) still reads "0
+    matches only 0". The ESR zero-aggregate path (a 0 claim against a 0.0 row) is the callers' own branch,
+    untouched. A NON-zero claim against a zero row stays refused (a prose "0.004" never rounds onto 0.0)."""
+    if d is None or b == 0:
         return False
+    if a == 0:
+        unit = 10.0 ** (-d)
+        return abs(b) <= 0.5 * unit and abs(b) <= _READER_REL_CEILING * unit
     return (abs(b - a) <= 0.5 * 10.0 ** (-d)
             and abs(b - a) <= _READER_REL_CEILING * max(abs(a), abs(b)))
 
@@ -1197,6 +2196,8 @@ def _num_matches(sent_nums: list[float], row_vals: list[float],
                 # the T2b deck are literally 0.0. _num_backed already encodes the rule -- 0 matches only
                 # 0 -- so mirror it here rather than let a legitimate zero citation strip.
                 if a == 0 and b == 0:
+                    return True
+                if a == 0 and _reader_precision_match(a, b, d):   # 09-23 V-6: "0" at a known precision
                     return True
                 continue
             for scale in (1.0, 1e2, 1e3, 1e6, 1e9):
@@ -3063,7 +4064,7 @@ _UL_VOCAB_NUM = re.compile(r"\d[\d,]*")
 _UL_ANY = re.compile(r"\d" + _UL_GLUE + r"+(?:\d{1,3}" + _UL_GLUE + r"+)?" + _UL_UNIT + r"\b", re.I)
 
 
-def _unit_label_scale_values(s: str) -> list[float]:
+def _unit_label_scale_values(s: str, *, units=None) -> list[float]:
     """The scale tokens rule (g) EXEMPTED in `s`, in order: '154,947 (1000 MT)' -> [1000.0], and
     'arabica 42,300 (1000 60 KG BAGS)' -> [1000.0, 60.0].
 
@@ -3080,6 +4081,10 @@ def _unit_label_scale_values(s: str) -> list[float]:
     structural verdict in place -- the fail-open direction, and the same direction every fence below
     takes."""
     s = s or ""
+    if units is not None:
+        # 09-23 (C6): at a charge site the scale tokens are the ONE scan's own record -- rule (g) over the
+        # derived words AND rule (i)'s phrase-order run -- so the gate and the extractor cannot disagree.
+        return _claim_scan(s, units=units)[1]
     if not _UL_ANY.search(s):                     # no digit-then-unit-word anywhere: no label, and the
         return []                                 # extractor is never paid for (see `_UL_ANY`)
     accepted = {a for a, _b, _v in _claim_number_spans(s)}
@@ -3105,6 +4110,19 @@ def _unit_label_scale_values(s: str) -> list[float]:
                 continue
         anchor = None                                 # every other exemption clears the anchor
     return out
+
+
+def _shown_card_unit(call: dict) -> str:
+    """The unit the citation PRINTS for a row that recorded none -- the card's declared unit for the call's
+    metric (`citations._metric_unit`, the renderer's own fallback), or "" when the card declares none."""
+    q = (call or {}).get("query") or {}
+    try:
+        from leviathan.graphrag import citations as _cit
+        return str(_cit._metric_unit(str(q.get("table") or (call or {}).get("table") or ""),
+                                     str(q.get("metric") or (call or {}).get("metric") or ""),
+                                     q.get("commodity")) or "").strip()
+    except Exception:  # noqa: BLE001 -- no card unit is no shown unit
+        return ""
 
 
 def _served_unit_vocab(sent: str, number_calls: list[dict]) -> set[int] | None:
@@ -3142,9 +4160,23 @@ def _served_unit_vocab(sent: str, number_calls: list[dict]) -> set[int] | None:
             rows = ((calls[j - 1] or {}).get("rows") or [])
             if not rows:
                 continue
-            units = [str((r or {}).get("unit") or "").strip() for r in rows]
+            # 09-23 FIX ROUND (review FATAL-1, CONTRACT C6 "row-granular"): each row is read at the unit
+            # the READER WAS SHOWN for it -- its own, else the card's (`citations._metric_unit`, the
+            # renderer's own fallback) -- and a row shown NO unit at all contributes nothing and voids
+            # nothing (the cotton N1-N7 unit-less duplicate beside the labelled row stood the whole gate
+            # down, so a label scale NO cited row prints was never re-admitted). A shown unit that carries
+            # no scale still makes the vocabulary UNKNOWN (the measured MMT-gloss fence below).
+            units = []
+            for r in rows:
+                u = str((r or {}).get("unit") or "").strip()
+                if not u:
+                    u = _shown_card_unit(calls[j - 1])
+                if u:
+                    units.append(u)
+            if not units:
+                continue
             if not all(_UL_VOCAB_NUM.search(u) for u in units):
-                return None                           # no unit, or no SCALE in it: vocabulary UNKNOWN
+                return None                           # a shown unit with no SCALE in it: vocabulary UNKNOWN
             served = True
             for u in units:
                 # every match starts with a digit, so stripping the commas can never empty the token
@@ -3152,7 +4184,7 @@ def _served_unit_vocab(sent: str, number_calls: list[dict]) -> set[int] | None:
     return vocab if served else None
 
 
-def _unit_vocab_claims(sent: str, number_calls: list[dict]) -> list[float]:
+def _unit_vocab_claims(sent: str, number_calls: list[dict], *, units=None) -> list[float]:
     """The scale tokens rule (g) exempted that NO served row of this sentence prints -- re-admitted as
     CLAIM magnitudes by the charge site. Empty on every sentence with no label, with no served unit, or
     with a label its own rows declare, which is every sentence of the measured 33-of-35 class.
@@ -3171,22 +4203,35 @@ def _unit_vocab_claims(sent: str, number_calls: list[dict]) -> list[float]:
     vocab = _served_unit_vocab(sent, number_calls)
     if vocab is None:
         return []
-    scales = _unit_label_scale_values(_HANDLE.sub("", sent or ""))
+    scales = (_unit_label_scale_values(_HANDLE.sub("", sent or "")) if units is None
+              else _unit_label_scale_values(_HANDLE.sub("", sent or ""), units=units))
     if not scales:
         return []
     return [v for v in scales if int(v) not in vocab]
 
 
-def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str | None:
+def _check_number_handle(sent: str, idx: int, number_calls: list[dict], *, ctx=None) -> str | None:
     if not (1 <= idx <= len(number_calls)):
         return "index_out_of_range"
+    ctx = _ctx_of(ctx, number_calls)
     row_vals = _row_vals(number_calls[idx - 1])
     # the HEADLINE check runs against what the cited LINE printed (`shown`), not the whole window it fetched
     pool = _mismatch_pool(number_calls[idx - 1], row_vals)
-    # CYCLE-6: the same extraction, now carrying each token's WRITTEN precision alongside its value
-    sent_nums, sent_decs = _claim_numbers_with_decimals(_HANDLE.sub("", sent))  # time/name tokens: NOT claims
+    # CYCLE-6: the same extraction, now carrying each token's WRITTEN precision alongside its value.
+    # 09-23 (C6): extracted with the DERIVED unit vocabulary -- the cards' declared units and this
+    # sentence's own served rows -- so a unit the row itself prints ("Million 480 Pound Bales") is never a
+    # claim magnitude, and a 4-digit figure in the row's own unit ("1992 contracts") is never a year.
+    stripped = _HANDLE.sub("", sent)                               # time/name tokens: NOT claims
+    g = ctx.grammar(sent)
+    spans = _claim_number_spans(stripped, units=g)
+    sent_nums = [v for _a, _b, v in spans]
+    sent_decs = [_token_decimals(stripped[a:b]) for a, b, _v in spans]
     if sent_nums and pool and not _num_matches(sent_nums, pool, sent_decs):
-        return "number_mismatch"
+        # 09-23: THE CITED ROW'S OWN ORDINAL (see `_own_ordinal`) -- "at the 92nd [N33]" on a percentile
+        # call is that call's figure, however rule (e) filed the ordinal.
+        if not (_own_ordinal(sent, idx, number_calls, pool)
+                or _unbound_handle(sent, idx, number_calls, ctx)):
+            return "number_mismatch"
     # P9-B all-numbers guard: EVERY magnitude in a handled sentence (years/range-tails/letter-codes exempt
     # at the extractor) must match SOME injected row across the merged calls -- else "rose to 5900 [N3],
     # up 18%" lets 18 ride UNVERIFIED. Reads ONLY GRAPHRAG_CASCADE_QUANT (the single feature flag): =off
@@ -3196,28 +4241,545 @@ def _check_number_handle(sent: str, idx: int, number_calls: list[dict]) -> str |
     # narrowing both would strip every legitimate second figure a window call genuinely supports.
     if os.environ.get("GRAPHRAG_CASCADE_QUANT", "on") != "off":
         allv = _all_row_vals(number_calls)
-        guard_nums, guard_decs = _claim_numbers_with_decimals(_HANDLE.sub("", sent))  # exemptions: extractor
         # D-DA UNIT-VOCABULARY GATE (2026-09-06): rule (g)'s exemption is STRUCTURAL, so a label scale no
         # served row of this sentence prints comes back here as a CLAIM. The GUARD list only, never the
         # mismatch pool above -- see the block note: an ANY-of predicate can only be RESCUED by one more
         # numeral. A re-admitted token is a bare digit run, so its written precision is 0 by construction.
-        _uv = _unit_vocab_claims(sent, number_calls)
-        guard_nums, guard_decs = guard_nums + _uv, guard_decs + [0] * len(_uv)
+        _uv = _unit_vocab_claims(sent, number_calls, units=g)
         # backed = scale-1 match vs ANY row (pre-scaled cascade rows), OR the legacy scale-bridge vs the
         # sentence's OWN cited row (a '31.4 million MT' narration of its own raw-MT hybrid row is legitimate;
         # CROSS-row multi-scale backfill stays forbidden -- that is the R4 mis-attribution hole).
         # CYCLE-6: both arms carry the numeral's written precision (see `_reader_precision_match`).
-        if guard_nums and allv and any(
-                not (_num_backed(v, allv, dec=d) or (row_vals and _num_matches([v], row_vals, [d])))
-                for v, d in zip(guard_nums, guard_decs)):
-            return "number_unbacked"
+        # 09-23 (C4 rule 3a): OR the served-scalars pool -- a figure the board printed, under rules (1)/(2).
+        if (spans or _uv) and allv:
+            # the pool is BINDING-SCOPED (C4, fix-round FATAL-4): its test reads the numeral at its offset in
+            # the sentence AS WRITTEN, where the handle groups it binds to are
+            _at = _stripped_offsets(sent) if ctx.pool else None
+            for (a, b, v), d in zip(spans, sent_decs):
+                if _num_backed(v, allv, dec=d) or (row_vals and _num_matches([v], row_vals, [d])):
+                    continue
+                if ctx.pool and ctx.pool_backs(sent, _at[a], _at[b - 1] + 1, v, d, key=sent):
+                    continue
+                return "number_unbacked"
+            for v in _uv:
+                if not (_num_backed(v, allv, dec=0) or (row_vals and _num_matches([v], row_vals, [0]))):
+                    return "number_unbacked"
     return None
+
+
+# ══ 09-23 FIX ROUND (lane V) -- PASS 0: ONE VALUE-PRESERVING INSERTION, AND WHY CYCLE-10 ADMITS IT ═══════
+# CYCLE-10 deleted the REWRITE: no numeral the writer wrote is ever replaced by another. The same-row
+# RE-ADDRESS leaves every character the writer wrote in place and INSERTS only a handle token of a SIBLING
+# call (one `_row_id`, CONTRACT C3) after a figure the writer bound to the wrong member of that row's triple
+# -- a handle whose call carries that figure AT SCALE 1 and IN THE UNIT THE WRITER WROTE. It is recorded
+# (`readdressed`), runs BEFORE the charge so the charge reads the corrected sentence, and is absent from
+# `report["repairs"]` (whose `repaired` count keeps its CYCLE-10 meaning).
+# THE NOUN-OBJECT SPLICE IS RETIRED (fix-round review FATAL-5). It inserted a call's headline figure in
+# front of any two solitary handles joined by one word at the end of a clause -- on UNCHARGED, digit-free
+# prose too ("tightened through the summer [N1] and [N2]" became "... summer 2,628,325 tonnes [N1] and 1.89
+# months of export cover [N2]"), a verifier writing figures into a sentence that made no numeric claim,
+# past the CYCLE-10 licence; and the position template that chose the shape could not tell a noun from a
+# citation. The defect it was built for -- the tariff "higher year-on-year [N29] vs [N30]" handles struck
+# by a neighbour's numeral and leaving "vs." dangling -- is closed by the binding rule: those handles bind
+# no figure, so `_unbound_handle` keeps them and the sentence is served as written.
+
+def _handle_groups(sent: str) -> list:
+    """The sentence's handle tokens in written order, ADJACENT tokens (only blanks between) grouped: a group
+    shares one binding window, so "68th percentile [N54] [N56]" binds 68 to both, never to neither."""
+    groups: list = []
+    for m in _HANDLE.finditer(sent or ""):
+        if groups and not sent[groups[-1][-1].end():m.start()].strip():
+            groups[-1].append(m)
+        else:
+            groups.append([m])
+    return groups
+
+
+def _written_figures(masked: str, g) -> list:
+    """Every figure the sentence WRITES, as (start, end, value, decimals, kind): the claim spans (declared
+    vocabulary) and the ordinal tokens cycle-8 rule (e) exempts (kind 'ordinal', end past the suffix)."""
+    out = [(a, b, v, _token_decimals(masked[a:b]), "claim") for a, b, v in _claim_number_spans(masked, units=g)]
+    for m in _CLAIM_NUM.finditer(masked):
+        core = m.group().rstrip(".,")
+        if _ORDINAL_AFTER.match(masked[m.start() + len(core):]):
+            try:
+                v = float(core.replace(",", ""))
+            except ValueError:
+                continue
+            out.append((m.start(), m.start() + len(core) + 2, v, _token_decimals(core), "ordinal"))
+    return sorted(out)
+
+
+def _group_pools(group: list, number_calls: list) -> list:
+    """The mismatch pools of every in-range [N] member of one handle group."""
+    out = []
+    for m in group:
+        for kind, j in _handle_members(m.group(0)):
+            if kind == "N" and 1 <= j <= len(number_calls or ()):
+                out.append(_mismatch_pool(number_calls[j - 1], _row_vals(number_calls[j - 1])))
+    return out
+
+
+def _group_units(group: list, number_calls: list) -> list:
+    """The served unit phrases (token tuples, with their declared alternatives) of a group's [N] members."""
+    out: list = []
+    for m in group:
+        for kind, j in _handle_members(m.group(0)):
+            if kind == "N" and 1 <= j <= len(number_calls or ()):
+                for u in _row_unit_strings(number_calls, [j]):
+                    out.extend(_phrase_alternatives(u))
+    return out
+
+
+#: A CLAUSE-SEGMENT BREAK inside one sentence: a list comma, a semicolon, a colon or a dash -- the
+#: punctuation the estate's citation grammar already separates handle members and clauses with. A
+#: thousands comma ("3,600") is never one: it carries no blank after it.
+_SEGMENT_BREAK = re.compile(r",\s|;|:\s|\s-{2,}\s|[" + chr(0x2013) + chr(0x2014) + r"]")
+
+
+def _row_units_of_group(group: list, number_calls: list) -> list:
+    """Every served unit (token tuples) of every call of the ROWS a group's [N] members belong to (one
+    `_row_id`, C3 -- the level, the sigma, the percentile of one series), the members' own units included."""
+    rids, out = set(), []
+    for m in group:
+        for kind, j in _handle_members(m.group(0)):
+            if kind == "N" and 1 <= j <= len(number_calls or ()):
+                rid = (number_calls[j - 1] or {}).get("_row_id")
+                if rid:
+                    rids.add(str(rid))
+                out.extend(_phrase_alternatives(_call_unit(number_calls[j - 1])))
+    if rids:
+        for c in number_calls or ():
+            if str((c or {}).get("_row_id") or "") in rids:
+                out.extend(_phrase_alternatives(_call_unit(c)))
+    return [t for t in out if t]
+
+
+def _bind(sent: str, groups: list, figs: list, number_calls: list, g=None) -> dict:
+    """{group index: [figure + (how,)]} -- WHICH HANDLE GROUP A WRITTEN FIGURE BELONGS TO, read off the
+    estate's own citation grammar, the rows and the units, never off words. In order:
+      * "adjacent" -- the FIGURE [N] CONVENTION: the figure's own unit (`_unit_tail_end`: its declared unit
+        phrase, the group's own served units) runs straight into the group, nothing else between. The writer
+        ADDRESSED the figure there, so it binds there WHATEVER its neighbours back (fix-round review
+        FATAL-2: "China imports 118 MMT [N2]" is [N2]'s figure even where [N1] carries 118).
+      * "typed" -- exactly one neighbour's ROW carries a member in the unit the writer WROTE ("the 94th
+        percentile" beside a stocks handle whose row has a percentile member, and a pace-streak handle whose
+        row has none).
+      * "segment" -- the handle group that CLOSES the figure's own clause segment (no list comma, semicolon,
+        colon or dash between them), else the group inside or OPENING it ("58.5 MMT [N28], at the 99th
+        percentile of that record, with exports ..." -- the 99 is [N28]'s clause, not the exports handle's;
+        "**Pacific ONI [N19]**: +1.8 degC, the 97th ..." -- the heading's; "China imports 118 MMT too
+        [N2]" is [N2]'s clause whatever [N1] carries).
+      * "backed" -- no structure decides: one of its two neighbouring groups BACKS it (the one after when both).
+      * "window" -- the group written after it (the handle that closes the text it sits in), else the last.
+    Every step before "backed" is STRUCTURE (the citation grammar, the rows' units, the clause punctuation);
+    value coincidence decides only where structure is silent (fix-round review FATAL-2).
+    Adjacent handles are ONE group, so one figure is never split across "[N3] [N4]"."""
+    out: dict = {i: [] for i in range(len(groups))}
+    if not groups:
+        return out
+    masked = _mask_handles(sent)
+    pools = [_group_pools(grp, number_calls) for grp in groups]
+    for f in figs:
+        a, b, v, d = f[0], f[1], f[2], f[3]
+        nxt = next((gi for gi, grp in enumerate(groups) if grp[0].start() >= b), None)
+        prv = next((gi for gi in range(len(groups) - 1, -1, -1) if groups[gi][-1].end() <= a), None)
+        if nxt is not None:
+            end = _unit_tail_end(masked, b, g, extra=_group_units(groups[nxt], number_calls))
+            if not masked[end:groups[nxt][0].start()].strip():
+                out[nxt].append(tuple(f) + ("adjacent",))
+                continue
+        lead = a
+        while lead > 0 and masked[lead - 1] in _FIGCUT_SIGN:
+            lead -= 1
+        cands = [gi for gi in (nxt, prv) if gi is not None]
+        if not cands:
+            continue
+        written = _unit_written_at(masked, b, g)
+        if written:
+            typed = [gi for gi in cands
+                     if any(_unit_equal(written, u) for u in _row_units_of_group(groups[gi], number_calls))]
+            if len(typed) == 1:
+                out[typed[0]].append(tuple(f) + ("typed",))
+                continue
+        left = max((m.end() for m in _SEGMENT_BREAK.finditer(masked, 0, lead)), default=0)
+        right = next((m.start() for m in _SEGMENT_BREAK.finditer(masked, b)), len(masked))
+        if nxt is not None and groups[nxt][0].start() < right:
+            out[nxt].append(tuple(f) + ("segment",))
+            continue
+        if prv is not None and (groups[prv][-1].end() > left      # the segment's own handle, or
+                                or not masked[groups[prv][-1].end():left].strip(" \t,;:*_")):  # its opener
+            out[prv].append(tuple(f) + ("segment",))
+            continue
+        backs = [gi for gi in cands if any(_num_matches([v], pool, [d]) for pool in pools[gi])]
+        if backs:
+            out[backs[0]].append(tuple(f) + ("backed",))
+            continue
+        out[nxt if nxt is not None else prv].append(tuple(f) + ("window",))
+    return out
+
+
+def _call_unit(call: dict) -> str:
+    for r in ((call or {}).get("rows") or []):
+        u = str((r or {}).get("unit") or "").strip()
+        if u:
+            return u
+    return ""
+
+
+def _figure_end(s: str, b: int, unit: str, g=None) -> int:
+    """Where a handle for the figure ending at `b` is inserted: past the figure's own ordinal suffix and a
+    glued '%', then past the LONGEST unit the text spells there -- the SIBLING row's own unit ("-0.67 z",
+    "84th percentile", "35.82 M ha") or a declared unit phrase (one declared scale word allowed in front:
+    "622.69 thousand MT") -- so a handle never lands inside "622.69 [N66] thousand MT"."""
+    return _unit_tail_end(s, b, g, extra=list(_phrase_alternatives(unit)) if unit else [])
+
+
+def _readdress_sentence(sent: str, number_calls: list, ctx, field: str, log: list) -> str:
+    """SAME-ROW RE-ADDRESS (BRIEF item 2, THREAT_MODEL V-2). THE MEASURED DEFECT: the board mints ONE row as
+    three calls (level, sigma, percentile) and hands the chain hop only the LEVEL handle, so the writer
+    printed "the Pacific reading [N54] sits at the 35th percentile", "the 68th [N54]", "-0.67 z ... bottom
+    decile [N16]" -- the right figure beside the wrong member of its own row -- and the verifier cut the
+    figure or killed the clause.
+    THE RULE: calls sharing a `_row_id` are one row identity. A figure bound to a solitary [Nh] that h does
+    not back AT SCALE 1 is re-addressed to the ONE sibling member that does -- and only where the member
+    carries the figure IN THE UNIT THE WRITER WROTE (fix-round review FATAL-3: the value alone, through the
+    multi-scale bridge, re-addressed a percentile written "13 1000 MT" to the percentile handle and a sigma
+    written "120 months" to the sigma handle): the written unit (`_unit_written_at`) must be the member's
+    served unit; a figure written with NO unit must be in the member's printed FORM (an ordinal is the
+    printed form of a percentile, `rows.percentile_int`; a cardinal is every other member's). And a figure
+    written in the CITED handle's OWN unit is a VALUE the writer got wrong on the right member -- never an
+    address to correct -- so it takes HEAD's remedy ("the 2nd percentile [N9]" where [N9] is the 13th).
+    AND THE DATE THE WRITER BOUND TO THE FIGURE MUST BE THE MEMBER'S OWN (review FATAL-3's peak / current
+    twins): a member's call is dated by its own period -- the current reading by its level date, the
+    window extreme by the month it was reached (`window_peak_percentile`, C3). "bottomed at the 13th
+    percentile in June 2026" is not the current 13th (dated August), and a window extreme is re-addressed
+    to only where the writer wrote the month it was reached ("peaked at the 98th percentile in April 2026")
+    -- "now sits at the 2nd percentile" is not the June trough (`_bound_month`, `_member_date_fits`).
+    A figure two members back (level 2 vs sigma 2.0) is AMBIGUOUS and left to HEAD's remedy.
+    [Nh] STAYS unless the writer ADDRESSED the moved figure to it -- wrote the figure straight into it, or
+    [Nh] closes the clause segment the figure sits in ("Crude, 68th percentile of its own record [N54]")
+    -- and h's own figure is written nowhere in the sentence (in digits, or in the board's own number
+    words): a handle the writer used for its words ("the Pacific reading [N54] sits at the 35th
+    percentile", "-0.67 z, read 2026-08, bottom decile [N16]") is a citation, not a mis-address. Only board calls carry `_row_id`, so a board-off turn never reaches this."""
+    calls = number_calls or []
+    groups, figs, bound = ctx.binding(sent)
+    if not groups:
+        return sent
+    masked = _mask_handles(sent)
+    g = ctx.grammar(sent)
+    ops: list = []                                    # (pos, kind 0=insert/1=delete, end, text)
+    for gi, grp in enumerate(groups):
+        if len(grp) != 1:
+            continue
+        mem = _handle_members(grp[0].group(0))
+        if len(mem) != 1 or mem[0][0] != "N" or not (1 <= mem[0][1] <= len(calls)):
+            continue
+        h = mem[0][1]
+        rid = (calls[h - 1] or {}).get("_row_id")
+        if not rid:
+            continue
+        sibs = [k for k in range(1, len(calls) + 1)
+                if k != h and (calls[k - 1] or {}).get("_row_id") == rid]
+        if not sibs:
+            continue
+        pool_h = _mismatch_pool(calls[h - 1], _row_vals(calls[h - 1]))
+        unit_h = _unit_tokens(_call_unit(calls[h - 1]))
+        pools = {k: _mismatch_pool(calls[k - 1], _row_vals(calls[k - 1])) for k in sibs}
+        inserted, addressed = [], False
+        for a, b, v, d, kind, how in bound.get(gi, []):
+            if _num_backed(v, pool_h, dec=d):
+                continue
+            written = _unit_written_at(masked, b, g)
+            if written and _unit_equal(written, unit_h):
+                continue                              # the member's own unit: a wrong VALUE, HEAD's remedy
+            ordinal = kind == "ordinal" or bool(re.match(r"(?:st|nd|rd|th)\b", masked[b:b + 3]))
+            said = _bound_month(masked, b, figs)
+            hits = []
+            for k in sibs:
+                if not _num_backed(v, pools[k], dec=d):
+                    continue
+                if written:
+                    if not _unit_equal(written, _unit_tokens(_call_unit(calls[k - 1]))):
+                        continue
+                elif ordinal != _percentile_call(calls[k - 1]):
+                    continue
+                if not _member_date_fits(calls[k - 1], said):
+                    continue
+                hits.append(k)
+            # the SAME member minted twice (a chain hop re-minting its row's triple) is one member, not an
+            # ambiguity: distinct members are told apart by the C3 `stat` and the served unit
+            members = {(str((((calls[k - 1] or {}).get("rows") or [{}])[0] or {}).get("stat") or ""),
+                        _call_unit(calls[k - 1]), tuple(sorted(round(float(x), 9) for x in pools[k])))
+                       for k in hits}
+            if len(members) != 1:
+                continue
+            k = min(hits)
+            at = _figure_end(masked, b, _call_unit(calls[k - 1]), g)
+            nxt = _HANDLE.match(sent[at:].lstrip(" "))
+            if nxt and ("N", k) in _handle_members(nxt.group(0)):
+                continue                              # already addressed
+            ops.append((at, 0, at, " [N%d]" % k))
+            inserted.append(k)
+            # ADDRESSED: written straight into [Nh], or [Nh] closes the clause segment the figure sits in
+            _right = next((m.start() for m in _SEGMENT_BREAK.finditer(masked, b)), len(masked))
+            addressed = addressed or how == "adjacent" or (b <= grp[0].start() < _right)
+            log.append({"from": h, "to": k, "field": field, "numeral": v})
+        if not inserted or not addressed:
+            continue
+        start = groups[gi - 1][-1].end() if gi else 0
+        window = sent[start:grp[0].start()] + (sent[grp[-1].end():] if gi == len(groups) - 1 else "")
+        own = (any(_num_backed(v, pool_h, dec=d) for _a, _b, v, d, _k in figs)
+               or _worded_own_figure(window, pool_h, calls[h - 1]))
+        if not own:
+            m = grp[0]
+            a0 = m.start() - 1 if m.start() > 0 and sent[m.start() - 1] == " " else m.start()
+            ops.append((a0, 1, m.end(), ""))
+    if not ops:
+        return sent
+    out = sent
+    for at, kind, end, text in sorted(ops, key=lambda o: (o[0], o[1]), reverse=True):
+        out = out[:at] + text + out[end:] if kind == 1 else out[:at] + text + out[at:]
+    return out
+
+
+_MONTH_WORD_RX = re.compile(r"(?<![A-Za-z])(" + _MONTHS + r")\.?\s+((?:19|20)\d{2})(?!\d)", re.I)
+_MONTH_ISO_RX = re.compile(r"(?<!\d)((?:19|20)\d{2})-(0[1-9]|1[0-2])(?!\d)")
+
+
+def _bound_month(masked: str, b: int, figs: list) -> tuple | None:
+    """The (year, month) the writer dated the figure ending at `b` with: the first month-year date written
+    after it ("in June 2026", "2026-07") before the next figure and inside its own clause segment -- or
+    None. The date binds to the figure it follows ("98th percentile in April 2026 and now reads the 68th":
+    April is the 98's, never the 68's)."""
+    stop = min([f[0] for f in figs if f[0] >= b] + [len(masked)])
+    brk = _SEGMENT_BREAK.search(masked, b)
+    if brk is not None:
+        stop = min(stop, brk.start())
+    seg = masked[b:stop]
+    best = None
+    for m in _MONTH_WORD_RX.finditer(seg):
+        best = (m.start(), int(m.group(2)), _mon(m.group(1)))
+        break
+    for m in _MONTH_ISO_RX.finditer(seg):
+        if best is None or m.start() < best[0]:
+            best = (m.start(), int(m.group(1)), int(m.group(2)))
+        break
+    return (best[1], best[2]) if best else None
+
+
+def _member_date_fits(call: dict, said) -> bool:
+    """May `said` (the month the writer dated the figure with, or None) be this member's date? A window
+    extreme (C3 `window_peak_percentile`) is chosen ONLY where the writer wrote its own month; any other
+    member only where the writer wrote no month, or its own month (a member with no monthly period -- an
+    annual one -- cannot be contradicted by a month)."""
+    rows = (call or {}).get("rows") or [{}]
+    stat = str((rows[0] or {}).get("stat") or "")
+    per = str(((call or {}).get("query") or {}).get("period") or "")
+    m = _MONTH_ISO_RX.match(per[:7]) if len(per) >= 7 else None
+    own = (int(m.group(1)), int(m.group(2))) if m else None
+    if stat == "window_peak_percentile":
+        return said is not None and own is not None and said == own
+    return said is None or own is None or said == own
+
+
+def _worded_own_figure(window: str, pool: list, call: dict) -> bool:
+    """Is the handle's own figure already WRITTEN IN WORDS in its binding window? The integer through the
+    board's own number-word producer (`rows.words_for_int`, the SAME function the board prints counts
+    with) -- a figure, spelled. (Fix-round review M3: a percentile-family WORD alone never stands in for
+    the handle's figure; that was the percentile-word special case the brief rejected.)"""
+    w = " " + re.sub(r"\s+", " ", str(window or "").lower()) + " "
+    try:
+        from leviathan.graphrag.state import rows as _rows
+        wfi = getattr(_rows, "words_for_int", None)
+        if wfi is None:
+            from leviathan.graphrag.state import render as _rnd
+            wfi = getattr(_rnd, "words_for_int", None)
+    except Exception:  # noqa: BLE001 -- no producer, no worded reading: the shape decides alone
+        wfi = None
+    if not callable(wfi):
+        return False
+    for v in pool or []:
+        if abs(v - round(v)) < 1e-9 and 0 <= v <= 999999:
+            words = str(wfi(int(round(v)))).lower()
+            if words and re.search(r"(?<![a-z-])" + re.escape(words) + r"(?![a-z-])", w):
+                return True
+    return False
+
+
+# ══ 09-23 FIX ROUND (lane V, BRIEF item 9) -- AN [E] HANDLE IS BOUND BY ITS DOCUMENT'S IDENTITY ═══════════
+# THE MEASURED DEFECT (rice turn): "USDA raised 2025/26 global beginning stocks primarily for India ...,
+# reported 9 December 2025 [E41]" resolved to a September-2023 WASDE about a parboiled export tax and
+# PASSED -- `_check_evidence_handle` asks only whether the sentence shares ONE [a-z]{5,} token with the
+# item ("india"). A date the writer binds to a document is a claim ABOUT that document, and the item
+# carries three dates it can be checked against: its document date, its event date (at its own precision)
+# and every date its own text states. THE RULE: a FULL date (day, month and year -- ISO or written out)
+# bound to the handle (the nearest handle to it in the sentence, with no ';' / ':' / dash clause break
+# between) that is NONE of those is a `date_contradiction`. REMEDY, correct before delete: when the turn
+# holds exactly ONE item of the same source carrying that date, the handle is RE-ADDRESSED to it (the
+# footer then names the document the writer dated); otherwise that HANDLE alone is dropped and counted --
+# the words stand. A month- or year-precision date is never charged (the writer may be dating the event,
+# not the document), and neither is a date the item's text states without a year ("starting on March 10").
+_MON_NAMES = ("january", "february", "march", "april", "may", "june", "july", "august", "september",
+              "october", "november", "december")
+_MON_RX = r"(?:" + _MONTHS + r")\.?"
+_FULL_DATE_RXS = (
+    re.compile(r"(?<!\d)((?:19|20)\d{2})-(\d{2})-(\d{2})(?!\d)"),
+    re.compile(r"(?<![\w])(\d{1,2})(?:st|nd|rd|th)?\s+(" + _MON_RX + r")\s*,?\s+((?:19|20)\d{2})(?!\d)", re.I),
+    re.compile(r"(?<![\w])(" + _MON_RX + r")\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+((?:19|20)\d{2})(?!\d)", re.I),
+)
+_YEARLESS_RXS = (
+    re.compile(r"(?<![\w])(\d{1,2})(?:st|nd|rd|th)?\s+(" + _MON_RX + r")(?!\s*,?\s*(?:19|20)\d{2})", re.I),
+    re.compile(r"(?<![\w])(" + _MON_RX + r")\s+(\d{1,2})(?:st|nd|rd|th)?(?![\d])(?!\s*,?\s*(?:19|20)\d{2})",
+               re.I),
+)
+
+
+def _mon(tok: str) -> int:
+    t = str(tok or "").lower().rstrip(".")[:3]
+    for i, n in enumerate(_MON_NAMES):
+        if n[:3] == t:
+            return i + 1
+    return 0
+
+
+def _full_dates(text: str) -> list:
+    """(start, end, (y, m, d)) for every FULL date written in `text`."""
+    out = []
+    for i, rx in enumerate(_FULL_DATE_RXS):
+        for m in rx.finditer(text or ""):
+            try:
+                if i == 0:
+                    y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                elif i == 1:
+                    y, mo, d = int(m.group(3)), _mon(m.group(2)), int(m.group(1))
+                else:
+                    y, mo, d = int(m.group(3)), _mon(m.group(1)), int(m.group(2))
+            except (TypeError, ValueError):
+                continue
+            if 1 <= mo <= 12 and 1 <= d <= 31:
+                out.append((m.start(), m.end(), (y, mo, d)))
+    return sorted(out)
+
+
+def _item_dates(item: dict) -> tuple:
+    """(full dates, yearless (m, d) pairs, prefix dates) an evidence item carries: its document date, its
+    event date at its own precision, and every date its text states."""
+    full, yearless, prefixes = set(), set(), set()
+    for key in ("date", "event_date"):
+        raw = str((item or {}).get(key) or "")[:10]
+        mm = re.match(r"((?:19|20)\d{2})(?:-(\d{2}))?(?:-(\d{2}))?", raw)
+        if not mm:
+            continue
+        y = int(mm.group(1))
+        mo = int(mm.group(2)) if mm.group(2) else 0
+        d = int(mm.group(3)) if mm.group(3) else 0
+        prec = str((item or {}).get("event_date_precision") or "") if key == "event_date" else "day"
+        if d and prec in ("", "day"):
+            full.add((y, mo, d))
+        elif mo and prec in ("", "day", "month"):
+            prefixes.add((y, mo))
+        else:
+            prefixes.add((y,))
+    text = str((item or {}).get("text") or "")
+    for _a, _b, ymd in _full_dates(text):
+        full.add(ymd)
+    for i, rx in enumerate(_YEARLESS_RXS):
+        for m in rx.finditer(text):
+            try:
+                mo, d = (_mon(m.group(2)), int(m.group(1))) if i == 0 else (_mon(m.group(1)), int(m.group(2)))
+            except (TypeError, ValueError):
+                continue
+            if 1 <= mo <= 12 and 1 <= d <= 31:
+                yearless.add((mo, d))
+    return full, yearless, prefixes
+
+
+def _date_fits(ymd: tuple, dates: tuple) -> bool:
+    full, yearless, prefixes = dates
+    y, mo, d = ymd
+    return ymd in full or (mo, d) in yearless or (y, mo) in prefixes or (y,) in prefixes
+
+
+def _bound_full_dates(text: str, h0: int, h1: int, s0: int, s1: int) -> list:
+    """The FULL dates in the sentence text[s0:s1] whose NEAREST handle is the one at text[h0:h1], bound in
+    one of the two shapes a writer dates a document with: "<verb> 9 December 2025 [E41]" (the date in the
+    handle's own clause -- no ',' ';' ':' or dash between them) or "[E1], reported 2026-04-06" (the date
+    right after the handle, at most one comma and two words between). MEASURED on the ten 09-23 pages: the
+    wider "no ';' / ':' / dash between" reading bound "the 9 October 2026 print shows feed use falling ...,
+    which is the 2011-style substitution [E4]" -- a FUTURE print the falsifier names, not the document's
+    date -- to [E4]; the clause shape does not. Ties go to the handle AFTER the date."""
+    sent = text[s0:s1]
+    hs = [(m.start() + s0, m.end() + s0) for m in _HANDLE.finditer(sent)]
+    out = []
+    for a, b, ymd in _full_dates(sent):
+        a, b = a + s0, b + s0
+        best, bd = None, None
+        for x0, x1 in hs:
+            dist = (x0 - b) if x0 >= b else (a - x1) + 0.5
+            if bd is None or dist < bd:
+                best, bd = (x0, x1), dist
+        if best != (h0, h1):
+            continue
+        if h0 >= b:                                   # the date BEFORE the handle: same clause
+            if re.search(r"[,;:]|--|[" + chr(0x2013) + chr(0x2014) + r"]", text[b:h0]):
+                continue
+        elif not re.fullmatch(r"\s*,?\s*(?:[A-Za-z]+\s+){0,2}", text[h1:a]):
+            continue                                  # the date AFTER it: "[E1], reported <date>" only
+        out.append(ymd)
+    return out
+
+
+def _e_date_verdict(text: str, h0: int, h1: int, s0: int, s1: int, items: list, evidence: list):
+    """(None, None) when the handle's bound full dates fit its item; ("readdress", new_items) when they
+    contradict it and the turn holds exactly ONE same-source document carrying them; ("date_contradiction",
+    None) otherwise."""
+    dates = _bound_full_dates(text, h0, h1, s0, s1)
+    if not dates or not items:
+        return None, None
+    carried = _item_dates(items[0])
+    for it in items[1:]:
+        f, y, p = _item_dates(it)
+        carried = (carried[0] | f, carried[1] | y, carried[2] | p)
+    if any(_date_fits(ymd, carried) for ymd in dates):
+        return None, None
+    same = _same_source_items({"source": (items[0] or {}).get("source")}, evidence)
+    fit = [e for e in same if any(_date_fits(ymd, _item_dates(e)) for ymd in dates)]
+    if fit and len(_ledger_documents(fit)) == 1:
+        return "readdress", fit
+    return "date_contradiction", None
+
+
+def _positional_support(sent: str, item: dict, evidence: list) -> bool:
+    """Does the menu item at an undeclared [E]'s index ACTUALLY support the sentence (THREAT_MODEL A-5: "the
+    item that actually supported the sentence")? HEAD's undeclared branch asks only whether SOME item shares
+    a token OR a digit string -- a shared "2024" passes it -- and a footer row naming the wrong document is
+    worse than none. So the positional item must (i) pass the same check on its own, (ii) share CONTENT
+    WORDS with the sentence (HEAD's `_tokens`, not a digit coincidence), and (iii) share at least as many as
+    any other item in the menu does -- the index names the document the sentence is closest to, or none."""
+    if _check_evidence_handle(sent, [item]) is not None:
+        return False
+    st = _tokens(sent)
+    own = len(st & _tokens((item or {}).get("text") or ""))
+    if not own:
+        return False
+    return all(len(st & _tokens((e or {}).get("text") or "")) <= own for e in evidence or [])
+
+
+def _resolved_payload(item: dict) -> dict:
+    """The `report["resolved"]` payload shape for one evidence item (verify's own, 140-char snippet)."""
+    txt = (item or {}).get("text") or ""
+    return {"source": item.get("source"), "date": item.get("date"), "source_key": item.get("source_key"),
+            "snippet": txt[:140] + ("..." if len(txt) > 140 else ""),
+            "char_start": item.get("char_start"), "char_end": item.get("char_end"),
+            "offset_kind": item.get("offset_kind")}
 
 
 def verify_citations(structured: dict | None, evidence: list[dict] | None,
                      number_calls: list[dict] | None = None, *,
                      foreign_names: set[str] | None = None,
-                     handle_prose: bool = False) -> dict:
+                     handle_prose: bool = False,
+                     served_scalars: list | None = None) -> dict:
     """Verify + repair `structured` IN PLACE (tldr/mechanism prose, sources ledger); return the report.
     `foreign_names` = regime names that belong to OTHER contracts' DAGs (never routed here) — asserting
     one is the measured cross-contract fabrication class, so the token is stripped and counted.
@@ -3245,6 +4807,16 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
           An OUT-OF-RANGE index is untouched and still falls to the undeclared branch -- that is the
           index-range check, and it is the whole check.
       (2) the D-HP-12 DIGIT-LINT charges `bare_digit` per sentence (see `bare_digit_verdict`).
+
+    == 09-23 FIX ROUND (lane V, CONTRACT C15) -- `served_scalars` AND THE REPORT KEYS IT ADDED ==========
+    `served_scalars` is the board block's own record of every figure it printed (CONTRACT C4; lane R mints
+    it, the seam transports it ONLY when the block rendered, answer threads it). None -- every board-off
+    turn -- leaves the pool arm inert by construction. Report keys ADDED ONLY WHEN NON-EMPTY, so a report
+    with nothing to say about them has HEAD's shape: `readdressed` (same-row re-address; the noun-object
+    splice and its `noun_object_spliced` key are RETIRED by the fix round, review FATAL-5), `pool_backed`, `handles_canonicalised`, `resolved_undeclared` (an undeclared [E] resolved POSITIONALLY to
+    the item the turn's evidence menu holds at that index, when that item itself supports the sentence),
+    `ledger_ambiguous`, `e_date_readdressed` and `e_numerals_unverified` (claim numerals in [E]-only
+    sentences -- OWNER DECISION 13: a counter, never a charge).
     """
     # CYCLE-8 FIX 2(c): `repaired` / `repairs` are ALWAYS present (0 / []), never gated. See the
     # no-laundering note in PASS 2.
@@ -3268,6 +4840,16 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         # strip_rate 0 rather than NaN (handles-based `checked` stays as the secondary denominator).
         _orig_prose = (structured.get("tldr") or "") + " " + (structured.get("mechanism") or "")
         report["claim_count"] = len([s for s in _SENT_SPLIT.split(_orig_prose) if s.strip()])
+        # 09-23 (BRIEF item 7): a bracket that opens as a handle and continues as prose is split to the
+        # canonical handle + its own words BEFORE anything reads a handle, so the kinds map, the charge and
+        # the footer all see "[N42]". Counted; nothing deleted, no character written but the moved bracket.
+        _canon_n = 0
+        for _fld in ("tldr", "mechanism"):
+            if isinstance(structured.get(_fld), str) and structured.get(_fld):
+                structured[_fld], _k = _canonicalise_handles(structured[_fld])
+                _canon_n += _k
+        if _canon_n:
+            report["handles_canonicalised"] = _canon_n
 
         # W3 RCA: flag-gated capture of the stripped SENTENCE TEXT (counts already live in by_rule, but the
         # fix can't be chosen without seeing WHICH sentences each rule kills). GRAPHRAG_STRIP_AUDIT=off (the
@@ -3298,6 +4880,17 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
 
         evidence = evidence or []
         number_calls = number_calls or []
+        # 09-23 (C4/C6): ONE charge-site context for the whole run -- the served-scalars pool and the
+        # per-sentence derived unit grammar. `served_scalars=None` is an EMPTY pool: HEAD's reading.
+        ctx = _VCtx(number_calls, served_scalars)
+        _readdressed: list = []
+        _resolved_undeclared: dict = {}
+        _ledger_ambiguous: dict = {}
+        _e_readdressed: list = []
+        _e_date_bad: set = set()                    # refs a bound full date contradicted
+        _e_date_ok: set = set()                     # refs some sentence cited without contradiction
+        _e_numerals = 0
+        _row_ids_present = any(isinstance(c, dict) and c.get("_row_id") for c in number_calls)
 
         # T2b Lane-B RCA (2026-07-28): which KINDS of handle each index is written with in the prose. The
         # ledger `ref` is a BARE INTEGER by contract -- answer.py's tool schema types it {"type":"integer"}
@@ -3334,15 +4927,36 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         # cascade strips are re-keyed `ledger_cascade` so fabricated_citation counts DEFECTS (a cited handle
         # with no such item in the evidence list), not the sentences downstream of one.
         cascade_refs: set[str] = set()
+        ambiguous_refs: set[str] = set()
         kept_sources = []
         for s in (structured.get("sources") or []):
             ref = str(s.get("ref", "")).strip().strip("[]")
             if ref.upper().startswith("N"):
                 kept_sources.append(s)                    # numbers refs are positional; checked in prose
                 continue
+            # 09-23 (BRIEF item 8, THREAT_MODEL V-10) -- LEDGER IDENTITY BEFORE ANY DOCUMENT MATCH. MEASURED
+            # on the cotton turn: eleven [N] declarations whose SOURCE name ("USDA WASDE") also names a
+            # document in the evidence list were matched AS that document and re-dated to it, and the
+            # footer bound the 2024/25-2026/27 balance sheet (known 2026-09-11) to a January-2025 WASDE.
+            # A ref the prose writes ONLY as [N<ref>], indexing a real call, is a NUMBER declaration and is
+            # never offered to the document matcher; an integer the prose ALSO writes as [E<ref>] keeps
+            # HEAD's order (the E/N collision rule `_is_number_declaration` documents).
+            if _is_number_declaration(ref) and "E" not in _kinds.get(ref, set()):
+                kept_sources.append(s)
+                continue
             matched = _match_ledger_entry(s, evidence)
             if not matched:
                 if _is_number_declaration(ref):           # ditto -- the schema just cost it its "N" prefix
+                    kept_sources.append(s)
+                    continue
+                # 09-23 (V-11): the source names SEVERAL documents and none carries the declared date -- the
+                # entry is AMBIGUOUS, not fabricated. Counted, kept in the ledger, never re-dated and never
+                # resolved; its prose handle is left standing for the footer's own rowless-ref prune.
+                _same = _same_source_items(s, evidence)
+                if len(_ledger_documents(_same)) > 1:
+                    ambiguous_refs.add(ref)
+                    _ledger_ambiguous[ref] = {"source": s.get("source"), "date": s.get("date"),
+                                              "candidates": len(_ledger_documents(_same))}
                     kept_sources.append(s)
                     continue
                 report["stripped"] += 1
@@ -3490,12 +5104,50 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             _audit_seen.add(_key)
             report["strip_sentences"] = len(_audit_seen)
             if _audit_on and _first:                      # one sentence, one entry (see the note above)
+                _g = ctx.grammar(sent)
                 report["strip_audit"].append(
                     {"rule": rule, "field": field, "text": sent.strip(),
-                     "numbers": (_claim_numbers_in(_HANDLE.sub("", sent))
-                                 + _unit_vocab_claims(sent, number_calls))})
+                     "numbers": ([v for _a, _b, v in _claim_number_spans(_HANDLE.sub("", sent), units=_g)]
+                                 + _unit_vocab_claims(sent, number_calls, units=_g))})
+
+        def _pass0(text: str, field: str) -> str:
+            """09-23 PASS 0 -- the one value-preserving insertion (see the block note at `_handle_groups`),
+            sentence by sentence on `_BOUND`'s own spans, BEFORE any verdict is read: the same-row
+            re-address (board calls only -- nothing to do without a `_row_id`). Each sentence is rebuilt
+            from its own pieces, so no offset outside it can move. The noun-object splice that ran here on
+            EVERY sentence is retired (fix-round review FATAL-5): it wrote figures into uncharged prose."""
+            if not _HANDLE.search(text or ""):
+                return text
+            out, at = [], 0
+            for _b in list(_BOUND.finditer(text)) + [None]:
+                _end = _b.end() if _b is not None else len(text)
+                if _end <= at:
+                    continue
+                piece, at = text[at:_end], _end
+                if _HANDLE.search(piece):
+                    if _row_ids_present:
+                        piece = _readdress_sentence(piece, number_calls, ctx, field, _readdressed)
+                out.append(piece)
+            return "".join(out)
+
+        def _count_e_numerals(text: str) -> int:
+            """OWNER DECISION 13 -- claim numerals in sentences whose only handles are [E]: counted, never
+            charged (the [E] path checks words and quotes, not figures)."""
+            n, at = 0, 0
+            for _b in list(_BOUND.finditer(text or "")) + [None]:
+                _end = _b.end() if _b is not None else len(text or "")
+                if _end <= at:
+                    continue
+                piece, at = text[at:_end], _end
+                kinds_here = {k for m in _HANDLE.finditer(piece) for k, _i in _handle_members(m.group(0))}
+                if kinds_here and "N" not in kinds_here:
+                    n += len(_claim_number_spans(_mask_handles(piece)))
+            return n
 
         def _verify_field(text: str, field: str = "") -> str:
+            nonlocal _e_numerals
+            text = _pass0(text, field)
+            _e_numerals += _count_e_numerals(text)
             # PASS 1 -- every verdict is read against the ORIGINAL text (positions must all stay comparable);
             # nothing is applied until pass 3. A fail-closed number_mismatch is DEFERRED because its remedy
             # (repair vs whole-sentence drop) depends on the other handles sharing its sentence.
@@ -3530,19 +5182,44 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                 s0, s1 = _sentence_span(text, m.start())
                 sent = text[s0:s1]
                 if m.group("kind") == "N":
-                    rule = _check_number_handle(sent, int(m.group("idx")), number_calls)
+                    rule = _check_number_handle(sent, int(m.group("idx")), number_calls, ctx=ctx)
                 else:
                     ref = m.group("idx")
                     if ref in resolved and ref not in cascade_refs:
+                        _r = _check_evidence_handle(sent, resolved[ref], quotes=False)
+                        if _r is None:
+                            # 09-23 (BRIEF item 9): the handle is bound by its document's IDENTITY -- a full
+                            # date bound to it must be a date the item carries (see `_e_date_verdict`).
+                            _dv, _new = _e_date_verdict(text, m.start(), m.end(), s0, s1, resolved[ref],
+                                                        evidence)
+                            if _dv == "readdress":
+                                resolved[ref] = _new
+                                report["resolved"][ref] = _resolved_payload(_new[0])
+                                _e_readdressed.append({"ref": ref, "field": field,
+                                                       "date": _new[0].get("date")})
+                            elif _dv:
+                                _r = _dv
+                            (_e_date_bad if _dv == "date_contradiction" else _e_date_ok).add(ref)
                         quoting.setdefault((s0, s1), []).append(
-                            (m.start(), m.end(), resolved[ref],
-                             _check_evidence_handle(sent, resolved[ref], quotes=False), True))
+                            (m.start(), m.end(), resolved[ref], _r, True))
                         continue                          # verdict AND charge both land in PASS 1b
+                    if ref in ambiguous_refs:             # 09-23 (V-11): kept, never re-dated, never charged
+                        continue
                     if ref in cascade_refs:               # downstream of an unmatched ledger row, not a
                         rule = "ledger_cascade"           # fabrication of its own (D-DV-1 iii)
                     else:                                 # handle never declared in the ledger: keep it only
                         rule = ("undeclared_unsupported"  # if SOME provided item supports the sentence
                                 if _check_evidence_handle(sent, evidence) else None)
+                        # 09-23 (BRIEF item 10, C15): an undeclared [E<i>] the turn's evidence MENU holds at
+                        # index i, whose item ITSELF supports the sentence (and carries every full date
+                        # bound to the handle), is resolved POSITIONALLY -- one document, one address -- so
+                        # the footer can emit its row instead of the prune serving its figures bare.
+                        if rule is None and ref.isdigit() and 1 <= int(ref) <= len(evidence):
+                            _it = evidence[int(ref) - 1]
+                            if (_positional_support(sent, _it, evidence)
+                                    and _e_date_verdict(text, m.start(), m.end(), s0, s1, [_it],
+                                                        evidence)[0] is None):
+                                _resolved_undeclared.setdefault(ref, _resolved_payload(_it))
                 if rule == "number_mismatch" and _failclosed:
                     pending.append((m.start(), m.end(), s0, s1, sent, int(m.group("idx"))))
                     continue
@@ -3664,7 +5341,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             orphaned: set[tuple[int, int]] = set()
             kinds: dict[tuple[int, int], str] = {}        # handle span -> 'backed' | 'unbacked'
             for h0, h1, s0, s1, sent, idx in pending:
-                if _sibling_backed(sent, idx, number_calls):
+                if _sibling_backed(sent, idx, number_calls, ctx=ctx):
                     kinds[(h0, h1)] = "backed"
                     continue
                 kinds[(h0, h1)] = "unbacked"
@@ -3688,7 +5365,8 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
             for (s0, s1), items in sorted(by_sent.items()):
                 sent = items[0][2]
                 masked = _mask_handles(sent)
-                spans = _claim_number_spans(masked)
+                _g = ctx.grammar(sent)
+                spans = _claim_number_spans(masked, units=_g)
                 pools: dict[int, list[float]] = {}
                 for m in _HANDLE.finditer(sent):
                     for _k, _j in _handle_members(m.group(0)):
@@ -3729,6 +5407,10 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     if _FIGCUT_COMPOUND.search(sent[:a]):
                         continue                          # a name, never a figure (see `_FIGCUT_COMPOUND`)
                     if not any(_num_matches([v], p, dec) for p in live.values()):
+                        # 09-23 (C4): a figure the board printed, bound by rule (1)/(2), is backed -- it
+                        # is never cut to "a level this page could not back".
+                        if ctx.pool and ctx.pool_backs(sent, a, b, v, dec[0], key=sent):
+                            continue
                         unbacked.append((a, b))
                 if not unbacked:
                     continue
@@ -3749,7 +5431,7 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
                     # cutting them separately welds the replacement words together (see `_FIGCUT_EXP`).
                     cuts: list[list[int]] = []
                     for a, b in unbacked:
-                        fa, fb = _figure_span(sent, a, b)
+                        fa, fb = _figure_span(sent, a, b, units=_g)
                         if cuts and fa <= cuts[-1][1] + 2 and not re.search(r"[A-Za-z0-9]",
                                                                             sent[cuts[-1][1]:fa]):
                             cuts[-1][1] = max(cuts[-1][1], fb)
@@ -3894,6 +5576,27 @@ def verify_citations(structured: dict | None, evidence: list[dict] | None,
         for fld in ("tldr", "mechanism"):
             if structured.get(fld):
                 structured[fld] = _verify_field(structured[fld], fld)
+        # 09-23 (C15): the added keys, each ONLY when it has something to say.
+        if _readdressed:
+            report["readdressed"] = _readdressed
+        if ctx.pool_hits:
+            report["pool_backed"] = len({(k, a) for k, a, _v in ctx.pool_hits})
+        if _resolved_undeclared:
+            report["resolved_undeclared"] = _resolved_undeclared
+        if _ledger_ambiguous:
+            report["ledger_ambiguous"] = _ledger_ambiguous
+        if _e_readdressed:
+            report["e_date_readdressed"] = _e_readdressed
+        if _e_numerals:
+            report["e_numerals_unverified"] = _e_numerals
+        # 09-23 (BRIEF item 9): a ledger entry EVERY citing sentence dated against its own document is not
+        # that document -- its resolution and its ledger row go, as a fabricated entry's do, so the footer
+        # can never print the contradicted document under the ref (the rice [E41] -> 2023 WASDE line).
+        # A ref that ALSO backs some sentence without contradiction keeps both.
+        for _ref in sorted(_e_date_bad - _e_date_ok):
+            report["resolved"].pop(_ref, None)
+            structured["sources"] = [x for x in (structured.get("sources") or [])
+                                     if str(x.get("ref", "")).strip().strip("[]") != _ref]
     except Exception:  # noqa: BLE001 — a verifier bug must never eat an answer
         report["error"] = True
     return report

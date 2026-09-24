@@ -1,0 +1,1659 @@
+{
+ "turn": "deep_state_rice_2026_09",
+ "anchors": [
+  "rough_rice_cbot"
+ ],
+ "n_calls": 70,
+ "calls": {
+  "1": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "production",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "103.5",
+     "unit": "",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "2": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "ending_stocks",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "21.4",
+     "unit": "",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "3": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "beginning_stocks",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "41.8",
+     "unit": "",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "4": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "exports",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "50.0",
+     "unit": "",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "5": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "imports",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "43.0",
+     "unit": "",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "6": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "domestic_total",
+    "country": "united_states"
+   },
+   "rows": [
+    {}
+   ],
+   "status": "not_known"
+  },
+  "7": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "avg_farm_price",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2026/27",
+     "estimate_role": "projection",
+     "value": "13.5",
+     "unit": "$/cwt",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "8": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "ending_stocks",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2025/26",
+     "estimate_role": "estimate",
+     "value": "1.86",
+     "unit": "Milled Basis",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "9": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "production",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2025/26",
+     "estimate_role": "estimate",
+     "value": "6.56",
+     "unit": "Milled Basis",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "10": {
+   "query": {
+    "table": "silver_nass_crop_progress",
+    "metric": "pct_good_excellent",
+    "country": "US"
+   },
+   "rows": [
+    {}
+   ],
+   "status": "no_rows"
+  },
+  "11": {
+   "query": {
+    "table": "silver_nass_crop_progress",
+    "metric": "pct_harvested",
+    "country": "US"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "73.0",
+     "unit": null,
+     "country": "US",
+     "knowledge_date": "2026-09-20"
+    }
+   ],
+   "status": "ok"
+  },
+  "12": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "outstanding_sales_1000mt"
+   },
+   "rows": [
+    {
+     "period": "2027",
+     "estimate_role": null,
+     "value": "0.0",
+     "unit": null,
+     "country": "Guatemala",
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "13": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": "2027",
+     "estimate_role": null,
+     "value": "0.0",
+     "unit": null,
+     "country": "El Salvador",
+     "knowledge_date": "20260917"
+    }
+   ],
+   "status": "ok"
+  },
+  "14": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "outstanding_sales_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "188.266",
+     "unit": null,
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "15": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "weekly_exports_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "12.756",
+     "unit": null,
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "16": {
+   "query": {
+    "table": "silver_esr",
+    "metric": "gross_new_sales_1000mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "22.7",
+     "unit": null,
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "17": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "domestic_total",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2025/26",
+     "estimate_role": "estimate",
+     "value": "5.22",
+     "unit": "Milled Basis",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "18": {
+   "query": {
+    "table": "silver_nass_crop_progress",
+    "metric": "pct_poor_very_poor",
+    "country": "US"
+   },
+   "rows": [
+    {}
+   ],
+   "status": "no_rows"
+  },
+  "19": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "rice_thai_5pct_usd_t"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": "471.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "20": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "exports",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2025/26",
+     "estimate_role": "estimate",
+     "value": "2.56",
+     "unit": "Milled Basis",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "21": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "imports",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": "2025/26",
+     "estimate_role": "estimate",
+     "value": "1.36",
+     "unit": "Milled Basis",
+     "country": "united_states",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "22": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "23": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "24": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "25": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "26": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.4,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "27": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 93,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "28": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "beginning_stocks_mt",
+    "country": "India"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 58.5,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "29": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "beginning_stocks_mt",
+    "country": "India"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "30": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "beginning_stocks_mt",
+    "country": "India"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 99,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "31": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.8320000000000001,
+     "unit": "M ha",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "32": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -1.7,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "33": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 17,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "34": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "India"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 25.0,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "35": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "India"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.3,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "36": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "India"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 99,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "37": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1992.0,
+     "unit": "contracts",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "38": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "39": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 84,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "40": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "blended_npk_index_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.11253557279815038,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "41": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "blended_npk_index_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.5,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "42": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "blended_npk_index_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 63,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "43": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.11,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-14"
+    }
+   ],
+   "status": "ok"
+  },
+  "44": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.3,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-14"
+    }
+   ],
+   "status": "ok"
+  },
+  "45": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 37,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-14"
+    }
+   ],
+   "status": "ok"
+  },
+  "46": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "beginning_stocks_mt",
+    "country": "Thailand"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 3.7969999999999997,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "47": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "beginning_stocks_mt",
+    "country": "Thailand"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "48": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "beginning_stocks_mt",
+    "country": "Thailand"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 78,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "49": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.5072943423080404,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "50": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "51": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 68,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-10"
+    }
+   ],
+   "status": "ok"
+  },
+  "52": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 27.309493401447426,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "53": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "54": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 44,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "55": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "ending_stocks_mt",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.283,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "56": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "ending_stocks_mt",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "57": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "ending_stocks_mt",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 75,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "58": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value",
+    "country": ""
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -1.6,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2020-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "59": {
+   "query": {
+    "table": "silver_noaa_iod",
+    "metric": "dmi_value",
+    "country": ""
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -1.42,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2020-07"
+    }
+   ],
+   "status": "ok"
+  },
+  "60": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "-0.57",
+     "unit": null,
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "61": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "-0.04",
+     "unit": null,
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "62": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "63": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": 0.8320000000000001,
+     "unit": "M ha",
+     "country": "United States",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "64": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1992.0,
+     "unit": "contracts",
+     "country": null,
+     "knowledge_date": "2026-09-15"
+    }
+   ],
+   "status": "ok"
+  },
+  "65": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom_pace_change",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.41,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "66": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom_pace_streak",
+    "country": "United States"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 5,
+     "unit": "months",
+     "country": null,
+     "knowledge_date": null
+    }
+   ],
+   "status": "ok"
+  },
+  "67": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 193.0,
+     "unit": "contracts",
+     "country": null,
+     "knowledge_date": "2026-09-15"
+    }
+   ],
+   "status": "ok"
+  },
+  "68": {
+   "query": {
+    "table": "silver_cot",
+    "metric": "mm_net_pace_streak"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 4,
+     "unit": "weeks",
+     "country": null,
+     "knowledge_date": "2026-09-15"
+    }
+   ],
+   "status": "ok"
+  },
+  "69": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "avg_farm_price",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 14.0,
+     "unit": "$/cwt",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "70": {
+   "query": {
+    "table": "silver_wasde",
+    "metric": "avg_farm_price",
+    "country": "united_states"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 10.4,
+     "unit": "$/cwt",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  }
+ },
+ "row_states": [
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "La_Nina",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "El_Nino",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "IOD_positive",
+   "series_key": "iod_climate|_global|"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "monsoon_weak",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "drought",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "flood",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "heat_stress",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "flowering_stress",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "rice_blast",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "bacterial_leaf_blight_rice",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "sheath_blight",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "brown_planthopper",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "excess_rain",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "India_export_ban",
+   "series_key": "export|rough_rice_cbot|India"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "minimum_export_price",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "export_tax",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "MSP",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "buffer_stock_release",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "India_state_reserves",
+   "series_key": "beginning_stock_region|rough_rice_cbot|India"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "Thailand_state_reserves",
+   "series_key": "beginning_stock_region|rough_rice_cbot|Thailand"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "import_tariff",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "buyer_tender_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "tenderable_collapse",
+   "series_key": "stock|rough_rice_cbot|United States"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "US_acreage_shift",
+   "series_key": "area|rough_rice_cbot|United States"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "ending_stocks_su_ratio",
+   "series_key": "psd_ending_stock_su_ratio|rough_rice_cbot|United States"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "USD_index",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "INR_THB_VND_weakness",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "crude_oil",
+   "series_key": "brent_crude_z|_global|"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "input_cost_inflation",
+   "series_key": "npk_fertilizer_z|_global|"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "freight_rates",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "managed_money_positioning",
+   "series_key": "cot_mm_positioning|rough_rice_cbot|"
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "vietnam_thailand_export_policy",
+   "series_key": ""
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "driver_id": "TRQ_rice",
+   "series_key": ""
+  }
+ ],
+ "chains": [
+  {
+   "contract": "rough_rice_cbot",
+   "agreements": [
+    "undetermined",
+    "undetermined",
+    "undetermined"
+   ],
+   "edge_signs": [
+    "+",
+    "-",
+    "0"
+   ],
+   "cross": {
+    "other": "corn_cbot",
+    "direction": "forward",
+    "relation": "competes_with",
+    "sign": "0",
+    "lag": "1-2 quarters",
+    "far_driver_id": "La_Nina",
+    "far_series_key": "oni_climate|_global|",
+    "far_percentile": 92.74809160305344,
+    "far_level": 1.8
+   },
+   "terminal": "corn_cbot",
+   "depth": 2,
+   "score": 65.8,
+   "declared_sign": "",
+   "direction": "unsettled",
+   "side": "unsettled",
+   "against_hops": [],
+   "rendered": true,
+   "full": true,
+   "slot": "top",
+   "receipt_kind": "none",
+   "receipt_words": "",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 4,
+    "hops": 3,
+    "hops_no_series": 1,
+    "buffer_series": true,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "rough_rice_cbot",
+     "driver_id": "El_Nino",
+     "sign": "+",
+     "lag": "1-3 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "oni_climate|_global|",
+     "level_shown": 1.8,
+     "unit": "degC",
+     "percentile": 92.74809160305344,
+     "z": 2.426665229537876,
+     "run_direction": "up",
+     "run_length": 8,
+     "level_date": "2026-07",
+     "knowledge_date": "2026-09-05",
+     "tail": 0.9707,
+     "tail_peak": 0.855,
+     "tail_peak_percentile": 92.74809160305344,
+     "tail_peak_date": "2026-07",
+     "tail_lag_to": "2027-04-30",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 22
+    },
+    {
+     "contract": "rough_rice_cbot",
+     "driver_id": "drought",
+     "sign": "+",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": null
+    },
+    {
+     "contract": "rough_rice_cbot",
+     "driver_id": "ending_stocks_su_ratio",
+     "sign": "-",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "psd_ending_stock_su_ratio|rough_rice_cbot|United States",
+     "level_shown": 27.309493401447426,
+     "unit": "ratio",
+     "percentile": 44.02985074626866,
+     "z": 0.06646452262224153,
+     "run_direction": "down",
+     "run_length": 1,
+     "level_date": "2026",
+     "knowledge_date": "2026-09-11",
+     "tail": 0.1194,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 52
+    }
+   ]
+  },
+  {
+   "contract": "rough_rice_cbot",
+   "agreements": [
+    "undetermined",
+    "aligned",
+    "undetermined"
+   ],
+   "edge_signs": [
+    "+",
+    "-",
+    "0"
+   ],
+   "cross": {
+    "other": "corn_cbot",
+    "direction": "forward",
+    "relation": "competes_with",
+    "sign": "0",
+    "lag": "1-2 quarters",
+    "far_driver_id": "La_Nina",
+    "far_series_key": "oni_climate|_global|",
+    "far_percentile": 92.74809160305344,
+    "far_level": 1.8
+   },
+   "terminal": "corn_cbot",
+   "depth": 2,
+   "score": 64.6,
+   "declared_sign": "",
+   "direction": "unsettled",
+   "side": "unsettled",
+   "against_hops": [],
+   "rendered": true,
+   "full": true,
+   "slot": "top",
+   "receipt_kind": "none",
+   "receipt_words": "",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 4,
+    "hops": 3,
+    "hops_no_series": 1,
+    "buffer_series": true,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "rough_rice_cbot",
+     "driver_id": "MSP",
+     "sign": "+",
+     "lag": "1-2 quarters",
+     "confidence": "medium",
+     "measured": false,
+     "series_key": "",
+     "level_shown": null,
+     "unit": "",
+     "percentile": null,
+     "z": null,
+     "run_direction": "",
+     "run_length": null,
+     "level_date": "",
+     "knowledge_date": "",
+     "tail": 0.0,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "planned",
+     "n": null
+    },
+    {
+     "contract": "rough_rice_cbot",
+     "driver_id": "India_export_ban",
+     "sign": "+",
+     "lag": "0-1 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "export|rough_rice_cbot|India",
+     "level_shown": 25.0,
+     "unit": "MT",
+     "percentile": 99.25373134328358,
+     "z": 1.3233511946255678,
+     "run_direction": "up",
+     "run_length": 3,
+     "level_date": "2026",
+     "knowledge_date": "2026-09-11",
+     "tail": 0.9851,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 34
+    },
+    {
+     "contract": "rough_rice_cbot",
+     "driver_id": "ending_stocks_su_ratio",
+     "sign": "-",
+     "lag": "0-2 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "psd_ending_stock_su_ratio|rough_rice_cbot|United States",
+     "level_shown": 27.309493401447426,
+     "unit": "ratio",
+     "percentile": 44.02985074626866,
+     "z": 0.06646452262224153,
+     "run_direction": "down",
+     "run_length": 1,
+     "level_date": "2026",
+     "knowledge_date": "2026-09-11",
+     "tail": 0.1194,
+     "tail_peak": 0.0,
+     "tail_peak_percentile": null,
+     "tail_peak_date": "",
+     "tail_lag_to": "",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 52
+    }
+   ]
+  }
+ ],
+ "coverage_chain_referenced": 0,
+ "served_chain_lints": {
+  "outcome": "ok",
+  "sentences": 1,
+  "corrected": 1,
+  "chain_hops_unfigured": 0,
+  "chain_hops_skipped": 0,
+  "chain_unranked_narrated": 0,
+  "chain_hops_ambiguous": 0,
+  "chain_fence_closed": 0
+ },
+ "structured": {
+  "tldr": "US rough rice this year reads as a loosening domestic sheet meeting a loud external supply-restriction setup: the US stocks-to-use ratio sits at 27.31% [N52], at the 44th percentile of its own record and falling over the last marketing year, while the settled USDA season-average farm price fell from $14.00/cwt [N69] in MY2024/25 to $10.40/cwt [N70] in MY2025/26. The two-sided read: the near-term tilt is price-pressuring on ample carry-in -- India's beginning stocks at 58.5 MMT [N28] and exports at 25 MMT [N34] flood the world trade with cheap origin -- but the right tail is a supply-side one, a strong tropical Pacific warm anomaly at +1.8 degC [N22], the 93rd percentile of its own record, whose declared effect window on rice reopens later this year.",
+  "mechanism": "## Mechanism\nThe physical chain is short. A tight stocks-to-use buffer is the core fundamental that lifts rice price and a loose one pressures it; that link is high-confidence in the driver model. Layer on the export-policy channel: an Indian export ban removes a large share of world trade overnight and is high-confidence and price-supportive; reserve releases from Indian public stocks push the other way, and the model deliberately gives India's reserve no committed direction, because procurement rebuilds and open-market sales release.\n\nSo the setup is genuinely two-sided, and the legs are not the same size:\n- **Price-pressuring leg (dominant now):** India carrying beginning stocks at 58.5 MMT [N28], at the 99th percentile of its own record and rising four straight marketing years, with exports at 25 MMT [N34], also 99th percentile. That is the supply-glut mechanism -- abundant reserves meeting a cheap-origin export flow -- and it is what a $10.40/cwt [N70] season-average is telling you.\n- **Price-supportive leg (the tail):** a warm tropical Pacific anomaly at +1.8 degC [N22], rising eight consecutive months, past the line the desk calls strong. The model declares that pattern suppresses monsoon rainfall and brings heat and drought to India, Thailand, Indonesia and the Philippines, cutting output and triggering protective export curbs -- production loss and policy response arriving together.\n\nConvexity sits on the export side, not the domestic one. US harvested area is 0.83 M ha [N31], at the 17th percentile of its own record and falling two marketing years, so the US cannot swing world supply; the price response to an Asian shock runs through Indian policy, where the restriction lever is discrete rather than gradual and the move is convex. Against that, the same 58.5 MMT [N28] Indian reserve is the buffer that caps the tail: a shock has to exhaust an unusually deep cushion before restrictions bite.\n\nOn the pattern the model names as an export-restriction squeeze: three of its six conditions are showing here -- India's export lever, the deliverable-stocks reading and the stocks-to-use reading -- and a fourth, panic tender buying from state importers, is named by the pattern with no series read on this page. The pattern asks for three. Conditions met is not the same as the mechanism working; what would confirm it is an actual restriction print plus tenders.\n\n## The record\n- US stocks-to-use is 27.31% [N52], 44th percentile, falling over the last marketing year, known 2026-09-11.\n- US harvested area 0.83 M ha [N31], 17th percentile, known 2026-09-11; US deliverable ending stocks 1.28 MMT [N55], 75th percentile, falling over the last marketing year.\n- The season-average farm price is a USDA survey actual, not an exchange settle: it fell from $14.00/cwt [N69] to $10.40/cwt [N70].\n- Thai 5% rice was 471 USD/mt [N19], known 1 August 2026 -- the international reference, not a US figure.\n- Managed money was net long 1992 contracts [N37] as of 15 September 2026, a level this page could not back percentile, having risen four straight weeks; that is what funds held, past tense, and carries no forward claim.\n- Dated documents: India's export restrictions reduced competition for Vietnamese exports, reported 15 April 2025 [E38]; India moved non-Basmati white rice back to the free list on 28 September 2024 subject to a $490 per metric ton minimum export price [E39]; the Indian government was likely to increase offtake and open-market sales with stocks ballooning beyond buffer norms, reported 2 April 2025 [E40]; USDA raised 2025/26 global beginning stocks primarily for India on higher-than-expected Food Corporation of India stocks, reported 9 December 2025 [E41]. Red Sea and Middle East conflict raises freight and insurance costs on Thai rice, reported 31 March 2026 [E43] -- the newest document here, and only a cost-floor channel, low confidence.\n- Recency, by layer: the newest number on this page was known 21 September 2026 and the oldest 31 May 2026; the newest dated document is 31 March 2026; the board price tape is not carried on this page.\n\n## Where the record disagrees\nThe warm-Pacific reading and the cool-phase reading are the same observation under two names on one series -- one piece of evidence, counted once, not two independent supports. And the chain the model puts first, running from that Pacific anomaly through drought into the stocks-to-use ratio, does not settle a direction: no series is served for the drought hop, no dated document reaches the first hop's window, and no past firing of this reading carries a measured next hop. Treat the climate leg as declared mechanism, not as measured attribution.\n\n## What to watch\n- **India's export volume** [N34], 25 MMT, top decile of its own record and rising three marketing years -- the single lever with the largest declared effect on this contract, zero to one quarter. Wrong if the next print returns it toward the middle of its record. Next print 9 October 2026.\n- **India's reserve level** [N28], 58.5 MMT, top decile, four years rising -- this is the buffer that both caps the tail and funds the glut. Wrong if it returns to mid-record. Next print 9 October 2026.\n- **The tropical Pacific anomaly** [N22], +1.8 degC, eight months rising, past the strong line. Conditional on the declared one-to-three-quarter lag counted from that reading's own date, the effect window would run roughly October 2026 to April 2027. Wrong if the next print turns back inside that line or the run breaks. Next print 1 October 2026.\n- **US deliverable ending stocks** [N55], 1.28 MMT, falling over the last marketing year -- five declared upstream paths land on price through this reading, so the thin contract is where an external shock shows up first. Wrong if those paths share one upstream cause, in which case it is one route counted twice. Next print 9 October 2026.\n- **The US stocks-to-use ratio** [N52], 27.31%, falling -- the high-confidence core fundamental, with ten declared paths landing through it. Wrong on the same shared-cause test. Next print 9 October 2026."
+ }
+}

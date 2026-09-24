@@ -133,6 +133,12 @@ MIN_SU_HISTORY_N = MIN_PERCENTILE_N  # D-DA (2026-09-01, design v2 ROW 3). ONE f
 MIN_SHARE_N = 1                     # D-DA ROW 9: a share is two parts of ONE observation (one session's
 #                                     two crush values); the floor that matters is the parts' own signs,
 #                                     policed inside share() itself, not a sample count.
+MIN_PAIR_LEVEL_N = MIN_SHARE_N      # 09-23 FIX ROUND, LANE T (D5): the spread LEVEL of two price series
+#                                     is two legs of ONE shared observation, exactly as a share is two
+#                                     parts of one -- so the floor is inherited from MIN_SHARE_N, never
+#                                     re-declared. It is NOT pair_spread's floor: that one floors a
+#                                     HISTORY (a rank needs something to place against); a level needs
+#                                     one period both legs printed, and nothing more.
 MIN_FLAG_N = MIN_EXTREMA_N          # STATE ENGINE sec 2.5 (S1). `flag_events` reads a 0/1 series for its
 #                                     LAST 1 and the count of 1s in a window -- a LOOKUP over the rows,
 #                                     not an estimate over them, so one row is a readable answer exactly
@@ -268,6 +274,16 @@ NONPOSITIVE_DENOMINATOR_DECLINE = (
     "{when}), and a ratio across a sign change is not a relative price at all -- dropping those "
     "observations would quietly change the sample every later figure is measured against, so no figure "
     "is computed")
+# 09-23 FIX ROUND, LANE T (D5): pair_level_spread's two own refusal proses, same constant discipline.
+# Records, never reader-facing refusals: the caller stamps them on the turn and denies nothing.
+PAIR_LEVEL_UNIT_DECLINE = (
+    "the two series are quoted in different units ({a} against {b}), and this lookup never converts "
+    "between them -- a difference across them would subtract two different quantities as if they were "
+    "one, so no figure is computed")
+PAIR_LEVEL_NO_SHARED_PERIOD_DECLINE = (
+    "the two series print no period in common (the newest of {la} is {da}, the newest of {lb} is {db}), "
+    "so there is no one period to take the spread at -- a difference across two periods would book the "
+    "passage of time as a price gap, so no figure is computed")
 # RV-REGIONAL (2026-08-29): rolling_corr's three refusal proses, same D-FR-14 constant discipline.
 CORR_SHORT_WINDOW_DECLINE = (
     "a window of {w} observations is below the {floor} a correlation needs to say anything -- a "
@@ -664,6 +680,68 @@ def spread(series: Sequence, expiries: Sequence, near, far) -> dict:
             "near": a, "far": b, "near_val": near_val, "far_val": far_val}
 
 
+def _pair_join(stat: str, series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequence,
+               dates_b: Sequence, unit_b, *, currency_a, currency_b, label_a: str, label_b: str,
+               params: dict) -> tuple:
+    """The TWO-LEG GUARD CHAIN and the date join, shared by ``pair_spread`` (a constructed history) and
+    ``pair_level_spread`` (one shared observation) so the two can never hold different opinions about
+    which legs are comparable. Returns ``(vals_a, joined, refusal)``: exactly one of ``joined`` /
+    ``refusal`` is meaningful -- a refusal dict on the module's ``_decline`` contract, stamped with
+    ``stat``, or ``None`` and the joined ``(date, a, b)`` triples in ``series_a``'s given order.
+
+    Lifted VERBATIM from ``pair_spread``'s steps 1-7 (the 09-23 fix round, lane T): every message,
+    guard tag and ``n`` is the one that function returned before the lift, which its own pins assert."""
+    vals_a, vals_b = _floats(series_a), _floats(series_b)
+    dl_a = [("" if d is None else str(d)).strip() for d in dates_a]
+    dl_b = [("" if d is None else str(d)).strip() for d in dates_b]
+    # 1. EMPTY, either leg -- outranks every unit/currency read (an empty read mints unit=None).
+    for vals, which in ((vals_a, label_a), (vals_b, label_b)):
+        if not vals:
+            d = empty_series_decline(stat, 0, which)
+            d.update(params)
+            return vals_a, [], d
+    # 2. AXIS LENGTH mismatch -- a caller-bug shape; a misaligned axis would join the wrong two figures.
+    for vals, dl, which in ((vals_a, dl_a, label_a), (vals_b, dl_b, label_b)):
+        if len(dl) != len(vals):
+            return vals_a, [], _decline(stat, len(vals),
+                                        f"the observation axis of {which} carries {len(dl)} labels for "
+                                        f"{len(vals)} values, so an observation cannot be matched to a "
+                                        f"figure", **params)
+    # 3. DUPLICATE date on either leg (mirrors spread()'s dupes: "the" figure of that date is not single).
+    for dl, which in ((dl_a, label_a), (dl_b, label_b)):
+        if len(set(dl)) != len(dl):
+            dup = next(d for i, d in enumerate(dl) if d in dl[:i])
+            return vals_a, [], _decline(stat, len(dl),
+                                        f"{dup or 'a blank date'} appears on more than one row of {which}, "
+                                        f"so that observation has no single figure on that leg", **params)
+    # 4. SAME SERIES -- a difference of a figure against itself.
+    if (label_a or "").strip() == (label_b or "").strip():
+        return vals_a, [], _decline(stat, len(vals_a),
+                                    f"both legs name the same series ({label_a}), which is a difference of "
+                                    f"a figure against itself", **params)
+    # 5. CURRENCY -- the coarser, permanent axis, checked before units. unit_compatible IS the policy
+    #    (one three-state rule, two axes): None-vs-None reads compatible, which is correct where the
+    #    currency lives inside the unit string (USD/mt), and FIXTURE-ONLY otherwise today.
+    if not unit_compatible(currency_a, currency_b):
+        return vals_a, [], _decline(stat, len(vals_a),
+                                    CURRENCY_MISMATCH_DECLINE.format(a=currency_a or UNIT_UNLABELLED,
+                                                                     b=currency_b or UNIT_UNLABELLED),
+                                    guard=CURRENCY_GUARD, **params)
+    # 6. UNITS -- both must be KNOWN (stricter than unit_compatible, see pair_spread's docstring).
+    known_a, known_b = bool(_norm_unit(unit_a)), bool(_norm_unit(unit_b))
+    if not known_a and not known_b:
+        return vals_a, [], _decline(stat, len(vals_a), BOTH_UNITS_REQUIRED_DECLINE, guard=UNIT_GUARD,
+                                    **params)
+    if known_a != known_b:
+        d = unit_decline(stat, len(vals_a), unit_a, unit_b)   # UNIT_UNKNOWN_DECLINE, verbatim reuse
+        d.update(params)
+        return vals_a, [], d
+    # 7. JOIN by date-string equality, preserving series_a's given order (chronology is the caller's
+    #    contract; this module never orders by calendar).
+    b_by = dict(zip(dl_b, vals_b))
+    return vals_a, [(d, va, b_by[d]) for d, va in zip(dl_a, vals_a) if d in b_by], None
+
+
 def pair_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequence, dates_b: Sequence,
                 unit_b, *, currency_a=None, currency_b=None,
                 label_a: str = "the first series", label_b: str = "the second series") -> dict:
@@ -700,54 +778,12 @@ def pair_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequenc
     on the module's standard _decline contract; a non-numeric or non-finite CELL raises TypeError from
     `_floats` exactly as every other stat here does (the module's clean-series convention -- the caller's
     fail-closed belt owns that class, review m6)."""
-    vals_a, vals_b = _floats(series_a), _floats(series_b)
-    dl_a = [("" if d is None else str(d)).strip() for d in dates_a]
-    dl_b = [("" if d is None else str(d)).strip() for d in dates_b]
     params = {"labels": f"{label_a} vs {label_b}", "units": unit_pair_label(unit_a, unit_b)}
-    # 1. EMPTY, either leg -- outranks every unit/currency read (an empty read mints unit=None).
-    for vals, which in ((vals_a, label_a), (vals_b, label_b)):
-        if not vals:
-            d = empty_series_decline("pair_spread", 0, which)
-            d.update(params)
-            return d
-    # 2. AXIS LENGTH mismatch -- a caller-bug shape; a misaligned axis would join the wrong two figures.
-    for vals, dl, which in ((vals_a, dl_a, label_a), (vals_b, dl_b, label_b)):
-        if len(dl) != len(vals):
-            return _decline("pair_spread", len(vals),
-                            f"the observation axis of {which} carries {len(dl)} labels for {len(vals)} "
-                            f"values, so an observation cannot be matched to a figure", **params)
-    # 3. DUPLICATE date on either leg (mirrors spread()'s dupes: "the" figure of that date is not single).
-    for dl, which in ((dl_a, label_a), (dl_b, label_b)):
-        if len(set(dl)) != len(dl):
-            dup = next(d for i, d in enumerate(dl) if d in dl[:i])
-            return _decline("pair_spread", len(dl),
-                            f"{dup or 'a blank date'} appears on more than one row of {which}, so that "
-                            f"observation has no single figure on that leg", **params)
-    # 4. SAME SERIES -- a difference of a figure against itself.
-    if (label_a or "").strip() == (label_b or "").strip():
-        return _decline("pair_spread", len(vals_a),
-                        f"both legs name the same series ({label_a}), which is a difference of a figure "
-                        f"against itself", **params)
-    # 5. CURRENCY -- the coarser, permanent axis, checked before units. unit_compatible IS the policy
-    #    (one three-state rule, two axes): None-vs-None reads compatible, which is correct where the
-    #    currency lives inside the unit string (USD/mt), and FIXTURE-ONLY otherwise today.
-    if not unit_compatible(currency_a, currency_b):
-        return _decline("pair_spread", len(vals_a),
-                        CURRENCY_MISMATCH_DECLINE.format(a=currency_a or UNIT_UNLABELLED,
-                                                         b=currency_b or UNIT_UNLABELLED),
-                        guard=CURRENCY_GUARD, **params)
-    # 6. UNITS -- both must be KNOWN (stricter than unit_compatible, see docstring).
-    known_a, known_b = bool(_norm_unit(unit_a)), bool(_norm_unit(unit_b))
-    if not known_a and not known_b:
-        return _decline("pair_spread", len(vals_a), BOTH_UNITS_REQUIRED_DECLINE, guard=UNIT_GUARD, **params)
-    if known_a != known_b:
-        d = unit_decline("pair_spread", len(vals_a), unit_a, unit_b)   # UNIT_UNKNOWN_DECLINE, verbatim reuse
-        d.update(params)
-        return d
-    # 7. JOIN by date-string equality, preserving series_a's given order (chronology is the caller's
-    #    contract; this module never orders by calendar).
-    b_by = dict(zip(dl_b, vals_b))
-    joined = [(d, va, b_by[d]) for d, va in zip(dl_a, vals_a) if d in b_by]
+    _vals_a, joined, refusal = _pair_join("pair_spread", series_a, dates_a, unit_a, series_b, dates_b,
+                                          unit_b, currency_a=currency_a, currency_b=currency_b,
+                                          label_a=label_a, label_b=label_b, params=params)
+    if refusal is not None:
+        return refusal
     n = len(joined)
     # 8. The constructor's own floor (MIN_PAIR_SPREAD_N -- the thinnest consumer's, so ordinal-thin lives).
     if n < MIN_PAIR_SPREAD_N:
@@ -772,6 +808,50 @@ def pair_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequenc
             "form": form, "unit": unit, "series": series, "dates": [d for d, _, _ in joined],
             "a_latest": joined[-1][1], "b_latest": joined[-1][2],
             "units": unit_pair_label(unit_a, unit_b), "pct_change_allowed": pct_ok}
+
+
+def pair_level_spread(series_a: Sequence, dates_a: Sequence, unit_a, series_b: Sequence,
+                      dates_b: Sequence, unit_b, *, currency_a=None, currency_b=None,
+                      label_a: str = "the first series", label_b: str = "the second series") -> dict:
+    """THE 09-23 FIX ROUND, LANE T (D5) -- the SPREAD LEVEL of two price series at their NEWEST SHARED
+    observation: ``value = a - b`` on the one period both legs printed, and nothing else.
+
+    WHY IT IS NOT ``pair_spread``. ``pair_spread`` constructs a HISTORY and floors it at two joined
+    observations, because a rank or an extreme needs something to place against. The measured turn
+    (quick rv_soyoil_palm and rv_palm_rapeoil, 2026-09-23) read each leg ONCE -- World Bank palm oil
+    1,117 and soybean oil 1,638 USD/mt, both for 2026-08-01 -- and the history floor refused, so a page
+    printed both prices and no spread: arithmetic left to the writer's head. The LEVEL needs one
+    shared period and one unit; it asks the history question of no one.
+
+    THE TWO-LEG GUARD CHAIN IS ``pair_spread``'s OWN (``_pair_join``: empty, axis, duplicate date, same
+    series, currency, both units known), and this adds exactly two refusals of its own: the units must be
+    EQUAL (strip + casefold, the module's one normalisation -- a level across two units is a subtraction
+    of two different quantities, and the ratio form ``pair_spread`` offers has no quotable level), and
+    the legs must SHARE a period (a difference across two dates books the passage of time as a price
+    gap). No floor is relaxed: ``MIN_PAIR_LEVEL_N`` is ``MIN_SHARE_N``, the family's "two parts of ONE
+    observation" floor. Every refusal is a ``_decline`` with its guard tag; nothing raises on a guard."""
+    params = {"labels": f"{label_a} vs {label_b}", "units": unit_pair_label(unit_a, unit_b)}
+    vals_a, joined, refusal = _pair_join("pair_level_spread", series_a, dates_a, unit_a, series_b,
+                                         dates_b, unit_b, currency_a=currency_a, currency_b=currency_b,
+                                         label_a=label_a, label_b=label_b, params=params)
+    if refusal is not None:
+        return refusal
+    if not unit_compatible(unit_a, unit_b):
+        return _decline("pair_level_spread", len(vals_a),
+                        PAIR_LEVEL_UNIT_DECLINE.format(a=unit_a, b=unit_b), guard=UNIT_GUARD, **params)
+    n = len(joined)
+    if n < MIN_PAIR_LEVEL_N:
+        def _newest(dates: Sequence) -> str:
+            dl = [("" if d is None else str(d)).strip() for d in dates]
+            return (dl[-1] if dl else "") or "no dated observation"
+        return _decline("pair_level_spread", n,
+                        PAIR_LEVEL_NO_SHARED_PERIOD_DECLINE.format(la=label_a, da=_newest(dates_a),
+                                                                   lb=label_b, db=_newest(dates_b)),
+                        guard=THIN_GUARD, **params)
+    d, va, vb = joined[-1]
+    return {"stat": "pair_level_spread", "declined": False, "value": va - vb, "n": n,
+            "form": "difference", "unit": unit_a, "date": d, "a_value": va, "b_value": vb,
+            "units": unit_pair_label(unit_a, unit_b)}
 
 
 def rolling_corr(series_a: Sequence, labels_a: Sequence, series_b: Sequence, labels_b: Sequence,
@@ -1201,6 +1281,7 @@ del _name
 ENGINE_STAT_NAMES: tuple[str, ...] = (
     "extreme_locator", "pair_spread", "rolling_corr", "quantiles", "sign_agreement",
     "regime_flag", "flag_events", "pace_vs_prior", "rolling_zscore",       # the STATE BOARD's four
+    "pair_level_spread",                                  # 09-23 fix round, lane T (D5): the spread level
 )
 
 for _name in ENGINE_STAT_NAMES:

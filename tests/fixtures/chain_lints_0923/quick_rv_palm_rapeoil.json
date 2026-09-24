@@ -1,0 +1,1890 @@
+{
+ "turn": "quick_rv_palm_rapeoil",
+ "anchors": [
+  "malaysian_crude_palm_oil_cme",
+  "french_rapeseed_matif"
+ ],
+ "n_calls": 77,
+ "calls": {
+  "1": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "2824488.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "2": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "su_ratio"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": "2.1816378612520313",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "3": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "ending_stocks_mt",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": "517000.0",
+     "unit": null,
+     "country": "European Union",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "4": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": "2026",
+     "estimate_role": null,
+     "value": "0.04854460093896713",
+     "unit": null,
+     "country": "European Union",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "5": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "palm_oil_cpo_usd_t"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": "1117.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "6": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "palm_oil_cpo_usd_t_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": "0.26909550274305843",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "7": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "rapeseed_oil_usd_t"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": "1474.0",
+     "unit": null,
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "8": {
+   "query": {
+    "table": "compute_stat",
+    "metric": "window_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 10289.0,
+     "unit": "MT",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "9": {
+   "query": {
+    "table": "compute_stat",
+    "metric": "extrema_min"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2269173.0,
+     "unit": "MT",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "10": {
+   "query": {
+    "table": "compute_stat",
+    "metric": "extrema_max"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2824488.0,
+     "unit": "MT",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "11": {
+   "query": {
+    "table": "compute_stat",
+    "metric": "window_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -32000.0,
+     "unit": "MT",
+     "country": "European Union",
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "12": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Russia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 7.0,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "13": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Russia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.0,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "14": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Russia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 99,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "15": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Russia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 7.806,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "16": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Russia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.7,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "17": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Russia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 99,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "18": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Crush",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 25.1,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "19": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Crush",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.3,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "20": {
+   "query": {
+    "table": "silver_psd_attributes",
+    "metric": "Crush",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 91,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-12"
+    }
+   ],
+   "status": "ok"
+  },
+  "21": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Ukraine"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 4.35,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "22": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Ukraine"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.3,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "23": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "production_mt",
+    "country": "Ukraine"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 96,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "24": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "idr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 17869.0,
+     "unit": "local currency per USD",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "25": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "idr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "26": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "idr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 97,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "27": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "inr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 95.82,
+     "unit": "local currency per USD",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "28": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "inr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.2,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "29": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "inr_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 98,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "30": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "eur_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.87032,
+     "unit": "local currency per USD",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "31": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "eur_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.1,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "32": {
+   "query": {
+    "table": "silver_fred_fx",
+    "metric": "eur_usd"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 25,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-21"
+    }
+   ],
+   "status": "ok"
+  },
+  "33": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 9.417142857142856,
+     "unit": "%",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "34": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.0,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "35": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "su_ratio",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 77,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "36": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 6.335,
+     "unit": "M ha",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "37": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.0,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "38": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "area_harvested_1000ha",
+    "country": "European Union"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 70,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "39": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "EU Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.5057991495100729,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "40": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "EU Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.8,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "41": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "EU Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 20,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "42": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "EU Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.5057991495100729,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "43": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "EU Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.8,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "44": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "EU Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 20,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "45": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 23.5,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "46": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.8,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "47": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 87,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "48": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 23.5,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "49": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.8,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "50": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 87,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "51": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 23.5,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "52": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.8,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "53": {
+   "query": {
+    "table": "silver_psd",
+    "metric": "exports_mt",
+    "country": "Indonesia"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 87,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-11"
+    }
+   ],
+   "status": "ok"
+  },
+  "54": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "SE Asia Palm Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.15830973226062853,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "55": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "SE Asia Palm Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.7,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "56": {
+   "query": {
+    "table": "gold_weather_z",
+    "metric": "drought_z",
+    "country": "SE Asia Palm Belt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 72,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-08-25"
+    }
+   ],
+   "status": "ok"
+  },
+  "57": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.39,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "58": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.6,
+     "unit": "sigma",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "59": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 35,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-03-08"
+    }
+   ],
+   "status": "ok"
+  },
+  "60": {
+   "query": {
+    "table": "silver_noaa_oni",
+    "metric": "oni_anom"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 1.8,
+     "unit": "degC",
+     "country": null,
+     "knowledge_date": "2026-09-05"
+    }
+   ],
+   "status": "ok"
+  },
+  "61": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.8244879999999997,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-09-13"
+    }
+   ],
+   "status": "ok"
+  },
+  "62": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 94,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-13"
+    }
+   ],
+   "status": "ok"
+  },
+  "63": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 552.0,
+     "unit": "EUR/t",
+     "country": null,
+     "knowledge_date": "2026-09-22"
+    }
+   ],
+   "status": "ok"
+  },
+  "64": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle change over 1 session"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -4.25,
+     "unit": "EUR/t",
+     "country": null,
+     "knowledge_date": "2026-09-22"
+    }
+   ],
+   "status": "ok"
+  },
+  "65": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle change over 5 sessions"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -2.25,
+     "unit": "EUR/t",
+     "country": null,
+     "knowledge_date": "2026-09-22"
+    }
+   ],
+   "status": "ok"
+  },
+  "66": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle change over 21 sessions"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.25,
+     "unit": "EUR/t",
+     "country": null,
+     "knowledge_date": "2026-09-22"
+    }
+   ],
+   "status": "ok"
+  },
+  "67": {
+   "query": {
+    "table": "silver_futures_eod",
+    "metric": "settle percentile"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 72,
+     "unit": "percentile",
+     "country": null,
+     "knowledge_date": "2026-09-22"
+    }
+   ],
+   "status": "ok"
+  },
+  "68": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "potassium_usd_mt_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": -0.38509706209967837,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "69": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": 0.5072943423080404,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "70": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": "2026M09",
+     "value": 0.5072943423080404,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "71": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 2.8244879999999997,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "72": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "potassium_usd_mt_zscore_5yr_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": -0.0199,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "73": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "potassium_usd_mt_zscore_5yr_pace_streak"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 3,
+     "unit": "months",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "74": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.5124,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "75": {
+   "query": {
+    "table": "silver_pink_sheet",
+    "metric": "brent_crude_usd_bbl_zscore_5yr_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.5124,
+     "unit": "z",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "76": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt_pace_change"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 0.1966,
+     "unit": "MMT",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  },
+  "77": {
+   "query": {
+    "table": "silver_mpob",
+    "metric": "closing_stocks_palm_oil_mt_pace_streak"
+   },
+   "rows": [
+    {
+     "period": null,
+     "estimate_role": null,
+     "value": 5,
+     "unit": "months",
+     "country": null,
+     "knowledge_date": "2026-08-01"
+    }
+   ],
+   "status": "ok"
+  }
+ },
+ "row_states": [
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "El_Nino",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "La_Nina",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "IOD_positive",
+   "series_key": "iod_climate|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "IOD_negative",
+   "series_key": "iod_climate|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "drought",
+   "series_key": "drought_z|malaysian_crude_palm_oil_cme|SE Asia Palm Belt"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "heat_stress",
+   "series_key": "heat_stress_z|malaysian_crude_palm_oil_cme|SE Asia Palm Belt"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "flood",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "monsoon_active",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "ganoderma",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "replanting_cycle",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "labor_shortage",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "biodiesel_mandate",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "export_tax",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "export_ban",
+   "series_key": "export|malaysian_crude_palm_oil_cme|Indonesia"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "DMO",
+   "series_key": "export|malaysian_crude_palm_oil_cme|Indonesia"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "import_tariff",
+   "series_key": "import|malaysian_crude_palm_oil_cme|India"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "EUDR",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "US_section301_tariffs",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "crude_oil_price",
+   "series_key": "brent_crude_z|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "gasoil_palm_spread",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "MYR_USD",
+   "series_key": "fred_fx_macro|_global||myr_usd"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "USD_index",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "ending_stocks",
+   "series_key": "mpob_ending_stocks|malaysian_crude_palm_oil_cme|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "export_pace_lag",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "soyoil_palm_premium",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "biennial_low_cycle",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "fertilizer_cost",
+   "series_key": "npk_fertilizer_z|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "potash_cost",
+   "series_key": "potash_z|_global|"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "india_import_duty",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "macro_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "ukraine_sunoil_supply",
+   "series_key": "sunflower_oil_supply|sunflower_oil|Ukraine"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "russia_sunoil_supply",
+   "series_key": "sunflower_oil_supply|sunflower_oil|Russia"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "IDR_USD",
+   "series_key": "fred_fx_macro|_global||idr_usd"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "INR_USD",
+   "series_key": "fred_fx_macro|_global||inr_usd"
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "saf_mandate",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "rubber_area_substitution",
+   "series_key": ""
+  },
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "driver_id": "CPO_export_levy",
+   "series_key": "export|malaysian_crude_palm_oil_cme|Indonesia"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "eu_rapeseed_drought",
+   "series_key": "drought_z|french_rapeseed_matif|EU Belt"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "flowering_heat_stress",
+   "series_key": "heat_stress_z|french_rapeseed_matif|EU Belt"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "flowering",
+   "series_key": "heat_stress_z|french_rapeseed_matif|EU Belt"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "winterkill_frost",
+   "series_key": "frost_event_flag|french_rapeseed_matif|EU Belt|frost_event_share"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "autumn_drought_establishment",
+   "series_key": "drought_z|french_rapeseed_matif|EU Belt"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "excess_rain",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "sclerotinia",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "flea_beetle",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "eu_neonic_ban",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "favorable_rainfall",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "NAO",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "blocking_high",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "polar_vortex",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "El_Nino",
+   "series_key": "oni_climate|_global|"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "eu_rapeseed_area",
+   "series_key": "area|french_rapeseed_matif|European Union"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "ending_stocks_su_ratio",
+   "series_key": "psd_ending_stock_su_ratio|french_rapeseed_matif|European Union"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "ukraine_rapeseed_supply",
+   "series_key": "production_region|french_rapeseed_matif|Ukraine"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "russia_rapeseed_supply",
+   "series_key": "production_region|french_rapeseed_matif|Russia"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "blacksea_export_disruption",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "australia_canola_supply",
+   "series_key": "production_region|french_rapeseed_matif|Australia"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "IOD_positive",
+   "series_key": "iod_climate|_global|"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "canadian_canola_supply",
+   "series_key": "production_region|french_rapeseed_matif|Canada"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "eu_biodiesel_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "red_iii_mandate",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "uco_palm_competition_biodiesel",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "eu_crush_demand",
+   "series_key": "psd_crush|french_rapeseed_matif|European Union"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "rapeseed_crush_margin",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "rapemeal_feed_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "crude_oil",
+   "series_key": "brent_crude_z|_global|"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "eurusd_fx",
+   "series_key": "fred_fx_macro|_global||eur_usd"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "fertilizer_costs",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "urea_cost",
+   "series_key": "urea_z|_global|"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "natural_gas",
+   "series_key": "natural_gas_eu_z|_global|"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "import_tariff",
+   "series_key": "import|french_rapeseed_matif|European Union"
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "sanctions",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "eudr_deforestation",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "US_section301_tariffs",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "managed_money_positioning",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "macro_demand",
+   "series_key": ""
+  },
+  {
+   "contract": "french_rapeseed_matif",
+   "driver_id": "sunflower_oil_supply",
+   "series_key": "sunflower_oil_supply|sunflower_oil|Ukraine"
+  }
+ ],
+ "chains": [
+  {
+   "contract": "malaysian_crude_palm_oil_cme",
+   "agreements": [
+    "aligned",
+    "at_odds",
+    "aligned"
+   ],
+   "edge_signs": [
+    "+",
+    "-",
+    "+"
+   ],
+   "cross": {
+    "other": "palm_olein_dce",
+    "direction": "forward",
+    "relation": "refined_into",
+    "sign": "+",
+    "lag": "0-1 quarters",
+    "far_driver_id": "russia_sunoil_supply",
+    "far_series_key": "sunflower_oil_supply|sunflower_oil|Russia",
+    "far_percentile": 98.75,
+    "far_level": 7.806
+   },
+   "terminal": "palm_olein_dce",
+   "depth": 2,
+   "score": 72.8,
+   "declared_sign": "+",
+   "direction": "unsettled",
+   "side": "unsettled",
+   "against_hops": [
+    "drought"
+   ],
+   "rendered": true,
+   "full": true,
+   "slot": "top",
+   "receipt_kind": "none",
+   "receipt_words": "",
+   "scope": {
+    "terms_total": 7,
+    "terms_scored": 6,
+    "terms_read": 5,
+    "hops": 3,
+    "hops_no_series": 0,
+    "buffer_series": true,
+    "events_in_corpus": true,
+    "price_read": false,
+    "price_standing": ""
+   },
+   "hops": [
+    {
+     "contract": "malaysian_crude_palm_oil_cme",
+     "driver_id": "El_Nino",
+     "sign": "+",
+     "lag": "2-4 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "oni_climate|_global|",
+     "level_shown": -0.39,
+     "unit": "degC",
+     "percentile": 34.8,
+     "z": -0.556800031274849,
+     "run_direction": "up",
+     "run_length": 2,
+     "level_date": "2026-01",
+     "knowledge_date": "2026-03-08",
+     "tail": 0.304,
+     "tail_peak": 0.568,
+     "tail_peak_percentile": 21.6,
+     "tail_peak_date": "2025-11",
+     "tail_lag_to": "2026-11-30",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 57
+    },
+    {
+     "contract": "malaysian_crude_palm_oil_cme",
+     "driver_id": "drought",
+     "sign": "+",
+     "lag": "2-4 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "drought_z|malaysian_crude_palm_oil_cme|SE Asia Palm Belt",
+     "level_shown": 0.15830973226062853,
+     "unit": "z",
+     "percentile": 72.13740458015268,
+     "z": 0.6584444980193338,
+     "run_direction": "up",
+     "run_length": 2,
+     "level_date": "2026-07",
+     "knowledge_date": "2026-08-25",
+     "tail": 0.4427,
+     "tail_peak": 0.9771,
+     "tail_peak_percentile": 98.85496183206106,
+     "tail_peak_date": "2026-01",
+     "tail_lag_to": "2027-01-31",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 54
+    },
+    {
+     "contract": "malaysian_crude_palm_oil_cme",
+     "driver_id": "ending_stocks",
+     "sign": "-",
+     "lag": "0-1 quarters",
+     "confidence": "high",
+     "measured": true,
+     "series_key": "mpob_ending_stocks|malaysian_crude_palm_oil_cme|",
+     "level_shown": 2.8244879999999997,
+     "unit": "MT",
+     "percentile": 93.58974358974359,
+     "z": null,
+     "run_direction": "up",
+     "run_length": 5,
+     "level_date": "2026-08-01",
+     "knowledge_date": "2026-09-13",
+     "tail": 0.8718,
+     "tail_peak": 0.8718,
+     "tail_peak_percentile": 93.58974358974359,
+     "tail_peak_date": "2026-08-01",
+     "tail_lag_to": "2026-11-01",
+     "event_date": null,
+     "event_open": false,
+     "silver_status": "available",
+     "n": 61
+    }
+   ]
+  }
+ ],
+ "coverage_chain_referenced": 0,
+ "served_chain_lints": {
+  "outcome": "ok",
+  "sentences": 1,
+  "corrected": 1,
+  "chain_hops_unfigured": 0,
+  "chain_hops_skipped": 0,
+  "chain_unranked_narrated": 0,
+  "chain_hops_ambiguous": 0,
+  "chain_fence_closed": 0
+ },
+ "structured": {
+  "tldr": "Palm's stocks position moved more, and it moved the loosening way: Malaysian closing palm oil stocks stand at 2,824,488 MT [N1], the high of the window read [N10], up 10,289 MT over it [N8] and rising in each of the last five months -- that sits at the 94th percentile of its own record [N62]. EU rapeseed oil ending stocks are the quieter leg, 517,000 MT [N3] on a 0.0485446 ratio stocks-to-use [N4], down 32,000 MT over the window [N11]. On the mechanism the two read opposite from here: rising Malaysian inventories are declared to push CME palm oil lower, while the EU rapeseed sheet is the tighter of the two -- though the seed side of MATIF rapeseed is simultaneously pressured by a 99th-percentile Russian rapeseed crop [N14] and a 96th-percentile Ukrainian one [N23].",
+  "mechanism": "## Mechanism\n- **Palm, the loosening leg.** Malaysian closing stocks are the market's own inventory read, declared to move CME palm oil in the opposite direction at zero to one quarter, high confidence. Five straight monthly builds [N77] past the level the desk's own line calls high is the classic demand-deficient build, and it is price-pressuring while the run persists. Working the other way: the Indonesian export reading is falling over the last marketing year [N51], which is declared price-supportive, and the palm-belt drought anomaly [N54] has been rising two months with a two-to-four-quarter yield lag. Three of the six conditions of the supply-squeeze pattern are showing (the Pacific temperature anomaly, drought, and stocks) -- at the count that pattern asks for, though stocks are showing on the loosening side.\n- **Rapeseed, the tighter sheet but the softer seed.** EU rapeseed oil stocks drew over the window [N11] on a thin stocks-to-use fraction [N4]. Against that, Black Sea seed supply is the loudest reading on MATIF rapeseed -- Russian production at 7 MMT [N12], two standard deviations above its ten-year window, and Ukrainian production at 4.35 MMT [N21] -- both declared to move MATIF in the opposite direction, i.e. into the EU crush and price-pressuring. EU crush at 25.1 MMT [N18], 91st percentile [N20] but falling over the last marketing year, is the offsetting price-supportive leg and it is fading.\n- **The linkage.** Palm sets the floor of the vegetable-oil complex and rapeseed oil substitutes for it, so a loose palm balance transmits down onto rapeseed oil rather than away from it. That is why I do not read the rapeseed draw as an independent tightening story: the complex's floor commodity is building stocks.\n\n## The record\nBoth readings are recent: palm stocks known 2026-08-01, EU rapeseed oil stocks known 2026-09-11. Levels: palm 2.82449 MMT [N71], monthly pace +0.1966 MMT [N76], with export cover at 2.18164 [N2]. Prices as read: crude palm oil 1,117 USD/mt [N5], only 0.269096 sigma from its five-year mean [N6]; rapeseed oil 1,474 USD/mt [N7] -- rapeseed oil above palm, though a governed spread series is not served here, so I will not size the gap. MATIF rapeseed November 2026 settled 552 EUR/t on 22 September 2026 [N63], essentially flat over twenty-one sessions. Energy is the shared support: Brent's five-year z-score reads 0.507294 [N69][N70] on both books.\n\nThe dated-document layer is thin and old for this pair. What it carries is mechanism, not current fact: in 2013 weaker soybean and rapeseed oil prices added to soft palm sentiment [E3], and in March 2022 the expectation was that high palm prices would strengthen rapeseed oil's biodiesel call until palm supply recovered [E11] -- the substitution runs both ways, which is exactly the channel at work now.\n\n## Where the record disagrees\nThe chain this page carries runs from the Pacific temperature anomaly through palm-belt drought to Malaysian stocks, and it does not settle direction. Hop one agrees with its declared sign; hop two, drought onto stocks, runs against it -- drought is declared to draw stocks down and stocks are instead at the 94th percentile and rising [N62]. In five of eight measured past firings the next hop moved the declared way; three did not, and one published no second reading in the window. No dated document reaches the drought hop's window. So the weather-tightening story is live in the readings but is not yet visible in the inventory, and the inventory is the higher-confidence, shorter-lag driver. That is the honest fork, and it is why the near-term palm read leans price-pressuring while the 2027 tail stays open.\n\nNote also that two pairs of names on this page are one reading each: the EU drought anomaly and autumn establishment are the same series and count once, as do the Indonesian export levy, domestic market obligation and export ban.\n\n## Cross-commodity\nThe largest moves on these two markets are also declared onto DCE palm olein, a market the question did not name. The abundant Russian sunflower oil crop, 7.81 MMT [N15] at the 99th percentile of its record [N17], is declared to move CME palm oil in the opposite direction at zero to two quarters, medium confidence, and the same reading is declared in the opposite direction on DCE palm olein at the same lag and confidence -- sunflower oil is palm's closest substitute in the Indian and EU stack, so a large Black Sea crop slows palm offtake and builds Malaysian stocks. The rupiah, 17869 per USD [N24] at the 97th percentile [N26], is declared in the opposite direction on both CME palm oil and DCE palm olein at zero to one quarter, medium confidence: a weak rupiah pulls Indonesian export selling forward. Both spillovers point the same way as the stocks build.\n\n## What to watch\n- **Malaysian closing palm oil stocks**, 2,824,488 MT [N1] known 1 August 2026, past the high line with five consecutive monthly builds. Its declared effect window is already open, 2026-08-01 to 2026-11-01. This reads wrong if the next print, 10 October 2026, turns back inside that line or the run simply breaks -- that is the single cleanest falsifier on the palm leg.\n- **Ukrainian rapeseed production**, 4.35 MMT [N21] known 11 September 2026, in the top decile of its own record and rising. It is the competing-supply leg pressing MATIF rapeseed even as the EU oil sheet draws. This reads wrong if the next print, 9 October 2026, returns the series to the middle of its own record.\n- **The palm-belt drought anomaly**, 0.16 z [N54] for July 2026, two months rising and short of the line the desk calls notable. It is the right-tail leg: its declared effect window opens ahead, 2027-01-31 to 2027-07-31, so it cannot rescue the nearby. This reads wrong if the run breaks before the line, leaving the reading where it is.\n\nNothing else cleared the bar. The number layer here is read through 21 September 2026 with the oldest row from 5 December 2025; the newest dated document behind this page is 15 March 2022; the board price tape runs through 22 September 2026."
+ }
+}

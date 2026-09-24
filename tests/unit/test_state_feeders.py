@@ -1050,3 +1050,429 @@ def test_an_ALL_BLANK_frame_is_an_empty_read_and_NOT_a_cross_section_defect():
                        qfn=F.fixture_query_fn({"silver_noaa_oni": rows}), windows={"monthly": 120},
                        silver_status="available")
     assert r.status == "read_empty:all_blank" and r.reads == 1 and r.level is None
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-23 FIX ROUND, LANE C -- the provenance roster, the PIT stamp, the current-period rule, the period gap
+# (CONTRACT.md C11; THREAT_MODEL.md C-1 / C-2 / C-3 / C-4). Every test runs offline on fixtures; the
+# card fields lane T declares are injected through `citations._card_fields` (the ONE accessor both
+# modules read) so this deck is green before AND after T lands -- and the two tests at the end read the
+# LIVE registry and skip, by name, only while T's field is absent.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+import datetime as _dt
+
+from leviathan.graphrag import citations as _cit
+
+
+def _cards(monkeypatch, table_fields: dict):
+    """Inject C10 card fields: ``{table: {field: value}}`` (table-level, metric-agnostic here)."""
+    monkeypatch.setattr(_cit, "_card_fields", lambda t, m: dict(table_fields.get(str(t), {})))
+
+
+def _head_row_period(r):
+    """HEAD's `_period_dates` loop body, verbatim (ee06f19c), for the byte-identity pin."""
+    from leviathan.graphrag.state import transforms as TR
+    d = None
+    for k in ("data_date", "week_ending_date", "date", "report_date"):
+        d = TR.date_or_none(r.get(k))
+        if d is not None:
+            break
+    if d is None and TR.date_or_none(r.get("year")) is not None:
+        try:
+            d = (f"{int(r['year']):04d}-{int(r['month']):02d}"
+                 if TR.date_or_none(r.get("month")) is not None else f"{int(r['year']):04d}")
+        except (TypeError, ValueError):
+            d = TR.date_or_none(r.get("year"))
+    if d is None:
+        for k in ("period", "knowledge_date", "contract_month"):
+            d = TR.date_or_none(r.get(k))
+            if d is not None:
+                break
+    return d[:10] if d else None
+
+
+def test_ROW_PERIOD_is_the_period_dates_loop_body_byte_for_byte():
+    """The lift is pure: `row_period(r)[0]` equals HEAD's loop body on every row shape the board reads,
+    including the degenerate ones (a non-numeric year, a blank month, only a contract month)."""
+    rows = [{"data_date": "2026-09-10", "period": "2026"}, {"week_ending_date": "2026-09-03T00:00:00"},
+            {"year": 2026, "month": 7}, {"year": "2026"}, {"year": "20x6", "month": 3},
+            {"year": 2026, "month": "  "}, {"period": "2024/25", "knowledge_date": "2026-05-29"},
+            {"knowledge_date": "2026-08-01"}, {"contract_month": "2026-11"}, {}, {"period": ""},
+            {"report_date": "", "period": "2020"}]
+    for r in rows:
+        assert F.row_period(r)[0] == _head_row_period(r), r
+    assert [F.row_period(r)[1] for r in rows[:9]] == [
+        "date", "date", "year_month", "year", "year", "year", "period", "knowledge_date", "contract_month"]
+
+
+def test_the_card_period_source_is_what_the_boards_axis_reads_on_that_card():
+    """A board call carries its level date in `query.period`; the label learns its KIND from the card's
+    served aliases through `row_period`'s own key order -- never from the token's spelling."""
+    reg = load_registry()
+    got = {t: F.card_period_source(reg.get(t)) for t in (
+        "silver_psd", "silver_esr", "silver_noaa_oni", "silver_mpob", "silver_cot", "silver_pink_sheet",
+        "gold_weather_z", "silver_icco_cocoa", "silver_wasde", "silver_futures_eod", "gold_board_crush")}
+    assert got == {"silver_psd": "period", "silver_esr": "date", "silver_noaa_oni": "year_month",
+                   "silver_mpob": "knowledge_date", "silver_cot": "knowledge_date",
+                   "silver_pink_sheet": "knowledge_date", "gold_weather_z": "year_month",
+                   "silver_icco_cocoa": "period", "silver_wasde": "period",
+                   # the futures card surfaces its trade-year partition as `year`, which `row_period`
+                   # reads ahead of the knowledge alias -- the tape never labels through this path
+                   "silver_futures_eod": "year", "gold_board_crush": "knowledge_date"}
+
+
+# ── C-1 / C-2: THE ROLE ROSTER AND THE RELEASE STAMP ─────────────────────────────────────────────────
+def test_the_board_role_roster_IS_the_citation_roster_and_rows_VINTAGE_ROLES():
+    """ONE closed roster (K9-4): the words `citations._role_display` admits are exactly
+    `rows.VINTAGE_ROLES`, and the feeder admits a role through that function and nothing else."""
+    from leviathan.graphrag.state import rows as _rows
+    roster = getattr(_rows, "VINTAGE_ROLES", None)
+    if roster is None:
+        pytest.skip("rows.VINTAGE_ROLES (lane R, CONTRACT C1) not landed on this tree")
+    assert set(_cit._ROLE_WORDS) == set(roster)
+    for tok in roster:
+        assert F.provenance_split("silver_wasde", "avg_farm_price", tok, "2026-09-23") == {"role": tok}
+        assert F.provenance_split("silver_wasde", "avg_farm_price", tok.title(), "2026-09-23") == {
+            "role": tok.title()}, "the raw token rides onward exactly as HEAD printed it"
+    for tok in ("2026M09", "cbot_board_crush_v1", "prel.", "2026-09-10"):
+        assert "role" not in F.provenance_split("silver_wasde", "avg_farm_price", tok, "2026-09-23")
+
+
+def test_a_RELEASE_STAMP_is_never_a_role_and_one_after_the_asof_is_WITHHELD(monkeypatch):
+    """The as-of-2024 FATAL: `2026M09` rode `StateRow.role` into the period slot. With the card saying
+    what the column is, a stamp is a stamp (never a role), and one later than the as-of is withheld."""
+    _cards(monkeypatch, {"silver_pink_sheet": {"provenance_kind": "release_stamp"},
+                         "gold_board_crush": {"provenance_kind": "rule_version"},
+                         "silver_wasde": {"provenance_kind": "role"}})
+    ps = F.provenance_split
+    assert ps("silver_pink_sheet", "brent_crude_usd_bbl_zscore_5yr", "2026M09", "2024-03-01") == {
+        "withheld": "2026M09"}
+    assert ps("silver_pink_sheet", "brent_crude_usd_bbl_zscore_5yr", "2026M09", "2026-09-23") == {
+        "release_stamp": "2026M09"}
+    assert ps("silver_pink_sheet", "x", "2026M10", "2026-09-23") == {"withheld": "2026M10"}
+    assert ps("silver_pink_sheet", "x", "not-a-date", "2026-09-23") == {"withheld": "not-a-date"}
+    assert ps("gold_board_crush", "crush_margin_usd_bu", "cbot_board_crush_v1", "2026-09-23") == {}
+    assert ps("silver_wasde", "avg_farm_price", "projection", "2024-03-01") == {"role": "projection"}
+    assert ps("silver_wasde", "avg_farm_price", "", "2024-03-01") == {}
+
+
+def test_an_UNDECLARED_card_keeps_only_what_the_roster_admits(monkeypatch):
+    """Before lane T declares `provenance_kind` the roster alone decides: the leak closes (a stamp is not
+    a roster word) and no legitimate role word is lost (C-1)."""
+    _cards(monkeypatch, {})
+    assert F.provenance_split("silver_pink_sheet", "x", "2026M09", "2024-03-01") == {}
+    assert F.provenance_split("silver_wasde", "avg_farm_price", "estimate", "2024-03-01") == {
+        "role": "estimate"}
+
+
+def _pink_rows(stamp="2026M09", start=(2019, 1), n=62):
+    out, y, m = [], *start
+    for i in range(n):
+        out.append({"knowledge_date": f"{y:04d}-{m:02d}-01", "value": str(round(0.1 * ((i % 9) - 4), 3)),
+                    "revision_stamp": stamp})
+        m += 1
+        if m == 13:
+            y, m = y + 1, 1
+    return out
+
+
+@pytest.mark.parametrize("declared", [True, False])
+def test_the_2024_board_row_carries_NO_post_asof_stamp_anywhere_it_can_be_printed(monkeypatch, declared):
+    """THE FATAL, END TO END ON THE PRODUCER: the as-of-2024-03-01 Brent z row. Neither `role` (the
+    render's period splice, render.py:896-898) nor `release_stamp` carries `2026M09`; the row counts
+    the withheld stamp when the card declares it a release stamp; and every call the board's own render
+    mints for the row labels without it."""
+    _cards(monkeypatch, {"silver_pink_sheet": {"provenance_kind": "release_stamp"}} if declared else {})
+    F.cache_clear()
+    r = F.series_state("brent_crude_z", _Node("soybeans_cbot", "crude_oil", "brent_crude_z"), "2024-03-01",
+                       qfn=F.fixture_query_fn({"silver_pink_sheet": _pink_rows()}),
+                       silver_status="available")
+    assert r.status == "ok" or r.status.startswith("thin_history"), r.status
+    assert r.role is None
+    assert getattr(r, "release_stamp", None) is None
+    assert F.pit_stamp_withheld(r) == (1 if declared else 0)
+    from leviathan.graphrag.state import render as R
+
+    class _Row:
+        contract, driver_id, context_only, state = "soybeans_cbot", "crude_oil", False, r
+    _line, calls = R.sb_state(1, _Row(), asof="2024-03-01")
+    assert calls, "the board minted no call for the row"
+    for i, c in enumerate(calls, 1):
+        lab = _cit.from_number(c, i).label
+        assert "2026M09" not in lab and "2026" not in lab.split(" = ")[0], lab
+
+
+def test_a_live_release_stamp_rides_release_stamp_and_never_role(monkeypatch):
+    _cards(monkeypatch, {"silver_pink_sheet": {"provenance_kind": "release_stamp"}})
+    F.cache_clear()
+    r = F.series_state("brent_crude_z", _Node("soybeans_cbot", "crude_oil", "brent_crude_z"), "2026-09-23",
+                       qfn=F.fixture_query_fn({"silver_pink_sheet": _pink_rows(start=(2021, 1), n=68)}),
+                       silver_status="available")
+    assert r.role is None and getattr(r, "release_stamp", None) == "2026M09"
+    assert F.pit_stamp_withheld(r) == 0
+
+
+# ── C-4: THE CURRENT-PERIOD RULE ─────────────────────────────────────────────────────────────────────
+def _psd(period, kd, value, country="United States"):
+    return {"period": period, "knowledge_date": kd, "value": str(value), "country": country}
+
+
+def test_the_level_is_the_NEWEST_PERIOD_never_the_row_with_the_newest_knowledge_date():
+    """The brief's synthetic vintage set: MY2020 revised in January 2024 + MY2023 printed in December
+    2023, handed in KNOWLEDGE order (the shape a non-SQL path could produce). HEAD's `dated_rows[-1]`
+    reads MY2020; the rule reads MY2023. A second vintage of one period keeps its LATEST, and a vintage
+    dated after the as-of is never read."""
+    hist = [_psd(str(y), f"2023-0{1 + (y % 5)}-12", 10 + y % 7) for y in range(2008, 2020)]
+    rows = hist + [_psd("2021", "2023-05-12", 11.0), _psd("2021", "2023-11-09", 12.5),
+                   _psd("2023", "2023-12-12", 9.9), _psd("2020", "2024-01-12", 11.41),
+                   _psd("2023", "2024-06-12", 7.7)]                      # post-as-of vintage: never read
+    F.cache_clear()
+    r = F.series_state("psd_ending_stock_su_ratio",
+                       _Node("soybeans_cbot", "psd_ending_stock_su_ratio", "psd_ending_stock_su_ratio"),
+                       "2024-03-01", qfn=F.fixture_query_fn({"silver_psd": rows}), windows={"annual": 10},
+                       silver_status="available")
+    assert r.level_date == "2023", "the newest PERIOD among the as-known rows"
+    assert abs(r.level - 9.9) < 1e-9, "the as-known vintage of that period, never the post-as-of one"
+    assert r.knowledge_date == "2023-12-12"
+    dates = r.inputs[r.key.label()]["dates"]
+    values = r.inputs[r.key.label()]["values"]
+    assert dates[-3:] == ["2020", "2021", "2023"]
+    assert dates.count("2021") == 1 and abs(values[dates.index("2021")] - 12.5) < 1e-9, \
+        "one value per period: the LATEST vintage of MY2021"
+
+
+def test_the_rule_is_the_IDENTITY_on_what_the_SQL_serves():
+    """C-4's guard, on the SQL's own oracle: `apply_pit_filter` keeps one vintage per identity (the
+    ROW_NUMBER's `_rn = 1`), the rows are ordered by the ONE chronological key, and the normaliser hands
+    that list back UNCHANGED -- so no live board's level can move through it."""
+    from leviathan.graphrag.numbers import query as Q
+    ts = load_registry().get("silver_psd")
+    raw = []
+    for y in range(2000, 2027):
+        for kd in ("2019-05-10", "2023-01-12", "2024-01-12", "2025-05-12", "2026-09-11"):
+            if int(kd[:4]) >= y - 1:
+                raw.append({"leviathan_slug": "soybeans_cbot", "country": "United States", "market_year": y,
+                            "release_date": kd, "value": str(y * 0.01 + int(kd[:4]) * 1e-4)})
+    for asof in ("2024-03-01", "2026-09-23", "2020-01-01"):
+        spec = F.board_spec("silver_psd", "su_ratio", "soybeans_cbot", "United States", asof, "annual")
+        kept = Q.apply_pit_filter(raw, spec, ts)
+        served = [{"knowledge_date": r["release_date"], "period": str(r["market_year"]),
+                   "country": r["country"], "value": r["value"]} for r in kept]
+        served = Q.resort_rows_chronological(served, spec, ts)
+        assert len(served) > 5, asof
+        out = F.as_known_newest_period(served, ts, spec, asof)
+        assert [dict(x) for x in out] == [dict(x) for x in served], asof
+
+
+def test_the_rule_leaves_a_NON_VINTAGE_card_exactly_as_served():
+    rows = [{"year": 2026, "month": m, "value": "1"} for m in (3, 1, 2)]
+    ts = load_registry().get("silver_noaa_oni")
+    spec = F.board_spec("silver_noaa_oni", "oni_anom", "soybeans_cbot", None, "2026-09-23", "monthly")
+    assert F.as_known_newest_period(rows, ts, spec, "2026-09-23") is rows
+
+
+# ── C-3: THE PERIOD GAP -- A FACT ABOUT THE STORE (09-23 verifier F1, the orchestrator's ruling 6) ─────────
+# RE-BANKED UNDER A DECLARED MOVE: the gap is stamped ONLY where a newer period of the SAME slug is HELD as
+# known at the as-of (the board's own served rows), never from the card's `period_first_known` calendar pair.
+# The pins below that used to read the pair as a verdict now assert the store rule; the HEAD-era dates the
+# first cut pinned (1 May, 31 July, 2024-03-01) are re-driven through a held ledger.
+_PSD_PFK = {"silver_psd": {"period_first_known": {"anchor": "period_start", "offset_months": 4}}}
+_ICCO_PFK = {"silver_icco_cocoa": {"period_first_known": {"anchor": "period_end", "offset_months": 5}}}
+
+#: A SYNTHETIC STORE shaped like the live census (laneT/cards/psd.parquet): the first release carrying
+#: marketing year Y, per slug family -- the grains in May of Y, the coffee sheets on 31 December of Y
+#: (MY2024 / MY2025) and on 31 July for MY2026, the citrus sheets on 31 January of Y+1 (no MY2026 at all).
+_FIRST_PRINT = {
+    "soybeans_cbot": {2023: "2023-05-12", 2024: "2024-05-10", 2025: "2025-05-12", 2026: "2026-05-12"},
+    "arabica_coffee": {2023: "2023-12-31", 2024: "2024-12-31", 2025: "2025-12-31", 2026: "2026-07-31"},
+    "frozen_orange_juice": {2023: "2024-07-31", 2024: "2025-01-31", 2025: "2026-01-31"},
+    "fresh_citrus": {2023: "2024-07-31", 2024: "2025-01-31", 2025: "2026-01-31"},
+}
+
+
+def _held(slug, asof):
+    """The slug's held periods as known at the as-of -- what its series on a board came back holding."""
+    return [(str(y), kd) for y, kd in _FIRST_PRINT[slug].items() if kd <= asof]
+
+
+def test_F1_the_card_constant_ALONE_never_stamps_a_gap(monkeypatch):
+    """The retired verdict: with no held evidence the rule stamps NOTHING -- not at the 2024-03-01 as-of the
+    first cut called three years behind, not on 1 August 2026, not on an FCOJ board today."""
+    _cards(monkeypatch, {**_PSD_PFK, **_ICCO_PFK})
+    for served, asof in (("2020", "2024-03-01"), ("2025", "2026-08-01"), ("2025", "2026-09-24"),
+                         ("2010", "2026-09-23"), ("2024", "2025-09-15")):
+        assert F.period_gap("silver_psd", "su_ratio", served, asof) == {}, (served, asof)
+    assert F.period_gap("silver_icco_cocoa", "production_kt", "2023/24", "2026-06-01") == {}
+
+
+def test_F1_the_verifiers_late_printers_are_never_called_behind_before_their_first_print(monkeypatch):
+    """The verifier's FATAL F1 cases, on the store's own first prints: FCOJ and fresh citrus holding MY2025
+    on 2026-09-24 (no MY2026 printed), FCOJ holding MY2024 on 2025-09-15 and 2026-01-15, the coffee sheets
+    holding MY2024 on 2025-09-15 and MY2023 on 2024-10-01 -- NO gap. A slug whose newer year IS held is
+    called behind EXACTLY as before: soybeans (and arabica, whose MY2026 printed 2026-07-31) holding MY2025
+    on 2026-09-24 -> {expected 2026, served 2025, 1}; FCOJ holding MY2024 on 2026-02-15 -> {2025, 2024, 1}."""
+    _cards(monkeypatch, _PSD_PFK)
+    for slug, served, asof in (("frozen_orange_juice", "2025", "2026-09-24"), ("fresh_citrus", "2025", "2026-09-24"),
+                               ("frozen_orange_juice", "2024", "2025-09-15"),
+                               ("frozen_orange_juice", "2024", "2026-01-15"),
+                               ("arabica_coffee", "2024", "2025-09-15"), ("arabica_coffee", "2023", "2024-10-01")):
+        assert F.period_gap("silver_psd", "su_ratio", served, asof, held=_held(slug, asof)) == {}, (slug, asof)
+    for slug in ("soybeans_cbot", "arabica_coffee"):
+        assert F.period_gap("silver_psd", "su_ratio", "2025", "2026-09-24", held=_held(slug, "2026-09-24")) == {
+            "expected": "2026", "served": "2025", "gap_periods": 1}, slug
+    assert F.period_gap("silver_psd", "su_ratio", "2024", "2026-02-15",
+                        held=_held("frozen_orange_juice", "2026-02-15")) == {
+        "expected": "2025", "served": "2024", "gap_periods": 1}
+
+
+def test_F1_the_asof_SWEEP_stamps_a_gap_EXACTLY_where_a_newer_period_of_the_slug_is_held(monkeypatch):
+    """C-3's drive, re-banked to the store rule: every slug x every served year x a daily as-of grid over
+    two years. A gap is stamped IFF the slug holds a newer period at the as-of, its `expected` is the newest
+    period HELD (so it is never early: the expected period's first print is on or before the as-of), and a
+    served year newer than anything held is never behind."""
+    _cards(monkeypatch, _PSD_PFK)
+    d = _dt.date(2024, 9, 1)
+    n_gap = 0
+    while d <= _dt.date(2026, 9, 24):
+        asof = d.isoformat()
+        for slug, fp in _FIRST_PRINT.items():
+            held = _held(slug, asof)
+            newest = max((int(y) for y, _k in held), default=None)
+            for served in range(2021, 2027):
+                g = F.period_gap("silver_psd", "su_ratio", str(served), asof, held=held)
+                if newest is not None and newest > served:
+                    assert g == {"expected": str(newest), "served": str(served),
+                                 "gap_periods": newest - served}, (slug, served, asof)
+                    assert fp[newest] <= asof, "never early: the expected period was printed by the as-of"
+                    n_gap += 1
+                else:
+                    assert g == {}, (slug, served, asof)
+        d += _dt.timedelta(days=7)
+    assert n_gap > 0
+
+
+def test_F1_a_held_period_known_AFTER_the_asof_is_never_evidence_and_shapes_never_mix(monkeypatch):
+    _cards(monkeypatch, {**_PSD_PFK, **_ICCO_PFK})
+    assert F.period_gap("silver_psd", "su_ratio", "2025", "2026-05-01", held=[("2026", "2026-05-12")]) == {}
+    assert F.period_gap("silver_psd", "su_ratio", "2025", "2026-05-12", held=[("2026", "2026-05-12")])["expected"] \
+        == "2026"
+    assert F.period_gap("silver_psd", "su_ratio", "2025", "2026-05-12", held=["2026"])["gap_periods"] == 1
+    # a split season, a month and a bare year are three calendars: never compared across
+    assert F.period_gap("silver_psd", "su_ratio", "2025", "2026-09-24", held=["2026/27", "2026-07"]) == {}
+    assert F.period_gap("silver_icco_cocoa", "production_kt", "2023/24", "2026-09-23", held=["2024/25"]) == {
+        "expected": "2024/25", "served": "2023/24", "gap_periods": 1}
+    assert F.period_gap("silver_icco_cocoa", "production_kt", "2024/25", "2026-09-23", held=["2024/25"]) == {}
+
+
+def test_NO_RULE_is_no_gap(monkeypatch):
+    _cards(monkeypatch, {"silver_psd": {"period_first_known": {"anchor": "sideways", "offset_months": 4}},
+                         "silver_mpob": {"period_first_known": {"anchor": "period_end"}}})
+    held = ["2026", "2026-09"]
+    assert F.period_gap("silver_psd", "su_ratio", "2010", "2026-09-23", held=held) == {}
+    assert F.period_gap("silver_mpob", "x", "2020-01", "2026-09-23", held=held) == {}
+    assert F.period_gap("silver_wasde", "x", "2010/11", "2026-09-23", held=["2026/27"]) == {}
+    _cards(monkeypatch, _PSD_PFK)
+    assert F.period_gap("silver_psd", "su_ratio", "MY2010", "2026-09-23", held=held) == {}
+
+
+def _psd_state(slug, country, level_date, kd, *, table="silver_psd", metric="su_ratio"):
+    from leviathan.graphrag.state.rows import StateRow
+    st = StateRow(key=SeriesKey(ref="psd_ending_stock_su_ratio", commodity=slug, country=country), asof="x")
+    st.table, st.metric, st.level_date, st.knowledge_date, st.level = table, metric, level_date, kd, 1.0
+    return st
+
+
+def test_F1_the_walks_pass_reads_the_boards_OWN_served_rows_and_moves_no_figure(monkeypatch):
+    """`stamp_period_gaps` -- the pass the walk runs before the rank -- over the 2024-03-01 board's shape:
+    the US su_ratio row held MY2020 while a sibling series of the SAME slug (Thailand) came back holding
+    MY2021 as known then -> the US row is gapped to 2021; a row of ANOTHER slug on the same card is its own
+    ledger; the FCOJ rows (all holding MY2025 on 2026-09-24) get nothing; a stale stamp is CLEARED; only
+    `period_gap` is written."""
+    _cards(monkeypatch, _PSD_PFK)
+    us = _psd_state("soybeans_cbot", "United States", "2020", "2024-01-12")
+    th = _psd_state("soybeans_cbot", "Thailand", "2021", "2023-09-12")
+    ar = _psd_state("soybeans_cbot", "Argentina", "2017", "2023-06-09")
+    corn = _psd_state("corn_cbot", "United States", "2015", "2023-01-12")
+    late = _psd_state("soybeans_cbot", "Brazil", "2023", "2024-06-12")      # known AFTER the as-of
+    oj = [_psd_state("frozen_orange_juice", c, "2025", "2026-01-31") for c in ("United States", "Brazil")]
+    for s in oj:
+        s.period_gap = {"expected": "2026", "served": "2025", "gap_periods": 1}   # the first cut's false stamp
+    before = {id(s): (s.level, s.level_date, s.knowledge_date, s.status) for s in [us, th, ar, corn, *oj]}
+    assert F.stamp_period_gaps([us, th, ar, corn, late], "2024-03-01") == 2
+    assert us.period_gap == {"expected": "2021", "served": "2020", "gap_periods": 1}
+    assert ar.period_gap == {"expected": "2021", "served": "2017", "gap_periods": 4}
+    assert th.period_gap == {} and corn.period_gap == {}
+    assert F.stamp_period_gaps(oj, "2026-09-24") == 0
+    assert all(s.period_gap == {} for s in oj), "the store holds no MY2026 for FCOJ: the stale stamp is cleared"
+    for s in [us, th, ar, corn, *oj]:
+        assert (s.level, s.level_date, s.knowledge_date, s.status) == before[id(s)]
+    # idempotent, and a card that does not opt in is never touched
+    assert F.stamp_period_gaps([us, th, ar, corn], "2024-03-01") == 2
+    other = _psd_state("soybeans_cbot", "United States", "2020", "2024-01-12", table="silver_wasde")
+    other.period_gap = {"sentinel": 1}
+    F.stamp_period_gaps([other, th], "2024-03-01")
+    assert other.period_gap == {"sentinel": 1}
+
+
+def test_F1_series_state_no_longer_stamps_the_gap_it_cannot_see(monkeypatch):
+    """ONE series' read cannot see its slug's other series, so the producer leaves `period_gap` empty and the
+    walk's pass stamps it; every figure is the producer's own either way."""
+    _cards(monkeypatch, _PSD_PFK)
+    rows = [_psd(str(y), "2023-06-09", 10 + y % 5) for y in range(2005, 2021)]
+    F.cache_clear()
+    r = F.series_state("psd_ending_stock_su_ratio",
+                       _Node("soybeans_cbot", "psd_ending_stock_su_ratio", "psd_ending_stock_su_ratio"),
+                       "2024-03-01", qfn=F.fixture_query_fn({"silver_psd": rows}), windows={"annual": 10},
+                       silver_status="available")
+    assert r.level_date == "2020"
+    assert r.period_gap == {}
+    th = _psd_state("soybeans_cbot", "Thailand", "2021", "2023-09-12")
+    snap = (r.level, r.level_date, r.knowledge_date, r.z, r.percentile, r.run, r.changes, r.status)
+    assert F.stamp_period_gaps([r, th], "2024-03-01") == 1
+    assert r.period_gap == {"expected": "2021", "served": "2020", "gap_periods": 1}
+    assert (r.level, r.level_date, r.knowledge_date, r.z, r.percentile, r.run, r.changes, r.status) == snap
+
+
+def test_LIVE_REGISTRY_the_declared_psd_rule_opts_in_and_the_verdict_is_the_store():
+    """INTEGRATION NET on the live cards: silver_psd / silver_psd_attributes / silver_icco_cocoa declare the
+    rule (so they opt in), the declared pair alone stamps nothing, and the store's own held ledger drives it:
+    the 2024 board's US row (MY2020) beside a sibling holding MY2021 is one year behind; the live turn is not
+    behind at all; FCOJ holding MY2025 today with nothing newer held is not behind."""
+    if "period_first_known" not in _cit._card_fields("silver_psd", "su_ratio"):
+        pytest.skip("lane T's silver_psd.period_first_known not declared on this tree")
+    for t, m in (("silver_psd", "su_ratio"), ("silver_psd_attributes", "Crush"), ("silver_icco_cocoa", "production_kt")):
+        assert F.period_rule_declared(t, m), t
+    assert not F.period_rule_declared("silver_wasde", "ending_stocks")
+    assert F.period_gap("silver_psd", "su_ratio", "2020", "2024-03-01") == {}
+    assert F.period_gap("silver_psd", "su_ratio", "2020", "2024-03-01",
+                        held=[("2021", "2023-09-12"), ("2020", "2024-01-12")]) == {
+        "expected": "2021", "served": "2020", "gap_periods": 1}
+    assert F.period_gap("silver_psd", "su_ratio", "2026", "2026-09-23", held=["2026"]) == {}
+    assert F.period_gap("silver_psd", "su_ratio", "2025", "2026-09-24", held=["2025", "2025"]) == {}
+
+
+def test_LIVE_REGISTRY_the_pink_sheet_stamp_is_withheld_at_the_2024_asof():
+    kind = _cit._card_fields("silver_pink_sheet", "brent_crude_usd_bbl_zscore_5yr").get("provenance_kind")
+    if not kind:
+        pytest.skip("lane T's silver_pink_sheet.provenance_kind not declared on this tree")
+    assert kind == "release_stamp"
+    assert F.provenance_split("silver_pink_sheet", "brent_crude_usd_bbl_zscore_5yr", "2026M09",
+                              "2024-03-01") == {"withheld": "2026M09"}
+
+
+def test_the_TAPE_prints_the_same_known_date_the_label_prints_for_one_settle():
+    """One settle, one known date: the tape's session through the ONE derivation on the tape card (the
+    session plus its publication lag), which is what `citations._known_date` prints for the seat's read of
+    the same settle."""
+    class _Tape:
+        level_date = "2024-02-29"
+    assert F.tape_known_date(_Tape()) == "2024-03-01"
+    call = {"query": {"table": "silver_futures_eod", "metric": "settle", "commodity": "soybeans_cbot",
+                      "asof": "2024-03-01"},
+            "rows": [{"value": "1140.75", "knowledge_date": "2024-02-29", "contract_month": "2024-05"}],
+            "status": "ok"}
+    assert _cit.from_number(call, 1).date == F.tape_known_date(_Tape())
+
+    class _NoLevel:
+        level_date = None
+    assert F.tape_known_date(_NoLevel()) is None

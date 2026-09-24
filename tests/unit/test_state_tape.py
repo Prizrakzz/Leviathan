@@ -123,8 +123,15 @@ def test_a_frame_whose_ROLL_INPUT_is_SERVED_BLANK_still_declines_front_decline()
     DIFFERENT, unnamed rule wearing ``front_month_v2``'s name."""
     rows = _curve(_sessions(90), ["2026-12", "2027-03"], roll_inputs="")
     t = F.tape_state(OI_SLUG, "2026-09-08", qfn=F.fixture_query_fn({"silver_futures_eod": rows}))
-    assert t.status == "front_decline" and t.reads == 1 and t.level is None
-    assert t.coverage["n_obs"] == 180, "the read is still counted: the ledger sees what it spent"
+    # RE-BANKED 09-23 FIX ROUND -- CONTRACT C12 / OWNER DECISION 5 (09-23 recon D4: deep26 F4, max F2; BUILD_T request
+    # C1): a named rule that declines ONLY for its own absent input now serves the DECLARED cycle fallback, stamped
+    # with its OWN method and version -- never front_month_v2's name -- so the row serves (the ok-path coverage
+    # counts the served contract's 90 sessions; the ledger still counts ONE read).
+    from leviathan.graphrag.numbers import query as Q
+    assert t.status == "ok" and t.reads == 1 and t.level == 294.5
+    assert t.roll_method == Q.CYCLE_FALLBACK_METHOD and t.roll_method not in Q.ROLL_METHODS_FRONT
+    assert t.roll_rule_version == "cycle_nearest_eligible_v1" and t.contract_month == "2026-12"
+    assert t.coverage["n_obs"] == 90, "the ok-path window is the SERVED contract's own 90 sessions"
 
 
 def test_the_tape_read_is_SCOPED_capped_and_newest_first_and_carries_the_rules_own_input():

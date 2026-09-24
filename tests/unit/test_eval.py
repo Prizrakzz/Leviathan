@@ -1418,3 +1418,85 @@ def test_the_writer_seam_panel_reports_a_correction_as_a_defect_and_names_the_tw
     assert "over the tier's own 3/5/7 ceiling: 1" in t
     # absent is never zero: a deck that ran no seam prints no seam line
     assert not any("WRITER SEAM" in x for x in gev.state_report([_srow(_board_out(coverage=dict(_COV)))]))
+
+
+# == THE 09-23 FIX ROUND, O-2 -- OWNER DECISION 8 (a): THE v1 REGISTER COUNT BESIDE THE EXTENDED ONE ====
+# The desk table grew eleven rows this round (firing, hop, declared way, ...), so the extended count moves on
+# BOTH cells for a reason that is not the treatment (threat R-10). The report prints the v1 (HEAD's eleven
+# tokens) count beside it, per cell, on the same rows -- measured by the REAL lint, never typed here.
+_V1_BODY = "Five of eight past firings moved the declared way on this hop, and the board is loud on corn."
+
+
+def test_fix_0923_O2_the_v1_register_count_rides_beside_the_extended_one_in_both_cells():
+    from leviathan.graphrag import register as reg
+    ext, v1 = reg.count_desk_register(_V1_BODY), reg.count_desk_register(_V1_BODY, reg.DESK_REGISTER_V1_NAMES)
+    assert ext > v1 > 0                                   # the two tables disagree on this body, by design
+    ctl = _srow(_board_out(answer=_V1_BODY, coverage=dict(_COV)))
+    cov = dict(_COV, register_lingo_hits=3, register_lingo_rewritten=1, register_lingo_hits_v1=1)
+    trt = _srow(_board_out(answer=_V1_BODY, coverage=cov,
+                           desk={"hits_before": 5, "hits_after": 3, "hits_before_v1": 2, "hits_after_v1": 1,
+                                 "offered_v1": 2, "rewritten_v1": 1, "outcome": "rewritten"}))
+    body = "\n".join(gev.state_report([ctl, trt]))
+    # the extended line is HEAD's words, untouched; the v1 line sits beside it on the same two cells
+    assert f"shipped lint hits per answer: control **{ext:.1f}** -> treatment **{ext:.1f}**" in body
+    assert f"the SAME pure lint on the v1 table** (`register.DESK_REGISTER_V1_NAMES`" in body
+    assert f"control **{v1:.1f}** -> treatment **{v1:.1f}**, same rows" in body
+    # the treatment's coverage and rewrite, each with its own v1 twin
+    assert "the same count on the v1 table" in body and "): 1 over 1 turn(s)" in body
+    assert "the same REWRITE on the v1 table: 2 -> 1 over 1 answer(s)" in body
+
+
+def test_fix_0923_O2_a_census_from_before_the_v1_stamp_is_named_never_read_as_zero():
+    stamped = _srow(_board_out(answer=_V1_BODY, coverage=dict(_COV),
+                               desk={"hits_before": 5, "hits_after": 3, "hits_before_v1": 2,
+                                     "hits_after_v1": 1, "outcome": "rewritten"}))
+    clean = _srow(_board_out(answer="Corn stocks are tight.", coverage=dict(_COV),
+                             desk={"hits_before": 0, "hits_after": 0, "outcome": "clean"}))   # v1 = 0 by inclusion
+    banked = _srow(_board_out(answer=_V1_BODY, coverage=dict(_COV),
+                              desk={"hits_before": 4, "hits_after": 2, "outcome": "rewritten"}))
+    body = "\n".join(gev.state_report([stamped, clean, banked]))
+    assert "the same REWRITE on the v1 table: 2 -> 1 over 2 answer(s) (1 census(es) from before the v1 " \
+           "stamp left out, not read as zero)" in body
+    # a deck of pre-round censuses only prints no v1 rewrite line at all, and no v1 coverage line
+    old = "\n".join(gev.state_report([banked]))
+    assert "the same REWRITE on the v1 table" not in old and "the same count on the v1 table" not in old
+
+
+# ── 09-24 (fix round FINAL_2, INTEGRATION O-2): THE SPLAT REGISTRY's REPORT ────────────────────────
+def _splat_row(**trace):
+    out = _board_out(coverage=None)
+    out["trace"].update(trace)
+    return _srow(out)
+
+
+def test_fix_0924_O2_a_REFUSED_pair_is_a_COUNTED_refusal_and_the_panel_is_absent_when_off():
+    """INTEGRATION O-2 / THREAT T-3 "refuse and count": a turn whose RV pair leg ran carries EXACTLY ONE
+    of `rv_pair_spread` (minted) and `rv_pair_uncomputed` (refused, in the calculator's own sentence);
+    the report counts both over the leg's own denominator and prints each refusal's reason verbatim.
+    The spine de-dup's census rides the same panel. A deck carrying none of the keys prints nothing --
+    absent is never zero -- and a malformed record is counted, never raised."""
+    reason = ("the two series are quoted in different currencies (EUR against USD), and this lookup never "
+              "converts between them")
+    minted = _splat_row(rv_pair_spread={"legs": 1, "markets": ["malaysian_crude_palm_oil_cme",
+                                                               "soybean_oil_cbot"]})
+    refused = _splat_row(rv_pair_uncomputed={"markets": ["malaysian_crude_palm_oil_cme", "rapeseed_oil_zce"],
+                                             "reason": reason})
+    spine = _splat_row(tldr_spine_deduped={"sections": 4, "sentences_removed": 45, "sentences_moved": 1})
+    plain = _splat_row()
+    body = "\n".join(gev.splat_census_report([minted, refused, spine, plain]))
+    assert "RV PAIR LEG: ran on 2 of 4 turn(s) -- MINTED 1, REFUSED 1" in body
+    assert "minted: 1 row(s) over the pairs {'malaysian_crude_palm_oil_cme / soybean_oil_cbot': 1}" in body
+    assert ("{'%s': 1}; pairs {'malaysian_crude_palm_oil_cme / rapeseed_oil_zce': 1}" % reason) in body
+    assert "de-duplicated on 1 of 4 turn(s)** -- 4 TL;DR section(s)" in body
+    assert "45 sentence(s) removed from the TL;DR" in body and "1 moved into the mechanism" in body
+    # ABSENT IS NEVER ZERO -- and the report() assembly adds nothing, not even the blank line
+    assert gev.splat_census_report([plain]) == [] and gev.splat_census_report([]) == []
+    assert "Per-turn records" not in gev.report([plain], model="claude-opus-5")
+    assert "REFUSED 1" in gev.report([refused], model="claude-opus-5")
+    # a truthy non-dict is COUNTED and named, never raised
+    bad = "\n".join(gev.splat_census_report([_splat_row(rv_pair_uncomputed="refused")]))
+    assert "rows whose record is not a mapping: {'rv_pair_uncomputed': 1}" in bad
+    # ...and the per-answer record lifts the refusal verbatim, absent on the row that carries none
+    rec = gev._per_answer_record(refused, "single")
+    assert rec["rv_pair_uncomputed"]["reason"] == reason and "rv_pair_spread" not in rec
+    assert "rv_pair_uncomputed" not in gev._per_answer_record(plain, "single")

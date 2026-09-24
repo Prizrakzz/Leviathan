@@ -1148,7 +1148,8 @@ def test_S8R3_the_SLOT_LABEL_adds_no_coverage_key_and_moves_no_coverage_DENOMINA
     assert '"missed_chains"' in inspect.getsource(_R._chain_coverage),         "the twelfth key is the round-1 debt this roster already names, not the ruling's"
     # THE HEAD ROW'S TOKENS ARE THE HOP AND THE MARKET, and the label is in neither.
     tok = body.split("_tok = (", 1)[1].split(")\n", 1)[0]
-    assert "_name_words(humanise(_c.hops[0].driver_id))" in tok
+    # 09-23 (CONTRACT.md C9): the top hop's group is its SERIES' reader names, never the driver id.
+    assert "chain_hop_reader_names(_c.hops[0])" in tok
     assert "_market_words(_c.terminal or _c.contract)" in tok
     assert "slot" not in tok, "a label is prose on the row, never a token group the writer is graded on"
     # AND THE LABEL IS REALLY ON THE ROW, on a real `walk.Chain`, in the ruling's own words.
@@ -1204,9 +1205,10 @@ def test_S8R4_the_ROUND_FOUR_clauses_add_no_coverage_key_and_move_no_coverage_DE
     assert sorted(map(id, ranked)) == sorted(map(id, pool)), "an ORDER, never a membership"
     # AND THE COUNT LINE'S AGED CLAUSE IS ABSENT AT ZERO and letters-only when it fires.
     counts = {"distinct_sequences": 9, "total": 12, "state_two_hops": 4, "with_document": 3}
-    assert "aged out" not in _R.sb_chain_count(dict(counts, receipts_aged_out=0), k=2)
+    assert "older than the lag" not in _R.sb_chain_count(dict(counts, receipts_aged_out=0), k=2)
     fired = _R.sb_chain_count(dict(counts, receipts_aged_out=3), k=2)
-    assert "three dated actions aged out of their windows" in fired, fired
+    # 09-23 DESK VOCABULARY (CONTRACT.md C13): the same count, in the lag the model allows.
+    assert "three dated actions older than the lag the model allows for them" in fired, fired
     assert _R.classify(fired) == ("SB-P",) and _R.register_hits(fired) == []
     # **ROUND 5's ONE ADDED KEY, AND IT IS A READER RATHER THAN A POPULATION** (blocker 10). It reads
     # the producer's own `rendered_one_line` off `chain_counts`; it joins no row's token groups, it
@@ -1217,3 +1219,57 @@ def test_S8R4_the_ROUND_FOUR_clauses_add_no_coverage_key_and_move_no_coverage_DE
     assert "rendered_one_line" in _W.chain_counts([]), "the name is the producer's"
     for word in ("one_line", "rendered_one_line"):
         assert word not in tok, word
+
+
+# === 09-23 FIX ROUND, LANE R: CHAIN_REFERENCED MEANS "THE PROSE NARRATES THE CHAIN" (threat R-12) =======
+def _r0923_chain():
+    from leviathan.graphrag.state import walk as _W
+    hops = (
+        _W.ChainHop(contract="soybeans_cbot", driver_id="crude_oil", measured=True, percentile=68.0,
+                    series_key="brent_crude_z|_global|"),
+        _W.ChainHop(contract="soybeans_cbot", driver_id="soybean_crush_margin", measured=True,
+                    percentile=92.0, series_key="cbot_board_crush_margin|_global|"),
+        _W.ChainHop(contract="soybeans_cbot", driver_id="psd_ending_stock_su_ratio", measured=True,
+                    percentile=23.0, series_key="psd_ending_stock_su_ratio|soybeans_cbot|United States"),
+    )
+    ch = _W.Chain(contract="soybeans_cbot", hops=hops, depth=2, terminal="soybeans_no_1_dce",
+                  agreements=("aligned", "aligned", "undetermined"), edge_signs=("+", "-", "0"))
+    ch.rendered = ch.full = True
+    return ch
+
+
+def test_R0923_chain_referenced_counts_TWO_LINKS_NARRATED_AS_A_CHAIN_and_nothing_less():
+    """THE 09-23 COUNTER READ 0 / 0 / 0 / 0 / 1 ON FIVE PAGES THAT ALL NARRATE THEIR CHAINS: it required
+    the terminal market's label in the same sentence as the top hop. The rule (CONTRACT.md C9, threat
+    R-12) is two distinct links of ONE chain, each by its reader names, its identity words or its own
+    [N] address, inside ONE sentence (09-23 fix round, review RA M3: the two-sentence window and the
+    "chain" / end-market anchor were a keyword gate and are withdrawn; the ten pages then read 8 of 10
+    against the human read -- the tariff and cotton sentences DO name two linked hops)."""
+    from leviathan.graphrag import verify as _vf
+    from leviathan.graphrag.state import render as _R
+    ch = _r0923_chain()
+    yes = ("**The crude-to-crush chain, in hop order.** Crude peaked in April 2026 and now reads the "
+           "68th [N54], through 10 September 2026, declared to push crush the same way, and the readings "
+           "agree.")
+    assert _R.chain_referenced_in(ch, _vf.sentences(yes))
+    # 09-23 FIX ROUND (review RA M3): NO KEYWORD GATE. The first cut also required the head noun "chain"
+    # or the end market's words in a two-sentence window -- tuned on the ten pages it was graded on. The
+    # rule is now the structure alone: ONE sentence naming two distinct links, by words or by address.
+    # A sentence that names two links of the chain names two links of the chain, however it is phrased.
+    listed = ("Price-supportive: the tight stocks-to-use ratio at high confidence, the crush margin at high "
+              "confidence, and the managed-money net length at the 97th percentile.")
+    assert _R.chain_referenced_in(ch, _vf.sentences(listed))
+    one = "The chain the model puts first runs from crude oil into a market this question did not name."
+    assert not _R.chain_referenced_in(ch, _vf.sentences(one)), "one link of a three-link chain"
+    # BY ADDRESS: two hops' own [N] addresses in one sentence narrate the chain whatever the words
+    addr = "Energy is firm [N54] and the domestic buffer is thin [N36], one pulling the other."
+    assert _R.chain_referenced_in(ch, _vf.sentences(addr), hop_handles=[(54,), (), (36,)])
+    assert not _R.chain_referenced_in(ch, _vf.sentences(addr))
+    # never across two sentences
+    split = "Crude is firm. The crush margin is wide."
+    assert not _R.chain_referenced_in(ch, _vf.sentences(split))
+    # the identity words are DERIVED from the chain's own names: generic book words never identify a hop
+    idw = _R.chain_hop_identity_words(ch)
+    assert "crude" in idw[0] and "crush" in idw[1]
+    assert not ({"record", "price", "against"} & (idw[0] | idw[1] | idw[2])), idw
+    assert _R._CHAIN_WINDOW_SENTS == 1

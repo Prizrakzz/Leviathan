@@ -1127,14 +1127,30 @@ class TestOIGapFlagOffByteIdentity:
         assert f"WHERE _dr <= {Q.FRONT_EXPIRY_FENCE}" in sql and "WHERE _dr = 1" not in sql
 
     def test_b_the_returned_rows_are_equal_to_heads_on_all_three_session_shapes(self, oig_head_query):
+        """RE-BANKED (the 09-23 fix round, lane T, CONTRACT C12 -- a DECLARED move). With every OI-gap flag
+        OFF the CLEAN session is still byte-equal to HEAD's (the named rule ran; no stamp rides it). On
+        the BLANK and PARTIAL shapes HEAD returned `[]` -- the live-edge decline the re-smoke measured
+        (D4) -- and the read now returns the DECLARED cycle fallback: never the named rule's method or
+        version, never a contract inside its own delivery month, and never one of the three OI-gap
+        stamps' ARMS (`roll_method_fallback` names the fallback that ran, not open_interest->volume)."""
         for name, rows in (("clean", _OIG_CLEAN), ("blank", _OIG_BLANK), ("partial", _OIG_PARTIAL)):
             kw = dict(table="silver_futures_eod", metric="settle", asof="2026-09-07",
                       commodity="corn_cbot", agg="front_expiry")
             got = Q.select_front_expiry(rows, Q.NumberQuery(**kw), _ts("silver_futures_eod"))
             head = oig_head_query.select_front_expiry(
                 rows, oig_head_query.NumberQuery(**kw), _ts("silver_futures_eod"))
-            assert got == head, name
-            assert all("front_expiry_session" not in r for r in got), name
+            if name == "clean":
+                assert got == head, name
+                assert all("front_expiry_session" not in r for r in got), name
+                continue
+            assert head == [], name
+            assert len(got) == 1, name
+            r = got[0]
+            assert r["roll_method"] == Q.CYCLE_FALLBACK_METHOD, name
+            assert r["roll_method"] not in Q.ROLL_METHODS_FRONT, name
+            assert r["roll_rule_version"] == Q.CYCLE_FALLBACK_VERSION, name
+            assert r["roll_method_fallback"] == "open_interest->" + Q.CYCLE_FALLBACK_METHOD, name
+            assert r["contract_month"] == "2026-12", name        # September is in delivery on a Sept session
 
     def test_c_front_month_with_no_override_is_frame_equal_to_head(self, oig_head_roll):
         import pandas as pd

@@ -307,14 +307,18 @@ def test_p50_p91_the_trace_keys_are_the_last_two_and_the_decision_is_the_last_on
     # THIS pair is no longer the last two -- it is the two before the last. The pair's ORDER and its
     # ADJACENCY, which is what P50/P91 actually claim, are unchanged and still asserted. The DECISION
     # tuple is untouched by that append and keeps its `[-1]`.
-    assert tk.TRACE_RECORD_KEYS[-8:-6] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert tk.TRACE_RECORD_KEYS[-5] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
-    assert tk.TRACE_RECORD_KEYS[-6] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert tk.TRACE_RECORD_KEYS[-11:-9] == ("quantify_extreme_locator", "extreme_second_hop")
+    assert tk.TRACE_RECORD_KEYS[-8] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
+    assert tk.TRACE_RECORD_KEYS[-9] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
     #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
-    assert tk.DECISION_RECORD_KEYS[-1] == ("extreme_locator", "extreme_locator_decision")
+    # 2026-09-23 (numbers-seat recon, ee06f19c) appended `data_families` to the DECISION tail and re-pinned
+    # test_cascade_walk but not this pin, which was RED at HEAD; re-anchored by one here (lane A, 09-23 fix
+    # round) exactly as the append-never-sort law puts it: the locator's decision is the entry before it.
+    assert tk.DECISION_RECORD_KEYS[-2] == ("extreme_locator", "extreme_locator_decision")
+    assert tk.DECISION_RECORD_KEYS[-1] == ("data_families", "data_families_decision")
     assert not any("windowed" in k or "xl_kind" in k for k in tk.TRACE_RECORD_KEYS)
 
 
@@ -652,7 +656,10 @@ def test_p19_p20_p21_p22_p23_one_clock_per_row_and_no_false_staleness():
     assert call["query"]["metric"] == "located price extreme"  # a KIND-FREE reader phrase
     assert call["shown"] == [554.4] and len(call["rows"]) == 1
     c = cit.from_number(call, 1)
-    assert c.date == "2022-04-19"
+    # RE-BANKED 09-23 FIX ROUND -- D3 known-date correction (09-23 recon lane-C defect 5; BUILD_C B-7(c)): the
+    # known date is the ONE derivation, session 2022-04-19 + the futures card's publication_lag_days 1; the
+    # located SESSION still rides locator["located_date"] unchanged (next line).
+    assert c.date == "2022-04-20"
     assert c.locator["asof"] == ASOF and c.locator["located_date"] == "2022-04-19"
     assert c.locator["commodity"] == SLUG and c.locator["source_metric"] == "settle"
     assert "period" not in c.locator or not c.locator["period"]
@@ -660,7 +667,7 @@ def test_p19_p20_p21_p22_p23_one_clock_per_row_and_no_false_staleness():
     assert "TRUNCATED" not in c.label and "of 1 " not in c.label
     naked = copy.deepcopy(call)
     naked["rows"][0].pop("located_extreme")
-    assert "(latest available 2022-04-19; as-of 2026-09-02)" in cit.from_number(naked, 1).label
+    assert "(latest available 2022-04-20; as-of 2026-09-02)" in cit.from_number(naked, 1).label  # D3, as above
     out = {"citations": [c.__dict__ if hasattr(c, "__dict__") else c], "trace": {}}
     good = {"citations": [{"kind": "number", "locator": dict(c.locator),
                            "payload": {"rows": call["rows"]}}], "trace": {}}

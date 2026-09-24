@@ -1027,24 +1027,33 @@ def test_chain_a_renumbering_that_lost_a_movement_is_caught_by_arithmetic():
 
 
 @pytest.mark.parametrize("clause", [
-    # the hop-by-hop narration, in the present tense, off the block's own order
+    # 09-23 LANE A (THREAT_MODEL A-7 / CONTRACT C13): the SAME B.5 clauses, in the desk's words. Each
+    # line below is the HEAD clause's substance with the C13 table's own replacement phrase spent where
+    # HEAD spent an instrument word -- `hop` -> `link`, `past firings` -> `the past times this reading
+    # sat this far out`, `the declared way / direction` -> `the way / direction the model expects`,
+    # `the chain's far end` -> `where the chain ends`, `a hop's window` -> `the lag the model allows
+    # for it`. The clause-for-clause map is `test_chain_the_B5_clause_map_is_one_to_one` below.
+    # the link-by-link narration, in the present tense, off the block's own order
     "take the chains the block puts first, in the order it gives them",
-    "hop by hop, in the present tense",
+    "link by link, in the present tense",
     "give the figure in its unit and the plain meaning in the same sentence",
-    "which way the driver model declares that hop pushes the next one",
+    "which way the driver model expects that link to push the next one",
     # the agreement WORD comes from the block, never from the writer
-    "agree with that declared direction or run against it -- the block gives you the word",
+    "agree with the direction the model expects or run against it -- the block gives you the word",
     # the receipt, by handle, with its date -- and the honest absence beside it (threat E6)
-    "Cite the chain's dated report at the hop it acts on, by its handle, and say when it is dated",
-    "where the block says no dated document reaches a hop's window, say so",
+    "Cite the chain's dated report at the link it acts on, by its handle, and say when it is dated",
+    "where the block says no dated document reaches a link inside the lag the model allows for it, "
+    "say so",
     # the record: a COUNT with its sample size, in the past tense (threat E7)
-    "the block's own count of past firings and how many moved the declared way",
+    "the block's own count of the past times this reading sat this far out and how many of them "
+    "moved the way the model expects",
     "history, never a forecast",
     # the OUTCOME line the owner added, as history and never as a forecast
-    "give the chain's own outcome line the same way, as what measured after those firings",
+    "give the chain's own outcome line the same way, as what measured after those past episodes",
     "never as what is coming",
     # the RELATIVE-VALUE call the owner added -- one sentence, or an honest refusal to settle it
-    "Where the question sets one market against another, make the call on the pair",
+    "Where the question sets one market against another, make the call on the pair where the chain "
+    "ends",
     "which of the two the record leans toward and the reading that carries it",
     "saying plainly that the record does not settle it",
     # anti-padding (threat E2) and the count line
@@ -1058,7 +1067,7 @@ def test_chain_a_renumbering_that_lost_a_movement_is_caught_by_arithmetic():
     # ROUND 2, ORCHESTRATOR_NOTES item 6: the arithmetic line states the DATA SCOPE, and a short one
     # reads as scarce data and never as a weak chain
     "Where the block states what it could read for a chain",
-    "the terms it could do the arithmetic for, the hops no series served, a buffer series this "
+    "the terms it could do the arithmetic for, the links no series served, a buffer series this "
     "market does not carry",
     "what this market's data covers on this turn, never that the chain itself is a weak one",
     # the two consequences B.5 names: the record does not restate, and the stanza is the chain's THEN
@@ -1140,7 +1149,7 @@ def test_chain_the_arithmetic_line_is_read_as_DATA_SCOPE_and_never_as_a_weak_cha
     m = N.MANDATE_CHAIN_MOVEMENT
     assert "Where the block states what it could read for a chain" in m
     assert "the terms it could do the arithmetic for" in m
-    assert "the hops no series served" in m
+    assert "the links no series served" in m
     assert "a buffer series this market does not carry" in m
     assert "what this market's data covers on this turn, never that the chain itself is a weak one" in m
     for w in N.CHAIN_MOVEMENT_BANNED_WORDS:
@@ -1186,3 +1195,126 @@ def test_chain_the_movement_carries_no_word_budget():
     # the only digit in the literal is the movement's own enumerator, which is the same proof one
     # assertion over: a budget cannot be stated without a number.
     assert [c for c in N.MANDATE_CHAIN_MOVEMENT if c.isdigit()] == ["3"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-23 FIX ROUND, LANE A -- THE MANDATE SPEAKS THE DESK'S WORDS (owner, 09-23; CONTRACT C13 / THREAT A-7)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+#: CONTRACT C13's eleven rows, copied here AS THE PIN (name, pattern): the table lane R adds to
+#: `register.DESK_REGISTER_TOKENS`. The movement must score zero on them whether or not lane R's rows
+#: have landed in this tree, so the pin carries the contract's own spelling and ALSO grades the live
+#: table below -- the two can never disagree about a literal that ships.
+_C13_ROWS = (
+    ("firing", r"\bfirings?\b"), ("hop", r"\bhops?\b"), ("far end", r"\bfar end\b"),
+    ("print line", r"\bprint line\b"), ("ranked beside", r"\branked beside\b"),
+    ("admitted", r"\badmitted\b"), ("seated", r"\bseated\b"),
+    ("tier cap", r"\btier'?s? (?:cap|cut|fan|limit)\b"), ("coverage floor", r"\bcoverage floor\b"),
+    ("declared way", r"\bdeclared (?:way|direction)\b"),
+    ("declared window", r"\b(?:the )?(?:window declared for it|declared window)\b"),
+)
+
+#: THE B.5 CLAUSE MAP (A-7): every HEAD clause that spent an instrument word, beside the clause that
+#: replaced it. The substance on the right is the left's, clause for clause -- only the words moved, and
+#: each new word is the C13 table's own replacement phrase.
+_B5_CLAUSE_MAP = (
+    ("hop by hop, in the present tense", "link by link, in the present tense"),
+    ("At each hop give the figure in its unit", "At each link give the figure in its unit"),
+    ("which way the driver model declares that hop pushes the next one",
+     "which way the driver model expects that link to push the next one"),
+    ("agree with that declared direction or run against it",
+     "agree with the direction the model expects or run against it"),
+    ("Cite the chain's dated report at the hop it acts on",
+     "Cite the chain's dated report at the link it acts on"),
+    ("where the block says no dated document reaches a hop's window, say so",
+     "where the block says no dated document reaches a link inside the lag the model allows for it, "
+     "say so"),
+    ("the block's own count of past firings and how many moved the declared way",
+     "the block's own count of the past times this reading sat this far out and how many of them "
+     "moved the way the model expects"),
+    ("as what measured after those firings", "as what measured after those past episodes"),
+    ("make the call on the pair the chain's far end reaches", "make the call on the pair where the "
+     "chain ends"),
+    ("the hops no series served", "the links no series served"),
+)
+
+
+def test_chain_the_movement_is_clean_under_the_EXTENDED_desk_table():
+    """I-2 / R-9: the chain movement ships beside the desk mandate, and the desk mandate now teaches the
+    C13 replacements -- so the movement may spend NONE of the eleven words the table charges. HEAD's
+    literal carried `hop` eight times, `past firings`, `the declared way`, `that declared direction` and
+    `the chain's far end`: the writer copies the words it is taught, and the served pages carried
+    `declared` 128 times and `hop` 34."""
+    m = N.MANDATE_CHAIN_MOVEMENT
+    for name, pat in _C13_ROWS:
+        assert not re.search(pat, m, re.I), (name, re.findall(pat, m, re.I))
+    # ...and against the LIVE table, whatever it holds on this tree (lane R's rows once they land)
+    assert reg.count_desk_register(m) == 0, reg.desk_register_hits(m)
+    # the owner's own word on `declared`: the render stops minting it and THE MANDATE STOPS TEACHING IT
+    assert not re.search(r"\bdeclar", m, re.I)
+    assert N.check_literals() == []
+
+
+def test_chain_the_B5_clause_map_is_one_to_one():
+    """A-7: the rewrite drops no order of B.5. Every HEAD clause that carried an instrument word is gone
+    from the literal and its desk-word twin is present exactly once; the clauses that carried none are
+    the parametrized pins above, unchanged."""
+    m = N.MANDATE_CHAIN_MOVEMENT
+    for old, new in _B5_CLAUSE_MAP:
+        assert old not in m, old
+        assert m.count(new) == 1, new
+    # the movement still orders the same NUMBER of things in the same ORDER: the anchors of each order,
+    # read off the literal, in sequence
+    anchors = ["take the chains the block puts first", "At each link give the figure",
+               "Cite the chain's dated report", "THEN, and only then, say what the record shows",
+               "give the chain's own outcome line", "make the call on the pair",
+               "Narrate the chains the block puts first and not the rest",
+               "that chain still gets its sentence", "Where the block states what it could read",
+               "Do not restate under the record", "read that stanza as the history"]
+    at = [m.index(a) for a in anchors]
+    assert at == sorted(at), anchors
+
+
+def test_chain_the_flag_off_prompt_cannot_see_the_rewrite():
+    """B1 / B3 at the function level: the rewrite lives in the SUBSTITUTED literal only, so the chain-off
+    mandate and the constant it is substituted into are HEAD's bytes (the sha pin above holds), and no
+    flag-off `_system` carries a word of the new movement."""
+    assert N.state_board_mandate(chain=False) is N.SYSTEM_STATE_BOARD_MANDATE
+    for kw in ({}, {"state_board": True}, {"state_board": True, "watch_selection": True}):
+        out = an._system(**kw)
+        assert "link by link" not in out and "the lag the model allows" not in out, kw
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-23 FIX ROUND -- review RA M5 (THREAT R-11) and RA M4 (OWNER DECISION 8)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+def test_fix_0923_R11_a_v1_sentence_is_never_displaced_past_the_cap_by_new_token_sentences():
+    """THREAT R-11's pass condition: the offer is the v1 CLASS first, then document order, then the cap.
+    Eleven sentences that carry only an extended-table token ("hop") come FIRST in the document and one
+    v1-bearing sentence ("board") comes LAST; in document order the cap of ten would drop the v1 one (the
+    max-soybeans page displaced two this way). A stable sort, so each class keeps the document's order."""
+    new_only = [f"Each hop {i} carries a lag." for i in range(11)]
+    v1 = "The board shows stocks falling."
+    d = {"tldr": "", "mechanism": " ".join(new_only + [v1])}
+    assert all(h[0] not in reg.DESK_REGISTER_V1_NAMES for s in new_only for h in reg.desk_register_hits(s))
+    assert any(h[0] in reg.DESK_REGISTER_V1_NAMES for h in reg.desk_register_hits(v1))
+    call, calls = _fake(["x"] * 12)
+    out = an._desk_register_lint(d, call=call)
+    assert out["sentences"] == 12 and out["offered"] == an._DESK_REWRITE_MAX_SENTENCES
+    assert out["offered_v1"] == 1, out
+    offered = calls[0]["user"].splitlines()
+    assert offered[0] == "1. " + v1, offered[:2]                     # the v1 class leads the offer
+    # ...then document order (a mid-text sentence is offered without its terminator, which rides back)
+    assert offered[1:] == [f"{n + 2}. {s.rstrip('.')}" for n, s in enumerate(new_only[:9])]
+
+
+def test_fix_0923_decision8_the_v1_count_rides_beside_the_extended_count():
+    """OWNER DECISION 8 (a): the arm's standing v1 count is stamped beside the extended one on the SAME
+    text (`hits_before_v1` / `hits_after_v1`, `rewritten_v1` per accepted v1 rewrite), and a clean answer
+    keeps HEAD's census byte for byte (the v1 subset of zero is zero)."""
+    d = {"tldr": "", "mechanism": "The board shows stocks falling. Each hop carries a lag."}
+    out = an._desk_register_lint(d)
+    assert out["outcome"] == "no_caller"
+    assert out["hits_before"] == 2 and out["hits_before_v1"] == 1 and out["hits_after_v1"] == 1
+    assert out["offered_v1"] == 1
+    clean = an._desk_register_lint({"tldr": "Crush is wide [N2].", "mechanism": ""})
+    assert "hits_before_v1" not in clean and "offered_v1" not in clean

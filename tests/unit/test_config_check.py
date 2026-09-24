@@ -926,3 +926,53 @@ def test_dpq_new_nodes_carry_no_new_cascade_capability():
         others = [d["id"] for d in doc["drivers"]
                   if d.get("silver_ref") == "fred_fx_macro" and d["id"] != "macro_demand"]
         assert others, f"{doc['contract']}: macro_demand would be a NEW fred_fx_macro carrier"
+
+
+# ── THE 09-23 FIX ROUND, LANE T (CONTRACT C16): THE CHAIN'S SUBJECT SLOT NEEDS THE RESOLVER ─────────────
+def test_C16_the_stored_arm_base_declares_the_chain_WITH_the_resolver_so_the_check_is_green():
+    """The owner ruled OWNER DECISION 1 (a) on 2026-09-23 and 08d8dfd4 added GRAPHRAG_SUBJECT_RESOLVER
+    to `arm_flags`; the check reads THAT stored base and finds nothing to say."""
+    base = cc._load("arm_env_base.yaml")
+    assert cc.CHAIN_FLAG in base["arm_flags"] and cc.SUBJECT_RESOLVER_FLAG in base["arm_flags"]
+    assert cc.check_chain_subject_dependency() == []
+
+
+def test_C16_a_base_that_declares_the_chain_without_the_resolver_is_named():
+    msgs = cc.check_chain_subject_dependency({"arm_flags": ["GRAPHRAG_STATE_BOARD", "GRAPHRAG_STATE_CHAIN"]})
+    assert len(msgs) == 1
+    m = msgs[0]
+    assert "GRAPHRAG_STATE_CHAIN" in m and "GRAPHRAG_SUBJECT_RESOLVER" in m
+    assert "seam.py:130" in m and "walk.py:3001-3006" in m and "resolver_off" in m
+
+
+@pytest.mark.parametrize("base", [{"arm_flags": ["GRAPHRAG_STATE_BOARD"]},
+                                  {"arm_flags": ["GRAPHRAG_STATE_CHAIN", "GRAPHRAG_SUBJECT_RESOLVER"]},
+                                  {"arm_flags": "GRAPHRAG_STATE_CHAIN"}, {}, None])
+def test_C16_nothing_to_say_when_the_chain_is_absent_the_resolver_present_or_the_base_unreadable(
+        base, monkeypatch):
+    if base is None:
+        def _boom(_name):
+            raise OSError("unreadable")
+        monkeypatch.setattr(cc, "_load", _boom)
+    assert cc.check_chain_subject_dependency(base) == []
+
+
+def test_C16_is_FATAL_by_the_owners_ruling_and_main_fails_the_build_on_it(monkeypatch, capsys):
+    """Decision 1 (a) is ratified, so a base that drops the resolver now FAILS the build (the contract's
+    promotion, landed with the check). A reversal is the owner's word and flips the constant."""
+    assert cc.CHAIN_SUBJECT_DEPENDENCY_FATAL is True
+    import inspect
+    src = inspect.getsource(cc.main)
+    assert "check_chain_subject_dependency()" in src and "CHAIN_SUBJECT_DEPENDENCY_FATAL" in src
+
+
+def test_C16_reads_the_stored_base_and_never_the_process_environment(monkeypatch):
+    """The source-text law `check_state_seam` states: a CI runner with a flag set must not green or red a
+    config lint. The environment names the flags and changes nothing."""
+    import inspect
+    src = inspect.getsource(cc.check_chain_subject_dependency)
+    assert "os.environ" not in src and "getenv" not in src
+    monkeypatch.setenv("GRAPHRAG_SUBJECT_RESOLVER", "off")
+    monkeypatch.setenv("GRAPHRAG_STATE_CHAIN", "on")
+    assert cc.check_chain_subject_dependency({"arm_flags": ["GRAPHRAG_STATE_CHAIN",
+                                                             "GRAPHRAG_SUBJECT_RESOLVER"]}) == []

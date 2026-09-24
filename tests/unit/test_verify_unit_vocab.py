@@ -147,10 +147,20 @@ def test_a_served_call_that_records_no_unit_stands_the_gate_down():
     """THE DOCKETED LIMIT, pinned: "this row prints no scale" and "this row's scale was never recorded"
     are different facts, and only the first may charge. A call whose rows carry no `unit` leaves the
     sentence with the structural verdict -- which is also what keeps this gate off the registry."""
+    # 09-23 FIX ROUND (review FATAL-1, CONTRACT C6 "row-granular"), RE-BANKED, owner-visible: a row that
+    # recorded no unit is read at the unit the citation PRINTED for it -- the card's (`citations.
+    # _metric_unit`, the renderer's own fallback: "154947 1000 MT") -- so a label scale that row was never
+    # shown ("9999") is re-admitted and charged, where HEAD stood the whole gate down.
     calls = [{"query": {"table": "silver_psd_attributes", "metric": "Feed Dom. Consumption"},
               "rows": [{"value": "154947"}]}]
-    assert vf._served_unit_vocab("US corn feed use is 154,947 (9999 MT) [N1].", calls) is None
+    assert vf._served_unit_vocab("US corn feed use is 154,947 (9999 MT) [N1].", calls) == {1000}
     rep, prose = _run("US corn feed use is 154,947 (9999 MT) [N1].", calls)
+    assert rep["by_rule"] == {"number_unbacked": 1} and "[N1]" not in prose
+    # THE LIMIT, in its true form: a row shown NO unit at all (its card declares none) contributes nothing,
+    # voids nothing, and on its own leaves the sentence with the structural verdict
+    bare = [{"query": {"table": "t", "metric": "m"}, "rows": [{"value": "154947"}]}]
+    assert vf._served_unit_vocab("US corn feed use is 154,947 (9999 MT) [N1].", bare) is None
+    rep, prose = _run("US corn feed use is 154,947 (9999 MT) [N1].", bare)
     assert rep["stripped"] == 0 and "[N1]" in prose
 
 
@@ -230,7 +240,10 @@ def test_a_call_that_records_a_unit_on_only_some_of_its_rows_stands_the_gate_dow
 
     scaled_neighbour = [{"query": mixed[0]["query"],
                          "rows": [{"value": "8.85", "unit": "60-kg bags"}, {"value": "154947"}]}]
-    assert vf._served_unit_vocab(sent, scaled_neighbour) is None          # NOT {60}
+    # 09-23 FIX ROUND (row-granular, RE-BANKED): the unit-less row contributes the unit the citation PRINTED
+    # for it (the card's "1000 MT"), so the vocabulary is {60, 1000} -- NOT {60} -- and the label the
+    # reader was shown is still never charged: the fence this pin holds is unchanged.
+    assert vf._served_unit_vocab(sent, scaled_neighbour) == {60, 1000}
     rep2, prose2 = _run(sent, scaled_neighbour)
     assert rep2["by_rule"] == {} and rep2["stripped"] == 0 and "[N1]" in prose2
 
@@ -343,8 +356,8 @@ def test_the_cheap_vocabulary_question_is_asked_before_the_expensive_label_scan(
     def _never(*_a, **_k):
         raise AssertionError("the label scan was reached on a stand-down sentence")
     monkeypatch.setattr(vf, "_unit_label_scale_values", _never)
-    no_unit = [{"query": {"table": "silver_psd_attributes", "metric": "Feed Dom. Consumption"},
-                "rows": [{"value": "154947"}]}]
+    # (09-23 fix round: a stand-down call is now one whose rows were shown NO unit -- a card declaring none)
+    no_unit = [{"query": {"table": "t", "metric": "m"}, "rows": [{"value": "154947"}]}]
     assert vf._unit_vocab_claims("US corn feed use is 154,947 (9999 MT) [N1].", no_unit) == []
     assert vf._unit_vocab_claims("US corn feed use is 154,947 (9999 MT) [E4].", [_PSD]) == []
 
@@ -397,8 +410,17 @@ def test_the_control_arm_replay_is_unmoved_by_the_gate():
         rep = vf.verify_citations(st, [], copy.deepcopy(a.get("served_rows") or []))
         by_rule.update(rep.get("by_rule") or {})
         stripped += rep.get("stripped", 0)
-    assert dict(by_rule) == {"undeclared_unsupported": 41, "number_unbacked": 1, "number_mismatch": 6}
-    assert stripped == 48
+    # 09-23 FIX ROUND (lane V) -- THE RE-BANK, AND THE FIVE CHARGES IT REMOVED, NAMED. number_mismatch 6 -> 1
+    # and `stripped` 48 -> 43, every one of the five the SAME shape: a pace-streak handle cited for its own
+    # figure in WORDS ("lower in each of the last three months [N23]", "higher in each of the last four
+    # months [N27]", "fell in each of the last three weeks [N45]", "has fallen in each of the last three
+    # months [N18]", "falling in each of the last three months [N41]") and convicted by the sentence's OTHER
+    # figures, each backed by the handle written after it. `verify._unbound_handle` reads the binding the
+    # writer wrote: those handles bind no figure, so no figure can contradict them -- they STAY, where HEAD's
+    # sibling rescue took them off the page. number_unbacked and undeclared_unsupported are unmoved, and so
+    # is the rule-(g) gate census asserted below.
+    assert dict(by_rule) == {"undeclared_unsupported": 41, "number_unbacked": 1, "number_mismatch": 1}
+    assert stripped == 43
 
     exempted = printed = stand_down = readmitted = 0
     bound = re.compile(r"[.!?;](?=\s|$)|\n")
@@ -422,3 +444,93 @@ def test_the_control_arm_replay_is_unmoved_by_the_gate():
                 printed += sum(1 for v in scales if int(v) in vocab)
                 readmitted += sum(1 for v in scales if int(v) not in vocab)
     assert (exempted, printed, stand_down, readmitted) == (17, 4, 13, 0)
+
+
+# -- BAND 5: THE DECLARED SPELLINGS NEVER EQUATE TWO UNITS (09-23 fix round, the verifier's m2 / LEX-1) ----
+# tables.yaml `unit_spellings` is ONE equivalence class per key, and the first cut conflated scaled units with
+# their base words ("kg" == "1000 60 kg bags", "bales" == "1000 480 lb. bales", "head" == "1000 head") and
+# prices with quantities or currencies ("bu" == "$/bu", "cents" == "US cents/bushel", "eur" == "EUR/t",
+# "tons" == "MT"), so the re-address, the pool and the typed binding could accept a figure written in the
+# wrong unit. The pins DERIVE every pair from the loaded cards' own unit strings and a real served row --
+# no word list of their own -- so a future entry that re-introduces the class fails here.
+def _card_units():
+    from leviathan.graphrag.numbers import registry as reg
+    return sorted({vf._unit_tokens(u) for u in reg.card_unit_phrases()} - {()})
+
+
+def _is_scale(tok):
+    return tok.replace(",", "").isdigit() or tok in vf._declared_vocab().scales
+
+
+def test_LEX1_no_scaled_card_unit_equals_any_run_of_its_own_words():
+    """SCALE: a card unit with a leading scale token ("1000 60 kg bags", "million 480 lb bales") is never
+    `_unit_equal` to a proper token run of itself ("kg", "bales", "60 kg bags", "480 lb bales")."""
+    n = 0
+    for p in _card_units():
+        if len(p) < 2 or not _is_scale(p[0]):
+            continue
+        for i in range(len(p)):
+            for j in range(i + 1, len(p) + 1):
+                sub = tuple(p[i:j])
+                if sub == p or all(_is_scale(t) for t in sub):
+                    continue
+                n += 1
+                assert not vf._unit_equal(sub, p), (sub, p)
+    assert n >= 20, n
+    # the verifier's own named examples, read through the same equality
+    for base, scaled in ((("kg",), ("1000", "60", "kg", "bags")), (("bales",), ("1000", "480", "lb", "bales")),
+                         (("lb",), ("1000", "480", "lb", "bales")), (("head",), ("1000", "head")),
+                         (("boxes",), ("1000", "boxes")), (("480", "lb", "bales"), ("1000", "480", "lb", "bales"))):
+        assert not vf._unit_equal(base, scaled), (base, scaled)
+
+
+def test_LEX1_no_card_price_equals_its_own_quantity_or_currency_word():
+    """DIMENSION: a card unit priced PER something ("$/bu", "US cents/bushel", "$/cwt", "EUR/t", "COP per 125 kg
+    carga") is never `_unit_equal` to its numerator's or its denominator's words."""
+    n = 0
+    for p in _card_units():
+        sides = []
+        for t in p:
+            if "/" in t:
+                sides += [(w,) for part in t.split("/") if part for w in part.split()]
+        if "per" in p:
+            k = p.index("per")
+            sides += [tuple(p[:k])] if k else []
+            sides += [tuple(p[k + 1:])] if k + 1 < len(p) else []
+        for s in sides:
+            if s and s != p:
+                n += 1
+                assert not vf._unit_equal(s, p), (s, p)
+    assert n >= 20, n
+    for w, price in ((("bu",), ("$/bu",)), (("bushels",), ("$/bu",)), (("cents",), ("us", "cents/bushel")),
+                     (("cwt",), ("$/cwt",)), (("eur",), ("eur/t",)), (("125", "kg", "carga"),
+                                                                        ("cop", "per", "125", "kg", "carga"))):
+        assert not vf._unit_equal(w, price), (w, price)
+    # ...while a true spelling of the SAME price stays equal
+    assert vf._unit_equal(("usd/bu",), ("$/bu",))
+    assert vf._unit_equal(("per", "125", "kg", "carga"), ("cop", "per", "125", "kg", "carga"))
+
+
+def test_LEX1_tons_is_neither_the_metric_tonne_nor_a_short_ton():
+    """AMBIGUITY, read off a REAL served row: the 09-23 WASDE sugar row prints its unit as SHORT tons
+    ("1 Thousand Short2 Tons 3 4"), while the cards print "USD/metric ton" and "MT"; so "tons" is its own
+    class and equals neither, and the metric spellings stay the metric tonne."""
+    served = vf._unit_tokens("1 Thousand Short2 Tons 3 4")
+    assert "tons" in served
+    for w in (("tons",), ("ton",)):
+        assert not vf._unit_equal(w, ("mt",)) and not vf._unit_equal(w, served)
+        assert not vf._unit_equal(w, ("usd/metric", "ton")) and not vf._unit_equal(w, ("usd/short", "ton"))
+    assert vf._unit_equal(("tonnes",), ("mt",)) and vf._unit_equal(("tonne",), ("mt",))
+
+
+def test_LEX1_every_spelling_stays_a_recognised_phrase_and_every_class_key_is_one():
+    """Moving a word between classes moves NO recognised phrase: every declared spelling is still a phrase of
+    the vocabulary (the extractor's masking and claim spans read the phrase set), and each class resolves to
+    its own key."""
+    from leviathan.graphrag.numbers import registry as reg
+    phrases = set(vf._declared_vocab().phrases)
+    for key, members in reg.unit_spellings().items():
+        for m in members:
+            t = vf._unit_tokens(m)
+            assert t in phrases, m
+            assert vf._declared_unit_key(t) == key or vf._declared_unit_key(t) == " ".join(t), (m, key)

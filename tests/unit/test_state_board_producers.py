@@ -85,8 +85,10 @@ def test_c_the_rendered_palm_row_names_the_lag_as_an_EFFECT_lag_and_mints_the_cu
     bean, palm = oni_pair
     row = NodeRow(contract="malaysian_crude_palm_oil_cme", driver_id="El_Nino", state=palm, sign="+")
     line, calls = R.sb_state(1, row, asof=_ASOF)
-    assert ("the date above is six months back because that is this market's OWN declared effect "
-            "lag on this series, not a publication delay") in line
+    # RE-BANKED 09-23 FIX ROUND -- CONTRACT C1 identity words (09-23 recon soyoil_palm L2; BUILD_R sec 7 W-1): the
+    # declared six-month EFFECT lag now rides the row's own identity instead of a separate sentence.
+    assert ("the tropical Pacific sea-surface temperature anomaly, January 2026, read six months back -- the "
+            "reading whose declared lag lands now, on CME palm oil (NOAA ONI), read here for El Nino:") in line
     assert "[N4] the newest knowable reading of the same series is" in line
     assert str(bean.level_date) in line
     assert len(calls) == 4, "level, z, percentile and the newest knowable reading"
@@ -216,7 +218,9 @@ def test_d_the_reading_words_book_is_COMPLETE_over_the_board_map_and_fails_soft(
     check rather than the producer."""
     assert L._check_reading_words() == []
     assert R.reading_words("silver_psd", "exports_mt") == "exports"
-    assert R.reading_words("gold_weather_z", "drought_z") == "the drought anomaly"
+    # RE-BANKED 09-23 FIX ROUND -- C10 reading words (09-23 recon max F1, the series named after its driver; BUILD_T
+    # R2): the book now names the series the drought card actually measures.
+    assert R.reading_words("gold_weather_z", "drought_z") == "the longest dry-day run in the month, as a z-score"
     assert R.reading_words("silver_fred_fx", "myr_usd")        # the card-wide default
     assert R.reading_words("silver_psd", "no_such_metric") == ""
     assert R.reading_words("", "") == ""
@@ -228,7 +232,11 @@ def test_d_the_state_line_names_the_reading_only_where_it_ADDS_something(oni_pai
     _, palm = oni_pair
     tax = NodeRow(contract="soybeans_cbot", driver_id="Argentina_export_tax", state=palm, sign="-")
     line, _ = R.sb_state(1, tax, asof=_ASOF)
-    assert "the reading is the tropical Pacific sea-surface temperature anomaly" in line
+    # RE-BANKED 09-23 FIX ROUND -- CONTRACT C1 identity words (09-23 recon lane-R defect 1; BUILD_R sec 7 W-1): the
+    # "the reading is <words>" clause is gone -- the SB-1 head STARTS with the series words and carries the driver
+    # as routing.
+    assert line.startswith("- [N1] the tropical Pacific sea-surface temperature anomaly, January 2026, ")
+    assert "on CBOT soybeans (NOAA ONI), read here for Argentina export tax:" in line
     # a driver whose reader label IS the reading says nothing twice
     assert R._norm_words("the crush") == R._norm_words("Crush") == "crush"
     assert R._norm_words("exports") != R._norm_words("Argentina export tax")
@@ -240,7 +248,8 @@ def test_d_the_watch_sentence_takes_the_same_book_and_keeps_its_fallback():
     correctly today loses its words."""
     class _St:
         table, metric, narrate_unit, unit = "gold_weather_z", "drought_z", "sigma", ""
-    assert WA._metric_words(_St()) == "the drought anomaly in sigma"
+    # RE-BANKED 09-23 FIX ROUND -- C10 reading words (09-23 recon max F1; BUILD_T R2): the same book, one consumer on.
+    assert WA._metric_words(_St()) == "the longest dry-day run in the month, as a z-score in sigma"
 
     class _Other:
         table, metric, narrate_unit, unit = "silver_unknown", "some_column", "", ""
@@ -576,11 +585,13 @@ def test_M8_the_palm_ONI_row_reaches_the_RENDERED_BOARD_through_the_PRODUCER(oni
     blk = R.render_board(bd, analogs=ana, watch=ctx["watch"], recency=N.recency_rows(bd, tape_edge=""),
                          age_clauses=ages,
                          anchor_label=", ".join(R.board_label(s) for s in bd.anchor_slugs))
-    oni = [l for l in blk.lines if l.startswith("- [N") and "El Nino on CME palm oil" in l]
+    # RE-BANKED 09-23 FIX ROUND -- CONTRACT C1 identity words (09-23 recon soyoil_palm L2; BUILD_R sec 7 W-1): the SB-1
+    # head names the SERIES first and routes the driver ("..., on CME palm oil (NOAA ONI), read here for El Nino"),
+    # the shifted period prints as "<Month YYYY>", and the effect lag rides the identity.
+    oni = [l for l in blk.lines if l.startswith("- [N") and "on CME palm oil (NOAA ONI), read here for El Nino" in l]
     assert oni, "the palm ONI state row must render"
-    assert "NOAA ONI for 2026-01" in oni[0], "the DATE, after: the producer's own shifted period"
-    assert ("the date above is six months back because that is this market's OWN declared effect lag "
-            "on this series, not a publication delay") in oni[0]
+    assert "anomaly, January 2026, read six months back" in oni[0], "the DATE, after: the producer's own shifted period"
+    assert "read six months back -- the reading whose declared lag lands now" in oni[0]
     assert "the newest knowable reading of the same series is -1.4 degC for 2026-07" in oni[0]
     assert R.classify(oni[0]) == ("SB-1",)
     # MINOR 6: the second figure of a two-sided series keeps the SIGN the level above carries

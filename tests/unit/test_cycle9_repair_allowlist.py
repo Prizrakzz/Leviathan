@@ -110,16 +110,19 @@ def test_gate6_corruption_2_the_boolean_is_never_spliced_into_a_degC_slot():
     r5 one -- strip the mis-citing [N2], leave the corroborated figure standing.
     Forced past that, `_num_repair` refuses on clause (a) (two handle tokens in the slot, one of them
     grouped) and on clause (b) (the source class is `flag`, which may never source a repair)."""
-    assert vf._check_number_handle(COV2_SENT, 2, COV2_CALLS) == "number_mismatch"
+    # 09-23 FIX ROUND (lane V) -- AMENDED, OWNER-VISIBLE: [N2] (el_nino_flag = 1) is cited for the WORDS
+    # "firmly in El Nino territory" and binds no figure; 0.98 binds to the group after it, which backs it,
+    # so [N2] is no longer charged (`verify._unbound_handle`) and STAYS. The repair path stays unreachable.
+    assert vf._check_number_handle(COV2_SENT, 2, COV2_CALLS) is None
     assert vf._sibling_backed(COV2_SENT, 2, COV2_CALLS) is True          # clause (a)'s predecessor
     assert vf._num_repair(COV2_SENT, 2, COV2_CALLS) is None
     assert not hasattr(vf, "_call_unit_class")            # CYCLE-10: the class fence is gone entirely
     s = _structured(tldr=COV2_SENT)
     rep = vf.verify_citations(s, [], COV2_CALLS)
     assert "at 1 °C" not in s["tldr"] and "0.98 °C" in s["tldr"]   # the figure survives intact
-    assert "[N2]" not in s["tldr"] and "[N5, N10, N12]" in s["tldr"]      # only the mis-citation goes
+    assert "[N2]" in s["tldr"] and "[N5, N10, N12]" in s["tldr"]
     assert rep["repaired"] == 0 and rep["repairs"] == []
-    assert rep["by_rule"] == {"number_mismatch": 1}
+    assert rep["by_rule"] == {}
 
 
 # ══ FIX 1 -- REPAIR ELIGIBILITY IS AN ALLOWLIST ═════════════════════════════════════════════════════

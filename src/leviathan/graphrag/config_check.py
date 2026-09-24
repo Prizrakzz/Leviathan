@@ -4495,7 +4495,8 @@ def check_state_seam() -> list[str]:
     #       own analysis answers -- and would break clause (xiii)'s "twelve" in the same commit.
     _s7b_cov = ("register_lingo_hits", "register_lingo_rewritten", "register_adjectives_licensed",
                 "register_adjectives_corrected", "register_adjectives_struck",
-                "register_adjectives_unbacked")   # ROUND 4 ruling (4): the counter rides the artifact
+                "register_adjectives_unbacked",   # ROUND 4 ruling (4): the counter rides the artifact
+                "register_lingo_hits_v1")         # 09-23 fix round (OWNER DECISION 8): the v1 count too
     for _k in _s7b_cov:
         if _k in _cov_keys:
             errs.append(f"state_seam: {_k!r} reached seam._COVERAGE_GROUPS -- S7b's register numbers "
@@ -6520,6 +6521,55 @@ def check_dag_registry_schedule(descriptors: dict | None = None,
     return errs
 
 
+# ---------------------------------------------------------------------------------------------------
+# THE 09-23 FIX ROUND, LANE T (CONTRACT C16): THE CHAIN'S SUBJECT SLOT NEEDS THE SUBJECT RESOLVER
+# ---------------------------------------------------------------------------------------------------
+#: The flag whose presence in the arm set makes the chain movement's SUBJECT render slot live, and the
+#: flag that slot reads through. Named once, here, so the check and its message cannot disagree.
+CHAIN_FLAG = "GRAPHRAG_STATE_CHAIN"
+SUBJECT_RESOLVER_FLAG = "GRAPHRAG_SUBJECT_RESOLVER"
+#: OWNER DECISION 1 (the 09-23 threat model): the build default was (b) -- resolver dark, a WARNING --
+#: and the contract made it an ERROR "on the owner's word, in the SAME edit that adds the resolver to
+#: `arm_flags`". THE OWNER RULED (a) ON 2026-09-23 and 08d8dfd4 added GRAPHRAG_SUBJECT_RESOLVER to
+#: `arm_flags` (the "OWNER RULINGS 2026-09-23 ... ratified" block there), before this check existed, so
+#: the promotion lands here, with the check: a base that declares the chain and drops the resolver now
+#: FAILS the build. Set it back to False only on the owner's word reversing decision 1.
+CHAIN_SUBJECT_DEPENDENCY_FATAL = True
+
+
+def check_chain_subject_dependency(base: Optional[dict] = None) -> list[str]:
+    """CONTRACT C16. The S8 chain movement's SUBJECT slot is live only when the turn's board carries a
+    subject, and ``seam._stamp_subject`` writes ``Board.subject`` only when the subject-resolver payload
+    is ON (HEAD ee06f19c seam.py:130, ``if bd is None or not sub.get("on"): return``); the walk's render
+    slot then skips ``subject`` whenever no subject id reached it (HEAD walk.py:3001-3006, the slot's
+    ``live`` term is ``bool(subject_ids)``). MEASURED on the 2026-09-23 re-smoke: slot_subject 0 on 10 of
+    10 turns, because the arm lights ``GRAPHRAG_STATE_CHAIN`` and not ``GRAPHRAG_SUBJECT_RESOLVER``.
+
+    A PURE READ OF THE STORED ARM BASE (``configs/graphrag/arm_env_base.yaml`` ``arm_flags``) -- never of
+    the process environment, the source-text law ``check_state_seam`` states for the same reason: a CI
+    runner with a flag set must not be able to green or red a config lint. ``base`` is an injection seam
+    for the deck. Returns one message when the base declares the chain and not the resolver, ``[]``
+    otherwise (and on an unreadable base, which other checks own)."""
+    if base is None:
+        try:
+            base = _load("arm_env_base.yaml") or {}
+        except Exception:  # noqa: BLE001 -- an unreadable base is not this check's finding
+            return []
+    flags = base.get("arm_flags") if isinstance(base, dict) else None
+    if not isinstance(flags, list):
+        return []
+    declared = {str(f).strip() for f in flags if str(f or "").strip()}
+    if CHAIN_FLAG not in declared or SUBJECT_RESOLVER_FLAG in declared:
+        return []
+    return [f"arm_env_base.yaml arm_flags declares {CHAIN_FLAG} and not {SUBJECT_RESOLVER_FLAG}: the "
+            f"chain's SUBJECT slot is dead on every arm turn -- seam._stamp_subject writes Board.subject "
+            f"only when the resolver payload is on (HEAD seam.py:130) and the walk's render slot skips "
+            f"'subject' with no subject id (HEAD walk.py:3001-3006); the board stamps slot_state "
+            f"'resolver_off'. The owner ruled OWNER DECISION 1 (a) on 2026-09-23 (the resolver joins the "
+            f"arm set): restore {SUBJECT_RESOLVER_FLAG} to arm_flags, or reverse the ruling on the owner's "
+            f"word and set CHAIN_SUBJECT_DEPENDENCY_FATAL = False in the same edit"]
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -6592,6 +6642,18 @@ def main() -> int:
                 print(f"  - {e}")
         else:
             print(f"PASS {label}")
+    # CONTRACT C16 (the 09-23 fix round): the chain's subject slot and the resolver it reads through.
+    # FATAL since the owner's 2026-09-23 ruling on decision 1; a WARNING again only if that is reversed.
+    chain_dep = check_chain_subject_dependency()
+    if chain_dep and CHAIN_SUBJECT_DEPENDENCY_FATAL:
+        failures += len(chain_dep)
+        print("FAIL chain_subject_dependency:")
+        for e in chain_dep:
+            print(f"  - {e}")
+    elif chain_dep:
+        print(f"WARN chain_subject_dependency ({len(chain_dep)} advisory -- non-fatal by OWNER DECISION 1):")
+        for w in chain_dep:
+            print(f"  - {w}")
     # Advisory (non-fatal): topical-token near-misses a human reviews but that never fail the build.
     # Advisory (non-fatal): the SUBJECT RESOLVER's two soft states -- a working tree that never
     # built the vocabulary artifact, and a deck whose stamped vocabulary_hash has drifted.

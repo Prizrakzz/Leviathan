@@ -59,6 +59,24 @@ tables:
     period_sql_type: int                 # market_year is a smallint, e.g. 2023 (= 2023/24 marketing year)
     knowledge_date_col: release_date
     knowledge_semantics: vintage
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    country_axis: reporter          # the REPORTER country's own sheet; no world row (notes above)
+    period_words: marketing_year
+    # FIRST KNOWN -- DOCUMENTATION ONLY; ITS PRESENCE OPTS THE CARD INTO THE PERIOD GAP, ITS NUMBERS
+    # DECIDE NOTHING (09-23 fix round, the verifier's FATAL F1 / the orchestrator's ruling 6). A period
+    # GAP is a fact about the STORE: `feeders.stamp_period_gaps` stamps one (and the walk demotes the row
+    # one band) ONLY where a sibling series of the SAME slug on this card came back from the board's own
+    # as-of-guarded read holding a NEWER marketing year -- never from this calendar pair. WHY: the pair
+    # was a census bound over the slugs whose MY2026 HAD printed (48 slugs in May, 3 in April, 5 in the
+    # December before, the coffee sheets on 2026-07-31), i.e. right-censored on the late printers --
+    # frozen_orange_juice and fresh_citrus first print MY Y on 31 January of Y+1 and held no MY2026 on
+    # 2026-09-24, robusta / arabica printed MY2024 and MY2025 on 12-31 -- so read as a verdict it called
+    # an FCOJ board a year behind in September and the coffee rows behind every August to December. The
+    # pair below stays as the measured record of the USUAL first print (+6 from the label's first day,
+    # read at month end), for a reader, never for the gap. Earlier MYs cannot be read off the store: its
+    # vintage history of MY2024/25 begins 2025-04 / 2026-04, a data docket, not a release fact.
+    period_first_known: {anchor: period_start, offset_months: 6}
     metrics:
       production_mt:         {label: "production", unit: "MT", desc: "production for the marketing year"}
       exports_mt:            {label: "exports", unit: "MT", desc: "exports"}
@@ -75,7 +93,8 @@ tables:
       # beside a WASDE balance sheet, and why the max page's 10.72% could not be reconciled with
       # WASDE's 310 / 4,535 (310 / 0.1072 = 2,892 M bu, which is US domestic use, not total use).
       su_ratio:              {label: "stocks-to-use ratio", unit: "ratio",
-                              desc: "ending stocks divided by DOMESTIC CONSUMPTION for the same country and marketing year -- the producer computes ending_stocks_mt / consumption_mt and nothing else. EXPORTS ARE NOT IN THE DENOMINATOR, so this is stocks-to-DOMESTIC-use and it is NOT the trade's stocks-to-total-use and NOT WASDE's US stocks/use: for a large exporter the two differ by a lot (US ALL-CLASS wheat reads 0.652 here because most US wheat leaves the country and never enters this denominator -- that figure is USDA's all-class US wheat sheet whichever wheat slug keyed it, never soft red winter's own, and quoting it under one class's name is the mislabel this card's notes forbid). It is a FRACTION OF ONE, not a percent -- 0.1072 is 10.7%. SCOPE IS THE COUNTRY AND MARKETING YEAR THE CALL NAMES and nothing wider; no world row is served. Say the basis in the sentence that carries the figure, and never set it beside a WASDE balance sheet in million bushels as if a reader could reconcile the two"}
+                              desc: "ending stocks divided by DOMESTIC CONSUMPTION for the same country and marketing year -- the producer computes ending_stocks_mt / consumption_mt and nothing else. EXPORTS ARE NOT IN THE DENOMINATOR, so this is stocks-to-DOMESTIC-use and it is NOT the trade's stocks-to-total-use and NOT WASDE's US stocks/use: for a large exporter the two differ by a lot (US ALL-CLASS wheat reads 0.652 here because most US wheat leaves the country and never enters this denominator -- that figure is USDA's all-class US wheat sheet whichever wheat slug keyed it, never soft red winter's own, and quoting it under one class's name is the mislabel this card's notes forbid). It is a FRACTION OF ONE, not a percent -- 0.1072 is 10.7%. SCOPE IS THE COUNTRY AND MARKETING YEAR THE CALL NAMES and nothing wider; no world row is served. Say the basis in the sentence that carries the figure, and never set it beside a WASDE balance sheet in million bushels as if a reader could reconcile the two",
+                              basis_words: "ending stocks as a share of domestic use", display_scale: 100, display_unit: "%", display_decimals: 2}
       # W0-2 (projection wave, 2026-08-25): four columns the producer has ALWAYS written, never advertised.
       # Coverage measured on the live object before authoring (the PA-1 law) -- see notes for the spans.
       # RE-AUTHORED 2026-09-04 (the honest-clock re-baseline). The line these four
@@ -281,11 +300,22 @@ tables:
     # silver_wasde Title-Case bug returned ZERO rows for every WASDE lookup for months, so a metric
     # key here is a source string, never a house one. Per-attribute row counts (in-scope, after R4's
     # fan-out) are stated so a later editor can re-derive the admission arithmetic without a re-run.
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    country_axis: reporter
+    period_words: marketing_year
+    # DOCUMENTATION ONLY, exactly as on silver_psd (the verifier's FATAL F1): the presence opts the card
+    # into the store-derived period gap (`feeders.stamp_period_gaps` -- a sibling series of the same slug
+    # held a NEWER marketing year as known at the as-of); the pair records the usual first print (+6 from
+    # the label's first day) and decides no gap -- the attribute sheets' late printers (the coffee and
+    # citrus sheets) make any one table-level pair early for some slug
+    period_first_known: {anchor: period_start, offset_months: 6}
     metrics:
       # -- T1, the ranked payload: 742,057 rows, EXACTLY the D-6 admission number ------------------
       "Crush":                  {label: "crush", unit: "1000 MT", desc: "oilseed volume crushed for meal and oil -- 71,551 rows, 21 commodities, MY1960-2026. The estate's ONLY physical crush VOLUME; gold_board_crush is a Chicago MARGIN in $/bu and answers a different question"}
       "Feed Dom. Consumption":  {label: "feed use", unit: "1000 MT", desc: "domestic feed consumption -- 84,759 rows, 8 commodities, MY1960-2026"}
-      "FSI Consumption":        {label: "food, seed and industrial use", unit: "1000 MT", desc: "food/seed/industrial consumption, the non-feed half of the split -- 84,759 rows, 8 commodities, MY1960-2026"}
+      "FSI Consumption":        {label: "food, seed and industrial use", unit: "1000 MT", desc: "food/seed/industrial consumption, the non-feed half of the split -- 84,759 rows, 8 commodities, MY1960-2026",
+                              basis_words: "food, seed and industrial use -- any ethanol grind is inside it and is not separable"}
       "Feed Waste Dom. Cons.":  {label: "feed and waste use", unit: "1000 MT", desc: "domestic feed-and-waste consumption (the wider feed line USDA prints for 24 commodities) -- 83,368 rows, MY1960-2026"}
       "Food Use Dom. Cons.":    {label: "food use", unit: "1000 MT", desc: "domestic food consumption -- 83,368 rows, 24 commodities, MY1960-2026"}
       "Industrial Dom. Cons.":  {label: "industrial use", unit: "1000 MT", desc: "domestic industrial consumption -- the corn-ethanol grind lives here; 57,127 rows, 17 commodities, MY1961-2026"}
@@ -454,6 +484,10 @@ tables:
     metric_col: attribute                # the metric NAME lives here (e.g. 'Ending Stocks')
     value_col: estimate
     unit_col: unit
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    provenance_kind: role           # estimate_role IS a vintage role: actual / estimate / projection
+    period_words: marketing_year
     metrics:
       # FIXED 2026-07-05: the silver data stores snake_case attributes (ending_stocks, production, ...).
       # The previous Title-Case names ('Ending Stocks', 'Total Use') matched ZERO rows — every WASDE lookup
@@ -857,6 +891,11 @@ tables:
     # commodity partition equality prunes every query to that slug's files either way (~10MB/vintage).
     athena_table: silver_esr_compact
     partition_cols: [commodity]
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    country_axis: destination       # the axis enumerates BUYERS of one national flow (country_axis_is_destination)
+    axis_national: sum              # 'OMIT country for the national total across all destinations' (description)
+    period_words: week              # the OBSERVATION grain (the query period stays the marketing year)
     metrics:
       weekly_exports_1000mt:    {label: "weekly exports", unit: "1000 MT", desc: "actual shipments in the week"}
       outstanding_sales_1000mt: {label: "outstanding sales", unit: "1000 MT", desc: "unshipped sales on the books"}
@@ -891,6 +930,9 @@ tables:
     period_type: date
     date_col: date
     knowledge_semantics: data_date
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    period_words: day
     metrics:
       # V2-3 fix pass: the three incumbents carried "(FRED)" while all eleven FX-1/FX-3 crosses below
       # carry "(ECB via Frankfurter)" and display_names.yaml labels the table "ECB reference rates".
@@ -979,6 +1021,10 @@ tables:
     #                               2026-09-05, three days before the seat watched it NOT exist; the first
     #                               landing's 15 would admit it from 2026-09-15. Both leak. Pinned in
     #                               tests/unit/test_state_registry_ym_lag.py.
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    country_axis: global            # a Pacific index: no country is its scope
+    period_words: month
     metrics:
       oni_anom:     {label: "ONI anomaly", unit: "degC", desc: "ONI 3-month SST anomaly (>= +0.5 El Nino, <= -0.5 La Nina)"}
       oni_lag3:     {label: "ONI (3-month lag)", unit: "degC", desc: "ONI lagged 3 months"}
@@ -1041,6 +1087,10 @@ tables:
     #                               the +/-0.4 degC convention, and a DIFFERENT product from this series --
     #                               returned HTTP 403 on every path in the design's delta pass (item B4.2),
     #                               so no publisher read stands behind this number yet.
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    country_axis: global            # an Indian Ocean index: no country is its scope
+    period_words: month
     metrics:
       dmi_value:          {label: "IOD dipole index", unit: "degC", desc: "IOD Dipole Mode Index, monthly SST-gradient anomaly (positive = positive IOD)"}
       iod_dmi_3month_avg: {label: "IOD dipole index 3-month average", unit: "degC", desc: "DMI 3-month running mean (seasonal IOD signal)"}
@@ -1134,6 +1184,12 @@ tables:
     #                               by silence.
     metric_col: metric                    # tall: the metric NAME lives here
     value_col: value                      # tall: the z-score / flag value lives here
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    country_axis: region_cell       # one growing CELL / basin / member-country surface per row (grain above)
+    cell_noun: ["growing cell", "growing cells"]   # the card's own noun for one row (fix round: declared, not typed)
+    axis_national: none             # a cell is a cell: the board names the cell or reads a declared mean
+    period_words: month
     metrics:
       # THE CHIRPS OVERRIDE (2026-09-11, CORRECTED the same day). CHIRPS v2.0 FINAL does not publish
       # daily: it publishes the whole month AS A BLOCK. MEASURED by HTTP HEAD against
@@ -1219,7 +1275,7 @@ tables:
       # reload because the producer, the card and the mirror must ship as one change; the honest
       # carry is to NAME the window, not to leave the metric undeclared while rows exist for it.
       drought_z_is_preliminary:     {label: "drought reading is preliminary", unit: "0/1", desc: "1 if ANY day of that month's CHIRPS precipitation was read from the PRELIM product rather than the authoritative FINAL block, so the drought_z beside it will be RECOMPUTED when the final lands (any prelim day makes the month preliminary; only ALL final days make it final)", ym_publication_lag_days: 25}
-      drought_z_preliminary_share:  {label: "share of basin cells on preliminary data", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells whose drought_z that month was built from PRELIM CHIRPS days (0-1; the flag renamed at aggregate grain so a fraction is never misread as a flag)", ym_publication_lag_days: 25}
+      drought_z_preliminary_share:  {label: "share of basin cells on preliminary data", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells whose drought_z that month was built from PRELIM CHIRPS days (0-1; the flag renamed at aggregate grain so a fraction is never misread as a flag)", ym_publication_lag_days: 25}
       drought_z_is_preliminary_cells: {label: "member cells behind the preliminary stamp", unit: "cells", desc: "count of member grid cells contributing to this basin or member-country preliminary share that month", ym_publication_lag_days: 25}
       # -- AGGREGATE rows only (GN-2 W1.1 + W-2/W-3/W-4, 2026-08-25; weather_z._basin_rows): rows whose
       # country is a BASIN surface ('West Africa', 'EU Belt', 'SE Asia Palm Belt', 'Northern Plains')
@@ -1231,11 +1287,11 @@ tables:
       # as % via the sanctioned scale knob (the su_ratio ratio-normalizer precedent), so the narration
       # quotes "18.2 %" while the pg row keeps 0.1818 -- figures in analyst units, always beside the
       # plain-language framing, never one without the other (owner's word 2026-08-22).
-      drought_z_tail_share:     {label: "share of basin cells in drought-z tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma drought_z that month (0-1)", ym_publication_lag_days: 25}   # CHIRPS block: the stem's own lag (registry.check_metric_lags clause 4)
-      heat_stress_z_tail_share: {label: "share of basin cells in heat-stress tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma heat_stress_z that month (0-1)", ym_publication_lag_days: 5}
-      gdd_z_tail_share:         {label: "share of basin cells in GDD tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma gdd_z that month (0-1)", ym_publication_lag_days: 5}
-      tmax_anomaly_tail_share:  {label: "share of basin cells in max-temperature tail", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells at or beyond +2 sigma tmax_anomaly that month (0-1)", ym_publication_lag_days: 5}
-      frost_event_share:        {label: "share of basin cells with frost", unit: "share of basin cells", desc: "share of the basin's (or member country's) cells whose monthly minimum fell below the frost threshold (0-1; the flag renamed at aggregate grain so a fraction is never misread as a flag)", ym_publication_lag_days: 5}
+      drought_z_tail_share:     {label: "share of basin cells in drought-z tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma drought_z that month (0-1)", ym_publication_lag_days: 25}   # CHIRPS block: the stem's own lag (registry.check_metric_lags clause 4)
+      heat_stress_z_tail_share: {label: "share of basin cells in heat-stress tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma heat_stress_z that month (0-1)", ym_publication_lag_days: 5}
+      gdd_z_tail_share:         {label: "share of basin cells in GDD tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma gdd_z that month (0-1)", ym_publication_lag_days: 5}
+      tmax_anomaly_tail_share:  {label: "share of basin cells in max-temperature tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma tmax_anomaly that month (0-1)", ym_publication_lag_days: 5}
+      frost_event_share:        {label: "share of basin cells with frost", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells whose monthly minimum fell below the frost threshold (0-1; the flag renamed at aggregate grain so a fraction is never misread as a flag)", ym_publication_lag_days: 5}
       # -- <metric>_cells (W-3, the fidelity guard that ships WITH the basins): how many member cells the
       # aggregate row above was built from, at BOTH grains. Integer counts stored as floats. The
       # >=2-member-countries test runs on the WHOLE commodity frame across ALL metrics, but the sources
@@ -1290,6 +1346,18 @@ tables:
     knowledge_semantics: vintage
     publication_lag_days: 0             # latest_release_date IS the publication event
     grain_cols: [cocoa_year]            # one row per year already; vintage guard just withholds future releases
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    country_axis: global            # the WORLD cocoa balance sheet
+    period_words: crop_season       # the ICCO cocoa year '2024/25' (Oct-Sep), never a USDA marketing year
+    # FIRST KNOWN -- DOCUMENTATION ONLY (the verifier's FATAL F1): the presence opts the card into the
+    # store-derived period gap (`feeders.stamp_period_gaps` stamps one only where another series of this
+    # table on the same board came back holding a NEWER season as known at the as-of); the pair records
+    # the measured first print and decides nothing: the end of May two calendar years after the season
+    # opens, read from the label's LAST day ('2024/25' spans 2024-01-01..2025-12-31) -- 2024/25 was
+    # released 2026-05-29, 2023/24 on 2025-05-30 (silver/icco_cocoa part-000, read-only). The card is
+    # wide (one row per season carries every metric), so its series hold one newest season together.
+    period_first_known: {anchor: period_end, offset_months: 5}
     metrics:
       production_kt:  {label: "production", unit: "1000 MT", desc: "world cocoa production (thousand tonnes)"}
       grindings_kt:   {label: "grindings", unit: "1000 MT", desc: "world cocoa grindings = world use (thousand tonnes)"}
@@ -1318,12 +1386,16 @@ tables:
     knowledge_semantics: data_date
     knowledge_date_col: date
     publication_lag_days: 43            # D1: conservative fixed lag -- see calibration
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    period_words: month
     metrics:
       production_cpo_mt:          {label: "production crude palm oil", unit: "MT", desc: "crude palm oil production in the month"}
       closing_stocks_palm_oil_mt: {label: "palm oil closing stocks", unit: "MT", desc: "end-of-month palm oil stocks"}
       exports_palm_oil_mt:        {label: "exports palm oil", unit: "MT", desc: "palm oil exports in the month"}
       imports_palm_oil_mt:        {label: "imports palm oil", unit: "MT", desc: "palm oil imports in the month"}
-      su_ratio:                   {label: "months of export cover", unit: "ratio", desc: "MONTHLY months of export cover: closing stocks divided by THAT MONTH'S exports. It is NOT a stocks-to-use ratio and NOT a percentage -- 1.89 means stocks cover about 1.9 months of exports at the current rate, where a stocks-to-use ratio of 1.89 would mean 1.89 percent of a year's use. THE UNIT TOKEN ON THIS ROW IS STILL 'ratio' BECAUSE THAT IS THE SOURCE COLUMN'S OWN DECLARED UNIT; the quantity is MONTHS, so quote it in months ('stocks cover about 1.9 months of exports') and never print the bare token as if it were the unit of the figure. NEVER set it beside the PSD annual stocks-to-use (or silver_icco_cocoa's) as the same quantity"}
+      su_ratio:                   {label: "months of export cover", unit: "ratio", desc: "MONTHLY months of export cover: closing stocks divided by THAT MONTH'S exports. It is NOT a stocks-to-use ratio and NOT a percentage -- 1.89 means stocks cover about 1.9 months of exports at the current rate, where a stocks-to-use ratio of 1.89 would mean 1.89 percent of a year's use. THE UNIT TOKEN ON THIS ROW IS STILL 'ratio' BECAUSE THAT IS THE SOURCE COLUMN'S OWN DECLARED UNIT; the quantity is MONTHS, so quote it in months ('stocks cover about 1.9 months of exports') and never print the bare token as if it were the unit of the figure. NEVER set it beside the PSD annual stocks-to-use (or silver_icco_cocoa's) as the same quantity",
+                              display_scale: 1, display_unit: "months of export cover", display_decimals: 2}
     notes: >
       commodity = malaysian_crude_palm_oil_cme (the only value). date is the DATA month stamped
       first-of-month; window with period_start/period_end 'YYYY-MM-DD' or agg=latest for the newest
@@ -2049,6 +2121,9 @@ tables:
     publication_lag_days: 2             # Sunday week-end -> Monday ~16:00 ET release; +2 never leaks
     partition_cols: [commodity, year]   # projected; commodity via the commodity filter, year via bounds
     year_col: year                      # sargable year bounds prune the projection (never an equality)
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    period_words: week
     metrics:
       pct_good_excellent: {label: "% rated good-to-excellent", unit: "pct of acreage", desc: "percent of the crop rated GOOD or EXCELLENT that week (the condition headline; higher = better crop)"}
       pct_poor_very_poor: {label: "% rated poor-to-very-poor", unit: "pct of acreage", desc: "percent of the crop rated POOR or VERY POOR that week (the stress tail; it is NOT 100 minus good/excellent -- the fair category sits between them)"}
@@ -2339,6 +2414,11 @@ tables:
     # so the first four span one commodity price / one fertilizer / one energy / one z-score for free
     # coverage. Every key is verified against configs/silver/tables/silver_pink_sheet.yaml (never invented;
     # the physical energy column is brent_crude_usd_bbl, not "brent_usd_bbl").
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    provenance_kind: release_stamp  # latest_release_ym is the WB RELEASE stamp, never a vintage role
+    country_axis: global            # World Bank WORLD benchmark prices
+    period_words: month
     metrics:
       soybean_oil_usd_t:                    {label: "soybean oil price", unit: "USD/mt", desc: "soybean oil monthly world price average (WB)"}
       urea_usd_mt:                          {label: "urea price", unit: "USD/mt", desc: "urea fertilizer monthly world price average (WB)"}
@@ -2562,6 +2642,9 @@ tables:
     knowledge_date_col: data_date
     publication_lag_days: 195           # measured against WDI lastupdated 2026-07-13 carrying data year 2025
     provenance_col: release_date        # PRE-STEP DERIVED: the WB API `lastupdated` -> alias revision_stamp
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    provenance_kind: release_stamp  # release_date is ONE World Bank release stamped on the whole table
     metrics:
       cpi_yoy_pct:
         label: "CPI year-over-year %"
@@ -2677,6 +2760,9 @@ tables:
     #                                      covers the holiday-Friday slips CFTC batches to the next business day
     #                                      several times a year. Fixed-lag model -- shutdown-era replay is
     #                                      approximate (catch-ups batch-release weeks late); max_lag_days=10 alarms.
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    period_words: week
     metrics:
       open_interest:   {label: "open interest", unit: "contracts", desc: "total open interest across all reportable and nonreportable traders"}
       mm_long:         {label: "managed-money longs", unit: "contracts", desc: "managed-money long positions"}
@@ -2870,6 +2956,9 @@ tables:
     # (query._front_expiry_input_cols raises on drift), so it can never become a second copy of "which
     # method reads which column".
     roll_input_cols: [open_interest, volume]
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    period_words: day               # the trading SESSION; the contract_month column is the delivery month
     metrics:
       # settle-ONLY whitelist: open/high/low/close + volume + open_interest are carried in silver for
       # provenance but are NOT served -- they are NULL by construction on every settle-only source, so a
@@ -2880,6 +2969,10 @@ tables:
       # build. The vocabulary is wide on purpose (ten currencies), which is exactly why it is bound.
       settle:
         label: "settlement price"
+        # 09-23 FIX ROUND (integration F-3): a settle is quoted to its TICK (quarter-cents, half-points),
+        # so the ONE precision producer (render.shown_figure) prints two decimals at every magnitude --
+        # trailing zeros stripped, so an integer settle stays an integer. Never printed in the prompt.
+        display_decimals: 2
         desc: >
           the end-of-day price for a SPECIFIC delivery month on its trading date. ALWAYS cite it together
           with the row's `settle_kind` -- an ICE row is a session close, not an official settlement, and a
@@ -4307,6 +4400,9 @@ tables:
     knowledge_semantics: data_date
     publication_lag_days: 14            # position date -> bulletin print; see the POINT-IN-TIME note
     provenance_col: source_position_date  # DP-2 -> alias `revision_stamp`: the originating bulletin
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    provenance_kind: source_position   # source_position_date is UNICA's own position date
     metrics:
       cane_crushed_t:       {label: "cane crushed", unit: "MT", desc: "sugarcane crushed in that region SINCE THE SEASON OPENED, cumulative metric tonnes (not the fortnight's own crush)"}
       sugar_produced_t:     {label: "sugar produced", unit: "MT", desc: "sugar produced season-to-date, cumulative metric tonnes"}
@@ -4415,6 +4511,9 @@ tables:
     knowledge_semantics: data_date
     publication_lag_days: 14            # same bulletin, same cadence as the cane card
     provenance_col: source_position_date  # DP-2 -> alias `revision_stamp`
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    provenance_kind: source_position   # source_position_date is UNICA's own position date
     metrics:
       total_quinzenal_kl:     {label: "fortnight ethanol output (total)", unit: "m3", desc: "corn ethanol produced IN THAT FORTNIGHT ALONE, kilolitres (== cubic metres); a FLOW, not cumulative"}
       anhydrous_quinzenal_kl: {label: "fortnight anhydrous output", unit: "m3", desc: "ANHYDROUS corn ethanol in that fortnight alone, kilolitres (a FLOW, not cumulative) -- the gasoline-blending grade"}
@@ -4512,6 +4611,9 @@ tables:
     knowledge_semantics: data_date
     publication_lag_days: 45            # month START -> month end (~30d) -> the following bulletin (~15d)
     provenance_col: source_position_date  # DP-2 -> alias `revision_stamp`
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    provenance_kind: source_position   # source_position_date is UNICA's own position date
     metrics:
       total_current_m3:    {label: "ethanol sales (current month)", unit: "m3", desc: "total ethanol SOLD by Centro-Sul mills in that month, cubic metres (a monthly FLOW; == internal + external where both are printed)"}
       total_prior_m3:      {label: "ethanol sales (prior-year month)", unit: "m3", desc: "the SAME month one year earlier, as printed in the source beside the current figure -- a stored comparator, never recompute it"}
@@ -4645,6 +4747,10 @@ tables:
     # returns THE newest session on or before the as-of, which is the only row it could return and
     # exactly the right answer. Requiring a period here would refuse the most natural question this
     # table exists to answer -- where the crush stands -- to fence a hazard it does not have.
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    provenance_kind: rule_version   # crush_rule_version is the construction rule's version
+    period_words: day
     metrics:
       crush_margin_usd_bu:
         label: "board crush margin"
@@ -4875,6 +4981,10 @@ tables:
     publication_lag_days: 1               # inherited from silver_futures_eod, arithmetic adds no lag
     partition_cols: []                    # flat gold object; projection FORBIDDEN
     provenance_col: spread_rule_version
+    # 09-23 FIX ROUND, LANE T (CONTRACT C10): what ONE ROW of this card IS -- read by the board's row
+    # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
+    provenance_kind: rule_version   # spread_rule_version is the construction rule's version
+    period_words: day
     metrics:
       spread_value:
         label: "front-month spread"
@@ -5065,3 +5175,71 @@ tables:
       between them as a real question (USDA's forecast versus the realised pace) rather than as an error.
       For US export pace use silver_esr (sold) and silver_fgis (inspected and loaded); for the macro
       pressure behind Ukrainian export-restriction risk use silver_food_cpi.
+
+# ======================================================================================================
+# THE SPELLINGS A WRITER'S FIGURE MAY WEAR FOR A DECLARED UNIT (09-23 fix round, CONTRACT C6, review M2).
+# The verifier's unit vocabulary is DERIVED from data: the cards' own `unit` / `unit_overrides` /
+# `display_unit` strings (registry.card_unit_phrases), the rows each sentence cites, the board render's
+# period nouns -- and THIS block, which declares the OTHER spellings of those same units that the cards do
+# not print ("tonnes" for a card's MT, "percent" for its %, "bps", "cwt", the durations' abbreviations).
+# Before this block those spellings were four closed sets hand-typed inside verify.py; they are declared
+# here as DATA, once, so the verifier reads no word list of its own.
+# SHAPE: `unit_spellings` maps a unit to the spellings of THAT unit; each key and its list form ONE
+# equivalence class, which is how the verifier decides "the unit the writer wrote is the unit the row carries"
+# (`verify._unit_equal`; no morphology rule: a plural is declared like any spelling).
+# THE RULE EVERY ENTRY OBEYS (09-23 fix round, the verifier's m2 / LEX-1, proved by
+# fix_round_0923/final1/unit_census.py over the cards, the ten 09-23 payloads' served units and the
+# producers' minted units): (1) a class KEYED BY A PRINTED UNIT (a card, a served row or a producer prints
+# it whole) holds only spellings of EXACTLY that unit -- the same dimension (a quantity is never a price, a
+# currency is never a price per tonne) and the same scale (a base word is never its "1000 ..." / "million
+# ..." phrase); (2) a word the verifier must keep RECOGNISING (HEAD's closed sets, test_verify's superset
+# pin) that is not the same unit as any printed unit it sits inside is its OWN class, keyed by itself, and
+# equals nothing else -- so "5 kg" can never back a row in "1000 60 kg bags", "tons" (printed SHORT on the
+# WASDE row and in "usd/short ton", METRIC in "usd/metric ton") is neither, and "bu" is the bushel, never
+# the price "$/bu". Moving a word between classes moves NO recognised phrase (the extractor's masking and
+# claim spans read the phrase set, which the census proves unchanged); it moves only the equality.
+# `duration_spellings` maps a CALENDAR duration noun to its other spellings (plurals, abbreviations) --
+# the board's OBSERVATION nouns (session, marketing year) are the render's own and are not declared here;
+# `unit_scale_words` are the scale words a writer may put in front of a unit ("622.69 thousand MT").
+# READ ONLY by registry.unit_spellings() / duration_spellings() / unit_scale_words(). NEVER PRINTED and
+# never in the numbers prompt: agent.system_prompt renders the parsed `tables:` cards only (B9 pins the
+# prompt's sha). Normalised on read exactly as card units are (registry.normalise_unit_phrase).
+# ======================================================================================================
+unit_spellings:
+  # (1) keyed by a PRINTED unit -- every member spells exactly that unit
+  "%": ["percent"]                              # "%" cards + rows; "percent" a served row unit
+  "percentage points": ["percentage point", "pp"]   # minted by the producers (cascade delta 'pp', watch)
+  "mt": ["tonne", "tonnes"]                     # the METRIC tonne the cards describe ("metric tonnes")
+  "$/bu": ["usd/bu"]                            # the price; both printed on served rows
+  "million bushels": ["mmbu"]                   # a served row unit ("Million Bushels")
+  "cop per 125 kg carga": ["per 125 kg carga"]  # the price, its currency written before the figure
+  "contracts": ["contract", "lot", "lots"]      # cards + rows
+  "degc": ["deg c"]                             # cards + rows
+  "sigma": ["sigmas"]                           # a served row unit
+  "percentile": ["percentiles"]                 # a served row unit
+  "firings": ["firing"]                         # minted by the render (the chain record's pool scalar)
+  "events": ["event"]                           # minted by the render (a pool scalar)
+  # (2) a recognised word that is NOT the unit it is printed inside -- its own class, equal to nothing else
+  "bushels": ["bushel", "bu"]                   # the QUANTITY inside "Million Bushels" / "$/bu"; never either
+  "cents": ["cent"]                             # the currency inside "US cents/bushel" / "US cents/lb"
+  "tons": ["ton"]                               # printed SHORT and METRIC: never "mt", never a short ton
+  "cwt": []                                     # the quantity inside "$/cwt"; never the price
+  "eur": []                                     # the currency inside "EUR/t"; never the price per tonne
+  "head": []                                    # the base of "1000 head"; never the thousands
+  "kg": []                                      # inside "1000 60 kg bags" / "125 kg carga"; never a bag count
+  "lb": []                                      # inside "1000 480 lb. bales" / "c/lb"; never a bale count
+  "bales": ["bale"]                             # the base of "1000 480 lb. bales"; never the thousands
+  "480 lb bales": ["480 lb bale"]               # the running bale "1000 480 lb. bales" counts in thousands
+  "boxes": []                                   # the base of "1000 boxes"; never the thousands
+  "125 kg carga": []                            # the QUANTITY inside "COP per 125 kg carga"; never the price
+  "points": ["point"]                           # printed only inside "percentage points"; never an index level
+  "basis points": ["bp", "bps"]                 # HEAD's words; no card or row prints them
+  "acres": ["acre"]                             # HEAD's words; the cards print hectares
+duration_spellings:
+  "day": ["days"]
+  "week": ["weeks", "wk"]
+  "month": ["months"]
+  "quarter": ["quarters", "qtr"]
+  "year": ["years", "yr"]
+  "season": ["seasons"]
+unit_scale_words: ["thousand", "million", "billion", "k", "m", "mm", "bn"]

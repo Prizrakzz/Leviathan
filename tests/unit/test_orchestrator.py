@@ -245,3 +245,64 @@ def test_respond_emits_cascade_zeroes_when_dark(monkeypatch):
     orch.respond("q", graph=None)
     assert captured["CascadeFired"] == 0 and captured["CascadeNodes"] == 0
     assert captured["DivergenceNodes"] == 0
+
+
+# == THE 09-23 FIX ROUND, O-1 (OWNER DECISION 9 (b), review WT M-3 (a)) -- THE PAIR-SPREAD GATE ==========
+# The RV pair's spread LEVEL is minted only when GRAPHRAG_STATE_BOARD is lit, and the flag reaches the numbers
+# agent as the omit-when-off `pair_spread` kwarg, on BOTH lanes that call it. The 09-23 quick soyoil/palm turn
+# (intent hybrid) printed palm 1,117 and soyoil 1,638 USD/mt and no spread, because no caller threaded it.
+_RV_Q_0923 = ("Palm oil's supply picture has been shifting. How does that reach soybean oil, and where does "
+              "the balance between the two sheets stand this marketing year?")
+
+
+def _stub_answer(query, *, extra_resolver=None, **kw):
+    extra_resolver()                     # join the numbers thread exactly as synthesis does
+    return {"answer": "", "trace": {}}
+
+
+def test_fix_0923_O1_the_pair_spread_kwarg_rides_both_lanes_only_when_the_board_flag_is_lit(monkeypatch):
+    from leviathan.graphrag import answer as an
+    from leviathan.graphrag.numbers import agent as na
+    seen = []
+    monkeypatch.setattr(na, "answer_numbers", lambda q, asof, **kw: seen.append(kw) or {"answer": "x", "calls": []})
+    monkeypatch.setattr(an, "answer", _stub_answer)
+    monkeypatch.delenv("GRAPHRAG_STATE_BOARD", raising=False)
+    orch.run_numbers_only("q", "2026-09-23")
+    orch.run_hybrid("q", "2026-09-23", graph=None)
+    assert len(seen) == 2 and all("pair_spread" not in kw for kw in seen)     # OMITTED flag-off, never False
+    seen.clear()
+    monkeypatch.setenv("GRAPHRAG_STATE_BOARD", "on")
+    orch.run_numbers_only("q", "2026-09-23")
+    orch.run_hybrid("q", "2026-09-23", graph=None)
+    assert [kw.get("pair_spread") for kw in seen] == [True, True]
+
+
+def test_fix_0923_O1_the_lit_turn_mints_the_0923_spread_and_its_footer_reads_as_words(monkeypatch):
+    """END TO END through the REAL agent, calculator and citation label, on the 09-23 turn's own served
+    rows (Pink Sheet 2026-08-01: palm 1,117, soyoil 1,638 USD/mt; the card declares the unit)."""
+    monkeypatch.delenv("GRAPHRAG_RV_PAIR_SPREAD", raising=False)
+
+    def _leg(metric, tid):
+        return types.SimpleNamespace(type="tool_use", name="lookup_number", id=tid,
+                                     input={"table": "silver_pink_sheet", "metric": metric, "agg": "latest"})
+
+    def _client():
+        return FakeAnthropic([_rs([_leg("palm_oil_cpo_usd_t", "a"), _leg("soybean_oil_usd_t", "b")], "tool_use"),
+                              _rs([_tx("read both legs.")], "end_turn")])
+
+    def _qf(sql):
+        v = "1117.0" if "palm_oil_cpo_usd_t" in sql else "1638.0" if "soybean_oil_usd_t" in sql else None
+        return [{"value": v, "unit": None, "knowledge_date": "2026-08-01"}] if v else []
+
+    monkeypatch.delenv("GRAPHRAG_STATE_BOARD", raising=False)
+    off = orch.run_numbers_only(_RV_Q_0923, "2026-09-23", client=_client(), query_fn=_qf)
+    assert [c["query"]["table"] for c in off["number_calls"]] == ["silver_pink_sheet"] * 2
+    assert "computed statistic" not in off["answer"]
+    monkeypatch.setenv("GRAPHRAG_STATE_BOARD", "on")
+    on = orch.run_numbers_only(_RV_Q_0923, "2026-09-23", client=_client(), query_fn=_qf)
+    (spread,) = [c for c in on["number_calls"] if c["query"]["table"] == "compute_stat"]
+    assert spread["rows"][0]["value"] == -521.0 and spread["stat_provenance"]["stat"] == "pair_level_spread"
+    line = next(ln for ln in on["answer"].splitlines() if "computed statistic" in ln)
+    assert ("computed statistic spread between the two markets world crude palm oil minus world soybean oil "
+            "2026-08-01 = -521 USD/mt") in line, line
+    assert "pair_spread" not in on["answer"] and "MY2026" not in line

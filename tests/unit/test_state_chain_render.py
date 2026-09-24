@@ -50,6 +50,11 @@ _YEAR_RX = re.compile(r"\b(?:19|20)\d{2}\b")
 _YM_RX = re.compile(r"\b\d{4}-\d{2}\b")
 _HANDLE_RX = re.compile(r"\[[NE]\d+\]|\[T\d+\]")
 _GLUED_RX = re.compile(r"(?<=[A-Za-z])\d+")
+#: THE LONG-FORM DAY, exempt by ``verify._claim_number_spans`` rule (d) exactly as an ISO date is by
+#: rule (a) -- the 09-23 chain receipt prints a DAY-precision event as "on 10 March 2025" (CONTRACT.md
+#: C7), so the letters-only bar admits the one form the verifier already reads as a date.
+_LONGDAY_RX = re.compile(r"\b\d{1,2} (?:January|February|March|April|May|June|July|August|September|"
+                         r"October|November|December) (?:19|20)\d{2}\b")
 
 ASOF = H.ASOF
 Q = "what is the situation on soybeans now? how is it looking 3 months from now?"
@@ -222,7 +227,7 @@ def test_a_chain_row_carries_NO_charged_digit_and_cites_the_address_that_minted_
         if R.classify(line)[0] in R.FIGURE_CLASSES or R.classify(line)[0] in R.DATE_ONLY_CLASSES:
             continue
         bare = _GLUED_RX.sub("", _YEAR_RX.sub("", _YM_RX.sub(
-            "", _ISO_RX.sub("", _HANDLE_RX.sub("", line)))))
+            "", _ISO_RX.sub("", _LONGDAY_RX.sub("", _HANDLE_RX.sub("", line))))))
         assert not any(ch.isdigit() for ch in bare), line[:160]
     # ...and every [N] a chain row REFERENCES points at a call the block actually minted.
     refs = [int(m) for line in _chain_lines(blk) if R.classify(line)[0] == "SB-P"
@@ -302,8 +307,10 @@ def test_a_hop_with_NO_measured_row_says_so_in_words_and_the_chain_still_renders
     ch.terms = {"tail": 22.0, "reach": 10, "event": 0, "history": 7.5, "asymmetry": 5,
                 "confidence": 3.0, "lag": 2}
     line = R.sb_chain_hop(ch, 0)
-    assert "no series is served for this hop" in line
-    assert "declared in the same direction onto export pace lag" in line
+    # 09-23 DESK VOCABULARY (CONTRACT.md C13): "link", not "hop", and the edge is what the MODEL expects;
+    # the next hop is named by ITS SERIES (C9), never by its driver id.
+    assert "no series is served at this link" in line
+    assert ("the model expects it to move %s in the same direction" % R.chain_hop_name(hops[1])) in line
     assert R.classify(line) == ("SB-P",) and R.register_hits(line) == []
     assert REG.count_desk_register(line) == 0
 
@@ -318,7 +325,7 @@ def test_an_UNDECLARED_edge_sign_never_reaches_the_page_as_the_charged_fallback(
     ch = _chain([_hop(), _hop(driver_id="soybean_crush_margin")], edge_signs=("", ""))
     ch.terms = {"tail": 22.0}
     line = R.sb_chain_hop(ch, 0)
-    assert "with no direction declared between them" in line
+    assert "with no direction set between them" in line
     assert "the graph" not in line and REG.count_desk_register(line) == 0
 
 
@@ -454,7 +461,7 @@ def test_the_sides_line_says_when_only_one_side_exists_and_names_the_hop_that_ru
     a = _chain([_hop(), _hop(driver_id="soybean_crush_margin")])
     a.side, a.against_hops = "for", ()
     assert "points higher for this market" in R.sb_chain_sides([a])
-    assert "none above the line points the other way" in R.sb_chain_sides([a])
+    assert "no other chain on this page points the other way" in R.sb_chain_sides([a])
     b = _chain([_hop(), _hop(driver_id="psd_ending_stock_su_ratio")])
     b.side, b.against_hops = "against", ("export_pace_lag",)
     both = R.sb_chain_sides([a, b])
@@ -543,8 +550,12 @@ def test_the_receipt_takes_an_OPEN_action_first_then_a_CLOSED_one_then_a_mechani
     # `walk._chain_receipt` already scores on -- so the 2021 action on a 2026 board is NOT choice (2),
     # and it is not silently promoted to choice (3) either: it is STATED, with its own date.
     got = R.chain_receipt(_one([old_ev]), None, asof=ASOF)
-    assert got["kind"] == "none" and got["prop"] is None, got
-    assert "aged out of the window declared for it" in got["words"] and "2021-05-12" in got["words"]
+    # THE AGED DOCUMENT NOW RIDES `prop` (09-23, item 4) so the page can cite it at the turn's own
+    # evidence-menu address; `kind` stays "none", so it still spends NO seat of the chain's own.
+    assert got["kind"] == "none" and got["prop"] is not None, got
+    assert got["prop"]["event_date"] == "2021-05-12" and got["event_kind"] == "action_aged"
+    assert "older than the lag the model allows for it" in got["words"], got["words"]
+    assert "12 May 2021" in got["words"], got["words"]
     near_ev = dict(old_ev, date="2026-08-21", event_date="2026-08-20")
     same = parse_lag("0 quarters")                        # a same-quarter band: closed AND in reach
     inside = _chain([_hop(driver_id="biodiesel_mandate", lag_band=same, receipts_top=(near_ev,),
@@ -560,7 +571,7 @@ def test_the_receipt_takes_an_OPEN_action_first_then_a_CLOSED_one_then_a_mechani
     got = R.chain_receipt(_one([]), None, asof=ASOF)
     assert got["kind"] == "none" and got["words"] == R.CHAIN_NO_RECEIPT
     assert "none exists" not in R.CHAIN_NO_RECEIPT
-    assert "this turn retrieved" in R.CHAIN_NO_RECEIPT
+    assert "retrieved for this answer" in R.CHAIN_NO_RECEIPT
 
 
 def test_an_event_OUTSIDE_the_hops_declared_window_renders_with_the_words_never_deleted():
@@ -587,7 +598,7 @@ def test_an_event_OUTSIDE_the_hops_declared_window_renders_with_the_words_never_
     got = R.chain_receipt(ch, None, asof=ASOF)
     assert got["kind"] == "closed"
     assert R.CHAIN_OUTSIDE_WINDOW in got["words"], got["words"]
-    assert "2026-08-20" in got["words"]
+    assert "20 August 2026" in got["words"], got["words"]
     # ...AND THE AGED ONE IS REFUSED AS A RECEIPT AND STATED AS A FACT, never deleted and never
     # re-labelled as a mechanism report (which it also qualified as, by its publication date).
     h1b = _hop(driver_id="biodiesel_mandate", lag_band=band, receipts_top=(old,),
@@ -596,9 +607,9 @@ def test_an_event_OUTSIDE_the_hops_declared_window_renders_with_the_words_never_
     ch2 = _chain([h0, h1b])
     ch2.receipt_index = 0
     aged = R.chain_receipt(ch2, None, asof=ASOF)
-    assert aged["kind"] == "none" and aged["prop"] is None, aged
-    assert "aged out of the window declared for it" in aged["words"], aged["words"]
-    assert "2021-05-12" in aged["words"] and "mechanism" not in aged["words"]
+    assert aged["kind"] == "none" and aged["prop"] is not None, aged
+    assert "older than the lag the model allows for it" in aged["words"], aged["words"]
+    assert "12 May 2021" in aged["words"] and "mechanism" not in aged["words"]
     row = R.sb_chain_document(aged, aged["hop"])
     assert R.classify(row) == ("SB-P",) and R.register_hits(row) == []
 
@@ -650,18 +661,20 @@ def test_S8R5_the_AGED_document_row_names_the_HOP_THE_DOCUMENT_SITS_ON():
            "text": "the authority suspended the export licence for the season"}
     doc_hop = _hop(driver_id="La_Nina", lag_band=parse_lag("1-2 quarters"), receipts_top=(old,),
                    event_receipt=dict(old), event_date=_AGED_EVENT, event_open=False,
-                   percentile=82.0, tail=0.64)
+                   percentile=82.0, tail=0.64, series_key="oni_climate|_global|")
     receipt_hop = _hop(driver_id="cot_mm_positioning", lag_band=parse_lag("0-1 quarters"),
-                       percentile=94.0, tail=0.88)
+                       percentile=94.0, tail=0.88, series_key="cot_mm_positioning|soybeans_cbot|")
     ch = _chain([doc_hop, receipt_hop])
     ch.receipt_index = 1                                  # the CHAIN's receipt hop is the other one
     assert ch.receipt_hop.driver_id == "cot_mm_positioning"
     rp = R.chain_receipt(ch, None, asof=ASOF)
-    assert rp["kind"] == "none" and "aged out of the window declared for it" in rp["words"]
+    assert rp["kind"] == "none" and "older than the lag the model allows for it" in rp["words"]
     assert rp["hop"] is doc_hop, (rp["hop"].driver_id, doc_hop.driver_id)
     row = R.sb_chain_document(rp, rp["hop"])
-    assert "document: at La Nina, a dated action on 2019-01-01, aged out of" in row, row
-    assert "cot mm positioning" not in row, row
+    # THE HOP IS NAMED BY ITS SERIES (09-23, C9) and the date at its own precision (C7).
+    assert ("document: at %s, a dated action on 1 January 2019, older than"
+            % R.chain_hop_name(doc_hop)) in row, row
+    assert R.chain_hop_name(receipt_hop) not in row, row
     assert R.classify(row) == ("SB-P",) and R.register_hits(row) == []
     # AND THE PRODUCER'S OWN PAIR IS READ WHERE IT NAMES THE SAME DOCUMENT (lane W publishes it).
     assert "Chain.aged_receipt_hop" in W.CHAIN_SEAM_FIELDS
@@ -689,26 +702,36 @@ def test_S8R5_ONE_aged_document_prints_ONE_on_the_page_at_the_hop_it_sits_on(gra
     page, rows = blk.text(), {}
     for m in blk.rows_meta:
         rows.setdefault(str(m.get("role") or ""), []).append(str(m.get("line") or ""))
-    assert "aged out of the window declared for it" in page, "the cell must age a document out"
+    assert "older than the lag the model allows for it" in page, "the cell must age a document out"
     # (3) ONE DOCUMENT, ONE COUNT, AND THE NOUN AGREES WITH THE NUMBER.
     pool_sum = sum(int(getattr(c, "receipts_aged_out", 0) or 0) for c in bd.chains)
     assert int(bd.chain_counts["receipts_aged_out"]) == 1, bd.chain_counts["receipts_aged_out"]
     assert pool_sum > 1, ("the per-chain field still counts per chain -- that is its own job",
                           pool_sum)
     count_line = next(x for x in blk.lines if x.startswith(R.CHAIN_HEAD_PREFIX + "COUNT "))
-    assert "one dated action aged out of its window" in count_line, count_line
-    assert "dated actions aged out of their windows" not in count_line, count_line
+    assert "one dated action older than the lag the model allows for it" in count_line, count_line
+    assert "dated actions older than" not in count_line, count_line
     assert len(count_line) <= 550, (len(count_line), count_line)
     # (4) THE ROW NAMES THE HOP THE DOCUMENT SITS ON.
-    aged_rows = [x for x in rows.get("chain_document", ()) if "aged out of" in x]
+    aged_rows = [x for x in rows.get("chain_document", ()) if "older than the lag" in x]
     assert aged_rows, rows.get("chain_document")
-    top = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)[0]
+    # THE RENDERED CHAIN THAT CARRIES THE DOCUMENT'S HOP. Round 5 read the TOP chain, which walked the
+    # document's hop on the fixture it was written against; lane W's 09-23 phase orientation (W-7) moves
+    # the cool-phase chain off the top at a warm ONI reading, so the pin now finds the chain by the fact
+    # it grades -- the hop the document sits on -- and asserts the same three things about it.
+    _ranked = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)
+    top = next((c for c in _ranked if any(
+        str((h.event_receipt or {}).get("event_date") or "")[:10] == _AGED_EVENT for h in c.hops)),
+        _ranked[0])
     on = [h.driver_id for h in top.hops
           if str((h.event_receipt or {}).get("event_date") or "")[:10] == _AGED_EVENT]
     assert on, [h.driver_id for h in top.hops]
-    assert all(("at %s," % R.humanise(on[0])) in x for x in aged_rows), (on, aged_rows)
+    _on_hop = next(h for h in top.hops if h.driver_id == on[0])
+    assert all(("at %s," % R.chain_hop_name(_on_hop)) in x for x in aged_rows), (on, aged_rows)
     if str(top.receipt_hop.driver_id) != on[0]:          # the collision this fixture actually mints
-        assert not any(R.humanise(top.receipt_hop.driver_id) in x for x in aged_rows), aged_rows
+        if R.chain_hop_name(top.receipt_hop) != R.chain_hop_name(_on_hop):
+            assert not any(("at %s," % R.chain_hop_name(top.receipt_hop)) in x
+                           for x in aged_rows), aged_rows
     # (5) AND NO ARITHMETIC ROW CREDITS AN ACTION FOR A DOCUMENT THE SAME PAGE DECLINES.
     assert "%s %s" % (R.CHAIN_TERM_WORDS["event"], R._points_words(6.0)) not in page,         "the walk's mechanism branch is bounded by the same recency rule the render applies"
     assert float((top.terms or {}).get("event") or 0.0) == 0.0, top.terms
@@ -749,13 +772,14 @@ def test_the_outcome_row_mints_ONE_HANDLE_PER_MAGNITUDE_and_classifies_as_SB_O()
     assert R.classify(line) == ("SB-O",), R.classify(line)
     assert len(calls) == 3 and [c["shown"][0] for c in calls] == [2.1, -4.2, 9.8]
     assert "[N7]" in line and "[N8]" in line and "[N9]" in line
-    assert "nine past firings" in line and "six of them the way it is declared" in line
+    assert "nine past times this reading sat this far out" in line, line
+    assert "six of them the way the model expects" in line, line
     assert "the graph" not in line and REG.count_desk_register(line) == 0
     # ...and a chain with NO price over its firings says so rather than going quiet.
     ch.outcome = {"n": 0}
     assert R.sb_chain_outcome(7, ch) == ("", [])
     absent = R.sb_chain_outcome_absent(ch)
-    assert "does not reach those firings" in absent
+    assert "does not reach back to those past times" in absent
     assert R.classify(absent) == ("SB-P",) and REG.count_desk_register(absent) == 0
 
 
@@ -863,3 +887,185 @@ def test_no_chain_line_teaches_the_words_the_desk_register_bans():
         assert REG.count_desk_register(const) == 0, const
         assert R.register_hits(const) == [], const
         const.encode("ascii")
+
+
+# === 09-23 FIX ROUND, LANE R: THE CHAIN'S PAGE WORDS (CONTRACT.md C2, C7, C9, C13) =====================
+def test_R0923_the_history_line_prints_the_TRACES_OWN_FIGURES_in_desk_words():
+    """The page twin of `walk.chain_history_words`: the same five facts, the words a desk uses."""
+    h = {"n_firings": 8, "aligned": 5, "at_odds": 3, "undetermined": 0, "unmeasured": 8}
+    line = R.chain_record_words(h)
+    assert line == ("of the past times this reading sat this far out, eight had a next reading to "
+                    "measure: the next link moved the way the model expects in five and went the other "
+                    "way in three; eight more times no next reading was published inside the lag the "
+                    "model allows"), line
+    assert REG.count_desk_register(line) == 0 and R.register_hits(line) == []
+    # EVERY FIGURE IS THE TRACE'S: the words back-translate to the dict, one number per fact.
+    words = {R.words_for_int(k): k for k in range(0, 200)}
+    assert [words[w] for w in re.findall(r"\b(eight|five|three)\b", line)] == [8, 5, 3, 8]
+    thin = R.chain_record_words({"n_firings": 0, "unmeasured": 14})
+    assert "fourteen times before" in thin and "the record is thin" in thin
+    und = R.chain_record_words({"n_firings": 6, "aligned": 2, "at_odds": 1, "undetermined": 3})
+    assert "went the other way in one and settled no direction in three" in und, und
+    for x in (thin, und, R.chain_record_words({"n_firings": 2, "aligned": 1})):
+        assert REG.count_desk_register(x) == 0 and not re.search(r"\d", x), x
+
+
+def test_R0923_the_chain_PAGE_SENTENCE_is_one_sentence_within_its_limits():
+    """C9 / threat A-3: <= 45 words, <= 3 named nodes, no digit but the [N] handles, clean on every
+    detector and on the EXTENDED desk table; "" when no hop carries a handle."""
+    a = _hop(driver_id="crude_oil", series_key="brent_crude_z|_global|")
+    b = _hop(driver_id="soybean_crush_margin", series_key="cbot_board_crush_margin|_global|")
+    c = _hop(driver_id="psd_ending_stock_su_ratio",
+             series_key="psd_ending_stock_su_ratio|soybeans_cbot|United States")
+    ch = _chain([a, b, c], terminal="soybeans_no_1_dce",
+                agreements=("aligned", "aligned", "undetermined"))
+    handles = {a.key: {"level": 54}, c.key: {"level": 36}}
+    s = R.chain_page_sentence(ch, handles)
+    assert s.startswith("One chain the data carries runs from ") and s.endswith(".")
+    assert len(s.split()) <= R.CHAIN_PAGE_SENTENCE_MAX_WORDS, (len(s.split()), s)
+    # 09-23 FIX ROUND (review RA M1): the hop is named by its OWN ROW IDENTITY, basis included -- "the
+    # stocks-to-use ratio, ending stocks as a share of domestic use, for United States" -- so this chain's
+    # two-hop form runs past the 45-word limit and the producer's own rule drops that node rather than
+    # break the limit (or print the ratio without its basis, the tariff F1 wording the backstop printed)
+    assert "[N54]" in s and "[N36]" not in s and "stocks-to-use ratio for United States" not in s
+    assert not re.search(r"\d", re.sub(r"\[N\d+\]", "", s)), s
+    assert "two of three links" in s
+    assert REG.count_desk_register(s) == 0 and R.register_hits(s) == [] and REG.internal_leaks(s) == []
+    assert R.chain_page_sentence(ch, {}) == ""
+    # ...and where both named hops fit, both are named, each at its own address
+    ch2 = _chain([a, b], terminal="soybeans_no_1_dce", agreements=("aligned", "aligned"))
+    s2 = R.chain_page_sentence(ch2, {a.key: {"level": 54}, b.key: {"level": 36}})
+    assert "[N54]" in s2 and "[N36]" in s2 and len(s2.split()) <= R.CHAIN_PAGE_SENTENCE_MAX_WORDS, s2
+
+
+def test_R0923_the_chain_row_cites_EVERY_figure_at_its_OWN_address_on_the_rendered_fixture(cells):
+    """C2 / D1: a hop line whose words carry a percentile or a peak carries that figure's own handle,
+    minted on the hop's own SB-1 row -- the window peak the 09-23 writer re-digitised and the verifier
+    then cut. Every [N] a chain row cites resolves to a call of the right STAT."""
+    _, blk = cells["on"]
+    stat_of = {i + 1: str((c.get("rows") or [{}])[0].get("stat") or "") for i, c in enumerate(blk.calls)}
+    seen_peak = 0
+    for line in _chain_lines(blk):
+        if not line.startswith(R.CHAIN_SUB_PREFIX) or ": " not in line:
+            continue
+        m = re.search(r"(peaked at|bottomed at) the [a-z -]+ percentile \[N(\d+)\] in ", line)
+        if m:
+            seen_peak += 1
+            assert stat_of.get(int(m.group(2))) == "window_peak_percentile", (line, m.group(2))
+        for pm in re.finditer(r"now the [a-z -]+ \[N(\d+)\]|percentile of its own record \[N(\d+)\]", line):
+            h = int(pm.group(1) or pm.group(2))
+            assert stat_of.get(h) == "percentile", (line, h)
+    assert seen_peak >= 1, "the fixture renders at least one in-transit hop"
+
+
+def test_R0923_a_measured_hop_is_named_by_its_SERIES_never_by_the_driver_that_routes_to_it():
+    """C9: `chain_hop_name` reads the hop's own series key -> the card's declared reader words; an
+    UNMEASURED hop has no series and keeps its driver's display words."""
+    flash = _hop(driver_id="flash_drought", series_key="drought_z|soybeans_cbot|United States")
+    name = R.chain_hop_name(flash)
+    assert name.startswith(R.reading_words("gold_weather_z", "drought_z")), name
+    assert "flash" not in name.lower(), name
+    assert "for United States" in name
+    none = _hop(driver_id="China_import_tariff", measured=False, series_key="")
+    assert R.chain_hop_name(none) == R.humanise("China_import_tariff")
+    names = R.chain_hop_reader_names(flash)
+    assert names[0] == name and R.humanise("flash_drought") in names
+
+
+def test_R0923_the_receipt_words_carry_the_DATE_AT_ITS_PRECISION_and_the_EVENT_KIND():
+    """C7: a year-precision date is "during 2026", never "on 2026-01-01" (cotton FA-5); a forecast is a
+    forecast "-- not an action"; a policy regime is stated as the model's rule and never as a fact."""
+    iv = R._event_interval("2026-01-01", "year")
+    assert R.event_when_words(iv, "year") == "during 2026"
+    assert R.event_when_words(R._event_interval("2026-01-01", "quarter"), "quarter") == \
+        "in the first quarter of 2026"
+    assert R.event_when_words(R._event_interval("2026-01-10", "month"), "month") == "in January 2026"
+    assert R.event_when_words(R._event_interval("2025-03-10", "day"), "day") == "on 10 March 2025"
+    g = R._event_words("guidance", event_date="2026-01-01", precision="year", published="2026-04-03")
+    assert g == "a dated forecast, published 3 April 2026, about 2026 -- not an action", g
+    r = R._event_words("regime_in_force", event_date="2025-03-10", precision="day")
+    assert "the newest dated policy action on this link that this turn retrieved is 10 March 2025" in r
+    assert "the model treats a policy as in force until a later dated action on the same link" in r
+    for x in (g, r):
+        assert REG.count_desk_register(x) == 0 and R.register_hits(x) == []
+
+
+def test_R0923_a_REFUSED_report_cites_the_MENUS_OWN_address_and_only_when_the_menu_holds_it():
+    """Item 4 / threat R-14: one document, one address. A refused report the turn's evidence menu
+    holds prints the MENU's [E]; one the menu does not hold keeps HEAD's no-address row; nothing is
+    minted and no chain seat is spent."""
+    old = {"date": "2005-09-01", "source": "a crude report", "tier": 2, "source_key": "sk-crude-2005",
+           "text": "crude oil prices pushed soybean oil demand for biodiesel"}
+    hop = _hop(driver_id="crude_oil", lag_band=parse_lag("0-2 quarters"), receipts_top=(old,))
+    ch = _chain([hop, _hop(driver_id="soybean_crush_margin")])
+    ch.receipt_index = 0
+    rp = R.chain_receipt(ch, None, asof=ASOF)
+    assert rp["kind"] == "none" and rp["event_kind"] == "report_outside", rp
+    assert rp["prop"]["source_key"] == "sk-crude-2005"
+    # the menu holds it -> the menu's own [E]; the menu does not -> HEAD's no-address row
+    assert R.chain_document_cite(rp, None, {"sk-crude-2005": 7}) == " [E7]"
+    assert R.chain_document_cite(rp, None, {"sk-other": 3}) == ""
+    assert R.chain_document_cite(rp, None, None) == ""
+    # the EVENTS section's own handle still wins where it minted one (HEAD's rule, unchanged)
+    assert R.chain_document_cite(rp, 4, {"sk-crude-2005": 7}) == " [E4]"
+    row = R.sb_chain_document(rp, rp["hop"], cite_e=R.chain_document_cite(rp, None,
+                                                                          {"sk-crude-2005": 7}))
+    assert row.endswith("[E7].") and "outside the lag the model allows for it" in row, row
+    assert R.classify(row) == ("SB-P",) and REG.count_desk_register(row) == 0
+    assert "evidence_ordinals" in str(inspect.signature(R.render_board))
+    assert "evidence_ordinals" in str(inspect.signature(S.fill_stage2))
+
+
+def test_R0923_an_OFFSET_hop_cites_the_LAGGED_reading_AND_the_NEWEST_one():
+    """THREAT_MODEL R-16: the palm board reads ONI at its declared six-month effect offset, and the chain
+    hop on that row must never present the lagged reading as the current phase. The hop says "read six
+    months back, the reading whose lag lands now" and cites the NEWEST reading's own handle beside the
+    lagged one's. The fixture producer runs only the transform half (no newest reading), so the served
+    producer's `recency["current_level"]` is supplied here the way `feeders.series_state` stamps it."""
+    import types as _t
+    from leviathan.graphrag import graph as _G
+    from leviathan.graphrag.state import __main__ as _H
+    from leviathan.graphrag.state import seam as _S
+    base = _H.fixture_state_fn(_H.ASOF)
+
+    def fn(ref, node):
+        st, reads = base(ref, node)
+        if st is not None and R._offset_applied(st):
+            st.recency = dict(st.recency or {}, current_level=1.8, current_level_date="2026-08",
+                              current_knowledge_date="2026-09-05")
+        return st, reads
+
+    g = _G.CausalGraph(_G.load_contracts(), silver=set(), version="harness")
+    sg = _t.SimpleNamespace(seeds=["malaysian_crude_palm_oil_cme"], nodes=[], trace={})
+    bd = _S.fill_stage1(graph=g, sg=sg, asof=_H.ASOF, mode="deep", query="where does palm oil stand now?",
+                        state_fn=fn, named=("malaysian_crude_palm_oil_cme",))
+    got = _S.fill_stage2(bd, graph=g, sg=sg, state_fn=fn, state_chain=True)
+    calls = list(bd.calls or ())
+    hops = [x for x in got["block"].split("\n") if x.startswith("  chain ") and "months back" in x]
+    assert hops, "the palm board renders a chain hop on its offset ONI row"
+    for x in hops:
+        m = re.search(r"with the newest reading at \[N(\d+)\]", x)
+        assert m, x[:300]
+        c = calls[int(m.group(1)) - 1]
+        assert c["rows"][0].get("stat") == "current_level", c
+        lvl = re.search(r"^  chain [^\[]+\[N(\d+)\]", x)
+        assert lvl and calls[int(lvl.group(1)) - 1]["rows"][0].get("offset_months") == 6, x[:200]
+
+
+def test_fix_0923_RA_M1_the_hop_name_IS_the_rows_series_identity_basis_and_cell_rule_included():
+    """09-23 FIX ROUND, review RA M1: one row reads ONE thing on its SB-1 line and on every chain line that
+    cites it. The hop's printed name is its own row identity minus the date (`RowIdentity.series_words`):
+    the card's BASIS rides it, and the read's CELL RULE rides it through the collapse the walk stamps on the
+    hop (`ChainHop.collapse`) -- a single region cell is "one ... growing cell", a mean over cells says so,
+    and a hop with no stamped collapse (a trace replay) prints the scope alone, never a guessed cell."""
+    su = _hop(driver_id="psd_ending_stock_su_ratio",
+              series_key="psd_ending_stock_su_ratio|soybeans_cbot|United States")
+    assert R.chain_hop_name(su) == ("the stocks-to-use ratio, ending stocks as a share of domestic use, "
+                                    "for United States")
+    for collapse, tail in ((None, ", for United States"), ("", ", for one United States growing cell"),
+                           ("mean", ", for the mean over the United States growing cells")):
+        h = _hop(driver_id="us_drought", series_key="drought_z|soybeans_cbot|United States", collapse=collapse)
+        name = R.chain_hop_name(h)
+        assert name.endswith(tail), (collapse, name)
+        ident = R._hop_identity(h.contract, h.driver_id, h.series_key, R._hop_collapse(h))
+        assert name == ident.series_words()

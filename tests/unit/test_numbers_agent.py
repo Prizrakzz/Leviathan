@@ -619,20 +619,25 @@ def test_two_markets_are_recognised_from_the_questions_own_words():
     assert A.rv_pair_scope("") is None
 
 
-def test_two_single_date_reads_are_stamped_uncomputed_and_deny_the_reader_nothing(monkeypatch):
+def test_two_single_date_reads_mint_the_spread_LEVEL_and_deny_the_reader_nothing(monkeypatch):
     """THE SMOKE'S OWN SHAPE. The page printed palm 1,117 and soyoil 1,638 USD/mt from one source and
     month and then said "the gap itself is not a served series". Two `agg='latest'` reads are ONE joined
-    observation apiece, so `stats.pair_spread` refuses at its own floor -- and the turn records the miss
-    instead of denying anything to the reader."""
+    observation apiece, so `stats.pair_spread` refuses at its own HISTORY floor.
+    RE-BANKED (09-23 fix round, lane T, D5): one shared observation is exactly what a spread LEVEL needs,
+    so `stats.pair_level_spread` takes it -- 1,117 - 1,638 = -521 USD/mt (palm named first) -- and the
+    turn mints it as a citable row instead of recording a miss. Still no refusal, preface or deletion."""
     monkeypatch.setenv("GRAPHRAG_RV_PAIR_SPREAD", "on")
     out = A.answer_numbers(_RV_Q, asof="2026-09-16", client=_two_leg_client("latest"),
                            query_fn=_two_leg_query_fn([1117.0], [1638.0]))
-    stamp = out[A.RV_PAIR_UNCOMPUTED_KEY]
-    assert stamp["markets"] == ["malaysian_crude_palm_oil_cme", "soybean_oil_cbot"]
-    assert "2 shared observations" in stamp["reason"]
+    assert A.RV_PAIR_UNCOMPUTED_KEY not in out
+    assert out["rv_pair_spread"] == {"legs": 1, "markets": ["malaysian_crude_palm_oil_cme",
+                                                            "soybean_oil_cbot"]}
     assert out["answer"] == "read both legs."          # NOT a refusal, NOT a preface, NOT a deletion
-    assert "rv_pair_spread" not in out
-    assert all(c["query"]["table"] == "silver_pink_sheet" for c in out["calls"])
+    minted = [c for c in out["calls"] if c["query"]["table"] == A.STATS_TOOL_NAME]
+    assert [c["query"]["metric"] for c in minted] == ["pair_spread"]      # a level: no rank is minted
+    row = minted[0]["rows"][0]
+    assert (row["value"], row["unit"], row["data_date"]) == (-521.0, "USD/mt", "2026-01-01")
+    assert minted[0]["stat_provenance"]["stat"] == "pair_level_spread"
 
 
 def test_two_series_reads_mint_the_spread_and_its_rank_as_observed_rows(monkeypatch):
@@ -971,9 +976,11 @@ def test_the_motivating_turns_two_price_legs_are_found_and_the_false_record_is_g
     scope = ("malaysian_crude_palm_oil_cme", "soybean_oil_cbot")
     assert [A.rv_leg_market(c, scope) for c in (palm, soy)] == list(scope)
     rows, why = A.rv_pair_spread_legs(scope, [palm, soy])
-    assert rows == []                                                  # still uncomputed...
-    assert "price LEVEL" not in why                                    # ...and NOT for a false reason
-    assert "shared observations" in why                                # the calculator's own sentence
+    # RE-BANKED (09-23, lane T, D5): one shared observation is the spread LEVEL's own shape, so the
+    # calculator (`stats.pair_level_spread`) mints it -- 1,117 - 1,638 = -521 USD/mt, off the CARD's
+    # declared unit (the rows carry none) -- and there is no record to write at all.
+    assert why is None and len(rows) == 1
+    assert (rows[0]["rows"][0]["value"], rows[0]["rows"][0]["unit"]) == (-521.0, "USD/mt")
 
 
 def test_the_card_declares_the_unit_when_the_row_does_not_and_the_spread_then_computes():
@@ -1040,15 +1047,19 @@ def test_every_minted_rv_row_names_both_markets_through_the_real_citation_produc
     rows, why = A.rv_pair_spread_legs(("malaysian_crude_palm_oil_cme", "soybean_oil_cbot"), calls)
     assert why is None and len(rows) == 2
     labels = [cit.from_number(r, i + 1).label for i, r in enumerate(rows)]
+    # RE-BANKED (09-23, lane T, CONTRACT C1's row-identity law): the SUBJECT names the two SERIES the
+    # figure was computed over -- World Bank WORLD benchmarks, in the estate's own declared register
+    # words -- never the two CME/CBOT contracts the question was routed to, which these legs are not.
     for lab in labels:
-        assert "CME palm oil minus CBOT soybean oil" in lab, lab
+        assert "world crude palm oil minus world soybean oil" in lab, lab
         for slug in ("malaysian_crude_palm_oil_cme", "soybean_oil_cbot", "silver_pink_sheet"):
             assert slug not in lab, lab                   # no machine id reaches the reader's page
     assert labels[0].endswith("= -521 USD/mt")
     assert "2026-01-01..2026-08-01" in labels[0]
-    # ONE PRODUCER for the subject: the row carries it too, so a second reader cannot word it twice
+    # the MARKETS the question named still ride the row, as routing, beside the series subject
     assert rows[0]["rows"][0]["pair_markets"] == A.rv_pair_subject(
         ("malaysian_crude_palm_oil_cme", "soybean_oil_cbot")) == "CME palm oil minus CBOT soybean oil"
+    assert rows[0]["query"]["commodity"] == A.rv_pair_series_subject(calls[0], calls[1], None)
     # ...and the MACHINE identity is untouched on the row, exactly as T1-4 requires of a spread
     assert rows[0]["rows"][0]["leg_a"].endswith("palm_oil_cpo_usd_t")
     assert rows[0]["rows"][0]["leg_b"].endswith("soybean_oil_usd_t")
@@ -1212,8 +1223,13 @@ def test_the_psd_su_ratio_card_states_its_denominator_and_the_row_label_carries_
                       "country": "United States", "period": "2026", "asof": "2026-09-06"},
             "rows": [{"value": 0.1072, "unit": "ratio", "knowledge_date": "2026-09-04"}],
             "status": "ok"}
-    assert cit.from_number(call, 1).label.startswith(
-        "USDA PSD stocks-to-use ratio CBOT corn United States MY2026 = ")
+    # RE-BANKED (09-23 fix round, D3 + CONTRACT C10): the card now DECLARES the basis
+    # (`basis_words`, lane T) and the citation label prints it (lane C's pure correction of a label that
+    # omitted it); the marketing year still rides the row label. Asserted on the parts, not the joins,
+    # so the label's own layout stays lane C's.
+    lab = cit.from_number(call, 1).label
+    assert lab.startswith("USDA PSD stocks-to-use ratio") and "CBOT corn United States MY2026 = " in lab
+    assert _load_registry().get("silver_psd").metrics["su_ratio"].basis_words in lab
 
 
 def test_the_psd_country_paragraph_does_not_ask_the_model_to_add_the_countries_up():
@@ -1239,3 +1255,137 @@ def test_the_psd_country_paragraph_does_not_ask_the_model_to_add_the_countries_u
     assert "do not write \"the world balance sheet carries no figure at this as-of\"" in notes
     # the measurement behind (2), re-run: no stat the model can request sums two series
     assert not ({"sum", "total", "aggregate", "share", "ratio"} & set(_ST.STAT_NAMES))
+
+
+# ══ THE 09-23 FIX ROUND, LANE T (D5; OWNER DECISION 9) -- THE PAIR SPREAD ROW, GATED BY A KWARG ══════
+# The measured turns: quick rv_soyoil_palm (palm 1,117 / soyoil 1,638 USD/mt) and quick rv_palm_rapeoil
+# (palm 1,117 / rapeseed oil 1,474 USD/mt), every leg read ONCE for 2026-08-01, and no spread on either
+# page. The caller threads `pair_spread=True` ONLY when the board flag is lit (answer._state_board_on);
+# this module reads no environment for it.
+_T3_PALM_RAPE_Q = ("Set palm oil against rapeseed oil for me -- whose stocks position moved more this year, "
+                   "and how do the two read against each other from here?")
+
+
+def _pink_leg(metric, value, date="2026-08-01"):
+    return {"query": {"table": "silver_pink_sheet", "metric": metric},
+            "rows": [{"value": value, "unit": "", "data_date": date, "knowledge_date": date}], "status": "ok"}
+
+
+def _eod_leg(commodity, value, unit, currency, date="2026-09-21"):
+    return {"query": {"table": "silver_futures_eod", "metric": "settle", "commodity": commodity},
+            "rows": [{"value": value, "unit": unit, "currency": currency, "knowledge_date": date,
+                      "contract_month": "2026-11"}], "status": "ok"}
+
+
+def test_T3_the_three_measured_pairs_521_357_and_the_refused_one():
+    """soyoil/palm 521 USD/mt; palm/rapeseed oil 357 USD/mt; MATIF EUR/t against palm USD/mt REFUSED
+    and recorded. Every figure is the calculator's (`stats.pair_level_spread`); the sign is the
+    question's own order (palm named first on both measured questions)."""
+    palm, soy, rape = (_pink_leg("palm_oil_cpo_usd_t", 1117.0), _pink_leg("soybean_oil_usd_t", 1638.0),
+                       _pink_leg("rapeseed_oil_usd_t", 1474.0))
+    rows, why = A.rv_pair_spread_legs(A.rv_pair_scope(_RV_Q), [palm, soy])
+    assert why is None and rows[0]["rows"][0]["value"] == -521.0
+    assert rows[0]["query"]["commodity"] == "world crude palm oil minus world soybean oil"
+    matif = _eod_leg("french_rapeseed_matif", 552.0, "EUR/t", "EUR")
+    scope = A.rv_pair_scope(_T3_PALM_RAPE_Q)
+    assert scope == ("malaysian_crude_palm_oil_cme", "rapeseed_oil_zce")
+    rows, why = A.rv_pair_spread_legs(scope, [palm, rape, matif])
+    assert why is None and rows[0]["rows"][0]["value"] == -357.0
+    assert rows[0]["query"]["commodity"] == "world crude palm oil minus world rapeseed oil"
+    assert rows[0]["rows"][0]["leg_b"].endswith("rapeseed_oil_usd_t")      # the MATIF leg is not a leg
+    # MATIF rapeseed in EUR/t against palm in USD/mt: refused by the calculator, recorded, never converted
+    rows, why = A.rv_pair_spread_legs(("malaysian_crude_palm_oil_cme", "french_rapeseed_matif"),
+                                      [palm, matif])
+    assert rows == [] and "currenc" in why
+
+
+def test_the_pair_spread_kwarg_arms_the_leg_without_the_env_and_the_prompt_never_moves(monkeypatch):
+    """OWNER DECISION 9 (b): minted only when the board flag is lit, and the flag reaches this module as
+    a KWARG. Default False: the turn takes no branch and writes no key (byte-identical). True: the leg
+    runs and the level is minted. The SYSTEM BLOCK sent to the model is the same string both ways --
+    the kwarg never reaches `system_prompt` (the 255 kB cached numbers prefix)."""
+    monkeypatch.delenv("GRAPHRAG_RV_PAIR_SPREAD", raising=False)
+    off_client, on_client = _two_leg_client("latest"), _two_leg_client("latest")
+    off = A.answer_numbers(_RV_Q, asof="2026-09-16", client=off_client,
+                           query_fn=_two_leg_query_fn([1117.0], [1638.0]))
+    on = A.answer_numbers(_RV_Q, asof="2026-09-16", client=on_client, pair_spread=True,
+                          query_fn=_two_leg_query_fn([1117.0], [1638.0]))
+    assert "rv_pair_spread" not in off and A.RV_PAIR_UNCOMPUTED_KEY not in off
+    assert [c["query"]["table"] for c in off["calls"]] == ["silver_pink_sheet"] * 2
+    assert on["rv_pair_spread"]["legs"] == 1
+    assert on["calls"][-1]["rows"][0]["value"] == -521.0
+    assert off_client.sent[0]["system"] == on_client.sent[0]["system"]
+    assert off_client.sent[0]["tools"] == on_client.sent[0]["tools"]
+
+
+def test_the_pair_spread_kwarg_is_a_no_op_on_a_one_market_question():
+    out = A.answer_numbers("What is the palm oil price?", asof="2026-09-16", pair_spread=True,
+                           client=FakeClient([_resp_u([_tool_use(_pink("palm_oil_cpo_usd_t", "latest"))],
+                                                      "tool_use"),
+                                              _resp_u([_text("ok")], "end_turn")]),
+                           query_fn=lambda sql: _price_rows([1117]))
+    assert "rv_pair_spread" not in out and A.RV_PAIR_UNCOMPUTED_KEY not in out
+
+
+def test_a_leg_series_is_named_by_the_declared_register_and_never_by_the_routed_market():
+    assert A.rv_leg_words(_pink_leg("palm_oil_cpo_usd_t", 1.0)) == "world crude palm oil"
+    assert A.rv_leg_words(_pink_leg("rapeseed_oil_usd_t", 1.0)) == "world rapeseed oil"
+    assert A.rv_leg_words(_eod_leg("soybean_oil_cbot", 1.0, "US cents/lb", "USD")) == \
+        A._reader_words("soybean_oil_cbot")
+    assert A.rv_leg_words({"query": {"table": "no_card", "metric": "x"}}) == ""
+    # a leg the register cannot name falls back to the MARKET subject, never to a machine id
+    unnamed = {"query": {"table": "no_card", "metric": "x"}}
+    assert A.rv_pair_series_subject(unnamed, unnamed, ("malaysian_crude_palm_oil_cme", "soybean_oil_cbot")) \
+        == A.rv_pair_subject(("malaysian_crude_palm_oil_cme", "soybean_oil_cbot"))
+
+
+def test_fix_0923_M3c_the_board_kwarg_arms_the_spread_LEVEL_only_never_the_dark_history_leg():
+    """09-23 FIX ROUND, review WT M-3 (c): OWNER DECISION 9 licenses the pair's spread LEVEL on a board-lit
+    turn and nothing more. With a full shared history served, HEAD's RV leg (behind its own dark flag)
+    mints the history spread AND its percentile rank; `level_only` -- what `answer_numbers` passes when
+    the board kwarg is on and GRAPHRAG_RV_PAIR_SPREAD is not -- mints ONE row: the calculator's level at
+    the newest shared observation, no history read, no rank."""
+    calls = [_leg("silver_pink_sheet", "palm_oil_cpo_usd_t", _R2_PALM, "USD/mt"),
+             _leg("silver_pink_sheet", "soybean_oil_usd_t", _R2_SOY, "USD/mt")]
+    full, why = A.rv_pair_spread_legs(_R2_SCOPE, calls)
+    assert why is None and [r["stat_provenance"]["stat"] for r in full] == ["pair_spread", "pair_spread"]
+    lvl, why = A.rv_pair_spread_legs(_R2_SCOPE, calls, level_only=True)
+    assert why is None and len(lvl) == 1
+    assert lvl[0]["stat_provenance"]["stat"] == "pair_level_spread"
+    assert lvl[0]["rows"][0]["value"] == _R2_SOY[-1] - _R2_PALM[-1] == 521.0
+
+
+def test_fix_0924_MAJOR1_a_CHAINED_stat_through_the_real_agent_prints_HEADs_label_never_a_dated_MY(monkeypatch):
+    """09-24 (VERIFY_FINAL MAJOR-1), the verifier's reachability turn: lookup (L1, a source-carrying series)
+    -> compute_stat extrema on L1 (L2: the CHAINING handle, which carries no source card) -> compute_stat
+    window_change on L2, a stat OF a stat. The numbers MODEL is scripted and no GRAPHRAG flag is set; the
+    agent, the calculator, the handles and the citation label are real. The chained row's only date is its
+    KNOWLEDGE stamp, and the round printed it as a marketing year ("computed statistic change over the
+    window MY2026-09-22 = 20.5 US cents/lb"); HEAD 9bb8d596 printed no period there, and neither does this."""
+    import os
+
+    from leviathan.graphrag import citations as C
+    from leviathan.graphrag.state import __main__ as M
+    for k in [k for k in os.environ if k.startswith("GRAPHRAG_")]:
+        monkeypatch.delenv(k)
+    mirror = M.mirror_query_fn({"silver_futures_eod": M.tape_fixture_rows("soybean_oil_cbot", sessions=6,
+                                                                          last="2026-09-22", base=52.0)})
+
+    def _stat(inp, tid):
+        return types.SimpleNamespace(type="tool_use", name=A.STATS_TOOL_NAME, input=inp, id=tid)
+    client = FakeClient([
+        _resp([_tool_use({"table": "silver_futures_eod", "metric": "settle", "commodity": "soybean_oil_cbot",
+                          "agg": "series"}, "a")], "tool_use"),
+        _resp([_stat({"stat": "extrema", "series_handle": "L1"}, "b")], "tool_use"),
+        _resp([_stat({"stat": "window_change", "series_handle": "L2", "t1": 0, "t2": 1}, "c")], "tool_use"),
+        _resp([_text("done.")], "end_turn")])
+    out = A.answer_numbers("How far apart were the soybean oil high and low this week?", asof="2026-09-23",
+                           client=client, query_fn=lambda sql: mirror(sql) if "futures_eod" in sql else [])
+    calls = out["calls"]
+    assert [c["query"]["metric"] for c in calls] == ["settle", "extrema_min", "extrema_max", "window_change"]
+    chained = calls[3]
+    assert not chained["rows"][0].get("source_table")               # the chaining handle carries no card
+    cit = C.from_number(chained, 4)
+    assert cit.label == "computed statistic change over the window  = 20.5 US cents/lb (official)", cit.label
+    assert C.printed_period(chained) == ("", None)
+    assert cit.date == "2026-09-22"                                 # the stamp rides [known ...], unmoved

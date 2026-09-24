@@ -761,3 +761,289 @@ def test_no_body_of_this_module_binds_a_local_that_shadows_a_module_level_flag_h
             if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store) and n.id in owned:
                 shadows.append("%s binds %s at line %d" % (fn.name, n.id, n.lineno))
     assert shadows == [], shadows
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-23 FIX ROUND, LANE A -- the orphan prune corrects, the body is served once, the display stamp,
+# the writer-cache instrument. Every case offline; no provider, no pg, no network.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+def _undeclared_case():
+    """The cocoa shape (09-23 F2): three [E] refs the writer cited and never declared, the verifier kept
+    (SOME provided item supported each), plus one declared ref and one ref nothing resolved."""
+    structured = {
+        "tldr": "The buffer rebuilt to 26.4% in 2023/24 [E1] after a 28% stock drop [E7].",
+        "mechanism": "The 1995/96 crop year ended near 45% [E2]. Grind fell [E3]. A stray claim [E9].",
+        "sources": [{"ref": "3", "source": "icco_quarterly", "date": "2025-08-22", "note": ""}]}
+    vreport = {"enabled": True,
+               "resolved": {"3": {"source": "icco_quarterly", "date": "2025-08-22",
+                                  "snippet": "Grindings fell in the third quarter."}},
+               # CONTRACT C15, lane V's key: the item each UNDECLARED ref resolved to, positionally
+               "resolved_undeclared": {
+                   "1": {"source": "icco_quarterly", "date": "2025-05-30", "source_key": "k1",
+                         "snippet": "The stocks-to-grindings ratio stood at 26.4 per cent."},
+                   "E7": {"source": "usda_gain_cocoa", "date": "2025-04-11", "source_key": "k7",
+                          "snippet": "Stocks fell 28 percent to 1.27 million tonnes."},
+                   "2": {"source": "icco_annual", "date": "2024-11-02", "source_key": "k2",
+                         "snippet": "In 1995/96 the ratio ended near 45 per cent."}}}
+    return structured, vreport
+
+
+def test_an_undeclared_ref_the_verifier_resolved_gets_its_row_and_survives_the_prune():
+    """DEFECT 4 (THREAT A-5 / I-7). The prune keeps every [E] the footer answers for, and the footer now
+    answers for the undeclared refs lane V resolved -- ONE walk (`_document_source_rows`) feeds both, so
+    they cannot disagree. The ref NOTHING resolved (E9) is still pruned exactly as at HEAD."""
+    structured, vreport = _undeclared_case()
+    live = an._emitted_evidence_refs(structured, vreport)
+    assert {"1", "2", "3", "7"} <= live and "9" not in live
+    removed = an._prune_orphan_evidence_handles(structured, vreport)
+    assert removed == 1                                            # [E9] only
+    assert "[E1]" in structured["tldr"] and "[E7]" in structured["tldr"]
+    assert "[E2]" in structured["mechanism"] and "[E3]" in structured["mechanism"]
+    assert "[E9]" not in structured["mechanism"]
+    foot = an._cited_sources_block(structured, vreport, [])
+    rows = [ln for ln in foot.splitlines() if ln.startswith("[")]
+    # the ledger's row first, then the resolved-undeclared rows in ascending ref order
+    assert [r.split("]")[0] + "]" for r in rows] == ["[3]", "[1]", "[2]", "[7]"], rows
+    assert "26.4 per cent" in foot and "28 percent" in foot and "45 per cent" in foot
+    # the SEAM footer spells the handle the prose spells, for these rows too
+    seam = an._cited_sources_block(structured, vreport, [], seam_lints=True)
+    assert "[E1]" in seam and "[E7]" in seam and "[E2]" in seam
+
+
+def test_without_the_verifier_key_the_prune_is_HEADs_byte_for_byte():
+    """ABSENT KEY -> nothing appended: a report that carries no `resolved_undeclared` (HEAD's verifier,
+    or a turn with no undeclared ref) prunes the undeclared refs exactly as HEAD did."""
+    structured, vreport = _undeclared_case()
+    vreport.pop("resolved_undeclared")
+    assert an._emitted_evidence_refs(structured, vreport) == {"3"}
+    assert an._prune_orphan_evidence_handles(structured, vreport) == 4
+    assert "[E1]" not in structured["tldr"] and "[E3]" in structured["mechanism"]
+    # a malformed map (a non-[E] ref, an entry that is not a dict) adds nothing
+    s2, v2 = _undeclared_case()
+    v2["resolved_undeclared"] = {"N4": {"source": "x"}, "5": "not a dict"}
+    assert an._emitted_evidence_refs(s2, v2) == {"3"}
+
+
+def test_a_ref_the_ledger_already_emitted_is_never_emitted_twice():
+    structured, vreport = _undeclared_case()
+    vreport["resolved_undeclared"]["3"] = {"source": "other", "date": "2020-01-01", "snippet": "dup"}
+    rows = an._document_source_rows(structured, vreport)
+    assert [r for r, _row in rows].count("3") == 1
+    assert "dup" not in " ".join(row for _r, row in rows)
+
+
+_SPINE_TLDR = (
+    "Your premise checks out: Chinese buying collapsed [N2].\n\n"
+    "## Mechanism\n"
+    "The tariff channel runs through export pace [N66]. A buffer of 10.72% [N54] is thin.\n\n"
+    "## The record\n"
+    "Offtake halved from 27,682 [N10] to 13,370 [N11]. The channel reopened in 2025 [E7].\n\n"
+    "## What to watch\n"
+    "- **Weekly export sales** [N66], next print 24 September 2026.")
+_SPINE_MECH = (
+    "## Mechanism\n\n"
+    "The tariff channel transmits through export pace [N66]. A stocks-to-use ratio at 10.72% [N54] is "
+    "a thin cushion.\n\n"
+    "## The record\n\n"
+    "Offtake halved from 27682 [N10] to 13370 [N11]. The channel reopened in 2025.\n\n"
+    "## What to watch\n\n"
+    "- **Weekly export sales** [N66], next print 24 September 2026.")
+
+
+def test_a_spine_carrying_tldr_serves_the_body_once_and_loses_no_claim():
+    """DEFECT 5 (THREAT A-6), on the tariff turn's own shape: the writer filed the body in the `tldr`
+    field AND wrote it again, paraphrased, in `mechanism`. The TL;DR's lead is kept verbatim; every
+    section sentence whose claims the mechanism already carries leaves; the one sentence whose [E7]
+    receipt the mechanism does NOT carry is MOVED to the end of the mechanism's own `## The record`."""
+    st = {"tldr": _SPINE_TLDR, "mechanism": _SPINE_MECH}
+    before_claims = an._spine_claims(st["tldr"] + " " + st["mechanism"])
+    cen = an._dedup_spine_tldr(st)
+    assert st["tldr"] == "Your premise checks out: Chinese buying collapsed [N2]."
+    assert cen == {"sections": 3, "sentences_removed": 4, "sentences_moved": 1}, cen
+    assert an._spine_claims(st["tldr"] + " " + st["mechanism"]) == before_claims   # 0 claims lost
+    page = st["tldr"] + "\n" + st["mechanism"]
+    for h in ("## Mechanism", "## The record", "## What to watch"):
+        assert page.count(h) == 1, h
+    rec = st["mechanism"].split("## The record")[1].split("## What to watch")[0]
+    assert "[E7]" in rec                                     # moved INTO its own section, never lost
+    # the writer's mechanism is still there, every character in order (insertion only)
+    it = iter(st["mechanism"])
+    assert all(ch in it for ch in _SPINE_MECH)
+    # idempotent: a second run finds no spine in the TL;DR and changes nothing
+    snap = dict(st)
+    assert not any(an._dedup_spine_tldr(st).values()) and st == snap
+
+
+def test_the_spine_dedup_leaves_every_ordinary_tldr_byte_identical():
+    """Nine of the ten 09-23 turns carry no section heading in the TL;DR, and nothing may move on them.
+    A `## ` line the contract does NOT declare is body text and cuts nothing (never "truncate at the
+    first ## "), and a TL;DR that is ONLY spine is left as it is (no empty summary is ever served)."""
+    for tldr in ("Stocks are tight [N1].", "Lead.\n\n## Not a declared heading\nMore [N3].",
+                 "## Mechanism\nOnly spine here [N1]."):
+        st = {"tldr": tldr, "mechanism": _SPINE_MECH}
+        cen = an._dedup_spine_tldr(st)
+        assert st == {"tldr": tldr, "mechanism": _SPINE_MECH} and not any(cen.values()), tldr
+    for bad in (None, {}, {"tldr": 3, "mechanism": "m"}, {"tldr": _SPINE_TLDR, "mechanism": ""}):
+        assert not any(an._dedup_spine_tldr(bad).values())
+
+
+def test_a_spine_section_the_mechanism_lacks_is_moved_whole_with_its_heading():
+    st = {"tldr": "Lead [N1].\n\n## Episodes\n- 2018: offtake halved [N10].",
+          "mechanism": "## Mechanism\n\nChannel [N66]."}
+    cen = an._dedup_spine_tldr(st)
+    assert st["tldr"] == "Lead [N1]." and cen["sentences_moved"] == 1
+    assert st["mechanism"].endswith("## Episodes\n\n- 2018: offtake halved [N10].")
+
+
+_GATE_TLDR = ("Your premise checks out: Chinese buying collapsed [1].\n\n"
+              "## Mechanism\nThe tariff channel runs through export pace [1]. A buffer of 10.72% is thin.\n\n"
+              "## What to watch\n- **Weekly export sales**, next print 24 September 2026.")
+_GATE_MECH = ("## Mechanism\n\nThe tariff channel transmits through export pace [1]. A stocks-to-use ratio at "
+              "10.72% is a thin cushion.\n\n## What to watch\n\n- **Weekly export sales**, next print 24 "
+              "September 2026.")
+
+
+@pytest.mark.parametrize("planner", ["l2", None])
+def test_the_spine_dedup_and_its_key_ride_the_board_flag_on_both_bodies(planner, monkeypatch):
+    """09-24 (VERIFY_FINAL m3): the de-dup is a correction of the TREATMENT cell. Through the REAL answer
+    bodies (`_answer_l2` and the one-hop second synthesis path), a writer whose TL;DR files the body under
+    the contract's own headings: board flag OFF -> the de-dup never runs, the served TL;DR is the writer's
+    (HEAD's body) and `tldr_spine_deduped` is ABSENT from the trace and the record (a control record keeps
+    HEAD's columns always); board flag ON -> the de-dup runs and its census rides both."""
+    from leviathan.graphrag import eval as evl
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[1.0 if "frost" in t.lower() else 0.0] for t in texts])
+    import os
+    for k in [k for k in os.environ if k.startswith("GRAPHRAG_")]:
+        monkeypatch.delenv(k)
+
+    def _call(system, user, *, model, tool):
+        return {"tldr": _GATE_TLDR, "mechanism": _GATE_MECH, "diagram_mermaid": "",
+                "sources": [{"ref": 1, "source": "GAIN", "date": "2021-07-20", "note": "frost"}]}
+    kw = dict(graph=_graph(), asof="2021-08-01", retrieve=_retrieve, call=_call,
+              route_fn=lambda q, gr: ["arabica_coffee"], **({"planner": planner} if planner else {}))
+    off = an.answer("trace how a coffee frost spikes price", **kw)
+    assert "## Mechanism" in off["structured"]["tldr"]                   # served as the writer filed it
+    assert "tldr_spine_deduped" not in off["trace"]
+    rec_off = evl._per_answer_record({"q": {"id": "x"}, "out": off}, "single")
+    assert "tldr_spine_deduped" not in rec_off
+    assert list(rec_off) == list(evl._per_answer_record({"q": {"id": "x"}, "out": {"trace": {}}}, "single"))
+    monkeypatch.setenv("GRAPHRAG_STATE_BOARD", "on")
+    on = an.answer("trace how a coffee frost spikes price", **kw)
+    assert "## Mechanism" not in on["structured"]["tldr"]
+    assert on["trace"]["tldr_spine_deduped"] == {"sections": 2, "sentences_removed": 3, "sentences_moved": 0}
+    assert evl._per_answer_record({"q": {"id": "x"}, "out": on}, "single")["tldr_spine_deduped"] == \
+        on["trace"]["tldr_spine_deduped"]
+
+
+def test_the_display_stamp_copies_and_never_mutates_the_orchestrators_calls():
+    """C3's `display` stamp (defect 7) -- on a COPY: the dicts are shared with the orchestrator's own
+    `number_calls` (the FE product contract), so a stamp that leaked into them would move a surface this
+    lane does not own. Rows, query and every other key are the same objects (R-1's invariant)."""
+    rows = [{"value": 1.2345}]
+    calls = [{"query": {"table": "t", "metric": "m"}, "rows": rows, "status": "ok"}, None]
+    out = an._display_stamped(calls)
+    assert out[0]["display"] == "analyst" and "display" not in calls[0]
+    assert out[0]["rows"] is rows and out[0]["query"] is calls[0]["query"]
+    assert out[1] is None and len(out) == 2                  # the [N] index space never shifts
+    assert an._display_stamped(None) == []
+
+
+def _l2_numbers_turn(monkeypatch, board_flag: bool):
+    gr = _graph()
+    monkeypatch.setattr(ev, "embed", lambda texts, **k: [[1.0 if "frost" in t.lower() else 0.0]
+                                                         for t in texts])
+    if board_flag:
+        monkeypatch.setenv("GRAPHRAG_STATE_BOARD", "on")
+    else:
+        monkeypatch.delenv("GRAPHRAG_STATE_BOARD", raising=False)
+    call0 = {"query": {"table": "silver_psd", "metric": "ending_stocks", "commodity": "arabica_coffee"},
+             "rows": [{"value": 1234.5678, "unit": "1000 MT", "period": "2026"}], "status": "ok"}
+
+    def fake_call(system, user, *, model, tool):
+        return {"tldr": "stocks [N1].", "mechanism": "m", "diagram_mermaid": "", "sources": []}
+
+    def fake_retrieve(q, node, *, k, asof=None, near=None):
+        return [{"date": "2021-07-20", "source": "GAIN", "source_key": f"s3://{node}", "text": "frost"}]
+    out = an.answer("trace how a coffee frost spikes price", graph=gr, planner="l2", asof="2021-08-01",
+                    retrieve=fake_retrieve, call=fake_call, route_fn=lambda q, g_: ["arabica_coffee"],
+                    extra_number_calls=[call0])
+    return out, call0
+
+
+def test_the_display_stamp_rides_the_board_flag_and_nothing_else(monkeypatch):
+    """A-8: flag OFF -> the served call list is the caller's, untouched (no `display` key anywhere);
+    flag ON -> every number call of the turn carries `display = "analyst"`, and the caller's own dict
+    is still unstamped."""
+    off, _c_off = _l2_numbers_turn(monkeypatch, False)
+    assert off["number_calls_full"] and not any("display" in c for c in off["number_calls_full"]
+                                                if isinstance(c, dict))
+    on, c_on = _l2_numbers_turn(monkeypatch, True)
+    assert on["number_calls_full"]
+    assert all(c.get("display") == "analyst" for c in on["number_calls_full"] if isinstance(c, dict))
+    assert "display" not in c_on
+
+
+def test_the_writer_cache_instrument_rides_the_cost_census_and_moves_no_request_byte(monkeypatch):
+    """DEFECT 10 (OWNER DECISION 11): the three prefix sizes ride beside the usage under
+    GRAPHRAG_COST_CENSUS and are ABSENT without it; the request the provider receives is identical in
+    both states -- no breakpoint moves, no block changes."""
+    from types import SimpleNamespace
+
+    from leviathan.graphrag import providers as pv
+    seen: list = []
+
+    def fake_serving_call(client, system, user, *, usage_sink=None, **kw):
+        seen.append((repr(system), repr(user), sorted(kw)))
+        usage_sink.append(SimpleNamespace(input_tokens=10, output_tokens=2, cache_read=0,
+                                          cache_creation=7))
+        return {"tldr": "x"}, None
+    monkeypatch.setattr(pv, "make_client", lambda: object())
+    monkeypatch.setattr(pv, "serving_call", fake_serving_call)
+    monkeypatch.delenv("GRAPHRAG_SYNTH_THINKING", raising=False)
+    monkeypatch.delenv("GRAPHRAG_COST_CENSUS", raising=False)
+    off = an._call_opus("SYS", ("STABLE-PART", "VOLATILE"), model="claude-opus-5", tool={"name": "t"})
+    assert set(off["_usage"]) == {"model", "in", "out", "cache_read", "cache_write"}
+    monkeypatch.setenv("GRAPHRAG_COST_CENSUS", "on")
+    on = an._call_opus("SYS", ("STABLE-PART", "VOLATILE"), model="claude-opus-5", tool={"name": "t"})
+    assert on["_usage"]["prefix_chars"] == {"system": 3, "stable": 11, "volatile": 8}
+    assert seen[0] == seen[1]                                # the request is byte-identical either way
+    plain = an._call_opus("SYS", "ONE STRING", model="claude-opus-5", tool={"name": "t"})
+    assert plain["_usage"]["prefix_chars"] == {"system": 3, "stable": 0, "volatile": 10}
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-23 FIX ROUND -- review VC M1 / RA M2: THE WRITER SEAM'S TWO CLOCKS KEY ON THE CALL'S PERIOD KIND
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+def _seam_call(table, metric, period, value, unit, known, *, sb=True, commodity="soybeans_cbot"):
+    c = {"query": {"table": table, "metric": metric, "commodity": commodity, "country": None,
+                   "period": period, "asof": "2026-09-16"},
+         "rows": [{"value": value, "unit": unit, "knowledge_date": known}], "status": "ok"}
+    if sb:
+        c["_sb"] = True
+    return c
+
+
+@pytest.mark.parametrize("call,kind,age", [
+    # a BOARD ONI month: the label no longer prints "MY2026-07", and the MONTH clock still fires
+    (_seam_call("silver_noaa_oni", "oni_anom", "2026-07-01", 1.8, "degC", "2026-09-05"), "month",
+     (47, "the 2026-07 reading, read 2026-09-05")),
+    # a BOARD ESR week (card period_words: week) is neither a month nor annual: fresh at twelve days
+    (_seam_call("silver_esr", "weekly_exports_1000mt", "2026-08-27", 311.846, "1000 MT", "20260904"),
+     "week", (None, "")),
+    # a DAILY crush row is dated by its knowledge date alone -- HEAD's prefix regex read "MY2026-08-21"
+    # as the month 2026-08
+    (_seam_call("gold_board_crush", "crush_margin_usd_bu", "2026-08-21", 2.6, "USD/bu", "2026-08-21"),
+     "day", (26, "read 2026-08-21")),
+    # an ICCO season ("2024/25 season", no MY prefix) is ANNUAL: a zero-day window, dated at six days
+    (_seam_call("silver_icco_cocoa", "su_ratio", "2024/25", 0.26, "ratio", "2026-09-10", sb=False,
+                commodity="cocoa"), "crop_season", (6, "read 2026-09-10")),
+])
+def test_fix_0923_the_seam_clocks_key_on_the_calls_own_period_kind_never_a_label_prefix(call, kind, age):
+    """Lane C's D3 correction removed the "MY" prefix from month labels, so HEAD's prefix regexes silently
+    stopped the month clock (41 served rows lost "the 2026-07 reading") and never saw "2024/25 season" as
+    annual. The row index now carries `citations.printed_period` (token, kind) -- the card's own period
+    kind -- and both clocks read it; an undeclared card keeps HEAD's regexes byte for byte."""
+    r = an._seam_row_index([call])[1]
+    assert r["period_kind"] == kind, r
+    assert "MY20" not in r["head"], r["head"]
+    assert an._seam_row_age(r, an._seam_parse_iso("2026-09-16")) == age

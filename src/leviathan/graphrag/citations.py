@@ -530,18 +530,276 @@ def _zero_aggregate(call: dict) -> bool:
         return False
 
 
-def _period_label(period) -> Optional[str]:
+def _date_value(period) -> Optional[_dt.date]:
+    """The calendar DATE a period value IS, or ``None`` -- read by the date TYPE's own parser
+    (``datetime.date.fromisoformat``: an ISO calendar date "2026-08-27" / "20260827" or an ISO week date
+    "2026-W35-4"), after the ``MY`` label prefix this module's own :func:`_period_label` writes (and
+    ``cascade._period_label`` pre-writes). A year label -- "2026", "2026/27", "MY2026", "2024/25" -- is
+    not a date and never parses as one, so no year-label token can take this branch.
+
+    09-24 (FINAL_2, the orchestrator's ruling 6 Option 2 on R-2): a period VALUE that IS a date is dated
+    as a date whatever KIND the card declares for the column it sits in. ``silver_esr`` declares its
+    period column a marketing year; a week date written into it ("2026-08-27", or HEAD's printed
+    "MY2026-08-27") is a date on that card's OBSERVATION axis, not a marketing year -- so the label may
+    never print "MY2026-08-27" and the writer seam may never date that week on the annual clock (window
+    zero). The value's TYPE is read, never a pattern: this is the parser the store's own ISO date fields
+    are read by (``_parse_date`` above), applied to the whole token."""
+    per = str(period).strip() if period is not None else ""
+    if per.startswith("MY"):
+        per = per[2:].strip()
+    if not per:
+        return None
+    try:
+        return _dt.date.fromisoformat(per)
+    except ValueError:
+        return None
+
+
+def _period_label(period, kind: Optional[str] = None) -> Optional[str]:
     """The reader-facing period token for a scope string, or None.
 
     Agent calls carry a BARE MY year ("2011" -> render "MY2011"); cascade calls arrive PRE-labeled
     ("MY2011" / "2010-06-01..2010-09-01") -- re-prefixing those minted "MYMY2011" in the Sources footer and
     fed the judge malformed provenance (P9-AB P0-6). CYCLE-5: lifted out of `from_number` UNCHANGED so the
     per-row extra citations (FOOTER-1) label a row's own period through the SAME rule -- a second copy is
-    exactly how the "MYMY" class was born."""
+    exactly how the "MYMY" class was born.
+
+    09-23 (lane C, CONTRACT C10 ``period_words``): THE PREFIX IS A CLAIM, AND ONLY A MARKETING YEAR MAY
+    MAKE IT. Every 2026-09-23 page carried "MY2026-07" (an ONI month), "MY2026-09-15" (a COT report week)
+    and "MY2026-12" (a cocoa delivery month) -- because this rule prefixed EVERY period that did not
+    already start with "MY". ``kind`` is the period's KIND as the CARD declares it (:func:`period_kind`,
+    never the token's spelling): ``marketing_year`` keeps the prefix exactly as before; ``crop_season``
+    names the season ("2024/25 season", the ICCO cocoa year the cocoa page lost); every other kind (a
+    month, a week, a day, a delivery month, a calendar year, a window) is printed as the period it is.
+    ``kind=None`` -- a card this module cannot resolve -- is HEAD's rule, byte for byte, which is also
+    what ``row_key``'s identity join keeps calling so no de-dup key moves.
+
+    09-24 (FINAL_2, ruling 6 Option 2 on R-2): a PRE-LABELLED token whose value is a DATE
+    (:func:`_date_value`) and whose kind is a date grain (a week, a day, a month -- never a year label,
+    never ``None``) prints the date without the prefix: "MY2026-08-27" read as an ESR week prints
+    "2026-08-27". Every other pre-labelled token ("MY2026", "MY2024/25", a ``None`` kind) is returned
+    exactly as before."""
     per = str(period) if period is not None else None
-    if per and not (per.startswith("MY") or ".." in per):
-        per = f"MY{per}"
+    if per and per.startswith("MY") and kind is not None and kind not in _YEAR_LABEL_KINDS \
+            and kind != "year" and _date_value(per) is not None:
+        return per[2:].strip()
+    if not per or per.startswith("MY") or ".." in per:
+        return per
+    if kind is None or kind == "marketing_year":
+        return f"MY{per}"
+    if kind == "crop_season":
+        return per if per.endswith("season") else f"{per} season"
     return per
+
+
+# ── THE CARD'S OWN DECLARATIONS, READ ONCE (09-23 fix round, lane C; CONTRACT C10) ────────────────────
+#: The kinds that name a YEAR-LABEL period (a value of the card's ``period_col``), as opposed to a date
+#: on its observation axis. A card's ``period_words`` is honoured for a ``period_col`` token only when it
+#: names one of these -- ``silver_esr`` declares ``week`` for its OBSERVATION grain while its query
+#: period is a marketing year, and the two are different facts about one card.
+_YEAR_LABEL_KINDS = frozenset(("marketing_year", "crop_season"))
+
+
+def _card_fields(table, metric) -> dict:
+    """The card's C10 fields through ``render.card_fields`` -- lane R's ONE reader of them -- or ``{}``.
+
+    Read DEFENSIVELY (the contract's own idiom): a lazy import, ``getattr`` on the name, and any failure
+    reads as "the card declares nothing", which is HEAD's label on every term that consumes it. Never
+    raises: a footer must never be the thing that breaks an answer."""
+    if not table:
+        return {}
+    try:
+        from leviathan.graphrag.state import render as _render
+        fn = getattr(_render, "card_fields", None)
+        out = fn(str(table), str(metric or "")) if fn is not None else None
+        return dict(out) if isinstance(out, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _card_spec(table):
+    """The registry card for ``table``, or ``None`` (a pseudo-table, an unregistered card, no registry)."""
+    if not table:
+        return None
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        return load_registry().tables.get(str(table))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _card_address(call: dict, row: dict) -> tuple:
+    """(table, metric) of the CARD a call's figure belongs to: the row's declared ``source_table`` /
+    ``source_metric`` on a ``compute_stat`` row (K9-5 -- a computed figure's card is its source), the
+    query's own pair otherwise."""
+    q = (call or {}).get("query") or {}
+    table, metric = str(q.get("table") or ""), str(q.get("metric") or "")
+    if table == _STATS_TABLE:
+        st = str((row or {}).get("source_table") or "").strip()
+        sm = str((row or {}).get("source_metric") or "").strip()
+        return (st, sm or metric) if st else ("", metric)
+    return table, metric
+
+
+def _kind_of_source(source: str, ts, cf: dict, token=None) -> Optional[str]:
+    """The PERIOD KIND of a token that came from ``source`` (``feeders.row_period``'s key family) on this
+    card. ``None`` -> HEAD's prefix rule (nothing on the card resolves it).
+
+    ``token`` is the period VALUE itself, when the caller holds it. 09-24 (FINAL_2, ruling 6 Option 2 on
+    R-2): a value of the period column that IS a calendar date (:func:`_date_value`, the date type's own
+    parser) is read as a date on the card's observation axis BEFORE the column's declared kind is
+    consulted -- the token's type first, the column's kind second -- so a week date in a marketing-year
+    column is the card's observation grain (``silver_esr``: "week"), never a marketing year."""
+    words = str((cf or {}).get("period_words") or "").strip() or None
+    ptype = str(getattr(ts, "period_type", "") or "").strip() if ts is not None else ""
+    if source == "period" and token is not None and _date_value(token) is not None:
+        # the SAME reading a date-typed period column takes below: the card's declared observation grain
+        # when it names one, else a day
+        return words if (words and words not in _YEAR_LABEL_KINDS) else "day"
+    if source == "period":
+        # A value of the card's PERIOD COLUMN: its kind is the column's (registry ``period_type``), which
+        # a year-label ``period_words`` may refine (``crop_season`` for the ICCO cocoa year).
+        if words in _YEAR_LABEL_KINDS:
+            return words
+        if ptype == "marketing_year":
+            return "marketing_year"
+        if ptype == "year":
+            return "year"
+        if ptype == "date":
+            # A DATE-TYPED period column's granularity is the card's declared ``period_words`` when that
+            # names an observation grain (a month for ONI / MPOB / the Pink Sheet, a week for COT) -- the
+            # same reading the ``date`` source takes below; a date is a "day" only where the card says
+            # nothing (09-23 fix round, review VC M1: the writer seam's month clock keys on this kind).
+            # `_period_label` prints every non-year kind as the token it is, so no label moves.
+            return words if (words and words not in _YEAR_LABEL_KINDS) else "day"
+        return None
+    if source in ("date", "knowledge_date"):
+        return words if (words and words not in _YEAR_LABEL_KINDS) else "day"
+    if source == "year_month":
+        return "month"
+    if source == "year":
+        return "year"
+    if source == "contract_month":
+        return "delivery_month"
+    return None
+
+
+def _legs_period_kind(call: dict, row: dict, source: Optional[str], token=None) -> Optional[str]:
+    """THE PERIOD KIND OF A CARD-LESS COMPUTED ROW COMPUTED OVER TWO SERVED LEGS (09-23 fix round, review
+    WT M-3 (b)): the minted pair-spread level has no card of its own, but its one period is an observation
+    date ON ITS TWO LEGS' CARDS (`leg_a` / `leg_b`, ``<table>.<metric>[<slug>]``). Where both legs' cards
+    read that date as the same kind, that is the row's kind; otherwise ``None`` (HEAD's rule). Without it
+    the Pink Sheet month "2026-08-01" was labelled "MY2026-08-01" -- a marketing year it is not."""
+    if str(((call or {}).get("query") or {}).get("table") or "") != _STATS_TABLE:
+        return None
+    kinds = set()
+    for k in ("leg_a", "leg_b"):
+        lab = str((row or {}).get(k) or "").split("[", 1)[0]
+        t, _, m = lab.partition(".")
+        ts = _card_spec(t) if t else None
+        if ts is None:
+            return None
+        kinds.add(_kind_of_source(source or "period", ts, _card_fields(t, m), token))
+    return kinds.pop() if len(kinds) == 1 else None
+
+
+def period_kind(call: dict, *, source: Optional[str] = None, token=None) -> Optional[str]:
+    """THE KIND of the period token a call's label prints (a ``rows.PERIOD_KINDS`` member, or ``"year"``
+    / ``None``), derived from the CARD and from WHERE the token came from -- never from its spelling.
+
+    ``source`` is the ``feeders.row_period`` key family of a token read off a served ROW. Without it the
+    token is the call's ``query.period``, whose meaning depends on its PRODUCER: a numbers-seat or
+    cascade call puts a value of the card's ``period_col`` there (``NumberQuery.period``'s own contract),
+    while a BOARD call (``_sb``) puts its level date there -- which is whatever ``feeders.row_period``
+    read on that card's rows (:func:`feeders.card_period_source`, the ONE axis rule).
+
+    ``token`` is the period VALUE the kind is asked of; without a ``source`` it is the call's own
+    ``query.period``. 09-24 (FINAL_2, ruling 6 Option 2 on R-2): the value's TYPE is read before the
+    column's kind -- a period value that IS a calendar date is a date on the card's observation axis,
+    whatever kind the card declares for the column (:func:`_kind_of_source`)."""
+    rows = (call or {}).get("rows") or []
+    row0 = rows[0] if rows and isinstance(rows[0], dict) else {}
+    if source is None and token is None:
+        token = ((call or {}).get("query") or {}).get("period")
+    table, metric = _card_address(call, row0)
+    ts = _card_spec(table)
+    if ts is None:
+        return _legs_period_kind(call, row0, source, token)
+    cf = _card_fields(table, metric)
+    if source is None:
+        if (call or {}).get("_sb"):
+            try:
+                from leviathan.graphrag.state.feeders import card_period_source
+                source = card_period_source(ts)
+            except Exception:  # noqa: BLE001
+                return None
+        else:
+            source = "period"
+    return _kind_of_source(source, ts, cf, token)
+
+
+def _row_own_period(call: dict, row: dict) -> tuple:
+    """``(token, kind)`` -- the period a served ROW is a value of, as a label prints it when the call's
+    query names none (the round's D3 addition: HEAD printed no row-own period at all); ``(None, None)``
+    where the row has none to print. ONE rule, read by :func:`from_number` (the label) and by
+    :func:`printed_period` (the writer seam's two clocks), so the seam can never date a period the label
+    does not print.
+
+    09-24 (VERIFY_FINAL MAJOR-1), two structural facts, neither a spelling test:
+
+    1. A TOKEN READ OFF THE KNOWLEDGE ALIAS IS A PERIOD ONLY WHERE THE CARD SAYS THAT ALIAS CARRIES THE
+       OBSERVATION (:func:`_observation_card`, the one reading :func:`_known_date` derives the stamp by).
+       Everywhere else it is a KNOWLEDGE STAMP -- already printed in the ``[known ...]`` slot -- and prints
+       no period, which is HEAD's byte on these rows. The measured defect: a stat of a stat (and a stat
+       over an ESR-aggregate, pattern-records or RV-pair leg handle: none carries ``source_table``) has
+       no card, so its knowledge stamp was printed as a period and HEAD's marketing-year prefix dressed it
+       as one -- "computed statistic change over the window MY2026-09-22 = 20.5 US cents/lb", through the
+       real numbers agent, flag-off, on both cells.
+    2. A ROW-OWN TOKEN WHOSE KIND NOTHING ON A CARD RESOLVES (:func:`period_kind` -> ``None``: no card,
+       or a card that declares nothing for it) takes the kind its SOURCE FAMILY names by itself -- the
+       SAME :func:`_kind_of_source` reading with no card: a date-typed value is a day (ruling R-2, the
+       date type's own parser), a ``date`` / ``year_month`` / ``year`` / ``contract_month`` key names a
+       day / month / year / delivery month, and only a non-date ``period`` value keeps HEAD's prefix
+       rule. So "MY" can never precede a date on this branch, card or no card. (The QUERY's period keeps
+       HEAD's rule for an unresolvable card, byte for byte -- that is a token HEAD printed; this branch
+       prints tokens HEAD never did, so no HEAD byte is at stake here.)"""
+    if not row:
+        return None, None
+    try:
+        from leviathan.graphrag.state.feeders import row_period as _row_period
+        tok, src = _row_period(row)
+    except Exception:  # noqa: BLE001 -- an unreadable row prints no period
+        return None, None
+    if not tok:
+        return None, None
+    if src == "knowledge_date" and _observation_card(call, row) is None:
+        return None, None                     # a knowledge stamp, never a period (fact 1)
+    kind = period_kind(call, source=src, token=tok)
+    if kind is None:
+        kind = _kind_of_source(src, None, {}, tok)   # the source family's own kind (fact 2)
+    return str(tok), kind
+
+
+def printed_period(call: dict) -> tuple:
+    """``(token, kind)`` -- the period token a call's label PRINTS and its :func:`period_kind`, read by the
+    SAME rule :func:`from_number` prints it by (the query's period, else the headline row's own,
+    :func:`_row_own_period`); ``("", None)`` where the label prints none. The writer seam's two clocks key
+    on the KIND (09-23 fix round, review VC M1 / RA M2) -- never on a label prefix a correction may remove."""
+    try:
+        q = (call or {}).get("query") or {}
+        if q.get("period") not in (None, ""):
+            tok = str(q.get("period"))
+            if ".." in tok:
+                return tok, "window"          # a WINDOW read ("2025-09-01..2026-08-01") is no one month
+            return tok, period_kind(call)
+        rH, _curve = _headline(call)
+        if rH and not _value_blank(rH):
+            tok, kind = _row_own_period(call, rH)
+            if tok:
+                return tok, kind
+    except Exception:  # noqa: BLE001 -- an unreadable call prints no period
+        pass
+    return "", None
 
 
 # ══ K9-2 (2026-09-07) UNSCOPED HEADLINE -- class (7b), THE INCOMMENSURABLE RANKING ═══════════════════
@@ -1440,6 +1698,267 @@ def _vintage_role_on() -> bool:
     return os.environ.get("GRAPHRAG_VINTAGE_ROLE", "").strip().lower() in ("on", "1", "true")
 
 
+# ══ 09-23 FIX ROUND (lane C) -- THE LABEL READS THE CARD AND THE ROW, NEVER A NAME ══════════════════
+#
+# Every term below is a PURE CORRECTION of a label that told the reader something false (THREAT_MODEL
+# D3), derived from what the CARD declares (``render.card_fields``, CONTRACT C10) and what the ROW
+# carries (the board's C3 keys; a served row's own columns). Each is EMPTY on a call that declares
+# nothing, so such a call's label is HEAD's to the byte. The ten 2026-09-23 pages are the evidence:
+#   * the CURVE HEADLINE -- "the March 2027 delivery settled at 1,352 ... no front-month level can be
+#     named this session" while the same call served November 2026 at 1,328 (deep26 F4 / max F2):
+#     `_row_order_key` headlines the FURTHEST expiry BY DESIGN (its own docstring), so a curve read now
+#     headlines THE NEAREST ELIGIBLE DELIVERY through lane T's ONE producer (`query.curve_headline_index`);
+#   * the KNOWN DATE of a data-date card -- "known 2026-08-01" for August MPOB stocks, which MPOB
+#     publishes around 10 September (palm_rapeoil F2, soyoil_palm L3): the stamp is now the ONE
+#     derivation the board already uses (`feeders.derive_knowledge_date`: data date + the card's
+#     publication lag), and the data month rides the label as its period instead;
+#   * the BASIS -- "stocks-to-use 10.72 %" with no word that the denominator is DOMESTIC use (six pages);
+#   * the AXIS -- a single DESTINATION's outstanding sales (Nicaragua) printed as the national figure
+#     (deep26 F3), and one growing-region CELL printed as "United States" (deep26 F1);
+#   * the PERIOD -- "MY2026-07" on months and weeks (every page), and the ICCO season missing entirely
+#     (cocoa F1);
+#   * the OFFSET -- a six-month-lagged ONI printed "(latest available 2026-03-08 ...)", which a reader takes
+#     for data latency (soyoil_palm L2).
+# Precision (``display == "analyst"``) is the one term that is NOT a correction: it rides lane A's
+# display stamp, which exists only under GRAPHRAG_STATE_BOARD (OWNER DECISION 10).
+def _aggregate_aggs() -> frozenset:
+    """The aggs that aggregate rows into one value -- the numbers query's OWN declaration
+    (`query.AGGREGATE_AGGS`, 09-23 fix round), never a copy typed here."""
+    try:
+        from leviathan.graphrag.numbers.query import AGGREGATE_AGGS
+        return frozenset(AGGREGATE_AGGS)
+    except Exception:  # noqa: BLE001 -- no query module, no aggregate reading to except
+        return frozenset()
+
+
+def _curve_index(rows: list, q: dict) -> Optional[int]:
+    """Lane T's ``query.curve_headline_index`` (C12) on this call's rows, or ``None`` -- a non-curve read,
+    a producer not yet landed, or any failure (HEAD's ``_row_order_key`` headline, the fail-open side)."""
+    if len(rows) < 2 or not any(isinstance(r, dict) and r.get("contract_month") for r in rows):
+        return None                               # a curve is several delivery months; nothing to ask
+    try:
+        from leviathan.graphrag.numbers import query as _Q
+        fn = getattr(_Q, "curve_headline_index", None)
+        ts = _card_spec(q.get("table"))
+        if fn is None or ts is None:
+            return None
+        # The contract's signature is (rows, *, asof, ts); the producer may also take the call's slug
+        # (a served curve row does not carry it), so it is offered and the contract form is the fallback.
+        try:
+            k = fn(rows, asof=q.get("asof"), ts=ts, commodity=q.get("commodity"))
+        except TypeError:
+            k = fn(rows, asof=q.get("asof"), ts=ts)
+        return k if isinstance(k, int) and 0 <= k < len(rows) else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _headline(call: dict) -> tuple:
+    """``(row, on_curve)`` -- THE ONE HEADLINE SELECTOR, read by ``from_number`` and ``headline_row`` so
+    the completion pass can never mistake the line on the page for a missing one. On a CURVE read (one
+    session, several delivery months) the row lane T's producer names; otherwise the freshest
+    observation by ``_row_order_key``, exactly as before."""
+    rows = (call or {}).get("rows") or []
+    if not rows:
+        return {}, False
+    k = _curve_index(rows, (call or {}).get("query") or {})
+    if k is not None:
+        return rows[k], True
+    return max(rows, key=_row_order_key), False
+
+
+def _observation_card(call: dict, row: dict):
+    """The card on which this ROW's ``knowledge_date`` alias carries the row's OBSERVATION date, or
+    ``None`` where that alias is a KNOWLEDGE STAMP. ONE reading, shared by :func:`_known_date` (which
+    derives the stamp from the observation) and :func:`_row_own_period` (which may print the observation
+    as the row's period):
+
+    * a card declaring ``knowledge_semantics: data_date`` surfaces its DATE column under the knowledge
+      alias (``knowledge_date_col == date_col`` on every such card: MPOB, the Pink Sheet, COT, the
+      futures tape) -- that token is the observation, so it is the row's period;
+    * a ``vintage`` / ``ingest`` card surfaces its RELEASE or INGEST date there -- a knowledge stamp;
+    * a BOARD call's (``_sb``) row carries the feeder's already-DERIVED known date -- a knowledge stamp;
+    * a row with NO card (``_card_address`` resolves none: a stat of a stat, a stat over an ESR-aggregate,
+      pattern-records or RV-pair leg handle -- none carries ``source_table``) declares nothing, so its
+      knowledge alias is what its name says -- a knowledge stamp, never a period."""
+    if (call or {}).get("_sb") or not row:
+        return None
+    table, _metric = _card_address(call, row)
+    ts = _card_spec(table)
+    if ts is None or str(getattr(ts, "knowledge_semantics", "") or "") != "data_date":
+        return None
+    return ts
+
+
+def _known_date(call: dict, row: dict) -> Optional[str]:
+    """The ``[known ...]`` stamp of one row. A DATA-DATE card's served row carries its OBSERVATION date
+    under the knowledge alias (``knowledge_date_col == date_col`` on every such card), so the stamp is
+    the ONE derivation the board already prints -- ``feeders.derive_knowledge_date``: the data date plus
+    the card's ``publication_lag_days`` (C11). A BOARD call (``_sb``) is left alone: its row carries the
+    feeder's already-derived date, and deriving again would add the lag twice. Every other card class,
+    and any failure, is HEAD's ``_row_known_date``. (Which rows those are: :func:`_observation_card`.)"""
+    kd = _row_known_date(row)
+    ts = _observation_card(call, row)
+    if ts is None:
+        return kd
+    try:
+        from leviathan.graphrag.state.feeders import derive_knowledge_date
+        d, _basis = derive_knowledge_date(ts, row)
+    except Exception:  # noqa: BLE001
+        return kd
+    return d or kd
+
+
+def _roll_front_methods():
+    """Lane T's ``query.ROLL_METHODS_FRONT`` (C12), or ``None`` before it lands."""
+    try:
+        from leviathan.graphrag.numbers import query as _Q
+        v = getattr(_Q, "ROLL_METHODS_FRONT", None)
+        return frozenset(v) if v else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _axis_words(q: dict, row: dict, cf: dict, geo, dest_coded: bool, withheld: bool, board: bool = False,
+                rows: Optional[list] = None):
+    """The geography a label may state for its headline row, from the CARD's axis and the ROW's own
+    value -- never from a country name. Returns the scope term that replaces ``geo``.
+
+      * a board call carries its identity's scope words (``axis_scope``, C3) -- they win;
+      * a DESTINATION axis (``country_axis: destination``, else the registry's ``destination_coded()``)
+        whose query named no destination and whose headline row carries one: that row IS one
+        destination's figure, so it says so -- "to Nicaragua" (the flow's direction, never the
+        subject slot the K9-5 note forbids) -- except on a K9-2 withheld line, which names no scope;
+      * a REGION-CELL axis the card declares has NO national row (``axis_national: none``), on a read whose
+        rows are a CROSS-SECTION -- several rows sharing the headline row's own period
+        (``feeders.row_period``): the headline is one of several regional readings and the label says so,
+        rather than letting the country stand as a national figure. A single row per period is left as it
+        is: the card's grain is "one growing CELL / basin / member-country surface per row", so a lone row
+        may be a basin or member-country aggregate (the cocoa page's tail-share row), and only the row's
+        own region value -- not surfaced by the read today -- could name which.
+
+    A BOARD call (``_sb``) takes its scope words from the board's own identity and from NOTHING else: the
+    board COLLAPSES a region-cell card by ``mean`` across its cells (``cascade._PACE_COLLAPSE``), so its
+    level is a mean the call record cannot tell from a cell -- MEASURED on the as-of-2024 page, whose [N38]
+    board drought row would otherwise have read "one region cell" over a ten-cell mean (THREAT_MODEL R-2)."""
+    scope = str((row or {}).get("axis_scope") or "").strip()
+    if scope:
+        return scope
+    if board or not row or _value_blank(row):
+        return geo                                # a board call's scope is its identity's; no figure, no scope
+    axis = str((cf or {}).get("country_axis") or "").strip()
+    if (axis == "destination" or (not axis and dest_coded)) and not q.get("country") and not withheld:
+        c = str((row or {}).get("country") or "").strip()
+        if c:
+            return f"to {c}"
+        return geo
+    if axis == "region_cell" and str((row or {}).get("region") or "").strip():
+        region = str(row["region"]).strip()                   # the row's OWN axis value names its surface
+        return f"{geo}, {region}" if geo and region != geo else region
+    if (axis == "region_cell" and str((cf or {}).get("axis_national") or "").strip() == "none"
+            and str(q.get("agg") or "").strip().lower() not in _aggregate_aggs()):
+        tok, k = None, 0
+        try:
+            from leviathan.graphrag.state.feeders import row_period as _rp
+            tok = _rp(row)[0]
+            k = sum(1 for r in (rows or []) if isinstance(r, dict) and not _value_blank(r) and _rp(r)[0] == tok)
+        except Exception:  # noqa: BLE001
+            k = 0
+        if tok and k > 1:
+            return f"{geo}, one of several regional readings" if geo else "one of several regional readings"
+        # A LONE ROW OF A CARD THAT HAS NO NATIONAL ROW IS STILL ONE REGION'S READING (09-23 fix round,
+        # review VC M4: deep26's N13, a LIMIT-1 read over ten cells, was labelled "United States" -- a
+        # national figure the card declares it never serves). The card says every row is one region's
+        # surface (a cell, a basin or a member-country surface, `axis_national: none`), so the label says
+        # "one regional reading" -- true of all three -- and names WHICH region only where the read carries
+        # it (the query's own region; the row's `region` above). Naming the cell itself needs the read to
+        # surface the region column: docketed to the numbers query (C's B-4).
+        qr = str(q.get("region") or "").strip()
+        if qr:
+            return f"{geo}, {qr}" if geo and qr != geo else qr
+        if str((cf or {}).get("row_grain") or "") == "aggregate":
+            return geo                            # the metric's rows ARE the surface's aggregate (card)
+        return f"{geo}, one regional reading" if geo else "one regional reading"
+    return geo
+
+
+def _stat_words(row: dict, value) -> str:
+    """The C3 ``stat`` suffix a board call's row declares, in words: a WINDOW-PEAK percentile is "the
+    highest reading inside <from>..<to>" (or "lowest" below the median) -- a different statistic from the
+    row's current percentile, so it must not share that line's head. Every other stat adds nothing."""
+    if str((row or {}).get("stat") or "") != "window_peak_percentile":
+        return ""
+    w = (row or {}).get("window") or {}
+    lo, hi = str(w.get("from") or "").strip(), str(w.get("to") or "").strip()
+    if not (lo and hi):
+        return ""
+    try:
+        side = "highest" if float(value) >= 50 else "lowest"
+    except (TypeError, ValueError):
+        return ""
+    return f"{side} reading inside {lo}..{hi}"
+
+
+def _offset_words(row: dict) -> str:
+    """The C3 ``offset_months`` clause: a same-series reading read N months back by the market's declared
+    lag. Its date is a declared EFFECT LAG, not a publication delay, so a line carrying it never also
+    says "latest available" (soyoil_palm L2)."""
+    try:
+        n = int((row or {}).get("offset_months") or 0)
+    except (TypeError, ValueError):
+        return ""
+    return f"read {n} months back by this market's declared lag" if n > 0 else ""
+
+
+def _analyst_value_text(value, *, table: str, metric: str, unit: str,
+                        commodity: Optional[str] = None) -> Optional[str]:
+    """The headline figure at ANALYST precision through lane R's ONE producer (``render.shown_figure``,
+    C5) -- or ``None`` (HEAD's ``_fmt``) when the producer is absent, fails, or returns a figure its own row
+    cannot back. That last guard is the whole safety of the term (THREAT_MODEL C-9): the text must be
+    ``value`` rounded at the text's own written decimals, never a re-scaled or re-signed number, because
+    the verifier and the reader both check the label against the row."""
+    try:
+        v = float(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    u = str(unit or "").strip()
+    # THE CARD'S DISPLAY SPEC AND ITS DECLARED LINES DESCRIBE THE CARD METRIC'S OWN LEVEL, IN THE CARD'S OWN
+    # UNITS (its `unit`, and its `display_unit`). A call in any other unit is a different quantity: a z or a
+    # percentile of that level (MEASURED on the palm ONI row: the card's degC El Nino lines and two-sided
+    # sign printed "+78 percentile"), or the level in a unit the spec was not written for (a PSD
+    # stocks-to-use ROW in `ratio` where the card displays `%` -- re-scaling it would put the label and its
+    # rows on two scales, the K9-3 class). Such a call is asked WITHOUT the card -- the producer's
+    # unit-agnostic rule -- and every answer is still held to the backing guard below.
+    def _n(x) -> str:
+        return " ".join(str(x or "").lower().split())
+    # The unit the producer prints the card's level in WITHOUT re-scaling it: the declared display unit
+    # where there is one, else the card's own unit.
+    target = (_n((_card_fields(table, metric) or {}).get("display_unit"))
+              or _n(_metric_unit(table, metric, commodity)))
+    own = bool(target) and _n(u) == target
+    try:
+        from leviathan.graphrag.state import render as _render
+        fn = getattr(_render, "shown_figure", None)
+        if fn is None:
+            return None
+        # THE ROW'S OWN UNIT IS PASSED, so the producer never re-scales a figure this label then prints
+        # beside that unit; the producer appends it, and the label prints its own unit after the figure.
+        txt = str(fn(v, table=(str(table or "") if own else ""), metric=(str(metric or "") if own else ""),
+                     unit=u, grouping=True) or "").strip()
+    except Exception:  # noqa: BLE001
+        return None
+    if u and txt.endswith(" " + u):
+        txt = txt[: -(len(u) + 1)].strip()
+    try:
+        t = float(txt.replace(",", "").lstrip("+"))
+    except (TypeError, ValueError):
+        return None
+    dec = len(txt.split(".", 1)[1]) if "." in txt else 0
+    if abs(t - v) > 0.5 * 10.0 ** (-dec) + 1e-9 * max(1.0, abs(v)):
+        return None
+    return txt
+
+
 def from_number(call: dict, i: int) -> Citation:
     """Build a Citation from a numbers-agent call record ({query, rows, status})."""
     q = call.get("query", {})
@@ -1448,13 +1967,22 @@ def from_number(call: dict, i: int) -> Citation:
     # headline = the LATEST observation, not rows[0]: a series (agg=series/default) arrives chronological
     # ASCENDING, so rows[0] is the OLDEST print — surfacing it headlined a stale 2023 value as if current
     # (judged-30 RCA (b)). The full `rows` order is untouched (payload keeps rows[:3] as before).
-    rH = max(rows, key=_row_order_key) if rows else {}
+    # 09-23: a CURVE read headlines the nearest eligible delivery instead (`_headline`, lane T's producer).
+    rH, _on_curve = _headline(call)
     table, metric = q.get("table", ""), q.get("metric", "")
     # PA-10(a): the metric is spoken in the ANALYST's name on every branch below, from ONE resolution.
     # All three branches render `{src} {metric} {scope} = ...`, so a display name on the value-bearing
     # branch alone would have the same call's empty read and its zero-aggregate read naming the metric
     # differently in one footer -- the drift this file refuses everywhere else (`_period_label`'s "MYMY").
     mdisp = _metric_display_name(table, metric, rH)
+    # 09-23 (C10 `basis_words`): THE BASIS THE CARD DECLARES RIDES THE METRIC NAME, on every branch and
+    # every stat of the row alike (the head `_seam_row_index` pairs a row's level and percentile on must
+    # stay ONE spelling, THREAT_MODEL C-6). The board call's own `basis` (C3) wins; otherwise the card's.
+    _ctable, _cmetric = _card_address(call, rH)
+    _cf = _card_fields(_ctable, _cmetric)
+    _basis = str(rH.get("basis") or _cf.get("basis_words") or "").strip()
+    if _basis and _basis not in mdisp:
+        mdisp = f"{mdisp} ({_basis})"
     # K9-5: A COMPUTED STATISTIC NAMES THE TABLE IT WAS COMPUTED OVER. `_source_label("compute_stat")` is
     # the strip-and-upper fallback "COMPUTE STAT" -- a machine id headlining the reader's `## Sources`
     # line, and worse, a SOURCE the reader cannot check anything against. The row declares its own source
@@ -1474,8 +2002,23 @@ def from_number(call: dict, i: int) -> Citation:
     asof = q.get("asof")
     value = rH.get("value")
     unit = rH.get("unit") or _metric_unit(table, metric, q.get("commodity"))
-    kd = _row_known_date(rH)                  # CYCLE-5 VINTAGE-1: ...falling back to the row's (year, month)
-    per = _period_label(q.get("period"))
+    # CYCLE-5 VINTAGE-1: ...falling back to the row's (year, month). 09-23 (C11): a DATA-DATE card's stamp
+    # is the ONE derivation the board prints (data date + the card's publication lag), `_known_date`.
+    kd = _known_date(call, rH)
+    # 09-23 (C10 `period_words`): the period is printed as the KIND the card says it is (`period_kind`),
+    # and a query that names no period prints the HEADLINE ROW's own (`feeders.row_period`, the board's
+    # one "what is this row a value of" rule) -- the ICCO season the cocoa page lost, the MPOB data month
+    # that used to ride the `[known ...]` slot.
+    # (The row's own period is decided below, once the K9-2 withhold is known: a withheld line carries no
+    # figure, so the headline row's period would belong to nothing on it.)
+    per = (_period_label(q.get("period"), period_kind(call)) if q.get("period") not in (None, "") else None)
+    _row_per = None
+    if per is None and rH and not _value_blank(rH):
+        # 09-24 (VERIFY_FINAL MAJOR-1): the row's own token AND its kind come from ONE rule,
+        # `_row_own_period` -- a knowledge stamp is never a period, and a date is never a marketing year
+        _ptok, _pkind = _row_own_period(call, rH)
+        if _ptok:
+            _row_per = _period_label(_ptok, _pkind)
     # D-PQ RENDER-2: the DELIVERY MONTH rides the scope, and it comes off the ROW. On agg='front_expiry'
     # the query names no expiry (the rule selects one), so a query-only scope is silent on the single fact
     # that makes the number attributable.
@@ -1548,10 +2091,24 @@ def from_number(call: dict, i: int) -> Citation:
     # what keeps the (K9-2 off, K9-3 on) cell from restating an unscoped 9 as 900 %.
     _scope_k = _unscoped_multi_geo(q, _geos)
     _scope_withheld = bool(_scope_withhold_on() and _scope_k)
+    # 09-23: the geography the CARD's axis and the ROW's own value license (`_axis_words`).
+    geo = _axis_words(q, rH, _cf, geo, _dest_coded(_src_table or table), _scope_withheld,
+                      board=bool(call.get("_sb")), rows=rows)
+    if per is None and _row_per and not _scope_withheld:
+        per = _row_per
     # `cmonth` wins when a row carries one: it is the row's OWN declared expiry, and a row carrying both a
     # contract_month and a leg pair would be a producer defect this label must not paper over. A row with
     # neither renders exactly as it did before T1-4 -- the anti-vacuity property the spread pin asserts.
     _delivery = (f"delivery {cmonth}" if cmonth else (f"delivery {legs}" if legs else None))
+    # 09-23 (C12, OWNER DECISION 5): "front month" is the named OI/volume rule's word alone. A CURVE
+    # headline is the nearest ELIGIBLE delivery (lane T's producer), and a front read whose row declares a
+    # roll method outside `ROLL_METHODS_FRONT` (the cycle fallback, a delivery-cycle board) is the nearest
+    # listed delivery -- the label says which, so the writer is never handed a front month that is not one.
+    if cmonth:
+        _front = _roll_front_methods()
+        _rm = str(rH.get("roll_method") or "").strip()
+        if _on_curve or (_front is not None and _rm and _rm not in _front):
+            _delivery = f"nearest listed delivery {cmonth}"
     # G4c(iii): THE Z-SCORE'S WINDOW AND ITS SERIES, WHICH NOTHING READ -- T1-4's defect on the other
     # axis. `numbers.agent._stat_calls` writes `z_window` / `z_series` onto a zscore row for exactly
     # the reason it writes near_month/far_month onto a spread row: the figure's entire meaning is HOW
@@ -1576,7 +2133,11 @@ def from_number(call: dict, i: int) -> Citation:
     # to. Off-flag and role-less rows contribute '' and drop out of the join exactly like `_delivery` and
     # `_zspan` do, so this term is byte-inert on every row that does not declare one.
     _role = _role_display(rH) if _vintage_role_on() else ""
-    scope = " ".join(x for x in (_contract_display(q.get("commodity")), geo, per, _role,
+    # 09-23 (C3): the board row's declared same-series OFFSET and its WINDOW-PEAK stat, in words, inside
+    # the scope -- each is identical on every call it rides, so a row's heads stay one spelling.
+    _offset = _offset_words(rH)
+    _statw = _stat_words(rH, rH.get("value"))
+    scope = " ".join(x for x in (_contract_display(q.get("commodity")), geo, per, _role, _offset, _statw,
                                  _delivery, _zspan) if x)
     # D-HP G1 REMEDIATION-2 R2-b: the blank-value read is routed to the ABSENCE branch BEFORE either
     # rows-bearing branch can claim it. `_blank` is false on every read that carries a value, so both
@@ -1608,8 +2169,14 @@ def from_number(call: dict, i: int) -> Citation:
             # K9-5: `_stat_value_text` is None on every row but a percentile stat, so this line is
             # byte-identical everywhere else -- including on a percentile row whose mint declared no unit.
             _vt = _stat_value_text(metric, value, unit) if _stat_row else None
+            # 09-23 (C5, OWNER DECISION 10): ANALYST PRECISION only on a call lane A stamped
+            # `display == "analyst"` (the board flag's own stamp); every other call is HEAD's `_fmt`.
+            _num = None
+            if not _vt and (call.get("display") == "analyst"):
+                _num = _analyst_value_text(value, table=_ctable or table, metric=_cmetric or metric,
+                                           unit=str(unit or ""), commodity=q.get("commodity"))
             label = (f"{src} {mdisp} {scope} = {_vt}".strip() if _vt
-                     else f"{src} {mdisp} {scope} = {_fmt(value)} {unit}".strip())
+                     else f"{src} {mdisp} {scope} = {_num if _num is not None else _fmt(value)} {unit}".strip())
         # D-PQ RENDER-2, second half: WHAT KIND OF PRINT this is, plus the row's own currency. Both are
         # card-declared columns and neither was reaching the writer. The currency is appended only when it
         # is not already inside the unit string (US cents/bushel already says USD; CNY/t already says CNY),
@@ -1629,7 +2196,9 @@ def from_number(call: dict, i: int) -> Citation:
         # 2026-09-02)" on a 2026 turn, which is FALSE about the tape and is exactly the fabrication
         # affordance this clause exists to prevent in the other direction.
         _hd, _ad = _parse_date(kd), _parse_date(asof)
-        if _hd and _ad and (_ad - _hd).days > 30 and not rH.get("located_extreme"):
+        # 09-23 (C3): a row read at a declared same-series OFFSET is old BY DESIGN, and "latest available"
+        # would tell the reader its date is a publication delay -- the offset words above say what it is.
+        if _hd and _ad and (_ad - _hd).days > 30 and not rH.get("located_extreme") and not _offset:
             label += f" (latest available {str(kd)[:10]}; as-of {asof})"
         # ══ PA-8(a) (2026-08-25): THE ABUNDANCE MARKER -- HOW MANY ROWS THIS CALL ACTUALLY SERVED ════════
         # This line headlines `max(rows, _row_order_key)` and says NOTHING about the other rows, so a
@@ -1662,9 +2231,12 @@ def from_number(call: dict, i: int) -> Citation:
             # provenance the reader keeps: `citations.render` prints the label and the `[known ...]` stamp
             # and nothing else, so a clause dropped here is a clause the reader never sees. The SCOPE count
             # is not repeated here; it is stated once, on the withheld label (MAJOR-1 in the block note).
+            # 09-23: on a CURVE read every row is ONE session, so "newest" names nothing; the shown row is
+            # the nearest eligible delivery (`_headline`), and the marker says that instead.
             label += (f" [{len(rows)} rows served"
                       + (f", covering {_sspan}" if ".." in _sspan else "")
-                      + ("; newest withheld]" if _scope_withheld else "; newest shown]"))
+                      + ("; newest withheld]" if _scope_withheld
+                         else ("; nearest eligible delivery shown]" if _on_curve else "; newest shown]")))
         # D-PQ RENDER-3 -- THE TRUNCATION ANNOTATION, THREADED TO THE WRITER. `agent.series_truncated` has
         # existed since J3b and `format_provenance` / `eval._num_line` both render it; the SYNTHESIS PROMPT
         # never did, because it is built from these labels. Measured 2026-08-07 (dcw_probe_v1 row 11,
@@ -1929,8 +2501,7 @@ def row_key(call: dict, r: dict) -> tuple:
 def headline_row(call: dict) -> dict:
     """The row `from_number` headlines for this call ({} when it serves none) -- the SAME selector, so the
     completion pass can never mistake the line already on the page for a missing one."""
-    rows = (call or {}).get("rows") or []
-    return max(rows, key=_row_order_key) if rows else {}
+    return _headline(call)[0]
 
 
 def _call_magnitudes(call: dict, stated) -> list[float]:
@@ -2002,9 +2573,18 @@ def _mint_row_citations(call: dict, i: int, rows: list[dict]) -> list[Citation]:
     q = call.get("query", {}) or {}
     table, metric = q.get("table", ""), q.get("metric", "")
     src = _source_label(table)
+    # 09-23: the extras speak the headline's period KIND and KNOWN-date rule (`_period_label` /
+    # `_known_date`) -- one label rule per call; the revision-tag path below is untouched.
+    _pk_row = period_kind(call, source="period")
+    _pk_query = period_kind(call)
     for r in sorted(rows, key=_row_order_key):
         val = (r or {}).get("value")
-        per = _period_label(row_period(call, r))
+        _rtok = (r or {}).get("period")
+        # 09-24 (FINAL_2, R-2): a row period that IS a date is asked of its own value (the token's type
+        # before the column's kind); every other row keeps the one kind read for the call above
+        _pk = (_pk_query if _rtok in (None, "") else
+               period_kind(call, source="period", token=_rtok) if _date_value(_rtok) is not None else _pk_row)
+        per = _period_label(row_period(call, r), _pk)
         unit = r.get("unit") or _metric_unit(table, metric, q.get("commodity"))
         geo = q.get("country") or (str(r.get("country")).strip() if r.get("country") else None)
         scope = " ".join(x for x in (q.get("commodity"), geo, per) if x)
@@ -2019,7 +2599,7 @@ def _mint_row_citations(call: dict, i: int, rows: list[dict]) -> list[Citation]:
                **{k: q.get(k) for k in ("table", "metric", "commodity", "country", "asof")},
                "period": (r.get("period") if r.get("period") not in (None, "") else q.get("period"))}
         out.append(Citation(id=f"N{i}{_EXTRA_SUFFIXES[len(out)]}", kind="number", label=label, source=src,
-                            date=_row_known_date(r), value=str(val), unit=(unit or None),
+                            date=_known_date(call, r), value=str(val), unit=(unit or None),
                             locator=loc, payload={"query": {**q, "period": loc["period"]}, "rows": [r]}))
     return out
 

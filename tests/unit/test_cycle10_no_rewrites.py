@@ -117,13 +117,22 @@ def test_gate6_cov1_the_approach_threshold_drops_and_is_never_rewritten():
 
 
 def test_gate6_cov2_the_flag_row_reaches_nothing_and_the_figure_survives():
-    """COV2. The r5 sibling rescue still fires (the grouped `[N5, N10, N12]` materializes 0.98), so this
-    one SHIPS INTACT WITH THE MIS-CITING HANDLE STRIPPED -- the third possible honest outcome, and the
-    best one. `1 degC` is unreachable in either case."""
+    """COV2. `1 degC` is unreachable, the grouped `[N5, N10, N12]` materializes 0.98, and the output is
+    the input minus characters -- the CYCLE-10 promise, all of it, unchanged.
+
+    AMENDED 09-23 (lane V, OWNER-VISIBLE): `[N2]` now SURVIVES. HEAD's pin read it as a MIS-CITING
+    handle and asserted the r5 rescue stripped it. It is the `el_nino_flag` row (= 1) cited for the WORDS
+    "putting the ENSO signal firmly in El Nino territory" -- a correct citation of words the row backs.
+    It was charged only because the sentence's one figure (0.98) was read SENTENCE-wide; 0.98 is bound to
+    the group written right after it, which backs it (`verify._unbound_handle`, the 09-23 binding rule),
+    so [N2] binds no figure and no figure can contradict it -- exactly as the same handle in a digit-free
+    sentence is never charged. The deletion-only and no-repair assertions below are the ones this pin
+    exists for, and they are untouched."""
     s = _structured(tldr=GATE6_COV2)
     rep = vf.verify_citations(s, [], GATE6_COV2_CALLS)
     assert "at 1 °C" not in s["tldr"] and "0.98 °C" in s["tldr"]
-    assert "[N2]" not in s["tldr"] and "[N5, N10, N12]" in s["tldr"]
+    assert "[N2]" in s["tldr"] and "[N5, N10, N12]" in s["tldr"]
+    assert s["tldr"] == GATE6_COV2                                  # nothing to strip, nothing written
     assert _no_mutation(GATE6_COV2, s["tldr"])
     assert rep["repaired"] == 0 and rep["repairs"] == []
 

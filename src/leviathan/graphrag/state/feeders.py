@@ -913,6 +913,314 @@ def derive_knowledge_date(ts, row: dict) -> tuple[Optional[str], str]:
     return d.isoformat(), f"observation {str(dd)[:10]} plus a {lag}-day publication lag"
 
 
+# ---------------------------------------------------------------------------------------------------
+# THE PROVENANCE COLUMN, SPLIT BY WHAT THE CARD SAYS IT IS (09-23 fix round, lane C; CONTRACT C11)
+# ---------------------------------------------------------------------------------------------------
+#: THE MEASURED LEAK (2026-09-23 re-smoke, the as-of-2024-03-01 turn, FATAL): the reader's footer
+#: printed ``World Bank Pink Sheet brent crude price 5-year z-score global MY2024-01-01 2026M09`` on a
+#: page that must read as of 1 March 2024. ``2026M09`` is the World Bank's RELEASE STAMP
+#: (``silver_pink_sheet.provenance_col: latest_release_ym``), which ``query._extras`` surfaces under the
+#: SAME alias every provenance column rides (``revision_stamp``) -- and this feeder copied that alias
+#: into ``StateRow.role`` for EVERY card, so the render spliced a September-2026 release into the
+#: period slot of a 2024 reading. ``citations._role_display`` had fenced its OWN path with a closed
+#: roster since K9-4 ("a release stamp standing in a role's place"); the board path bypassed it.
+#:
+#: THE CARD DECIDES, NEVER THE TOKEN'S SPELLING. ``provenance_kind`` (C10) says what the column is:
+#: ``role`` -> the token is a role only if the ONE closed roster admits it (``citations._role_display``
+#: is that roster's one reader, pinned equal to ``rows.VINTAGE_ROLES``); ``release_stamp`` -> the token is
+#: a release stamp, carried as ``StateRow.release_stamp`` and NEVER as a role; ``rule_version`` /
+#: ``source_position`` -> neither. An UNDECLARED card keeps only what the roster admits -- the roster is
+#: the one fact that makes a token a role, so an undeclared card can lose a stamp from the period slot
+#: but can never gain one. A release stamp LATER than the as-of is printed nowhere and counted.
+PIT_STAMP_WITHHELD = "pit_stamp_withheld"
+
+
+def _stamp_date(tok: str) -> Optional[_dt.date]:
+    """The EARLIEST day a release stamp can denote, or ``None`` when the stamp is not a calendar form.
+
+    Parsed by structure, not by pattern: ``YYYY-MM-DD`` / ``YYYYMMDD`` (a release DAY), ``YYYY-MM`` and the
+    World Bank's ``YYYYMmm`` (a release MONTH -> its first day, the earliest the release can have been).
+    An undatable stamp returns ``None`` and the caller withholds it: a stamp this seam cannot place
+    against the as-of is a stamp it cannot prove the reader was entitled to."""
+    s = str(tok or "").strip()
+    try:
+        if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+            return _dt.date.fromisoformat(s[:10])
+        if len(s) == 8 and s.isdigit():
+            return _dt.date(int(s[:4]), int(s[4:6]), int(s[6:8]))
+        if len(s) == 7 and s[4] in "-M" and s[:4].isdigit() and s[5:].isdigit():
+            return _dt.date(int(s[:4]), int(s[5:]), 1)
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def provenance_split(table: str, metric: str, token, asof: str) -> dict:
+    """What a served row's provenance token IS on this card: ``{"role": tok}``, ``{"release_stamp": tok}``,
+    ``{"withheld": tok}`` (a release stamp later than the as-of, or one this seam cannot date) or ``{}``.
+
+    THE ROSTER IS READ THROUGH ``citations._role_display`` -- the closed roster HEAD's citation path already
+    enforces -- so the board and the label admit exactly the same role words. The raw token is what a
+    role carries onward (the WASDE ``Estimate`` / ``projection`` words print exactly as HEAD printed them);
+    the roster only decides WHETHER it is a role."""
+    tok = str(token or "").strip()
+    if not tok:
+        return {}
+    from leviathan.graphrag import citations as _cit
+    kind = str((_cit._card_fields(table, metric) or {}).get("provenance_kind") or "").strip()
+    if kind in ("", "role"):
+        return {"role": tok} if _cit._role_display({"revision_stamp": tok}) else {}
+    if kind == "release_stamp":
+        d = _stamp_date(tok)
+        try:
+            a = _dt.date.fromisoformat(str(asof or "")[:10])
+        except (TypeError, ValueError):
+            a = None
+        if d is None or a is None or d > a:
+            return {"withheld": tok}
+        return {"release_stamp": tok}
+    return {}                                           # rule_version / source_position: neither
+
+
+def pit_stamp_withheld(st) -> int:
+    """1 when this row's release stamp was WITHHELD for postdating the as-of (or for being undatable),
+    else 0 -- the ONE predicate a board counter sums (``pit_stamp_withheld``, CONTRACT C11). Read off the
+    row's ``recency`` dict, which is where "when could anyone have known this" already lives."""
+    rec = getattr(st, "recency", None) or {}
+    return 1 if rec.get(PIT_STAMP_WITHHELD) else 0
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE CURRENT-PERIOD RULE (CONTRACT C11): per period the latest vintage <= as-of, then the NEWEST PERIOD
+# ---------------------------------------------------------------------------------------------------
+def _knowledge_day(v) -> Optional[_dt.date]:
+    """A served knowledge stamp as a day: ISO (``2024-01-12``) or the ESR partition form (``20240112``).
+    ``None`` when neither -- and an unplaceable stamp is never a reason to DROP a row here: the SQL guard
+    (``query._guard``) is the authority on what was knowable, and this is its belt, not a second guard."""
+    s = str(v or "").strip()
+    try:
+        if len(s) >= 10 and s[4] == "-":
+            return _dt.date.fromisoformat(s[:10])
+        if len(s) == 8 and s.isdigit():
+            return _dt.date(int(s[:4]), int(s[4:6]), int(s[6:8]))
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def as_known_newest_period(rows: list, ts, spec, asof: str) -> list:
+    """A VINTAGE card's served rows as the AS-KNOWN SERIES: for each identity (the card's own
+    ``group_cols``, read through the aliases the rows carry) the latest vintage known on or before the
+    as-of, and then the rows in the SQL's own chronological order (``query.resort_rows_chronological``,
+    the ONE key) -- so the level is the NEWEST PERIOD among as-known rows and never the row with the
+    newest knowledge date.
+
+    THE DEFECT CLASS (2026-09-23, the as-of-2024-03-01 turn, grades/fact F2): MY2020 PSD rows were served
+    as the March-2024 state. MEASURED on the trace: every PSD row on that board had ONE held vintage (area
+    and stocks-to-use MY2020 known 2024-01-12, Argentine production MY2017 known 2023-06-09) -- the store
+    holds no MY2021-2023 vintage dated on or before the as-of, so the as-known series truly ENDS at MY2020.
+    That is a VINTAGE-HISTORY GAP (a data docket) and :func:`period_gap` labels it; this function is the
+    ordering half of the same rule, and on a SQL-served read (``_rn = 1`` per identity, ordered by
+    ``_total_order``) it is the IDENTITY -- pinned in the deck on the SQL oracle's own output -- so no live
+    turn's level can move through it. What it closes is every path that hands rows in another order or
+    with several vintages of one period (a fixture, a future backend, a cache of an unsorted frame).
+
+    FAILS OPEN TO THE ROWS AS GIVEN on a non-vintage card and on a card whose identity columns the rows do
+    not all carry: a period cannot be grouped honestly on columns it cannot see."""
+    if len(rows or []) < 2 or str(getattr(ts, "knowledge_semantics", "") or "") != "vintage":
+        return rows
+    try:
+        from leviathan.graphrag.numbers import query as Q
+        alias = {str(e): a for e, a in Q._extras(ts)}
+        ident = []
+        for c in ts.group_cols():
+            if c == getattr(ts, "commodity_col", None) and getattr(spec, "commodity", None):
+                continue                                 # pinned by the read itself
+            a = alias.get(str(c))
+            if not a:
+                return rows                              # an identity column the rows do not carry
+            ident.append(a)
+        try:
+            cut = _dt.date.fromisoformat(str(asof or "")[:10])
+        except (TypeError, ValueError):
+            cut = None
+        best: dict = {}
+        order: list = []
+        for r in rows:
+            kd = _knowledge_day(r.get("knowledge_date"))
+            if cut is not None and kd is not None and kd > cut:
+                continue                                 # a vintage nobody could have known at the as-of
+            k = tuple(str(r.get(a) if r.get(a) is not None else "") for a in ident)
+            if k not in best:
+                order.append(k)
+                best[k] = r
+                continue
+            cur = _knowledge_day(best[k].get("knowledge_date"))
+            if kd is not None and (cur is None or kd > cur):
+                best[k] = r                              # the LATEST vintage of this period
+        kept = [best[k] for k in order]
+        return Q.resort_rows_chronological(kept, spec, ts)
+    except Exception:                                   # noqa: BLE001 -- a normaliser never breaks a read
+        return rows
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE PERIOD GAP (CONTRACT C11): a newer period of THIS SLUG is HELD as known at the as-of and this
+# series does not hold it -- a fact about the STORE, read off the rows the board already served
+# ---------------------------------------------------------------------------------------------------
+#: THE VERDICT IS THE STORE'S, NEVER A CALENDAR CONSTANT (09-23 fix round: the verifier's FATAL F1, the
+#: orchestrator's ruling 6). The first cut read the card's ``period_first_known`` ({period_start, +6} on
+#: the PSD cards) as "label year Y is surely known by 31 July of Y" and stamped a gap wherever the held
+#: period was older. MEASURED on the store the board reads (lane T's read-only pull of silver_psd, the
+#: fix-round census): frozen_orange_juice and fresh_citrus first print MY2024 on 2025-01-31 and MY2025 on
+#: 2026-01-31 and hold NO MY2026 at all on 2026-09-24, and robusta / arabica first print MY2024 and MY2025
+#: on 12-31 -- so the constant printed "the 2026 figures known then are not held" on an FCOJ board TODAY,
+#: and the same false sentence on the coffee rows every August to December, about figures nobody had
+#: published. One table-level number cannot carry a per-slug first-print fact, and a census bound taken
+#: over the slugs that HAD printed is right-censored exactly on the latest printers.
+#:
+#: THE RULE NOW: a row is behind only where the store HOLDS, as known on or before the as-of, a NEWER
+#: period of the SAME SLUG on the SAME CARD -- evidence the board already read, because its sibling rows
+#: of that slug (other reporters, other attributes of the one USDA sheet: "USDA publishes ONE sheet per
+#: commodity code", the card's own notes) came back through the SAME as-of-guarded read
+#: (``query._guard`` inside ``build_sql``). The expected period is the newest one held; the row keeps its
+#: level and says which period it holds and which period the same source had already published. With no
+#: newer period held there is no gap, whatever the calendar says -- so a slug whose new marketing year has
+#: not printed (FCOJ in September) is never called behind, and a slug whose new year IS held is called
+#: behind exactly as before. ZERO READS: the ledger is the board's own served rows
+#: (:func:`stamp_period_gaps`), so no read is added to either priced wave and no rectangle moves.
+#:
+#: WHERE THE RULE RUNS is still the card's declaration: a card carrying a well-formed
+#: ``period_first_known`` opts in (its rows are first-printed by RELEASE, so a lagging identity is a
+#: gap); the NUMBERS in that field document the measured first-print lag and are read by nothing here.
+#: An undeclared card, a malformed declaration, or a label outside the three shapes below is NO RULE. A
+#: period LABEL is read by its own shape, never by a start month the label does not carry -- ``"2023"``
+#: (a bare year), ``"2024/25"`` / ``"2024/2025"`` (a split season), ``"2026-07"`` (a month) -- and two
+#: labels are compared only inside ONE shape kind.
+def _label_ordinal(label) -> Optional[tuple]:
+    """``(ordinal, shape)`` of a period label, ``None`` when it is not one of the three shapes above.
+    ``shape`` is what :func:`_label_text` needs to spell a period in the label's OWN format."""
+    s = str(label or "").strip()
+    if len(s) == 4 and s.isdigit():
+        return int(s), ("year", 0)
+    if len(s) in (7, 9) and s[4] == "/" and s[:4].isdigit() and s[5:].isdigit():
+        return int(s[:4]), ("split", len(s) - 5)
+    if len(s) == 7 and s[4] == "-" and s[:4].isdigit() and s[5:].isdigit() and 1 <= int(s[5:]) <= 12:
+        return int(s[:4]) * 12 + int(s[5:]) - 1, ("month", 0)
+    return None
+
+
+def _label_text(ordinal: int, shape: tuple) -> str:
+    kind, w = shape
+    if kind == "month":
+        y, m0 = divmod(ordinal, 12)
+        return f"{y:04d}-{m0 + 1:02d}"
+    if kind == "split":
+        nxt = ordinal + 1
+        return f"{ordinal:04d}/{nxt % 100:02d}" if w == 2 else f"{ordinal:04d}/{nxt:04d}"
+    return f"{ordinal:04d}"
+
+
+def period_rule_declared(table: str, metric: str = "") -> bool:
+    """Does the card OPT IN to the period gap -- a well-formed ``period_first_known`` (``anchor`` one of
+    the two words, ``offset_months`` an int)? The field's numbers are never read past this check."""
+    from leviathan.graphrag import citations as _cit
+    pfk = (_cit._card_fields(table, metric) or {}).get("period_first_known")
+    if not isinstance(pfk, dict):
+        return False
+    if str(pfk.get("anchor") or "").strip() not in ("period_start", "period_end"):
+        return False
+    try:
+        int(pfk.get("offset_months"))
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def period_gap(table: str, metric: str, served, asof: str, held=()) -> dict:
+    """``{"expected", "served", "gap_periods"}`` when ``held`` -- the periods of THIS SLUG on THIS CARD the
+    store holds as known at the as-of, read off the board's own served rows -- carries a period NEWER than
+    ``served`` (this series' newest held period); ``{}`` otherwise: on every card that does not opt in,
+    on an unreadable label, and whenever nothing newer is held (no evidence, no gap -- the card's constant
+    alone never stamps one). An entry of ``held`` is a label or a ``(label, knowledge_date)`` pair; a pair
+    whose knowledge day falls AFTER the as-of is no evidence (the SQL guard is the authority on what was
+    knowable; this is its belt). It LABELS (R prints it, W demotes the row one band); it never removes a
+    row and never moves a figure."""
+    if not period_rule_declared(table, metric):
+        return {}
+    parsed = _label_ordinal(served)
+    if parsed is None:
+        return {}
+    have, shape = parsed
+    try:
+        cut = _dt.date.fromisoformat(str(asof or "")[:10])
+    except (TypeError, ValueError):
+        cut = None
+    newest = have
+    for h in held or ():
+        label, kd = (h[0], h[1]) if isinstance(h, (tuple, list)) and len(h) == 2 else (h, None)
+        if kd is not None and cut is not None:
+            k = _knowledge_day(kd)
+            if k is not None and k > cut:
+                continue                                 # not known at the as-of: never evidence
+        p = _label_ordinal(label)
+        if p is None or p[1][0] != shape[0]:
+            continue                                     # another shape kind is another calendar
+        newest = max(newest, p[0])
+    if newest <= have:
+        return {}
+    return {"expected": _label_text(newest, shape), "served": str(served).strip(),
+            "gap_periods": newest - have}
+
+
+def newest_held_period(st) -> Optional[str]:
+    """The newest period ONE served row HOLDS as known: its level period -- or, on a row whose declared
+    same-series offset was APPLIED, the pre-shift newest reading the row banked (that level is a declared
+    effect lag, not a held-period fact). ``None`` when the row served no dated level."""
+    rec = getattr(st, "recency", None) or {}
+    if rec.get("offset_applied") and rec.get("current_level_date"):
+        return str(rec.get("current_level_date"))
+    lvl = getattr(st, "level_date", None)
+    return str(lvl) if lvl else None
+
+
+def stamp_period_gaps(states, asof: str) -> int:
+    """THE BOARD'S PERIOD-GAP PASS, at ZERO reads, over the states the board ALREADY served at ONE as-of.
+
+    THE LEDGER is ``{(card, slug): [(newest held period, knowledge date), ...]}`` over every served row
+    of a card that opts in (:func:`period_rule_declared`) -- the slug's own held periods, exactly as the
+    SAME as-of-guarded read returned them for each of its series on this board. Each such row then gets
+    :func:`period_gap` against its slug's ledger: stamped where a newer period of that slug is held,
+    CLEARED (``{}``) everywhere else, so the pass is idempotent and a row copied out of the memo can never
+    carry another board's verdict. Rows of other cards are not touched. Returns the number stamped.
+
+    It reads each row's newest held period and its knowledge date and nothing else; it never moves a
+    level, a date, a figure or a status."""
+    ledger: dict = {}
+    todo: list = []
+    seen: set = set()
+    for st in states or ():
+        if st is None or id(st) in seen:
+            continue
+        seen.add(id(st))
+        table = str(getattr(st, "table", "") or "")
+        metric = str(getattr(st, "metric", "") or "")
+        if not table or not period_rule_declared(table, metric):
+            continue
+        label = newest_held_period(st)
+        if not label or _label_ordinal(label) is None:
+            continue
+        slug = str(getattr(getattr(st, "key", None), "commodity", "") or "")
+        ledger.setdefault((table, slug), []).append((label, getattr(st, "knowledge_date", None)))
+        todo.append((st, table, metric, slug, label))
+    n = 0
+    for st, table, metric, slug, label in todo:
+        gap = period_gap(table, metric, label, asof, held=ledger.get((table, slug), ()))
+        st.period_gap = gap
+        n += 1 if gap else 0
+    return n
+
+
 VINTAGE_NOTE = ("read from a table revised in place; the value as known at {asof} is not recoverable "
                 "and is shown as revised through {today}")
 """The REPLAY LABEL (sec 1.4, D17). A latest-only, revised-in-place card at a HISTORICAL as-of is
@@ -1133,6 +1441,11 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
         out.coverage_tier = coverage_tier(map_row=row, silver_status=silver_status, status=out.status)
         return out
     truncated = len(rows) >= READ_LIMIT
+    # THE CURRENT-PERIOD RULE (C11): the as-known series of a VINTAGE card -- per period the latest
+    # vintage on or before the as-of, newest period last. The IDENTITY on a SQL-served read (pinned);
+    # counted against the cap BEFORE it runs, because the cap is a property of the read, not of the rule.
+    rows = as_known_newest_period(rows, ts, board_spec(table, metric, commodity, country, asof, cadence,
+                                                       read_win), asof)
     values, collapse = casc._pace_series({"rows": rows}, table, commodity=commodity)
     out.collapse = collapse
     if not values:
@@ -1258,7 +1571,20 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     # ``revision_stamp``; reading the card's physical column name off the row would find nothing and the
     # role would be silently None on all nine cards that declare one (the K9-4 fact the vintage-role
     # fence is built on).
-    out.role = level_row.get("revision_stamp") or None
+    #
+    # AND THE ALIAS IS NOT A ROLE UNTIL THE CARD SAYS SO (09-23, C11): the same alias carries release
+    # stamps and rule versions, and the as-of-2024 page printed a September-2026 release stamp in a 2024
+    # period slot through this line. ``provenance_split`` reads the card's ``provenance_kind`` and the ONE
+    # closed roster; a release stamp rides ``release_stamp`` (never ``role``) and one that postdates the
+    # as-of rides nowhere and is counted below.
+    _prov = provenance_split(table, metric, level_row.get("revision_stamp"), asof)
+    out.role = _prov.get("role") or None
+    if _prov.get("release_stamp"):
+        out.release_stamp = _prov["release_stamp"]
+    # THE PERIOD GAP (C11) IS NOT STAMPED HERE: it is a fact about the STORE -- a newer period of this
+    # slug HELD as known at the as-of -- and one series' read cannot see its slug's other series. The
+    # walk stamps it over the board's served rows (``stamp_period_gaps``) before the rank reads it; this
+    # row leaves the field empty.
     out.coverage = {"first_obs": getattr(ts, "first_obs", None), "n_obs": len(values),
                     "history_start": dates[0] if dates else None,
                     "history_end": dates[-1] if dates else None, "truncated": truncated,
@@ -1346,6 +1672,9 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     # this" already lives. It is ADDITIVE: on every row with no applied offset the dict is byte-for-byte
     # `_recency`'s, and `render` prints the clause only where these keys exist.
     out.recency.update(_current_reading)
+    if _prov.get("withheld"):
+        # THE COUNT, never the stamp: the token itself is not kept anywhere a render could reach it.
+        out.recency[PIT_STAMP_WITHHELD] = 1
     out.derivation = derivs
     out.inputs = bundle
     n_obs = len(values)
@@ -1496,23 +1825,7 @@ def _period_dates(rows: list, ts, values: list, collapse) -> list:
     out: list = []
     seen: set = set()
     for i, r in enumerate(rows):
-        d = None
-        for k in ("data_date", "week_ending_date", "date", "report_date"):
-            d = TR.date_or_none(r.get(k))
-            if d is not None:
-                break
-        if d is None and TR.date_or_none(r.get("year")) is not None:
-            try:
-                d = (f"{int(r['year']):04d}-{int(r['month']):02d}"
-                     if TR.date_or_none(r.get("month")) is not None else f"{int(r['year']):04d}")
-            except (TypeError, ValueError):
-                d = TR.date_or_none(r.get("year"))
-        if d is None:
-            for k in ("period", "knowledge_date", "contract_month"):
-                d = TR.date_or_none(r.get(k))
-                if d is not None:
-                    break
-        d = d[:10] if d else None
+        d = row_period(r)[0]
         if d and d in seen and collapse:
             continue
         seen.add(d)
@@ -1521,6 +1834,70 @@ def _period_dates(rows: list, ts, values: list, collapse) -> list:
     # ``clean_pairs``' own zip disagreed about which end a surplus label comes off (front here, back
     # there); the rule and its two reasons are stated once in that function and both builders take it.
     return TR.align_axis(values, out)
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE ONE "WHAT PERIOD IS THIS ROW A VALUE OF" PRODUCER (09-23 fix round, lane C)
+# ---------------------------------------------------------------------------------------------------
+#: The row keys the PERIOD axis reads, in ``cascade._pace_period_key``'s own order, then the label keys
+#: ``_period_dates`` added behind them. Lifted out of ``_period_dates`` UNCHANGED so the citation label
+#: (``citations.from_number``) asks the SAME question of a served row that the board asks of it -- the
+#: 2026-09-23 cocoa page printed the ICCO headline with NO period at all ("(latest available 2026-05-29;
+#: as-of 2026-09-23)" and nothing else), while the board's own row for the same card named its season.
+PERIOD_DATE_KEYS: tuple = ("data_date", "week_ending_date", "date", "report_date")
+PERIOD_LABEL_KEYS: tuple = ("period", "knowledge_date", "contract_month")
+
+
+def row_period(r: dict) -> tuple:
+    """``(token, source)`` -- the period ONE served row is a value of, and WHICH KEY FAMILY named it.
+
+    ``source`` is ``"date"`` (a chronological data axis), ``"year_month"``, ``"year"``, or the label key
+    itself (``"period"`` / ``"knowledge_date"`` / ``"contract_month"``); ``(None, "")`` when the row
+    carries none. The source is what lets a reader of the token know WHAT KIND of period it is without
+    parsing its spelling: a ``period`` token on a marketing-year card is a marketing year, a ``date``
+    token is never one (the "MY2026-09-15" COT-week label every 09-23 page carried).
+
+    BYTE-IDENTICAL to the loop body ``_period_dates`` ran before this lift (the token half); pinned by
+    ``tests/unit/test_state_feeders.py``."""
+    r = r or {}
+    for k in PERIOD_DATE_KEYS:
+        d = TR.date_or_none(r.get(k))
+        if d is not None:
+            return d[:10], "date"
+    if TR.date_or_none(r.get("year")) is not None:
+        try:
+            if TR.date_or_none(r.get("month")) is not None:
+                return f"{int(r['year']):04d}-{int(r['month']):02d}"[:10], "year_month"
+            return f"{int(r['year']):04d}"[:10], "year"
+        except (TypeError, ValueError):
+            d = TR.date_or_none(r.get("year"))
+            return (d[:10] if d else None), "year"
+    for k in PERIOD_LABEL_KEYS:
+        d = TR.date_or_none(r.get(k))
+        if d is not None:
+            return d[:10], k
+    return None, ""
+
+
+def card_period_source(ts) -> str:
+    """The ``row_period`` SOURCE the board's level date comes from on this card -- decided by the
+    aliases the card's rows CARRY (``query._extras``, the one projection), run through ``row_period``'s
+    own key order. A board call carries its level date in ``query.period`` and no served row beside it,
+    so this is how the citation label learns what kind of period that token is from the card rather
+    than from the token's spelling. ``""`` when the card surfaces none of them."""
+    try:
+        from leviathan.graphrag.numbers import query as Q
+        aliases = {a for _e, a in Q._extras(ts)}
+    except Exception:                                   # noqa: BLE001 -- an unreadable card names no axis
+        return ""
+    if any(k in aliases for k in PERIOD_DATE_KEYS):
+        return "date"
+    if "year" in aliases:
+        return "year_month" if "month" in aliases else "year"
+    for k in PERIOD_LABEL_KEYS:
+        if k in aliases:
+            return k
+    return ""
 
 
 def _since_date(dates: list, run_len: int) -> Optional[str]:
@@ -1657,6 +2034,23 @@ TAPE_READ_SESSIONS = (CADENCE_HISTORY_WINDOW["daily"] + max(TAPE_CHANGE_SESSIONS
 #: :data:`CADENCE_DAYS`, the one place a session is worth a number of days (365/252), and rounded UP so
 #: the span can never come in short of the sessions it is meant to hold.
 TAPE_READ_DAYS = int(_math.ceil(TAPE_READ_SESSIONS * (CADENCE_DAYS["daily"] or 1.0)))
+
+
+def tape_known_date(tape) -> Optional[str]:
+    """The KNOWN date of the tape's settle -- the session date through the ONE derivation
+    (:func:`derive_knowledge_date` on the tape card: the session plus ``publication_lag_days``), so the
+    board's tape and the numbers seat's citation label print ONE known date for ONE settle (09-23, C11:
+    the as-of-2024 page footered the May-2024 settle "known 2024-02-29" on the tape and, after the label
+    fix, "known 2024-03-01" on the seat's front read). ``None`` when the tape has no dated level."""
+    d = str(getattr(tape, "level_date", "") or "")[:10]
+    if not d:
+        return None
+    try:
+        from leviathan.graphrag.numbers.registry import load_registry
+        kd, _basis = derive_knowledge_date(load_registry().get(TAPE_TABLE), {"knowledge_date": d})
+    except Exception:                                   # noqa: BLE001 -- a stamp never breaks a tape
+        return d
+    return kd or d
 
 
 def tape_period_start(asof: str, *, sessions: int = 0) -> str:

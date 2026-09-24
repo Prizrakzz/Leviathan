@@ -642,6 +642,26 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # post-verify and pre-splice. MEASURED on the 2026-09-16 smoke: 19
                                  # bullets here against the ten-reads table's 16. TWO COUNTERS OVER ONE
                                  # OBJECT -- never summed, and whichever a report prints, it must name.
+    # ── THE LANE-0 STAMPS (09-23 fix round, lane A; CONTRACT C14), APPENDED AT THE TAIL IN ONE COMMIT, so
+    # the negative-index tail pins across the test files re-anchor ONCE, BY THREE. THE DEFECT (D7 of the
+    # 2026-09-23 re-smoke, CONFIRMED on ten of ten records): commit ee06f19c stamped all three on
+    # `sg.trace` and its message said they "ride the re-smoke at zero cost" -- and NONE of the ten
+    # per-answer records carried them, because a trace key that is not named HERE reaches no artifact
+    # (the C2/U3 class this registry exists to kill, standing in the very commit that claimed to close
+    # it). Registration IS the lift; eval.py is not edited. All three are L2-only stamps
+    # (`answer._answer_l2`), so a one-hop or numbers-only row lifts them as None -- PRESENT-WITH-NULL,
+    # the registry's own shape, never a fabricated zero. CITED BY SYMBOL, NEVER BY LINE.
+    "board_n_start",             # the board's first [N] handle (`_board_n_start`), stamped beside
+                                 # `state_board` only when the board RAN -- None on every board-off row.
+                                 # The seat/board seam figure three recons had to infer from served_rows
+                                 # position: handles below it are the numbers seat's, at and above it the
+                                 # board's own calls (`quantify` appends them as a contiguous prefix).
+    "injected_n",                # [N] rows injected into the writer's grounding ledger (`n_num`, the
+                                 # W6.1-0 denominator the orchestrator's EMF already reads off the trace).
+    "numbers_block_chars",       # len() of the hybrid numbers block (`extra_context`, orchestrator's
+                                 # "SILVER NUMBERS" panel) as the writer received it -- the twin of the
+                                 # board's own BoardBlockChars, so a seat-vs-board size is a measurement
+                                 # rather than a +/-15% estimate. 0 on a turn that carried no block.
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].
@@ -704,3 +724,35 @@ def cost_census_on() -> bool:
     trace-key change that reaches the serving lane, and a typo must never half-arm a measurement.
     Read at the seam on every call rather than cached, so a deck can set it per case."""
     return str(os.environ.get(COST_CENSUS_ENV) or "").strip().lower() in ("1", "true", "on")
+
+
+# --- THE SPLAT REGISTRY (09-24, fix round FINAL_2; INTEGRATION O-2) --------------------------------
+# THE SECOND IDIOM, REGISTERED HERE AT LAST INSTEAD OF REMEMBERED IN eval.py. `TRACE_RECORD_KEYS` above
+# is PRESENT-WITH-NULL: a comprehension over a fixed tuple, so a key registered there is a column on
+# every control row of every deck forever, and appending one re-anchors the negative-index tail pins in
+# eight decks. The keys below are ABSENT-WHEN-OFF: `eval._per_answer_record` lifts each one VERBATIM
+# from `out["trace"]` ONLY on a row whose trace carries it -- never None, never a fabricated zero -- so
+# every flag-off artifact keeps `TRACE_RECORD_KEYS`' exact columns in their exact order (B11:
+# `TRACE_RECORD_KEYS` is untouched and no tail pin moves), exactly as the hand-written `bridge_query` /
+# `chain_lints` splats already do. REGISTRATION IS THE LIFT, as above: eval.py loops this tuple, and
+# `eval.splat_census_report` reads the same keys for the arm report. ORDER IS THE COLUMN ORDER --
+# append, never sort. LEAF: nothing here imports a producer; each producer is CITED BY SYMBOL.
+#
+# THE DEFECT IT CLOSES is the C2/U3 silent-lift class once more (INTEGRATION O-2, CLOSE_1 sec 6): the
+# three records below were stamped by their producers and reached NO artifact -- above all a REFUSED
+# RV pair (two legs whose units or currencies differ, e.g. a EUR/t futures settle against a USD/mt
+# Pink Sheet print) was written to `answer_numbers`' own return and read by nobody, so an arm could
+# count the spreads it minted and never the ones it refused (THREAT T-3, "refuse and count").
+TRACE_SPLAT_KEYS: tuple[str, ...] = (
+    "tldr_spine_deduped",        # 09-23 lane A, defect 5 (`answer._dedup_spine_tldr`, stamped on BOTH
+                                 # bodies only when the de-dup did something): {sections,
+                                 # sentences_removed, sentences_moved} -- the body served twice, corrected.
+    "rv_pair_spread",            # the RV pair leg MINTED its row(s) (`numbers.agent.answer_numbers`):
+                                 # {legs, markets}. Copied onto the trace by BOTH orchestrator lanes on a
+                                 # guarded line of its own; present only where the leg was armed (the
+                                 # board-flag kwarg or the dark GRAPHRAG_RV_PAIR_SPREAD) AND the question
+                                 # named two markets.
+    "rv_pair_uncomputed",        # ...or the leg REFUSED: {markets, reason}, the calculator's own sentence
+                                 # (`numbers.agent.RV_PAIR_UNCOMPUTED_KEY`). EXACTLY ONE of the two rides a
+                                 # turn whose leg ran, so minted + refused is the leg's own denominator.
+)

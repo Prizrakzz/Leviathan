@@ -1110,6 +1110,14 @@ _STAT_DISPLAY: dict[str, str] = {
     "extrema_max": "high",
     "yoy_delta": "year-over-year change",
     "spread": "spread between two delivery months",
+    # THE 09-23 FIX ROUND (review WT M-3; OWNER DECISION 9): the RV pair leg's ONE minted id. Both of its
+    # calculators write their row under the metric `pair_spread` -- the history leg (`stats.pair_spread`,
+    # behind the dark GRAPHRAG_RV_PAIR_SPREAD) and the board-lit LEVEL (`stats.pair_level_spread`, whose
+    # name rides only `stat_provenance`, which no label reads) -- so this one entry is the reader words for
+    # both, and `pair_level_spread` gets no entry of its own: a name no row carries is the stray vocabulary
+    # `test_stat_label_path` forbids. The two markets are named by the row's own scope slot ("world crude
+    # palm oil minus world soybean oil"), so the words say only what was computed.
+    "pair_spread": "spread between the two markets",
 }
 
 

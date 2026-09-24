@@ -816,26 +816,27 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     RE-ANCHOR (COST_LATENCY.md, the 2026-09-16 in-VPC pre-arm smoke): `turn_cost_usd` prices the WRITER
     ALONE -- $2.5643 over five turns against a PROVEN floor of $3.9251 -- and these three are the seats
     it never saw, the largest of them ($8.84 of a $35 arm) being the numbers agent."""
-    assert tk.TRACE_RECORD_KEYS[-23] == "wrong_slot_audit"  # lane F re-pin: +4 (cost census x3 + writer seam)
-    assert tk.TRACE_RECORD_KEYS[-22] == "slot_orphan_dropped"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-21] == "episode_spans_validated"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-20] == "plan_tokens"  # lane F re-pin: +4. NOT `plan_usage`: the
+    assert tk.TRACE_RECORD_KEYS[-26] == "wrong_slot_audit"  # lane F re-pin: +4 (cost census x3 + writer seam)
+    assert tk.TRACE_RECORD_KEYS[-25] == "slot_orphan_dropped"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-24] == "episode_spans_validated"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-23] == "plan_tokens"  # lane F re-pin: +4. NOT `plan_usage`: the
     #                                                  # SIZE of the writer's popped plan region,
     #                                                  # never the dispatch planner's tokens
-    assert tk.TRACE_RECORD_KEYS[-19] == "evidence_slot_dropped"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-18] == "evidence_geo_dropped"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-17] == "tables_queried"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-16] == "timing_ms"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-15] == "xc_open_pair"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-14] == "xc_open_decline"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-13] == "xc_regional_decline"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_rv_reading_fenced"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-11] == "quantify_derived_fenced"   # D-DA append, 09-01; lane F re-pin +4
-    assert tk.TRACE_RECORD_KEYS[-10] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application); lane F re-pin +4
-    assert tk.TRACE_RECORD_KEYS[-9] == "quantify_wave_reads"      # A2 wave counter, same commit; lane F re-pin +4
+    assert tk.TRACE_RECORD_KEYS[-22] == "evidence_slot_dropped"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-21] == "evidence_geo_dropped"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-20] == "tables_queried"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-19] == "timing_ms"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-18] == "xc_open_pair"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-17] == "xc_open_decline"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-16] == "xc_regional_decline"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-15] == "quantify_rv_reading_fenced"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-14] == "quantify_derived_fenced"   # D-DA append, 09-01; lane F re-pin +4
+    assert tk.TRACE_RECORD_KEYS[-13] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application); lane F re-pin +4
+    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_wave_reads"      # A2 wave counter, same commit; lane F re-pin +4
     # THE NEW TAIL, NAMED: four keys, one commit, appended (never sorted in)
-    assert tk.TRACE_RECORD_KEYS[-4:] == ("numbers_usage", "plan_usage", "desk_register", "writer_seam")
-    assert tk.TRACE_RECORD_KEYS[-5] == "state_board"              # the PRIOR tail, still in place
+    assert tk.TRACE_RECORD_KEYS[-7:-3] == ("numbers_usage", "plan_usage", "desk_register", "writer_seam")
+    assert tk.TRACE_RECORD_KEYS[-3:] == ("board_n_start", "injected_n", "numbers_block_chars")  # lane A 09-23: the three lane-0 stamps, ONE commit
+    assert tk.TRACE_RECORD_KEYS[-8] == "state_board"              # the PRIOR tail, still in place
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
@@ -1420,3 +1421,41 @@ def test_only_ids_with_a_convo_deck_refuses_on_BOTH_sides_rather_than_being_igno
                                      model="m", judge=False, judge_model="j", k=5, only_ids="r1")
     esrc = inspect.getsource(ev.main)
     assert "--only-ids selects rows of a --queries deck" in esrc
+
+
+# == THE 09-23 FIX ROUND, lane V blocker 4 -- CLAUSE (2b)'s POPULATION GAINS THE CANONICALISED HANDLES ==
+def test_fix_0923_V4_a_canonicalised_handle_rides_beside_bare_handle_escapes_and_never_inside_it():
+    """THE MEASURED ESCAPE (09-23 quick corn/wheat): "35.82 M ha [N42, the 98th percentile of its own
+    record]" was no handle to either grammar, so neither figure was checked and `bare_handle_escapes` read
+    0 over it. The verifier now splits the bracket and writes the split back, so the token enters the body
+    the clause scans; the record names how many tokens exist only because of that split -- on the splat
+    idiom (absent when none), pooled with its row ids -- and the NUMERATOR never counts a repaired bracket."""
+    from leviathan.graphrag import verify as vf
+
+    def _c(v, unit, rid):
+        return {"query": {"table": "t", "metric": "m"}, "rows": [{"value": v, "unit": unit}], "status": "ok",
+                "shown": [float(v)], "_row_id": rid}
+    calls = [{"query": {"metric": "pad"}, "rows": []} for _ in range(42)]
+    calls[39], calls[41] = _c(35.817, "M ha", "corn|area"), _c(98, "percentile", "corn|area")
+    st = {"tldr": "Corn's harvested area reads 35.82 M ha [N42, the 98th percentile of its own record].",
+          "mechanism": "", "sources": []}
+    rep = vf.verify_citations(st, [], calls)                       # the REAL verifier's own report
+    assert rep["handles_canonicalised"] == 1
+    out = {"answer": st["tldr"], "trace": {"citation_verifier": rep}}
+    rec = ev._per_answer_record({"q": {"id": "corn_wheat"}, "rubric": {}, "out": out}, "single")
+    assert rec["handles_canonicalised"] == 1 and rec["bare_handle_escapes"] == 0
+    assert list(rec)[-2:] == ["bare_handle_escapes", "handles_canonicalised"]      # appended, never interleaved
+    # a row whose writer malformed nothing keeps HEAD's columns and HEAD's tail
+    clean = ev._per_answer_record({"q": {"id": "r0"}, "rubric": {}, "out": {"answer": "x", "trace": {
+        "citation_verifier": {"enabled": True, "by_rule": {}}}}}, "single")
+    assert "handles_canonicalised" not in clean and list(clean)[-1] == "bare_handle_escapes"
+    rows = [{"q": {"id": "corn_wheat"}, "rubric": {}, "out": out},
+            {"q": {"id": "r0"}, "rubric": {}, "out": {"answer": "x", "trace": {
+                "citation_verifier": {"enabled": True, "by_rule": {}}}}}]
+    tot = ev._baseline_json(rows, run_kind="single", model="m", judged=False, eval_set="s", graph_version="v",
+                            corpus_fp="f", mode="deep_hp")["dhp_successor"]
+    assert tot["handles_canonicalised"] == 1 and tot["handles_canonicalised_rows"] == ["corn_wheat"]
+    assert tot["bare_handle_escapes"] == 0
+    tot0 = ev._baseline_json(rows[1:], run_kind="single", model="m", judged=False, eval_set="s",
+                             graph_version="v", corpus_fp="f", mode="deep_hp")["dhp_successor"]
+    assert "handles_canonicalised" not in tot0 and "handles_canonicalised_rows" not in tot0

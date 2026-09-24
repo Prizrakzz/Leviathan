@@ -120,16 +120,19 @@ def test_the_four_deleted_sentences_keep_every_figure_and_lose_only_the_mis_citi
     restatement of its own row, and HEAD deleted the sentence whole because `_sibling_backed` demanded
     EXACTLY ONE claim numeral and these carry two or three. Every figure in every one of them is right --
     the proof is that each one is materialized by another [N] in the same sentence."""
+    # 09-23 FIX ROUND (lane V) -- AMENDED, OWNER-VISIBLE: the handle cited for WORDS is no longer charged.
+    # `verify._unbound_handle` reads the binding the writer wrote ("figure [N]"): this handle binds no figure
+    # and every figure in the sentence is backed by the handle it binds to, so no figure can contradict it --
+    # exactly as the same handle in a digit-free sentence is never charged. The 09-23 fact graders scored
+    # HEAD's handle drop on this class a verifier FALSE POSITIVE (tariff 12/12, palm/rape 5/5).
     st, rep = _run(prose, calls)
     out = st["tldr"]
-    assert out.strip(), "the sentence must survive: %r" % out
-    for h in charged:
-        assert h not in out, "the mis-citing handle must go: %s" % h
-    for h in kept_handles:
-        assert h in out, "a correctly-cited handle must stay: %s" % h
+    assert out == prose, "the sentence must survive whole: %r" % out
+    for h in charged + kept_handles:
+        assert h in out, "a handle that binds no figure it contradicts stays: %s" % h
     for f in figures:
         assert f in out, "the figure must stay on the page: %s" % f
-    assert rep["by_rule"].get("number_mismatch") == len(charged)
+    assert rep["by_rule"] == {}
     assert rep["repaired"] == 0 and rep["repairs"] == []   # CYCLE-10 holds: nothing is REWRITTEN
 
 
@@ -154,11 +157,15 @@ def test_the_one_numeral_rescue_is_byte_identical_the_export_watch_bullet():
     """THE SHAPE THAT ALREADY WORKED, AND MUST NOT MOVE. deep's export-watch bullet carries ONE claim
     numeral (311.85) backed by [N38], so HEAD's rescue already fired and dropped [N40] alone. The widened
     predicate answers the same question on the same sentence."""
+    # 09-23 FIX ROUND (lane V) -- AMENDED, OWNER-VISIBLE: the handle cited for WORDS is no longer charged.
+    # `verify._unbound_handle` reads the binding the writer wrote ("figure [N]"): this handle binds no figure
+    # and every figure in the sentence is backed by the handle it binds to, so no figure can contradict it --
+    # exactly as the same handle in a digit-free sentence is never charged. The 09-23 fact graders scored
+    # HEAD's handle drop on this class a verifier FALSE POSITIVE (tariff 12/12, palm/rape 5/5).
     st, rep = _run(S_DEEP_WATCH, C_DEEP, field="mechanism")
-    assert "311.85" in st["mechanism"] and "[N38]" in st["mechanism"]
-    assert "[N40]" not in st["mechanism"]
-    assert rep["by_rule"] == {"number_mismatch": 1}
-    assert vf._sibling_backed(S_DEEP_WATCH, 40, C_DEEP) is True
+    assert st["mechanism"] == S_DEEP_WATCH
+    assert rep["by_rule"] == {}
+    assert vf._sibling_backed(S_DEEP_WATCH, 40, C_DEEP) is True          # the predicate itself is unmoved
 
 
 def test_a_sentence_whose_figure_no_sibling_carries_still_dies():
@@ -397,15 +404,24 @@ def test_the_triple_charged_rapeseed_sentence_writes_one_audit_row():
     triples -- deep's ENSO bullet x3, max's crush sentence x2, palm/rape's rapeseed sentence x3 and its
     dated-documents bullet x3. A reader counting rows read '15 charges' where the verifier had touched
     eight sentences, and the smoke report did exactly that."""
-    rules = _audit_rules(S_RAPE, C_RAPE)
-    assert rules == ["number_mismatch"]                       # three offending handles, ONE row
+    # 09-23 FIX ROUND (lane V) -- AMENDED, OWNER-VISIBLE: the handle cited for WORDS is no longer charged.
+    # `verify._unbound_handle` reads the binding the writer wrote ("figure [N]"): this handle binds no figure
+    # and every figure in the sentence is backed by the handle it binds to, so no figure can contradict it --
+    # exactly as the same handle in a digit-free sentence is never charged. The 09-23 fact graders scored
+    # HEAD's handle drop on this class a verifier FALSE POSITIVE (tariff 12/12, palm/rape 5/5).
+    # The three-handle conviction is re-pinned on a sentence whose handles a figure DOES bind to (900,
+    # backed by no row), since S_RAPE's word-cited handles are no longer charged at all.
+    three = "Stocks are ample; record Black Sea seed [N1], softening crush [N2] and oil [N3] all read 900."
+    rules = _audit_rules(three, _calls({1: 7.0, 2: 25.1, 3: 4.35}))
+    assert rules == ["number_mismatch_orphan_figure_cut"]     # three offending handles, ONE row
 
 
 def test_the_counters_keep_their_per_handle_semantics():
     """SCOPE, DELIBERATELY NARROW: the de-duplication is the AUDIT's. `stripped` and `by_rule` are the
     estate's standing strip counters and every banked number is denominated in them, so they are NOT
     redefined on the eve of an arm."""
-    _st, rep = _run(S_RAPE, C_RAPE, field="mechanism")
+    three = "Stocks are ample; record Black Sea seed [N1], softening crush [N2] and oil [N3] all read 900."
+    _st, rep = _run(three, _calls({1: 7.0, 2: 25.1, 3: 4.35}), field="mechanism")
     assert rep["by_rule"]["number_mismatch"] == 3 and rep["stripped"] == 3
 
 
@@ -440,8 +456,10 @@ def test_a_clean_sentence_is_untouched(prose, calls):
 def test_the_verifier_kill_switch_and_the_handle_mode_rollback_are_unmoved():
     os.environ["GRAPHRAG_VERIFY_NUM_MODE"] = "handle"
     try:
-        st, rep = _run(S_CORN_SU, C_CORN, field="mechanism")
-        assert "[N79]" not in st["mechanism"] and st["mechanism"].strip()
+        # 09-23 (lane V): S_CORN_SU's [N79] is no longer charged (it binds no figure); the handle-mode
+        # rollback is pinned on a sentence the rule still charges.
+        st, rep = _run("Stocks ran 10.72 % [N1] against a 2.6 crush.", _calls({1: 44.0}), field="mechanism")
+        assert "[N1]" not in st["mechanism"] and "10.72 %" in st["mechanism"]
         assert rep["by_rule"].get("number_mismatch") == 1
     finally:
         os.environ.pop("GRAPHRAG_VERIFY_NUM_MODE", None)
@@ -714,8 +732,10 @@ def test_a_sibling_backed_handle_is_labelled_as_such_even_inside_an_orphan_sente
     """MAJOR-4's second half. Round 1 stamped every surviving handle of an orphan sentence
     `number_mismatch_orphan_kept`, including one the SIBLING RESCUE had backed -- an event that was not
     an orphan refusal at all. The label is now read off the HANDLE's own verdict."""
-    text = ("Stocks are ample; the ocean signal at +1.8 degC [N1], +2.4 sigma [N2] and in the bottom "
-            "decile [N3] all point one way.")
+    # 09-23 (lane V): the word-cited [N3] of HEAD's fixture binds no figure and is no longer charged; the
+    # sibling-backed conviction is re-pinned on [N3] ADJACENT to [N1], where +1.8 binds to both.
+    text = ("Stocks are ample; the ocean signal at +1.8 degC [N1] [N3], +2.4 sigma [N2] all point one "
+            "way.")
     calls = _calls({1: 1.8, 2: 2.4, 3: 6.0})
     rules = _audit_rules(text, calls)
     assert "number_mismatch" in rules                          # the sibling-backed handle
@@ -741,10 +761,15 @@ def test_docket_B1_a_wordless_citation_is_never_charged_by_a_neighbours_numerals
     ONE numeral, so the blast radius was decided by how many figures the writer put in the sentence.
     FOUR of these five carry TWO OR THREE claim numerals: the widened rescue covers them all, the
     sentence survives, every figure keeps its own handle and only the wordless citation goes."""
+    # 09-23 FIX ROUND (lane V) -- AMENDED, OWNER-VISIBLE: the handle cited for WORDS is no longer charged.
+    # `verify._unbound_handle` reads the binding the writer wrote ("figure [N]"): this handle binds no figure
+    # and every figure in the sentence is backed by the handle it binds to, so no figure can contradict it --
+    # exactly as the same handle in a digit-free sentence is never charged. The 09-23 fact graders scored
+    # HEAD's handle drop on this class a verifier FALSE POSITIVE (tariff 12/12, palm/rape 5/5).
     assert len(vf._claim_number_spans(vf._mask_handles(prose))) >= 1
     st, rep = _run(prose, calls, field="mechanism")
     out = st["mechanism"]
-    assert charged not in out
+    assert charged in out and out == prose and rep["by_rule"] == {}
     for f in figures:
         assert f in out, f
     assert out.strip() and rep["by_rule"].get("number_unbacked") is None
@@ -824,7 +849,8 @@ def test_docket_B4_strip_sentences_counts_distinct_sentences_and_stripped_does_n
     denominated in it, so it does NOT move. `strip_sentences` is the honest numerator beside it: the
     smoke's deep turn reported `strips = 5` over THREE distinct sentences and the read panel read five
     findings. It is populated whether or not GRAPHRAG_STRIP_AUDIT is lit."""
-    _st, rep = _run(S_RAPE, C_RAPE, field="mechanism")
+    three = "Stocks are ample; record Black Sea seed [N1], softening crush [N2] and oil [N3] all read 900."
+    _st, rep = _run(three, _calls({1: 7.0, 2: 25.1, 3: 4.35}), field="mechanism")
     assert rep["stripped"] == 3                               # three offending handles, unmoved
     assert rep["strip_sentences"] == 1                        # ...on ONE sentence
     assert "strip_audit" not in rep                           # the capture is still flag-gated

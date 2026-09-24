@@ -524,7 +524,13 @@ def test_the_mandate_stops_teaching_the_bare_commodity_board():
     assert "closed in 2012" not in m
     # ...and the ban half's SELF-LINT is a declared number: the literal must quote the words it bans.
     # HEAD 22 -> 23, the one added charge being "on each board is the instrument's own word".
-    assert reg.count_desk_register(m) == 23, reg.desk_register_hits(m)
+    # 09-23 (OWNER DECISION 8): the v1 count is read on the FROZEN eleven names and stays 23; the
+    # extended count adds exactly one charge per C13 row, because the mandate prints the table and each
+    # new row's own name is the word it bans (threat R-9: recomputed and pinned, never assumed).
+    assert reg.count_desk_register(m, reg.DESK_REGISTER_V1_NAMES) == 23, reg.desk_register_hits(m)
+    _new = len(reg.DESK_REGISTER_TOKENS) - len(reg.DESK_REGISTER_V1_NAMES)
+    assert _new == 11
+    assert reg.count_desk_register(m) == 23 + _new, reg.desk_register_hits(m)
     assert "Chicago wheat or the CBOT wheat" in m
     # the exemption itself did NOT move -- this test is the record of that decision
     assert reg.count_desk_register("it is the one channel that supports the wheat board too") == 0
@@ -782,3 +788,62 @@ def test_the_recency_row_VALUES_do_not_move_when_the_dates_were_already_iso():
     line = N.recency_rows(bd, tape_edge="2026-09-04")["numbers"]
     assert "2026-09-04" in line and "2025-12-31" in line
     assert "read as of 2026-09-07" in line
+
+
+# === 09-23 FIX ROUND, LANE R: THE C13 ROWS (CONTRACT.md C13, OWNER DECISIONS 7 AND 8) ===================
+#: One real 09-23 served sentence per new row, quoted from the pages the owner read (the instrument words
+#: the writer copied off the chain rows, the history line and the analog stanza).
+_C13_CHARGED = {
+    "firing": "Five of eight past firings moved the declared way, three did not.",
+    "hop": "Its first hop runs against the direction declared for it.",
+    "far end": "Setting the pair the far end reaches: the record does not settle palm against soyoil.",
+    "print line": "The third chain sits below the print line and is carried in one line.",
+    "ranked beside": "the three dimensions ranked beside it together reach back to 2023",
+    "admitted": "three like states admitted at the full-coverage floor since 2023",
+    "seated": "a chain the selection seated for the pair",
+    "tier cap": "the readings past this tier's cut are named here",
+    "coverage floor": "admitted at the coverage floor",
+    "declared way": "the next hop moved the declared way inside the declared window",
+    "declared window": "The dated report at the crude hop sits outside the window declared for it.",
+}
+
+
+def test_R0923_every_C13_row_CHARGES_its_instrument_sentence_and_teaches_CLEAN_phrases():
+    """C13: each new row charges the served sentence it was written against, and every replacement
+    phrase it teaches is itself clean -- zero on the desk table, the register leaks, the flow and
+    valuation counters, and in NO claim class of `answer._DESK_CLAIM_RX` (the 09-17 "strongest signal"
+    withdrawal is the precedent; the contract's "write-up" was swapped for "treatment" on exactly this
+    rule, because `up` is a DIRECTION word)."""
+    from leviathan.graphrag import answer as _an
+    new = [(n, p, r) for n, p, r in reg.DESK_REGISTER_TOKENS if n not in reg.DESK_REGISTER_V1_NAMES]
+    assert [n for n, _p, _r in new] == list(_C13_CHARGED), [n for n, _p, _r in new]
+    for name, _pat, repl in new:
+        hits = [h[0] for h in reg.desk_register_hits(_C13_CHARGED[name])]
+        assert name in hits, (name, hits)
+        assert ";" not in repl, (name, "a phrase column splits on commas only")
+        for phrase in [x.strip() for x in re.split(r",| or ", repl) if x.strip()]:
+            assert reg.desk_register_hits(phrase) == [], (name, phrase)
+            assert reg.register_leaks(phrase) == [], (name, phrase)
+            assert reg.count_flow_words(phrase) == 0 and reg.count_valuation_words(phrase) == 0
+            assert not _an._DESK_CLAIM_RX.search(phrase), (name, phrase)
+    assert reg.check_desk_exempt_table() == []
+
+
+def test_R0923_the_V1_NAMES_are_FROZEN_and_the_v1_count_reads_only_them():
+    """OWNER DECISION 8 / threat R-10: the arm reports the v1 count and the extended count side by
+    side, so the v1 names are the HEAD table's eleven, in order, forever."""
+    assert reg.DESK_REGISTER_V1_NAMES == ("board", "row", "the graph", "loud", "knowledge date",
+                                          "convention", "state read", "receipt", "node", "series key",
+                                          "the walk")
+    assert tuple(n for n, _p, _r in reg.DESK_REGISTER_TOKENS[:11]) == reg.DESK_REGISTER_V1_NAMES
+    s = "The board row shows the next hop moved the declared way in five past firings."
+    assert reg.count_desk_register(s, reg.DESK_REGISTER_V1_NAMES) == 2
+    assert reg.count_desk_register(s) == 5
+    assert reg.count_desk_register(s, ()) == 0
+
+
+def test_R0923_the_bare_word_DECLARED_is_not_charged_this_round():
+    """OWNER DECISION 7: 128 uses on the ten pages; only its two instrument PHRASES are charged."""
+    assert reg.count_desk_register("the lag declared for this series runs to October") == 0
+    assert reg.count_desk_register("the declared sign is positive") == 0
+    assert reg.count_desk_register("the readings run with the declared direction") == 1

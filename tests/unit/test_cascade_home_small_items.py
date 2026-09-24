@@ -304,8 +304,10 @@ def test_t1_5_curve_headline_is_the_furthest_expiry_deterministically():
     assert max(list(reversed(rows)), key=cit._row_order_key)["contract_month"] == "2027-03"
     c = cit.from_number({"query": {"table": "silver_futures_eod", "metric": "settle",
                                    "commodity": "corn_cbot"}, "rows": rows, "status": "ok"}, 1)
-    assert "delivery 2027-03" in c.label and c.value == "449.0"
-    assert c.locator["contract_month"] == "2027-03"            # the drill-down re-runs what was quoted
+    # RE-BANKED 09-23 FIX ROUND -- OWNER DECISION 5 / CONTRACT C12 (09-23 recon D4: deep26 F4, max F2, THREAT C-5):
+    # the curve read now headlines the NEAREST eligible delivery via query.curve_headline_index, not the furthest.
+    assert "nearest listed delivery 2026-07" in c.label and c.value == "430.0"
+    assert c.locator["contract_month"] == "2026-07"            # the drill-down re-runs what was quoted
 
 
 def test_t1_5_non_curve_reads_keep_their_headline():

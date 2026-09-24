@@ -534,7 +534,8 @@ def test_novelty_can_NEVER_be_a_per_kind_constant():
     into :data:`watch._GRAMMAR` from the templates themselves, so a kind's own vocabulary cannot hand
     it a free point -- only the words the BOARD put in the sentence count, and changing the subject
     alone must change the number."""
-    assert WA._GRAMMAR and "decile" in WA._GRAMMAR and "hops" in WA._GRAMMAR
+    # 09-23 DESK VOCABULARY: the upstream template says "links" where it said "hops" (CONTRACT.md C13).
+    assert WA._GRAMMAR and "decile" in WA._GRAMMAR and "links" in WA._GRAMMAR
     for kind in WA.NONOBVIOUS_KINDS:
         body = WA.NONOBVIOUS_BODIES[kind]
         bare = WA._SLOT_RX.sub(" ", body)
@@ -1341,7 +1342,7 @@ def test_a_near_edge_with_NO_committed_direction_PLACES_NOTHING_and_says_so():
 
 # -- REVIEW ROUND 3, minor: the causes are named DEEPEST FIRST ----------------------------------------
 def test_the_upstream_causes_are_named_DEEPEST_FIRST():
-    """The sentence names its first three causes immediately after "the deepest {depth} hops up", and
+    """The sentence names its first three causes immediately after "the deepest {depth} links up", and
     they came back in PATH-ITERATION order: 119 of 256 drawn upstream rows on the banked seats named a
     first cause that is not at the stated depth. Ambiguity rather than falsehood -- the tail's own
     arithmetic always let a reader recover that the list is the whole ancestor set -- and it closes by
@@ -1353,4 +1354,4 @@ def test_the_upstream_causes_are_named_DEEPEST_FIRST():
     facts = WA._paths_on(bd, r)
     assert facts["tops"] == ("deepest", "middle", "shallow") and facts["depth"] == 4
     c = _only(bd, "upstream_convergence")[0]
-    assert "the deepest four hops up (deepest, middle" in c["what"]
+    assert "the deepest four links up (deepest, middle" in c["what"]

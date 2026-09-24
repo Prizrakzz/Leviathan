@@ -124,15 +124,34 @@ def coverage_band(row: B.NodeRow) -> int:
     THE BAND IS NOT A FILTER. It orders; a band-5 row with dated receipts still renders, still fans and
     still enters convergence proximity. Bands 3-5 are the TEXT-ONLY tier whose own order is
     `(open_event, newest receipt date, specificity)` and is computed in STAGE 2 -- so receipt
-    specificity is never a circular input to who got retrieved (sec 3.2)."""
+    specificity is never a circular input to who got retrieved (sec 3.2).
+
+    **A LEVEL WHOSE PERIOD IS BEHIND ONE ALREADY HELD SITS ONE BAND LOWER** (CONTRACT C11, the
+    2024-03-01 as-of turn: the PSD area and stocks-to-use rows read marketing year 2020/21 while newer
+    years of the same sheet had been published, and ranked beside readings of the present). The fact is
+    lane C's -- ``StateRow.period_gap``, stamped by ``feeders.stamp_period_gaps`` ONLY where a sibling
+    series of the same slug on the same card came back holding a NEWER period as known at the as-of (a
+    fact about the store; the card's ``period_first_known`` numbers never decide it -- the 09-23
+    verifier's F1), and EMPTY everywhere else -- and this function only READS it: a non-empty gap is one band
+    lower, so a three-year-old level is never ordered as "now". IT IS A DEMOTION AND NEVER A REMOVAL
+    (W-12): the row keeps its state, its rank tuple and its render, and the page states the gap in its
+    own words. THE DEMOTION STAYS INSIDE THE NUMERIC TIER (bands 0-2): a gapped row still carries a
+    reading, and the text-only tier's order (:func:`text_tier_key`) is a rule about receipts that a
+    served level must never be sorted by. So a band-2 row -- a level with no standing -- is already at
+    the numeric floor and does not move. Read defensively (``getattr``): a StateRow built before the
+    field existed carries no gap, which is exactly HEAD's reading."""
     tier = row.coverage_tier
     if tier in ("series", "series_thin"):
         st = row.state
         if st is not None and _ok(st.z):
-            return 0
-        if st is not None and _ok(st.percentile):
-            return 1
-        return 2
+            band = 0
+        elif st is not None and _ok(st.percentile):
+            band = 1
+        else:
+            band = 2
+        if st is not None and getattr(st, "period_gap", None):
+            band = min(band + 1, 2)
+        return band
     return {"declared_available_unserved": 3, "planned_text_only": 4}.get(tier, 5)
 
 
@@ -1100,6 +1119,62 @@ CHAIN_HISTORY_DISCOUNT: float = 0.7
 #: third of it; nothing is worth nothing and the chain SAYS SO rather than going quiet.
 CHAIN_EVENT_POINTS: dict = {"open": 20, "closed": 12, "mechanism": 6, "none": 0}
 
+#: **WHAT A HOP'S DATED DOCUMENT IS, IN ONE CLOSED VOCABULARY** (CONTRACT C7, the 09-23 re-smoke's
+#: event ledger: a conditional forecast scored 20 of 20 as an OPEN ACTION on cotton, and a standing
+#: tariff scored 0 of 20 as a SPENT impulse on the tariff turn). The four words of
+#: :data:`CHAIN_EVENT_POINTS` price a receipt; these eight say what the document IS, and the two are
+#: kept apart so the points table -- and every banked score -- keeps HEAD's four words:
+#:
+#:   ``action_open`` / ``action_closed`` / ``action_aged`` -- a dated ACTION, its declared lag window
+#:       still running, shut within one band-length of the as-of, or shut before that (HEAD's three);
+#:   ``guidance`` -- a dated FORECAST: the event's own interval, built from ``event_date`` AT ITS
+#:       PRECISION, STARTS after the document's own date (``contracts.py``'s ``event_date >
+#:       document_date marks forward guidance``) -- the whole event lies in the document's future.
+#:       (09-23 fix round, review WT F-1: the first cut read "the interval ENDS after the document" and so
+#:       filed every month-, quarter- or year-precision event REPORTED INSIDE ITS OWN PERIOD as a
+#:       forecast -- "La Nina switched to neutral in March 2023", published 30 March 2023, printed "a dated
+#:       forecast ... not an action".) An interval that STRADDLES its document date -- the report written
+#:       inside the period it is about ("during 2026" published 2026-04-03) -- is ``report_in_reach`` (or
+#:       ``report_outside``): a dated report, scored at the mechanism weight and never worded as a
+#:       forecast or as "not an action". Whether such a report states a realised or a conditional event is
+#:       an EXTRACTION fact (a modality on the proposition) -- docketed, never read off its words;
+#:   ``regime_in_force`` -- a dated action on a node the graph types as a REGIME (owner decision 3):
+#:       the newest such action is read as in force until a later dated action on the same node;
+#:   ``report_in_reach`` / ``report_outside`` -- a dated REPORT: a sentence with a publication date and
+#:       no event date (HEAD's choice (3) and its refusal), or a hop's dated event whose interval straddles
+#:       its own document date -- inside / outside one band-length;
+#:   ``none`` -- nothing dated reached this turn.
+#:
+#: A HOP carries a dated-event word (the first five, or ``none``), or ``report_outside`` for a forecast
+#: whose whole interval closed more than one band-length before the as-of (a spent report, never
+#: guidance); ``report_in_reach`` is the CHAIN's alone, chosen at DESIGN B.4's third choice over the
+#: hops' report sentences, and the chain's ``report_outside`` names the sentence that choice refused.
+EVENT_KINDS: tuple[str, ...] = ("action_open", "action_closed", "action_aged", "guidance",
+                                "regime_in_force", "report_in_reach", "report_outside", "none")
+
+#: OWNER DECISION 3's knob, at its build default: a regime in force is scored at the CLOSED weight
+#: (12 of 20), not the OPEN one, until the evidence carries a polarity. One name, so the decision is
+#: one edit.
+REGIME_RECEIPT_KIND: str = "closed"
+
+#: EVENT KIND -> the POINTS word it scores under (CONTRACT C7's mapping, verbatim). ``Chain.receipt_kind``
+#: stays one of HEAD's four words, so :data:`CHAIN_EVENT_POINTS` is never touched.
+EVENT_KIND_RECEIPT: dict = {"action_open": "open", "action_closed": "closed", "action_aged": "none",
+                            "guidance": "mechanism", "regime_in_force": REGIME_RECEIPT_KIND,
+                            "report_in_reach": "mechanism", "report_outside": "none",
+                            "none": "none"}
+
+#: THE NODE TYPE WHOSE DATED ACTIONS ARE REGIMES (owner decision 3). It is the causal schema's OWN
+#: declared type vocabulary (``causal/schema.py:38``, ``causal/author._DRIVER_TYPES``), read off the
+#: node's ``type`` field -- never a list of ids and never a word in the document's text.
+REGIME_NODE_TYPES: frozenset = frozenset({"policy_event"})
+
+#: The ORDER a non-regime hop's dated documents are chosen in: DESIGN B.4's own ladder (an enacted
+#: action inside its window, then a recently closed one, then a forecast at the mechanism tier), and
+#: an aged action last -- chosen only so it is COUNTED, never scored.
+_EVENT_CHOICE_ORDER: tuple[str, ...] = ("action_open", "action_closed", "report_in_reach", "guidance",
+                                        "action_aged", "report_outside")
+
 #: The AGREEMENT word a hop prints, from `stats.sign_agreement`'s three-valued verdict. The estate
 #: already computes this on the cascade leg (`cw_verdicts`), so the chain leg reuses the ONE
 #: calculator rather than minting a second one.
@@ -1130,6 +1205,27 @@ CHAIN_POSITIONING_POINTS: float = 5.0
 #: removes a chain; it only reserves a seat for a chain the rank would otherwise have left below the
 #: cap, and it adds no row at all where the top K already carries one that qualifies.
 CHAIN_SLOTS: tuple[str, ...] = ("top", "sign", "subject", "pair", "horizon")
+
+#: **WHAT HAPPENED TO EACH OF THE THREE QUESTION SLOTS** (CONTRACT C7, defect D9). The five ``slot_*``
+#: counts count only the seats a slot TOOK, so four different facts printed one number -- the 09-23
+#: re-smoke read ``slot_subject 0`` on ten of ten turns as "never lit" when the subject resolver had
+#: never run. One closed word per slot, stamped inside the SAME branches of
+#: :func:`chain_render_set` that decide the seat:
+#:
+#:   ``not_asked``        -- the question anchors nothing for this slot (one named market, no horizon,
+#:                           or a resolver that ran and picked nothing);
+#:   ``resolver_off``     -- the SUBJECT slot only: the resolver payload never ran on this turn
+#:                           (``Board.subject`` is empty -- the seam writes it only when it is on);
+#:   ``answered_by_rank`` -- a chain already on the page when the slot is asked answers it: the top K,
+#:                           the sign swap, or an earlier slot's seat (the selection's own test,
+#:                           ``any(test(c) for c in picked)``, and it seats nothing);
+#:   ``seated``           -- the slot took a seat for a chain the rank left below the cap;
+#:   ``no_candidate``     -- the slot was asked and no chain in the pool answers it.
+SLOT_STATES: tuple[str, ...] = ("not_asked", "resolver_off", "answered_by_rank", "seated",
+                                "no_candidate")
+
+#: The three QUESTION slots, in :func:`chain_render_set`'s own seat order.
+QUESTION_SLOTS: tuple[str, ...] = ("subject", "pair", "horizon")
 
 #: How many chains may render IN FULL beyond ``chain_render_k``. The slots can seat at most three
 #: extra chains; the block's own budget cannot absorb three extra full chain rows, so the bound is
@@ -1178,6 +1274,16 @@ CHAIN_SEAM_FIELDS: tuple[str, ...] = (
     # names, and the round-2 census found the render already reading the percentile one correctly.
     "ChainHop.tail_peak", "ChainHop.tail_peak_percentile", "ChainHop.tail_peak_date",
     "ChainHop.tail_window_from", "ChainHop.tail_lag_to", "ChainHop.chain_tail",
+    # THE 09-23 FIX ROUND (CONTRACT C7 / C8, lane W). What the hop's dated document IS (one of
+    # `EVENT_KINDS`) and the interval its date covers AT ITS PRECISION; the precision it was dated at;
+    # the declared phase pair this hop belongs to and which pole of it is in force (read off
+    # `render.phase_for_state`, never re-derived); the pole this hop names (+1 / -1, 0 when it names
+    # none) and whether its tail was scored on that pole; and where the effect of its NEWEST reading
+    # closes (`effect_window`'s `closes`, beside `tail_lag_to` = its `peak_closes`).
+    "ChainHop.event_kind", "ChainHop.event_interval", "ChainHop.event_precision",
+    "ChainHop.driver_type",
+    "ChainHop.phase_driver", "ChainHop.phase_in_force", "ChainHop.phase_in_force_driver",
+    "ChainHop.phase_orient", "ChainHop.phase_reoriented", "ChainHop.effect_closes",
     # ── the chain ──────────────────────────────────────────────────────────────────────────────────
     "Chain.contract", "Chain.asof", "Chain.hops", "Chain.hop_ids", "Chain.agreements",
     "Chain.edge_signs", "Chain.cross", "Chain.terminal", "Chain.terminal_key",
@@ -1195,6 +1301,10 @@ CHAIN_SEAM_FIELDS: tuple[str, ...] = (
     "Chain.unnamed_terminal", "Chain.declared_sign", "Chain.direction", "Chain.side",
     "Chain.against_hops", "Chain.curated", "Chain.rendered", "Chain.full", "Chain.slot",
     "Chain.decline",
+    # THE CHAIN'S OWN EVENT WORD (CONTRACT C7): the `EVENT_KINDS` member of the document it was
+    # receipted on, BESIDE `receipt_kind` (HEAD's four points words, unchanged). And WHICH live
+    # question slots this chain answers -- the trace payload carries each live slot's best candidate.
+    "Chain.event_kind", "Chain.slot_fits",
     # ── the three dicts a chain carries ────────────────────────────────────────────────────────────
     # `terms_scored` is the count the PAGE prints (every term with points above zero) and
     # `terms_read` is how many of the seven had anything to READ (review MA-3). Two facts, two
@@ -1234,6 +1344,9 @@ CHAIN_SEAM_FIELDS: tuple[str, ...] = (
     # stamped onto the same dict by :func:`stage2` so the trace carries the count line WITH the line
     # that says where the carried chains disagree.
     "chain_counts.cross_unpriced", "chain_counts.single_hop_paths", "chain_counts.disagreement",
+    # ONE CLOSED `SLOT_STATES` WORD PER QUESTION SLOT (CONTRACT C7, D9) -- `{subject, pair, horizon}`,
+    # stamped by the branches that decided the seat; the five `slot_*` counts above are unchanged.
+    "chain_counts.slot_state",
 )
 
 _SIGN_INT: dict = {"+": 1, "-": -1}
@@ -1326,6 +1439,43 @@ class ChainHop:
     tail_peak_date: str = ""             # when that reading printed
     tail_window_from: str = ""           # the window's own opening -- as-of minus the declared lag
     tail_lag_to: str = ""                # where the declared lag runs to FROM the peak
+    # -- THE 09-23 FIX ROUND (CONTRACT C7 / C8) ------------------------------------------------------
+    #: WHAT THE DATED DOCUMENT ON THIS HOP IS -- one of :data:`EVENT_KINDS` wherever :func:`chain_hop`
+    #: classified it (:func:`hop_event`), and ``""`` on a hop built by hand, which every reader resolves
+    #: through :func:`hop_event_kind` -- HEAD's own reading of ``event_open`` / ``event_date`` -- so a
+    #: stand-in and a walked hop can never be read two ways.
+    event_kind: str = ""
+    #: THE INTERVAL THE EVENT DATE COVERS AT ITS PRECISION -- ``(ISO start, ISO end)``; a year-precision
+    #: date is its whole year, never its first day (cotton FA-5: "dated January 2026" for "during 2026").
+    event_interval: tuple = ()
+    #: THE DECLARED PHASE PAIR (``state_conventions.yaml`` ``phase_pairs``) as this hop meets it, read
+    #: off ``render.phase_for_state`` -- the estate's ONE phase producer -- and never re-derived here.
+    #: ``phase_driver`` is this hop's own id when it names a pole of a declared pair, ``""`` otherwise;
+    #: ``phase_in_force_driver`` is the pole the reading puts in force, ``""`` when neither is;
+    #: ``phase_in_force`` is True / False for a pole member and None for any other hop; and
+    #: ``phase_orient`` is the SIDE of the record this hop's pole names (+1 the positive pole, -1 the
+    #: negative, 0 none).
+    phase_driver: str = ""
+    phase_in_force: Optional[bool] = None
+    phase_in_force_driver: str = ""
+    phase_orient: int = 0
+    #: WHERE THE EFFECT OF THE NEWEST READING CLOSES (CONTRACT C8, :func:`effect_window`'s ``closes``):
+    #: the newest print plus the declared maximum lag. ``tail_lag_to`` beside it is the same window
+    #: counted from the PEAK (``peak_closes``). ``""`` where the band declares no end.
+    effect_closes: str = ""
+    #: THE READ'S OWN CROSS-SECTION COLLAPSE (``StateRow.collapse``: ``"mean"`` over cells, ``"sum"`` over
+    #: destinations, ``""`` for one cell), carried so the chain line names the row exactly as its SB-1 line
+    #: does (review RA M1, ``render.chain_hop_name``); ``None`` on a hop the builder did not measure.
+    collapse: Optional[str] = None
+
+    @property
+    def phase_reoriented(self) -> bool:
+        """IS THIS HOP'S TAIL SCORED ON ITS OWN POLE rather than on the reading's unsigned distance?
+        True exactly when the hop names one pole of a declared pair and the OTHER pole is in force
+        (the 2024-03-01 La Nina chain ranked first on ONI +1.99 degC). Where neither pole is in force
+        nothing is re-oriented: the reading sits inside the line and is neither phase's (W-7)."""
+        return bool(self.phase_driver and self.phase_in_force_driver
+                    and self.phase_driver != self.phase_in_force_driver and self.phase_orient)
 
     @property
     def key(self) -> tuple:
@@ -1369,7 +1519,14 @@ class ChainHop:
                 "tail_peak_percentile": self.tail_peak_percentile,
                 "tail_peak_date": self.tail_peak_date, "tail_lag_to": self.tail_lag_to,
                 "event_date": self.event_date, "event_open": self.event_open,
-                "silver_status": self.silver_status}
+                "silver_status": self.silver_status,
+                # THE 09-23 FIX ROUND'S FACTS, appended at the tail of the row so every banked reader
+                # of the keys above reads what it read (CONTRACT C7 / C8).
+                "event_kind": self.event_kind, "event_precision": self.event_precision,
+                "event_interval": list(self.event_interval or ()),
+                "phase_driver": self.phase_driver, "phase_in_force": self.phase_in_force,
+                "phase_in_force_driver": self.phase_in_force_driver,
+                "phase_orient": int(self.phase_orient), "effect_closes": self.effect_closes}
 
 
 @dataclass
@@ -1446,6 +1603,17 @@ class Chain:
     #: name over two populations. Both are ``None`` / ``""`` where nothing was refused.
     mechanism_refused_hop: Optional[ChainHop] = None
     mechanism_refused_date: str = ""
+    #: WHAT THE DOCUMENT THIS CHAIN WAS RECEIPTED ON IS (CONTRACT C7) -- one of :data:`EVENT_KINDS`,
+    #: BESIDE :attr:`receipt_kind` and never instead of it: ``receipt_kind`` keeps HEAD's four POINTS
+    #: words (:data:`EVENT_KIND_RECEIPT` maps one to the other) so every banked score reads as it did.
+    #: Set by :func:`_chain_receipt` from the SAME branch that chose the receipt, so the word and the
+    #: points can never describe two documents.
+    event_kind: str = "none"
+    #: WHICH LIVE QUESTION SLOTS THIS CHAIN ANSWERS (``subject`` / ``pair`` / ``horizon``), stamped by
+    #: :func:`chain_render_set` on every pool chain from the same slot tests that seat one. A LABEL,
+    #: never an input: :func:`chain_trace_set` reads it to carry each live slot's best candidate on
+    #: the bounded payload.
+    slot_fits: tuple = ()
     history: dict = field(default_factory=dict)
     outcome: dict = field(default_factory=dict)
     # -- the direction (owner, 2026-09-17: disagreement must be STRUCTURAL) --------------------------
@@ -1536,11 +1704,14 @@ class Chain:
                 "declared_sign": self.declared_sign, "direction": self.direction, "side": self.side,
                 "against_hops": list(self.against_hops), "curated": self.curated,
                 "rendered": self.rendered, "full": self.full, "slot": self.slot,
-                "decline": self.decline}
+                "decline": self.decline,
+                # APPENDED AT THE TAIL (the 09-23 fix round, CONTRACT C7): the chain's own event word
+                # and the live question slots it answers.
+                "event_kind": self.event_kind, "slot_fits": list(self.slot_fits or ())}
 
 
 # ── the hop's facts, memoised ────────────────────────────────────────────────────────────────────────
-def hop_window_peak(st, band: Optional[LagBand], asof: str) -> dict:
+def hop_window_peak(st, band: Optional[LagBand], asof: str, *, orient: int = 0) -> dict:
     """THE LOUDEST KNOWABLE READING INSIDE ``[as-of - max_lag, as-of]`` (owner ruling 5, 2026-09-18).
 
     ``{tail, percentile, date, from, to, n}``; all zeros where the row serves no array, declares no
@@ -1555,7 +1726,14 @@ def hop_window_peak(st, band: Optional[LagBand], asof: str) -> dict:
 
     KNOWABLE-AT-THE-AS-OF ONLY: the window closes at the as-of and the arrays are point-in-time by
     construction (`feeders` reads them at the board's as-of), so the two agree rather than one
-    correcting the other."""
+    correcting the other.
+
+    ``orient`` IS THE HOP'S OWN POLE (+1 / -1) WHERE ITS PHASE IS NOT THE ONE IN FORCE (the 09-23 fix
+    round, :attr:`ChainHop.phase_reoriented`), and 0 -- HEAD's unsigned reading -- everywhere else. A
+    La Nina hop's loudest reading inside its window is the window's MINIMUM, scored by how far it sits
+    BELOW the middle; the window's maximum is the warm phase's reading and is not this hop's at all. So
+    an oriented peak reads ONE extreme on ONE side, and a window with no reading on the hop's own side
+    has no peak (``tail`` 0, no date) rather than borrowing the other pole's."""
     out = {"tail": 0.0, "percentile": None, "date": "", "from": "", "to": "", "n": 0}
     if st is None or band is None or band.min_q is None or not asof:
         return out
@@ -1572,19 +1750,37 @@ def hop_window_peak(st, band: Optional[LagBand], asof: str) -> dict:
         return out
     window = [(float(vals[i]), str(dates[i])[:10]) for i in range(i0, i1 + 1)]
     out["from"], out["n"] = start, len(window)
-    for v, d in (max(window), min(window)):
+    extremes = ((max(window), min(window)) if not orient else
+                ((max(window),) if int(orient) > 0 else (min(window),)))
+    for v, d in extremes:
         pc = ST.percentile(v, list(vals))
         if pc.get("declined"):
             continue
-        t = _hop_tail(pc.get("value"), None)
+        t = _hop_tail(pc.get("value"), None, orient=orient)
         if t > out["tail"]:
             out.update({"tail": t, "percentile": pc.get("value"), "date": d,
                         "to": _add_months(d, hi) or ""})
     return out
 
 
-def chain_hop(bd: B.Board, row: B.NodeRow, *, seat: Optional[dict] = None) -> ChainHop:
-    """ONE :class:`ChainHop` from a board row. ZERO reads -- every figure is already on the board."""
+def chain_hop(bd: B.Board, row: B.NodeRow, *, seat: Optional[dict] = None,
+              receipts: Optional[dict] = None) -> ChainHop:
+    """ONE :class:`ChainHop` from a board row. ZERO reads -- every figure is already on the board.
+
+    **THE 09-23 FIX ROUND READS THREE MORE FACTS HERE, EACH FROM ITS ONE PRODUCER, AND WRITES NONE OF
+    THEM BACK TO THE ROW** (CONTRACT C7 / C8):
+
+      * the DATED DOCUMENT's kind (:func:`hop_event`) over the SAME receipt list step 5 read for this
+        row -- ``receipts`` is the walk's own ``{(contract, driver_id): [...]}`` map, threaded by
+        :func:`chain_rows`; absent (the offline harness, a hand-built board) the row's own step-5
+        winner is the list. ``row.event_open`` / ``row.event_date`` are NEVER written: they feed the
+        loud set's re-take (step 5) and the board-on / chain-off bytes (W-6), so the chain's reading
+        of the document lives on the HOP and nowhere else;
+      * the PHASE (:func:`hop_phase`, over ``render.phase_for_state``): a hop that names one pole of a
+        declared pair while the OTHER pole is in force scores its TAIL -- latest and window peak alike
+        -- on its own pole (W-7), so a La Nina hop reads 0 on a warm ONI instead of the warm tail;
+      * the EFFECT WINDOW (:func:`effect_window`): ``tail_lag_to`` is its ``peak_closes`` (byte for
+        byte HEAD's ``peak + max lag`` on every bounded band) and ``effect_closes`` is its ``closes``."""
     st = row.state
     ok = st is not None and status_word(st.status) == "ok"
     pct = _measure_value(st.percentile) if ok else None
@@ -1592,11 +1788,29 @@ def chain_hop(bd: B.Board, row: B.NodeRow, *, seat: Optional[dict] = None) -> Ch
     run = (st.run or {}) if ok else {}
     if run.get("declined"):
         run = {}
+    asof = str(getattr(bd, "asof", "") or "") if bd is not None else ""
+    # THE PHASE, READ ONCE PER HOP. `orient` is non-zero only where the hop's own pole is not the one in
+    # force; every other hop -- and every hop on a board whose readings are inside the line -- keeps
+    # HEAD's unsigned measure exactly.
+    ph = hop_phase(row.driver_id, st if ok else None)
+    orient = int(ph["phase_orient"]) if _phase_reorients(ph) else 0
     # THE DECLARED LAG WINDOW'S OWN LOUDEST READING (owner ruling 5, 2026-09-18). It is computed HERE
     # because the hop is memoised per `(contract, driver_id)` -- one window read per row of the board,
     # never one per candidate chain -- and it costs zero reads: the array is already on the row.
-    pk = hop_window_peak(st if ok else None, row.lag_band,
-                         str(getattr(bd, "asof", "") or "") if bd is not None else "")
+    pk = hop_window_peak(st if ok else None, row.lag_band, asof, orient=orient)
+    ew = effect_window(row.lag_band, newest=str((st.level_date if ok else "") or ""),
+                       run_start=str(run.get("since_date") or "") or None,
+                       peak=str(pk["date"] or "") or None)
+    # THE DATED DOCUMENT, CLASSIFIED ON THE CHAIN'S OWN PATH. The list is the one step 5 read for this
+    # row (the same lookup, key then bare id); the row's own step-5 stamp rides as `stamped` so the
+    # winner it already read is read the same way and not re-derived.
+    if receipts is not None:
+        rs = receipts.get(row.key) or receipts.get(row.driver_id) or ()
+    else:
+        rs = (row.event_receipt,) if row.event_receipt else ()
+    ev = hop_event(rs, asof=asof, band=row.lag_band or parse_lag(""), node_type=row.type or "",
+                   stamped={"event_date": row.event_date, "event_open": row.event_open,
+                            "event_precision": row.event_precision})
     return ChainHop(
         contract=row.contract, driver_id=row.driver_id, sign=row.sign or "",
         sign_words=SIGN_WORDS.get(row.sign) if row.sign else None, lag=row.lag or "",
@@ -1615,14 +1829,108 @@ def chain_hop(bd: B.Board, row: B.NodeRow, *, seat: Optional[dict] = None) -> Ch
         knowledge_date=str((st.knowledge_date if ok else "") or ""),
         convention_label=str(((st.convention or {}).get("label") if ok else "") or ""),
         move=_newest_move(st) if ok else 0.0,
-        event_date=row.event_date, event_precision=row.event_precision,
-        event_open=bool(row.event_open), event_receipt=row.event_receipt,
+        event_date=ev["event_date"], event_precision=ev["precision"],
+        event_open=(ev["kind"] == "action_open"), event_receipt=ev["receipt"],
         receipts_top=tuple((row.receipts or {}).get("top") or ()),
-        tail=_hop_tail(pct, z),
+        tail=_hop_tail(pct, z, orient=orient),
         seat=int((seat or {}).get(row.key, 10 ** 6)),
         tail_peak=float(pk["tail"]), tail_peak_percentile=pk["percentile"],
         tail_peak_date=str(pk["date"]), tail_window_from=str(pk["from"]),
-        tail_lag_to=str(pk["to"]))
+        tail_lag_to=str(ew["peak_closes"] or ""),
+        event_kind=ev["kind"], event_interval=tuple(ev["interval"] or ()),
+        phase_driver=ph["phase_driver"], phase_in_force=ph["phase_in_force"],
+        phase_in_force_driver=ph["phase_in_force_driver"], phase_orient=int(ph["phase_orient"]),
+        effect_closes=str(ew["closes"] or ""),
+        collapse=(str(getattr(st, "collapse", "") or "") if ok else None))
+
+
+def hop_phase(driver_id: str, st) -> dict:
+    """THE DECLARED PHASE PAIR AS ONE HOP MEETS IT -- ``{phase_driver, phase_in_force,
+    phase_in_force_driver, phase_orient}`` (the 09-23 fix round, W-7).
+
+    ONE PRODUCER, READ AND NEVER RE-DERIVED: ``render.phase_for_state`` (the estate's ONE phase verdict,
+    over ``state_conventions.yaml``'s ``phase_pairs`` and the convention's own first band) says which
+    pole the reading puts in force and whether it clears the line; ``render.phase_in_force`` at the
+    band itself says which member of the declared pair is the POSITIVE pole. Nothing here names an id:
+    a hop is a pole member because the pair DECLARES its driver id, and a hop on a card with no declared
+    pair gets the empty answer -- which is every hop but the four ENSO / IOD poles today.
+
+    The pole's SIDE (``phase_orient``) is +1 for the pair's positive member and -1 for its negative
+    one. ``phase_in_force_driver`` is ``""`` when the reading sits inside the line -- neither pole is
+    in force, and :attr:`ChainHop.phase_reoriented` then re-orients nothing (ONI +0.3 degC)."""
+    out = {"phase_driver": "", "phase_in_force": None, "phase_in_force_driver": "",
+           "phase_orient": 0}
+    if st is None:
+        return out
+    try:
+        from leviathan.graphrag.state.render import phase_for_state, phase_in_force
+        pf = phase_for_state(st) or {}
+    except Exception:                                   # noqa: BLE001 -- a phase read never kills a walk
+        return out
+    if not pf:
+        return out
+    in_force = str(pf.get("driver") or "") if pf.get("in_force") else ""
+    out["phase_in_force_driver"] = in_force
+    members = {str(pf.get("driver") or ""), str(pf.get("other_driver") or "")} - {""}
+    did = str(driver_id or "")
+    if did not in members:
+        return out
+    try:
+        pos = str((phase_in_force(getattr(st, "table", ""), getattr(st, "metric", ""),
+                                  abs(float(pf.get("band") or 0.0))) or {}).get("driver") or "")
+    except (TypeError, ValueError):
+        pos = ""
+    out["phase_driver"] = did
+    out["phase_in_force"] = bool(in_force) and in_force == did
+    out["phase_orient"] = (1 if did == pos else -1) if pos else 0
+    return out
+
+
+def _phase_reorients(ph: dict) -> bool:
+    """:attr:`ChainHop.phase_reoriented`'s rule over :func:`hop_phase`'s dict -- ONE rule, two readers."""
+    return bool(ph.get("phase_driver") and ph.get("phase_in_force_driver")
+                and ph.get("phase_driver") != ph.get("phase_in_force_driver")
+                and ph.get("phase_orient"))
+
+
+def effect_window(band: Optional[LagBand], *, newest: str, run_start: Optional[str] = None,
+                  peak: Optional[str] = None) -> dict:
+    """THE ONE LAG PRODUCER FOR "WHEN DOES THIS READING'S EFFECT LAND, AND WHEN IS IT SPENT"
+    (CONTRACT C8) -- ``{opens, closes, peak_closes, anchor}``.
+
+    **ONE RULE: A READING STILL IN ITS RUN KEEPS ACTING UNTIL THE MAXIMUM LAG AFTER ITS NEWEST PRINT;
+    THE RUN'S START ONLY OPENS THE WINDOW.** ``opens`` is ``(run_start or newest) + band.min``;
+    ``closes`` is ``newest + band.max``; ``peak_closes`` is ``peak + band.max`` -- where the window's
+    loudest reading's own effect runs to, which is what the chain's ``tail_lag_to`` has always printed.
+    MEASURED on the 09-23 re-smoke: the SB-J line counted the whole window from the run's start and
+    printed "closed around August 2026" for an ONI still rising at +1.8 degC (corn_wheat F4) while the
+    chain on the same page carried the lag to April 2027 -- two producers, two windows, one reading.
+
+    BOUNDED BY CONSTRUCTION (W-9): ``closes`` is counted from the NEWEST print and the run start never
+    enters it, so a run that began in 1997 opens early and still closes at newest + max lag.
+
+    THE BAND'S MAXIMUM IS FLOORED AT ONE MONTH, which is :func:`hop_window_peak`'s own floor: a peak is
+    measured over a window of at least one month, and the window its effect runs to is the same width,
+    so a zero-quarter band keeps HEAD's ``peak + 1 month`` byte for byte. AN OPEN-ENDED BAND CLOSES
+    NOWHERE (``structural`` opens and does not close, :func:`event_is_open`'s own law): ``closes`` and
+    ``peak_closes`` are ``None`` rather than an invented date. A band with no parse declines to ``None``
+    everywhere. ``anchor`` says which date opened the window (``run`` / ``reading``)."""
+    anchor = "run" if run_start else "reading"
+    out = {"opens": None, "closes": None, "peak_closes": None, "anchor": anchor}
+    if band is None or band.min_q is None:
+        return out
+    lo_m, hi_m = band.months()
+    start = str(run_start or newest or "")
+    if start:
+        out["opens"] = _add_months(start, int(lo_m or 0))
+    if hi_m is None:
+        return out
+    hi = max(1, int(hi_m))
+    if newest:
+        out["closes"] = _add_months(str(newest), hi)
+    if peak:
+        out["peak_closes"] = _add_months(str(peak), hi)
+    return out
 
 
 def _measure_value(m):
@@ -1652,17 +1960,26 @@ def _newest_move(st) -> float:
     return 0.0
 
 
-def _hop_tail(pct, z) -> float:
+def _hop_tail(pct, z, *, orient: int = 0) -> float:
     """DESIGN B.2's TAIL measure in [0, 1]: ``max(|pct-50|/50, min(|z|/2.5, 1))``.
 
     THE TWO READINGS ARE A MAX AND NOT A MEAN because they measure the same thing on two scales and a
     mean would halve a tail a card reports on only one of them (25 of 49 declared cards carry no z at
-    all on some vintages). An unmeasured hop is 0.0 -- which is a SCORE, never an exclusion (E3)."""
+    all on some vintages). An unmeasured hop is 0.0 -- which is a SCORE, never an exclusion (E3).
+
+    ``orient`` (+1 / -1) READS THE SAME MEASURE ON ONE SIDE ONLY, for a hop that names one pole of a
+    declared phase pair while the other pole is in force (the 09-23 fix round, W-7): the distance from
+    the middle counts only in the direction of the hop's own pole, so ONI at the 95th percentile and
+    +2.03 sigma is a tail of 0.9 for the warm pole and 0.0 for the cool one. 0 is HEAD's unsigned
+    reading, byte for byte."""
     best = 0.0
+    o = int(orient or 0)
     if pct is not None:
-        best = max(best, min(abs(float(pct) - 50.0) / 50.0, 1.0))
+        d = (float(pct) - 50.0) / 50.0
+        best = max(best, min(abs(d) if not o else max(0.0, d * o), 1.0))
     if z is not None:
-        best = max(best, min(abs(float(z)) / 2.5, 1.0))
+        zz = float(z) / 2.5
+        best = max(best, min(abs(zz) if not o else max(0.0, zz * o), 1.0))
     return best
 
 
@@ -2516,7 +2833,9 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
         if hp.percentile is None:
             continue
         p = float(hp.percentile)
-        if not (p >= 90.0 or p <= 10.0):
+        # A HOP WHOSE PHASE IS NOT THE ONE IN FORCE IS AT A TAIL ONLY ON ITS OWN POLE (W-7): a La Nina
+        # hop reading ONI at the 95th percentile is the warm pole's tail, not its own.
+        if not _at_own_tail(hp, p):
             continue
         buf = _is_buffer(hp, anchor)
         asym = 10.0 if buf else 5.0
@@ -2526,7 +2845,8 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
         break
     if not asym:
         for i in order:
-            if hops[i].convention_label:
+            # ...and the desk line a re-oriented hop's reading sits on is the OTHER pole's line.
+            if hops[i].convention_label and not hops[i].phase_reoriented:
                 asym = 10.0
                 if with_notes:
                     anote = "%s sits on a declared desk line (%s)" % (
@@ -2615,6 +2935,15 @@ def chain_score(ch: Chain, *, named_markets=(), horizon_months: Optional[int] = 
                 "price_standing": ("level and its own window percentile" if price_used else "")}
     ch.score = round(sum(float(terms[t]) for t in CHAIN_TERMS), 1)
     return ch
+
+
+def _at_own_tail(hp: ChainHop, p: float) -> bool:
+    """IS A PERCENTILE AT THIS HOP'S OWN TAIL? -- HEAD's 90 / 10 cuts for every hop, and ONE of them for
+    a hop scored on its own pole (:attr:`ChainHop.phase_reoriented`): the pole's own side of the
+    record, never the other pole's."""
+    if getattr(hp, "phase_reoriented", False):
+        return p <= 10.0 if int(getattr(hp, "phase_orient", 0) or 0) < 0 else p >= 90.0
+    return p >= 90.0 or p <= 10.0
 
 
 def _tail_words(rh: ChainHop) -> str:
@@ -2729,15 +3058,20 @@ def _receipt_in_reach(hp: ChainHop, asof: str) -> bool:
     number minted here; a hop that declares no band keeps the design's quarter. Where the chain carries
     no as-of (the offline ranking harness) there is nothing to age against and the receipt stands --
     the shipped behaviour, declared rather than silently inherited."""
-    if not asof or not hp.event_date:
+    return _date_in_reach(hp.event_date, hp.lag_band, asof)
+
+
+def _date_in_reach(event_date, band: Optional[LagBand], asof: str) -> bool:
+    """:func:`_receipt_in_reach`'s rule on a bare DATE and BAND -- the ONE recency bound, read by the
+    hop and by :func:`hop_event`'s classifier, which meets candidate documents before any hop exists."""
+    if not asof or not event_date:
         return True
-    band = hp.lag_band
     lo_m, hi_m = (band.months() if band is not None else (None, None))
     hi = int(hi_m) if hi_m is not None else max(int(lo_m or 0), QUARTER_MONTHS)
     floor = _add_months(str(asof)[:10], -max(1, hi))
     if not floor:
         return True
-    return str(hp.event_date)[:10] >= floor
+    return str(event_date)[:10] >= floor
 
 
 def _aged_receipt_keys(ch: Chain) -> set:
@@ -2759,9 +3093,13 @@ def _aged_receipt_keys(ch: Chain) -> set:
     :data:`CHAIN_SEAM_FIELDS` says which name carries which."""
     if not ch.hops:
         return set()
+    # THE HOP'S OWN EVENT WORD DECIDES (the 09-23 fix round): `action_aged` is exactly HEAD's condition
+    # (a dated action, its window shut, older than one band-length) on every hop HEAD could read, and a
+    # REGIME in force or a FORECAST is not an aged action -- the tariff turn's two "aged" documents were
+    # policy actions still in force, which is what `regime_in_force` now says.
     return {(hp.contract, hp.driver_id, str(hp.event_date)[:10]) for hp in ch.hops
-            if hp.event_receipt and hp.event_date and not hp.event_open
-            and not _receipt_in_reach(hp, ch.asof)}
+            if hp.event_receipt and hp.event_date
+            and hop_event_kind(hp, ch.asof) == "action_aged"}
 
 
 def _chain_receipt(ch: Chain) -> tuple:
@@ -2817,18 +3155,46 @@ def _chain_receipt(ch: Chain) -> tuple:
                     None) if keys else None
     aged = (len(keys), aged_hop, aged_date)
     refused_date, refused_hop = "", None
+    # THE HOPS' OWN EVENT WORDS (CONTRACT C7), read once. Every choice below is DESIGN B.4's, over those
+    # words: (1) an open action, (2) a closed action in reach OR a regime in force -- the same points,
+    # owner decision 3 -- (3a) a dated forecast, (3b) a report sentence in reach; and `ch.event_kind`
+    # is stamped by the SAME branch that returns, so the word and the points name one document.
+    kinds = [hop_event_kind(h, ch.asof) for h in ch.hops]
     for i in order:
         hp = ch.hops[i]
-        if hp.event_receipt and hp.event_date and hp.event_open:
+        if kinds[i] == "action_open" and hp.event_receipt and hp.event_date:
+            ch.event_kind = "action_open"
             return ("open", dict(hp.event_receipt),
-                    "a dated action on %s, and the window this chain declares for it is still open"
-                    % hp.event_date, *aged)
+                    "a dated action %s, and the window this chain declares for it is still open"
+                    % _action_when(hp), *aged)
     for i in order:
         hp = ch.hops[i]
-        if hp.event_receipt and hp.event_date and _receipt_in_reach(hp, ch.asof):
+        if kinds[i] in ("action_closed", "regime_in_force") and hp.event_receipt and hp.event_date:
+            ch.event_kind = kinds[i]
+            if kinds[i] == "regime_in_force":
+                return (EVENT_KIND_RECEIPT["regime_in_force"], dict(hp.event_receipt),
+                        CHAIN_REGIME_WORDS % _action_when(hp), *aged)
             return ("closed", dict(hp.event_receipt),
-                    "a dated action on %s, read as history: the window closed" % hp.event_date,
+                    "a dated action %s, read as history: the window closed" % _action_when(hp),
                     *aged)
+    for i in order:
+        hp = ch.hops[i]
+        # (3a) A DATED REPORT WRITTEN INSIDE THE PERIOD IT IS ABOUT (review WT F-1): the mechanism tier,
+        # ahead of a forecast; its words never say "forecast" nor "not an action".
+        if kinds[i] == "report_in_reach" and hp.event_receipt and hp.event_date:
+            ch.event_kind = "report_in_reach"
+            return (EVENT_KIND_RECEIPT["report_in_reach"], dict(hp.event_receipt),
+                    CHAIN_DATED_REPORT_WORDS % (
+                        str((hp.event_receipt or {}).get("date") or "")[:10] or "an undated day",
+                        _action_when(hp)), *aged)
+    for i in order:
+        hp = ch.hops[i]
+        if kinds[i] == "guidance" and hp.event_receipt and hp.event_date:
+            ch.event_kind = "guidance"
+            return (EVENT_KIND_RECEIPT["guidance"], dict(hp.event_receipt),
+                    CHAIN_GUIDANCE_WORDS % (
+                        str((hp.event_receipt or {}).get("date") or "")[:10] or "an undated day",
+                        _action_when(hp)), *aged)
     for i in order:
         hp = ch.hops[i]
         for r in hp.receipts_top:
@@ -2843,6 +3209,7 @@ def _chain_receipt(ch: Chain) -> tuple:
                 if rd > refused_date:
                     refused_date, refused_hop = rd, hp
                 continue
+            ch.event_kind = "report_in_reach"
             return ("mechanism", dict(r),
                     "a dated report sentence about this hop's mechanism, %s" % rd, *aged)
     # NOTHING CHOSEN: what the mechanism bound refused rides the chain (blocker 1) before either return.
@@ -2851,12 +3218,47 @@ def _chain_receipt(ch: Chain) -> tuple:
         # THE AGED ACTION IS STATED WHERE THE CHAIN WOULD OTHERWISE HAVE SAID IT RETRIEVED NOTHING,
         # in the render's own spelling of the sentence so the two producers cannot drift.
         from leviathan.graphrag.state.render import CHAIN_RECEIPT_AGED
+        ch.event_kind = "action_aged"
         return ("none", None, CHAIN_RECEIPT_AGED % aged_date, *aged)
     if refused_date:
         # A REPORT SENTENCE OUTSIDE THE WINDOW IS NAMED, in the render's own spelling, never dropped.
         from leviathan.graphrag.state.render import CHAIN_RECEIPT_REPORT_OUTSIDE
+        ch.event_kind = "report_outside"
         return ("none", None, CHAIN_RECEIPT_REPORT_OUTSIDE % refused_date, *aged)
+    ch.event_kind = "none"
     return ("none", None, "", *aged)
+
+
+#: THE TRACE'S WORDS FOR A REGIME IN FORCE (owner decision 3). They name the ACTION and the RULE and
+#: never assert that any policy is in force today -- the newest dated action the turn RETRIEVED is the
+#: fact, and "read as in force until a later dated action" is the model's declared rule, stated as one.
+#: The page's own words are the render's (CONTRACT C7).
+CHAIN_REGIME_WORDS: str = ("the newest dated policy action on this link that this turn retrieved is "
+                           "dated %s, and a policy is read as in force until a later dated action on "
+                           "the same link")
+#: THE TRACE'S WORDS FOR A DATED FORECAST -- its publication date, the interval it is about AT ITS
+#: PRECISION, and what it is not.
+CHAIN_GUIDANCE_WORDS: str = ("a dated forecast published %s about events %s, read as guidance and not "
+                             "as an action")
+#: THE TRACE'S WORDS FOR A DATED REPORT WRITTEN INSIDE THE PERIOD IT DESCRIBES (review WT F-1): its
+#: publication date and the period AT ITS PRECISION -- a report, never called a forecast, never "not an
+#: action" (whether it states a realised or a conditional event is an extraction fact, docketed).
+CHAIN_DATED_REPORT_WORDS: str = "a dated report published %s about events %s"
+
+
+
+def _action_when(hp: ChainHop) -> str:
+    """A hop's event date AT ITS PRECISION for the trace's receipt sentence: ``on <ISO>`` for a day
+    (or an undeclared precision) -- HEAD's own spelling, byte for byte -- and ``during 2026`` /
+    ``in the first quarter of 2026`` / ``in January 2026`` for a coarser one, which is what the date
+    actually says (cotton FA-5)."""
+    prec = str(getattr(hp, "event_precision", "") or "").strip().lower()
+    if prec in ("year", "quarter", "month"):
+        iv = tuple(getattr(hp, "event_interval", ()) or ()) or event_interval(hp.event_date, prec)
+        words = event_when_words(iv, prec)
+        if words:
+            return words
+    return "on %s" % hp.event_date
 
 
 # ── the render decision: the print line, the diversity rule and the SIGN diversity rule ─────────────
@@ -2893,7 +3295,8 @@ def _slot_horizon(c: Chain, horizon_months: Optional[int]) -> bool:
 
 
 def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: Optional[dict] = None,
-                     named_contracts=(), horizon_months: Optional[int] = None) -> dict:
+                     named_contracts=(), horizon_months: Optional[int] = None,
+                     subject_off: str = "not_asked") -> dict:
     """WHICH chains render, and WHY -- a RENDER rule the object exposes, never a filter on the pool.
 
     THE RULES, IN ORDER:
@@ -2943,6 +3346,16 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
     one-line form while ``below_print_line`` said nothing sat below the line. ``k <= 0`` renders
     NOTHING, the slots included (review round 3, MINOR 2).
 
+    **AND EACH QUESTION SLOT'S OUTCOME IS STAMPED BY THE BRANCH THAT DECIDED IT** (CONTRACT C7, the
+    09-23 re-smoke's D9: ``slot_subject 0`` on ten of ten turns read as "never lit" while the resolver
+    had never run). ``counts["slot_state"]`` carries one :data:`SLOT_STATES` word per slot, written
+    inside the same ``continue`` / seat branches below -- never a second computation. ``subject_off`` is
+    the SUBJECT slot's word when no subject id reached the pool (``resolver_off`` where the resolver
+    payload never ran, the caller's reading of ``Board.subject``); PAIR and HORIZON are ``not_asked``
+    when the question anchors neither. The five ``slot_*`` seat counts are unchanged, byte for byte.
+    Every pool chain also carries the live slots it ANSWERS (:attr:`Chain.slot_fits`), from the same
+    tests, so the bounded trace payload can carry each live slot's best candidate.
+
     Returns ``{"rendered": [...], "counts": {...}, "disagreement": <one sentence>}`` and stamps
     :attr:`Chain.rendered` / :attr:`Chain.full` / :attr:`Chain.slot` / :attr:`Chain.decline` on every
     chain in the pool."""
@@ -2951,6 +3364,11 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
         c.rendered, c.full = False, False
         c.slot = ""
         c.decline = None
+        c.slot_fits = ()
+    # THE QUESTION SLOTS' OUTCOMES, one closed word each. A slot the question does not anchor keeps its
+    # not-live word; a live slot's word is overwritten by the branch below that decides it.
+    slot_state = {"subject": (subject_off if subject_off in SLOT_STATES else "not_asked"),
+                  "pair": "not_asked", "horizon": "not_asked"}
     k = max(0, int(k))
     picked: list = []
     tops: set = set()
@@ -3006,11 +3424,16 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
                                   lambda c: _slot_horizon(c, horizon_months))):
             if not live:
                 continue
+            fits = [c for c in pool if test(c)]
+            for c in fits:
+                c.slot_fits = tuple(c.slot_fits) + (word,)
             if any(test(c) for c in picked):
+                slot_state[word] = "answered_by_rank"
                 continue                                 # the top K already answers this slot
             taken = {id(c) for c in picked}
-            cands = [c for c in pool if id(c) not in taken and test(c)]
+            cands = [c for c in fits if id(c) not in taken]
             if not cands:
+                slot_state[word] = "no_candidate"
                 continue
             # THE DIVERSITY FOLD IS A PREFERENCE HERE AND NOT A VETO. The fold is the TOP K's rule --
             # one series, one reading, one spelling -- and a slot is the QUESTION's own claim on a
@@ -3019,6 +3442,7 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
             # it take the best ranked one anyway. Silence about the subject the turn is anchored on is
             # the worse failure.
             _seat(next((c for c in cands if _fits(c, tops, receipts)), cands[0]), word)
+            slot_state[word] = "seated"
     # **THE FULL BOUND IS STAMPED IN SEAT ORDER AND THE SORT IS FOR DISPLAY** (round-3 review MA-R3-1,
     # orchestrator ruling 2026-09-22). `picked` is in the order the seats were TAKEN -- the top K and
     # the sign swap by construction, then the three slots -- and the bound belongs to that order: the
@@ -3048,7 +3472,7 @@ def chain_render_set(chains, *, k: int, print_line: float = 40.0, subject_ids: O
         # `below_print_line` for a cut the line no longer makes would be a reason that is not the
         # cause; the COUNT of chains below the line is kept, on `chain_counts`, where it is true.
         c.decline = "render_cap" if c.measured_hops else "no_measured_hop"
-    counts = chain_counts(pool, print_line=float(print_line))
+    counts = chain_counts(pool, print_line=float(print_line), slot_state=slot_state)
     return {"rendered": picked, "counts": counts,
             "disagreement": chain_disagreement_words(picked)}
 
@@ -3142,7 +3566,7 @@ def chain_disagreement_words(rendered) -> str:
         ", ".join(_words(a) for a in seen))
 
 
-def chain_counts(pool, *, print_line: float = 40.0) -> dict:
+def chain_counts(pool, *, print_line: float = 40.0, slot_state: Optional[dict] = None) -> dict:
     """The honest COUNT LINE's own arithmetic (DESIGN B.3) -- every chain the graph carried, by fact.
 
     It replaces the SB-X ``path_render_cap`` enumeration, so it counts and never names: the names are
@@ -3162,9 +3586,13 @@ def chain_counts(pool, *, print_line: float = 40.0) -> dict:
             # HOW MANY RENDERED CHAINS TOOK THE REDUCED FORM -- never dropped, counted. A rendered
             # chain is one-line ONLY where a SLOT seated it past the K + 2 full bound.
             "rendered_one_line": sum(1 for c in rendered if not c.full),
-            # CHAINS WHOSE MECHANISM BOUND REFUSED A REPORT SENTENCE (round-5 blocker 4): its own key,
-            # its own noun; never folded into receipts_aged_out (actions).
-            "mechanism_refused": sum(1 for c in pool if c.mechanism_refused_date),
+            # THE REPORT SENTENCES THE MECHANISM BOUND REFUSED (round-5 blocker 4): its own key, its
+            # own noun; never folded into receipts_aged_out (actions). **AND IT COUNTS DOCUMENTS, NOT
+            # CHAINS** (the 09-23 re-smoke: cocoa printed 42 of 57 -- one refused report rides every
+            # pool chain that walks its memoised hop, and the pool carried THREE). Folded on the
+            # document's own identity exactly as `receipts_aged_out` is (round-4 census 3); the
+            # per-chain field (`Chain.mechanism_refused_*`) is unchanged.
+            "mechanism_refused": len({k for k in (_refused_report_key(c) for c in pool) if k}),
             "distinct_sequences": len({(c.contract, c.hop_ids) for c in pool}),
             "distinct_markets": len({c.terminal for c in pool if c.terminal}),
             "distinct_unnamed_markets": len({c.terminal for c in pool if c.unnamed_terminal}),
@@ -3221,11 +3649,27 @@ def chain_counts(pool, *, print_line: float = 40.0) -> dict:
             "curated": sum(1 for c in pool if c.curated),
             "for_side": sum(1 for c in pool if c.side == "for"),
             "against_side": sum(1 for c in pool if c.side == "against"),
-            "history_n": [int(c.history.get("n_firings") or 0) for c in rendered]}
+            "history_n": [int(c.history.get("n_firings") or 0) for c in rendered],
+            # ONE CLOSED WORD PER QUESTION SLOT (CONTRACT C7), stamped by `chain_render_set`'s own
+            # branches and carried here verbatim; an empty dict where no selection ran.
+            "slot_state": dict(slot_state or {})}
+
+
+def _refused_report_key(c: Chain) -> Optional[tuple]:
+    """``(contract, driver_id, date)`` of the report sentence a chain's mechanism bound refused, or
+    ``None`` -- THE DOCUMENT'S OWN ADDRESS, the key :func:`_aged_receipt_keys` folds actions on. A
+    memoised hop carries one refused report into every pool chain that walks it; this is how the count
+    line counts it once."""
+    d = str(getattr(c, "mechanism_refused_date", "") or "")[:10]
+    if not d:
+        return None
+    hp = getattr(c, "mechanism_refused_hop", None)
+    return (str(getattr(hp, "contract", "") or c.contract), str(getattr(hp, "driver_id", "") or ""), d)
 
 
 # ── the builder ──────────────────────────────────────────────────────────────────────────────────────
-def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=None) -> dict:
+def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=None,
+               receipts: Optional[dict] = None) -> dict:
     """THE COMPOSED CHAIN LEG. ZERO reads, zero retrievals, zero environment.
 
     ``ancestor_paths``' own pool (already walked and deduped into ``bd.paths`` at step 6) crossed with
@@ -3237,7 +3681,11 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
     line then reads the SPREAD's move after the firings. ``spread_fn(contract) -> {values, dates,
     unit, scope}`` is the one argument that swaps the basis; the lane that mints the ``pair_spread``
     row passes it and nothing else in this function changes. Absent, the outcome line reads the
-    anchor's own tape and names the window it had."""
+    anchor's own tape and names the window it had.
+
+    ``receipts`` IS STEP 5'S OWN MAP (the 09-23 fix round), threaded so each hop's dated document is
+    classified over the SAME list step 5 read (:func:`hop_event`); absent, each hop reads its row's own
+    step-5 winner, which is every hand-built board's case and HEAD's reading."""
     rows_by_key = {r.key: r for r in bd.rows}
     seat = {k: i for i, k in enumerate(bd.order)}
     named = set(bd.anchor_slugs)
@@ -3261,7 +3709,7 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
         got = hop_cache.get(key)
         if got is None:
             row = rows_by_key.get(key)
-            got = (chain_hop(bd, row, seat=seat) if row is not None
+            got = (chain_hop(bd, row, seat=seat, receipts=receipts) if row is not None
                    else ChainHop(contract=contract, driver_id=driver_id))
             hop_cache[key] = got
         return got
@@ -3348,7 +3796,8 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
     out = chain_render_set(pool, k=int(getattr(knobs, "chain_render_k", 0) or 0),
                            print_line=float(getattr(knobs, "chain_print_line", 40) or 40),
                            subject_ids=subject_ids, named_contracts=named_contracts,
-                           horizon_months=bd.horizon_months)
+                           horizon_months=bd.horizon_months,
+                           subject_off=subject_slot_off_word(bd))
     out["counts"]["cross_unpriced"] = cross_unpriced
     out["counts"]["single_hop_paths"] = single_hop_paths
     # THE SENTENCES AND THE OUTCOME LINE ARE BUILT FOR THE CHAINS A READER OR A PAYLOAD MEETS, and for
@@ -3367,6 +3816,20 @@ def chain_rows(bd: B.Board, graph, *, knobs: B.BoardKnobs, chains=(), spread_fn=
     return out
 
 
+def subject_slot_off_word(bd) -> str:
+    """THE SUBJECT SLOT'S WORD WHEN NO SUBJECT ID REACHED THE POOL (CONTRACT C7, W-1), read off the
+    BOARD and never off a flag. ``Board.subject`` is written by the seam ONLY when the resolver payload
+    is on (``seam._stamp_subject`` returns early otherwise), so an empty dict is exactly "the resolver
+    never ran" -- ``resolver_off`` -- and a non-empty one is a resolver that ran: ``not_asked`` when it
+    picked nothing, ``no_candidate`` when it picked ids no anchor board of this turn carries (the
+    anchor ceiling can cut every subject board). A ``focus_driver`` or ``attached_event`` anchor makes
+    the slot LIVE, and a live slot's word is the selection's own (:func:`chain_render_set`)."""
+    sub = getattr(bd, "subject", None) or {}
+    if not sub:
+        return "resolver_off"
+    return "no_candidate" if (sub.get("picked") or ()) else "not_asked"
+
+
 #: How many chains the TRACE carries. The POOL is whole in memory and whole in the count line; the
 #: PAYLOAD is bounded, because a max board composes 1,848 candidates and a `state_board` record
 #: carrying two thousand chain rows would be an instrument nobody can open. The rendered chains come
@@ -3376,15 +3839,41 @@ CHAIN_TRACE_K: int = 12
 
 
 def chain_trace_set(chains, k: int = 0) -> list:
-    """The bounded chain payload: everything RENDERED first, then the next best by rank."""
+    """The bounded chain payload: everything RENDERED first, then the best candidate of every LIVE
+    question slot, then the next best by rank -- ONE chain per DISTINCT hop sequence.
+
+    **THE 09-23 RE-SMOKE's TARIFF PAYLOAD WAS TWO RENDERED CHAINS AND TEN CROSS-VARIANTS OF ONE
+    SEQUENCE** (crude -> crush -> stocks-to-use, reaching ten different priced far markets), so the one
+    question a banked payload exists to answer -- "what did it render, and what was it beaten by" --
+    had one answer ten times, and the China tariff chains the subject slot exists for were not on it.
+    The fill now takes (1) every rendered chain, whatever it shares; (2) for each LIVE question slot
+    (:attr:`Chain.slot_fits`, stamped by :func:`chain_render_set`'s own slot tests) the best-ranked
+    chain answering it that is not already carried, with its ``decline`` word on its row; (3) the
+    rest by rank, SKIPPING a chain whose ``(contract, hop_ids)`` sequence is already carried -- a cross
+    variant is the same path reaching another market, and its score, receipt and record are the path's.
+    The cap is :data:`CHAIN_TRACE_K`; raising it was the rejected fix."""
     k = int(k or CHAIN_TRACE_K)
     pool = sorted(chains or (), key=lambda c: c.rank)
     out = [c for c in pool if c.rendered]
+    taken = {id(c) for c in out}
+    seqs = {(c.contract, c.hop_ids) for c in out}
+    for word in QUESTION_SLOTS:
+        if len(out) >= k:
+            break
+        best = next((c for c in pool if id(c) not in taken and word in (c.slot_fits or ())
+                     and (c.contract, c.hop_ids) not in seqs), None)
+        if best is not None:
+            out.append(best)
+            taken.add(id(best))
+            seqs.add((best.contract, best.hop_ids))
     for c in pool:
         if len(out) >= k:
             break
-        if not c.rendered:
-            out.append(c)
+        if id(c) in taken or (c.contract, c.hop_ids) in seqs:
+            continue
+        out.append(c)
+        taken.add(id(c))
+        seqs.add((c.contract, c.hop_ids))
     return out
 
 
@@ -3423,7 +3912,10 @@ def _with_cross(bd, base: Chain, cross: dict, *, index, named, hist_cache, ancho
                # aged-out documents while its own base reported one. The HOP it sits on and its DATE
                # ride with it for the same reason (census 4): they are facts of the same hops.
                receipts_aged_out=base.receipts_aged_out,
-               aged_receipt_hop=base.aged_receipt_hop, aged_receipt_date=base.aged_receipt_date)
+               aged_receipt_hop=base.aged_receipt_hop, aged_receipt_date=base.aged_receipt_date,
+               # THE EVENT WORD IS A FACT OF THE SAME HOPS (the 09-23 fix round) and rides with the
+               # receipt it names, exactly as the aged-out count does.
+               event_kind=base.event_kind)
     ch.terminal_key = ((ch.terminal, cross.get("far_driver_id") or "")
                        if cross.get("far_driver_id") else None)
     ch.curated = base.curated or _curated_for(index, base.contract, base.hop_ids,
@@ -3458,15 +3950,31 @@ def _agree(bd, ch: Chain, *, cross: Optional[dict], base: Optional[Chain] = None
                 child_move = _newest_move(fst) if fst is not None else 0.0
         else:
             es = hop_edge_sign(hops[i].sign, nxt.sign)
-            child_move = nxt.move
+            child_move = _hop_move(nxt)
         signs.append(es)
-        verdicts.append(ST.sign_agreement(hops[i].move, child_move, es).get("value"))
+        verdicts.append(ST.sign_agreement(_hop_move(hops[i]), child_move, es).get("value"))
         i += 1
     ch.edge_signs = tuple(signs)
     ch.agreements = tuple(verdicts)
     ch.against_hops = tuple(hops[j].driver_id for j, v in enumerate(verdicts) if v == "at_odds")
     ch.declared_sign = chain_declared_sign(hops, cross_sign=str((cross or {}).get("sign") or ""))
     ch.direction, ch.side = _chain_direction(ch)
+
+
+def _pole_absent(hp) -> bool:
+    """A hop that names one pole of a declared phase pair while the OTHER pole is in force, and whose
+    own pole carries NO reading -- neither the latest print nor any reading inside its declared window
+    sits on its side (:attr:`ChainHop.phase_reoriented` with a zero :attr:`ChainHop.chain_tail`). Its
+    series is moving, but the move is the other pole's: for DIRECTION it is read as an unmeasured hop
+    (W-7). A hop whose own-pole reading is still in its window keeps HEAD's reading."""
+    return bool(getattr(hp, "phase_reoriented", False)) and float(getattr(hp, "chain_tail", 0.0)) == 0.0
+
+
+def _hop_move(hp) -> float:
+    """The hop's move TODAY for the agreement verdict -- HEAD's ``ChainHop.move``, and 0.0 (which
+    `stats.sign_agreement` reads as ``undetermined``, never as flat) for a hop whose pole is absent
+    (:func:`_pole_absent`): a pole not in force cannot agree or run against its neighbour."""
+    return 0.0 if _pole_absent(hp) else float(getattr(hp, "move", 0.0) or 0.0)
 
 
 def _history(bd, ch: Chain, hist_cache: dict) -> dict:
@@ -3542,6 +4050,12 @@ def _chain_direction(ch: Chain) -> tuple:
     if ch.against_hops:
         return ("unsettled", "unsettled")
     top = ch.hops[0]
+    # A TOP HOP WHOSE POLE IS NOT IN FORCE AND CARRIES NO READING ON IT DECLARES NO DIRECTION (the
+    # 09-23 fix round, W-7 -- the max turn's "cool-phase side" chain): the series' run is the OTHER
+    # pole's, so reading it as this hop's move gave the chain a side it never had, and the sign swap
+    # seats a chain by its SIDE, whatever it scored. It is read exactly as an unmeasured top is.
+    if _pole_absent(top):
+        return ("unsettled", "unsettled")
     mv = (1 if top.run_direction == "up" else (-1 if top.run_direction == "down" else 0))
     if not mv:
         mv = (top.move > 0) - (top.move < 0)
@@ -3602,6 +4116,201 @@ def event_receipt_for(receipts, asof: str) -> tuple:
              "text": str(getattr(winner, "text", "") or ""),
              "tier": getattr(winner, "tier", 3),
              "event_date": best[0]})
+
+
+def event_interval(event_date, precision: str = "") -> tuple:
+    """THE CALENDAR INTERVAL A DATED EVENT COVERS, AT ITS OWN PRECISION -- ``(ISO start, ISO end)``,
+    ``()`` when the date cannot be placed (CONTRACT C7).
+
+    ``contracts.py`` declares the field pair: ``event_date`` plus ``event_date_precision`` in
+    ``{day, month, quarter, year}``. The extractor NORMALISES a coarse date to its first day, so
+    "during 2026" is stored as 2026-01-01 -- and a reader of the bare date sees a day nobody wrote
+    (cotton FA-5: "[E48], dated January 2026" for a note that said "during 2026"). The interval is the
+    fact the precision declares: a year is its whole year, a quarter its three months, a month its
+    days, and a day (or an undeclared precision, read at face value as HEAD read it) is itself."""
+    ed = str(event_date or "")[:10]
+    placed = axis_date(ed)
+    if not ed or placed is None:
+        return ()
+    y, m = int(placed[0:4]), int(placed[5:7])
+    p = str(precision or "").strip().lower()
+    if p == "year":
+        return ("%04d-01-01" % y, "%04d-12-31" % y)
+    if p == "quarter":
+        q0 = 3 * ((m - 1) // 3) + 1
+        return ("%04d-%02d-01" % (y, q0), _month_end_iso(y, q0 + 2))
+    if p == "month":
+        return ("%04d-%02d-01" % (y, m), _month_end_iso(y, m))
+    day = ed if len(ed) == 10 else placed
+    return (day, day)
+
+
+def _month_end_iso(y: int, m: int) -> str:
+    """The last calendar day of ``y-m`` as ISO -- pure calendar arithmetic, no clock."""
+    import calendar
+    return "%04d-%02d-%02d" % (y, m, calendar.monthrange(y, m)[1])
+
+
+def event_when_words(interval, precision: str = "") -> str:
+    """The event's date AT ITS PRECISION, in words: ``during 2026``, ``in the first quarter of 2026``,
+    ``in January 2026``, ``on 2025-03-10`` (a day keeps the ISO spelling every HEAD receipt sentence
+    already carries). ``""`` when there is no interval. These are the TRACE's words; the page's date
+    words are the render's (CONTRACT C7)."""
+    iv = tuple(interval or ())
+    if len(iv) != 2 or not iv[0]:
+        return ""
+    p = str(precision or "").strip().lower()
+    if p in ("year", "quarter", "month"):
+        # THE PAGE'S OWN CALENDAR WORDS (render.event_when_words: ORDINAL_WORDS / month_words) -- one
+        # producer of date words for trace and page alike; the day stays ISO in the trace (the receipt
+        # sentences HEAD's trace already carries).
+        from leviathan.graphrag.state import render as _rnd
+        return _rnd.event_when_words(iv, p)
+    return "on %s" % iv[0]
+
+
+def hop_event(receipts, *, asof: str, band: Optional[LagBand] = None, node_type: str = "",
+              stamped: Optional[dict] = None) -> dict:
+    """WHAT THE DATED DOCUMENT ON ONE HOP IS -- ``{kind, interval, event_date, precision, receipt,
+    document_date}`` with ``kind`` one of :data:`EVENT_KINDS` (CONTRACT C7, the 09-23 event ledger).
+
+    CHAIN-SCOPED BY CONSTRUCTION: it is called by :func:`chain_hop` and by nothing that runs on a
+    chain-off turn, and it WRITES NOTHING -- ``row.event_open`` / ``row.event_date`` keep HEAD's
+    reading because the loud set's re-take reads them (W-6).
+
+    THE CANDIDATES are the documents with an ``event_date`` on or before the as-of (the point-in-time
+    rule :func:`event_receipt_for` already applies -- a later event is a watch candidate, never a
+    receipt). Each is classified against ITS OWN document date:
+
+      1. a node the graph TYPES as a regime (:data:`REGIME_NODE_TYPES`, owner decision 3): the NEWEST
+         dated action is the regime -- superseded only by a later dated action on the same node, which
+         is then the newest -- and it reads ``regime_in_force``, or ``action_open`` while its own lag
+         window still runs. No forecast rule applies to a regime node: a scheduled policy action,
+         effective after its document date, is an ACTION (W-4). A statement dated to a period its own
+         document sits inside (review WT M-1 (b)) is never a dated action and never supersedes one. The WORDS name the action and the
+         rule and never assert that any policy is in force today; the SCORE is direction-free.
+      2. every other node: the event's interval (:func:`event_interval`, at its precision) lying WHOLLY
+         AFTER the document's own date is ``guidance`` -- a forecast, not an action (W-4 / W-5: a
+         day-precision date equal to its document date is an action); an interval that STRADDLES the
+         document date (a report written inside the period it describes, review WT F-1) is
+         ``report_in_reach``; either whose whole interval closed more than one band-length before the
+         as-of is ``report_outside``, the same recency bound a report sentence meets. Otherwise HEAD's
+         three: the
+         declared window still running (``action_open``), shut within one band-length of the as-of
+         (``action_closed``), or shut before that (``action_aged``). The chosen document is the best
+         by DESIGN B.4's ladder (:data:`_EVENT_CHOICE_ORDER`) and, inside one kind, HEAD's own rule --
+         the newest event date, then the finer precision, then the earlier publication -- so a hop
+         carrying no forecast chooses exactly the document HEAD chose.
+
+    ``stamped`` is the row's own step-5 reading of HEAD's winner (``event_date``, ``event_open``,
+    ``event_precision``). Where a candidate IS that winner its open/closed answer is READ from the
+    stamp rather than recomputed: one reading of one document, whatever the caller built."""
+    band = band if band is not None else parse_lag("")
+    st = dict(stamped or {})
+    st_date = str(st.get("event_date") or "")[:10]
+    cands: list = []
+    for r in (receipts or ()):
+        if not r:
+            continue
+        get = (r.get if isinstance(r, dict) else (lambda k, _r=r: getattr(_r, k, None)))
+        ed = str(get("event_date") or "")[:10]
+        if not ed or (asof and ed > str(asof)[:10]):
+            continue
+        prec = str(get("event_date_precision") or "")
+        if not prec and st_date and ed == st_date:
+            prec = str(st.get("event_precision") or "")
+        pub = str(get("date") or "")[:10]
+        cands.append({"event_date": ed, "precision": prec, "document_date": pub, "receipt": r,
+                      "key": (ed, EVENT_PRECISION_RANK.get(prec, 3), pub)})
+    if not cands:
+        return {"kind": "none", "interval": (), "event_date": None, "precision": "",
+                "receipt": None, "document_date": ""}
+
+    def _newest(xs):
+        # `event_receipt_for`'s own comparison, verbatim: max event date, then the FINER precision,
+        # then the EARLIER publication; the first of an exact tie keeps its seat.
+        best = None
+        for c in xs:
+            k = c["key"]
+            if best is None or k[0] > best["key"][0] or (k[0] == best["key"][0]
+                                                         and k[1:3] < best["key"][1:3]):
+                best = c
+        return best
+
+    def _open(c) -> bool:
+        if st_date and c["event_date"] == st_date and st.get("event_open") is not None:
+            return bool(st.get("event_open"))
+        return event_is_open(c["event_date"], band, asof)
+
+    def _straddles(c) -> bool:
+        # A REPORT WRITTEN INSIDE THE PERIOD IT IS ABOUT: the interval opens on or before the document's
+        # own date and closes after it (dates only -- never a word of the text).
+        iv = event_interval(c["event_date"], c["precision"])
+        doc = c["document_date"]
+        return bool(doc) and len(iv) == 2 and iv[0] <= doc < iv[1]
+
+    if str(node_type or "") in REGIME_NODE_TYPES:
+        # THE REGIME IS THE NEWEST DATED ACTION -- and a statement about a period its own document sits
+        # inside ("the upcoming 2026 USMCA review", "if corn enters under the 2026 quota") is not a dated
+        # action: it can never supersede one (review WT M-1 (b)). Only where the node carries nothing but
+        # such statements is the newest of them read, as the dated report it is.
+        acts = [c for c in cands if not _straddles(c)]
+        if acts:
+            c = _newest(acts)
+            kind = "action_open" if _open(c) else "regime_in_force"
+        else:
+            c = _newest(cands)
+            iv = event_interval(c["event_date"], c["precision"])
+            kind = ("report_in_reach" if _date_in_reach(iv[1] if len(iv) == 2 else c["event_date"], band, asof)
+                    else "report_outside")
+    else:
+        by: dict = {}
+        for c in cands:
+            iv = event_interval(c["event_date"], c["precision"])
+            if c["document_date"] and len(iv) == 2 and iv[0] > c["document_date"]:
+                # A FORECAST -- the whole interval lies after its document -- IS READ AGAINST THE SAME
+                # RECENCY BOUND EVERY OTHER DOCUMENT IS, on the END of the interval it is about: a
+                # forecast whose whole period closed more than one band-length before the as-of is a
+                # spent report, never this turn's guidance.
+                k = ("guidance" if _date_in_reach(iv[1], band, asof) else "report_outside")
+            elif _straddles(c):
+                # A REPORT INSIDE ITS OWN PERIOD (review WT F-1): neither a forecast nor a dated action
+                # whose window can be timed from one day -- the mechanism tier, on the same recency bound.
+                k = ("report_in_reach" if _date_in_reach(iv[1], band, asof) else "report_outside")
+            elif _open(c):
+                k = "action_open"
+            elif _date_in_reach(c["event_date"], band, asof):
+                k = "action_closed"
+            else:
+                k = "action_aged"
+            by.setdefault(k, []).append(c)
+        kind = next(k for k in _EVENT_CHOICE_ORDER if k in by)
+        c = _newest(by[kind])
+    rc = c["receipt"]
+    receipt = (dict(rc) if isinstance(rc, dict) else
+               {"date": str(getattr(rc, "date", "") or ""),
+                "source": str(getattr(rc, "source", "") or ""),
+                "text": str(getattr(rc, "text", "") or ""),
+                "tier": getattr(rc, "tier", 3), "event_date": c["event_date"],
+                "event_date_precision": c["precision"]})
+    return {"kind": kind, "interval": event_interval(c["event_date"], c["precision"]),
+            "event_date": c["event_date"], "precision": c["precision"], "receipt": receipt,
+            "document_date": c["document_date"]}
+
+
+def hop_event_kind(hp, asof: str = "") -> str:
+    """THE :data:`EVENT_KINDS` WORD FOR A HOP, whoever built it. A walked hop carries the classifier's
+    word (:func:`chain_hop`); a hop built by hand carries ``""`` and is read by HEAD's own rule over
+    its ``event_open`` / ``event_date`` / ``event_receipt`` -- the three words HEAD had -- so a pin's
+    stand-in and a served hop can never be read two ways."""
+    k = str(getattr(hp, "event_kind", "") or "")
+    if k in EVENT_KINDS:
+        return k
+    if getattr(hp, "event_receipt", None) and getattr(hp, "event_date", None):
+        if getattr(hp, "event_open", False):
+            return "action_open"
+        return "action_closed" if _receipt_in_reach(hp, asof) else "action_aged"
+    return "none"
 
 
 def _cut_pairs(items) -> tuple:
@@ -4231,6 +4940,13 @@ def _stage1(bd, graph, kn, *, key_fn, state_fn, turn_kind, width, positioning_id
     else:
         bd.stamp("series", "not_reached")
 
+    # THE PERIOD GAP THE RANK READS (C11, W-12; the 09-23 verifier's F1): a fact about the STORE, stamped
+    # over the states this wave SERVED -- a row is behind only where a sibling series of its own slug on
+    # its own card came back holding a NEWER period as known at the as-of. Zero reads; it must land
+    # before the rank, because `coverage_band` demotes on it.
+    from leviathan.graphrag.state import feeders as _F
+    _F.stamp_period_gaps([row.state for row in bd.rows if row.state is not None], bd.asof)
+
     # AMENDMENT 1's ranking, which needs the state that now exists.
     rank_driver_anchors(bd)
 
@@ -4528,7 +5244,9 @@ def _stage2(bd, graph, kn, *, key_fn, state_fn, receipts, width, legb_cells, leg
     #     moves a byte unless the caller threaded `state_chain=True`, so a board-on / chain-off turn
     #     is byte-identical to the 2026-09-16 smoke and a flag-off turn is byte-identical to HEAD.
     if state_chain:
-        got = chain_rows(bd, graph, knobs=kn, chains=chains, spread_fn=spread_fn)
+        # STEP 5's OWN RECEIPT MAP rides into the chain leg (the 09-23 fix round) so each hop's dated
+        # document is classified over the list step 5 read -- and ONLY here, on the chain path.
+        got = chain_rows(bd, graph, knobs=kn, chains=chains, spread_fn=spread_fn, receipts=receipts)
         bd.chains = got["pool"]
         bd.chain_counts = dict(got["counts"])
         bd.chain_counts["disagreement"] = got["disagreement"]

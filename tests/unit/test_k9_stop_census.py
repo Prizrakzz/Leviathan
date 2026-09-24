@@ -56,15 +56,18 @@ def _unscoped_multigeo(metric: str, commodity: str, n_rows: int, head_value: str
 # The four banked panel lines this item is pinned on, verbatim from the pair files (the `[N..]` handle and
 # the trailing `[known ...]` stamp are added by the renderers above `from_number` and are not part of the
 # label). deep = cascade_pair_rv_canola_rapeoil.md:589-590 (ANSWER B); max = the same file :375-376.
+# RE-BANKED 09-23 FIX ROUND -- D3 label corrections (09-23 recon lane-C defect 3; BUILD_C B-6/B-7(a)): the headline
+# row's OWN period now rides a label whose query named none ("MY2026"), and the su_ratio rows carry the card's
+# declared basis words (OWNER DECISION 4 (a), T's C10 `basis_words`). Value, unit and marker bytes are unchanged.
 _BANKED = {
-    "deep_N25": ("USDA PSD production ICE canola = 22,500,000 MT "
+    "deep_N25": ("USDA PSD production ICE canola MY2026 = 22,500,000 MT "
                  "[1931 rows served, covering 2006-06-09..2026-08-12; newest shown]"),
-    "deep_N26": ("USDA PSD production ZCE rapeseed oil = 10,542,000 MT "
+    "deep_N26": ("USDA PSD production ZCE rapeseed oil MY2026 = 10,542,000 MT "
                  "[2391 rows served, covering 2006-06-09..2026-08-12; newest shown]"),
-    "max_N9": ("USDA PSD stocks-to-use ratio ICE canola = 9 ratio "
-               "[1907 rows served, covering 2006-06-09..2026-08-12; newest shown]"),
-    "max_N10": ("USDA PSD stocks-to-use ratio ZCE rapeseed oil = 18.75 ratio "
-                "[2216 rows served, covering 2006-06-09..2026-08-12; newest shown]"),
+    "max_N9": ("USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) ICE canola MY2026 "
+               "= 9 ratio [1907 rows served, covering 2006-06-09..2026-08-12; newest shown]"),
+    "max_N10": ("USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) ZCE rapeseed oil MY2026 "
+                "= 18.75 ratio [2216 rows served, covering 2006-06-09..2026-08-12; newest shown]"),
 }
 _CENSUS_A = {
     "deep_N25": _unscoped_multigeo("production_mt", "canola_ice", 1931, "22500000.0"),
@@ -261,15 +264,18 @@ def test_k9_2_withheld_line_keeps_the_abundance_marker_and_its_span(monkeypatch)
         "USDA PSD production ICE canola = " + _WITHHELD.format(k=32)
         + " [1931 rows served, covering 2006-06-09..2026-08-12; newest withheld]")
     # the ONE word the withhold makes false is the only one that moves
+    # (09-23 FIX ROUND, consequential on the D3 re-bank of `_BANKED` above: the withheld newest row's OWN period
+    # "MY2026" leaves WITH its figure -- it is that row's period, so the withheld label never prints it.)
     assert got["deep_N25"][0].replace("newest withheld", "newest shown") == (
-        _BANKED["deep_N25"].replace("= 22,500,000 MT", "= " + _WITHHELD.format(k=32)))
+        _BANKED["deep_N25"].replace("MY2026 = 22,500,000 MT", "= " + _WITHHELD.format(k=32)))
 
 
 def test_k9_2_withheld_line_keeps_the_staleness_clause(monkeypatch):
     """8 of the 11 banked census-A lines carry `(latest available YYYY-MM-DD; as-of ...)`; deep
     rv_canola_rapeoil #25 carries it beside a span. Both ride the withheld label."""
     on, off = _labels(monkeypatch, "on"), _labels(monkeypatch, None)
-    assert off["stale_span"][0] == ("USDA PSD production ICE canola = 391,000 MT "
+    # RE-BANKED 09-23 FIX ROUND -- D3 (09-23 recon lane-C defect 3): the headline row's own period "MY2006" rides.
+    assert off["stale_span"][0] == ("USDA PSD production ICE canola MY2006 = 391,000 MT "
                                     "(latest available 2016-04-12; as-of 2026-09-06) "
                                     "[2 rows served, covering 2006-06-09..2016-04-12; newest shown]")
     assert on["stale_span"][0] == ("USDA PSD production ICE canola = " + _WITHHELD.format(k=2)
@@ -300,7 +306,9 @@ def test_k9_2_green_scoped_and_zero_scope_reads_are_byte_identical(monkeypatch):
     on any row. Neither may gain a withhold."""
     off, on = _labels(monkeypatch, None), _labels(monkeypatch, "on")
     assert on["green_N29"] == off["green_N29"]
-    assert on["green_N29"][0] == "USDA PSD stocks-to-use ratio ICE canola Canada MY2026 = 16.8472 %"
+    # RE-BANKED 09-23 FIX ROUND -- D3 basis words (09-23 recon: su_ratio basis on six turns; OWNER DECISION 4 (a)).
+    assert on["green_N29"][0] == ("USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) "
+                                  "ICE canola Canada MY2026 = 16.8472 %")
     assert on["green_fx"] == off["green_fx"]
     assert "ONE SCOPE OF MANY" not in on["green_fx"][0]
     assert on["green_fx"][1] == "66.608"           # the newest row still headlines, value intact
@@ -314,7 +322,8 @@ def test_k9_2_green_one_scope_free_axis_read_keeps_its_figure(monkeypatch):
     it a `len(_geos) > 1` -> `> 0` mutation passes the whole deck."""
     off, on = _labels(monkeypatch, None), _labels(monkeypatch, "on")
     assert on["green_one_scope"] == off["green_one_scope"]
-    assert on["green_one_scope"][0] == ("USDA PSD production ICE canola Canada = 22,500,000 MT "
+    # RE-BANKED 09-23 FIX ROUND -- D3 (09-23 recon lane-C defect 3): the headline row's own period "MY2026" rides.
+    assert on["green_one_scope"][0] == ("USDA PSD production ICE canola Canada MY2026 = 22,500,000 MT "
                                         "[3 rows served, covering 2024-08-12..2026-08-12; newest shown]")
     assert on["green_one_scope"][1] == "22500000.0" and on["green_one_scope"][2] == "MT"
 
@@ -326,7 +335,8 @@ def test_k9_2_green_one_country_widening_gains_nothing(monkeypatch):
     or any other value-bearing one, at any flag setting."""
     off, on = _labels(monkeypatch, None), _labels(monkeypatch, "on")
     assert on["green_cotton"] == off["green_cotton"]
-    assert on["green_cotton"][0] == ("USDA WASDE average farm price ICE cotton united_states = 68.09 c/lb "
+    # RE-BANKED 09-23 FIX ROUND -- D3 (09-23 recon lane-C defect 3): the headline row's own period "MY2026/27" rides.
+    assert on["green_cotton"][0] == ("USDA WASDE average farm price ICE cotton united_states MY2026/27 = 68.09 c/lb "
                                      "(latest available 2026-07-10; as-of 2026-09-06) "
                                      "[3 rows served, covering 2011-08-11..2026-07-10; newest shown]")
     assert "scopes" not in on["green_cotton"][0]
@@ -751,9 +761,16 @@ _K93_CALLS = {
                         [_row("2025", 39.599, "MMT", "United States", "2026-08-12")], shown=[39.599]),
 }
 
+# RE-BANKED 09-23 FIX ROUND -- D3 label corrections (09-23 recon; BUILD_C B-6): max_N19 / max_N20 / max_N30mint carry
+# the su_ratio basis words (OWNER DECISION 4 (a)); deep_N1 / N2 / N3 / N10 are data_date cards whose ONE derived known
+# date (MPOB +43 d, Pink Sheet +40 d; palm_rapeoil F2) falls inside the staleness window of the 2026-09-06 as-of, so
+# the "(latest available ...)" clause no longer rides and the row's own period "2026-07-01" does. Magnitudes and unit
+# tokens are byte-identical.
 _K93_BANKED = {
-    "max_N19": "USDA PSD stocks-to-use ratio CBOT soybeans United States MY2025 = 0.117499 ratio",
-    "max_N20": "USDA PSD stocks-to-use ratio CBOT soybean meal United States MY2025 = 0.0103033 ratio",
+    "max_N19": ("USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) CBOT soybeans "
+                "United States MY2025 = 0.117499 ratio"),
+    "max_N20": ("USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) CBOT soybean meal "
+                "United States MY2025 = 0.0103033 ratio"),
     "max_N21": ("USDA PSD stocks-to-use ratio change (YoY) CBOT soybeans United States MY2025 "
                 "= -0.0178907 ratio"),
     "max_N22": ("USDA PSD stocks-to-use ratio change (YoY) CBOT soybean meal United States MY2025 "
@@ -762,10 +779,8 @@ _K93_BANKED = {
     "max_N26": "USDA PSD production CBOT soybean meal United States MY2025 = 57,427,000 MT",
     "max_N27": "USDA PSD consumption CBOT soybean meal United States MY2025 = 39,599,000 MT",
     "max_N25": "PSD ATTRIBUTES crush CBOT soybeans United States MY2025 = 72,257 (1000 MT)",
-    "deep_N1": ("MPOB production crude palm oil CME palm oil = 1,792,979 MT "
-                "(latest available 2026-07-01; as-of 2026-09-06)"),
-    "deep_N2": ("MPOB palm oil closing stocks CME palm oil = 2,628,325 MT "
-                "(latest available 2026-07-01; as-of 2026-09-06)"),
+    "deep_N1": "MPOB production crude palm oil CME palm oil 2026-07-01 = 1,792,979 MT",
+    "deep_N2": "MPOB palm oil closing stocks CME palm oil 2026-07-01 = 2,628,325 MT",
     # RE-BANKED 2026-09-17 (prearm fix round 2, census blocker B-1). THE CAUSE IS A PURE CORRECTION TO
     # THE CARD, ruled by the orchestrator and shipped in this same commit: `silver_mpob.su_ratio` is
     # closing stocks divided by THAT MONTH'S exports -- `transforms/bronze_to_silver/mpob.py:126` calls
@@ -777,11 +792,10 @@ _K93_BANKED = {
     # the display producer (`citations._metric_display_name` -> `cascade._metric_display`), so the
     # BANKED STRING MOVES AND THE MAGNITUDE DOES NOT -- 1.88792 is byte-identical, and so is the unit
     # token, which stays the source column's own 'ratio' (docketed, not moved in this commit).
-    "deep_N3": ("MPOB months of export cover CME palm oil = 1.88792 ratio "
-                "(latest available 2026-07-01; as-of 2026-09-06)"),
-    "deep_N10": ("World Bank Pink Sheet crude palm oil price  = 1,101 USD/mt "
-                 "(latest available 2026-07-01; as-of 2026-09-06)"),
-    "max_N30mint": "USDA PSD stocks-to-use ratio CBOT soybean meal United States MY2025 = 1.03033 %",
+    "deep_N3": "MPOB months of export cover CME palm oil 2026-07-01 = 1.88792 ratio",
+    "deep_N10": "World Bank Pink Sheet crude palm oil price 2026-07-01 = 1,101 USD/mt",
+    "max_N30mint": ("USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) CBOT soybean meal "
+                    "United States MY2025 = 1.03033 %"),
     "max_N32mint": "USDA PSD consumption CBOT soybean meal United States MY2025 = 39.599 MMT",
 }
 
@@ -970,7 +984,8 @@ def test_k9_3_green_the_table_fence_refuses_only_the_colliding_family(monkeypatc
     # ...and the one deep call the item still moves is untouched by the family fence
     assert cit._family_scale_conflict(
         "silver_mpob", "closing_stocks_palm_oil_mt", (1e-06, "MMT")) == []
-    assert on["deep_N2"][0].endswith("= 2.62832 MMT (latest available 2026-07-01; as-of 2026-09-06)")
+    # RE-BANKED 09-23 FIX ROUND -- D3 known date (09-23 recon palm_rapeoil F2): MPOB July known 2026-08-13, not stale.
+    assert on["deep_N2"][0].endswith("CME palm oil 2026-07-01 = 2.62832 MMT")
 
 
 def test_k9_3_red_max_the_agent_read_and_the_cascade_mint_become_one_sentence(monkeypatch):
@@ -1032,8 +1047,9 @@ def test_k9_3_red_deep_mpob_closing_stocks_print_in_the_declared_unit(monkeypatc
     product; the panel prints the formatter's rendering of it, as it does for every sub-1000 magnitude on
     every line today."""
     on = _k93_labels(monkeypatch, "on")
-    assert on["deep_N2"][0] == ("MPOB palm oil closing stocks CME palm oil = 2.62832 MMT "
-                                "(latest available 2026-07-01; as-of 2026-09-06)")
+    # RE-BANKED 09-23 FIX ROUND -- D3 known date + row period (09-23 recon palm_rapeoil F2; BUILD_C B-6): the July MPOB
+    # print is known 2026-08-13 (+43 d), inside the staleness window of the 2026-09-06 as-of.
+    assert on["deep_N2"][0] == "MPOB palm oil closing stocks CME palm oil 2026-07-01 = 2.62832 MMT"
     assert "2,628,325" not in on["deep_N2"][0]
     assert on["deep_N2"][2] == "MMT"
 
@@ -1115,7 +1131,8 @@ def test_k9_3_green_every_row_moves_and_the_headline_does_not(monkeypatch):
     assert [r["unit"] for r in h["rows"]] == ["MMT", "MMT"]
     assert [round(r["value"], 4) for r in h["rows"]] == [38.1, 39.599]
     head = cit.from_number(h, 27)
-    assert head.label.startswith("USDA PSD consumption CBOT soybean meal United States = 39.599 MMT")
+    # RE-BANKED 09-23 FIX ROUND -- D3 (09-23 recon lane-C defect 3): the headline row's own period "MY2025" rides.
+    assert head.label.startswith("USDA PSD consumption CBOT soybean meal United States MY2025 = 39.599 MMT")
     assert cit._row_order_key(h["rows"][-1]) == cit._row_order_key(call["rows"][-1])
     extras = cit.extra_number_citations(h, 27, [38.1])
     assert [x.label for x in extras] == [
@@ -1431,7 +1448,8 @@ def test_k9_3_an_unscoped_multi_geo_read_is_refused_at_every_setting_of_both_fla
                 assert c.value is None and _WITHHELD.format(k=32) in c.label, (k92, k93)
             else:
                 assert (c.value, c.unit) == ("9.0", "MT"), (k92, k93)
-                assert c.label.startswith("USDA PSD consumption ICE canola = 9 MT ["), (k92, k93)
+                # RE-BANKED 09-23 FIX ROUND -- D3 (09-23 recon lane-C defect 3): the headline row's period rides.
+                assert c.label.startswith("USDA PSD consumption ICE canola MY2026 = 9 MT ["), (k92, k93)
 
 
 def test_k9_3_the_unscoped_predicate_is_literally_shared_with_k9_2(monkeypatch):
@@ -1604,7 +1622,9 @@ def test_k9_3_the_head_residual_under_one_printed_name_is_flag_independent(monke
          ("silver_nass_annual", "production_mt", 384000000.0),
          "corn_cbot", "United States", "2025",
          "USDA PSD production CBOT corn United States MY2025 = 384 MMT",
-         "NASS ANNUAL production CBOT corn United States MY2025 = 384,000,000 MT"),
+         # RE-BANKED 09-23 FIX ROUND -- D3 (09-23 recon lane-C defect 4): a NASS calendar year is not a marketing
+         # year, so its period loses the MY prefix.
+         "NASS ANNUAL production CBOT corn United States 2025 = 384,000,000 MT"),
         # RE-BANKED 2026-09-17 (prearm fix round 2, census blocker B-1). THE su_ratio HALF OF THIS
         # RESIDUAL IS NOW CARRIED BY silver_icco_cocoa, NOT silver_mpob, AND THE SWAP IS THE POINT.
         # This case's whole premise is "two keys that share BOTH the analyst name AND the card unit",
@@ -1618,8 +1638,11 @@ def test_k9_3_the_head_residual_under_one_printed_name_is_flag_independent(monke
         (("silver_psd", "su_ratio", 0.1512),
          ("silver_icco_cocoa", "su_ratio", 0.42),
          "cocoa_ice", "Ivory Coast", "2025",
-         "USDA PSD stocks-to-use ratio cocoa ice Ivory Coast MY2025 = 15.12 %",
-         "ICCO COCOA stocks-to-use ratio cocoa ice Ivory Coast MY2025 = 0.42 ratio"),
+         # RE-BANKED 09-23 FIX ROUND -- D3 (09-23 recon: su_ratio basis on six turns, OWNER DECISION 4 (a); cocoa F1,
+         # the ICCO period is a SEASON, not a marketing year).
+         ("USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) cocoa ice Ivory Coast MY2025 "
+          "= 15.12 %"),
+         "ICCO COCOA stocks-to-use ratio cocoa ice Ivory Coast 2025 season = 0.42 ratio"),
     )
     for (mt, mm, mv), (st, sm, sv), commodity, country, period, want_mint, want_sib in cases:
         row = maprow(mt, mm)
@@ -1667,9 +1690,12 @@ def test_k9_3_the_head_residual_under_one_printed_name_is_flag_independent(monke
             [rec("silver_psd", "su_ratio", "malaysian_crude_palm_oil_cme", "Malaysia", "2025", 0.1512),
              rec("silver_mpob", "su_ratio", "malaysian_crude_palm_oil_cme", "Malaysia", "2025",
                  1.88792309604088)])
+        # RE-BANKED 09-23 FIX ROUND -- D3 (09-23 recon: su_ratio basis words, OWNER DECISION 4 (a); lane-C defect 4,
+        # an MPOB period is not a marketing year).
         assert [cit.from_number(c, i + 1).label for i, c in enumerate(retired)] == [
-            "USDA PSD stocks-to-use ratio CME palm oil Malaysia MY2025 = 0.1512 ratio",
-            "MPOB months of export cover CME palm oil Malaysia MY2025 = 1.88792 ratio"], setting
+            "USDA PSD stocks-to-use ratio (ending stocks as a share of domestic use) CME palm oil Malaysia MY2025 "
+            "= 0.1512 ratio",
+            "MPOB months of export cover CME palm oil Malaysia 2025 = 1.88792 ratio"], setting
 
 
 # ── WHAT THE CONVERGENCE ARMS DOWNSTREAM (review MINOR) ────────────────────────────

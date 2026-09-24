@@ -61,7 +61,9 @@ def test_multi_row_serve_footnotes_every_stated_row():
     # halves this very serve indicted: the metric speaks the card's analyst label ("average farm price", the
     # `_metric_display` path) instead of the raw slug, and the line now STATES that 35 rows were served with
     # one shown -- the abundance marker this incident is the motivating case for.
-    assert lines[0].startswith("[N1] USDA WASDE average farm price corn united_states = 4.4 $/bu")
+    # RE-BANKED 09-23 FIX ROUND -- D3 label correction (09-23 recon lane-C defect 3, cocoa F1 class): the headline
+    # row's OWN period rides a label whose query named none (BUILD_C B-7(a)).
+    assert lines[0].startswith("[N1] USDA WASDE average farm price corn united_states MY2026/27 = 4.4 $/bu")
     assert "35 rows served" in lines[0] and "newest shown" in lines[0]
     assert "[known 2026-07-10]" in lines[0]
     # ...and BOTH stated sibling-period values now have a row of their own, vintage-stamped

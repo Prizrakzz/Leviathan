@@ -1482,8 +1482,14 @@ def test_S8_the_stage2_kwarg_tail_is_EXTENDED_by_state_chain_and_not_moved():
     lane owes is that the kwarg EXISTS, defaults off, threads through, and reads no environment on the
     way -- all four asserted below."""
     params = list(inspect.signature(S.fill_stage2).parameters)
-    assert params[-1] == "state_chain", params[-3:]
-    assert params[-2] == "watch_nonobvious", "the tail is APPENDED to, never reordered"
+    # 09-23 (CONTRACT.md C2/I-3): the tail is APPENDED to once more -- `evidence_ordinals`, the turn's
+    # own {source_key: [E] ordinal} map, lands AFTER `state_chain`, keyword-only, default None, so
+    # every caller that omits it is HEAD's call exactly. `state_chain` keeps its place before it.
+    assert params[-1] == "evidence_ordinals", params[-3:]
+    _eo = inspect.signature(S.fill_stage2).parameters["evidence_ordinals"]
+    assert _eo.default is None and _eo.kind is inspect.Parameter.KEYWORD_ONLY
+    assert params[-2] == "state_chain", params[-3:]
+    assert params[-3] == "watch_nonobvious", "the tail is APPENDED to, never reordered"
     p = inspect.signature(S.fill_stage2).parameters["state_chain"]
     assert p.default is False and p.kind is inspect.Parameter.KEYWORD_ONLY
     src = inspect.getsource(S.fill_stage2)
@@ -1733,6 +1739,7 @@ def test_S8R4_first_dim_walks_the_top_chain_in_TAIL_ORDER_to_a_DIMENSION_THE_LEG
 
     IT CAN ONLY ADD A READING: where NO hop of the top chain carries a declared dimension the receipt
     hop's own answer comes back unchanged, which is round 3's behaviour exactly."""
+    _marks_total = [0]
     for cell, rc in (("no_receipt", None), ("receipt", _r3_receipts)):
         bd = _r3_board(graph, mode="max", receipts=rc)
         declared = S._analog_dims(bd)
@@ -1781,36 +1788,54 @@ def test_S8R4_first_dim_walks_the_top_chain_in_TAIL_ORDER_to_a_DIMENSION_THE_LEG
         top_ids = [str(h.driver_id) for h in hops]
         blk = R.render_board(bd, analogs=chain_first,
                              anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs))
-        mark = "read as the history of the chain named first, on %s" % R.humanise(fd)
         heads = [x for x in blk.lines if x.startswith("LIKE STATE ")
                  and "measured on the record as revised through" in x
-                 and "across the boards that carry it" not in x]
+                 and "across the markets that carry it" not in x]
         assert heads, cell
+        # 09-23 (BRIEF_R item 6 / THREAT_MODEL R-13, CONTRACT.md C9). TWO FACTS MOVED THE MARK, and this
+        # pin reads both per stanza instead of asserting "every head":
+        #   (a) the mark NAMES THE HOP THE WAY THE CHAIN NAMES IT -- its series (`chain_hop_name`), the
+        #       same words the chain's own rows print -- so one reading carries one name on one page;
+        #   (b) the mark prints ONLY on a stanza whose own selection SAW that dimension at the like date
+        #       (`per_dim`, the selection half's fact). MEASURED on this fixture: the no-receipt cell's
+        #       two rendered stanzas (El Nino, April 2020 / February 2017) never read export pace at the
+        #       like date, so they are no longer called that chain's history; the receipt cell's two do
+        #       read the chain's dimension and keep the mark.
+        # Each head is matched to the row that produced it THROUGH THE PRODUCER, so the rule is read off
+        # the row's own `per_dim` and never inferred from the page.
+        hop_names = {str(h.driver_id): R.chain_hop_name(h) for h in hops}
+        dim_names = R._chain_dim_name_map(bd, hops)
+        by_head = {R.sb_analog_header(e, chain_dims=tuple(top_ids), chain_dim_names=dim_names,
+                                      chain_hop_names=hop_names).rstrip(". "): e for e in chain_first}
+
+        def _saw(e):
+            per = e.get("per_dim")
+            if per is None:
+                return True                         # a row with no per_dim keeps HEAD's rule
+            return fd in {str((r or {}).get("id") or "") for r in per
+                          if (r or {}).get("gap") is not None
+                          or "z" in tuple((r or {}).get("observed") or ())}
+
         if fd in top_ids:
-            # THE HOP'S OWN SPELLING: the mark prints, on every rendered stanza head (the tier's
-            # stanza cap decides how many render; the mark is a property of the head, not of the cap).
-            assert mark in blk.text(), (cell, mark)
-            assert all(mark in x for x in heads), (cell, [x[-90:] for x in heads])
+            mark = "read as the history of the chain named first, on %s" % hop_names[fd]
         else:
-            # A TRANSLATION. **ROUND 5 CLOSED THIS BY GOING SILENT; THE ANALOG RENDER LANE SPEAKS IT.**
-            # The stanza IS that chain's history, read on the series the two ids share, and a silence
-            # is not a correction -- it left the reader with "LIKE STATE El Nino ..." beside chain rows
-            # reading LA NINA and nothing saying why. `render._chain_dim_name_map` builds the pairing
-            # off `seam.dim_for_hop` -- the ONE owner of the hop-to-dimension rule -- and the mark's
-            # SECOND ARM names the CHAIN'S own word. What round 5 forbade still holds exactly: the
-            # board's spelling never appears inside the attribution.
-            named = ("read as the history of the chain named first, which carries that series as %s"
-                     % R.humanise(top_ids[0]))
-            assert mark not in blk.text(), (cell, "the translated id is never NAMED", mark)
-            assert named in blk.text(), (cell, fd, top_ids, [x[-110:] for x in heads])
-            assert all(named in x for x in heads), (cell, [x[-110:] for x in heads])
-            assert any(R.humanise(top_ids[0]) in x for x in blk.lines
-                       if x.startswith(R.CHAIN_HEAD_PREFIX)), (cell, top_ids)
+            mark = "read as the history of the chain named first, on %s" % hop_names[dim_names[fd]]
+        for x in heads:
+            e = by_head.get(x.rstrip(". "))
+            assert e is not None, (cell, "every head is its producer's output", x[:120])
+            if _saw(e):
+                assert mark in x, (cell, mark, x[-160:])
+                _marks_total[0] += 1
+            else:
+                assert "read as the history of the chain named first" not in x, (cell, x[-160:])
         assert blk.trips == [], (cell, blk.trips[:1])
         # ...and with NO chain leg the mark is absent, because there is no chain to attribute to.
         plainblk = R.render_board(bd, analogs=plain,
                                   anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs))
         assert "read as the history of the chain named first" not in plainblk.text(), cell
+    # THE PIN IS NOT VACUOUS: across the two cells at least one stanza saw the chain's dimension and
+    # carries the mark (the receipt cell's two, measured 09-23).
+    assert _marks_total[0] >= 1, _marks_total
 
 
 def test_S8R5_the_stanza_mark_NEVER_names_a_driver_the_chain_does_not_carry(graph):
@@ -1833,22 +1858,45 @@ def test_S8R5_the_stanza_mark_NEVER_names_a_driver_the_chain_does_not_carry(grap
     This pin is the negative half on the page, through the real producers, with the two spellings
     named so a future sitting that re-couples them reds this deck."""
     bd = _r3_board(graph, mode="max", receipts=_r3_receipts)
-    top = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)[0]
+    # 09-23: THE COLLISION IS NO LONGER THE TOP CHAIN ON ITS OWN. Lane W's phase-in-force fact (C7) reads
+    # the ONI warm on this fixture, so every chain walking `La_Nina` carries `phase_in_force=False` and
+    # ranks below the rendered three. The rule this pin guards is unchanged, so the COLLISION CELL IS
+    # BUILT EXPLICITLY: the best-ranked chain carrying `La_Nina` becomes the page's only rendered chain,
+    # and `_first_dim` translates its first hop onto the board's `El_Nino` exactly as before.
+    la = sorted((c for c in bd.chains if "La_Nina" in [str(h.driver_id) for h in c.hops]),
+                key=lambda c: c.rank)
+    assert la, "the fixture still walks a chain through La_Nina"
+    assert any(getattr(h, "phase_in_force", None) is False for h in la[0].hops
+               if str(h.driver_id) == "La_Nina"), "the cool phase is read as NOT in force"
+    top = la[0]
+    for c in bd.chains:
+        c.rendered = c is top
+    top.full = True                     # above the print line: its hop rows are what this pin reads
+    bd.chains = [top]
     top_ids = [str(h.driver_id) for h in top.hops]
     fd = S._first_dim(bd)
-    assert "La_Nina" in top_ids, top_ids
-    assert fd == "El_Nino" != top_ids[0], (fd, top_ids)          # the collision, still live
+    assert top_ids[0] == "La_Nina", top_ids
+    assert fd == "El_Nino" != top_ids[0], (fd, top_ids)          # the collision, live in this cell
     assert S._dim_for_hop(bd, top.hops[0]) == "El_Nino", "the translation itself is unchanged"
     ana = A.analog_rows(bd, knobs=bd.knobs, benchmark_fn=H.fixture_benchmark_fn(), first_dim=fd)
     assert any(list(e.get("dims_order") or ())[0] == fd for e in ana), \
         "the leg is still ORDERED on it -- the correction takes a word, never a reading"
     page = R.render_board(bd, analogs=ana,
                           anchor_label=", ".join(R.board_label(x) for x in bd.anchor_slugs)).text()
-    assert "from La Nina" in page, "the chain still says La Nina in its own head"
+    # THE CHAIN NAMES ITS HOP BY ITS SERIES (C9), and the phase it walks is SAID, not implied (item 6).
+    series = R.chain_hop_name(top.hops[0])
+    assert "from %s" % series in page, "the chain names its first hop by its series in its own head"
+    assert "La Nina" not in series and "El Nino" not in series, series
+    assert any(("chain %s" % series) in ln and "not in force" in ln for ln in page.split("\n")), \
+        "the hop line says the cool phase is not in force"
+    # THE MARK NEVER NAMES THE BOARD'S ID -- it names the one series both ids read, in the chain's word.
     assert "read as the history of the chain named first, on El Nino" not in page
-    assert "read as the history of the chain named first, which carries that series as La Nina" \
-        in page, "the pairing is SPOKEN in the chain's own word, never in the board's"
-    assert "El Nino" not in page.split("which carries that series as")[1].split("\n")[0]
+    marked = [ln for ln in page.split("\n") if "read as the history of the chain named first" in ln]
+    assert marked, "the translated arm prints on this cell -- every rendered stanza saw the ONI dimension"
+    for ln in marked:
+        tail = ln.split("read as the history of the chain named first")[1]
+        assert tail.startswith(", on %s" % series), tail[:120]
+        assert "El Nino" not in tail and "La Nina" not in tail, tail[:120]
     # AND THE PRODUCER ITSELF, on the two inputs that differ by ONE word: the chain's own spelling
     # prints, the board's spelling does not.
     a = {"first_dim": "La_Nina", "dims_order": ["La_Nina", "drought"], "driver_id": "La_Nina",
@@ -1859,6 +1907,23 @@ def test_S8R5_the_stanza_mark_NEVER_names_a_driver_the_chain_does_not_carry(grap
     assert R.chain_stanza_mark(dict(a, first_dim="El_Nino", dims_order=["El_Nino", "drought"]),
                                chain_dims=("La_Nina", "drought")) == ""
     assert R.chain_stanza_mark(a) == "", "no chain_dims, no attribution -- the flag-off answer"
+    # 09-23: THE TRANSLATED ARM IN THE CHAIN'S OWN WORD. With the chain's hop names, the translation
+    # prints the series both ids read; without them (a hand-built row) the round-5 sentence stands.
+    t = dict(a, first_dim="El_Nino", dims_order=["El_Nino", "drought"])
+    sst = "the tropical Pacific sea-surface temperature anomaly"
+    assert R.chain_stanza_mark(t, chain_dims=("La_Nina", "drought"),
+                               chain_dim_names={"El_Nino": "La_Nina"},
+                               hop_names={"La_Nina": sst}) == \
+        "; read as the history of the chain named first, on %s" % sst
+    assert R.chain_stanza_mark(t, chain_dims=("La_Nina", "drought"),
+                               chain_dim_names={"El_Nino": "La_Nina"}) == \
+        "; read as the history of the chain named first, which carries that series as La Nina"
+    # AND A STANZA WHOSE SELECTION NEVER SAW THE DIMENSION IS NOT CALLED THE CHAIN'S HISTORY (R-13).
+    unseen = dict(a, per_dim=[{"id": "drought", "gap": 0.2}, {"id": "La_Nina", "gap": None}])
+    assert R.chain_stanza_mark(unseen, chain_dims=("La_Nina", "drought")) == ""
+    seen = dict(a, per_dim=[{"id": "La_Nina", "gap": 0.1}])
+    assert R.chain_stanza_mark(seen, chain_dims=("La_Nina", "drought")) == \
+        "; read as the history of the chain named first, on La Nina"
 
 
 # === THE ANALOG RENDER HALF: one owner for the pairing, and the zero-read receipt borrow ===========
@@ -1885,7 +1950,10 @@ def test_ANALOG_dim_for_hop_is_PUBLISHED_and_the_render_reads_THAT_rule_and_no_c
     assert "seam" in src and "dim_for_hop" in src, src
     assert "series_key" not in src, "the SERIES-KEY rule has one owner and it is the seam"
     # ...AND THE PAIRING IT BUILDS HOLDS ONLY TRANSLATIONS, each checkable against the chain's own ids.
-    top = sorted((c for c in bd.chains if c.rendered), key=lambda c: c.rank)[0]
+    # 09-23: the chain carrying the ONI collision is ranked below the rendered three since lane W's
+    # phase-in-force fact (the cool phase is not in force on this fixture), so the pairing is read on
+    # the best-ranked chain that CARRIES a translation -- the map's contract is the same on any chain.
+    top = sorted((c for c in bd.chains if R._chain_dim_name_map(bd, c.hops)), key=lambda c: c.rank)[0]
     names = R._chain_dim_name_map(bd, top.hops)
     own = {str(h.driver_id) for h in top.hops}
     assert names, "the ONI collision is live on this fixture"
@@ -2009,7 +2077,9 @@ def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF(
             hd = heads[i]
             assert R.month_words(d) in hd, (d, hd)
             # THE PRINTED COUNT IS THE POOL, AND THE PICK IS IN IT -- measured, not assumed.
-            assert ("%s past readings on this series could be ranked beside it, this one "
+            # 09-23 DESK VOCABULARY (C13): "compared with it" replaces "ranked beside it"; the count
+            # and whose population it is are unchanged.
+            assert ("%s past readings on this series could be compared with it, this one "
                     % R.words_for_int(n_pool)) in hd, hd
             assert d in pool, (mode, d, pool[:5])
             # THE OPPOSITE ERROR: the head count may not wear that sentence, and the date it counts
@@ -2017,8 +2087,9 @@ def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF(
             assert "%s past readings" % R.words_for_int(n_head) not in hd, hd
             assert d not in _head_dates(rec), (mode, d)
             # ...AND IT IS STILL ON THE PAGE, NAMING ITS OWN POPULATION.
-            assert ("%s like %s admitted at the full-coverage floor since "
-                    % (R.words_for_int(n_head), "state" if n_head == 1 else "states")) in hd, hd
+            assert ("%s of them %s like %s, the %s readable on every dimension since "
+                    % (R.words_for_int(n_head), "is a" if n_head == 1 else "are",
+                       "state" if n_head == 1 else "states", "one" if n_head == 1 else "ones")) in hd, hd
             assert ("this one the nearest" if i == 0 else "this one among them") in hd, (i, hd)
             if i:
                 assert "the nearest" not in hd, hd
@@ -2128,3 +2199,38 @@ def test_ANALOG_what_FOLLOWED_is_counted_on_the_page_and_never_enumerated(graph)
     for x in heads:
         for d in docs:
             assert d["text"] not in x and d["source"] not in x, (d, x)
+
+
+# === 09-23 LANE R: the two block payloads through the seam (CONTRACT.md C2 / C4, THREAT_MODEL I-8) ======
+def test_R0923_the_seam_returns_SERVED_SCALARS_and_ROW_HANDLES_on_a_RENDERED_block_and_NEVER_otherwise(graph):
+    """C4: the served-scalars pool rides ``fill_stage2`` ONLY when the block rendered; C2: the row handles
+    ride beside it. A declined board (here: the recency-facts coupling, a real decline word) returns
+    HEAD's key set exactly, so a board-off or declined turn can never hand the verifier a pool (I-8)."""
+    sg = _sg(["soybeans_cbot"])
+    bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode="quick", named=("soybeans_cbot",),
+                       query="what is the situation on soybeans now?",
+                       state_fn=H.fixture_state_fn(H.ASOF))
+    got = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF))
+    assert got["block"]
+    pool, handles = got["served_scalars"], got["row_handles"]
+    assert pool and handles, (len(pool), len(handles))
+    n_calls = len(bd.calls)
+    # EVERY registered scalar names the class of the row that printed it and a handle that exists.
+    for sc in pool:
+        assert {"value", "unit", "kind", "cls"} <= set(sc), sc
+        if sc.get("handle") is not None:
+            assert 1 <= int(sc["handle"]) <= n_calls, sc
+    # EVERY row handle resolves to a call of THIS block, and the level handle is `handles_by_row`'s int.
+    for key, hs in handles.items():
+        assert set(hs) == {"level", "sigma", "percentile", "peak", "current"}, (key, hs)
+        for h in hs.values():
+            if h is not None:
+                assert 1 <= int(h) <= n_calls, (key, hs)
+        assert hs["level"] is not None, key
+    # A DECLINED BOARD CARRIES NEITHER KEY.
+    sg2 = _sg(["soybeans_cbot"])
+    bd2 = S.fill_stage1(graph=graph, sg=sg2, asof=H.ASOF, mode="deep", named=("soybeans_cbot",),
+                        state_fn=H.fixture_state_fn(H.ASOF), recency_facts=False)
+    out2 = S.fill_stage2(bd2, graph=graph, sg=sg2)
+    assert out2["block"] == ""
+    assert "served_scalars" not in out2 and "row_handles" not in out2, sorted(out2)

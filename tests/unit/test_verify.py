@@ -1119,3 +1119,547 @@ def test_ledger_cascade_audit_entry_names_the_new_rule(monkeypatch):
     rep = vf.verify_citations(s, DV_EV, [])
     assert [e["rule"] for e in rep["strip_audit"]] == ["ledger_cascade"]
     assert rep["strip_audit"][0]["field"] == "tldr"
+
+
+# ======================================================================================================
+# 09-23 FIX ROUND, LANE V -- THE BACKED-FACT POOL, THE DERIVED UNIT VOCABULARY, THE BINDING, THE LEDGER.
+# Every prose fixture below is VERBATIM from the 09-23 in-VPC re-smoke (`resmoke_0923/answers/*.trace.json`,
+# `raw_draft.preverify_*`), the em dash spelled chr(0x2014) so this source stays ASCII; the row values are
+# the traces' own `served_rows`. The fact graders classified every charge these sentences took at HEAD a
+# verifier false positive (or a writer slip the same-row re-address corrects) -- 0 writer misquotes.
+# ======================================================================================================
+import copy as _copy                                                            # noqa: E402
+
+_D = chr(0x2014)
+
+
+def _c(v, unit="", rid=None, table="t", metric="m", rows=None):
+    c = {"query": {"table": table, "metric": metric},
+         "rows": rows if rows is not None else [{"value": v, "unit": unit}], "status": "ok"}
+    if v is not None:
+        c["shown"] = [float(v)]
+    if rid:
+        c["_row_id"] = rid
+    return c
+
+
+def _pad(calls: dict, n: int) -> list:
+    return [calls.get(i, {"query": {"metric": "pad"}, "rows": []}) for i in range(1, n + 1)]
+
+
+def _v(text, calls, *, field="tldr", evidence=None, sources=None, **kw):
+    st = {"tldr": text if field == "tldr" else "", "mechanism": text if field == "mechanism" else "",
+          "sources": list(sources or [])}
+    rep = vf.verify_citations(st, list(evidence or []), _copy.deepcopy(calls), **kw)
+    return rep, st[field]
+
+
+# -- (3) THE UNIT IS WHAT THE ROW SAYS IT IS: cotton's 13 of 13 ------------------------------------------
+def _cot(v):
+    # the WASDE row prints its own unit; its unit-less DUPLICATE (writer_seam duplicate groups) rides beside
+    return _c(v, rows=[{"value": v, "unit": "Million 480 Pound Bales"}, {"value": v, "unit": ""}],
+              table="silver_wasde", metric="ending_stocks")
+
+
+_COTTON = _pad({1: _cot(4.15), 2: _cot(4.0), 3: _cot(13.9), 4: _cot(14.41), 5: _cot(12.3), 6: _cot(11.9),
+                14: _cot(3.6), 15: _cot(13.2), 16: _cot(12.3)}, 16)
+_COTTON_S = [
+    ("The US cotton balance sheet is tightening on the projections we hold: ending stocks fall from 4.15 [N1] "
+     "to 3.6 million 480-pound bales [N14] between MY2025/26 and MY2026/27, with production down to 13.2 "
+     "[N15] against exports held at 12.3 [N16] " + _D + " that points toward higher prices."),
+    ("- Ending stocks: 4 [N2] in MY2024/25, 4.15 [N1] in MY2025/26, 3.6 million 480-pound bales [N14] in "
+     "MY2026/27 " + _D + " a steady draw."),
+    "- Production: 14.41 [N4], then 13.9 [N3], then 13.2 million 480-pound bales [N15].",
+    ("- Exports: 11.9 [N6], 12.3 [N5], 12.3 million 480-pound bales [N16] " + _D + " the export program is "
+     "held flat while the crop shrinks, which is what does the tightening."),
+]
+
+
+def test_0923_cotton_the_rows_own_unit_is_never_a_claim_and_all_four_sentences_are_clean():
+    """HEAD: 13 of 13 handles charged number_unbacked by the 480 of the rows' own "Million 480 Pound Bales".
+    The derived vocabulary reads it off the cited rows (row-granular: the unit-less duplicate contributes
+    nothing and voids nothing), and every handle stays."""
+    for s in _COTTON_S:
+        rep, out = _v(s, _COTTON, field="mechanism")
+        assert rep["by_rule"] == {} and rep["stripped"] == 0, s
+        assert out == s
+    g = vf._grammar_for(_COTTON_S[2], _COTTON)
+    assert [v for _a, _b, v in vf._claim_number_spans(vf._HANDLE.sub("", _COTTON_S[2]), units=g)] == \
+        [14.41, 13.9, 13.2]
+
+
+def test_0923_a_unit_masks_only_after_a_figure_and_only_in_phrase_order():
+    """V-3 / V-5: "exports of 1000 MT" has no figure in front of the label -- 1000 is still a claim and is
+    still charged against a 622.692 row; "3 of 4 cells" is prose, not the garbled label's "tons 3 4"."""
+    esr = _pad({2: _c(622.692, "1000 MT", table="silver_esr", metric="weekly_exports_1000mt")}, 2)
+    rep, _out = _v("US exports of 1000 MT [N2] were shipped in the week.", esr)
+    assert rep["by_rule"] == {"number_mismatch": 1}
+    garbled = ("1 Thousand Short2 Tons 3 4",)
+    assert [v for _a, _b, v in vf._claim_number_spans("400 1 Thousand Short2 Tons 3 4", units=garbled)] == [400.0]
+    assert [v for _a, _b, v in vf._claim_number_spans("400 MT, 3 of 4 cells", units=garbled)] == [400.0, 3.0, 4.0]
+    assert [v for _a, _b, v in vf._claim_number_spans("ranged 5900-1000 MT", units=("1000 MT",))] == \
+        [5900.0, 1000.0]                                          # a dash is never a label lead (the range hazard)
+
+
+def test_0923_the_year_rule_reads_the_cited_rows_own_unit():
+    """V-7, rice: "net long 1992 contracts [N37]" -- `contracts` is the cited COT row's own unit, so 1992 is a
+    claim in it (HEAD read a year and cut the neighbouring 84th to "a level this page could not back").
+    HEAD's floor still makes "exports hit 1950 MMT" a claim, and a bare year with no unit is still a year."""
+    rice = _pad({37: _c(1992, "contracts", rid="rice|cot"), 38: _c(1.2, "sigma", rid="rice|cot"),
+                 39: _c(84, "percentile", rid="rice|cot")}, 39)
+    s = ("- Managed money was net long 1992 contracts [N37] as of 15 September 2026, 84th percentile, having "
+         "risen four straight weeks;")
+    g = vf._grammar_for(s, rice)
+    assert [v for _a, _b, v in vf._claim_number_spans(vf._HANDLE.sub("", s), units=g)] == [1992.0, 84.0]
+    rep, out = _v(s, rice, field="mechanism")
+    assert rep["by_rule"] == {} and "84th percentile [N39]" in out and "1992 contracts [N37]" in out
+    assert rep["readdressed"] == [{"from": 37, "to": 39, "field": "mechanism", "numeral": 84.0}]
+    assert vf._claim_numbers_in("exports hit 1950 MMT") == [1950.0]
+    assert vf._claim_numbers_in("in 1992 the market") == []
+
+
+#: HEAD's four closed unit / duration sets (verify.py at ee06f19c: `_UNIT_AFTER` :319, `_UL_UNIT` / `_UL_QUAL`
+#: :622, `_FIGCUT_UNIT` :934-936, `_DURATION_NOUN` :391), spelled as the words they matched. They live HERE,
+#: as the superset pin, and nowhere in verify.py: the live vocabulary is DECLARED DATA (fix-round M2).
+_HEAD_UNIT_WORDS = (
+    "MMT", "MT", "KT", "kt", "MMbu", "bu", "%", "percent", "ha", "bales", "cwt", "tonnes", "tons",
+    "HA", "HEAD", "KG", "LB", "BOXES",
+    "percentage point", "percentage points", "pp", "bps", "bp", "tonne", "ton", "bushel", "bushels",
+    "USD/bu", "USD", "EUR", "cent", "cents", "acre", "acres", "bale", "head", "contract", "contracts",
+    "lot", "lots", "z", "sigma", "deg C", "degC", "ratio", "index", "point", "points", "session", "sessions",
+    "day", "days", "week", "weeks", "month", "months", "year", "years",
+    "yr", "wk", "quarter", "qtr", "season",
+)
+
+
+def test_0923_the_superset_pin_every_HEAD_unit_word_is_still_recognised():
+    """V-4 + fix-round M2: HEAD's closed sets are RETIRED from verify.py (no `_HEAD_*_FLOOR` tuple remains);
+    every word they spelled is recognised by the DECLARED vocabulary (cards + tables.yaml's unit / duration
+    spellings + the render's period nouns); every render period noun is recognised; and rule (i)'s
+    phrase-PREFIX masking covers every unit-label shape HEAD's rule (g) bags exempted."""
+    for gone in ("_HEAD_UNIT_FLOOR", "_HEAD_DURATION_FLOOR", "_HEAD_UL_UNIT_FLOOR", "_HEAD_UL_QUAL_FLOOR",
+                 "_fold_plural", "_noun_object_splice", "_splice_figure"):
+        assert not hasattr(vf, gone), gone
+    words = vf._derived_unit_words()
+    assert {w.lower() for w in _HEAD_UNIT_WORDS} <= words, sorted({w.lower() for w in _HEAD_UNIT_WORDS} - words)
+    from leviathan.graphrag.state import render as _r
+    assert set(_r.PERIOD_NOUNS.values()) <= words
+    g = vf._unit_grammar(vf._declared_vocab().phrases, ())
+    for label in ("(1000 MT)", "1000 MT", "(1000 HA)", "1000 HEAD", "1000 boxes", "(1000 60 KG BAGS)",
+                  "60-kg bags", "1000 480 lb. Bales", "480-lb bales", "million 480-lb bales",
+                  "COP per 125-kg carga", "per 125-kg carga"):
+        assert [v for _a, _b, v in vf._claim_number_spans("stocks 154,947 " + label, units=g)] == [154947.0], label
+    # ...and only from a phrase's OWN START (review FATAL-1): a function word inside a card unit never masks
+    for s, want in (("Stocks hit 4.1 vs 3 yr ago", [4.1, 3.0]), ("stocks 3.6 vs 5 in MY2025/26", [3.6, 5.0]),
+                    ("prices 7.2 per 125 more", [7.2, 125.0]), ("readings 1.4 prior 10 were higher", [1.4, 10.0]),
+                    ("1.4 sigma vs 5 yr mean", [1.4])):
+        assert [v for _a, _b, v in vf._claim_number_spans(s, units=g)] == want, s
+
+
+def test_0923_the_frozen_cycle8_view_sees_none_of_it():
+    """`_claim_number_spans(s, cycle8=False)` is HEAD's (a)-(d) extractor, byte for byte, on every new shape
+    (values read off HEAD ee06f19c)."""
+    for s, want in (
+            ("ending stocks fall from 4.15 to 3.6 million 480-pound bales between MY2025/26 and MY2026/27",
+             [4.15, 3.6, 480.0]),
+            ("Managed money was net long 1992 contracts as of 15 September 2026, 84th percentile", [84.0]),
+            ("400 1 Thousand Short2 Tons 3 4", [400.0, 1.0, 3.0, 4.0]),
+            ("exports of 1000 MT", [1000.0]),
+            ("the drought anomaly 0 z, 55th percentile", [0.0, 55.0]),
+            ("feed at the 95th, against a 16th-percentile stocks-to-use", [95.0, 16.0]),
+            ("a 3-session rally", [3.0]),
+            ("a 2-fortnight lag", [2.0]),
+            ("exports hit 1950 MMT", [1950.0])):
+        assert [v for _a, _b, v in vf._claim_number_spans(s, cycle8=False)] == want, s
+        assert [v for _a, _b, v in vf._claim_number_spans(s, cycle8=False, units=("1 Thousand Short2 Tons 3 4",
+                                                                                     "Million 480 Pound Bales"))] \
+            == want, s
+    # the round-2 measured refusal holds: an OBSERVATION unit is rule (h)'s, never rule (f)'s
+    assert vf._claim_numbers_in("a 3-session rally [N4]") == [3.0]
+    assert vf._claim_numbers_in("its own 250-session rally [N1]") == [250.0]
+
+
+# -- (5) THE ZERO ARM: cocoa S1 / S5 -----------------------------------------------------------------------
+def test_0923_a_zero_written_at_a_known_precision_backs_a_row_that_rounds_to_it():
+    cocoa = _pad({26: _c(0.00088532, "z"), 28: _c(55, "percentile")}, 28)
+    for s in ("the drought anomaly 0 z [N26], 55th percentile [N28];",
+              "- **West African drought anomaly** 0 z, read 2026-07 [N26], acting 31 October 2026 to 30 April 2027;"):
+        rep, out = _v(s, cocoa, field="mechanism")
+        assert rep["by_rule"] == {} and out == s
+    rep, _out = _v("the drought anomaly 0 z [N1];", [_c(0.6, "z")], field="mechanism")
+    assert rep["by_rule"] == {"number_mismatch": 1}                 # "0 [N]" vs 0.6 still charged
+    assert vf._num_matches([0.0], [0.4], [0]) is False               # the cycle-6 pin: never a 0.4 row
+    assert vf._num_matches([0.0], [0.06], [1]) is False
+    assert vf._num_matches([0.0], [0.00088532], [0]) is True
+    assert vf._num_matches([0.0], [0.00088532]) is False            # no written precision: 0 matches only 0
+    assert vf._num_backed(0.0, [0.00088532], dec=0) is True          # the backstop mirrors it
+
+
+# -- (6) THE NOUN-OBJECT SPLICE: tariff "higher year-on-year vs." ------------------------------------------
+_TARIFF = _pad({29: _c(1328.0, "US cents/bushel", table="silver_futures_eod", metric="settle"),
+                30: _c(1012.0, "US cents/bushel", table="silver_futures_eod", metric="settle"),
+                54: _c(10.719961, "%", table="silver_psd", metric="su_ratio"),
+                56: _c(23, "percentile", table="silver_psd", metric="su_ratio"),
+                60: _c(2.6038, "USD/bu", table="gold_board_crush", metric="crush_margin_usd_bu"),
+                78: _c(6.45, "MMT", table="silver_psd", metric="exports_mt")}, 78)
+
+
+def test_0923_a_handle_pair_used_as_nouns_binds_no_figure_and_is_served_as_written():
+    """The tariff "higher year-on-year [N29] vs [N30]" handles bind no figure (the sentence's only numeral is
+    [N56]'s, written straight into it), so neither is charged and the sentence reaches the page AS WRITTEN.
+    The noun-object splice that used to print both headline figures into it is RETIRED (review FATAL-5: it
+    wrote figures into uncharged prose); nothing is inserted."""
+    s = ("this year the same demand loss meets a stocks-to-use ratio at the 23rd percentile [N56], and the "
+         "price tape is higher year-on-year [N29] vs [N30].")
+    rep, out = _v(s, _TARIFF)
+    assert rep["by_rule"] == {} and out == s
+    assert "noun_object_spliced" not in rep
+    assert rep["repairs"] == [] and rep["repaired"] == 0             # CYCLE-10: nothing was REWRITTEN
+
+
+def test_fix_0923_uncharged_digit_free_prose_is_never_given_a_figure():
+    """Review FATAL-5, the twins by construction: two solitary handles joined by one word at a clause end,
+    in prose that makes no numeric claim, are served verbatim (HEAD's bytes) -- no figure is written in."""
+    mpob = _pad({1: _c(2628325.0, "tonnes", table="silver_mpob", metric="closing_stocks"),
+                 2: _c(1.89, "months of export cover", table="silver_mpob", metric="su_ratio"),
+                 3: _c(1328.25, "US cents/bushel", table="silver_futures_eod", metric="settle"),
+                 4: _c(1012.0, "US cents/bushel", table="silver_futures_eod", metric="settle")}, 4)
+    for s in ("Both palm balance sheets tightened through the summer [N1] and [N2].",
+              "Palm stocks are drawing down, per MPOB [N1] and [N2]; soyoil is not.",
+              "The soybean contract is above last year [N3] and [N4], while meal is flat.",
+              "The tape is higher year on year [N3] vs [N4]."):
+        rep, out = _v(s, mpob)
+        assert out == s and rep["by_rule"] == {} and "noun_object_spliced" not in rep, s
+
+
+def test_0923_a_handle_followed_by_more_words_is_not_the_noun_shape_and_is_never_spliced():
+    s = ("Price-supportive: the tight stocks-to-use ratio [N54] at high confidence, the crush margin [N60] at "
+         "high confidence, and Argentine export policy read on exports of 6.45 MMT [N78] " + _D +
+         " also high confidence.")
+    rep, out = _v(s, _TARIFF)
+    assert "noun_object_spliced" not in rep
+    # ...and the word-cited handles are no longer convicted by 6.45, which [N78] backs (the binding rule)
+    assert rep["by_rule"] == {} and out == s
+
+
+def test_0923_the_binding_rule_keeps_the_r5_charge_on_an_adjacent_group():
+    """"+0.98 degC and accelerating [N3] [N4]": adjacent handles are ONE group, 0.98 binds to it, and [N4]
+    (a different row) is still charged and still rescued off the page -- r5 as shipped."""
+    calls = [_c(0.0), _c(0.0), _c(0.98, "degC"), _c(0.47, "degC")]
+    rep, out = _v("The ONI anomaly is at +0.98 degC and accelerating [N3] [N4].", calls)
+    assert rep["by_rule"] == {"number_mismatch": 1} and "[N3]" in out and "[N4]" not in out
+
+
+# -- (7) THE MALFORMED HANDLE: corn/wheat's escape ---------------------------------------------------------
+def test_0923_a_handle_bracket_carrying_its_gloss_is_split_and_verified():
+    corn = _pad({18: _c(93, "percentile"), 40: _c(35.817, "M ha", rid="corn|area"),
+                 41: _c(1.9, "sigma", rid="corn|area"), 42: _c(98, "percentile", rid="corn|area")}, 42)
+    s = ("Against it, the warm-phase Pacific at the 93rd percentile [N18] is declared in the opposite direction "
+         "on corn and on wheat alike, and corn's harvested area reads 35.82 M ha [N42, the 98th percentile of "
+         "its own record], declared in the opposite direction at high confidence.")
+    rep, out = _v(s, corn)
+    assert rep["handles_canonicalised"] == 1 and rep["by_rule"] == {}
+    assert "35.82 M ha [N40] [N42], the 98th percentile of its own record" in out
+    # a writer's NOTE about a handle is never turned into a citation of it
+    note = ("the corpus documents both near the as-of [E31 is area only; the trade and credit items sit in the "
+            "same April 2026 rapeseed reporting], and their loss would strand seed supply.")
+    assert vf._canonicalise_handles(note) == (note, 0)
+    assert vf._canonicalise_handles("[N5, 10, 12] and [N1-N4] and [1980-1990]")[1] == 0
+
+
+# -- (8) LEDGER IDENTITY: cotton's eleven WASDE lines, rice's E41 --------------------------------------------
+_WASDE_2025 = {"source": "usda_wasde", "date": "2025-01-10", "source_key": "w1",
+               "text": "For the 2024/25 U.S. cotton balance sheet, production and ending stocks are increased."}
+_WASDE_2023 = {"source": "usda_wasde", "date": "2023-09-12", "source_key": "w2",
+               "text": "The Government of India has imposed further restrictions on rice exports with an export tax."}
+
+
+def test_0923_a_ref_the_prose_writes_only_as_N_is_a_number_declaration_before_any_document_match():
+    s = "Ending stocks fall from 4.15 [N1] to 3.6 million 480-pound bales [N14]."
+    ledger = [{"ref": 1, "source": "USDA WASDE", "date": "2026-09-11"},
+              {"ref": 14, "source": "USDA WASDE", "date": "2026-09-11"}]
+    rep, _out = _v(s, _COTTON, evidence=[_WASDE_2025], sources=ledger)
+    assert rep["resolved"] == {} and rep["by_rule"] == {}        # never re-dated to the 2025 WASDE
+    # an integer the prose ALSO writes as [E1] keeps HEAD's order and resolves as the document
+    rep2, out2 = _v("Stocks were raised [E1] while ending stocks read 4.15 [N1].", _COTTON,
+                    evidence=[_WASDE_2025], sources=[{"ref": 1, "source": "usda_wasde", "date": "2025-01-10"}])
+    assert "1" in rep2["resolved"] and "[E1]" in out2
+
+
+def test_0923_a_mistyped_date_is_corrected_only_when_the_source_names_one_document():
+    s = ("USDA raised 2025/26 global beginning stocks primarily for India on higher-than-expected Food "
+         "Corporation of India stocks, reported 9 December 2025 [E41].")
+    ledger = [{"ref": 41, "source": "USDA WASDE", "date": "2025-12-09"}]
+    rep, out = _v(s, [], evidence=[_WASDE_2023, _WASDE_2025], sources=ledger)
+    assert "41" not in rep["resolved"]                            # never re-dated to a guess
+    assert rep["ledger_ambiguous"] == {"41": {"source": "USDA WASDE", "date": "2025-12-09", "candidates": 2}}
+    assert rep["stripped"] == 0 and "[E41]" in out                # counted, kept, not charged
+    # ONE same-source document: HEAD's correction stands -- and the date the sentence binds to the handle
+    # then contradicts it, so the HANDLE (never the words) goes, counted
+    rep1, out1 = _v(s, [], evidence=[_WASDE_2023], sources=ledger)
+    assert rep1["corrected"] == 1
+    assert rep1["by_rule"] == {"date_contradiction": 1} and "[E41]" not in out1 and "9 December 2025" in out1
+    assert "41" not in rep1["resolved"]                           # the footer can never print the 2023 WASDE
+
+
+def test_0923_a_date_contradiction_is_readdressed_to_the_same_source_item_that_carries_the_date():
+    dec = {"source": "usda_wasde", "date": "2025-12-09", "source_key": "w3",
+           "text": "USDA raised 2025/26 global beginning stocks primarily for India on Food Corporation stocks."}
+    s = ("USDA raised 2025/26 global beginning stocks primarily for India on higher-than-expected Food "
+         "Corporation of India stocks, reported 9 December 2025 [E41].")
+    # the ledger resolved [E41] to the 2023 item (source + exact date), the sentence dates it 9 December 2025
+    rep, out = _v(s, [], evidence=[_WASDE_2023, dec],
+                  sources=[{"ref": 41, "source": "usda_wasde", "date": "2023-09-12"}])
+    assert rep["resolved"]["41"]["date"] == "2025-12-09" and "[E41]" in out
+    assert rep["e_date_readdressed"] == [{"ref": "41", "field": "tldr", "date": "2025-12-09"}]
+    # a date the item's own TEXT states (yearless included) is the item's -- never a contradiction
+    e4 = {"source": "usda_gain_soybeans", "date": "2025-03-19", "source_key": "g4",
+          "text": "China will impose an additional 10 percent tariff on U.S. soybeans starting on March 10."}
+    rep4, out4 = _v("China imposed an additional 10 percent tariff on US soybeans effective 10 March 2025 [E4].",
+                    [], evidence=[e4], sources=[{"ref": 4, "source": "usda_gain_soybeans", "date": "2025-03-19"}])
+    assert rep4["by_rule"] == {} and "[E4]" in out4
+
+
+# -- (10) THE UNDECLARED [E] RESOLVED POSITIONALLY: cocoa E1/E7/E2 ------------------------------------------
+def test_0923_an_undeclared_E_the_menu_holds_at_its_index_is_resolved_for_the_footer():
+    ev = [{"source": "icco", "date": "2026-05-29", "source_key": "i1",
+           "text": "World stocks-to-grindings ratio of 26.4% for 2023/24 after a 28% stock drop."},
+          {"source": "usda_gain_cocoa", "date": "2025-08-22", "source_key": "g2",
+           "text": "Prolonged drought conditions in West Africa began in April 2024."}]
+    s = "The prior published prints: 26.4% for 2023/24 after a 28% stock drop [E1]."
+    rep, out = _v(s, [], evidence=ev)
+    assert rep["resolved_undeclared"]["1"]["source"] == "icco" and "[E1]" in out
+    assert "2" not in rep["resolved_undeclared"]
+    # the menu's item at that index does NOT support the sentence: nothing is resolved (HEAD's prune stands)
+    rep2, _out2 = _v("The prior published prints: 26.4% for 2023/24 after a 28% stock drop [E2].", [], evidence=ev)
+    assert "resolved_undeclared" not in rep2
+
+
+def test_0923_numerals_in_E_only_sentences_are_counted_never_charged():
+    """OWNER DECISION 13 -- tariff F3: "10 percent on soybeans announced February 2025 [E7]" rides the [E]
+    path unchecked; the counter prices the hole, no charge is made."""
+    s = ("Beijing placed retaliatory tariffs on US soybeans, reported 19 March 2025 [E7], with 10 to 15 percent "
+         "more on US farm goods.")
+    rep, out = _v(s, [], evidence=[{"source": "usda_gain", "date": "2025-03-19", "source_key": "g7",
+                                     "text": "Beijing has placed retaliatory tariffs on U.S. soybeans."}],
+                  sources=[{"ref": 7, "source": "usda_gain", "date": "2025-03-19"}])
+    assert rep["e_numerals_unverified"] == 2 and rep["by_rule"] == {} and out == s
+
+
+# -- (1)/(2) THE POOL AND THE SAME-ROW RE-ADDRESS: soyoil/palm, deep soybeans, cocoa, max -----------------
+_SOY = _pad({21: _c(17869.0, "local currency per USD"), 24: _c(5.666910834387694, "%", rid="soyoil|su"),
+             25: _c(-1.2, "sigma", rid="soyoil|su"), 26: _c(1, "percentile", rid="soyoil|su"),
+             27: _c(95.82, "local currency per USD"),
+             42: _c(0.15830973226062853, "z", rid="palm|drought"), 43: _c(0.7, "sigma", rid="palm|drought"),
+             44: _c(72, "percentile", rid="palm|drought"),
+             54: _c(-0.39, "degC", rid="oni"), 55: _c(-0.6, "sigma", rid="oni"), 56: _c(35, "percentile", rid="oni"),
+             66: _c(2.8244879999999997, "MMT", rid="palm|stocks"), 67: _c(94, "percentile", rid="palm|stocks"),
+             72: _c(5, "months", table="silver_mpob", metric="closing_stocks_palm_oil_mt_pace_streak")}, 72)
+_SOY_POOL = [{"value": 99, "unit": "percentile", "kind": "window_peak_percentile", "row_id": "palm|drought"},
+             {"value": 92, "unit": "percentile", "kind": "window_peak_percentile", "row_id": "positioning"},
+             {"value": 94, "unit": "percentile", "kind": "percentile", "row_id": "palm|stocks"},
+             {"value": 1, "unit": "percentile", "kind": "percentile", "row_id": "soyoil|su"}]
+_SOY_TLDR = ("Reading the two sheets side by side, the substitution channel points toward soybean oil carrying "
+             "the tighter balance and palm the looser one: Malaysian closing palm stocks sit at 2.82 MMT [N66], "
+             "the 94th percentile of their own record and rising five months running [N72], while US soyoil "
+             "stocks-to-use reads 5.67 % [N24], the 1st percentile of its own record and falling two marketing "
+             "years in a row.")
+
+
+def test_0923_the_soyoil_tldr_relative_value_call_survives_whole():
+    """HEAD KILLED this sentence (number_mismatch on [N72], no cited backer for 94 or 1). The same-row
+    re-address hands each percentile its own handle, [N72] binds no figure, and the call reaches the page
+    with every handle -- with the pool and without it."""
+    for pool in (_SOY_POOL, None):
+        rep, out = _v(_SOY_TLDR, _SOY, served_scalars=pool)
+        assert rep["by_rule"] == {}, pool
+        assert "the 94th percentile [N67] of their own record and rising five months running [N72]" in out
+        assert "the 1st percentile [N26] of its own record" in out
+        assert "2.82 MMT [N66]" in out and "5.67 % [N24]" in out
+
+
+def test_0923_the_at_odds_drought_hop_survives_with_the_pool():
+    """soyoil/palm: HEAD struck the chain's ONLY at-odds hop ("99" -- the drought window peak -- matched no
+    row). The pool backs the peak through the drought row's own identity; "72nd" gets [N44]."""
+    s = ("drought [N42] peaked at the 99th percentile in January 2026, now 72nd, declared opposite onto ending "
+         "stocks " + _D + " and the readings run against it, which is the honest problem here;")
+    rep, out = _v(s, _SOY, field="mechanism", served_scalars=_SOY_POOL)
+    assert rep["by_rule"] == {} and rep["pool_backed"] == 1
+    assert "peaked at the 99th percentile in January 2026, now 72nd [N44], declared opposite" in out
+    rep0, out0 = _v(s, _SOY, field="mechanism")                   # board-off: no pool, HEAD's verdict class
+    assert "number_mismatch" in rep0["by_rule"] or "number_unbacked" in rep0["by_rule"]
+
+
+def test_0923_the_pool_backs_nothing_across_rows_units_or_values():
+    """V-1, the adversarial twins of the rescued drought sentence: the peak swapped to (a) another row's
+    pool value, (b) the same value under a unit the scalar does not carry, (c) a value in no pool -- each
+    is charged again. Rule (2): a row-less scalar backs only a numeral written in its own unit."""
+    base = ("drought [N42] peaked at the {} in January 2026, now 72nd, declared opposite onto ending stocks " + _D +
+            " and the readings run against it;")
+    # (a) 92 is ANOTHER row's peak -- a POOL-only value (a value some served row also carries is backed by
+    #     HEAD's own all-rows backstop, which is not the pool's doing and is pinned elsewhere)
+    for twin in ("92nd percentile", "99 %", "777th percentile"):
+        rep, _out = _v(base.format(twin), _SOY, field="mechanism", served_scalars=_SOY_POOL)
+        assert any(k.startswith("number") for k in rep["by_rule"]), twin
+    runs = [{"value": 8, "unit": "months", "kind": "run_length", "row_id": None}]
+    oni = _pad({1: _c(1.8, "degC")}, 1)
+    rep, _o = _v("The Pacific reads +1.8 degC [N1], rising 8 months running.", oni, served_scalars=runs)
+    assert rep["by_rule"] == {} and rep["pool_backed"] == 1
+    rep, _o = _v("The Pacific reads +1.8 degC [N1], up 8 % on the year.", oni, served_scalars=runs)
+    assert rep["by_rule"] == {"number_unbacked": 1}
+
+
+# -- FIX ROUND (review FATAL-1..5, M3, M5): THE ADVERSARIAL TWINS, AND EVERY ONE ASSERTS WHAT THE PAGE KEPT --
+# M5: a twin that only asserts "charged" cannot see a false figure that stays on the page -- kept bare by a
+# rescue or kept beside the handle of the row it contradicts. Every twin below asserts the OUTPUT: the false
+# figure has left the page, or it carries no handle of a row that does not print it.
+def _false_figure_uncited(out: str, figure: str, handles: tuple) -> bool:
+    """True when `figure` is absent from `out`, or no handle in `handles` is written straight after it."""
+    at = out.find(figure)
+    while at >= 0:
+        tail = out[at + len(figure):at + len(figure) + 40]
+        if any(tail.lstrip().startswith("[N%d]" % h) for h in handles):
+            return False
+        at = out.find(figure, at + 1)
+    return True
+
+
+def test_fix_0923_fatal1_a_function_word_inside_a_card_unit_never_masks_a_claim():
+    """Review FATAL-1: "sigma vs 3 yr mean" / "sigma vs prior 5 yrs" / "COP per 125-kg carga" made ("vs", n),
+    ("prior", n), ("per", n) global maskers. A unit label is now the declared phrase written FROM ITS START,
+    and the cotton unit-less duplicate row no longer stands the unit gate down (row-granular)."""
+    calls = [_c(4.15, rows=[{"value": 4.15, "unit": ""}, {"value": 4.15, "unit": "Million 480 Pound Bales"}],
+                table="silver_wasde", metric="ending_stocks"),
+             _c(3.6, rows=[{"value": 3.6, "unit": ""}, {"value": 3.6, "unit": "Million 480 Pound Bales"}],
+                table="silver_wasde", metric="ending_stocks")]
+    for s, gone in (("Ending stocks fall to 3.6 [N2] vs 5 [N1] a year earlier.", "5 [N1]"),
+                    ("Ending stocks fall to 3.6 vs 5 a year earlier [N2].", "[N2]"),
+                    ("Ending stocks fall to 3.6 [N2], 7 below the prior 10 [N1].", "10 [N1]")):
+        rep, out = _v(s, calls, field="mechanism")
+        assert any(k.startswith("number") for k in rep["by_rule"]), s
+        assert gone not in out, (s, out)                       # the false figure keeps no citation
+    # the correct twin is untouched, and the row's own unit is still never a claim
+    ok = "Ending stocks fall to 3.6 million 480-pound bales [N2] vs 4.15 [N1] a year earlier."
+    rep, out = _v(ok, calls, field="mechanism")
+    assert rep["by_rule"] == {} and out == ok
+
+
+def test_fix_0923_fatal2_a_figure_written_into_a_handle_is_that_handles_claim():
+    """Review FATAL-2: a mis-copied REPEATED value binds to the handle it is written into ("figure [N]"),
+    whatever its neighbour backs -- the handle of the row it contradicts is charged and leaves the page."""
+    def call(v):
+        return _c(v, "MMT", table="silver_psd", metric="exports_mt")
+    calls = [call(118.0), call(100.0), call(50.0), call(8.8)]
+    for s, h in (("Brazil ships 118 MMT [N1] and China imports 118 MMT [N2].", 2),
+                 ("US exports are 50 MMT [N3] with ending stocks of 50 MMT [N4].", 4),
+                 ("US ending stocks sit at 8.8 MMT [N4], exports at 8.8 MMT [N3].", 3),
+                 ("Brazil ships 118 MMT [N1] and China imports 118 MMT too [N2].", 2)):
+        rep, out = _v(s, calls)
+        assert rep["by_rule"] == {"number_mismatch": 1}, s
+        assert "[N%d]" % h not in out, (s, out)                  # the contradicted row's handle is gone
+
+
+def test_fix_0923_fatal3_readdress_needs_scale_1_and_the_unit_the_writer_wrote():
+    """Review FATAL-3: the same-row re-address matched by VALUE through the multi-scale bridge. A figure
+    written in a unit its sibling does not carry, or in the cited member's OWN unit (a wrong value on the
+    right member), is never re-addressed; the figure never gains a citation it had not."""
+    ex = _pad({7: _c(664.8, "1000 MT", rid="ex"), 8: _c(-1.0, "sigma", rid="ex"), 9: _c(13, "percentile", rid="ex"),
+               10: _c(2, "percentile", rid="ex", rows=[{"value": 2, "unit": "percentile",
+                                                         "stat": "window_peak_percentile"}])}, 10)
+    for s, bad in (("Weekly export shipments now reads 13 1000 MT [N7].", ("13 1000 MT", (9, 10))),
+                   ("Weekly export shipments now reads 1 1000 MT [N7].", ("1 1000 MT", (8,))),
+                   ("Weekly export shipments now reads 664.8 1000 MT [N7], the 2nd percentile [N9] of its "
+                    "own record.", ("2nd percentile", (9, 10)))):
+        rep, out = _v(s, ex)
+        assert "readdressed" not in rep, s
+        assert _false_figure_uncited(out, bad[0], bad[1]), (s, out)
+    oni = _pad({4: _c(0.98, "degC", rid="la"), 5: _c(1.2, "sigma", rid="la"), 6: _c(82, "percentile", rid="la")}, 6)
+    rep, out = _v("The other reading, at 0.98 degC [N4], has held there for 120 months.", oni)
+    assert "readdressed" not in rep and "[N5]" not in out and "[N6]" not in out
+    # the measured correction still lands: an ORDINAL written into the level handle is the percentile's
+    rep, out = _v("Weekly export shipments now reads the 13th [N7].", ex)
+    assert rep["readdressed"] == [{"from": 7, "to": 9, "field": "tldr", "numeral": 13.0}] and "13th [N9]" in out
+
+
+def test_fix_0923_fatal4_the_pool_backs_only_through_the_group_a_figure_binds_to():
+    """Review FATAL-4: the pool's row test was SENTENCE-scoped, so in a two-row chain sentence one row's board
+    figure backed a numeral written into the OTHER row's clause, and the sibling rescue served it bare. Every
+    twin asserts the pool rescues nothing the pool-less cell charges and the false figure keeps no handle."""
+    CR, ONI = "soy|crush", "soy|oni"
+    calls = _pad({1: _c(2.6038, "USD/bu", rid=CR), 2: _c(1.4, "sigma", rid=CR), 3: _c(92.0, "percentile", rid=CR),
+                  4: _c(0.98, "degC", rid=ONI), 5: _c(88.0, "percentile", rid=ONI)}, 5)
+    pool = [{"value": 95.6, "unit": "percentile", "kind": "window_peak_percentile", "row_id": CR},
+            {"value": 8, "unit": "months", "kind": "run_length", "row_id": CR},
+            {"value": 12.4, "unit": "%", "kind": "outcome_move", "row_id": None, "handle": 11}]
+    for s, false in (("Crush now reads 2.6 USD/bu [N1], while ONI sits at the 96th percentile [N5].", "96th"),
+                     ("Crush reads 2.6 USD/bu [N1] and ONI is at the 96th percentile of its record [N4].", "96th"),
+                     ("ONI reads 0.98 degC [N4] and has run warm for 8 months [N4].", "8 months"),
+                     ("The crush margin is at its 96th percentile [N1], a record tight crush.", "96th"),
+                     ("Crush fell 12.4 % on the year to 2.6 USD/bu [N1].", "12.4")):
+        rep, out = _v(s, calls, field="mechanism", served_scalars=pool)
+        rep0, out0 = _v(s, calls, field="mechanism")               # the pool-less cell (HEAD's reading)
+        assert any(k.startswith("number") for k in rep["by_rule"]), s
+        # the pool rescues NOTHING the pool-less cell charges, and the false figure keeps no citation --
+        # where HEAD's own number_unbacked remedy serves it bare, it is bare on both cells (integration F-12b)
+        assert (rep["by_rule"], out) == (rep0["by_rule"], out0) and "pool_backed" not in rep, (s, out)
+        assert _false_figure_uncited(out, false, (1, 2, 3, 4, 5)), (s, out)
+    # ...and the figure the row itself printed, in its own clause, is still backed (I-1's shape)
+    s = "The crush margin peaked at the 96th percentile in July 2026 and now reads 2.6 USD/bu [N1]."
+    rep, out = _v(s, calls, field="mechanism", served_scalars=pool)
+    assert rep["by_rule"] == {} and out == s and rep["pool_backed"] == 1
+
+
+def test_fix_0923_m3_a_percentile_word_never_stands_in_for_the_handles_figure():
+    """Review M3: the word "percentile" / "decile" in the binding window no longer counts as a percentile
+    handle's own figure. A figure the writer wrote INTO a percentile handle that its level sibling carries is
+    re-addressed, and the percentile handle -- whose own figure is written nowhere -- leaves; a handle the
+    writer cited for WORDS (the moved figure was not written into it) keeps its citation."""
+    ex = _pad({7: _c(664.8, "1000 MT", rid="ex"), 8: _c(-1.0, "sigma", rid="ex"), 9: _c(13, "percentile", rid="ex")}, 9)
+    rep, out = _v("Weekly shipments read 664.8 1000 MT [N9], near the bottom decile of the percentile record.", ex)
+    assert rep["readdressed"][0]["to"] == 7 and "664.8 1000 MT [N7]" in out and "[N9]" not in out
+    cocoa = _pad({14: _c(-0.66815534, "z", rid="wa"), 15: _c(-1.5, "sigma", rid="wa"), 16: _c(6, "percentile", rid="wa")},
+                 16)
+    rep, out = _v("- West African maximum temperature -0.67 z, read 2026-08, bottom decile [N16].", cocoa)
+    assert rep["by_rule"] == {} and "-0.67 z [N14], read 2026-08, bottom decile [N16]" in out
+
+
+def test_0923_same_row_readdress_moves_a_figure_onto_its_own_member():
+    """V-2: deep soybeans "the 68th [N54]" (N54 is the crude z level; 68 is [N56]'s), cocoa "-0.67 z ...
+    bottom decile [N16]" (-0.67 is [N14]'s). A figure two members back is ambiguous and left alone."""
+    deep = _pad({54: _c(0.507294, "z", rid="crude"), 55: _c(-0.1, "sigma", rid="crude"),
+                 56: _c(68, "percentile", rid="crude")}, 56)
+    s = ("**The crude-to-crush chain, in hop order.** Crude peaked at the 98th percentile in April 2026 and now "
+         "reads the 68th [N54], through 10 September 2026, its lag running to October 2026;")
+    pool = [{"value": 98, "unit": "percentile", "kind": "window_peak_percentile", "row_id": "crude"}]
+    rep, out = _v(s, deep, field="mechanism", served_scalars=pool)
+    assert rep["by_rule"] == {} and "now reads the 68th [N56], through" in out and "[N54]" not in out
+    assert rep["readdressed"] == [{"from": 54, "to": 56, "field": "mechanism", "numeral": 68.0}]
+    cocoa = _pad({14: _c(-0.66815534, "z", rid="wa|tmax"), 15: _c(-1.5, "sigma", rid="wa|tmax"),
+                  16: _c(6, "percentile", rid="wa|tmax")}, 16)
+    s2 = ("- **West African maximum temperature** -0.67 z, read 2026-08, bottom decile [N16], acting 31 August "
+          "2026 to 28 February 2027.")
+    rep2, out2 = _v(s2, cocoa, field="mechanism")
+    assert rep2["by_rule"] == {} and "-0.67 z [N14], read 2026-08, bottom decile [N16]" in out2
+    amb = _pad({1: _c(2.0, "z", rid="r"), 2: _c(2.0, "sigma", rid="r"), 3: _c(40, "percentile", rid="r")}, 3)
+    rep3, out3 = _v("The reading sits at 2.0 on its own window [N3].", amb)
+    assert "readdressed" not in rep3 and "[N1]" not in out3 and "[N2]" not in out3
+
+
+def test_0923_the_cited_rows_own_ordinal_is_its_figure():
+    """corn/wheat: "feed at the 95th [N39]" -- a percentile call, its value written as a bare ordinal right in
+    front of it; HEAD convicted it by the neighbours' 98 and 16."""
+    cw = _pad({39: _c(95, "percentile"), 45: _c(98, "percentile"), 54: _c(16, "percentile")}, 54)
+    s = ("Corn's demand side " + _D + " ethanol at the 98th percentile [N45], feed at the 95th [N39], against a "
+         "16th-percentile stocks-to-use [N54] " + _D + " is three of the eight conditions the demand-pull pattern "
+         "names, at its own threshold, and that leans price-supportive for corn.")
+    rep, out = _v(s, cw, field="mechanism")
+    assert rep["by_rule"] == {} and out == s
+
+
+def test_0923_a_board_off_call_passes_the_same_bytes_with_or_without_the_kwarg():
+    """I-8 / the byte-identity claim: `served_scalars=None` IS the omitted kwarg -- report and prose."""
+    for s, calls in ((_SOY_TLDR, _SOY), (_COTTON_S[0], _COTTON)):
+        a = _v(s, calls)
+        b = _v(s, calls, served_scalars=None)
+        c = _v(s, calls, served_scalars=[])
+        assert a == b == c

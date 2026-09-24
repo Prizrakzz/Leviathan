@@ -733,10 +733,21 @@ class TestOICoverageFact:
             pd.DataFrame({"trade_date": [pd.Timestamp("2026-01-01")]})) == []
 
     def test_one_arithmetic_two_readers(self):
-        """A session this fact calls UNDECIDABLE is EXACTLY a session the front-expiry read declines
-        under the same arm, because both ask `resolve_front_month_methods` and neither restates it.
-        The `_truncation_error` / `_session_floor_facts` discipline applied again: the two cannot
-        drift without this pin going red."""
+        """A session this fact calls UNDECIDABLE is EXACTLY a session the front-expiry read cannot decide
+        BY THE FRONT-MONTH RULE under the same arm, because both ask `resolve_front_month_methods` and
+        neither restates it. The `_truncation_error` / `_session_floor_facts` discipline applied again:
+        the two cannot drift without this pin going red.
+
+        RE-BANKED 09-24 (fix round FINAL_2; the orchestrator's ruling 6 on R-1 -- a DECLARED move,
+        OWNER DECISION 5 / CONTRACT C12, the class CLOSE_2 re-banked in test_state_tape). The read no
+        longer DECLINES the session the rule cannot run on: it serves the declared cycle fallback, the
+        nearest listed delivery, stamped `roll_method = query.CYCLE_FALLBACK_METHOD` -- which is NOT the
+        front-month rule and is not in `query.ROLL_METHODS_FRONT`. So "served" stopped being the second
+        reader's verdict, and the invariant the two readers share is now "undecidable == 0 iff the
+        served row's roll_method is in ROLL_METHODS_FRONT". It is asserted as the SAME equality on all
+        three fixture sessions, and each session's two facts are also pinned BY NAME: the silver job
+        still counts the OI-blank session undecidable AND the served row for it is the fallback, standing
+        in for the very rule the silver job judged the session by."""
         import os
 
         from leviathan.graphrag import config_check as cc
@@ -758,7 +769,23 @@ class TestOICoverageFact:
                       "open_interest": oi, "volume": v} for d, cm, s, oi, v in rows],
                     Q.NumberQuery(table="silver_futures_eod", metric="settle", asof=asof,
                                   commodity="corn_cbot", agg="front_expiry"), card)
-                assert bool(served) == (fact["sessions_undecidable"] == 0), name
+                # C12: every one of the three sessions is served -- the blank one by the fallback
+                assert len(served) == 1, name
+                row = served[0]
+                decided = row["roll_method"] in Q.ROLL_METHODS_FRONT
+                # THE ONE ARITHMETIC: the silver job's undecidable count and the served row's method agree
+                assert (fact["sessions_undecidable"] == 0) == decided, (name, fact, row["roll_method"])
+                if name == "blank":
+                    # the OI reader counts the OI-blank session undecidable...
+                    assert fact["sessions_undecidable"] == 1 and fact["undecidable_days"] == ["2026-09-04"]
+                    # ...and the row served for it is the declared fallback, never the rule's own pick
+                    assert row["roll_method"] == Q.CYCLE_FALLBACK_METHOD and not decided
+                    assert row["roll_rule_version"] == Q.CYCLE_FALLBACK_VERSION
+                    assert row["roll_method_fallback"] == f"{fact['roll_method']}->{Q.CYCLE_FALLBACK_METHOD}"
+                else:
+                    # a decidable session is served by the SAME rule the silver job judged it by
+                    assert fact["sessions_undecidable"] == 0 and decided
+                    assert row["roll_method"] == fact["roll_method"], name
         finally:
             if prev is None:
                 os.environ.pop("GRAPHRAG_FRONT_EXPIRY_PARTIAL", None)

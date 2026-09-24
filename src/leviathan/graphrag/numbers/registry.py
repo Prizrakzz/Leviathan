@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from leviathan.graphrag import extract as ex  # ex._CFG -> configs/graphrag
 
@@ -84,6 +84,26 @@ class Metric(BaseModel):
     #                                                          it is an ADDITIONAL restriction (soybeans farm price
     #                                                          fenced to unit IN ('$/bu','') so the '$/s.t.'/'c/lb'/
     #                                                          'Domestic Measure' bleed rows never reach serving).
+    # -- THE 09-23 FIX ROUND, LANE T (CONTRACT C10): FOUR OPTIONAL DISPLAY FIELDS, NEVER PRINTED -------
+    # Read by the board's row identity and the precision producer (lane R, through `render.card_fields`
+    # and `display_spec` below) and by the citation label (lane C). `agent.system_prompt` renders a metric
+    # from `unit` / `label` / `desc` ONLY (`_metric_line`), so none of these reaches the 247,358-char
+    # cached numbers prefix -- pinned by sha. All default None = the card declares nothing = HEAD.
+    basis_words: Optional[str] = None                        # what the figure is a SHARE / PART OF, in words:
+    #                                                          silver_psd.su_ratio "ending stocks as a share of
+    #                                                          domestic use" (the producer's own formula,
+    #                                                          ending_stocks_mt / consumption_mt -- this card's
+    #                                                          desc says so in capitals)
+    display_scale: Optional[float] = None                    # the ANALYST scale the stored value is shown at
+    #                                                          (su_ratio 0.1072 -> x100 -> 10.72 %)
+    display_unit: Optional[str] = None                       # the unit the SCALED value is shown in ("%")
+    display_decimals: Optional[int] = None                   # decimals at the display scale; None = the
+    #                                                          precision producer's own rule (CONTRACT C5)
+    row_grain: Optional[Literal["aggregate"]] = None         # 09-23 fix round: "aggregate" = every row of
+    #                                                          this metric is its geo SURFACE's aggregate over
+    #                                                          cells (a basin / member-country share), never one
+    #                                                          region's reading -- read by the citation's axis
+    #                                                          words; never printed in the numbers prompt
 
 
 class VintageTiebreakTerm(BaseModel):
@@ -115,6 +135,29 @@ class VintageTiebreakTerm(BaseModel):
     #                                                          release-relative (correct at the Dec/Jan wrap,
     #                                                          which a static winner-first list gets wrong).
     #                                                          Default ASC, no `dir` -> both engines agree.
+
+
+class PeriodFirstKnown(BaseModel):
+    """CONTRACT C10 ``period_first_known``: by WHEN a card's period is SURELY PUBLISHED, relative to the
+    period itself -- ``anchor`` + ``offset_months`` (negative = before the anchor), read as the LAST day of
+    that month (the latest first print across the card's slugs; late, never early). THE NUMBERS ARE
+    DOCUMENTATION of the measured first-print lag; no reader derives a verdict from them. A well-formed
+    declaration OPTS the card in to the board's period-gap rule (``feeders.period_rule_declared``), and
+    the gap itself is a fact about the STORE (``feeders.stamp_period_gaps``): ``period_gap`` is stamped
+    only where a NEWER period of the same slug on the same card is held as known at the as-of. A LABEL,
+    never a filter: an undeclared card runs no rule at all."""
+    model_config = ConfigDict(extra="forbid")
+    anchor: Literal["period_start", "period_end"]
+    offset_months: int
+
+
+# THE CLOSED VOCABULARIES OF THE C10 TABLE FIELDS. The first two are CONTRACT C1's own rosters
+# (`state/rows.py` AXIS_KINDS / PERIOD_KINDS, lane R's leaf module) spelled here as Literals because the
+# numbers registry imports nothing from the state package; a deck pin holds the two spellings equal.
+AXIS_KINDS: tuple = ("national", "reporter", "destination", "region_cell", "global")
+PERIOD_KINDS: tuple = ("marketing_year", "crop_season", "month", "week", "day", "delivery_month", "window")
+AXIS_NATIONAL: tuple = ("sum", "mean_of_cells", "none")
+PROVENANCE_KINDS: tuple = ("role", "release_stamp", "rule_version", "source_position")
 
 
 class TableSpec(BaseModel):
@@ -391,6 +434,49 @@ class TableSpec(BaseModel):
     #                                                          byte-identical to before (zero behavior change).
     partitions: list[str] = []
     notes: str = ""
+    # -- THE 09-23 FIX ROUND, LANE T (CONTRACT C10): FIVE OPTIONAL TABLE FIELDS, NEVER PRINTED ----------
+    # What a served row IS over its axes and its period, declared once on the card so the board's row
+    # identity (lane R), the feeders' role / current-period rules (lane C) and the citation label (lane
+    # C) read one declaration instead of guessing from a driver id. `agent._table_card` renders none of
+    # them (pinned by the numbers-prompt sha). All default None = undeclared = HEAD's behaviour.
+    country_axis: Optional[Literal["national", "reporter", "destination", "region_cell", "global"]] = None
+    #                                                          what the card's geography axis NAMES: a
+    #                                                          reporter country (PSD), a BUYER of one national
+    #                                                          flow (ESR), one growing CELL (weather z), or a
+    #                                                          global index with no country (ONI)
+    cell_noun: Optional[list[str]] = None                    # a CELL axis's own noun for one row,
+    #                                                          [singular, plural] ("growing cell") -- the
+    #                                                          card's words, read by the row identity; never
+    #                                                          printed in the numbers prompt (fix round)
+    axis_national: Optional[Literal["sum", "mean_of_cells", "none"]] = None
+    #                                                          how a NATIONAL figure relates to that axis:
+    #                                                          ESR's national total IS the sum over buyers;
+    #                                                          a weather cell is a cell ("none") -- the board
+    #                                                          names the cell or reads a declared mean
+    provenance_kind: Optional[Literal["role", "release_stamp", "rule_version", "source_position"]] = None
+    #                                                          what the card's `provenance_col` value IS: a
+    #                                                          vintage ROLE (WASDE actual / estimate /
+    #                                                          projection) or a release STAMP (the Pink
+    #                                                          Sheet's latest_release_ym) -- only a role may
+    #                                                          ever be printed as one (CONTRACT C11)
+    period_words: Optional[Literal["marketing_year", "crop_season", "month", "week", "day",
+                                   "delivery_month", "window"]] = None
+    #                                                          the KIND of period one row is about -- a
+    #                                                          marketing year, an ICCO crop season, a month,
+    #                                                          a week, a session day
+    period_first_known: Optional[dict] = None                # {anchor, offset_months}, VALIDATED by the
+    #                                                          PeriodFirstKnown model and STORED as the plain
+    #                                                          dict every reader tests for (lane C's
+    #                                                          `feeders.period_gap` reads `isinstance(.., dict)`)
+
+    @field_validator("period_first_known", mode="before")
+    @classmethod
+    def _pfk_plain(cls, v):
+        """Validate against the closed shape, store the plain dict. A malformed field fails at LOAD
+        (the extra='forbid' law this module keeps for every other key), never at a reader."""
+        if v is None:
+            return None
+        return PeriodFirstKnown.model_validate(v).model_dump()
 
     def knowledge_col(self) -> Optional[str]:
         """The single column the as-of guard filters on. None for year_month (guarded on year*100+month)."""
@@ -802,3 +888,114 @@ def load_registry(path: Optional[str] = None) -> NumbersRegistry:
     if disabled:
         tables = {tid: ts for tid, ts in tables.items() if tid not in disabled}
     return NumbersRegistry(tables=tables)
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE 09-23 FIX ROUND, LANE T -- TWO READERS OF THE CARDS' OWN DECLARATIONS (CONTRACT C5 / C6 / C10)
+# ---------------------------------------------------------------------------------------------------
+def display_spec(table: str, metric: str, reg: Optional[NumbersRegistry] = None) -> tuple:
+    """``(display_scale, display_unit, display_decimals)`` as ONE card declares them for ONE metric --
+    each ``None`` where the card declares nothing, and ``(None, None, None)`` for an unknown card or
+    metric. Read by the precision producer (CONTRACT C5, lane R's ``render.shown_figure``): scale first
+    (su_ratio 0.1072 x 100 -> 10.72 %), then the declared decimals, else that producer's own rule.
+
+    NEVER RAISES and NEVER DEFAULTS A VALUE: a ``1.0`` scale or the metric's own ``unit`` is the
+    CALLER's fallback to take, so "undeclared" and "declared as identity" stay two different facts."""
+    try:
+        m = (reg or load_registry()).get(str(table)).metrics.get(str(metric))
+    except Exception:  # noqa: BLE001 -- an unknown card declares nothing
+        return (None, None, None)
+    if m is None:
+        return (None, None, None)
+    return (m.display_scale, m.display_unit, m.display_decimals)
+
+
+# The separators a unit phrase may carry that are SPACE to a reader: the ASCII hyphen, the two Unicode
+# hyphens (U+2010, U+2011) and the two no-break spaces (U+00A0, U+202F). Built with chr() so this source
+# stays ASCII. The EN DASH is deliberately NOT here: between a digit and a word it is a RANGE, and the
+# verifier's own range rule owns that reading.
+_UNIT_PHRASE_SPACES = "-" + chr(0x2010) + chr(0x2011) + chr(0x00A0) + chr(0x202F)
+
+
+def normalise_unit_phrase(s) -> str:
+    """ONE spelling of a unit phrase for set membership: lower-case, the separators above to a space,
+    whitespace folded. The same function normalises the registry's side (``card_unit_phrases``) and any
+    caller's side, so the two can never disagree about what "the same phrase" is."""
+    text = str(s or "")
+    for ch in _UNIT_PHRASE_SPACES:
+        text = text.replace(ch, " ")
+    return " ".join(text.lower().split())
+
+
+@functools.lru_cache(maxsize=4)
+def _card_unit_phrases_cached(path: Optional[str]) -> frozenset:
+    reg = load_registry(path)
+    out: set = set()
+    for ts in reg.tables.values():
+        for m in (ts.metrics or {}).values():
+            for raw in ([m.unit, m.display_unit] + list((m.unit_overrides or {}).values())):
+                phrase = normalise_unit_phrase(raw)
+                if phrase:
+                    out.add(phrase)
+    return frozenset(out)
+
+
+def card_unit_phrases(path: Optional[str] = None) -> frozenset:
+    """CONTRACT C6: EVERY unit phrase the loaded registry declares -- each metric's ``unit``, each
+    ``unit_overrides`` value and each ``display_unit`` -- through :func:`normalise_unit_phrase`.
+
+    The verifier's unit vocabulary is DERIVED from this set (lane V, ``verify._unit_phrases_for``, which
+    unions the cited calls' own served row units), so a phrase a card declares -- "1000 480 lb. Bales",
+    "COP per 125-kg carga", "sigma vs 5-yr mean" -- is recognised the moment the card declares it, and a
+    hand-typed unit list beside the verifier stops being the thing that decides. Cached per registry
+    path, exactly as :func:`load_registry` is."""
+    return _card_unit_phrases_cached(path)
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE 09-23 FIX ROUND (review M2) -- THE UNIT SPELLINGS ARE DECLARED DATA, NOT A LIST IN THE VERIFIER
+# ---------------------------------------------------------------------------------------------------
+# tables.yaml's top-level `unit_spellings` / `duration_spellings` / `unit_scale_words` blocks (read here
+# and nowhere else). They are NOT cards: `load_registry` reads `tables:` alone, so the numbers prompt
+# (`agent.system_prompt`, built from the parsed cards) cannot see them -- B9's sha pin holds by
+# construction. Normalised through :func:`normalise_unit_phrase`, the one spelling rule.
+@functools.lru_cache(maxsize=4)
+def _raw_config_blocks(path: Optional[str]) -> dict:
+    p = Path(path) if path else (ex._CFG / "numbers" / "tables.yaml")
+    try:
+        raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001 -- an unreadable file declares no spellings
+        return {}
+    return {k: raw.get(k) for k in ("unit_spellings", "duration_spellings", "unit_scale_words")}
+
+
+def _spelling_map(block) -> dict:
+    out: dict = {}
+    for key, vals in (block or {}).items() if isinstance(block, dict) else ():
+        k = normalise_unit_phrase(key)
+        if not k:
+            continue
+        seen = [k]
+        for v in (vals or []) if isinstance(vals, (list, tuple)) else ():
+            s = normalise_unit_phrase(v)
+            if s and s not in seen:
+                seen.append(s)
+        out[k] = tuple(seen)
+    return out
+
+
+def unit_spellings(path: Optional[str] = None) -> dict:
+    """``{canonical unit phrase: (the canonical phrase, its declared spellings...)}`` -- ONE equivalence
+    class per key (review M2: the spellings HEAD's verifier typed as closed sets, declared as data)."""
+    return dict(_spelling_map(_raw_config_blocks(path).get("unit_spellings")))
+
+
+def duration_spellings(path: Optional[str] = None) -> dict:
+    """``{duration noun: (the noun, its declared plural / abbreviated spellings...)}``."""
+    return dict(_spelling_map(_raw_config_blocks(path).get("duration_spellings")))
+
+
+def unit_scale_words(path: Optional[str] = None) -> frozenset:
+    """The scale words a writer may put in front of a unit ("622.69 thousand MT", "35.82 M ha")."""
+    vals = _raw_config_blocks(path).get("unit_scale_words") or []
+    return frozenset(s for s in (normalise_unit_phrase(v) for v in vals if isinstance(v, str)) if s)

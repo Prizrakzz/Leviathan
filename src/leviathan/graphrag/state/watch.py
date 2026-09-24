@@ -355,8 +355,10 @@ def watch_rows(bd, *, analogs=(), cap: Optional[int] = None, conventions: Option
             queues["analog_trigger"].append({
                 "kind": "analog_trigger", "kind_words": KIND_WORDS["analog_trigger"],
                 "label": f"{R.humanise(a['driver_id'])} on {R.board_label(a['contract'])}",
-                "what": (f"after the like state dated {a['date']}, {o['label']} was read at the far "
-                         f"end of that declared band"),
+                # 09-23 DESK VOCABULARY (CONTRACT.md C13): where the lag the model allows ENDS, never
+                # the instrument's "far end of that declared band"; the date rides the row's own tail.
+                "what": (f"after the like state dated {a['date']}, {o['label']} was read where the lag "
+                         f"the model allows for it ends"),
                 "dates": o["far_date"], "declined": None, "row": (a["contract"], a["driver_id"])})
             break                                   # ONE trigger per stanza: the stanza is the source
 
@@ -635,10 +637,18 @@ NONOBVIOUS_FALSIFIERS: dict = {
                                     "pattern's own threshold"),
     "upstream_convergence": ("the paths share a single upstream cause, in which case they are one "
                              "route counted twice"),
-    "spillover_reach": ("that market's own declared edge carries no sign, in which case the reach is "
-                        "a count and not a direction"),
-    "spillover_reach_unplaced": ("the edge declared here takes a committed direction, in which case "
-                                 "each of those markets can be placed with it or against it"),
+    # **A FALSIFIER IS A READING A DESK CAN WATCH, NEVER A FACT ABOUT THE MODEL** (09-23, D12 / threat
+    # R-15). Both spillover kinds said "wrong if that market's own declared edge carries no sign" -- the
+    # board's ROUTING language, served as a falsifier (deep b3 / b4, the 2024 b4, max F9): no print can
+    # ever show a graph declaration wrong. The claim is that ONE reading is carried onto several markets
+    # at once, so what shows it wrong is that reading's own STATE RETURNING -- the ``tail_reading``
+    # kind's own falsifier, read over the same series, and not a new sentence family.
+    # The two spillover kinds keep ONE falsifier EACH (the one-place law), both of the state-return
+    # family: the reading returning to the middle of its own record is what takes the reach off.
+    "spillover_reach": ("the next print returns this reading to the middle of its own record, which "
+                        "takes the move off those markets at once"),
+    "spillover_reach_unplaced": ("the next print returns this reading to the middle of its own record "
+                                 "before any of those markets can be placed with or against it"),
     "recurrence": ("the like states cluster in one episode, in which case the count is one event and "
                    "not a rate"),
 }
@@ -696,8 +706,9 @@ NONOBVIOUS_BODIES: dict = {
                                     "pattern {pattern} declares that is moving furthest from its own "
                                     "record here{unread}, and that pattern's own threshold is "
                                     "{threshold}{alone}{amplifier}{fold}"),
+    # 09-23 DESK VOCABULARY (CONTRACT.md C13): "links", never the instrument's "hops".
     "upstream_convergence": ("{n_paths} declared upstream paths run through this reading onto this "
-                             "price, the deepest {depth} hops up ({causes}), so one cause reaches the "
+                             "price, the deepest {depth} links up ({causes}), so one cause reaches the "
                              "price by more than one route"),
     # THE SPLIT HAS THREE WORDS BECAUSE THE GRAPH DECLARES THREE (review round 3, MAJOR 2). A two-way
     # split had to put every `0` edge -- "with no committed direction" in `rows.SIGN_WORDS`, and the

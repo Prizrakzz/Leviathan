@@ -290,7 +290,9 @@ def test_the_MPOB_case_a_stale_row_spoken_as_a_current_movement_gets_its_read_da
     d = {"tldr": "", "mechanism": s}
     cen = an._seam_stale_figures(d, _rows(MPOB_ROWS), ASOF)
     assert cen["stale_rows_dated"] == 1 and cen["stale_sentences"] == 1
-    assert d["mechanism"].endswith("(read 2026-07-01)")
+    # RE-BANKED 09-23 FIX ROUND -- D3 known-date + period correction (09-23 recon palm_rapeoil F2; FIX.md O-3): the
+    # July MPOB print is a data_date card read, known 2026-08-13 (+43-day lag), and its month clause now rides.
+    assert d["mechanism"].endswith("(the 2026-07 reading, read 2026-08-13)")
     assert "2.62832 MMT [N61]" in d["mechanism"]
 
 
@@ -319,7 +321,9 @@ def test_a_dated_line_a_copula_and_a_row_already_read_are_all_left_alone():
     # (3) ONCE PER ROW across the page
     d3 = {"tldr": "", "mechanism": "Stocks [N61] rising. Stocks [N61] building. Stocks [N61] easing."}
     assert an._seam_stale_figures(d3, rows, ASOF)["stale_rows_dated"] == 1
-    assert d3["mechanism"].count("(read 2026-07-01)") == 1
+    # RE-BANKED 09-23 FIX ROUND -- D3 known-date + period correction (09-23 recon palm_rapeoil F2; FIX.md O-3): the
+    # July MPOB print is a data_date card read, known 2026-08-13 (+43-day lag), and its month clause now rides.
+    assert d3["mechanism"].count("(the 2026-07 reading, read 2026-08-13)") == 1
 
 
 def test_a_fresh_weekly_row_is_never_dated_and_an_annual_row_always_is():
@@ -841,11 +845,15 @@ def test_MAJOR6_a_multi_row_stale_sentence_attaches_each_DATE_to_its_HANDLE():
         _call("silver_mpob", "build months", "palm oil", None, None, 4, "months", "2026-07-01")])
     d2 = {"tldr": "", "mechanism": "Stocks 2.6 MMT [N1], up 0.08 MMT [N2] and rising 4 months [N3]"}
     assert an._seam_stale_figures(d2, same, ASOF)["stale_rows_dated"] == 3
-    assert d2["mechanism"].endswith("(N1, N2, N3 read 2026-07-01)")
+    # RE-BANKED 09-23 FIX ROUND -- D3 known-date + period correction (09-23 recon palm_rapeoil F2; FIX.md O-3): the
+    # July MPOB print is a data_date card read, known 2026-08-13 (+43-day lag), and its month clause now rides.
+    assert d2["mechanism"].endswith("(N1, N2, N3 the 2026-07 reading, read 2026-08-13)")
     # ...and a ONE-HANDLE sentence has no ambiguity to resolve and keeps the bare form
     d3 = {"tldr": "", "mechanism": "Stocks 2.62832 MMT [N61] and rising in each of the last 4 months"}
     an._seam_stale_figures(d3, _rows(MPOB_ROWS), ASOF)
-    assert d3["mechanism"].endswith("(read 2026-07-01)")
+    # RE-BANKED 09-23 FIX ROUND -- D3 known-date + period correction (09-23 recon palm_rapeoil F2; FIX.md O-3): the
+    # July MPOB print is a data_date card read, known 2026-08-13 (+43-day lag), and its month clause now rides.
+    assert d3["mechanism"].endswith("(the 2026-07 reading, read 2026-08-13)")
 
 
 def test_MAJOR7_the_watch_walk_accepts_every_spelling_its_SIBLING_WALKS_accept():

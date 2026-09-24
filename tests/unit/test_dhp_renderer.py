@@ -669,7 +669,9 @@ def test_m1_the_row_side_reads_the_receipt_never_the_rendered_label():
     comparison, not merely that this row passes."""
     call = _series_call("production_kt", [("2022/23", 4900.0), ("2023/24", 4400.0), ("2024/25", 4723.0)])
     label = an.cit.from_number(call, 1).label
-    assert "2024/25" not in label                            # a series read RENDERS no period at all...
+    # RE-BANKED 09-23 FIX ROUND -- D3 label correction (09-23 recon cocoa F1, the ICCO season lost): a series read
+    # now RENDERS its headline row's own season; the row side below still reads the RECEIPT, never this label.
+    assert "ICE cocoa 2024/25 season = 4,723 1000 MT" in label
     assert an._receipt_period_text(call) == "2024/25"        # ...but the receipt has one, and says it
     st = _st("The ICCO placed world production for the 2024/25 cocoa year at [N1].")
     census = an._resolve_number_handles(st, [call], handle_prose=True)
