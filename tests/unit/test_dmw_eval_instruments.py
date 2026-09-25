@@ -816,27 +816,28 @@ def test_wrong_slot_audit_is_a_registered_column_at_the_tail():
     RE-ANCHOR (COST_LATENCY.md, the 2026-09-16 in-VPC pre-arm smoke): `turn_cost_usd` prices the WRITER
     ALONE -- $2.5643 over five turns against a PROVEN floor of $3.9251 -- and these three are the seats
     it never saw, the largest of them ($8.84 of a $35 arm) being the numbers agent."""
-    assert tk.TRACE_RECORD_KEYS[-26] == "wrong_slot_audit"  # lane F re-pin: +4 (cost census x3 + writer seam)
-    assert tk.TRACE_RECORD_KEYS[-25] == "slot_orphan_dropped"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-24] == "episode_spans_validated"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-23] == "plan_tokens"  # lane F re-pin: +4. NOT `plan_usage`: the
+    assert tk.TRACE_RECORD_KEYS[-29] == "wrong_slot_audit"  # lane F re-pin: +4 (cost census x3 + writer seam)  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-28] == "slot_orphan_dropped"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-27] == "episode_spans_validated"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-26] == "plan_tokens"  # lane F re-pin: +4. NOT `plan_usage`: the  # 09-24 K20: +3
     #                                                  # SIZE of the writer's popped plan region,
     #                                                  # never the dispatch planner's tokens
-    assert tk.TRACE_RECORD_KEYS[-22] == "evidence_slot_dropped"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-21] == "evidence_geo_dropped"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-20] == "tables_queried"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-19] == "timing_ms"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-18] == "xc_open_pair"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-17] == "xc_open_decline"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-16] == "xc_regional_decline"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-15] == "quantify_rv_reading_fenced"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-14] == "quantify_derived_fenced"   # D-DA append, 09-01; lane F re-pin +4
-    assert tk.TRACE_RECORD_KEYS[-13] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application); lane F re-pin +4
-    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_wave_reads"      # A2 wave counter, same commit; lane F re-pin +4
+    assert tk.TRACE_RECORD_KEYS[-25] == "evidence_slot_dropped"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-24] == "evidence_geo_dropped"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-23] == "tables_queried"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-22] == "timing_ms"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-21] == "xc_open_pair"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-20] == "xc_open_decline"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-19] == "xc_regional_decline"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-18] == "quantify_rv_reading_fenced"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-17] == "quantify_derived_fenced"   # D-DA append, 09-01; lane F re-pin +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-16] == "quantify_cascade_walk"     # walk charter, 09-01 (10th 12f application); lane F re-pin +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-15] == "quantify_wave_reads"      # A2 wave counter, same commit; lane F re-pin +4  # 09-24 K20: +3
     # THE NEW TAIL, NAMED: four keys, one commit, appended (never sorted in)
-    assert tk.TRACE_RECORD_KEYS[-7:-3] == ("numbers_usage", "plan_usage", "desk_register", "writer_seam")
-    assert tk.TRACE_RECORD_KEYS[-3:] == ("board_n_start", "injected_n", "numbers_block_chars")  # lane A 09-23: the three lane-0 stamps, ONE commit
-    assert tk.TRACE_RECORD_KEYS[-8] == "state_board"              # the PRIOR tail, still in place
+    assert tk.TRACE_RECORD_KEYS[-10:-6] == ("numbers_usage", "plan_usage", "desk_register", "writer_seam")  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-6:-3] == ("board_n_start", "injected_n", "numbers_block_chars")  # lane A 09-23: the three lane-0 stamps, ONE commit  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-3:] == ("evidence_ledger", "sources_ledger", "numbers_display")  # lane A 09-24 (K20): the ledger / display stamps, ONE commit
+    assert tk.TRACE_RECORD_KEYS[-11] == "state_board"              # the PRIOR tail, still in place  # 09-24 K20: +3
     for older in ("number_handles", "rerank_lane", "walk_shape", "citation_resolved"):
         assert tk.TRACE_RECORD_KEYS.index(older) < tk.TRACE_RECORD_KEYS.index("wrong_slot_audit")
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)

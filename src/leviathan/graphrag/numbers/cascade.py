@@ -1520,7 +1520,8 @@ def _pair_units(groups: list) -> tuple:
 _BLOCK_HEADER = "OBSERVED CASCADE NUMBERS (as-known at each leg's asof; the record then vs now):\n"
 
 
-def _episode_leg_or_nothing(sg, qfn, asof, calls: list, *, futures_newest_first: bool | str = False) -> tuple:
+def _episode_leg_or_nothing(sg, qfn, asof, calls: list, *, futures_newest_first: bool | str = False,
+                            display=None) -> tuple:
     """Run the J4 episode leg and write its trace; `([], [])` on any failure. R6 belt at the ONE place
     both `quantify` return paths reach it, so an outcomes failure degrades to the absence branch the
     episodes persona already treats as normal, and never to a broken turn.
@@ -1535,7 +1536,8 @@ def _episode_leg_or_nothing(sg, qfn, asof, calls: list, *, futures_newest_first:
     reads that can disagree within one turn."""
     try:
         lines, trace = _episode_outcome_legs(sg, qfn, asof, calls, len(calls),
-                                             futures_newest_first=futures_newest_first)
+                                             futures_newest_first=futures_newest_first,
+                                             **({"display": display} if display else {}))   # O-9 (09-24)
     except Exception:  # noqa: BLE001 -- R6: never break the v1 answer
         return [], []
     if trace:
@@ -1657,6 +1659,14 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
                 extra_number_calls.append(dict(_c))
         except Exception:  # noqa: BLE001 -- a malformed payload costs the FEED, never the answer
             pass
+    # O-9 (09-24 fix round 2, lane T): THE PRINT SITES' DISPLAY KEY, read ONCE here and threaded to the
+    # seven `{...:+g} %` sites and the hop header. Lane A stamps it on the BOARD payload (a copy, under
+    # GRAPHRAG_STATE_BOARD only -- the contract's `_cw_req` site sits inside the g1x-hashed seam block);
+    # the cascade-walk request's own `display` is honoured too. Absent -> `_dq` is EMPTY and every leg below
+    # is called exactly as HEAD calls it (this function's signature does not move: the g1x census pins it).
+    _disp = ((board.get("display") if isinstance(board, dict) else None)
+             or ((cascade_walk or {}).get("display") if isinstance(cascade_walk, dict) else None) or None)
+    _dq = {"display": _disp} if _disp else {}
     groups = []
     dark = 0                                                      # A6 DarkRefNodes: grounded, ref unmapped
     for n in _select_nodes(sg, graph, board):
@@ -1737,7 +1747,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         e_lines: list = []
         if episode_outcomes:
             e_lines = _episode_leg_or_nothing(sg, qfn, asof, extra_number_calls,
-                                              futures_newest_first=futures_newest_first)[0]
+                                              futures_newest_first=futures_newest_first, **_dq)[0]
         # CASCADE EPISODE WALK: like J4, the leg owns NO groups (its firings come off the trace
         # answer._l2_blocks already stamped) so it must not die on this early return -- the v3
         # refute named exactly this branch as the modal episodes turn. Runs AFTER J4 so the A4
@@ -1745,7 +1755,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
         if cascade_walk:
             e_lines = e_lines + _cascade_walk_leg_or_nothing(
                 sg, graph, cascade_walk, qfn, asof, extra_number_calls,
-                futures_newest_first=futures_newest_first)[0]
+                futures_newest_first=futures_newest_first, **_dq)[0]
         # D-XL: like J4 and the walk, the locator owns NO groups -- its input is the planner's resolved
         # request dict -- so it must not die on this early return either. Kwarg absent -> byte-identical.
         if extreme_locator:
@@ -1788,7 +1798,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     except Exception:  # noqa: BLE001 -- a traceless sg must never break the v1 answer
         pass
     base = len(extra_number_calls)
-    block_lines, trace, era_deltas = _assemble(records, kept, base, extra_number_calls)
+    block_lines, trace, era_deltas = _assemble(records, kept, base, extra_number_calls, **_dq)
     # T2a pace legs (CONVERGENCE_TIER1): gated ONLY by the answer.py-threaded `pace` kwarg
     # (GRAPHRAG_CASCADE_PACE_LEG is read at that seam, never here -- the price_request/xc discipline).
     # pace False -> no pace spec ever existed -> records carry no pace legs -> byte-identical. On FIRE the
@@ -2024,7 +2034,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     if chain and not _xmit_fired:                                 # D11: at most ONE chain engine per turn
         c_lines, c_trace, c_decline = _chain_legs(sg, graph, kept, records, qfn, asof, near,
                                                   extra_number_calls,
-                                                  futures_newest_first=futures_newest_first)
+                                                  futures_newest_first=futures_newest_first, **_dq)
         if c_trace:
             try:
                 sg.trace["quantify_chain"] = c_trace
@@ -2046,14 +2056,14 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     # because a recorded decline is the whole point of a leg whose normal answer is an absence.
     if episode_outcomes:
         block_lines = block_lines + _episode_leg_or_nothing(
-            sg, qfn, asof, extra_number_calls, futures_newest_first=futures_newest_first)[0]
+            sg, qfn, asof, extra_number_calls, futures_newest_first=futures_newest_first, **_dq)[0]
     # CASCADE EPISODE WALK: AFTER the J4 call, and the ordering is load-bearing rather than
     # cosmetic -- the A4 dedup gate reads `quantify_episode_outcomes`, which J4 writes above.
     # Kwarg absent -> no read, no line, no trace key, byte-identical.
     if cascade_walk:
         block_lines = block_lines + _cascade_walk_leg_or_nothing(
             sg, graph, cascade_walk, qfn, asof, extra_number_calls,
-            futures_newest_first=futures_newest_first)[0]
+            futures_newest_first=futures_newest_first, **_dq)[0]
     # D-XL: the LOCATOR, appended LAST so every existing line keeps its byte position. Kwarg absent ->
     # no read, no line, no trace key, byte-identical.
     if extreme_locator:
@@ -2070,7 +2080,7 @@ def quantify(sg, graph, *, qfn, asof, near, extra_number_calls: list, xc_request
     if cot_outcomes and not outlook:
         try:
             c_lines, c_trace = _cot_outcome_legs(records, kept, len(extra_number_calls),
-                                                 extra_number_calls, qfn=qfn, asof=asof)
+                                                 extra_number_calls, qfn=qfn, asof=asof, **_dq)
             if c_trace:
                 try:
                     sg.trace["quantify_cot_outcomes"] = c_trace
@@ -2258,6 +2268,39 @@ def _shown(call: dict, *values) -> dict:
     if vals:
         call["shown"] = vals
     return call
+
+
+#: O-9 (09-24 fix round 2, lane T; OWNER DECISION O-9 (a)): the ONE value of the threaded display key that
+#: moves a print site. It is lane A's stamp word (`answer._DISPLAY_ANALYST`), restated because this module
+#: cannot import answer; a pin holds the two spellings equal.
+CW_DISPLAY_ANALYST = "analyst"
+
+
+def _pct_print(value, display=None) -> tuple:
+    """O-9: ONE signed percent move -> ``(the text the line prints, the magnitude ``_shown`` binds)``.
+
+    THE PRINT SITES THIS SERVES are the seven ``{...:+g} %`` formatters (the era / chain / episode / walk
+    cell / context / exchange-rate / positioning-outcome lines). ``{:+g}`` keeps SIX significant digits,
+    which is how "+38.9844 %" and "-4.7833 %" reached the soyoil/palm page while the footer label printed
+    38.98 (09-24: 11 machine-precision figures on that page, 7 on max, 12 on the tariff turn).
+
+    ``display`` absent (every flag-off turn: lane A threads it only under GRAPHRAG_STATE_BOARD) -> HEAD's
+    ``f"{v:+g}"`` and the RAW ``v``, byte for byte, which is what holds the g1 / g1d / g1x goldens.
+    ``display == "analyst"`` -> THE ONE PRECISION PRODUCER (``state.rows.figure_text``, round-1 C5's rule,
+    two-sided so a rise keeps its '+') prints the figure, and THE SAME PRINTED MAGNITUDE is what ``_shown``
+    binds -- one variable, printed and registered, so the verifier backs exactly what the line shows. A
+    producer that cannot be imported or a text that does not parse falls back to HEAD's pair (the fail-open
+    side is HEAD, never a blank)."""
+    v = float(value)
+    head = (f"{v:+g}", v)
+    if str(display or "") != CW_DISPLAY_ANALYST:
+        return head
+    try:
+        from leviathan.graphrag.state import rows as _rows   # the leaf: stdlib imports only
+        txt = str(_rows.figure_text(v, two_sided=True) or "")
+        return (txt, float(txt)) if txt else head
+    except Exception:  # noqa: BLE001 -- the precision producer can never break a quantify line
+        return head
 
 
 def _prescaled(rec: dict, row: dict, n: int) -> dict:
@@ -2880,9 +2923,11 @@ def _fmt_delta(row: dict, d: float, n: int, *, era, q: dict | None = None) -> st
             f"{d:+g} {row.get('narrate_unit') or ''}".rstrip() + _series_tag(q, row))
 
 
-def _fmt_pct(row: dict, pct: float, n: int, *, era, q: dict | None = None) -> str:
-    return (f"- [N{n}] change within the {_era_label(era, row)} in {_metric_display(row)}: {pct:+g} %"
-            + _series_tag(q, row))
+def _fmt_pct(row: dict, pct: float, n: int, *, era, q: dict | None = None, display=None) -> str:
+    # O-9 (09-24): the figure through `_pct_print` -- HEAD's `{pct:+g}` byte for byte unless the threaded
+    # display key is "analyst"; the binding site `_assemble` binds the SAME printed magnitude.
+    return (f"- [N{n}] change within the {_era_label(era, row)} in {_metric_display(row)}: "
+            f"{_pct_print(pct, display)[0]} %" + _series_tag(q, row))
 
 
 def _fmt_absence(rec: dict) -> str:
@@ -2898,7 +2943,7 @@ def _fmt_absence(rec: dict) -> str:
     return f"- {what}: (record silent for that era)"
 
 
-def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
+def _assemble(records: list, kept: list, base: int, calls: list, *, display=None) -> tuple:
     """Pre-scale + inject endpoint/delta/%-change [N] rows (continue-count), compute per-node CROSS-ERA
     deltas, set the divergence flag on opposite signs, render block lines + trace. Appends to `calls`
     IN PLACE; synthetic delta rows are free (they do not count against CASCADE_CAP). Returns
@@ -2931,8 +2976,11 @@ def _assemble(records: list, kept: list, base: int, calls: list) -> tuple:
                 pct = _pct_change(oks, row)
                 if pct is not None:
                     n += 1
-                    calls.append(_shown(_delta_call(oks[-1], row, pct, n, kind="pct"), pct))
-                    lines.append(_fmt_pct(row, pct, n, era=i, q=oks[-1].get("query")))
+                    # O-9 (09-24): the bound magnitude is the PRINTED one (`_pct_print`; HEAD's pct when off)
+                    calls.append(_shown(_delta_call(oks[-1], row, pct, n, kind="pct"),
+                                        _pct_print(pct, display)[1]))
+                    lines.append(_fmt_pct(row, pct, n, era=i, q=oks[-1].get("query"),
+                                          **({"display": display} if display else {})))
         if cur and cur.get("status") == "ok" and (cur.get("rows") or []):
             n += 1
             calls.append(_shown(_prescaled(cur, row, n), _scaled_val(cur, row)))
@@ -5968,9 +6016,10 @@ def _chain_fmt_delta(row: dict, d: float, n: int, *, label: str, q: dict | None 
             f"{d:+g} {row.get('narrate_unit') or ''}".rstrip() + _series_tag(q, row))
 
 
-def _chain_fmt_pct(row: dict, pct: float, n: int, *, label: str, q: dict | None = None) -> str:
-    return (f"- [N{n}] {label} change within the anchor window in {_metric_display(row)}: {pct:+g} %"
-            + _series_tag(q, row))
+def _chain_fmt_pct(row: dict, pct: float, n: int, *, label: str, q: dict | None = None, display=None) -> str:
+    # O-9 (09-24): `_pct_print` -- HEAD's `{pct:+g}` unless display is "analyst" (see `_fmt_pct`).
+    return (f"- [N{n}] {label} change within the anchor window in {_metric_display(row)}: "
+            f"{_pct_print(pct, display)[0]} %" + _series_tag(q, row))
 
 
 def _chain_register_fence(lines: list, calls: list, base: int) -> list:
@@ -6033,7 +6082,7 @@ def _chain_marker(path: str, window: str) -> str:
 
 
 def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: list,
-                *, futures_newest_first: bool | str = False) -> tuple:
+                *, futures_newest_first: bool | str = False, display=None) -> tuple:
     """The chain engine (secs 2-4). Returns (lines, fired_trace, decline_trace):
       * (lines, {...}, None) -> quantify writes sg.trace['quantify_chain'] (fired == bool(trace key));
       * ([], None, {...})    -> quantify writes sg.trace['quantify_chain_decline'] (attempted-and-declined, D7);
@@ -6205,8 +6254,11 @@ def _chain_legs(sg, graph, kept: list, records: list, qfn, asof, near, calls: li
                     pct = _pct_change(oks, row)
                     if pct is not None:
                         n += 1
-                        calls.append(_shown(_delta_call(oks[-1], row, pct, n, kind="pct"), pct))
-                        lines.append(_chain_fmt_pct(row, pct, n, label=label, q=oks[-1].get("query")))
+                        # O-9 (09-24): the bound magnitude is the PRINTED one (HEAD's pct when off)
+                        calls.append(_shown(_delta_call(oks[-1], row, pct, n, kind="pct"),
+                                            _pct_print(pct, display)[1]))
+                        lines.append(_chain_fmt_pct(row, pct, n, label=label, q=oks[-1].get("query"),
+                                                    **({"display": display} if display else {})))
             if cur is not None and cur.get("status") == "ok" and (cur.get("rows") or []):
                 statuses["current"] = "ok"
                 n += 1
@@ -6887,7 +6939,7 @@ def _episode_outcome_call(slug: str, res: dict, span: str, asof) -> dict:
             "rows": [row], "status": "ok"}
 
 
-def _episode_outcome_line(n: int, slug: str, res: dict, span: str, asof) -> str:
+def _episode_outcome_line(n: int, slug: str, res: dict, span: str, asof, *, display=None) -> str:
     """The injected line. ONE figure, on ONE physical line, with its handle and its scope tag.
 
     It states a CHANGE ACROSS THE WINDOW on ONE named contract and nothing else -- no direction word, no
@@ -6897,12 +6949,14 @@ def _episode_outcome_line(n: int, slug: str, res: dict, span: str, asof) -> str:
     pct = round(float(res.get("move_pct")), 4)
     q = {"commodity": slug, "country": None, "contract_month": res.get("contract_month_used"),
          "table": _TAPE_TABLE}
+    # O-9 (09-24): `_pct_print` -- HEAD's `{pct:+g}` unless display is "analyst" (see `_fmt_pct`).
     return (f"- [N{n}] {slug} settle change across the episode window {span} "
-            f"(one delivery month held at both ends, as-of {asof}): {pct:+g} %" + _series_tag(q))
+            f"(one delivery month held at both ends, as-of {asof}): {_pct_print(pct, display)[0]} %"
+            + _series_tag(q))
 
 
 def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
-                          futures_newest_first: bool | str = False) -> tuple:
+                          futures_newest_first: bool | str = False, display=None) -> tuple:
     """J4 -- price the injected episode windows. Returns `(lines, trace)`; NEVER raises.
 
     `futures_newest_first` is the S1 canary, threaded from `answer._futures_newest_first_on()` and passed
@@ -7047,8 +7101,10 @@ def _episode_outcome_legs(sg, qfn, asof, calls: list, base: int, *,
                 continue
             n += 1
             pct = round(float(res["move_pct"]), 4)
-            calls.append(_shown(_episode_outcome_call(slug, res, span, asof), pct))
-            lines.append(_episode_outcome_line(n, slug, res, span, asof))
+            # O-9 (09-24): the bound magnitude is the PRINTED one (`_pct_print`; HEAD's `pct` when off)
+            calls.append(_shown(_episode_outcome_call(slug, res, span, asof), _pct_print(pct, display)[1]))
+            lines.append(_episode_outcome_line(n, slug, res, span, asof,
+                                               **({"display": display} if display else {})))
             entry.update(status="closed", reason=None, move_pct=pct,
                          contract_month=res.get("contract_month_used"), basis=res.get("basis"),
                          anchor_date=res.get("anchor_date"), endpoint_date=res.get("endpoint_date"),
@@ -7835,7 +7891,7 @@ def _cw_window_age_note(t_end, asof) -> str | None:
     return f"window ended {e}, {n}-{unit} span to this as-of"
 
 
-def _cw_cell_line(n: int, slug: str, rec: dict, asof, *, age_note: str | None = None) -> str:
+def _cw_cell_line(n: int, slug: str, rec: dict, asof, *, age_note: str | None = None, display=None) -> str:
     """ROW 1 -- the J4 cell template VERBATIM with the curated board label in the query (v3 minor:
     the call record is the producer; tag and ledger read the same string the model sees).
 
@@ -7846,9 +7902,11 @@ def _cw_cell_line(n: int, slug: str, rec: dict, asof, *, age_note: str | None = 
     q = {"commodity": label, "country": None, "contract_month": rec.get("contract_month"),
          "table": _TAPE_TABLE}
     aged = f"; {age_note}" if age_note else ""
+    # O-9 (09-24): `_pct_print` -- HEAD's `{move_pct:+g}` unless display is "analyst"; both walk call sites
+    # bind the SAME printed magnitude through `_pct_print(...)[1]`.
     return (f"- [N{n}] {label} settle change across the episode window {rec['span']} "
-            f"(one delivery month held at both ends, as-of {asof}{aged}): {rec['move_pct']:+g} %"
-            + _series_tag(q))
+            f"(one delivery month held at both ends, as-of {asof}{aged}): "
+            f"{_pct_print(rec['move_pct'], display)[0]} %" + _series_tag(q))
 
 
 def _cw_call(slug: str, rec: dict, asof) -> dict:
@@ -7860,8 +7918,34 @@ def _cw_call(slug: str, rec: dict, asof) -> dict:
     return _episode_outcome_call(slug, rec["_res"], rec["span"], asof)
 
 
+#: O-9 / K19 (09-24 fix round 2, lane T): the hop header's measurement clause IN THE DESK REGISTER'S OWN
+#: WORDS, used ONLY when the threaded display key is "analyst". Every word it adds to HEAD's clause is
+#: `register.DESK_REGISTER_TOKENS`' replacement column ("the graph" -> the driver model; "firing" -> past
+#: episode(s); "row" -> the reading; "hop" -> link) -- the same vocabulary lane A's K19 mandate variants
+#: speak ("name the dated window of that past episode in words exactly as the link names it"), so the
+#: header the writer copies and the mandate that tells it to copy agree word for word. The line MARKER
+#: 'CONSEQUENCE HOP' is the producer's class token and stays spelled as HEAD prints it: the writer and the
+#: seam find the line by it. The 09-24 2024 page copied "the dollar-index firing window" from HEAD's clause.
+def _cw_desk_words() -> dict:
+    """THE REGISTER TABLE'S OWN PLAIN WORDS the analyst-key print sites speak (FIXER PASS, REVIEW_WT lexical /
+    REVIEW_RA M10, CONTRACT K19 "data, never a second list"): read from `register.desk_phrase` -- the
+    replacement column of the rows that charge "the graph", "firing", "row" and "hop" -- never typed here.
+    A table edit re-words every analyst line on the next import."""
+    from leviathan.graphrag import register as _rg
+    return {"graph": _rg.desk_phrase("the graph", 1), "episodes": _rg.desk_phrase("firing", 1),
+            "reading": _rg.desk_phrase("row", 0), "link": _rg.desk_phrase("hop", 0)}
+
+
+def _cw_hop_header_analyst(a: str, b: str, rel: str, tail: str, firing: str) -> str:
+    """The hop header's measurement clause under the analyst key, COMPOSED from the table's words."""
+    w = _cw_desk_words()
+    return (f"CONSEQUENCE HOP {a} and {b}: {w['graph']} records these markets {rel}{tail}; measured over "
+            f"the dated window of {firing}, one of the {w['episodes']}, whose dated span rides "
+            f"{w['reading']} of this {w['link']}")
+
+
 def _cw_hop_header(label_a: str, label_b: str, phrases: list, blurb: str, firing_label: str,
-                   *, xccy: tuple | None = None) -> str:
+                   *, xccy: tuple | None = None, display=None) -> str:
     """ROW 3 -- keyed on the PAIR: the union of orientation-free relation phrases + ONE blurb +
     the firing clause in WORDS. `firing_label` is the INJECTED EPISODES LINE'S OWN NODE TOKEN
     verbatim (M4 as adjudicated -- one window, one spelling on both surfaces; the caller falls
@@ -7873,6 +7957,8 @@ def _cw_hop_header(label_a: str, label_b: str, phrases: list, blurb: str, firing
     base = (f"CONSEQUENCE HOP {label_a} and {label_b}: the graph records these markets "
             f"{rel}{tail}; measured over the {firing_label} firing window, whose dated span rides "
             f"the rows for this hop")
+    if str(display or "") == CW_DISPLAY_ANALYST:             # O-9 / K19: the desk-register clause
+        base = _cw_hop_header_analyst(label_a, label_b, rel, tail, firing_label)
     # V2-3: the SPLIT keeps the flag-off literal byte-exact -- `xccy` None returns exactly the
     # shipped string. The clause exists ONLY on a CLOSED child cell (the caller's own gate), so the
     # seam gate that keys on CW_XCCY_CLAUSE_MARK can never arm on a figure-less hop.
@@ -7882,7 +7968,7 @@ def _cw_hop_header(label_a: str, label_b: str, phrases: list, blurb: str, firing
 
 
 def _cw_verdict_line(label_a: str, label_b: str, verdict: str, *, xccy: tuple | None = None,
-                     reason: str | None = None) -> str:
+                     reason: str | None = None, display=None) -> str:
     """ROW 2 -- the three-valued read, letters only, no handles (a handle digit here would be a
     numeral outside a ROW-1 template). In-sample clause ON the line (MAJOR-12).
 
@@ -7892,16 +7978,22 @@ def _cw_verdict_line(label_a: str, label_b: str, verdict: str, *, xccy: tuple | 
     read on each board's own-currency move, which contradicts a mid that has just said no direction
     was read at all -- under a mandate to state the READ in the block's own terms. On that branch
     the tail states the currencies and claims no direction."""
+    # FIXER PASS (REVIEW_RA M10, O-9 extended; item 24): under the analyst display key the verdict names
+    # the window it read in the register table's own words (`_cw_desk_words`), never "this firing" -- three
+    # of the four measured 09-24 "firing" instances on the page were copied from THIS line. Off the key:
+    # HEAD's words, byte for byte.
+    on = (f"over the named window of one of the {_cw_desk_words()['episodes']}"
+          if str(display or "") == CW_DISPLAY_ANALYST else "on this firing")
     if reason == "fx_flips_sign":
         mid = ("the exchange rate between the two settlement currencies moved further over this "
                "window than the board priced in it did, and it moved the same way, so the record "
-               "declines to read a direction on this firing -- state that plainly")
+               f"declines to read a direction {on} -- state that plainly")
     elif verdict == "aligned":
-        mid = "the declared relation held on this firing"
+        mid = f"the declared relation held {on}"
     elif verdict == "at_odds":
-        mid = "the two moves sat at odds with the declared relation on this firing"
+        mid = f"the two moves sat at odds with the declared relation {on}"
     else:
-        mid = "the record declines to read a direction on this firing -- state that plainly"
+        mid = f"the record declines to read a direction {on} -- state that plainly"
     base = (f"CONSEQUENCE READ {label_a} and {label_b}: {mid}; the moves above are the record, "
             f"in-sample on the named window only, never extended beyond it")
     if not xccy:
@@ -7914,9 +8006,14 @@ def _cw_verdict_line(label_a: str, label_b: str, verdict: str, *, xccy: tuple | 
             "removed from it.")
 
 
-def _cw_absence(label: str, reason: str) -> str:
-    """ROW 4 -- an absence in words, its reason from the counted vocabulary."""
+def _cw_absence(label: str, reason: str, display=None) -> str:
+    """ROW 4 -- an absence in words, its reason from the counted vocabulary. FIXER PASS (REVIEW_WT MINOR-10 /
+    RA M10): under the analyst key the one reason that names a "firing window" (``lag_gate``) speaks the
+    register table's words; HEAD's text otherwise."""
     why = _CW_ABSENCE_WHY.get(reason, "the record does not carry a measurable read here")
+    if str(display or "") == CW_DISPLAY_ANALYST and reason == "lag_gate":
+        why = ("the declared response horizon is longer than the dated window of one of the "
+               f"{_cw_desk_words()['episodes']}")
     return f"CONSEQUENCE ABSENCE {label}: {why}."
 
 
@@ -8002,15 +8099,15 @@ def _cw_context_cell(qfn, rec: dict, t1: str, t2: str, asof, *, lag_days: int, c
     return rec
 
 
-def _cw_context_line(n: int, rec: dict) -> str:
+def _cw_context_line(n: int, rec: dict, *, display=None) -> str:
     """ROW-1C: the class token right after the handle; the window token = SCOPE, the returned months =
     BASIS, the release stamp = CLOCK (no as-of on this line -- one clock). 'cash benchmark price', never
     'settle' (the card's own first note)."""
     q = {"commodity": rec["label"], "country": None, "table": _CW_CONTEXT_TABLE}
     return (f"- [N{n}{CW_CONTEXT_TOKEN}{rec['label']} monthly cash benchmark price measured on the monthly "
             f"prints from {rec['first_month']} through {rec['last_month']} inside the episode window "
-            f"{rec['span']} (per the World Bank release {rec['revision_stamp']}): {rec['move_pct']:+g} %"
-            + _series_tag(q))
+            f"{rec['span']} (per the World Bank release {rec['revision_stamp']}): "
+            f"{_pct_print(rec['move_pct'], display)[0]} %" + _series_tag(q))   # O-9 (09-24): see `_fmt_pct`
 
 
 def _cw_context_words(rec: dict) -> str:
@@ -8088,13 +8185,14 @@ def _cw_fx_cell(qfn, rec: dict, t1: str, t2: str, asof, *, card_metric,
     return rec
 
 
-def _cw_fx_line(n: int, rec: dict) -> str:
+def _cw_fx_line(n: int, rec: dict, *, display=None) -> str:
     """ROW-1X: the class token right after the handle; the window token = SCOPE, the two returned
     print dates = the ONE clock (no as-of on this line). The reader LABEL is the series axis."""
     q = {"commodity": rec["label"], "country": None, "table": _CW_FX_TABLE}
     return (f"- [N{n}{CW_FX_TOKEN}{rec['label']} measured on the exchange-rate prints from "
             f"{rec['first_date']} through {rec['last_date']} inside the episode window "
-            f"{rec['span']}: {rec['move_pct']:+g} %" + _series_tag(q))
+            f"{rec['span']}: {_pct_print(rec['move_pct'], display)[0]} %"
+            + _series_tag(q))                                               # O-9 (09-24): see `_fmt_pct`
 
 
 def _cw_fx_words(rec: dict) -> str:
@@ -8162,7 +8260,7 @@ CW_MARKER_PREFIX = "CASCADE EPISODE WALK ("
 CW_THIRD_ORDER_MARKER = CW_MARKER_PREFIX + "third order)"
 
 
-def _cw_marker(order: str, context: bool = False, fx: bool = False) -> str:
+def _cw_marker(order: str, context: bool = False, fx: bool = False, display=None) -> str:
     """ROW 5 -- the fixed no-conclusion marker: the transcription discipline, the order label
     (K3), the episodes-sourcing clause (v3 remedy (h)) and its A6/M4 extension (one window, the
     same window, both surfaces). V2-1: with `context` the OPENING clause is conditional (a block
@@ -8174,12 +8272,20 @@ def _cw_marker(order: str, context: bool = False, fx: bool = False) -> str:
     slice as its consumer (chicken_usd_t: 'the demand-side output price behind broiler_economics';
     beef_usd_t: '... behind cattle_cycle_herd_size'), and check_cascade_context clause (c) pins that
     naming VERBATIM -- it is the one relation the block asserts, and the card asserts it first."""
-    head = ("the [N] rows above are observed records on the same dated firing window, one series per row"
+    # FIXER PASS (REVIEW_RA M10, O-9 extended): under the analyst key the preamble names the window in the
+    # register table's own words ("the same dated window of one of the past episodes like this"), never "the
+    # same dated firing window" the writer copied; off the key HEAD's literals, byte for byte.
+    _an = str(display or "") == CW_DISPLAY_ANALYST
+    _win = (f"the same dated window of one of the {_cw_desk_words()['episodes']}" if _an
+            else "the same dated firing window")
+    head = (f"the [N] rows above are observed records on {_win}, one series per row"
             if context else
-            "the rows above are observed settle changes on the same dated firing window, one board per row")
-    tail = (" Rows marked CONTEXT are monthly cash averages for a market the firing names, not board "
-            "settle changes -- transcribe each with its own handle and read it against nothing."
-            if context else "")
+            f"the rows above are observed settle changes on {_win}, one board per row")
+    tail = ("" if not context else
+            (" Rows marked CONTEXT are monthly cash averages for a market the dated window names, not board "
+             "settle changes -- transcribe each with its own handle and read it against nothing.") if _an else
+            (" Rows marked CONTEXT are monthly cash averages for a market the firing names, not board "
+             "settle changes -- transcribe each with its own handle and read it against nothing."))
     # V2-5: ONE clause keyed on the THIRD-order label only, assembled after the main body and BEFORE
     # the context tail, so the first/second and context strings stay byte-for-byte the pinned
     # literals. It states the honest thing about a deeper ladder: the A6 interlock selected the
@@ -8198,7 +8304,8 @@ def _cw_marker(order: str, context: bool = False, fx: bool = False) -> str:
             f"ratio, a spread, a lag or any magnitude the rows do not print; direction beyond the "
             f"stated read is the analyst's, never the engine's. Do not mint a new episodes-section "
             f"bullet from a consequence row -- the enumeration stays the episodes mandate's, and "
-            f"the firing window named here is the same dated window that section enumerates."
+            f"the {'dated' if _an else 'firing'} window named here is the same dated window that section "
+            f"enumerates."
             + third + tail + fxt)
 
 
@@ -8422,7 +8529,7 @@ def _cw_order_n(root: str, rendered_pairs, closed) -> int:
 
 
 def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, base: int, *,
-                       futures_newest_first: bool | str = False) -> tuple:
+                       futures_newest_first: bool | str = False, display=None) -> tuple:
     """The leg proper. Returns `(lines, payload)` -- payload ALWAYS a dict once the leg ran (the
     J4 precedent: `outcome` in {fired, declined, fenced}; an ABSENT trace key means the leg did
     not run, never that it declined). NEVER raises past the wrapper's belt.
@@ -8444,6 +8551,12 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
         return [], payload                            # decline carries a closed rectangle
 
     root = str((walk_request or {}).get("focus_contract") or "")
+    # O-9 (09-24 fix round 2, lane T): THE PRINT SITES' DISPLAY KEY -- the threaded kwarg (quantify reads
+    # it off the board payload lane A stamps) or the request dict's own `display` (the contract's first
+    # site for it). Absent on every flag-off turn -> `_dkw` is EMPTY and every line below is built by
+    # HEAD's exact call, which is what holds the g1 / g1d goldens.
+    display = display or (walk_request or {}).get("display") or None
+    _dkw = {"display": display} if display else {}
     # V2-1 rider: the flag is read at the answer.py seam and threaded INSIDE the request dict (never
     # here); `replay` is the SAME already-resolved historical-asof bool the seam built as _pr_kw.
     context_on = bool((walk_request or {}).get("context"))
@@ -8919,13 +9032,14 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
             reads_spent += rr
         if root_rec["status"] == "closed" and root_rec.get("_res") is not None:
             n += 1
-            calls.append(_shown(_cw_call(root, root_rec, asof), root_rec["move_pct"]))
+            calls.append(_shown(_cw_call(root, root_rec, asof),
+                                _pct_print(root_rec["move_pct"], display)[1]))   # O-9: the PRINTED magnitude
             root_rec["handle"] = f"N{n}"
-            lines.append(_cw_cell_line(n, root, root_rec, asof, age_note=age_note))
+            lines.append(_cw_cell_line(n, root, root_rec, asof, age_note=age_note, **_dkw))
         payload["cells"].append({k: v for k, v in root_rec.items() if k != "_res"})
         if root_rec["status"] != "closed":
             lines.append(_cw_absence(_CW_BOARD_LABEL[root],
-                                     str(root_rec.get("reason") or "no_move")))
+                                     str(root_rec.get("reason") or "no_move"), **_dkw))
             if context_on and f["slice"] in _CW_CONTEXT_SERIES:
                 # a declined-root firing emits NO context row (the cell rides only a closed root)
                 payload["context"]["declines"].append({"slice": f["slice"], "span": span_tok,
@@ -8970,12 +9084,13 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
             _cl = (crec["status"] == "closed" and crec.get("_res") is not None)
             _x = (a.get("xccy") if (xccy_on and _cl) else None)
             lines.append(_cw_hop_header(_CW_BOARD_LABEL[parent], _CW_BOARD_LABEL[child],
-                                        phrases, a["blurb"], firing_lab, xccy=_x))
+                                        phrases, a["blurb"], firing_lab, xccy=_x, **_dkw))
             if _cl:
                 n += 1
-                calls.append(_shown(_cw_call(child, crec, asof), crec["move_pct"]))
+                calls.append(_shown(_cw_call(child, crec, asof),
+                                    _pct_print(crec["move_pct"], display)[1]))   # O-9: the PRINTED magnitude
                 crec["handle"] = f"N{n}"
-                lines.append(_cw_cell_line(n, child, crec, asof, age_note=age_note))
+                lines.append(_cw_cell_line(n, child, crec, asof, age_note=age_note, **_dkw))
                 priced_children.add(child)
                 # -- V2-3 BELT A: THE FX ADMISSION LADDER, SEVEN RUNGS IN ONE ORDER, READ ONLY --
                 # It appends NO line, mints no handle and needs no rollback; the whole rung set is
@@ -9056,7 +9171,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                 if parent_rec is None:
                     lines.append(_cw_verdict_line(_CW_BOARD_LABEL[parent],
                                                   _CW_BOARD_LABEL[child], "undetermined",
-                                                  xccy=_x))
+                                                  xccy=_x, **_dkw))
                 else:
                     ri_ok, tenor_ok = _cw_fences(parent_rec, crec, span_days)
                     crec["interval_ok"], crec["tenor_ok"] = ri_ok, tenor_ok
@@ -9097,7 +9212,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                         crec["verdict_reason"] = _vr
                     lines.append(_cw_verdict_line(_CW_BOARD_LABEL[parent],
                                                   _CW_BOARD_LABEL[child], verdict,
-                                                  xccy=_x, reason=_vr))
+                                                  xccy=_x, reason=_vr, **_dkw))
                 # -- V2-3 BELT B: RENDER, with its marks captured IMMEDIATELY AFTER the verdict
                 # append so a raised render trims ONLY its own lines and its own call and can never
                 # orphan the child ROW-1, its handle or its verdict (the D2 orphan-call class).
@@ -9105,9 +9220,10 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                     _n0, _c0, _l0, _r0 = n, len(calls), len(lines), fx_rendered
                     try:
                         if _fx_minted and fxrec is not None and fxrec.get("status") == "closed":
-                            l1, l2 = _cw_fx_line(n + 1, fxrec), _cw_fx_words(fxrec)
+                            l1, l2 = _cw_fx_line(n + 1, fxrec, **_dkw), _cw_fx_words(fxrec)
                             if _cw_register_fence([l1, l2]):   # the PAIR is atomic and pre-fenced
-                                calls.append(_shown(_cw_fx_call(fxrec, asof), fxrec["move_pct"]))
+                                calls.append(_shown(_cw_fx_call(fxrec, asof),
+                                                    _pct_print(fxrec["move_pct"], display)[1]))   # O-9
                                 n += 1
                                 fxrec["handle"] = f"N{n}"
                                 lines.extend([l1, l2])
@@ -9144,7 +9260,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                         payload["cells"].append(dict(fxrec))
             else:
                 lines.append(_cw_absence(_CW_BOARD_LABEL[child],
-                                         str(crec.get("reason") or "no_move")))
+                                         str(crec.get("reason") or "no_move"), **_dkw))
             payload["cells"].append({k: v for k, v in crec.items() if k != "_res"})
             if deep_on and crec["status"] == "declined" and crec.get("reason") == "pre_coverage":
                 # `absent` counts RENDERED pre_coverage CELLS, and is deliberately NOT a rectangle
@@ -9183,9 +9299,10 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
                                      card_metric=_ctx_declared.get(xrec["metric"]),
                                      futures_newest_first=futures_newest_first)
                     if xrec["status"] == "closed":
-                        l1, l2 = _cw_context_line(n + 1, xrec), _cw_context_words(xrec)
+                        l1, l2 = _cw_context_line(n + 1, xrec, **_dkw), _cw_context_words(xrec)
                         if _cw_register_fence([l1, l2]):      # the PAIR is atomic and pre-fenced
-                            xcall = _shown(_cw_context_call(xrec, asof), xrec["move_pct"])
+                            xcall = _shown(_cw_context_call(xrec, asof),
+                                           _pct_print(xrec["move_pct"], display)[1])   # O-9
                             n += 1
                             calls.append(xcall)
                             xrec["handle"] = f"N{n}"
@@ -9301,8 +9418,8 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
     # call is the pre-rider call, byte for byte.
     # V2-3: BOTH branches of the conditional expression carry `fx=` or the sentence is silently
     # dropped on context-bearing blocks. fx=False is byte-identical to both shipped literals.
-    lines.append(_cw_marker(payload["order"], context=True, fx=bool(fx_rendered)) if ctx_rendered
-                 else _cw_marker(payload["order"], fx=bool(fx_rendered)))
+    lines.append(_cw_marker(payload["order"], context=True, fx=bool(fx_rendered), **_dkw) if ctx_rendered
+                 else _cw_marker(payload["order"], fx=bool(fx_rendered), **_dkw))
     if not _cw_register_fence(lines):
         calls[base:] = []                             # ATOMIC: the whole block drops, rows rolled
         payload["outcome"] = "fenced"                 # back, and the trip is a counted outcome
@@ -9339,7 +9456,7 @@ def _cascade_walk_legs(sg, graph, walk_request: dict, qfn, asof, calls: list, ba
 
 
 def _cascade_walk_leg_or_nothing(sg, graph, walk_request: dict, qfn, asof, calls: list, *,
-                                 futures_newest_first: bool | str = False) -> tuple:
+                                 futures_newest_first: bool | str = False, display=None) -> tuple:
     """R6 belt at the one place both quantify return paths reach it (the `_episode_leg_or_nothing`
     precedent). Writes the ONE registered trace key whenever the leg RAN -- `outcome` carries
     fired/declined/fenced, so an absent key means 'did not run', never 'declined'."""
@@ -9353,7 +9470,8 @@ def _cascade_walk_leg_or_nothing(sg, graph, walk_request: dict, qfn, asof, calls
     #                                                   place every return path reaches.
     try:
         lines, payload = _cascade_walk_legs(sg, graph, walk_request, qfn, asof, calls, _b,
-                                            futures_newest_first=futures_newest_first)
+                                            futures_newest_first=futures_newest_first,
+                                            **({"display": display} if display else {}))   # O-9
     except Exception:  # noqa: BLE001 -- fail-closed: the walk must never break the v1 answer
         calls[_b:] = []                               # review D2: the belt rolls the LEDGER back
         #                                               too -- an orphan call record would widen
@@ -9563,7 +9681,7 @@ def _cot_outcome_call(slug: str, row: dict, *, event_date: str, horizon_days: in
 
 
 def cot_outcome_line(n: int, slug: str, *, event_date: str, horizon_days: int, value: float,
-                     contract_month=None, coverage_start=None) -> str:
+                     contract_month=None, coverage_start=None, display=None) -> str:
     """The rendered pairing line. PUBLIC because the standing register corpus pins it directly: a line
     the corpus can only reach through a live engine run is a line the corpus stops pinning the day the
     engine changes shape.
@@ -9579,10 +9697,12 @@ def cot_outcome_line(n: int, slug: str, *, event_date: str, horizon_days: int, v
     floor = f", record begins {coverage_start}" if coverage_start else ""
     return (f"- [N{n}] {slug} settle change across the {int(horizon_days)} days after the "
             f"{str(event_date)[:10]} positioning report date (one delivery month held at both ends"
-            f"{floor}): {round(float(value), 4):+g} %" + _series_tag(q))
+            f"{floor}): {_pct_print(round(float(value), 4), display)[0]} %"
+            + _series_tag(q))                                               # O-9 (09-24): see `_fmt_pct`
 
 
-def _cot_outcome_legs(records: list, kept: list, base: int, calls: list, *, qfn, asof) -> tuple:
+def _cot_outcome_legs(records: list, kept: list, base: int, calls: list, *, qfn, asof,
+                      display=None) -> tuple:
     """J6 -- pair the rendered positioning context with what the tape did after. `(lines, trace)`.
 
     THE LANE IS THE ONE C1 BUILT, not a new one. The leg runs only when a positioning context leg
@@ -9661,10 +9781,14 @@ def _cot_outcome_legs(records: list, kept: list, base: int, calls: list, *, qfn,
                 continue
             cm = row.get("contract_month_used") or row.get("contract_month")
             n += 1
+            # O-9 (09-24): ONE magnitude printed and bound -- `_pct_print` is HEAD's `round(val, 4)` pair
+            # unless the threaded display key is "analyst"; the display kwarg is OMITTED when absent.
+            _dk = {"display": display} if display else {}
             calls.append(_shown(_cot_outcome_call(slug, row, event_date=event_date, horizon_days=int(h),
-                                                  asof=asof, value=val), round(val, 4)))
+                                                  asof=asof, value=val),
+                                _pct_print(round(val, 4), display)[1]))
             lines.append(cot_outcome_line(n, slug, event_date=event_date, horizon_days=int(h),
-                                          value=val, contract_month=cm, coverage_start=floor))
+                                          value=val, contract_month=cm, coverage_start=floor, **_dk))
             entry.update(status="closed", reason=None, move_pct=round(val, 4),
                          contract_month=cm, handle=f"N{n}")
             trace.append(entry)

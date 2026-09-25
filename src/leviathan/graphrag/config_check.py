@@ -6570,6 +6570,141 @@ def check_chain_subject_dependency(base: Optional[dict] = None) -> list[str]:
             f"word and set CHAIN_SUBJECT_DEPENDENCY_FATAL = False in the same edit"]
 
 
+# ---------------------------------------------------------------------------------------------------
+# THE 09-24 FIX ROUND 2, LANE T -- THE ROUND'S CARD FIELDS ARE GRADED, NOT TRUSTED (CONTRACT K2 / K8 / K22 /
+# K24 / items 9 and 28f). Every field this round declares is read by ANOTHER lane's producer (the figure
+# token, the label, the verifier's mask, the watch line, the ask head), so a malformed declaration would
+# surface as a wrong word on a page three lanes away. Pure reads of the loaded registry, the conventions
+# book and the tier table: no AWS, no store.
+# ---------------------------------------------------------------------------------------------------
+def _register_clean(text: str) -> list[str]:
+    """The four register detectors' reasons for ``text`` (empty = clean) -- the same four the state lint's
+    label clause reads, imported lazily so this module's import graph stays as lazy as the rest of it."""
+    from leviathan.graphrag import register as _rg
+    out = []
+    if _rg.count_flow_words(text):
+        out.append("count_flow_words")
+    if _rg.count_valuation_words(text):
+        out.append("count_valuation_words")
+    if _rg.register_leaks(text):
+        out.append("register_leaks")
+    if _rg._LANE_B_ADJ.search(text):
+        out.append("_LANE_B_ADJ")
+    return out
+
+
+def check_numbers_card_fields(reg=None, conventions: Optional[dict] = None) -> list[str]:
+    """The round's card fields, each against the rule its reader relies on:
+
+      (1) ``figure_basis`` carries NO DIGIT (the claim extractor must never read a basis as a figure,
+          CONTRACT K2) and is register-clean on the four detectors (it prints inside the writer's token);
+      (2) every ``definition_phrases`` entry is a SUBSTRING of its own metric's ``desc`` -- the phrase is the
+          card's own definition, never a list typed beside the verifier (item 28f);
+      (3) ``sheets`` and ``sheet_col`` are declared together, every SheetSpec names a commodity, every
+          ``all_classes`` sheet (the commodity's OWN balance sheet, which the precedence prefers) names its
+          unit -- the stamp must never blank the figure a lookup of that commodity means -- and a metric
+          declares ``unit_from_sheet`` only on a card that declares ``sheets`` (K22);
+      (4) ``commodity_families`` members are declared ``commodity_values`` of the card (when the card
+          declares that fence) and no slug sits in two families (K22's class rule reads ONE family);
+      (5) ``period_sum`` is declared only on a card with a period axis (a flow's total is over a period);
+      (6) a convention's ``labels_low`` is on a ``z_bands`` row, PARALLEL to its bands, and register-clean
+          (item 9's low-side line);
+      (7) the ASK head's per-tier cap (``reasoning_modes.BOARD_ASK_ROWS``, K8) covers exactly the tiers the
+          board table covers, each a positive int."""
+    errs: list[str] = []
+    try:
+        from leviathan.graphrag.numbers import registry as _nreg
+        reg = reg or _nreg.load_registry()
+    except Exception as exc:  # noqa: BLE001 -- a lint that cannot read its subject says so
+        return [f"numbers_card_fields: the numbers registry did not load: {exc}"]
+    for tid in sorted(reg.tables):
+        ts = reg.tables[tid]
+        metrics = ts.metrics or {}
+        for mid, m in sorted(metrics.items()):
+            fb = getattr(m, "figure_basis", None)
+            if fb is not None:
+                if any(ch.isdigit() for ch in str(fb)) or not str(fb).strip():
+                    errs.append(f"{tid}.{mid}: figure_basis {fb!r} must be non-empty and carry no digit")
+                for why in _register_clean(str(fb)):
+                    errs.append(f"{tid}.{mid}: figure_basis {fb!r} is not register-clean ({why})")
+            for ph in (getattr(m, "definition_phrases", None) or []):
+                if not str(ph).strip() or str(ph) not in str(getattr(m, "desc", "") or ""):
+                    errs.append(f"{tid}.{mid}: definition phrase {ph!r} is not a substring of the metric's "
+                                f"own desc -- a definition phrase must be the card's words")
+            if getattr(m, "unit_from_sheet", None) and not getattr(ts, "sheets", None):
+                errs.append(f"{tid}.{mid}: unit_from_sheet on a card that declares no `sheets`")
+            if getattr(m, "period_sum", None) is not None and not getattr(ts, "period_col", None):
+                errs.append(f"{tid}.{mid}: period_sum on a card with no period axis")
+            # FIXER PASS (REVIEW_WT MAJOR-4): an aggregate's NAME is keyed by a query-layer aggregate and is
+            # printed in the writer's token -- digit-free and register-clean like the basis
+            for agg, lab in (getattr(m, "aggregate_labels", None) or {}).items():
+                try:
+                    from leviathan.graphrag.numbers.query import AGGREGATE_AGGS as _AGGS
+                except Exception:  # noqa: BLE001
+                    _AGGS = frozenset()
+                if agg not in _AGGS:
+                    errs.append(f"{tid}.{mid}: aggregate_labels key {agg!r} is not a query aggregate")
+                if any(ch.isdigit() for ch in str(lab)) or not str(lab).strip():
+                    errs.append(f"{tid}.{mid}: aggregate label {lab!r} must be non-empty and carry no digit")
+                for why in _register_clean(str(lab)):
+                    errs.append(f"{tid}.{mid}: aggregate label {lab!r} is not register-clean ({why})")
+        sheets = getattr(ts, "sheets", None) or {}
+        if bool(sheets) != bool(getattr(ts, "sheet_col", None)):
+            errs.append(f"{tid}: `sheets` and `sheet_col` must be declared together")
+        for sid, sp in sheets.items():
+            if not str(sp.commodity or "").strip():
+                errs.append(f"{tid}: sheet {sid!r} names no commodity")
+            if str(sp.serves) == "all_classes" and not str(sp.unit or "").strip():
+                errs.append(f"{tid}: own sheet {sid!r} ({sp.commodity}/{sp.scope}) names no unit -- the stamp "
+                            f"would blank the figure a lookup of that commodity means")
+        fams = getattr(ts, "commodity_families", None) or {}
+        values = set(getattr(ts, "commodity_values", None) or [])
+        seen: dict = {}
+        # FIXER PASS (REVIEW_VC M5): a family is keyed by its HIERARCHY NODE id, so the class rule's "names
+        # something narrower" test is an ID join (`feeders._commodity_node(slug) == family`) -- a key that
+        # is no node id would be a spelling join again, and is refused here
+        for fam in fams:
+            if " " in str(fam) or str(fam) != str(fam).lower():
+                errs.append(f"{tid}: family key {fam!r} is not a hierarchy node id (lower snake_case)")
+        for fam, spec in fams.items():
+            for slug in spec.members or []:
+                if values and slug not in values:
+                    errs.append(f"{tid}: family {fam!r} member {slug!r} is not a declared commodity_values slug")
+                if slug in seen and seen[slug] != fam:
+                    errs.append(f"{tid}: slug {slug!r} sits in two families ({seen[slug]!r}, {fam!r})")
+                seen[slug] = fam
+    try:
+        if conventions is None:
+            from leviathan.graphrag.state import lint as _sl
+            conventions = _sl.load_conventions() or {}
+        for ref, row in sorted(((conventions or {}).get("conventions") or {}).items()):
+            low = (row or {}).get("labels_low")
+            if low is None:
+                continue
+            if (row or {}).get("kind") != "z_bands":
+                errs.append(f"state_conventions {ref!r}: labels_low on a {row.get('kind')!r} row -- only a "
+                            f"z_bands row reads a signed side")
+            if not isinstance(low, list) or len(low) != len((row or {}).get("bands") or []):
+                errs.append(f"state_conventions {ref!r}: labels_low must be parallel to bands")
+            for lbl in (low or []):
+                for why in _register_clean(str(lbl)):
+                    errs.append(f"state_conventions {ref!r}: labels_low {lbl!r} is not register-clean ({why})")
+    except Exception as exc:  # noqa: BLE001
+        errs.append(f"numbers_card_fields: the conventions book did not load: {exc}")
+    try:
+        from leviathan.graphrag import reasoning_modes as _rm
+        ask = dict(getattr(_rm, "BOARD_ASK_ROWS", {}) or {})
+        if set(ask) != set(_rm.BOARD_PRESETS):
+            errs.append(f"reasoning_modes.BOARD_ASK_ROWS covers {sorted(ask)}, the board table "
+                        f"{sorted(_rm.BOARD_PRESETS)}")
+        for k, v in ask.items():
+            if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
+                errs.append(f"reasoning_modes.BOARD_ASK_ROWS[{k!r}] must be a positive int, got {v!r}")
+    except Exception as exc:  # noqa: BLE001
+        errs.append(f"numbers_card_fields: reasoning_modes did not load: {exc}")
+    return errs
+
+
 def main() -> int:
     failures = 0
     for label, errs in (("vocab", lint_vocab()), ("node_silver_map", check_node_silver_map()),
@@ -6634,7 +6769,12 @@ def main() -> int:
                         # It does NOT reach the silver gate -- `_run_config_check` keeps its own
                         # hardcoded ten and this wave does not touch it (L1 review MAJOR-2) --
                         # and there is no python CI, so the runners are this CLI and the deck.
-                        ("dag_registry_schedule", check_dag_registry_schedule())):
+                        ("dag_registry_schedule", check_dag_registry_schedule()),
+                        # THE 09-24 FIX ROUND 2 (lane T): APPENDED AT THE TAIL, the append-never-insert
+                        # law. The round's card fields, each graded against the rule its reader relies
+                        # on (figure_basis digit-free, definition phrases from the card's own desc, the
+                        # WASDE sheet registry, the PSD families, labels_low, the ASK head's tier cap).
+                        ("numbers_card_fields", check_numbers_card_fields())):
         if errs:
             failures += len(errs)
             print(f"FAIL {label}:")

@@ -513,6 +513,11 @@ def test_amend_minor3_the_second_walk_is_still_FRESH_and_that_is_why_it_is_a_wal
     an._prune_orphan_evidence_handles(d, v, market_register=reg.OUTLOOK)
     d["sources"].append({"ref": 99, "source": "s", "date": "2020-01-01"})       # the scaffold's mint
     v["resolved"]["99"] = {"source": "usda_wasde", "date": "2014-01-01", "snippet": _AMEND_SNIP}
+    # RE-BANKED 09-24 (fix round 2, lane A, item 28d / DM3 -- the footer's own Cited-only rule): the
+    # scaffold mints its row AND its marker together (`_maybe_scaffold_episodes` asserts `[E<ref>]` is in
+    # the post-sanitize prose for every synthesized ref), so the fixture carries the marker the scaffold
+    # writes; a declared row the prose does not cite is no longer emitted.
+    d["mechanism"] = (d.get("mechanism") or "") + " An episode bullet [E99]."
     block = an._cited_sources_block(d, v, [], market_register=reg.OUTLOOK)
     assert "[99] USDA WASDE (2014-01-01)" in block
 

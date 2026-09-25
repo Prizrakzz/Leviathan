@@ -109,13 +109,16 @@ def test_the_clause_is_wired_into_config_check_main():
 
 
 def test_the_roster_is_forty_two_lints():
-    """The count the wave reports. 40 at HEAD, 41 with lane 1's sampler_totality, 42 with this."""
+    """The count the wave reports. 40 at HEAD, 41 with lane 1's sampler_totality, 42 with this.
+    MOVED 2026-09-24 (fix round 2, lane T): 43 -- `numbers_card_fields` APPENDED at the tail (the law this
+    roster keeps); `dag_registry_schedule` is now the second-to-last clause, in its own place."""
     import re
     labels = re.findall(r'\("([a-z0-9_]+)", (?:check_|lint_)', inspect.getsource(cc.main))
-    # The message matters more than the count (round-2 review MINOR-5): the 43rd clause anyone adds
+    # The message matters more than the count (round-2 review MINOR-5): the 44th clause anyone adds
     # ANYWHERE in the estate reds a deck named for this lane, and a bare assert would tell its
     # author nothing about why a file they never opened is failing.
-    assert len(labels) == 42 and labels[-1] == "dag_registry_schedule", (
+    assert labels[-2] == "dag_registry_schedule"
+    assert len(labels) == 43 and labels[-1] == "numbers_card_fields", (
         f"the config_check roster is now {len(labels)} clauses ending {labels[-1]!r}. If you "
         f"APPENDED a clause at the tail, that is the law this roster keeps (append-never-insert) "
         f"and this count is the thing to update -- here and in check_dag_registry_schedule's "

@@ -682,6 +682,14 @@ class Anchor:
     #: and the trace say which name this board answered under, instead of naming the group and hoping.
     group: tuple = ()
     note: str = ""
+    #: THE ANCHOR'S DISTANCE IN THE QUESTION'S REACH (CONTRACT K9, ``walk.question_reach``): 0 for a market
+    #: the question named or the planner planned, 1 for a board that DRIVES one of them by a declared
+    #: inter-commodity edge, ``None`` for a board outside the reach (an FE gesture's own board) -- and
+    #: ``None`` on EVERY anchor of a turn the subject resolver did not reach, where no reach is computed
+    #: and the anchor set is S6's own (B4). It is a FIELD rather than a re-derivation because the
+    #: precedence collapse folds a planned seed that carries the subject into a ``subject`` anchor, and
+    #: the walk must still know it is one of the question's own markets.
+    distance: Optional[int] = None
 
     def __post_init__(self):
         if self.source not in ANCHOR_SOURCES:
@@ -992,6 +1000,17 @@ class Board:
     #: nothing on either, so ``state_use`` can never be scored against a board that put no row on the
     #: page.
     coverage: dict = field(default_factory=dict)
+    #: THE QUESTION'S REACH (CONTRACT K9) -- ``((slug, distance), ...)`` from ``walk.question_reach``,
+    #: written by the walk from its own anchors' distance-0 set, and EMPTY on every turn the subject
+    #: resolver did not reach (no anchor carries a distance), which is every flag-off turn. The subject
+    #: seat's distance-0 test and the trace's ``subject.reach`` read it.
+    question_reach: tuple = ()
+    #: THE SUBJECT'S STANDING INSIDE THAT REACH (CONTRACT K9, OWNER DECISION O-5), written by the walk at
+    #: stage 2: ``{"tiers": {pick: exact|alias|semantic}, "declined_picks": [...], "single_market": bool}``.
+    #: It is kept APART from :attr:`subject` because the seam ASSIGNS that dict after stage 1 (a fresh
+    #: dict, so a key written into it earlier would be lost); :meth:`trace` folds both into ONE
+    #: ``subject`` payload. EMPTY wherever :attr:`subject` is.
+    subject_reach: dict = field(default_factory=dict)
 
     # ── anchors ─────────────────────────────────────────────────────────────────────────────────────
     @property
@@ -1037,13 +1056,22 @@ class Board:
         is the one producer of the intersection. ``fertilizer_input_costs`` sits on eight boards and
         ``fertilizer_cost`` on five: naming the group and hoping would mark a row on a board that does
         not carry it, and reading ``driver_id`` alone would mark none of them, because a subject anchor
-        reached by a group of two or more declares no single id."""
+        reached by a group of two or more declares no single id.
+
+        **AND THE GROUP COUNTS ONLY INSIDE THE QUESTION'S REACH** (CONTRACT K9). Where the turn computed
+        a reach (:attr:`question_reach`), a board outside it answers under its own gesture's id alone
+        (an FE ``focus_driver`` click keeps its ``driver_id``) and never under a subject group member:
+        the walk's anchor plan already mints subject anchors only in reach, and this is the belt on the
+        one other path a group can ride in on -- the precedence collapse onto a gesture's board."""
         out: set = set()
+        inreach = ({str(s) for s, _d in self.question_reach} if self.question_reach else None)
         for a in self.anchors:
             if a.contract != contract or a.source not in DRIVER_ANCHOR_SOURCES:
                 continue
             if a.driver_id:
                 out.add(str(a.driver_id))
+            if inreach is not None and str(a.contract) not in inreach:
+                continue
             out |= {str(i) for i in (a.group or ()) if str(i or "").strip()}
         return tuple(sorted(out))
 
@@ -1179,6 +1207,20 @@ class Board:
                "rows": len(self.rows), "series": len(self.series), "notes": list(self.notes)}
         if self.subject:
             out["subject"] = dict(self.subject)
+            # THE QUESTION'S REACH AND THE SUBJECT'S STANDING IN IT (CONTRACT K9, O-5), folded into the ONE
+            # subject payload and only where the walk computed them -- a board the seam stamped without a
+            # walk (the deck's bare board) carries exactly the five keys it always did. ``declined`` is
+            # the seam's word where the seam already wrote one (``subject_ambiguous``) and K9's
+            # ``not_on_question_markets`` only where EVERY pick fell outside the reach.
+            if self.question_reach:
+                out["subject"]["reach"] = [[s, int(d)] for s, d in self.question_reach]
+            sr = dict(self.subject_reach or {})
+            if sr:
+                out["subject"]["tiers"] = dict(sr.get("tiers") or {})
+                out["subject"]["declined_picks"] = list(sr.get("declined_picks") or ())
+                out["subject"]["single_market"] = bool(sr.get("single_market"))
+                if sr.get("declined") and not out["subject"].get("declined"):
+                    out["subject"]["declined"] = str(sr["declined"])
         # ``coverage`` (S7 item 1) is OMITTED when nothing measured it -- the same omit-when-off idiom,
         # and the same reason: a flag-off (or pre-writer) payload stays byte-identical to S6's.
         if self.coverage:

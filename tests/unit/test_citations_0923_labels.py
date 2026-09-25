@@ -248,20 +248,32 @@ def test_ANALYST_precision_only_on_a_display_stamped_call_and_off_is_HEAD():
     off = cit.from_number(base, 7)
     on = cit.from_number(dict(base, display="analyst"), 7)
     assert " = 0.583039 ratio" in off.label
-    assert " = 0.58 ratio" in on.label, on.label
+    # RE-BANKED 09-24 (fix round 2, CONTRACT K7, OWNER DECISION O-1 (b) -- a declared DM1 move, the analyst
+    # stamp exists only under GRAPHRAG_STATE_BOARD): a LEVEL in the card's native unit is re-stated in the
+    # card's DISPLAY spec (x100, "%", 2 decimals), so this row can no longer print "0.58 ratio" beside the
+    # board's "58.3 %" for the same series; the K2 token carries the period at the card's precision.
+    assert " = 58.3 %" in on.label and " ratio" not in on.label.split(" = ", 1)[1], on.label
     assert on.value == off.value == "0.583039", "the value the verifier reads never moves"
+    assert on.unit == off.unit == "ratio", "nor the unit a stand-in splice reads (value and unit stay a pair)"
     assert _head(on.label) == _head(off.label)
     big = _call("silver_mpob", "closing_stocks_palm_oil_mt", [{"value": "2824488.0", "knowledge_date": "2026-08-01"}])
     assert " = 2,824,488 " in cit.from_number(dict(big, display="analyst"), 1).label
 
 
 def test_analyst_precision_REFUSES_a_figure_its_row_cannot_back(monkeypatch):
-    """C-9: if the producer ever returned a re-scaled or re-signed figure, the label keeps HEAD's."""
+    """C-9, RE-BANKED 09-24 (fix round 2, CONTRACT K7 / THREAT C-5): the backing guard now holds the text to
+    the row's value TIMES THE SCALE THE CARD DECLARES. A producer that returns the card's own re-statement
+    (0.1072 x 100 = "10.72") is ACCEPTED -- that is K7 -- and one that returns ANY other figure (a wrong
+    scale, a re-signed value) is refused and the label keeps HEAD's figure in the row's own unit."""
     from leviathan.graphrag.state import render as R
+    mk = lambda: _call("silver_psd", "su_ratio", [{"value": "0.1072", "unit": "ratio"}], period="2026",
+                       display="analyst")
     monkeypatch.setattr(R, "shown_figure", lambda v, **k: "10.72", raising=False)
-    c = cit.from_number(_call("silver_psd", "su_ratio", [{"value": "0.1072", "unit": "ratio"}], period="2026",
-                              display="analyst"), 1)
-    assert " = 0.1072 ratio" in c.label, c.label
+    assert " = 10.72 %" in cit.from_number(mk(), 1).label
+    for wrong in ("1.072", "107.2", "-10.72", "0.11"):
+        monkeypatch.setattr(R, "shown_figure", lambda v, _w=wrong, **k: _w, raising=False)
+        c = cit.from_number(mk(), 1)
+        assert " = 0.1072 ratio" in c.label, (wrong, c.label)
 
 
 # ── C-1 / C-2: NO ROLE OR STAMP WORD IS INVENTED OR LOST BY THE LABEL ──────────────────────────────────

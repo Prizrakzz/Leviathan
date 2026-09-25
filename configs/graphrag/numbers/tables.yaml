@@ -77,6 +77,29 @@ tables:
     # read at month end), for a reader, never for the gap. Earlier MYs cannot be read off the store: its
     # vintage history of MY2024/25 begins 2025-04 / 2026-04, a data docket, not a release fact.
     period_first_known: {anchor: period_start, offset_months: 6}
+    # 09-24 FIX ROUND 2 (lane T, CONTRACT K22): THE FAMILIES THIS CARD'S NOTES STATE IN PROSE, declared as DATA.
+    # USDA publishes ONE sheet per commodity code and the producer emits it once per slug in that code's list,
+    # so a family's members are THE SAME ROWS under different keys (notes: "all four carry USDA's ALL-CLASS
+    # wheat aggregate -- never quote one as if it were that class's own balance sheet"). `class_scope:
+    # all_classes` is that rule, read by the row identity (registry.class_scope) -- "US wheat, all classes" on
+    # the soft-red-winter slug (the 09-24 corn/wheat page printed USDA's all-class 0.652 as soft red winter
+    # wheat's own). It GENERALISES the per-slug `@rough_rice_cbot` reading-words line (state_conventions.yaml)
+    # instead of copying it per slug. The members are EXACTLY the notes' own lists, each a declared
+    # `commodity_values` slug (config_check `numbers_card_fields`). Never printed in the numbers prompt.
+    # FIXER PASS (REVIEW_VC M5): each family is keyed by its HIERARCHY NODE id (soybean_oil, palm_oil), so the
+    # label's "narrower class" test is an ID join, never a spelling fold; its words come from the display
+    # producer (`display.node_label`).
+    commodity_families: &psd_families
+      wheat:        {members: [soft_red_winter_wheat_cbot, hard_red_winter_wheat_kcbt, hard_red_spring_wheat_mgex,
+                               french_wheat_matif], class_scope: all_classes}
+      corn:         {members: [corn_cbot, french_maize_matif, campinas_corn_reference_bmf,
+                               south_african_white_maize_jse, south_african_yellow_maize_jse],
+                     class_scope: all_classes}
+      rice:         {members: [rough_rice_cbot], class_scope: all_classes, basis: "milled basis"}
+      soybeans:     {members: [soybeans_cbot, soybeans_no_1_dce, soybeans_no_2_dce]}
+      soybean_oil:  {members: [soybean_oil_cbot, soybean_oil_dce]}
+      soybean_meal: {members: [soybean_meal_cbot, soybean_meal_dce]}
+      palm_oil:     {members: [malaysian_crude_palm_oil_cme, palm_olein_dce]}
     metrics:
       production_mt:         {label: "production", unit: "MT", desc: "production for the marketing year"}
       exports_mt:            {label: "exports", unit: "MT", desc: "exports"}
@@ -94,7 +117,8 @@ tables:
       # WASDE's 310 / 4,535 (310 / 0.1072 = 2,892 M bu, which is US domestic use, not total use).
       su_ratio:              {label: "stocks-to-use ratio", unit: "ratio",
                               desc: "ending stocks divided by DOMESTIC CONSUMPTION for the same country and marketing year -- the producer computes ending_stocks_mt / consumption_mt and nothing else. EXPORTS ARE NOT IN THE DENOMINATOR, so this is stocks-to-DOMESTIC-use and it is NOT the trade's stocks-to-total-use and NOT WASDE's US stocks/use: for a large exporter the two differ by a lot (US ALL-CLASS wheat reads 0.652 here because most US wheat leaves the country and never enters this denominator -- that figure is USDA's all-class US wheat sheet whichever wheat slug keyed it, never soft red winter's own, and quoting it under one class's name is the mislabel this card's notes forbid). It is a FRACTION OF ONE, not a percent -- 0.1072 is 10.7%. SCOPE IS THE COUNTRY AND MARKETING YEAR THE CALL NAMES and nothing wider; no world row is served. Say the basis in the sentence that carries the figure, and never set it beside a WASDE balance sheet in million bushels as if a reader could reconcile the two",
-                              basis_words: "ending stocks as a share of domestic use", display_scale: 100, display_unit: "%", display_decimals: 2}
+                              basis_words: "ending stocks as a share of domestic use", display_scale: 100, display_unit: "%", display_decimals: 2,
+                              figure_basis: "of domestic use"}
       # W0-2 (projection wave, 2026-08-25): four columns the producer has ALWAYS written, never advertised.
       # Coverage measured on the live object before authoring (the PA-1 law) -- see notes for the spans.
       # RE-AUTHORED 2026-09-04 (the honest-clock re-baseline). The line these four
@@ -310,6 +334,9 @@ tables:
     # the label's first day) and decides no gap -- the attribute sheets' late printers (the coffee and
     # citrus sheets) make any one table-level pair early for some slug
     period_first_known: {anchor: period_start, offset_months: 6}
+    # 09-24 FIX ROUND 2 (lane T, K22): the SAME families as silver_psd -- one producer map, one vocabulary --
+    # by YAML alias, so the two cards can never declare two opinions about which slugs share a sheet.
+    commodity_families: *psd_families
     metrics:
       # -- T1, the ranked payload: 742,057 rows, EXACTLY the D-6 admission number ------------------
       "Crush":                  {label: "crush", unit: "1000 MT", desc: "oilseed volume crushed for meal and oil -- 71,551 rows, 21 commodities, MY1960-2026. The estate's ONLY physical crush VOLUME; gold_board_crush is a Chicago MARGIN in $/bu and answers a different question"}
@@ -488,17 +515,92 @@ tables:
     # identity and the citation label, NEVER printed in the numbers prompt (agent._table_card renders none).
     provenance_kind: role           # estimate_role IS a vintage role: actual / estimate / projection
     period_words: marketing_year
+    # ------------------------------------------------------------------------------------------------------------
+    # 09-24 FIX ROUND 2, LANE T (CONTRACT K22) -- THE SHEET A ROW WAS PRINTED ON. Never printed in the numbers prompt.
+    # THE MEASURED DEFECT. The transform keys every row of a WASDE page to ONE commodity by its heading
+    # (usda_wasde_silver._TABLE_COMMODITY_PATTERNS, first match wins) and to table_type us/world, so a CLASS page,
+    # a PRODUCTS page and the commodity's own ALL-CLASS balance sheet land in ONE numbers grain -- and the last
+    # tiebreak, `source_table_id ASC`, chose among them BY ALPHABET: on 2024-02-08 "U.S. Soybeans and Products"
+    # (whose soybeans-keyed rows are the MEAL sub-table: 54,154 thousand short tons) answered "US soybean
+    # production" over the beans sheet (4,165 million bushels) -- FATAL on the as-of page; on 2026-09-11 the
+    # LONG-GRAIN class (103.5 M cwt) answered "US rice" over the total (158.2 M cwt); and 2011-2024 the
+    # "Sorghum, Barley, and Oats" page (whose sorghum-keyed rows are OATS) answered "US sorghum".
+    # table_type CANNOT separate them (every one is `us`): the sheet identity is the transform's own stable
+    # `source_table_id`. THE P-2 CENSUS (fix_round_0924/t_work/p2: all 473 release partitions, read-only,
+    # 2026-09-24) lists every sheet below with what its rows ARE, read off the served VALUES:
+    #   * `serves: all_classes` -- the commodity's own whole balance sheet. IN DECLARATION ORDER these become a
+    #     role_order tiebreak DERIVED at load (registry.TableSpec._sheet_precedence), inserted just ahead of the
+    #     alphabetical final term: the commodity's own sheet serves whenever it printed the grain; a grain one
+    #     sheet printed, and a release where no own sheet printed it, keep HEAD's pick.
+    #   * `unit` -- the unit of the sheet's QUANTITY lines, stamped on the served row post-fetch for the metrics
+    #     declaring `unit_from_sheet` (the six below): the source's own spelling where the source prints it right
+    #     (a correct row's bytes never move), "MMT" / "Million 480 Pound Bales" / "MMT, milled basis" on the world
+    #     tables (WASDE's world tables print million metric tons; measured: world-sheet US soybean meal 57.43 =
+    #     63,302 thousand short tons; world-sheet US wheat 2008/09 68.02 = 2,499 million bushels), "" on a page
+    #     that mixes products or whose region labels do not hold (blank beats a false unit).
+    #   * UNDECLARED sheets (1,372 OCR-fragment ids, 5,444 of 807,720 rows) keep their raw unit and HEAD's rank.
+    table_type_col: table_type          # projected on every served row as `table_type` (us | world)
+    sheet_col: source_table_id          # rides the SELECT as `_sheet`, consumed by the unit stamp, STRIPPED
+    sheets:
+      # -- the commodity's OWN balance sheets, in precedence order (a US sheet in its own unit before a combined era sheet)
+      u_s_soybeans_supply_and_use:                   {commodity: soybeans,     scope: us,    serves: all_classes, unit: "Million Bushels"}
+      u_s_corn_supply_and_use:                       {commodity: corn,         scope: us,    serves: all_classes, unit: "Million Bushels"}
+      u_s_feed_grain_and_corn_supply_and_use:        {commodity: corn,         scope: us,    serves: all_classes, unit: "Million Bushels"}   # its corn rows: 2008/09 12,092 M bu
+      u_s_wheat_supply_and_use:                      {commodity: wheat,        scope: us,    serves: all_classes, unit: "Million Bushels"}
+      world_and_u_s_supply_and_use_for_grains_wheat: {commodity: wheat,        scope: us,    serves: all_classes, unit: "MMT"}              # 2008/09 68.02 = 2,499 M bu
+      u_s_total_rice_supply_and_use:                 {commodity: rice,         scope: us,    serves: all_classes, unit: "Million Hundredweight"}
+      world_and_u_s_supply_and_use_for_grains_rice_milled: {commodity: rice,   scope: us,    serves: all_classes, unit: "MMT, milled basis"}  # 2008/09 6.40
+      u_s_sorghum_supply_and_use:                    {commodity: sorghum,      scope: us,    serves: all_classes, unit: "Million Bushels"}
+      u_s_barley_supply_and_use:                     {commodity: barley,       scope: us,    serves: all_classes, unit: "Million Bushels"}   # 2026/27 140
+      u_s_oats_supply_and_use:                       {commodity: oats,         scope: us,    serves: all_classes, unit: "Million Bushels"}   # 2026/27 68
+      u_s_cotton_supply_and_use:                     {commodity: cotton,       scope: us,    serves: all_classes, unit: "Million 480 Pound Bales"}
+      u_s_soybean_meal_supply_and_use:               {commodity: soybean_meal, scope: us,    serves: all_classes, unit: "Thousand Short Tons"}  # rows also print "Thousand Tons" / a garbled form
+      u_s_soybean_oil_supply_and_use:                {commodity: soybean_oil,  scope: us,    serves: all_classes, unit: "Million Pounds"}       # 1,118 rows print "Pounds"
+      world_soybean_supply_and_use:                  {commodity: soybeans,     scope: world, serves: all_classes, unit: "MMT"}   # US 2025/26 115.99 = 4,262 M bu
+      world_soybean_supply_and_use_major_exporters:  {commodity: soybeans,     scope: world, serves: all_classes, unit: "MMT"}
+      world_soybean_supply_and_use_major_importers:  {commodity: soybeans,     scope: world, serves: all_classes, unit: "MMT"}
+      world_corn_supply_and_use:                     {commodity: corn,         scope: world, serves: all_classes, unit: "MMT"}   # US 2009/10 332.55
+      world_corn_supply_and_use_major_exporters:     {commodity: corn,         scope: world, serves: all_classes, unit: "MMT"}
+      world_corn_supply_and_use_major_importers:     {commodity: corn,         scope: world, serves: all_classes, unit: "MMT"}
+      world_corn_supply_and_use_selected_other:      {commodity: corn,         scope: world, serves: all_classes, unit: "MMT"}
+      world_wheat_supply_and_use:                    {commodity: wheat,        scope: world, serves: all_classes, unit: "MMT"}   # US 2009/10 60.37
+      world_wheat_supply_and_use_major_exporters:    {commodity: wheat,        scope: world, serves: all_classes, unit: "MMT"}
+      world_wheat_supply_and_use_major_importers:    {commodity: wheat,        scope: world, serves: all_classes, unit: "MMT"}
+      world_wheat_supply_and_use_selected_other:     {commodity: wheat,        scope: world, serves: all_classes, unit: "MMT"}
+      world_rice_supply_and_use:                     {commodity: rice,         scope: world, serves: all_classes, unit: "MMT, milled basis"}   # the source prints "Milled Basis" as the unit
+      world_rice_supply_and_use_major_exporters:     {commodity: rice,         scope: world, serves: all_classes, unit: "MMT, milled basis"}
+      world_rice_supply_and_use_major_importers:     {commodity: rice,         scope: world, serves: all_classes, unit: "MMT, milled basis"}
+      world_rice_supply_and_use_selected_other:      {commodity: rice,         scope: world, serves: all_classes, unit: "MMT, milled basis"}
+      world_cotton_supply_and_use:                   {commodity: cotton,       scope: world, serves: all_classes, unit: "Million 480 Pound Bales"}   # US 2025/26 13.9
+      world_cotton_supply_and_use_major_exporters:   {commodity: cotton,       scope: world, serves: all_classes, unit: "Million 480 Pound Bales"}
+      world_cotton_supply_and_use_major_importers:   {commodity: cotton,       scope: world, serves: all_classes, unit: "Million 480 Pound Bales"}
+      world_soybean_meal_supply_and_use:             {commodity: soybean_meal, scope: world, serves: all_classes, unit: "MMT"}   # US 2025/26 57.43
+      world_soybean_meal_supply_and_use_major_exporters: {commodity: soybean_meal, scope: world, serves: all_classes, unit: "MMT"}
+      world_soybean_meal_supply_and_use_major_importers: {commodity: soybean_meal, scope: world, serves: all_classes, unit: "MMT"}
+      world_soybean_oil_supply_and_use:              {commodity: soybean_oil,  scope: world, serves: all_classes, unit: "MMT"}   # US 2025/26 14.05 = 30,970 M lb
+      world_soybean_oil_supply_and_use_major_exporters: {commodity: soybean_oil, scope: world, serves: all_classes, unit: "MMT"}
+      world_soybean_oil_supply_and_use_major_importers: {commodity: soybean_oil, scope: world, serves: all_classes, unit: "MMT"}
+      # -- sheets that are NOT the commodity's own whole balance sheet: never preferred; their served unit is their own
+      u_s_long_grain_rice_supply_and_use:            {commodity: rice,         scope: us,    serves: "long-grain rice", unit: "Million Hundredweight"}   # 2026/27 103.5 beside the total 158.2
+      u_s_medium_short_grain_rice_supply_and_use:    {commodity: rice,         scope: us,    serves: "medium- and short-grain rice", unit: "Million Hundredweight"}
+      u_s_rice_supply_and_use:                       {commodity: rice,         scope: us,    serves: "medium- and short-grain rice", unit: "Million Hundredweight"}   # 2023/24 64.4 beside the total 218.3
+      u_s_soybeans_and_products_supply_and_use:      {commodity: soybeans,     scope: us,    serves: "the soybean products sub-tables (meal, oil)", unit: ""}   # 2023/24 54,154 = meal
+      u_s_sorghum_barley_and_oats_supply_and_use:    {commodity: sorghum,      scope: us,    serves: "the sorghum, barley and oats page", unit: ""}   # 2008/09 89 = oats
+      world_and_u_s_supply_and_use_for_cotton:       {commodity: cotton,       scope: us,    serves: "the world and US cotton summary page", unit: ""}   # its united_states 2008/09 94.32: region labels do not hold
     metrics:
       # FIXED 2026-07-05: the silver data stores snake_case attributes (ending_stocks, production, ...).
       # The previous Title-Case names ('Ending Stocks', 'Total Use') matched ZERO rows — every WASDE lookup
       # silently compiled to an empty result and reported "not yet published". Caught by the pg-mirror
       # loader's 0-row load; values verified against SELECT DISTINCT attribute on release_date=2024-06-12.
-      "ending_stocks":   {label: "ending stocks", desc: "carry-out stocks line"}
-      "production":      {label: "production", desc: "production line"}
-      "exports":         {label: "exports", desc: "exports line"}
-      "imports":         {label: "imports", desc: "imports line"}
-      "domestic_total":  {label: "total domestic use", desc: "total domestic use line (was mislabeled 'Total Use')"}
-      "beginning_stocks": {label: "beginning stocks", desc: "carry-in stocks line"}
+      # 09-24 FIX ROUND 2 (lane T, CONTRACT K22): the six QUANTITY lines take their served unit from the SHEET the
+      # row was printed on (`sheets` above), stamped post-fetch -- never the raw `unit` column, which is blank on
+      # every class and world sheet and garbled on the products sheet. Never printed in the numbers prompt.
+      "ending_stocks":   {label: "ending stocks", desc: "carry-out stocks line", unit_from_sheet: true}
+      "production":      {label: "production", desc: "production line", unit_from_sheet: true}
+      "exports":         {label: "exports", desc: "exports line", unit_from_sheet: true}
+      "imports":         {label: "imports", desc: "imports line", unit_from_sheet: true}
+      "domestic_total":  {label: "total domestic use", desc: "total domestic use line (was mislabeled 'Total Use')", unit_from_sheet: true}
+      "beginning_stocks": {label: "beginning stocks", desc: "carry-in stocks line", unit_from_sheet: true}
       # PRICE_OBSERVABILITY A3 RE-WHITELIST (2026-07-22): silver_wasde was rebuilt + promoted (canonical
       # CERTIFIED, 373 releases 1995+, pg parity PASS) and avg_farm_price is LIVE data again -- unwinding the
       # July W3.0 exclusion (label-dead then; the bronze alias was re-extended + re-parsed). Coverage + units
@@ -897,10 +999,24 @@ tables:
     axis_national: sum              # 'OMIT country for the national total across all destinations' (description)
     period_words: week              # the OBSERVATION grain (the query period stays the marketing year)
     metrics:
-      weekly_exports_1000mt:    {label: "weekly exports", unit: "1000 MT", desc: "actual shipments in the week"}
-      outstanding_sales_1000mt: {label: "outstanding sales", unit: "1000 MT", desc: "unshipped sales on the books"}
-      gross_new_sales_1000mt:   {label: "gross new sales", unit: "1000 MT", desc: "new sales booked in the week"}
-      changes_1000mt:           {label: "weekly net changes", unit: "1000 MT", desc: "net change in outstanding sales"}
+      # 09-24 FIX ROUND 2 (lane T, CONTRACT K2 / K24): `figure_basis` is the qualifier the figure token prints
+      # after the unit, in the desc's own words ("879.05 1000 MT booked in the week" -- the tariff page wrote
+      # one week's sales as "over the two weeks"); `period_sum` says which series are FLOWS whose marketing-
+      # year total is the SUM of their weeks (shipments, sales booked, net changes) and which is a BALANCE
+      # (outstanding sales: never summed). The closed-year companion (agent.esr_closed_year_legs) reads it.
+      # Never printed in the numbers prompt (B9).
+      # FIXER PASS (REVIEW_WT MAJOR-4): `aggregate_labels` names the metric under a query aggregate -- the
+      # closed-year companion (agg=sum) is the year's SHIPMENTS, never "weekly exports shipped in the week"
+      weekly_exports_1000mt:    {label: "weekly exports", unit: "1000 MT", desc: "actual shipments in the week",
+                                 figure_basis: "shipped in the week", period_sum: true,
+                                 aggregate_labels: {sum: "export shipments"}}
+      outstanding_sales_1000mt: {label: "outstanding sales", unit: "1000 MT", desc: "unshipped sales on the books",
+                                 period_sum: false}
+      gross_new_sales_1000mt:   {label: "gross new sales", unit: "1000 MT", desc: "new sales booked in the week",
+                                 figure_basis: "booked in the week", period_sum: true,
+                                 aggregate_labels: {sum: "gross new sales booked"}}
+      changes_1000mt:           {label: "weekly net changes", unit: "1000 MT", desc: "net change in outstanding sales",
+                                 period_sum: true, aggregate_labels: {sum: "net changes in outstanding sales"}}
     notes: >
       Units are 1000 MT (the transform divides raw MT by 1000). commodity = contract slug. Pass country=<name>
       for a per-destination (buyer) read, or OMIT country for the national total (agg=sum for a marketing-year
@@ -1287,10 +1403,10 @@ tables:
       # as % via the sanctioned scale knob (the su_ratio ratio-normalizer precedent), so the narration
       # quotes "18.2 %" while the pg row keeps 0.1818 -- figures in analyst units, always beside the
       # plain-language framing, never one without the other (owner's word 2026-08-22).
-      drought_z_tail_share:     {label: "share of basin cells in drought-z tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma drought_z that month (0-1)", ym_publication_lag_days: 25}   # CHIRPS block: the stem's own lag (registry.check_metric_lags clause 4)
-      heat_stress_z_tail_share: {label: "share of basin cells in heat-stress tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma heat_stress_z that month (0-1)", ym_publication_lag_days: 5}
-      gdd_z_tail_share:         {label: "share of basin cells in GDD tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma gdd_z that month (0-1)", ym_publication_lag_days: 5}
-      tmax_anomaly_tail_share:  {label: "share of basin cells in max-temperature tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma tmax_anomaly that month (0-1)", ym_publication_lag_days: 5}
+      drought_z_tail_share:     {label: "share of basin cells in drought-z tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma drought_z that month (0-1)", ym_publication_lag_days: 25, definition_phrases: ["at or beyond +2 sigma"]}   # CHIRPS block: the stem's own lag (registry.check_metric_lags clause 4)
+      heat_stress_z_tail_share: {label: "share of basin cells in heat-stress tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma heat_stress_z that month (0-1)", ym_publication_lag_days: 5, definition_phrases: ["at or beyond +2 sigma"]}
+      gdd_z_tail_share:         {label: "share of basin cells in GDD tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma gdd_z that month (0-1)", ym_publication_lag_days: 5, definition_phrases: ["at or beyond +2 sigma"]}
+      tmax_anomaly_tail_share:  {label: "share of basin cells in max-temperature tail", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells at or beyond +2 sigma tmax_anomaly that month (0-1)", ym_publication_lag_days: 5, definition_phrases: ["at or beyond +2 sigma"]}
       frost_event_share:        {label: "share of basin cells with frost", unit: "share of basin cells", row_grain: aggregate, desc: "share of the basin's (or member country's) cells whose monthly minimum fell below the frost threshold (0-1; the flag renamed at aggregate grain so a fraction is never misread as a flag)", ym_publication_lag_days: 5}
       # -- <metric>_cells (W-3, the fidelity guard that ships WITH the basins): how many member cells the
       # aggregate row above was built from, at BOTH grains. Integer counts stored as floats. The
@@ -1362,7 +1478,13 @@ tables:
       production_kt:  {label: "production", unit: "1000 MT", desc: "world cocoa production (thousand tonnes)"}
       grindings_kt:   {label: "grindings", unit: "1000 MT", desc: "world cocoa grindings = world use (thousand tonnes)"}
       end_stocks_kt:  {label: "end stocks", unit: "1000 MT", desc: "world end-of-year cocoa stocks (thousand tonnes)"}
-      su_ratio:       {label: "stocks-to-use ratio", unit: "ratio",   desc: "ICCO stocks-to-use = end_stocks_kt / grindings_kt (ANNUAL; NOT the PSD-World su_ratio)"}
+      # 09-24 FIX ROUND 2 (lane T, K7 -- the su_ratio family's display): ICCO states its stocks-to-grindings
+      # ratio as a PERCENT, so the analyst display is the card's own (0.2635 -> 26.36 %) and the figure token's
+      # basis is the desc's own denominator -- the cocoa page printed "0.28522" and "0.263595" bare. BOTH ride the
+      # analyst stamp only (O-1 / O-3 (b)); `basis_words` is NOT declared here, because the label reads it on
+      # the CONTROL cell too and this round moves no flag-off label. Never printed in the prompt (B9).
+      su_ratio:       {label: "stocks-to-use ratio", unit: "ratio",   desc: "ICCO stocks-to-use = end_stocks_kt / grindings_kt (ANNUAL; NOT the PSD-World su_ratio)",
+                       figure_basis: "of grindings", display_scale: 100, display_unit: "%", display_decimals: 2}
     notes: >
       Single-commodity WORLD table (cocoa) -- omit commodity/country. period = cocoa marketing year
       as a string '2024/25'. Values are in THOUSAND tonnes (kt). su_ratio is ICCO's annual

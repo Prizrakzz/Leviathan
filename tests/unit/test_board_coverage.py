@@ -92,10 +92,14 @@ def test_the_two_OWED_notes_have_LANDED_and_the_seam_declares_the_twelve_counter
 #: no reader in `render.py` read. It is the denominator for the one-line row's own seated sentence, so
 #: a census that finds that sentence on a page and this counter at zero has found the two producers
 #: disagreeing. It joins its sibling `chain_below_print_line` and adds NO population.
+# 09-24 RE-BANK (BRIEF_R item 28b -- DM1): `chain_referenced_adjacent` joins the roster BESIDE
+# `chain_referenced` -- a chain counted only where one sentence names two ADJACENT hops of it in the chain's
+# own order (a told link); the existing count keeps its meaning and its key. Absent-when-unarmed, like all.
 CHAIN_COVERAGE_KEYS = ("chain_rendered", "chain_referenced", "chain_hops_rendered",
                        "chain_hops_referenced", "chain_hops_agreeing", "chain_hops_at_odds",
                        "chain_receipts_rendered", "chain_receipts_cited", "chain_events_open",
-                       "chain_history_n", "chain_below_print_line", "chain_rendered_one_line")
+                       "chain_history_n", "chain_below_print_line", "chain_rendered_one_line",
+                       "chain_referenced_adjacent")
 
 
 def test_S8_the_chain_counters_are_ABSENT_on_every_board_whose_chain_leg_did_not_run(boards):
@@ -1149,7 +1153,10 @@ def test_S8R3_the_SLOT_LABEL_adds_no_coverage_key_and_moves_no_coverage_DENOMINA
     # THE HEAD ROW'S TOKENS ARE THE HOP AND THE MARKET, and the label is in neither.
     tok = body.split("_tok = (", 1)[1].split(")\n", 1)[0]
     # 09-23 (CONTRACT.md C9): the top hop's group is its SERIES' reader names, never the driver id.
-    assert "chain_hop_reader_names(_c.hops[0])" in tok
+    # 09-24 RE-BANK (CONTRACT K12 -- DM2): the reader names take the PAGE'S named markets, so a hop on a
+    # market the page never named carries its market in its name (cocoa's "production, for Brazil" was BMF
+    # arabica). Still the SERIES' reader names, never the driver id; the label still joins no group.
+    assert "chain_hop_reader_names(_c.hops[0], page_markets=_pm)" in tok
     assert "_market_words(_c.terminal or _c.contract)" in tok
     assert "slot" not in tok, "a label is prose on the row, never a token group the writer is graded on"
     # AND THE LABEL IS REALLY ON THE ROW, on a real `walk.Chain`, in the ruling's own words.

@@ -1719,36 +1719,45 @@ def test_a_markdown_heading_inside_a_receipt_never_reaches_the_reader(tmp_path, 
         assert "#" not in an._scaffold_restatement({"date": "2021-07-20", "text": drop}, "fenced"), drop
 
 
-def test_a_stripped_handle_duplicates_its_sources_row_documented_not_fixed(monkeypatch):
-    """ROUND-2 LOW-2, and the finding was that the DUPLICATE IS PRE-EXISTING. When the verifier strips the
-    model's own handle for an item (`no_lexical_overlap`) the item's row survives in structured['sources']
-    and verifier['resolved'], so the footer renders it; the scaffold then correctly mints a fresh ref for
-    the same document, because the reuse test requires the E-form string to be PRESENT IN THE PROSE.
+def test_a_stripped_handle_never_duplicates_its_sources_row(monkeypatch):
+    """ROUND-2 LOW-2 (2026-08-05) found that the DUPLICATE WAS PRE-EXISTING: when the verifier strips the
+    model's own handle for an item (`no_lexical_overlap`) the item's row survived in the footer, and the
+    scaffold then correctly minted a fresh ref for the same document (the reuse test requires the E-form
+    string to be PRESENT IN THE PROSE), so '## Sources' listed ONE document under TWO refs. That test was
+    named `..._documented_not_fixed` and said of itself "the thing that has to be edited on the day
+    someone fixes it".
 
-    THE CHOICE, RECORDED: the code is left untouched on BOTH halves. Fixing the pre-existing half moves
-    the OFF arm and costs flag-off byte-identity; reusing the stripped ref in the mint path is not
-    provably safe under the three-place rule -- it re-asserts a citation the verifier deliberately
-    removed, and a newly-present E-form handle is newly COUNTED by the positional join, moving
-    min_episodes_cited / min_episode_sources. So this test documents CURRENT behaviour, and it is the
-    thing that has to be edited on the day someone fixes it."""
+    RE-BANKED 09-25 -- THE DAY IT WAS FIXED (fix round 2, item 28d / OWNER DECISION O-15 (a), declared
+    move DM3 (c), both cells): `_document_source_rows` now applies its caller's own cited-only rule to
+    the declared ledger -- a declared, resolved ref is emitted only when the page's prose cites it. The
+    stripped handle is cited nowhere, so its row is no longer emitted, and the fix sits on the EMISSION
+    half: the scaffold's mint path is untouched (it still mints [E3] rather than re-asserting a citation
+    the verifier removed, so the positional join counts nothing new), and the ledger and the verifier
+    keep both refs machine-side. THE NEW INVARIANT, pinned off what the producer prints: a stripped
+    handle never duplicates a Sources row -- the document is listed ONCE, under the ref the prose
+    carries."""
     st = _structured(_MECH_NO_EPISODES.replace("[E1]", "(handle stripped by the verifier)"))
     vf = _verifier()
-    # (a) THE PRE-EXISTING HALF, with no scaffold in the picture at all: a stripped handle keeps its row.
+    # (a) no scaffold in the picture: the stripped handle's row is no longer emitted (cited nowhere) ...
     assert "[E1]" not in st["mechanism"]
-    assert "[1] " in an._cited_sources_block(st, vf, None)
-    # (b) the scaffold then mints, because reuse requires the E-form handle to be in the prose
+    assert an._cited_sources_block(st, vf, None) == ""
+    # ...while the ledger and the verifier still hold it machine-side: only the emission moved
+    assert {s["ref"] for s in st["sources"]} == {1} and "1" in vf["resolved"]
+    # ...and the SAME row is emitted the moment the prose cites it (the rule reads the page)
+    assert "[1] " in an._cited_sources_block(_structured(), _verifier(), None)
+    # (b) the scaffold still mints, because reuse requires the E-form handle to be in the prose
     st, vf, trace = _scaffold(monkeypatch, structured=st, verifier=vf)
     assert trace["episodes_scaffolded"]["fired"] is True
     assert vf["synthesized_refs"] == [3] and "[E3]" in st["mechanism"]
     block = an._cited_sources_block(st, vf, None)
     rows = [ln for ln in block.split("\n") if ln.startswith("[")]
-    assert len(rows) == 2 and all("2021-07-20" in r for r in rows)   # the SAME document, twice: the defect
-    assert {s["ref"] for s in st["sources"]} == {1, 3}
-    # ...and it is cosmetic in the strict sense: both rows resolve to the real item's true metadata
+    # THE INVARIANT: the document once, under the ref the prose carries -- never under the stripped one
+    assert len(rows) == 1 and rows[0].startswith("[3] ") and "2021-07-20" in rows[0], rows
+    assert {s["ref"] for s in st["sources"]} == {1, 3}               # both refs stay in the ledger
+    # ...and the one row names the real item's true metadata
     assert vf["resolved"]["3"]["source_key"] == vf["resolved"]["1"]["source_key"] == "s3://gain"
-    # the decision and its reasoning are recorded where the code is, not only here
-    doc = inspect.getsource(an._maybe_scaffold_episodes)
-    assert "KNOWN COSMETIC, NOT FIXED HERE" in doc and "PRE-EXISTING" in doc
+    # the decision and its reasoning are recorded where the emitting code is, not only here
+    assert "O-15" in inspect.getsource(an._document_source_rows)
 
 
 def test_the_format_fence_legs_are_registers_own_vocabulary_and_not_a_second_copy():

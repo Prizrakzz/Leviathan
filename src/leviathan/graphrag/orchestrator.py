@@ -216,7 +216,7 @@ def run_numbers_only(query: str, asof: str, *, client=None, model: str = na.HAIK
     # answer's ONE seam -- the `_fnf` idiom exactly: OMITTED when off, so the flag-off call is byte-
     # identical and an injected answer_numbers fake with the older signature stays valid. The agent arms
     # the LEVEL only (`rv_pair_spread_legs(level_only=...)`); the history leg stays behind its own env.
-    _ps = {"pair_spread": True} if an._state_board_on() else {}
+    _ps = {"pair_spread": True, "closed_year": True} if an._state_board_on() else {}
     out = na.answer_numbers(query, asof, client=client, model=model, query_fn=query_fn, families=families,
                             **_fnf, **_ps)
     _ms_numbers = int((_time.perf_counter() - _tn) * 1000)
@@ -759,7 +759,7 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
     # on the CALLING thread for the reason written above -- the board flag is the same env the walk lane
     # reads, and a per-thread read would let the two lanes disagree about the treatment within one turn.
     # Omit-when-off (the `_fnf` idiom): flag off -> the submit below is byte-identical.
-    _ps = {"pair_spread": True} if an._state_board_on() else {}
+    _ps = {"pair_spread": True, "closed_year": True} if an._state_board_on() else {}
     # LANE S (2026-09-06): this turn's NUMBERS-ROUND BUDGET, read HERE, on the CALLING thread, beside
     # `_nf` and for the reason already written three comments up -- deliberately NOT inside `_numbers()`,
     # whose body runs on a pool thread: a per-thread env read lets the numbers lane and the walk lane
@@ -1024,7 +1024,8 @@ def run_hybrid(query: str, asof: str, *, graph, call=None, retrieve=None, model:
                    "lookups": 0, "returned": False,
                    "lane_error": nums.get("error") or "the numbers lane returned no result"}
         holder["numbers_budget"] = _nb
-        return "\n\n".join(x for x in (extra_context, _numbers_block(calls, budget=_nb)) if x), calls
+        return "\n\n".join(x for x in (extra_context, _numbers_block(
+            an._display_stamped(calls) if an._state_board_on() else calls, budget=_nb)) if x), calls
 
     _xc = {"xc_request": xc_request} if xc_request is not None else {}   # reroute v2: omit when None (byte-identical)
     _ol = {"outlook": True} if outlook else {}                           # W5-D4: same omit-when-off idiom

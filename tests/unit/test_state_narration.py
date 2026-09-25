@@ -109,7 +109,14 @@ def test_the_leg_appends_the_literal_and_nothing_else():
     # SHAPE. On a board turn that is both halves; on a boardless one it is the turn-wide ban alone.
     base = an._system(state_board=True)
     lit = an._system(state_board=True, desk_register=True)
-    assert lit == base + N.desk_register_mandate(state_board=True)
+    # RE-BANKED 09-24 (fix round 2, lane A -- CONTRACT K19, DECLARED B1 cell): with the register lit the
+    # board's own mandate speaks the record's reader-facing name ("this page") where it said "the block"
+    # -- the tariff page's "the other chain the block puts forward" was the mandate's own phrase copied.
+    # The leg is otherwise the SAME pure append, and with the register off the mandate is HEAD's object.
+    assert lit == (base.replace(N.state_board_mandate(), N.state_board_mandate(desk=True))
+                   + N.desk_register_mandate(state_board=True))
+    assert "the block" not in N.state_board_mandate(desk=True)
+    assert N.state_board_mandate() is N.SYSTEM_STATE_BOARD_MANDATE
     # ...and it rides its OWN leg, so a board-off turn still gets it. "the graph" leaks on a cascade
     # walk that carries no board at all, which is why the vocabulary is the ANSWER's and not the block's.
     assert N.desk_register_mandate() in an._system(desk_register=True)

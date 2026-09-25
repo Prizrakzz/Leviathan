@@ -143,11 +143,14 @@ def test_the_order_is_the_column_order_and_appends_never_sort():
     until lane F appended the cost census's three, so `state_board`'s index is the anchor."""
     keys = list(tk.TRACE_RECORD_KEYS)
     assert keys[0] == "fork_basis"                               # the first column, since D-DT-2
-    assert keys[-8] == "state_board"                             # the S5/S6 tail, still at its index
-    assert keys[-7:-3] == ["numbers_usage", "plan_usage", "desk_register", "writer_seam"]  # ONE commit
-    assert keys[-3:] == ["board_n_start", "injected_n", "numbers_block_chars"]  # lane A 09-23: the three lane-0 stamps, ONE commit
+    # 09-24 FIX ROUND 2 (lane A, K20): RE-ANCHORED ONCE, BY THREE -- the ledger / display stamps appended
+    # at the tail in one commit. Every index below moved by exactly three; no value moved.
+    assert keys[-11] == "state_board"                            # the S5/S6 tail, still at its index
+    assert keys[-10:-6] == ["numbers_usage", "plan_usage", "desk_register", "writer_seam"]  # ONE commit
+    assert keys[-6:-3] == ["board_n_start", "injected_n", "numbers_block_chars"]  # lane A 09-23: the three lane-0 stamps, ONE commit
+    assert keys[-3:] == ["evidence_ledger", "sources_ledger", "numbers_display"]  # lane A 09-24 (K20), ONE commit
     # the tail four are genuinely NEW names, not a re-spelling of something older that was moved
-    assert keys.index("state_board") == len(keys) - 8
+    assert keys.index("state_board") == len(keys) - 11
     assert sorted(keys) != keys                                  # never sorted -- the law, not a wish
 
 
@@ -280,8 +283,8 @@ def test_lane0_stamps_are_REGISTERED_at_the_tail_and_ride_every_record():
     moved: a stored artifact's columns stay comparable), and `chain_lints` stays a SPLAT -- absent,
     never None -- on a row that did not stamp it."""
     keys = list(tk.TRACE_RECORD_KEYS)
-    assert keys[-3:] == ["board_n_start", "injected_n", "numbers_block_chars"]
-    assert len(keys) == 50 and keys[-4] == "writer_seam" and keys[-8] == "state_board"
+    assert keys[-6:-3] == ["board_n_start", "injected_n", "numbers_block_chars"]   # 09-24 K20: +3
+    assert len(keys) == 53 and keys[-7] == "writer_seam" and keys[-11] == "state_board"
     # the three are stamped by the L2 body, and the registration is what lifts them
     rec = ev._per_answer_record(_turn({"board_n_start": 51, "injected_n": 94,
                                        "numbers_block_chars": 12034}), "single")
@@ -294,7 +297,7 @@ def test_lane0_stamps_are_REGISTERED_at_the_tail_and_ride_every_record():
     # ...and they are the record's LAST three registry columns, in the registry's order: the splat is
     # one dict comprehension over the tuple, so the column order is the tuple order
     reg_cols = [k for k in off if k in set(keys)]
-    assert reg_cols[-3:] == ["board_n_start", "injected_n", "numbers_block_chars"]
+    assert reg_cols[-6:-3] == ["board_n_start", "injected_n", "numbers_block_chars"]   # 09-24 K20: +3
     assert "chain_lints" not in off                        # B11: the splat stays a splat
     # the mint sites are still where the registry's own rationale says they are
     from pathlib import Path
@@ -316,7 +319,7 @@ def test_O2_the_splat_registry_is_its_own_tuple_and_the_record_registry_is_untou
     assert not (set(tk.TRACE_SPLAT_KEYS) & (set(tk.TRACE_RECORD_KEYS) | cols))
     off = ev._per_answer_record(_turn({}), "single")
     assert not (set(tk.TRACE_SPLAT_KEYS) & set(off))          # ...nor any column eval already emits
-    assert len(tk.TRACE_RECORD_KEYS) == 50 and tk.TRACE_RECORD_KEYS[-1] == "numbers_block_chars"
+    assert len(tk.TRACE_RECORD_KEYS) == 53 and tk.TRACE_RECORD_KEYS[-1] == "numbers_display"   # 09-24 K20
     assert "for k in tk.TRACE_SPLAT_KEYS" in _EVAL_SRC        # registration IS the lift
     from leviathan.graphrag.numbers import agent as na
     assert na.RV_PAIR_UNCOMPUTED_KEY in tk.TRACE_SPLAT_KEYS   # the producer's own constant, not a copy
@@ -362,7 +365,7 @@ def test_m3_the_spine_census_is_minted_only_on_a_board_lit_turn_so_a_control_rec
     assert ans.count("_dedup_spine_tldr(structured)") == 2
     assert ans.count("_spine = _dedup_spine_tldr(structured) if _state_board_on() else {}") == 2
     off = ev._per_answer_record(_turn({"planner": "l2"}), "single")
-    assert len(off) == 213 and not (set(tk.TRACE_SPLAT_KEYS) & set(off))
+    assert len(off) == 216 and not (set(tk.TRACE_SPLAT_KEYS) & set(off))   # 09-24 K20: 213 + 3
 
 
 @pytest.mark.parametrize("lane", ["run_numbers_only", "run_hybrid"])
@@ -426,3 +429,36 @@ def test_O2_a_REFUSED_pair_reaches_the_trace_on_both_lanes_and_a_dark_turn_carri
     monkeypatch.delenv("GRAPHRAG_STATE_BOARD")
     tr_off = _run().get("trace") or {}
     assert "rv_pair_spread" not in tr_off and na.RV_PAIR_UNCOMPUTED_KEY not in tr_off
+
+
+# ── 09-24 FIX ROUND 2 (lane A, CONTRACT K20; THREAT A-9 / B11) ────────────────────────────────────────
+def test_K20_the_ledger_and_display_stamps_are_registered_at_the_tail_in_order_and_lift():
+    """THE DEFECT: every 09-24 [E] and precision finding had to be RECONSTRUCTED -- which addresses the one
+    evidence ledger issued past the menu, what the writer declared in its sources ledger before the
+    verifier corrected it, and whether the numbers block was stamped at analyst precision reached no
+    artifact. The three are appended AT THE TAIL, in the contract's order, in ONE commit (HEAD's 50 a
+    strict prefix), each with its rationale beside it; a control row lifts them PRESENT-WITH-NULL and a
+    stamped row lifts them verbatim; `chain_lints` stays a splat (absent, never None) on a row without it."""
+    keys = list(tk.TRACE_RECORD_KEYS)
+    assert keys[-3:] == ["evidence_ledger", "sources_ledger", "numbers_display"]
+    assert keys[:50][-3:] == ["board_n_start", "injected_n", "numbers_block_chars"]   # HEAD's 50 a prefix
+    assert len(keys) == 53 and len(set(keys)) == 53
+    for k, must in (("evidence_ledger", "EvidenceLedger.stamp()"), ("sources_ledger", "structured[\"sources\"]"),
+                    ("numbers_display", "display")):
+        block = _SRC[_SRC.index(f'    "{k}",'):].split('\n    "')[0]
+        assert must in block, (k, must)
+    stamped = {"evidence_ledger": {"menu_n": 40, "registered": 3, "extra_chunks": 1, "unaddressed": 0},
+               "sources_ledger": [{"ref": 46, "source": "USDA FAS GAIN", "date": "2025-02-01"}],
+               "numbers_display": {"stamped": True, "calls": 250}}
+    rec = ev._per_answer_record(_turn(dict(stamped)), "single")
+    for k, v in stamped.items():
+        assert rec[k] == v, k
+    off = ev._per_answer_record(_turn({}), "single")
+    assert all(off[k] is None for k in stamped)
+    assert [k for k in off if k in set(keys)][-3:] == ["evidence_ledger", "sources_ledger", "numbers_display"]
+    assert "chain_lints" not in off
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[2] / "src" / "leviathan" / "graphrag" / "answer.py"
+           ).read_text(encoding="utf-8")
+    for k in stamped:
+        assert ('sg.trace["%s"]' % k) in src, k               # the one mint site is the L2 body

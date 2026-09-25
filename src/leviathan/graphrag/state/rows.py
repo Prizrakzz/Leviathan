@@ -292,15 +292,48 @@ AXIS_KINDS: tuple = ("national", "reporter", "destination", "region_cell", "glob
 PERIOD_KINDS: tuple = ("marketing_year", "crop_season", "month", "week", "day", "delivery_month",
                        "window")
 
-#: WHICH MAGNITUDE OF A ROW ONE BOARD CALL IS (C3 ``row["stat"]``).
-STAT_KINDS: tuple = ("level", "sigma", "percentile", "window_peak_percentile", "current_level")
+#: THE KINDS ONE OBSERVATION'S PERIOD CAN BE, LONGEST GRAIN FIRST (fixer pass, REVIEW_RA lexical 1-2): the
+#: order IS the calendar's (a marketing year and a season are annual, then a month, a week, a day), so a
+#: reader asking "is the written period longer than the row's?" compares two positions here -- never a
+#: typed day count. A delivery month and a window are SCOPES of a row, never its period, and are absent.
+OBSERVATION_PERIOD_KINDS: tuple = ("marketing_year", "crop_season", "month", "week", "day")
 
-#: THE SERVED-SCALARS POOL'S KINDS (C4). The first five are ROW-BEARING (they back a numeral only in a
-#: sentence citing a handle of the same row); the rest are ROW-LESS (they back a numeral only under their
-#: own derived unit).
+#: WHICH MAGNITUDE OF A ROW ONE BOARD CALL IS (C3 ``row["stat"]``). ``window_change`` (09-24 fix round,
+#: CONTRACT K5) is a CHANGE of the series between two of its own observations -- the analog outcome's two
+#: ends -- and it is never the level's name; ``pair_level_spread`` (K8) is the ONE tape spread the board
+#: mints, whose identity carries both legs and their order. Appended at the TAIL: every reader of the
+#: first five keeps its index.
+STAT_KINDS: tuple = ("level", "sigma", "percentile", "window_peak_percentile", "current_level",
+                     "window_change", "pair_level_spread")
+
+#: THE STAT KINDS WHOSE MAGNITUDE IS THE SERIES' OWN LEVEL (fixer pass, REVIEW_VC F2 / lexical 2478): a row
+#: with one of these (or no ``stat`` at all) is a reading of the series in the card's quantity; every other
+#: kind is ANOTHER quantity of the same row (a sigma, a percentile, a change, a spread), which never takes
+#: the card's level words (its ``figure_basis``). Read by lane C's label; one vocabulary, never re-typed.
+LEVEL_STAT_KINDS: tuple = ("level", "current_level")
+
+#: THE STAT KINDS WHOSE MAGNITUDE IS A DIFFERENCE and therefore prints its sign (fixer pass, REVIEW_RA lexical
+#: 8): a change of the series between two of its observations and the one tape spread. One vocabulary, read by
+#: the ask head, never a word searched for in a display string.
+CHANGE_STAT_KINDS: tuple = ("window_change", "pair_level_spread")
+
+#: THE SERVED-SCALARS POOL'S KINDS (C4). A scalar carrying a ``row_id`` is ROW-BEARING (it backs a numeral
+#: only in a clause bound to a handle of the same row); a handled scalar with no row backs only through its
+#: own handle; a scalar with neither backs a numeral only under its own derived unit. THE 09-24 TAIL (K8,
+#: item 30): ``window_change`` -- a tape's same-contract change, row-bearing through the tape's own row;
+#: ``pair_level_spread`` -- the tape spread's figure, backed through its own handle; ``ask_row`` -- a
+#: numbers-seat calculator row the ask head printed, backed only through the seat call's own handle.
 SCALAR_KINDS: tuple = ("level", "sigma", "percentile", "window_peak_percentile", "current_level",
                        "window_length", "run_length", "lag_band_quarters", "firings_count",
-                       "firings_aligned", "card_threshold", "outcome_move")
+                       "firings_aligned", "card_threshold", "outcome_move", "window_change",
+                       "pair_level_spread", "ask_row")
+
+#: WHAT ONE SERVED ROW'S LEVEL IS OVER A CELL AXIS (CONTRACT K3), in derivation order -- and the empty word
+#: is a real answer: a read whose grain the served rows do not prove prints its scope alone, never a
+#: guessed cell. ``single_cell`` stays in the vocabulary for a caller that KNOWS it holds one cell's row;
+#: no derivation here mints it from the axis enum (the round-1 inversion that labelled cocoa's West Africa
+#: BASIN MEAN "one West Africa growing cell").
+CELL_RULES: tuple = ("single_cell", "mean_of_cells", "one_of_cells", "sum", "")
 
 #: The reader noun of each PERIOD kind, for the one sentence that must name a kind of period rather
 #: than a period (the period-gap clause, C11).
@@ -389,6 +422,87 @@ def figure_text(value, *, unit: str = "", decimals: Optional[int] = None, lines:
         elif two_sided:
             body = "+" + body
     return f"{body} {unit}".strip() if unit else body
+
+
+def figure_token(shown: str, *, unit: str = "", figure_basis: str = "", period_words: str = "",
+                 period_role: str = "") -> str:
+    """THE FIGURE TOKEN (CONTRACT K2): ``"<shown> <unit> <figure_basis>, <period_words>[, <period_role>]"``
+    -- every part omitted when empty -- the ONE string a writer copies when it copies a figure.
+
+    THE DEFECT IT CLOSES (items 2, 13, 27b, the 09-24 re-smoke): the row identity reached the footer and
+    never the SENTENCE. The writer copies the value slot, and the value slot printed the magnitude and its
+    unit alone -- "10.72 %" with its basis a clause away, "0 thousand MT" with its period elsewhere on the
+    line -- so six pages printed a stocks-to-use figure with no basis and the tariff page read one week's
+    figure as two. The token puts the card's own basis and the row's own period ON the figure, so the words
+    that make the number true travel with it.
+
+    ``shown`` IS ALWAYS THE ONE PRECISION PRODUCER'S TEXT (round-1 C5: :func:`figure_text` /
+    ``render.shown_figure``) and may already carry its unit, in which case ``unit`` is passed empty.
+    ``figure_basis`` is a CARD field (lane T, digit-free by config_check); ``period_words`` is the row's
+    period at the card's own precision (``RowIdentity.period_label``); ``period_role`` is the store-period
+    or closed-year words (K23 / K24). Nothing is invented here: an empty part prints nothing, so a card
+    that declares no basis and a row with no period print HEAD's bare figure."""
+    head = " ".join(p for p in (str(shown or "").strip(), str(unit or "").strip(),
+                                str(figure_basis or "").strip()) if p)
+    if not head:
+        return ""
+    tail = [p for p in (str(period_words or "").strip(), str(period_role or "").strip()) if p]
+    return ", ".join([head] + tail)
+
+
+def cell_rule_for(*, axis: str = "", collapse: str = "", scope: str = "", basin_surfaces=(),
+                  rows_at_period: int = 0) -> tuple:
+    """``(cell_rule, cell_n)`` -- WHAT ONE SERVED ROW'S LEVEL IS OVER A CELL AXIS, from the SERVED ROW'S
+    GRAIN and never from the axis enum (CONTRACT K3, item 6).
+
+    THE DERIVATION, IN ORDER: (1) the read's own collapse -- ``mean`` is the mean over the cells, ``sum``
+    the sum over the destinations; (2) a scope that IS one of the producer's own aggregate surfaces
+    (``basin_surfaces``: the caller hands in the producer's declared surface names -- the gold weather
+    producer writes the BASIN MEAN over its member cells at exactly those scopes) is the mean over the
+    cells; (3) a read that served MORE THAN ONE row at its headline period for one scope is ONE of that
+    many cells (``one_of_cells``, ``cell_n`` = that count); (4) otherwise ``""`` -- FAIL CLOSED: the scope
+    alone, no cell words, because a single row per period at a scope nobody declared is a grain the rows do
+    not prove (the round-1 default of ``single_cell`` printed cocoa's West Africa basin mean as "one West
+    Africa growing cell" four times in one footer).
+
+    Only a CELL axis takes cell words at steps (2)-(3); a destination axis keeps its own ``sum`` and a
+    national or global axis has no cells. PURE: the caller supplies every fact."""
+    c = str(collapse or "")
+    if c == "mean":
+        return "mean_of_cells", 0
+    if c == "sum":
+        return "sum", 0
+    if str(axis or "") != "region_cell":
+        return "", 0
+    sc = str(scope or "").strip()
+    if sc and sc in {str(s) for s in (basin_surfaces or ())}:
+        return "mean_of_cells", 0
+    try:
+        n = int(rows_at_period or 0)
+    except (TypeError, ValueError):
+        n = 0
+    if n > 1:
+        return "one_of_cells", n
+    return "", 0
+
+
+def period_behind_words(pb: Optional[dict], *, asof_words: str = "") -> str:
+    """THE STORE-PERIOD CLAUSE (CONTRACT K23) in words: the period this row holds is the newest the SERIES
+    holds as known at the as-of, while a sibling card of the same commodity and scope already held a newer
+    one -- "the newest this series holds as known on 1 March 2024; USDA WASDE held 2023/24 by then".
+
+    A FACT ABOUT THE STORE, NEVER A CALENDAR CONSTANT (round-1 ruling F1): every word comes off the stamp
+    lane C writes (``StateRow.period_behind`` = ``{"held", "newer_on", "newer"}``) and the as-of the caller
+    names; nothing later than the as-of is printed (C11 -- ``newer`` is a period the store held AS KNOWN at
+    the as-of). ``""`` for an empty stamp: a row with no newer sibling period prints nothing."""
+    d = dict(pb or {})
+    if not (d.get("held") or d.get("newer")):
+        return ""
+    out = "the newest this series holds as known on %s" % (asof_words or "the as-of")
+    if d.get("newer"):
+        src = str(d.get("newer_on") or "").strip()
+        out += "; %s held %s by then" % (src or "the same source", str(d["newer"]))
+    return out
 
 
 def _ordinal_suffix(n: int) -> str:
@@ -594,6 +708,13 @@ class StateRow:
     #: measured first-print lag and stamp nothing. EMPTY on every row that carries no such gap -- the
     #: render prints nothing for it.
     period_gap: dict = field(default_factory=dict)
+    #: THE STORE-PERIOD STAMP (09-24 fix round, CONTRACT K23; lane C writes it, lane W demotes on it, lane
+    #: R prints it): ``{"held": "2020/21", "newer_on": "USDA WASDE", "newer": "2023/24"}`` where the store
+    #: holds, as known at the as-of, a NEWER period for the SAME commodity and scope on ANY served
+    #: marketing-year card than the newest this series holds (the 2024 turn read PSD US stocks-to-use for
+    #: MY2020 beside WASDE US 2023/24 and printed the 2020 figure as the March-2024 buffer). EMPTY on every
+    #: row with no such sibling -- the render prints nothing for it.
+    period_behind: dict = field(default_factory=dict)
 
     @property
     def level_shown(self) -> Optional[float]:
@@ -868,6 +989,21 @@ def period_label_for(kind: str, data_date: str) -> str:
     return s
 
 
+def _with_commodity(name: str, cw: str) -> str:
+    """THE SERIES' COMMODITY NAMES WHAT THE SERIES IS OF (K3): "production of sunflower oil", "the stocks-to-use
+    ratio of rapeseed", "the head count of live animals of cattle beef" -- ONE composition, after the name,
+    so no test of a name's first word decides where the commodity goes (FIXER PASS, REVIEW_RA lexical 9: the
+    first cut opened "the " names by string and prefixed the rest; a declared name's article is the card's
+    own words and is never parsed here). A name that already carries the commodity's words is left as it
+    is (compared as words, `_fold_words`)."""
+    if not cw or not name:
+        return name or cw
+    fn, fc = " %s " % _fold_words(name), " %s " % _fold_words(cw)
+    if fc.strip() and fc in fn:
+        return name
+    return "%s of %s" % (name, cw)
+
+
 @dataclass(frozen=True)
 class RowIdentity:
     """THE ONE IDENTITY OF ONE SERVED BOARD ROW (CONTRACT.md C1). The driver id is ROUTING ONLY and is
@@ -902,6 +1038,26 @@ class RowIdentity:
     #: 09-23 fix round: a DECLARATION on the card, never a word keyed on the axis enum); ``()`` = the card
     #: declares none and no cell words are printed.
     cell_noun: tuple = ()
+    # ── THE 09-24 TAIL (CONTRACT K3 / K5 / K2), every field defaulted so a caller that sets none of them
+    # builds HEAD's identity byte for byte ──────────────────────────────────────────────────────────────
+    #: THE SERIES' COMMODITY in reader words where it DIFFERS from the reading board's own commodity --
+    #: "sunflower oil" on a palm or soybean-oil board (the 09-24 soyoil page read "Russian sunflower
+    #: production" off a sunflower OIL row whose identity named no commodity at all). ``""`` otherwise.
+    commodity_words: str = ""
+    #: How many cells stood behind the headline period where the read served one row per cell
+    #: (``one_of_cells``); 0 otherwise.
+    cell_n: int = 0
+    #: ``""`` = the series' LEVEL; ``"window_change"`` = a CHANGE between two of its observations (K5).
+    stat_kind: str = ""
+    #: THE PERIOD'S ROLE (K2 ``period_role``): the store-period words (K23) where a sibling card of the
+    #: same commodity and scope already held a newer period as known at the as-of. ``""`` otherwise.
+    period_role: str = ""
+    #: THE PUBLISHED FAMILY'S CLASS WORDS (FIXER PASS, REVIEW_WT lexical: the per-slug
+    #: ``@rough_rice_cbot`` reading-words line RETIRED): "all classes[, <basis>]" where the card's family
+    #: rule (``registry.class_scope``, lane T's ``commodity_families``) says the served row is USDA's
+    #: all-class aggregate -- rice's "all classes, milled basis", a wheat class slug's "all classes".
+    #: ``""`` otherwise. The render reads the rule; this module imports nothing.
+    class_words: str = ""
 
     def scope_words(self) -> str:
         """The `` for <scope + cell words>`` clause, derived from the card's axis and the read's own
@@ -916,6 +1072,11 @@ class RowIdentity:
             return " for one %s%s" % ((scope + " ") if scope else "", nouns[0])
         if nouns and self.cell_rule == "mean_of_cells":
             return " for the mean over the %s%s" % ((scope + " ") if scope else "", nouns[1])
+        if nouns and self.cell_rule == "one_of_cells" and int(self.cell_n or 0) > 1:
+            # ONE OF N CELLS, and N is the served rows' own count at the headline period (K3): the label
+            # says only what the rows prove -- WHICH cell it is (the region alias) is docket D11.
+            return " for one of the %s %s%s" % (words_for_int(int(self.cell_n)),
+                                               (scope + " ") if scope else "", nouns[1])
         if axis == "destination":
             if scope:
                 return " for %s as the destination" % scope
@@ -929,12 +1090,48 @@ class RowIdentity:
         A BASIS THAT RESTATES THE NAME IS THE NAME, QUALIFIED (see :meth:`words`)."""
         name = str(self.name or "")
         basis = str(self.basis or "")
+        cw = str(self.commodity_words or "").strip()
+        # THE SERIES' OWN COMMODITY NAMES WHAT IT IS OF WHERE IT IS NOT THE BOARD'S (K3): "production of
+        # sunflower oil, for Russia" -- never "production, for Russia" on a soybean-oil board. It joins the
+        # NAME (fixer pass), so the basis clause after it still qualifies the whole series.
         if basis and name and _fold_words(basis).startswith(_fold_words(name)):
-            out = basis
+            out = _with_commodity(basis, cw)
         else:
-            out = name + ((", " + basis) if basis else "")
+            out = _with_commodity(name, cw) + ((", " + basis) if basis else "")
+        if self.class_words:
+            out += ", " + str(self.class_words)
         sw = self.scope_words()
         return out + (("," + sw) if sw else "")
+
+    def short_words(self) -> str:
+        """THE INLINE NOUN (K3): ``"[commodity_words ]name[ for scope]"`` -- the words lane A's name lint
+        writes in place of a routing name. No basis, no period, no cell grain: the short name a sentence
+        carries beside a figure whose token (K2) already states the rest."""
+        name = _with_commodity(str(self.name or ""), str(self.commodity_words or "").strip())
+        scope = str(self.scope or "").strip()
+        if scope and str(self.axis or "") != "global":
+            name += " for " + scope
+        return name
+
+    def head_words(self) -> str:
+        """THE SB-1 HEAD (K2): :meth:`words` WITHOUT the period and the vintage role, which ride the FIGURE
+        TOKEN instead -- the value slot is what a writer copies, so the period sits on the figure and the
+        head names the series once. The declared offset clause stays here: it says WHICH reading of the
+        series the row is, which is a fact about the series and not about the figure."""
+        out = self.series_words()
+        n = int(self.offset_months or 0)
+        if n > 0:
+            out += (", read %s %s back -- the reading whose declared lag lands now"
+                    % (words_for_int(n), "month" if n == 1 else "months"))
+        return out
+
+    def token_period_words(self) -> str:
+        """The period the figure token carries (K2 ``period_words``): the period label at the card's own
+        precision plus the vintage role where it is one -- "2026/27 (projection)"."""
+        out = str(self.period_label or "")
+        if out and self.vintage_role:
+            out += " (%s)" % self.vintage_role
+        return out
 
     def words(self) -> str:
         """THE ONE PRINTED IDENTITY PHRASE, in the contract's FIXED order: name [", " basis]
@@ -952,6 +1149,8 @@ class RowIdentity:
             out += ", " + self.period_label
         if self.vintage_role:
             out += " (%s)" % self.vintage_role
+        if self.period_role:
+            out += " -- " + self.period_role
         n = int(self.offset_months or 0)
         if n > 0:
             out += (", read %s %s back -- the reading whose declared lag lands now"
@@ -960,7 +1159,9 @@ class RowIdentity:
 
 
 def row_identity(*, contract: str, driver_id: str, st, card: dict, reading_words: str,
-                 offset_applied: Optional[bool] = None) -> RowIdentity:
+                 offset_applied: Optional[bool] = None, basin_surfaces=(), rows_at_period: int = 0,
+                 commodity_words: str = "", stat_kind: str = "",
+                 period_role: str = "", class_words: str = "") -> RowIdentity:
     """THE PRODUCER of :class:`RowIdentity` -- pure, over the served row ``st`` (a :class:`StateRow`)
     and its card's declared fields ``card`` (``render.card_fields`` plus the card facts the render reads
     beside them). ``reading_words`` is the declared series name; the render is the only caller that
@@ -972,7 +1173,13 @@ def row_identity(*, contract: str, driver_id: str, st, card: dict, reading_words
     card that declares its rows are cells, one row per period IS one cell; the period from the card's
     ``period_words`` (else the date's own shape and the card's cadence, :func:`period_kind_for`); the
     vintage role ONLY when the row's role is a member of :data:`VINTAGE_ROLES`; the offset ONLY when the
-    producer says it was applied (``offset_applied``, else ``recency['offset_applied']``)."""
+    producer says it was applied (``offset_applied``, else ``recency['offset_applied']``).
+
+    **09-24 (CONTRACT K3): THE CELL RULE IS THE SERVED ROW'S GRAIN** (:func:`cell_rule_for`), fed by the
+    caller's two facts -- the producer's own aggregate surfaces (``basin_surfaces``) and the served rows'
+    count at the headline period (``rows_at_period``) -- and never the axis enum. ``commodity_words``,
+    ``stat_kind`` and ``period_role`` are the caller's (the render resolves the series' commodity through
+    the one display producer; this module imports nothing)."""
     card = dict(card or {})
     key = getattr(st, "key", None)
     table = str(getattr(st, "table", "") or getattr(key, "ref", "") or "")
@@ -992,14 +1199,8 @@ def row_identity(*, contract: str, driver_id: str, st, card: dict, reading_words
             axis = "national"
     scope = "" if (is_global or axis == "global") else str(getattr(key, "country", "") or "")
     collapse = str(getattr(st, "collapse", "") or "")
-    if collapse == "mean":
-        cell_rule = "mean_of_cells"
-    elif collapse == "sum":
-        cell_rule = "sum"
-    elif axis == "region_cell" and not collapse:
-        cell_rule = "single_cell"
-    else:
-        cell_rule = ""
+    cell_rule, cell_n = cell_rule_for(axis=axis, collapse=collapse, scope=scope,
+                                      basin_surfaces=basin_surfaces, rows_at_period=rows_at_period)
     data_date = str(getattr(st, "level_date", "") or "")
     kind = period_kind_for(data_date, period_words=str(card.get("period_words") or ""),
                            period_type=str(card.get("period_type") or ""),
@@ -1018,4 +1219,7 @@ def row_identity(*, contract: str, driver_id: str, st, card: dict, reading_words
         period_kind=kind, period_label=period_label_for(kind, data_date), data_date=data_date,
         known_date=str(getattr(st, "knowledge_date", "") or ""), offset_months=off,
         vintage_role=role if role in VINTAGE_ROLES else "",
-        cell_noun=tuple(str(x) for x in (card.get("cell_noun") or ()))[:2])
+        cell_noun=tuple(str(x) for x in (card.get("cell_noun") or ()))[:2],
+        commodity_words=str(commodity_words or ""), cell_n=int(cell_n or 0),
+        stat_kind=str(stat_kind or ""), period_role=str(period_role or ""),
+        class_words=str(class_words or ""))

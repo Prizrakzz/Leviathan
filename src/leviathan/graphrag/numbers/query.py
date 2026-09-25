@@ -660,6 +660,16 @@ def _extras(ts: TableSpec) -> list[tuple[str, str]]:
         out.append((ts.currency_col, "currency"))
     if ts.shape == "tall" and ts.metric_col:
         out.append((ts.metric_col, "metric"))
+    # 09-24 FIX ROUND 2 (lane T, CONTRACT K22): WHICH SHEET a row was printed on. APPENDED LAST, so every
+    # existing alias keeps its position, and neither is an order term (`_order_aliases` reads a fixed
+    # priority list), so no ORDER BY moves. `table_type` is SERVED (the contract name lane C's label reads:
+    # us | world); `_sheet` is INTERNAL -- the transform's stable sheet id, consumed by `_apply_sheet_units`
+    # and STRIPPED in `run()` before any row is returned (the `roll_input_cols` precedent). A card that
+    # declares neither (every card but silver_wasde) emits byte-identical SQL.
+    if getattr(ts, "table_type_col", None):
+        out.append((ts.table_type_col, "table_type"))
+    if getattr(ts, "sheet_col", None):
+        out.append((ts.sheet_col, SHEET_ALIAS))
     return out
 
 
@@ -1369,6 +1379,31 @@ def apply_pit_filter(rows: list[dict], spec: NumberQuery, ts: TableSpec, *,
     return kept
 
 
+#: K22 (09-24 fix round 2, lane T): the INTERNAL alias the sheet id rides the SELECT under. Never served:
+#: `run()` strips it after `_apply_sheet_units` has read it.
+SHEET_ALIAS = "_sheet"
+
+
+def _apply_sheet_units(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
+    """K22 POST-FETCH: the SHEET a row was printed on names its unit, for a metric declaring
+    ``unit_from_sheet`` -- the card's ``sheets[<sheet id>].unit``, never the raw ``unit`` column (blank on
+    every class and world sheet, "1 Thousand Short2 Tons 3 4" on the products sheet). A row from a sheet the
+    card does not declare keeps its own unit (HEAD's row, never a guessed one); a declared sheet whose unit
+    is "" (a page that mixes products) blanks a unit that would otherwise be false -- the DP-1 rule, blank
+    beats junk. The internal sheet alias is STRIPPED from EVERY row of a card declaring ``sheet_col``,
+    whatever the metric, so no consumer downstream of ``run()`` ever sees it."""
+    if not getattr(ts, "sheet_col", None):
+        return rows
+    m = ts.metrics.get(spec.metric)
+    stamp = bool(getattr(m, "unit_from_sheet", None)) if m is not None else False
+    sheets = getattr(ts, "sheets", None) or {}
+    for r in rows:
+        sid = r.pop(SHEET_ALIAS, None)
+        if stamp and sid is not None and str(sid) in sheets:
+            r["unit"] = sheets[str(sid)].unit
+    return rows
+
+
 def _apply_unit_overrides(rows: list[dict], spec: NumberQuery, ts: TableSpec) -> list[dict]:
     """DP-1 POST-FETCH (PRICE_OBSERVABILITY W1.1): a metric carrying unit_overrides has NO governed source unit
     (silver avg_farm_price's `unit` column is null / junk section-heading text). SET r["unit"] to the
@@ -1524,6 +1559,7 @@ def run(spec: NumberQuery, *, query_fn=None, db: str = ATHENA_DB,
         rows = resort_rows_chronological(rows, spec, ts)     # S1: DESC fetch -> ASC presentation (raw rows)
     if spec.agg == FRONT_EXPIRY_AGG:
         rows = select_front_expiry(rows, spec, ts)           # A': run the ONE named rule, keep ONE row
+    rows = _apply_sheet_units(rows, spec, ts)                # K22: the sheet names the unit; `_sheet` stripped
     rows = _apply_unit_overrides(rows, spec, ts)
     return _apply_country_names(rows, spec, ts)              # country_name_ref cards: raw value -> display name
 

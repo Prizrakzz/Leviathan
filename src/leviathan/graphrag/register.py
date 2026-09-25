@@ -1265,6 +1265,22 @@ DESK_REGISTER_EXEMPT: tuple = (
      "reserved: named market idioms"),
 )
 _DESK_TOKEN_RX = tuple((n, re.compile(p, re.I), r) for n, p, r in DESK_REGISTER_TOKENS)
+
+
+def desk_phrase(name: str, k: int = 0) -> str:
+    """THE k-th PLAIN PHRASE of one register row's replacement column -- the table's OWN words, split exactly
+    as the rewrite's licence splits them (``,`` and `` or ``). FIXER PASS (REVIEW_RA lexical 7 / REVIEW_WT
+    lexical, CONTRACT K19 "data, never a second list"): every producer that speaks a charged word's plain
+    replacement -- the cascade mandate variants, the cascade header and verdict lines under the analyst
+    display key -- COMPOSES its sentence from this reader, so a phrase the table changes changes every
+    sentence that speaks it and no literal types a second copy. Raises ``KeyError`` on an unknown row and
+    ``IndexError`` past the column: a composer asking for a word the table does not teach must fail loudly
+    at import, never ship a guess."""
+    for n, _p, r in DESK_REGISTER_TOKENS:
+        if n == name:
+            parts = [x.strip().strip("'\"") for x in re.split(r",| or ", str(r or "")) if x.strip()]
+            return parts[int(k)]
+    raise KeyError(name)
 #: (compiled, the frozen set of token names it exempts, why). An EMPTY name set would exempt every
 #: token; no row declares one today and the lint below refuses one that names a token off the table.
 _DESK_EXEMPT_RX = tuple((re.compile(p, re.I), frozenset(names), why)

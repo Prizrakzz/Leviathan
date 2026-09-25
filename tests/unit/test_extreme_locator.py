@@ -307,9 +307,9 @@ def test_p50_p91_the_trace_keys_are_the_last_two_and_the_decision_is_the_last_on
     # THIS pair is no longer the last two -- it is the two before the last. The pair's ORDER and its
     # ADJACENCY, which is what P50/P91 actually claim, are unchanged and still asserted. The DECISION
     # tuple is untouched by that append and keeps its `[-1]`.
-    assert tk.TRACE_RECORD_KEYS[-11:-9] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert tk.TRACE_RECORD_KEYS[-8] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
-    assert tk.TRACE_RECORD_KEYS[-9] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert tk.TRACE_RECORD_KEYS[-14:-12] == ("quantify_extreme_locator", "extreme_second_hop")  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-11] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):  # 09-24 K20: +3
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
@@ -1074,9 +1074,15 @@ def test_p48_flag_off_byte_identity_on_every_persona_and_seam_surface(monkeypatc
     # flag, the board's own marker, and a chain row actually in the assembled volatile prompt), so a
     # writer is never told to narrate chains the block declined to compose.
     _tail = list(params)
+    # ...and the 09-24 fix round 2 (lane A, CONTRACT K8 / K21) appends the TWO TL;DR clauses' kwargs after
+    # `state_chain`, in that order: `ask_head` (the handles the block's ask head printed) and `horizon_row`.
+    # Both default to the empty value, so every existing caller is byte-identical (checked below).
     _APPENDS = [n for n in ("numbers_budget", "state_board", "desk_register", "watch_selection",
-                            "register_licence", "state_chain")
+                            "register_licence", "state_chain", "ask_head", "horizon_row")
                 if n in _tail]
+    if "ask_head" in _tail:
+        assert params["ask_head"].default == () and params["horizon_row"].default is False
+        assert an._system(ask_head=(), horizon_row=False) == base
     assert _tail[len(_tail) - 2 - len(_APPENDS):len(_tail) - len(_APPENDS)] == \
         ["extreme_locator", "extreme_hop"], _tail
     assert _tail[len(_tail) - len(_APPENDS):] == _APPENDS, _tail   # appended, in order added

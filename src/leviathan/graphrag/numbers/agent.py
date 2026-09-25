@@ -549,6 +549,110 @@ def _esr_aggregate_legs(esr_query: dict, asof: str, query_fn, *,
     return legs
 
 
+# ══ K24 (09-24 FIX ROUND 2, LANE T) -- THE CLOSED MARKETING YEAR ON A WEEKLY SERIES ═════════════════════
+#
+# THE MEASURED DEFECT (09-24 tariff turn, FATAL on the PM read). The lead said "Chinese purchases of US beans
+# this marketing year read 0 thousand MT of weekly exports [N1]": [N1] was a China-scoped silver_esr read of
+# MY2025/26 whose NEWEST row was the week to 3 September 2026 -- the carry week printed after that year had
+# closed on 31 August -- and whose 45 weeks summed to 12,357 thousand MT. The page printed one closed-year
+# week as "this marketing year's" purchases because nothing on the row said what the week WAS, and nothing
+# on the page said what the year totalled.
+#
+# THE RULE IS A FACT ABOUT THE STORE, NEVER A CALENDAR CONSTANT (the 09-23 F1 ruling; O-13's own words).
+# A marketing year is CLOSED as known at the as-of when the store holds, as known at the as-of, the NEXT
+# marketing year's rows for the same commodity: FAS opens a year's label only in the first report after the
+# year begins (MEASURED on soybeans: the 2026-09-04 vintage holds no MY2026/27 row; the 2026-09-17 vintage
+# holds MY2026/27 from the week to 3 September), so the probe is one national `agg="latest"` read of the next
+# year. No such row -> the year is open (or the store has not yet printed its successor) -> nothing moves.
+#
+# WHAT IS MINTED. The newest row of the closed year carries `period_role` "the last week of the closed
+# <YYYY/YY> year" (the words lane C's label and lane R's figure token print, CONTRACT K2); for a FLOW
+# metric (`period_sum: true` on the card -- shipments, sales booked, net changes; NEVER the outstanding-
+# sales BALANCE) ONE companion read of the SAME series over that year is minted through the query layer's
+# OWN aggregate (`agg="sum"`), never summed here and never by the model. DESTINATION-GRAIN reads only (the
+# contract's scope): a national read's year total is already one `agg="sum"` lookup the model can make.
+ESR_CLOSED_YEAR_KEY = "esr_closed_year"
+
+
+def esr_closed_year_legs(calls: Optional[list], asof: str, query_fn, *,
+                         reg: Optional[NumbersRegistry] = None,
+                         futures_newest_first: bool | str = False) -> tuple[list, dict]:
+    """(companion calls to append, the record) for every destination-grain silver_esr read in ``calls``
+    whose newest week belongs to a marketing year the store shows CLOSED at ``asof`` -- see the block note.
+    The stamp is written ON the served row (``period_role``); the companions are real Q.run reads. Every
+    read that fails or returns nothing is DROPPED and named in the record, never fabricated. ``({}, [])`` when
+    no read qualifies, so a turn with no destination ESR read writes no key."""
+    reg = reg or load_registry()
+    try:
+        ts = reg.get("silver_esr")
+    except Exception:  # noqa: BLE001 -- no card, no rule
+        return [], {}
+    off = int(getattr(ts, "period_offset", 0) or 0)
+    legs: list = []
+    stamped: list = []
+    declined: list = []
+    probed: dict = {}                                   # (commodity, next start year) -> opened?
+    for c in list(calls or []):
+        q = (c or {}).get("query") or {}
+        if str(q.get("table") or "") != "silver_esr" or not q.get("country"):
+            continue
+        if str(q.get("agg") or "latest") in Q.AGGREGATE_AGGS or str(c.get("status") or "") != "ok":
+            continue
+        metric, commodity = str(q.get("metric") or ""), q.get("commodity")
+        rows = [r for r in (c.get("rows") or []) if _cell_float(r) is not None]
+        if not (rows and commodity):
+            continue
+        newest = max(rows, key=lambda r: (str((r or {}).get("data_date") or ""), str((r or {}).get("period") or "")))
+        try:
+            start = int(str(newest.get("period"))[:4]) - off      # the physical END-year label -> START year
+        except (TypeError, ValueError):
+            continue
+        key = (str(commodity), start + 1)
+        if key not in probed:
+            try:
+                nxt = Q.run(_forced_spec(asof, {"table": "silver_esr", "metric": metric, "commodity": commodity,
+                                                "period": str(start + 1), "agg": "latest"}),
+                            query_fn=query_fn, futures_newest_first=futures_newest_first)
+                probed[key] = any(_cell_float(r) is not None for r in nxt)
+            except Exception:  # noqa: BLE001 -- an unreadable probe is an unknown year: nothing moves
+                probed[key] = None
+        if not probed[key]:
+            declined.append({"handle": c.get("handle"), "metric": metric, "year": start,
+                             "reason": ("next_year_not_in_store" if probed[key] is False else "probe_error")})
+            continue
+        my_words = f"{start}/{(start + 1) % 100:02d}"
+        newest["period_role"] = f"the last week of the closed {my_words} year"
+        stamped.append({"handle": c.get("handle"), "metric": metric, "year": my_words})
+        m = (ts.metrics or {}).get(metric)
+        if not bool(getattr(m, "period_sum", None)):
+            continue                                              # a BALANCE is never summed
+        try:
+            spec = _forced_spec(asof, {"table": "silver_esr", "metric": metric, "commodity": commodity,
+                                       "country": q.get("country"), "period": str(start), "agg": "sum"})
+            srows = [r for r in Q.run(spec, query_fn=query_fn, futures_newest_first=futures_newest_first)
+                     if _cell_float(r) is not None]
+        except Exception:  # noqa: BLE001 -- a failed companion is dropped and named
+            declined.append({"handle": c.get("handle"), "metric": metric, "year": my_words,
+                             "reason": "companion_read_error"})
+            continue
+        if not srows:
+            declined.append({"handle": c.get("handle"), "metric": metric, "year": my_words,
+                             "reason": "companion_no_rows"})
+            continue
+        # The aggregate row carries no extras (the agg SQL projects `value` alone), so the as-known stamp of
+        # the year it sums is the newest summed week's own vintage -- the row it is the companion of.
+        for r in srows:
+            if not r.get("knowledge_date") and newest.get("knowledge_date"):
+                r["knowledge_date"] = newest.get("knowledge_date")
+            r["period_role"] = f"the closed {my_words} year, every week summed"
+        legs.append({"query": spec.model_dump(exclude_none=True), "rows": srows, "status": "ok",
+                     "closed_year_of": c.get("handle")})
+    record = {}
+    if stamped or declined:
+        record = {"stamped": stamped, "companions": len(legs), "declined": declined}
+    return legs, record
+
+
 def _esr_aggregate_answer(indexed_legs: list[tuple[int, dict]]) -> Optional[str]:
     """Build the reader-facing decline-WITH-aggregate answer from the aggregate legs and their 1-based [N]
     positions in the calls list. Register-clean, decline-template voice (no mood/valuation words). Returns
@@ -1886,8 +1990,44 @@ def _rv_leg_currency(call: dict) -> Optional[str]:
     return next(iter(cur)) if len(cur) == 1 else None
 
 
+def period_phrase(table: Optional[str], token) -> str:
+    """K8 / K24 (09-24 fix round 2, lane T): ONE observation token in the reader's words AT THE CARD'S OWN
+    PRECISION -- the card's declared ``period_words`` kind (CONTRACT C10), never a guess from the token's
+    shape: ``month`` -> "August 2026", ``day`` -> "22 September 2026", ``week`` -> "the week to 3
+    September 2026", ``marketing_year`` -> the token as the card spells it. A card that declares no kind,
+    or a token that does not parse at that kind, answers the token itself (the row's own words, verbatim).
+    For rows THIS lane mints with no card of their own (the pair spread, the closed-year companion), so the
+    identity lane C and R print reads words, not an ISO stamp. Month names are the query layer's own
+    (``query._MONTH_NUM_TO_NAME``), never a second table."""
+    tok = str(token or "").strip()
+    if not tok:
+        return ""
+    try:
+        ts = load_registry().tables.get(str(table or ""))
+    except Exception:  # noqa: BLE001 -- no card, no kind: the token stands
+        ts = None
+    kind = str(getattr(ts, "period_words", "") or "") if ts is not None else ""
+    ym = tok[:7]
+    mname = Q._MONTH_NUM_TO_NAME.get(ym[5:7], "") if len(ym) == 7 and ym[4] == "-" else ""
+    if kind == "month" and mname and ym[:4].isdigit():
+        return f"{mname} {ym[:4]}"
+    if kind in ("day", "week") and mname and len(tok) >= 10 and tok[8:10].isdigit():
+        words = f"{int(tok[8:10])} {mname} {tok[:4]}"
+        return words if kind == "day" else f"the week to {words}"
+    return tok
+
+
+def _pair_period_words(a: dict, b: dict, token) -> str:
+    """The pair row's period words: the shared observation at the legs' card precision -- ONE kind when
+    both legs' cards declare the same one, else the token verbatim (two precisions cannot be one phrase)."""
+    ta = str(((a or {}).get("query") or {}).get("table") or "")
+    tb = str(((b or {}).get("query") or {}).get("table") or "")
+    wa, wb = period_phrase(ta, token), period_phrase(tb, token)
+    return wa if wa == wb else str(token or "")
+
+
 def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list], *,
-                        level_only: bool = False) -> tuple[list, Optional[str]]:
+                        level_only: bool = False, board: bool = False) -> tuple[list, Optional[str]]:
     """(injected [N] calls, uncomputed reason) for the RV pair leg. EXACTLY ONE of the two is ever
     non-empty, and both are empty/None when the question names no pair at all -- so a turn that is not
     an RV turn takes no branch and writes no key.
@@ -1911,7 +2051,13 @@ def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list], *,
     on a board-lit turn -- the one figure the page owed -- and nothing more. The history spread and its
     percentile rank are HEAD's dark RV leg (GRAPHRAG_RV_PAIR_SPREAD), which that kwarg must not arm on
     every board-on two-market question: with ``level_only`` the calculator takes the LEVEL at the newest
-    shared period (`stats.pair_level_spread`) or refuses in its own words, and no history is read."""
+    shared period (`stats.pair_level_spread`) or refuses in its own words, and no history is read.
+
+    ``board`` (09-24 fix round 2, lane T, CONTRACT K8): the minted row also carries ``leg_order`` -- the
+    two series in the order subtracted, in the reader's words ("world crude palm oil minus world soybean
+    oil") -- and ``period_words``, the observation the figure is taken at, at the legs' card precision
+    ("August 2026"), so the figure token and the label can say which way round and when. Default False ->
+    HEAD's row to the byte."""
     if not scope:
         return [], None
     cands = rv_pair_candidates(calls, scope)
@@ -1927,8 +2073,9 @@ def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list], *,
     a, b = cands[0], cands[1]
     rows_a, rows_b = (a.get("rows") or []), (b.get("rows") or [])
     la, lb = _rv_call_label(a), _rv_call_label(b)
+    _kb = {"board": True} if board else {}                  # K8: omitted when off (HEAD's call)
     if level_only:
-        return _rv_pair_level_legs(scope, a, b, la, lb)
+        return _rv_pair_level_legs(scope, a, b, la, lb, **_kb)
     res = ST.pair_spread(_series_axis(rows_a)[0], _date_axis(rows_a), _rv_leg_unit(a),
                          _series_axis(rows_b)[0], _date_axis(rows_b), _rv_leg_unit(b),
                          label_a=la, label_b=lb)
@@ -1938,7 +2085,7 @@ def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list], *,
         # rapeseed oil 1,474, all USD/mt for 2026-08-01) share ONE observation -- below the history's
         # floor, and exactly what a spread LEVEL needs. The calculator takes it (`stats.
         # pair_level_spread`: equal unit, equal currency, one shared period) or refuses in its own words.
-        return _rv_pair_level_legs(scope, a, b, la, lb)
+        return _rv_pair_level_legs(scope, a, b, la, lb, **_kb)
     if res.get("declined"):
         # The calculator's OWN refusal sentence, verbatim -- never a re-worded one.
         return [], str(res.get("reason") or "pair_spread declined")
@@ -1988,6 +2135,14 @@ def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list], *,
     # 09-23 (lane T): the subject names the two SERIES the figure was computed over; `pair_markets`
     # above keeps the two markets the question named, as routing.
     subject = rv_pair_series_subject(a, b, scope)
+    if board:
+        # K8 (09-24): the order subtracted and the newest joined observation (the one the level IS), in
+        # the reader's words on the row -- the figure token and the label print them.
+        if subject:
+            lab["leg_order"] = subject
+        _pw = _pair_period_words(a, b, dates[-1] if dates else "")
+        if _pw:
+            lab["period_words"] = _pw
 
     def _row(val, metric, unit):
         q = {"table": STATS_TOOL_NAME, "metric": metric}
@@ -2010,7 +2165,8 @@ def rv_pair_spread_legs(scope: Optional[tuple], calls: Optional[list], *,
     return out, None
 
 
-def _rv_pair_level_legs(scope: tuple, a: dict, b: dict, la: str, lb: str) -> tuple[list, Optional[str]]:
+def _rv_pair_level_legs(scope: tuple, a: dict, b: dict, la: str, lb: str, *,
+                        board: bool = False) -> tuple[list, Optional[str]]:
     """THE 09-23 FIX ROUND (lane T, D5): the pair's spread LEVEL at the newest period both legs printed,
     minted as ONE compute_stat-shaped [N] row -- or the calculator's own refusal, verbatim.
 
@@ -2045,6 +2201,16 @@ def _rv_pair_level_legs(scope: tuple, a: dict, b: dict, la: str, lb: str) -> tup
     subject = rv_pair_series_subject(a, b, scope)
     if subject:
         q["commodity"] = subject                  # the reader's name for the pair, in the scope slot
+    if board:
+        # K8 (09-24 fix round 2, lane T): WHICH WAY ROUND AND WHEN, in the reader's words on the row. The
+        # 09-24 soyoil/palm page served N30 = -521 USD/mt and never printed it -- a row naming neither leg
+        # order nor period. `leg_order` is the series subject itself (the first-named leg minus the
+        # second), `period_words` the shared observation at the legs' card precision ("August 2026").
+        if subject:
+            lab["leg_order"] = subject
+        _pw = _pair_period_words(a, b, shared)
+        if _pw:
+            lab["period_words"] = _pw
     return [{"query": q, "rows": [{"value": lv.get("value"), "unit": lv.get("unit"), "knowledge_date": kd,
                                    **lab}],
              "status": "ok", "stat_provenance": prov}], None
@@ -2519,6 +2685,32 @@ def _date_axis(rows: list) -> list[str]:
     return [str(row_date(r) or "") for r in (rows or []) if _cell_float(r) is not None]
 
 
+def _obs_axis(rows: list) -> list[str]:
+    """K5 (09-24 fix round 2, lane T): the OBSERVATION axis a change row states its window on, parallel to
+    `_series_axis` by the SAME drop rule (`_cell_float`). It is `_date_axis`'s own date wherever a row has
+    one, and on a `year_month` card -- whose rows carry `year` and `month` and no date alias at all, so
+    `_date_axis` gives them "" -- the row's own "YYYY-MM". MEASURED on the 09-24 palm/rape turn: the MPOC
+    China and US reads are year_month rows, so their window_change rows (N12, N13) could state no window
+    and the page could not say which months "+170,000 MT" spanned. A row with neither contributes "" --
+    present, so the axes stay aligned, and falsy, so the window stamp refuses rather than guesses.
+
+    SEPARATE FROM `_date_axis` ON PURPOSE: that axis is also the RV pair leg's JOIN key and the
+    GRAPHRAG_STAT_WINDOW period, whose behaviour this round does not move."""
+    out: list[str] = []
+    for r in rows or []:
+        if _cell_float(r) is None:
+            continue
+        d = str(row_date(r) or "")
+        if not d:
+            y, m = (r or {}).get("year"), (r or {}).get("month")
+            try:
+                d = f"{int(y):04d}-{int(m):02d}" if y not in (None, "") and m not in (None, "") else ""
+            except (TypeError, ValueError):
+                d = ""
+        out.append(d)
+    return out
+
+
 def _series_from_rows(rows: list) -> list[float]:
     """The numeric series a handle exposes: the value cell of each row that coerces to a finite number
     (chronological -- the loop appends rows oldest -> newest). Non-numeric / null cells are dropped."""
@@ -2826,9 +3018,29 @@ def _stat_window(stat: str, res: dict, dates: Optional[list]) -> Optional[str]:
     return None if (not a or not b or a == b) else f"{a}..{b}"
 
 
+def _change_window(res: dict, obs: Optional[list]) -> Optional[dict]:
+    """K5: ``{"from", "to"}`` -- the two OBSERVATIONS a `window_change` figure was taken between, read off
+    the source series' own axis (`_obs_axis`) at the calculator's own ``t1`` / ``t2`` (negative indices
+    included, exactly as `stats.window_change` indexed them). None on a misaligned, part-dated or
+    one-observation axis: silence, never a guessed span."""
+    ds = [str(d or "") for d in (obs or [])]
+    try:
+        n = int(res.get("n") or 0)
+        if not ds or len(ds) != n:
+            return None
+        a, b = ds[int(res["t1"])], ds[int(res["t2"])]
+    except (KeyError, TypeError, ValueError, IndexError):
+        return None
+    if not a or not b or a == b:
+        return None
+    return {"from": a, "to": b}
+
+
 def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd: Optional[str],
                 labels: Optional[dict] = None, src_table: Optional[str] = None,
-                src_metric: Optional[str] = None, dates: Optional[list] = None) -> list[dict]:
+                src_metric: Optional[str] = None, dates: Optional[list] = None, *,
+                board: bool = False, obs: Optional[list] = None,
+                src_query: Optional[dict] = None) -> list[dict]:
     """Turn a SUCCESSFUL stats result into one (or, for extrema, two) synthetic lookup call(s) -- each an
     [N] row carrying the computed value so the all-numbers guard value-checks it. A decline injects nothing.
 
@@ -2876,8 +3088,47 @@ def _stat_calls(stat: str, res: dict, prov: dict, series_unit: Optional[str], kd
         return {"query": q, "rows": [{"value": val, "unit": unit, "knowledge_date": kd, **lab}],
                 "status": "ok", "stat_provenance": prov}
     if stat == "extrema":
-        return [_row(res["min"], "extrema_min"), _row(res["max"], "extrema_max")]
-    return [_row(res["value"], stat)]
+        out_x = [_row(res["min"], "extrema_min"), _row(res["max"], "extrema_max")]
+        if board and src_query:
+            for c in out_x:
+                c["rows"][0]["source_query"] = dict(src_query)
+        return out_x
+    out = [_row(res["value"], stat)]
+    if board and src_query:
+        # FIXER PASS (REVIEW_RA M4): under the board kwarg the calculator row carries the SOURCE lookup's own
+        # identity keys, so the ask head names the series it was computed over (its commodity, its scope)
+        # through lane C's one identity reader -- never "(change over the window)" with no commodity.
+        out[0]["rows"][0]["source_query"] = dict(src_query)
+    if board and stat == "window_change":
+        # K5 (09-24 fix round 2, lane T; the board kwarg `answer_numbers` threads, so a flag-off turn is
+        # HEAD's row to the byte): THE CHANGE ROW SAYS IT IS A CHANGE, OVER WHICH TWO OBSERVATIONS, AND
+        # CARRIES THE CALCULATOR'S OWN PERCENT. MEASURED on the 09-24 palm/rape turn: N11-N13 were minted
+        # with period NULL and no pct, so the page could not state the window its "whose stocks moved
+        # more" rows answered, and answered it OPPOSITE to them (+10,289 MT / +0.37 % vs +170,000 MT /
+        # +70.2 %). `stat` / `window` are the board rows' own keys (render.sb_call), which lane C's label
+        # reads for "change from <from> to <to>"; `pct_change` is `stats.window_change`'s own field --
+        # carried, never re-divided -- and rides `shown` beside the change, so the verifier backs either
+        # figure against its one call and nobody divides.
+        row = out[0]["rows"][0]
+        row["stat"] = "window_change"
+        w = _change_window(res, obs)
+        if w:
+            row["window"] = w
+        shown = []
+        try:
+            shown.append(float(res["value"]))
+        except (KeyError, TypeError, ValueError):
+            pass
+        pct = res.get("pct_change")
+        if pct is not None:
+            try:
+                row["pct_change"] = float(pct)
+                shown.append(float(pct))
+            except (TypeError, ValueError):
+                pass
+        if shown:
+            out[0]["shown"] = shown
+    return out
 
 
 # ── PA-1..PA-4 (PROMPT-AUDIT WAVE 1, 2026-08-25) -- THE CARD, RENDERED WHOLE ───────────────────────────
@@ -3791,7 +4042,7 @@ def tables_queried(calls: list) -> list[str]:
 def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU, reg: Optional[NumbersRegistry] = None,
                    query_fn=None, max_calls: int = 6, max_tokens: int = 1500, on_call=None,
                    families: Optional[list] = None, futures_newest_first: bool | str = False,
-                   pair_spread: bool = False) -> dict:
+                   pair_spread: bool = False, closed_year: bool = False) -> dict:
     """Run the agent loop. `client` = an anthropic.Anthropic (real = billed); `query_fn(sql)->rows` overrides Athena
     (tests). Returns {answer, calls:[{query, rows}]} — calls carry the exact provenance behind every number.
     `on_call(n_calls, table)` (default None = byte-identical) fires after each executed lookup — the SSE
@@ -3816,7 +4067,16 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
     the calculator mints the spread row the page owes, or the turn records why it could not -- and it
     moves NOTHING else: the system prompt is built without it (the cached numbers prefix is byte-
     identical; only the dark GRAPHRAG_RV_PAIR_SPREAD env adds the RV mandate there). Default False ->
-    every turn is byte-identical to HEAD."""
+    every turn is byte-identical to HEAD.
+
+    THE 09-24 FIX ROUND 2 (lane T) reads the SAME board kwarg for two more stamps on rows this lane mints
+    -- K5 (a `window_change` row carries its `stat`, its two-observation `window` and the calculator's
+    own `pct_change`) and K8 (the pair row carries `leg_order` and `period_words`) -- and adds ONE kwarg,
+    `closed_year` (CONTRACT K24; the orchestrator's seam edit 2 threads it beside `pair_spread`, under the
+    board flag only): a destination-grain export-sales read whose newest week belongs to a marketing year
+    the STORE shows closed stamps that row `period_role` and mints ONE companion read of the same series
+    over that year through the query layer's own `agg="sum"` (`esr_closed_year_legs`). Both kwargs build
+    nothing into the prompt; both default False -> HEAD's turn to the byte."""
     # D-AM-5's seat seam, THIRD instance (2026-08-23, the A/B seat wave's lever): env fills the DEFAULT
     # only, exactly like GRAPHRAG_SYNTH_MODEL (answer.py:8766) and GRAPHRAG_DISPATCH_MODEL (dispatch.py:662)
     # -- an explicit caller model always wins, env unset is byte-identical. The docstring's no-env doctrine
@@ -4145,8 +4405,12 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                 # states: a decline that could not see an injected leg is the wrong decline.
                 # the board-flag kwarg arms the spread LEVEL only (review WT M-3 (c)); the history spread
                 # and its rank stay behind their own dark flag, exactly as at HEAD
+                # K8 (09-24): the board kwarg also names the minted row's leg order and period words --
+                # OMITTED when off, so HEAD's exact call runs on every flag-off turn.
+                _k8 = {"board": True} if pair_spread else {}
                 rv_legs, rv_reason = rv_pair_spread_legs(rv_scope, calls,
-                                                         level_only=bool(pair_spread and not _rv_pair_on()))
+                                                         level_only=bool(pair_spread and not _rv_pair_on()),
+                                                         **_k8)
                 for leg in rv_legs:
                     calls.append(leg)
                     hseq += 1
@@ -4156,12 +4420,34 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                     handles[h] = {"series": _series_from_rows(_rvrows), "kd": _handle_kd(_rvrows),
                                   "unit": (_rvrows[0].get("unit") if _rvrows else None)}
                 if rv_legs:
-                    result["rv_pair_spread"] = {"legs": len(rv_legs), "markets": list(rv_scope)}
+                    # K8 (09-24): `legs` keeps its HEAD position AND meaning (the number of rows this leg
+                    # appended -- the 09-24 threat model read it as legs RESOLVED, which it never was);
+                    # `rows_minted` names that count for what it is and `source` says which producer
+                    # minted it ("seat" -- the board's tape spread is lane R's and stamps "tape"). TAIL.
+                    result["rv_pair_spread"] = {"legs": len(rv_legs), "markets": list(rv_scope),
+                                                "rows_minted": len(rv_legs), "source": "seat"}
                 elif rv_reason:
                     # A RECORD, NEVER A REFUSAL TO THE READER: the answer is untouched and no preface is
                     # minted. This key is the measurement of the miss -- the one thing the smoke could
                     # not see when a page printed two prices and said the gap "is not a served series".
                     result[RV_PAIR_UNCOMPUTED_KEY] = {"markets": list(rv_scope), "reason": rv_reason}
+            if closed_year:
+                # K24 (09-24 fix round 2, lane T; OWNER DECISION O-12 (a)): THE CLOSED MARKETING YEAR ON A
+                # WEEKLY SERIES, in the ESR / pattern-records / RV idiom -- real [N] provenance appended after
+                # the model stops, BEFORE the C2 verdict below for the reason the RV branch states. Gated on
+                # the threaded board kwarg alone; this function reads no environment for it.
+                cy_legs, cy_record = esr_closed_year_legs(calls, asof, query_fn, reg=reg,
+                                                          futures_newest_first=futures_newest_first)
+                for leg in cy_legs:
+                    calls.append(leg)
+                    hseq += 1
+                    h = f"L{hseq}"
+                    leg["handle"] = h
+                    _cyrows = leg.get("rows") or []
+                    handles[h] = {"series": _series_from_rows(_cyrows), "kd": _handle_kd(_cyrows),
+                                  "unit": (_cyrows[0].get("unit") if _cyrows else None)}
+                if cy_record:
+                    result[ESR_CLOSED_YEAR_KEY] = cy_record
             if shape:
                 # C2 (D3): the shape verdict, taken LAST and against the FINAL call list -- the ESR aggregate
                 # and pattern-records branches above append real legs, and a decline that could not see them
@@ -4429,9 +4715,13 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
             if stat == "zscore" and res.get("window") is not None:
                 prov.setdefault("params", {})["window"] = res["window"]
             sh = handles.get(inp.get("series_handle")) or {}
+            # K5 (09-24 fix round 2): the board kwarg arms the change row's window / pct stamp; OMITTED when
+            # off, so a flag-off stat row is minted by HEAD's exact call.
+            _k5 = ({"board": True, "obs": sh.get("obs"), "src_query": sh.get("src_query")}
+                   if pair_spread else {})
             injected = _stat_calls(stat, res, prov, sh.get("unit"), sh.get("kd"), sh.get("labels"),
                                    sh.get("src_table"), sh.get("src_metric"),
-                                   dates=sh.get("dates"))
+                                   dates=sh.get("dates"), **_k5)
             # K9-5 FIX-CYCLE (2026-09-09), REVIEW MAJOR-2 -- THE DETERMINISTIC HALF OF THE SCALE RULE.
             # `_stat_unit` derives the row's unit at the mint (a DIFFERENCE over a percent series is `pp`),
             # and the citation label, the numbers panel and the `## Sources` footer all read that ONE
@@ -4526,9 +4816,18 @@ def answer_numbers(question: str, asof: str, *, client=None, model: str = HAIKU,
                               # (`_date_axis` drops exactly the rows `_series_axis` drops). Two readers:
                               # the stat window on the injected row, and the RV pair leg's join key.
                               "dates": _date_axis(_rows),
+                              # K5 (09-24): the observation axis a change row names its window on --
+                              # `_date_axis` plus the year_month cards' own "YYYY-MM". Internal to the
+                              # handle; read only by the board-armed window stamp.
+                              "obs": _obs_axis(_rows),
                               "labels": _handle_labels(_rows),
                               "src_table": (_srcq.get("table") or None),
-                              "src_metric": (_srcq.get("metric") or None)}
+                              "src_metric": (_srcq.get("metric") or None),
+                              # FIXER PASS (REVIEW_RA M4): the lookup's OWN identity keys, so a board-armed
+                              # calculator row can name the series it was computed over (internal to the
+                              # handle; stamped on a row only under the board kwarg)
+                              "src_query": {k: _srcq.get(k) for k in ("table", "metric", "commodity",
+                                                                      "country", "region") if _srcq.get(k)}}
             else:                                                  # unknown tool (or stats off) -> honest error
                 content = {"status": "error", "error": f"unknown tool {name!r}"}
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(content)[:6000]})

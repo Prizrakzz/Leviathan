@@ -662,6 +662,25 @@ TRACE_RECORD_KEYS: tuple[str, ...] = (
                                  # "SILVER NUMBERS" panel) as the writer received it -- the twin of the
                                  # board's own BoardBlockChars, so a seat-vs-board size is a measurement
                                  # rather than a +/-15% estimate. 0 on a turn that carried no block.
+    # ── THE LEDGER / DISPLAY STAMPS (09-24 fix round 2, lane A; CONTRACT K20), APPENDED AT THE TAIL IN ONE
+    # COMMIT, IN THIS ORDER, so the negative-index tail pins re-anchor ONCE, BY THREE. THE DEFECT: the three
+    # facts every 09-24 [E] and precision finding had to be reconstructed from -- which addresses the ONE
+    # evidence ledger issued past the menu (K1), what the writer DECLARED in its own sources ledger before
+    # the verifier corrected it, and whether the numbers block the writer copied was stamped at analyst
+    # precision (K7) -- reached no artifact. All three are stamped by `answer._answer_l2` ONLY under
+    # GRAPHRAG_STATE_BOARD (the ledger key only when the board ran), so a control row lifts them as None --
+    # PRESENT-WITH-NULL, the registry's own shape; the flag-off record is HEAD's columns plus three Nones.
+    "evidence_ledger",           # `citations.EvidenceLedger.stamp()`: {menu_n, registered, extra_chunks,
+                                 # unaddressed} -- menu_n is the [E] rows the MENU numbered, `registered`
+                                 # the addresses the board's rows took, `unaddressed` the receipts that
+                                 # carried no source_key and so printed no [E] at all.
+    "sources_ledger",            # the writer's DECLARED `structured["sources"]`, taken BEFORE the verifier
+                                 # corrects it: [{ref, source, date}] only (no snippet), so a
+                                 # `ledger_declared_mismatch` can be read against what was declared.
+    "numbers_display",           # {"stamped": bool, "calls": n}: whether the turn's number calls carried
+                                 # CONTRACT C3's `display: "analyst"` stamp when the footer/seam read them,
+                                 # and over how many calls (the orchestrator's seam edit 1 stamps the
+                                 # writer's own numbers block the same way under the same flag).
 )
 
 # out["intent_decision"][decision_key] -> record[record_column].

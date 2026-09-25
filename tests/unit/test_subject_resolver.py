@@ -537,8 +537,14 @@ def test_an_FE_focus_driver_OUTRANKS_a_differing_subject_and_NEVER_silences_it(g
     anchor, the precedence orders them, and the seam stamps the disagreement."""
     # `HLB` sits on ONE board and `El_Nino` on thirty-five, so the two gestures overlap on exactly
     # that one -- which is what makes the collapse visible instead of theoretical.
+    # 09-24 FIX ROUND (CONTRACT K9, RE-BANKED): a subject anchors ONLY inside the question's own reach
+    # -- the markets it named or planned and the boards that DRIVE them -- so the question names two
+    # markets here (orange juice, where HLB sits, and corn, whose drivers carry El Nino); with no market
+    # of its own a question gives a subject nothing to be bounded by and it anchors nothing.
     anchors = W.resolve_anchors(graph=graph, focus_driver="HLB", subject=("El_Nino",),
-                                max_contracts=0)
+                                named=("frozen_orange_juice", "corn_cbot"), max_contracts=0)
+    assert not W.resolve_anchors(graph=graph, subject=("El_Nino",), max_contracts=0), \
+        "no question market, no reach, no subject anchor"
     srcs = [a.source for a in anchors]
     assert "focus_driver" in srcs and "subject" in srcs
     assert srcs.index("focus_driver") < srcs.index("subject"), "the CLICK outranks the inference"
@@ -814,8 +820,17 @@ def test_the_D6_EXAMPLE_ITSELF_corn_leads_and_the_El_Nino_boards_FOLLOW(graph):
     followers = [a.contract for a in anchors[1:]]
     assert followers, "the fan-out disappeared"
     assert all(any(d.id == "El_Nino" for d in graph.contracts[c].drivers) for c in followers)
-    assert "robusta_coffee" in followers, followers      # the board that LED before the amendment
-    assert len(anchors) == 35, len(anchors)             # every board carrying the id, corn first
+    # 09-24 FIX ROUND (CONTRACT K9, RE-BANKED): THE FOLLOWERS ARE THE EL NINO BOARDS IN CORN'S OWN REACH
+    # -- the boards that DRIVE corn by a declared edge -- and no longer all thirty-five. HEAD pinned
+    # "robusta_coffee in followers" and 35 anchors: that is the alphabet-anchoring class the 09-24
+    # re-smoke measured (cocoa and rice anchored arabica coffee, the soybean turns a safrinha corn board).
+    # Corn leads exactly as the D6 amendment says; what follows it is what the graph says drives it.
+    reach = dict(W.question_reach(graph, named=("corn_cbot",)))
+    assert set(followers) <= {s for s, d in reach.items() if d == 1}, (followers, reach)
+    assert "robusta_coffee" not in followers, followers
+    assert all(a.distance == reach[a.contract] for a in anchors), [(a.contract, a.distance) for a in anchors]
+    assert len(anchors) == 1 + sum(1 for s, d in reach.items() if d == 1
+                                   and any(dd.id == "El_Nino" for dd in graph.contracts[s].drivers))
 
 
 def test_the_named_market_SURVIVES_the_anchor_cut_and_leads_the_block(graph):
@@ -832,7 +847,9 @@ def test_the_named_market_SURVIVES_the_anchor_cut_and_leads_the_block(graph):
         rest = [a for a in bd.anchors if a not in held][:max(0, kn.max_anchors - len(held))]
         kept = held + rest
         assert kept[0].contract == "corn_cbot", (mode, [a.contract for a in kept[:3]])
-        assert len(kept) == max(kn.max_anchors, len(held)), mode
+        # 09-24 FIX ROUND (CONTRACT K9, RE-BANKED): the subject's boards are corn's REACH now, which can
+        # sit under the tier's ceiling -- the trim fills at most what exists.
+        assert len(kept) == min(len(bd.anchors), max(kn.max_anchors, len(held))), mode
 
 
 def test_positionings_context_only_EXCEPTION_is_LIVE_on_the_RESOLVED_path(graph):
@@ -847,7 +864,11 @@ def test_positionings_context_only_EXCEPTION_is_LIVE_on_the_RESOLVED_path(graph)
     assert pos == ("cot_mm_positioning",), pos
     fe = W.resolve_anchors(graph=graph, focus_driver="cot_mm_positioning", positioning_ids=pos,
                            max_contracts=0)
+    # 09-24 FIX ROUND (CONTRACT K9, RE-BANKED): a resolved subject anchors only inside the question's own
+    # reach, so the question here NAMES the boards the FE click reaches -- the comparison D6 asks for
+    # ("every board the FE path flags, the resolved path flags too") is then board for board.
     sub = W.resolve_anchors(graph=graph, subject=("cot_mm_positioning",), positioning_ids=pos,
+                            named=tuple(sorted({a.contract for a in fe if a.subject})),
                             max_contracts=0)
     assert fe and sub
     assert all(a.subject for a in fe), "the FE path lost the positioning flag"

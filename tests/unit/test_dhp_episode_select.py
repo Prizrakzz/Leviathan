@@ -555,13 +555,13 @@ def test_the_trace_key_is_registered_at_the_tail_with_its_denominator():
     RE-ANCHORED A FIFTH TIME (2026-09-01): five keys APPENDED after THAT -- timing_ms (Q-0 S0), then
     xc_open_pair + xc_open_decline (D-XT, 08-29), then xc_regional_decline + quantify_rv_reading_fenced
     (the RV lane, 08-29). Tail moved by five; same invariant, new offsets."""
-    assert tk.TRACE_RECORD_KEYS[-24] == "episode_spans_validated"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-23] == "plan_tokens"  # lane F re-pin: +4. NOT `plan_usage`:
+    assert tk.TRACE_RECORD_KEYS[-27] == "episode_spans_validated"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-26] == "plan_tokens"  # lane F re-pin: +4. NOT `plan_usage`:  # 09-24 K20: +3
     #                                                        # the SIZE of the writer's popped plan
     #                                                        # region, never the planner's tokens
-    assert tk.TRACE_RECORD_KEYS[-22] == "evidence_slot_dropped"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-21] == "evidence_geo_dropped"  # lane F re-pin: +4
-    assert tk.TRACE_RECORD_KEYS[-20] == "tables_queried"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-25] == "evidence_slot_dropped"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-24] == "evidence_geo_dropped"  # lane F re-pin: +4  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-23] == "tables_queried"  # lane F re-pin: +4  # 09-24 K20: +3
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
     assert set(an._validate_episode_spans({"mechanism": _mech(_BACKED_A)}, _injected())) == \
         {"spans_checked", "bullets_dropped", "section_seen"}          # RE-ANCHORED, H1b fold-1 F4

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from leviathan.graphrag import extract as ex  # ex._CFG -> configs/graphrag
 
@@ -104,6 +104,80 @@ class Metric(BaseModel):
     #                                                          cells (a basin / member-country share), never one
     #                                                          region's reading -- read by the citation's axis
     #                                                          words; never printed in the numbers prompt
+    # -- THE 09-24 FIX ROUND 2, LANE T (CONTRACT K2 / K22 / K24 / item 28f): FOUR MORE OPTIONAL FIELDS, NEVER
+    # PRINTED. The same law as the four above: `agent._metric_line` renders `unit` / `label` / `desc` and
+    # nothing else, so the cached numbers prefix cannot see any of them (B9 sha pin). All default None.
+    figure_basis: Optional[str] = None                       # K2: the QUALIFIER that follows the unit in the
+    #                                                          figure token -- "10.72 % of domestic use",
+    #                                                          "879.05 1000 MT booked in the week". DIGIT-FREE
+    #                                                          (config_check `numbers_card_fields`): the claim
+    #                                                          extractor must never read a basis as a figure.
+    definition_phrases: Optional[list[str]] = None           # item 28f: phrases the metric's own DEFINITION
+    #                                                          carries ("at or beyond +2 sigma" on a basin
+    #                                                          tail share) -- a threshold of the definition,
+    #                                                          never a claim; each must be a substring of this
+    #                                                          metric's own `desc` (config_check), so the
+    #                                                          phrase is the card's words, never a list typed
+    #                                                          beside the verifier (lane V masks it)
+    aggregate_labels: Optional[dict[str, str]] = None        # FIXER PASS (REVIEW_WT MAJOR-4 / RA M9): the
+    #                                                          metric's NAME under a query-layer aggregate
+    #                                                          (`query.AGGREGATE_AGGS`), keyed by the agg --
+    #                                                          the ESR card's summed weekly shipments are
+    #                                                          "export shipments", never "weekly exports";
+    #                                                          DIGIT-FREE, register-clean, keys in
+    #                                                          AGGREGATE_AGGS (config_check); never printed
+    #                                                          in the numbers prompt (B9)
+    period_sum: Optional[bool] = None                        # K24: True = a per-period FLOW whose total over
+    #                                                          a longer span IS the sum of its rows (weekly
+    #                                                          shipments, weekly sales booked); False = a
+    #                                                          STOCK or a balance (outstanding sales), which
+    #                                                          is never summed. None = undeclared = no
+    #                                                          companion sum is ever minted for it.
+    unit_from_sheet: Optional[bool] = None                   # K22: True = this metric's served unit is the
+    #                                                          unit its SOURCE SHEET declares (TableSpec
+    #                                                          `sheets`), stamped post-fetch -- the WASDE
+    #                                                          quantity lines, whose raw `unit` column is
+    #                                                          blank on class / world sheets and garbled on
+    #                                                          the products sheet ("1 Thousand Short2 Tons 3 4")
+
+
+class SheetSpec(BaseModel):
+    """K22 (09-24 fix round 2, lane T): ONE SOURCE SHEET a vintage card's rows were printed on, keyed by the
+    transform's own stable table id (silver_wasde ``source_table_id``, ``usda_wasde_silver.source_table_id``
+    over the heading). The transform keys a sheet's rows to ONE commodity by its heading
+    (``_TABLE_COMMODITY_PATTERNS``, first match wins) and to ``table_type`` us/world -- so a CLASS sheet
+    ("U.S. Long-Grain Rice"), a PRODUCTS sheet ("U.S. Soybeans and Products", whose rows are the MEAL
+    sub-table) and the commodity's own ALL-CLASS balance sheet all land in ONE numbers grain, and HEAD's
+    last tiebreak (``source_table_id ASC``) picked among them BY ALPHABET: the soybean MEAL sheet answered
+    "US soybean production" on 2024-02-08 and the long-grain class answered "US rice" on 2026-09-11.
+
+    MEASURED, NEVER TYPED FROM MEMORY: every entry is a sheet the P-2 census found on the store
+    (fix_round_0924/t_work/p2, all 473 release partitions read, 2026-09-24), with what its rows ARE read off
+    the served VALUES (the class sheet's 103.5 M cwt beside the total's 158.2; the products sheet's 54,154
+    thousand short tons beside the beans' 4,165 million bushels).
+
+    ``serves`` is ``all_classes`` for the commodity's own whole balance sheet (the one a lookup of that
+    commodity MEANS), else the words for the one class or product the sheet prints. ``unit`` is the unit
+    of the sheet's QUANTITY lines, spelled EXACTLY as the source prints it where the source prints it right
+    (so a correct row's bytes never move), "" where the sheet mixes products (blank beats a false unit)."""
+    model_config = ConfigDict(extra="forbid")
+    commodity: str
+    scope: Literal["us", "world"]
+    serves: str
+    unit: str = ""
+
+
+class CommodityFamily(BaseModel):
+    """K22 (09-24 fix round 2, lane T): ONE published sheet fanned out over several contract slugs (the
+    silver_psd notes' own families, stated there in prose since the fan-out landed). ``class_scope:
+    all_classes`` says the sheet is USDA's ALL-CLASS aggregate whichever member keyed it -- "US wheat, all
+    classes" on a soft-red-winter slug -- the card's rule the row identity reads (``class_scope()``),
+    generalising the per-slug ``@rough_rice_cbot`` reading-words line instead of copying it per slug."""
+    model_config = ConfigDict(extra="forbid")
+    members: list[str]
+    class_scope: Optional[Literal["all_classes"]] = None
+    basis: Optional[str] = None                              # a basis every member's figure carries
+    #                                                          ("milled basis" on the rice sheet)
 
 
 class VintageTiebreakTerm(BaseModel):
@@ -468,6 +542,29 @@ class TableSpec(BaseModel):
     #                                                          PeriodFirstKnown model and STORED as the plain
     #                                                          dict every reader tests for (lane C's
     #                                                          `feeders.period_gap` reads `isinstance(.., dict)`)
+    # -- THE 09-24 FIX ROUND 2, LANE T (CONTRACT K22): THE SHEET A ROW WAS PRINTED ON, NEVER PRINTED ------
+    # `agent._table_card` renders none of these (B9 sha pin). All default None = undeclared = HEAD's SQL.
+    table_type_col: Optional[str] = None                     # the column whose value is the sheet CLASS a row
+    #                                                          was printed on (silver_wasde `table_type`:
+    #                                                          us | world) -- projected on every served row as
+    #                                                          `table_type` (the one contract name lane C reads)
+    sheet_col: Optional[str] = None                          # the column holding the transform's stable SHEET
+    #                                                          id (silver_wasde `source_table_id`). It rides the
+    #                                                          SELECT under the internal alias `_sheet`, is
+    #                                                          CONSUMED post-fetch by the sheet-unit stamp and
+    #                                                          STRIPPED before any row is returned -- the
+    #                                                          `roll_input_cols` precedent: never a served key
+    sheets: Optional[dict[str, SheetSpec]] = None            # {sheet id: SheetSpec} -- see SheetSpec. The
+    #                                                          `serves: all_classes` sheets, IN DECLARATION
+    #                                                          ORDER, are the commodity's own balance sheets:
+    #                                                          `_sheet_precedence` inserts them as a role_order
+    #                                                          tiebreak ahead of the alphabetical final term,
+    #                                                          so a lookup of a commodity serves ITS sheet
+    #                                                          whenever that sheet printed the grain
+    commodity_families: Optional[dict[str, CommodityFamily]] = None
+    #                                                          {family word: CommodityFamily} -- the published
+    #                                                          sheets fanned out over several slugs, with the
+    #                                                          all-class rule the row identity reads
 
     @field_validator("period_first_known", mode="before")
     @classmethod
@@ -477,6 +574,35 @@ class TableSpec(BaseModel):
         if v is None:
             return None
         return PeriodFirstKnown.model_validate(v).model_dump()
+
+    @model_validator(mode="after")
+    def _sheet_precedence(self):
+        """K22: THE COMMODITY'S OWN SHEET OUTRANKS EVERY OTHER SHEET IN ITS GRAIN -- derived HERE, from the
+        ONE ``sheets`` declaration, so the precedence can never be a second list that drifts from it.
+
+        The term is a ``role_order`` rank on ``sheet_col`` over the ``serves: all_classes`` sheets in
+        declaration order, INSERTED IMMEDIATELY BEFORE the card's plain final term on the same column
+        (``source_table_id ASC``) -- so it decides ONLY where the role rank and the release-relative
+        projection-month rank above it tie, which is exactly where HEAD fell through to the alphabet.
+        A grain printed on ONE sheet is untouched (a rank over one sheet is a no-op); a release in which
+        the commodity's own sheet did not print the grain keeps HEAD's pick. The SQL CASE and the Python
+        oracle (``query._vintage_cmp``) both read the same term, so the engines agree by construction.
+        Undeclared (every card but silver_wasde) -> nothing is inserted -> byte-identical SQL."""
+        if not (self.sheets and self.sheet_col):
+            return self
+        own = [sid for sid, sp in self.sheets.items() if str(sp.serves) == "all_classes"]
+        if not own:
+            return self
+        if any(t.col == self.sheet_col and list(t.role_order) == own for t in self.vintage_tiebreak):
+            return self                                      # idempotent: a re-validated spec is not re-ranked
+        term = VintageTiebreakTerm(col=self.sheet_col, role_order=own)
+        terms = list(self.vintage_tiebreak)
+        idx = next((i for i in range(len(terms) - 1, -1, -1)
+                    if terms[i].col == self.sheet_col and not terms[i].role_order
+                    and not terms[i].match_release_month), len(terms))
+        terms.insert(idx, term)
+        self.vintage_tiebreak = terms
+        return self
 
     def knowledge_col(self) -> Optional[str]:
         """The single column the as-of guard filters on. None for year_month (guarded on year*100+month)."""
@@ -999,3 +1125,79 @@ def unit_scale_words(path: Optional[str] = None) -> frozenset:
     """The scale words a writer may put in front of a unit ("622.69 thousand MT", "35.82 M ha")."""
     vals = _raw_config_blocks(path).get("unit_scale_words") or []
     return frozenset(s for s in (normalise_unit_phrase(v) for v in vals if isinstance(v, str)) if s)
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE 09-24 FIX ROUND 2, LANE T -- THE READERS OF THE ROUND'S CARD FIELDS (CONTRACT K2 / K22 / item 28f)
+# ---------------------------------------------------------------------------------------------------
+# Every reader NEVER RAISES and NEVER DEFAULTS A VALUE: an unknown card, an unknown metric or a card that
+# declares nothing answers the EMPTY value of its type, so a caller's own fallback (HEAD's behaviour) is
+# the one that runs. Read by lane R (the row identity / figure token), lane C (the label) and lane V (the
+# definition mask) DEFENSIVELY -- `getattr(registry, name, None)` -- so each lane is green before this one.
+def _metric_spec(table: str, metric: str, reg: Optional[NumbersRegistry] = None):
+    try:
+        return (reg or load_registry()).get(str(table)).metrics.get(str(metric))
+    except Exception:  # noqa: BLE001 -- an unknown card declares nothing
+        return None
+
+
+def figure_basis(table: str, metric: str, reg: Optional[NumbersRegistry] = None) -> str:
+    """K2: the qualifier that follows the unit in ONE metric's figure token ("of domestic use", "shipped
+    in the week"), or "" where the card declares none. Digit-free by the config lint."""
+    m = _metric_spec(table, metric, reg)
+    return str(getattr(m, "figure_basis", None) or "") if m is not None else ""
+
+
+def definition_phrases(table: Optional[str] = None, metric: Optional[str] = None,
+                       reg: Optional[NumbersRegistry] = None):
+    """Item 28f: the phrases ONE metric's own definition carries -- a TUPLE for ``(table, metric)``, ``()``
+    where it declares none -- or, called with neither argument, EVERY declaration on the loaded registry as
+    ``{(table, metric): tuple}``. Each phrase is a substring of its metric's own ``desc`` (config lint), so
+    the verifier masks the card's words and never a list typed beside it."""
+    if table is None and metric is None:
+        out: dict = {}
+        try:
+            tables = (reg or load_registry()).tables
+        except Exception:  # noqa: BLE001
+            return out
+        for tid, ts in tables.items():
+            for mid, m in (ts.metrics or {}).items():
+                ph = tuple(str(p) for p in (getattr(m, "definition_phrases", None) or []) if str(p).strip())
+                if ph:
+                    out[(tid, mid)] = ph
+        return out
+    m = _metric_spec(str(table or ""), str(metric or ""), reg)
+    if m is None:
+        return ()
+    return tuple(str(p) for p in (getattr(m, "definition_phrases", None) or []) if str(p).strip())
+
+
+def class_scope(table: str, commodity: str, reg: Optional[NumbersRegistry] = None) -> dict:
+    """K22: the published family ONE commodity slug belongs to on ONE card, with its class rule --
+    ``{"family", "class_scope", "basis", "members"}`` -- or ``{}`` where the slug is in no declared
+    family. ``class_scope == "all_classes"`` means the row is USDA's ALL-CLASS aggregate whichever member
+    keyed it ("US wheat, all classes" on the soft-red-winter slug), which is the card's own rule and the
+    identity's to print."""
+    try:
+        ts = (reg or load_registry()).get(str(table))
+    except Exception:  # noqa: BLE001
+        return {}
+    fams = getattr(ts, "commodity_families", None) or {}
+    c = str(commodity or "")
+    for fam, spec in fams.items():
+        if c and c in (spec.members or []):
+            return {"family": str(fam), "class_scope": str(spec.class_scope or ""),
+                    "basis": str(spec.basis or ""), "members": tuple(spec.members or [])}
+    return {}
+
+
+def sheet_spec(table: str, sheet_id: str, reg: Optional[NumbersRegistry] = None) -> dict:
+    """K22: ONE declared source sheet as a plain dict (``commodity``, ``scope``, ``serves``, ``unit``), or
+    ``{}`` for a sheet the card does not declare -- which the served path reads as "leave the row's own
+    unit alone" (an undeclared sheet is HEAD's row, never a guessed one)."""
+    try:
+        ts = (reg or load_registry()).get(str(table))
+    except Exception:  # noqa: BLE001
+        return {}
+    sp = (getattr(ts, "sheets", None) or {}).get(str(sheet_id or ""))
+    return sp.model_dump() if sp is not None else {}

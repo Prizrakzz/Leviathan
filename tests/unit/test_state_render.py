@@ -959,7 +959,11 @@ def test_a_convergence_row_names_ONLY_the_rows_that_CARRY_AN_N_z(scenarios):
     assert "one of the four conditions it names is showing here" in trade[0], "the READ count"
     # RE-ANCHORED (review round 3, NEW-2): the total is the COUNTED one, not "on this page".
     assert "so four of the four are counted here" in trade[0], "the TOTAL still stands"
-    assert "(export pace lag, with its own [N] z)" in trade[0], "only the READ row carries a z"
+    # 09-24 RE-BANK (ITEM 2, CONTRACT K3 R half -- DM1): the pattern roster names each READ condition by the
+    # series it serves plus "read here for <driver>", never by the driver's humanised id alone (the rice page
+    # handed a writer "the India export ban" for an exports row). The READ row still alone carries a z.
+    assert "(weekly export shipments, read here for export pace lag, with its own [N] z)" in trade[0], \
+        "only the READ row carries a z"
     assert "China import tariff" in trade[0] and "no series read here" in trade[0]
     # THE QUORUM ROW CARRIES NO FIRING CLAIM AND NO INTERNAL VOCABULARY (lane D, 2026-09-17).
     # `walk.CONVERGENCE_BANNED_WORDS` puts firing with `firing.fire_contract`, so the row states the
@@ -1161,7 +1165,10 @@ def test_B7_the_palm_row_is_computed_on_the_SHIFTED_series_and_not_only_labelled
             if h[0] == "SB-1" and l.startswith("- [N") and "on CME palm oil" in l
             and "read here for El Nino:" in l]
     # THE PERIOD AT ITS OWN PRECISION, AND THE OFFSET IN THE ROW'S OWN NAME (09-23, C1 / L2).
-    assert line and "February 2026, read six months back" in line[0], line
+    # 09-24 RE-BANK (CONTRACT K2 -- DM1): the period at its own precision moved INTO the figure token the
+    # writer copies ("-0.67 degC, February 2026"); the offset stays in the row's own name.
+    assert line and "read six months back -- the reading whose declared lag lands now" in line[0], line
+    assert "degC, February 2026;" in line[0], line
     assert "oni_climate" not in line[0], "an internal ref reached a reader"
 
 
@@ -1269,7 +1276,9 @@ def test_the_CO_LOUD_stanza_REACHES_the_render_and_wears_the_classes_6_2_ALREADY
     # content, it is letters-only and it mints no handle, so the [N] address space is untouched.
     assert set(R.ROW_CLASSES) == {"SB-H", "SB-1", "SB-V", "SB-T", "SB-O", "SB-W", "SB-R", "SB-E",
                                   "SB-J", "SB-D", "SB-F", "SB-C", "SB-M", "SB-P", "SB-A", "SB-L",
-                                  "SB-X", "SB-JOIN", "SB-LEAD"}
+                                  "SB-X", "SB-JOIN", "SB-LEAD", "SB-ASK"}
+    # 09-24 (CONTRACT K8): SB-ASK -- the head's asked rows, spread and horizon -- is a FIGURE class.
+    assert "SB-ASK" in R.FIGURE_CLASSES
     assert "SB-LEAD" not in R.FIGURE_CLASSES and "SB-LEAD" not in R.DATE_ONLY_CLASSES
 
 
@@ -1799,8 +1808,11 @@ def test_S7r3_the_ANALOG_OUTCOME_takes_the_SAME_card_scale_as_the_SB1_row_above_
          "near_value": 0.02, "far_value": 0.05, "near_date": "2027-12-31", "far_date": "2028-12-31"}
     assert R._outcome_scale(o, scales) == 100.0
     line, calls = R.sb_analog_outcome(11, o, asof="2026-09-07", scale=R._outcome_scale(o, scales))
-    assert "moved 2 % by the time that lag opened" in line, line
-    assert "moved 5 % by the time it closed" in line, line
+    # 09-24 RE-BANK (CONTRACT K5 -- DM1): each end is a CHANGE row and prints SIGNED ("+2 %"), so a change
+    # can never read as a level of the same series.
+    assert "moved +2 % by the time that lag opened" in line, line
+    assert "moved +5 % by the time it closed" in line, line
+    assert all(c["rows"][0].get("stat") == "window_change" for c in calls), calls
     assert abs(float(calls[0]["shown"][0]) - 2.0) < 1e-9
     assert abs(float(calls[1]["shown"][0]) - 5.0) < 1e-9
     assert R.classify(line) == ("SB-O",)
@@ -1808,7 +1820,7 @@ def test_S7r3_the_ANALOG_OUTCOME_takes_the_SAME_card_scale_as_the_SB1_row_above_
     bm = dict(o, table="silver_pink_sheet", metric="price")
     assert R._outcome_scale(bm, scales) == 1.0
     bline, _ = R.sb_analog_outcome(11, bm, asof="2026-09-07", scale=R._outcome_scale(bm, scales))
-    assert "moved 0.02 %" in bline, bline
+    assert "moved +0.02 %" in bline, bline
     # TWO CARDS THAT SHARE ALL FOUR JOIN FIELDS AND DISAGREE ON SCALE REFUSE TO SCALE rather than
     # guessing: printing one of the two would be a figure this render invented.
     st2 = state_from_arrays("psd_ending_stock_su_ratio", [0.13] * 9, d, cadence="annual",
@@ -2796,6 +2808,27 @@ def test_S8R4_the_OUTCOME_row_states_the_SAMPLE_and_its_DENOMINATOR_in_one_noun(
             assert want in blk.text(), (mode, want)
         for line in _chain_rows(blk, "chain_outcome"):
             assert R.register_hits(line) == [], (mode, line[:120])
+    # FIX ROUND 2, fixer pass (the declared K13 move, REVIEW_WT MINOR-2 / integrator F-7-class re-bank): the
+    # fixture's only priced chain is La Nina-rooted on a warm ONI, so `Chain.premise_off` keeps it off every
+    # seat and no RENDERED chain carries a priced outcome any more. The pin keeps grading the SHIPPED
+    # producer on the SHIPPED numbers: the pool's priced chains, each through the one producer that prints
+    # its outcome row (the minting row where a middle figure exists, else its letters-only absence).
+    if not seen:
+        for mode, (bd, _blk) in sorted(chain_blocks.items()):
+            for c in sorted(bd.chains, key=lambda x: x.rank):
+                o = dict(W._outcome_for(bd, c) or {})      # the SAME producer the rendered chains use
+                if not int(o.get("n") or 0):
+                    continue
+                c.outcome = o
+                seen += 1
+                want = (("all %s past times" % R.words_for_int(int(o["n"])))
+                        if int(o["n"]) == int(o["n_in"]) and int(o["n"]) > 1 else
+                        "%s of the %s past times" % (R.words_for_int(int(o["n"])),
+                                                     R.words_for_int(int(o["n_in"]))))
+                got = (R.sb_chain_outcome(9, c, asof=str(bd.asof))[0] if o.get("median_move") is not None
+                       else R.sb_chain_outcome_absent(c))
+                assert want in got, (mode, want, got[:200])
+                assert R.register_hits(got) == [], (mode, got[:120])
     assert seen >= 1, "the fixture must carry one priced outcome, or this pin grades nothing"
 
 
@@ -2819,9 +2852,13 @@ def test_S8R4_an_OUT_OF_REACH_closed_document_is_NEVER_the_chains_receipt_and_sa
     assert "_receipt_in_reach" in inspect.getsource(R.chain_receipt), "one rule, imported"
     hop = _s8_hop(lag_band=parse_lag("0-1 quarters"))
     ch = _s8_chain([hop, _s8_hop(driver_id="psd_ending_stock_su_ratio", percentile=68.0)])
-    old = {"event_date": "2019-01-01", "source": "a wire service", "tier": 2,
-           "text": "the authority raised the export levy from the first of that month"}
-    near = dict(old, event_date="2026-08-20",
+    # 09-24 RE-BANK (OWNER DECISION O-6, CONTRACT K6, lane W): an action is REALISED only when its whole
+    # interval, at its stated precision, ends on or before the document's own date -- so these DAY actions
+    # state their precision and the document date that reported them (the extraction's own two fields).
+    old = {"event_date": "2019-01-01", "source": "a wire service", "tier": 2, "date": "2019-01-02",
+           "text": "the authority raised the export levy from the first of that month",
+           "event_date_precision": "day"}
+    near = dict(old, event_date="2026-08-20", date="2026-08-21",
                 text="the authority raised the export levy from the twentieth")
     # THE SHIPPED PREDICATE'S OWN VERDICT on the two dates, on a REAL hop.
     assert not W._receipt_in_reach(dataclasses.replace(hop, event_date="2019-01-01"), "2026-09-07")
@@ -3421,7 +3458,10 @@ def test_R0923_the_identity_scope_is_DERIVED_from_the_card_axis_and_the_reads_co
     assert "for the mean over the United States growing cells" in mean.words(), mean.words()
     one = R.row_identity_for(_id_row("flash_drought", "gold_weather_z", "drought_z", "soybeans_cbot",
                                      "United States", "monthly", collapse=None))
-    assert "for one United States growing cell" in one.words(), one.words()
+    # 09-24 RE-BANK (CONTRACT K3, item 6 -- DM2): a region-cell read with NO collapse at a scope that is not
+    # one of the producer's aggregate surfaces names its SCOPE ALONE. The round-1 "single_cell" default read
+    # cocoa's West Africa BASIN MEAN as "one West Africa growing cell"; the served rows prove no cell here.
+    assert "for United States" in one.words() and "growing cell" not in one.words(), one.words()
     monkeypatch.setattr(R, "card_fields", lambda t, m: {})
     und = R.row_identity_for(_id_row("flash_drought", "gold_weather_z", "drought_z", "soybeans_cbot",
                                      "United States", "monthly", collapse="mean"))

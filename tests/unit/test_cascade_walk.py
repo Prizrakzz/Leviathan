@@ -1311,15 +1311,15 @@ def test_context_constants_and_map_pins():
     # by two and every value below it is unchanged. Both are NAMED here, not left as "whatever is
     # last", for the reason the note above gives: an unnamed tail pin cannot tell an append from a
     # sort. TWO appends in ONE commit is doctrine M-8: the tail pins re-anchor once, not twice.
-    assert tk.TRACE_RECORD_KEYS[-8] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
-    assert tk.TRACE_RECORD_KEYS[-9] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert tk.TRACE_RECORD_KEYS[-11] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):  # 09-24 K20: +3
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
     #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
-    assert tk.TRACE_RECORD_KEYS[-11:-9] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_wave_reads"
-    assert tk.TRACE_RECORD_KEYS[-13] == "quantify_cascade_walk"
+    assert tk.TRACE_RECORD_KEYS[-14:-12] == ("quantify_extreme_locator", "extreme_second_hop")  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-15] == "quantify_wave_reads"  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-16] == "quantify_cascade_walk"  # 09-24 K20: +3
     assert not any("context" in k for k in tk.TRACE_RECORD_KEYS)   # NO new trace key: the ledger rides inside
     assert not any("deep" in k for k in tk.TRACE_RECORD_KEYS)      # V2-5: same law, same ledger
     src = open(cq.__file__, encoding="utf-8").read()
@@ -4160,15 +4160,15 @@ def test_v23_registers_one_trace_key_and_the_ledger_rides_inside_it():
     # by two and every value below it is unchanged. Both are NAMED here, not left as "whatever is
     # last", for the reason the note above gives: an unnamed tail pin cannot tell an append from a
     # sort. TWO appends in ONE commit is doctrine M-8: the tail pins re-anchor once, not twice.
-    assert tk.TRACE_RECORD_KEYS[-8] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
-    assert tk.TRACE_RECORD_KEYS[-9] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert tk.TRACE_RECORD_KEYS[-11] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):  # 09-24 K20: +3
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
     #   negative-index pin above re-anchors ONCE, by two (doctrine M-8).
-    assert tk.TRACE_RECORD_KEYS[-11:-9] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_wave_reads"
-    assert tk.TRACE_RECORD_KEYS[-13] == "quantify_cascade_walk"
+    assert tk.TRACE_RECORD_KEYS[-14:-12] == ("quantify_extreme_locator", "extreme_second_hop")  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-15] == "quantify_wave_reads"  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-16] == "quantify_cascade_walk"  # 09-24 K20: +3
     assert not any("xccy" in k or "fx" in k or "deep" in k for k in tk.TRACE_RECORD_KEYS)
 
 
@@ -5370,8 +5370,8 @@ def test_s5_phase0s_state_board_is_registered_at_the_tail_before_its_writer():
     Until S6 writes it the column lifts as None, which is the same absent-as-None shape every
     registered key has on a turn that does not stamp it."""
     from leviathan.graphrag import tracekeys as tk
-    assert tk.TRACE_RECORD_KEYS[-8] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)
-    assert tk.TRACE_RECORD_KEYS[-9] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert tk.TRACE_RECORD_KEYS[-11] == "state_board"   # lane F re-pin: +4 (cost census x3 + writer_seam)  # 09-24 K20: +3
+    assert tk.TRACE_RECORD_KEYS[-12] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):  # 09-24 K20: +3
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every

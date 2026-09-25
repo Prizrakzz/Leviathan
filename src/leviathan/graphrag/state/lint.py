@@ -709,6 +709,12 @@ def _check_absence_vocabulary() -> list[str]:
     # clause must not red on a tree where lane W's constant has not landed.
     for w in getattr(B, "CHAIN_REASONS", ()) or ():
         seen.setdefault(w, "board.CHAIN_REASONS")
+    # 09-24 (CONTRACT K5): THE ANALOG OUTCOME ROW'S OWN DECLINE WORDS, declared at their one producer
+    # (``analogs.OUTCOME_DECLINES``) and seeded by name like ``CHAIN_REASONS`` -- a word the render prints
+    # as an SB-X absence is graded here in both directions whoever declares it.
+    from leviathan.graphrag.state import analogs as _AN
+    for w in getattr(_AN, "OUTCOME_DECLINES", ()) or ():
+        seen.setdefault(w, "analogs.OUTCOME_DECLINES")
     seen.pop("ok", None)
     for w, where in sorted(seen.items()):
         if w not in R.ABSENCE_WHY:
@@ -752,16 +758,19 @@ def _row_class_samples() -> dict:
         # SB-1 IS RE-BANKED ON THE 09-23 ROW IDENTITY (CONTRACT.md C1): the head names the SERIES (the
         # card's declared reading words and the period at its own precision) and the driver rides once
         # as "read here for". Verbatim off the soybeans fixture's first state row, sigma and tag kept.
-        "SB-1": "- [N1] the tropical Pacific sea-surface temperature anomaly, August 2026, on CBOT "
-                "soybeans (NOAA ONI), read here for El Nino: +0.98 degC; [N2] +1.2 sigma on its "
+        # ...AND RE-BANKED ON THE 09-24 FIGURE TOKEN (CONTRACT K2): the period rides the FIGURE the writer
+        # copies ("+0.98 degC, August 2026"), and the head names the series once.
+        "SB-1": "- [N1] the tropical Pacific sea-surface temperature anomaly, on CBOT soybeans (NOAA "
+                "ONI), read here for El Nino: +0.98 degC, August 2026; [N2] +1.2 sigma on its "
                 "trailing window of one hundred twenty months [series: CBOT soybeans; table: NOAA ONI]",
         "SB-V": "- [N7] WATCH the level a convention names El Nino on CBOT soybeans: 0.52 degC "
                 "under the strong line at 1.5 degC -- 2026-08-31",
         "SB-T": "- [N9] CBOT soybeans front 2026-11 settle on 2026-09-04: 1085.08 USc/bu",
         # SB-O IS RE-BANKED ON THE 09-23 DESK VOCABULARY: the chain outcome's own class spelling ("over the
         # band declared from that state") and the band's two ends said as WHEN the lag opened and closed.
+        # ...AND ON THE 09-24 CHANGE ROW (CONTRACT K5): a change carries its sign.
         "SB-O": "- [N11] the soybean monthly benchmark over the band declared from that state, one to "
-                "two quarters: moved 46.33 USD/t by the time that lag opened; [N12] moved 68.21 USD/t "
+                "two quarters: moved +46.33 USD/t by the time that lag opened; [N12] moved +68.21 USD/t "
                 "by the time it closed",
         "SB-W": "- WATCH the next scheduled print El Nino on CBOT soybeans (NOAA ONI): scheduled "
                 "between 2026-10-01 and 2026-10-05 -- 2026-10-01 to 2026-10-05",
@@ -821,6 +830,10 @@ def _row_class_samples() -> dict:
         # SB-LEAD, the block's own order made visible (ROUND-2 DOCKET item 12).
         "SB-LEAD": "LARGEST MOVE first of three: export pace lag on CBOT soybeans, past the line the "
                    "desk convention calls behind; its figures are on its own state line below.",
+        # SB-ASK, the block's HEAD (09-24, CONTRACT K8 / K21): a seat calculator row cited at the seat's own
+        # handle, with its figure token.
+        "SB-ASK": "ASKED ROW [N11] Malaysian palm oil closing stocks (change over the window): +10289 MT, "
+                  "change from January 2026 to August 2026",
     }
 
 
@@ -1334,9 +1347,14 @@ def _append_only_charges(name: str, before: dict, after: dict) -> list:
         subsequence test does not care WHERE the clause was inserted, which matters because the shipped
         idiom appends INSIDE the sentence, in front of its terminator, so a plain prefix test would
         charge the one shape every conforming lint in this estate uses.
-      * EVERY SENTENCE IS STILL A SENTENCE -- each sentence's body, sans its terminator, is still a
-        contiguous substring. A pass that kept every character but scattered one sentence through the
-        others has taken that sentence off the page just as surely.
+      * EVERY CLAUSE IS STILL A CLAUSE -- each sentence's body, sans its terminator, split at the estate's
+        ONE clause grammar (``verify._SEGMENT_BREAK``: a list comma, a semicolon, a colon, a dash -- the
+        breaks the citation binding reads), is still a contiguous run of each clause. A pass that kept
+        every character but scattered one clause through the others has taken it off the page just as
+        surely. FIXER PASS (REVIEW_RA lexical 11 / m4, the integrator's F-12): this reading was "every
+        SENTENCE whole", which K16's clause-end L1 append breaks BY DESIGN (the served reading lands at the
+        end of the CLAUSE that names its hop); the law is restated at the grain K16 keeps, so the shipped
+        grader and the placement rule agree and no deck filters the grader's charges by their message.
 
     The charge NAMES THE FIRST CHARACTER THAT WENT MISSING, because "a sentence was deleted" is a
     verdict and an offset is evidence."""
@@ -1357,13 +1375,19 @@ def _append_only_charges(name: str, before: dict, after: dict) -> list:
             errs.append("%s loses served text in %r: character %d of the writer's own sentence (%r) "
                         "is not in what the reader is handed back -- the law is APPEND-ONLY"
                         % (name, field, i, old[max(0, i - 30):i + 30]))
+        try:
+            from leviathan.graphrag.verify import _SEGMENT_BREAK as _clause_break
+        except Exception:                               # noqa: BLE001 -- no clause grammar: the sentence grain
+            _clause_break = None
         for k, sent in enumerate(_CHAIN_PROBE_SENT.split(old)):
             if k % 2 or not sent.strip():
                 continue
             body = sent.strip().rstrip(".;!?").strip()
-            if body and body not in new:
-                errs.append("%s no longer carries the sentence %r whole in %r -- a sentence broken "
-                            "apart is a sentence the reader lost" % (name, body[:60], field))
+            parts = ([c.strip() for c in _clause_break.split(body)] if _clause_break is not None else [body])
+            for clause in parts:
+                if clause and clause not in new:
+                    errs.append("%s no longer carries the clause %r whole in %r -- a clause broken "
+                                "apart is a clause the reader lost" % (name, clause[:60], field))
         if len(new) < len(old):
             errs.append("%s SHORTENS %r (%d characters to %d); an appending pass never shortens"
                         % (name, field, len(old), len(new)))
@@ -2180,6 +2204,20 @@ def _check_nonobvious_watch() -> list[str]:
                 if _frag in _low:
                     errs.append("watch.%s[%r] carries release-calendar vocabulary %r -- the 09-11 "
                                 "ruling bans a calendar item as a watch item" % (_name, _k, _frag))
+    # ── A FALSIFIER IS A READING THAT TURNS, OF A SERIES THE ROW NAMES (09-24, CONTRACT K14) ──────────────
+    # The class rule, graded on the map and never on a phrase list: EVERY falsifier -- every kind and every
+    # variant -- carries the ``{series}`` slot the producer fills from the backing row's own identity, so no
+    # falsifier can state a fact about the MODEL ("the paths share a single upstream cause ... one route
+    # counted twice", served on the 09-24 palm/rape page) that no print could ever show wrong.
+    for _k, _f in sorted(WA.NONOBVIOUS_FALSIFIERS.items()):
+        if "{series}" not in str(_f):
+            errs.append("watch.NONOBVIOUS_FALSIFIERS[%r] names no series ({series} slot) -- a falsifier is "
+                        "a reading of a series the row prints, never a fact about the model" % (_k,))
+        _probe = str(_f).replace("{series}", "the reading")
+        _hits = _register_hits(_probe)
+        if _hits:
+            errs.append("watch.NONOBVIOUS_FALSIFIERS[%r] is NOT register-safe (%s)"
+                        % (_k, "; ".join(_hits)))
     # ── THE FLOOR FACT RIDES THE SENTENCE (review round 2, minor a) ──────────────────────────────────
     if set(WA.FLOOR_WORDS) != set(WA.FLOOR_CLAUSES):
         errs.append("watch.FLOOR_WORDS %r does not cover watch.FLOOR_CLAUSES %r -- a row admitted by a "

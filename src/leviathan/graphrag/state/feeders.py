@@ -71,6 +71,10 @@ from leviathan.graphrag.state.rows import (
     TapeState,
     TextState,
     coverage_tier,
+    day_words,
+    month_words,
+    period_kind_for,
+    period_label_for,
     status_word,
 )
 
@@ -1218,16 +1222,250 @@ def stamp_period_gaps(states, asof: str) -> int:
         gap = period_gap(table, metric, label, asof, held=ledger.get((table, slug), ()))
         st.period_gap = gap
         n += 1 if gap else 0
+    # K23 (09-24 fix round 2): the CROSS-CARD store-period pass rides the same zero-read moment, over the
+    # same served states, so the walk's rank reads both facts before it orders anything. It does not move
+    # this function's return (the round-1 gap count) and never touches `period_gap`.
+    stamp_period_behind(states, asof)
     return n
 
 
-VINTAGE_NOTE = ("read from a table revised in place; the value as known at {asof} is not recoverable "
-                "and is shown as revised through {today}")
+# ---------------------------------------------------------------------------------------------------
+# THE STORE-PERIOD CLAUSE ACROSS CARDS (09-24 fix round 2, lane C; CONTRACT K23, OWNER DECISION O-13 (a))
+# ---------------------------------------------------------------------------------------------------
+#: THE MEASURED DEFECT (the 2024-03-01 as-of turn, 09-23 F2 OPEN on 09-24): "the US stocks-to-use reading is
+#: at the 31st percentile of its own record [N158], a thinner-than-average but not razor-thin buffer" -- a
+#: MY2020/21 PSD row read as the March-2024 buffer, on a page that printed the USDA WASDE MY2023/24 sheet
+#: for the SAME commodity and scope. Round 1's store rule (``stamp_period_gaps``, ruling F1) joins only
+#: within ONE card and ONE slug, and PSD held no newer US vintage at that as-of, so it stamped nothing
+#: (writer_seam stale_rows_dated 0). The store DID hold a newer marketing year for US soybeans -- on another
+#: card.
+#:
+#: THE RULE IS STILL A STORE FACT, NEVER A CALENDAR CONSTANT: a marketing-year row is BEHIND where a served
+#: row of ANOTHER card holds, as known at the as-of, a NEWER marketing year for the SAME commodity and the
+#: SAME scope. The join key is (the commodity's causal node -- the contract slug through the declared
+#: contract hierarchy, so CBOT soybeans and WASDE's "soybeans" are one commodity; the scope in one spelling
+#: -- the card's own snake_case region and the board's display name are one scope; the period KIND, which
+#: must be a marketing year on both sides). A destination-coded card's country is a BUYER, never the
+#: series' scope, so it joins nothing; a week, a month or a day is another calendar and joins nothing.
+#: The row keeps its figure, its rank tuple and its render; it gains ``StateRow.period_behind =
+#: {"held", "newer_on", "newer"}`` (lane R prints it in the identity, lane W demotes it one band exactly as
+#: ``period_gap``). EMPTY everywhere else, so the pass is idempotent.
+PERIOD_BEHIND_KIND = "marketing_year"
+
+
+def _commodity_node(value) -> str:
+    """The commodity a slug or a card's commodity value NAMES: the contract's causal node through the
+    declared contract hierarchy (``hierarchy.contract_to_node``: soybeans_cbot -> soybeans), else the
+    value itself (a card that keys its rows by the commodity name, WASDE's "soybeans")."""
+    v = str(value or "").strip()
+    if not v:
+        return ""
+    try:
+        from leviathan.graphrag import hierarchy as _h
+        hit = _h.contract_to_node(v)
+        if hit and hit[0]:
+            return str(hit[0])
+    except Exception:  # noqa: BLE001 -- no hierarchy is the value itself
+        pass
+    return v
+
+
+def _scope_norm(value) -> str:
+    """ONE scope for the K23 join, through the query layer's OWN country canonicalisation (FIXER PASS,
+    REVIEW_VC M5): `query._canon_country` is the rule every card's country partition is compiled with (the
+    snake_case surface form plus its declared aliases -- "United States", "united_states" and "US" are one
+    partition value), so the join keys on the value the store is keyed by, never on a case-and-underscore
+    fold of two spellings."""
+    try:
+        from leviathan.graphrag.numbers.query import _canon_country
+        return str(_canon_country(str(value or "").strip()) or "")
+    except Exception:  # noqa: BLE001 -- no query layer, no scope join (the belt: nothing is stamped)
+        return ""
+
+
+def _my_ordinal(label) -> Optional[int]:
+    """The FIRST calendar year of a marketing-year label -- "2020" (a card that writes the MY by its
+    start year) and "2023/24" alike -- or ``None`` for a label that is not a year label."""
+    s = str(label or "").strip()
+    if s[:2].upper() == "MY":
+        s = s[2:].strip()
+    p = _label_ordinal(s)
+    if p is None or p[1][0] not in ("year", "split"):
+        return None
+    return p[0]
+
+
+def _my_words(ordinal: int) -> str:
+    """A marketing year in the reader's words at its own precision -- lane R's ONE period producer."""
+    return period_label_for(PERIOD_BEHIND_KIND, "%04d" % int(ordinal))
+
+
+def _state_period_entry(st) -> Optional[tuple]:
+    """``(node, scope, ordinal, known, source label, table)`` of ONE served board row whose period is a
+    marketing year, else ``None``."""
+    from leviathan.graphrag import citations as _cit
+    table = str(getattr(st, "table", "") or "")
+    metric = str(getattr(st, "metric", "") or "")
+    key = getattr(st, "key", None)
+    if not table or key is None:
+        return None
+    ts = _cit._card_spec(table)
+    try:
+        if ts is not None and ts.destination_coded():
+            return None                                    # a buyer is not the series' scope
+    except Exception:  # noqa: BLE001
+        pass
+    held = newest_held_period(st)
+    cf = _cit._card_fields(table, metric) or {}
+    ptype = str(getattr(ts, "period_type", "") or "")
+    kind = period_kind_for(str(held or ""), period_words=str(cf.get("period_words") or ""),
+                           period_type=ptype,
+                           cadence=str(getattr(st, "cadence", "") or getattr(ts, "cadence", "") or ""))
+    o = _my_ordinal(held)
+    if not kind and ptype == PERIOD_BEHIND_KIND and o is not None:
+        kind = PERIOD_BEHIND_KIND                          # a year label in the card's declared MY column
+    if kind != PERIOD_BEHIND_KIND:
+        return None
+    if o is None:
+        return None
+    # an all-class class slug's row is a fact about its published FAMILY (lane T's `class_scope`)
+    com = _cit._join_commodity(table, getattr(key, "commodity", ""), {}) or ""
+    return (_commodity_node(com), _scope_norm(getattr(key, "country", "")), o,
+            getattr(st, "knowledge_date", None), _cit._source_label(table), table)
+
+
+def _call_period_entry(call) -> Optional[tuple]:
+    """The same entry for ONE served NUMBERS-SEAT call: its headline row's OWN period (a WASDE row carries
+    "2023/24"; an ESR row carries its week and joins nothing), the commodity whose SHEET the row is
+    (CONTRACT K22), the query's scope, the row's known date through the label's own rule."""
+    from leviathan.graphrag import citations as _cit
+    if not isinstance(call, dict) or str(call.get("status") or "ok") != "ok":
+        return None
+    q = call.get("query") or {}
+    table = str(q.get("table") or "")
+    if not table or table == _cit._STATS_TABLE or call.get("_sb"):
+        return None                                        # a computed figure holds no sheet; a board call
+    ts = _cit._card_spec(table)                            #   is already a served state
+    if ts is None:
+        return None
+    try:
+        if ts.destination_coded():
+            return None
+    except Exception:  # noqa: BLE001
+        pass
+    rH, _curve = _cit._headline(call)
+    if not rH or _cit._value_blank(rH):
+        return None
+    tok, kind = _cit._row_own_period(call, rH)
+    if kind != PERIOD_BEHIND_KIND:
+        return None
+    o = _my_ordinal(tok)
+    if o is None:
+        return None
+    # the commodity the row's period is a fact ABOUT: its sheet's own commodity, never a sub-table's (a
+    # class or products sheet is not the commodity's balance sheet and joins nothing), the published
+    # family for an all-class class slug (CONTRACT K22, lane T's declared sheets and families)
+    com = _cit._join_commodity(table, q.get("commodity"), rH)
+    scope = q.get("country") or rH.get("country") or ""
+    if not com or not scope:
+        return None
+    return (_commodity_node(com), _scope_norm(scope), o, _cit._known_date(call, rH), _cit._source_label(table),
+            table)
+
+
+def period_behind(entry: tuple, pool, asof: str) -> dict:
+    """``{"held", "newer_on", "newer"}`` for ONE row's entry against the pool of served entries, or ``{}``.
+    Only ANOTHER card's row counts (the row's own card is ruling F1's single-card rule, ``period_gap``); a
+    pool entry whose knowledge day falls after the as-of is no evidence (the SQL guard is the authority;
+    this is its belt)."""
+    node, scope, have, _known, _label, table = entry
+    try:
+        cut = _dt.date.fromisoformat(str(asof or "")[:10])
+    except (TypeError, ValueError):
+        cut = None
+    newest, on = have, set()
+    for e in pool or ():
+        if e is None or e[5] == table or (e[0], e[1]) != (node, scope) or not node or not scope:
+            continue
+        if cut is not None and e[3]:
+            k = _knowledge_day(e[3])
+            if k is not None and k > cut:
+                continue
+        if e[2] > newest:
+            newest, on = e[2], {e[4]}
+        elif e[2] == newest and newest > have:
+            on.add(e[4])
+    if newest <= have:
+        return {}
+    return {"held": _my_words(have), "newer_on": " and ".join(sorted(on)), "newer": _my_words(newest)}
+
+
+def stamp_period_behind(states, asof: str, *, extra_periods=()) -> int:
+    """THE CROSS-CARD STORE-PERIOD PASS (CONTRACT K23), at ZERO reads: every marketing-year board row is
+    joined against every OTHER served marketing-year row -- the board's own served states, plus the numbers
+    seat's served calls lane A threads as ``extra_periods`` -- on (commodity node, scope, period kind), and
+    stamped ``period_behind`` where another card holds a newer marketing year as known at the as-of;
+    CLEARED (``{}``) on every other marketing-year row, so the pass is idempotent and a stage that re-runs
+    it with more evidence simply overwrites. Rows of other period kinds are not touched. Returns the number
+    stamped. Moves no level, date, figure or status."""
+    todo, pool, seen = [], [], set()
+    for st in states or ():
+        if st is None or id(st) in seen:
+            continue
+        seen.add(id(st))
+        try:
+            e = _state_period_entry(st)
+        except Exception:  # noqa: BLE001 -- an unreadable row is no evidence and gets no stamp; never a raise
+            e = None
+        if e is None:
+            continue
+        todo.append((st, e))
+        pool.append(e)
+    for c in extra_periods or ():
+        try:
+            e = _call_period_entry(c)
+        except Exception:  # noqa: BLE001 -- an unreadable call is no evidence
+            e = None
+        if e is not None:
+            pool.append(e)
+    n = 0
+    for st, e in todo:
+        pb = period_behind(e, pool, asof)
+        setattr(st, "period_behind", pb)
+        n += 1 if pb else 0
+    return n
+
+
+VINTAGE_NOTE = "read from a table revised in place; the value as known on {asof} is not recoverable"
 """The REPLAY LABEL (sec 1.4, D17). A latest-only, revised-in-place card at a HISTORICAL as-of is
 SERVED with this note, never declined. Revision 1 of the design declined those refs' series half at zero
 reads; that is a fence that DELETES where a label already exists -- it would have darkened the ENSO state
 on 33 boards in every replayed census, every harness render and every backdated question. The row stands,
-the label rides, and ``BoardReplayLabelled`` counts it."""
+the label rides, and ``BoardReplayLabelled`` counts it.
+
+09-24 FIX ROUND 2 (lane C, CONTRACT K18, OWNER DECISION O-4 (a)) -- THE NOTE STATES THE RELATION AND
+CARRIES NO RUN DATE. It used to end "and is shown as revised through {today}", and on the 2024-03-01 as-of
+turn the writer copied that sentence onto the page: "... is shown as revised through 24 September 2026"
+-- a date two and a half years after the as-of, FATAL under C11 (no date later than the as-of anywhere on
+an as-of page), from the SAME fix round whose ``provenance_split`` withholds the World Bank's post-as-of
+release stamp on the same page. The note now says only what the reader needs -- the table is revised in
+place and the as-known value is not recoverable -- and the as-of it names is spelt by the board's ONE day
+producer (``rows.day_words``), the form every other date on the board takes. The revision date is a fact
+about the READ, so it rides the row's recency dict as ``revised_through`` (read by the trace, printed by
+no template). The underlying D17 conflict (serve the revised figure with a label vs no figure after the
+as-of) stays the owner's standing ruling: the row SERVES with the label."""
+
+#: The recency key the replay's revision date rides (CONTRACT K18): the date the revised-in-place table was
+#: read through. NEVER printed -- ``render`` reads named recency keys only, and this is not one of them.
+REVISED_THROUGH = "revised_through"
+
+
+def vintage_note(asof: str) -> str:
+    """The replay label for ONE as-of, its date in the board's own day words ("1 March 2024"); a date the
+    day producer cannot place (a month or a year as-of) falls back to its month words, then to the as-of
+    exactly as given -- never a later date, never an invented day."""
+    s = str(asof or "")[:10]
+    return VINTAGE_NOTE.format(asof=(day_words(s) or month_words(s) or s))
 
 #: The cards whose retention is ``latest-only`` and whose values are revised IN PLACE. The note above
 #: rides a row from one of these at a historical as-of.
@@ -1662,12 +1900,18 @@ def series_state(ref: str, node, asof: str, *, qfn, windows: Optional[dict] = No
     if conv:
         out.convention = _convention_label(conv, out, bundle, bkey, derivs)
 
+    _revised_through = None
     if (table in LATEST_ONLY_CARDS or str(getattr(ts, "vintage_retention", "")) == "latest-only"):
         td = today or _today()
         if asof and asof < td:
-            out.vintage_note = VINTAGE_NOTE.format(asof=asof, today=td)
+            # K18: the note names the as-of and nothing later; the read's revision date is kept for the
+            # trace below, never printed.
+            out.vintage_note = vintage_note(asof)
+            _revised_through = td
 
     out.recency = _recency(out, asof, ts, cadence)
+    if _revised_through:
+        out.recency[REVISED_THROUGH] = _revised_through
     # THE NEWEST KNOWABLE READING RIDES THE RECENCY DICT, which is where "when could anyone have known
     # this" already lives. It is ADDITIVE: on every row with no applied offset the dict is byte-for-byte
     # `_recency`'s, and `render` prints the clause only where these keys exist.
@@ -2483,5 +2727,6 @@ __all__ = [
     "read_span", "read_span_periods", "check_read_spans", "CADENCE_READ_SLACK",
     "CADENCE_CHANGE_WINDOWS", "CADENCE_HISTORY_WINDOW", "CADENCE_READ_SPAN", "CADENCE_PERIODS_PER_YEAR",
     "CADENCE_DAYS", "DESTINATION_GRAIN_TABLES", "READ_LIMIT", "VINTAGE_NOTE", "LATEST_ONLY_CARDS",
+    "vintage_note", "REVISED_THROUGH", "stamp_period_behind", "period_behind", "PERIOD_BEHIND_KIND",
     "STATE_CACHE_MAX", "TAPE_CHANGE_SESSIONS", "TAPE_MIN_PERCENTILE_N", "TAPE_TABLE", "TAPE_METRIC",
 ]

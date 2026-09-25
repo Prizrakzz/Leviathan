@@ -630,8 +630,11 @@ def test_two_single_date_reads_mint_the_spread_LEVEL_and_deny_the_reader_nothing
     out = A.answer_numbers(_RV_Q, asof="2026-09-16", client=_two_leg_client("latest"),
                            query_fn=_two_leg_query_fn([1117.0], [1638.0]))
     assert A.RV_PAIR_UNCOMPUTED_KEY not in out
+    # MOVED (09-24 fix round 2, lane T, CONTRACT K8): `rows_minted` and `source` join the record AT ITS
+    # TAIL; `legs` keeps its HEAD position and meaning (the rows this leg appended).
     assert out["rv_pair_spread"] == {"legs": 1, "markets": ["malaysian_crude_palm_oil_cme",
-                                                            "soybean_oil_cbot"]}
+                                                            "soybean_oil_cbot"],
+                                     "rows_minted": 1, "source": "seat"}
     assert out["answer"] == "read both legs."          # NOT a refusal, NOT a preface, NOT a deletion
     minted = [c for c in out["calls"] if c["query"]["table"] == A.STATS_TOOL_NAME]
     assert [c["query"]["metric"] for c in minted] == ["pair_spread"]      # a level: no rank is minted

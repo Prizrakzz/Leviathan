@@ -544,15 +544,23 @@ def _date_value(period) -> Optional[_dt.date]:
     never print "MY2026-08-27" and the writer seam may never date that week on the annual clock (window
     zero). The value's TYPE is read, never a pattern: this is the parser the store's own ISO date fields
     are read by (``_parse_date`` above), applied to the whole token."""
-    per = str(period).strip() if period is not None else ""
-    if per.startswith("MY"):
-        per = per[2:].strip()
+    per = _period_value(period)
     if not per:
         return None
     try:
         return _dt.date.fromisoformat(per)
     except ValueError:
         return None
+
+
+def _period_value(period) -> str:
+    """THE VALUE of a period token, the INVERSE of :func:`_period_label` (the one writer of the estate's
+    marketing-year prefix): a token that producer -- or a cascade call that pre-labels its period -- wrote
+    as "MY2011" is the period "2011". FIXER PASS (REVIEW_VC lexical): this reads a VALUE and nothing else;
+    no reader decides a period's KIND from the prefix any more (the kind is the row's own observation at the
+    card's precision, :func:`_figure_period`, or the card's declared kind, :func:`period_kind`)."""
+    per = str(period).strip() if period is not None else ""
+    return per[2:].strip() if per.startswith("MY") else per
 
 
 def _period_label(period, kind: Optional[str] = None) -> Optional[str]:
@@ -1910,53 +1918,469 @@ def _offset_words(row: dict) -> str:
     return f"read {n} months back by this market's declared lag" if n > 0 else ""
 
 
-def _analyst_value_text(value, *, table: str, metric: str, unit: str,
-                        commodity: Optional[str] = None) -> Optional[str]:
-    """The headline figure at ANALYST precision through lane R's ONE producer (``render.shown_figure``,
-    C5) -- or ``None`` (HEAD's ``_fmt``) when the producer is absent, fails, or returns a figure its own row
-    cannot back. That last guard is the whole safety of the term (THREAT_MODEL C-9): the text must be
-    ``value`` rounded at the text's own written decimals, never a re-scaled or re-signed number, because
-    the verifier and the reader both check the label against the row."""
+def _unit_norm(x) -> str:
+    """One spelling of a unit for an equality test inside this module: lower-case, whitespace folded."""
+    return " ".join(str(x or "").lower().split())
+
+
+def _analyst_figure(value, *, table: str, metric: str, unit: str, commodity: Optional[str] = None,
+                    level: bool = True) -> Optional[tuple]:
+    """``(text, printed unit)`` -- the headline figure at ANALYST precision through lane R's ONE producer
+    (``render.shown_figure``, C5) -- or ``None`` (HEAD's ``_fmt``) when the producer is absent, fails, or
+    returns a figure its own row cannot back.
+
+    THE CARD'S DISPLAY SPEC AND ITS DECLARED LINES DESCRIBE THE CARD METRIC'S OWN LEVEL, IN THE CARD'S OWN
+    UNITS (its native ``unit``, and its ``display_unit``). Three cases, decided by the ROW's unit against
+    the CARD's two declared units -- never by a unit word typed here:
+
+    * the row is ALREADY in the display unit (a board level the producer pre-scaled: "10.72 %") -- the
+      card is lent for its decimals and lines, nothing re-scales;
+    * 09-24 FIX ROUND 2 (CONTRACT K7, OWNER DECISION O-1 (b)): the row is a LEVEL in the card's NATIVE unit
+      and the card declares a different display unit -- the card's FULL display spec is lent (scale,
+      unit, decimals, lines), so a numbers-seat PSD stocks-to-use row prints "10.72 %" and never "0.11
+      ratio" beside the board's "10.72 %" for the same series (tariff F-J), and MPOB's months-of-cover
+      row prints its declared unit instead of the bare "ratio" token its card forbids. Round 1 REFUSED
+      this re-scale (the K9-3 class: a label and its rows on two scales); it is admitted now because the
+      verifier backs the scaled figure as a member of the same row (K7's V half) and the stamp that asks
+      for it exists only on board turns;
+    * any other unit (a z, a percentile, a change, the level in a unit the spec was not written for) --
+      asked WITHOUT the card: the producer's unit-agnostic rule. MEASURED on the palm ONI row: the card's
+      degC El Nino lines and two-sided sign printed "+78 percentile" when they were lent to a rank.
+
+    ``level=False`` (a change row, a computed statistic of a series) never borrows the level's spec: a
+    difference of a ratio scaled by 100 is PERCENTAGE POINTS, not percent, and that unit is the mint's to
+    declare, never this label's.
+
+    THE BACKING GUARD IS THE WHOLE SAFETY OF THE TERM (THREAT_MODEL C-5 / C-9): the printed text must be the
+    row's value TIMES THE SCALE THE CARD DECLARES (1 wherever nothing re-scaled), rounded at the text's own
+    written decimals -- a producer that returned any other figure is refused and HEAD's text prints."""
     try:
         v = float(str(value).replace(",", ""))
     except (TypeError, ValueError):
         return None
     u = str(unit or "").strip()
-    # THE CARD'S DISPLAY SPEC AND ITS DECLARED LINES DESCRIBE THE CARD METRIC'S OWN LEVEL, IN THE CARD'S OWN
-    # UNITS (its `unit`, and its `display_unit`). A call in any other unit is a different quantity: a z or a
-    # percentile of that level (MEASURED on the palm ONI row: the card's degC El Nino lines and two-sided
-    # sign printed "+78 percentile"), or the level in a unit the spec was not written for (a PSD
-    # stocks-to-use ROW in `ratio` where the card displays `%` -- re-scaling it would put the label and its
-    # rows on two scales, the K9-3 class). Such a call is asked WITHOUT the card -- the producer's
-    # unit-agnostic rule -- and every answer is still held to the backing guard below.
-    def _n(x) -> str:
-        return " ".join(str(x or "").lower().split())
-    # The unit the producer prints the card's level in WITHOUT re-scaling it: the declared display unit
-    # where there is one, else the card's own unit.
-    target = (_n((_card_fields(table, metric) or {}).get("display_unit"))
-              or _n(_metric_unit(table, metric, commodity)))
-    own = bool(target) and _n(u) == target
+    cf = _card_fields(table, metric) or {}
+    d_unit_raw = str(cf.get("display_unit") or "").strip()
+    d_unit, native, row_u = _unit_norm(d_unit_raw), _unit_norm(_metric_unit(table, metric, commodity)), _unit_norm(u)
+    in_display = bool(d_unit) and row_u == d_unit
+    in_native = bool(native) and row_u == native
+    if level:
+        own = in_display or in_native
+    else:
+        # HEAD's rule, byte for byte: the card is lent only to a row already in the unit the card prints
+        # its level in without re-scaling (the display unit where declared, else the native unit)
+        _target = d_unit or native
+        own = bool(_target) and row_u == _target
+        in_native = False
+    scale, printed = 1.0, u
+    if in_native and not in_display and d_unit:
+        # the producer re-states a native-unit level in the card's display unit (its declared scale,
+        # identity where the card declares none) -- and the guard below holds it to exactly that
+        try:
+            scale = float(cf.get("display_scale")) if cf.get("display_scale") is not None else 1.0
+        except (TypeError, ValueError):
+            return None
+        printed = d_unit_raw
     try:
         from leviathan.graphrag.state import render as _render
         fn = getattr(_render, "shown_figure", None)
         if fn is None:
             return None
-        # THE ROW'S OWN UNIT IS PASSED, so the producer never re-scales a figure this label then prints
-        # beside that unit; the producer appends it, and the label prints its own unit after the figure.
         txt = str(fn(v, table=(str(table or "") if own else ""), metric=(str(metric or "") if own else ""),
                      unit=u, grouping=True) or "").strip()
     except Exception:  # noqa: BLE001
         return None
-    if u and txt.endswith(" " + u):
-        txt = txt[: -(len(u) + 1)].strip()
+    for suffix in (printed, u):
+        if suffix and txt.endswith(" " + suffix):
+            txt = txt[: -(len(suffix) + 1)].strip()
+            break
     try:
         t = float(txt.replace(",", "").lstrip("+"))
     except (TypeError, ValueError):
         return None
     dec = len(txt.split(".", 1)[1]) if "." in txt else 0
-    if abs(t - v) > 0.5 * 10.0 ** (-dec) + 1e-9 * max(1.0, abs(v)):
+    target = v * scale
+    if abs(t - target) > 0.5 * 10.0 ** (-dec) + 1e-9 * max(1.0, abs(target)):
         return None
-    return txt
+    return txt, printed
+
+
+def _analyst_value_text(value, *, table: str, metric: str, unit: str,
+                        commodity: Optional[str] = None) -> Optional[str]:
+    """The text half of :func:`_analyst_figure` for a LEVEL (kept for any caller that reads the figure
+    alone; ``from_number`` reads the pair, because a re-stated level prints its display unit)."""
+    got = _analyst_figure(value, table=table, metric=metric, unit=unit, commodity=commodity)
+    return got[0] if got else None
+
+
+# ══ 09-24 FIX ROUND 2 (lane C) -- THE FIGURE TOKEN, THE CHANGE ROW, THE SHEET, THE CALL'S IDENTITY ══════
+#
+# THE DEFECT CLASS (THREAT_MODEL sec 0 class 1): round 1 put the row identity in the FOOTER and the
+# writer copied the figure out of the NUMBERS BLOCK without it -- "10.72 %" / "27.31%" / "0.11 ratio" bare
+# on six turns, a change printed under the level's name ("drought z-score ... = 0.15 z" beside the level
+# 0.00089 z for the same month, cocoa N181-N184), and the soybean MEAL sheet printed as "US soybean
+# production ... 54,154 1 Thousand Short2 Tons 3 4" (2024 N3-N5). Every term below reads the CARD (its
+# declared basis, display spec, unit overrides and sheet filters) and the ROW (its stat, window, period
+# role, sheet) and nothing else; each is empty on a call that carries none of them.
+def _card_metric(table, metric):
+    """The registry ``Metric`` of ``(table, metric)``, or ``None`` -- read defensively (a field another
+    lane adds this round reads as absent until it lands)."""
+    ts = _card_spec(table)
+    if ts is None:
+        return None
+    try:
+        return (getattr(ts, "metrics", None) or {}).get(str(metric or ""))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _figure_basis(table, metric) -> str:
+    """The card's ``figure_basis`` (CONTRACT K2; lane T's MetricSpec field): the qualifier that follows the
+    unit in the figure token ("of domestic use"). "" where undeclared."""
+    return str(getattr(_card_metric(table, metric), "figure_basis", None) or "").strip()
+
+
+def _is_level_stat(row: dict, stat_row: bool = False) -> bool:
+    """Is this row's magnitude the series' own LEVEL? Not a computed statistic's row, and a ``stat`` that is
+    absent or one of ``rows.LEVEL_STAT_KINDS`` (the one vocabulary of row kinds, never a local tuple)."""
+    if stat_row:
+        return False
+    st = str((row or {}).get("stat") or "")
+    if not st:
+        return True
+    try:
+        from leviathan.graphrag.state.rows import LEVEL_STAT_KINDS
+    except Exception:  # noqa: BLE001 -- no vocabulary: only the unstamped row is a level
+        return False
+    return st in LEVEL_STAT_KINDS
+
+
+def _call_aggregate(call: dict) -> str:
+    """The query layer's own AGGREGATE this read is (``query.AGGREGATE_AGGS``: sum / mean / max / min), else
+    "" -- an aggregate is not ONE observation, so it takes no per-observation basis (REVIEW_WT MAJOR-4)."""
+    agg = str(((call or {}).get("query") or {}).get("agg") or "")
+    if not agg:
+        return ""
+    try:
+        from leviathan.graphrag.numbers import query as _Q
+        return agg if agg in getattr(_Q, "AGGREGATE_AGGS", frozenset()) else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _aggregate_label(table, metric, agg: str) -> str:
+    """The card's own NAME for this metric's aggregate (``MetricSpec.aggregate_labels[agg]``: the ESR card
+    names the summed weekly shipments "export shipments"), or "" where the card declares none."""
+    if not agg:
+        return ""
+    labs = getattr(_card_metric(table, metric), "aggregate_labels", None) or {}
+    try:
+        return str(labs.get(agg) or "").strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _basis_applies(table, metric, commodity, printed_unit, *, level: bool, agg: str) -> bool:
+    """FIXER PASS (REVIEW_VC F2, RA M9, WT MAJOR-4): the card's ``figure_basis`` is the qualifier of ONE
+    OBSERVATION OF THE METRIC'S OWN QUANTITY -- it rides a figure only when that figure IS the level (never a
+    percentile, a sigma, a change or a computed statistic), is ONE observation (never an aggregate), and is
+    printed in the card's native or display unit (a figure in another unit is another quantity: "31
+    percentile of domestic use" and "-0.72 sigma of domestic use" were the measured false tokens). The
+    unit test compares the declared unit FAMILIES (``_unit_family``, the one vocabulary), never spellings."""
+    if not level or agg:
+        return False
+    fam = _unit_family(printed_unit)
+    if not fam:
+        return False
+    native = _governing_unit(table, metric, commodity) or _metric_unit(table, metric, commodity)
+    own = {_unit_family(native)}
+    try:
+        from leviathan.graphrag.numbers import registry as _reg
+        ds = _reg.display_spec(str(table), str(metric))
+        if ds:
+            own.add(_unit_family(ds[1]))
+    except Exception:  # noqa: BLE001
+        pass
+    own.discard("")
+    return fam in own
+
+
+def _figure_period(call: dict, row: dict) -> tuple:
+    """``(period_words, period_kind, period_role)`` of the ONE observation a call's figure is (FIXER PASS,
+    REVIEW_VC M1 / RA M8, and the VC lexical items at the label's "MY" sniff).
+
+    The figure is a value of the HEADLINE ROW, so its period is the row's own (:func:`_row_own_period`) at
+    the card's observation precision -- an ESR destination row's WEEK ("week to 10 September 2026"), never
+    the marketing year the query was scoped to. Where the query's own period is a DIFFERENT kind (the ESR
+    query names the marketing year its weeks belong to), that period is the figure's ROLE ("2026/27
+    marketing year"). A row with no readable period of its own prints the query's period at the card's
+    declared kind (:func:`period_kind`) -- the kind is read off the card, never off a printed prefix."""
+    q = (call or {}).get("query") or {}
+    qtok = q.get("period")
+    qkind = None
+    if qtok not in (None, ""):
+        qkind = "window" if ".." in str(qtok) else period_kind(call)
+    rtok, rkind = (None, None)
+    # an AGGREGATE is not one observation: its period is the SCOPE the query summed over (the ESR companion's
+    # marketing year), never the storage label its collapsed row happens to carry
+    if row and not _call_aggregate(call):
+        try:
+            rtok, rkind = _row_own_period(call, row)
+        except Exception:  # noqa: BLE001
+            rtok, rkind = (None, None)
+    if rtok and rkind and rkind != "window" and (qtok in (None, "") or ".." not in str(qtok)):
+        pw = _period_words_for(rkind, rtok)
+        role = ""
+        if qtok not in (None, "") and qkind and qkind != rkind:
+            qw = _period_words_for(qkind, qtok)
+            try:
+                from leviathan.graphrag.state.rows import PERIOD_KIND_NOUNS
+                noun = str(PERIOD_KIND_NOUNS.get(qkind) or "")
+            except Exception:  # noqa: BLE001
+                noun = ""
+            role = qw if (not noun or noun in qw) else f"{qw} {noun}"
+        return pw, str(rkind), role
+    if qtok not in (None, ""):
+        return _period_words_for(qkind, qtok), str(qkind or ""), ""
+    return "", "", ""
+
+
+def _period_words_for(kind: Optional[str], token) -> str:
+    """The period a READER is shown at the card's own precision ("2026/27", "week to 3 September 2026",
+    "August 2026") -- lane R's ONE period producer (``rows.period_label_for``, the SAME words the board
+    row prints), fed the token WITHOUT the marketing-year prefix this module's own label writes."""
+    tok = _period_value(token)
+    if not tok:
+        return ""
+    if ".." in tok:
+        kind = "window"                           # a window read is no one period (`printed_period`'s rule)
+    try:
+        from leviathan.graphrag.state.rows import period_label_for
+        return str(period_label_for(str(kind or ""), tok) or "")
+    except Exception:  # noqa: BLE001
+        return tok
+
+
+def figure_token_for(shown: str, *, unit: str = "", figure_basis: str = "", period_words: str = "",
+                     period_role: str = "") -> str:
+    """THE K2 FIGURE TOKEN through lane R's ONE producer (``rows.figure_token``); until that producer lands
+    on a tree, its contract spelling (CONTRACT K2: "<shown> <unit> <figure_basis>, <period_words>[,
+    <period_role>]", every part omitted when empty) -- the same string, so the label and the board row
+    can never spell one figure two ways."""
+    try:
+        from leviathan.graphrag.state import rows as _rows
+        fn = getattr(_rows, "figure_token", None)
+        if fn is not None:
+            return str(fn(shown, unit=unit, figure_basis=figure_basis, period_words=period_words,
+                          period_role=period_role))
+    except Exception:  # noqa: BLE001
+        pass
+    head = " ".join(x for x in (str(shown or "").strip(), str(unit or "").strip(),
+                                str(figure_basis or "").strip()) if x)
+    return ", ".join(x for x in (head, str(period_words or "").strip(), str(period_role or "").strip()) if x)
+
+
+def _governing_unit(table, metric, commodity) -> str:
+    """The unit the CARD declares GOVERNS this commodity's rows (``unit_overrides``: "the GOVERNING display
+    unit because the stored `unit` column is heterogeneous", the avg_farm_price precedent lane T extends to
+    the WASDE quantity attributes, CONTRACT K22), or "" where the card declares none -- then the row's own
+    unit prints, exactly as before. The query layer already stamps this unit onto every row it serves
+    (``query._apply_unit_overrides``); reading it here means a row minted or banked OUTSIDE that choke
+    point can never print the raw column ("1 Thousand Short2 Tons 3 4") either."""
+    m = _card_metric(table, metric)
+    ov = getattr(m, "unit_overrides", None) or {}
+    try:
+        return str(ov.get(commodity) or "") if commodity else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _registry_attr(name: str):
+    """One lane-T registry function by name (``class_scope``, ``sheet_spec``), or ``None`` on a tree where it
+    has not landed -- the contract's defensive-read idiom, so this module is green before its producer is."""
+    try:
+        from leviathan.graphrag.numbers import registry as _reg
+        return getattr(_reg, name, None)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _row_sheet(table, row: dict) -> dict:
+    """THE SOURCE SHEET THIS ROW WAS PRINTED ON (CONTRACT K22, lane T's measured design): the card's declared
+    ``sheets[<sheet id>]`` -- ``{commodity, scope, serves, unit}`` through ``registry.sheet_spec`` -- for a row
+    that carries its sheet id (``query.SHEET_ALIAS``), else ``{}``. Lane T's P-2 census measured that WASDE's
+    ``table_type`` is only us / world and CANNOT tell the meal sub-table from the beans sheet; the sheet id
+    (the transform's own ``source_table_id``) is the one fact that can."""
+    try:
+        from leviathan.graphrag.numbers import query as _Q
+        alias = getattr(_Q, "SHEET_ALIAS", "_sheet")
+    except Exception:  # noqa: BLE001
+        alias = "_sheet"
+    sid = (row or {}).get(alias)
+    fn = _registry_attr("sheet_spec")
+    if sid in (None, "") or fn is None:
+        return {}
+    try:
+        sp = fn(str(table), str(sid))
+    except Exception:  # noqa: BLE001
+        return {}
+    return dict(sp) if isinstance(sp, dict) else {}
+
+
+def _class_family(table, commodity) -> dict:
+    """The card's published FAMILY for this commodity slug when its class rule is ALL-CLASSES and the slug
+    names something NARROWER than the family (lane T's ``registry.class_scope``; the slug's causal node
+    through the declared contract hierarchy differs from the family name): ``{"family", "basis"}``, else
+    ``{}``. soft_red_winter_wheat_cbot (node srw_wheat) in the wheat family -> the row is USDA's all-class
+    wheat; corn_cbot (node corn) in the corn family names no narrower class -> ``{}``, its label unmoved."""
+    fn = _registry_attr("class_scope")
+    if fn is None or not commodity:
+        return {}
+    try:
+        cs = fn(str(table), str(commodity)) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+    fam = str(cs.get("family") or "").strip()
+    if str(cs.get("class_scope") or "") != "all_classes" or not fam:
+        return {}
+    basis = str(cs.get("basis") or "").strip()
+    try:
+        from leviathan.graphrag.state.feeders import _commodity_node
+        node = _commodity_node(commodity)
+    except Exception:  # noqa: BLE001
+        node = str(commodity)
+    # FIXER PASS (REVIEW_VC M5): the families are keyed by the hierarchy NODE id (tables.yaml, lane T), so
+    # "the slug names something narrower" is an ID comparison of two node ids -- never a spelling fold. A
+    # family that declares a BASIS (rice: "milled basis") prints on every member whatever its node: the
+    # published sheet is on another basis than the contract, which is exactly what the reader must see
+    # (the first cut folded rice's node onto the family name and the declared basis never printed).
+    if str(node) == fam and not basis:
+        return {}
+    return {"family": _family_words(fam), "basis": basis}
+
+
+def _family_words(fam: str) -> str:
+    """A family node id in reader words through the ONE display producer (``display.node_label``)."""
+    try:
+        from leviathan.graphrag import display as _dp
+        return str(_dp.node_label(fam) or fam)
+    except Exception:  # noqa: BLE001
+        return str(fam).replace("_", " ")
+
+
+def _commodity_words(table, commodity, row: dict) -> Optional[str]:
+    """THE COMMODITY WORDS a label prints for this row where they differ from the asked slug's display
+    (CONTRACT K22), else ``None`` (HEAD's ``_contract_display(commodity)``):
+
+    * the row's SHEET is not the commodity's own whole balance sheet -> the words the card declares for what
+      that sheet prints (``serves``: "long-grain rice", "the soybean products sub-tables (meal, oil)");
+    * the row's sheet is ANOTHER commodity's own sheet -> that commodity's display;
+    * the slug is a CLASS of a family whose published sheet is ALL-CLASS -> "<family> (all classes[, <basis>])"
+      -- "wheat (all classes)" where the page printed USDA's all-class 0.652 as soft red winter wheat's own.
+    Every branch is a declaration read off the card; nothing is inferred from a word."""
+    sh = _row_sheet(table, row)
+    if sh:
+        serves = str(sh.get("serves") or "").strip()
+        if serves and serves != "all_classes":
+            return serves
+        sc = str(sh.get("commodity") or "").strip()
+        if sc and commodity and sc != commodity:
+            return _contract_display(sc)
+        return None
+    fam = _class_family(table, commodity)
+    if fam:
+        tail = ", ".join(x for x in ("all classes", fam.get("basis")) if x)
+        return f"{fam['family']} ({tail})"
+    return None
+
+
+def _join_commodity(table, commodity, row: dict) -> Optional[str]:
+    """The commodity a served row's period is a fact ABOUT, for the K23 store-period join: the sheet's own
+    commodity; ``None`` (joins nothing) for a sub-table sheet, which is not the commodity's balance sheet;
+    the published family for an all-class class slug; else the asked commodity."""
+    sh = _row_sheet(table, row)
+    if sh:
+        if str(sh.get("serves") or "") != "all_classes":
+            return None
+        return str(sh.get("commodity") or "") or commodity
+    fn = _registry_attr("class_scope")
+    try:
+        cs = (fn(str(table), str(commodity)) or {}) if (fn is not None and commodity) else {}
+    except Exception:  # noqa: BLE001
+        cs = {}
+    # the K23 join key is the family's NODE id (an ID join with `feeders._commodity_node`), never its words
+    return (str(cs.get("family") or "") or commodity) if (_class_family(table, commodity)) else commodity
+
+
+def _signed(text: str, value) -> str:
+    """A CHANGE is printed with its sign -- "+0.15", "-0.23", "0" -- the direction is half the figure."""
+    t = str(text or "").strip()
+    try:
+        v = float(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return t
+    if v > 0 and not t.startswith(("+", "-")):
+        return "+" + t
+    return t
+
+
+def _change_window(call: dict, row: dict) -> tuple:
+    """``(from, to)`` of a CHANGE row (CONTRACT K5): the row's declared ``window`` (lane R's analog outcome
+    calls, lane T's seat ``window_change`` rows), else the query's own ``<from>..<to>`` period -- the
+    estate's one spelling of a window (the analog call keeps it, ``agent._stat_window`` writes it). ``("",
+    "")`` when neither names both ends: the label then keeps HEAD's head rather than guessing a window."""
+    w = (row or {}).get("window")
+    if isinstance(w, dict):
+        a, b = str(w.get("from") or "").strip(), str(w.get("to") or "").strip()
+        if a and b:
+            return a, b
+    per = str(((call or {}).get("query") or {}).get("period") or "").strip()
+    if ".." in per:
+        a, _, b = per.partition("..")
+        return a.strip(), b.strip()
+    return "", ""
+
+
+def _window_words(call: dict, row: dict, token: str) -> str:
+    """One END of a change window in the reader's words, at the precision of the card's own period axis
+    (``period_kind`` of that token on the row's card: a month is "October 2025", a marketing year
+    "2025/26", a day "3 September 2026"); a token no card places prints exactly as served."""
+    try:
+        kind = period_kind(call, source="period", token=token)
+    except Exception:  # noqa: BLE001
+        kind = None
+    if kind is None:
+        kind = _kind_of_source("period", None, {}, token)
+    out = _period_words_for(kind, token)
+    if not out or out == str(token):
+        # FIXER PASS (REVIEW_RA M4 / VC m6): a token the declared kind cannot place (the MPOC card declares its
+        # cosmetic `period_type: date` while its axis is year-month) is read by its OWN shape under the card's
+        # cadence -- `rows.period_kind_for`, the one producer of that rule -- so "2026-01" is "January 2026"
+        try:
+            from leviathan.graphrag.state.rows import period_kind_for as _pkf
+            ts = _card_spec(str(((call or {}).get("query") or {}).get("table") or ""))
+            k2 = _pkf(str(token), period_type=str(getattr(ts, "period_type", "") or ""),
+                      cadence=str(getattr(ts, "cadence", "") or ""))
+            if k2 and k2 != kind:
+                out = _period_words_for(k2, token) or out
+        except Exception:  # noqa: BLE001
+            pass
+    return out or str(token)
+
+
+def _pct_words(row: dict) -> str:
+    """The calculator's own percent change riding a change row (``pct_change``, stats.window_change's own
+    field -- lane T carries it on the seat row), printed through the ONE precision producer with its sign:
+    " (+0.37 %)". "" where the row carries none -- nothing here divides."""
+    p = (row or {}).get("pct_change")
+    if p in (None, ""):
+        return ""
+    try:
+        from leviathan.graphrag.state.rows import figure_text
+        txt = str(figure_text(float(str(p).replace(",", "")), unit="%", two_sided=True) or "")
+    except Exception:  # noqa: BLE001
+        return ""
+    return f" ({txt})" if txt else ""
 
 
 def from_number(call: dict, i: int) -> Citation:
@@ -1983,6 +2407,13 @@ def from_number(call: dict, i: int) -> Citation:
     _basis = str(rH.get("basis") or _cf.get("basis_words") or "").strip()
     if _basis and _basis not in mdisp:
         mdisp = f"{mdisp} ({_basis})"
+    # FIXER PASS (REVIEW_WT MAJOR-4 / RA M9): an AGGREGATE read is not one observation, so under the analyst
+    # stamp (the board's numbers block, O-3 (b)) it is named by the CARD's own name for that aggregate
+    # ("export shipments" for the summed weekly shipments), never the per-observation name ("weekly
+    # exports") -- a year total must not read as a week. Off the stamp: HEAD's name, byte for byte.
+    _agg = _call_aggregate(call)
+    if call.get("display") == "analyst" and _agg:
+        mdisp = _aggregate_label(_ctable or table, _cmetric or metric, _agg) or mdisp
     # K9-5: A COMPUTED STATISTIC NAMES THE TABLE IT WAS COMPUTED OVER. `_source_label("compute_stat")` is
     # the strip-and-upper fallback "COMPUTE STAT" -- a machine id headlining the reader's `## Sources`
     # line, and worse, a SOURCE the reader cannot check anything against. The row declares its own source
@@ -2001,7 +2432,21 @@ def from_number(call: dict, i: int) -> Citation:
     src = _source_label(_src_table or table)
     asof = q.get("asof")
     value = rH.get("value")
-    unit = rH.get("unit") or _metric_unit(table, metric, q.get("commodity"))
+    # 09-24 (CONTRACT K22, DM3 -- a PURE CORRECTION on both cells): a unit the CARD declares GOVERNS this
+    # commodity's rows (`unit_overrides`) prints in place of the raw unit column, so a heading's text with
+    # its footnote markers ("1 Thousand Short2 Tons 3 4") can never reach a label from a row minted outside
+    # the query layer's own stamp (`query._apply_unit_overrides` / lane T's `_apply_sheet_units`). A card
+    # that declares none: the row's own unit, then the card's, exactly as before. The COMMODITY a row names
+    # is its sheet's or its published family's where the card declares one (`_commodity_words`: a sub-table
+    # sheet, another commodity's sheet, an all-class sheet under a class slug). All empty on every row whose
+    # card declares none of them -- HEAD's label, byte for byte.
+    _cwords = _commodity_words(table, q.get("commodity"), rH)
+    # FIXER PASS (REVIEW_VC m3): the card's governing unit is the unit of the metric's LEVEL; a row that is
+    # another quantity of the same series (a percentile, a sigma -- a board call's declared `stat`) keeps
+    # its own unit, never "99 US cents/bushel" for a 99th percentile
+    unit = (((_governing_unit(table, metric, q.get("commodity"))
+              if _is_level_stat(rH, table == _STATS_TABLE) else "") or rH.get("unit"))
+            or _metric_unit(table, metric, q.get("commodity")))
     # CYCLE-5 VINTAGE-1: ...falling back to the row's (year, month). 09-23 (C11): a DATA-DATE card's stamp
     # is the ONE derivation the board prints (data date + the card's publication lag), `_known_date`.
     kd = _known_date(call, rH)
@@ -2012,13 +2457,17 @@ def from_number(call: dict, i: int) -> Citation:
     # (The row's own period is decided below, once the K9-2 withhold is known: a withheld line carries no
     # figure, so the headline row's period would belong to nothing on it.)
     per = (_period_label(q.get("period"), period_kind(call)) if q.get("period") not in (None, "") else None)
-    _row_per = None
+    # the RAW period token and its kind, kept for the K2 token's period words (read only under the
+    # analyst stamp) -- the same token and kind the label's period slot is spelt from
+    _per_tok = (q.get("period"), period_kind(call)) if per is not None else (None, None)
+    _row_per, _row_per_tok = None, (None, None)
     if per is None and rH and not _value_blank(rH):
         # 09-24 (VERIFY_FINAL MAJOR-1): the row's own token AND its kind come from ONE rule,
         # `_row_own_period` -- a knowledge stamp is never a period, and a date is never a marketing year
         _ptok, _pkind = _row_own_period(call, rH)
         if _ptok:
             _row_per = _period_label(_ptok, _pkind)
+            _row_per_tok = (_ptok, _pkind)
     # D-PQ RENDER-2: the DELIVERY MONTH rides the scope, and it comes off the ROW. On agg='front_expiry'
     # the query names no expiry (the rule selects one), so a query-only scope is silent on the single fact
     # that makes the number attributable.
@@ -2096,6 +2545,7 @@ def from_number(call: dict, i: int) -> Citation:
                       board=bool(call.get("_sb")), rows=rows)
     if per is None and _row_per and not _scope_withheld:
         per = _row_per
+        _per_tok = _row_per_tok
     # `cmonth` wins when a row carries one: it is the row's OWN declared expiry, and a row carrying both a
     # contract_month and a leg pair would be a producer defect this label must not paper over. A row with
     # neither renders exactly as it did before T1-4 -- the anti-vacuity property the spread pin asserts.
@@ -2137,8 +2587,14 @@ def from_number(call: dict, i: int) -> Citation:
     # the scope -- each is identical on every call it rides, so a row's heads stay one spelling.
     _offset = _offset_words(rH)
     _statw = _stat_words(rH, rH.get("value"))
-    scope = " ".join(x for x in (_contract_display(q.get("commodity")), geo, per, _role, _offset, _statw,
+    # K22: the commodity a row's SHEET belongs to names it (None -> the asked commodity, HEAD's word)
+    _cdisp = _contract_display(q.get("commodity")) if _cwords is None else _cwords
+    scope = " ".join(x for x in (_cdisp, geo, per, _role, _offset, _statw,
                                  _delivery, _zspan) if x)
+    # K5: a CHANGE row's window replaces the period slot -- "change from <from> to <to>" -- so a change is
+    # never printed under the level's name at the level's period (cocoa N181-N184, max N334)
+    _is_change = str(rH.get("stat") or "") == "window_change"
+    _chg_scope = " ".join(x for x in (_cdisp, geo, _role, _offset, _delivery, _zspan) if x) if _is_change else ""
     # D-HP G1 REMEDIATION-2 R2-b: the blank-value read is routed to the ABSENCE branch BEFORE either
     # rows-bearing branch can claim it. `_blank` is false on every read that carries a value, so both
     # branches below are byte-identical on every such turn.
@@ -2171,12 +2627,59 @@ def from_number(call: dict, i: int) -> Citation:
             _vt = _stat_value_text(metric, value, unit) if _stat_row else None
             # 09-23 (C5, OWNER DECISION 10): ANALYST PRECISION only on a call lane A stamped
             # `display == "analyst"` (the board flag's own stamp); every other call is HEAD's `_fmt`.
-            _num = None
-            if not _vt and (call.get("display") == "analyst"):
-                _num = _analyst_value_text(value, table=_ctable or table, metric=_cmetric or metric,
-                                           unit=str(unit or ""), commodity=q.get("commodity"))
-            label = (f"{src} {mdisp} {scope} = {_vt}".strip() if _vt
-                     else f"{src} {mdisp} {scope} = {_num if _num is not None else _fmt(value)} {unit}".strip())
+            # 09-24 (K7): a LEVEL in the card's native unit is re-stated in the card's display unit at its
+            # display precision (`_analyst_figure`); a change or a computed statistic never borrows the
+            # level's spec.
+            _analyst = call.get("display") == "analyst"
+            _level = _is_level_stat(rH, _stat_row)
+            _fig = None
+            if not _vt and _analyst:
+                _fig = _analyst_figure(value, table=_ctable or table, metric=_cmetric or metric,
+                                       unit=str(unit or ""), commodity=q.get("commodity"), level=_level)
+            if _vt:
+                label = f"{src} {mdisp} {scope} = {_vt}".strip()
+            else:
+                _txt, _pu = _fig if _fig is not None else (_fmt(value), str(unit or ""))
+                if _is_change:
+                    _txt = _signed(_txt, value)
+                if _analyst:
+                    # K2 (OWNER DECISION O-3 (b)): under the analyst stamp ONLY, the value slot is the FIGURE
+                    # TOKEN the writer copies -- the figure, its unit, the card's basis and the period at
+                    # the card's own precision (a change row's window is already its head), and the row's
+                    # period role -- so the identity travels WITH the figure out of the numbers block
+                    # FIXER PASS (REVIEW_VC M1 / F2, RA M8 / M9): the period is the HEADLINE ROW's own
+                    # observation at the card's precision (an ESR week, never the query's marketing year,
+                    # which becomes the ROLE), and the basis rides only the metric's own level in its
+                    # native or display unit, on ONE observation -- never a percentile, sigma, change,
+                    # aggregate or computed statistic (`_basis_applies`)
+                    _fpw, _fpk, _frole = _figure_period(call, rH)
+                    _val = figure_token_for(
+                        _txt, unit=_pu,
+                        figure_basis=(_figure_basis(_ctable or table, _cmetric or metric)
+                                      if _basis_applies(_ctable or table, _cmetric or metric,
+                                                        q.get("commodity"), _pu, level=_level, agg=_agg)
+                                      else ""),
+                        period_words=("" if _is_change else _fpw),
+                        period_role=str(rH.get("period_role") or _frole or ""))
+                else:
+                    _val = f"{_txt} {_pu}".strip()
+                _a, _b = _change_window(call, rH) if _is_change else ("", "")
+                # both ends named and DIFFERENT observations (a window inside one print of the series is
+                # lane R's `band_inside_one_print` decline -- a label never names a change from X to X)
+                if _is_change and _a and _b and _a != _b:
+                    # THE SERIES' NAME: a computed change names the series it was computed over (its source
+                    # card's display, K9-5's `source_table` / `source_metric`), never "(change over the
+                    # window)" before "change from" -- the head says what changed, then over which window
+                    _cname = mdisp
+                    if _stat_row and _src_table:
+                        _cname = _metric_display_name(_src_table, str(rH.get("source_metric") or ""))
+                        if _basis and _basis not in _cname:
+                            _cname = f"{_cname} ({_basis})"
+                    _head = " ".join(x for x in (src, _cname, _chg_scope) if x)
+                    label = (f"{_head} change from {_window_words(call, rH, _a)} to "
+                             f"{_window_words(call, rH, _b)} = {_val}{_pct_words(rH)}").strip()
+                else:
+                    label = f"{src} {mdisp} {scope} = {_val}".strip()
         # D-PQ RENDER-2, second half: WHAT KIND OF PRINT this is, plus the row's own currency. Both are
         # card-declared columns and neither was reaching the writer. The currency is appended only when it
         # is not already inside the unit string (US cents/bushel already says USD; CNY/t already says CNY),
@@ -2936,6 +3439,280 @@ def prose_completion_citations(number_calls: list | None, stated, *, seen: set,
                 out += _mint_row_citations(call, i, rows)
             except Exception:  # noqa: BLE001
                 continue
+    return out
+
+
+# ══ 09-24 FIX ROUND 2, LANE C (CONTRACT K1) -- THE ONE EVIDENCE LEDGER, THE ONE ISSUER OF [E] ADDRESSES ═══
+#
+# THE DEFECT (items 1 and 20; THREAT_MODEL surprise 1). The board minted its own [E] sequence from
+# `e_start = len(uniq) + 1` (`render.Block.take_e`), while `cit.unify` numbered and `verify_citations`
+# resolved against `uniq` ALONE: an [E] the block printed past the menu pointed at nothing the verifier
+# held. MEASURED on the 09-24 pages: deep 2026 served ZERO [E] rows (citation_resolved {}, three receipts
+# pruned); the tariff regime's receipt [E46] was struck fabricated_citation beside four real menu documents
+# (ledger_cascade 6); cocoa's in-menu E1/E7/E2 were kept by the verifier and pruned by the footer. Two
+# counters can only agree by luck -- `_evidence_ordinals`' own docstring said so of the render loop.
+#
+# THE FIX IS ONE LIST. The ledger starts as a COPY of the turn's deduped menu (`uniq`), and every [E] the
+# block prints is ISSUED by :meth:`EvidenceLedger.address`: a document the menu (or an earlier row)
+# already holds keeps ITS address -- one document, one address, wherever it is named -- and a document
+# the menu does not hold is APPENDED, so its address is its position. `evidence()` IS the list every
+# consumer reads (the grounding line's range, `unify`, the verifier, the prune), so the k the block printed,
+# the k `unify` stamps (`id=f"E{i}"`, positional) and the k the verifier resolves are one number by
+# construction. A different CHUNK of a held document is remembered under that document's address
+# (`chunks`), so a sentence quoting what the block showed is checked against what the block showed.
+# A record with no `source_key` has no durable identity and gets NO address (the caller prints no [E]
+# and counts it) -- exactly the rule `answer._uniq_evidence` already applies to the menu.
+# PURE: no environment, no I/O, no clock. With nothing registered, `evidence()` is `uniq` element for
+# element (the same objects), so every consumer is byte-identical on a turn whose board issued nothing.
+_LEDGER_ROW_KEYS: tuple = ("source", "source_key", "date", "text", "event_date", "event_date_precision",
+                           "char_start", "char_end", "offset_kind", "date_kind")
+
+
+def _rec_get(record, key):
+    if isinstance(record, dict):
+        return record.get(key)
+    return getattr(record, key, None)
+
+
+def _rec_has(record, key) -> bool:
+    if isinstance(record, dict):
+        return key in record
+    return hasattr(record, key)
+
+
+def _rec_key(record) -> str:
+    return str(_rec_get(record, "source_key") or "").strip()
+
+
+def _rec_text(record) -> str:
+    """A shown text, whitespace-folded: the same chunk re-wrapped is one text, never two."""
+    return " ".join(str(_rec_get(record, "text") or "").split())
+
+
+def ledger_row(record) -> dict:
+    """ONE evidence row in ``from_evidence``'s shape (source, source_key, date, text, event_date,
+    event_date_precision, char_start, char_end, offset_kind) -- COPIED from the record, never invented: a
+    key the record does not carry is absent here too (``from_evidence`` reads every key with ``.get``)."""
+    return {k: _rec_get(record, k) for k in _LEDGER_ROW_KEYS if _rec_has(record, k)}
+
+
+class EvidenceLedger:
+    """THE ONE ISSUER OF [E] ADDRESSES FOR A TURN (CONTRACT K1). See the block note above.
+
+    ``menu_n`` is ``len(uniq)`` at construction -- the rows the MENU rendered; every address above it was
+    registered by the board. Addresses are 1-based and positional: ``address(r) == k`` means
+    ``evidence()[k - 1]`` is the document ``r`` came from."""
+
+    def __init__(self, uniq) -> None:
+        self.items: list = list(uniq or [])
+        self.menu_n: int = len(self.items)
+        self._by_key: dict = {}
+        for k, it in enumerate(self.items, 1):
+            sk = _rec_key(it)
+            if sk and sk not in self._by_key:
+                self._by_key[sk] = k
+        self._extra: dict = {}                    # {k: [ledger_row, ...]} -- chunks beyond items[k-1]
+        self._unaddressed: int = 0
+        # FIX ROUND 2, fixer pass (REVIEW_VC F1, a K1 amendment): every address THIS ledger handed the block.
+        # A menu address the block never printed is the writer's plain menu citation, not an address the
+        # ledger vouched for -- the verifier's address-first rule reads this set, never the index range.
+        self._issued: set = set()
+
+    def address(self, record):
+        """The [E] ordinal of ``record``'s document, or ``None``.
+
+        * its ``source_key`` is already held -> that address; a record whose TEXT differs from every text
+          already shown under it is remembered as a CHUNK shown under the same address;
+        * not held -> ``ledger_row(record)`` is appended and its position is its address;
+        * no ``source_key`` -> ``None`` (no durable identity, no address; counted ``unaddressed``)."""
+        sk = _rec_key(record)
+        if not sk:
+            self._unaddressed += 1
+            return None
+        k = self._by_key.get(sk)
+        if k is None:
+            self.items.append(ledger_row(record))
+            k = len(self.items)
+            self._by_key[sk] = k
+            self._issued.add(k)
+            return k
+        txt = _rec_text(record)
+        if txt and txt != _rec_text(self.items[k - 1]) \
+                and all(txt != _rec_text(r) for r in self._extra.get(k, ())):
+            self._extra.setdefault(k, []).append(ledger_row(record))
+        self._issued.add(k)
+        return k
+
+    def evidence(self) -> list:
+        """THE positional list every consumer reads: address ``k`` is ``evidence()[k - 1]``. A new list each
+        call; its members are the ledger's own rows (the menu's objects, unchanged)."""
+        return list(self.items)
+
+    def chunks(self) -> dict:
+        """``{k: [row, ...]}`` ONLY for addresses under which more than one text was shown -- the address's
+        own row first, then every other chunk the block showed there (the verifier's support pool for
+        ``[Ek]``, CONTRACT K1 (c))."""
+        return {k: [self.items[k - 1]] + list(v) for k, v in sorted(self._extra.items()) if v}
+
+    def issued(self) -> dict:
+        """``{k: [row, ...]}`` for EVERY address :meth:`address` handed out -- the address's own row first,
+        then every other chunk the block showed there (a superset of :meth:`chunks`).
+
+        FIX ROUND 2, fixer pass (REVIEW_VC F1 -- a K1 amendment). The first cut let the verifier treat EVERY
+        in-range index as an address the ledger vouched for, so a writer's mis-typed PLAIN menu citation was
+        resolved to whatever document sat at that index (56% of same-turn twins on 1,099 unseen answers).
+        An address is ISSUED only when the block printed it: this map is the verifier's ``evidence_chunks``
+        (its keys are the issued set, its values the support pool), and a menu index the block never printed
+        takes HEAD's resolution."""
+        return {k: [self.items[k - 1]] + list(self._extra.get(k, ())) for k in sorted(self._issued)}
+
+    def stamp(self) -> dict:
+        """The ledger's own counts, for lane A's ``evidence_ledger`` trace key (K20)."""
+        return {"menu_n": self.menu_n, "registered": len(self.items) - self.menu_n,
+                "extra_chunks": sum(len(v) for v in self._extra.values()),
+                "unaddressed": self._unaddressed}
+
+
+# ══ 09-24 FIX ROUND 2, LANE C (CONTRACT K4) -- THE ONE READER OF A CALL'S IDENTITY ══════════════════════
+#
+# Lane A's name-binding lint re-writes a noun the writer bound to a figure when it names the wrong thing
+# (the driver's routing words, a contained commodity, a unit of another family, a contradicted period).
+# It needs to know what the call IS -- and the one place that already decides that is the label. So the
+# identity is read by the SAME producers `from_number` spells its label from (the metric display with its
+# basis, the contract display, the sheet commodity, the axis words, the period at its kind), never by a
+# second derivation that could disagree with the line the reader checks.
+def _unit_family(unit) -> str:
+    """THE FAMILY of a unit phrase, from the DECLARED unit vocabulary (``registry.unit_spellings`` /
+    ``duration_spellings``, tables.yaml's top-level blocks -- the one list the verifier's unit grammar is
+    derived from): the canonical phrase of the equivalence class the unit belongs to ("percentile",
+    "sigma", "%", "mt" ...), ``"duration"`` for any declared duration noun, else the normalised phrase
+    itself; "" for no unit."""
+    try:
+        from leviathan.graphrag.numbers import registry as _reg
+        u = _reg.normalise_unit_phrase(unit)
+        if not u:
+            return ""
+        for canon, members in (_reg.unit_spellings() or {}).items():
+            if u in members:
+                return canon
+        for _noun, members in (_reg.duration_spellings() or {}).items():
+            if u in members:
+                return "duration"
+        return u
+    except Exception:  # noqa: BLE001
+        return " ".join(str(unit or "").lower().split())
+
+
+def unit_family(unit) -> str:
+    """THE PUBLIC READER of a unit phrase's family (``call_identity``'s ``unit_family``), exposed so the
+    verifier's written-unit family (K4's ``unit_family_written``) is spelt in the SAME declared vocabulary
+    the call's identity is -- two readers of one list, never two lists."""
+    return _unit_family(unit)
+
+
+def call_identity(call: dict) -> dict:
+    """``{"name", "short", "commodity_words", "scope_words", "period_words", "period_kind", "unit_words",
+    "unit_family", "routing_words", "row_id"}`` of ONE number call, board OR seat (CONTRACT K4).
+
+    * ``name`` -- the series as the label names it (the metric's display name with the card's basis and
+      class scope); ``short`` -- the inline noun: ``[commodity ]name[ for scope]`` without the basis
+      parenthesis;
+    * ``commodity_words`` -- the SERIES' commodity as the label prints it (the sheet's commodity where the
+      row is another commodity's sheet, K22); ``scope_words`` -- the geography the label prints;
+    * ``period_words`` / ``period_kind`` -- the period at the card's own precision ("2026/27", "week to 3
+      September 2026") and its kind; a change row's window reads "<from> to <to>";
+    * ``unit_words`` / ``unit_family`` -- the unit the label prints and its declared family;
+    * ``routing_words`` -- the driver words the BLOCK printed as "read here for <driver>" on a board row
+      (lane R writes them on the call as ``routing``), "" on a seat call; ``row_id`` -- the board row
+      identity that minted the call (C3 ``_row_id``), "".
+    Never raises: an unreadable call has an empty identity, and the lint then leaves the sentence alone."""
+    out = {k: "" for k in ("name", "short", "commodity_words", "scope_words", "period_words", "period_kind",
+                           "unit_words", "unit_family", "routing_words", "row_id", "period_role")}
+    try:
+        q = (call or {}).get("query") or {}
+        rH, _curve = _headline(call)
+        table, metric = str(q.get("table") or ""), str(q.get("metric") or "")
+        ctable, cmetric = _card_address(call, rH)
+        base = _metric_display_name(table, metric, rH)
+        cf = _card_fields(ctable, cmetric)
+        basis = str((rH or {}).get("basis") or cf.get("basis_words") or "").strip()
+        name = f"{base} ({basis})" if (basis and basis not in base) else base
+        _cw = _commodity_words(table, q.get("commodity"), rH)
+        cwords = (_contract_display(q.get("commodity")) if q.get("commodity") else "") if _cw is None else _cw
+        try:
+            # FIXER PASS (REVIEW_RA M1): a GLOBAL series (the estate's "_global" token) has no commodity -- the
+            # one display producer (`render.commodity_node`) names none, so the identity carries none (never
+            # " global" written into prose by the lint)
+            from leviathan.graphrag.state.render import commodity_node as _cn0
+            if q.get("commodity") and _cw is None and not _cn0(str(q.get("commodity"))):
+                cwords = ""
+        except Exception:  # noqa: BLE001
+            pass
+        unit = (((_governing_unit(table, metric, q.get("commodity"))
+                  if _is_level_stat(rH or {}, table == _STATS_TABLE) else "") or (rH or {}).get("unit"))
+                or _metric_unit(table, metric, q.get("commodity")))
+        src_table = str((rH or {}).get("source_table") or "").strip() if table == _STATS_TABLE else ""
+        geos = _geo_scopes((call or {}).get("rows") or [])
+        try:
+            spec = _card_spec(src_table or table)
+            dest = bool(spec is not None and spec.destination_coded())
+        except Exception:  # noqa: BLE001
+            dest = True
+        geo = q.get("country") or (None if dest else (next(iter(geos)) if len(geos) == 1 else None))
+        withheld = bool(_scope_withhold_on() and _unscoped_multi_geo(q, geos))
+        geo = _axis_words(q, rH, cf, geo, dest, withheld, board=bool((call or {}).get("_sb")),
+                          rows=(call or {}).get("rows") or [])
+        if str((rH or {}).get("stat") or "") == "window_change":
+            a, b = _change_window(call, rH)
+            pw = (f"{_window_words(call, rH, a)} to {_window_words(call, rH, b)}" if (a and b and a != b) else "")
+            kind = "window"
+            role = ""
+        else:
+            # FIXER PASS (REVIEW_VC M1 / RA M8 + the VC lexical "MY" sniff): the figure's own observation
+            # period at the card's precision, the query's marketing year as its role -- never a kind read
+            # off a printed prefix
+            pw, kind, role = _figure_period(call, rH)
+        agg = _call_aggregate(call)
+        if agg:
+            name = _aggregate_label(ctable or table, cmetric or metric, agg) or name
+            base = _aggregate_label(ctable or table, cmetric or metric, agg) or base
+        # FIXER PASS (REVIEW_RA M1 / M4): a metric display that already names the series' commodity ("palm oil
+        # closing stocks") takes no commodity prefix -- "CME palm oil palm oil closing stocks" named one
+        # thing twice. Compared as the commodity NODE's words (the one display producer) inside the name.
+        _cn = ""
+        try:
+            from leviathan.graphrag.state.render import commodity_node as _cnode
+            from leviathan.graphrag.state.rows import _fold_words as _fw
+            _cn = _fw(_cnode(str(q.get("commodity") or "")))
+            _in_base = bool(_cn) and (" %s " % _cn) in (" %s " % _fw(base))
+        except Exception:  # noqa: BLE001
+            _in_base = False
+        short = " ".join(x for x in ((cwords if not _in_base else ""), base) if x)
+        if geo:
+            short = f"{short} for {geo}"
+        routing = str((call or {}).get("routing") or (rH or {}).get("routing") or "")
+        if (call or {}).get("_sb"):
+            # FIXER PASS (REVIEW_RA M1, the K3/K4 join): a BOARD call's identity is the one the BLOCK PRINTED
+            # for its row -- lane R stamps the row identity's own short noun (`series_short`), the series'
+            # commodity where it is not the board's (`commodity_words`, "" on a global series and on the
+            # board's own commodity) and whether the routing driver IS the series (`route_is_series`, the
+            # identity join R makes on the driver and the card metric). One row, one name, on every surface.
+            rs = str((rH or {}).get("series_short") or "").strip()
+            if rs:
+                short = rs
+            if "commodity_words" in (rH or {}):
+                cwords = str((rH or {}).get("commodity_words") or "")
+            if (rH or {}).get("route_is_series"):
+                routing = ""
+        out.update({"name": name, "short": short, "commodity_words": cwords, "scope_words": str(geo or ""),
+                    "period_words": pw, "period_kind": str(kind or ""), "period_role": str(
+                        (rH or {}).get("period_role") or role or ""),
+                    "unit_words": str(unit or ""),
+                    "unit_family": _unit_family(unit),
+                    "routing_words": routing,
+                    "row_id": str((call or {}).get("_row_id") or "")})
+    except Exception:  # noqa: BLE001 -- an identity the label cannot read is an empty identity
+        pass
     return out
 
 

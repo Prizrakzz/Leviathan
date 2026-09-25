@@ -527,7 +527,7 @@ def test_tables_queried_is_registered_so_it_reaches_an_artifact():
     RE-ANCHORED (2026-09-01): five later appends (timing_ms; the two D-XT keys; the two RV keys) moved
     the tail -- the key is still registered and still AFTER every older key."""
     from leviathan.graphrag import tracekeys as tk
-    assert tk.TRACE_RECORD_KEYS[-20] == "tables_queried"  # lane F re-pin: +4
+    assert tk.TRACE_RECORD_KEYS[-23] == "tables_queried"  # lane F re-pin: +4  # 09-24 K20: +3
     assert len(set(tk.TRACE_RECORD_KEYS)) == len(tk.TRACE_RECORD_KEYS)
 
 

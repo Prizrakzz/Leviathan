@@ -1003,8 +1003,12 @@ class TestS1UnflaggedByDesign:
         # inert on this branch by construction -- `_is_series_branch` is False for both extreme-row
         # tokens, so `run()` performs no re-sort on it -- but threading it costs nothing and keeps
         # the census honest, whereas an unthreaded site would sit in the column this pin reds on.
-        assert sorted(threaded) == ["agent", "agent", "agent", "cascade", "cascade", "cascade",
-                                    "server", "silverleg"], threaded
+        # 09-24 FIX ROUND 2 (lane T, CONTRACT K24): TWO MORE agent read sites, both THREADED --
+        # `esr_closed_year_legs`' next-year probe and its closed-year `agg="sum"` companion. The decision
+        # this pin forces was taken at the site: the canary rides both (inert on either, an agg / a latest
+        # vintage read is never the series branch), so neither sits in the unclassified column.
+        assert sorted(threaded) == ["agent", "agent", "agent", "agent", "agent", "cascade", "cascade",
+                                    "cascade", "server", "silverleg"], threaded
         assert unthreaded == [], (f"an UNCLASSIFIED serving Q.run site exists ({unthreaded}) "
                                   f"-- thread it, or classify it in 7.4")
 
@@ -1139,11 +1143,15 @@ class TestOIGapFlagOffByteIdentity:
             got = Q.select_front_expiry(rows, Q.NumberQuery(**kw), _ts("silver_futures_eod"))
             head = oig_head_query.select_front_expiry(
                 rows, oig_head_query.NumberQuery(**kw), _ts("silver_futures_eod"))
+            # RE-PINNED 2026-09-24 (fix round 2, lane T): `head` is `git show HEAD:query.py`, and HEAD is now
+            # 0a76d2bf, which COMMITTED round 1's C12 -- so HEAD itself returns the declared cycle fallback on
+            # the blank and partial shapes, and the old `head == []` (true against the pre-C12 08d8dfd4) red
+            # on the committed tree with no change behind it. The invariant this pin exists for is unchanged:
+            # the read is HEAD's on every shape, and the fallback it returns keeps every property below.
+            assert got == head, name
             if name == "clean":
-                assert got == head, name
                 assert all("front_expiry_session" not in r for r in got), name
                 continue
-            assert head == [], name
             assert len(got) == 1, name
             r = got[0]
             assert r["roll_method"] == Q.CYCLE_FALLBACK_METHOD, name

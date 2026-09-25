@@ -328,7 +328,8 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                 width: int = 2, complexes=(), chains=(), benchmark_fn=None, receipt_fn=None,
                 record_through: str = "", n_start: int = 1, e_start: int = 1,
                 watch_nonobvious: bool = False, state_chain: bool = False,
-                evidence_ordinals: Optional[dict] = None) -> dict:
+                evidence_ordinals: Optional[dict] = None, evidence_address=None, ask_rows=None,
+                extra_kd=None, page_markets=None) -> dict:
     """Run STAGE 2, then the analogs, the watch rows and the RENDER. Returns the seam payload:
 
     ``{"block": str, "request": dict, "trace": dict, "counters": dict, "recency": dict}``
@@ -362,7 +363,16 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
     board-off turn and a declined board carry HEAD's key set exactly (I-8). ``evidence_ordinals`` is the
     turn's own ``{source_key: [E] ordinal}`` over its evidence menu (``answer._evidence_ordinals``), read
     ONLY by the chain rows that name a document the chain cannot claim, so that document carries the
-    menu's own address (threat R-14); ``None`` -- every caller that threads nothing -- is HEAD's row."""
+    menu's own address (threat R-14); ``None`` -- every caller that threads nothing -- is HEAD's row.
+
+    **09-24 FIX ROUND (lane R): FOUR KEYWORDS, kw-only and last, each absent on HEAD's call (and the
+    returned key set of a declined board is unchanged):** ``evidence_address`` -- the turn's ONE evidence
+    ledger's ``address`` (CONTRACT K1, lane C mints it, lane A builds and threads it): every [E] the block
+    prints is its answer, so the block's documents and the menu share one numbering the verifier resolves
+    and the footer prints; ``ask_rows`` -- the numbers seat's calculator rows on the question's named
+    markets, ``[(handle, call)]`` (K8), printed as the block's head; ``extra_kd`` -- the known dates of the
+    number calls the turn SERVED (item 9, R-14), handed to the recency producer so "the oldest" is the
+    page's own oldest; ``page_markets`` -- the question's distance-0 contracts (K9 / K12)."""
     try:
         from leviathan.graphrag.state import analogs as A
         from leviathan.graphrag.state import narration as N
@@ -404,6 +414,10 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                      key_fn=key_fn, receipts=_rcpt, width=width, legb_on=legb_on,
                      complexes=complexes, chains=chains or _curated_chains(state_chain),
                      state_chain=bool(state_chain),
+                     # FIXER PASS (REVIEW_VC M2 / RA M7, CONTRACT K23's seat half): the numbers seat's
+                     # SERVED calls join the cross-card store-period pass before stage 2 reads a rank.
+                     # Only when the caller threads them (board turns); HEAD's call otherwise.
+                     **({"extra_periods": tuple(extra_kd)} if extra_kd else {}),
                      # **A BORROW IS NOT A READ, AND THE BUDGET MUST NOT BE TOLD IT IS** (analog lane,
                      # D7). `analog_reads` is what makes `walk._stage2` RESERVE `analog_dims *
                      # analog_k` benchmark seats and the same number of receipt candidates against the
@@ -460,7 +474,14 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                 c = N.age_clause(st.knowledge_date, bd.asof, st.cadence)
                 if c:
                     ages[r.key] = c
-            rec = N.recency_rows(bd, record_through=record_through, tape_edge=_tape_edge(bd))
+            # 09-24 (item 9, R-14): THE SERVED NUMBER CALLS' KNOWN DATES join the board's own series in the
+            # numbers edge, so "the oldest" is the oldest figure the page carries and never an unprinted
+            # board row's (corn/wheat printed "the oldest 25 August 2026" beside its own 2022 and 2023
+            # rows). Passed only when the caller threads them -- HEAD's call is unchanged.
+            rec = (N.recency_rows(bd, record_through=record_through, tape_edge=_tape_edge(bd),
+                                  extra_kd=tuple(extra_kd))
+                   if extra_kd else
+                   N.recency_rows(bd, record_through=record_through, tape_edge=_tape_edge(bd)))
             # THE RENDER IS TIMED SEPARATELY because it is the POLE. MEASURED warm, zero network, on
             # the builder's own `fixture_state_fn`: 238-3,295 ms, i.e. 60-92% of the board's whole
             # wall. Sec 3.9 wants `ms_board` beside `timing_ms.fill / rest / numbers` "so the pole is
@@ -490,6 +511,9 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
                                  chain_receipts=(_rcpt if state_chain else None),
                                  evidence_ordinals=(dict(evidence_ordinals) if evidence_ordinals
                                                     else None),
+                                 evidence_address=evidence_address,
+                                 ask_rows=(list(ask_rows) if ask_rows else None),
+                                 page_markets=(tuple(page_markets) if page_markets is not None else None),
                                  anchor_label=", ".join(R.board_label(s) for s in bd.anchor_slugs))
             _render_ms = (time.perf_counter() - _tr) * 1000.0
             # THE RENDER'S DECLINE WORD MEANS "A LINE WAS CORRECTED", NOT "NO BLOCK" (S6 review). The
@@ -539,6 +563,18 @@ def fill_stage2(bd, *, graph, sg=None, qfn=None, state_fn=None, key_fn=None, leg
         req = bd.request()
         cnt = counters(bd, block=text, analogs=ana, watch=wr, render_ms=_render_ms)
         tr = bd.trace()
+        # 09-24 (CONTRACT K15): THE ANALOG ROWS RIDE THE `state_board` TRACE -- driver, series, date, the
+        # dimensions seen, how many agree, the decline word, and the render's own withheld / rendered stamp
+        # -- where `Board.trace` does not already carry them (absent-when-empty, the omit-when-off idiom).
+        _an = [dict(x) for x in (getattr(bd, "analogs", None) or ()) if isinstance(x, dict)]
+        if _an and "analogs" not in tr:
+            tr["analogs"] = _an
+        # FIXER PASS (REVIEW_WT MAJOR-5 / MINOR-3): THE PLANNER'S SEEDS RIDE THE SUBJECT'S TRACE, so a census can
+        # replay the reach the turn ACTUALLY used (distance 0 carries every seed; B17 / I-5 / BOCO replayed
+        # planned = named because the seeds were banked nowhere). Only where the resolver reached the turn
+        # (the `subject` key exists) -- every other trace keeps its key set.
+        if isinstance(tr.get("subject"), dict) and sg is not None:
+            tr["subject"]["seeds"] = [str(c) for c in (getattr(sg, "seeds", None) or []) if c]
         # THE COUNTERS RIDE THE TRACE, so `respond()`'s telemetry block EMITS what the turn
         # MEASURED rather than re-deriving it from a board it no longer holds. One producer for
         # the dashboard and the artifact is the whole of 'absent is never zero' being checkable.
@@ -979,38 +1015,25 @@ def _first_dim(bd) -> Optional[str]:
 def _analog_dims(bd) -> frozenset:
     """THE DRIVER IDS THE ANALOG LEG DECLARES ITS DIMENSIONS UNDER on this board.
 
-    ``analogs.analog_rows`` seeds one dimension per row in ``Board.order`` that is LOUD, carries an
-    ``ok`` state with its own input series, is not context-only, and sits inside ``knobs.analog_dims``
-    -- and each dimension is entered under THAT ROW's ``driver_id``. This function reads the same rule
-    off the same board so :func:`_first_dim` can tell a hop the leg RANKS from one it does not.
+    ``analogs.analog_rows`` seeds one dimension per row ``analogs.seed_rows`` returns (LOUD, an ``ok``
+    state with its own input series, not context-only, one per SERIES, inside ``knobs.analog_dims``) --
+    and each dimension is entered under THAT ROW's ``driver_id``. This function reads that rule off the
+    same board so :func:`_first_dim` can tell a hop the leg RANKS from one it does not.
 
     IT IS A LOOKUP AND NEVER A SECOND SELECTION: nothing here admits, caps or declines anything, and a
     wrong answer costs the stanza only its dimension ORDER (``analogs._dims_first`` no-ops). THE TWO
     SPELLINGS ARE PINNED TO AGREE -- ``test_state_seam.py`` asserts this set equals the ids the LIVE
     ``analog_rows`` puts in ``dims_order`` on both cells -- because the rule lives in a module this
     lane may not edit; folding it into one published accessor is asked for in the lane's handoff."""
-    from leviathan.graphrag.state.rows import status_word
-    kn = getattr(bd, "knobs", None)
-    want = int(getattr(kn, "analog_dims", 0) or 0)
-    if want <= 0:
+    # **09-24 (CONTRACT K15): THE RULE IS READ, NEVER RE-TYPED.** The seed rule gained the series fold
+    # (both poles of a phase pair on one ONI print are ONE dimension), and the copy that lived here could not
+    # see it -- the pin below this function went red on exactly that drift. ``analogs.seed_rows`` is now the
+    # one published rule and this lookup reads it.
+    from leviathan.graphrag.state import analogs as _A
+    try:
+        return frozenset(str(r.driver_id) for r in _A.seed_rows(bd, getattr(bd, "knobs", None)))
+    except Exception:                                   # noqa: BLE001 -- a lookup never kills a turn
         return frozenset()
-    seat = {k: i for i, k in enumerate(getattr(bd, "order", None) or ())}
-    loud = sorted((r for r in (getattr(bd, "rows", None) or ()) if r.legs.get("loud")),
-                  key=lambda r: seat.get(r.key, len(seat)))
-    out = []
-    for r in loud:
-        st = getattr(r, "state", None)
-        if st is None or status_word(st.status) != "ok" or r.context_only:
-            continue
-        try:
-            if not (st.inputs or {}).get(st.key.label()):
-                continue
-        except Exception:                               # noqa: BLE001 -- a lookup never kills a turn
-            continue
-        out.append(str(r.driver_id))
-        if len(out) >= want:
-            break
-    return frozenset(out)
 
 
 def dim_for_hop(bd, hop) -> Optional[str]:

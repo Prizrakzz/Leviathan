@@ -87,8 +87,11 @@ def test_c_the_rendered_palm_row_names_the_lag_as_an_EFFECT_lag_and_mints_the_cu
     line, calls = R.sb_state(1, row, asof=_ASOF)
     # RE-BANKED 09-23 FIX ROUND -- CONTRACT C1 identity words (09-23 recon soyoil_palm L2; BUILD_R sec 7 W-1): the
     # declared six-month EFFECT lag now rides the row's own identity instead of a separate sentence.
-    assert ("the tropical Pacific sea-surface temperature anomaly, January 2026, read six months back -- the "
+    # RE-BANKED 09-24 FIX ROUND 2 -- CONTRACT K2 (DM1, BUILD_R sec 2): the period at its own precision moved
+    # into the FIGURE TOKEN the writer copies; the offset stays in the row's own name.
+    assert ("the tropical Pacific sea-surface temperature anomaly, read six months back -- the "
             "reading whose declared lag lands now, on CME palm oil (NOAA ONI), read here for El Nino:") in line
+    assert "degC, January 2026;" in line, line
     assert "[N4] the newest knowable reading of the same series is" in line
     assert str(bean.level_date) in line
     assert len(calls) == 4, "level, z, percentile and the newest knowable reading"
@@ -235,7 +238,9 @@ def test_d_the_state_line_names_the_reading_only_where_it_ADDS_something(oni_pai
     # RE-BANKED 09-23 FIX ROUND -- CONTRACT C1 identity words (09-23 recon lane-R defect 1; BUILD_R sec 7 W-1): the
     # "the reading is <words>" clause is gone -- the SB-1 head STARTS with the series words and carries the driver
     # as routing.
-    assert line.startswith("- [N1] the tropical Pacific sea-surface temperature anomaly, January 2026, ")
+    # RE-BANKED 09-24 FIX ROUND 2 -- CONTRACT K2 (DM1): the period rides the figure token, not the head.
+    assert line.startswith("- [N1] the tropical Pacific sea-surface temperature anomaly, read six months back")
+    assert "degC, January 2026;" in line, line
     assert "on CBOT soybeans (NOAA ONI), read here for Argentina export tax:" in line
     # a driver whose reader label IS the reading says nothing twice
     assert R._norm_words("the crush") == R._norm_words("Crush") == "crush"
@@ -590,7 +595,8 @@ def test_M8_the_palm_ONI_row_reaches_the_RENDERED_BOARD_through_the_PRODUCER(oni
     # the shifted period prints as "<Month YYYY>", and the effect lag rides the identity.
     oni = [l for l in blk.lines if l.startswith("- [N") and "on CME palm oil (NOAA ONI), read here for El Nino" in l]
     assert oni, "the palm ONI state row must render"
-    assert "anomaly, January 2026, read six months back" in oni[0], "the DATE, after: the producer's own shifted period"
+    # RE-BANKED 09-24 FIX ROUND 2 -- CONTRACT K2 (DM1): the producer's own shifted period rides the figure token.
+    assert "degC, January 2026;" in oni[0], "the DATE, after: the producer's own shifted period"
     assert "read six months back -- the reading whose declared lag lands now" in oni[0]
     assert "the newest knowable reading of the same series is -1.4 degC for 2026-07" in oni[0]
     assert R.classify(oni[0]) == ("SB-1",)
@@ -931,7 +937,13 @@ def test_NEW5_a_PHASE_OPPOSED_row_loses_its_MEMBERSHIP_and_keeps_its_RANK_TERM()
     ctx = _r3_boards()["b40_event"]
     bd, ana = ctx["board"], ctx["analogs"]
     drawn = {(w.get("kind"), w.get("row")) for w in WA.nonobvious_rows(bd, analogs=ana)}
-    assert ("spillover_reach", ("malaysian_crude_palm_oil_cme", "El_Nino")) in drawn, sorted(
+    # RE-BANKED 09-24 FIX ROUND 2 -- CONTRACT K26 (DM1, BUILD_R sec 2): "the same reading" is ONE series and a
+    # declared phase pair states it for the POLE IN FORCE (lane W's `pole_in_force` stamp) -- the ONI reach is
+    # still drawn, on the in-force pole's row, and never demoted by the refused membership below.
+    _pole = next(e.get("pole_in_force") for e in bd.fan if e.get("contract") == "malaysian_crude_palm_oil_cme"
+                 and e.get("driver_id") == "El_Nino")
+    assert _pole in ("El_Nino", "La_Nina"), _pole
+    assert ("spillover_reach", ("malaysian_crude_palm_oil_cme", _pole)) in drawn, sorted(
         str(d) for d in drawn)
     # ...and the MEMBERSHIP is still refused, which is what MAJOR 10 bought
     assert ("convergence_amplified", ("malaysian_crude_palm_oil_cme", "El_Nino")) not in drawn

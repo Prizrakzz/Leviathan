@@ -1485,11 +1485,20 @@ def test_S8_the_stage2_kwarg_tail_is_EXTENDED_by_state_chain_and_not_moved():
     # 09-23 (CONTRACT.md C2/I-3): the tail is APPENDED to once more -- `evidence_ordinals`, the turn's
     # own {source_key: [E] ordinal} map, lands AFTER `state_chain`, keyword-only, default None, so
     # every caller that omits it is HEAD's call exactly. `state_chain` keeps its place before it.
-    assert params[-1] == "evidence_ordinals", params[-3:]
+    # 09-24 RE-BANK (CONTRACT K1 / K8 / K12 / item 9, BRIEF_R "FIELDS OTHER LANES READ"): the tail is
+    # APPENDED to once more -- `evidence_address` (K1, the ledger's address), `ask_rows` (K8, the seat's
+    # asked rows), `extra_kd` (item 9, the served number calls' known dates) and `page_markets` (K12, the
+    # page's named markets) land AFTER `evidence_ordinals`, keyword-only, default None, so every caller
+    # that omits them is HEAD's call exactly. Nothing before them moved.
+    assert params[-4:] == ["evidence_address", "ask_rows", "extra_kd", "page_markets"], params[-6:]
+    for _k in params[-4:]:
+        _pk = inspect.signature(S.fill_stage2).parameters[_k]
+        assert _pk.default is None and _pk.kind is inspect.Parameter.KEYWORD_ONLY, _k
+    assert params[-5] == "evidence_ordinals", params[-6:]
     _eo = inspect.signature(S.fill_stage2).parameters["evidence_ordinals"]
     assert _eo.default is None and _eo.kind is inspect.Parameter.KEYWORD_ONLY
-    assert params[-2] == "state_chain", params[-3:]
-    assert params[-3] == "watch_nonobvious", "the tail is APPENDED to, never reordered"
+    assert params[-6] == "state_chain", params[-7:]
+    assert params[-7] == "watch_nonobvious", "the tail is APPENDED to, never reordered"
     p = inspect.signature(S.fill_stage2).parameters["state_chain"]
     assert p.default is False and p.kind is inspect.Parameter.KEYWORD_ONLY
     src = inspect.getsource(S.fill_stage2)
@@ -1982,19 +1991,25 @@ def test_ANALOG_the_receipt_borrow_is_the_pool_the_turn_ALREADY_GROUNDED_and_cos
     nodes = [_node("soybeans_cbot", "El_Nino", evidence=docs),
              _node("soybeans_cbot", "La_Nina", evidence=docs)]
     out = {}
+    # 09-24 RE-BANK (OWNER DECISION O-7 (a), CONTRACT K15): a stanza carrying NO outcome in the call's own
+    # units is WITHHELD (its absence line prints), and this fixture's tape does not reach back to the picks
+    # -- so the seam is handed the harness's own monthly BENCHMARK, the anchor's price in the call's units,
+    # exactly as a caller that wires one does. The pin below grades the same stanza facts it always did.
     for tag, ns in (("bare", ()), ("docs", nodes)):
         sg = _sg(["soybeans_cbot"], nodes=ns)
         bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode="deep",
                            query="what is the situation on soybeans now?",
                            state_fn=H.fixture_state_fn(H.ASOF), named=("soybeans_cbot",))
-        payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF))
+        payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF),
+                                benchmark_fn=H.fixture_benchmark_fn())
         out[tag] = (bd, payload)
     bare_bd, bare = out["bare"]
     docs_bd, lit = out["docs"]
     # THE BORROW IS COUNTED WHERE A BORROW HAPPENS, on both cells -- an empty pool is still a borrow.
     assert bare_bd.ledger.evidence_borrows > 0 and docs_bd.ledger.evidence_borrows > 0
-    # ...AND IT COSTS NOTHING. Both columns that ride the ceiling are untouched by it.
-    assert bare_bd.ledger.benchmark_reads == 0 and docs_bd.ledger.benchmark_reads == 0
+    # ...AND IT COSTS NOTHING. Both columns that ride the ceiling are untouched by it: the benchmark the
+    # re-bank wires is read identically on both cells (O-7 re-bank), so the borrow adds no read at all.
+    assert bare_bd.ledger.benchmark_reads == docs_bd.ledger.benchmark_reads
     assert bare["trace"]["net_reads"] == lit["trace"]["net_reads"]
     # THE EMPTY POOL IS THE HONEST ABSENCE and the page still carries it.
     assert "the corpus holds no dated document explaining this state (the window before it)" in bare["block"]
@@ -2056,13 +2071,22 @@ def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF(
 
     monkeypatch.setattr(A, "select_analogs", spy)
     seen = {}
-    for mode, dates in (("deep", ("2013-06-30",)), ("max", ("2020-04-30", "2017-02-28"))):
+    # 09-24 RE-BANK (CONTRACT K15 seed fold, THREAT_MODEL R-10 / B12): this fixture's seeds CARRY a duplicate
+    # series key -- El Nino and La Nina both read `oni_climate|_global|` -- so the fold leaves ONE ONI
+    # dimension where HEAD counted it twice, and the picks move (deep June 2013 -> April 2020; max
+    # April 2020 + February 2017 -> April 2020 + February 2026). The pin's facts are unchanged.
+    # 09-24 RE-BANK (OWNER DECISION O-7 (a), CONTRACT K15): a stanza carrying NO outcome in the call's own
+    # units is WITHHELD (its absence line prints), and this fixture's tape does not reach back to the picks
+    # -- so the seam is handed the harness's own monthly BENCHMARK, the anchor's price in the call's units,
+    # exactly as a caller that wires one does. The pin below grades the same stanza facts it always did.
+    for mode, dates in (("deep", ("2020-04-30",)), ("max", ("2020-04-30", "2026-02-28"))):
         del cap[:]
         sg = _sg(["soybeans_cbot"])
         bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode=mode,
                            query="what is the situation on soybeans now?",
                            state_fn=H.fixture_state_fn(H.ASOF), named=("soybeans_cbot",))
-        payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF))
+        payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF),
+                                benchmark_fn=H.fixture_benchmark_fn())
         rec = next(r for r in cap
                    if [str(p["date"]) for p in (r["out"].get("picked") or ())] == list(dates))
         pool = _ranked_pool(rec)
@@ -2095,8 +2119,8 @@ def test_ANALOG_the_COUNT_BESIDE_A_PICK_IS_A_POPULATION_THE_PICK_IS_A_MEMBER_OF(
                 assert "the nearest" not in hd, hd
         seen[mode] = heads
     # THE THREE STANZAS THE RULING NAMES, AND NOTHING ELSE CHANGED ABOUT THEM.
-    assert "June 2013" in seen["deep"][0] and "April 2020" in seen["max"][0]
-    assert "February 2017" in seen["max"][1]
+    assert "April 2020" in seen["deep"][0] and "April 2020" in seen["max"][0]
+    assert "February 2026" in seen["max"][1]
 
 
 def _head_dates(rec):
@@ -2143,19 +2167,26 @@ def test_ANALOG_the_FORWARD_WINDOWS_COUNT_IS_THE_CORPUS_AND_THE_TIERS_CAP_IS_A_C
     Driven here on the deep tier, whose ``receipt_cap`` is three, with six documents inside the window
     the band declares forward of the picked date: the page counts SIX, the row carries THREE and the
     block says which three it could not carry."""
-    docs = ([{"date": "2013-04-02", "tier": 1, "source": "NOAA", "text": "before the state"}]
-            + [{"date": "2013-%02d-15" % m, "tier": 2, "source": "USDA", "text": "after %d" % m}
-               for m in (7, 8, 9, 10, 11, 12)])
+    # 09-24 RE-BANK (K15 seed fold, R-10): the deep pick is April 2020 now (one ONI dimension, not two),
+    # so the six forward documents sit in ITS window (2020-04-30, 2020-10-31] -- the same six, re-dated.
+    docs = ([{"date": "2020-02-02", "tier": 1, "source": "NOAA", "text": "before the state"}]
+            + [{"date": "2020-%02d-15" % m, "tier": 2, "source": "USDA", "text": "after %d" % m}
+               for m in (5, 6, 7, 8, 9, 10)])
     sg = _sg(["soybeans_cbot"],
              nodes=[_node("soybeans_cbot", d, evidence=docs)
                     for d in ("El_Nino", "La_Nina", "drought", "export_pace_lag")])
     bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode="deep",
                        query="what is the situation on soybeans now?",
                        state_fn=H.fixture_state_fn(H.ASOF), named=("soybeans_cbot",))
-    payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF))
+    # 09-24 RE-BANK (OWNER DECISION O-7 (a), CONTRACT K15): a stanza carrying NO outcome in the call's own
+    # units is WITHHELD (its absence line prints), and this fixture's tape does not reach back to the picks
+    # -- so the seam is handed the harness's own monthly BENCHMARK, the anchor's price in the call's units,
+    # exactly as a caller that wires one does. The pin below grades the same stanza facts it always did.
+    payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF),
+                            benchmark_fn=H.fixture_benchmark_fn())
     block = payload["block"]
     assert int(bd.knobs.receipt_cap) == 3, bd.knobs.receipt_cap
-    # THE COUNT IS THE WINDOW'S: six documents fall in (2013-06-30, 2013-12-31].
+    # THE COUNT IS THE WINDOW'S: six documents fall in (2020-04-30, 2020-10-31].
     assert "six dated documents inside the window that followed it" in block, \
         [x[-200:] for x in block.splitlines() if "window that followed" in x]
     assert "three dated documents inside the window that followed it" not in block, "the cap again"
@@ -2180,16 +2211,22 @@ def test_ANALOG_what_FOLLOWED_is_counted_on_the_page_and_never_enumerated(graph)
     letters-only class; the board SELECTS rather than enumerating. And the clause is suppressed in the
     one case where the stanza's own absence row already says the corpus held nothing on either side,
     because one absence stated twice in two spellings is not two facts."""
-    docs = [{"date": "2013-04-02", "tier": 1, "source": "NOAA", "text": "before the state"},
-            {"date": "2013-09-14", "tier": 2, "source": "USDA", "text": "inside the window after"},
-            {"date": "2013-11-30", "tier": 3, "source": "trade", "text": "also after"}]
+    # 09-24 RE-BANK (K15 seed fold, R-10): re-dated into the April 2020 pick's forward window.
+    docs = [{"date": "2020-02-02", "tier": 1, "source": "NOAA", "text": "before the state"},
+            {"date": "2020-07-14", "tier": 2, "source": "USDA", "text": "inside the window after"},
+            {"date": "2020-09-30", "tier": 3, "source": "trade", "text": "also after"}]
     sg = _sg(["soybeans_cbot"],
              nodes=[_node("soybeans_cbot", d, evidence=docs)
                     for d in ("El_Nino", "La_Nina", "drought", "export_pace_lag")])
     bd = S.fill_stage1(graph=graph, sg=sg, asof=H.ASOF, mode="deep",
                        query="what is the situation on soybeans now?",
                        state_fn=H.fixture_state_fn(H.ASOF), named=("soybeans_cbot",))
-    payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF))
+    # 09-24 RE-BANK (OWNER DECISION O-7 (a), CONTRACT K15): a stanza carrying NO outcome in the call's own
+    # units is WITHHELD (its absence line prints), and this fixture's tape does not reach back to the picks
+    # -- so the seam is handed the harness's own monthly BENCHMARK, the anchor's price in the call's units,
+    # exactly as a caller that wires one does. The pin below grades the same stanza facts it always did.
+    payload = S.fill_stage2(bd, graph=graph, sg=sg, state_fn=H.fixture_state_fn(H.ASOF),
+                            benchmark_fn=H.fixture_benchmark_fn())
     heads = [x for x in payload["block"].splitlines()
              if x.startswith("LIKE STATE ") and "the series sat like this" in x]
     assert heads, payload["block"][:400]

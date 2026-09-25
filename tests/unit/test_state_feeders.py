@@ -664,7 +664,10 @@ def test_the_replay_LABEL_rides_a_latest_only_card_at_a_historical_asof_and_the_
                           silver_status="available", today="2026-09-08")
     assert past.status == "ok", "the row SERVES; the label is not a decline"
     assert past.vintage_note and "revised in place" in past.vintage_note
-    assert "2020-06-30" in past.vintage_note and "2026-09-08" in past.vintage_note
+    # MOVED 09-24 (fix round 2, CONTRACT K18, OWNER DECISION O-4 (a)): the note names the as-of in the
+    # board's day words and NOTHING later -- the run date rides the recency dict for the trace only (C11)
+    assert "30 June 2020" in past.vintage_note and "2026" not in past.vintage_note
+    assert past.recency.get("revised_through") == "2026-09-08"
     live = F.series_state("oni_climate", _Node("soybeans_cbot", "El_Nino", "oni_climate"), "2026-09-08",
                           qfn=_pit_qfn(rows, "2026-09-08"), windows={"monthly": 120},
                           silver_status="available", today="2026-09-08")
@@ -1476,3 +1479,144 @@ def test_the_TAPE_prints_the_same_known_date_the_label_prints_for_one_settle():
     class _NoLevel:
         level_date = None
     assert F.tape_known_date(_NoLevel()) is None
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+# 09-24 FIX ROUND 2, LANE C -- K18 (the replay note carries no run date) and K23 (the store-period clause
+# across cards). The 2024-03-01 page printed "... is not recoverable and is shown as revised through 24
+# September 2026" (FATAL under C11) and read a MY2020/21 PSD row as the March-2024 buffer beside the USDA
+# WASDE MY2023/24 sheet for the same commodity and scope.
+# ════════════════════════════════════════════════════════════════════════════════════════════════════
+import re as _re
+
+_ISO_RX = _re.compile(r"(?:19|20)\d{2}(?:-\d{2}(?:-\d{2})?)?")
+_MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+           "November", "December")
+
+
+def _dates_in(text: str) -> list:
+    """Every date a string states, as (y, m, d) with 0 for an absent part: ISO forms and "D Month YYYY" /
+    "Month YYYY" word forms -- the census the as-of law (C11) is graded by."""
+    out = []
+    for m in _ISO_RX.finditer(text):
+        parts = [int(x) for x in m.group(0).split("-")]
+        out.append(tuple(parts + [0] * (3 - len(parts))))
+    for m in _re.finditer(r"(?:(\d{1,2}) )?(%s) ((?:19|20)\d{2})" % "|".join(_MONTHS), text):
+        out.append((int(m.group(3)), _MONTHS.index(m.group(2)) + 1, int(m.group(1) or 0)))
+    return out
+
+
+@pytest.mark.parametrize("asof", ["2024-03-01", "2025-06-30"])
+def test_K18_the_replay_note_carries_NO_date_later_than_the_asof(asof):
+    rows = _oni_rows(n=200, start=(2012, 1))
+    st = F.series_state("oni_climate", _Node("soybeans_cbot", "El_Nino", "oni_climate"), asof,
+                        qfn=_pit_qfn(rows, asof), windows={"monthly": 120}, silver_status="available",
+                        today="2026-09-24")
+    note = st.vintage_note or ""
+    assert "revised in place" in note and "not recoverable" in note
+    y, m, d = (int(x) for x in asof.split("-"))
+    assert _dates_in(note), "the note names its as-of"
+    for dt in _dates_in(note):
+        assert dt <= (y, m, d), (dt, note)
+    assert "revised through" not in note and "2026" not in note
+    assert note == F.vintage_note(asof), "ONE producer spells the note"
+    assert st.recency.get(F.REVISED_THROUGH) == "2026-09-24", "the revision date rides the trace, not the page"
+
+
+def test_K18_the_note_date_is_the_boards_own_day_words_and_never_invents_a_day():
+    assert F.vintage_note("2024-03-01") == ("read from a table revised in place; the value as known on "
+                                            "1 March 2024 is not recoverable")
+    assert "March 2024" in F.vintage_note("2024-03") and "1 March" not in F.vintage_note("2024-03")
+
+
+def test_K18_a_live_asof_carries_no_note_and_no_revision_key():
+    rows = _oni_rows(n=200, start=(2012, 1))
+    st = F.series_state("oni_climate", _Node("soybeans_cbot", "El_Nino", "oni_climate"), "2026-09-24",
+                        qfn=_pit_qfn(rows, "2026-09-24"), windows={"monthly": 120}, silver_status="available",
+                        today="2026-09-24")
+    assert st.vintage_note is None and F.REVISED_THROUGH not in st.recency
+
+
+def _wasde_call(commodity, country, period, kd, *, metric="ending_stocks", status="ok", table="silver_wasde",
+                value="315", extra=None):
+    row = {"value": value, "unit": "Million Bushels", "period": period, "knowledge_date": kd,
+           "country": country, **(extra or {})}
+    return {"query": {"table": table, "metric": metric, "commodity": commodity, "country": country,
+                      "asof": "2024-03-01"}, "rows": [row] if status == "ok" else [], "status": status}
+
+
+def test_K23_the_2024_board_PSD_MY2020_rows_are_BEHIND_the_WASDE_2023_24_sheet_the_seat_served():
+    """C-12's own drive shape, on the 2024-03-01 board: PSD US soybeans su_ratio + area harvested hold
+    MY2020 (known 2024-01-12); the numbers seat served USDA WASDE US soybeans MY2023/24 (known 2024-02-08).
+    Both PSD rows gain `period_behind`; the figures, dates and statuses do not move."""
+    su = _psd_state("soybeans_cbot", "United States", "2020", "2024-01-12")
+    area = _psd_state("soybeans_cbot", "United States", "2020", "2024-01-12", metric="area_harvested_1000ha")
+    br = _psd_state("soybeans_cbot", "Brazil", "2020", "2024-01-12")          # another scope
+    cn = _psd_state("soybeans_cbot", "China", "2019", "2023-05-12")           # another scope
+    before = {id(s): (s.level, s.level_date, s.knowledge_date, s.status) for s in (su, area, br, cn)}
+    seat = [_wasde_call("soybeans", "united_states", "2023/24", "2024-02-08"),
+            _wasde_call("soybeans", "united_states", "2023/24", "2024-02-08", metric="avg_farm_price",
+                        value="12.65")]
+    n = F.stamp_period_behind([su, area, br, cn], "2024-03-01", extra_periods=seat)
+    assert n == 2
+    want = {"held": "2020/21", "newer_on": "USDA WASDE", "newer": "2023/24"}
+    assert su.period_behind == want and area.period_behind == want
+    assert br.period_behind == {} and cn.period_behind == {}, "a US sheet says nothing about Brazil or China"
+    for s in (su, area, br, cn):
+        assert (s.level, s.level_date, s.knowledge_date, s.status) == before[id(s)]
+    # idempotent; and with no seat evidence the same board carries no stamp (the board alone holds no newer US MY)
+    assert F.stamp_period_behind([su, area, br, cn], "2024-03-01", extra_periods=seat) == 2
+    assert F.stamp_period_behind([su, area, br, cn], "2024-03-01") == 0
+    assert su.period_behind == {}
+
+
+def test_K23_the_join_never_crosses_scope_commodity_kind_or_the_asof():
+    """C-12: the newer period must belong to the SAME commodity and scope, be a marketing year, and be
+    known at the as-of; a destination-coded card's country is a buyer, never a scope; the row's OWN card is
+    ruling F1's single-card rule (period_gap) and never double-stamps here."""
+    us = _psd_state("soybeans_cbot", "United States", "2020", "2024-01-12")
+    cases = [
+        _wasde_call("soybeans", "brazil", "2023/24", "2024-02-08"),                  # another scope
+        _wasde_call("corn", "united_states", "2023/24", "2024-02-08"),               # another commodity
+        _wasde_call("soybean_meal", "united_states", "2023/24", "2024-02-08"),       # another commodity (the meal)
+        _wasde_call("soybeans", "united_states", "2024/25", "2024-05-10"),           # known AFTER the as-of
+        _wasde_call("soybeans", "united_states", "2023/24", "2024-02-08", status="not_known"),
+        {"query": {"table": "silver_esr", "metric": "weekly_exports_1000mt", "commodity": "soybeans_cbot",
+                   "country": "United States", "period": "2023", "asof": "2024-03-01"},
+         "rows": [{"value": "5", "week_ending_date": "2024-02-22", "knowledge_date": "2024-02-29"}],
+         "status": "ok"},                                                             # a week, a buyer axis
+        _wasde_call("soybeans_cbot", "United States", "2023", "2024-02-08", table="silver_psd",
+                    metric="su_ratio"),                                               # the row's OWN card
+    ]
+    for c in cases:
+        assert F.stamp_period_behind([us], "2024-03-01", extra_periods=[c]) == 0, c
+        assert us.period_behind == {}
+    # a board row of ANOTHER card at the same key does count (the cross-card join works without the seat)
+    other = _psd_state("soybeans_cbot", "United States", "2023", "2024-02-08", table="silver_wasde",
+                       metric="ending_stocks")
+    other.level_date = "2023/24"
+    assert F.stamp_period_behind([us, other], "2024-03-01") == 1
+    assert us.period_behind["newer"] == "2023/24" and other.period_behind == {}
+
+
+def test_K23_live_turns_stamp_nothing_when_the_cards_agree():
+    """The nine live payloads' shape: PSD MY2026 beside WASDE MY2026/27 for the same commodity and scope ->
+    nothing is behind."""
+    us = _psd_state("soybeans_cbot", "United States", "2026", "2026-09-11")
+    seat = [_wasde_call("soybeans", "united_states", "2026/27", "2026-09-11")]
+    assert F.stamp_period_behind([us], "2026-09-24", extra_periods=seat) == 0
+    assert us.period_behind == {}
+
+
+def test_K23_the_walks_existing_pass_carries_the_cross_card_join_and_keeps_its_own_count(monkeypatch):
+    """`stamp_period_gaps` (the pass the walk already runs before the rank) now runs the cross-card pass
+    over the same served states -- so a board-internal cross-card join is ranked -- and its own return stays
+    the round-1 gap count."""
+    _cards(monkeypatch, _PSD_PFK)
+    us = _psd_state("soybeans_cbot", "United States", "2020", "2024-01-12")
+    w = _psd_state("soybeans_cbot", "United States", "2023", "2024-02-08", table="silver_wasde",
+                   metric="ending_stocks")
+    w.level_date = "2023/24"
+    assert F.stamp_period_gaps([us, w], "2024-03-01") == 0
+    assert us.period_gap == {} and us.period_behind == {"held": "2020/21", "newer_on": "USDA WASDE",
+                                                        "newer": "2023/24"}

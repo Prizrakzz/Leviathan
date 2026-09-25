@@ -41,7 +41,7 @@ windows:
 # -- how a value becomes a label, PER KIND (declared, never inferred by a consumer) -------------------
 band_semantics:
   abs_bands:          "the RAW value's magnitude vs absolute bands in the series' own unit; |v| >= bands[i] takes labels[i] and the HIGHEST matching band wins; below bands[0] there is NO label and the row says so"
-  z_bands:            "the same rule on the row's z instead of its raw value; |z| >= bands[i] takes labels[i], highest match wins, below bands[0] no label"
+  z_bands:            "the same rule on the row's z instead of its raw value; |z| >= bands[i] takes labels[i], highest match wins, below bands[0] no label; where the row declares labels_low, a NEGATIVE z at or beyond -bands[i] takes labels_low[i] instead (a directional label names the side the reading sits on)"
   percentile_bands:   "TAIL CUTS on the row's own history: a band under 50 labels from BELOW (pct <= band -> that label), a band over 50 labels from ABOVE (pct >= band -> that label), the most extreme match wins, and between the innermost cuts there is NO label"
   pace_vs_prior_year: "a signed PERCENT change against the same point of the prior year; v <= bands[0] takes labels[0], v >= bands[-1] takes labels[-1], between them no label"
 
@@ -137,14 +137,20 @@ conventions:
   # ONE cut, one word. The 1.5 is silverleg's own z threshold for the retired `pink_sheet_input_costs`
   # entry (params.yaml:155, `{kind: z, window_years: 5, z: 1.5}`), carried here as an ORDERING label
   # rather than a firing threshold -- see `retired_from_params` at the foot of this file.
-  brent_crude_z:        {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
-  urea_z:               {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
-  natural_gas_us_z:     {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
-  natural_gas_eu_z:     {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
-  npk_fertilizer_z:     {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
-  dap_z:                {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
-  potash_z:             {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
-  fishmeal_price_z:     {kind: z_bands, bands: [1.5], labels: [elevated], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  # 09-24 FIX ROUND 2 (lane T, item 9): `elevated` is a DIRECTIONAL word -- a price ABOVE its own five-year
+  # record -- while the band rule reads |z|, so a reading at -1.6 z took "elevated" and the watch line put a
+  # -0.53 z reading "roughly halfway to the elevated line" (09-24 corn/wheat, urea). `labels_low` is the
+  # card's own word for the LOW side of the same cut (register-clean on all four detectors, config_check
+  # `numbers_card_fields`), so the line a reading is measured to is the one on ITS side, and the distance is
+  # taken on the statistic the row prints. Never typed in watch.py: this is the declaration.
+  brent_crude_z:        {kind: z_bands, bands: [1.5], labels: [elevated], labels_low: [depressed], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  urea_z:               {kind: z_bands, bands: [1.5], labels: [elevated], labels_low: [depressed], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  natural_gas_us_z:     {kind: z_bands, bands: [1.5], labels: [elevated], labels_low: [depressed], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  natural_gas_eu_z:     {kind: z_bands, bands: [1.5], labels: [elevated], labels_low: [depressed], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  npk_fertilizer_z:     {kind: z_bands, bands: [1.5], labels: [elevated], labels_low: [depressed], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  dap_z:                {kind: z_bands, bands: [1.5], labels: [elevated], labels_low: [depressed], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  potash_z:             {kind: z_bands, bands: [1.5], labels: [elevated], labels_low: [depressed], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
+  fishmeal_price_z:     {kind: z_bands, bands: [1.5], labels: [elevated], labels_low: [depressed], history_window_key: monthly, verified: "params.yaml pink_sheet_input_costs z=1.5 (window_years 5), carried as an ordering label"}
 
   # -- export / inspection PACE: a signed percent against the prior year, +/-10 pct -------------------
   # `pace_vs_prior_year` is stats.yoy_delta over the SHIPPED weekly collapse (cascade._PACE_COLLAPSE),
@@ -322,10 +328,10 @@ reading_words:
   silver_psd.beginning_stocks_mt:                        "carry-in stocks, all holders"
   silver_psd.consumption_mt:                             "domestic consumption"
   silver_psd.ending_stocks_mt:                           "ending stocks"
-  # COMMODITY-SCOPED, exact-first (render.scoped_reading_words, `<table>.<metric>@<series slug>`; 09-23
-  # fix round, review WT M-4 / CONTRACT C10): USDA PSD rice is ONE milled-basis figure across every
-  # class -- the basis the rice page omitted beside "ending stocks" (and once served as "deliverable")
-  silver_psd.ending_stocks_mt@rough_rice_cbot:           "ending stocks, all classes, milled basis"
+  # (FIXER PASS, fix round 2, REVIEW_WT lexical): the per-slug `silver_psd.ending_stocks_mt@rough_rice_cbot`
+  # line is RETIRED -- rice's "all classes, milled basis" is the card's own family rule (tables.yaml
+  # `commodity_families`, read by render.family_class_words and the footer label alike), so there is ONE
+  # producer of the class words and it covers every family member, not one slug.
   silver_psd.exports_mt:                                 "exports"
   silver_psd.imports_mt:                                 "imports"
   silver_psd.production_mt:                              "production"

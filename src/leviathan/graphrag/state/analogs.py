@@ -54,6 +54,16 @@ CASCADE_ANALOG_IMPORTS: tuple = ("_cw_cell", "_cw_fences", "_cw_verdict_line", "
                                  "CW_SPAN_MAX_DAYS")
 
 
+#: THE OUTCOME ROW'S OWN DECLINE WORDS BEYOND THE LEG'S (09-24 fix round, CONTRACT K5), declared at their
+#: ONE producer (:func:`outcome_over_band`) and seeded by name into the closed-vocabulary lint
+#: (``state/lint.py`` clause 9) beside ``board.LEG_REASONS``, so the render owes each a sentence.
+#: ``band_inside_one_print``: both ends of the band read the SAME observation of the series -- a band
+#: shorter than the series' own cadence (annual Argentine production read at both ends of a two-quarter
+#: band printed "moved 0.5 MMT by the time the lag opened and 0.5 MMT by the time it closed" under ONE
+#: handle on the tariff page). One print is not two moves; the row declines with the reason.
+OUTCOME_DECLINES: tuple = ("band_inside_one_print",)
+
+
 def check_cascade_analog_imports() -> list:
     """Every name in :data:`CASCADE_ANALOG_IMPORTS` resolves. Returns the missing ones; empty == clean."""
     from leviathan.graphrag.numbers import cascade as casc
@@ -1154,9 +1164,31 @@ def _run_at(hist: dict, i: int) -> int:
 # ---------------------------------------------------------------------------------------------------
 # 4.3 THE OUTCOME OVER THE BAND, AT BOTH ENDS -- leg A
 # ---------------------------------------------------------------------------------------------------
+def known_date_after(obs_date, lag_days: int = 0) -> str:
+    """THE DATE AN OBSERVATION COULD BE KNOWN (sec 1.4, D21, restated at the outcome row -- 09-24 K5): the
+    observation's own date (a month's END for a ``YYYY-MM`` observation) plus the card's declared
+    publication lag in days. ``""`` for a bare-year observation, whose known date the array does not
+    carry -- a vintage card's known date is the SERVED vintage's, and printing the year as a known date
+    is the "[known 2026]" the max page's footer showed."""
+    d = str(obs_date or "").strip()
+    if len(d) == 4 and d.isdigit():
+        return ""
+    if len(d) == 7 and d[4] == "-":
+        try:
+            end = _month_end(int(d[:4]), int(d[5:7]))
+        except (TypeError, ValueError):
+            return ""
+    elif len(d) >= 10:
+        end = d[:10]
+    else:
+        return ""
+    lag = int(lag_days or 0)
+    return (_add_days(end, lag) or end) if lag > 0 else end
+
+
 def outcome_over_band(*, label: str, values, dates, t: str, band: LagBand, asof: str,
                       unit: str = "", table: str = "", metric: str = "", commodity=None,
-                      country=None, key: str = "outcome") -> dict:
+                      country=None, key: str = "outcome", lag_days: int = 0) -> dict:
     """LEG A (sec 4.3): what ONE consequence series did over the parent's declared band, read at BOTH
     ends. Returns a row the render turns into SB-O, or a row carrying its own closed decline word.
 
@@ -1196,6 +1228,12 @@ def outcome_over_band(*, label: str, values, dates, t: str, band: LagBand, asof:
     # Only a band whose FAR end also lands on t (a genuine `0 quarters` point) has no outcome to read.
     if i0 is None or i1 is None or i2 is None or i2 == i0:
         return {**base, "declined": "no_tape_rows", "decline_leg": "analog"}
+    # 09-24 (CONTRACT K5): BOTH ENDS ON ONE PRINT IS ONE MOVE, NEVER TWO. Where the band's near and far ends
+    # read the SAME observation (the band is shorter than the series' own cadence), the row declines by
+    # name rather than printing one annual delta as a move "by the time the lag opened" and again "by the
+    # time it closed" under one handle.
+    if i1 == i2 and i1 != i0:
+        return {**base, "declined": "band_inside_one_print", "decline_leg": "analog"}
     bundle = {key: {"values": vs, "dates": ds, "unit": unit}}
     near, nrec = TR.run_transform("window_change", bundle, key=key,
                                   params={"t1": i0, "t2": i1, "window_label": "the near end"})
@@ -1207,6 +1245,9 @@ def outcome_over_band(*, label: str, values, dates, t: str, band: LagBand, asof:
             "near_value": near["value"], "far_value": far["value"],
             "near_date": ds[i1], "far_date": ds[i2],
             "from_value": vs[i0], "from_date": ds[i0],
+            # K5: THE END OBSERVATION'S DERIVED KNOWN DATE, read by the change row's call.
+            "near_known": known_date_after(ds[i1], lag_days),
+            "far_known": known_date_after(ds[i2], lag_days),
             "derivation": [nrec, frec], "inputs": bundle}
 
 
@@ -1444,6 +1485,46 @@ def _lag_days_of(row) -> int:
 # ---------------------------------------------------------------------------------------------------
 # THE PRODUCER -- what the render is handed
 # ---------------------------------------------------------------------------------------------------
+def seed_rows(bd, knobs) -> list:
+    """THE ROWS THE ANALOG LEG SEEDS ONE DIMENSION EACH FROM -- the ONE published rule (09-24, CONTRACT K15).
+
+    A row seeds when it is LOUD, carries an ``ok`` state with its own input series and is not
+    context-only, taken in ``Board.order`` up to ``knobs.analog_dims``. :func:`analog_rows` selects on
+    exactly these rows and ``seam._analog_dims`` reads THIS function, so the two spellings of the declared
+    set cannot drift (they were two copies until 09-24, pinned to agree by test_state_seam).
+
+    **ONE SERIES, ONE DIMENSION, ONE SPELLING.** Loudness ranks the UNSIGNED state, so both poles of a
+    declared phase pair land loud on ONE ONI print, and the first cut took both as two seeds AND two
+    dimensions of the like-state vector -- "three of three dimensions" on the 2024 page was two series with
+    ONI counted twice. The seeds fold on the series key (``state.key.label()``), keeping the LOUDEST
+    member's id -- the spelling ``seam.dim_for_hop`` already resolves a hop's series to -- so a board with
+    no duplicate series seeds byte for byte what it seeded before (B12)."""
+    if not knobs or int(getattr(knobs, "analog_dims", 0) or 0) <= 0:
+        return []
+    order = {key: i for i, key in enumerate(getattr(bd, "order", None) or ())}
+    loud = sorted((r for r in (getattr(bd, "rows", None) or ()) if r.legs.get("loud")),
+                  key=lambda r: order.get(r.key, len(order)))
+    seen: set = set()
+    out: list = []
+    for r in loud:
+        st = r.state
+        if st is None or status_word(st.status) != "ok" or r.context_only:
+            continue
+        try:
+            sk = st.key.label()
+            if not (st.inputs or {}).get(sk):
+                continue
+        except Exception:                               # noqa: BLE001 -- a row with no series key seeds nothing
+            continue
+        if sk in seen:
+            continue
+        seen.add(sk)
+        out.append(r)
+        if len(out) >= int(knobs.analog_dims):
+            break
+    return out
+
+
 def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
                 conventions: Optional[dict] = None, lag_days_fn=None,
                 first_dim: Optional[str] = None) -> list:
@@ -1480,12 +1561,7 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
         return []
     conv_doc = _conventions() if conventions is None else conventions
     order = {key: i for i, key in enumerate(bd.order)}
-    loud = sorted((r for r in bd.rows if r.legs.get("loud")),
-                  key=lambda r: order.get(r.key, len(order)))
-    numeric = [r for r in loud
-               if r.state is not None and status_word(r.state.status) == "ok"
-               and not r.context_only and (r.state.inputs or {}).get(r.state.key.label())]
-    seeds = numeric[: int(knobs.analog_dims)]
+    seeds = seed_rows(bd, knobs)
     if not seeds:
         return []
 
@@ -1518,7 +1594,7 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
             run_now_r = TR.num_or_none(r.state.run.get("length"))
         row_runs[r.key] = run_now_r
         dims.append({"id": r.driver_id, "hist": h, "z_now": z_now, "pct_now": pct_now,
-                     "dir_now": dir_now, "run_now": run_now_r})
+                     "dir_now": dir_now, "run_now": run_now_r, "series_key": r.state.key.label()})
     dims.extend(_price_dimensions(price_dims))
     price_admitted = len(dims) - len(seeds)
 
@@ -1549,7 +1625,9 @@ def analog_rows(bd, *, knobs, benchmark_fn=None, receipt_fn=None, price_dims=(),
                   "n_dropped_unreadable": sel["n_dropped_unreadable"],
                   "dims_declared": sel["dims_declared"], "dims_order": sel["dims_order"],
                   "first_dim": sel["first_dim"], "record_span": sel["record_span"],
-                  "floor_year": floor_year, "price_dims": price_admitted}
+                  "floor_year": floor_year, "price_dims": price_admitted,
+                  # K15: the seed's OWN series, one dimension per series (the fold above)
+                  "series_key": r.state.key.label()}
         if sel["declined"]:
             out.append({"contract": r.contract, "driver_id": r.driver_id, "band": band,
                         "asof": bd.asof, "declined": sel["declined"], "seat": seat,
@@ -1610,6 +1688,11 @@ def _label(node_id: str) -> str:
 def _board(slug: str) -> str:
     from leviathan.graphrag.state.render import board_label
     return board_label(slug)
+
+
+def _month_words(iso: str) -> str:
+    from leviathan.graphrag.state.rows import month_words
+    return month_words(iso)
 
 
 def _price_dimensions(price_dims) -> list:
@@ -1680,18 +1763,54 @@ def _outcomes_for(bd, seed_row, t: str, *, benchmark_fn=None) -> list:
     boards that carry the same driver (each over ITS OWN declared band), and the anchor's MONTHLY
     BENCHMARK. Every one is read over the PARENT'S band, and each row says whose band it used."""
     out: list = []
+    # **THE MARKET'S OWN PRICE -- THE CALL'S UNITS -- LEADS (09-24, CONTRACT K15 / OWNER DECISION O-7).**
+    # The four 09-24 stanzas read their outcome on weather z-scores and on an annual production sheet, and
+    # a PM called each "furniture": a like state informs a price call through what the PRICE did after it.
+    # The anchor's own same-contract tape (``bd.tape``, the arrays the SB-T read already holds -- ZERO
+    # reads) is read over the seed's band from the like date, through the same two-end producer every
+    # other outcome takes, and stamped ``call_units``. It is an OUTCOME and never a likeness dimension, so
+    # the selection above is untouched. A board carrying no tape for the contract says so by the tape's
+    # own word.
+    _tp = (getattr(bd, "tape", None) or {}).get(seed_row.contract)
+    if _tp is None or status_word(getattr(_tp, "status", "") or "") != "ok":
+        out.append({"label": f"the {_board(seed_row.contract)} price", "unit": "", "table":
+                    "silver_futures_eod", "metric": "settle", "commodity": seed_row.contract,
+                    "country": None, "band": seed_row.lag_band, "t": t, "call_units": True, "tape": True,
+                    "declined": ("no_tape_slug" if _tp is None
+                                 else status_word(getattr(_tp, "status", "") or "") or "no_tape_rows"),
+                    "decline_leg": "analog"})
+    else:
+        _inp = dict(getattr(_tp, "inputs", None) or {})
+        _tk = "%s|%s" % (getattr(_tp, "slug", ""), getattr(_tp, "contract_month", ""))
+        _arr = _inp.get(_tk) or (next(iter(_inp.values())) if len(_inp) == 1 else {}) or {}
+        _cm = str(getattr(_tp, "contract_month", "") or "")
+        _o = outcome_over_band(
+            label=(f"the {_board(seed_row.contract)} {_month_words(_cm)} delivery".replace("  ", " ")
+                   if _cm else f"the {_board(seed_row.contract)} price"),
+            values=_arr.get("values"), dates=_arr.get("dates"), t=t, band=seed_row.lag_band,
+            asof=bd.asof, unit=str(getattr(_tp, "unit", "") or ""), table="silver_futures_eod",
+            metric="settle change over the band from the like state", commodity=seed_row.contract,
+            country=None, key=_tk)
+        # ``tape`` marks the TRADED CONTRACT's own settle -- the call's units at their source -- so it leads
+        # even the monthly benchmark, which is this market's price but not the contract the call is on.
+        out.append(dict(_o, call_units=True, tape=True))
+    _clag = 0
     for cid in (seed_row.children or ()):
         child = bd.row(seed_row.contract, cid)
         if child is None or child.state is None or status_word(child.state.status) != "ok":
             continue
         st = child.state
         arrays = (st.inputs or {}).get(st.key.label()) or {}
+        try:
+            _clag = int(_lag_days_of(child))
+        except Exception:                               # noqa: BLE001 -- no lag read is a zero lag
+            _clag = 0
         out.append(outcome_over_band(
             label=f"{_label(cid)} on {_board(child.contract)}",
             values=arrays.get("values"), dates=arrays.get("dates"), t=t, band=seed_row.lag_band,
             asof=bd.asof, unit=st.narrate_unit or st.unit or "", table=st.table,
             metric=st.metric, commodity=st.key.commodity, country=st.key.country,
-            key=st.key.label()))
+            key=st.key.label(), lag_days=_clag))
     if benchmark_fn is not None:
         # COUNTED (S6 review, major 7). The benchmark read happens OUTSIDE both wave rectangles -- this
         # function runs after wave 2 has closed -- so without its own ledger field a real spend would be
@@ -1702,12 +1821,13 @@ def _outcomes_for(bd, seed_row, t: str, *, benchmark_fn=None) -> list:
         _bench_read(bd)
         bm = benchmark_fn(seed_row.contract)
         if bm:
-            out.append(outcome_over_band(
+            # THE ANCHOR'S OWN MONTHLY PRICE BENCHMARK IS A PRICE OF THIS MARKET -- the call's units (K15).
+            out.append(dict(outcome_over_band(
                 label=bm.get("label") or f"the monthly benchmark for {_board(seed_row.contract)}",
                 values=bm.get("values"), dates=bm.get("dates"), t=t, band=seed_row.lag_band,
                 asof=bd.asof, unit=bm.get("unit") or "", table=bm.get("table") or "silver_pink_sheet",
                 metric=bm.get("metric") or "", commodity=seed_row.contract, country=None,
-                key="benchmark"))
+                key="benchmark"), call_units=True))
     # THE FAR BOARDS, EACH OVER **ITS OWN** DECLARED BAND (sec 4.3: "a far board uses ITS edge's band
     # for the same parent"). That is how ONE like state yields two horizons -- the bean window over one
     # to two quarters and the palm window over two to four -- and it is the whole content of scenario 2.
@@ -1915,10 +2035,33 @@ def _days_between(a: str, b: str) -> int:
     return (_dt.date.fromisoformat(str(b)[:10]) - _dt.date.fromisoformat(str(a)[:10])).days
 
 
+def _analog_trace_row(a: dict) -> dict:
+    """ONE analog row, compact, for the trace (K15): no arrays, no receipts' text -- the facts a census
+    needs to read a stanza decision offline."""
+    per = a.get("per_dim")
+    agree = (sum(1 for r in (per or ()) if (r or {}).get("sign_agree") is True) if per is not None
+             else a.get("sign_agree"))
+    return {"contract": a.get("contract"), "driver_id": a.get("driver_id"),
+            "series_key": a.get("series_key"),
+            "date": a.get("date"), "dims_seen": a.get("dims_seen"), "dims_declared": a.get("dims_declared"),
+            "agree_n": agree, "decline": a.get("declined"),
+            "outcomes": [{"label": o.get("label"), "call_units": bool(o.get("call_units")),
+                          "decline": o.get("declined")} for o in (a.get("outcomes") or ())]}
+
+
 def analog_leg(bd, rows) -> dict:
     """The ``analog`` leg's stamp (sec 6.7). ``not_reached`` when the tier runs no analogs at all --
     Scan's own case, and it is not a decline, because nothing was attempted and no reader is owed a
     sentence about a cut that never happened."""
+    # THE ANALOG ROWS RIDE THE BOARD (09-24, CONTRACT K15): one compact entry per selected or declined
+    # stanza -- driver, series, date, the dimensions seen, how many AGREE, the decline word -- on the
+    # board's own ``analogs`` field, which the seam puts on the ``state_board`` trace. Until now no analog
+    # row rode any trace, so "max 10 -> 5" was unreadable (the 09-24 read's instrument gap). The render
+    # stamps ``withheld`` / ``rendered`` on these same entries when it decides a stanza.
+    try:
+        bd.analogs = [_analog_trace_row(a) for a in (rows or ())]
+    except Exception:                                   # noqa: BLE001 -- telemetry never costs a leg
+        pass
     if not rows:
         return bd.stamp("analog", "not_reached")
     fired = [a for a in rows if not a.get("declined")]

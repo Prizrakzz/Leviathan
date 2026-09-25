@@ -69,6 +69,22 @@ WATCH_RENDER_K: dict = {"quick": 3, "deep": 6, "max": 8}
 DISTANCE_UNITS: dict = {"z_bands": "sigma", "percentile_bands": "percentile points",
                         "pace_vs_prior_year": "percentage points"}
 
+#: WHICH OF THE ROW'S OWN PRINTED FIGURES A CONVENTION KIND IS MEASURED ON (09-24, item 9) -- the SB-1
+#: handle key (``render.Block.row_handles``) and the words that name that figure. It is the config's own
+#: declaration read as a handle (``state_conventions.yaml`` ``band_semantics``: ``abs_bands`` reads the raw
+#: level, ``z_bands`` the row's z on its own window, ``percentile_bands`` its rank in its own record), so a
+#: watch row states its distance on THE FIGURE IT CITES. MEASURED on the 09-24 corn/wheat page: the urea
+#: row cited the LEVEL handle (-0.53 z, a five-year z-score series) while its distance to the line was
+#: measured on the row's trailing sigma (-0.78), and the writer printed "roughly halfway" beside -0.53.
+#: ``pace_vs_prior_year`` reads a registered transform no SB-1 handle prints, so it names its figure and
+#: cites the level as before.
+DISTANCE_STATISTIC: dict = {
+    "abs_bands": ("level", ""),
+    "z_bands": ("sigma", "its sigma on its own trailing window"),
+    "percentile_bands": ("percentile", "its rank in its own record"),
+    "pace_vs_prior_year": ("level", "its pace against the same point of the prior year"),
+}
+
 
 def render_k(mode: str, knobs=None) -> int:
     """The tier's watch render cap. S6: ``knobs.render_watch`` WINS when the board carries the render
@@ -153,6 +169,13 @@ def convention_distance(row, *, conventions: Optional[dict] = None,
     labels = list(conf.get("labels") or [])
     if not kind or not bands or len(labels) != len(bands):
         return None
+    # THE LINE IS ON THE SIDE THE READING SITS (09-24, item 9). A MAGNITUDE band (abs / z) is a distance
+    # from zero on either side, and the card's words may be SIDE-SPECIFIC: ``urea_z`` names its 1.5 line
+    # "elevated", and the corn/wheat page read a FALLING -0.53 z as "running at the elevated line". Where
+    # the config declares a low side's own words (``labels_low``, lane T's card field, parallel to
+    # ``labels``) a reading below zero takes them; where it declares none the labels are the magnitude's
+    # own two-sided words (ONI's "moderate" / "strong" name a La Nina as well as an El Nino) and stand.
+    labels_low = list(conf.get("labels_low") or [])
     reading = (st.convention or {}).get("reading")
     if reading is None and measure_fallback:
         # THE OVERLAY'S ONE EXTRA STEP, and it is OFF BY DEFAULT so every HEAD-covered ref takes the
@@ -170,6 +193,9 @@ def convention_distance(row, *, conventions: Optional[dict] = None,
     # construction; a percentile or pace band has two, and the reading's own side is the one a watch row
     # is about.
     shown0 = abs(reading) if kind in ("abs_bands", "z_bands") else reading
+    low_side = kind in ("abs_bands", "z_bands") and reading < 0
+    if low_side and len(labels_low) == len(bands):
+        labels = labels_low
     best = None
     for b, lbl in zip(bands, labels):
         if _crossed(kind, reading, b, bands):
@@ -195,10 +221,13 @@ def convention_distance(row, *, conventions: Optional[dict] = None,
     if res.get("declined"):
         return None
     unit_words = DISTANCE_UNITS.get(kind) or str(conf.get("unit") or st.narrate_unit or st.unit or "")
+    stat_key, stat_words = DISTANCE_STATISTIC.get(kind, ("level", ""))
     return {"distance": abs(float(res["value"])), "band": band, "label": str(label),
             "kind": kind, "unit_words": unit_words, "direction": direction,
-            "band_words": _band_words(kind, band, unit_words),
-            "derivation": rec, "inputs": bundle, "reading": shown}
+            # A LOW-SIDE MAGNITUDE LINE IS PRINTED WITH ITS SIGN ("-1.5 sigma"), the side it sits on.
+            "band_words": _band_words(kind, (-band if low_side else band), unit_words),
+            "derivation": rec, "inputs": bundle, "reading": shown, "low_side": bool(low_side),
+            "stat_key": stat_key, "stat_words": stat_words}
 
 
 def _band_words(kind: str, band: float, unit_words: str) -> str:
@@ -624,19 +653,27 @@ NONOBVIOUS_MECHANISMS: dict = {
 
 #: The STATED FALSIFIER each kind carries -- the ruling's "the reading that would show it wrong".
 NONOBVIOUS_FALSIFIERS: dict = {
-    "past_the_line": "the next print turns back inside that line, or the run breaks",
-    "tail_reading": "the next print returns the series to the middle of its own record",
-    "approaching_line": "the run breaks before the line, which leaves the reading where it is",
-    "approaching_line_away": ("the run carries on, which widens the distance to that line rather than "
-                              "closing it"),
-    "approaching_line_unplaced": ("this run is not the one that closes the distance to that line, "
-                                  "which leaves the reading where it is"),
-    "convergence_amplified": ("one of the drivers that pattern names turns, which puts the count back "
-                              "under its own threshold"),
-    "convergence_amplified_alone": ("that driver turns, which puts the count back under the "
-                                    "pattern's own threshold"),
-    "upstream_convergence": ("the paths share a single upstream cause, in which case they are one "
-                             "route counted twice"),
+    # **EVERY FALSIFIER NAMES THE SERIES IT WATCHES (09-24, CONTRACT K14)**: ``{series}`` is filled from
+    # the backing row's own IDENTITY (``render.row_identity_for(row).short_words()``) -- a reading a desk
+    # can look at -- and ``state/lint.py`` grades the slot on every entry. Two kinds said a fact about the
+    # MODEL (``upstream_convergence`` "the paths share a single upstream cause ... one route counted
+    # twice", served on the palm/rape page; ``recurrence`` "the like states cluster in one episode") and no
+    # print could ever show either wrong; both now carry the state-return falsifier of the reading they rest
+    # on, the family round 1 gave the two spillover kinds.
+    "past_the_line": "the next print of {series} turns back inside that line, or the run breaks",
+    "tail_reading": "the next print returns {series} to the middle of its own record",
+    "approaching_line": ("the run in {series} breaks before the line, which leaves the reading where it "
+                         "is"),
+    "approaching_line_away": ("the run in {series} carries on, which widens the distance to that line "
+                              "rather than closing it"),
+    "approaching_line_unplaced": ("this run in {series} is not the one that closes the distance to that "
+                                  "line, which leaves the reading where it is"),
+    "convergence_amplified": ("{series} or another driver that pattern names turns, which puts the "
+                              "count back under its own threshold"),
+    "convergence_amplified_alone": ("{series} turns, which puts the count back under the pattern's own "
+                                    "threshold"),
+    "upstream_convergence": ("the next print returns {series} to the middle of its own record, which "
+                             "takes the move off every declared path through it at once"),
     # **A FALSIFIER IS A READING A DESK CAN WATCH, NEVER A FACT ABOUT THE MODEL** (09-23, D12 / threat
     # R-15). Both spillover kinds said "wrong if that market's own declared edge carries no sign" -- the
     # board's ROUTING language, served as a falsifier (deep b3 / b4, the 2024 b4, max F9): no print can
@@ -645,12 +682,12 @@ NONOBVIOUS_FALSIFIERS: dict = {
     # kind's own falsifier, read over the same series, and not a new sentence family.
     # The two spillover kinds keep ONE falsifier EACH (the one-place law), both of the state-return
     # family: the reading returning to the middle of its own record is what takes the reach off.
-    "spillover_reach": ("the next print returns this reading to the middle of its own record, which "
+    "spillover_reach": ("the next print returns {series} to the middle of its own record, which "
                         "takes the move off those markets at once"),
-    "spillover_reach_unplaced": ("the next print returns this reading to the middle of its own record "
+    "spillover_reach_unplaced": ("the next print returns {series} to the middle of its own record "
                                  "before any of those markets can be placed with or against it"),
-    "recurrence": ("the like states cluster in one episode, in which case the count is one event and "
-                   "not a rate"),
+    "recurrence": ("the next print moves {series} out of the state the like states were counted in, "
+                   "which leaves the base rate describing a state this reading has left"),
 }
 
 #: The BODY of each kind's sentence. Every ``{slot}`` is a word the BOARD supplies; every other word is
@@ -777,10 +814,15 @@ NONOBVIOUS_CLAUSES: dict = {
                       "and not a set of drivers moving with it"),
     # THE ADMISSION FACT, on the kinds whose OWN claim is not a floor clause (review round 2, minor a).
     "admitted": ", and what admits it here is that {fact}",
+    # 09-24 (item 9): THE PROGRESS NAMES THE FIGURE IT IS MEASURED ON, which is the figure the row cites.
     "progress": ", about {percent} percent of the way there from zero",
+    "progress_on": ", about {percent} percent of the way there from zero, measured on {stat}",
     "amplifier": (", and an interaction among those drivers is declared that {effect} the effect"),
     "nearest": (", and the nearest of them is {market}, where it is declared {sign} with {band} at "
                 "{confidence} confidence"),
+    # K26: THE SAME DRIVER ON A DIFFERENT SERIES is counted and never called the same reading.
+    "other_series": ("; the same driver is declared on {n_other} more {markets} on a series of their "
+                     "own, which is a different reading and is not counted here"),
     # IT NAMES THE ISO TAIL AS A SPAN (review round 2, minor e). The first wording read "opens ahead
     # and closes on these dates -- 2027-02-28 to 2027-08-31", which puts a plural "these dates" against
     # a pair that is one window's two ends; the tail is a SPAN and the sentence now says which end is
@@ -1413,7 +1455,9 @@ def _cand(kind: str, row, *, what: str, dates: str,
     v = variant or kind
     if v != kind and NONOBVIOUS_VARIANTS.get(v) != kind:
         raise KeyError(f"watch: {v!r} is not a declared variant of {kind!r}")
-    falsifier = NONOBVIOUS_FALSIFIERS[v]
+    # K14: the falsifier's series is the BACKING ROW'S OWN IDENTITY -- the series the row names -- and
+    # never a driver id; a row with no readable identity names its driver's display words.
+    falsifier = NONOBVIOUS_FALSIFIERS[v].format(series=_series_words(row))
     floor = tuple(floor)
     stated = FLOOR_STATED_BY_KIND.get(kind)
     admitted = ("" if (stated is not None and stated in floor) or not floor
@@ -1429,6 +1473,19 @@ def _cand(kind: str, row, *, what: str, dates: str,
         "dedupe": identity or _dedupe_key(row), "driver_id": row.driver_id,
         **(extra or {}),
     }
+
+
+def _series_words(row) -> str:
+    """THE SERIES A WATCH ROW RESTS ON, in the row identity's own inline noun (CONTRACT K3
+    ``short_words``) -- the reading a falsifier watches (K14). The render's one door to the identity is
+    read; a row it cannot name falls back to the driver's display words, which is what the row's label
+    already prints."""
+    try:
+        ident = R.row_identity_for(row)
+        w = ident.short_words() if ident is not None else ""
+    except Exception:                                   # noqa: BLE001 -- a name never costs a row
+        w = ""
+    return R.ascii_text(w) if w else R.humanise(str(getattr(row, "driver_id", "") or ""))
 
 
 def _floor_of(row, *, pattern_rows=(), path_n: int = 0, base_rate=None, dist=None) -> tuple:
@@ -1685,10 +1742,42 @@ def _fan_facts(bd, row) -> dict:
     ``undirected`` (the FAR edge declares no direction) and ``unplaced`` (the far edge commits and THIS
     row's own edge does not, so there is nothing to compare it with). ``near_signed`` says which of the
     two sentences the builder owes the reader."""
+    # 09-24 (CONTRACT K26): ON A DECLARED PHASE PAIR THE NEAR AND THE FAR EDGES ARE THE POLE IN FORCE's.
+    # The deep page compared El Nino's far signs against La Nina's own soybean sign at ONI +1.8 and
+    # printed "opposite on twenty-eight" for the twenty-eight markets that sign the warm phase the SAME
+    # way soybeans do. The pole is read off the ONE phase producer (``render.phase_for_state``) on the
+    # row's own series; the row whose driver is the pole NOT in force reads its board's in-force pole's
+    # entry for BOTH sides of the comparison, so the two can never come from two different poles.
+    _driver, _sign = str(row.driver_id), str(row.sign or "")
+    # LANE W STAMPS THE POLE IN FORCE ON THE ENTRY (``walk.fan_identity``: ``pole_in_force``); that stamp is
+    # the producer and is read first. A walk that stamped none falls back to the same one phase producer
+    # the stamp itself reads, so a tree without the stamp states the same pole.
+    _own = next((e for e in (getattr(bd, "fan", ()) or ())
+                 if e.get("contract") == row.contract and e.get("driver_id") == _driver), None)
+    _live = str((_own or {}).get("pole_in_force") or "")
+    if not _live:
+        _pf = (R.phase_for_state(getattr(row, "state", None)) if getattr(row, "state", None) is not None
+               else {})
+        if _pf and _pf.get("in_force") and str(_pf.get("other_driver") or "") == _driver:
+            _live = str(_pf.get("driver") or "")
+    if _live and _live != _driver:
+        _lrow = bd.row(row.contract, _live) if hasattr(bd, "row") else None
+        if _lrow is not None:
+            _driver, _sign = _live, str(getattr(_lrow, "sign", "") or "")
     for e in (getattr(bd, "fan", ()) or ()):
-        if e.get("contract") == row.contract and e.get("driver_id") == row.driver_id:
-            far = list(e.get("far") or ())
-            near = str(row.sign or "")
+        if e.get("contract") == row.contract and e.get("driver_id") == _driver:
+            far_all = list(e.get("far") or ())
+            # "THE SAME READING" IS ONE SERIES (K26): lane W stamps ``same_series`` on every far row off
+            # the zero-read key plan; where it stamped it, only the far rows on THIS row's own series are
+            # counted as the same reading and the rest are counted as the same driver on a different
+            # series (palm/rape's "thirteen other markets ... barley" counted thirteen cards' OWN
+            # stocks-to-use ratios). A fan the walk has not stamped keeps HEAD's count.
+            if any(f.get("same_series") is not None for f in far_all):
+                far = [f for f in far_all if f.get("same_series") is True]
+            else:
+                far = far_all
+            other = len(far_all) - len(far)
+            near = _sign
             committed = [f for f in far if str(f.get("sign") or "") in _COMMITTED_SIGNS]
             undirected = [f for f in far if f not in committed]
             if near in _COMMITTED_SIGNS:
@@ -1699,9 +1788,11 @@ def _fan_facts(bd, row) -> dict:
                 same, opp, unplaced = [], [], list(committed)
             return {"n": len(far), "same": len(same), "opposite": len(opp),
                     "undirected": len(undirected), "unplaced": len(unplaced),
-                    "near_signed": near in _COMMITTED_SIGNS, "far": far}
+                    "near_signed": near in _COMMITTED_SIGNS, "far": far, "other_series": other,
+                    "driver_read": _driver}
     return {"n": 0, "same": 0, "opposite": 0, "undirected": 0, "unplaced": 0,
-            "near_signed": str(getattr(row, "sign", "") or "") in _COMMITTED_SIGNS, "far": []}
+            "near_signed": str(getattr(row, "sign", "") or "") in _COMMITTED_SIGNS, "far": [],
+            "other_series": 0, "driver_read": _driver}
 
 
 def _nearest_far(fan: dict):
@@ -1841,8 +1932,12 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
                         progress = max(0.0, min(1.0, 1.0 - (float(cd["distance"]) / span)))
                 except (TypeError, ValueError, ZeroDivisionError):
                     progress = None
-                frac = ("" if progress is None else NONOBVIOUS_CLAUSES["progress"].format(
-                    percent=R.words_for_int(int(round(progress * 100)))))
+                _stw = str(cd.get("stat_words") or "")
+                frac = ("" if progress is None else (
+                    NONOBVIOUS_CLAUSES["progress_on"].format(
+                        percent=R.words_for_int(int(round(progress * 100))), stat=_stw)
+                    if _stw else NONOBVIOUS_CLAUSES["progress"].format(
+                        percent=R.words_for_int(int(round(progress * 100))))))
                 # WHICH OF THE THREE SENTENCES THIS ROW HAS EARNED (review round 3, MAJOR 1). The
                 # claim is "its run points at it" and the gate tested the run's LENGTH; the band's own
                 # side decides it, read off `_band_side` for a signed-axis line and off the SIGNED
@@ -1863,7 +1958,9 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
                         run_words=run_word, side=side, progress=frac, figure=fig),
                     dates=dates, win=win, asof=asof,
                     floor=floor, extra={**extra, "line_progress": progress,
-                                        "line_label": cd["label"], "run_toward": toward}))
+                                        "line_label": cd["label"], "run_toward": toward,
+                                        # THE ROW CITES THE FIGURE ITS DISTANCE IS MEASURED ON (item 9)
+                                        "backing_stat": str(cd.get("stat_key") or "level")}))
 
         # 4 A DECLARED PATTERN AT ITS OWN THRESHOLD, amplifier line first
         if pat["row"] is not None and pat["at_threshold"]:
@@ -1944,20 +2041,23 @@ def nonobvious_candidates(bd, *, analogs=(), conventions: Optional[dict] = None,
             # MAJOR 2). Where this row's own declared edge carries no committed direction there is
             # nothing to place the far ones against, and the sentence says so instead of counting
             # them into a direction: 11 of 430 drawn rows on the banked population.
+            _oth = int(fan.get("other_series") or 0)
+            _oth_cl = ("" if not _oth else NONOBVIOUS_CLAUSES["other_series"].format(
+                n_other=R.words_for_int(_oth), markets="market" if _oth == 1 else "markets"))
             if fan.get("near_signed"):
                 variant = "spillover_reach"
                 body = NONOBVIOUS_BODIES["spillover_reach"].format(
                     n_far=R.words_for_int(fan["n"]), n_same=R.words_for_int(fan["same"]),
                     n_opposite=R.words_for_int(fan["opposite"]),
                     n_undirected=R.words_for_int(int(fan.get("undirected") or 0)),
-                    nearest=near_words)
+                    nearest=near_words) + _oth_cl
             else:
                 variant = "spillover_reach_unplaced"
                 body = NONOBVIOUS_BODIES["spillover_reach_unplaced"].format(
                     n_far=R.words_for_int(fan["n"]),
                     n_directed=R.words_for_int(int(fan.get("unplaced") or 0)),
                     n_undirected=R.words_for_int(int(fan.get("undirected") or 0)),
-                    nearest=near_words)
+                    nearest=near_words) + _oth_cl
             out.append(_cand(
                 "spillover_reach", row, variant=variant, what=body,
                 dates=dates, win=win, asof=asof,

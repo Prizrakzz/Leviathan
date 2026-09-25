@@ -932,9 +932,9 @@ def fetch_candidates(query_vec, query_text: str, node: str, *, asof: Optional[st
 
 
 def _project(r, with_vectors: bool, off: int = 0) -> dict:
-    """One row tuple -> the candidate dict. The nine metadata keys are identical on both payload shapes
-    (six scalars + the three span keys read off `meta`); the last column is `vector` (list[float]) or
-    `score` (float).
+    """One row tuple -> the candidate dict. The ten metadata keys are identical on both payload shapes
+    (six scalars + the three span keys + the event-date precision, the last four read off `meta`); the last
+    column is `vector` (list[float]) or `score` (float).
 
     `off` shifts the tuple index because the BATCH statement projects the node as a LEADING column. This
     projection is SHARED by `fetch_candidates` and `fetch_candidates_batch` on purpose: EC-2's parity
@@ -943,12 +943,32 @@ def _project(r, with_vectors: bool, off: int = 0) -> dict:
 
     Phase F: `meta` (jsonb -> dict, column index off+6) supplies char_start/char_end/offset_kind so the
     citation locator stops shipping nulls; absent keys stay None — the honest legacy shape for pre-offset
-    vintages."""
+    vintages.
+
+    09-24 FIX ROUND 2 (lane C, CONTRACT K25) -- THE EVENT DATE'S PRECISION IS A STORED FACT THIS PROJECTION
+    DROPPED. `upsert` writes every non-core key of a record into `meta` (`_CORE` above), so a proposition's
+    `event_date_precision` ("day" / "month" / "quarter" / "year") has always been IN the row -- and this
+    projection read the three span keys off `meta` and never this one, so `pg_retrieve` emitted
+    `r.get("event_date_precision")` = None on every row: 393 of 393 chain hops on the ten 09-24 traces
+    carried precision "", a month-precision "2025-02-01" printed as a DAY, and a year-precision conditional
+    forecast scored as an open action. It is read off `meta` EXACTLY as the span keys are, on BOTH fetch
+    shapes (this one function serves both -- the EC-2 parity note above), and an absent key stays None: the
+    legacy row keeps the honest "no precision" it always had, which the walk's precision rule fails closed
+    on. Never inferred from the date's shape ("-01" is not a month) and never from hedge words.
+
+    FIXER PASS (REVIEW_WT MAJOR-2, K25's other half): the DOCUMENT date's own kind rides the same `meta`
+    (`evidence_batch._doc_blocks` writes `date_kind` = `evidence.doc_date_detail`'s key / key_month /
+    doc_field / year_floor / epoch_floor): 596 documents are dated to a MONTH floor and 62 to a YEAR floor,
+    and a walk that reads such a date as a publication DAY files a real action reported inside that month
+    as a forecast. Projected exactly as the precision is; absent on a legacy row (None -> the walk's day
+    reading, HEAD's)."""
     meta = r[off + 6] or {}
     base = {"id": r[off], "source": r[off + 1], "source_key": r[off + 2], "date": r[off + 3],
             "event_date": r[off + 4], "text": r[off + 5],
             "char_start": meta.get("char_start"), "char_end": meta.get("char_end"),
-            "offset_kind": meta.get("offset_kind")}
+            "offset_kind": meta.get("offset_kind"),
+            "event_date_precision": meta.get("event_date_precision"),
+            "date_kind": meta.get("date_kind")}
     if with_vectors:
         return {**base, "vector": _vec_parse(r[off + 7])}
     return {**base, "score": float(r[off + 7])}
@@ -1158,6 +1178,7 @@ def pg_retrieve(query: str, node: str, *, k: int = 5, asof: str | None = None, n
     rel_by = {id(r): s for r, s in zip(cand, relevance)}
     return [{"date": r["date"], "source": r["source"], "source_key": r["source_key"], "text": r["text"],
              "event_date": r.get("event_date"), "event_date_precision": r.get("event_date_precision"),
+             "date_kind": r.get("date_kind"),
              "char_start": r.get("char_start"), "char_end": r.get("char_end"),
              "offset_kind": r.get("offset_kind"),                       # Phase F: ride to the citation locator
              "score": rel_by.get(id(r))}

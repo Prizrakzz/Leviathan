@@ -395,21 +395,43 @@ def test_the_desk_leg_does_not_contradict_the_BOARD_leg_it_is_appended_after():
     1's desk leg answered, unscoped, "a sentence that counts the things it is reading has stopped
     writing about markets". Measured over 748 real-seat sentences, 11 carried exactly those
     constructions and round 1's rule reached 10 of them; this deck pins that the clause is gone and
-    that the desk leg now says the opposite IN SO MANY WORDS."""
+    that the desk leg now says the opposite IN SO MANY WORDS.
+
+    RE-BANKED 09-25 (fix round 2, CONTRACT K19 -- a DECLARED move, DM4): under the desk register the
+    board leg is no longer the self-named literal. `answer._system(..., desk_register=True)` now ships
+    `N.state_board_mandate(desk=True)`, the SAME `{record}`-slot template filled with the record's
+    reader-facing name (`N.MANDATE_BLOCK_READER_NAME`), so `SYSTEM_STATE_BOARD_MANDATE` (the self-named
+    fill) no longer occurs inside the desk prompt and HEAD's `sysm.index(board)` raised. The pin now
+    indexes the board leg the producer EMITS on the desk cell, asserts the three count constructions
+    ride that leg in its own record name (filled through the producer's slot, never a typed copy), keeps
+    the self-named literal's constructions byte for byte (flag-off / board-only cells, B3), and keeps
+    the ORDER claim -- the desk leg is still the later instruction."""
     m = N.desk_register_mandate()
     assert "THAT IS A RULE ABOUT SCORING MACHINERY AND NOT ABOUT COUNTING" in m
     assert "a count in words is a fact about the market" in m
     assert "how many other markets carry the same state" in m          # movement (3)
     assert "how many such cases the record holds" in m                 # movement (2) / base rates
-    # ...and the board mandate's own required constructions are UNTOUCHED, byte for byte
+    owed_constructions = ("then how many such cases the record carries, in words",
+                          "name the other markets {record} declares the same loud state moves",
+                          "Base rates come from {record}'s count words")
+    # ...the board mandate's own required constructions are UNTOUCHED, byte for byte, on the self-named
+    # literal every flag-off board turn ships (B3: `state_board_mandate(False) is` that literal)
     board = N.SYSTEM_STATE_BOARD_MANDATE
-    for owed in ("then how many such cases the record carries, in words",
-                 "name the other markets the block declares the same loud state moves",
-                 "Base rates come from the block's count words"):
-        assert owed in board, owed
-    # ...and the ORDER is read off the assembled prompt, not off a line number
+    assert N.state_board_mandate() is board
+    for owed in owed_constructions:
+        assert owed.format(record=N.MANDATE_BLOCK_SELF_NAME) in board, owed
+    # ...and the board leg the DESK cell actually ships (K19: the reader-named fill of the same template)
+    # still orders all three counts in words -- the desk leg below cannot be read as cancelling them
+    desk_board = N.state_board_mandate(desk=True)
+    assert desk_board != board
+    for owed in owed_constructions:
+        assert owed.format(record=N.MANDATE_BLOCK_READER_NAME) in desk_board, owed
+    # ...and the ORDER is read off the assembled prompt, not off a line number: the desk cell carries the
+    # reader-named board leg exactly once, never the self-named one, and the desk leg comes after it
     sysm = an._system(state_board=True, desk_register=True)
-    assert sysm.index(board) < sysm.index(N.desk_register_mandate(state_board=True))
+    assert board not in sysm
+    assert sysm.count(desk_board) == 1
+    assert sysm.index(desk_board) < sysm.index(N.desk_register_mandate(state_board=True))
 
 
 def test_the_anaphor_in_the_ban_half_has_its_ANTECEDENT_back():

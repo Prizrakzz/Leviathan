@@ -284,6 +284,31 @@ def test_the_fire_rate_stays_under_the_designs_ten_percent_ceiling(graph, curate
     assert worst <= 7.0, worst          # the MEASURED headroom, so a widening shows up here first
 
 
+def _inserted(before: str, after: str) -> list:
+    """What a pass INSERTED into ``before`` to make ``after`` (09-24, K16): the added runs of a
+    character diff, stripped -- the clause wherever it landed, never the writer's own words."""
+    import difflib
+    sm = difflib.SequenceMatcher(a=before, b=after, autojunk=False)
+    return [after[j1:j2].strip() for op, _i1, _i2, j1, j2 in sm.get_opcodes()
+            if op == "insert" and after[j1:j2].strip()]
+
+
+def _clauses(sent: str) -> list:
+    """A sentence's clause segments as the lint reads them (`answer._seam_absence_segment`'s breaks,
+    paren-aware), stripped of their terminator -- the grain K16's placement keeps whole."""
+    body = sent.strip().rstrip(".;!?").strip()
+    out, seen = [], set()
+    for pos in range(len(body)):
+        a, b = an._seam_absence_segment(body, pos)
+        if (a, b) == (0, len(body)) and an._SEAM_CLAUSE_BREAK_RX.search(body):
+            continue                                   # a position inside a break, not a clause
+        if (a, b) not in seen:
+            seen.add((a, b))
+            if body[a:b].strip():
+                out.append(body[a:b].strip())
+    return out
+
+
 def test_every_appended_clause_is_register_clean(cell, notes):
     """A correcting clause that trips the fence shipping in the same commit is lane R's own W-1
     finding in the other direction. DESIGN B.6's literal for L2 -- "the graph places <hop 2> between
@@ -294,10 +319,14 @@ def test_every_appended_clause_is_register_clean(cell, notes):
         st, _ = _run(prose, calls, bd)
         for before, after in zip(_sents(prose), _sents(st["mechanism"])):
             if before != after:
-                spans.add(after.replace(before.rstrip(" .;!?"), "").strip())
+                # 09-24 (K16): L1 now lands at the END OF THE CLAUSE naming its hop, so the inserted
+                # text is read as the DIFF (what the pass added), never as "after minus a prefix".
+                spans |= set(_inserted(before, after))
     spans |= {an._CHAIN_UNRANKED_CLAUSE,
               an._CHAIN_SKIP_OPEN + "export pace lag" + an._CHAIN_SKIP_CLOSE,
-              an._CHAIN_FIGURE_OPEN + "0.117 S/U ratio [N34]" + an._CHAIN_FIGURE_PCT % ("68th", 36)}
+              an._CHAIN_FIGURE_OPEN + "0.117 S/U ratio [N34]" + an._CHAIN_FIGURE_PCT % ("68th", 36),
+              an._chain_l1_open({"printed": "the stocks-to-use ratio"}) + "0.117 S/U ratio [N34]"
+              + an._CHAIN_FIGURE_PCT % ("68th", 36)}
     assert spans
     for s in spans:
         assert REG.desk_register_hits(s) == [], s
@@ -321,7 +350,9 @@ def test_L1_corrects_the_deep_notes_first_chain_sentence_at_the_rows_own_address
     out = st["mechanism"]
     assert out != T1 and out.startswith(T1[:-1])
     assert cen["sentences"] == 1 and cen["corrected"] == 1
-    assert an._CHAIN_FIGURE_OPEN in out
+    # RE-BANKED 09-24 (K16, DM2): the clause NAMES ITS SERIES -- "-- <the hop's printed name> reads".
+    _h1 = next(h for h in an._chain_hop_rows(bd, calls) if "the stocks to use ratio" in h["names"])
+    assert an._chain_l1_open(_h1) in out and an._CHAIN_FIGURE_OPEN not in out
     # THE FIGURE IS THE SERVED ROW'S OWN VALUE AND IT IS CITED AT ITS OWN ADDRESS. 09-23 LANE A (C5,
     # defect 2): it is printed at the page's ONE precision -- `render.shown_figure`, which also applies
     # the card's DECLARED display scale (the fixture serves the ratio natively, 0.117 S/U ratio, and the
@@ -672,7 +703,7 @@ def test_A2_a_multi_anchor_board_refuses_the_figure_when_the_sentence_names_the_
     # HEAD's behaviour is this fence ABSENT -- before round 2 the hop row carried no contract at all.
     monkeypatch.setattr(an, "_chain_market_fence", lambda *a, **k: {})
     st_head, cen_head = _run(other, calls, bd)
-    assert cen_head["corrected"] == 1 and an._CHAIN_FIGURE_OPEN in st_head["mechanism"]
+    assert cen_head["corrected"] == 1 and an._chain_l1_open(hop) in st_head["mechanism"]   # K16
     monkeypatch.undo()
     st, cen = _run(other, calls, bd)
     assert st["mechanism"] == other                    # NOT ONE CHARACTER MOVES
@@ -736,13 +767,17 @@ def test_A3_the_treatment_appends_the_handle_alone_and_the_resolver_fills_it_exa
     # (c) THE TREATMENT: the handle alone in, the figure ONCE out.
     st_t, cen_t = _run_hp(T1, calls, bd)
     assert cen_t["corrected"] == 1
-    assert an._CHAIN_FIGURE_OPEN + "[N" in st_t["mechanism"]
+    _h3 = next(h for h in an._chain_hop_rows(bd, calls) if "the stocks to use ratio" in h["names"])
+    assert an._chain_l1_open(_h3) + "[N" in st_t["mechanism"]          # K16: the handle alone, named
     filled = {"tldr": "", "mechanism": st_t["mechanism"]}
     an._resolve_number_handles(filled, calls, handle_prose=True)
     assert filled["mechanism"].count("0.117 S/U ratio") == 1, filled["mechanism"]
     assert "0.117 S/U ratio 0.117" not in filled["mechanism"]
     # ...and the seat threads the SAME one resolution the passes beside it are threaded with.
-    assert "_chain_lints(structured, extra_number_calls, _board, handle_prose=_handles)" \
+    # RE-BANKED 09-24 (CONTRACT K12, DM2): the seat also threads the question's distance-0 contracts, so
+    # the lint verifies a hop against the name the block PRINTED (lane R prefixes an off-question hop).
+    assert ("_chain_lints(structured, extra_number_calls, _board, handle_prose=_handles,\n"
+            "                                   page_markets=_page_markets)") \
         in inspect.getsource(an._answer_l2)
 
 
@@ -895,7 +930,7 @@ def test_B2_a_SINGLE_ANCHOR_board_that_renders_a_cross_chain_is_fenced_too(cell,
     # ROUND 2'S BEHAVIOUR IS THIS FENCE ABSENT, and it puts THIS market's figure on THAT market's line.
     monkeypatch.setattr(an, "_chain_market_fence", lambda *a_, **k_: {})
     st_head, cen_head = _run(sent, calls, bd)
-    assert cen_head["corrected"] == 1 and an._CHAIN_FIGURE_OPEN in st_head["mechanism"]
+    assert cen_head["corrected"] == 1 and an._chain_l1_open(hop) in st_head["mechanism"]   # K16
     assert hop["figure"] in st_head["mechanism"], st_head["mechanism"]
     monkeypatch.undo()
     st, cen = _run(sent, calls, bd)
@@ -1061,7 +1096,9 @@ def test_m6_the_fail_closed_counter_RIDES_THE_TRACE_on_the_seats_own_rule(cell, 
     monkeypatch.undo()
     # ...and that predicate is READ OFF THE SEAT, never re-spelled here.
     src = inspect.getsource(an._answer_l2)
-    assert 'if any(v for k, v in _clints.items() if k != "outcome"):' in src
+    # RE-BANKED 09-24 (CONTRACT K20 / item 28a): the census is stamped on EVERY chain-lit turn the lint
+    # ran, zeros included -- "ran and found nothing" may no longer read like "never ran".
+    assert 'if any(v for k, v in _clints.items() if k != "outcome"):' not in src
     assert 'sg.trace["chain_lints"] = _clints' in src
     # the counter is spelled ONCE per place it is produced: the census init and the two withholdings
     lint_src = inspect.getsource(an._chain_lints)
@@ -1085,7 +1122,13 @@ def test_the_five_served_notes_go_through_the_SHIPPED_append_only_report(cell, n
         cen = an._chain_lints(st, calls, bd)
         rep = LINT.chain_append_only_report(an._chain_lints, calls, bd, probe={"mechanism": prose})
         assert rep["raised"] is None, (name, rep["raised"])
+        # 09-24 (CONTRACT K16): L1 lands at the END OF THE CLAUSE that names its hop. FIXER PASS (REVIEW_RA
+        # lexical 11): the shipped grader now states the law at CLAUSE grain itself
+        # (`lint._append_only_charges`), so its charges are asserted as it ships -- no message filter.
         assert rep["errors"] == [], (name, rep["errors"])
+        for sent in _sents(prose):
+            for clause in _clauses(sent):
+                assert clause in rep["after"]["mechanism"], (name, clause)
         if cen["corrected"]:
             assert rep["changed"] == ["mechanism"], (name, cen, rep["changed"])
             assert len(rep["after"]["mechanism"]) > len(rep["before"]["mechanism"]), name
@@ -1143,7 +1186,8 @@ def test_the_census_reaches_the_per_answer_record_and_an_unstamped_row_is_unchan
     # ...and the key is genuinely NOT registered, so no tail pin in any other deck moved
     assert "chain_lints" not in tk_mod.TRACE_RECORD_KEYS
     # lane A 09-23 appended the three lane-0 stamps at the tail (CONTRACT C14): 47 -> 50, one commit
-    assert len(tk_mod.TRACE_RECORD_KEYS) == 50 and tk_mod.TRACE_RECORD_KEYS[-8] == "state_board"
+    # ...and lane A 09-24 appended the three K20 ledger / display stamps: 50 -> 53, one commit
+    assert len(tk_mod.TRACE_RECORD_KEYS) == 53 and tk_mod.TRACE_RECORD_KEYS[-11] == "state_board"
 
 
 def test_the_state_report_prints_one_chain_line_and_a_deck_with_no_stamp_prints_nothing():

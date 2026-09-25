@@ -770,34 +770,34 @@ def test_dhp4_keys_are_appended_at_the_tail_never_inserted():
     # D-XL RE-ANCHOR (2026-09-04, the THIRTEENTH application of the same law): TWO tail appends
     # (quantify_extreme_locator, extreme_second_hop) shift every index below left by two, and the
     # 39-key registry is a STRICT PREFIX of the 41 -- nothing was inserted. Values unchanged.
-    assert keys[-31:-26] == ("prose_handles", "error", "floor_cause", "bare_digit_count",
+    assert keys[-34:-29] == ("prose_handles", "error", "floor_cause", "bare_digit_count",  # 09-24 K20: +3
                              "citation_resolved")
-    assert keys[-26] == "wrong_slot_audit"
+    assert keys[-29] == "wrong_slot_audit"  # 09-24 K20: +3
     # H1 RE-PIN (FIX W2 / finding NF-2): `slot_orphan_dropped` appends AFTER it. Same law, same one-line
     # re-anchor -- the H0 slice moves left by one more and nothing before it moves at all.
-    assert keys[-25] == "slot_orphan_dropped"
+    assert keys[-28] == "slot_orphan_dropped"  # 09-24 K20: +3
     # H1b RE-PIN (D-HP-15): `episode_spans_validated` appends after THAT. Third application of the same
     # law in this wave, and the third one-line re-anchor -- which is the whole point of writing the pin
     # against the tail rather than against a frozen absolute index.
-    assert keys[-24] == "episode_spans_validated"
+    assert keys[-27] == "episode_spans_validated"  # 09-24 K20: +3
     # G1 AMENDMENT A3 RE-PIN (2026-08-14): `plan_tokens` -- the popped planning region's SIZE, never its
     # text -- appends after THAT. Fourth application of the same law, fourth one-line re-anchor, and
     # nothing before the H0 slice moves at all.
-    assert keys[-23] == "plan_tokens"
+    assert keys[-26] == "plan_tokens"  # 09-24 K20: +3
     # G1 REMEDIATION D2(b) RE-PIN (2026-08-14): `evidence_slot_dropped` -- clause (2b)'s remedy census --
     # appends after THAT. Fifth application of the same law, fifth one-line re-anchor.
-    assert keys[-22] == "evidence_slot_dropped"
+    assert keys[-25] == "evidence_slot_dropped"  # 09-24 K20: +3
     # D-HP-25 RE-PIN (2026-08-15, plan 10.30.6): `evidence_geo_dropped` -- V2's [E] geo-containment
     # census -- appends after THAT. SIXTH application of the same law and the sixth one-line re-anchor,
     # which is exactly what a tail-anchored pin is for. NOTE WHAT DID *NOT* NEED A LINE: V1's own two
     # counters (`geo_checked` / `geo_mismatch`) ride INSIDE `number_handles` and mint no top-level key,
     # so they shift no column at all -- the `escalation_decision` idiom, one registered key per producer.
-    assert keys[-21] == "evidence_geo_dropped"
+    assert keys[-24] == "evidence_geo_dropped"  # 09-24 K20: +3
     # D-LD SITTING-A RE-PIN (2026-08-18): `tables_queried` -- the per-table usage census, the estate's
     # first -- appends after THAT. SEVENTH application of the same law and the seventh one-line re-anchor.
-    assert keys[-20] == "tables_queried"
+    assert keys[-23] == "tables_queried"  # 09-24 K20: +3
     # 9af92649: the walk key then the A2 wave-reads counter APPENDED after quantify_derived_fenced, in that order.
-    assert keys[-19:-11] == ("timing_ms", "xc_open_pair", "xc_open_decline", "xc_regional_decline",
+    assert keys[-22:-14] == ("timing_ms", "xc_open_pair", "xc_open_decline", "xc_regional_decline",  # 09-24 K20: +3
                             "quantify_rv_reading_fenced", "quantify_derived_fenced",
                             "quantify_cascade_walk", "quantify_wave_reads")
     # ...and the D-XL pair, NAMED at the tail rather than left as "whatever is last": an unnamed tail
@@ -809,9 +809,9 @@ def test_dhp4_keys_are_appended_at_the_tail_never_inserted():
     # before its first writer) -- shift every index above left by TWO. The 41-key registry is a STRICT
     # PREFIX of the 43 -- nothing was inserted, every value above is unchanged, and both new names are
     # NAMED here rather than left as "whatever is last".
-    assert keys[-11:-9] == ("quantify_extreme_locator", "extreme_second_hop")
-    assert keys[-8] == "state_board"
-    assert keys[-9] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):
+    assert keys[-14:-12] == ("quantify_extreme_locator", "extreme_second_hop")  # 09-24 K20: +3
+    assert keys[-11] == "state_board"  # 09-24 K20: +3
+    assert keys[-12] == "quantify_xc_fork"  # ...and PHASE 0's OWN TAG beside it (S5 review):  # 09-24 K20: +3
     #   `quantify_xc_fork` is REGISTERED because it is the only instrument that can see the
     #   composer-path treatment -- eval's four RV counters all read `quantify_reroute_v2` /
     #   `quantify_comove`, which the composer path never writes. TWO keys, ONE commit, so every
@@ -824,8 +824,9 @@ def test_dhp4_keys_are_appended_at_the_tail_never_inserted():
     # its old value. AND THE NEW TAIL IS NAMED, exactly as the D-XL pair and the S5 pair were, because
     # this test's own docstring says an unnamed tail pin cannot tell an append from a sort -- which is
     # the whole failure this test exists to catch.
-    assert keys[-7:-3] == ("numbers_usage", "plan_usage", "desk_register", "writer_seam")
-    assert keys[-3:] == ("board_n_start", "injected_n", "numbers_block_chars")  # lane A 09-23: the three lane-0 stamps, ONE commit
+    assert keys[-10:-6] == ("numbers_usage", "plan_usage", "desk_register", "writer_seam")  # 09-24 K20: +3
+    assert keys[-6:-3] == ("board_n_start", "injected_n", "numbers_block_chars")  # lane A 09-23: the three lane-0 stamps, ONE commit  # 09-24 K20: +3
+    assert keys[-3:] == ("evidence_ledger", "sources_ledger", "numbers_display")  # lane A 09-24 (K20): the ledger / display stamps, ONE commit
     for older in ("number_handles", "rerank_lane", "walk_shape", "escalation_decision"):
         assert keys.index(older) < keys.index("prose_handles")
     assert len(set(keys)) == len(keys)

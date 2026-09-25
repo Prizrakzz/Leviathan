@@ -352,7 +352,13 @@ def test_the_far_readings_STANDING_prints_only_where_this_page_carries_its_addre
     ch.terms = {"tail": 22.0}
     bare = R.sb_chain_hop(ch, 1)
     assert "percentile of its record" not in bare
-    cited = R.sb_chain_hop(ch, 1, terminal_handle=42)
+    # FIX ROUND 2, fixer pass (REVIEW_RA M2, CONTRACT K10): the standing is the reading the last link's
+    # verdict READ (the far board's row of the same driver), handed in WITH its own handle -- never the
+    # earned cross's far reading (`Chain.terminal_percentile`, the ONI or China's beginning stocks) printed
+    # as the far market's own
+    cross_only = R.sb_chain_hop(ch, 1, terminal_handle=42)
+    assert "[N42]" in cross_only and "percentile of its record" not in cross_only
+    cited = R.sb_chain_hop(ch, 1, terminal_handle=42, terminal_percentile=9.0)
     assert "[N42]" in cited and "sits at the ninth percentile of its record" in cited
 
 
@@ -523,10 +529,12 @@ def test_the_receipt_takes_an_OPEN_action_first_then_a_CLOSED_one_then_a_mechani
     names THE DRAW and never the corpus. "none exists" is a claim about a store this turn did not
     read."""
     band = parse_lag("0-2 quarters")
+    # 09-24 RE-BANK (OWNER DECISION O-6, CONTRACT K6): an event with NO stated precision is never an
+    # action, so these DAY actions state their precision -- the extraction's own field.
     open_ev = {"date": "2026-08-02", "event_date": "2026-08-01", "source": "a wire", "tier": 1,
-               "text": "the levy was raised"}
+               "text": "the levy was raised", "event_date_precision": "day"}
     old_ev = {"date": "2021-05-13", "event_date": "2021-05-12", "source": "an old wire", "tier": 3,
-              "text": "an older action entirely different in its words"}
+              "text": "an older action entirely different in its words", "event_date_precision": "day"}
     mech = {"date": "2026-04-17", "source": "a report", "tier": 2,
             "text": "values are trending higher on biofuel demand"}
 
@@ -586,9 +594,9 @@ def test_an_event_OUTSIDE_the_hops_declared_window_renders_with_the_words_never_
     one keeps its own sentence."""
     band = parse_lag("0 quarters")                        # closed AND in reach: the placement case
     recent = {"date": "2026-08-21", "event_date": "2026-08-20", "source": "a wire", "tier": 3,
-              "text": "an action taken before this hop's own window closed"}
+              "text": "an action taken before this hop's own window closed", "event_date_precision": "day"}
     old = {"date": "2021-05-13", "event_date": "2021-05-12", "source": "an old wire", "tier": 3,
-           "text": "an action taken long before this window"}
+           "text": "an action taken long before this window", "event_date_precision": "day"}
     h0 = _hop(driver_id="export_pace_lag", lag_band=band, percentile=6.0, tail=0.88)
     h1 = _hop(driver_id="biodiesel_mandate", lag_band=band, receipts_top=(recent,),
               event_receipt=dict(recent), event_date="2026-08-20", event_open=False,
@@ -640,9 +648,17 @@ def _one_aged_receipt(bd) -> dict:
         st = r.state
         if st is None or status_word(st.status) != "ok" or not r.legs.get("loud"):
             continue
+        # 09-24 RE-BANK (CONTRACT K13, lane W): a chain rooted on the pole of a declared phase pair that is
+        # NOT in force takes no seat, so the document is placed on the first loud row that is not that
+        # out-of-force pole -- the fact this pin grades is WHERE the aged document's row prints, not
+        # which pole it sits on.
+        _pf = R.phase_for_state(st)
+        if _pf and _pf.get("in_force") and str(r.driver_id) == str(_pf.get("other_driver") or ""):
+            continue
         return {r.key: [{"date": _AGED_DOC, "event_date": _AGED_EVENT, "source": "a wire service",
                          "tier": 2, "text": ("the authority suspended the export licence for the "
-                                             "season, and the trade read it as durable")}]}
+                                             "season, and the trade read it as durable"),
+                         "event_date_precision": "day"}]}
     return {}
 
 
@@ -658,7 +674,7 @@ def test_S8R5_the_AGED_document_row_names_the_HOP_THE_DOCUMENT_SITS_ON():
     The document here sits on ``La_Nina`` (band 1-2 quarters) and the chain is receipted at
     ``cot_mm_positioning`` (band 0-1 quarters) -- the shape the fixture produces on a real board."""
     old = {"date": _AGED_DOC, "event_date": _AGED_EVENT, "source": "a wire service", "tier": 2,
-           "text": "the authority suspended the export licence for the season"}
+           "text": "the authority suspended the export licence for the season", "event_date_precision": "day"}
     doc_hop = _hop(driver_id="La_Nina", lag_band=parse_lag("1-2 quarters"), receipts_top=(old,),
                    event_receipt=dict(old), event_date=_AGED_EVENT, event_open=False,
                    percentile=82.0, tail=0.64, series_key="oni_climate|_global|")
@@ -1062,7 +1078,10 @@ def test_fix_0923_RA_M1_the_hop_name_IS_the_rows_series_identity_basis_and_cell_
               series_key="psd_ending_stock_su_ratio|soybeans_cbot|United States")
     assert R.chain_hop_name(su) == ("the stocks-to-use ratio, ending stocks as a share of domestic use, "
                                     "for United States")
-    for collapse, tail in ((None, ", for United States"), ("", ", for one United States growing cell"),
+    # 09-24 RE-BANK (CONTRACT K3, item 6): a region-cell read with NO collapse at a scope that is not one of
+    # the producer's own aggregate surfaces names its SCOPE ALONE -- the round-1 "single_cell" default read
+    # cocoa's West Africa BASIN MEAN as "one West Africa growing cell"; the rows prove no cell there.
+    for collapse, tail in ((None, ", for United States"), ("", ", for United States"),
                            ("mean", ", for the mean over the United States growing cells")):
         h = _hop(driver_id="us_drought", series_key="drought_z|soybeans_cbot|United States", collapse=collapse)
         name = R.chain_hop_name(h)

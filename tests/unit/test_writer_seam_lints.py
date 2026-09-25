@@ -118,8 +118,11 @@ def test_the_leg_is_a_pure_append_after_the_board_mandate_and_before_the_other_t
     from leviathan.graphrag.state import watch as sw
     base = an._system(state_board=True)
     assert base.endswith(an._system_writer_seam_mandate(None) + rc.directive(None, state_board=True))
+    # RE-BANKED 09-24 (CONTRACT K19, declared B1 cell): under the register the board's own mandate
+    # speaks the record's reader-facing name ("this page") -- the leg is otherwise the same pure append.
     assert an._system(state_board=True, desk_register=True) == \
-        base + sn.desk_register_mandate(state_board=True)
+        base.replace(sn.state_board_mandate(), sn.state_board_mandate(desk=True)) \
+        + sn.desk_register_mandate(state_board=True)
     assert (an._system(state_board=True, watch_selection=True)
             == base.replace(sn.MANDATE_WATCH_HEAD_RX, sn.MANDATE_WATCH_NONOBVIOUS)
             + sw.WATCH_SELECTION_CLAUSE)
@@ -953,40 +956,105 @@ def test_DOCKET9_the_citations_own_label_wins_in_prose():
     assert d3["mechanism"] == "Weekly export sales at 500 thousand MT [N27]."
 
 
+def _routed(call: dict, driver_words: str, row_id: str) -> dict:
+    """A BOARD call as the board mints it: the row identity that minted it (C3 `_row_id`) and the driver
+    words the block printed as "read here for <driver>" on that row (lane R's `routing`, which
+    `citations.call_identity` reads back as `routing_words`)."""
+    c = dict(call, _row_id=row_id, _sb=True)
+    c["rows"] = [dict(c["rows"][0], routing=driver_words)] if c.get("rows") else []
+    c["routing"] = driver_words
+    return c
+
+
 def test_DOCKET10_an_asserted_absence_is_checked_against_the_rows_the_turn_SERVED():
     """ROUND2_DOCKET #10 with the max turn's own sentence and its own unread row: `[N48]
     silver_psd.exports_mt Argentina = 6.45 MMT [known 2026-09-11]`, served and flagged
-    `coverage.missed.loud`, under "have no series this page could read"."""
-    rows = an._seam_row_index([None] * 47 + [
-        _call("silver_psd", "exports", "soybeans_cbot", "Argentina", "MY2026", 6.45, "MMT",
-              "2026-09-11")])                                            # [N48]
+    `coverage.missed.loud`, under "have no series this page could read".
+
+    RE-BANKED 09-24 (fix round 2, lane A, CONTRACT K16 -- declared): the row is appended IFF the board
+    ROUTES the claim's driver to it -- the SB-1 row carries "read here for Argentine selling incentives"
+    -- and never because a capitalised word of the claim stems onto a row head (the retired bind: it put
+    a 2016 yuan move on a 2025 tariff link and an empty read on a true absence, 09-24)."""
+    ex = _call("silver_psd", "exports", "soybeans_cbot", "Argentina", "MY2026", 6.45, "MMT", "2026-09-11")
+    calls = [None] * 47 + [_routed(ex, "Argentine selling incentives",
+                                   "soybeans_cbot|Argentine_selling_incentives|psd_exports|soybeans_cbot|AR")]
+    rows = an._seam_row_index(calls)                                     # [N48]
     sent = ("The model's price-pressuring supply-glut pattern needs three of its five drivers, and "
             "two of its legs (Argentine selling incentives, the dollar) have no series this page "
             "could read.")
     d = {"tldr": "", "mechanism": sent}
-    cen = an._seam_absence_claims(d, rows)
-    assert cen["absence_claims_checked"] == 1 and cen["absence_rows_appended"] == 1
-    assert "(an Argentine series was read: [N48] = 6.45 MMT, read 2026-09-11)" in d["mechanism"]
+    cen = an._seam_absence_claims(d, rows, number_calls=calls)
+    assert cen["absence_claims_checked"] == 1 and cen["absence_rows_appended"] == 1, cen
+    assert "(a served reading bears on this: [N48] = 6.45 MMT, read 2026-09-11)" in d["mechanism"]
     assert d["mechanism"].startswith(sent[:-1])               # the CLAIM IS NOT REMOVED
+    # IDEMPOTENT: a second run appends nothing twice
+    again = dict(d)
+    assert an._seam_absence_claims(again, rows, number_calls=calls)["absence_rows_appended"] == 0
+    assert again == d
     # NOTHING IS APPENDED WHEN NOTHING WAS SERVED FOR THAT SUBJECT
     d2 = {"tldr": "", "mechanism": sent}
     assert an._seam_absence_claims(d2, {})["absence_rows_appended"] == 0
     assert d2["mechanism"] == sent
     # ...nor when the sentence ALREADY CITES the row it is calling absent
-    d3 = {"tldr": "", "mechanism": "Argentine exports [N48] have no series this page could read."}
-    assert an._seam_absence_claims(d3, rows)["absence_rows_appended"] == 0
-    # ...nor when two DIFFERENT heads carry the subject (ambiguous: the seam never picks)
-    two = an._seam_row_index([None] * 47 + [
-        _call("silver_psd", "exports", "soybeans_cbot", "Argentina", "MY2026", 6.45, "MMT",
-              "2026-09-11"),
-        _call("silver_psd", "production", "soybeans_cbot", "Argentina", "MY2026", 50, "MMT",
-              "2026-09-11")])
+    d3 = {"tldr": "", "mechanism": "Argentine selling incentives [N48] have no series this page could read."}
+    assert an._seam_absence_claims(d3, rows, number_calls=calls)["absence_rows_appended"] == 0
+    # ...nor when the SAME CAPITALISED WORD sits on a row the board did NOT route to that driver: the
+    # stem bind is retired, so an unrouted Argentine row is no referent at all (K16)
+    unrouted = [None] * 47 + [ex]
     d4 = {"tldr": "", "mechanism": sent}
-    assert an._seam_absence_claims(d4, two)["absence_rows_appended"] == 0
+    c4 = an._seam_absence_claims(d4, an._seam_row_index(unrouted), number_calls=unrouted)
+    assert c4["absence_rows_appended"] == 0 and c4.get("absence_unbound") == 1, c4
+    assert d4["mechanism"] == sent
     # ...and on the handle-prose lane the FIGURE is left to the one producer that fills that slot
     d5 = {"tldr": "", "mechanism": sent}
-    an._seam_absence_claims(d5, rows, handle_prose=True)
-    assert "(an Argentine series was read: [N48], read 2026-09-11)" in d5["mechanism"]
+    an._seam_absence_claims(d5, rows, handle_prose=True, number_calls=calls)
+    assert "(a served reading bears on this: [N48], read 2026-09-11)" in d5["mechanism"]
+
+
+def test_K16_the_two_09_24_false_appends_are_gone_and_a_true_absence_is_left_true():
+    """THE TWO MEASURED FALSE APPENDS (09-24, `writer_seam.absence_rows_appended` 2, both false), on the
+    served pages' own sentences and the rows that were stemmed onto them:
+      * deep 2026 -- "... none with a readable next print" got "(a Chinese series was read: [N252] = 4
+        percent change in Chinese yuan per US dollar, read 2016-06-17)": a 2016 yuan move on a 2025 tariff
+        link, bound by the capitalised word "Chinese";
+      * palm/rape -- "the record carries no figure for Bangladeshi rapeseed-oil stocks at all" got "(a
+        Bangladeshi series was read: = NO ROWS RETURNED)": an EMPTY READ appended to a TRUE absence.
+    Neither claim names a structural referent with a served row, so both ship as written. A referent
+    HOP the board read no series for makes the absence TRUE (`absence_true`)."""
+    yuan = _call("silver_fx", "percent change", None, "China", "2016-06-17", 4, "percent change in "
+                 "Chinese yuan per US dollar", "2016-06-17")
+    deep_calls = [None] * 251 + [yuan]
+    deep = ("The second chain, from Chinese import tariffs through export shipments to the same ratio, is "
+            "unquantified at its first link (no series served) and its record is thin -- three prior "
+            "occasions, none with a readable next print.")
+    d = {"tldr": "", "mechanism": deep}
+    cen = an._seam_absence_claims(d, an._seam_row_index(deep_calls), number_calls=deep_calls)
+    assert cen["absence_rows_appended"] == 0 and d["mechanism"] == deep, d["mechanism"]
+    empty = {"query": {"table": "silver_fas_psd", "metric": "ending stocks", "commodity": "rapeseed_oil_zce",
+                       "country": "Bangladesh", "period": "MY2026", "asof": ASOF},
+             "rows": [], "status": "ok"}
+    palm_calls = [None] * 9 + [_routed(empty, "Bangladeshi rapeseed-oil stocks",
+                                       "rapeseed_oil_zce|bd_stocks|fas_psd|rapeseed_oil_zce|BD")]
+    palm = "- World prices: the record carries no figure for Bangladeshi rapeseed-oil stocks at all."
+    d2 = {"tldr": "", "mechanism": palm}
+    rows2 = an._seam_row_index(palm_calls)
+    cen2 = an._seam_absence_claims(d2, rows2, number_calls=palm_calls)
+    assert cen2["absence_rows_appended"] == 0 and d2["mechanism"] == palm   # an EMPTY read never appends
+    assert "NO ROWS RETURNED" not in d2["mechanism"]
+    # A TRUE ABSENCE: the claim names a rendered hop the board read NO series for -> nothing appended.
+    import types
+    from leviathan.graphrag.state import render as R
+    hop = types.SimpleNamespace(contract="soybeans_cbot", driver_id="China_import_tariff", series_key="",
+                                measured=False)
+    board = types.SimpleNamespace(rows=(), chains=(types.SimpleNamespace(rendered=True, hops=(hop,)),))
+    names = list(R.chain_hop_reader_names(hop))
+    assert names, "the render names the hop for a reader"
+    sent3 = "The %s link has no series this page could read." % names[0]
+    d3 = {"tldr": "", "mechanism": sent3}
+    cen3 = an._seam_absence_claims(d3, an._seam_row_index(deep_calls), number_calls=deep_calls,
+                                   board=board)
+    assert cen3["absence_rows_appended"] == 0 and d3["mechanism"] == sent3
+    assert cen3.get("absence_true") == 1, cen3
 
 
 def test_DOCKET7_the_same_row_served_twice_is_COUNTED_where_it_cannot_yet_be_deduped():

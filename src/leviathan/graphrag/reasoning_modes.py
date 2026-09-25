@@ -659,6 +659,30 @@ def board_preset(name: str | None) -> tuple | None:
         return tuple(m.board)
     return BOARD_PRESETS.get(base_mode(name))
 
+
+# -- 09-24 FIX ROUND 2, LANE T (CONTRACT K8): THE ASK HEAD'S ROW CAP, PER TIER ------------------------------
+# The block's FIRST section prints the seat's calculator rows on the question's named markets (the ASK head,
+# lane R) -- and it SELECTS, never enumerates (owner doctrine 09-17): at most this many rows, the rest
+# counted. Scan 3 / Analysis 4 / Cascade 5, the contract's own numbers (MEASURED on the 09-24 pair turns:
+# palm/rape minted four calculator rows, N11-N14; soyoil/palm one, N30; the quick cap of 3 prints the spread
+# and two of the three stock changes and counts one).
+# A SEPARATE TABLE AND NOT A 25TH `BOARD_PRESETS` COLUMN, and that is a measured interface fact rather than
+# a preference: `state.board.board_knobs_of` builds `BoardKnobs(*t)` over the preset row, and BoardKnobs
+# (lane W's file) declares 24 fields -- a 25-entry row raises TypeError on EVERY board-on turn until that
+# class grows the field in the SAME integration. So the knob lands here, parsed and defaulted, keyed on the
+# base mode exactly as `board_preset` is, and read through `board_ask_rows` (lane R reads it defensively:
+# `getattr(knobs, "ask_rows", None)` first, this reader second); BUILD_T.md carries the request that folds
+# it into BoardKnobs as its appended-last field. NEVER PRINTED: no prompt, no knob dict, no trace stamp
+# reads this table, so every shipped preset is byte-identical.
+BOARD_ASK_ROWS: dict[str, int] = {QUICK: 3, DEEP: 4, MAX: 5}
+
+
+def board_ask_rows(name: str | None) -> int | None:
+    """The ASK head's row cap for a mode (CONTRACT K8), or None where the tier runs no board (`standard`,
+    an unknown name) -- the same base-mode resolution `board_preset` uses, so a `deep_hp` turn reads the
+    Analysis cap and an arm control reads its base tier's."""
+    return BOARD_ASK_ROWS.get(base_mode(name))
+
 # Presets that `GRAPHRAG_MODES=on` must NOT sweep into the honored set. A dark preset is still resolvable
 # by NAME (GRAPHRAG_MODES=deep_v2 for the eval arm), which is what keeps the flip a one-env-var decision.
 # D-MW-30 (F8): esc / esc_r join the dark set IN THE SAME COMMIT that mints them. A forgotten entry here

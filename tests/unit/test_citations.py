@@ -112,8 +112,11 @@ class TestPerExpiryPriceLabel:
         assert c.unit == "US cents/bushel" and "US cents/bushel" in c.label
 
     def test_a_currency_already_inside_the_unit_is_not_doubled_up(self):
+        # 09-24 (K22, DM3): the card's `unit_overrides` GOVERN the label's unit, so the fixture's contract is
+        # one whose declared unit IS CNY/t (a DCE board) -- HEAD's fixture put CNY/t on CBOT corn, a row the
+        # card (bound three-way to the contract map) can never serve.
         row = {**_EOD_ROW, "unit": "CNY/t", "currency": "CNY"}
-        c = from_number(_front_expiry_call(rows=[row]), 1)
+        c = from_number(_front_expiry_call(rows=[row], commodity="soybean_meal_dce"), 1)
         assert c.label.count("CNY/t") == 1 and "CNY, CNY" not in c.label
 
     def test_a_card_with_no_delivery_month_is_untouched(self):

@@ -61,7 +61,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Callable, Sequence
+from typing import Callable, Optional, Sequence
 
 # ---------------------------------------------------------------------------------------------------
 # Documented minimum sample sizes (part of the contract; pinned by tests).
@@ -1066,7 +1066,8 @@ therefore a required argument with no default -- a caller that has not decided w
 for has not asked a question this function can answer."""
 
 
-def regime_flag(value, bands: Sequence, labels: Sequence, *, kind: str) -> dict:
+def regime_flag(value, bands: Sequence, labels: Sequence, *, kind: str,
+                labels_low: Optional[Sequence] = None) -> dict:
     """STATE ENGINE sec 2.4 / 2.5: ONE reading against DECLARED bands -> ONE ordering LABEL, or no label.
 
     ORDERING ONLY, NEVER EXCLUSION (the owner's ruling 1). This function attaches a word; it never
@@ -1092,9 +1093,26 @@ def regime_flag(value, bands: Sequence, labels: Sequence, *, kind: str) -> dict:
 
     Bands and labels are PARALLEL and equal-length; bands must be ASCENDING (the config declares them so,
     and an unordered list silently changes which rung wins). Every failure is a decline that names what
-    it got -- this is fed from a curated YAML, and a typo there must be loud rather than unlabelled."""
+    it got -- this is fed from a curated YAML, and a typo there must be loud rather than unlabelled.
+
+    ``labels_low`` (09-24 fix round 2, lane T, item 9): a ``z_bands`` row whose labels are DIRECTIONAL
+    ("elevated" -- a price above its own record) declares its LOW side's own words, parallel to ``labels``
+    (state_conventions.yaml ``labels_low``). A NEGATIVE z then takes ``labels_low[i]`` at the rung ``|z|``
+    matched -- the side the reading sits on -- where the magnitude rule alone called a -1.6 z "elevated".
+    ``None`` (every other caller, every other kind) -> HEAD's result dict to the key: nothing is added."""
     k = (kind or "").strip()
     bs, ls = list(bands or []), [str(x) for x in (labels or [])]
+    if labels_low is not None and k == "z_bands":
+        lows = [str(x) for x in labels_low]
+        if len(lows) != len(bs):
+            return _decline("regime_flag", len(bs),
+                            f"labels_low must be parallel to bands, got {len(lows)} low labels for "
+                            f"{len(bs)} bands", kind=k)
+        try:
+            if float(value) < 0:
+                ls = lows
+        except (TypeError, ValueError):
+            pass                                              # the non-numeric value declines below
     if k not in REGIME_KINDS:
         return _decline("regime_flag", 0, f"kind must be one of {REGIME_KINDS}, got {kind!r}", kind=k)
     if not bs or len(bs) != len(ls):
@@ -1266,6 +1284,12 @@ STAT_REGISTRY: dict[str, Callable[..., dict]] = {
 }
 
 STAT_NAMES = frozenset(STAT_REGISTRY)
+
+#: THE REGISTERED STATS WHOSE RESULT IS A DIFFERENCE (fixer pass, REVIEW_RA lexical 8) -- the calculator's own
+#: declaration of which of ITS outputs carry a sign (a change between two observations, a year-on-year delta,
+#: a two-contract spread); a reader signs these and nothing else, never by searching display words.
+SIGNED_STATS = frozenset(("window_change", "yoy_delta", "spread"))
+assert SIGNED_STATS <= STAT_NAMES
 
 # Defensive fence: no registered name may be a forward-looking stat. If this ever fires, someone tried
 # to smuggle a projection tool through the descriptive-only surface.

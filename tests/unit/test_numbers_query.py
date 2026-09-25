@@ -1104,13 +1104,21 @@ def _wasde_multirole_rows() -> list[dict]:
 def test_wasde_registry_declares_role_tiebreak():
     ts = load_registry().get("silver_wasde")
     tb = ts.vintage_tiebreak
-    assert [t.col for t in tb] == ["estimate_role", "projection_month", "source_table_id"]
+    # MOVED (09-24 fix round 2, lane T, CONTRACT K22): a FOURTH term, the commodity's OWN-SHEET precedence,
+    # is DERIVED at load from the card's one `sheets` declaration (registry.TableSpec._sheet_precedence)
+    # and sits immediately before the alphabetical final term -- so it decides only where the two ranks
+    # above it tie, which is exactly where the 2024-02-08 soybean MEAL sheet and the 2026-09-11 long-grain
+    # rice class used to win BY ALPHABET. The three declared terms are unchanged, in their places.
+    assert [t.col for t in tb] == ["estimate_role", "projection_month", "source_table_id", "source_table_id"]
     assert tb[0].role_order == ["actual", "estimate", "projection"]   # actual (rank 0) wins the tie
     # WASDE-restoration W2: projection_month is RELEASE-RELATIVE (current-month == release month wins), NOT a
     # lexical DESC (which picked the stale prior-month value at ~half of releases + the wrong Dec/Jan wrap row).
     assert tb[1].match_release_month == "release_date"
     assert tb[1].dir == "asc" and tb[1].role_order == [] and tb[1].nulls is None  # default ASC, no dir -> engines agree
-    assert tb[2].dir == "asc" and tb[2].role_order == []             # source_table_id ASC (final total order)
+    own = [sid for sid, sp in ts.sheets.items() if sp.serves == "all_classes"]
+    assert tb[2].role_order == own and tb[2].dir == "asc"            # K22: the own sheets, declaration order
+    assert tb[2].role_order[0] == "u_s_soybeans_supply_and_use"
+    assert tb[3].dir == "asc" and tb[3].role_order == []             # source_table_id ASC (final total order)
     # every OTHER vintage table carries NO tiebreak -> its generated SQL stays byte-identical (zero change).
     for tid in ("silver_psd", "silver_esr", "silver_production", "silver_fred_fx",
                 "silver_noaa_oni", "gold_weather_z"):

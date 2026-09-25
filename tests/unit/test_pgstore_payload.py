@@ -120,7 +120,9 @@ def test_fetch_candidates_metadata_identical_and_score_reproduces_cosine():
     cheap = pg.fetch_candidates(_QV, "frost", "coffee", asof="2021-08-01", fetch_k=10, hybrid=False,
                                 conn=_Conn(), with_vectors=False)
     meta = ("id", "source", "source_key", "date", "event_date", "text",
-            "char_start", "char_end", "offset_kind")                 # Phase F: the span keys ride both shapes
+            "char_start", "char_end", "offset_kind",                  # Phase F: the span keys ride both shapes
+            "event_date_precision",                                    # 09-24 K25: so does the precision
+            "date_kind")                                               # fixer pass: and the document date's kind
     assert [{k: r[k] for k in meta} for r in rich] == [{k: r[k] for k in meta} for r in cheap]
     assert [set(r) - set(meta) for r in rich] == [{"vector"}] * len(_META)
     assert [set(r) - set(meta) for r in cheap] == [{"score"}] * len(_META)
