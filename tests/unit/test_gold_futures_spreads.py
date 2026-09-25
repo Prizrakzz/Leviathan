@@ -91,3 +91,42 @@ class TestRollBoundary:
         gold = FS.compute_futures_spreads(pd.DataFrame(rows))
         assert list(gold["is_roll_boundary"]) == ["0", "0", "1", "0"]
         assert all(isinstance(v, str) for v in gold["is_roll_boundary"])
+
+
+# -- THE BUCKET ENV NAME (2026-09-25): main() reads LEVIATHAN_BUCKET, the name every jobdef sets ---------------
+# Both scheduled fires since 2026-09-24 died on get_required_env("S3_BUCKET") -- a name no job definition carries
+# (infra/terraform/modules/batch/main.tf sets LEVIATHAN_BUCKET on every jobdef; 20+ sibling tasks read it). The pin
+# drives main() in --dry-run with the S3 read stubbed and proves (a) the leg reader is handed the LEVIATHAN_BUCKET
+# value and (b) with only S3_BUCKET in the environment main() refuses by naming the name it needs.
+
+
+def _env_only(monkeypatch, name, value):
+    import jobs.batch.gold_futures_spreads_task as T
+    monkeypatch.setattr(T, "load_env", lambda: None)          # never the developer .env
+    for k in ("S3_BUCKET", "LEVIATHAN_BUCKET"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv(name, value)
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    return T
+
+
+def test_main_reads_the_estates_bucket_name_and_hands_it_to_the_leg_reader(monkeypatch):
+    T = _env_only(monkeypatch, "LEVIATHAN_BUCKET", "bucket-under-test")
+    seen = []
+
+    def _leg(bucket, slug, region):
+        seen.append((bucket, slug, region))
+        return pd.DataFrame(columns=T.INPUT_COLUMNS)
+
+    monkeypatch.setattr(T, "_read_leg", _leg)
+    rc = T.main(["--dry-run", "true"])
+    assert rc == 3                                   # empty legs -> the task's own written refusal, nothing written
+    assert seen and all(b == "bucket-under-test" for b, _s, _r in seen)
+    assert all(r == "us-east-1" for _b, _s, r in seen)
+
+
+def test_main_refuses_by_name_when_only_the_retired_name_is_set(monkeypatch):
+    T = _env_only(monkeypatch, "S3_BUCKET", "bucket-under-test")
+    monkeypatch.setattr(T, "_read_leg", lambda *a: pytest.fail("the leg must not be read without a bucket"))
+    with pytest.raises(RuntimeError, match="LEVIATHAN_BUCKET"):
+        T.main(["--dry-run", "true"])

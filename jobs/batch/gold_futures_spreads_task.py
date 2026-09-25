@@ -90,7 +90,10 @@ def main(argv: list[str] | None = None) -> int:
     dry = str(args.dry_run).lower() in ("1", "true", "yes")
 
     load_env()
-    bucket = get_required_env("S3_BUCKET")
+    # THE ESTATE'S ONE BUCKET NAME (2026-09-25): every Batch job definition carries LEVIATHAN_BUCKET
+    # (infra/terraform/modules/batch/main.tf) and every sibling task reads it; this task read S3_BUCKET,
+    # which no jobdef sets, so both scheduled fires since 2026-09-24 died before the first read.
+    bucket = get_required_env("LEVIATHAN_BUCKET")
     region = get_required_env("AWS_REGION")
 
     slugs = sorted({s for pair in SPREADS.values() for s in pair})
